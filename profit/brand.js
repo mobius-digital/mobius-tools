@@ -188,6 +188,19 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-steps li b{font-size:13px;color:var(--ink)}
 .br-steps li.done{border-color:var(--good);background:var(--good-bg,transparent)}
 .br-steps li.done b::after{content:' ✓';color:var(--good)}
+.vs-step{display:grid;grid-template-columns:34px 1fr auto;gap:4px 14px;padding:16px 0;border-top:1px solid var(--line);align-items:start}
+.vs-step:first-of-type{border-top:0}
+.vs-n{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;border:1.5px solid var(--line);color:var(--ink-2)}
+.vs-step.done .vs-n{background:var(--good);border-color:var(--good);color:#fff}
+.vs-step.next .vs-n{border-color:var(--brand,#62BDEA);color:var(--ink)}
+.vs-t{font-weight:650;font-size:14.5px;color:var(--ink);margin:3px 0 2px}
+.vs-st{font-size:12px;font-weight:600;margin-left:8px;color:var(--ink-2)}
+.vs-step.done .vs-st{color:var(--good)}
+.vs-what{font-size:13px;color:var(--ink-2);margin:0;max-width:640px}
+.vs-needs{font-size:12px;color:var(--ink-3,var(--ink-2));margin:4px 0 0}
+.vs-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.vs-body{grid-column:2 / 4;min-width:0}
+@media (max-width:700px){.vs-step{grid-template-columns:34px 1fr}.vs-act{grid-column:2;justify-content:flex-start}.vs-body{grid-column:2}}
 .cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:12px;margin-top:10px}
 .cs-blk{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0;overflow:hidden}
 .cs-v .br-mini{display:block;max-width:100%;overflow-x:auto;white-space:normal}
@@ -844,15 +857,7 @@ function testDrawer(b) {
    VOICE: how the brand talks, how the guide gets built, the copy desk
    ====================================================================== */
 function paintVoiceView(body) {
-  const d = S.d, iv = d.docs['']?.voice_interview || {}, g = d.docs['']?.voice_guide || {}, sk = d.docs['']?.voice_skill || {};
-  const bank = d.docs['']?.voice_bank?.items || [];
-  const done = [!!(iv.turns || []).length, !!g.md, !!(sk.instructions || g.md), bank.length > 0];
-  const steps = [['The client talks', 'Voice interview, from the onboarding link. They talk, it asks follow-ups, they rate sample lines.'],
-    ['We write the guide', 'How we write: drafted from the interview, approved by us.'],
-    ['The skill', 'The full copy skill Claude writes with: instructions, facts, how customers talk.'],
-    ['It learns', 'Every line kept or rejected on the Copy desk tab (under Making ads) teaches the next one.']];
-  body.innerHTML = `<div class="card br-steps"><p class="br-lbl" style="margin:0 0 6px">How the voice gets built</p><ol>${steps.map(([t, x], i) => `<li class="${done[i] ? 'done' : ''}"><b>${i + 1}. ${t}</b><span>${x}</span></li>`).join('')}</ol></div>
-    <div id="biTalk" class="br"></div><div id="biVoice" class="br"></div>`;
+  body.innerHTML = `<div id="biTalk" class="br"></div><div id="biVoice" class="br"></div>`;
   paintTalk(body.querySelector('#biTalk'));
   paintVoice(body.querySelector('#biVoice'));
 }
@@ -1558,37 +1563,50 @@ function paintVoice(body) {
   const spk = d.docs['']?.voice_speaker || {};
   const ownSpk = (sk.files || []).some(f => f.role === 'speaker');
   const skFiles = [...(sk.instructions ? [{ path: 'SKILL.md', role: 'instructions', md: sk.instructions }, ...(sk.files || [])] : []), ...(!ownSpk && !synced && spk.md ? [{ path: 'references/the-speaker.md', role: 'speaker', md: spk.md, locus: true }] : [])];
+  /* Five steps in the order they happen, each saying what it is, what it needs and its one button
+     (Cole, 2026-10-06: four unexplained buttons in a weird layout). Steps 1-2 collect, 3-5 build. */
+  const canGuide = turns.length > 0 || bank.length > 0;
+  const skSt = synced ? `synced from ${esc(sk.repo || 'the repo')}` : sk.instructions ? (sk._status === 'approved' ? 'built, approved' : 'built, waiting for your approval') : 'not built yet';
+  const hasSpk = !!(spk.md || ownSpk);
+  const done = [turns.length > 0, bank.length > 0, !!g.md, hasSpk, !!(sk.instructions || synced)];
+  const nextI = done.indexOf(false);
+  const step = (i, title, status, what, needs, act, extra = '') => `<div class="vs-step ${done[i] ? 'done' : i === nextI ? 'next' : ''}">
+      <span class="vs-n">${done[i] ? '✓' : i + 1}</span>
+      <div><p class="vs-t">${title}<span class="vs-st">${status}</span></p><p class="vs-what">${what}</p>${needs ? `<p class="vs-needs">${needs}</p>` : ''}</div>
+      <div class="vs-act">${act}</div>
+      ${extra ? `<div class="vs-body">${extra}</div>` : ''}</div>`;
   body.innerHTML = `
-    <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">How we write ${g.md ? (g._status === 'draft' ? `<span class="br-tag draft">Draft v${g.version || 1}</span>` : `<span class="br-tag win">Approved v${g.version || 1}</span>`) : ''}</h3>
-        <p class="hint" style="margin:4px 0 0">The brand's writing guide, built the way Lucky Golf's was: the client talks through a voice interview and rates sample lines, then every line the team keeps or rejects on the copy desk teaches it more.</p></div>
-      <div>${synced ? '' : `${g.md && g._status === 'draft' ? '<button class="btn" id="vgOk">Approve</button>' : ''}${g.md ? '<button class="btn" id="vgEdit">Edit</button>' : ''}<button class="btn" id="vgRe">${S.vgBusy ? 'Writing… (about a minute)' : g.md ? 'Rewrite with new examples' : 'Write the guide'}</button>`}${g.md || sk.instructions ? '<button class="btn" id="vgSkill">Download the Claude skill</button>' : ''}</div></div>
+    <div class="card"><h3 class="br-h">How we write</h3>
+      <p class="hint" style="margin:4px 0 4px">Five steps that teach Locus to write like ${esc(d.account.name)}. Steps 1 and 2 collect what the client says and likes. Steps 3 to 5 turn that into what the Copy desk (and Claude) write with. Do them in order; any step can be redone later.</p>
       <p class="br-msg" id="vgMsg"></p>
-      <div class="br-g2" style="margin-top:10px">
-        <div><p class="br-lbl">Voice interview · ${st}</p>
-          ${o ? `<b style="word-break:break-all;font-size:13px">${esc(link.replace('https://', ''))}</b>
-            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" id="vCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open it</a></div>
-            <p class="tiny" style="margin:8px 0 0">Send it after the strategy call. The onboarding form's thank-you screen offers it too. About 20 minutes: they talk, it asks follow-ups, then they rate sample lines.</p>
-            ${turns.length ? `<p class="tiny" style="margin:8px 0 0">The transcript (${turns.length} answers) is under <b>Client answers</b>.</p>` : ''}`
-            : `<p class="tiny">The interview uses the onboarding link's code.</p><button class="btn" id="vMk">Create the links</button>`}
-        </div>
-        <div><p class="br-lbl">Example bank · ${yesN} kept · ${noN} rejected</p>
-          <p class="tiny" style="margin:4px 0 0">Every line the client or the team approved or rejected, with the reason. The guide and the copy desk both read it.</p>
-          ${bank.length ? `<details style="margin-top:8px"><summary class="tiny" style="cursor:pointer">Show the lines</summary><div class="br-bank">${bank.map(x => `<div class="br-bk"><span class="br-tag ${x.verdict === 'yes' ? 'win' : 'lose'}">${x.verdict === 'yes' ? 'Kept' : 'Rejected'}</span> <span class="tiny">${esc(x.format)} · ${esc(x.by || '')}</span><div>${esc(x.text)}</div>${x.said ? `<div class="br-said">They'd say: ${esc(x.said)}</div>` : ''}${x.why && x.why !== 'close' ? `<div class="tiny">Why: ${esc(x.why)}</div>` : ''}<button class="unsure-x" data-rm="${esc(x.id)}" title="Remove from the bank">Remove</button></div>`).join('')}</div></details>` : ''}
-        </div>
-      </div>
-      <div class="br-skill"><div class="br-bar"><p class="br-lbl" style="margin:0">Copy skill · ${synced ? `synced from ${esc(sk.repo || 'the repo')}` : sk.instructions ? (d.docs['']?.voice_skill?._status === 'approved' ? 'built, approved' : 'built, draft') : 'not built yet'}</p>
-          <div>${synced ? '' : `<button class="btn" id="skBuild" ${S.skBusy ? 'disabled' : ''}>${S.skBusy ? 'Building… (about 5 minutes)' : sk.instructions ? 'Rebuild the skill' : 'Build the full skill'}</button>${sk.instructions && d.docs['']?.voice_skill?._status !== 'approved' ? '<button class="btn" id="skOk">Approve</button>' : ''}`}</div></div>
-        <p class="tiny" style="margin:4px 0 0">${synced
-          ? `The same 7 files Claude uses, last synced ${esc((sk.synced_at || '').slice(0, 16).replace('T', ' '))} UTC from commit ${esc(sk.commit || '?')}. Change them in the repo: every commit that touches the skill updates Locus within seconds. The copy desk writes with all of them.`
-          : sk.instructions ? 'Built from the voice interview, the example bank, the onboarding answers, research and the website, in the shape of Lucky Golf\'s skill. The copy desk writes with all of it. Click a file to read or fix it.'
-          : 'A full skill, like Lucky Golf\'s: instructions, how we write, product facts, spec to benefit, how customers talk, formats and new-product intake. Built from everything Locus knows; what it cannot answer becomes questions for the client.'}</p>
-        <p class="br-msg" id="skMsg">${esc(S.skLog || '')}</p>
+      ${step(0, 'Client voice interview', st,
+        'A link the client opens and talks through for about 20 minutes. It asks follow-up questions, then has them rate sample lines as "sounds like us" or "not us".',
+        o ? 'Send it after the strategy call. The onboarding form\'s thank-you screen offers it too.' + (turns.length ? ` The transcript (${turns.length} answers) is under <b>Client answers</b>.` : '') : 'It uses the same code as the client\'s onboarding link, so that gets made first.',
+        o ? `<button class="btn" id="vCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open it</a>` : '<button class="btn" id="vMk">Make the interview link</button>',
+        o ? `<span class="tiny" style="word-break:break-all">${esc(link.replace('https://', ''))}</span>` : '')}
+      ${step(1, 'Lines they kept and rejected', `${yesN} kept · ${noN} rejected`,
+        'Every sample line the client rated in the interview, and every line the team keeps or rejects on the Copy desk tab, with the reason. Nothing to press: it fills itself.',
+        '', '',
+        bank.length ? `<details><summary class="tiny" style="cursor:pointer">Show the lines</summary><div class="br-bank">${bank.map(x => `<div class="br-bk"><span class="br-tag ${x.verdict === 'yes' ? 'win' : 'lose'}">${x.verdict === 'yes' ? 'Kept' : 'Rejected'}</span> <span class="tiny">${esc(x.format)} · ${esc(x.by || '')}</span><div>${esc(x.text)}</div>${x.said ? `<div class="br-said">They'd say: ${esc(x.said)}</div>` : ''}${x.why && x.why !== 'close' ? `<div class="tiny">Why: ${esc(x.why)}</div>` : ''}<button class="unsure-x" data-rm="${esc(x.id)}" title="Remove from the bank">Remove</button></div>`).join('')}</div></details>` : '')}
+      ${step(2, 'The writing guide', g.md ? (g._status === 'draft' ? `draft v${g.version || 1}, needs your approval` : `approved v${g.version || 1}`) : synced ? 'part of the synced skill' : 'not written yet',
+        'One page of plain rules for how this brand writes, written by AI from steps 1 and 2. You read it, fix anything, and approve it. It also refreshes the short brand voice card above.',
+        synced ? 'This brand\'s guide lives in its synced skill (step 5), so there is nothing to write here.' : canGuide ? (g.md ? 'Rewrite it after new lines land in step 2.' : '') : 'Needs step 1 or step 2 first: there is nothing to write from yet.',
+        synced ? '' : `${g.md && g._status === 'draft' ? '<button class="btn" id="vgOk">Approve</button>' : ''}${g.md ? '<button class="btn" id="vgEdit">Edit</button>' : ''}<button class="btn" id="vgRe" ${canGuide && !S.vgBusy ? '' : 'disabled'}>${S.vgBusy ? 'Writing… (about a minute)' : g.md ? 'Rewrite it' : 'Write the guide'}</button>`,
+        g.md ? `<details ${S.vgOpen ? 'open' : ''} id="vgD"><summary class="tiny" style="cursor:pointer">Read the guide</summary><div class="br-md">${mdHtml(g.md)}</div></details>` : '')}
+      ${step(3, 'The speaker', hasSpk ? 'written' : 'not written yet',
+        'A short first-person portrait of the one real person this brand sounds like, built from how the owner actually talks. Before writing, the Copy desk "becomes" this person, so lines sound spoken, not written.',
+        synced ? 'Part of the synced skill.' : turns.length ? '' : 'Best after step 1. Without the interview it guesses from the website.',
+        synced ? '' : `${hasSpk ? '<button class="btn" data-skf="' + esc(ownSpk ? (sk.files || []).find(f => f.role === 'speaker')?.path || '' : 'references/the-speaker.md') + '">Read it</button>' : ''}<button class="btn" id="spBuild" ${S.spBusy ? 'disabled' : ''}>${S.spBusy ? 'Listening… (about 2 minutes)' : hasSpk ? 'Rewrite it' : 'Write the speaker'}</button>`)}
+      ${step(4, 'The full copy skill', skSt,
+        synced ? `The same files Claude uses, last synced ${esc((sk.synced_at || '').slice(0, 16).replace('T', ' '))} UTC from commit ${esc(sk.commit || '?')}. Change them in the repo; every commit updates Locus within seconds.`
+          : 'Everything the Copy desk writes with, in one package: the guide, the speaker, product facts, specs turned into benefits, how customers talk, and ad formats. It also reads the website and research, so it works before the interview; whatever it cannot answer becomes questions for the client.',
+        synced ? '' : 'Takes about 5 minutes. Download it to use the same voice in Claude.',
+        `${synced ? '' : `${sk.instructions && sk._status !== 'approved' ? '<button class="btn" id="skOk">Approve</button>' : ''}<button class="btn" id="skBuild" ${S.skBusy ? 'disabled' : ''}>${S.skBusy ? 'Building… (about 5 minutes)' : sk.instructions ? 'Rebuild it' : 'Build the skill'}</button>`}${g.md || sk.instructions ? '<button class="btn" id="vgSkill">Download for Claude</button>' : ''}`,
+        `<p class="br-msg" id="skMsg">${esc(S.skLog || '')}</p>
         ${skFiles.length ? `<div class="br-files">${skFiles.map(f => `<button class="br-file ${f.role === 'speaker' ? 'spk' : ''}" data-skf="${esc(f.path)}"><b>${esc(ROLE_L[f.role] || f.role)}${f.locus ? ' <span class="br-tag draft">in Locus</span>' : ''}</b><span class="tiny">${esc(f.path)} · ${Math.max(1, Math.round((f.md || '').length / 1000))}KB</span></button>`).join('')}</div>` : ''}
-        ${synced ? '' : `<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="spBuild" ${S.spBusy ? 'disabled' : ''}>${S.spBusy ? 'Listening… (about 2 minutes)' : spk.md || ownSpk ? 'Rebuild the speaker' : 'Build the speaker'}</button><span class="tiny">The one person this brand sounds like, written from how the owner actually talks in the voice interview. It helps the copy desk hear the voice.</span></div>`}
         ${!synced && (sk.gaps || []).length ? `<div class="br-gaps"><b>${sk.gaps.length} questions the data could not answer</b><ol>${sk.gaps.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
-          <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Create the links first"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}
-      </div>
-      ${g.md ? `<details style="margin-top:14px" ${S.vgOpen ? 'open' : ''} id="vgD"><summary style="cursor:pointer;font-weight:600">Read the guide</summary><div class="br-md">${mdHtml(g.md)}</div></details>` : ''}
+          <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Make the interview link first (step 1)"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}`)}
+      <p class="tiny" style="margin:10px 0 0;border-top:1px solid var(--line);padding-top:10px">Then write on the <b>Copy desk</b> tab (under Making ads). Every line you keep or reject there lands in step 2 and makes the next lines better.</p>
     </div>`;
   const msg = (t, ok) => { const m = $('#vgMsg'); if (m) { m.textContent = t; m.className = 'br-msg ' + (ok ? 'ok' : 'bad'); } };
   body.querySelector('#vMk')?.addEventListener('click', async () => { S.d = await post('/api/brand/onboard', {}); repaint(); });
@@ -1765,14 +1783,17 @@ function glanceStrip(body) {
 /* How the brand talks, in short. First thing on Voice and brand info. */
 function paintTalk(body) {
   const voice = S.d.docs['']?.voice || {};
+  const fromGuide = !!S.d.docs['']?.voice_guide?.md;
   body.innerHTML = `
-    <div class="card"><div class="br-bar"><h3 class="br-h">Brand voice ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3><div>${voice._status === 'draft' ? `<button class="btn" id="brVoiceOk">Approve</button>` : ''}<button class="btn" id="brVoice">Edit</button></div></div>
+    <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">Brand voice, the short version ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3>
+        <p class="hint" style="margin:4px 0 0">A quick read of how ${esc(S.d.account.name)} talks. ${fromGuide ? 'Refreshed from the writing guide below.' : 'Drafted from their website for now; once the writing guide below (step 3) is written, this card is refreshed from it.'}</p></div>
+      <div>${voice._status === 'draft' ? `<button class="btn" id="brVoiceOk">Approve</button>` : ''}<button class="btn" id="brVoice">Edit</button></div></div>
       <dl class="br-kv" style="margin-top:10px">
         <dt>In short</dt><dd>${esc(voice.summary || '-')}</dd>
         <dt>Traits</dt><dd>${lines(voice.traits).map(esc).join(' · ') || '-'}</dd>
         <dt>Words they use</dt><dd>${lines(voice.say).map(esc).join(' · ') || '-'}</dd>
         <dt>Words to avoid</dt><dd>${lines(voice.avoid).map(esc).join(' · ') || '-'}</dd>
-        <dt>Examples</dt><dd>${lines(voice.examples).map(x => `"${esc(x)}"`).join('\n') || '-'}</dd>
+        <dt>Examples</dt><dd>${lines(voice.examples).map(x => `"${esc(x.replace(/^["“”\s]+|["“”\s]+$/g, ''))}"`).join('\n') || '-'}</dd>
       </dl></div>`;
   body.querySelector('#brVoice').onclick = () => docModal('', 'voice', 'Brand voice', [['summary', 'In short', 2], ['traits', 'Traits (one per line)', 3], ['say', 'Words they use (one per line)', 3], ['avoid', 'Words to avoid (one per line)', 3], ['examples', 'Examples, verbatim (one per line)', 4]], { ...voice, traits: lines(voice.traits), say: lines(voice.say), avoid: lines(voice.avoid), examples: lines(voice.examples) });
   body.querySelector('#brVoiceOk')?.addEventListener('click', async () => { await putDoc('', 'voice', voice, 'approved'); repaint(); });
