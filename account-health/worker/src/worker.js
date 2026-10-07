@@ -973,6 +973,130 @@ async function screenRead(env, b) {
   return res;
 }
 
+/* ---------- Saved dashboards, posted to Slack (the hub, 2026-10-07) ----------
+ * A dashboard the Strategist saved (p_dashboard, shared D1) with a schedule posts itself
+ * to its channel at 8am Central: every day, Mondays, or the 1st. The numbers are the same
+ * store-level figures the Strategist's `store` view reads (storePeriod), per brand in the
+ * dashboard's scope, over the dashboard's own range, against its compare period. The chart
+ * and channel blocks say "open it in Locus"; the post is the numbers, the link is the page.
+ * Runs inside the hourly tick after the cheaper jobs; one dashboard costs a few D1 reads
+ * per brand and one Slack call. `POST /api/dashboard-post {id}` posts one now. */
+const DASH_POST_HOUR = 8;
+const DASH_URL = 'https://tools.go-mobius-digital.com/profit/?open=dash&id=';
+const DASH_TABLE = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, act_id TEXT, name TEXT NOT NULL, for_who TEXT, spec_json TEXT NOT NULL, schedule TEXT, channel TEXT, pinned INTEGER NOT NULL DEFAULT 1, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), last_posted TEXT)`;
+const centralDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: BRIEF_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+function dashRange(acct, range) {
+  const today = localDate(acct.tz), y = addDays(today, -1);
+  if (range === 'yesterday') return { from: y, to: y, label: `Yesterday, ${y}` };
+  if (range === 'mtd') return { from: `${today.slice(0, 7)}-01`, to: y, label: `Month to date, ${today.slice(0, 7)}-01 to ${y}` };
+  if (range === 'lastmonth') { const first = `${today.slice(0, 7)}-01`; const lastEnd = addDays(first, -1); return { from: `${lastEnd.slice(0, 7)}-01`, to: lastEnd, label: `Last month, ${lastEnd.slice(0, 7)}` }; }
+  const n = Math.max(1, Math.min(90, +range || 30));
+  return { from: addDays(y, -(n - 1)), to: y, label: `Last ${n} days, ${addDays(y, -(n - 1))} to ${y}` };
+}
+function dashPrev(from, to, compare) {
+  if (compare === 'none') return null;
+  if (compare === 'yoy') return { from: `${+from.slice(0, 4) - 1}${from.slice(4)}`, to: `${+to.slice(0, 4) - 1}${to.slice(4)}` };
+  const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+  const pTo = addDays(from, -1);
+  return { from: addDays(pTo, -(span - 1)), to: pTo };
+}
+const dMoney = (n, cur) => n == null ? '-' : Math.abs(n) >= 1000 ? `${cur === 'USD' || !cur ? '$' : cur + ' '}${(n / 1000).toFixed(1)}K` : new Intl.NumberFormat('en-US', { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
+const dPct = n => n == null ? '-' : `${Math.round(n * 100)}%`;
+const dX = n => n == null ? '-' : `${n.toFixed(2)}x`;
+const dDelta = (c, p) => c != null && p ? ` (${c / p - 1 >= 0 ? '+' : ''}${Math.round((c / p - 1) * 100)}%)` : '';
+const DASH_METRICS = {
+  revenue: ['Revenue', (t, c) => dMoney(t.revenue, c), 'revenue'], orders: ['Orders', t => t.orders == null ? '-' : Math.round(t.orders).toLocaleString('en-US'), 'orders'],
+  aov: ['AOV', (t, c) => t.aov == null ? '-' : new Intl.NumberFormat('en-US', { style: 'currency', currency: c || 'USD', maximumFractionDigits: 0 }).format(t.aov), 'aov'],
+  spend: ['Ad spend', (t, c) => dMoney(t.ad_spend, c), 'ad_spend'], mer: ['MER', t => dX(t.mer), 'mer'], amer: ['aMER', t => dX(t.amer), 'amer'],
+  new_share: ['New customer share', t => dPct(t.new_customer_share_of_revenue), 'new_customer_share_of_revenue'], new_orders: ['First orders', t => t.new_customers == null ? '-' : Math.round(t.new_customers).toLocaleString('en-US'), 'new_customers'],
+  cac: ['Cost per new customer', (t, c) => t.cac == null ? '-' : new Intl.NumberFormat('en-US', { style: 'currency', currency: c || 'USD', maximumFractionDigits: 0 }).format(t.cac), 'cac'],
+  cm: ['Contribution margin', (t, c) => dMoney(t.contribution_margin, c), 'contribution_margin'],
+  email_rev: ['Email and SMS revenue', (t, c) => dMoney(t.email_revenue, c), 'email_revenue'], email_share: ['Email share', t => dPct(t.email_share_of_revenue), 'email_share_of_revenue'],
+  meta_spend: ['Meta spend', (t, c) => dMoney(t.meta_spend, c), 'meta_spend'], google_spend: ['Google spend', (t, c) => dMoney(t.google_spend, c), 'google_spend'],
+};
+/** Add the store periods of several brands into one (sums for money and counts, ratios recomputed). */
+function dashSum(list) {
+  if (list.length === 1) return list[0];
+  const keys = ['revenue', 'ad_spend', 'meta_spend', 'google_spend', 'contribution_margin', 'orders', 'new_customers', 'new_customer_revenue', 'returning_orders', 'returning_revenue', 'email_revenue'];
+  const t = {}; for (const k of keys) { let x = 0, any = false; for (const r of list) { if (r && r[k] != null) { x += r[k]; any = true; } } t[k] = any ? x : null; }
+  t.mer = t.ad_spend ? t.revenue / t.ad_spend : null; t.amer = t.ad_spend && t.new_customer_revenue != null ? t.new_customer_revenue / t.ad_spend : null;
+  t.aov = t.orders ? t.revenue / t.orders : null; t.cac = t.new_customers && t.ad_spend != null ? t.ad_spend / t.new_customers : null;
+  t.new_customer_share_of_revenue = t.revenue && t.new_customer_revenue != null ? t.new_customer_revenue / t.revenue : null;
+  t.email_share_of_revenue = t.revenue && t.email_revenue != null ? t.email_revenue / t.revenue : null;
+  return t;
+}
+async function dashNumbers(env, row) {
+  const spec = safeJson(row.spec_json, {}) || {};
+  const all = await listAccounts(env, true);
+  const accts = spec.scope && spec.scope !== 'all' ? all.filter(a => a.act_id === spec.scope) : all;
+  if (!accts.length) throw new Error('No brand in this dashboard\'s scope is active.');
+  const out = [];
+  let label = '';
+  for (const a of accts) {
+    const r = dashRange(a, spec.range || '30'); label = label || r.label;
+    const prev = dashPrev(r.from, r.to, spec.compare || 'prev');
+    const cur = await storePeriod(env, a, r.from, r.to).catch(() => null);
+    const pr = prev ? await storePeriod(env, a, prev.from, prev.to).catch(() => null) : null;
+    out.push({ a, cur, prev: pr });
+  }
+  return { spec, accts: out, label, cur: dashSum(out.map(x => x.cur).filter(Boolean)), prev: spec.compare === 'none' ? null : dashSum(out.map(x => x.prev).filter(Boolean)), cur_code: [...new Set(accts.map(a => a.currency))].length === 1 ? accts[0].currency : null };
+}
+function dashBlocks(row, d) {
+  const cur = d.cur_code, mixed = !cur;
+  const scopeName = d.accts.length === 1 ? d.accts[0].a.name : `${d.accts.length} brands`;
+  const blocks = [{ type: 'header', text: { type: 'plain_text', text: row.name.slice(0, 150) } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${scopeName} · ${d.label}${d.prev ? ` · deltas vs ${d.spec.compare === 'yoy' ? 'same dates last year' : 'the period before'}` : ''}${row.for_who ? ` · for ${row.for_who}` : ''}` }] }];
+  for (const b of d.spec.blocks || []) {
+    const title = b.title ? `*${b.title}*\n` : '';
+    if (b.type === 'tiles') {
+      if (mixed) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}_Brands report in different currencies; open in Locus for the per-brand view._` } }); continue; }
+      const lines = (b.metrics || []).map(m => DASH_METRICS[m]).filter(Boolean).map(([l, f, k]) => `• ${l}: *${f(d.cur, cur)}*${d.prev ? dDelta(d.cur[k], d.prev[k]) : ''}`);
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}${lines.join('\n')}` } });
+    } else if (b.type === 'brands') {
+      const cols = (b.columns || []).filter(c => ['revenue', 'spend', 'mer', 'amer', 'new_share', 'orders', 'aov', 'cac', 'cm', 'email_rev'].includes(c)).slice(0, 4);
+      const use = cols.length ? cols : ['revenue', 'spend', 'mer', 'cm'];
+      const head = ['Brand', ...use.map(c => DASH_METRICS[c][0])];
+      const rows = d.accts.map(x => [x.a.name.slice(0, 14), ...use.map(c => x.cur ? DASH_METRICS[c][1](x.cur, x.a.currency) : '-')]);
+      const w = head.map((h, i) => Math.max(h.length, ...rows.map(r => r[i].length)));
+      const line = r => r.map((v, i) => i === 0 ? v.padEnd(w[i]) : v.padStart(w[i])).join('  ');
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}\`\`\`${[line(head), ...rows.map(line)].join('\n')}\`\`\`` } });
+    } else if (b.type === 'email') {
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}• Email and SMS revenue: *${mixed ? '-' : dMoney(d.cur.email_revenue, cur)}*${d.prev ? dDelta(d.cur.email_revenue, d.prev.email_revenue) : ''}\n• Share of store revenue: *${dPct(d.cur.email_share_of_revenue)}*` } });
+    } else if (b.type === 'channels') {
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}• Meta spend: *${mixed ? '-' : dMoney(d.cur.meta_spend, cur)}*\n• Google spend: *${mixed ? '-' : dMoney(d.cur.google_spend, cur)}*\n_Revenue per platform (Triple Whale) is on the dashboard in Locus._` } });
+    } else if (b.type === 'daily') {
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}_The day-by-day chart is on the dashboard in Locus._` } });
+    } else if (b.type === 'note' && b.text) {
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: b.text.slice(0, 2900) } });
+    }
+  }
+  blocks.push({ type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: DASH_URL + row.id, action_id: 'noop_open' }] });
+  return blocks.slice(0, 48);
+}
+async function postDashboard(env, row) {
+  if (!row.channel) throw new Error('This dashboard has no Slack channel. Set one on the dashboard in Locus.');
+  const d = await dashNumbers(env, row);
+  const blocks = dashBlocks(row, d);
+  const r = await slackPost(env, row.channel, `${row.name}: ${d.label}`, blocks);
+  await env.DB.prepare(`UPDATE p_dashboard SET last_posted = ?2 WHERE id = ?1`).bind(row.id, new Date().toISOString()).run().catch(() => {});
+  return { ok: true, posted: r?.ts || true, brands: d.accts.length };
+}
+async function dashboardTick(env) {
+  if (centralHour() < DASH_POST_HOUR) return { skipped: 'before 8am Central' };
+  await env.DB.prepare(DASH_TABLE).run().catch(() => {});
+  const { results } = await env.DB.prepare(`SELECT * FROM p_dashboard WHERE schedule IN ('daily','monday','first') AND channel IS NOT NULL AND channel != ''`).all().catch(() => ({ results: [] }));
+  const today = centralDate(), dow = new Date(today + 'T12:00:00Z').getUTCDay(), dom = +today.slice(8, 10);
+  const out = { posted: [], skipped: 0, errors: [] };
+  for (const row of results || []) {
+    const due = row.schedule === 'daily' || (row.schedule === 'monday' && dow === 1) || (row.schedule === 'first' && dom === 1);
+    if (!due || (row.last_posted && centralDate(new Date(row.last_posted)) === today)) { out.skipped++; continue; }
+    if (!subCanAfford(12)) { out.deferred = true; break; }
+    try { await postDashboard(env, row); out.posted.push(row.name); }
+    catch (e) { out.errors.push(`${row.name}: ${e.message}`); }
+  }
+  return out;
+}
+
 const SUMMARISE_TEMPLATES = {
   daily: {
     label: 'Daily standup',
@@ -6475,6 +6599,8 @@ const AH_APP = {
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
+        /* Saved dashboards with a Slack schedule (the hub, 2026-10-07). */
+        ran.dashboards = await dashboardTick(env).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -7100,6 +7226,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const b = await request.json().catch(() => ({}));
       return json(await screenRead(env, b));
+    }
+    /* Post one saved dashboard to its Slack channel now (the hub, 2026-10-07). */
+    if (path === '/api/dashboard-post' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const row = await env.DB.prepare(`SELECT * FROM p_dashboard WHERE id = ?1`).bind(String(b.id || '')).first().catch(() => null);
+      if (!row) return json({ error: 'No dashboard with that id.' }, 404);
+      if (b.channel && /^[CG][A-Z0-9]{6,}$/.test(String(b.channel))) row.channel = String(b.channel);
+      try { return json(await postDashboard(env, row)); } catch (e) { return json({ error: e.message }, 400); }
     }
     /* Klaviyo, read live by the brand's own key, for the Email and SMS screen. */
     if (path === '/api/klaviyo' && request.method === 'GET') {

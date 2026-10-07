@@ -651,6 +651,19 @@
   .em-facts span{font-size:12px;color:var(--muted)}
   .em-flows{display:flex;flex-wrap:wrap;gap:6px}
   .tag-chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--unk-bg);color:var(--ink-2)}
+  .ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .ds-card{display:grid;gap:4px;text-align:left;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font:inherit;color:inherit;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+  .ds-card:hover{border-color:var(--brand);box-shadow:0 6px 18px -12px rgba(var(--brand-rgb),.8)}
+  .ds-card b{font-size:16px}
+  .ds-meta{font-size:12.5px;color:var(--muted)}
+  .ds-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .ds-scope{font-size:13px;color:var(--ink-2);flex:1;min-width:200px}
+  .ds-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ds-ctl label{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+  .ds-ctl select{font:inherit;font-size:13px;padding:5px 26px 5px 9px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink)}
+  .ds-h h3{margin:0 0 8px}
+  .ds-tiles{margin-bottom:14px}
+  .ds-note p{margin:0;font-size:14.5px;line-height:1.55}
   @media (max-width:720px){.ovd-cols{grid-template-columns:minmax(0,1fr)}}
   @media (max-width:520px){.ovd-go{display:none}}
   /* The Strategist card with nothing to say is one line, so it never pushes the
@@ -1940,6 +1953,7 @@
       <div class="grp" data-g="reports"><button class="band" type="button" data-grp="reports"><span>Reports</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="grp-btns">
           <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Weekly and monthly</span></button>
+          <button data-t="dash"><svg class="ic"><use href="#i-overview"/></svg><span>Dashboards</span></button>
           <button data-t="season"><svg class="ic"><use href="#i-season"/></svg><span>Season</span></button>
           <button data-t="calc"><svg class="ic"><use href="#i-calc"/></svg><span>Scenarios</span></button>
         </div>
@@ -2166,7 +2180,8 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash'].includes(open)) {
+    if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
@@ -2865,6 +2880,7 @@ const TAB_PURPOSE = {
   google:    'Google Ads for this brand: what Triple Whale sees today (spend and attributed revenue), and what connecting Google directly adds.',
   tiktok:    'TikTok Ads for this brand: what Triple Whale sees today, and what connecting TikTok directly adds.',
   email:     'Email and SMS for this brand: how much of the store\'s revenue email makes, campaigns against flows, the list, and what Klaviyo is running.',
+  dash:      'Dashboards the team asked for and kept. Ask the Strategist for one in words; it draws live every time it opens and can post itself to Slack.',
 };
 /* Settings sections: key, name in the list, one line saying what it is for. */
 const SET_SECS = [
@@ -2905,13 +2921,13 @@ const TAB_CRUMB = {
   email: ['Email &amp; SMS', 'Klaviyo'],
   customers: ['Store', 'Customers'],
   studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], angles: ['Creative', 'Tests and angles'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
-  reports: ['Reports', 'Weekly and monthly'], season: ['Reports', 'Season'], calc: ['Reports', 'Scenarios'],
+  reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'], season: ['Reports', 'Season'], calc: ['Reports', 'Scenarios'],
   profit: ['Money &amp; plan', 'Profit'], plan: ['Money &amp; plan', 'Plan'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data health'], costs: ['Settings', 'Costs'],
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
@@ -2919,7 +2935,7 @@ const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'email', 'reports', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'calc'] };
+const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'email', 'reports', 'dash', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'dash', 'calc'] };
 function applyRole() {
   let role = 'all';
   try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
@@ -4195,7 +4211,7 @@ let RUN = 0;
    rather than left visible and inert - a control that does nothing reads as broken. */
 const RANGE_TABS = new Set(['overview', 'profit', 'customers', 'email', 'google', 'tiktok']);
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS',
+const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4479,7 +4495,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, google: f => renderPlatform('google', f), tiktok: f => renderPlatform('tiktok', f), email: renderEmail })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, google: f => renderPlatform('google', f), tiktok: f => renderPlatform('tiktok', f), email: renderEmail, dash: renderDash })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -5439,6 +5455,141 @@ async function renderPlatform(kind, first) {
     </div>
     ${tiles}${table}`;
   $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show(kind); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+}
+
+/* ---------- Dashboards (the hub, phase 2, 2026-10-07) ----------
+   A dashboard the team asked for in chat and kept. The Strategist writes the spec
+   (save_dashboard), this screen draws it live from /api/overview over the dashboard's
+   own range and compare period, and the account-health hourly tick posts it to Slack on
+   its schedule. Blocks: tiles, brands, channels, daily, email, note. The list shows the
+   agency-wide dashboards plus the open brand's. */
+const DS = { id: (() => { try { return /^db_[0-9a-f]{10}$/.test(localStorage.getItem('pf_dash') || '') ? localStorage.getItem('pf_dash') : ''; } catch { return ''; } })() };
+const DASH_RANGE_L = { yesterday: 'Yesterday', '7': 'Last 7 days', '30': 'Last 30 days', '90': 'Last 90 days', mtd: 'Month to date', lastmonth: 'Last month' };
+const DASH_SCHED_L = { '': 'Never', daily: 'Every morning', monday: 'Every Monday', first: 'On the 1st' };
+const DASH_TILES = {
+  revenue: ['Revenue', (t, c) => fmtK(t.sales, c), 'sales'], orders: ['Orders', t => fmtInt(t.orders), 'orders'], aov: ['AOV', (t, c) => t.aov == null ? '&mdash;' : fmtMoney(t.aov, c), 'aov'],
+  spend: ['Ad spend', (t, c) => fmtK(t.spend, c), 'spend', true], mer: ['MER', t => fmtX(t.mer), 'mer'], amer: ['aMER', t => fmtX(t.amer), 'amer'],
+  new_share: ['New customers', t => t.new_share == null ? '&mdash;' : fmtPct(t.new_share), 'new_share'], new_orders: ['First orders', t => fmtInt(t.new_orders), 'new_orders'],
+  cac: ['Cost per new customer', (t, c) => t.cac == null ? '&mdash;' : fmtMoney(t.cac, c), 'cac', true], cm: ['Contribution margin', (t, c) => t.cm == null ? '&mdash;' : fmtK(t.cm, c), 'cm'],
+  email_rev: ['Email and SMS revenue', (t, c) => fmtK(t.email_rev, c), 'email_rev'], email_share: ['Email share', t => t.email_share == null ? '&mdash;' : fmtPct(t.email_share), 'email_share'],
+  meta_spend: ['Meta spend', (t, c) => fmtK(t.meta_spend, c), 'meta_spend', true], google_spend: ['Google spend', (t, c) => fmtK(t.google_spend, c), 'google_spend', true],
+};
+const DASH_COLS = {
+  revenue: ['Revenue', (a, w) => fmtK(w.sales, a.currency)], mtd_vs_plan: ['MTD vs plan', a => a.plan?.sales != null && a.mtd?.sales != null ? mtdPill(a.mtd.sales, a.plan.sales, 'sales') : '<span class="pill unk">no plan</span>'],
+  spend: ['Ad spend', (a, w) => fmtK(w.spend, a.currency)], mer: ['MER', (a, w) => fmtX(w.mer)], amer: ['aMER', (a, w) => fmtX(w.amer)], new_share: ['New %', (a, w) => w.new_share == null ? '&mdash;' : fmtPct(w.new_share)],
+  orders: ['Orders', (a, w) => fmtInt(w.orders)], aov: ['AOV', (a, w) => w.aov == null ? '&mdash;' : fmtMoney(w.aov, a.currency)], cac: ['CAC', (a, w) => w.cac == null ? '&mdash;' : fmtMoney(w.cac, a.currency)],
+  cm: ['Contribution margin', (a, w) => cmTrusted(a.cost_health) && w.cm != null ? `<span class="${w.cm >= 0 ? 'good' : 'bad'}">${fmtK(w.cm, a.currency)}</span>` : '&mdash;'],
+  email_rev: ['Email revenue', (a, w) => fmtK(w.email_rev, a.currency)], costs: ['Costs', a => { const v = a.cost_health?.verdict; return !v || v === 'good' ? '<span class="pill good">Good</span>' : v === 'override' || v === 'noisy' ? `<span class="pill warn">${v === 'noisy' ? 'Noisy' : 'Override'}</span>` : '<span class="pill bad">Fix</span>'; }],
+  trend: ['Trend', a => { const pts = (a.spark || []).filter(v => v != null); if (pts.length < 4) return ''; const hi = Math.max(...pts), lo = Math.min(...pts), rng = hi - lo || 1; const third = Math.ceil(pts.length / 3); const rising = pts.slice(-third).reduce((x, v) => x + v, 0) >= pts.slice(0, third).reduce((x, v) => x + v, 0); return `<svg class="sc-spark" viewBox="0 0 200 28" preserveAspectRatio="none"><polyline points="${pts.map((v, i) => `${(i / (pts.length - 1) * 200).toFixed(1)},${(26 - (v - lo) / rng * 22).toFixed(1)}`).join(' ')}" fill="none" stroke="${rising ? 'var(--good)' : 'var(--bad)'}" stroke-width="2"/></svg>`; }],
+};
+/** The query string for a dashboard's own range (not the shared picker). */
+function dashQuery(spec) {
+  const r = spec.range || '30', cmp = spec.compare && spec.compare !== 'prev' ? `&cmp=${spec.compare}` : '';
+  const now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  if (r === 'yesterday') return `days=1${cmp}`;
+  if (r === 'mtd') return `from=${ymd(new Date(now.getFullYear(), now.getMonth(), 1))}&to=${ymd(y)}${cmp}`;
+  if (r === 'lastmonth') return `from=${ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1))}&to=${ymd(new Date(now.getFullYear(), now.getMonth(), 0))}${cmp}`;
+  return `days=${+r || 30}${cmp}`;
+}
+function dashTotals(all, src) {
+  const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(a[src] || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
+  const t = { sales: sum(w => w.sales), spend: sum(w => w.spend), new_rev: sum(w => w.new_rev), orders: sum(w => w.orders), new_orders: sum(w => w.new_orders), email_rev: sum(w => w.email_rev), meta_spend: sum(w => w.meta_spend), google_spend: sum(w => w.google_spend),
+    cm: (() => { let x = 0, any = false; for (const a of all) { const w = a[src]; if (w && cmTrusted(a.cost_health) && w.cm != null) { x += w.cm; any = true; } } return any ? x : null; })() };
+  t.mer = t.spend ? t.sales / t.spend : null; t.amer = t.spend && t.new_rev != null ? t.new_rev / t.spend : null; t.aov = t.orders ? t.sales / t.orders : null;
+  t.cac = t.new_orders && t.spend != null ? t.spend / t.new_orders : null; t.new_share = t.sales && t.new_rev != null ? t.new_rev / t.sales : null; t.email_share = t.sales && t.email_rev != null ? t.email_rev / t.sales : null;
+  return t;
+}
+function dashDelta(cur, prev, lower, cmp) {
+  if (cur == null || prev == null || !prev || cmp === 'none') return '';
+  const d = cur / prev - 1; if (!isFinite(d)) return '';
+  const p = Math.round(d * 100), tone = Math.abs(d) < 0.015 ? 'flat' : (d > 0) === !lower ? 'up' : 'down';
+  return `<span class="hm-d ${tone}">${p > 0 ? '+' : ''}${p}%</span>`;
+}
+function dashBlockHtml(b, all, spec, cur) {
+  const t = dashTotals(all, 'window'), p = spec.compare !== 'none' && all.some(a => a.prev) ? dashTotals(all, 'prev') : {};
+  const h = b.title ? `<h3>${esc(b.title)}</h3>` : '';
+  if (b.type === 'tiles') {
+    if (!cur) return `<div class="card">${h}<p class="hint">These brands report in different currencies, so there is no combined total.</p></div>`;
+    const tiles = (b.metrics || []).map(m => DASH_TILES[m]).filter(Boolean).map(([l, f, k, lower]) => `<div class="ru"><div class="ru-l">${l}</div><div class="ru-v">${f(t, cur)}${dashDelta(t[k], p[k], lower, spec.compare)}</div></div>`).join('');
+    return `${h ? `<div class="ds-h">${h}</div>` : ''}<div class="rollup hm-row ds-tiles">${tiles}</div>`;
+  }
+  if (b.type === 'brands') {
+    const cols = (b.columns && b.columns.length ? b.columns : ['revenue', 'mtd_vs_plan', 'spend', 'mer', 'cm']).map(c => [c, DASH_COLS[c]]).filter(x => x[1]);
+    const rows = all.slice().sort((x, y) => (y.window?.sales ?? -1) - (x.window?.sales ?? -1)).map(a => `<tr data-id="${a.act_id}" tabindex="0" role="button"><td><div class="bn">${esc(a.name)}</div></td>${cols.map(([c, [l, f]]) => `<td class="${c === 'trend' ? 'spark-td' : c === 'mtd_vs_plan' || c === 'costs' ? '' : 'num'}">${f(a, a.window || {})}</td>`).join('')}</tr>`).join('');
+    return `<div class="card key">${h}<div class="tbl-wrap"><table class="ovt"><thead><tr><th>Brand</th>${cols.map(([c, [l]]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
+  if (b.type === 'channels') return cur ? channelsCard(all, t.sales, cur).replace('<h3>Where the money came from</h3>', `<h3>${esc(b.title || 'Where the money came from')}</h3>`) : '';
+  if (b.type === 'daily') {
+    const merge = key => { const m = new Map(); for (const a of all) for (const q of (a[key] || [])) { const r = m.get(q.date) || { date: q.date, sales: 0, spend: 0, orders: 0 }; r.sales += q.sales || 0; r.spend += q.spend || 0; r.orders += q.orders || 0; m.set(q.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
+    const rows = merge('series'), prev = spec.compare !== 'none' ? merge('prev_series') : [];
+    if (!cur || rows.length < 2) return `<div class="card">${h}<p class="hint">Not enough days in this window for a chart.</p></div>`;
+    const id = 'ds' + Math.random().toString(36).slice(2, 7);
+    setTimeout(() => wireSalesSpend(id, id + 'r', rows, r => `<b>${prettyDate(r.date, true)}</b> &middot; revenue <b>${fmtK(r.sales, cur)}</b> &middot; spend <b>${fmtK(r.spend, cur)}</b>${r.spend ? ` &middot; MER ${fmtX(r.sales / r.spend)}` : ''}`), 0);
+    return `<div class="card hm-chart">${h || '<h3>Day by day</h3>'}<div class="hint" style="margin-bottom:6px"><span class="hm-lg" style="color:#14608C">Revenue</span><span class="hm-lg" style="color:#C08A2E">Ad spend</span>${prev.length ? `<span class="hm-lg dash">${esc(CMP_LABEL[spec.compare] || 'compare')}</span>` : ''}</div><div id="${id}r" class="tiny" style="min-height:18px;margin-bottom:4px">&nbsp;</div>${homeChartSVG(rows, prev, cur, id)}</div>`;
+  }
+  if (b.type === 'email') {
+    if (!cur) return '';
+    const tiles = [['Email and SMS revenue', fmtK(t.email_rev, cur), dashDelta(t.email_rev, p.email_rev, false, spec.compare)], ['Share of store revenue', t.email_share == null ? '&mdash;' : fmtPct(t.email_share), ''], ['Store revenue', fmtK(t.sales, cur), dashDelta(t.sales, p.sales, false, spec.compare)]];
+    return `${h ? `<div class="ds-h">${h}</div>` : ''}<div class="rollup hm-row ds-tiles">${tiles.map(([l, v, d]) => `<div class="ru"><div class="ru-l">${l}</div><div class="ru-v">${v}${d}</div></div>`).join('')}</div>`;
+  }
+  if (b.type === 'note') return `<div class="card ds-note">${h}<p>${esc(b.text || '')}</p></div>`;
+  return '';
+}
+async function renderDash(first) {
+  const run = ++RUN;
+  const shell = body => `${pageHead('dash', 'Dashboards')}${body}`;
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading&hellip;</span></div>');
+  if (!DS.id) {
+    let list = [];
+    try { list = (await api('/api/dashboards?act=all')).dashboards || []; } catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+    if (run !== RUN) return;
+    const mine = S.act === 'all' ? list : list.filter(d => !d.act || d.act === S.act);
+    const nameOf = id => (S.accounts.find(a => a.act_id === id) || {}).name || 'a brand';
+    const card = d => `<button class="ds-card" type="button" data-open="${esc(d.id)}">
+        <b>${esc(d.name)}</b>
+        <span class="ds-meta">${d.act ? esc(nameOf(d.act)) : 'All brands'} &middot; ${DASH_RANGE_L[d.spec?.range] || 'Last 30 days'}${d.for_who ? ` &middot; for ${esc(d.for_who)}` : ''}</span>
+        <span class="ds-meta">${(d.spec?.blocks || []).length} block${(d.spec?.blocks || []).length === 1 ? '' : 's'}${d.schedule ? ` &middot; posts ${DASH_SCHED_L[d.schedule].toLowerCase()}${d.channel ? '' : ' (no channel yet)'}` : ''}</span>
+      </button>`;
+    $('#main').innerHTML = shell(`<div class="card hm-soon"><div class="hm-soon-h"><h3>Ask for a dashboard in words</h3></div>
+        <p class="hint">Tell the Strategist what you look at every day and who it is for. It builds the dashboard, you press Apply, and it lands here. Say "post it to our channel every morning" and it will.</p>
+        <div class="row" style="margin:10px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="dsNew">Ask the Strategist for one</button><span class="tiny">Try: "Build Ahsan a dashboard: spend, revenue and MER per brand against last week, plus Meta and Google side by side, every morning in #mobius-internal."</span></div></div>
+      ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="card"><p class="hint">No dashboards yet${S.act === 'all' ? '' : ' for this brand'}.</p></div>`}`);
+    $('#dsNew').onclick = () => AskUI.open(`Build ${S.act === 'all' ? 'us' : (S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand'} a dashboard that shows `);
+    $('#main').querySelectorAll('[data-open]').forEach(b => b.onclick = () => { DS.id = b.dataset.open; try { localStorage.setItem('pf_dash', DS.id); } catch {} show('dash'); });
+    return;
+  }
+  let d;
+  try { d = await api(`/api/dashboard?id=${encodeURIComponent(DS.id)}`); }
+  catch (e) { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} if (run === RUN) show('dash'); return; }
+  const spec = d.spec || {}; spec.compare = spec.compare || 'prev';
+  let ov;
+  try { ov = await api('/api/overview?' + dashQuery(spec)); } catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  if (run !== RUN) return;
+  const all = spec.scope && spec.scope !== 'all' ? (ov.accounts || []).filter(a => a.act_id === spec.scope) : (ov.accounts || []);
+  const curs = [...new Set(all.map(a => a.currency))], cur = curs.length === 1 ? curs[0] : null;
+  const scopeName = spec.scope && spec.scope !== 'all' ? (all[0]?.name || 'that brand') : `All ${all.length} brands`;
+  const chanOpts = [['', 'No channel']].concat(S.accounts.flatMap(a => [a.slack_channel ? [a.slack_channel, `${a.name} internal`] : null, a.brief_channel ? [a.brief_channel, `${a.name} client`] : null].filter(Boolean)));
+  if (d.channel && !chanOpts.some(o => o[0] === d.channel)) chanOpts.push([d.channel, d.channel]);
+  const blocks = (spec.blocks || []).map(b => dashBlockHtml(b, all, spec, cur)).join('');
+  $('#main').innerHTML = `${pageHead('dash', esc(d.name)).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}
+    <div class="ds-bar">
+      <button class="btn" type="button" id="dsBack">&larr; All dashboards</button>
+      <span class="ds-scope">${esc(scopeName)} &middot; ${DASH_RANGE_L[spec.range] || 'Last 30 days'}${spec.compare !== 'none' ? ` &middot; vs ${esc(CMP_LABEL[spec.compare])}` : ''}${d.for_who ? ` &middot; for ${esc(d.for_who)}` : ''}</span>
+      <span class="ds-ctl"><label>Posts to Slack <select id="dsSched">${Object.entries(DASH_SCHED_L).map(([k, l]) => `<option value="${k}" ${k === (d.schedule || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>Channel <select id="dsChan">${chanOpts.map(([v, l]) => `<option value="${esc(v)}" ${v === (d.channel || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        <button class="btn" type="button" id="dsPost">Post to Slack now</button>
+        <button class="btn" type="button" id="dsDel" style="color:var(--bad)">Delete</button></span>
+    </div>
+    <p class="tiny" id="dsMsg" style="min-height:16px;margin:-6px 0 10px">${d.last_posted ? `Last posted ${esc(String(d.last_posted).slice(0, 16).replace('T', ' '))} UTC.` : ''}</p>
+    ${blocks || '<div class="card"><p class="hint">This dashboard has no blocks Locus can draw.</p></div>'}
+    <details class="footnote"><summary>How this dashboard is drawn</summary><div class="fn-body">Every number is read live from the same source as Home when the page opens: Triple Whale store-level money, platform spend, Triple Whale last platform click per platform, Klaviyo placed orders for email. The range and compare period belong to this dashboard, not to the date picker. The Slack post carries the tiles, the brand table, email and notes; charts and the channel split live here.</div></details>`;
+  const msg = t => { const el = $('#dsMsg'); if (el) el.textContent = t; };
+  $('#dsBack').onclick = () => { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} show('dash'); };
+  const save = async () => { try { await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d.id, name: d.name, act: d.act || 'all', spec, schedule: $('#dsSched').value, channel: $('#dsChan').value, for_who: d.for_who, pinned: d.pinned }) }); msg($('#dsSched').value ? `Saved. Posts ${DASH_SCHED_L[$('#dsSched').value].toLowerCase()} at 8am Central${$('#dsChan').value ? '.' : ', once a channel is set.'}` : 'Saved. It will not post itself.'); } catch (e) { msg(e.message); } };
+  $('#dsSched').onchange = save; $('#dsChan').onchange = save;
+  $('#dsPost').onclick = async () => { const b = $('#dsPost'); b.disabled = true; msg('Posting…'); try { const r = await apiAH('/api/dashboard-post', { method: 'POST', body: JSON.stringify({ id: d.id, channel: $('#dsChan').value }) }); msg(r.error || `Posted to Slack (${r.brands} brand${r.brands === 1 ? '' : 's'}).`); } catch (e) { msg(e.message); } b.disabled = false; };
+  $('#dsDel').onclick = async () => { if (!(await confirmModal('Delete this dashboard?', 'It disappears from Locus and stops posting to Slack. The Strategist can build it again from the same words.', 'Delete'))) return; try { await api(`/api/dashboard?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }); DS.id = ''; localStorage.setItem('pf_dash', ''); show('dash'); } catch (e) { msg(e.message); } };
+  $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
 }
 
 /** A timestamp as Central wall-clock, the only clock this tool speaks. */
@@ -9949,7 +10100,7 @@ async function apiAH(path, opts = {}) {
   if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   return j;
 }
-const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)' };
+const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)', dash: 'Dashboards (saved, drawn live)' };
 AskUI.init({
   name: 'Strategist', api: apiAH, esc, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   onApplied: () => { try { show(S.tab); } catch (e) {} },

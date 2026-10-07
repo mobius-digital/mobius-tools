@@ -195,7 +195,7 @@ THINKING LIKE A STRATEGIST (every answer, not only the creative ones)
 - Know why the question is being asked. Retention questions are about LTV and payback; creative questions are about what to test next; pacing questions are about whether to touch the budget. Answer the question behind the question.
 - Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used. Where the evidence is missing, say so and name what would settle it.
 - Gaps are findings. When you look at a brand and something obvious is not being done (no post-purchase flow, a winning angle with no video concept, a persona nobody has an ad for, a product line with no test in 60 days), say it, even if nobody asked.
-- Build, do not describe. A report asked for = make_report. A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
+- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
 - Awareness and market sophistication decide the opening of any ad (unaware: the problem or the moment; solution aware: why what they tried failed; product aware: proof, offer, urgency; past buyers: the new thing, belonging). Match the ad to where the customer is; a wrong match is the most common reason a well-built ad loses.
 
 BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "execution" or "variation" in anything sent to the team)
@@ -250,6 +250,7 @@ const VIEW_BLURBS = {
   brief: 'ONE brief by its number: the test-library row plus the live Asana task (the brief text as written, section, assignee, the Testing / Angle / Result fields, the link). Pass `brand` and `number`. Read it before fill_brief, and to review what a strategist wrote.',
   customers: 'who the customers are and what they do next, from Triple Whale orders (400 days): customers, orders, revenue, repeat rate, orders per customer, revenue by order number (1st, 2nd, 3rd+), time from first to second order in buckets, where first orders came from (last platform click), the products most often in a first cart and in a second cart (product ids; the Shopify product titles are not in Locus yet). Pass `brand` and `days` (default 365). THE view for retention, LTV shape, journey and "what do they buy next" questions; query tw_orders for anything it does not give.',
   scenarios: 'the saved what-if scenarios from the lead-gen and ROAS calculators for one brand (or agency-wide): name, kind, inputs, note, the share link. Pass `brand` (optional). Read it before build_scenario so you extend what exists instead of duplicating it.',
+  dashboards: 'the saved dashboards in Locus (Reports > Dashboards): name, who it is for, scope, range, blocks, Slack schedule and channel. Read it before saving a new one so you do not make a twin.',
   integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Asana, Slack, Google, Atria, Frame, Studio image key, Canva, Gemini, downloader, Stripe, Lucky creator app) and PER BRAND ones (ad account, Triple Whale shop, Shopify install, Asana project, Slack channels, Drive folder, Frame project, creator link, onboarding, Google Ads and Klaviyo via Triple Whale). Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
   klaviyo: 'the brand\'s Klaviyo, read live with its own key: pass `brand` and `what` = overview (counts, live flows, biggest lists and segments), lists, segments (with profile counts), flows (status and trigger), campaigns (last 30 sent with open, click, conversion rate and revenue) or metrics. THE view for email questions: how many segments, which flows are live or dead, how the last sends did, who is in what. Not connected = the reply says how to connect it (Settings > Connections).',
   brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
@@ -460,6 +461,11 @@ function buildViews(d) {
       const r = await integrationsReport(env, { brand: acct?.act_id || null });
       return { ...r, how_to_read: VIEW_BLURBS.integrations + ' state: ok, warn (connected but stale or half set up), bad (failing), off (not set up). Quote the fix text when something is off; the agency ones are Cole\'s to fix, the per-brand ones the team can do in Locus.' };
     },
+    dashboards: async env => {
+      await env.DB.prepare(DASH_SQL).run().catch(() => {});
+      const { results } = await env.DB.prepare(`SELECT p.*, a.name AS brand FROM p_dashboard p LEFT JOIN accounts a ON a.act_id = p.act_id ORDER BY p.updated_at DESC`).all();
+      return { dashboards: (results || []).map(r => ({ id: r.id, name: r.name, brand: r.brand || 'agency-wide', for_who: r.for_who, spec: d.safeJson(r.spec_json, {}), schedule: r.schedule || 'none', channel: r.channel || '', pinned: !!r.pinned, by: r.created_by, updated_at: r.updated_at, last_posted: r.last_posted, open: `${LOCUS_URL}?open=dash&id=${r.id}` })), how_to_read: VIEW_BLURBS.dashboards };
+    },
     klaviyo: async (env, a) => {
       const acct = await need(env, a);
       const r = await klaviyoView(env, acct.act_id, String(a.what || 'overview').toLowerCase());
@@ -611,6 +617,8 @@ async function snapshot(env, h, d) {
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const clip = (v, n) => v == null ? null : String(v).slice(0, n);
 const SHARE_URL = 'https://tools.go-mobius-digital.com/profit/share.html?s=';
+/* The saved-dashboards table, the same statement as profit/worker/src/dashboard.js (shared D1). */
+const DASH_SQL = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, act_id TEXT, name TEXT NOT NULL, for_who TEXT, spec_json TEXT NOT NULL, schedule TEXT, channel TEXT, pinned INTEGER NOT NULL DEFAULT 1, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), last_posted TEXT)`;
 const LOCUS_URL = 'https://tools.go-mobius-digital.com/profit/';
 
 /* ---------------- Asana briefs (2026-10-07) ----------------
@@ -800,6 +808,53 @@ const BUILD_ACTIONS = (d) => {
         const id = 'sc_' + Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
         await env.DB.prepare(`INSERT INTO p_scenario (id, act_id, kind, name, inputs_json, note, created_by, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'strategist', datetime('now'))`).bind(id, p.act_id, p.kind, p.name, JSON.stringify(p.inputs), p.note || '').run();
         return { ok: true, note: `Saved. Share link: ${SHARE_URL}${id}  (it is also in Locus, Scenarios tab).` };
+      } },
+    /* Saved dashboards (the hub, 2026-10-07): the Strategist writes the SPEC from the words
+       ("what Ahsan looks at every day"), the card shows every block, Apply stores it; Locus
+       draws it live each time it opens and the hourly tick posts it to Slack on its schedule.
+       Blocks bind to views Locus already has; a block that needs a view that does not exist is
+       NOT invented: say so and hand it to Claude Code. */
+    { name: 'save_dashboard',
+      description: 'Save a dashboard the team wants to KEEP in Locus (Reports > Dashboards), for one brand or all brands, optionally posted to a Slack channel every morning / Monday / the 1st. Blocks: tiles (pick metrics from: revenue, orders, aov, spend, mer, amer, new_share, new_orders, cac, cm, email_rev, email_share, meta_spend, google_spend), brands (one row per brand; columns from: revenue, mtd_vs_plan, spend, mer, amer, new_share, orders, aov, cac, cm, email_rev, costs, trend; only makes sense for scope all), channels (spend and Triple Whale revenue per platform), daily (revenue and spend by day), email (Klaviyo revenue, share, campaigns vs flows), note (a line of text). Read the dashboards view first so you do not make a twin. For a one-off page use make_report instead.',
+      input_schema: { type: 'object', properties: {
+        name: { type: 'string', description: 'Short, as the person would call it: "Ahsan every morning", "Party Patch weekly".' },
+        brand: { type: 'string', description: 'A brand name, or "all" for the whole agency.' },
+        for_who: { type: 'string', description: 'Who it is for: a name or a role.' },
+        range: { type: 'string', enum: ['yesterday', '7', '30', '90', 'mtd', 'lastmonth'], description: 'Default 7 for a daily dashboard, 30 otherwise.' },
+        compare: { type: 'string', enum: ['prev', 'yoy', 'none'] },
+        blocks: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['tiles', 'brands', 'channels', 'daily', 'email', 'note'] }, title: { type: 'string' }, metrics: { type: 'array', items: { type: 'string' } }, columns: { type: 'array', items: { type: 'string' } }, text: { type: 'string' } }, required: ['type'] }, description: '1 to 8 blocks, in reading order.' },
+        schedule: { type: 'string', enum: ['', 'daily', 'monday', 'first'], description: 'When it posts itself to Slack (8am Central). Empty = never.' },
+        channel: { type: 'string', description: 'The Slack channel id (C... or G...) it posts to; the brand\'s internal channel when the person says "our channel".' },
+        summary: { type: 'string' } }, required: ['name', 'brand', 'blocks', 'summary'] },
+      propose: async (env, i) => {
+        const acct = i.brand && i.brand !== 'all' ? await resolve(env, i.brand) : null;
+        if (i.brand && i.brand !== 'all' && !acct) return { error: `No brand called "${i.brand}".` };
+        const METRICS = ['revenue', 'orders', 'aov', 'spend', 'mer', 'amer', 'new_share', 'new_orders', 'cac', 'cm', 'email_rev', 'email_share', 'meta_spend', 'google_spend'];
+        const COLUMNS = ['revenue', 'mtd_vs_plan', 'spend', 'mer', 'amer', 'new_share', 'orders', 'aov', 'cac', 'cm', 'email_rev', 'costs', 'trend'];
+        const blocks = (i.blocks || []).map(b => {
+          if (!b || !['tiles', 'brands', 'channels', 'daily', 'email', 'note'].includes(b.type)) return null;
+          const o = { type: b.type, title: clip(b.title || '', 80) };
+          if (b.type === 'tiles') { o.metrics = (b.metrics || []).filter(m => METRICS.includes(m)).slice(0, 8); if (!o.metrics.length) return null; }
+          if (b.type === 'brands') o.columns = (b.columns || []).filter(c => COLUMNS.includes(c)).slice(0, 8);
+          if (b.type === 'note') { o.text = clip(b.text || '', 600); if (!o.text) return null; }
+          return o;
+        }).filter(Boolean).slice(0, 8);
+        if (!blocks.length) return { error: 'None of those blocks can be drawn. Use tiles, brands, channels, daily, email or note.' };
+        const range = ['yesterday', '7', '30', '90', 'mtd', 'lastmonth'].includes(i.range) ? i.range : (i.schedule === 'daily' ? '7' : '30');
+        const schedule = ['daily', 'monday', 'first'].includes(i.schedule) ? i.schedule : '';
+        const channel = /^[CG][A-Z0-9]{6,}$/.test(String(i.channel || '')) ? String(i.channel) : (schedule && acct?.slack_channel ? acct.slack_channel : '');
+        const RL = { yesterday: 'Yesterday', '7': 'Last 7 days', '30': 'Last 30 days', '90': 'Last 90 days', mtd: 'Month to date', lastmonth: 'Last month' };
+        const preview = blocks.map((b, n) => `${n + 1}. ${b.title || b.type}${b.type === 'tiles' ? ': ' + b.metrics.join(', ') : b.type === 'brands' ? ': one row per brand' + (b.columns.length ? ' (' + b.columns.join(', ') + ')' : '') : b.type === 'note' ? ': ' + b.text : ''}`).join('\n');
+        return { summary: i.summary || `Save the dashboard "${i.name}"`,
+          detail: `${acct ? acct.name : 'All brands'} · ${RL[range]} · compare ${i.compare === 'none' ? 'nothing' : i.compare === 'yoy' ? 'same dates last year' : 'the period before'}${i.for_who ? ` · for ${clip(i.for_who, 60)}` : ''}${schedule ? ` · posts ${schedule === 'daily' ? 'every morning' : schedule === 'monday' ? 'every Monday' : 'on the 1st'} at 8am Central${channel ? ` to ${channel}` : ' (no channel yet)'}` : ''}. It lands in Locus under Reports > Dashboards and draws live each time it opens.`,
+          preview, patch: { name: clip(i.name, 120), act_id: acct ? acct.act_id : null, for_who: clip(i.for_who || '', 80), spec: { scope: acct ? acct.act_id : 'all', range, compare: ['prev', 'yoy', 'none'].includes(i.compare) ? i.compare : 'prev', blocks }, schedule, channel } };
+      },
+      apply: async (env, p) => {
+        await env.DB.prepare(DASH_SQL).run().catch(() => {});
+        const id = 'db_' + Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
+        await env.DB.prepare(`INSERT INTO p_dashboard (id, act_id, name, for_who, spec_json, schedule, channel, pinned, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 'strategist')`)
+          .bind(id, p.act_id, p.name, p.for_who, JSON.stringify(p.spec), p.schedule || null, p.channel || null).run();
+        return { ok: true, note: `Saved. Open it: ${LOCUS_URL}?open=dash&id=${id} (Reports > Dashboards).${p.schedule && !p.channel ? ' It has a schedule but no channel yet: set one on the dashboard in Locus.' : ''}` };
       } },
     { name: 'studio_batch',
       description: 'Put a batch of static ads into Locus Studio as a draft (the AI makes the images there): one line per ad with the words on it and a short note on the look, under an angle, why, concept and what is being tested. Use it when asked to make statics from words, with no reference image in the thread (with a reference, draft_from_thread). The team opens Studio, picks the product and presses Make.',

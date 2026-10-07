@@ -1787,3 +1787,26 @@ Plan: `docs/locus-hub/plan.md` (Cole approved the rail and said "start and end e
 - Not built yet from the plan: saved dashboards (phase 2), the read on every screen, the Store sales
   screen, role landings, Google / TikTok direct connections (gated on Cole's Google Cloud project +
   Ads developer token and a TikTok developer app).
+
+### Hub phase 2 (2026-10-07): saved dashboards (Reports > Dashboards)
+- **Table** `p_dashboard` (shared D1; `profit/worker/src/dashboard.js` `DASH_SQL`, also in schema.sql and
+  `migrations/dash-001.sql`, RAN 2026-10-07; both workers also `CREATE TABLE IF NOT EXISTS` on first use).
+  Routes (profit worker, authed): `GET /api/dashboards?act=`, `GET /api/dashboard?id=`, `PUT /api/dashboard`
+  (upsert; `cleanSpec` drops anything outside the vocabulary), `DELETE /api/dashboard?id=`.
+- **The spec** = `{scope: 'all'|act_id, range: yesterday|7|30|90|mtd|lastmonth, compare: prev|yoy|none,
+  blocks: [tiles{metrics} | brands{columns} | channels | daily | email | note{text}]}`. Vocabularies
+  `METRICS` / `COLUMNS` in dashboard.js are the words the Strategist is told to use; keep the three copies
+  (dashboard.js, strategist.js `save_dashboard`, index.html `DASH_TILES` / `DASH_COLS`) in step.
+- **The Strategist** (`save_dashboard` action, `dashboards` view) writes the spec from words; Apply inserts
+  the row with `created_by 'strategist'`; the note carries `profit/?open=dash&id=`. Playbook: a dashboard to
+  KEEP = save_dashboard; a one-off page = make_report.
+- **Locus** (`renderDash`, `DS.id` in `pf_dash`): the list (agency-wide + the open brand's) with "Ask the
+  Strategist for one" (opens the chat prefilled); an open dashboard draws every block LIVE from
+  `/api/overview?` + `dashQuery(spec)` (its own range and compare, not the picker), with a schedule select,
+  a channel select (every brand's internal and client channel), Post to Slack now (account-health
+  `POST /api/dashboard-post {id, channel}`), Delete (confirm modal). Deep link `?open=dash&id=`.
+- **Slack** (account-health `dashboardTick`, inside the hourly cron after the new-client jobs, from 8am
+  Central): daily / monday / first, once per Central day (`last_posted`), numbers from `storePeriod` per
+  brand summed by `dashSum`, Block Kit: header, context, tiles as bullets with deltas, the brand table as
+  a code block (4 columns max), email and note; channels and the chart say "open in Locus". `recordRun`
+  logs it under `ran.dashboards`.
