@@ -5,6 +5,7 @@
  *   GET    /api/scenario?act=<act|all>&kind=leads|roas   -> { scenarios: [...] }
  *   PUT    /api/scenario   { id?, act, kind, name, inputs, note }   -> the row (upsert)
  *   DELETE /api/scenario?id=
+ *   GET    /api/scenario/public?id=   (no auth; the share page)
  */
 /* Same CORS as the host worker's json(): the dashboard is on another origin (GitHub Pages,
    or localhost in the dev pair), so a response without these headers reads as "Failed to fetch". */
@@ -20,8 +21,16 @@ function row(r) {
 }
 
 export async function handleScenario({ path, request, env, email }) {
-  if (path !== '/api/scenario') return null;
   const url = new URL(request.url);
+  if (path === '/api/scenario/public') {
+    const id = url.searchParams.get('id') || '';
+    if (!/^sc_[0-9a-f]{10}$/.test(id)) return json({ error: 'bad id' }, 400);
+    const r = await env.DB.prepare(`SELECT s.*, a.name AS brand FROM p_scenario s LEFT JOIN accounts a ON a.act_id = s.act_id WHERE s.id = ?1`).bind(id).first();
+    if (!r) return json({ error: 'No scenario with that id' }, 404);
+    const out = row(r); delete out.by;
+    return json({ ...out, brand: r.brand || null });
+  }
+  if (path !== '/api/scenario') return null;
   if (request.method === 'GET') {
     const act = url.searchParams.get('act') || 'all';
     const kind = url.searchParams.get('kind');

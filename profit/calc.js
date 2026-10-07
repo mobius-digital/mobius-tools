@@ -16,10 +16,11 @@
  */
 (function () {
 'use strict';
-const $ = s => document.querySelector(s);
+let TARGET = null; const host = () => TARGET || document.getElementById('main');
+const $ = s => (TARGET || document).querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const AH = 'https://mobius-account-health.mobius-digital.workers.dev';
-const S = { tok: '', url: '', act: 'all', accounts: [], kind: 'leads', pre: null, preErr: '', saved: [], cols: [], focus: 0, target: 3, roas: null };
+const S = { tok: '', url: '', act: 'all', accounts: [], kind: 'leads', pre: null, preErr: '', saved: [], cols: [], focus: 0, target: 3, roas: null, ro: false, shared: null };
 const LS_KIND = 'calc_kind';
 
 async function api(path, opts = {}, base) {
@@ -76,15 +77,26 @@ function injectCss() {
   .cc-h3 h3{margin:0}
   /* dials */
   .cc-dial{display:grid;grid-template-columns:1fr;gap:14px}
-  .cc-d{display:grid;grid-template-columns:1fr 112px;gap:4px 12px;align-items:center}
+  .cc-d{display:grid;grid-template-columns:1fr 118px;gap:2px 12px;align-items:center}
   .cc-d label{font:600 13px var(--sans,system-ui)}
-  .cc-d .in{display:flex;align-items:center;gap:6px;border:1px solid var(--cc-line);border-radius:9px;padding:0 8px;background:var(--cc-wash)}
+  .cc-d .in{display:flex;align-items:center;gap:6px;border:1px solid var(--cc-line);border-radius:8px;padding:0 9px;background:var(--cc-surface);transition:border-color .12s}
   .cc-d .in span{font:500 12px var(--cc-mono);color:var(--cc-muted)}
-  .cc-d .in input{width:100%;border:0;background:transparent;padding:7px 0;font:600 14px var(--cc-mono);color:inherit;text-align:right;font-variant-numeric:tabular-nums;min-width:0}
+  .cc-d .in input{width:100%;border:0;background:transparent;padding:6px 0;font:500 13.5px var(--cc-mono);color:inherit;text-align:right;font-variant-numeric:tabular-nums;min-width:0}
   .cc-d .in input:focus{outline:0}
   .cc-d .in:focus-within{border-color:var(--cc-acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 18%,transparent)}
-  .cc-d input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--cc-acc);height:22px;margin:0;cursor:pointer}
-  .cc-d small{grid-column:1/-1;font-size:11.5px;color:var(--cc-muted);line-height:1.4;margin-top:-4px}
+  .cc-d input[type=range]{grid-column:1/-1;width:100%;-webkit-appearance:none;appearance:none;height:22px;margin:0;cursor:pointer;background:transparent}
+  .cc-d input[type=range]:focus{outline:0}
+  .cc-d input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--cc-acc) 0,var(--cc-acc) var(--p,0%),var(--cc-line) var(--p,0%))}
+  .cc-d input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--cc-surface);border:2px solid var(--cc-acc);box-shadow:0 1px 4px rgba(0,0,0,.22);margin-top:-7px;transition:transform .1s}
+  .cc-d input[type=range]:hover::-webkit-slider-thumb,.cc-d input[type=range]:active::-webkit-slider-thumb{transform:scale(1.15)}
+  .cc-d input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--cc-line)}
+  .cc-d input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--cc-acc)}
+  .cc-d input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--cc-surface);border:2px solid var(--cc-acc)}
+  .cc-d small{grid-column:1/-1;font-size:11.5px;color:var(--cc-muted);line-height:1.4;margin-top:-6px}
+  .cc-assume{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .cc-assume div{border:1px solid var(--cc-line);border-radius:10px;padding:10px 12px}
+  .cc-assume .l{font:600 10px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--cc-muted)}
+  .cc-assume .v{font:600 18px var(--cc-mono);margin-top:3px;font-variant-numeric:tabular-nums}
   /* scenario cards */
   .cc-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
   .cc-sc{border:1px solid var(--cc-line);border-radius:14px;padding:12px 12px 10px;background:var(--cc-surface);cursor:pointer;min-width:0;position:relative;transition:border-color .12s,box-shadow .12s}
@@ -338,7 +350,7 @@ function leadGrid(c) {
   const mx = Math.max(1, ...cells.flat().map(x => Math.abs(x.m.profit)));
   const bg = m => `color-mix(in srgb,${m.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(14 + 56 * Math.min(1, Math.abs(m.profit) / mx))}%,var(--cc-surface))`;
   return `<div class="cc-grid" style="grid-template-columns:auto repeat(${cpls.length},minmax(0,1fr))">
-    <div class="h rh">buy \u2193 lead \u2192</div>${cpls.map(p => `<div class="h">${money2(p)}</div>`).join('')}
+    <div class="h rh">CVR \u2193 CPL \u2192</div>${cpls.map(p => `<div class="h">${money2(p)}</div>`).join('')}
     ${cells.map(row => `<div class="h rh">${row[0].v}%</div>` + row.map(x => `<div class="c ${Math.abs(x.p - c.cpl) < 0.13 && x.v === Math.round(c.cvr) ? 'on' : ''}" style="background:${bg(x.m)}" data-gp="${x.p}" data-gv="${x.v}" data-tip="${esc(`${money2(x.p)} a lead, ${x.v}% buy|ROAS on lead spend|${x2(x.m.roas)}|Leads|${num(x.m.leads)}|Orders|${num(x.m.buyers)}|Revenue back|${k(x.m.revenue)}|Left after lead spend|${k(x.m.profit)}`)}">${x2(x.m.roas)}<small>${k(x.m.profit)}</small></div>`).join('')).join('')}
   </div><p class="cc-gridnote">Green makes money, red loses it; the darker the cell the more. The outlined cell is the scenario in the dials. Click any cell to move the dials there.</p>`;
 }
@@ -348,7 +360,7 @@ function leadReceipt(f) {
   const perOrder = cvr > 0 ? f.cpl / cvr : null, leftOrder = perOrder == null ? null : f.aov * f.margin - perOrder;
   return `<div class="cc-two"><div><div class="cc-rh">One lead</div><div class="cc-rcpt">
       <div class="r"><span>The lead</span><b>-${money2(f.cpl)}</b></div>
-      <div class="r"><span>${pct(cvr * 100)} chance it buys a ${money(f.aov)} order</span><b>+${money2(rev)}</b></div>
+      <div class="r"><span>${pct(cvr * 100)} CVR on a ${money(f.aov)} order</span><b>+${money2(rev)}</b></div>
       <div class="r"><span>Product, shipping, fees on that</span><b>-${money2(cost)}</b></div>
       <div class="r t"><span>Left per lead</span><b class="${left >= 0 ? 'good' : 'bad'}">${money2(left)}</b></div></div></div>
     <div><div class="cc-rh">One order won</div><div class="cc-rcpt">
@@ -465,9 +477,15 @@ async function loadPre() {
 async function loadSaved() { try { S.saved = (await api(`/api/scenario?act=${encodeURIComponent(S.act)}`)).scenarios || []; } catch { S.saved = []; } }
 
 /* ---------- shared pieces ---------- */
-function crumb() { return typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('calc')}</div>` : ''; }
-function seg() { return `<div class="cc-seg" role="tablist"><button data-kind="leads" class="${S.kind === 'leads' ? 'on' : ''}">Leads</button><button data-kind="roas" class="${S.kind === 'roas' ? 'on' : ''}">ROAS</button></div>`; }
+function crumb() { return !S.ro && typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('calc')}</div>` : ''; }
+function title() {
+  if (S.ro) return `<h2>${esc(S.shared?.name || 'Scenario')}</h2><p class="sub">${esc(brand()?.name || '')} · a ${S.kind === 'leads' ? 'lead-gen' : 'ROAS'} scenario from Locus, shared by Mobius Digital${S.shared?.updated_at ? ' · ' + esc(String(S.shared.updated_at).slice(0, 10)) : ''}</p>`;
+  return `<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>`;
+}
+function assumeCard(items) { return `<div class="card"><div class="cc-h3"><h3>What this assumes</h3><span class="tiny">the numbers behind the page</span></div><div class="cc-assume">${items.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div></div>`; }
+function seg() { if (S.ro) return ''; return `<div class="cc-seg" role="tablist"><button data-kind="leads" class="${S.kind === 'leads' ? 'on' : ''}">Leads</button><button data-kind="roas" class="${S.kind === 'roas' ? 'on' : ''}">ROAS</button></div>`; }
 function preLine() {
+  if (S.ro) return '';
   if (S.act === 'all') return `<p class="hint" style="margin:0 0 12px">Pick a brand up top and the dials start from its real last 90 days. Scenarios save to that brand.</p>`;
   if (S.preErr) return `<p class="hint" style="margin:0 0 12px">Could not read the brand's numbers (${esc(S.preErr)}); the dials start from defaults.</p>`;
   if (!S.pre) return '';
@@ -476,10 +494,13 @@ function preLine() {
 }
 const fmtIn = v => !fin(+v) ? '' : (+v).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const parseIn = str => parseFloat(String(str).replace(/[^0-9.\-]/g, ''));
+const pOf = (v, min, max) => ((clamp(+v || 0, +min, +max) - min) / ((max - min) || 1) * 100).toFixed(2) + '%';
+const setP = rg => rg.style.setProperty('--p', pOf(rg.value, +rg.min, +rg.max));
 function dial(label, key, val, { min, max, step, unit, pre, sub }) {
-  return `<div class="cc-d"><label>${label}</label><div class="in">${pre ? `<span>${pre}</span>` : ''}<input type="text" inputmode="decimal" class="num" data-k="${key}" value="${fmtIn(val)}">${unit ? `<span>${unit}</span>` : ''}</div><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${clamp(+val || 0, min, max)}">${sub ? `<small>${sub}</small>` : ''}</div>`;
+  return `<div class="cc-d"><label>${label}</label><div class="in">${pre ? `<span>${pre}</span>` : ''}<input type="text" inputmode="decimal" class="num" data-k="${key}" value="${fmtIn(val)}">${unit ? `<span>${unit}</span>` : ''}</div><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${clamp(+val || 0, min, max)}" style="--p:${pOf(val, min, max)}">${sub ? `<small>${sub}</small>` : ''}</div>`;
 }
 function wordsCard() {
+  if (S.ro) return '';
   const ex = S.kind === 'leads'
     ? ['Spend $20k at $2, $3 and $4 a lead, 10% buy', 'Only 5% buy at $3 a lead and the order is $150', 'I want $80k back from the list at 4x, what can a lead cost']
     : ['$30k in November at 3x with a $140 order and 60% margin', 'What ROAS clears $10k a month of fixed costs on $25k of spend', '400 orders at $99 with $8 shipping and 2.9% fees on $15k of ads'];
@@ -488,9 +509,10 @@ function wordsCard() {
     <p class="tiny" id="ccReading" style="margin:8px 0 0"></p></div>`;
 }
 function savedCard() {
+  if (S.ro) return '';
   const list = S.saved.filter(s => s.kind === S.kind);
   if (!list.length) return '';
-  return `<div class="card"><div class="cc-h3"><h3>Saved for ${esc(brand()?.name || 'all brands')}</h3><span class="tiny">Load puts it in the dials</span></div><div class="cc-saved">${list.map(s => `<div class="sv"><b>${esc(s.name)}</b><span class="m">${S.kind === 'leads' ? `${money2(s.inputs.cpl)}/lead · ${esc(String(s.inputs.cvr))}% · ${k(s.inputs.spend)}` : `${k(s.inputs.spend)} at ${x2(+s.inputs.roas)}`}</span><button class="cc-link" data-load="${esc(s.id)}">Load</button><button class="cc-link bad" data-del="${esc(s.id)}">Delete</button></div>`).join('')}</div></div>`;
+  return `<div class="card"><div class="cc-h3"><h3>Saved for ${esc(brand()?.name || 'all brands')}</h3><span class="tiny">Load puts it in the dials · Share link makes a read-only page for the client, no sign-in</span></div><div class="cc-saved">${list.map(s => `<div class="sv"><b>${esc(s.name)}</b><span class="m">${S.kind === 'leads' ? `${money2(s.inputs.cpl)}/lead · ${esc(String(s.inputs.cvr))}% · ${k(s.inputs.spend)}` : `${k(s.inputs.spend)} at ${x2(+s.inputs.roas)}`}</span><button class="cc-link" data-load="${esc(s.id)}">Load</button><button class="cc-link" data-share="${esc(s.id)}">Share link</button><button class="cc-link bad" data-del="${esc(s.id)}">Delete</button></div>`).join('')}</div></div>`;
 }
 
 function footNote() {
@@ -508,7 +530,7 @@ function footNote() {
 
 /* ---------- LEADS ---------- */
 function paintLeads() {
-  const main = $('#main');
+  const main = host();
   if (!S.cols.length) S.cols = defaultCols();
   if (S.focus >= S.cols.length) S.focus = 0;
   const ms = S.cols.map(c => leadMath(c, S.target));
@@ -519,7 +541,7 @@ function paintLeads() {
     <div class="read">${esc(leadReading(c, f))}</div>
     <div class="cc-stats">
       <div><div class="l">Leads</div><div class="v">${num(f.leads)}</div><div class="s">${k(f.spend)} at ${money2(f.cpl)}</div></div>
-      <div><div class="l">Orders</div><div class="v">${num(f.buyers)}</div><div class="s">${pct(f.cvr * 100)} buy</div></div>
+      <div><div class="l">Orders</div><div class="v">${num(f.buyers)}</div><div class="s">${pct(f.cvr * 100)} CVR</div></div>
       <div><div class="l">Revenue back</div><div class="v">${k(f.revenue)}</div><div class="s">${num(f.buyers)} x ${money(f.aov)}</div></div>
       <div><div class="l">ROAS on lead spend</div><div class="v ${z}">${x2(f.roas)}</div><div class="s">target ${x2(S.target)}</div></div>
       <div><div class="l">Left after lead spend</div><div class="v ${f.profit >= 0 ? 'good' : 'bad'}">${k(f.profit)}</div><div class="s">${pct(f.margin * 100)} margin, minus ${k(f.spend)}</div></div>
@@ -527,21 +549,21 @@ function paintLeads() {
     </div></div>`;
   const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial in "${esc(c.name)}"</h3><span class="tiny">drag or type; the whole page follows · <button class="cc-link" id="ccReset">reset</button></span></div><div class="cc-dial">
     ${dial('Lead-gen spend', 'spend', c.spend, { min: 1000, max: 100000, step: 500, pre: '$', sub: 'What goes into the giveaway or signup ads over the whole run.' })}
-    ${dial('Cost per lead', 'cpl', c.cpl, { min: 0.5, max: 15, step: 0.25, pre: '$', sub: 'Giveaway leads usually land at $1 to $4. Dartee is planning on $2 to $3.' })}
-    ${dial('Of the leads, how many buy', 'cvr', c.cvr, { min: 1, max: 50, step: 1, unit: '%', sub: 'In the window you care about (the weekend plus December). Giveaway lists 3 to 10%; a true early-access list up to 40%.' })}
+    ${dial('Cost per lead (CPL)', 'cpl', c.cpl, { min: 0.5, max: 15, step: 0.25, pre: '$', sub: 'Giveaway leads usually land at $1 to $4. Dartee is planning on $2 to $3.' })}
+    ${dial('Conversion rate (CVR)', 'cvr', c.cvr, { min: 1, max: 50, step: 1, unit: '%', sub: 'The share of leads that place an order in the window you care about (the weekend plus December). Giveaway lists 3 to 10%; a true early-access list up to 40%.' })}
     ${dial('Average order', 'aov', c.aov, { min: 20, max: 600, step: 5, pre: '$', sub: 'Prefilled with the new-customer order value from the last 90 days.' })}
     ${dial('Margin before ads', 'margin', c.margin, { min: 10, max: 95, step: 1, unit: '%', sub: 'After product, shipping and fees, before any ad spend. From the Profit page.' })}
     ${dial('Target ROAS on the lead spend', 'target', S.target, { min: 1, max: 8, step: 0.1, unit: 'x', sub: 'The return you want on the lead budget. Sets the green zone and the pay-up-to number.' })}
   </div></div>`;
   const cards = `<div class="card"><div class="cc-h3"><h3>Compare</h3><span class="tiny">click one to dial it; the dot is its zone</span></div><div class="cc-cards">
     ${S.cols.map((cc, i) => { const m = ms[i], zz = zoneOf(m), d = m.profit - ms[0].profit; return `<div class="cc-sc ${i === S.focus ? 'on' : ''}" data-focus="${i}"><span class="z ${zz}"></span><input class="nm" data-name="${i}" value="${esc(cc.name)}" title="Rename">
-      <div class="r"><span>Per lead</span><b>${money2(m.cpl)}</b></div><div class="r"><span>Buy</span><b>${pct(m.cvr * 100)}</b></div><div class="r"><span>ROAS</span><b class="${zz === 'good' ? 'good' : zz === 'bad' ? 'bad' : ''}">${x2(m.roas)}</b></div><div class="r"><span>Left</span><b class="${m.profit >= 0 ? 'good' : 'bad'}">${k(m.profit)}</b></div>${i > 0 ? `<div class="r dl"><span>vs ${esc(S.cols[0].name)}</span><b class="${d >= 0 ? 'good' : 'bad'}">${d >= 0 ? '+' : ''}${k(d)}</b></div>` : ''}
+      <div class="r"><span>CPL</span><b>${money2(m.cpl)}</b></div><div class="r"><span>CVR</span><b>${pct(m.cvr * 100)}</b></div><div class="r"><span>ROAS</span><b class="${zz === 'good' ? 'good' : zz === 'bad' ? 'bad' : ''}">${x2(m.roas)}</b></div><div class="r"><span>Left</span><b class="${m.profit >= 0 ? 'good' : 'bad'}">${k(m.profit)}</b></div>${i > 0 ? `<div class="r dl"><span>vs ${esc(S.cols[0].name)}</span><b class="${d >= 0 ? 'good' : 'bad'}">${d >= 0 ? '+' : ''}${k(d)}</b></div>` : ''}
       <div class="act"><button class="cc-link" data-save="${i}">Save</button>${S.cols.length > 1 ? `<button class="cc-link bad" data-rm="${i}">Remove</button>` : ''}</div></div>`; }).join('')}
     ${S.cols.length < 8 ? `<div class="cc-sc add" id="ccAddCol">+ copy "${esc(c.name)}"</div>` : ''}
   </div>${S.act !== 'all' ? `<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary cc-mini" id="ccKpi">Set "${esc(c.name)}" as this brand's lead KPI</button></div>` : ''}</div>`;
-  const zone = `<div class="card"><div class="cc-h3"><h3>Where a lead pays</h3><span class="tiny">for "${esc(c.name)}": ${pct(f.cvr * 100)} buying at ${money(f.aov)} on ${pct(f.margin * 100)} margin</span></div>${zoneStrip(ms)}</div>`;
-  const curve = `<div class="card"><div class="cc-h3"><h3>ROAS at every cost per lead</h3><span class="tiny">hover or touch the line for the numbers</span></div>
-    <div class="cc-leg"><span><i></i>${pct(f.cvr * 100)} buy</span><span><i class="d"></i>${pct(f.cvr * 50)} buy</span><span><i class="t"></i>${pct(f.cvr * 200)} buy</span><span><i class="tg"></i>target ${x2(S.target)}</span>${f.beRoas ? `<span><i class="be"></i>breakeven ${x2(f.beRoas)}</span>` : ''}</div>
+  const zone = `<div class="card"><div class="cc-h3"><h3>Where a lead pays</h3><span class="tiny">for "${esc(c.name)}": ${pct(f.cvr * 100)} CVR at ${money(f.aov)} on ${pct(f.margin * 100)} margin</span></div>${zoneStrip(ms)}</div>`;
+  const curve = `<div class="card"><div class="cc-h3"><h3>ROAS at every CPL</h3><span class="tiny">hover or touch the line for the numbers</span></div>
+    <div class="cc-leg"><span><i></i>${pct(f.cvr * 100)} CVR</span><span><i class="d"></i>${pct(f.cvr * 50)} CVR</span><span><i class="t"></i>${pct(f.cvr * 200)} CVR</span><span><i class="tg"></i>target ${x2(S.target)}</span>${f.beRoas ? `<span><i class="be"></i>breakeven ${x2(f.beRoas)}</span>` : ''}</div>
     ${leadCurve(f)}</div>`;
   const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(f.revenue)} goes</h3><span class="tiny">"${esc(c.name)}"</span></div>${dollarBar([
     { l: 'Product, shipping, fees', v: f.cost, c: 'color-mix(in srgb,var(--cc-muted) 55%,transparent)' },
@@ -550,10 +572,13 @@ function paintLeads() {
   ], f.revenue || 1)}</div>`;
   const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(f.spend)} of spend, ${money(f.aov)} orders, ${pct(f.margin * 100)} margin, target ${x2(S.target)}</span></div>${leadGrid(c)}</div>`;
   const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">"${esc(c.name)}", one lead and one order</span></div>${leadReceipt(f)}</div>`;
-  main.innerHTML = `<div class="cc">${crumb()}<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>${seg()}${preLine()}${hero}<div class="cc-two">${dials}${cards}</div>${zone}${grid}${curve}<div class="cc-two">${dollars}${rcpt}</div>${wordsCard()}${savedCard()}${footNote()}</div>`;
+  const roCard = S.ro ? assumeCard([['Lead-gen spend', k(f.spend)], ['CPL', money2(f.cpl)], ['CVR', pct(f.cvr * 100)], ['Average order', money(f.aov)], ['Margin before ads', pct(f.margin * 100)], ['Target ROAS', x2(S.target)]]) : '';
+  main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${hero}${S.ro ? roCard : `<div class="cc-two">${dials}${cards}</div>`}${zone}${grid}${curve}<div class="cc-two">${dollars}${rcpt}</div>${wordsCard()}${savedCard()}${footNote()}</div>`;
   wireCommon(); wireTips(main);
+  if (S.ro) { main.querySelectorAll('.cc-grid .c').forEach(el => el.style.cursor = 'default'); const gn = main.querySelector('.cc-gridnote'); if (gn) gn.textContent = 'Green makes money, red loses it; the darker the cell the more. The outlined cell is this scenario.'; return; }
   main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => {
     const v = parseIn(inp.value); if (!isFinite(v)) return;
+    if (inp.type === 'range') setP(inp);
     if (inp.dataset.k === 'target') S.target = v; else S.cols[S.focus][inp.dataset.k] = v;
     inPlace(paintLeads, inp);
   }));
@@ -578,7 +603,7 @@ function paintLeads() {
 
 /* ---------- ROAS ---------- */
 function paintRoas() {
-  const main = $('#main');
+  const main = host();
   if (!S.roas) S.roas = defaultRoas();
   const r = S.roas, m = roasMath(r);
   const be = r.fixed_on ? m.beRoasFull : m.beRoas, keep = r.fixed_on ? m.net : m.contrib;
@@ -628,10 +653,12 @@ function paintRoas() {
     <div class="cc-leg"><span><i></i>${r.fixed_on ? 'net profit' : 'contribution after ads'}</span>${be ? `<span><i class="be"></i>breakeven ${x2(be)}</span>` : ''}</div>${roasCurve(r, m)}</div>`;
   const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(m.spend)} of spend, ${money(r.aov)} orders${r.fixed_on ? `, ${k(m.fixed)} fixed` : ''}</span></div>${roasGrid(r, m)}</div>`;
   const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">at ${x2(m.roas)}</span></div>${roasReceipt(r, m)}</div>`;
-  main.innerHTML = `<div class="cc">${crumb()}<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>${seg()}${preLine()}${hero}<div class="cc-two">${dials}<div>${dollars}${rcpt}</div></div>${grid}${curve}${wordsCard()}${savedCard()}${footNote()}</div>`;
+  const roCard = S.ro ? assumeCard([['Average order', money(r.aov)], ['Gross margin', pct(r.margin)], ['Ad spend', k(m.spend)], ['ROAS', x2(m.roas)], ...(r.proc_on ? [['Processing', `${r.proc_pct}% + ${money2(r.proc_fixed)}`]] : []), ...(r.ful_on ? [['Pick, pack, ship', money2(r.ful) + ' an order']] : []), ...(r.fixed_on ? [['Fixed costs', k(r.fixed)]] : []), ...(r.share_on ? [['Revenue share', pct(r.share_pct)]] : []), ...(r.fee_on ? [['Agency fee', pct(r.fee_pct) + ' of spend']] : [])]) : '';
+  main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${hero}${S.ro ? `${roCard}<div class="cc-two">${dollars}${rcpt}</div>` : `<div class="cc-two">${dials}<div>${dollars}${rcpt}</div></div>`}${grid}${curve}${wordsCard()}${savedCard()}${footNote()}</div>`;
   wireCommon(); wireTips(main);
+  if (S.ro) { main.querySelectorAll('.cc-grid .c').forEach(el => el.style.cursor = 'default'); const gn = main.querySelector('.cc-gridnote'); if (gn) gn.textContent = 'Same spend in every cell. The outlined cell is this scenario.'; return; }
   main.querySelectorAll('.cc-grid .c[data-gr]').forEach(el => el.onclick = () => { r.roas = +el.dataset.gr; r.margin = +el.dataset.gm; if (r.mode === 'orders') { r.mode = 'roas'; } tipHide(); inPlace(paintRoas); });
-  main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => { const v = parseIn(inp.value); if (!isFinite(v)) return; r[inp.dataset.k] = v; inPlace(paintRoas, inp); }));
+  main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => { const v = parseIn(inp.value); if (!isFinite(v)) return; if (inp.type === 'range') setP(inp); r[inp.dataset.k] = v; inPlace(paintRoas, inp); }));
   main.querySelectorAll('[data-r]').forEach(inp => inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (!isFinite(v)) return; r[inp.dataset.r] = v; inPlace(paintRoas, inp); }));
   main.querySelectorAll('[data-rt]').forEach(cb => cb.addEventListener('change', () => { r[cb.dataset.rt] = cb.checked ? 1 : 0; inPlace(paintRoas); }));
   main.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
@@ -648,28 +675,40 @@ function paintRoas() {
   wireRoasCurve(r, m);
 }
 
-/* Repaint while someone is typing or dragging in the dial card: everything else is redrawn,
-   the dial card itself is kept (so the caret, the slider drag and the typed text survive) and
-   only its sibling control for the same key is synced. Any other trigger repaints the lot. */
+/* Repaint while someone is typing or dragging in the dial card. The dial card must never leave
+   the document (removing a range input mid-drag ends the drag, re-creating a text box loses the
+   caret), so the new page is painted into a detached tree and every live block EXCEPT the dial
+   card is swapped for its new twin. The twin control for the same key is synced by hand. */
 function inPlace(fn, src) {
   const old = document.getElementById('ccDials');
-  const keep = !!(src && old && old.contains(src));
-  const y = window.scrollY;
-  fn(); window.scrollTo(0, y);
-  if (!keep) return;
-  const fresh = document.getElementById('ccDials'); if (!fresh) return;
-  fresh.replaceWith(old);
+  const liveRoot = document.querySelector('#main .cc');
+  const keep = !!(src && old && liveRoot && old.contains(src));
+  if (!keep) { const y = window.scrollY; fn(); window.scrollTo(0, y); return; }
+  TARGET = document.createElement('div');
+  let newRoot = null;
+  try { fn(); newRoot = TARGET.querySelector('.cc'); } finally { TARGET = null; }
+  if (!newRoot) return;
+  const nk = [...newRoot.children], lk = [...liveRoot.children];
+  if (nk.length !== lk.length) { const y = window.scrollY; liveRoot.replaceWith(newRoot); window.scrollTo(0, y); return; }
+  const fresh = newRoot.querySelector('#ccDials');
+  nk.forEach((n, i) => {
+    const l = lk[i];
+    if (!l.contains(old)) { l.replaceWith(n); return; }
+    const nc = [...n.children], lc = [...l.children];
+    nc.forEach((c, j) => { if (c.id !== 'ccDials' && lc[j]) lc[j].replaceWith(c); });
+  });
   const key = src.dataset.k;
   if (key) {
     if (src.type === 'range') { const nb = old.querySelector(`input.num[data-k="${key}"]`); if (nb) nb.value = fmtIn(src.value); }
-    else { const rg = old.querySelector(`input[type=range][data-k="${key}"]`); if (rg) rg.value = parseIn(src.value); }
+    else { const rg = old.querySelector(`input[type=range][data-k="${key}"]`); if (rg) { rg.value = parseIn(src.value); setP(rg); } }
   }
-  const fs = fresh.querySelectorAll('.cc-d small, .cc-h3 h3'), os = old.querySelectorAll('.cc-d small, .cc-h3 h3');
-  fs.forEach((el, i) => { const o = os[i]; if (o && o.innerHTML !== el.innerHTML && !o.contains(src)) o.innerHTML = el.innerHTML; });
-  if (document.activeElement !== src) src.focus({ preventScroll: true });
+  if (fresh) {
+    const fs = fresh.querySelectorAll('.cc-d small, .cc-h3 h3'), os = old.querySelectorAll('.cc-d small, .cc-h3 h3');
+    fs.forEach((el, i) => { const o = os[i]; if (o && o.innerHTML !== el.innerHTML && !o.contains(src)) o.innerHTML = el.innerHTML; });
+  }
 }
 function wireCommon() {
-  const main = $('#main');
+  const main = host();
   main.querySelectorAll('input.num').forEach(inp => inp.addEventListener('blur', () => { const v = parseIn(inp.value); if (isFinite(v)) inp.value = fmtIn(v); }));
   main.querySelectorAll('.cc-seg button').forEach(b => b.onclick = () => { S.kind = b.dataset.kind; try { localStorage.setItem(LS_KIND, S.kind); } catch {} paint(); window.scrollTo(0, 0); });
   const rs = $('#ccReset'); if (rs) rs.onclick = () => { const b = brand(); S.target = b && +b.target_roas > 0 ? +b.target_roas : 3; if (S.kind === 'leads') { S.cols = defaultCols(); S.focus = 0; } else S.roas = defaultRoas(); paint(); toast('Back to the starting numbers'); };
@@ -677,6 +716,11 @@ function wireCommon() {
   main.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#ccWords').value = b.dataset.ex; });
   const bld = $('#ccBuild'); if (bld) bld.onclick = buildFromWords;
   main.querySelectorAll('[data-load]').forEach(b => b.onclick = () => { const s = S.saved.find(x => x.id === b.dataset.load); if (!s) return; if (S.kind === 'leads') { const c = { name: s.name, spend: s.inputs.spend, cpl: s.inputs.cpl, cvr: s.inputs.cvr, aov: s.inputs.aov, margin: s.inputs.margin }; if (s.inputs.target) S.target = +s.inputs.target; if (S.cols.length >= 8) S.cols[S.cols.length - 1] = c; else S.cols.push(c); S.focus = S.cols.length - 1; } else S.roas = { ...defaultRoas(), ...s.inputs }; paint(); window.scrollTo(0, 0); });
+  main.querySelectorAll('[data-share]').forEach(b => b.onclick = async () => {
+    const link = location.origin + location.pathname.replace(/[^/]*$/, '') + 'share.html?s=' + encodeURIComponent(b.dataset.share);
+    try { await navigator.clipboard.writeText(link); toast('Link copied. Anyone with it sees this scenario, read-only, no sign-in.'); }
+    catch { await ask('Share link', 'Copy this and send it. Read-only, no sign-in needed.', link, 'Done'); }
+  });
   main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const ok = typeof window.confirmModal === 'function' ? await window.confirmModal('Delete this saved scenario?', 'The dials on screen stay as they are.', 'Delete') : true; if (!ok) return; try { await api(`/api/scenario?id=${encodeURIComponent(b.dataset.del)}`, { method: 'DELETE' }); await loadSaved(); inPlace(paint); } catch (e) { toast(e.message, true); } });
 }
 async function buildFromWords() {
@@ -712,5 +756,18 @@ async function render({ tok, url, act, accounts }) {
   if (!S.roas) S.roas = defaultRoas();
   paint();
 }
-window.CalcTab = { render };
+/* The read-only page (profit/share.html?s=<id>): one saved scenario, no sign-in, nothing to dial. */
+async function renderShared({ id, url }) {
+  injectCss(); S.ro = true; S.url = url; S.tok = '';
+  const main = host(); main.innerHTML = `<div class="cc"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  let row;
+  try { const res = await fetch(url.replace(/\/+$/, '') + '/api/scenario/public?id=' + encodeURIComponent(id)); row = await res.json(); if (!res.ok) throw new Error(row.error || ('HTTP ' + res.status)); }
+  catch (e) { main.innerHTML = `<div class="cc"><div class="card"><h3>This link does not work</h3><p class="hint">${esc(e.message)}. Ask whoever sent it to share it again from Locus.</p></div></div>`; return; }
+  S.shared = row; S.kind = row.kind === 'roas' ? 'roas' : 'leads'; S.act = row.act; S.accounts = row.brand ? [{ act_id: row.act, name: row.brand }] : [];
+  const i = row.inputs || {};
+  if (S.kind === 'leads') { S.cols = [{ name: row.name, spend: +i.spend || 0, cpl: +i.cpl || 0, cvr: +i.cvr || 0, aov: +i.aov || 0, margin: +i.margin || 0 }]; S.focus = 0; S.target = +i.target > 0 ? +i.target : 3; paintLeads(); }
+  else { S.roas = { ...defaultRoas(), ...i }; paintRoas(); }
+  document.title = `${row.name} · ${row.brand || 'Scenario'} · Locus`;
+}
+window.CalcTab = { render, renderShared };
 })();

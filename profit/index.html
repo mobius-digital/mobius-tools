@@ -1874,7 +1874,7 @@
 <script src="newclient.js?v=14"></script>
 <script src="studio.js?v=21"></script>
 <script src="season.js?v=13"></script>
-<script src="calc.js?v=3"></script>
+<script src="calc.js?v=4"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2725,7 +2725,7 @@ const TAB_CRUMB = {
 const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
-const WHO_LABEL = { everyone: 'For everyone', buyer: 'For the media buyer', strategist: 'For the strategist', owner: 'For Cole' };
+const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
 const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[tab]]}</span>` : '';
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;

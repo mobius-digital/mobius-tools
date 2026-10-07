@@ -1705,3 +1705,13 @@ Cole asked whether I had really gone through the public calculator before droppi
 
 ## Season seed 012 (Lucky, implemented recommendations) RAN
 Prize = THE FOURSOME GIVEAWAY ("Every Lucky club. All four of you."), `list` key = Early Bird Nov 1 to 16 "buy any club, get 10 entries" (locked), `gift` = free hat at $100, glove + hat at $200. Asana: BFCM 2026 Lucky section has the Early Bird line (1219238618492931) with the four subtasks; Lucky BFCM 2026 has the website + email tasks; gift card lines renamed. Sheet artifact v5. Open: one day vs 48h early access (Nick, Oct 7).
+
+## Scenarios v4 (2026-10-06 late, calc.js?v=4) + the share page
+- Sliders are custom-drawn (thin track, filled part via `--p`, round thumb); `setP()` keeps the fill in step.
+- Drag-safe repaint: `inPlace()` paints into a detached tree (`TARGET`, `host()`, and `$` resolves against it) and swaps every live block except `#ccDials`, so a range input never leaves the document mid-drag and the caret never moves. If the block count differs it falls back to a full swap.
+- Labels: CPL / CVR everywhere (Cole's words).
+- Share: every saved scenario has "Share link" -> `profit/share.html?s=<id>`, a read-only page (S.ro) with the hero, assumptions card, zone strip, grid, curve, dollar bar, receipt and formula note. Data from `GET /api/scenario/public?id=` (scenario.js, mounted in worker.js BEFORE the auth gate; returns the row + brand name, never the author). Only saved scenarios can be shared, by design.
+- Role chip in the breadcrumb reworded app-wide: "Shows for every role / the media buyer / the strategist / Cole only" (Cole read "For everyone" as a sharing control).
+
+## Season seed 013 (Lucky TBD flags) RAN
+Prize name, Early Bird and gift cards back to proposed/TBD until the Nick call Oct 7; strategy_note says what is decided vs open. Nick doc artifact: https://claude.ai/artifact/DKSH1u9LXUVS1prAVVUeUF

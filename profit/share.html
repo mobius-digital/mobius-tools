@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-app="locus">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scenario · Locus</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/locus-round-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/mobius.css">
+<style>
+  /* The read-only scenario page: one saved what-if from Locus > Scenarios, sent to a client.
+     No sign-in, nothing to dial. Same calc.js, S.ro = true. */
+  body{margin:0;background:var(--bg,#F3F6F8);color:var(--ink,#111);font:15px/1.5 var(--sans,"Instrument Sans",system-ui,sans-serif)}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 16px 60px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .top .who{display:flex;align-items:center;gap:10px;font-weight:600}
+  .top .who img{width:28px;height:28px;border-radius:8px}
+  .top .who small{display:block;font-weight:500;color:var(--muted,#5F6F7B);font-size:12px}
+  .top .tiny{color:var(--muted,#5F6F7B);font-size:12px}
+  #main h2{font:600 26px/1.15 var(--sans,"Instrument Sans",system-ui);margin:0 0 4px;letter-spacing:-.01em}
+  #main .sub{color:var(--muted,#5F6F7B);margin:0 0 16px}
+  .card{background:var(--surface,#fff);border:1px solid var(--line,#E3E8EC);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+  .card h3{font-size:15px;font-weight:700;margin:0 0 4px}
+  .tiny{font-size:12px;color:var(--muted,#5F6F7B)}
+  .hint{color:var(--muted,#5F6F7B);font-size:13px}
+  .foot{margin-top:28px;color:var(--muted,#5F6F7B);font-size:12.5px;text-align:center}
+  .foot a{color:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="who"><img src="../icons/locus-round-192.png" alt=""><div>Locus<small>by Mobius Digital</small></div></div><span class="tiny">Read-only. Hover the chart and the grid for the numbers.</span></div>
+  <div id="main"><div class="card"><span class="hint">Loading…</span></div></div>
+  <p class="foot">The numbers on this page are the scenario as it was saved. Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a></p>
+</div>
+<script src="calc.js?v=4"></script>
+<script>
+  const id = new URLSearchParams(location.search).get('s') || '';
+  const url = localStorage.getItem('pf_worker') || 'https://mobius-profit.mobius-digital.workers.dev';
+  if (!id) document.getElementById('main').innerHTML = '<div class="card"><h3>No scenario in this link</h3><p class="hint">Ask whoever sent it to share it again from Locus.</p></div>';
+  else window.CalcTab.renderShared({ id, url });
+</script>
+</body>
+</html>

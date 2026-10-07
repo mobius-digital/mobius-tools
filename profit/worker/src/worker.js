@@ -1852,6 +1852,12 @@ export default {
     }
 
     const kind = await authKind(request, env);
+    /* Public, read-only: one saved scenario by id for profit/share.html (sent to clients, no sign-in).
+       Nothing else about the brand comes back with it. */
+    if (path === '/api/scenario/public' && request.method === 'GET') {
+      const sc = await handleScenario({ path, request, env, email: null });
+      if (sc) return sc;
+    }
     if (!kind) return json({ error: 'unauthorized' }, 401);
     const isDemo = kind === 'demo';
     // A demo session is READ-ONLY. The reviewer must be able to see every screen and
