@@ -957,17 +957,18 @@ async function screenRead(env, b) {
   if (cached && cached.at && Date.now() - Date.parse(cached.at) < READ_TTL_MS) return { ...cached, cached: true };
   const user = `SCREEN: ${screen}\nSCOPE: ${scope}\nRANGE: ${String(b.range || '').slice(0, 120)}\nCOMPARE: ${String(b.compare || 'none').slice(0, 60)}\n\nFACTS (everything on the screen):\n${JSON.stringify(facts).slice(0, 24000)}`;
   let text;
-  try { text = await claude(env, { system: READ_SYSTEM, user, maxTokens: 700, model: READ_MODEL }); }
+  /* The model thinks inside max_tokens; 700 cut the JSON mid-sentence on the first live run. */
+  try { text = await claude(env, { system: READ_SYSTEM, user, maxTokens: 3000, model: READ_MODEL }); }
   catch (e) { return { error: 'The read could not run: ' + e.message }; }
   const m = String(text || '').match(/\{[\s\S]*\}/);
-  let out; try { out = JSON.parse(m ? m[0] : '{}'); } catch { return { error: 'The read did not come back clean.' }; }
+  let out; try { out = JSON.parse(m ? m[0] : '{}'); } catch { return { error: 'The read did not come back clean.', raw: String(text || '').slice(0, 600) }; }
   const clean = s => String(s || '').replace(/—|–/g, ',').trim();
   const res = {
     lines: (Array.isArray(out.lines) ? out.lines : []).slice(0, 3).map(clean).filter(Boolean),
     leaks: (Array.isArray(out.leaks) ? out.leaks : []).slice(0, 3).map(l => ({ what: clean(l?.what), where: clean(l?.where) })).filter(l => l.what),
     focus: clean(out.focus), at: new Date().toISOString(), screen, scope,
   };
-  if (!res.lines.length) return { error: 'The read came back empty.' };
+  if (!res.lines.length) return { error: 'The read came back empty.', raw: String(text || '').slice(0, 400) };
   await putSetting(env, key, JSON.stringify(res)).catch(() => {});
   return res;
 }

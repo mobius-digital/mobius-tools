@@ -1747,3 +1747,43 @@ Prize name, Early Bird and gift cards back to proposed/TBD until the Nick call O
   PUBLIC `GET /api/store-view?s=` (before the auth gate, token is the auth) and `storeReport()` reads
   the store live: paid orders last 30 days, revenue, AOV, new vs returning, by day, top products.
   Client stores still land on `?perf=`. Resubmit text: `docs/shopify-app-review-2026-10-07.md`.
+
+## 2026-10-07 (later): THE HUB, phase 1. Read before touching the rail, Home, Email or the platform screens.
+
+Plan: `docs/locus-hub/plan.md` (Cole approved the rail and said "start and end everything").
+- **Rail by the QUESTION you walk in with**, not by when you look: Home (Overview, Daily Brief),
+  Paid ads (Meta, Google, TikTok), Email & SMS (Klaviyo), Store (Customers; Sales screen to come),
+  Creative (Studio, Brand, Tests and angles, Copy desk, Creator link), Reports (Weekly and monthly,
+  Season, Scenarios), Money & plan (Profit, Plan), and Settings as one row at the bottom
+  (`.grp.solo`). **Only the open group unfolds** (`show()` toggles `.grp.open` on the group that holds
+  the open page; a `button.band[data-grp]` click opens another group to browse). That is the whole
+  clutter rule: 7 headings + one open group fits a 720px rail. `SECTIONS` is empty (Customers is its
+  own page under Store; Meta still fills its own sub-tabs). TAB_CRUMB / TAB_WHO / ROLE_TABS /
+  SCREEN_NAMES / the start tour carry the new names. Phone bar: Overview, Brief, Paid, Email, More.
+- **Compare period** on the date menu (`S.cmp` = prev | yoy | none, `pf_cmp`; `rangeQ()` appends
+  `&cmp=`). `/api/overview` returns per brand `prev` (totals of the compare window), `prev_window`,
+  `series` and `prev_series` (date, sales, spend, orders; 100 points max) and `channels`
+  (`channelsFor` in worker.js: spend per platform from the platform's rows, revenue per platform from
+  `tw_ad_attr` lastPlatformClick grouped by `platform`, Email = Klaviyo placed orders split
+  campaigns / flows, "Everything else" = revenue not credited, floored at 0). `series=0` skips it.
+- **Home** (`renderOverview`): the read (`#ovRead`, filled after paint by account-health
+  `POST /api/read` with the exact facts on screen, cached an hour per facts in `settings` as
+  `read:<hash>`, Sonnet, ~1c; `OVR` caches it in the page; "Ask about this" opens the Strategist with
+  the scope prefilled), the Today card, the money row (`.rollup.hm-row`, 4 x 2: revenue, orders + AOV,
+  ad spend, MER, aMER, new customers, cost per new customer, contribution margin, each with a
+  `deltaPill` against the compare period), `paceCard` (MTD vs plan as a bar), `channelsCard` (stacked
+  share bar + table), `homeChartSVG` (same geometry as `salesSpendSVG` so `wireSalesSpend` works;
+  compare period dashed), and the ranked brand table in the agency view (click = that brand's Home).
+  The three verdict cards are gone; the stripes and the read carry the triage.
+- **Email and SMS** (`renderEmail`): tiles from `window.email_rev / email_share` + the channels'
+  campaigns / flows; all brands = a table; one brand = live Klaviyo (`GET /api/klaviyo?act&what=
+  overview|campaigns` on account-health, admin) or the Connections button when no key.
+- **Google / TikTok** (`renderPlatform(kind)`, `PLATFORMS`): "not connected directly" card with what
+  connecting adds and the Connections button, then what Triple Whale sees (tiles + per-brand table).
+  The Meta four-screen skeleton lands here once a platform is connected.
+- Local check: `tools-static` (:8788) + `profit-worker-dev` (:8799) with the .dev.vars token; the
+  read and Klaviyo answer 401 locally (account-health does not know the dev token), everything else
+  renders. `node --check` on the inline script (extract it first) catches syntax.
+- Not built yet from the plan: saved dashboards (phase 2), the read on every screen, the Store sales
+  screen, role landings, Google / TikTok direct connections (gated on Cole's Google Cloud project +
+  Ads developer token and a TikTok developer app).
