@@ -960,6 +960,18 @@
   .set-h .hint{margin:4px 0 0;font-size:13.5px;color:var(--muted);max-width:640px}
   .set-all{display:inline-block;margin-left:4px;font-weight:600;color:var(--brand-ink)}
   .set-card{padding:18px 20px}
+  /* Connections (2026-10-07) */
+  .cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px 18px}
+  .cn-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .cn-row .cn-name{font-weight:600}
+  .cn-row .cn-note,.cn-row .cn-fix{grid-column:1 / -1}
+  .cn-fix{color:var(--ink-2)}
+  .cn-tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  .cn-tbl td{vertical-align:top}
+  .cn-cell{background:none;border:0;padding:2px;cursor:pointer;border-radius:6px}
+  .cn-cell.on{outline:2px solid var(--accent, #62BDEA);outline-offset:1px}
+  .cn-detail td{background:var(--panel-2, var(--bg));padding:10px 12px}
+  .cn-det{max-width:820px}
   .set-card > h3{font-size:15px;margin-bottom:4px}
   .set-card .set-why{margin:0 0 14px;font-size:13px;line-height:1.5;max-width:680px}
   .set-body{min-width:0}
@@ -2684,6 +2696,7 @@ const TAB_PURPOSE = {
 /* Settings sections: key, name in the list, one line saying what it is for. */
 const SET_SECS = [
   ['brands', 'Brands', 'Each brand’s ad account, store, goals, Slack channels and margin. Open a row to change anything about that brand.'],
+  ['connections', 'Connections', 'Everything Locus is connected to: the agency-wide ones made once, and each brand’s own. When something breaks, this says what and where to fix it.'],
   ['sending', 'Briefs and Slack', 'When the daily brief posts, who client messages come from, and who can send from inside Slack.'],
   ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['team', 'Team', 'Who can sign in to Locus, and whether they can change things or only look.'],
@@ -2693,7 +2706,7 @@ const SET_SECS = [
 /* The last two entries of the same list are whole pages, not sections: they open
    show('health') / show('costs'), and each of those pages has a link back here. */
 const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];
-const SET_ICONS = { brands: 'i-brand', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
+const SET_ICONS = { brands: 'i-brand', connections: 'i-health', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
 const backToSettings = () => `<p class="set-back"><button type="button" class="link" data-go="settings">&larr; Settings</button></p>`;
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
@@ -8840,6 +8853,9 @@ async function renderSettings() {
           <div id="setRollup"></div>
           <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
         </section>
+        <section data-sec="connections"${sec === 'connections' ? '' : ' hidden'}>${secHead('connections')}
+          <div id="connPage"><div class="card"><span class="hint">Checking every connection…</span></div></div>
+        </section>
         <section data-sec="sending"${sec === 'sending' ? '' : ' hidden'}>${secHead('sending')}
           ${sCard('Daily Brief send time', 'When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> all year, so it never shifts an hour when the clocks change. It always covers yesterday.',
             '<div class="row" style="margin:0;gap:10px"><select id="btHour" style="max-width:200px"></select><span class="tiny" id="btMsg"></span></div>')}
@@ -9383,6 +9399,51 @@ async function renderSettings() {
     };
     try { paint(await mApi('/api/settings')); }
     catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
+  })();
+
+  /* ---- Connections (2026-10-07) ----
+     Cole: "which things need access once and which need access all the time... an integration
+     page where we make sure all the integrations are there and if something breaks we know how
+     to fix it." account-health `/api/integrations` grades every connection; this only draws it.
+     Two cards: agency-wide (made once, every brand rides on it) and per brand (made at
+     onboarding). A cell opens its own note + fix in place; nothing here changes anything. */
+  (async () => {
+    const host = $('#connPage'); if (!host || !mApi) return;
+    let rep;
+    try { rep = await mApi('/api/integrations'); } catch (e) { host.innerHTML = `<div class="card"><div class="notice bad">⚠️<div>Could not read the connections: ${esc(e.message)}</div></div></div>`; return; }
+    if (run !== RUN || !rep?.agency) return;
+    const PILL = { ok: ['good', 'Connected'], warn: ['warn', 'Check'], bad: ['bad', 'Broken'], off: ['', 'Not set'] };
+    const pill = (st, short) => { const [cls, word] = PILL[st] || PILL.off; return `<span class="pill ${cls}"${cls ? '' : ' style="background:var(--line);color:var(--ink-2)"'}>${short || word}</span>`; };
+    const link = u => /^https?:\/\//.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : esc(u || '');
+    const brands = (rep.brands || []).filter(b => S.act === 'all' || b.act_id === S.act);
+    const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));
+    const agOff = rep.agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
+    const agencyRows = rep.agency.map(a => `<div class="cn-row" data-k="${esc(a.key)}"><div class="cn-name">${esc(a.name)}</div><div>${pill(a.state)}</div><div class="tiny cn-note">${esc(a.note || '')}</div>${a.state === 'ok' ? '' : `<div class="cn-fix tiny"><b>Fix:</b> ${esc(a.fix)}</div>`}</div>`).join('');
+    const cols = brands[0]?.items || [];
+    const table = brands.length ? `<div class="tbl-wrap"><table class="cn-tbl"><thead><tr><th>Brand</th>${cols.map(c => `<th>${esc(c.name.replace(' (via Triple Whale)', ''))}</th>`).join('')}</tr></thead><tbody>${brands.map(b => `
+      <tr data-act="${esc(b.act_id)}"><td><b>${esc(b.name)}</b><div class="tiny">${esc(b.summary)}</div></td>${b.items.map(i => `<td><button type="button" class="cn-cell" data-act="${esc(b.act_id)}" data-k="${esc(i.key)}" title="${esc(i.note)}">${pill(i.state)}</button></td>`).join('')}</tr>
+      <tr class="cn-detail" data-for="${esc(b.act_id)}" hidden><td colspan="${cols.length + 1}"></td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">No active brands.</p>';
+    host.innerHTML = `
+      <div class="card set-card">
+        ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0 0 12px">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0 0 12px">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
+        <p class="hint set-why" style="margin:0 0 6px">${esc(rep.how_it_works || '')}</p>
+      </div>
+      <div class="card set-card"><h3>Agency-wide (connected once)</h3><p class="hint set-why">Secrets on the worker, or Cole signing in from Locus. Every brand rides on these; when one breaks, every brand feels it.</p>
+        <div class="set-body cn-grid">${agencyRows}</div></div>
+      <div class="card set-card"><h3>Per brand (set up at onboarding)</h3><p class="hint set-why">Tap a cell for what it is and where to fix it. New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, the Triple Whale shop and the Shopify install come from the client.</p>
+        <div class="set-body">${table}</div></div>`;
+    host.onclick = e => {
+      const cell = e.target.closest('.cn-cell'); if (!cell) return;
+      const b = brands.find(x => x.act_id === cell.dataset.act), it = b?.items.find(i => i.key === cell.dataset.k); if (!it) return;
+      const row = host.querySelector(`.cn-detail[data-for="${cell.dataset.act}"]`), td = row.firstElementChild;
+      const open = !row.hidden && row.dataset.k === it.key;
+      host.querySelectorAll('.cn-cell.on').forEach(x => x.classList.remove('on'));
+      if (open) { row.hidden = true; row.dataset.k = ''; return; }
+      cell.classList.add('on'); row.hidden = false; row.dataset.k = it.key;
+      const sh = it.key === 'shopify' ? shopBy[b.act_id] : null;
+      const extra = sh?.install_url && it.state !== 'ok' ? `<div class="tiny" style="margin-top:6px">Install link for the client: ${link(sh.install_url)}</div>` : '';
+      td.innerHTML = `<div class="cn-det"><div><b>${esc(b.name)}: ${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>Fix:</b> ${esc(it.fix)}</div>`}${extra}</div>`;
+    };
   })();
 
   /* ---- are the scheduled jobs actually running? ----

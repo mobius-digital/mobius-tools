@@ -23,6 +23,7 @@ import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 import { asana, asanaAll, numOf } from './asana-brand.js';
 import { nextNumber, ideaStart } from './ideas.js';
+import { integrationsReport } from './integrations.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -248,6 +249,7 @@ const VIEW_BLURBS = {
   brief: 'ONE brief by its number: the test-library row plus the live Asana task (the brief text as written, section, assignee, the Testing / Angle / Result fields, the link). Pass `brand` and `number`. Read it before fill_brief, and to review what a strategist wrote.',
   customers: 'who the customers are and what they do next, from Triple Whale orders (400 days): customers, orders, revenue, repeat rate, orders per customer, revenue by order number (1st, 2nd, 3rd+), time from first to second order in buckets, where first orders came from (last platform click), the products most often in a first cart and in a second cart (product ids; the Shopify product titles are not in Locus yet). Pass `brand` and `days` (default 365). THE view for retention, LTV shape, journey and "what do they buy next" questions; query tw_orders for anything it does not give.',
   scenarios: 'the saved what-if scenarios from the lead-gen and ROAS calculators for one brand (or agency-wide): name, kind, inputs, note, the share link. Pass `brand` (optional). Read it before build_scenario so you extend what exists instead of duplicating it.',
+  integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Asana, Slack, Google, Atria, Frame, Studio image key, Canva, Gemini, downloader, Stripe, Lucky creator app) and PER BRAND ones (ad account, Triple Whale shop, Shopify install, Asana project, Slack channels, Drive folder, Frame project, creator link, onboarding, Google Ads and Klaviyo via Triple Whale). Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
   brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
 };
 
@@ -450,6 +452,11 @@ function buildViews(d) {
       const { results } = await env.DB.prepare(`SELECT s.id, s.act_id, a.name AS brand, s.kind, s.name, s.inputs_json, s.note, s.created_by, s.updated_at FROM p_scenario s LEFT JOIN accounts a ON a.act_id = s.act_id ${acct ? 'WHERE s.act_id = ?1 OR s.act_id = \'all\'' : ''} ORDER BY s.updated_at DESC LIMIT 40`).bind(...(acct ? [acct.act_id] : [])).all().catch(() => ({ results: [] }));
       return { brand: acct?.name || 'every brand', scenarios: (results || []).map(s => ({ ...s, brand: s.brand || (s.act_id === 'all' ? 'agency-wide' : s.act_id), inputs: d.safeJson(s.inputs_json, {}), inputs_json: undefined, url: SHARE_URL + s.id })),
         how_to_read: VIEW_BLURBS.scenarios + ' leads inputs: spend, cpl (cost per lead), cvr (% of leads who buy), aov, margin (%), target (ROAS). The share link opens the read-only page a client can see.' };
+    },
+    integrations: async (env, a) => {
+      const acct = (a.brand || a.id || a.account || a.q) ? await resolve(env, a.brand || a.id || a.account || a.q) : null;
+      const r = await integrationsReport(env, { brand: acct?.act_id || null });
+      return { ...r, how_to_read: VIEW_BLURBS.integrations + ' state: ok, warn (connected but stale or half set up), bad (failing), off (not set up). Quote the fix text when something is off; the agency ones are Cole\'s to fix, the per-brand ones the team can do in Locus.' };
     },
     brain: async (env, a) => {
       const acct = await need(env, a);

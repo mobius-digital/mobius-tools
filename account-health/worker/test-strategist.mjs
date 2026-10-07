@@ -179,6 +179,18 @@ await check('draft_from_thread: Slack only; closes the Strategist thread and que
   assert.deepEqual(closed, ['C_LUCKY:100.1']);
   assert.equal(queued.length, 1); assert.equal(queued[0].root, '100.1'); assert.match(queued[0].text, /idea for Asana, 3 statics/);
 });
+await check('integrations view: agency list with fixes, per-brand items graded, missing tables tolerated', async () => {
+  const r = await view('integrations', { brand: 'Lucky' });
+  /* ASANA_TOKEN is set, but the test's brandAsanaFields has no workspace: token present, fields not made = warn. */
+  assert.equal(r.agency.find(a => a.key === 'asana').state, 'warn'); assert.match(r.agency.find(a => a.key === 'asana').note, /fields not created/);
+  assert.equal(r.agency.find(a => a.key === 'tw').state, 'off'); assert.match(r.agency.find(a => a.key === 'tw').fix, /TW_API_KEY/);
+  assert.equal(r.brands.length, 1);
+  const by = Object.fromEntries(r.brands[0].items.map(i => [i.key, i]));
+  assert.equal(by.asana.state, 'warn'); assert.match(by.asana.note, /no webhook/);
+  assert.equal(by.slack_internal.state, 'ok'); assert.equal(by.slack_client.state, 'off');
+  assert.equal(by.tw.state, 'off'); assert.equal(by.shopify.state, 'off'); assert.equal(by.drive.state, 'off');
+  assert.match(r.how_to_read, /ok, warn/);
+});
 await check('the engine lists every new action and the brain view is part-wise', async () => {
   for (const n of ['fill_brief', 'create_brief', 'build_scenario', 'studio_batch', 'create_angles']) assert.ok(engine.actions.includes(n), n);
   for (const v of ['tests', 'brief', 'customers', 'scenarios', 'brain']) assert.ok(views.appViews().includes(v), v);

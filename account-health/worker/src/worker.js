@@ -34,6 +34,7 @@ import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
+import { integrationsReport } from './integrations.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7044,6 +7045,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        settings table and none of it was on screen anywhere, which is the real
        reason four days of failures went unnoticed. Admin-gated: it names
        brands and errors. */
+    /* Connections (2026-10-07): every integration, agency-wide and per brand, with its state and
+       the fix. Read by Locus Settings > Connections and by the Strategist's integrations view. */
+    if (path === '/api/integrations' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      return json(await integrationsReport(env, { brand: url.searchParams.get('brand') || null }));
+    }
     if (path === '/api/schedule-health' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const stale = (await env.DB.prepare(
