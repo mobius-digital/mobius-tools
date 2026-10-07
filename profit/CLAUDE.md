@@ -1715,3 +1715,8 @@ Prize = THE FOURSOME GIVEAWAY ("Every Lucky club. All four of you."), `list` key
 
 ## Season seed 013 (Lucky TBD flags) RAN
 Prize name, Early Bird and gift cards back to proposed/TBD until the Nick call Oct 7; strategy_note says what is decided vs open. Nick doc artifact: https://claude.ai/artifact/DKSH1u9LXUVS1prAVVUeUF
+
+## Scenarios v6 (2026-10-06, last pass): Save / Share at the top
+- Hero carries "Save" and "Share with the client". Both run `saveOnScreen(share)`: name it, PUT (upsert, keeps the id of a loaded scenario so an existing client link shows the new numbers), reload Saved, and for share copy `share.html?s=<id>`. Per-card Save and the Saved list's Share link use the same two helpers.
+- The number box is the input itself (`input.num`, `!important` to beat `main .card input[type=text]` in index.html); the wrapper has no border. That was the "box in a box".
+- Trimmed: the hint strings, the KPI button is a link, the ROAS card's bottom button row is gone, reset has no toast.
