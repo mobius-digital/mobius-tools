@@ -474,7 +474,46 @@ async function seriesFor(env, acct, from, to) {
     const row = dayEconomics(piv, meta, d, marginPct);
     if (row) rows.push(row);
   }
-  return { rows, margin_pct: marginPct, shipping: ship };
+  return { rows, margin_pct: marginPct, shipping: ship, piv };
+}
+
+/* ---------- Channels (Home, 2026-10-07) ----------
+ * Spend per platform from the platform's own rows (Meta: daily_insights; Google,
+ * TikTok, Pinterest: Triple Whale's spend metrics), revenue per platform from
+ * Triple Whale's pixel (tw_ad_attr, lastPlatformClick), never the platform's own
+ * attributed figure. Email is Klaviyo's Placed Order revenue as Triple Whale carries
+ * it, split campaigns / flows. "Everything else" is store revenue not credited to a
+ * paid platform or email: organic, direct, referral, and the gap click attribution
+ * always leaves. Floored at zero because click models can double-count. */
+async function channelsFor(env, acct, rows, piv, from, to) {
+  const sumM = ids => { let t = 0, any = false; for (const id of ids) { const m = piv[id]; if (!m) continue; for (const d in m) { if (d >= from && d <= to && m[d] != null) { t += m[d]; any = true; } } if (any) break; } return any ? t : null; };
+  const { results: attr } = await env.DB.prepare(
+    `SELECT platform, SUM(revenue) AS rev, SUM(orders) AS ord FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick' AND date BETWEEN ?2 AND ?3 GROUP BY platform`,
+  ).bind(acct.act_id, from, to).all().catch(() => ({ results: [] }));
+  const a = Object.fromEntries((attr || []).map(r => [r.platform || 'other', { rev: r.rev || 0, ord: r.ord || 0 }]));
+  const sales = sum(rows, r => r.sales);
+  const paid = (id, label, spend) => {
+    const at = a[id];
+    if (!(spend > 0) && !at) return null;
+    const rev = at ? at.rev : null, ord = at ? at.ord : null;
+    return { id, label, spend: spend ?? 0, revenue: rev, orders: ord,
+      roas: rev != null && spend > 0 ? rev / spend : null, cpa: ord > 0 && spend > 0 ? spend / ord : null,
+      attributed: at ? 'Triple Whale last platform click' : 'no attribution rows in this window' };
+  };
+  const out = [
+    paid('meta', 'Meta', sum(rows, r => r.meta_spend)),
+    paid('google', 'Google', sum(rows, r => r.google_spend)),
+    paid('tiktok', 'TikTok', sumM(['tiktokAdsSpend', 'tiktokSpend', 'tk_adCost'])),
+    paid('pinterest', 'Pinterest', sumM(['pinterestAdsSpend', 'pinterestSpend', 'pi_adCost'])),
+  ].filter(Boolean);
+  const emailRev = sum(rows, r => r.email_rev);
+  if (emailRev != null) out.push({ id: 'email', label: 'Email and SMS', spend: null, revenue: emailRev, orders: null, roas: null, cpa: null,
+    campaigns: sumM(['totalKlaviyoPlacedOrderTotalPriceCampaigns']), flows: sumM(['totalKlaviyoPlacedOrderTotalPriceFlows']), attributed: 'Klaviyo placed order' });
+  if (sales != null) {
+    const credited = out.reduce((t, c) => t + (c.revenue || 0), 0);
+    out.push({ id: 'rest', label: 'Everything else', spend: null, revenue: Math.max(0, sales - credited), orders: null, roas: null, cpa: null, attributed: 'store revenue not credited to a platform or email' });
+  }
+  return out;
 }
 
 /** One local day from Triple Whale, live, with its hourly shape. See the
@@ -1959,6 +1998,12 @@ export default {
         const accounts = await accountsFor();
         const { results: healthRows } = await env.DB.prepare(`SELECT * FROM p_cost_health`).all();
         const byAct = Object.fromEntries(healthRows.map(r => [r.act_id, r]));
+        /* The compare period (Home, 2026-10-07): `cmp=prev` is the same number of days
+           ending the day before the window; `cmp=yoy` is the same dates a year earlier;
+           `cmp=none` skips it. The series rides along so Home can draw the window and
+           ghost the compare period behind it without a second round trip per brand. */
+        const cmp = ['prev', 'yoy', 'none'].includes(url.searchParams.get('cmp')) ? url.searchParams.get('cmp') : 'prev';
+        const wantSeries = url.searchParams.get('series') !== '0';
         const out = [];
         for (const a of accounts) {
           const today = localDate(a.tz);
@@ -1968,8 +2013,17 @@ export default {
           // truncate it to the last 7 days and still label it MTD.
           const { from, to } = windowFor(a);
           const monthStart = `${ym}-01`;
-          const { rows: allRows, margin_pct, shipping } = await seriesFor(env, a, from < monthStart ? from : monthStart, to);
+          const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+          let pFrom = null, pTo = null;
+          if (cmp === 'prev') { pTo = addDays(from, -1); pFrom = addDays(pTo, -(span - 1)); }
+          else if (cmp === 'yoy') { pFrom = `${+from.slice(0, 4) - 1}${from.slice(4)}`; pTo = `${+to.slice(0, 4) - 1}${to.slice(4)}`; }
+          const fetchFrom = [from, monthStart, cmp === 'prev' ? pFrom : from].sort()[0];
+          const { rows: allRows, margin_pct, shipping, piv } = await seriesFor(env, a, fetchFrom, to);
           const rows = allRows.filter(r => r.date >= from && r.date <= to);
+          let prevRows = [];
+          if (cmp === 'prev') prevRows = allRows.filter(r => r.date >= pFrom && r.date <= pTo);
+          else if (cmp === 'yoy') prevRows = (await seriesFor(env, a, pFrom, pTo).catch(() => ({ rows: [] }))).rows;
+          const channels = wantSeries ? await channelsFor(env, a, rows, piv, from, to).catch(() => null) : null;
           const g = goalsFor(a, ym);
           // First load (or a new client) has no snapshot yet — judge inline so the
           // page is never blank, and let refreshIfStale persist it in the background.
@@ -1992,6 +2046,14 @@ export default {
             // most of what a glance is for. Capped at 60 points so a 90-day window
             // does not push six of these through the payload at full resolution.
             spark: (rows.length > 60 ? rows.slice(-60) : rows).map(r => r.sales ?? null),
+            /* Home (2026-10-07): the compare period's totals, the daily series for the window
+               and the compare period, and the channel split. Both series are capped at 100
+               points; a longer custom window is still summarised correctly by `window`. */
+            prev: prevRows.length ? totals(prevRows) : null,
+            prev_window: pFrom ? { from: pFrom, to: pTo, kind: cmp } : null,
+            series: wantSeries ? rows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null })) : undefined,
+            prev_series: wantSeries && prevRows.length ? prevRows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null })) : undefined,
+            channels: channels || undefined,
             goals: g.sales != null || g.spend != null ? g : null,
             plan, live_as_of: live ? live.as_of : null,
             margin_pct, cost_health: health, shipping,

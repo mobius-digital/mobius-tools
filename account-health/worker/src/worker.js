@@ -35,7 +35,7 @@ import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
-import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch } from './klaviyo.js';
+import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -910,7 +910,7 @@ const ANTHROPIC_MODEL = 'claude-opus-5';
  * does not cache; no error. An array system is passed through as given. */
 const cachedSystem = s => typeof s === 'string' && s ? [{ type: 'text', text: s, cache_control: { type: 'ephemeral' } }] : s;
 
-async function claude(env, { system, user, maxTokens = 4000 }) {
+async function claude(env, { system, user, maxTokens = 4000, model = ANTHROPIC_MODEL }) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY secret is not set - run `npx wrangler secret put ANTHROPIC_API_KEY` in account-health/worker/');
   }
@@ -922,7 +922,7 @@ async function claude(env, { system, user, maxTokens = 4000 }) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: maxTokens,
       system: cachedSystem(system),
       messages: [{ role: 'user', content: user }],
@@ -932,6 +932,44 @@ async function claude(env, { system, user, maxTokens = 4000 }) {
   if (!res.ok) throw new Error(body.error?.message || `Claude API HTTP ${res.status}`);
   if (body.stop_reason === 'refusal') throw new Error('Claude declined to write this summary');
   return body.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+}
+
+/* ---------- The read (Locus hub, 2026-10-07) ----------
+ * Three lines at the top of a screen: what is happening, where it is leaking, what to
+ * do today. Then up to three leaks (a number and a cause) and one focus. The screen
+ * posts the FACTS it is drawing, so the read can only cite what is on the page. Cached
+ * an hour per exact set of facts in `settings` (`read:<hash>`); a new hour or a changed
+ * number makes a new read. Sonnet tier: about a cent. Never on a cron. */
+const READ_MODEL = 'claude-sonnet-5-5';
+const READ_TTL_MS = 60 * 60 * 1000;
+const fnv = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); };
+const READ_SYSTEM = `You are the Strategist at Mobius Digital reading one screen of Locus for the team (owner, media buyer, strategist). You get the exact numbers on that screen as JSON. Write:
+- "lines": exactly three short sentences in plain English. 1: what is happening (the one thing the numbers say). 2: where it is leaking or lagging, with the number. 3: what to do today, concrete.
+- "leaks": up to three, each {"what": a number and a cause in one short sentence, "where": the brand or channel}. Only leaks the numbers show. Empty list if nothing leaks.
+- "focus": one short sentence, the single most useful thing to do today.
+Rules: cite ONLY numbers in the JSON (rounded is fine; say "about"). Never invent a cause the numbers do not show; say "the numbers do not say why" when so. Compare against the compare period or the plan when they are in the JSON, else against nothing. Attribution is Triple Whale's. No jargon, no exclamation marks, no em dashes, no headers. Money in the brand's currency as given. Return ONLY a JSON object {lines, leaks, focus}.`;
+async function screenRead(env, b) {
+  const screen = String(b.screen || 'overview').slice(0, 40);
+  const facts = b.facts && typeof b.facts === 'object' ? b.facts : {};
+  const scope = String(b.scope || 'all').slice(0, 80);
+  const key = `read:${fnv(JSON.stringify({ screen, scope, facts }))}`;
+  const cached = safeJson(await getSetting(env, key).catch(() => null), null);
+  if (cached && cached.at && Date.now() - Date.parse(cached.at) < READ_TTL_MS) return { ...cached, cached: true };
+  const user = `SCREEN: ${screen}\nSCOPE: ${scope}\nRANGE: ${String(b.range || '').slice(0, 120)}\nCOMPARE: ${String(b.compare || 'none').slice(0, 60)}\n\nFACTS (everything on the screen):\n${JSON.stringify(facts).slice(0, 24000)}`;
+  let text;
+  try { text = await claude(env, { system: READ_SYSTEM, user, maxTokens: 700, model: READ_MODEL }); }
+  catch (e) { return { error: 'The read could not run: ' + e.message }; }
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  let out; try { out = JSON.parse(m ? m[0] : '{}'); } catch { return { error: 'The read did not come back clean.' }; }
+  const clean = s => String(s || '').replace(/—|–/g, ',').trim();
+  const res = {
+    lines: (Array.isArray(out.lines) ? out.lines : []).slice(0, 3).map(clean).filter(Boolean),
+    leaks: (Array.isArray(out.leaks) ? out.leaks : []).slice(0, 3).map(l => ({ what: clean(l?.what), where: clean(l?.where) })).filter(l => l.what),
+    focus: clean(out.focus), at: new Date().toISOString(), screen, scope,
+  };
+  if (!res.lines.length) return { error: 'The read came back empty.' };
+  await putSetting(env, key, JSON.stringify(res)).catch(() => {});
+  return res;
 }
 
 const SUMMARISE_TEMPLATES = {
@@ -7052,6 +7090,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/integrations' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       return json(await integrationsReport(env, { brand: url.searchParams.get('brand') || null }));
+    }
+    /* THE READ (Locus hub, 2026-10-07): the three lines at the top of a screen, plus the
+       leaks and the one focus. The screen SENDS the numbers it is showing, so the read can
+       never cite a figure that is not on the page. Cached an hour per exact set of facts
+       (settings `read:<hash>`); made on open, never on a cron. Sonnet tier, about a cent. */
+    if (path === '/api/read' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      return json(await screenRead(env, b));
+    }
+    /* Klaviyo, read live by the brand's own key, for the Email and SMS screen. */
+    if (path === '/api/klaviyo' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const act = url.searchParams.get('act') || '';
+      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview')); }
+      catch (e) { return json({ error: e.message }, 502); }
     }
     /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
     if (path === '/api/brand-links' && request.method === 'PUT') {

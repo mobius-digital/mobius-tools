@@ -178,9 +178,19 @@
      aligned correctly". A generic class name in a 7,000-line stylesheet is
      shared whether you intended it or not. */
   nav.tabs .grp{display:flex;flex-direction:column;align-items:stretch;gap:0;margin:0}
-  nav.tabs .band{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-    color:#43586A;padding:0 9px 3px;white-space:nowrap;user-select:none;pointer-events:none}
-  nav.tabs .grp-btns{display:flex;flex-direction:column;gap:1px}
+  nav.tabs .band{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
+    font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:#5F7686;padding:6px 9px;border-radius:8px;white-space:nowrap;user-select:none;
+    transition:background .12s ease,color .12s ease}
+  nav.tabs .band:hover{background:#16242F;color:#DDE9F0}
+  nav.tabs .band .chev{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+    opacity:.7;transition:transform .16s ease}
+  nav.tabs .grp.open .band{color:#BFD3E1}
+  nav.tabs .grp.open .band .chev{transform:rotate(180deg)}
+  nav.tabs .grp:not(.open):not(.solo) .grp-btns{display:none}
+  nav.tabs .grp.solo{margin-top:6px;padding-top:6px;border-top:1px solid var(--hd-line)}
+  nav.tabs{gap:2px}
+  nav.tabs .grp-btns{display:flex;flex-direction:column;gap:1px;padding:1px 0 5px}
 
   /* 29px rows. Ten of them plus four captions plus the header, the picker and
      the footer come to roughly 600px, which clears a 720px viewport with the
@@ -316,6 +326,10 @@
     background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:6px;
     box-shadow:0 16px 40px rgba(12,22,29,.28)}
   .hd-period.open .hd-per-menu{display:block}
+  .hd-per-cmp{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:6px}
+  .hd-per-cmp span{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+  .hd-per-cmp button{font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px;border:1px solid var(--line-strong);color:var(--ink-2);background:var(--surface)}
+  .hd-per-cmp button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
   .hd-per-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:6px;
     font-size:13px;color:var(--ink);background:transparent}
   .hd-per-menu button:hover{background:var(--brand-soft)}
@@ -572,6 +586,71 @@
   .ovd-go{flex:none;font-size:12px;font-weight:600;color:var(--brand-ink);white-space:nowrap}
   .ovd-line.zero .ovd-t,.ovd-line.zero .ovd-go{font-weight:400;color:var(--muted)}
   .ovd-line.zero .ovd-n{color:var(--good);font-size:13px}
+
+  /* ---- the hub (2026-10-07): Home, Email and SMS, Google / TikTok ---- */
+  .hm-read{padding:16px 18px 14px;margin-bottom:14px;border-color:var(--brand-line);background:linear-gradient(180deg,var(--brand-tint),var(--surface) 70%)}
+  .hm-read.quiet{background:var(--surface);border-color:var(--line)}
+  .hm-read-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .hm-read-h b{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--brand-ink)}
+  .hm-read-h .hint{flex:1;min-width:160px;margin:0}
+  .hm-ask{margin-left:auto}
+  .hm-lines{display:grid;gap:4px;max-width:78ch}
+  .hm-lines p{margin:0;font-size:15px;line-height:1.5}
+  .hm-lines p:first-child{font-weight:600;font-size:16px}
+  .hm-leaks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:12px}
+  .hm-leak{display:grid;gap:2px;padding:9px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:13px;line-height:1.45;box-shadow:inset 3px 0 0 var(--bad)}
+  .hm-leak-w{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .hm-focus{margin-top:12px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:14px;font-weight:600}
+  .hm-focus span{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--brand-ink);background:var(--surface);border:1px solid var(--brand-line);border-radius:99px;padding:2px 9px}
+  .hm-sk{display:grid;gap:8px;margin-top:6px}
+  .hm-sk span{display:block;height:11px;border-radius:6px;background:linear-gradient(90deg,var(--line) 25%,var(--surface) 50%,var(--line) 75%);background-size:200% 100%;animation:hmsk 1.4s linear infinite;width:88%}
+  @keyframes hmsk{to{background-position:-200% 0}}
+  @media (prefers-reduced-motion:reduce){.hm-sk span{animation:none}}
+  .hm-row{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media (max-width:980px){.hm-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .hm-row .ru-v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .hm-d{display:inline-block;font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:0;padding:1px 7px;border-radius:99px;vertical-align:middle}
+  .hm-d.up{background:rgba(95,210,146,.16);color:var(--good-on)}
+  .hm-d.down{background:rgba(240,145,130,.16);color:var(--bad-on)}
+  .hm-d.flat{background:rgba(129,149,162,.18);color:#B7C6D1}
+  .ovt .hm-d,.ru-d .hm-d{margin-left:6px}
+  .ovt .hm-d.up{background:var(--good-bg);color:var(--good)}
+  .ovt .hm-d.down{background:var(--bad-bg);color:var(--bad)}
+  .ovt .hm-d.flat{background:var(--unk-bg);color:var(--muted)}
+  .hm-cmp{font-size:12px;color:var(--muted);margin:-10px 0 16px}
+  .hm-pace{margin-bottom:14px}
+  .hm-pace-h,.hm-ch-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .hm-pace-h h3,.hm-ch-h h3{margin:0}
+  .hm-ch-h .hint{flex:1;min-width:220px;margin:0}
+  .hm-pace-bar{position:relative;height:10px;border-radius:99px;background:var(--unk-bg);overflow:visible;margin:4px 0 10px}
+  .hm-pace-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--brand)}
+  .hm-pace-bar i.good{background:var(--good)}
+  .hm-pace-bar i.warn{background:var(--warn)}
+  .hm-pace-bar i.bad{background:var(--bad)}
+  .hm-pace-bar b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px}
+  .hm-pace-l{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+  .hm-ch{margin-bottom:14px}
+  .hm-bar{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--unk-bg);margin-bottom:12px}
+  .hm-bar i{display:block;height:100%}
+  .hm-sw{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+  .hm-cht td:first-child{white-space:normal}
+  .hm-chart{margin-bottom:14px}
+  .hm-lg{font-weight:700;margin-right:10px}
+  .hm-lg.dash{color:var(--muted);text-decoration:underline dashed}
+  .hm-soon{margin-bottom:14px}
+  .hm-soon-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .hm-soon-h h3{margin:0}
+  .hm-adds{margin-top:10px;font-size:13.5px}
+  .hm-adds ul{margin:4px 0 0;padding-left:18px;display:grid;gap:2px;color:var(--ink-2)}
+  .hm-two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .hm-two .card{margin-bottom:0}
+  @media (max-width:760px){.hm-two{grid-template-columns:1fr}}
+  .em-facts{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 10px}
+  .em-facts div{display:grid}
+  .em-facts b{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+  .em-facts span{font-size:12px;color:var(--muted)}
+  .em-flows{display:flex;flex-wrap:wrap;gap:6px}
+  .tag-chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--unk-bg);color:var(--ink-2)}
   @media (max-width:720px){.ovd-cols{grid-template-columns:minmax(0,1fr)}}
   @media (max-width:520px){.ovd-go{display:none}}
   /* The Strategist card with nothing to say is one line, so it never pushes the
@@ -1794,6 +1873,11 @@
   <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.6"/></symbol>
   <symbol id="i-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.8 5.8v4.4L10.3 8z"/></symbol>
   <symbol id="i-season" viewBox="0 0 16 16"><path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z"/><circle cx="5.6" cy="5.6" r="1"/></symbol>
+  <symbol id="i-google" viewBox="0 0 16 16"><path d="M13.5 8H8"/><path d="M13.2 6.2A5.6 5.6 0 1 0 13.5 8"/></symbol>
+  <symbol id="i-tiktok" viewBox="0 0 16 16"><path d="M9.5 2.5v8a2.6 2.6 0 1 1-2.6-2.6"/><path d="M9.5 2.5c.4 2 1.9 3.2 3.8 3.3"/></symbol>
+  <symbol id="i-email" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="m2.5 4.5 5.5 4.3 5.5-4.3"/></symbol>
+  <symbol id="i-store" viewBox="0 0 16 16"><path d="M3 5.5h10l-.8 8H3.8z"/><path d="M5.5 5.5V4.5a2.5 2.5 0 0 1 5 0v1"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 16 16"><path d="m5 6 3 3 3-3"/></symbol>
 </defs></svg>
 
 <div class="app">
@@ -1816,39 +1900,58 @@
     </div>
     <div class="side-scroll">
     <nav class="tabs" id="tabs" style="display:none">
-      <!-- 2026-10-04 (Cole: "every tab needs to be stupid simple"): groups say WHEN
-           you open a tab, not what it is about, and pages that are part of a bigger
-           question sit UNDER their parent as sub-tabs (SECTIONS in show()). One
-           #subtabs nav moves under whichever parent is open; Meta fills its own.
-           Every tab selector is scoped to `button[data-t]`, so the sub-tab buttons
-           never call show(undefined). -->
-      <div class="grp"><span class="band">Every day</span>
+      <!-- 2026-10-07, the hub: groups are the QUESTION you walk in with (Home, Paid ads,
+           Email and SMS, Store, Creative, Reports, Money and plan), not when you look.
+           Only the open group shows its pages; the other headings fold, so the rail
+           never needs a scroll on a laptop. Settings is one row at the bottom. Every tab
+           selector stays scoped to `button[data-t]`; the band is `button.band[data-grp]`. -->
+      <div class="grp" data-g="home"><button class="band" type="button" data-grp="home"><span>Home</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="grp-btns">
           <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
           <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Daily Brief</span></button>
+        </div>
+      </div>
+      <div class="grp" data-g="paid"><button class="band" type="button" data-grp="paid"><span>Paid ads</span><svg class="chev"><use href="#i-chev"/></svg></button>
+        <div class="grp-btns">
           <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
+          <button data-t="google"><svg class="ic"><use href="#i-google"/></svg><span>Google</span></button>
+          <button data-t="tiktok"><svg class="ic"><use href="#i-tiktok"/></svg><span>TikTok</span></button>
         </div>
       </div>
-      <div class="grp"><span class="band">Every week</span>
+      <div class="grp" data-g="email"><button class="band" type="button" data-grp="email"><span>Email &amp; SMS</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="grp-btns">
-          <button data-t="season"><svg class="ic"><use href="#i-season"/></svg><span>Season</span></button>
-          <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
-          <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
+          <button data-t="email"><svg class="ic"><use href="#i-email"/></svg><span>Klaviyo</span></button>
         </div>
       </div>
-      <div class="grp"><span class="band">Making ads</span>
+      <div class="grp" data-g="store"><button class="band" type="button" data-grp="store"><span>Store</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="grp-btns">
-          <button data-t="angles"><svg class="ic"><use href="#i-angles"/></svg><span>Angles</span></button>
+          <button data-t="customers"><svg class="ic"><use href="#i-customers"/></svg><span>Customers</span></button>
+        </div>
+      </div>
+      <div class="grp" data-g="creative"><button class="band" type="button" data-grp="creative"><span>Creative</span><svg class="chev"><use href="#i-chev"/></svg></button>
+        <div class="grp-btns">
           <button data-t="studio"><svg class="ic"><use href="#i-studio"/></svg><span>Studio</span></button>
           <button data-t="brand"><svg class="ic"><use href="#i-brand"/></svg><span>Brand</span></button>
+          <button data-t="angles"><svg class="ic"><use href="#i-angles"/></svg><span>Tests and angles</span></button>
           <button data-t="copy"><svg class="ic"><use href="#i-chat"/></svg><span>Copy desk</span></button>
           <button data-t="amb"><svg class="ic"><use href="#i-amb"/></svg><span>Creator link</span></button>
         </div>
       </div>
-      <div class="grp"><span class="band">Monthly and setup</span>
+      <div class="grp" data-g="reports"><button class="band" type="button" data-grp="reports"><span>Reports</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="grp-btns">
-          <button data-t="plan"><svg class="ic"><use href="#i-plan"/></svg><span>Plan</span></button>
+          <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Weekly and monthly</span></button>
+          <button data-t="season"><svg class="ic"><use href="#i-season"/></svg><span>Season</span></button>
           <button data-t="calc"><svg class="ic"><use href="#i-calc"/></svg><span>Scenarios</span></button>
+        </div>
+      </div>
+      <div class="grp" data-g="money"><button class="band" type="button" data-grp="money"><span>Money &amp; plan</span><svg class="chev"><use href="#i-chev"/></svg></button>
+        <div class="grp-btns">
+          <button data-t="profit"><svg class="ic"><use href="#i-profit"/></svg><span>Profit</span></button>
+          <button data-t="plan"><svg class="ic"><use href="#i-plan"/></svg><span>Plan</span></button>
+        </div>
+      </div>
+      <div class="grp solo" data-g="settings">
+        <div class="grp-btns">
           <button data-t="settings"><svg class="ic"><use href="#i-settings"/></svg><span>Settings</span></button>
         </div>
       </div>
@@ -1894,8 +1997,8 @@
 <nav class="tabbar" id="tabbar" aria-label="Primary">
   <button data-t="overview"><svg class="ic"><use href="#i-overview"/></svg><span>Overview</span></button>
   <button data-t="brief"><svg class="ic"><use href="#i-brief"/></svg><span>Brief</span></button>
-  <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Meta</span></button>
-  <button data-t="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
+  <button data-t="meta"><svg class="ic"><use href="#i-meta"/></svg><span>Paid</span></button>
+  <button data-t="email"><svg class="ic"><use href="#i-email"/></svg><span>Email</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
 </nav>
 
@@ -2009,6 +2112,9 @@ const S = {
   tab: localStorage.getItem(LS.tab) || 'overview',
   days: +localStorage.getItem(LS.days) || 30,
   range: (() => { try { return JSON.parse(localStorage.getItem(LS.range)) || { preset: '30' }; } catch { return { preset: '30' }; } })(),
+  /* The compare period (the hub, 2026-10-07): prev = the same number of days before the
+     window, yoy = the same dates a year earlier, none. Home and the Email screen read it. */
+  cmp: (() => { try { return ['prev', 'yoy', 'none'].includes(localStorage.getItem('pf_cmp')) ? localStorage.getItem('pf_cmp') : 'prev'; } catch { return 'prev'; } })(),
   accounts: [],
 };
 
@@ -2060,7 +2166,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email'].includes(open)) {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
@@ -2395,6 +2501,8 @@ function renderPicker() {
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
 }
 document.querySelectorAll('#tabs button[data-t]').forEach(b => b.onclick = () => show(b.dataset.t));
+/* A group heading opens that group to browse it (the open page's group stays open too). */
+document.querySelectorAll('#tabs .band[data-grp]').forEach(b => b.onclick = () => b.closest('.grp').classList.toggle('open'));
 
 /* ⓘ icons open their explanation on click/tap. */
 document.addEventListener('click', e => {
@@ -2754,6 +2862,9 @@ const TAB_PURPOSE = {
   costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
   health:    'Whether Triple Whale still agrees with the ad platforms. Green means this morning’s numbers are safe to send; red tells you what broke and what to press.',
   settings:  'Set up each brand, how briefs reach Slack, the Strategist, who can sign in, and the jobs that run in the background.',
+  google:    'Google Ads for this brand: what Triple Whale sees today (spend and attributed revenue), and what connecting Google directly adds.',
+  tiktok:    'TikTok Ads for this brand: what Triple Whale sees today, and what connecting TikTok directly adds.',
+  email:     'Email and SMS for this brand: how much of the store\'s revenue email makes, campaigns against flows, the list, and what Klaviyo is running.',
 };
 /* Settings sections: key, name in the list, one line saying what it is for. */
 const SET_SECS = [
@@ -2789,15 +2900,18 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Every day', 'Overview'], brief: ['Every day', 'Daily Brief'], tests: ['Every day', 'Meta &nbsp;/&nbsp; Test calls'], angles: ['Making ads', 'Angles'],meta: ['Every day', 'Meta'],
-  season: ['Every week', 'Season'], reports: ['Every week', 'Reports'], profit: ['Every week', 'Profit &nbsp;/&nbsp; P&amp;L'], customers: ['Every week', 'Profit &nbsp;/&nbsp; Customers'],
-  studio: ['Making ads', 'Studio'], brand: ['Making ads', 'Brand'], copy: ['Making ads', 'Copy desk'], amb: ['Making ads', 'Creator link'],
-  plan: ['Monthly and setup', 'Plan'], calc: ['Monthly and setup', 'Scenarios'], settings: ['Monthly and setup', 'Settings'],
-  health: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Data health'], costs: ['Monthly and setup', 'Settings &nbsp;/&nbsp; Costs'],
+  overview: ['Home', 'Overview'], brief: ['Home', 'Daily Brief'],
+  meta: ['Paid ads', 'Meta'], tests: ['Paid ads', 'Meta &nbsp;/&nbsp; Test calls'], google: ['Paid ads', 'Google'], tiktok: ['Paid ads', 'TikTok'],
+  email: ['Email &amp; SMS', 'Klaviyo'],
+  customers: ['Store', 'Customers'],
+  studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], angles: ['Creative', 'Tests and angles'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
+  reports: ['Reports', 'Weekly and monthly'], season: ['Reports', 'Season'], calc: ['Reports', 'Scenarios'],
+  profit: ['Money &amp; plan', 'Profit'], plan: ['Money &amp; plan', 'Plan'],
+  settings: ['Settings', 'Settings'], health: ['Settings', 'Data health'], costs: ['Settings', 'Costs'],
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', brief: 'buyer', meta: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
@@ -2805,7 +2919,7 @@ const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'reports', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'calc'] };
+const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'email', 'reports', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'calc'] };
 function applyRole() {
   let role = 'all';
   try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
@@ -2874,11 +2988,11 @@ const markTourSeen = k => { const s = tourSeen(); s[k] = 1; localStorage.setItem
 
 const TOURS = {
   start: { name: 'How Locus fits together', steps: [
-    { body: '<b>The tabs are grouped by when you open them.</b> Every day, every week, when making ads, and once a month. This takes about a minute.' },
-    { sel: '#tabs .grp:nth-of-type(1)', title: 'Every day', body: '<b>Overview</b>: which brand needs you today. <b>Daily Brief</b>: read, fix and send the client update. <b>Meta</b>: everything about the Meta ads, including <b>Test calls</b>, where the media buyer judges tests that spent enough.' },
-    { sel: '#tabs .grp:nth-of-type(2)', title: 'Every week', body: '<b>Reports</b> are the weekly and monthly documents you send the client. <b>Profit</b> is whether the brand is making money: <b>P&L</b> for the window, and <b>Customers</b> for what a customer is worth over time against what they cost.' },
-    { sel: '#tabs .grp:nth-of-type(3)', title: 'Making ads', body: '<b>Angles</b> shows what we have tested and what won, so you know what to brief next. <b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk (client answers, research, voice). <b>Creator link</b> is the page the brand\'s creators read.' },
-    { sel: '#tabs .grp:nth-of-type(4)', title: 'Monthly and setup', body: 'On <b>Plan</b> you set next month’s number with the client. <b>Settings</b> holds goals, channels, new clients, and the data checks.' },
+    { body: '<b>The menu is grouped by the question you walk in with.</b> Home, Paid ads, Email and SMS, Store, Creative, Reports, Money and plan. Only the open group shows its pages; click a heading to look inside another. This takes about a minute.' },
+    { sel: '#tabs .grp[data-g="home"]', title: 'Home', body: '<b>Overview</b>: the brand or the whole agency at a glance, with the read at the top saying what is happening and what to do. <b>Daily Brief</b>: read, fix and send the client update.' },
+    { sel: '#tabs .grp[data-g="paid"]', title: 'Paid ads', body: 'One screen per platform, all built the same way. <b>Meta</b> has Overview, Test calls, Creative and Change Log. <b>Google</b> and <b>TikTok</b> show what Triple Whale sees today and what connecting them directly adds.' },
+    { sel: '#tabs .grp[data-g="creative"]', title: 'Creative', body: '<b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk. <b>Tests and angles</b> is what we have tested and what won. <b>Creator link</b> is the page the brand\'s creators read.' },
+    { sel: '#tabs .grp[data-g="money"]', title: 'Money and plan', body: '<b>Profit</b> is whether the brand is making money after every cost. On <b>Plan</b> you set the month\'s number with the client. <b>Settings</b>, at the bottom, holds brands, connections, goals and the team.' },
     { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
@@ -4079,19 +4193,17 @@ let RUN = 0;
 
 /* Tabs whose data actually follows the range picker. Everywhere else it is hidden
    rather than left visible and inert - a control that does nothing reads as broken. */
-const RANGE_TABS = new Set(['overview', 'profit', 'customers']);
+const RANGE_TABS = new Set(['overview', 'profit', 'customers', 'email', 'google', 'tiktok']);
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief',
+const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
 const SECTIONS = {
-  /* 2026-10-05: "Money" said nothing. P&L is what the page is (revenue down to contribution
-     margin for the window); Customers is what a customer is worth against what they cost.
-     The creator link left Brand: it is a page creators read, so it lives beside Studio. */
-  profit: [['profit', 'P&L'], ['customers', 'Customers']],
+  /* 2026-10-07 (the hub): Customers moved to the Store group as its own page, so Profit
+     has no sub-tabs any more. Meta is still a section (meta.js fills its own sub-tabs). */
 };
 const PARENT_OF = Object.fromEntries(Object.entries(SECTIONS).flatMap(([p, kids]) => kids.map(([k]) => [k, p])));
 /* Settings has ONE menu: its own section list (SET_SECS), which also opens Data
@@ -4171,7 +4283,8 @@ function rangeQ() {
   const r = resolveRange(), n = daySpan(r.from, r.to);
   const now = new Date(), yday = new Date(now); yday.setDate(now.getDate() - 1);
   S.days = n;                                        // keep legacy readers honest
-  return r.to === ymd(yday) ? `days=${n}` : `from=${r.from}&to=${r.to}`;
+  const cmp = S.cmp && S.cmp !== 'prev' ? `&cmp=${S.cmp}` : '';
+  return (r.to === ymd(yday) ? `days=${n}` : `from=${r.from}&to=${r.to}`) + cmp;
 }
 
 /** What a tab's window IS, when the tab does not use the shared picker. Stated
@@ -4232,6 +4345,10 @@ function renderPeriodBar(tab) {
       <p class="hd-per-note">${r.preset === 'today'
         ? 'So far today, pulled live from Triple Whale and Meta each time a page opens.'
         : `${n} day${n === 1 ? '' : 's'}${r.to === ymd(yd) ? ' · today is excluded because it is still settling' : ''}`}</p>
+      <div class="hd-per-cmp"><span>Compare to</span>
+        <button data-c="prev" class="${S.cmp === 'prev' ? 'on' : ''}">The period before</button>
+        <button data-c="yoy" class="${S.cmp === 'yoy' ? 'on' : ''}">Same dates last year</button>
+        <button data-c="none" class="${S.cmp === 'none' ? 'on' : ''}">Nothing</button></div>
     </div>`;
 
   const menu = $('#pbMenu'), btn = $('#pbOpen');
@@ -4259,6 +4376,10 @@ function renderPeriodBar(tab) {
     S.range = pr === 'custom' ? { preset: 'custom', from: r.from, to: r.to } : { preset: pr };
     localStorage.setItem(LS.range, JSON.stringify(S.range));
     if (pr === 'custom') { renderPeriodBar(tab); $('#hdPeriod').classList.add('open'); return; }
+    close(); apply();
+  });
+  menu.querySelectorAll('[data-c]').forEach(b => b.onclick = () => {
+    S.cmp = b.dataset.c; try { localStorage.setItem('pf_cmp', S.cmp); } catch {}
     close(); apply();
   });
   const f = $('#pbFrom'), t = $('#pbTo');
@@ -4303,7 +4424,11 @@ function show(tab) {
      lights up, or More does, because the open page lives behind the drawer. */
   document.querySelectorAll('#tabbar button[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === parent));
   const tbMore = document.getElementById('tbMore');
-  if (tbMore) tbMore.classList.toggle('on', !['overview','brief','meta','tests','reports'].includes(tab));
+  if (tbMore) tbMore.classList.toggle('on', !['overview','brief','meta','tests','email'].includes(tab));
+  /* The hub rail (2026-10-07): the group holding the open page unfolds, every other
+     group folds to its heading. A heading click (wired in railGroups) opens a group
+     to browse it; the next page change folds it again. */
+  document.querySelectorAll('#tabs .grp[data-g]').forEach(g => g.classList.toggle('open', !!g.querySelector(`button[data-t="${parent}"]`)));
   /* With the Meta sub-list open the tab column is taller than a laptop rail, so
      the current tab can sit outside the scrolled view. Only nudges when it is
      actually out of sight, and never scrolls the PAGE. */
@@ -4354,7 +4479,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, google: f => renderPlatform('google', f), tiktok: f => renderPlatform('tiktok', f), email: renderEmail })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4498,7 +4623,7 @@ const GUIDE = [
   { role: 'strategist', name: 'Creative strategist', sub: 'Decide what to test next and brief it.', parts: [
     ['Before every brief', [
       ['Season', 'Which brand needs briefs this week, and the offer they must carry.', 'season'],
-      ['Angles', 'Start with the angles marked Proven. Skip the ones marked Dead.', 'angles'],
+      ['Tests and angles', 'Start with the angles marked Proven. Skip the ones marked Dead.', 'angles'],
       ['Have we tested this?', 'Type your idea in your own words at the top of Angles. It tells you if it already ran under different wording.', 'angles'],
       ['Open the angle', 'See which concepts won. Brief a variation of a winner, or a new concept under a proven angle.', 'angles'],
       ['Brand', 'What the client told us, who buys, what they say in their own words, and how the brand talks.', 'brand'],
@@ -4513,8 +4638,8 @@ const GUIDE = [
   ] },
   { role: 'owner', name: 'Cole', sub: 'Is each brand making money, and is it set up right.', parts: [
     ['Every week', [
-      ['Profit, P&L', 'Revenue, orders, average order, every cost, what was left, against the plan.', 'profit'],
-      ['Profit, Customers', 'What a customer is worth over time against what we paid, and what they buy first and next.', 'customers'],
+      ['Profit', 'Revenue, orders, average order, every cost, what was left, against the plan.', 'profit'],
+      ['Customers (under Store)', 'What a customer is worth over time against what we paid, and what they buy first and next.', 'customers'],
       ['Reports', 'What went to each client.', 'reports'],
     ]],
     ['End of the month', [
@@ -4931,78 +5056,199 @@ document.addEventListener('click', e => {
   if (el) el.outerHTML = ovTodayHtml(OVD.key === S.act ? OVD.n : null);
 });
 
+/* ---------- Home (the hub, 2026-10-07) ----------
+   Cole: "I want to see a dashboard in the overview, just like Triple Whale, if not better."
+   Top to bottom, for one brand or all brands: the read (three lines, leaks, focus), what
+   is waiting today, the money row against the compare period, pace against the plan,
+   the channels (spend per platform, Triple Whale revenue per platform), the daily chart
+   with the compare period ghosted, and in the agency view one row per brand. Every
+   number here already lived in /api/overview; the compare period, the series and the
+   channel split were added to that payload the same day. */
+const CMP_LABEL = { prev: 'the period before', yoy: 'the same dates last year', none: '' };
+const CH_ORDER = ['meta', 'google', 'tiktok', 'pinterest', 'email', 'rest'];
+const CH_COLOR = { meta: '#14608C', google: '#C08A2E', tiktok: '#2B3A47', pinterest: '#B5484D', email: '#1C7A46', rest: '#C4D2DB' };
+const OVR = { key: null, data: null, at: 0 };
+
+/** +9% / -4% against the compare period, coloured by whether that is good. `lower` = a
+ *  lower number is the good direction (spend, CPA). Null when either side is missing. */
+function deltaPill(cur, prev, lower) {
+  if (cur == null || prev == null || !prev || S.cmp === 'none') return '';
+  const d = cur / prev - 1;
+  if (!isFinite(d)) return '';
+  const p = Math.round(d * 100);
+  const tone = Math.abs(d) < 0.015 ? 'flat' : (d > 0) === !lower ? 'up' : 'down';
+  return `<span class="hm-d ${tone}" title="Against ${esc(CMP_LABEL[S.cmp] || 'the compare period')}">${p > 0 ? '+' : ''}${p}%</span>`;
+}
+
+/** The read card: a skeleton until the Strategist answers, then three lines, the
+ *  leaks and the focus. `r` = the /api/read answer, or null while loading, or {error}. */
+function ovReadHtml(r) {
+  const ask = `<button class="btn hm-ask" type="button" id="ovAsk">Ask about this</button>`;
+  if (!r) return `<div class="card hm-read" id="ovRead"><div class="hm-read-h"><b>The read</b><span class="hint">Reading the numbers on this screen&hellip;</span></div>
+    <div class="hm-sk"><span></span><span></span><span style="width:62%"></span></div></div>`;
+  if (r.error) return `<div class="card hm-read quiet" id="ovRead"><div class="hm-read-h"><b>The read</b><span class="hint">${esc(r.error)}</span>${ask}</div></div>`;
+  const leaks = (r.leaks || []).length ? `<div class="hm-leaks">${r.leaks.map(l => `<div class="hm-leak"><span class="hm-leak-w">${esc(l.where || '')}</span><span>${esc(l.what)}</span></div>`).join('')}</div>` : '';
+  return `<div class="card hm-read" id="ovRead">
+    <div class="hm-read-h"><b>The read</b><span class="hint">${r.cached ? 'From the last hour.' : 'Just now.'} Only the numbers on this screen.</span>${ask}</div>
+    <div class="hm-lines">${(r.lines || []).map(l => `<p>${esc(l)}</p>`).join('')}</div>
+    ${leaks}
+    ${r.focus ? `<div class="hm-focus"><span>Focus today</span>${esc(r.focus)}</div>` : ''}
+  </div>`;
+}
+async function ovReadLoad(facts, scope) {
+  const key = JSON.stringify([scope, facts]);
+  if (OVR.key === key && OVR.data && Date.now() - OVR.at < 60 * 60 * 1000) return OVR.data;
+  const r = await apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen: 'overview', scope, range: rangeLabel(), compare: CMP_LABEL[S.cmp] || 'none', facts }) });
+  OVR.key = key; OVR.data = r; OVR.at = Date.now();
+  return r;
+}
+function wireOvAsk(scope) {
+  const b = document.getElementById('ovAsk');
+  if (b) b.onclick = () => AskUI.open(`About the Overview for ${scope} (${rangeLabel()}): `);
+}
+
+/** Two lines over the window plus the compare period ghosted. Same geometry as
+ *  salesSpendSVG so wireSalesSpend's crosshair works unchanged. */
+function homeChartSVG(rows, prevRows, cur, id = 'hmSvg') {
+  const w = 940, h = 240, pl = 58, pr = 14, pt = 12, pb = 26;
+  const n = rows.length;
+  if (!n) return '<p class="hint">No data in this window.</p>';
+  const vals = rows.map(r => Math.max(r.sales ?? 0, r.spend ?? 0)).concat((prevRows || []).map(r => r.sales ?? 0));
+  const maxV = Math.max(...vals) * 1.08 || 1;
+  const x = i => pl + i / Math.max(1, n - 1) * (w - pl - pr);
+  const y = v => pt + (1 - v / maxV) * (h - pt - pb);
+  const line = (rs, get) => rs.map((r, i) => { const v = get(r); return v == null || i >= n ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`; }).filter(Boolean).join(' ');
+  const idx = n <= 10 ? rows.map((_, i) => i) : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)))];
+  const ticks = idx.map(i => `<text x="${x(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="#647684">${rows[i].date.slice(5)}</text>`).join('');
+  const area = `${x(0).toFixed(1)},${y(0).toFixed(1)} ${line(rows, r => r.sales)} ${x(n - 1).toFixed(1)},${y(0).toFixed(1)}`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;touch-action:none" id="${id}">
+    <defs><linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14608C" stop-opacity=".16"/><stop offset="1" stop-color="#14608C" stop-opacity="0"/></linearGradient></defs>
+    ${ticks}
+    <polygon points="${area}" fill="url(#${id}g)"/>
+    <line class="fx-guide" x1="0" x2="0" y1="${pt}" y2="${h - pb + 4}" stroke="#14608C" stroke-width="1" opacity="0" pointer-events="none"/>
+    ${prevRows && prevRows.length ? `<polyline points="${line(prevRows, r => r.sales)}" fill="none" stroke="#8195A2" stroke-width="1.4" stroke-dasharray="4 4"/>` : ''}
+    <polyline points="${line(rows, r => r.sales)}" fill="none" stroke="#14608C" stroke-width="2.2" stroke-linejoin="round"/>
+    <polyline points="${line(rows, r => r.spend)}" fill="none" stroke="#C08A2E" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="${x(n - 1).toFixed(1)}" cy="${y(rows[n - 1].sales ?? 0).toFixed(1)}" r="3.5" fill="#14608C"/>
+    <text x="2" y="${pt + 9}" font-size="10" fill="#647684">${fmtK(maxV, cur)}</text>
+    <text x="2" y="${h - pb}" font-size="10" fill="#647684">${fmtK(0, cur)}</text>
+  </svg>`;
+}
+
+/** Add up the channel split across the brands on screen. */
+function channelsAgg(all) {
+  const agg = {};
+  for (const a of all) for (const c of (a.channels || [])) {
+    const g = agg[c.id] ||= { id: c.id, label: c.label, spend: 0, hasSpend: false, revenue: 0, hasRev: false, orders: 0, campaigns: 0, flows: 0 };
+    if (c.spend != null) { g.spend += c.spend; g.hasSpend = true; }
+    if (c.revenue != null) { g.revenue += c.revenue; g.hasRev = true; }
+    if (c.orders != null) g.orders += c.orders;
+    if (c.campaigns != null) g.campaigns += c.campaigns;
+    if (c.flows != null) g.flows += c.flows;
+  }
+  return CH_ORDER.map(id => agg[id]).filter(Boolean).map(g => ({ ...g, spend: g.hasSpend ? g.spend : null, revenue: g.hasRev ? g.revenue : null,
+    roas: g.hasRev && g.spend > 0 ? g.revenue / g.spend : null, cpa: g.orders > 0 && g.spend > 0 ? g.spend / g.orders : null }));
+}
+function channelsCard(all, sales, cur) {
+  const ch = channelsAgg(all);
+  if (!ch.length) return '';
+  const credited = ch.reduce((t, c) => t + (c.revenue || 0), 0) || 1;
+  const bar = ch.filter(c => c.revenue > 0).map(c => `<i style="width:${(c.revenue / credited * 100).toFixed(1)}%;background:${CH_COLOR[c.id] || '#999'}" title="${esc(c.label)} ${fmtPct(c.revenue / credited)}"></i>`).join('');
+  const rows = ch.map(c => `<tr>
+      <td><span class="hm-sw" style="background:${CH_COLOR[c.id] || '#999'}"></span>${esc(c.label)}${c.id === 'email' && (c.campaigns || c.flows) ? `<div class="tiny">${fmtK(c.campaigns, cur)} campaigns &middot; ${fmtK(c.flows, cur)} flows</div>` : ''}${c.id === 'rest' ? '<div class="tiny">organic, direct, referral, unattributed</div>' : ''}</td>
+      <td class="num">${c.spend == null ? '<span class="tiny">no spend</span>' : fmtK(c.spend, cur)}</td>
+      <td class="num">${c.revenue == null ? '&mdash;' : fmtK(c.revenue, cur)}</td>
+      <td class="num">${c.revenue != null && sales ? fmtPct(c.revenue / sales) : '&mdash;'}</td>
+      <td class="num">${c.roas == null ? '&mdash;' : fmtX(c.roas)}</td>
+      <td class="num">${c.cpa == null ? '&mdash;' : fmtMoney(c.cpa, cur)}</td>
+    </tr>`).join('');
+  return `<div class="card hm-ch">
+    <div class="hm-ch-h"><h3>Where the money came from</h3><span class="hint">Spend is each platform&rsquo;s own. Revenue per platform is Triple Whale last platform click, so platforms can overlap. Email is Klaviyo placed orders.</span></div>
+    <div class="hm-bar">${bar}</div>
+    <div class="tbl-wrap"><table class="ovt hm-cht"><thead><tr><th>Channel</th><th>Spend</th><th>Revenue</th><th>Share of revenue</th><th>ROAS</th><th>CPA</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+
+/** Month to date against the plan, as one bar: where the month is, where it should be by now. */
+function paceCard(mtd, cur, planned, allN) {
+  if (!mtd || !mtd.pSales) return '';
+  const pct = Math.min(1.35, mtd.sales / mtd.pSales);
+  const d = mtd.sales / mtd.pSales - 1;
+  const tone = d >= 0 ? 'good' : d <= -0.08 ? 'bad' : 'warn';
+  return `<div class="card hm-pace">
+    <div class="hm-pace-h"><h3>Pace against the plan</h3><span class="pill ${tone}">${signedPct(d)} vs planned by now</span></div>
+    <div class="hm-pace-bar"><i class="${tone}" style="width:${(pct / 1.35 * 100).toFixed(1)}%"></i><b style="left:${(1 / 1.35 * 100).toFixed(1)}%" title="Planned by now"></b></div>
+    <div class="hm-pace-l"><span><b>${fmtK(mtd.sales, cur)}</b> so far this month</span><span><b>${fmtK(mtd.pSales, cur)}</b> planned by now${mtd.pSpend ? ` &middot; spend ${fmtK(mtd.spend, cur)} of ${fmtK(mtd.pSpend, cur)}` : ''}</span><span class="tiny">${planned} of ${allN} brand${allN === 1 ? '' : 's'} planned</span></div>
+  </div>`;
+}
+
 async function renderOverview() {
   const all = S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act);
+  const one = S.act !== 'all' ? all[0] : null;
+  const scope = one ? one.name : `all ${all.length} brands`;
 
-  /* The book, added up - across ONE currency only. Summing money across
-     currencies is the oldest trap in this codebase; where the book is mixed
-     the roll-up says so rather than printing a wrong total. */
+  /* The book, added up - across ONE currency only. Summing money across currencies is the
+     oldest trap in this codebase; where the book is mixed the roll-up says so. */
   const curs = [...new Set(all.map(a => a.currency))];
   const oneCur = curs.length === 1 ? curs[0] : null;
-  const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(a); if (v != null) { t += v; any = true; } } return any ? t : null; };
-  const tot = {
-    sales: sum(a => a.window?.sales), spend: sum(a => a.window?.spend),
-    newRev: sum(a => a.window?.new_rev),
-    cm: sum(a => cmTrusted(a.cost_health) ? a.window?.cm : null),
+  const sum = (get, src = 'window') => { let t = 0, any = false; for (const a of all) { const v = get(a[src] || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
+  const tots = src => {
+    const t = { sales: sum(w => w.sales, src), spend: sum(w => w.spend, src), newRev: sum(w => w.new_rev, src), orders: sum(w => w.orders, src),
+      newOrders: sum(w => w.new_orders, src),
+      cm: (() => { let x = 0, any = false; for (const a of all) { const w = a[src]; if (w && cmTrusted(a.cost_health) && w.cm != null) { x += w.cm; any = true; } } return any ? x : null; })() };
+    t.cac = t.spend != null && t.newOrders ? t.spend / t.newOrders : null;
+    t.mer = t.sales != null && t.spend ? t.sales / t.spend : null;
+    t.amer = t.newRev != null && t.spend ? t.newRev / t.spend : null;
+    t.aov = t.orders ? t.sales / t.orders : null;
+    t.newShare = t.newRev != null && t.sales ? t.newRev / t.sales : null;
+    t.cmPct = t.cm != null && t.sales ? t.cm / t.sales : null;
+    return t;
   };
-  tot.mer = tot.sales != null && tot.spend ? tot.sales / tot.spend : null;
-  tot.amer = tot.newRev != null && tot.spend ? tot.newRev / tot.spend : null;
-  tot.cmPct = tot.cm != null && tot.sales ? tot.cm / tot.sales : null;
-  tot.newShare = tot.newRev != null && tot.sales ? tot.newRev / tot.sales : null;
+  const tot = tots('window');
+  const hasPrev = S.cmp !== 'none' && all.some(a => a.prev);
+  const prev = hasPrev ? tots('prev') : {};
   const untrusted = all.filter(a => !cmTrusted(a.cost_health));
   const liveAt = all.map(a => a.live_as_of).filter(Boolean).sort().pop() || null;
+  const cmpWin = all.find(a => a.prev_window)?.prev_window;
+  const cmpText = hasPrev && cmpWin ? `${CMP_LABEL[S.cmp]} (${prettyDate(cmpWin.from)} &ndash; ${prettyDate(cmpWin.to)})` : '';
 
-  /* MONTH TO DATE AGAINST THE PLAN, labelled MTD on screen. The headline
-     figures follow the period control and may be a 7- or 30-day window; the
-     plan is a monthly number pro-rated to today. Comparing the two unlabelled
-     was a real bug (2026-08-30), so the strip shows both and names each. Only
-     brands with a plan are summed here. */
+  /* Month to date against the plan, labelled MTD. Only brands with a plan are summed. */
   const withPlan = all.filter(a => a.plan?.sales != null && a.mtd?.sales != null);
   const psum = get => withPlan.reduce((t, a) => t + (get(a) ?? 0), 0);
-  const mtd = withPlan.length ? {
-    sales: psum(a => a.mtd.sales), pSales: psum(a => a.plan.sales),
-    spend: psum(a => a.mtd.spend), pSpend: psum(a => a.plan.spend),
-  } : null;
+  const mtd = withPlan.length ? { sales: psum(a => a.mtd.sales), pSales: psum(a => a.plan.sales), spend: psum(a => a.mtd.spend), pSpend: psum(a => a.plan.spend) } : null;
   if (mtd) { mtd.mer = mtd.spend ? mtd.sales / mtd.spend : null; mtd.pMer = mtd.pSpend ? mtd.pSales / mtd.pSpend : null; }
 
-  const planPill = mtdPill;
-
   const judged = all.map(a => ({ a, t: triage(a) }));
-  const needs = judged.filter(j => j.t.g === 'bd').sort((x, y) => (x.t.off ?? 0) - (y.t.off ?? 0));
-  const watch = judged.filter(j => j.t.g === 'wn').sort((x, y) => (x.t.off ?? 0) - (y.t.off ?? 0));
-  const fine = judged.filter(j => j.t.g === 'ok');
 
-  const rollup = () => {
-    const cell = (l, v, d, p, pill, cls) => `<div class="ru"><div class="ru-l">${l}</div>
-      <div class="ru-v${cls ? ' ' + cls : ''}">${v}</div><div class="ru-d">${d}</div>${p ? `<div class="ru-p">${p}</div>` : ''}${pill || ''}</div>`;
-    if (!oneCur) {
-      return `<div class="rollup"><div class="ru" style="flex-basis:100%">
-        <div class="ru-l">${all.length} brands</div>
-        <div class="ru-v" style="font-size:19px">${curs.join(' &middot; ')}</div>
-        <div class="ru-d">Your brands report in different currencies, so there is no combined total. The table below is per brand.</div>
-      </div></div>`;
-    }
-    const planned = mtd ? `${withPlan.length} of ${all.length} planned` : 'no plans set';
-    return `<div class="rollup">
-      ${cell('Revenue', fmtK(tot.sales, oneCur), `${all.length} brand${all.length === 1 ? '' : 's'} &middot; ${esc(rangeLabel())}${liveAt ? ` &middot; as of ${fmtCentralTime(liveAt)}` : ''}`,
-        mtd ? `MTD ${fmtK(mtd.sales, oneCur)} of ${fmtK(mtd.pSales, oneCur)} planned ${liveAt ? 'through yesterday' : 'by now'} &middot; ${planned}` : '',
-        mtd ? planPill(mtd.sales, mtd.pSales, 'sales') : '')}
-      ${cell('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended',
-        mtd && mtd.pSpend ? `MTD ${fmtK(mtd.spend, oneCur)} of ${fmtK(mtd.pSpend, oneCur)} planned ${liveAt ? 'through yesterday' : 'by now'}` : '',
-        mtd ? planPill(mtd.spend, mtd.pSpend, 'spend') : '')}
-      ${cell('MER', fmtX(tot.mer), 'revenue &divide; ad spend, blended',
-        mtd && mtd.pMer ? `MTD ${fmtX(mtd.mer)} against ${fmtX(mtd.pMer)} planned` : '',
-        mtd ? planPill(mtd.mer, mtd.pMer, 'mer') : '')}
-      ${cell('aMER', fmtX(tot.amer), tot.newShare != null ? `${fmtPct(tot.newShare)} of revenue from new customers` : 'new-customer revenue &divide; ad spend')}
-      ${cell('Contribution margin', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur),
-        untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded &mdash; cost data`
-          : tot.cmPct != null ? `${fmtPct(tot.cmPct)} of revenue` : 'after every variable cost',
-        '', '', tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
-    </div>`;
+  /* ---- the money row ---- */
+  const tile = (l, v, d, pill, cls) => `<div class="ru"><div class="ru-l">${l}</div><div class="ru-v${cls ? ' ' + cls : ''}">${v}${pill || ''}</div>${d ? `<div class="ru-d">${d}</div>` : ''}</div>`;
+  const money = () => {
+    if (!oneCur) return `<div class="rollup"><div class="ru" style="grid-column:1/-1"><div class="ru-l">${all.length} brands</div><div class="ru-v" style="font-size:19px">${curs.join(' &middot; ')}</div><div class="ru-d">Your brands report in different currencies, so there is no combined total. The table below is per brand.</div></div></div>`;
+    return `<div class="rollup hm-row">
+      ${tile('Revenue', fmtK(tot.sales, oneCur), `${esc(rangeLabel())}${liveAt ? ` &middot; live as of ${fmtCentralTime(liveAt)}` : ''}`, deltaPill(tot.sales, prev.sales))}
+      ${tile('Orders', fmtInt(tot.orders), tot.aov != null ? `AOV ${fmtMoney(tot.aov, oneCur)} ${deltaPill(tot.aov, prev.aov)}` : '', deltaPill(tot.orders, prev.orders))}
+      ${tile('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended', deltaPill(tot.spend, prev.spend, true))}
+      ${tile('MER', fmtX(tot.mer), 'revenue &divide; ad spend', deltaPill(tot.mer, prev.mer))}
+      ${tile('aMER', fmtX(tot.amer), 'new-customer revenue &divide; ad spend', deltaPill(tot.amer, prev.amer))}
+      ${tile('New customers', tot.newShare == null ? '&mdash;' : fmtPct(tot.newShare), tot.newOrders ? `${fmtInt(tot.newOrders)} first orders` : 'share of revenue from first orders', deltaPill(tot.newShare, prev.newShare))}
+      ${tile('Cost per new customer', tot.cac == null ? '&mdash;' : fmtMoney(tot.cac, oneCur), 'ad spend &divide; first orders', deltaPill(tot.cac, prev.cac, true))}
+      ${tile('Contribution margin', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur), untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded: cost data` : tot.cmPct != null ? `${fmtPct(tot.cmPct)} of revenue, after every variable cost` : 'after every variable cost', deltaPill(tot.cm, prev.cm), tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
+    </div>${cmpText ? `<p class="hm-cmp">Deltas are against ${cmpText}. Change it in the date menu.</p>` : ''}`;
   };
 
-  /* Thirty days of revenue, drawn small. A figure says where a brand is; the
-     line says which way it is going, which is most of what a glance is for. */
+  /* ---- the daily chart, every brand on screen added up by day ---- */
+  const merge = key => { const m = new Map(); for (const a of all) for (const p of (a[key] || [])) { const r = m.get(p.date) || { date: p.date, sales: 0, spend: 0, orders: 0 }; r.sales += p.sales || 0; r.spend += p.spend || 0; r.orders += p.orders || 0; m.set(p.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
+  const rows = merge('series'), prevRows = hasPrev ? merge('prev_series') : [];
+  const chart = oneCur && rows.length > 1 ? `<div class="card hm-chart">
+      <div class="hm-ch-h"><h3>Day by day</h3><span class="hint"><span class="hm-lg" style="color:#14608C">Revenue</span><span class="hm-lg" style="color:#C08A2E">Ad spend</span>${prevRows.length ? `<span class="hm-lg dash">${esc(CMP_LABEL[S.cmp])}</span>` : ''}&nbsp; Hover or tap a day.</span></div>
+      <div id="hmRead" class="tiny" style="min-height:18px;margin-bottom:4px">&nbsp;</div>
+      ${homeChartSVG(rows, prevRows, oneCur)}
+    </div>` : '';
+
+  /* ---- the ranked table (agency view) ---- */
+  const sortKey = localStorage.getItem('pf_ov_sort') || 'cm';
+  const sorter = OV_SORT.find(x => x[0] === sortKey) || OV_SORT[0];
+  const ranked = judged.slice().sort((x, y) => sorter[2] ? sorter[2](y.a) - sorter[2](x.a) : x.a.name.localeCompare(y.a.name));
   const spark = a => {
     const pts = (a.spark || []).filter(v => v != null);
     if (pts.length < 4) return '';
@@ -5010,129 +5256,83 @@ async function renderOverview() {
     const d = pts.map((v, i) => `${(i / (pts.length - 1) * 200).toFixed(1)},${(26 - (v - lo) / rng * 22).toFixed(1)}`).join(' ');
     const third = Math.ceil(pts.length / 3);
     const rising = pts.slice(-third).reduce((s2, v) => s2 + v, 0) / third >= pts.slice(0, third).reduce((s2, v) => s2 + v, 0) / third;
-    return `<svg class="sc-spark" viewBox="0 0 200 28" preserveAspectRatio="none"
-      role="img" aria-label="Daily revenue over the selected window, ${rising ? 'rising' : 'falling'}">
-      <polyline points="${d}" fill="none" stroke="${rising ? 'var(--good)' : 'var(--bad)'}" stroke-width="2"
-        stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    return `<svg class="sc-spark" viewBox="0 0 200 28" preserveAspectRatio="none" role="img" aria-label="Daily revenue over the window, ${rising ? 'rising' : 'falling'}"><polyline points="${d}" fill="none" stroke="${rising ? 'var(--good)' : 'var(--bad)'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   };
-
-  /* The action line for the brand on the "needs a decision" card. Written per
-     state, and never asserting something the data has not shown - "spend
-     more" is only ever said where a plan exists. */
-  const actionFor = ({ a, t }) => {
-    if (t.act) return t.act;
-    const w = a.window, trusted = cmTrusted(a.cost_health), cur = a.currency;
-    if (t.g === 'bd') {
-      const gap = a.plan.sales - a.mtd.sales;
-      const deep = t.off <= -0.45;
-      return `<b>${fmtK(gap, cur)} short</b> of the pro-rated plan. ${deep
-        ? 'A gap this size rarely closes by spending &mdash; worth re-agreeing the number.'
-        : 'See <b>Plan</b> for the daily spend it would take from here.'}`;
-    }
-    if (t.g === 'wn' && !trusted) return 'Running close to plan, but cost data will not support a profit figure. Check <b>Costs</b>.';
-    if (t.g === 'wn') return 'Inside normal variance. Nothing to do unless the gap widens this week.';
-    if (t.off > 0.2) return `Running well ahead of plan${w.mer != null && a.plan?.mer ? ` at ${fmtX(w.mer)} against a ${fmtX(a.plan.mer)} target` : ''}. There may be headroom to spend.`;
-    return 'Tracking its plan. No decision needed today.';
-  };
-
-  /* Cost verdict, as the client would need to hear it. */
-  const costPill = h => {
-    const v = h?.verdict;
-    if (!v || v === 'good') return '<span class="pill good">Good</span>';
-    if (v === 'override') return '<span class="pill warn">Override</span>';
-    if (v === 'noisy') return '<span class="pill warn">Noisy</span>';
-    return '<span class="pill bad">Fix</span>';
-  };
-
-  /* ---- the ranked table ---- */
-  const sortKey = localStorage.getItem('pf_ov_sort') || 'cm';
-  const sorter = OV_SORT.find(x => x[0] === sortKey) || OV_SORT[0];
-  const ranked = judged.slice().sort((x, y) => sorter[2]
-    ? sorter[2](y.a) - sorter[2](x.a)
-    : x.a.name.localeCompare(y.a.name));
+  const costPill = h => { const v = h?.verdict; if (!v || v === 'good') return '<span class="pill good">Good</span>'; if (v === 'override') return '<span class="pill warn">Override</span>'; if (v === 'noisy') return '<span class="pill warn">Noisy</span>'; return '<span class="pill bad">Fix</span>'; };
   const row = ({ a, t }) => {
-    const w = a.window || {}, trusted = cmTrusted(a.cost_health), cur = a.currency;
+    const w = a.window || {}, p = a.prev || null, trusted = cmTrusted(a.cost_health), cur = a.currency;
     const stripe = t.g === 'bd' ? ' class="stripe"' : t.g === 'wn' ? ' class="stripe w"' : '';
-    const newShare = w.new_rev != null && w.sales ? w.new_rev / w.sales : null;
-    const planCell = a.plan?.sales != null && a.mtd?.sales != null
-      ? planPill(a.mtd.sales, a.plan.sales, 'sales') : '<span class="pill unk">no plan</span>';
-    return `<tr${stripe} data-id="${a.act_id}" tabindex="0" role="button" aria-label="${esc(a.name)} &mdash; ${esc(t.state)}. Open its detail.">
+    const planCell = a.plan?.sales != null && a.mtd?.sales != null ? mtdPill(a.mtd.sales, a.plan.sales, 'sales') : '<span class="pill unk">no plan</span>';
+    return `<tr${stripe} data-id="${a.act_id}" tabindex="0" role="button" aria-label="${esc(a.name)}: ${esc(t.state)}. Open this brand.">
       <td><div class="bn">${esc(a.name)}</div><div class="tiny">${esc(t.state)}</div></td>
       <td class="spark-td">${spark(a)}</td>
-      <td class="num">${fmtK(w.sales, cur)}</td>
+      <td class="num">${fmtK(w.sales, cur)}${p ? deltaPill(w.sales, p.sales) : ''}</td>
       <td>${planCell}</td>
-      <td class="num">${fmtK(w.spend, cur)}</td>
+      <td class="num">${fmtK(w.spend, cur)}${p ? deltaPill(w.spend, p.spend, true) : ''}</td>
       <td class="num">${fmtX(w.mer)}</td>
       <td class="num">${fmtX(w.amer)}</td>
-      <td class="num">${newShare == null ? '&mdash;' : fmtPct(newShare)}</td>
+      <td class="num">${w.new_share == null ? '&mdash;' : fmtPct(w.new_share)}</td>
       <td class="num${trusted && w.cm != null ? (w.cm >= 0 ? ' good' : ' bad') : ''}">${trusted ? fmtK(w.cm, cur) : '&mdash;'}</td>
       <td>${costPill(a.cost_health)}</td>
     </tr>`;
   };
-  const seg = `<div class="seg sm" id="ovSort" role="group" aria-label="Sort brands by">
-    ${OV_SORT.map(([k, l]) => `<button data-s="${k}" class="${k === sortKey ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  const table = all.length ? `<div class="card key" style="padding-bottom:4px">
-      <div class="ovt-hd"><h3>Where each brand stands</h3>
-        <span class="hint">Every channel, blended, over ${esc(rangeLabel())}. <b>MTD vs plan</b> is month to date against this month&rsquo;s plan, pro-rated to today.</span>
+  const seg = `<div class="seg sm" id="ovSort" role="group" aria-label="Sort brands by">${OV_SORT.map(([k, l]) => `<button data-s="${k}" class="${k === sortKey ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const needs = judged.filter(j => j.t.g === 'bd').length, watch = judged.filter(j => j.t.g === 'wn').length;
+  const table = !one && all.length ? `<div class="card key" style="padding-bottom:4px">
+      <div class="ovt-hd"><h3>Each brand</h3>
+        <span class="hint">${needs ? `<b>${needs}</b> need${needs === 1 ? 's' : ''} a decision` : 'Nobody needs a decision'}${watch ? `, <b>${watch}</b> to watch` : ''}. Click a row to open the brand.</span>
         ${seg}</div>
       <div class="tbl-wrap"><table class="ovt">
         <thead><tr><th>Brand</th><th>Trend</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>aMER</th><th>New %</th><th>Contribution margin</th><th>Costs</th></tr></thead>
         <tbody>${ranked.map(row).join('')}</tbody>
       </table></div>
-    </div>` : `<p class="verdict">No brands yet. Add one in <b>Settings</b>.</p>`;
+    </div>` : !all.length ? `<p class="verdict">No brands yet. Add one in <b>Settings</b>.</p>` : '';
 
-  /* ---- three verdict cards: the triage, stated once ---- */
-  const names = list => list.map(j => esc(j.a.name)).join(', ');
-  const worst = needs[0] || watch[0] || null;
-  const decision = worst
-    ? { tone: needs.length ? 'bd' : 'wn', label: needs.length ? 'Needs a decision' : 'Watch',
-        big: esc(worst.a.name) + (needs.length > 1 ? ` <span class="tiny">+${needs.length - 1} more</span>` : ''),
-        hint: actionFor(worst) }
-    : { tone: 'ok', label: 'Off pace', big: 'Nobody', hint: 'Every brand with a plan is inside normal variance or ahead.' };
-  const cards = all.length ? `<div class="ov-cards">
-      <div class="card sc ${fine.length ? 'ok' : 'un'}"><div class="mini">Needs nothing today</div>
-        <div class="big">${fine.length} brand${fine.length === 1 ? '' : 's'}</div>
-        <p class="hint">${fine.length ? `Tracking or ahead of plan, with cost data we trust: ${names(fine)}.` : 'No brand is both on plan and on trusted cost data yet.'}</p></div>
-      <div class="card sc ${decision.tone}"><div class="mini">${decision.label}</div>
-        <div class="big">${decision.big}</div>
-        <p class="hint">${decision.hint}</p></div>
-      <div class="card sc ${untrusted.length ? 'wn' : 'ok'}"><div class="mini">Cost data to fix</div>
-        <div class="big">${untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'}` : 'None'}</div>
-        <p class="hint">${untrusted.length
-          ? `${untrusted.map(a => esc(a.name)).join(', ')}: profit is suppressed until the cost data passes the check on <b>Costs</b>.`
-          : 'Every brand&rsquo;s profit figure is measured, not estimated.'}</p></div>
-    </div>` : '';
-
-  /* The purpose line under the title is dropped here: the Today card says what
-     to do with this page better than a sentence about it. */
-  $('#main').innerHTML = `${pageHead('overview', 'Overview').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}
+  const readOn = oneCur && all.length && tot.sales != null;
+  $('#main').innerHTML = `${pageHead('overview', one ? `Overview: ${esc(one.name)}` : 'Overview').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}
+    ${readOn ? ovReadHtml(null) : ''}
     ${ovTodayHtml(OVD.key === S.act ? OVD.n : null)}
-    ${rollup()}
+    ${money()}
+    ${oneCur ? paceCard(mtd, oneCur, withPlan.length, all.length) : ''}
+    ${oneCur ? channelsCard(all, tot.sales, oneCur) : ''}
+    ${chart}
     ${table}
-    ${cards}
-    <details class="footnote"><summary>How these numbers are defined, and how a brand is sorted</summary>
-      <div class="fn-body"><b>The grouping</b> compares month-to-date revenue against this month's agreed goal, pro-rated to the days elapsed. More than 30% behind needs a decision; 8&ndash;30% behind is worth watching; anything closer is on track. A brand whose cost data will not support a profit figure is never shown as on track, and a brand with no plan for the month is listed separately rather than being called fine &mdash; there is nothing to measure it against.<br><br>
-      <b>Revenue</b> is Shopify Total Sales minus sales tax &mdash; gross sales, less discounts and returns, plus shipping charged to customers, less tax. Equivalent to CTC's &ldquo;Net Sales + Shipping&rdquo;. Every channel counts: paid, organic, email and direct, never a platform's attributed revenue.<br><br>
-      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue over that same spend, so repeat buyers and email cannot flatter it. <b>Contribution margin</b> is revenue less every variable cost &mdash; product, fulfilment, handling, payment fees and ad spend; fixed costs including our retainer are excluded. None of this will match Ads Manager, and that is the point: Ads Manager reports what Meta claims it caused, this reports what the store actually took.</div></details>`;
+    <details class="footnote"><summary>How these numbers are defined</summary>
+      <div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel counts: paid, organic, email and direct. <b>Orders</b> and <b>AOV</b> come from Triple Whale's order count over the same revenue. <b>Ad spend</b> is every platform, blended.<br><br>
+      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfilment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
 
-  const open = id => {
-    S.act = id; localStorage.setItem(LS.act, S.act);
-    const cp = $('#clientPick'); if (cp) cp.value = S.act;
-    show('profit');
-  };
+  const open = id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => {
     c.onclick = () => open(c.dataset.id);
     c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.dataset.id); } };
   });
-  // Re-render in place on a sort change; inPlace keeps the reader where they were.
-  $('#main').querySelectorAll('#ovSort button[data-s]').forEach(b => b.onclick = () => {
-    localStorage.setItem('pf_ov_sort', b.dataset.s);
-    inPlace(async () => renderOverview());
+  $('#main').querySelectorAll('#ovSort button[data-s]').forEach(b => b.onclick = () => { localStorage.setItem('pf_ov_sort', b.dataset.s); inPlace(async () => renderOverview()); });
+  if (rows.length > 1) wireSalesSpend('hmSvg', 'hmRead', rows, r => {
+    const i = rows.indexOf(r), p = prevRows[i];
+    return `<b>${prettyDate(r.date, true)}</b> &middot; revenue <b>${fmtK(r.sales, oneCur)}</b> &middot; spend <b>${fmtK(r.spend, oneCur)}</b>${r.spend ? ` &middot; MER ${fmtX(r.sales / r.spend)}` : ''}${r.orders ? ` &middot; ${fmtInt(r.orders)} orders` : ''}${p ? ` &middot; <span class="tiny">${esc(CMP_LABEL[S.cmp])}: ${fmtK(p.sales, oneCur)} on ${prettyDate(p.date)}</span>` : ''}`;
   });
+  wireOvAsk(scope);
 
-  /* Today's counts, AFTER the paint and never awaited: this renderer stays
-     synchronous. show() has already bumped RUN, so the ticket read here drops a
-     late answer that would otherwise land on another tab or another client. */
+  /* The read, after the paint and never awaited. Facts = exactly what is on screen. */
+  if (readOn) {
+    const run = RUN, key = S.act;
+    const ch = channelsAgg(all);
+    const facts = {
+      currency: oneCur, brands_on_screen: all.length,
+      totals: { revenue: tot.sales, orders: tot.orders, aov: tot.aov, ad_spend: tot.spend, mer: tot.mer, amer: tot.amer, new_customer_share: tot.newShare, contribution_margin: tot.cm },
+      compare_period: hasPrev ? { label: CMP_LABEL[S.cmp], revenue: prev.sales, orders: prev.orders, aov: prev.aov, ad_spend: prev.spend, mer: prev.mer, amer: prev.amer, new_customer_share: prev.newShare, contribution_margin: prev.cm } : null,
+      pace: mtd && mtd.pSales ? { month_to_date_revenue: mtd.sales, planned_by_now: mtd.pSales, month_to_date_spend: mtd.spend, planned_spend_by_now: mtd.pSpend, brands_with_a_plan: withPlan.length } : null,
+      channels: ch.map(c => ({ channel: c.label, spend: c.spend, revenue_tw_last_click: c.revenue, roas: c.roas, cpa: c.cpa })),
+      brands: one ? undefined : judged.map(({ a, t }) => ({ name: a.name, revenue: a.window?.sales, ad_spend: a.window?.spend, mer: a.window?.mer, contribution_margin: cmTrusted(a.cost_health) ? a.window?.cm : null, mtd_vs_plan: t.off == null ? null : Math.round(t.off * 100) + '%', state: t.state, revenue_vs_compare: a.prev?.sales ? Math.round((a.window.sales / a.prev.sales - 1) * 100) + '%' : null })),
+      cost_data_excluded: untrusted.map(a => a.name),
+    };
+    ovReadLoad(facts, scope).then(r => {
+      if (run !== RUN || S.tab !== 'overview' || S.act !== key) return;
+      const el = document.getElementById('ovRead'); if (el) { el.outerHTML = ovReadHtml(r); wireOvAsk(scope); }
+    }).catch(e => { const el = document.getElementById('ovRead'); if (el && run === RUN) { el.outerHTML = ovReadHtml({ error: e.message }); wireOvAsk(scope); } });
+  }
+
+  /* Today's counts, AFTER the paint and never awaited (see ovTodayLoad). */
   if (all.length && (OVD.key !== S.act || Date.now() - OVD.at > 60000)) {
     const run = RUN, key = S.act;
     ovTodayLoad(all).then(n => {
@@ -5142,6 +5342,103 @@ async function renderOverview() {
       if (el) el.outerHTML = ovTodayHtml(n);
     }).catch(() => {});
   }
+}
+
+/* ---------- Email and SMS (the hub, 2026-10-07) ----------
+   How much of the store's revenue email makes, campaigns against flows, and what Klaviyo
+   is running. Revenue and share come from Triple Whale's Klaviyo placed-order metrics
+   (already in /api/overview); the live half (lists, flows, campaign results) comes from
+   Klaviyo by the brand's own key through the account-health worker. */
+async function renderEmail(first) {
+  const run = ++RUN;
+  const all = S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act);
+  const one = S.act !== 'all' ? all[0] : null;
+  const curs = [...new Set(all.map(a => a.currency))], oneCur = curs.length === 1 ? curs[0] : null;
+  const shell = body => `${pageHead('email', one ? `Email and SMS: ${esc(one.name)}` : 'Email and SMS')}${body}`;
+  const em = a => { const c = (a.channels || []).find(x => x.id === 'email'); return { rev: a.window?.email_rev ?? c?.revenue ?? null, share: a.window?.email_share ?? null, camp: c?.campaigns ?? null, flows: c?.flows ?? null, prev: a.prev?.email_rev ?? null, sales: a.window?.sales ?? null }; };
+  const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(em(a)); if (v != null) { t += v; any = true; } } return any ? t : null; };
+  const rev = sum(e => e.rev), prev = sum(e => e.prev), sales = sum(e => e.sales), camp = sum(e => e.camp), flows = sum(e => e.flows);
+  const tile = (l, v, d, pill) => `<div class="ru"><div class="ru-l">${l}</div><div class="ru-v">${v}${pill || ''}</div>${d ? `<div class="ru-d">${d}</div>` : ''}</div>`;
+  const tiles = oneCur ? `<div class="rollup hm-row">
+      ${tile('Email and SMS revenue', fmtK(rev, oneCur), esc(rangeLabel()), deltaPill(rev, prev))}
+      ${tile('Share of store revenue', rev != null && sales ? fmtPct(rev / sales) : '&mdash;', 'Klaviyo placed orders over total revenue')}
+      ${tile('Campaigns', camp == null ? '&mdash;' : fmtK(camp, oneCur), rev && camp != null ? `${fmtPct(camp / rev)} of email revenue` : 'one-off sends')}
+      ${tile('Flows', flows == null ? '&mdash;' : fmtK(flows, oneCur), rev && flows != null ? `${fmtPct(flows / rev)} of email revenue` : 'welcome, abandoned cart, post purchase, winback')}
+    </div>` : '';
+  const brandRows = !one ? `<div class="card key"><div class="ovt-hd"><h3>Each brand</h3><span class="hint">Email and SMS revenue as Triple Whale carries it from Klaviyo. Click a row to open the brand.</span></div>
+    <div class="tbl-wrap"><table class="ovt"><thead><tr><th>Brand</th><th>Email revenue</th><th>Share of revenue</th><th>Campaigns</th><th>Flows</th></tr></thead><tbody>
+    ${all.map(a => { const e = em(a); return `<tr data-id="${a.act_id}" tabindex="0" role="button"><td><div class="bn">${esc(a.name)}</div><div class="tiny">${e.rev == null ? 'no Klaviyo revenue in this window' : ''}</div></td>
+      <td class="num">${e.rev == null ? '&mdash;' : fmtK(e.rev, a.currency)}${deltaPill(e.rev, e.prev)}</td><td class="num">${e.rev != null && e.sales ? fmtPct(e.rev / e.sales) : '&mdash;'}</td>
+      <td class="num">${e.camp == null ? '&mdash;' : fmtK(e.camp, a.currency)}</td><td class="num">${e.flows == null ? '&mdash;' : fmtK(e.flows, a.currency)}</td></tr>`; }).join('')}
+    </tbody></table></div></div>` : '';
+  const live = one ? `<div id="emKl"><div class="card"><span class="hint">Reading Klaviyo&hellip;</span></div></div>` : '';
+  $('#main').innerHTML = shell(`${tiles}${brandRows}${live}
+    <details class="footnote"><summary>How these numbers are defined</summary><div class="fn-body"><b>Email and SMS revenue</b> is Klaviyo's placed-order revenue as Triple Whale carries it (campaigns plus flows), which is Klaviyo's own attribution, not Triple Whale's pixel. <b>Share</b> divides it by store revenue (Shopify Total Sales minus tax). Campaign results in the table below are Klaviyo's over the last 90 days.</div></details>`);
+  $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('email'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+  if (!one) return;
+  let ov = null, camps = null, err = null;
+  try { [ov, camps] = await Promise.all([apiAH(`/api/klaviyo?act=${encodeURIComponent(one.act_id)}&what=overview`), apiAH(`/api/klaviyo?act=${encodeURIComponent(one.act_id)}&what=campaigns`).catch(() => null)]); }
+  catch (e) { err = e.message; }
+  if (run !== RUN) return;
+  const host = document.getElementById('emKl'); if (!host) return;
+  if (err || ov?.error) {
+    host.innerHTML = `<div class="card hm-soon"><h3>Klaviyo is not connected for ${esc(one.name)}</h3><p class="hint">${esc(ov?.error || err)}</p>
+      <div class="row" style="margin:10px 0 0"><button class="btn primary" type="button" onclick="localStorage.setItem('pf_set_sec','connections');show('settings')">Open Connections</button></div></div>`;
+    return;
+  }
+  const pct = v => v == null ? '&mdash;' : fmtPct(v, 1);
+  const camprows = (camps?.campaigns || []).filter(c => c.recipients != null).slice(0, 12).map(c => `<tr><td><div class="bn">${esc(c.name || '')}</div><div class="tiny">${esc(c.sent || '')}</div></td><td class="num">${fmtInt(c.recipients)}</td><td class="num">${pct(c.open_rate)}</td><td class="num">${pct(c.click_rate)}</td><td class="num">${pct(c.conversion_rate)}</td><td class="num">${c.conversion_value == null ? '&mdash;' : fmtK(c.conversion_value, one.currency)}</td></tr>`).join('');
+  host.innerHTML = `<div class="hm-two">
+    <div class="card"><h3>What Klaviyo is running</h3><p class="hint" style="margin-bottom:8px">Connected as ${esc(ov.company || 'the account')}.</p>
+      <div class="em-facts"><div><b>${fmtInt(ov.flows_live)}</b><span>live flows of ${fmtInt(ov.flows_total)}</span></div><div><b>${fmtInt(ov.lists)}</b><span>lists</span></div><div><b>${fmtInt(ov.segments)}</b><span>segments</span></div></div>
+      ${(ov.live_flows || []).length ? `<div class="em-flows">${ov.live_flows.slice(0, 12).map(f => `<span class="tag-chip">${esc(f)}</span>`).join('')}</div>` : '<p class="hint">No live flows. A brand with no live welcome, abandoned cart, post-purchase or winback flow has a gap worth naming.</p>'}
+    </div>
+    <div class="card"><h3>Biggest lists and segments</h3>
+      <table class="ovt"><tbody>${(ov.biggest_lists || []).slice(0, 4).map(l => `<tr><td>${esc(l.name || '')}<div class="tiny">list</div></td><td class="num">${fmtInt(l.profiles)}</td></tr>`).join('')}${(ov.biggest_segments || []).slice(0, 5).map(l => `<tr><td>${esc(l.name || '')}<div class="tiny">segment</div></td><td class="num">${fmtInt(l.profiles)}</td></tr>`).join('')}</tbody></table>
+    </div></div>
+    <div class="card key"><div class="ovt-hd"><h3>Recent campaigns</h3><span class="hint">Klaviyo's own results, last 90 days. Conversion value is Klaviyo's placed-order attribution.</span></div>
+      ${camprows ? `<div class="tbl-wrap"><table class="ovt"><thead><tr><th>Campaign</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th></tr></thead><tbody>${camprows}</tbody></table></div>` : `<p class="hint">${esc(camps?.results_note || 'No campaign results came back.')}</p>`}
+    </div>`;
+}
+
+/* ---------- Google / TikTok (the hub, 2026-10-07) ----------
+   Not connected directly yet. The screen shows what Triple Whale already sees for the
+   platform (spend, attributed revenue, ROAS, CPA per brand) and says exactly what the
+   direct connection adds, with the way to Connections. The same four-screen skeleton as
+   Meta lands here once the platform is connected. */
+const PLATFORMS = {
+  google: { label: 'Google', ch: 'google', spend: w => w?.google_spend, adds: ['Campaign types side by side: Search, Shopping, Performance Max and YouTube', 'Brand against non-brand search, and the search terms that spend', 'Shopping product groups and the products that sell', 'The same Test calls, Creative and Change Log screens as Meta'],
+    needs: 'Google Ads needs a Google Cloud project and a Google Ads developer token on the Mobius manager account, then one consent per brand. Search Console and GA4 ride on the same consent.' },
+  tiktok: { label: 'TikTok', ch: 'tiktok', spend: w => null, adds: ['Spend, delivery and Triple Whale attributed sales per campaign and ad', 'Creative fatigue read over 3 days against 7, because TikTok tires faster', 'The same Test calls, Creative and Change Log screens as Meta'],
+    needs: 'TikTok Ads needs a TikTok for Business developer app, reviewed by TikTok, then one consent per brand\'s ad account.' },
+};
+async function renderPlatform(kind, first) {
+  const P = PLATFORMS[kind];
+  const all = S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act);
+  const one = S.act !== 'all' ? all[0] : null;
+  const rows = all.map(a => { const c = (a.channels || []).find(x => x.id === P.ch); const sp = c?.spend ?? P.spend(a.window) ?? null; const pc = null; return { a, spend: sp, rev: c?.revenue ?? null, orders: c?.orders ?? null, roas: c?.roas ?? null, cpa: c?.cpa ?? null, sales: a.window?.sales ?? null, prevSpend: a.prev ? P.spend(a.prev) : pc }; }).filter(r => r.spend > 0 || r.rev > 0);
+  const curs = [...new Set(rows.map(r => r.a.currency))], oneCur = curs.length === 1 ? curs[0] : null;
+  const sum = get => { let t = 0, any = false; for (const r of rows) { const v = get(r); if (v != null) { t += v; any = true; } } return any ? t : null; };
+  const spend = sum(r => r.spend), rev = sum(r => r.rev), orders = sum(r => r.orders), sales = sum(r => r.sales), prevSpend = sum(r => r.prevSpend);
+  const tile = (l, v, d, pill) => `<div class="ru"><div class="ru-l">${l}</div><div class="ru-v">${v}${pill || ''}</div>${d ? `<div class="ru-d">${d}</div>` : ''}</div>`;
+  const tiles = rows.length && oneCur ? `<div class="rollup hm-row">
+      ${tile(`${P.label} spend`, fmtK(spend, oneCur), esc(rangeLabel()), deltaPill(spend, prevSpend, true))}
+      ${tile('Revenue, Triple Whale', rev == null ? '&mdash;' : fmtK(rev, oneCur), 'last platform click')}
+      ${tile('ROAS', rev != null && spend ? fmtX(rev / spend) : '&mdash;', 'Triple Whale revenue over platform spend')}
+      ${tile('CPA', orders && spend ? fmtMoney(spend / orders, oneCur) : '&mdash;', orders ? `${fmtInt(orders)} orders${rev != null && sales ? ` &middot; ${fmtPct(rev / sales)} of store revenue` : ''}` : 'no attributed orders')}
+    </div>` : '';
+  const table = rows.length ? `<div class="card key"><div class="ovt-hd"><h3>What Triple Whale sees</h3><span class="hint">Spend as Triple Whale carries it from ${P.label}; revenue is Triple Whale last platform click. Click a row to open the brand.</span></div>
+    <div class="tbl-wrap"><table class="ovt"><thead><tr><th>Brand</th><th>Spend</th><th>Revenue</th><th>ROAS</th><th>CPA</th><th>Share of revenue</th></tr></thead><tbody>
+    ${rows.map(r => `<tr data-id="${r.a.act_id}" tabindex="0" role="button"><td><div class="bn">${esc(r.a.name)}</div></td><td class="num">${fmtK(r.spend, r.a.currency)}${deltaPill(r.spend, r.prevSpend, true)}</td><td class="num">${r.rev == null ? '&mdash;' : fmtK(r.rev, r.a.currency)}</td><td class="num">${r.roas == null ? '&mdash;' : fmtX(r.roas)}</td><td class="num">${r.cpa == null ? '&mdash;' : fmtMoney(r.cpa, r.a.currency)}</td><td class="num">${r.rev != null && r.sales ? fmtPct(r.rev / r.sales) : '&mdash;'}</td></tr>`).join('')}
+    </tbody></table></div></div>` : `<div class="card"><p class="hint">No ${P.label} spend in this window for ${one ? esc(one.name) : 'these brands'}, as far as Triple Whale sees.</p></div>`;
+  $('#main').innerHTML = `${pageHead(kind, one ? `${P.label}: ${esc(one.name)}` : P.label)}
+    <div class="card hm-soon"><div class="hm-soon-h"><h3>${P.label} is not connected to Locus directly yet</h3><span class="pill warn">Not connected</span></div>
+      <p class="hint">${esc(P.needs)} Until then this screen shows what Triple Whale already carries.</p>
+      <div class="hm-adds"><b>What connecting adds</b><ul>${P.adds.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+      <div class="row" style="margin:12px 0 0"><button class="btn primary" type="button" onclick="localStorage.setItem('pf_set_sec','connections');show('settings')">Open Connections</button></div>
+    </div>
+    ${tiles}${table}`;
+  $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show(kind); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
 }
 
 /** A timestamp as Central wall-clock, the only clock this tool speaks. */
@@ -9652,7 +9949,7 @@ async function apiAH(path, opts = {}) {
   if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   return j;
 }
-const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health' };
+const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)' };
 AskUI.init({
   name: 'Strategist', api: apiAH, esc, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   onApplied: () => { try { show(S.tab); } catch (e) {} },
