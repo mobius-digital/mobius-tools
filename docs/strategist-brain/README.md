@@ -49,4 +49,4 @@ state of the build.
    covers journey and retention questions for now.
 3. Shopify product titles for the cart product ids in the customers view.
 4. A brief review posted back into the Asana task as a comment (today it is answered in Slack).
-5. Creator-link (hub) seeding from a reviewed brief, and Meta push from Studio.
+5. Creator-link (hub) seeding from a reviewed brief (plan: `hub-seeding-plan.md`, 2026-10-07), and Meta push from Studio.
