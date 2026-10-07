@@ -1680,3 +1680,16 @@ why is the copy desk in the brand thing". Fixed by reading every screen at 1280 
   fills the columns, nothing is stored until Save. Examples under the box are clickable.
 - `inPlace()` keeps focus on the input being typed in across a repaint (number inputs cannot
   restore a caret, so they only re-focus).
+
+## Scenarios v2 (2026-10-06 night, calc.js?v=2)
+Cole rejected v1 ("made in Canva", no hover, text over the lines, the bar chart was unreadable, numbers ran over the table). v2 keeps the same math (leadMath / roasMath) and replaces every visual:
+- Hero card: the one answer in IBM Plex Mono (pay-up-to CPL, or what you keep), a zone pill (In the zone / Makes money, misses target / Loses money; Profitable / Near breakeven / Losing money), a plain-English reading, and an even stat grid.
+- Dials: number box + range slider per input with a one-line sublabel; `inPlace()` keeps the dragged slider focused.
+- Compare: scenario cards (max 4) with a zone dot, not a table. Click to dial, rename inline, Save / Remove per card.
+- "Where a lead pays": one strip, green to the target CPL, amber to breakeven, red beyond, every scenario a marker.
+- Curves: hover/touch crosshair + fixed tooltip (`tipShow`), gradient area, target/breakeven lines with tags in the right margin (ROAS tag pinned to its line). `paint()` calls `tipHide()` because a repaint removes the svg without a mouseleave.
+- "Where every dollar goes": stacked bar with a legend of amounts and % of revenue.
+Font: calc.js injects IBM Plex Mono from Google Fonts itself (index.html only loads Instrument). Verified on the local pair at 1280.
+
+## Season seed 011 (Lucky, Cole's answers Oct 6 night) RAN
+Giveaway `early` starts 2026-10-14 ("Four Full Bags" working name); `putters` = announced Nov 9, sold only on Black Friday, list first; `access` has no driver/irons, 24h vs 48h open; `bf` = bundle + ONE hat per order + 400 polos + Eclipse Black first sale; `ny` = The Havoc driver Jan 6/7 locked. Asana (BFCM 2026 Lucky section + Lucky BFCM 2026 project) and the plan sheet artifact (v4) match. Still open for the Nick call Oct 7: Early Bird offer, 24h vs 48h, gift-card structure.
