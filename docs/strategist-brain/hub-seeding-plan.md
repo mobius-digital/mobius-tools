@@ -1,6 +1,6 @@
-# Locus hub plan: the creator link fed from reviewed briefs (2026-10-07)
+# Creator link seeding plan: the hub fed from reviewed briefs (2026-10-07)
 
-Item 5 of the Strategist build order ("Creator-link (hub) seeding from a reviewed brief").
+NOT the Locus hub plan (that is docs/locus-hub/plan.md). Item 5 of the Strategist build order ("Creator-link (hub) seeding from a reviewed brief").
 The Meta push from Studio is the other half of that item and is NOT in this plan.
 
 ## Where it stands
