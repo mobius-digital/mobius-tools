@@ -24,6 +24,7 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
+import { handleHub } from './hub.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -2640,6 +2641,12 @@ export default {
       if (path === '/api/scenario') {
         const sc = await handleScenario({ path, request, env, email: await sessionEmail(env, request) });
         if (sc) return sc;
+      }
+      /* Locus v2 data layer (2026-10-07). Routes live in hub.js. */
+      if (path.startsWith('/api/hub/')) {
+        const hr = await handleHub({ path, url, request, env, json, accountsFor: () => accountsFor(), windowFor, addDays, localDate,
+          twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids) });
+        if (hr) return hr;
       }
       /* Saved dashboards (the hub, 2026-10-07). Routes live in dashboard.js. */
       if (path === '/api/dashboards' || path === '/api/dashboard') {

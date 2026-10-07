@@ -289,6 +289,42 @@ async function metaAll(env, path, params, maxPages = 30) {
   return out;
 }
 
+/* ---------- Meta structure (Locus v2, 2026-10-07) ----------
+   Campaign and ad set NAMES, objective, status and budgets. `ads` always carried the ids;
+   the v2 Paid screens need the names to draw "campaign > ad set > ad". Two paged calls per
+   brand, refreshed at most every 6 hours (`metaStructAt:<act>`), inside the hourly sync. */
+let structTabled = false;
+async function ensureStructTables(env) {
+  if (structTabled) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS meta_campaigns (act_id TEXT NOT NULL, campaign_id TEXT PRIMARY KEY, name TEXT, objective TEXT, status TEXT,
+    daily_budget REAL, lifetime_budget REAL, bid_strategy TEXT, created_time TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS meta_adsets (act_id TEXT NOT NULL, adset_id TEXT PRIMARY KEY, campaign_id TEXT, name TEXT, status TEXT,
+    daily_budget REAL, optimization_goal TEXT, min_spend REAL, created_time TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS meta_adsets_camp ON meta_adsets (act_id, campaign_id)`).run().catch(() => {});
+  structTabled = true;
+}
+async function syncMetaStructure(env, acct, force = false) {
+  await ensureStructTables(env);
+  const key = `metaStructAt:${acct.act_id}`;
+  const at = await getSetting(env, key);
+  if (!force && at && Date.now() - Date.parse(at) < 6 * 3600e3) return { skipped: 'fresh' };
+  const cents = v => v == null || v === '' ? null : (+v) / 100;
+  const camps = await metaAll(env, `${acct.act_id}/campaigns`, { fields: 'id,name,objective,status,effective_status,daily_budget,lifetime_budget,bid_strategy,created_time', limit: 200 }, 10);
+  const sets = await metaAll(env, `${acct.act_id}/adsets`, { fields: 'id,name,campaign_id,status,effective_status,daily_budget,optimization_goal,daily_min_spend_target,created_time', limit: 200 }, 15);
+  const stmts = [];
+  for (const c of camps) stmts.push(env.DB.prepare(`INSERT INTO meta_campaigns (act_id, campaign_id, name, objective, status, daily_budget, lifetime_budget, bid_strategy, created_time, synced_at)
+      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,datetime('now')) ON CONFLICT(campaign_id) DO UPDATE SET name = excluded.name, objective = excluded.objective, status = excluded.status,
+      daily_budget = excluded.daily_budget, lifetime_budget = excluded.lifetime_budget, bid_strategy = excluded.bid_strategy, synced_at = excluded.synced_at`)
+    .bind(acct.act_id, String(c.id), c.name || null, c.objective || null, c.effective_status || c.status || null, cents(c.daily_budget), cents(c.lifetime_budget), c.bid_strategy || null, c.created_time || null));
+  for (const a of sets) stmts.push(env.DB.prepare(`INSERT INTO meta_adsets (act_id, adset_id, campaign_id, name, status, daily_budget, optimization_goal, min_spend, created_time, synced_at)
+      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,datetime('now')) ON CONFLICT(adset_id) DO UPDATE SET campaign_id = excluded.campaign_id, name = excluded.name, status = excluded.status,
+      daily_budget = excluded.daily_budget, optimization_goal = excluded.optimization_goal, min_spend = excluded.min_spend, synced_at = excluded.synced_at`)
+    .bind(acct.act_id, String(a.id), a.campaign_id ? String(a.campaign_id) : null, a.name || null, a.effective_status || a.status || null, cents(a.daily_budget), a.optimization_goal || null, cents(a.daily_min_spend_target), a.created_time || null));
+  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50).map(x => x.__raw || x));
+  await putSetting(env, key, new Date().toISOString());
+  return { campaigns: camps.length, adsets: sets.length };
+}
+
 const PURCHASE_TYPES = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
 const ATC_TYPES = ['omni_add_to_cart', 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart'];
 function pickAction(list, types) {
@@ -888,6 +924,7 @@ async function syncAccount(env, acct, days, { includeAds = true } = {}) {
       ? new Date(new Date(acct.last_sync_activities).getTime() - 6 * 3600e3).toISOString()  // 6h overlap
       : new Date(Date.now() - ACTIVITY_BACKFILL_DAYS * 86400e3).toISOString();
     out.activities = await syncActivities(env, acct, since);
+    out.structure = await syncMetaStructure(env, acct).catch(e => ({ error: e.message }));
     if (includeAds) out.ad = await syncAdDaily(env, acct, { maxSlices: 8 });
   } catch (e) {
     out.error = e.message;
@@ -1324,6 +1361,7 @@ async function syncTwAttribution(env, acct, days = 7, range = null, opts = {}) {
   const start = range ? range.from : addDays(end, -(Math.min(days, 120) - 1));
 
   const agg = new Map();                       // `${date}|${ad}|${model}` -> {rev, ord}
+  const touches = [];                          // order -> paid ad, per model (Locus v2 drill)
   const seenModels = new Set();                // what TW ACTUALLY sends, not what we assumed
   const orderRows = [];                        // one per order, for tw_orders
   let page = 1, orders = 0, pages = 0, earliest = null;
@@ -1369,6 +1407,7 @@ async function syncTwAttribution(env, acct, days = 7, range = null, opts = {}) {
            order total: the platforms double-count each other, exactly as their
            UI shows and as the blended MER on the other tabs exists to avoid. */
         const w = LINEAR_MODELS.has(model) ? 1 / tps.length : 1;
+        if (o.order_id && TOUCH_MODELS.has(model)) for (const t of tps) touches.push([String(o.order_id), date, model, twPlatform(t.source), String(t.adId), w, t.clickDate ? String(t.clickDate).slice(0, 10) : null]);
         for (const t of tps) {
           /* PLATFORM COMES FROM THE TOUCHPOINT, and it is the piece that was
              missing. tw_ad_attr always held Google ad ids alongside Meta's, but
@@ -1412,8 +1451,35 @@ async function syncTwAttribution(env, acct, days = 7, range = null, opts = {}) {
     }
     await env.DB.prepare(sql).bind(...binds).run();
   }
-  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length, stored, earliest,
+  /* Order touches, same window, same delete-then-write rule as tw_ad_attr. */
+  const touched = await storeTouches(env, acct, start, end, touches).catch(e => { console.log('tw_order_touch: ' + e.message); return 0; });
+  return { name: acct.name, from: start, to: end, orders, pages, rows: rows.length, stored, earliest, touches: touched,
     models_seen: [...seenModels].sort(), models_stored: TW_ATTR_MODELS };
+}
+
+/* ORDER TOUCHES (Locus v2, 2026-10-07). One row per order per paid ad it touched, per model,
+   so a purchases or revenue cell on the Paid screens can open the orders behind it, and an
+   order its customer. Only the models the model switch offers are kept, to hold D1 size down. */
+const TOUCH_MODELS = new Set(['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linearAll']);
+let touchTabled = false;
+async function storeTouches(env, acct, start, end, list) {
+  if (!touchTabled) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tw_order_touch (act_id TEXT NOT NULL, order_id TEXT NOT NULL, date TEXT NOT NULL, model TEXT NOT NULL,
+      platform TEXT, ad_id TEXT NOT NULL, weight REAL NOT NULL DEFAULT 1, click_date TEXT, PRIMARY KEY (act_id, order_id, model, ad_id))`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS tw_order_touch_ad ON tw_order_touch (act_id, ad_id, model, date)`).run().catch(() => {});
+    touchTabled = true;
+  }
+  await env.DB.prepare(`DELETE FROM tw_order_touch WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(acct.act_id, start, end).run();
+  const seen = new Set(); const rows = list.filter(r => { const k = `${r[0]}|${r[2]}|${r[4]}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  for (let i = 0; i < rows.length; i += 12) {
+    const chunk = rows.slice(i, i + 12);
+    const sql = `INSERT OR REPLACE INTO tw_order_touch (act_id, order_id, date, model, platform, ad_id, weight, click_date) VALUES `
+      + chunk.map((_, n) => `(?${n * 8 + 1},?${n * 8 + 2},?${n * 8 + 3},?${n * 8 + 4},?${n * 8 + 5},?${n * 8 + 6},?${n * 8 + 7},?${n * 8 + 8})`).join(',');
+    const binds = [];
+    for (const r of chunk) binds.push(acct.act_id, ...r);
+    await env.DB.prepare(sql).bind(...binds).run();
+  }
+  return rows.length;
 }
 
 async function twWindow(env, shopDomain, start, end) {
@@ -7226,6 +7292,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const b = await request.json().catch(() => ({}));
       return json(await screenRead(env, b));
+    }
+    /* Locus v2: pull Meta campaign and ad set names now (all brands, or ?act=). */
+    if (path === '/api/meta-structure-sync' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const want = url.searchParams.get('act') || 'all';
+      const accts = (await listAccounts(env, true)).filter(a => want === 'all' || a.act_id === want);
+      const out = [];
+      for (const a of accts) out.push({ name: a.name, ...(await syncMetaStructure(env, a, true).catch(e => ({ error: e.message }))) });
+      return json({ ok: true, brands: out });
     }
     /* Post one saved dashboard to its Slack channel now (the hub, 2026-10-07). */
     if (path === '/api/dashboard-post' && request.method === 'POST') {

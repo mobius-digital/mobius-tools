@@ -72,7 +72,21 @@ const ago = iso => iso ? Math.round((Date.now() - Date.parse(iso)) / 864e5) : nu
  * What the Strategist reads. `what`: overview (counts + the account), lists, segments, flows,
  * campaigns (last 30 sent, with results), metrics. Everything is read live; nothing is cached.
  */
+/* Reporting endpoints allow 225 calls a day per account, so every report is cached per brand
+   (Locus v2, 2026-10-07): 6 hours in `settings` as `klv:<act>:<what>`. */
+const KLV_TTL = 6 * 3600e3;
+async function cached(env, key, fn) {
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+  if (row?.value) { try { const v = JSON.parse(row.value); if (v.at && Date.now() - Date.parse(v.at) < KLV_TTL) return { ...v.data, cached_at: v.at }; } catch {} }
+  const data = await fn();
+  if (!data?.error) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: new Date().toISOString(), data })).run().catch(() => {});
+  return data;
+}
 export async function klaviyoView(env, act, what = 'overview') {
+  if (what === 'campaigns' || what === 'flows_report') return cached(env, `klv:${act}:${what}`, () => klaviyoViewRaw(env, act, what));
+  return klaviyoViewRaw(env, act, what);
+}
+async function klaviyoViewRaw(env, act, what = 'overview') {
   const doc = await keyFor(env, act);
   if (!doc?.key) return { error: 'Klaviyo is not connected for this brand. Settings > Connections > Klaviyo: paste the brand\'s private API key (Klaviyo > Settings > API keys > Create private key, read scopes).' };
   const k = doc.key;
@@ -102,6 +116,31 @@ export async function klaviyoView(env, act, what = 'overview') {
       for (const row of r.data?.attributes?.results || []) results[row.groupings?.campaign_id] = row.statistics;
     } catch (e) { results = { error: e.message }; }
     return { ...base, campaigns: sent.map(x => ({ id: x.id, name: x.attributes?.name, sent: x.attributes?.send_time?.slice(0, 10), status: x.attributes?.status, ...(results[x.id] || {}) })), results_note: results.error ? `Results could not be read: ${results.error}` : 'open_rate, click_rate, conversion_rate are fractions (0.42 = 42%); conversion_value is revenue attributed to the campaign by Klaviyo (Placed Order), not Triple Whale.' };
+  }
+  /* Flow results (Locus v2): one flow-values-report over the last 90 days, grouped by flow,
+     with the flow names joined in. */
+  if (what === 'flows_report') {
+    const flows = await all(k, '/api/flows/?fields[flow]=name,status,archived,trigger_type', 3);
+    const names = Object.fromEntries(flows.map(f => [f.id, { name: f.attributes?.name, status: f.attributes?.status, trigger: f.attributes?.trigger_type, archived: f.attributes?.archived }]));
+    let results = [], note = '';
+    try {
+      const metric = await placedOrderMetric(k);
+      const attributes = { statistics: ['recipients', 'delivered', 'open_rate', 'click_rate', 'conversion_rate', 'conversions', 'conversion_value', 'revenue_per_recipient', 'unsubscribe_rate', 'bounce_rate'], timeframe: { key: 'last_90_days' }, conversion_metric_id: metric };
+      const r = await klaviyo(k, '/api/flow-values-reports/', { method: 'POST', body: { data: { type: 'flow-values-report', attributes } } });
+      const by = {};
+      for (const row of r.data?.attributes?.results || []) {
+        const id = row.groupings?.flow_id; if (!id) continue;
+        const st = row.statistics || {}; const b = by[id] ||= { id, ...names[id], recipients: 0, delivered: 0, conversions: 0, conversion_value: 0, opens: 0, clicks: 0, unsubs: 0, channels: new Set() };
+        b.recipients += st.recipients || 0; b.delivered += st.delivered || 0; b.conversions += st.conversions || 0; b.conversion_value += st.conversion_value || 0;
+        b.opens += (st.open_rate || 0) * (st.delivered || 0); b.clicks += (st.click_rate || 0) * (st.delivered || 0); b.unsubs += (st.unsubscribe_rate || 0) * (st.delivered || 0);
+        if (row.groupings?.send_channel) b.channels.add(row.groupings.send_channel);
+      }
+      results = Object.values(by).map(b => ({ id: b.id, name: b.name || b.id, status: b.status, trigger: b.trigger, channels: [...b.channels], recipients: b.recipients, delivered: b.delivered,
+        open_rate: b.delivered ? b.opens / b.delivered : null, click_rate: b.delivered ? b.clicks / b.delivered : null, conversions: b.conversions, revenue: b.conversion_value,
+        revenue_per_recipient: b.recipients ? b.conversion_value / b.recipients : null, conversion_rate: b.recipients ? b.conversions / b.recipients : null, unsubscribe_rate: b.delivered ? b.unsubs / b.delivered : null }))
+        .sort((x, y) => (y.revenue || 0) - (x.revenue || 0));
+    } catch (e) { note = `Flow results could not be read: ${e.message}`; }
+    return { ...base, flows: results, results_note: note || 'Klaviyo placed-order attribution, last 90 days. Rates are fractions.' };
   }
   if (what === 'metrics') {
     const rows = await all(k, '/api/metrics/?fields[metric]=name,integration', 3);
