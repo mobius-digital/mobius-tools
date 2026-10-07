@@ -94,7 +94,7 @@ function injectCss() {
   .cc-d input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--cc-surface);border:2px solid var(--cc-acc)}
   .cc-d small{grid-column:1/-1;font-size:11.5px;color:var(--cc-muted);line-height:1.4;margin-top:-6px}
   .cc-assume{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-  .cc-assume div{border:1px solid var(--cc-line);border-radius:10px;padding:10px 12px}
+  .cc-assume>div{border:1px solid var(--cc-line);border-radius:10px;padding:10px 12px}
   .cc-assume .l{font:600 10px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--cc-muted)}
   .cc-assume .v{font:600 18px var(--cc-mono);margin-top:3px;font-variant-numeric:tabular-nums}
   /* scenario cards */
