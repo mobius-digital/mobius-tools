@@ -1741,3 +1741,9 @@ Prize name, Early Bird and gift cards back to proposed/TBD until the Nick call O
   one brief by number, customers (tw_orders), scenarios and the brand brain, and can fill or create
   Asana briefs, save scenarios (share link), drop Studio batches and hand a media thread to the
   ideas pipeline. Sources and the open list: `docs/strategist-brain/README.md`.
+- **Shopify post-install report (2026-10-07).** Shopify paused the review (2.1.3) because a
+  non-client store saw only "Connected". `storeViewToken()` mints a token per store in the OAuth
+  callback (`p_store_view`); non-client stores redirect to `profit/?store=<token>`, which calls the
+  PUBLIC `GET /api/store-view?s=` (before the auth gate, token is the auth) and `storeReport()` reads
+  the store live: paid orders last 30 days, revenue, AOV, new vs returning, by day, top products.
+  Client stores still land on `?perf=`. Resubmit text: `docs/shopify-app-review-2026-10-07.md`.
