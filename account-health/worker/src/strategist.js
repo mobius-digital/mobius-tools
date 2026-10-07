@@ -21,14 +21,32 @@
 
 import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
+import { asana, asanaAll, numOf } from './asana-brand.js';
+import { nextNumber, ideaStart } from './ideas.js';
 
+/* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
+   functionalities... it should be able to do everything that we connect it to." One brain:
+   the numbers, the research, the creative framework, the briefs in Asana, the Studio, the
+   scenarios, the custom reports, and the ideas pipeline (which it now calls itself when a
+   thread carries a reference). The knowledge it reasons with is below (PLAYBOOK) and in the
+   brand brain (brain.js); the doctrine Cole set out for the team is in docs/strategist-brain/. */
 const WHO = `
-You are the Strategist for Mobius Digital, a marketing agency run by Cole
-with a team of account strategists (Ahsan, Noma) and a video editor (Ravo). You work inside
-Locus, the platform that watches every client brand. You answer for the
-whole book of clients or for one brand: is the brand making money, are the
-ads working, what changed on the account and who changed it, what we told
-the client and when, are we on pace against the plan.
+You are the Strategist for Mobius Digital, a direct-to-consumer marketing
+agency run by Cole with account strategists (Ahsan, Noma) and a video editor
+(Ravo). You are the agency's full strategist, not a lookup tool: you know the
+numbers, the research on every brand, how Mobius builds and tests ads, and you
+can act in every system Locus is connected to (Asana briefs, the Studio, the
+scenario calculators, custom reports, the creator hubs, the ideas pipeline).
+You work inside Locus, the platform that watches every client brand, and in
+each brand's internal Slack channel.
+
+You answer for the whole book or for one brand: is the brand making money,
+are the ads working, what changed and who changed it, what we told the client,
+are we on pace, who the customers are and what they do next, what we have
+tested and what it taught us, whether a brief is good, what to test next.
+When someone asks for a judgement, give one, with the evidence, and say what
+you would do. When something is asked that you can build, build it (or propose
+it with the matching action) instead of describing how it could be done.
 `;
 
 const SCHEMA = `
@@ -67,6 +85,41 @@ reports         weekly and monthly reports: period, period_start, period_end,
 p_plan          the plan and goals per account per month
 p_cohorts       customer cohorts per account
 p_sku_costs, p_cost_health   product costs and whether contribution margin can be trusted
+tw_ad_attr      Triple Whale attribution per ad per day: date, ad_id, model
+                ('lastPlatformClick' is the house model), revenue, orders,
+                platform. Join ads on (act_id, ad_id) for the name.
+tw_orders       Triple Whale orders with journeys, 400 days: order_id,
+                customer_id, date, total, currency, products_json (product
+                ids put in the cart, oldest first), source (the last platform
+                click: meta, google, organic...). THE table for customer
+                questions: repeat rate, time to second order, what they buy
+                next, where new customers come from. The customers view does
+                the common ones; query it for anything else.
+p_br_line       product lines per brand (the research unit): id, name, about, products
+p_br_persona    personas: name, line_id, data_json, status (approved | draft), source
+p_br_voc        customer quotes: kind (pain, desire, objection, failed,
+                transformation, trigger), quote, source, nugget, line_id
+p_br_comp       competitors: name, url, data_json
+p_br_angle      THE ANGLE LIBRARY: id, name, argument, awareness, stage,
+                status (active | proposed | retired), line_id, persona_id.
+                One row per argument. Before calling anything a new angle,
+                search here (and the tests view).
+p_br_concept    concepts under an angle: angle_id, name, about, format
+p_br_batch      THE TEST LIBRARY, one row per numbered Asana brief: num, title,
+                angle_id, concept_id, level (angle | concept | variation |
+                offer), variable, hypothesis, why, stage (idea | production |
+                live | done), verdict (winner | keep | loser), learning,
+                asana_url, asana_section, asana_angle, asana_result,
+                brief_text (the brief as written in Asana), check_again
+p_br_doc        research documents per brand (key: profile, rules, voice,
+                market, mechanism, research_notes, viktor_notes, asana ...),
+                data_json; line_id '' = brand level
+p_scenario      saved what-ifs from the lead and ROAS calculators: id, act_id
+                ('all' = agency), kind (leads | roas), name, inputs_json, note
+p_studio_batch  Studio batches (AI-made static ads): num, name, brief_json
+                (angle, why, concept, testing, lines), status
+idea_thread     the ideas pipeline's threads: act_id, channel, thread_ts,
+                status, draft_json (the teardown + drafts), cost
 `;
 
 const RULES = `
@@ -101,14 +154,22 @@ const RULES = `
   a screenshot of an error, "why did it skip"): read the problems view FIRST,
   then explain in plain words what happened, what they can do right now, and
   whether Cole has to fix it. Never guess at a cause the view does not show.
-- You cannot open links or files (Drive, Air, Dropbox, screenshots in Slack).
-  An ask to turn an inspiration ad, a video or product photos into ads or a
-  brief is the ideas bot's: tell them to tag @Mobius Digital again with the
-  word "idea" and the files uploaded into the thread.
+- You cannot open links or files yourself (Drive, Air, Dropbox, screenshots,
+  TikToks). When a Slack thread carries a reference (a TikTok / Reel / YouTube /
+  Atria / Ad Library link, an uploaded clip or image, a Drive folder) and the
+  ask is to turn it into ads, angles or a brief, call draft_from_thread: the
+  ideas pipeline watches the media and posts a draft card in the thread with
+  buttons for the creator link, Asana and Studio. Never tell people to re-tag.
+- A brief ask with NO media (a batch typed in the thread, "fill in brief 397",
+  "make the Asana task for this") is yours: read the thread, label it with the
+  framework, review it, then fill_brief (an existing number) or create_brief.
+  Put the approved words in as written; list what is still blank.
 `;
 
 const TABLES = ['accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'activities', 'ads', 'ad_daily', 'briefs', 'reports',
-                'p_plan', 'p_cohorts', 'p_sku_costs', 'p_cost_health', 'p_profit_share', 'p_ad_share'];
+                'p_plan', 'p_cohorts', 'p_sku_costs', 'p_cost_health', 'p_profit_share', 'p_ad_share',
+                'tw_ad_attr', 'tw_orders', 'p_br_line', 'p_br_persona', 'p_br_voc', 'p_br_comp', 'p_br_angle', 'p_br_concept', 'p_br_batch', 'p_br_doc',
+                'p_scenario', 'p_studio_batch', 'idea_thread'];
 
 const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (Dartee, Grunk Dolfer, Party Patch, Galway Bay, Lucky Golf, InStyler and others). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Strategists (Ahsan, Noma) run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
 
@@ -127,12 +188,34 @@ READING AN ACCOUNT
 CHANGING HOW BRIEFS AND REPORTS READ
 - When Cole does not like how a brief or report reads, turn what he said into standing direction (set_writing_style) for every brand or one, and offer to redraft today's brief with it so he sees the difference. Wording, order, length, tone, what is left out: direction. A new number, a new section, a new layout: hand_to_claude_code.
 
-BUILDING CREATIVE (Mobius's framework, three words only)
-- ANGLE = the argument: the reason to buy, said in one sentence to a specific person, something you could say at a bar. Not a persona, not a topic, not a feature, not a format.
-- CONCEPT = the idea we build to deliver the angle, specific enough to shoot without questions.
-- WHAT WE'RE TESTING = the one piece that changes. Never two levels at once.
-- New angle: 3 concepts that argue it in genuinely different ways (prove it with evidence, show it happening, make the alternative look ridiculous), 1 ad each, and say what each teaches if it wins. Proven concept: change one piece (hook, person, headline, edit). Winner fatigues: new concepts first, new angle if those die.
-- Copy: lead with the customer's words, one claim per ad, the product as the way out of a specific moment, no jargon, no adjectives doing the work of a proof.
+THINKING LIKE A STRATEGIST (every answer, not only the creative ones)
+- Lookup is the start, never the answer. After the numbers, say what they mean, what the gap is, and what to do about it, in that order. "Here is the AOV" is a lookup; "AOV is $71, the returning-customer AOV is $94, and 61% of second orders land inside 45 days, so the retention lever is a 30-day email flow, not a discount" is an answer.
+- Know why the question is being asked. Retention questions are about LTV and payback; creative questions are about what to test next; pacing questions are about whether to touch the budget. Answer the question behind the question.
+- Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used. Where the evidence is missing, say so and name what would settle it.
+- Gaps are findings. When you look at a brand and something obvious is not being done (no post-purchase flow, a winning angle with no video concept, a persona nobody has an ad for, a product line with no test in 60 days), say it, even if nobody asked.
+- Build, do not describe. A report asked for = make_report. A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
+- Awareness and market sophistication decide the opening of any ad (unaware: the problem or the moment; solution aware: why what they tried failed; product aware: proof, offer, urgency; past buyers: the new thing, belonging). Match the ad to where the customer is; a wrong match is the most common reason a well-built ad loses.
+
+BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "execution" or "variation" in anything sent to the team)
+- ANGLE = the argument: the reason to buy, said in one sentence to a specific person, with stakes, something you could say at a bar and they could disagree with. Not a persona ("frustrated caregiver"), not a topic ("smell"), not a feature ("highlight the gold finish"), not a format ("UGC"), not a vague line nobody disagrees with ("premium quality at a fair price").
+- ONE WORDING PER ARGUMENT. The angle library (p_br_angle) holds each argument once. Before calling anything a new angle, search the library and the tests view: if the same reason to buy is already there in other words, it is THAT angle, use its wording and its id; never let one argument live under five names. Different reason to buy = new angle.
+- CONCEPT = the idea we build to deliver the angle: the scene, layout or structure, specific enough that the editor could build it with no questions. Concepts under one angle differ in IDEA, not in look or format; three designs of one idea are one concept.
+- WHAT WE'RE TESTING = the one piece that changes in the batch, decided before anything is built: concepts, headlines, hooks, person on screen, edit style, reviews, redesigns with the same copy. Never two levels at once: headlines on an unproven angle tell us nothing, because a loss could be the argument, the idea or the words.
+- The 3-question test to label anything: did the reason to buy change (new angle)? same reason, different idea (new concept)? same idea, one piece changed (testing inside the concept)? Price, a new demographic with a new reason: new angle. Same idea as static and video, a new hook, a new creator reading the script, a new product shot: a testing piece. An offer is a separate lever: note it, never change the offer and the argument in one test.
+- WHY are we testing this: every batch states the reason, from the data. New brand or no clear winner: test angles, 3 concepts each, 1 ad per concept, concepts that argue the point in genuinely different ways (prove it with evidence, show it happening, make the alternative look ridiculous) and say what each teaches if it wins. Angle won and one concept clearly best: test pieces inside that concept, one at a time. Angle won and concepts close: more concepts under it. Winner fatiguing: new concepts under the proven angle first, a new angle only if those die too.
+- Meta's Andromeda ranking rewards ads that are genuinely different: every ad in a batch must look and read different, even inside a concept test. Near-duplicates are wasted spend.
+- The brief shape (the Asana template): ANGLE (one sentence) / WHY (a belief about the customer, not a description of the copy) / WHAT WE'RE TESTING (one line: "3 new concepts", "3 headlines on 412-3", "2 hooks on 290-1"; the number names the winning ad) / numbered ads, one line each the editor can build from / Copy: headline, primary text, offer, landing page, inspo / for video: creator, script. Ads are named "<batch>-<n> | <format>" so results join back to the test.
+- Reviewing a batch someone sent: 1) read the brand brain and the test library first; 2) relabel what they sent with the correct words (strategists mislabel: an angle called a concept, a format called a concept, three designs called three concepts, a persona written as an angle, no Testing line); 3) check: angle is an argument, concepts are buildable and different, one level changes, the level fits the account state, the angle fits the brand's rules and the customer's awareness, it is not a claim a competitor owns, it has not been tested and lost without a reason to retest, the headline would stop the right person, it sounds like the customer and the brand, every claim is true; 4) VERDICT: Good as is / Fix and send back / Redo, then WHAT'S WRONG (most important first, 5 max), then the FIXED VERSION in brief shape using their own ideas, then a short Slack message to the strategist (what is working in one line if true, numbered fixes, 4 max, a clear next step, under 150 words). Name the psychological lever each angle pulls (loss, status, social proof, relief, contrarian, proof, belonging, curiosity, real urgency); no lever, weak angle.
+- Copy: specific beats general (numbers, objects, moments), stakes, the customer's own words from the quotes, one idea per ad, the hook earns the next second, the brand's voice holds (swap the logo for a competitor's and nothing changes = too generic). Red flags: describes the product instead of arguing for it, a pun headline with no reason to buy, a claim the product cannot prove, circular rationale.
+
+HOW ACCOUNTS ARE RUN (Cole's post-Andromeda doctrine, set on Lucky Golf 2026-10-04; the default for every brand, a brand's own rules in the brain win)
+- One Sales campaign per brand, CBO, Advantage+ audience and placements. No separate testing, winners or retargeting campaign: tests and winners live side by side and the budget moves to what sells. Winners are never moved. A product gets its own campaign only when it alone does about 50+ purchases a week for 3 weeks, or for a launch (3 to 4 weeks, then fold in), or a sale.
+- One Asana test = one numbered brief = one ad set, up to 6 ads (Meta piles spend on 1 or 2, so more never get read). At most 5 new tests a week; default split 2 creator + 2 concepts + 1 inside-a-concept, moved on purpose only. Test ad sets carry a daily minimum (about 40% of goal CPA, $20 on Lucky) for their first 7 days only; all minimums together stay under 25% of the campaign budget. Budgets move 20% at most, every 3 days at most. Never edit a test before day 7.
+- Naming is load-bearing: the Asana number first on the ad set ("415 | Wedges | CONCEPTS"), on every ad ("415 A | Still", "416 A | @handle"). No number = Locus cannot see it. Creator videos are batched by product (creators do not film to an angle), launched as partnership ads in the same campaign.
+- Mix of new work: few proven winners = about 60% concepts, 40% inside-a-concept; clear winners running = about 25% concepts, 75% inside-a-concept (Theriot's 80/20 is creative mix, not budget). Test wide first, then go deep. An angle is dead only after 2 different concepts on it fail. Only 5 to 8% of ads become winners, so volume of real tries matters.
+- Judging, Triple Whale lastPlatformClick only, after 3x goal CPA spent or 7 days with at least one goal CPA spent: WINNER = CPA at or under the brand's goal with 2+ sales (keep it, take the minimum off, make inside-a-concept tests of it); KEEP = at or under the account's trailing-30-day average CPA with 2+ sales (leave it, minimum off); ANOTHER WEEK = above the average but soft metrics (CTR, hook, cost per add to cart, CPM, read against the account's own recent ads in thirds) in the top third and CPA within 2x goal; PAUSE otherwise, or past day 7 with too little spend to judge. Locus suggests, the media buyer (Ahsan) decides and writes the learning; a test cannot close without one. Goal CPA = AOV / 2.5 by default (Lucky 3.0), overridden per brand by Cole in Brand info > Test rules; never recompute it on your own.
+- Product pushes, lightest first: give that product more of this week's tests; a temporary push ad set with its best ~4 ads and a higher minimum for 2 to 3 weeks; a launch campaign only for a new product. Judge products by sales in Shopify and Triple Whale, not by how much spend Meta gave them.
+- Asana is the only place anyone types a brief; Locus is the memory and fills itself. Every SOP, brief and card is as short as a person will actually read.
 
 THE ANGLES HUB (what creators see)
 - Two levels, never nested. A SECTION answers one question: why would a creator film this today. Three legal kinds, all at the same level: Hot right now (pinned), a dated window (Halloween, Black Friday, the Masters; it retires itself), and a durable lane (a product line, or a standing theme). Five or six sections per brand, max.
@@ -161,6 +244,11 @@ const VIEW_BLURBS = {
   findings: 'everything the nightly checks currently have open.',
   config: 'how the Strategist is set up: which Slack channel it briefs in, the brief hour.',
   problems: 'what went wrong lately: failed ideas-bot runs in Slack, Studio errors (brief / plan / make), the last sync error, each with when (UTC) and the error text. Pass `brand` (optional; without it, every brand). THE view to read when someone says something is broken, failed, not working, or shows an error.',
+  tests: 'the brand\'s TEST LIBRARY and ANGLE LIBRARY: every numbered brief (angle, level, what was tested, stage, verdict, learning, Asana link) newest first, and every angle with its wins and losses. Pass `brand`; pass `q` (a few words) to search titles, hypotheses, briefs and angle arguments, which is how you check whether an argument or an idea was tested before. Read it before calling anything new, before writing a brief, and before reviewing one.',
+  brief: 'ONE brief by its number: the test-library row plus the live Asana task (the brief text as written, section, assignee, the Testing / Angle / Result fields, the link). Pass `brand` and `number`. Read it before fill_brief, and to review what a strategist wrote.',
+  customers: 'who the customers are and what they do next, from Triple Whale orders (400 days): customers, orders, revenue, repeat rate, orders per customer, revenue by order number (1st, 2nd, 3rd+), time from first to second order in buckets, where first orders came from (last platform click), the products most often in a first cart and in a second cart (product ids; the Shopify product titles are not in Locus yet). Pass `brand` and `days` (default 365). THE view for retention, LTV shape, journey and "what do they buy next" questions; query tw_orders for anything it does not give.',
+  scenarios: 'the saved what-if scenarios from the lead-gen and ROAS calculators for one brand (or agency-wide): name, kind, inputs, note, the share link. Pass `brand` (optional). Read it before build_scenario so you extend what exists instead of duplicating it.',
+  brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
 };
 
 /* ------------------------------------------------------------------ */
@@ -301,6 +389,77 @@ function buildViews(d) {
         ...(acct ? { brand: acct.name, brief_brand: await g(`briefStyle:${acct.act_id}`), report_brand: await g(`reportStyle:${acct.act_id}`), report_config: d.safeJson(acct.report_config_json, {}) } : {}),
         how_to_read: 'The standing direction is added to the writer\'s instructions on every brief or report, above any one-off rewrite steer. report_config.hide lists channel sections left out of reports (meta, google, tiktok, amazon, pinterest, email); weekly/monthly false = that report is not drafted.' };
     },
+    /* The test library + the angle library (2026-10-07). `q` searches, so "have we tested the
+       gold finish before" is one read, not a guess. */
+    tests: async (env, a) => {
+      const acct = await need(env, a);
+      const q = String(a.q || '').trim().toLowerCase();
+      const like = `%${q.replace(/[%_]/g, ' ')}%`;
+      const { results: batches } = await env.DB.prepare(`SELECT b.num, b.title, b.level, b.variable, b.hypothesis, b.why, b.stage, b.verdict, b.verdict_note, b.learning, b.asana_url, b.asana_section, b.asana_angle, b.asana_result, b.check_again, b.updated_at,
+          g.name AS angle, c.name AS concept, substr(b.brief_text, 1, ${q ? 900 : 240}) AS brief
+        FROM p_br_batch b LEFT JOIN p_br_angle g ON g.id = b.angle_id LEFT JOIN p_br_concept c ON c.id = b.concept_id
+        WHERE b.act_id = ?1 ${q ? 'AND (lower(b.title) LIKE ?2 OR lower(b.hypothesis) LIKE ?2 OR lower(b.why) LIKE ?2 OR lower(b.brief_text) LIKE ?2 OR lower(b.learning) LIKE ?2 OR lower(g.name) LIKE ?2 OR lower(g.argument) LIKE ?2 OR lower(b.asana_angle) LIKE ?2)' : ''}
+        ORDER BY CAST(b.num AS INTEGER) DESC LIMIT ${q ? 30 : 40}`).bind(...(q ? [acct.act_id, like] : [acct.act_id])).all().catch(() => ({ results: [] }));
+      const { results: angles } = await env.DB.prepare(`SELECT a.id, a.name, a.argument, a.awareness, a.stage, a.status, l.name AS line,
+          SUM(CASE WHEN b.verdict = 'winner' THEN 1 ELSE 0 END) AS won, SUM(CASE WHEN b.verdict = 'loser' THEN 1 ELSE 0 END) AS lost, SUM(CASE WHEN b.verdict = 'keep' THEN 1 ELSE 0 END) AS kept, COUNT(b.id) AS tests
+        FROM p_br_angle a LEFT JOIN p_br_line l ON l.id = a.line_id LEFT JOIN p_br_batch b ON b.angle_id = a.id
+        WHERE a.act_id = ?1 ${q ? 'AND (lower(a.name) LIKE ?2 OR lower(a.argument) LIKE ?2)' : ''} GROUP BY a.id ORDER BY a.status, tests DESC LIMIT 60`).bind(...(q ? [acct.act_id, like] : [acct.act_id])).all().catch(() => ({ results: [] }));
+      return { brand: acct.name, search: q || null, tests: batches || [], angles: angles || [],
+        how_to_read: VIEW_BLURBS.tests + ' level: angle = a new argument, concept = new ideas on a proven angle, variation = one piece inside a proven concept (the team\'s words: "inside a concept"). verdict is the team\'s call; asana_result is the Result field in Asana. An empty search means nothing like it was tested; say so rather than assuming it was.' };
+    },
+    brief: async (env, a) => {
+      const acct = await need(env, a);
+      const num = parseInt(a.number ?? a.num ?? a.q, 10);
+      if (!Number.isInteger(num)) throw new Error('Pass `number`, the brief number from Asana (e.g. 397).');
+      const found = await findBrief(env, acct, num);
+      if (!found.task && !found.row) throw new Error(`No brief ${num} for ${acct.name}, in Locus or in its Asana project.`);
+      const t = found.task;
+      return { brand: acct.name, number: num, locus: found.row || null,
+        asana: t ? { gid: t.gid, name: t.name, url: t.permalink_url, completed: !!t.completed, assignee: t.assignee?.name || null, section: t.memberships?.[0]?.section?.name || null,
+          fields: Object.fromEntries((t.custom_fields || []).filter(f => f.display_value).map(f => [f.name, f.display_value])),
+          brief_text: clip(asanaText(t), 6000), template_blanks: blanksOf(t) } : null,
+        how_to_read: VIEW_BLURBS.brief + ' template_blanks lists the template lines still empty in Asana. brief_text is the task description as plain text.' };
+    },
+    customers: async (env, a) => {
+      const acct = await need(env, a);
+      const days = Math.min(400, Math.max(30, Number(a.days) || 365));
+      const to = d.localDate(acct.tz), from = d.addDays(to, -days + 1);
+      const one = (sql, ...b) => env.DB.prepare(sql).bind(acct.act_id, from, to, ...b).first().catch(() => null);
+      const all = (sql, ...b) => env.DB.prepare(sql).bind(acct.act_id, from, to, ...b).all().then(r => r.results || []).catch(() => []);
+      const W = `act_id = ?1 AND date >= ?2 AND date <= ?3 AND customer_id IS NOT NULL`;
+      const totals = await one(`SELECT COUNT(*) AS orders, COUNT(DISTINCT customer_id) AS customers, ROUND(SUM(total)) AS revenue, ROUND(AVG(total), 2) AS aov FROM tw_orders WHERE ${W}`);
+      if (!totals?.orders) return { brand: acct.name, from, to, note: 'No Triple Whale orders stored for this window yet (the nightly sync fills tw_orders a slice at a time).', how_to_read: VIEW_BLURBS.customers };
+      /* Order number per customer inside the window, then everything hangs off it. */
+      const RANKED = `WITH r AS (SELECT customer_id, order_id, date, total, products_json, source, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY date, order_id) AS n FROM tw_orders WHERE ${W})`;
+      const byN = await all(`${RANKED} SELECT CASE WHEN n >= 3 THEN '3+' ELSE CAST(n AS TEXT) END AS order_no, COUNT(*) AS orders, ROUND(SUM(total)) AS revenue, ROUND(AVG(total), 2) AS aov FROM r GROUP BY 1 ORDER BY 1`);
+      const repeat = await one(`${RANKED} SELECT SUM(CASE WHEN c >= 2 THEN 1 ELSE 0 END) AS repeat_customers, ROUND(AVG(c), 2) AS orders_per_customer, ROUND(AVG(rev), 2) AS revenue_per_customer FROM (SELECT customer_id, COUNT(*) AS c, SUM(total) AS rev FROM r GROUP BY customer_id)`);
+      const gap = await all(`${RANKED} SELECT CASE WHEN g <= 14 THEN 'a. 0-14 days' WHEN g <= 30 THEN 'b. 15-30' WHEN g <= 60 THEN 'c. 31-60' WHEN g <= 90 THEN 'd. 61-90' WHEN g <= 180 THEN 'e. 91-180' ELSE 'f. 181+' END AS bucket, COUNT(*) AS customers
+        FROM (SELECT a.customer_id, CAST(julianday(b.date) - julianday(a.date) AS INTEGER) AS g FROM r a JOIN r b ON b.customer_id = a.customer_id AND b.n = 2 WHERE a.n = 1) GROUP BY 1 ORDER BY 1`);
+      const median = await one(`${RANKED} SELECT g AS median_days_to_second_order FROM (SELECT CAST(julianday(b.date) - julianday(a.date) AS INTEGER) AS g FROM r a JOIN r b ON b.customer_id = a.customer_id AND b.n = 2 WHERE a.n = 1 ORDER BY g) LIMIT 1 OFFSET (SELECT COUNT(*) / 2 FROM r WHERE n = 2)`);
+      const sources = await all(`${RANKED} SELECT COALESCE(source, 'unknown') AS source, COUNT(*) AS first_orders, ROUND(SUM(total)) AS revenue FROM r WHERE n = 1 GROUP BY 1 ORDER BY 2 DESC LIMIT 8`);
+      const prods = async n => all(`${RANKED} SELECT j.value AS product_id, COUNT(*) AS carts FROM r, json_each(r.products_json) j WHERE r.n = ${n} AND r.products_json IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 8`);
+      const [first, second] = await Promise.all([prods(1), prods(2)]);
+      const monthly = await all(`${RANKED} SELECT substr(date, 1, 7) AS month, SUM(CASE WHEN n = 1 THEN 1 ELSE 0 END) AS new_customers, SUM(CASE WHEN n > 1 THEN 1 ELSE 0 END) AS returning_orders FROM r GROUP BY 1 ORDER BY 1 DESC LIMIT 14`);
+      return { brand: acct.name, currency: acct.currency, from, to, totals, repeat: { ...repeat, repeat_rate: totals.customers ? Math.round((repeat?.repeat_customers || 0) / totals.customers * 1000) / 10 : null },
+        by_order_number: byN, days_to_second_order: { buckets: gap, median: median?.median_days_to_second_order ?? null }, first_order_sources: sources,
+        products_in_first_cart: first, products_in_second_cart: second, by_month: monthly,
+        how_to_read: VIEW_BLURBS.customers + ' "new" here means first order INSIDE the window (a customer whose first order was before the window counts as returning). repeat_rate is % of customers with 2+ orders in the window; a long window flatters it, a short one understates it. Product ids are Shopify product ids from the cart journey, not the receipt.' };
+    },
+    scenarios: async (env, a) => {
+      const acct = (a.brand || a.id || a.account || a.q) ? await resolve(env, a.brand || a.id || a.account || a.q) : null;
+      const { results } = await env.DB.prepare(`SELECT s.id, s.act_id, a.name AS brand, s.kind, s.name, s.inputs_json, s.note, s.created_by, s.updated_at FROM p_scenario s LEFT JOIN accounts a ON a.act_id = s.act_id ${acct ? 'WHERE s.act_id = ?1 OR s.act_id = \'all\'' : ''} ORDER BY s.updated_at DESC LIMIT 40`).bind(...(acct ? [acct.act_id] : [])).all().catch(() => ({ results: [] }));
+      return { brand: acct?.name || 'every brand', scenarios: (results || []).map(s => ({ ...s, brand: s.brand || (s.act_id === 'all' ? 'agency-wide' : s.act_id), inputs: d.safeJson(s.inputs_json, {}), inputs_json: undefined, url: SHARE_URL + s.id })),
+        how_to_read: VIEW_BLURBS.scenarios + ' leads inputs: spend, cpl (cost per lead), cvr (% of leads who buy), aov, margin (%), target (ROAS). The share link opens the read-only page a client can see.' };
+    },
+    brain: async (env, a) => {
+      const acct = await need(env, a);
+      const brain = await brandBrain(env, acct.act_id, { creator: true }).catch(() => ({ md: '' }));
+      const md = brain.md || '';
+      if (!md) return { brand: acct.name, part: 1, parts: 1, text: '', how_to_read: 'Nothing is in the brain for this brand yet: no research, no lines, no tests. Say so.' };
+      const SIZE = 12000, parts = Math.max(1, Math.ceil(md.length / SIZE));
+      const part = Math.min(parts, Math.max(1, Number(a.part) || 1));
+      return { brand: acct.name, part, parts, text: md.slice((part - 1) * SIZE, part * SIZE), how_to_read: VIEW_BLURBS.brain + (parts > part ? ` Part ${part} of ${parts}; read the next part when you need what comes after.` : ' This is the last part.') };
+    },
     findings: async (env, a, ctx, engine) => ({ open: await engine.openFindings(env, d.h()), how_to_read: VIEW_BLURBS.findings }),
     config: async env => ({ briefing_channel: await d.getSetting(env, 'strategistChannel'), brief_hour: await d.briefHour(env), how_to_read: VIEW_BLURBS.config }),
   };
@@ -419,6 +578,237 @@ async function snapshot(env, h, d) {
 
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const clip = (v, n) => v == null ? null : String(v).slice(0, n);
+const SHARE_URL = 'https://tools.go-mobius-digital.com/profit/share.html?s=';
+const LOCUS_URL = 'https://tools.go-mobius-digital.com/profit/';
+
+/* ---------------- Asana briefs (2026-10-07) ----------------
+   Ahsan asked the bot to fill in brief 397 from an approved thread and it could not; Viktor did it by
+   hand. Now the Strategist reads a numbered brief and writes one, in the team's template
+   (asana-brand.js BRIEF_STATIC / BRIEF_VIDEO, the same layout the ideas bot uses). */
+const xesc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const asanaDoc = async (env, act) => { const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(act).first().catch(() => null); try { return r?.data_json ? JSON.parse(r.data_json) : null; } catch { return null; } };
+const TASK_OPT = 'name,notes,html_notes,completed,permalink_url,assignee.name,assignee.gid,memberships.section.name,memberships.section.gid,custom_fields.name,custom_fields.display_value';
+/* The brief by number: the Locus row (p_br_batch) and the live Asana task. The row's asana_gid is the
+   fast path; a task Locus has not synced yet is found by walking the project's open tasks by name. */
+async function findBrief(env, acct, num) {
+  const row = await env.DB.prepare(`SELECT * FROM p_br_batch WHERE act_id = ?1 AND CAST(num AS INTEGER) = ?2 ORDER BY updated_at DESC LIMIT 1`).bind(acct.act_id, num).first().catch(() => null);
+  const doc = await asanaDoc(env, acct.act_id);
+  let task = null;
+  if (doc?.project_gid) {
+    if (row?.asana_gid) task = await asana(env, `/tasks/${row.asana_gid}?opt_fields=${TASK_OPT}`).catch(() => null);
+    if (!task) {
+      const list = await asanaAll(env, `/tasks?project=${doc.project_gid}&completed_since=now&opt_fields=name`).catch(() => []);
+      const hit = (list || []).find(t => parseInt(numOf(t.name), 10) === num);
+      if (hit) task = await asana(env, `/tasks/${hit.gid}?opt_fields=${TASK_OPT}`).catch(() => null);
+    }
+  }
+  return { row, task, doc };
+}
+const asanaText = t => String(t?.notes || '').trim();
+/* Template lines still empty ("Headline:" with nothing after it). */
+function blanksOf(t) {
+  const out = [];
+  for (const m of String(t?.notes || '').matchAll(/^([A-Z][\w' ]{1,24}):\s*$/gm)) out.push(m[1]);
+  return out;
+}
+/* The brief in the template's shape. Everything given is written; a field not given stays as the
+   bare label so the team sees what is still blank (the same as the Asana template). */
+function briefNotesHtml(a, { num, by, inspo = [] }) {
+  const line = (k, v) => `<strong>${k}:</strong> ${xesc(v || '')}`;
+  const ads = (a.ads || []).length ? a.ads : ['', '', ''];
+  const parts = [`<body><em>${xesc(by || 'Filled in by the Strategist')}.</em>`, `<h2>The test</h2>${line('Angle', a.angle)}`];
+  if (a.concept) parts.push(line('Concept', a.concept));
+  parts.push(line('Why', a.why), line("What we're testing", a.testing), ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${xesc(String(t || '').replace(/^\s*\d+[.)]\s*/, ''))}`));
+  if (a.guardrails && a.guardrails.length) parts.push(`<strong>Keep in mind:</strong> ${xesc(a.guardrails.join(' · '))}`);
+  if (a.kind === 'video') parts.push(`<h2>Video</h2>${line('Creator', a.creator)}`, line('Script', a.script));
+  parts.push(`<h2>Copy</h2>${line('Headline', a.headline)}`, line('Primary text', a.primary_text), line('Offer', a.offer), line('Landing page', a.landing_page),
+    `<strong>Inspo:</strong> ${inspo.map(u => `<a href="${xesc(u)}">${xesc(u)}</a>`).join(' ')}</body>`);
+  return parts.join('\n');
+}
+function briefNotesText(a, { by, inspo = [] }) {
+  const l = (k, v) => `${k}: ${v || ''}`;
+  const ads = (a.ads || []).length ? a.ads : ['', '', ''];
+  return [by || '', 'THE TEST', l('Angle', a.angle), a.concept ? l('Concept', a.concept) : null, l('Why', a.why), l("What we're testing", a.testing),
+    ...ads.map((t, i) => `${i + 1}. ${String(t || '').replace(/^\s*\d+[.)]\s*/, '')}`), a.guardrails?.length ? `Keep in mind: ${a.guardrails.join(' · ')}` : null,
+    a.kind === 'video' ? `VIDEO\n${l('Creator', a.creator)}\n${l('Script', a.script)}` : null,
+    'COPY', l('Headline', a.headline), l('Primary text', a.primary_text), l('Offer', a.offer), l('Landing page', a.landing_page), `Inspo: ${inspo.join(' ')}`].filter(x => x != null).join('\n');
+}
+const BRIEF_BLANKS = a => [['headline', 'Headline'], ['primary_text', 'Primary text'], ['offer', 'Offer'], ['landing_page', 'Landing page'], ['inspo', 'Inspo'], ...(a.kind === 'video' ? [['creator', 'Creator'], ['script', 'Script']] : [])]
+  .filter(([k]) => Array.isArray(a[k]) ? !a[k].length : !String(a[k] || '').trim()).map(([, l]) => l);
+const BRIEF_PROPS = {
+  brand: { type: 'string' },
+  title: { type: 'string', description: 'A few words; the task is named "<number> - <title>".' },
+  kind: { type: 'string', enum: ['static', 'video'], description: 'video = anything filmed (creator, UGC, edit); static = images.' },
+  test_type: { type: 'string', enum: ['angle', 'concept', 'variation'], description: 'What this batch tests: a new angle, new concepts on a proven angle, or one piece inside a proven concept.' },
+  angle: { type: 'string', description: 'The argument, one sentence, as approved.' },
+  concept: { type: 'string', description: 'Only when testing inside a proven concept: the concept, naming the winning ad.' },
+  why: { type: 'string', description: 'One sentence: the belief about the customer.' },
+  testing: { type: 'string', description: 'One line: what changes and on which ad. "3 new concepts", "3 headlines on 412-3".' },
+  ads: { type: 'array', items: { type: 'string' }, description: 'One line per ad, in order, as approved, each buildable with no questions. Include the headline on a line when the thread gave one.' },
+  guardrails: { type: 'array', items: { type: 'string' }, description: 'Rules from the thread the editor must keep (e.g. "nothing that hints tour players use it"). Short.' },
+  headline: { type: 'string' }, primary_text: { type: 'string' }, offer: { type: 'string' }, landing_page: { type: 'string', description: 'A URL, when the thread or an earlier brief gives it.' },
+  inspo: { type: 'array', items: { type: 'string' }, description: 'Reference links from the thread.' },
+  creator: { type: 'string' }, script: { type: 'string' },
+  assignee: { type: 'string', description: 'A first name (Ahsan, Noma, Ravo) to assign the task to, when asked.' },
+  summary: { type: 'string', description: 'One line for the card.' },
+};
+const asanaUser = async (env, doc, name) => {
+  if (!name || !doc?.workspace) return null;
+  const list = await asanaAll(env, `/users?workspace=${doc.workspace}&opt_fields=name,email`).catch(() => []);
+  const w = String(name).toLowerCase().trim();
+  return (list || []).find(u => String(u.name || '').toLowerCase() === w) || (list || []).find(u => String(u.name || '').toLowerCase().startsWith(w)) || null;
+};
+/* Writes the notes (html first, plain text when Asana refuses the html), the Testing field, the
+   name and the assignee. Shared by fill_brief and create_brief. */
+async function writeBrief(env, gid, p) {
+  try { await asana(env, `/tasks/${gid}`, { method: 'PUT', body: { html_notes: p.html, ...(p.name ? { name: p.name } : {}), ...(p.assignee_gid ? { assignee: p.assignee_gid } : {}) } }); }
+  catch (e) {
+    if (e.status !== 400) throw e;
+    await asana(env, `/tasks/${gid}`, { method: 'PUT', body: { notes: p.text, ...(p.name ? { name: p.name } : {}), ...(p.assignee_gid ? { assignee: p.assignee_gid } : {}) } });
+  }
+  if (p.testing_field && p.testing_opt) await asana(env, `/tasks/${gid}`, { method: 'PUT', body: { custom_fields: { [p.testing_field]: p.testing_opt } } }).catch(() => {});
+}
+const ASANA_ACTIONS = (d) => {
+  const resolve = async (env, want) => {
+    const accounts = await d.listAccounts(env, false);
+    const w = String(want || '').toLowerCase().trim();
+    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+  };
+  const prep = async (env, acct, i, doc) => {
+    const a = { ...i, kind: i.kind === 'video' ? 'video' : 'static', ads: (i.ads || []).map(x => clip(x, 600)).filter(Boolean).slice(0, 12), guardrails: (i.guardrails || []).map(x => clip(x, 200)).filter(Boolean).slice(0, 6), inspo: (i.inspo || []).filter(u => /^https?:\/\//.test(u)).slice(0, 6) };
+    if (!a.angle) return { error: 'The brief needs the angle (the argument) at least.' };
+    const fields = (await d.getSetting(env, 'brandAsanaFields')) || {};
+    const opt = fields?.testing_opts?.[a.test_type === 'variation' ? 'variation' : a.test_type === 'concept' ? 'concept' : a.test_type === 'angle' ? 'angle' : ''] || null;
+    const user = a.assignee ? await asanaUser(env, doc, a.assignee) : null;
+    if (a.assignee && !user) return { error: `No Asana user called "${a.assignee}" in the workspace.` };
+    return { a, testing_field: fields?.testing || null, testing_opt: opt, user };
+  };
+  return [
+    { name: 'fill_brief',
+      description: 'Fill in an EXISTING Asana brief by its number (the task is already in the brand\'s Creative Briefs): the approved angle, why, what we are testing, the numbered ads, guardrails, copy and links, in the team\'s template. Use it when a thread says "use brief 397" or "fill in 412". Put the approved words in as written. Fields the thread did not give stay blank and the card lists them. Read the brief view first so you know what is there.',
+      input_schema: { type: 'object', properties: { number: { type: 'integer' }, ...BRIEF_PROPS }, required: ['brand', 'number', 'angle', 'summary'] },
+      propose: async (env, i) => {
+        const acct = await resolve(env, i.brand); if (!acct) return { error: `No brand called "${i.brand}".` };
+        const num = parseInt(i.number, 10);
+        const { task, doc } = await findBrief(env, acct, num);
+        if (!doc?.project_gid) return { error: `${acct.name} is not connected to Asana yet (Locus, Brand tab, Brand info).` };
+        if (!task) return { error: `No open task numbered ${num} in ${acct.name}'s Asana project. Use create_brief for a new one.` };
+        const r = await prep(env, acct, i, doc); if (r.error) return r;
+        const by = `Filled in by the Strategist from Slack${i.assignee ? `, assigned to ${r.user.name}` : ''}`;
+        const html = briefNotesHtml(r.a, { num, by, inspo: r.a.inspo }), text = briefNotesText(r.a, { by, inspo: r.a.inspo });
+        const name = i.title ? `${num} - ${clip(i.title, 120)}` : null;
+        const blanks = BRIEF_BLANKS(r.a);
+        return { summary: i.summary || `Fill in brief ${num} for ${acct.name}`,
+          detail: `${task.name}${name && name !== task.name ? ` → ${name}` : ''}${r.user ? `, assigned to ${r.user.name}` : ''}. The description is replaced with the approved brief.${blanks.length ? ` Still blank: ${blanks.join(', ')}.` : ''}`,
+          preview: text, patch: { gid: task.gid, url: task.permalink_url, html, text, name, assignee_gid: r.user?.gid || null, testing_field: r.testing_field, testing_opt: r.testing_opt, num, blanks } };
+      },
+      apply: async (env, p) => { await writeBrief(env, p.gid, p); return { ok: true, note: `Brief ${p.num} is filled in: ${p.url}${p.blanks?.length ? ` Still blank: ${p.blanks.join(', ')}.` : ''}` }; } },
+    { name: 'create_brief',
+      description: 'Create a NEW numbered brief in the brand\'s Asana project (Creative Briefs column) with the next free number, in the team\'s template: angle, why, what we are testing, the numbered ads, guardrails, copy, links. Use it for a batch approved in a thread that has no task yet. For a task that already exists use fill_brief.',
+      input_schema: { type: 'object', properties: BRIEF_PROPS, required: ['brand', 'title', 'angle', 'testing', 'summary'] },
+      propose: async (env, i) => {
+        const acct = await resolve(env, i.brand); if (!acct) return { error: `No brand called "${i.brand}".` };
+        const doc = await asanaDoc(env, acct.act_id);
+        if (!doc?.project_gid) return { error: `${acct.name} is not connected to Asana yet (Locus, Brand tab, Brand info).` };
+        const secs = await asana(env, `/projects/${doc.project_gid}/sections?opt_fields=name`).catch(() => []);
+        const sec = (secs || []).find(s => /creative\s*brief/i.test(s.name)) || (secs || []).find(s => /brief/i.test(s.name));
+        if (!sec) return { error: `${acct.name}'s Asana project has no Creative Brief section.` };
+        const r = await prep(env, acct, i, doc); if (r.error) return r;
+        const num = await nextNumber(env, acct.act_id, doc.project_gid);
+        const by = `Written by the Strategist from Slack${i.assignee ? `, assigned to ${r.user.name}` : ''}`;
+        const html = briefNotesHtml(r.a, { num, by, inspo: r.a.inspo }), text = briefNotesText(r.a, { by, inspo: r.a.inspo });
+        const name = `${num} - ${clip(i.title, 120)}`;
+        const blanks = BRIEF_BLANKS(r.a);
+        return { summary: i.summary || `New brief ${num} for ${acct.name}: ${i.title}`,
+          detail: `${name} in ${sec.name}${r.user ? `, assigned to ${r.user.name}` : ''}. ${r.a.ads.length} ad${r.a.ads.length === 1 ? '' : 's'}, ${r.a.kind}.${blanks.length ? ` Still blank: ${blanks.join(', ')}.` : ''}`,
+          preview: text, patch: { project_gid: doc.project_gid, section_gid: sec.gid, html, text, name, assignee_gid: r.user?.gid || null, testing_field: r.testing_field, testing_opt: r.testing_opt, num, blanks } };
+      },
+      apply: async (env, p) => {
+        let task;
+        try { task = await asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: p.name, projects: [p.project_gid], html_notes: p.html, ...(p.assignee_gid ? { assignee: p.assignee_gid } : {}) } }); }
+        catch (e) { if (e.status !== 400) throw e; task = await asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: p.name, projects: [p.project_gid], notes: p.text, ...(p.assignee_gid ? { assignee: p.assignee_gid } : {}) } }); }
+        await asana(env, `/sections/${p.section_gid}/addTask`, { method: 'POST', body: { task: task.gid } }).catch(() => {});
+        if (p.testing_field && p.testing_opt) await asana(env, `/tasks/${task.gid}`, { method: 'PUT', body: { custom_fields: { [p.testing_field]: p.testing_opt } } }).catch(() => {});
+        const url = task.permalink_url || `https://app.asana.com/0/${p.project_gid}/${task.gid}`;
+        return { ok: true, note: `Brief ${p.num} is in Asana: ${url}${p.blanks?.length ? ` Still blank: ${p.blanks.join(', ')}.` : ''}` };
+      } },
+  ];
+};
+
+/* ---------------- things the Strategist can build (2026-10-07) ---------------- */
+const STUDIO_TESTING = ['concepts', 'headlines', 'visuals', 'offer', 'reviews', 'hooks', 'copy', 'format'];
+const leadMath = c => {
+  const spend = +c.spend || 0, cpl = +c.cpl || 0, cvr = (+c.cvr || 0) / 100, aov = +c.aov || 0, margin = (+c.margin || 0) / 100, target = +c.target || 0;
+  const leads = cpl > 0 ? spend / cpl : 0, buyers = leads * cvr, revenue = buyers * aov, contrib = revenue * margin;
+  return { leads: Math.round(leads), buyers: Math.round(buyers), revenue: Math.round(revenue), roas: spend ? Math.round(revenue / spend * 100) / 100 : 0, profit: Math.round(contrib - spend), be_cpl: Math.round(cvr * aov * margin * 100) / 100, target_cpl: target > 0 ? Math.round(cvr * aov / target * 100) / 100 : null };
+};
+const BUILD_ACTIONS = (d) => {
+  const resolve = async (env, want) => {
+    const accounts = await d.listAccounts(env, false);
+    const w = String(want || '').toLowerCase().trim();
+    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+  };
+  return [
+    { name: 'build_scenario',
+      description: 'Build and save a what-if scenario in the Locus calculators (the Scenarios tab) and give back the share link a client can open. kind "leads" = the lead-gen / giveaway calculator (inputs: spend, cpl = cost per lead, cvr = % of leads who buy, aov, margin = % margin before ads, target = target ROAS). kind "roas" = the ROAS calculator (inputs: mode "orders" with spend + orders, or mode "revenue" with revenue + roas; plus aov, margin). Take the numbers from the brand\'s data (store, customers views) unless the person gave them, and say in `note` where each came from.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string', description: 'A brand, or "all" for agency-wide.' }, kind: { type: 'string', enum: ['leads', 'roas'] }, name: { type: 'string' },
+        inputs: { type: 'object', description: 'The calculator inputs, numbers only.', additionalProperties: true }, note: { type: 'string', description: 'Where the numbers came from, in words.' }, summary: { type: 'string' } }, required: ['brand', 'kind', 'name', 'inputs', 'summary'] },
+      propose: async (env, i) => {
+        const all = /^(all|agency|everyone|mobius)$/i.test(String(i.brand || ''));
+        const acct = all ? null : await resolve(env, i.brand);
+        if (!all && !acct) return { error: `No brand called "${i.brand}".` };
+        const inputs = Object.fromEntries(Object.entries(i.inputs || {}).filter(([, v]) => v !== null && v !== '' && (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean')).map(([k, v]) => [k, typeof v === 'string' && v.trim() !== '' && !isNaN(+v) ? +v : v]));
+        if (i.kind === 'leads' && !(inputs.spend > 0 && inputs.cpl > 0)) return { error: 'A leads scenario needs spend and cpl at least.' };
+        const m = i.kind === 'leads' ? leadMath(inputs) : null;
+        const reading = m ? `${inputs.spend} at ${inputs.cpl} a lead = ${m.leads} leads; ${inputs.cvr || 0}% buying at ${inputs.aov || 0} = ${m.buyers} orders, ${m.revenue} back (${m.roas}x), ${m.profit >= 0 ? m.profit + ' ahead' : -m.profit + ' short'} after margin. Breakeven lead ${m.be_cpl}${m.target_cpl ? `, target lead ${m.target_cpl}` : ''}.` : `ROAS scenario: ${JSON.stringify(inputs)}`;
+        return { summary: i.summary || `Scenario: ${i.name}`, detail: `${acct ? acct.name : 'Agency-wide'}, ${i.kind}. ${reading}`, preview: i.note || '',
+          patch: { act_id: acct ? acct.act_id : 'all', kind: i.kind, name: clip(i.name, 80), inputs, note: clip(i.note || '', 2000) } };
+      },
+      apply: async (env, p) => {
+        const id = 'sc_' + Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
+        await env.DB.prepare(`INSERT INTO p_scenario (id, act_id, kind, name, inputs_json, note, created_by, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'strategist', datetime('now'))`).bind(id, p.act_id, p.kind, p.name, JSON.stringify(p.inputs), p.note || '').run();
+        return { ok: true, note: `Saved. Share link: ${SHARE_URL}${id}  (it is also in Locus, Scenarios tab).` };
+      } },
+    { name: 'studio_batch',
+      description: 'Put a batch of static ads into Locus Studio as a draft (the AI makes the images there): one line per ad with the words on it and a short note on the look, under an angle, why, concept and what is being tested. Use it when asked to make statics from words, with no reference image in the thread (with a reference, draft_from_thread). The team opens Studio, picks the product and presses Make.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string', description: 'The batch name, a few words.' }, num: { type: 'string', description: 'The Asana brief number it belongs to, if any.' },
+        angle: { type: 'string' }, why: { type: 'string' }, concept: { type: 'string' }, testing: { type: 'string', enum: STUDIO_TESTING, description: 'What changes across the lines.' }, post_copy: { type: 'string', description: 'Primary text under the ad, if given.' },
+        lines: { type: 'array', items: { type: 'string' }, description: '3 to 12 lines, one ad each: the words on the ad plus a short note on the look.' }, summary: { type: 'string' } }, required: ['brand', 'name', 'angle', 'lines', 'summary'] },
+      propose: async (env, i) => {
+        const acct = await resolve(env, i.brand); if (!acct) return { error: `No brand called "${i.brand}".` };
+        const lines = (i.lines || []).map(x => clip(x, 1200)).filter(Boolean).slice(0, 12);
+        if (!lines.length) return { error: 'A Studio batch needs at least one line.' };
+        return { summary: i.summary || `Studio batch for ${acct.name}: ${i.name}`, detail: `${lines.length} ad${lines.length === 1 ? '' : 's'}, testing ${STUDIO_TESTING.includes(i.testing) ? i.testing : 'concepts'}. It waits as a draft in Locus Studio.`,
+          preview: lines.map((l, n) => `${n + 1}. ${l}`).join('\n'),
+          patch: { act_id: acct.act_id, num: i.num ? clip(String(i.num), 12) : null, name: clip(i.name, 200), brief: { angle: clip(i.angle, 400) || '', why: clip(i.why, 400) || '', concept: clip(i.concept, 400) || '', post_copy: clip(i.post_copy, 1200) || '', testing: STUDIO_TESTING.includes(i.testing) ? i.testing : 'concepts', lines: lines.map(text => ({ text, inspo: [] })), source: 'strategist' } } };
+      },
+      apply: async (env, p) => {
+        const id = Array.from(crypto.getRandomValues(new Uint8Array(12))).map(b => b.toString(16).padStart(2, '0')).join('');
+        await env.DB.prepare(`INSERT INTO p_studio_batch (id, act_id, num, br_batch_id, name, brief_json, setup_json, plan_json, status) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, NULL, 'draft')`)
+          .bind(id, p.act_id, p.num, p.name, JSON.stringify(p.brief), JSON.stringify({ products: [], images: [], swipe: [] })).run();
+        return { ok: true, note: `Studio batch "${p.name}" is waiting in Locus Studio (${LOCUS_URL}#studio). Pick the product there and press Make.` };
+      } },
+  ];
+};
+
+/* The ideas pipeline, from inside a Strategist conversation (Slack only): the thread's references
+   get watched and a draft card lands in the thread. Not a proposal: nothing of record is written,
+   and the card has its own buttons. */
+const SLACK_TOOLS = (d) => [{
+  def: { name: 'draft_from_thread',
+    description: 'Hand THIS Slack thread to the ideas pipeline: it opens every reference in the thread (TikTok / Reel / YouTube / Atria / Ad Library links, uploaded videos and images, Drive folders), does a teardown and posts a draft card here with buttons for the creator link, an Asana brief and Studio. Use it when the thread carries a reference and the ask is to turn it into ads, a brief or angles. `steer` = anything the person asked for that the pipeline should honour (e.g. "for Asana", "3 statics", "the Night Out line").',
+    input_schema: { type: 'object', properties: { steer: { type: 'string' } }, required: [] } },
+  run: async (env, input, ctx) => {
+    if (!ctx?.ev?.channel) return { is_error: true, text: 'Only from a Slack thread.' };
+    const ev = ctx.ev;
+    const text = `${String(ev.text || '')} idea${input?.steer ? ' ' + clip(input.steer, 400) : ''}`;
+    try {
+      if (d.closeThread) await d.closeThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
+      await ideaStart(env, { ...ev, text, type: 'app_mention' }, null);
+    } catch (e) { return { is_error: true, text: `Could not start the ideas pipeline: ${e.message}` }; }
+    return { text: 'The ideas pipeline is reading the thread now; its draft card lands here in a minute or two. Reply with ONE short sentence saying so, nothing else.' };
+  },
+}];
 
 /* Locus's own buttons, through its own routes. Nothing here reaches a client:
  * a redrafted brief or a generated report goes to the internal review queue
@@ -752,7 +1142,8 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d)],
+    slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',
     checkKinds: ['sync', 'brief-missing', 'pacing', 'roas', 'fatigue'],
@@ -765,3 +1156,6 @@ export function buildStrategist(d) {
   });
   return { engine, h, views: app };
 }
+
+/* For test-strategist.mjs only. */
+export const _test = { ASANA_ACTIONS, BUILD_ACTIONS, SLACK_TOOLS, briefNotesHtml, briefNotesText, BRIEF_BLANKS, leadMath, blanksOf };

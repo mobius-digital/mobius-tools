@@ -321,7 +321,12 @@ await check('routing: numbers question stays with the Strategist; links, clips, 
   assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> what do you think', '100.1')), true);
   assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> strategist, how is pacing?', '100.1')), false);
   assert.equal(await ideas.ideaWanted(env, ev(`<@U_BOT> <${TT}>`, undefined)), true);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> brief this', undefined)), true);
+  /* 2026-10-07: a text-only brief ask is the Strategist's (it fills or creates the Asana task);
+     the same words with a reference in the thread still go to ideas. */
+  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> brief this', undefined)), false);
+  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> make an asana brief from this, use brief 397', undefined)), false);
+  assert.equal(await ideas.ideaWanted(env, ev(`<@U_BOT> brief this <${TT}>`, undefined)), true);
+  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> ideate some ads for this', undefined)), true);
   assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> roas on this?', undefined, { files: [{ mimetype: 'image/png' }] })), false);
   assert.equal(await ideas.ideaWanted(env, { ...ev('<@U_BOT>', undefined), channel_type: 'im' }), false);
 });

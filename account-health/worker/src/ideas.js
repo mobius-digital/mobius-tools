@@ -370,7 +370,12 @@ export function brandOverride(text, accounts) {
    report, which is the Strategist's. Only words that clearly mean "turn this into an ad idea". */
 /* 2026-10-06: Ahsan's "here is an inspo ad ... can you ideate some ads for it" went to the
    Strategist (which cannot open links) because neither "inspo" nor "ideate" was an idea word. */
-const IDEA_WORDS = /\b(ideas?|ideate|inspo|inspiration|recreate|mock-?ups?|brief (?:this|it)|(?:make|write) (?:a |the )?brief|draft (?:this|it)|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio|(?:make|create|design|build|come up with) (?:me )?(?:some |a few |a couple of |\d+ )?(?:ads?|statics?|concepts?|creatives?|visuals?)|ads? (?:for|like) (?:it|this|that|these|the|our))\b/i;
+/* 2026-10-07: "brief this", "make a brief", "draft it" are NOT idea words on their own any more. A
+   text-only brief ask (Ahsan: "make an asana brief from this, use brief 397") is the Strategist's,
+   which can now fill or create the Asana task itself (strategist.js fill_brief / create_brief). With
+   media in the thread the brief ask still comes here (the media checks below), and the Strategist
+   hands a media thread over with draft_from_thread. */
+const IDEA_WORDS = /\b(ideas?|ideate|inspo|inspiration|recreate|mock-?ups?|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio|(?:make|create|design|build|come up with) (?:me )?(?:some |a few |a couple of |\d+ )?(?:ads?|statics?|concepts?|creatives?|visuals?)|ads? (?:for|like) (?:it|this|that|these|the|our))\b/i;
 /* Links the bot cannot open (they need a login and have no door we hold a key to): a tag with one is
    still an idea, and the card says to upload the files instead. Google Drive files, folders and Docs
    DO open, as Cole or Ahsan through the service account (expandDrive, readDoc). */
@@ -1675,7 +1680,7 @@ export function briefHtml(a, { num, from, permalink, refs = [] }) {
     `<strong>Inspo:</strong> ${refs.map(u => `<a href="${x(u)}">${x(u)}</a>`).join(' ') || (permalink ? `<a href="${x(permalink)}">the Slack thread</a>` : '')}</body>`);
   return parts.join('\n');
 }
-async function nextNumber(env, act, gid) {
+export async function nextNumber(env, act, gid) {
   const db = (await env.DB.prepare(`SELECT MAX(CAST(num AS INTEGER)) AS n FROM p_br_batch WHERE act_id = ?1`).bind(act).first().catch(() => null))?.n || 0;
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
   const recent = await asana(env, `/tasks?project=${gid}&modified_since=${encodeURIComponent(since)}&opt_fields=name&limit=100`).catch(() => []);

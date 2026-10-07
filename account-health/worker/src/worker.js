@@ -6098,6 +6098,9 @@ function strategist() {
     getSetting, putSetting, safeJson, listAccounts, overview, briefData, dataHealth, storePeriod,
     localDate, addDays, ymdDiff, daysInMonth, briefHour, slack: slackApi,
     claude: (env, args) => claude(env, args),
+    /* draft_from_thread (2026-10-07): the Strategist hands a media thread to the ideas pipeline,
+       and from then on plain replies in it are the team's, as when the router picks ideas. */
+    closeThread: (env, channel, ts) => closeStrategistThread(env, channel, ts),
   });
   return _strat;
 }
