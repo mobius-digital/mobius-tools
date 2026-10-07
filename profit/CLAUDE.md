@@ -1859,3 +1859,40 @@ https://claude.ai/artifact/M7EZSeAkxXXWrZE5TcXGZT). Commits f7761ce (data) and d
   the profit worker's proxy and 401 locally: check those on prod.
 - Still on Cole: Google Ads (Cloud project + developer token) and TikTok (developer app) for direct
   platform data; Shopify app installs for products and refunds on Store.
+
+## 2026-10-08: LOCUS V3 SHELL. Six destinations, page tabs, the ask bar. Read before touching the rail.
+
+Cole: "still clunky, too many tabs", the jobs row showed on every page, the attribution switch was a bare
+Windows select, menus did not close on an outside click, things he expected to hover did not answer, and he could
+not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.md`.
+- **The rail has SIX items** (`NAV` in index.html): Home (Overview, P&L, Plan, Season, Scenarios), Ads (Meta,
+  Google, TikTok, All channels; Meta adds `META_JOBS` as a second row), Email and SMS (Klaviyo), Store (Sales,
+  Customers), Creative (Tests and angles, Studio, Brand, Copy desk, Creator link), Reports (Daily Brief, Weekly and
+  monthly, Dashboards). Settings and the theme sit in the foot. A rail item opens the page last used there
+  (`NAV_LAST`, `pf_navlast`); every old tab id still routes. `NAV_OF(tab)` is the one place a page's destination is
+  decided. The pages are tabs in `#v2seg` (drawn by `show()`), with real platform marks (`#b-meta`, `#b-google`,
+  `#b-tiktok`, `#b-shopify` from Simple Icons, CC0; `#b-klaviyo` drawn). `.v2seg[hidden]` must stay
+  `display:none`: the old rule overrode the attribute and the Meta jobs showed on every page.
+- **The role filter is gone** ("Show tabs for", the who chips): `applyRole()` is a no-op, `whoChip()` returns ''.
+- **The ask bar** (`#v2ask`, top bar): focus = four questions for the page you are on (`ASK_SUGGEST`, `{b}` = the
+  brand), type = jump to a page or brand, Enter = `AskUI.ask(q)` (new in ask-ui.js: open and send). Ctrl/Cmd+K
+  focuses it; AskUI is initialised with `hotkey:false` so the panel no longer owns the key.
+- **Top-bar menus close through ONE rule** (`closePops` + one document click/Escape listener). The period menu's
+  old per-render listener removed itself on the first click anywhere, so after one stray click it never closed.
+- **Attribution is a menu** (`renderModelMenu`, `MODELS` with a one-line meaning each), same look as the period.
+- **Hover everywhere in v2**: one fixed `#v2gtip`; any `[data-tip]` shows its text, any `[data-spk]` sparkline
+  shows the point under the pointer (tiles, small multiples). Bullets, deltas, the channel share bar, funnel bars,
+  fatigue and cadence bars all carry tips.
+- **Ads in Campaigns and Creative open a preview** (`previewAd`): cover large, Play (the real mp4 via the host's
+  `adVideoUrl`, or Meta's own preview for partnership ads), spend / CPA / ROAS, purchases (opens the orders),
+  hook, hold, CTR, CPM, frequency, the ad copy. Covers come from account-health `/api/ad-creatives`, cached for the
+  session (`THUMBS`).
+- **The Creative calls are a stated rule** (shown on the page): judged after one goal CPA spent and 3 days live;
+  Scale = 2+ purchases at or under goal; Cut = 3x goal spent with no purchase, or 2x spent at a CPA over 1.5x goal;
+  Watch = judged, neither. The old browser (meta.js, `mbrowser`) still uses its own 1.4x rule.
+- **`/api/hub/*` GETs are cached in the page for 5 minutes** (`get()` in v2.js), so Overview and Campaigns (same
+  route) switch instantly; Meta Overview prefetches Creative.
+- **Colours**: nothing may hard-code white text on a theme surface. `.rp-kv` (report tiles), `.chip.on` (the
+  report week picker), `.catpill.part`, `.shp-pill.on` and Scenarios' hero buttons were white on light grey in the
+  light theme; all are tokens now. Scenarios' dollar bar uses the channel palette, never three greys.
+- **Scenarios**: "Say it in words" is an ask bar at the TOP with example chips (Enter or a chip builds it).

@@ -54,26 +54,27 @@ function injectCss() {
   .cc-seg button{border:0;background:transparent;border-radius:99px;padding:7px 15px;font:600 13px var(--sans,system-ui);color:var(--cc-muted);cursor:pointer}
   .cc-seg button.on{background:var(--ink,#111);color:var(--bg,#fff)}
   /* hero */
-  .cc-hero{background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--cc-acc) 28%,var(--cc-panel)) 0%,var(--cc-panel) 55%);color:var(--cc-on);border-radius:18px;padding:22px 26px 20px;margin-bottom:14px;position:relative;overflow:hidden}
+  .cc-hero{border:1px solid var(--cc-line);background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--cc-acc) 28%,var(--cc-panel)) 0%,var(--cc-panel) 55%);color:var(--cc-on);border-radius:18px;padding:22px 26px 20px;margin-bottom:14px;position:relative;overflow:hidden}
   .cc-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 40%);pointer-events:none}
   .cc-hero .eb{font:600 10.5px var(--sans,system-ui);letter-spacing:.14em;text-transform:uppercase;opacity:.7;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .cc-hero .big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:8px 0 4px}
   .cc-hero .big .n{font:600 56px/1 var(--cc-mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .cc-hero .big .u{font:500 15px var(--sans,system-ui);opacity:.85;max-width:34ch;line-height:1.3}
   .cc-hero .act{margin-left:auto;display:flex;gap:8px}
-  .cc-hbtn{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;border-radius:99px;padding:7px 14px;font:600 12.5px var(--sans,system-ui);cursor:pointer;letter-spacing:0;text-transform:none}
-  .cc-hbtn:hover{background:rgba(255,255,255,.18)}
-  .cc-hbtn.pri{background:#fff;color:var(--cc-panel);border-color:#fff}
-  .cc-pill{display:inline-flex;align-items:center;gap:6px;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:5px 10px;background:rgba(255,255,255,.12);color:#fff}
+  .cc-hbtn{border:1px solid color-mix(in srgb,var(--cc-on) 28%,transparent);background:color-mix(in srgb,var(--cc-on) 8%,transparent);color:var(--cc-on);border-radius:99px;padding:7px 14px;font:600 12.5px var(--sans,system-ui);cursor:pointer;letter-spacing:0;text-transform:none}
+  .cc-hbtn:hover{background:color-mix(in srgb,var(--cc-on) 15%,transparent)}
+  .cc-hbtn.pri{background:var(--cc-acc);color:var(--on-brand,#fff);border-color:var(--cc-acc)}
+  .cc-hbtn.pri:hover{background:var(--cc-acc);filter:brightness(1.08)}
+  .cc-pill{display:inline-flex;align-items:center;gap:6px;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:5px 10px;background:color-mix(in srgb,var(--cc-on) 10%,transparent);color:var(--cc-on)}
   .cc-pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
-  .cc-pill.good{color:#8FD8A8}.cc-pill.warn{color:#E9CC7A}.cc-pill.bad{color:#F2A197}
+  .cc-pill.good{color:var(--cc-good)}.cc-pill.warn{color:var(--cc-warn)}.cc-pill.bad{color:var(--cc-bad)}
   .cc-hero .read{font-size:14px;line-height:1.5;opacity:.92;max-width:78ch;margin:6px 0 14px}
-  .cc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 0;border-top:1px solid rgba(255,255,255,.14);padding-top:14px}
-  .cc-stats>div{padding:0 14px;border-left:1px solid rgba(255,255,255,.12);min-width:0}
+  .cc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 0;border-top:1px solid color-mix(in srgb,var(--cc-on) 14%,transparent);padding-top:14px}
+  .cc-stats>div{padding:0 14px;border-left:1px solid color-mix(in srgb,var(--cc-on) 12%,transparent);min-width:0}
   .cc-stats>div:first-child{border-left:0;padding-left:0}
   .cc-stats .l{font:600 10px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;opacity:.65}
   .cc-stats .v{font:600 20px/1.2 var(--cc-mono);margin-top:3px;font-variant-numeric:tabular-nums}
-  .cc-stats .v.good{color:#8FD8A8}.cc-stats .v.bad{color:#F2A197}.cc-stats .v.warn{color:#E9CC7A}
+  .cc-stats .v.good{color:var(--cc-good)}.cc-stats .v.bad{color:var(--cc-bad)}.cc-stats .v.warn{color:var(--cc-warn)}
   .cc-stats .s{font-size:11px;opacity:.7;margin-top:2px}
   /* layout */
   .cc-two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
@@ -168,6 +169,17 @@ function injectCss() {
   .cc-dol .lg i{width:10px;height:10px;border-radius:3px;flex:none;margin-top:4px}
   .cc-dol .lg b{display:block;font:600 15px var(--cc-mono);color:var(--ink,#111);font-variant-numeric:tabular-nums}
   .cc-dol .lg b.good{color:var(--cc-good)}.cc-dol .lg b.bad{color:var(--cc-bad)}
+  /* words: an ask bar at the top */
+  .cc-say{display:grid;gap:8px;margin:0 0 14px}
+  .cc-ask{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong,var(--cc-line));border-radius:12px;background:var(--cc-surface);padding:6px 6px 6px 14px;transition:border-color .12s,box-shadow .12s}
+  .cc-ask:focus-within{border-color:var(--cc-acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 16%,transparent)}
+  .cc-ask svg{width:16px;height:16px;stroke:var(--cc-acc);fill:none;stroke-width:1.6;flex:none}
+  .cc .cc-ask input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;font:14px var(--sans,system-ui)!important;color:inherit!important;padding:6px 0!important;margin:0!important;height:auto!important}
+  .cc-ask .btn{margin:0;flex:none}
+  .cc-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .cc-chips span{font-size:12px;color:var(--cc-muted);margin-right:2px}
+  .cc-chip{font:inherit;font-size:12.5px;color:var(--ink-2,inherit);background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:99px;padding:5px 11px;cursor:pointer}
+  .cc-chip:hover{border-color:var(--cc-acc);color:var(--cc-acc)}
   /* words + saved */
   .cc-words{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
   .cc-words textarea{width:100%;min-height:58px;border:1px solid var(--cc-line);border-radius:10px;padding:10px 12px;font:14px/1.45 var(--sans,system-ui);background:var(--cc-surface);color:inherit;resize:vertical;box-sizing:border-box}
@@ -376,7 +388,7 @@ function leadReceipt(f) {
 function dollarBar(parts, total) {
   const live = parts.filter(p => p.v > 0);
   const sum = live.reduce((a, p) => a + p.v, 0) || 1;
-  return `<div class="cc-dol"><div class="bar">${live.map(p => `<i style="width:${(p.v / sum * 100).toFixed(2)}%;background:${p.c}" title="${esc(p.l)}: ${money(p.v)}"></i>`).join('')}</div>
+  return `<div class="cc-dol"><div class="bar">${live.map(p => `<i style="width:${(p.v / sum * 100).toFixed(2)}%;background:${p.c}" title="${esc(p.l)}: ${money(p.v)}${total ? ` (${Math.round(p.v / total * 100)}% of revenue)` : ''}"></i>`).join('')}</div>
     <div class="lg">${parts.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}<b class="${p.cls || ''}">${money(p.v)}${total ? ` <span style="font:12px var(--cc-mono);color:var(--cc-muted)">${Math.round(p.v / total * 100)}%</span>` : ''}</b></span></div>`).join('')}</div></div>`;
 }
 
@@ -507,9 +519,11 @@ function wordsCard() {
   const ex = S.kind === 'leads'
     ? ['Spend $20k at $2, $3 and $4 a lead, 10% buy', 'Only 5% buy at $3 a lead and the order is $150', 'I want $80k back from the list at 4x, what can a lead cost']
     : ['$30k in November at 3x with a $140 order and 60% margin', 'What ROAS clears $10k a month of fixed costs on $25k of spend', '400 orders at $99 with $8 shipping and 2.9% fees on $15k of ads'];
-  return `<div class="card"><div class="cc-h3"><h3>Say it in words</h3><span class="tiny">plain English in, dials out</span></div>
-    <div class="cc-words"><div><textarea id="ccWords" placeholder="${esc(ex[0])}"></textarea><div class="ex">Try: ${ex.map(e => `<button class="cc-link" data-ex="${esc(e)}">${esc(e)}</button>`).join(' · ')}</div></div><button class="btn primary" id="ccBuild">Build it</button></div>
-    <p class="tiny" id="ccReading" style="margin:8px 0 0"></p></div>`;
+  /* At the TOP, as an ask bar (2026-10-08, Cole: "anything asking should be at the top, like
+     Triple Whale"). Plain English in, the dials and scenario cards out. */
+  return `<div class="cc-say"><div class="cc-ask"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></svg><input type="text" id="ccWords" autocomplete="off" placeholder="Say it in words: ${esc(ex[0])}"><button class="btn primary" id="ccBuild">Build it</button></div>
+    <div class="cc-chips"><span>Try</span>${ex.map(e => `<button type="button" class="cc-chip" data-ex="${esc(e)}">${esc(e)}</button>`).join('')}</div>
+    <p class="tiny" id="ccReading" style="margin:0"></p></div>`;
 }
 function savedCard() {
   if (S.ro) return '';
@@ -569,14 +583,14 @@ function paintLeads() {
     <div class="cc-leg"><span><i></i>${pct(f.cvr * 100)} CVR</span><span><i class="d"></i>${pct(f.cvr * 50)} CVR</span><span><i class="t"></i>${pct(f.cvr * 200)} CVR</span><span><i class="tg"></i>target ${x2(S.target)}</span>${f.beRoas ? `<span><i class="be"></i>breakeven ${x2(f.beRoas)}</span>` : ''}</div>
     ${leadCurve(f)}</div>`;
   const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(f.revenue)} goes</h3><span class="tiny">"${esc(c.name)}"</span></div>${dollarBar([
-    { l: 'Product, shipping, fees', v: f.cost, c: 'color-mix(in srgb,var(--cc-muted) 55%,transparent)' },
+    { l: 'Product, shipping, fees', v: f.cost, c: 'var(--c-amazon,#D95A33)' },
     { l: 'The lead spend', v: f.spend, c: 'var(--cc-acc)' },
     { l: f.profit >= 0 ? 'Left over' : 'Short', v: Math.abs(f.profit), c: f.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)', cls: f.profit >= 0 ? 'good' : 'bad' },
   ], f.revenue || 1)}</div>`;
   const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(f.spend)} of spend, ${money(f.aov)} orders, ${pct(f.margin * 100)} margin, target ${x2(S.target)}</span></div>${leadGrid(c)}</div>`;
   const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">"${esc(c.name)}", one lead and one order</span></div>${leadReceipt(f)}</div>`;
   const roCard = S.ro ? assumeCard([['Lead-gen spend', k(f.spend)], ['CPL', money2(f.cpl)], ['CVR', pct(f.cvr * 100)], ['Average order', money(f.aov)], ['Margin before ads', pct(f.margin * 100)], ['Target ROAS', x2(S.target)]]) : '';
-  main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${hero}${S.ro ? roCard : `<div class="cc-two">${dials}${cards}</div>`}${zone}${grid}${curve}<div class="cc-two">${dollars}${rcpt}</div>${wordsCard()}${savedCard()}${footNote()}</div>`;
+  main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${wordsCard()}${hero}${S.ro ? roCard : `<div class="cc-two">${dials}${cards}</div>`}${zone}${grid}${curve}<div class="cc-two">${dollars}${rcpt}</div>${savedCard()}${footNote()}</div>`;
   wireCommon(); wireTips(main);
   if (S.ro) { main.querySelectorAll('.cc-grid .c').forEach(el => el.style.cursor = 'default'); const gn = main.querySelector('.cc-gridnote'); if (gn) gn.textContent = 'Green makes money, red loses it; the darker the cell the more. The outlined cell is this scenario.'; return; }
   main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => {
@@ -640,13 +654,13 @@ function paintRoas() {
   </div>
   </div>`;
   const parts = [
-    { l: 'Product cost', v: m.cogs, c: 'color-mix(in srgb,var(--cc-muted) 55%,transparent)' },
-    ...(r.proc_on ? [{ l: 'Payment processing', v: m.proc, c: 'color-mix(in srgb,var(--cc-muted) 35%,transparent)' }] : []),
-    ...(r.ful_on ? [{ l: 'Pick, pack and ship', v: m.ful, c: 'color-mix(in srgb,var(--cc-muted) 75%,transparent)' }] : []),
+    { l: 'Product cost', v: m.cogs, c: 'var(--c-amazon,#D95A33)' },
+    ...(r.proc_on ? [{ l: 'Payment processing', v: m.proc, c: 'var(--c-email,#7C5CE6)' }] : []),
+    ...(r.ful_on ? [{ l: 'Pick, pack and ship', v: m.ful, c: 'var(--c-google,#B87A14)' }] : []),
     ...(r.share_on ? [{ l: 'Revenue share', v: m.share, c: 'var(--cc-warn)' }] : []),
     { l: 'Ad spend', v: m.spend, c: 'var(--cc-acc)' },
-    ...(r.fee_on ? [{ l: 'Agency fee', v: m.fee, c: 'color-mix(in srgb,var(--cc-acc) 55%,transparent)' }] : []),
-    ...(r.fixed_on ? [{ l: 'Fixed costs', v: m.fixed, c: 'color-mix(in srgb,var(--cc-bad) 45%,transparent)' }] : []),
+    ...(r.fee_on ? [{ l: 'Agency fee', v: m.fee, c: 'var(--c-tiktok,#1E9C8C)' }] : []),
+    ...(r.fixed_on ? [{ l: 'Fixed costs', v: m.fixed, c: 'var(--c-else,#2A86B3)' }] : []),
     { l: keep >= 0 ? 'You keep' : 'Short', v: Math.abs(keep), c: keep >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)', cls: keep >= 0 ? 'good' : 'bad' },
   ];
   const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(m.revenue)} goes</h3><span class="tiny">each segment is a share of revenue</span></div>${dollarBar(parts, m.revenue || 1)}</div>`;
@@ -655,7 +669,7 @@ function paintRoas() {
   const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(m.spend)} of spend, ${money(r.aov)} orders${r.fixed_on ? `, ${k(m.fixed)} fixed` : ''}</span></div>${roasGrid(r, m)}</div>`;
   const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">at ${x2(m.roas)}</span></div>${roasReceipt(r, m)}</div>`;
   const roCard = S.ro ? assumeCard([['Average order', money(r.aov)], ['Gross margin', pct(r.margin)], ['Ad spend', k(m.spend)], ['ROAS', x2(m.roas)], ...(r.proc_on ? [['Processing', `${r.proc_pct}% + ${money2(r.proc_fixed)}`]] : []), ...(r.ful_on ? [['Pick, pack, ship', money2(r.ful) + ' an order']] : []), ...(r.fixed_on ? [['Fixed costs', k(r.fixed)]] : []), ...(r.share_on ? [['Revenue share', pct(r.share_pct)]] : []), ...(r.fee_on ? [['Agency fee', pct(r.fee_pct) + ' of spend']] : [])]) : '';
-  main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${hero}${S.ro ? `${roCard}<div class="cc-two">${dollars}${rcpt}</div>` : `<div class="cc-two">${dials}<div>${dollars}${rcpt}</div></div>`}${grid}${curve}${wordsCard()}${savedCard()}${footNote()}</div>`;
+  main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${wordsCard()}${hero}${S.ro ? `${roCard}<div class="cc-two">${dollars}${rcpt}</div>` : `<div class="cc-two">${dials}<div>${dollars}${rcpt}</div></div>`}${grid}${curve}${savedCard()}${footNote()}</div>`;
   wireCommon(); wireTips(main);
   if (S.ro) { main.querySelectorAll('.cc-grid .c').forEach(el => el.style.cursor = 'default'); const gn = main.querySelector('.cc-gridnote'); if (gn) gn.textContent = 'Same spend in every cell. The outlined cell is this scenario.'; return; }
   main.querySelectorAll('.cc-grid .c[data-gr]').forEach(el => el.onclick = () => { r.roas = +el.dataset.gr; r.margin = +el.dataset.gm; if (r.mode === 'orders') { r.mode = 'roas'; } tipHide(); inPlace(paintRoas); });
@@ -729,8 +743,9 @@ function wireCommon() {
   const sh = $('#ccShareTop'); if (sh) sh.onclick = () => saveOnScreen(true);
   const rs = $('#ccReset'); if (rs) rs.onclick = () => { const b = brand(); S.target = b && +b.target_roas > 0 ? +b.target_roas : 3; if (S.kind === 'leads') { S.cols = defaultCols(); S.focus = 0; } else S.roas = defaultRoas(); paint(); };
   const up = $('#ccUsePre'); if (up) up.onclick = () => { const p = S.pre; if (!p) return; if (S.kind === 'leads') S.cols.forEach(c => { if (p.new_aov) c.aov = Math.round(p.new_aov); if (p.margin != null) c.margin = Math.round(p.margin * 100); }); else { if (p.new_aov) S.roas.aov = Math.round(p.new_aov); if (p.margin != null) S.roas.margin = Math.round(p.margin * 100); } inPlace(paint); toast('Filled from the last 90 days'); };
-  main.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#ccWords').value = b.dataset.ex; });
+  main.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#ccWords').value = b.dataset.ex; buildFromWords(); });
   const bld = $('#ccBuild'); if (bld) bld.onclick = buildFromWords;
+  const cw = $('#ccWords'); if (cw) cw.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); buildFromWords(); } };
   main.querySelectorAll('[data-load]').forEach(b => b.onclick = () => { const s = S.saved.find(x => x.id === b.dataset.load); if (!s) return; if (S.kind === 'leads') { const c = { id: s.id, name: s.name, spend: s.inputs.spend, cpl: s.inputs.cpl, cvr: s.inputs.cvr, aov: s.inputs.aov, margin: s.inputs.margin }; if (s.inputs.target) S.target = +s.inputs.target; if (S.cols.length >= 8) S.cols[S.cols.length - 1] = c; else S.cols.push(c); S.focus = S.cols.length - 1; } else S.roas = { ...defaultRoas(), ...s.inputs, id: s.id, name: s.name }; paint(); window.scrollTo(0, 0); });
   main.querySelectorAll('[data-share]').forEach(b => b.onclick = () => copyLink(b.dataset.share));
   main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const ok = typeof window.confirmModal === 'function' ? await window.confirmModal('Delete this saved scenario?', 'The dials on screen stay as they are.', 'Delete') : true; if (!ok) return; try { await api(`/api/scenario?id=${encodeURIComponent(b.dataset.del)}`, { method: 'DELETE' }); await loadSaved(); inPlace(paint); } catch (e) { toast(e.message, true); } });

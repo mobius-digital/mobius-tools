@@ -10,7 +10,8 @@
  *     esc, flash, confirm, cardH   the host's helpers (fallbacks are provided)
  *   })
  *
- *   AskUI.open(prefill)            the panel (also Ctrl/Cmd+K)
+ *   AskUI.open(prefill)            the panel (also Ctrl/Cmd+K unless init({hotkey:false}))
+ *   AskUI.ask(question)            open the panel and send the question at once
  *   AskUI.card()                   -> HTML: what it found, for the home screen
  *   AskUI.settingsCard()           -> HTML: what it knows + the controls
  *   AskUI.afterSettings()          wires the settings card after it is in the DOM
@@ -33,7 +34,7 @@ window.AskUI = (() => {
     if (cfg.cardH) cardH = cfg.cardH;
     try { const saved = JSON.parse(localStorage.getItem(LS()) || 'null'); if (saved?.chat) { A.chat = saved.chat; A.id = saved.id; } } catch (e) {}
     document.addEventListener('keydown', e => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open(); }
+      if (A.hotkey !== false && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open(); }
       if (e.key === 'Escape' && $('#ask')?.classList.contains('on')) close();
     });
   }
@@ -355,5 +356,6 @@ window.AskUI = (() => {
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
 
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A };
+  function ask(q) { open(); const el = $('#askIn'); if (!el || !q) return; el.value = q; send(); }
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask };
 })();

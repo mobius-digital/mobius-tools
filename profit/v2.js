@@ -34,27 +34,56 @@
     const good = (d > 0) !== !!lower;
     const tone = small || lower === 'n' ? 'flat' : good ? 'up' : 'down';
     const txt = pts ? `${Math.abs(d).toFixed(1)} pt` : `${Math.abs(Math.round(d * 100))}%`;
-    return `<span class="v2d ${tone}" title="Against ${esc(cmpLabel())}">${d >= 0 ? '▲' : '▼'} ${txt}</span>`;
+    return `<span class="v2d ${tone}" data-v2tip="${esc(`Against ${cmpLabel()}${pts ? '' : `: ${prev >= 100 ? Math.round(prev).toLocaleString('en-US') : (+prev).toFixed(2)} then`}`)}">${d >= 0 ? '▲' : '▼'} ${txt}</span>`;
   }
   const cmpLabel = () => ({ prev: 'the period before', yoy: 'the same dates last year', none: 'nothing' })[H.S.cmp] || 'the period before';
   const MODEL_SHORT = { lastPlatformClick: 'TW last platform click', fullFirstClick: 'TW first click', fullLastClick: 'TW last click', linear: 'TW linear (paid)', linearAll: 'TW linear (all)', platform: 'Platform reported' };
   const modelQ = () => `&model=${encodeURIComponent(H.S.model || 'lastPlatformClick')}`;
   const isPlat = () => H.S.model === 'platform';
+  /* GET cache for /api/hub/* (2026-10-08, "switching tabs takes a long time"). Overview and
+     Campaigns read the same route, so the second is instant; entries live 5 minutes and a
+     failed call is never kept. prefetch() warms the next likely screen after a paint. */
+  const CACHE = new Map();
+  function get(path) {
+    const hit = CACHE.get(path);
+    if (hit && Date.now() - hit.at < 5 * 60e3) return hit.p;
+    const p = H.api(path); CACHE.set(path, { at: Date.now(), p });
+    p.catch(() => CACHE.delete(path));
+    return p;
+  }
+  const prefetch = paths => setTimeout(() => paths.forEach(x => get(x).catch(() => {})), 400);
+
+  /* ---------- one tooltip for every hover ----------
+     Any element with data-tip shows it; a sparkline with data-spk shows the point under the
+     pointer. One fixed element, one listener, so nothing has to wire its own hover. */
+  const tipEl = () => document.getElementById('v2gtip') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'v2gtip' }));
+  function tipAt(e, html) { const t = tipEl(); t.innerHTML = html; t.style.display = 'block'; const w = t.offsetWidth, h = t.offsetHeight; let x = e.clientX + 14, y = e.clientY + 16; if (x + w > innerWidth - 8) x = e.clientX - w - 14; if (y + h > innerHeight - 8) y = e.clientY - h - 12; t.style.left = x + 'px'; t.style.top = y + 'px'; }
+  const tipOff = () => { const t = document.getElementById('v2gtip'); if (t) t.style.display = 'none'; };
+  if (!window.__v2tips) { window.__v2tips = 1;
+    document.addEventListener('pointermove', e => {
+      const sp = e.target.closest && e.target.closest('[data-spk]');
+      if (sp) { try { const list = JSON.parse(sp.dataset.spk); const r = sp.getBoundingClientRect(); const i = Math.max(0, Math.min(list.length - 1, Math.round((e.clientX - r.left) / r.width * (list.length - 1)))); tipAt(e, list[i]); } catch {} return; }
+      const el = e.target.closest && e.target.closest('[data-v2tip]');
+      if (el) tipAt(e, el.dataset.v2tip); else tipOff();
+    }, { passive: true });
+    document.addEventListener('scroll', tipOff, { passive: true, capture: true });
+  }
+  const tipAttr = html => ` data-v2tip="${esc(html)}"`;
 
   /* ---------- small graphics ---------- */
-  function spark(vals, ghost, w = 300, h = 34) {
+  function spark(vals, ghost, w = 300, h = 34, tips) {
     const v = (vals || []).map(x => x == null ? null : +x); if (v.filter(x => x != null).length < 2) return '';
     const all = v.concat(ghost || []).filter(x => x != null); const mx = Math.max(...all), mn = Math.min(...all), r = mx - mn || 1;
     const pt = a => a.map((y, i) => y == null ? null : `${(i / Math.max(1, a.length - 1) * (w - 6) + 3).toFixed(1)},${(h - 4 - (y - mn) / r * (h - 10)).toFixed(1)}`).filter(Boolean).join(' ');
     const last = v[v.length - 1] ?? 0;
-    return `<svg class="v2spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${ghost && ghost.length > 1 ? `<polyline points="${pt(ghost)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}<polyline points="${pt(v)}" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle cx="${w - 3}" cy="${(h - 4 - (last - mn) / r * (h - 10)).toFixed(1)}" r="2.6" fill="var(--brand)"/></svg>`;
+    return `<svg class="v2spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"${tips && tips.length === v.length ? ` data-spk="${esc(JSON.stringify(tips))}"` : ''}>${ghost && ghost.length > 1 ? `<polyline points="${pt(ghost)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}<polyline points="${pt(v)}" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle cx="${w - 3}" cy="${(h - 4 - (last - mn) / r * (h - 10)).toFixed(1)}" r="2.6" fill="var(--brand)"/></svg>`;
   }
   /** Goal bullet: actual bar, target tick. `lower` = lower is better (CPA). */
   function bullet(actual, target, lower, label) {
     if (actual == null || !target) return '';
     const max = Math.max(actual, target) * 1.25; const a = Math.min(100, actual / max * 100), t = target / max * 100;
     const ok = lower ? actual <= target : actual >= target;
-    return `<div class="v2bul"><div class="trk"><i style="width:${a.toFixed(1)}%;background:${ok ? 'var(--good)' : 'var(--bad)'}"></i><b style="left:${t.toFixed(1)}%"></b></div><div class="lb">${label}</div></div>`;
+    return `<div class="v2bul"${tipAttr(`${ok ? 'On goal' : 'Off goal'}: the bar is where it is now, the tick is the ${esc(label)}.${lower ? ' Lower is better.' : ''}`)}><div class="trk"><i style="width:${a.toFixed(1)}%;background:${ok ? 'var(--good)' : 'var(--bad)'}"></i><b style="left:${t.toFixed(1)}%"></b></div><div class="lb">${label}</div></div>`;
   }
   function tile(o) {
     return `<div class="v2tile${o.hero ? ' hero' : ''}${o.compact ? ' c' : ''}"${o.go ? ` data-go="${esc(o.go)}" role="link" tabindex="0"` : ''}>
@@ -62,7 +91,7 @@
       <div class="v">${o.value}${o.delta || ''}</div>
       ${o.bullet || ''}${o.sub ? `<div class="sub">${o.sub}</div>` : ''}${o.spark || ''}</div>`;
   }
-  const ib = (v, max, color, label) => `<span class="v2ib"><i style="width:${max ? Math.max(2, Math.min(100, v / max * 100)).toFixed(0) : 0}%;${color ? `background:var(${color})` : ''}"></i><span>${label}</span></span>`;
+  const ib = (v, max, color, label, tip) => `<span class="v2ib"${tip ? tipAttr(tip) : ''}><i style="width:${max ? Math.max(2, Math.min(100, v / max * 100)).toFixed(0) : 0}%;${color ? `background:var(${color})` : ''}"></i><span>${label}</span></span>`;
 
   /** Line chart, one scale, compare period ghosted, optional plan line and change markers, shared tooltip. */
   function lineChart(id, rows, opts = {}) {
@@ -139,7 +168,7 @@
   async function drillOrders(label, q) {
     const body = panel(label, '<p class="v2hint">Reading the orders…</p>');
     try {
-      const d = await H.api(`/api/hub/orders?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}&${q}`);
+      const d = await get(`/api/hub/orders?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}&${q}`);
       const cur = (H.S.accounts.find(a => a.act_id === H.S.act) || {}).currency;
       body.innerHTML = `<div class="v2pstat"><div><b>${int(d.orders.length)}</b><span>orders</span></div><div><b>${kmoney(d.total, cur)}</b><span>order value</span></div><div><b>${int(d.new_customers)}</b><span>first orders</span></div></div>
         ${d.note ? `<p class="v2hint">${esc(d.note)}</p>` : `<p class="v2hint">${esc(MODEL_SHORT[d.model_used] || '')}. Click a customer to see everything they bought.</p>`}
@@ -150,10 +179,44 @@
   async function drillCustomer(id, cur) {
     const body = panel('One customer', '<p class="v2hint">Reading their orders…</p>');
     try {
-      const d = await H.api(`/api/hub/customer?act=${encodeURIComponent(H.S.act)}&customer=${encodeURIComponent(id)}`);
+      const d = await get(`/api/hub/customer?act=${encodeURIComponent(H.S.act)}&customer=${encodeURIComponent(id)}`);
       body.innerHTML = `<div class="v2pstat"><div><b>${int(d.orders.length)}</b><span>orders</span></div><div><b>${money(d.lifetime, cur)}</b><span>spent so far</span></div></div>
         <ol class="v2journey">${d.orders.map((o, i) => `<li><b>${day(o.date)} · ${money(o.total, cur)}</b>${i === 0 ? ' <span class="v2pill good">first</span>' : ''}<span>${esc(o.source || 'organic')}${(o.touches || []).filter(t => t.model === 'lastPlatformClick').map(t => ` · ${esc(t.ad_name || t.platform || '')}`).join('')}</span></li>`).join('')}</ol>`;
     } catch (e) { body.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
+  }
+
+  /* ---------- ad covers and the preview panel ----------
+     Covers come from account-health /api/ad-creatives (cached there 14 days, here for the
+     session). The preview plays the real video when Meta gives a file, else shows Meta's own
+     preview (partnership ads), else the cover large. */
+  const THUMBS = new Map(), ASSETS = new Map();
+  async function loadThumbs(root, ids) {
+    const want = [...new Set(ids.filter(id => id && !THUMBS.has(id)))].slice(0, 40);
+    const paint = () => root.querySelectorAll('[data-thumb]').forEach(el => { const u = THUMBS.get(el.dataset.thumb); if (u) el.style.backgroundImage = `url("${u}")`; });
+    paint(); if (!want.length) return;
+    const act = H.S.act; const t = H.RUN();
+    try { const r = await H.apiAH(`/api/ad-creatives?act=${encodeURIComponent(act)}&ads=${want.join(',')}`); for (const [id, x] of Object.entries(r.assets || {})) { ASSETS.set(id, x); const u = x.thumb || x.image || x.cover; if (u) THUMBS.set(id, u); } } catch {}
+    if (t === H.RUN()) paint();
+  }
+  function previewAd(a, cur, goals) {
+    const g = goals || {}; const x = ASSETS.get(a.id) || {};
+    const body = panel(a.name || 'Ad', `<div class="v2pv"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">▶ Play</button></div>
+      <div class="v2pstat"><div><b>${kmoney(a.spend, cur)}</b><span>spend</span></div><div><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><span>cost per purchase${g.cpa ? ` · goal ${money(g.cpa, cur)}` : ''}</span></div><div><b>${x2(a.roas)}</b><span>ROAS</span></div></div>
+      <div class="v2kv"><span>Purchases</span><b><button type="button" class="v2cell" data-orders="1">${int(a.purchases)}</button></b><span>Revenue</span><b>${kmoney(a.revenue, cur)}</b><span>Hook · hold</span><b>${pct(a.hook, 0)} · ${pct(a.hold, 0)}</b><span>CTR · CPM</span><b>${pct(a.ctr, 2)} · ${money2(a.cpm, cur)}</b>${a.frequency ? `<span>Frequency</span><b>${a.frequency.toFixed(2)}</b>` : ''}${a.age != null ? `<span>Running</span><b>${a.age} days</b>` : ''}${a.angle ? `<span>Angle</span><b>${esc(a.angle)}</b>` : ''}</div>
+      ${x.headline || x.body ? `<div class="v2copy">${x.headline ? `<b>${esc(x.headline)}</b>` : ''}${x.body ? `<p>${esc(x.body)}</p>` : ''}</div>` : ''}
+      <p class="v2hint">${esc(MODEL_SHORT[H.S.model] || '')} for purchases and revenue; delivery is Meta's.</p></div>`);
+    loadThumbs(body, [a.id]).then(() => { const y = ASSETS.get(a.id) || {}; const cp = body.querySelector('.v2copy'); if (!cp && (y.headline || y.body)) body.querySelector('.v2kv').insertAdjacentHTML('afterend', `<div class="v2copy">${y.headline ? `<b>${esc(y.headline)}</b>` : ''}${y.body ? `<p>${esc(y.body)}</p>` : ''}</div>`); });
+    body.querySelector('[data-orders]').onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`);
+    const m = body.querySelector('.v2pv-m');
+    body.querySelector('.v2play').onclick = async () => {
+      m.innerHTML = '<span class="v2hint" style="padding:14px">Loading the ad…</span>';
+      try {
+        const u = await H.adVideoUrl(a.id); const src = typeof u === 'string' ? u : u && u.src, link = u && u.preview;
+        if (src) m.innerHTML = `<video src="${esc(src)}" controls autoplay playsinline></video>`;
+        else if (link) m.innerHTML = `<iframe src="${esc(link)}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>`;
+        else { m.innerHTML = ''; m.classList.add('still'); if (THUMBS.has(a.id)) m.style.backgroundImage = `url("${THUMBS.get(a.id)}")`; m.insertAdjacentHTML('beforeend', `<span class="v2pill">${esc((u && u.reason) || 'A still image: this is the ad')}</span>`); }
+      } catch (e) { m.innerHTML = `<p class="v2bad" style="padding:14px">${esc(e.message)}</p>`; }
+    };
   }
 
   /* ---------- the read: insight strip + one paragraph, from the numbers on screen ---------- */
@@ -191,7 +254,7 @@
     const title = one ? `Overview: ${esc(one.name)}` : 'Overview';
     if (first) $('#main').innerHTML = shell('overview', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
     let ch = null, st = null;
-    try { [ch, st] = await Promise.all([H.api(`/api/hub/paid?platform=all&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`).catch(() => null), H.api(`/api/hub/store?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`).catch(() => null)]); } catch {}
+    try { [ch, st] = await Promise.all([get(`/api/hub/paid?platform=all&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`).catch(() => null), get(`/api/hub/store?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`).catch(() => null)]); } catch {}
     if (t !== H.RUN()) return;
     /* Totals from the host snapshot (the same numbers every other screen uses). */
     const sum = (src, get) => { let x = 0, any = false; for (const a of all) { const w = a[src]; if (!w) continue; const v = get(w, a); if (v != null && isFinite(v)) { x += v; any = true; } } return any ? x : null; };
@@ -218,9 +281,9 @@
     const fun = S0.reduce((s, b) => { const x = b.cur || {}, y = b.prev || {}; s.ses += x.sessions || 0; s.cart += x.carts || 0; s.ord += x.orders || 0; s.pses += y.sessions || 0; s.pcart += y.carts || 0; s.pord += y.orders || 0; return s; }, { ses: 0, cart: 0, ord: 0, pses: 0, pcart: 0, pord: 0 });
 
     const tiles = cur ? `<div class="v2tiles home">
-      ${tile({ hero: true, label: 'Revenue', src: 'SHOPIFY', hint: 'total sales minus tax', value: kmoney(c.sales, cur), delta: delta(c.sales, p.sales), sub: `${int(c.orders)} orders · AOV ${money2(c.aov, cur)}${p.sales ? ` · ${kmoney(p.sales, cur)} ${cmpLabel()}` : ''}`, spark: spark(rows.map(r => r.sales), prev.map(r => r.sales)),
-        bullet: pace ? `<div class="v2bul"><div class="trk"><i style="width:${Math.min(100, pace.landing / Math.max(pace.full, pace.landing) * 100 * 0.8).toFixed(1)}%;background:${pace.pct >= 0.98 ? 'var(--good)' : pace.pct >= 0.85 ? 'var(--warn)' : 'var(--bad)'}"></i><b style="left:${(pace.full / Math.max(pace.full, pace.landing) * 80).toFixed(1)}%"></b></div><div class="lb">Month so far ${kmoney(mtd.sales, cur)} of ${kmoney(mtd.plan, cur)} planned by now · pace to ${kmoney(pace.landing, cur)}</div></div>` : '', go: 'store' })}
-      ${tile({ label: 'MER', src: 'BLENDED', hint: 'revenue ÷ all ad spend', value: x2(c.mer), delta: delta(c.mer, p.mer), bullet: bullet(c.mer, goalMer, false, goalMer ? `goal ${x2(goalMer)}` : ''), sub: `${kmoney(c.spend, cur)} ad spend ${delta(c.spend, p.spend, 'n')}`, spark: spark(rows.map(r => r.mer)), go: 'channels' })}
+      ${tile({ hero: true, label: 'Revenue', src: 'SHOPIFY', hint: 'total sales minus tax', value: kmoney(c.sales, cur), delta: delta(c.sales, p.sales), sub: `${int(c.orders)} orders · AOV ${money2(c.aov, cur)}${p.sales ? ` · ${kmoney(p.sales, cur)} ${cmpLabel()}` : ''}`, spark: spark(rows.map(r => r.sales), prev.map(r => r.sales), 300, 34, rows.map((r, i) => `<b>${day(r.date)}</b> · ${kmoney(r.sales, cur)}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)}</span>` : ''}`)),
+        bullet: pace ? `<div class="v2bul"${tipAttr(`Month so far ${kmoney(mtd.sales, cur)} against ${kmoney(mtd.plan, cur)} planned by now. At this pace the month lands at ${kmoney(pace.landing, cur)}; the tick is the full month plan.`)}><div class="trk"><i style="width:${Math.min(100, pace.landing / Math.max(pace.full, pace.landing) * 100 * 0.8).toFixed(1)}%;background:${pace.pct >= 0.98 ? 'var(--good)' : pace.pct >= 0.85 ? 'var(--warn)' : 'var(--bad)'}"></i><b style="left:${(pace.full / Math.max(pace.full, pace.landing) * 80).toFixed(1)}%"></b></div><div class="lb">Month so far ${kmoney(mtd.sales, cur)} of ${kmoney(mtd.plan, cur)} planned by now · pace to ${kmoney(pace.landing, cur)}</div></div>` : '', go: 'store' })}
+      ${tile({ label: 'MER', src: 'BLENDED', hint: 'revenue ÷ all ad spend', value: x2(c.mer), delta: delta(c.mer, p.mer), bullet: bullet(c.mer, goalMer, false, goalMer ? `goal ${x2(goalMer)}` : ''), sub: `${kmoney(c.spend, cur)} ad spend ${delta(c.spend, p.spend, 'n')}`, spark: spark(rows.map(r => r.mer), null, 300, 34, rows.map(r => `<b>${day(r.date)}</b> · MER ${x2(r.mer)} · ${kmoney(r.sales, cur)} on ${kmoney(r.spend, cur)}`)), go: 'channels' })}
       ${tile({ label: 'Cost per new customer', src: 'TW', hint: 'lower is better', value: money(c.cac, cur), delta: delta(c.cac, p.cac, true), bullet: bullet(c.cac, goalCac, true, goalCac ? `goal ${money(goalCac, cur)}` : ''), sub: `${int(c.newOrd)} first orders`, go: 'customers' })}
       ${tile({ label: 'New customer revenue', src: 'TW', value: pct(c.newShare, 0), delta: delta(c.newShare, p.newShare, false, true), sub: `${kmoney(c.newRev, cur)} new · ${kmoney(c.sales != null && c.newRev != null ? c.sales - c.newRev : null, cur)} returning`, go: 'customers' })}
       ${tile({ label: 'Contribution margin', src: 'TW', hint: 'after every variable cost', value: kmoney(c.cm, cur), delta: delta(c.cm, p.cm), sub: c.cmPct != null ? `${pct(c.cmPct, 0)} of revenue` : 'cost data needed', go: 'profit' })}
@@ -232,11 +295,11 @@
 
     const funnel = fun.ses ? card('Site funnel', `${pct(fun.ord / fun.ses, 2)} of sessions became an order${fun.pses ? `, against ${pct(fun.pord / fun.pses, 2)} before` : ''}.`, `<div class="v2fun">
         ${[['Sessions', fun.ses, fun.pses, null, `${money2(c.spend / fun.ses, cur)} per session`], ['Added to cart', fun.cart, fun.pcart, fun.cart / fun.ses, `${pct(fun.cart / fun.ses)} of sessions`], ['Orders', fun.ord, fun.pord, fun.ord / fun.cart, `${pct(fun.ord / Math.max(1, fun.cart))} of carts`]]
-          .map(([l, v, pv, rate, sub]) => `<div class="fs"><div class="l">${l}</div><div class="v">${int(v)}${delta(v, pv)}</div><div class="r">${sub}</div><div class="bar"><i class="g" style="width:${(pv / Math.max(fun.ses, fun.pses) * 100).toFixed(1)}%"></i><i style="width:${(v / Math.max(fun.ses, fun.pses) * 100).toFixed(1)}%"></i></div></div>`).join('')}
+          .map(([l, v, pv, rate, sub]) => `<div class="fs"><div class="l">${l}</div><div class="v">${int(v)}${delta(v, pv)}</div><div class="r">${sub}</div><div class="bar"${tipAttr(`${l}: ${int(v)} now, ${int(pv)} ${esc(cmpLabel())}`)}><i class="g" style="width:${(pv / Math.max(fun.ses, fun.pses) * 100).toFixed(1)}%"></i><i style="width:${(v / Math.max(fun.ses, fun.pses) * 100).toFixed(1)}%"></i></div></div>`).join('')}
       </div>`, 'Triple Whale pixel; sessions are derived from its cost per session') : '';
 
     const chTable = chRows.length ? card('Where revenue came from', isPlat() ? 'On the platforms’ own numbers.' : `Credited under ${esc(MODEL_SHORT[H.S.model])}; the platform’s own figure sits beside it.`,
-      `<div class="v2stackbar">${chRows.filter(r => r.revenue > 0).map(r => `<i style="flex:${r.revenue};background:var(${CH[r.id] || '--c-else'})" title="${esc(r.label)} ${pct(r.revenue / credited, 0)}"></i>`).join('')}</div>
+      `<div class="v2stackbar">${chRows.filter(r => r.revenue > 0).map(r => `<i style="flex:${r.revenue};background:var(${CH[r.id] || '--c-else'})"${tipAttr(`<b>${esc(r.label)}</b> · ${kmoney(r.revenue, cur)} · ${pct(r.revenue / credited, 0)} of credited revenue${r.spend ? ` · ROAS ${x2(r.revenue / r.spend)}` : ''}`)}></i>`).join('')}</div>
        <div class="v2stacklab">${chRows.filter(r => r.revenue > 0).map(r => `<span><i style="background:var(${CH[r.id] || '--c-else'})"></i>${esc(r.label)} ${pct(r.revenue / credited, 0)}</span>`).join('')}</div>
        <div class="v2tbl"><table><thead><tr><th>Channel</th><th>Spend</th><th>Revenue</th><th>Platform says</th><th>Gap</th><th>Share of revenue</th><th>ROAS</th><th>First orders</th><th>vs before</th></tr></thead><tbody>
         ${chRows.map(r => { const gap = !isPlat() && r.hasP && r.spend ? r.revenue - r.platform_revenue : null; return `<tr${r.id === 'meta' || r.id === 'google' || r.id === 'tiktok' ? ` data-go="${r.id}" class="link"` : ''}><td><span class="sw" style="background:var(${CH[r.id] || '--c-else'})"></span>${esc(r.label)}</td>
@@ -250,7 +313,7 @@
     /* Agency view: a small chart per brand on one scale, then the table. */
     const multiples = !one && all.length > 1 ? (() => { const mx = Math.max(...all.flatMap(a => (a.series || []).map(r => r.sales || 0)), 1);
       return card('Each brand, revenue by day', 'One scale, so the sizes compare. Click one to open it.', `<div class="v2mult">${all.slice().sort((x, y) => (y.window?.sales || 0) - (x.window?.sales || 0)).map(a => { const s = a.series || []; const pts = s.map((r, i) => `${(i / Math.max(1, s.length - 1) * 200).toFixed(1)},${(56 - (r.sales || 0) / mx * 50).toFixed(1)}`).join(' ');
-        return `<button type="button" class="m" data-go="act:${esc(a.act_id)}"><span class="n">${esc(a.name)}</span><span class="v">${kmoney(a.window?.sales, a.currency)} ${a.prev ? delta(a.window?.sales, a.prev?.sales) : ''}</span><svg viewBox="0 0 200 60" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></button>`; }).join('')}</div>`); })() : '';
+        return `<button type="button" class="m" data-go="act:${esc(a.act_id)}"><span class="n">${esc(a.name)}</span><span class="v">${kmoney(a.window?.sales, a.currency)} ${a.prev ? delta(a.window?.sales, a.prev?.sales) : ''}</span><svg viewBox="0 0 200 60" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(s.map(r => `<b>${esc(a.name)}</b> · ${day(r.date)} · ${kmoney(r.sales, a.currency)}`)))}"><polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></button>`; }).join('')}</div>`); })() : '';
     const brandTable = !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
         ${all.slice().sort((x, y) => (y.window?.sales || 0) - (x.window?.sales || 0)).map(a => { const w = a.window || {}; const off = a.plan?.sales && a.mtd?.sales != null ? a.mtd.sales / a.plan.sales - 1 : null;
           return `<tr data-act="${esc(a.act_id)}" tabindex="0" class="link"><td><b>${esc(a.name)}</b></td><td>${kmoney(w.sales, a.currency)} ${a.prev ? delta(w.sales, a.prev.sales) : ''}</td><td>${off == null ? '<span class="faint">no plan</span>' : `<span class="v2pill ${off >= 0 ? 'good' : off > -0.08 ? 'warn' : 'bad'}">${off >= 0 ? '+' : ''}${Math.round(off * 100)}%</span>`}</td>
@@ -278,7 +341,7 @@
     const t = H.RUN(); const one = H.S.act !== 'all';
     const title = one ? `Meta: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}` : 'Meta';
     if (first) $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
-    let d; try { d = await H.api(`/api/hub/paid?platform=meta&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); }
+    let d; try { d = await get(`/api/hub/paid?platform=meta&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('meta', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     if (!one) return metaAll(d, title);
@@ -310,9 +373,10 @@
       lineChart('v2cpa', sz.map(r => ({ ...r, v: r.cpa })), { key: 'v', prev: (b.prev_series || []).map(r => ({ ...r, v: r.cpa })), plan: g.cpa, cur, fmt: v => money(v, cur), h: 200 }));
     const table = campTable(b, cur, view === 'campaigns');
     const body = view === 'campaigns' ? `${table}` : `<p class="v2say lead">${esc(verdict)}</p><div class="v2tiles">${tl}</div>${funnel}<div class="v2two">${spendChart}${perf}</div>${table}
-      <div class="v2links"><button type="button" class="v2link" data-go="mtoday">Today's spend against a normal day ›</button><button type="button" class="v2link" data-go="mbrowser">The creative browser and the client's ads page ›</button></div>`;
+      <div class="v2gos"><button type="button" class="v2go" data-go="mtoday"><b>Today against a normal day</b><span>Hour by hour: is today's spend and buying running hot or cold?</span><i>›</i></button><button type="button" class="v2go" data-go="mbrowser"><b>Creative browser</b><span>Every ad with its cover and copy, and the client's own ads page link.</span><i>›</i></button><button type="button" class="v2go" data-go="changes"><b>What changed</b><span>Budgets, launches and pauses, with the reason next to each.</span><i>›</i></button></div>`;
     $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, body + foot('Spend, impressions, clicks, CPM, CTR, frequency, hook and hold are Meta’s own. Purchases, revenue, ROAS and CPA follow the attribution switch; Meta’s own count stays beside them. Click a purchases cell for the orders behind it.'));
     const root = $('#main'); wireGo(root); wireCamp(root, b, cur);
+    prefetch([`/api/hub/creative?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`]);
     if (view !== 'campaigns') { wireStack('v2camp', campSeries, ser, cur); wireLine('v2cpa', sz.map(r => ({ ...r, v: r.cpa })), { tip: (r, i) => `<b>${day(r.date)}</b> · CPA ${money(r.cpa, cur)} · ${int(r.purchases)} purchases on ${kmoney(r.spend, cur)}` }); }
   }
   const CAMP_OPEN = new Set();
@@ -320,7 +384,7 @@
     const camps = b.campaigns || []; const mx = Math.max(...camps.map(x => x.spend), 1); const g = b.goals || {};
     const cpaCls = v => !g.cpa || v == null ? '' : v <= g.cpa ? 'good' : v <= g.cpa * 1.3 ? 'warn' : 'bad';
     const row = (x, lvl, kind) => `<tr class="lvl${lvl}" data-${kind}="${esc(x.id)}">
-      <td>${lvl < 2 ? `<button type="button" class="v2ex${CAMP_OPEN.has(x.id) ? ' open' : ''}" data-tog="${esc(x.id)}" aria-label="Show what is inside">›</button>` : ''}<span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.status && !/ACTIVE/.test(x.status) ? ` <span class="v2pill">${esc(x.status.toLowerCase().replace(/_/g, ' '))}</span>` : ''}${lvl === 0 && x.objective ? `<span class="sub">${esc(x.objective.replace('OUTCOME_', '').toLowerCase())}${x.budget ? ` · ${money(x.budget, cur)}/day` : ''}</span>` : ''}${lvl === 1 && (x.budget || x.min_spend) ? `<span class="sub">${x.budget ? `${money(x.budget, cur)}/day` : ''}${x.min_spend ? ` · min ${money(x.min_spend, cur)}` : ''}</span>` : ''}</td>
+      <td>${lvl < 2 ? `<button type="button" class="v2ex${CAMP_OPEN.has(x.id) ? ' open' : ''}" data-tog="${esc(x.id)}" aria-label="Show what is inside">›</button>` : `<button type="button" class="v2th" data-prev="${esc(x.id)}" data-thumb="${esc(x.id)}" aria-label="Preview this ad"${THUMBS.has(x.id) ? ` style="background-image:url('${THUMBS.get(x.id)}')"` : ''}></button>`}<span class="nm${lvl === 2 ? ' v2open' : ''}" title="${esc(x.name)}"${lvl === 2 ? ` data-prev="${esc(x.id)}"` : ''}>${esc(x.name)}</span>${x.status && !/ACTIVE/.test(x.status) ? ` <span class="v2pill">${esc(x.status.toLowerCase().replace(/_/g, ' '))}</span>` : ''}${lvl === 0 && x.objective ? `<span class="sub">${esc(x.objective.replace('OUTCOME_', '').toLowerCase())}${x.budget ? ` · ${money(x.budget, cur)}/day` : ''}</span>` : ''}${lvl === 1 && (x.budget || x.min_spend) ? `<span class="sub">${x.budget ? `${money(x.budget, cur)}/day` : ''}${x.min_spend ? ` · min ${money(x.min_spend, cur)}` : ''}</span>` : ''}</td>
       <td>${ib(x.spend, mx, null, kmoney(x.spend, cur))}</td>
       <td><button type="button" class="v2cell" data-drill="${kind}:${esc(x.id)}" title="See the orders">${int(x.purchases)}</button></td>
       ${isPlat() ? '' : `<td class="faint">${int(x.platform_purchases)}</td>`}
@@ -334,6 +398,9 @@
       `<div class="v2tbl wide"><table id="v2camptbl"><thead><tr><th>Campaign</th><th>Spend</th><th>Purchases</th>${isPlat() ? '' : '<th>Meta says</th>'}<th>Revenue</th><th>ROAS</th><th>CPA</th><th>CPM</th><th>CTR</th><th>Freq.</th><th>Hook</th><th>Hold</th></tr></thead><tbody>${rows}</tbody></table></div>`, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`);
   }
   function wireCamp(root, b, cur) {
+    const adsById = new Map(); for (const cp of b.campaigns || []) for (const st of cp.adsets || []) for (const a of st.ads || []) adsById.set(a.id, a);
+    root.querySelectorAll('#v2camptbl [data-prev]').forEach(el => el.onclick = e => { e.stopPropagation(); const a = adsById.get(el.dataset.prev); if (a) previewAd(a, cur, b.goals); });
+    loadThumbs(root, [...root.querySelectorAll('#v2camptbl [data-thumb]')].map(x => x.dataset.thumb));
     root.querySelectorAll('[data-tog]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const id = btn.dataset.tog; CAMP_OPEN.has(id) ? CAMP_OPEN.delete(id) : CAMP_OPEN.add(id); const tb = root.querySelector('#v2camptbl'); if (!tb) return; const host = tb.closest('.v2card'); host.outerHTML = campTable(b, cur, H.S.tab === 'campaigns'); wireCamp(root, b, cur); });
     root.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const [k, id] = btn.dataset.drill.split(':'); const name = btn.closest('tr').querySelector('.nm')?.textContent || ''; drillOrders(name, `${k === 'campaign' ? 'campaign' : k === 'adset' ? 'adset' : 'ad'}=${encodeURIComponent(id)}`); });
   }
@@ -362,65 +429,76 @@
     if (!a) { $('#main').innerHTML = shell('adcreative', 'Creative', `<div class="v2card"><p class="v2hint">Pick one brand in the menu to see its creative.</p></div>`); return; }
     const title = `Creative: ${esc(a.name)}`;
     if (first) $('#main').innerHTML = shell('adcreative', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
-    let d; try { d = await H.api(`/api/hub/creative?act=${encodeURIComponent(a.act_id)}&${H.rangeQ()}${modelQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('adcreative', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    let d; try { d = await get(`/api/hub/creative?act=${encodeURIComponent(a.act_id)}&${H.rangeQ()}${modelQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('adcreative', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const cur = d.currency, g = d.goals || {}, ads = d.ads || [];
     const goal = g.cpa || (() => { const s = ads.reduce((x, r) => x + r.spend, 0), o = ads.reduce((x, r) => x + r.purchases, 0); return o ? s / o : null; })();
-    const verdict = r => r.spend < (goal || 50) ? 'thin' : r.purchases >= 2 && r.cpa <= goal ? 'scale' : r.cpa && r.cpa <= goal * 1.3 ? 'watch' : 'cut';
-    const VL = { scale: ['Scale', 'good'], watch: ['Watch', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''] };
+    /* THE RULE (2026-10-08, shown on screen): an ad is judged once it has spent one goal CPA and
+       run 3 days. Scale = 2+ purchases at or under goal. Cut = 3x the goal spent with no purchase
+       (an ad truly on goal has about a 5% chance of that), or 2x spent at a CPA over 1.5x goal.
+       Everything judged in between is Watch. */
+    const verdict = r => { if (!goal) return 'thin'; if (r.age != null && r.age < 3) return 'new'; if (r.spend < goal) return 'thin';
+      if (r.purchases >= 2 && r.cpa <= goal) return 'scale';
+      if ((!r.purchases && r.spend >= goal * 3) || (r.purchases && r.spend >= goal * 2 && r.cpa > goal * 1.5)) return 'cut';
+      return 'watch'; };
+    const VL = { scale: ['Scale', 'good'], watch: ['Watch', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''] };
+    const RULE = `Judged once an ad has spent one goal CPA (${money(goal, cur)}) and run 3 days. <b>Scale</b>: 2+ purchases at or under the goal. <b>Cut</b>: 3x the goal spent with no purchase, or 2x spent at a CPA over 1.5x the goal. <b>Watch</b>: judged, neither.`;
     const top = ads.slice(0, 60);
     /* Quadrant: spend (x, log) against CPA (y), bubble = purchases, goal line. */
     const quad = (() => {
-      const w = 760, h = 300, pl = 54, pr = 16, pt = 14, pb = 34; const pts = top.filter(r => r.spend > 0);
+      const w = 560, h = 330, pl = 58, pr = 14, pt = 14, pb = 40; const pts = top.filter(r => r.spend > 0);
       if (pts.length < 3) return '<p class="v2hint">Not enough ads with spend.</p>';
       const sx = Math.log10(Math.max(...pts.map(r => r.spend))), sx0 = Math.log10(Math.max(1, Math.min(...pts.map(r => r.spend))));
       const cpas = pts.map(r => r.cpa ?? (goal ? goal * 3 : 0)); const ymx = Math.min(Math.max(...cpas, goal || 0) * 1.1, (goal || Math.max(...cpas)) * 4);
       const X = v => pl + (Math.log10(Math.max(1, v)) - sx0) / Math.max(0.3, sx - sx0) * (w - pl - pr), Y = v => pt + (1 - Math.min(v, ymx) / ymx) * (h - pt - pb);
-      const col = r => ({ scale: '--good', watch: '--warn', cut: '--bad', thin: '--v2-cmp' })[verdict(r)];
-      const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(ymx * f)}" y2="${Y(ymx * f)}" stroke="var(--v2-grid)"/><text x="${pl - 6}" y="${Y(ymx * f) + 4}" font-size="10" text-anchor="end" fill="var(--muted)">${money(ymx * f, cur)}</text>`).join('');
-      const xt = [10, 100, 1000, 10000, 100000].filter(v => Math.log10(v) >= sx0 && Math.log10(v) <= sx + 0.1).map(v => `<text x="${X(v)}" y="${h - 12}" font-size="10" text-anchor="middle" fill="var(--muted)">${kmoney(v, cur)}</text>`).join('');
-      const dots = pts.map((r, i) => `<circle data-i="${i}" cx="${X(r.spend).toFixed(1)}" cy="${Y(r.cpa ?? ymx).toFixed(1)}" r="${(4 + Math.sqrt(r.purchases || 0) * 2.2).toFixed(1)}" fill="var(${col(r)})" fill-opacity=".55" stroke="var(${col(r)})" stroke-width="1.2"/>`).join('');
-      return `<div class="v2chart"><svg id="v2quad" viewBox="0 0 ${w} ${h}">${grid}${xt}${goal ? `<line x1="${pl}" x2="${w - pr}" y1="${Y(goal)}" y2="${Y(goal)}" stroke="var(--brand)" stroke-dasharray="4 4"/><text x="${w - pr}" y="${Y(goal) - 6}" font-size="11" text-anchor="end" fill="var(--brand)">goal ${money(goal, cur)}</text>` : ''}
-        <text x="${pl}" y="${h - 2}" font-size="10" fill="var(--muted)">Spend in the window (log scale) →</text>${dots}</svg><div class="v2tip"></div></div>`;
+      const col = r => ({ scale: '--good', watch: '--warn', cut: '--bad', thin: '--v2-cmp', new: '--v2-cmp' })[verdict(r)];
+      const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(ymx * f)}" y2="${Y(ymx * f)}" stroke="var(--v2-grid)"/><text x="${pl - 7}" y="${Y(ymx * f) + 4}" font-size="12.5" text-anchor="end" fill="var(--muted)">${money(ymx * f, cur)}</text>`).join('');
+      const xt = [10, 100, 1000, 10000, 100000].filter(v => Math.log10(v) >= sx0 && Math.log10(v) <= sx + 0.1).map(v => `<text x="${X(v)}" y="${h - 20}" font-size="12.5" text-anchor="middle" fill="var(--muted)">${kmoney(v, cur)}</text>`).join('');
+      const dots = pts.map((r, i) => `<circle data-i="${i}" cx="${X(r.spend).toFixed(1)}" cy="${Y(r.cpa ?? ymx).toFixed(1)}" r="${(5 + Math.sqrt(r.purchases || 0) * 2.4).toFixed(1)}" style="cursor:pointer" fill="var(${col(r)})" fill-opacity=".55" stroke="var(${col(r)})" stroke-width="1.2"/>`).join('');
+      return `<div class="v2chart"><svg id="v2quad" viewBox="0 0 ${w} ${h}">${grid}${xt}${goal ? `<line x1="${pl}" x2="${w - pr}" y1="${Y(goal)}" y2="${Y(goal)}" stroke="var(--brand)" stroke-dasharray="4 4"/><text x="${w - pr}" y="${Y(goal) - 7}" font-size="13" font-weight="600" text-anchor="end" fill="var(--brand)">goal ${money(goal, cur)}</text>` : ''}
+        <text x="${pl}" y="${h - 2}" font-size="12.5" fill="var(--muted)">Spend in the window, log scale →</text><text x="14" y="${pt + 4}" font-size="12.5" fill="var(--muted)" transform="rotate(-90 14 ${pt + 4})" text-anchor="end">Cost per purchase</text>${dots}</svg><div class="v2tip"></div></div>`;
     })();
     const hookhold = (() => {
-      const w = 760, h = 260, pl = 44, pr = 16, pt = 14, pb = 30; const pts = top.filter(r => r.hook != null && r.hold != null && r.spend > 20);
+      const w = 560, h = 330, pl = 50, pr = 14, pt = 14, pb = 40; const pts = top.filter(r => r.hook != null && r.hold != null && r.spend > 20);
       if (pts.length < 3) return '<p class="v2hint">Not enough video ads with spend.</p>';
       const hx = Math.max(...pts.map(r => r.hook)) * 1.1, hy = Math.max(...pts.map(r => r.hold)) * 1.1;
       const X = v => pl + v / hx * (w - pl - pr), Y = v => pt + (1 - v / hy) * (h - pt - pb);
       const mh = pts.reduce((s, r) => s + r.hook, 0) / pts.length, mo = pts.reduce((s, r) => s + r.hold, 0) / pts.length;
-      return `<div class="v2chart"><svg id="v2hh" viewBox="0 0 ${w} ${h}"><line x1="${X(mh)}" x2="${X(mh)}" y1="${pt}" y2="${h - pb}" stroke="var(--v2-grid)"/><line x1="${pl}" x2="${w - pr}" y1="${Y(mo)}" y2="${Y(mo)}" stroke="var(--v2-grid)"/>
-        <text x="${w - pr}" y="${pt + 10}" font-size="10" text-anchor="end" fill="var(--muted)">stops the scroll and keeps them</text><text x="${pl + 4}" y="${h - pb - 6}" font-size="10" fill="var(--muted)">loses them early</text>
-        <text x="${pl}" y="${h - 6}" font-size="10" fill="var(--muted)">Hook rate →  (3-second plays ÷ impressions)</text>
-        ${pts.map((r, i) => `<circle data-i="${i}" cx="${X(r.hook).toFixed(1)}" cy="${Y(r.hold).toFixed(1)}" r="${(4 + Math.sqrt(r.spend) / 8).toFixed(1)}" fill="var(--c-tiktok)" fill-opacity=".45" stroke="var(--c-tiktok)"/>`).join('')}</svg><div class="v2tip"></div></div>`;
+      const gx = [0.25, 0.5, 0.75, 1].map(f => `<text x="${X(hx * f / 1.1)}" y="${h - 20}" font-size="12.5" text-anchor="middle" fill="var(--muted)">${pct(hx * f / 1.1, 0)}</text>`).join('') + [0.25, 0.5, 0.75, 1].map(f => `<text x="${pl - 7}" y="${Y(hy * f / 1.1) + 4}" font-size="12.5" text-anchor="end" fill="var(--muted)">${pct(hy * f / 1.1, 0)}</text>`).join('');
+      return `<div class="v2chart"><svg id="v2hh" viewBox="0 0 ${w} ${h}">${gx}<line x1="${X(mh)}" x2="${X(mh)}" y1="${pt}" y2="${h - pb}" stroke="var(--line-strong)" stroke-dasharray="3 4"/><line x1="${pl}" x2="${w - pr}" y1="${Y(mo)}" y2="${Y(mo)}" stroke="var(--line-strong)" stroke-dasharray="3 4"/>
+        <text x="${w - pr}" y="${pt + 12}" font-size="12.5" font-weight="600" text-anchor="end" fill="var(--good)">stops the scroll and keeps them</text><text x="${pl + 6}" y="${h - pb - 8}" font-size="12.5" fill="var(--muted)">loses them early</text>
+        <text x="${pl}" y="${h - 2}" font-size="12.5" fill="var(--muted)">Hook rate: 3-second plays per impression →</text><text x="14" y="${pt + 4}" font-size="12.5" fill="var(--muted)" transform="rotate(-90 14 ${pt + 4})" text-anchor="end">Hold rate</text>
+        ${pts.map((r, i) => `<circle data-i="${i}" cx="${X(r.hook).toFixed(1)}" cy="${Y(r.hold).toFixed(1)}" r="${(5 + Math.sqrt(r.spend) / 7).toFixed(1)}" fill="var(${({ scale: '--good', watch: '--warn', cut: '--bad' })[verdict(r)] || '--v2-cmp'})" fill-opacity=".5" stroke="var(${({ scale: '--good', watch: '--warn', cut: '--bad' })[verdict(r)] || '--v2-cmp'})"/>`).join('')}</svg><div class="v2tip"></div></div>`;
     })();
     const fat = d.fatigue || []; const fmx = Math.max(...fat.map(f => f.cpa || 0), goal || 0, 1);
-    const fatigue = `<div class="v2bars">${fat.map(f => `<div class="b"><div class="col"><i style="height:${f.cpa ? (f.cpa / fmx * 100).toFixed(1) : 0}%;background:${goal && f.cpa > goal * 1.3 ? 'var(--bad)' : goal && f.cpa > goal ? 'var(--warn)' : 'var(--good)'}"></i>${goal ? `<b style="bottom:${(goal / fmx * 100).toFixed(1)}%"></b>` : ''}</div><span class="v">${money(f.cpa, cur)}</span><span class="l">${esc(f.label)}</span><span class="s">${kmoney(f.spend, cur)}</span></div>`).join('')}</div>`;
+    const fatigue = `<div class="v2bars">${fat.map(f => `<div class="b"${tipAttr(`<b>${esc(f.label)}</b> · ${money(f.cpa, cur)} per purchase on ${kmoney(f.spend, cur)}${goal ? ` · goal ${money(goal, cur)}` : ''}`)}><div class="col"><i style="height:${f.cpa ? (f.cpa / fmx * 100).toFixed(1) : 0}%;background:${goal && f.cpa > goal * 1.3 ? 'var(--bad)' : goal && f.cpa > goal ? 'var(--warn)' : 'var(--good)'}"></i>${goal ? `<b style="bottom:${(goal / fmx * 100).toFixed(1)}%"></b>` : ''}</div><span class="v">${money(f.cpa, cur)}</span><span class="l">${esc(f.label)}</span><span class="s">${kmoney(f.spend, cur)}</span></div>`).join('')}</div>`;
     const firstFat = fat.find((f, i) => i > 0 && goal && f.cpa > goal * 1.2 && f.spend > 100);
     const wk = d.weeks || []; const wmx = Math.max(...wk.map(x => x.launched), 1);
-    const cadence = `<div class="v2bars cad">${wk.map(x => `<div class="b"><div class="col"><i style="height:${(x.launched / wmx * 100).toFixed(1)}%;background:var(--brand)"></i></div><span class="v">${x.launched}</span><span class="l">${day(x.week)}</span><span class="s">${pct(x.fresh_share, 0)} fresh</span></div>`).join('')}</div>`;
+    const cadence = `<div class="v2bars cad">${wk.map(x => `<div class="b"${tipAttr(`<b>Week of ${day(x.week)}</b> · ${x.launched} new ads · ${pct(x.fresh_share, 0)} of spend on ads under 14 days old`)}><div class="col"><i style="height:${(x.launched / wmx * 100).toFixed(1)}%;background:var(--brand)"></i></div><span class="v">${x.launched}</span><span class="l">${day(x.week)}</span><span class="s">${pct(x.fresh_share, 0)} fresh</span></div>`).join('')}</div>`;
     const roll = (list, label) => { const mx = Math.max(...list.map(x => x.spend), 1); return `<div class="v2tbl"><table><thead><tr><th>${label}</th><th>Ads</th><th>Spend</th><th>ROAS</th><th>CPA</th><th>CTR</th><th>Hook</th></tr></thead><tbody>${list.slice(0, 10).map(x => `<tr><td><b>${esc(x.key)}</b></td><td>${x.ads}</td><td>${ib(x.spend, mx, null, kmoney(x.spend, cur))}</td><td>${x2(x.roas)}</td><td class="${!goal || x.cpa == null ? '' : x.cpa <= goal ? 'good' : x.cpa <= goal * 1.3 ? 'warn' : 'bad'}">${money(x.cpa, cur)}</td><td>${pct(x.ctr, 2)}</td><td>${pct(x.hook, 0)}</td></tr>`).join('')}</tbody></table></div>`; };
-    const gallery = `<div class="v2gal">${ads.slice(0, 16).map(r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}"><span class="v2pill ${VL[v][1]}">${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
+    const gallery = `<div class="v2gal">${ads.slice(0, 24).map(r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><span class="v2pill ${VL[v][1]}">${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
       <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${!goal || r.cpa == null ? '' : r.cpa <= goal ? 'good' : 'bad'}">${money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b></div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; }).join('')}</div>`;
     const counts = ads.reduce((s, r) => { s[verdict(r)] = (s[verdict(r)] || 0) + 1; return s; }, {});
-    const body = `<p class="v2say lead">${ads.length} ads spent in this window. ${counts.scale || 0} are buying under the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}, ${counts.watch || 0} are close, ${counts.cut || 0} are over by more than 30%.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
-      <div class="v2two">${card('Where every ad sits', 'Right and low is where you want to be: big spend, cheap purchases. Bubble size is purchases.', legend([{ color: '--good', label: 'Scale' }, { color: '--warn', label: 'Watch' }, { color: '--bad', label: 'Cut' }, { color: '--v2-cmp', label: 'Not enough spend' }]) + quad)}
-        ${card('Hook against hold', 'Top right stops the scroll and keeps people watching. Bubble size is spend.', hookhold)}</div>
+    const body = `<p class="v2say lead">${ads.length} ads spent in this window. <b class="good">${counts.scale || 0} to scale</b>, <b class="warn">${counts.watch || 0} to watch</b>, <b class="bad">${counts.cut || 0} to cut</b>${counts.thin || counts.new ? `, ${(counts.thin || 0) + (counts.new || 0)} not judged yet` : ''}, against the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
+      <div class="v2note v2rule"><span class="v2pill">How the calls work</span><span>${RULE}</span></div>
+      ${card('The ads, by spend', 'Click an ad to see it play, its copy and its numbers.', gallery, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`)}
+      <div class="v2two eq">${card('Where every ad sits', 'Right and low is where you want to be: big spend, cheap purchases. Bubble size is purchases. Click one to see it.', legend([{ color: '--good', label: 'Scale' }, { color: '--warn', label: 'Watch' }, { color: '--bad', label: 'Cut' }, { color: '--v2-cmp', label: 'Not judged yet' }]) + quad)}
+        ${card('Hook against hold', 'Top right stops the scroll and keeps people watching. Dashed lines are this account’s averages. Bubble size is spend.', hookhold)}</div>
       <div class="v2two">${card('When ads tire', firstFat ? `Cost per purchase rises past the goal from ${esc(firstFat.label.toLowerCase())}.` : 'No age bucket runs more than 20% over the goal.', fatigue, 'cost per purchase by days since an ad first spent; tick = goal')}
         ${card('Are we launching enough?', `${int(wk.reduce((s, x) => s + x.launched, 0))} ads launched in 12 weeks; ${pct(wk.length ? wk[wk.length - 1].fresh_share : null, 0)} of last week’s spend went to ads under 14 days old.`, cadence, 'new ads per week; % of that week’s spend on fresh ads')}</div>
       ${card('By angle', 'The argument each ad makes, from the test number at the start of its name.', roll(d.by_angle || [], 'Angle'))}
       <div class="v2two">${card('By format', 'The tag after the last | in the ad name.', roll(d.by_format || [], 'Format tag'))}${card('By type', '', roll(d.by_type || [], 'Type'))}</div>
-      ${card('The ads, by spend', 'Click a purchases number for the orders behind it.', gallery, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`)}
       ${foot('Format comes from the tag after the last | in the ad name; angle from the test number at the start of the name, matched to the test library. Delivery numbers are Meta’s; purchases follow the attribution switch.')}`;
     $('#main').innerHTML = shell('adcreative', title, body);
     const root = $('#main'); wireGo(root);
-    const tipFor = (svgId, list, fn) => { const s = document.getElementById(svgId); if (!s) return; const tip = s.parentNode.querySelector('.v2tip'); s.querySelectorAll('circle[data-i]').forEach(cEl => { cEl.onpointerenter = cEl.onpointerdown = e => { const r = list[+cEl.dataset.i]; const box = s.getBoundingClientRect(); tip.style.display = 'block'; tip.innerHTML = fn(r); let left = e.clientX - box.left + 12; if (left + tip.offsetWidth > box.width) left = e.clientX - box.left - tip.offsetWidth - 12; tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - box.top - 40) + 'px'; }; cEl.onpointerleave = () => tip.style.display = 'none'; cEl.onclick = () => drillOrders(r.name, `ad=${encodeURIComponent(r.id)}`); }); };
+    const tipFor = (svgId, list, fn) => { const s = document.getElementById(svgId); if (!s) return; const tip = s.parentNode.querySelector('.v2tip'); s.querySelectorAll('circle[data-i]').forEach(cEl => { cEl.onpointerenter = cEl.onpointerdown = e => { const r = list[+cEl.dataset.i]; const box = s.getBoundingClientRect(); tip.style.display = 'block'; tip.innerHTML = fn(r); let left = e.clientX - box.left + 12; if (left + tip.offsetWidth > box.width) left = e.clientX - box.left - tip.offsetWidth - 12; tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - box.top - 40) + 'px'; }; cEl.onpointerleave = () => tip.style.display = 'none'; cEl.onclick = () => previewAd(r, cur, g); }); };
     tipFor('v2quad', top.filter(r => r.spend > 0), r => `<b>${esc(r.name)}</b><br>${kmoney(r.spend, cur)} spend · ${int(r.purchases)} purchases · CPA ${money(r.cpa, cur)} · ROAS ${x2(r.roas)}`);
     tipFor('v2hh', top.filter(r => r.hook != null && r.hold != null && r.spend > 20), r => `<b>${esc(r.name)}</b><br>hook ${pct(r.hook, 0)} · hold ${pct(r.hold, 0)} · ${kmoney(r.spend, cur)} · CPA ${money(r.cpa, cur)}`);
     root.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); drillOrders(btn.closest('.g')?.querySelector('b')?.textContent || 'Orders', `ad=${encodeURIComponent(btn.dataset.drill.split(':')[1])}`); });
-    /* Thumbnails, after the paint. */
-    const ids = ads.slice(0, 16).map(r => r.id);
-    if (ids.length) H.apiAH(`/api/ad-creatives?act=${encodeURIComponent(a.act_id)}&ads=${ids.join(',')}`).then(r => { if (t !== H.RUN()) return; for (const [id, x] of Object.entries(r.assets || {})) { const el = root.querySelector(`[data-thumb="${CSS.escape(id)}"]`); const src = x.thumb || x.image || x.cover; if (el && src) el.style.backgroundImage = `url("${src}")`; } }).catch(() => {});
+    /* Covers after the paint; any card opens the preview. */
+    const byId = new Map(ads.map(r => [r.id, r]));
+    root.querySelectorAll('.v2gal [data-prev]').forEach(el => { const go = () => previewAd(byId.get(el.dataset.prev), cur, g); el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+    loadThumbs(root, ads.slice(0, 24).map(r => r.id));
   }
 
   /* =========================================================================================
@@ -432,7 +510,7 @@
     const t = H.RUN(); const P = PLAT[kind]; const one = H.S.act !== 'all';
     const title = one ? `${P.label}: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}` : P.label;
     if (first) $('#main').innerHTML = shell(kind, title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
-    let d; try { d = await H.api(`/api/hub/paid?platform=${kind}&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell(kind, title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    let d; try { d = await get(`/api/hub/paid?platform=${kind}&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell(kind, title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const bs = d.brands.filter(b => (b.cur.spend || 0) > 0 || (b.cur.revenue || 0) > 0); const cur = oneCur(bs.length ? bs : d.brands);
     const sum = (k, src = 'cur') => bs.reduce((s, b) => s + ((b[src] || {})[k] || 0), 0);
@@ -444,7 +522,7 @@
     const prows = [...pm.values()].sort((x, y) => x.date < y.date ? -1 : 1);
     const g = one && bs[0] ? bs[0].goals || {} : {};
     const body = !bs.length ? `${card(`${P.label} is not connected directly`, '', `<p class="v2hint">No ${P.label} spend in this window${one ? ' for this brand' : ''}, as far as Triple Whale sees. ${esc(P.adds)}</p><button type="button" class="v2btn" data-go="settings">Open Connections</button>`)}` : `
-      <div class="v2note"><span class="v2pill warn">via Triple Whale</span> ${esc(P.adds)} <button type="button" class="v2link" data-go="settings">Connections ›</button></div>
+      <div class="v2note"><span class="v2pill warn">via Triple Whale</span> <span>${P.label} is not connected to Locus directly yet, so this page shows what Triple Whale carries: ${P.label}'s daily spend, impressions and clicks, and the orders Triple Whale credits to ${P.label}. No campaigns or ads until it is connected.</span> <button type="button" class="v2link" data-go="settings">Connections ›</button></div>
       <div class="v2tiles">${[
         tile({ compact: true, label: 'Spend', src: P.label.toUpperCase(), value: kmoney(c.spend, cur), delta: delta(c.spend, p.spend, 'n'), sub: `${int(c.impr)} impressions · ${pct(c.impr ? c.clicks / c.impr : null, 2)} CTR` }),
         tile({ compact: true, label: 'Revenue', src: isPlat() ? P.label.toUpperCase() : 'TW', value: kmoney(isPlat() ? c.pr : c.rev, cur), delta: delta(c.rev, p.rev), sub: isPlat() ? '' : `${P.label} reports ${kmoney(c.pr, cur)}` }),
@@ -452,7 +530,8 @@
         tile({ compact: true, label: 'Cost per purchase', hint: 'lower is better', value: money(c.ord ? c.spend / c.ord : null, cur), delta: delta(c.ord ? c.spend / c.ord : null, p.ord ? p.spend / p.ord : null, true), sub: `${int(c.ord)} purchases`, bullet: bullet(c.ord ? c.spend / c.ord : null, g.cpa, true, g.cpa ? `goal ${money(g.cpa, cur)}` : '') })].join('')}</div>
       ${cur && rows.length > 1 ? card('Revenue and spend by day', `Revenue credited to ${P.label} under ${esc(MODEL_SHORT[H.S.model])}.`, legend([{ color: '--brand', label: 'Revenue' }, { color: '--c-google', label: 'Spend' }, ...(prows.length ? [{ dash: true, label: cmpLabel() }] : [])]) + lineChart('v2plat', rows.map(r => ({ ...r, v: r.revenue, s: r.spend })), { key: 'v', key2: 's', prev: prows.map(r => ({ ...r, v: r.revenue })), cur })) : ''}
       ${!one ? card(`Each brand on ${P.label}`, 'Click a brand to open it.', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Spend</th><th>Revenue</th><th>${esc(P.label)} says</th><th>Gap</th><th>ROAS</th><th>CPA</th><th>CTR</th></tr></thead><tbody>${bs.sort((x, y) => y.cur.spend - x.cur.spend).map(b => { const x = b.cur; const gap = isPlat() || x.platform_revenue == null ? null : x.revenue - x.platform_revenue; return `<tr data-act="${esc(b.act_id)}" tabindex="0" class="link"><td><b>${esc(b.name)}</b></td><td>${ib(x.spend, Math.max(...bs.map(y => y.cur.spend), 1), P.color, kmoney(x.spend, b.currency))}</td><td>${kmoney(x.revenue, b.currency)} ${delta(x.revenue, b.prev?.revenue)}</td><td class="faint">${kmoney(x.platform_revenue, b.currency)}</td><td class="${gap == null ? '' : gap >= 0 ? 'good' : 'bad'}">${gap == null ? '–' : (gap >= 0 ? '+' : '−') + kmoney(Math.abs(gap), b.currency)}</td><td>${x2(x.roas)}</td><td>${money(x.cpa, b.currency)}</td><td>${pct(x.ctr, 2)}</td></tr>`; }).join('')}</tbody></table></div>`, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`) : ''}
-      ${one ? `<button type="button" class="v2link" data-drill="platform:${kind}">See the orders ${esc(P.label)} is credited with ›</button>` : ''}`;
+      ${one ? `<div class="v2gos"><button type="button" class="v2go" data-drill="platform:${kind}"><b>The orders ${esc(P.label)} is credited with</b><span>Each order, its value, whether it was a first order, and the customer's whole journey.</span><i>›</i></button><button type="button" class="v2go" data-go="channels"><b>${esc(P.label)} next to every other channel</b><span>Spend, revenue, ROAS and new customers side by side, with each platform's own claim.</span><i>›</i></button></div>` : ''}
+      ${card(`What connecting ${P.label} directly adds`, '', `<p class="v2hint">${esc(P.adds)}</p><p class="v2hint" style="margin-top:8px">${kind === 'google' ? 'What it needs from Cole: a Google Cloud project with the Google Ads API switched on, and a Google Ads developer token from the agency manager account.' : 'What it needs from Cole: a TikTok for Business developer app approved for the Marketing API, and each brand’s ad account shared to it.'}</p>`)}`;
     $('#main').innerHTML = shell(kind, title, body + foot(`Spend, impressions and clicks are ${P.label}’s own as Triple Whale carries them. Revenue and purchases follow the attribution switch; ${P.label}’s own figures sit beside them.`));
     const root = $('#main'); wireGo(root); wireRows(root, kind);
     if (rows.length > 1) wireLine('v2plat', rows, { tip: r => `<b>${day(r.date)}</b> · revenue ${kmoney(r.revenue, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · ROAS ${x2(r.revenue / r.spend)}` : ''}` });
@@ -466,7 +545,7 @@
     const t = H.RUN(); const one = H.S.act !== 'all';
     const title = one ? `All channels: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}` : 'All channels';
     if (first) $('#main').innerHTML = shell('channels', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
-    let d; try { d = await H.api(`/api/hub/paid?platform=all&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('channels', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    let d; try { d = await get(`/api/hub/paid?platform=all&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('channels', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const bs = d.brands; const cur = oneCur(bs);
     const agg = {}; for (const b of bs) for (const r of b.rows) { const o = agg[r.id] ||= { id: r.id, label: r.label, spend: 0, revenue: 0, platform_revenue: 0, prev_revenue: 0, prev_spend: 0, nc: 0, hasP: false }; o.spend += r.spend || 0; o.revenue += r.revenue || 0; if (r.platform_revenue != null) { o.platform_revenue += r.platform_revenue; o.hasP = true; } o.prev_revenue += r.prev_revenue || 0; o.prev_spend += r.prev_spend || 0; o.nc += r.nc || 0; }
@@ -496,7 +575,7 @@
     const t = H.RUN(); const one = H.S.act !== 'all';
     const title = one ? `Sales: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}` : 'Sales';
     if (first) $('#main').innerHTML = shell('store', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
-    let d; try { d = await H.api(`/api/hub/store?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('store', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    let d; try { d = await get(`/api/hub/store?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('store', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const bs = d.brands.filter(b => b.cur && b.cur.revenue); const cur = oneCur(bs.length ? bs : d.brands);
     if (!one) {
@@ -541,7 +620,7 @@
     const t = H.RUN(); const one = H.S.act !== 'all'; const a = H.S.accounts.find(x => x.act_id === H.S.act);
     const title = one ? `Email and SMS: ${esc(a?.name || '')}` : 'Email and SMS';
     if (first) $('#main').innerHTML = shell('email', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
-    let d; try { d = await H.api(`/api/hub/email?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('email', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    let d; try { d = await get(`/api/hub/email?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('email', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const bs = d.brands; const cur = oneCur(bs);
     if (!one) {
