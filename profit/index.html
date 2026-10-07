@@ -1938,6 +1938,7 @@
       </div>
       <div class="grp" data-g="store"><button class="band" type="button" data-grp="store"><span>Store</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="grp-btns">
+          <button data-t="store"><svg class="ic"><use href="#i-store"/></svg><span>Sales</span></button>
           <button data-t="customers"><svg class="ic"><use href="#i-customers"/></svg><span>Customers</span></button>
         </div>
       </div>
@@ -2180,7 +2181,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash'].includes(open)) {
+  if (open && ['overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     // New-client Slack posts open a brand straight on Brand info or Research.
@@ -2881,6 +2882,7 @@ const TAB_PURPOSE = {
   tiktok:    'TikTok Ads for this brand: what Triple Whale sees today, and what connecting TikTok directly adds.',
   email:     'Email and SMS for this brand: how much of the store\'s revenue email makes, campaigns against flows, the list, and what Klaviyo is running.',
   dash:      'Dashboards the team asked for and kept. Ask the Strategist for one in words; it draws live every time it opens and can post itself to Slack.',
+  store:     'What the store did: revenue, orders, average order, new against returning, email share, and the day or the hour. The same revenue line as everywhere else in Locus.',
 };
 /* Settings sections: key, name in the list, one line saying what it is for. */
 const SET_SECS = [
@@ -2919,7 +2921,7 @@ const TAB_CRUMB = {
   overview: ['Home', 'Overview'], brief: ['Home', 'Daily Brief'],
   meta: ['Paid ads', 'Meta'], tests: ['Paid ads', 'Meta &nbsp;/&nbsp; Test calls'], google: ['Paid ads', 'Google'], tiktok: ['Paid ads', 'TikTok'],
   email: ['Email &amp; SMS', 'Klaviyo'],
-  customers: ['Store', 'Customers'],
+  store: ['Store', 'Sales'], customers: ['Store', 'Customers'],
   studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], angles: ['Creative', 'Tests and angles'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
   reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'], season: ['Reports', 'Season'], calc: ['Reports', 'Scenarios'],
   profit: ['Money &amp; plan', 'Profit'], plan: ['Money &amp; plan', 'Plan'],
@@ -2927,7 +2929,7 @@ const TAB_CRUMB = {
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
@@ -2935,7 +2937,11 @@ const whoChip = tab => TAB_WHO[tab] ? `<span class="ph-who">${WHO_LABEL[TAB_WHO[
 const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
-const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'email', 'reports', 'dash', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'dash', 'calc'] };
+const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'email', 'store', 'reports', 'dash', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'store', 'dash', 'calc'] };
+/* Where a role lands (the hub, 2026-10-07): the media buyer on Test calls, the strategist on
+   Tests and angles, everyone else on Home. Used when the role switch is pressed and the open
+   page is not one of that role's. */
+const ROLE_HOME = { buyer: 'tests', strategist: 'angles', all: 'overview' };
 function applyRole() {
   let role = 'all';
   try { role = localStorage.getItem('pf_role') || 'all'; } catch {}
@@ -2954,7 +2960,7 @@ function applyRole() {
 }
 document.addEventListener('click', e => {
   const r = e.target.closest('#roleSeg [data-role]');
-  if (r) { try { localStorage.setItem('pf_role', r.dataset.role); } catch {} applyRole(); return; }
+  if (r) { try { localStorage.setItem('pf_role', r.dataset.role); } catch {} applyRole(); const role = r.dataset.role, cur = (typeof PARENT_OF !== 'undefined' && PARENT_OF[S.tab]) || S.tab; if (ROLE_TABS[role] && !ROLE_TABS[role].includes(cur) && S.tab !== 'tests') show(ROLE_HOME[role] || 'overview'); return; }
   if (e.target.closest('#btnGuide')) { show('guide'); return; }
   const go = e.target.closest('[data-go]');
   if (go) {
@@ -4209,9 +4215,9 @@ let RUN = 0;
 
 /* Tabs whose data actually follows the range picker. Everywhere else it is hidden
    rather than left visible and inert - a control that does nothing reads as broken. */
-const RANGE_TABS = new Set(['overview', 'profit', 'customers', 'email', 'google', 'tiktok']);
+const RANGE_TABS = new Set(['overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store']);
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards',
+const TAB_TITLE = { season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4495,7 +4501,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, google: f => renderPlatform('google', f), tiktok: f => renderPlatform('tiktok', f), email: renderEmail, dash: renderDash })[tab](first); }
+  try { r = ({ overview: renderOverview, profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: renderMeta, customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, google: f => renderPlatform('google', f), tiktok: f => renderPlatform('tiktok', f), email: renderEmail, dash: renderDash, store: renderStore })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -5111,16 +5117,31 @@ function ovReadHtml(r) {
     ${r.focus ? `<div class="hm-focus"><span>Focus today</span>${esc(r.focus)}</div>` : ''}
   </div>`;
 }
-async function ovReadLoad(facts, scope) {
-  const key = JSON.stringify([scope, facts]);
-  if (OVR.key === key && OVR.data && Date.now() - OVR.at < 60 * 60 * 1000) return OVR.data;
-  const r = await apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen: 'overview', scope, range: rangeLabel(), compare: CMP_LABEL[S.cmp] || 'none', facts }) });
-  OVR.key = key; OVR.data = r; OVR.at = Date.now();
+const OVR_ALL = {};
+async function ovReadLoad(facts, scope, screen = 'overview') {
+  const key = JSON.stringify([screen, scope, facts]);
+  const c = OVR_ALL[screen];
+  if (c && c.key === key && c.data && Date.now() - c.at < 60 * 60 * 1000) return c.data;
+  const r = await apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen, scope, range: rangeLabel(), compare: CMP_LABEL[S.cmp] || 'none', facts }) });
+  OVR_ALL[screen] = { key, data: r, at: Date.now() };
+  if (screen === 'overview') { OVR.key = key; OVR.data = r; OVR.at = Date.now(); }
   return r;
 }
-function wireOvAsk(scope) {
+function wireOvAsk(scope, screen = 'Overview') {
   const b = document.getElementById('ovAsk');
-  if (b) b.onclick = () => AskUI.open(`About the Overview for ${scope} (${rangeLabel()}): `);
+  if (b) b.onclick = () => AskUI.open(`About the ${screen} for ${scope} (${rangeLabel()}): `);
+}
+/** The read on any screen: inserts the card after the page head and fills it after the
+ *  paint. `screen` is the id the worker caches by; `name` is what the Ask prefill says. */
+function mountRead(screen, name, scope, facts) {
+  const ph = document.querySelector('#main .ph'); if (!ph || document.getElementById('ovRead')) return;
+  ph.insertAdjacentHTML('afterend', ovReadHtml(null));
+  wireOvAsk(scope, name);
+  const run = RUN, tab = S.tab, key = S.act;
+  ovReadLoad(facts, scope, screen).then(r => {
+    if (run !== RUN || S.tab !== tab || S.act !== key) return;
+    const el = document.getElementById('ovRead'); if (el) { el.outerHTML = ovReadHtml(r); wireOvAsk(scope, name); }
+  }).catch(e => { const el = document.getElementById('ovRead'); if (el && run === RUN) { el.outerHTML = ovReadHtml({ error: e.message }); wireOvAsk(scope, name); } });
 }
 
 /** Two lines over the window plus the compare period ghosted. Same geometry as
@@ -5391,6 +5412,8 @@ async function renderEmail(first) {
   $('#main').innerHTML = shell(`${tiles}${brandRows}${live}
     <details class="footnote"><summary>How these numbers are defined</summary><div class="fn-body"><b>Email and SMS revenue</b> is Klaviyo's placed-order revenue as Triple Whale carries it (campaigns plus flows), which is Klaviyo's own attribution, not Triple Whale's pixel. <b>Share</b> divides it by store revenue (Shopify Total Sales minus tax). Campaign results in the table below are Klaviyo's over the last 90 days.</div></details>`);
   $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('email'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+  if (oneCur && rev != null) mountRead('email', 'Email and SMS screen', one ? one.name : `all ${all.length} brands`, { currency: oneCur, email_revenue: rev, email_revenue_compare: prev, store_revenue: sales, email_share: sales ? rev / sales : null, campaigns_revenue: camp, flows_revenue: flows,
+    brands: one ? undefined : all.map(a => { const e = em(a); return { name: a.name, email_revenue: e.rev, share: e.rev != null && e.sales ? Math.round(e.rev / e.sales * 100) + '%' : null, vs_compare: e.prev ? Math.round((e.rev / e.prev - 1) * 100) + '%' : null }; }) });
   if (!one) return;
   let ov = null, camps = null, err = null;
   try { [ov, camps] = await Promise.all([apiAH(`/api/klaviyo?act=${encodeURIComponent(one.act_id)}&what=overview`), apiAH(`/api/klaviyo?act=${encodeURIComponent(one.act_id)}&what=campaigns`).catch(() => null)]); }
@@ -5415,6 +5438,73 @@ async function renderEmail(first) {
     <div class="card key"><div class="ovt-hd"><h3>Recent campaigns</h3><span class="hint">Klaviyo's own results, last 90 days. Conversion value is Klaviyo's placed-order attribution.</span></div>
       ${camprows ? `<div class="tbl-wrap"><table class="ovt"><thead><tr><th>Campaign</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th></tr></thead><tbody>${camprows}</tbody></table></div>` : `<p class="hint">${esc(camps?.results_note || 'No campaign results came back.')}</p>`}
     </div>`;
+}
+
+/* ---------- Store > Sales (the hub, 2026-10-07) ----------
+   What the store did, store level, the same revenue line as everywhere else: revenue, orders,
+   AOV, new against returning (orders and money), email share, the day by day, and the hour by
+   hour for a single-day window. Product-level sales wait for the brand's Shopify app install. */
+async function renderStore(first) {
+  const run = ++RUN;
+  const all = S.act === 'all' ? S.accounts.slice() : S.accounts.filter(a => a.act_id === S.act);
+  const one = S.act !== 'all' ? all[0] : null;
+  const shell = body => `${pageHead('store', one ? `Sales: ${esc(one.name)}` : 'Sales')}${body}`;
+  const curs = [...new Set(all.map(a => a.currency))], oneCur = curs.length === 1 ? curs[0] : null;
+  const tile = (l, v, d, pill) => `<div class="ru"><div class="ru-l">${l}</div><div class="ru-v">${v}${pill || ''}</div>${d ? `<div class="ru-d">${d}</div>` : ''}</div>`;
+  if (!one) {
+    const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(a.window || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
+    const psum = get => { let t = 0, any = false; for (const a of all) { const v = get(a.prev || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
+    const sales = sum(w => w.sales), orders = sum(w => w.orders), newO = sum(w => w.new_orders), newRev = sum(w => w.new_rev), retRev = sum(w => w.ret_rev), email = sum(w => w.email_rev);
+    const pSales = psum(w => w.sales), pOrders = psum(w => w.orders);
+    const tiles = oneCur ? `<div class="rollup hm-row">
+        ${tile('Revenue', fmtK(sales, oneCur), esc(rangeLabel()), deltaPill(sales, pSales))}
+        ${tile('Orders', fmtInt(orders), orders ? `AOV ${fmtMoney(sales / orders, oneCur)}` : '', deltaPill(orders, pOrders))}
+        ${tile('First orders', fmtInt(newO), newO && orders ? `${fmtPct(newO / orders)} of orders` : 'new customers')}
+        ${tile('Returning revenue', fmtK(retRev, oneCur), retRev != null && sales ? `${fmtPct(retRev / sales)} of revenue` : '')}
+      </div>` : '';
+    $('#main').innerHTML = shell(`${tiles}<div class="card key"><div class="ovt-hd"><h3>Each store</h3><span class="hint">Triple Whale store level over ${esc(rangeLabel())}. Click a row to open the store.</span></div>
+      <div class="tbl-wrap"><table class="ovt"><thead><tr><th>Brand</th><th>Revenue</th><th>Orders</th><th>AOV</th><th>First orders</th><th>Returning revenue</th><th>Email share</th></tr></thead><tbody>
+      ${all.slice().sort((x, y) => (y.window?.sales ?? -1) - (x.window?.sales ?? -1)).map(a => { const w = a.window || {}, p = a.prev || null; return `<tr data-id="${a.act_id}" tabindex="0" role="button"><td><div class="bn">${esc(a.name)}</div></td>
+        <td class="num">${fmtK(w.sales, a.currency)}${p ? deltaPill(w.sales, p.sales) : ''}</td><td class="num">${fmtInt(w.orders)}${p ? deltaPill(w.orders, p.orders) : ''}</td><td class="num">${w.aov == null ? '&mdash;' : fmtMoney(w.aov, a.currency)}</td>
+        <td class="num">${fmtInt(w.new_orders)}${w.new_orders && w.orders ? `<div class="tiny">${fmtPct(w.new_orders / w.orders)} of orders</div>` : ''}</td><td class="num">${w.ret_rev == null ? '&mdash;' : fmtK(w.ret_rev, a.currency)}</td><td class="num">${w.email_share == null ? '&mdash;' : fmtPct(w.email_share)}</td></tr>`; }).join('')}
+      </tbody></table></div></div>`);
+    $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('store'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+    if (oneCur && sales != null) mountRead('store', 'Store sales screen', `all ${all.length} brands`, { currency: oneCur, revenue: sales, revenue_compare: pSales, orders, orders_compare: pOrders, aov: orders ? sales / orders : null, first_orders: newO, new_customer_revenue: newRev, returning_revenue: retRev, email_revenue: email, brands: all.map(a => ({ name: a.name, revenue: a.window?.sales, orders: a.window?.orders, aov: a.window?.aov, returning_share: a.window?.ret_rev != null && a.window?.sales ? Math.round(a.window.ret_rev / a.window.sales * 100) + '%' : null })) });
+    return;
+  }
+  if (first) $('#main').innerHTML = shell('<div class="card"><span class="hint">Loading&hellip;</span></div>');
+  let d;
+  try { d = await api(`/api/client?act=${S.act}&${rangeQ()}`); }
+  catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  if (run !== RUN) return;
+  const cur = d.account.currency, t = d.totals || {}, p = one.prev || null, rows = d.rows || [];
+  const retO = t.orders != null && t.new_orders != null ? t.orders - t.new_orders : null;
+  const retAov = retO && t.ret_rev != null ? t.ret_rev / retO : null;
+  const tiles = `<div class="rollup hm-row">
+      ${tile('Revenue', fmtK(t.sales, cur), `${esc(rangeLabel())}${d.live_as_of ? ` &middot; live as of ${fmtCentralTime(d.live_as_of)}` : ''}`, p ? deltaPill(t.sales, p.sales) : '')}
+      ${tile('Orders', fmtInt(t.orders), t.aov != null ? `AOV ${fmtMoney(t.aov, cur)}` : '', p ? deltaPill(t.orders, p.orders) : '')}
+      ${tile('First orders', fmtInt(t.new_orders), t.new_aov != null ? `first order ${fmtMoney(t.new_aov, cur)} on average` : 'new customers', p ? deltaPill(t.new_orders, p.new_orders) : '')}
+      ${tile('Returning orders', fmtInt(retO), retAov != null ? `${fmtMoney(retAov, cur)} on average` : '')}
+      ${tile('New customer revenue', fmtK(t.new_rev, cur), t.new_share != null ? `${fmtPct(t.new_share)} of revenue` : '', p ? deltaPill(t.new_rev, p.new_rev) : '')}
+      ${tile('Returning revenue', fmtK(t.ret_rev, cur), t.ret_rev != null && t.sales ? `${fmtPct(t.ret_rev / t.sales)} of revenue` : '', p ? deltaPill(t.ret_rev, p.ret_rev) : '')}
+      ${tile('Email and SMS', fmtK(t.email_rev, cur), t.email_share != null ? `${fmtPct(t.email_share)} of revenue` : 'Klaviyo placed orders', p ? deltaPill(t.email_rev, p.email_rev) : '')}
+      ${tile('Cost per new customer', t.cac == null ? '&mdash;' : fmtMoney(t.cac, cur), 'ad spend &divide; first orders', p ? deltaPill(t.cac, p.cac, true) : '')}
+    </div>`;
+  const split = t.sales && t.new_rev != null ? `<div class="card hm-pace"><div class="hm-pace-h"><h3>New against returning</h3><span class="hint">by revenue</span></div>
+      <div class="hm-bar"><i style="width:${(Math.min(1, t.new_rev / t.sales) * 100).toFixed(1)}%;background:#14608C" title="New customers"></i><i style="width:${(Math.max(0, 1 - t.new_rev / t.sales) * 100).toFixed(1)}%;background:#8FD0EE" title="Returning"></i></div>
+      <div class="hm-pace-l"><span><span class="hm-sw" style="background:#14608C"></span><b>${fmtPct(t.new_share)}</b> new customers, ${fmtInt(t.new_orders)} first orders</span><span><span class="hm-sw" style="background:#8FD0EE"></span><b>${t.ret_rev != null ? fmtPct(t.ret_rev / t.sales) : '&mdash;'}</b> returning, ${fmtInt(retO)} orders</span></div></div>` : '';
+  const prevRows = one.prev_series || [];
+  const chart = rows.length > 1 ? `<div class="card hm-chart"><div class="hm-ch-h"><h3>Day by day</h3><span class="hint"><span class="hm-lg" style="color:#14608C">Revenue</span><span class="hm-lg" style="color:#C08A2E">Ad spend</span>${prevRows.length ? `<span class="hm-lg dash">${esc(CMP_LABEL[S.cmp])}</span>` : ''}&nbsp; Hover or tap a day.</span></div>
+      <div id="stRead" class="tiny" style="min-height:18px;margin-bottom:4px">&nbsp;</div>${homeChartSVG(rows, prevRows, cur, 'stSvg')}</div>` : '';
+  const hourly = d.hours ? hourlyCard(d, cur, S.range?.preset === 'today', d.live_as_of ? fmtCentralTime(d.live_as_of) : null) : '';
+  const shop = `<div class="card hm-soon"><div class="hm-soon-h"><h3>Products and refunds</h3><span class="pill unk">Needs the Shopify app</span></div>
+      <p class="hint">Which products sold, discount and refund share, and the exact receipts come from the brand's own Shopify once the Mobius app is installed on the store. Until then, this page is Triple Whale's store level view.</p>
+      <div class="row" style="margin:10px 0 0"><button class="btn" type="button" onclick="localStorage.setItem('pf_set_sec','connections');show('settings')">Open Connections</button></div></div>`;
+  $('#main').innerHTML = shell(`${tiles}${split}${hourly}${chart}${shop}
+    <details class="footnote"><summary>How these numbers are defined</summary><div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax. <b>Orders</b> are Triple Whale's order count; <b>AOV</b> divides one by the other. <b>First orders</b> are Triple Whale's new-customer orders; <b>returning orders</b> are the rest. New and returning revenue are Triple Whale's split rebased onto the revenue line, so they add up to it. <b>Email and SMS</b> is Klaviyo's placed-order revenue and overlaps both.</div></details>`);
+  if (rows.length > 1) wireSalesSpend('stSvg', 'stRead', rows, r => `<b>${prettyDate(r.date, true)}</b> &middot; revenue <b>${fmtK(r.sales, cur)}</b> &middot; ${fmtInt(r.orders)} orders${r.orders ? ` &middot; AOV ${fmtMoney(r.sales / r.orders, cur)}` : ''} &middot; spend ${fmtK(r.spend, cur)}`);
+  if (d.hours) wireHourly('pfHours', 'pfHoursRead', d.hours, cur);
+  if (t.sales != null) mountRead('store', 'Store sales screen', one.name, { currency: cur, revenue: t.sales, revenue_compare: p?.sales, orders: t.orders, orders_compare: p?.orders, aov: t.aov, aov_compare: p?.aov, first_orders: t.new_orders, first_order_aov: t.new_aov, returning_orders: retO, returning_aov: retAov, new_customer_share: t.new_share, returning_revenue: t.ret_rev, email_revenue: t.email_rev, email_share: t.email_share, cac: t.cac, cac_compare: p?.cac, ad_spend: t.spend });
 }
 
 /* ---------- Google / TikTok (the hub, 2026-10-07) ----------
@@ -5455,6 +5545,8 @@ async function renderPlatform(kind, first) {
     </div>
     ${tiles}${table}`;
   $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show(kind); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+  if (rows.length && oneCur) mountRead(kind, `${P.label} screen`, one ? one.name : `${rows.length} brands with ${P.label} spend`, { currency: oneCur, platform: P.label, connected_directly: false, spend, spend_compare: prevSpend, revenue_tw_last_click: rev, roas: rev != null && spend ? rev / spend : null, orders, cpa: orders && spend ? spend / orders : null, share_of_store_revenue: rev != null && sales ? rev / sales : null,
+    brands: rows.map(r => ({ name: r.a.name, spend: r.spend, revenue: r.rev, roas: r.roas, cpa: r.cpa })) });
 }
 
 /* ---------- Dashboards (the hub, phase 2, 2026-10-07) ----------
@@ -10100,7 +10192,7 @@ async function apiAH(path, opts = {}) {
   if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   return j;
 }
-const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)', dash: 'Dashboards (saved, drawn live)' };
+const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)', dash: 'Dashboards (saved, drawn live)', store: 'Store sales (Triple Whale store level)' };
 AskUI.init({
   name: 'Strategist', api: apiAH, esc, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   onApplied: () => { try { show(S.tab); } catch (e) {} },

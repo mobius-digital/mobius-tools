@@ -1810,3 +1810,11 @@ Plan: `docs/locus-hub/plan.md` (Cole approved the rail and said "start and end e
   brand summed by `dashSum`, Block Kit: header, context, tiles as bullets with deltas, the brand table as
   a code block (4 columns max), email and note; channels and the chart say "open in Locus". `recordRun`
   logs it under `ran.dashboards`.
+- **Phase 6 (same day): Store > Sales** (`renderStore`): all brands = tiles + a per-store table from
+  `S.accounts` (window + prev); one brand = `/api/client` totals as 8 tiles, new vs returning bar,
+  the hourly card on a single-day window, the day-by-day chart with the compare period, and a
+  "needs the Shopify app" card for products and refunds (`p_shopify` is empty for every brand).
+  **The read is on Home, Email, Google, TikTok and Store** (`mountRead(screen, name, scope, facts)`
+  inserts the card after the page head; `OVR_ALL[screen]` caches an hour in the page). **Role
+  landing**: pressing a role in "Show tabs for" lands on `ROLE_HOME` (buyer = Test calls, strategist =
+  Tests and angles) when the open page is not one of that role's.
