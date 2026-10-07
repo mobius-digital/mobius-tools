@@ -966,11 +966,18 @@
   .cn-row .cn-name{font-weight:600}
   .cn-row .cn-note,.cn-row .cn-fix{grid-column:1 / -1}
   .cn-fix{color:var(--ink-2)}
-  .cn-tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-  .cn-tbl td{vertical-align:top}
-  .cn-cell{background:none;border:0;padding:2px;cursor:pointer;border-radius:6px}
-  .cn-cell.on{outline:2px solid var(--accent, #62BDEA);outline-offset:1px}
-  .cn-detail td{background:var(--panel-2, var(--bg));padding:10px 12px}
+  .cn-brand{padding:10px 0;border-bottom:1px solid var(--line)}
+  .cn-brand:last-child{border-bottom:0}
+  .cn-bhead{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
+  .cn-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .cn-chip{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;padding:4px 10px;border-radius:99px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);cursor:pointer}
+  .cn-chip .cn-mark{font-weight:800;font-size:11px}
+  .cn-chip.ok .cn-mark{color:var(--good)}
+  .cn-chip.warn{border-color:#EAD9AE;background:var(--warn-bg);color:var(--warn)}
+  .cn-chip.bad{border-color:#EBC8C2;background:var(--bad-bg);color:var(--bad)}
+  .cn-chip.off{opacity:.65}
+  .cn-chip.on{outline:2px solid var(--accent, #62BDEA);outline-offset:1px;opacity:1}
+  .cn-detail{margin-top:8px;padding:10px 12px;border-radius:9px;background:var(--bg)}
   .cn-det{max-width:820px}
   .set-card > h3{font-size:15px;margin-bottom:4px}
   .set-card .set-why{margin:0 0 14px;font-size:13px;line-height:1.5;max-width:680px}
@@ -9419,10 +9426,14 @@ async function renderSettings() {
     const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));
     const agOff = rep.agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
     const agencyRows = rep.agency.map(a => `<div class="cn-row" data-k="${esc(a.key)}"><div class="cn-name">${esc(a.name)}</div><div>${pill(a.state)}</div><div class="tiny cn-note">${esc(a.note || '')}</div>${a.state === 'ok' ? '' : `<div class="cn-fix tiny"><b>Fix:</b> ${esc(a.fix)}</div>`}</div>`).join('');
-    const cols = brands[0]?.items || [];
-    const table = brands.length ? `<div class="tbl-wrap"><table class="cn-tbl"><thead><tr><th>Brand</th>${cols.map(c => `<th>${esc(c.name.replace(' (via Triple Whale)', ''))}</th>`).join('')}</tr></thead><tbody>${brands.map(b => `
-      <tr data-act="${esc(b.act_id)}"><td><b>${esc(b.name)}</b><div class="tiny">${esc(b.summary)}</div></td>${b.items.map(i => `<td><button type="button" class="cn-cell" data-act="${esc(b.act_id)}" data-k="${esc(i.key)}" title="${esc(i.note)}">${pill(i.state)}</button></td>`).join('')}</tr>
-      <tr class="cn-detail" data-for="${esc(b.act_id)}" hidden><td colspan="${cols.length + 1}"></td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">No active brands.</p>';
+    /* One row per brand, every connection a chip that wraps: twelve columns of pills scrolled
+       sideways at 1280, which is the one thing a settings page must not do. */
+    const MARK = { ok: '✓', warn: '!', bad: '✕', off: '·' };
+    const chip = (b, i) => `<button type="button" class="cn-chip ${i.state}" data-act="${esc(b.act_id)}" data-k="${esc(i.key)}" title="${esc(i.note)}"><span class="cn-mark">${MARK[i.state] || '·'}</span>${esc(i.name.replace(' (via Triple Whale)', ''))}</button>`;
+    const table = brands.length ? brands.map(b => `
+      <div class="cn-brand" data-act="${esc(b.act_id)}"><div class="cn-bhead"><b>${esc(b.name)}</b><span class="tiny">${esc(b.summary)}</span></div>
+        <div class="cn-chips">${b.items.map(i => chip(b, i)).join('')}</div>
+        <div class="cn-detail" data-for="${esc(b.act_id)}" hidden></div></div>`).join('') : '<p class="hint">No active brands.</p>';
     host.innerHTML = `
       <div class="card set-card">
         ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0 0 12px">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0 0 12px">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
@@ -9433,16 +9444,16 @@ async function renderSettings() {
       <div class="card set-card"><h3>Per brand (set up at onboarding)</h3><p class="hint set-why">Tap a cell for what it is and where to fix it. New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, the Triple Whale shop and the Shopify install come from the client.</p>
         <div class="set-body">${table}</div></div>`;
     host.onclick = e => {
-      const cell = e.target.closest('.cn-cell'); if (!cell) return;
+      const cell = e.target.closest('.cn-chip'); if (!cell) return;
       const b = brands.find(x => x.act_id === cell.dataset.act), it = b?.items.find(i => i.key === cell.dataset.k); if (!it) return;
-      const row = host.querySelector(`.cn-detail[data-for="${cell.dataset.act}"]`), td = row.firstElementChild;
+      const row = host.querySelector(`.cn-detail[data-for="${cell.dataset.act}"]`);
       const open = !row.hidden && row.dataset.k === it.key;
-      host.querySelectorAll('.cn-cell.on').forEach(x => x.classList.remove('on'));
+      host.querySelectorAll('.cn-chip.on').forEach(x => x.classList.remove('on'));
       if (open) { row.hidden = true; row.dataset.k = ''; return; }
       cell.classList.add('on'); row.hidden = false; row.dataset.k = it.key;
       const sh = it.key === 'shopify' ? shopBy[b.act_id] : null;
       const extra = sh?.install_url && it.state !== 'ok' ? `<div class="tiny" style="margin-top:6px">Install link for the client: ${link(sh.install_url)}</div>` : '';
-      td.innerHTML = `<div class="cn-det"><div><b>${esc(b.name)}: ${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>Fix:</b> ${esc(it.fix)}</div>`}${extra}</div>`;
+      row.innerHTML = `<div class="cn-det"><div><b>${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>Fix:</b> ${esc(it.fix)}</div>`}${extra}</div>`;
     };
   })();
 

@@ -971,3 +971,21 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
 - **Problems view** on the Strategist (idea_run failures + `app_log` Studio errors + last sync error
   + known fixes) and a RULE to read it first when someone says something is broken. `studio-ai.js`
   writes `app_log` on every streamed failure (`logProblem`).
+
+## 2026-10-07: the Strategist is one full strategist; Connections report
+
+- `strategist.js`: playbook = thinking like a strategist (judge then recommend, gaps are findings,
+  build do not describe), the Angle / Concept / What We're Testing framework + review workflow
+  (from the mobius-brief-review skill), "How accounts are run" (the Lucky 2026-10-04 doctrine).
+  Views `tests`, `brief`, `customers`, `scenarios`, `brain`, `integrations`; SQL over the brand
+  workspace tables, tw_orders, tw_ad_attr, p_scenario, p_studio_batch, idea_thread. Actions
+  `fill_brief` / `create_brief` (Asana, template html, Testing field, assignee, blanks listed),
+  `build_scenario` (p_scenario + share link), `studio_batch`. Slack tool `draft_from_thread`
+  (closes the Strategist thread, queues the idea job). `ideas.js`: "brief this / make a brief /
+  draft it" with no media are the Strategist's; `nextNumber` is exported. Tests:
+  `node test-strategist.mjs`. Knowledge sources: `docs/strategist-brain/`. No stored
+  `strategistPlaybook` override exists in D1 (checked 2026-10-07); creating one hides the code copy.
+- `integrations.js`: `integrationsReport(env, {brand})` for `GET /api/integrations` (admin) and the
+  Strategist view. Reads env secrets for presence only (never values), `p_studio_cfg` (openai_key,
+  canva_*), atriaStatus / frameStatus, and per-brand tables; every per-brand query is wrapped so a
+  missing table (p_newclient before first use, p_shopify) reads as "not set up", never an error.

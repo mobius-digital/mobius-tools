@@ -1720,3 +1720,24 @@ Prize name, Early Bird and gift cards back to proposed/TBD until the Nick call O
 - Hero carries "Save" and "Share with the client". Both run `saveOnScreen(share)`: name it, PUT (upsert, keeps the id of a loaded scenario so an existing client link shows the new numbers), reload Saved, and for share copy `share.html?s=<id>`. Per-card Save and the Saved list's Share link use the same two helpers.
 - The number box is the input itself (`input.num`, `!important` to beat `main .card input[type=text]` in index.html); the wrapper has no border. That was the "box in a box".
 - Trimmed: the hint strings, the KPI button is a link, the ROAS card's bottom button row is gone, reset has no toast.
+
+## 2026-10-07: Settings > Connections, and the Strategist as one full strategist
+
+- **Connections** (Settings section between Brands and Briefs and Slack): account-health
+  `GET /api/integrations` (`src/integrations.js`, `integrationsReport`) grades every connection
+  ok / warn / bad / off with a note and the fix. Two cards: **Agency-wide (connected once)**: a
+  secret on the account-health worker or Cole signing in from Locus (Meta token, Triple Whale key,
+  Asana + its fields, Slack bot / signing secret / user token, Google service account, Claude,
+  Atria, Frame, Studio image key, Canva, Gemini, downloader, Stripe, Lucky creator app, Google
+  sign-in); **Per brand (set up at onboarding)**: ad account data + sync error, Triple Whale shop +
+  data + attribution + stored orders, Shopify install (`p_shopify`, the install link from
+  `/api/connections`), Asana project + webhook, both Slack channels, Drive folder and Frame project
+  (from `p_newclient`), creator link, onboarding, Google Ads and Klaviyo as seen through Triple
+  Whale (14-day presence). One row per brand with WRAPPING chips (a 12-column pill table scrolled
+  sideways at 1280); a chip opens its note + fix in place. Nothing on the page changes anything.
+  The Strategist has the same report as its `integrations` view.
+- **The Strategist** (account-health `strategist.js`) carries the whole creative framework, the
+  review workflow and the post-Andromeda account doctrine in its playbook, reads the test library,
+  one brief by number, customers (tw_orders), scenarios and the brand brain, and can fill or create
+  Asana briefs, save scenarios (share link), drop Studio batches and hand a media thread to the
+  ideas pipeline. Sources and the open list: `docs/strategist-brain/README.md`.
