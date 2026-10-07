@@ -41,8 +41,11 @@ async function all(key, path, pages = 5) {
 
 /** The key must open the account; returns what the account is called. */
 export async function verifyKey(key) {
-  const k = String(key || '').trim();
-  if (!/^pk_[A-Za-z0-9]{20,}$/.test(k)) throw new Error('That does not look like a Klaviyo private key (it starts with pk_). Public keys (6 characters) cannot read anything.');
+  /* Only the obvious wrong thing is refused here (a 6-character PUBLIC key, or nothing); Klaviyo
+     itself decides whether the key opens the account. Cole's real key was refused by a stricter
+     pattern on 2026-10-07, which is worse than a wasted call. */
+  const k = String(key || '').replace(/\s+/g, '');
+  if (k.length < 12) throw new Error('That is too short to be a private key. A Klaviyo PRIVATE key starts with pk_ and is about 40 characters; the 6-character public key cannot read anything.');
   const r = await klaviyo(k, '/api/accounts/');
   const a = (r.data || [])[0];
   if (!a) throw new Error('The key works but opens no account.');
@@ -57,7 +60,7 @@ export async function storeKey(env, act, key) {
   const v = await verifyKey(key);
   await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'klaviyo', ?2, 'approved', 'staff', datetime('now'))
     ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`)
-    .bind(act, JSON.stringify({ key: String(key).trim(), ...v, verified_at: new Date().toISOString() })).run();
+    .bind(act, JSON.stringify({ key: String(key).replace(/\s+/g, ''), ...v, verified_at: new Date().toISOString() })).run();
   return v;
 }
 export async function forgetKey(env, act) {

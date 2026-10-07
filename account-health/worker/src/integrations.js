@@ -92,15 +92,16 @@ export async function integrationsReport(env, { brand = null } = {}) {
      paste (a link, a key). The page draws them; PUT /api/brand-links takes the paste. */
   const C = (key, name, state, note, fix = '', extra = {}) => ({ key, name, state, note, fix, ...extra });
   const BM = '695359915477596';
+  /* A step: t = what to do, u = the link to open, c = a value to copy with one tap (a name, an id). */
   const STEPS = {
     meta: [
       { t: 'The client opens Meta Business Settings > Users > Partners > Add > "Give a partner access to your assets".', u: 'https://business.facebook.com/settings/partners' },
-      { t: `They paste Mobius's Business ID ${BM}, then tick the AD ACCOUNT (Manage campaigns), the PAGE (Full control), the PIXEL / dataset and the CATALOG.` },
+      { t: 'They paste Mobius\'s Business ID, then tick the AD ACCOUNT (Manage campaigns), the PAGE (Full control), the PIXEL / dataset and the CATALOG.', c: BM },
       { t: 'Partner access covers that asset from then on; a NEW ad account they add later must be shared the same way (it is per asset, not "all future").' },
       { t: 'Locus discovers the account within the hour and switches it on by name for a waiting New client, or asks you in #mobius-newbiz. Older brands: Settings > Brands > + Add a brand.' },
     ],
     tw: [
-      { t: 'The client opens Triple Whale > Settings > Team and adds cole@go-mobius-digital.com (and ahsan@) as admins.', u: 'https://app.triplewhale.com' },
+      { t: 'The client opens Triple Whale > Settings > Team and adds Cole as an admin.', u: 'https://app.triplewhale.com', c: 'cole@go-mobius-digital.com' },
       { t: 'Paste the store domain (xxx.myshopify.com) here. The nightly sync starts within the hour and backfills 400 days of orders one slice a night.' },
     ],
     shopify: [
@@ -128,9 +129,10 @@ export async function integrationsReport(env, { brand = null } = {}) {
       { t: 'Locus reads Google spend and attribution through Triple Whale within a day. (Direct Google Ads access for deeper questions needs a developer token on our MCC: on the list.)' },
     ],
     klaviyo: [
-      { t: 'In the client\'s Klaviyo: Settings > API keys > Create Private API Key. Name it "Locus (Mobius)". Scopes: READ on Accounts, Campaigns, Flows, Lists, Segments, Metrics, Profiles, Events (add write scopes later if we build segments from Locus).', u: 'https://www.klaviyo.com/settings/account/api-keys' },
+      { t: 'In the brand\'s Klaviyo: Settings > API keys > Create Private API Key. Name it:', u: 'https://www.klaviyo.com/settings/account/api-keys', c: 'Locus (Mobius)' },
+      { t: 'Access level: FULL ACCESS (Cole: Locus must be able to make changes, not only read). Create, then copy the key: Klaviyo shows it once.' },
       { t: 'Paste the key (pk_...) here. Locus checks it against the account before saving and never shows it again.' },
-      { t: 'Also make sure Klaviyo is connected inside the client\'s Triple Whale (Integrations) so email revenue lands on the P&L.' },
+      { t: 'Also make sure Klaviyo is connected inside the brand\'s Triple Whale (Integrations) so email revenue lands on the P&L.' },
     ],
   };
   const brands = accounts.map(a => {

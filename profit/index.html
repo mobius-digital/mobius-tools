@@ -960,26 +960,31 @@
   .set-h .hint{margin:4px 0 0;font-size:13.5px;color:var(--muted);max-width:640px}
   .set-all{display:inline-block;margin-left:4px;font-weight:600;color:var(--brand-ink)}
   .set-card{padding:18px 20px}
-  /* Connections (2026-10-07) */
-  .cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px 18px}
-  .cn-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
-  .cn-row .cn-name{font-weight:600}
-  .cn-row .cn-note,.cn-row .cn-fix{grid-column:1 / -1}
-  .cn-fix{color:var(--ink-2)}
-  .cn-brand{padding:10px 0;border-bottom:1px solid var(--line)}
-  .cn-brand:last-child{border-bottom:0}
-  .cn-bhead{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
-  .cn-chips{display:flex;flex-wrap:wrap;gap:6px}
-  .cn-chip{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;padding:4px 10px;border-radius:99px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);cursor:pointer}
-  .cn-chip .cn-mark{font-weight:800;font-size:11px}
-  .cn-chip.ok .cn-mark{color:var(--good)}
-  .cn-chip.warn{border-color:#EAD9AE;background:var(--warn-bg);color:var(--warn)}
-  .cn-chip.bad{border-color:#EBC8C2;background:var(--bad-bg);color:var(--bad)}
-  .cn-chip.off{opacity:.65}
-  .cn-chip.on{outline:2px solid var(--accent, #62BDEA);outline-offset:1px;opacity:1}
-  .cn-detail{margin-top:8px;padding:10px 12px;border-radius:9px;background:var(--bg)}
-  .cn-steps{margin:8px 0 0;padding-left:20px;font-size:12.5px;color:var(--ink-2)}
-  .cn-steps li{margin:3px 0}
+  /* Connections (2026-10-07): integration cards + a drawer */
+  .cn-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+  .cn-card{display:flex;align-items:center;gap:10px;text-align:left;font:inherit;padding:12px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
+  .cn-card:hover{border-color:var(--line-strong);box-shadow:0 4px 14px rgba(19,32,43,.08);transform:translateY(-1px)}
+  .cn-card.on{border-color:var(--accent,#62BDEA);box-shadow:0 0 0 2px var(--accent,#62BDEA) inset}
+  .cn-card.bad{border-color:#EBC8C2}
+  .cn-card.off{opacity:.78}
+  .cn-card .pill{flex:none;align-self:flex-start}
+  .cn-cbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .cn-cname{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cn-cnote{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cn-logo{flex:none;width:36px;height:36px;border-radius:10px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+  .cn-logo img{width:20px;height:20px}
+  .cn-scrim{position:fixed;inset:0;background:rgba(19,32,43,.28);z-index:60}
+  .cn-drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);background:var(--surface);z-index:61;box-shadow:-8px 0 32px rgba(19,32,43,.18);padding:18px 20px;overflow:auto}
+  .cn-dhead{display:flex;align-items:center;gap:10px}
+  .cn-dhead > div{flex:1;min-width:0}
+  .cn-x{font:inherit;font-size:22px;line-height:1;background:none;border:0;cursor:pointer;color:var(--ink-2);padding:4px 6px}
+  .cn-sec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 6px;font-weight:700}
+  .cn-steps{margin:0;padding-left:20px;font-size:13px;color:var(--ink-2)}
+  .cn-steps li{margin:6px 0;line-height:1.45}
+  .cn-open{white-space:nowrap}
+  .cn-copy{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;padding:2px 8px;border-radius:7px;border:1px dashed var(--line-strong);background:var(--bg);color:var(--ink);cursor:pointer;vertical-align:middle;max-width:100%;overflow:hidden}
+  .cn-copy span{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .cn-copy:hover{border-style:solid}
   .cn-det{max-width:820px}
   .set-card > h3{font-size:15px;margin-bottom:4px}
   .set-card .set-why{margin:0 0 14px;font-size:13px;line-height:1.5;max-width:680px}
@@ -9413,69 +9418,76 @@ async function renderSettings() {
   /* ---- Connections (2026-10-07) ----
      Cole: "which things need access once and which need access all the time... an integration
      page where we make sure all the integrations are there and if something breaks we know how
-     to fix it." account-health `/api/integrations` grades every connection; this only draws it.
-     Two cards: agency-wide (made once, every brand rides on it) and per brand (made at
-     onboarding). A cell opens its own note + fix in place; nothing here changes anything. */
+     to fix it." Then, same day: "it should look like an integration tab, with their logo, hover,
+     click and it tells you what to do", "a box where I can click and it copies". account-health
+     `/api/integrations` grades every connection; this draws it as integration cards (logo, name,
+     state) in two groups, and a card opens a drawer with the note, the exact steps (Open links,
+     one-tap copy chips) and a paste box when the fix is a thing to paste. Nothing here changes
+     anything except what is pasted. Clients never see this page. */
   (async () => {
     const host = $('#connPage'); if (!host || !mApi) return;
     let rep;
     try { rep = await mApi('/api/integrations'); } catch (e) { host.innerHTML = `<div class="card"><div class="notice bad">⚠️<div>Could not read the connections: ${esc(e.message)}</div></div></div>`; return; }
     if (run !== RUN || !rep?.agency) return;
-    const PILL = { ok: ['good', 'Connected'], warn: ['warn', 'Check'], bad: ['bad', 'Broken'], off: ['', 'Not set'] };
-    const pill = (st, short) => { const [cls, word] = PILL[st] || PILL.off; return `<span class="pill ${cls}"${cls ? '' : ' style="background:var(--line);color:var(--ink-2)"'}>${short || word}</span>`; };
+    const PILL = { ok: ['good', 'Connected'], warn: ['warn', 'Check'], bad: ['bad', 'Broken'], off: ['', 'Not set up'] };
+    const pill = st => { const [cls, word] = PILL[st] || PILL.off; return `<span class="pill ${cls}"${cls ? '' : ' style="background:var(--line);color:var(--ink-2)"'}>${word}</span>`; };
     const link = u => /^https?:\/\//.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : esc(u || '');
+    /* Logos from simple-icons (jsDelivr); anything it lacks gets a lettered badge. */
+    const ICON = { meta: ['meta', '#0866FF'], tw: [null, 'TW', '#1F6FEB'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'], slack_internal: ['slack', '#4A154B'], slack_client: ['slack', '#4A154B'],
+      google: ['googledrive', '#4285F4'], drive: ['googledrive', '#4285F4'], frame: [null, 'Fr', '#5B53FF'], hub: [null, 'CL', '#E86A33'], onboarding: [null, 'OB', '#647684'], google_ads: ['googleads', '#4285F4'], klaviyo: ['klaviyo', '#1E1E1E'],
+      atria: [null, 'At', '#111'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], google_login: ['google', '#4285F4'], anthropic: ['anthropic', '#C15F3C'] };
+    const logo = k => { const [slug, letter, color] = ICON[k] || [null, k.slice(0, 2).toUpperCase(), '#647684'];
+      return slug ? `<span class="cn-logo"><img src="https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc(slug.slice(0, 2).toUpperCase())}'}))"></span>` : `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`; };
     const brands = (rep.brands || []).filter(b => S.act === 'all' || b.act_id === S.act);
     const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));
-    /* A connection that serves one brand only (the Lucky creator app) is left out of another brand's view. */
     const agency = rep.agency.filter(a => !a.only || S.act === 'all' || a.only === S.act);
     const agOff = agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
-    const agencyRows = agency.map(a => `<div class="cn-row" data-k="${esc(a.key)}"><div class="cn-name">${esc(a.name)}</div><div>${pill(a.state)}</div><div class="tiny cn-note">${a.used_by ? `<b>Used by:</b> ${esc(a.used_by)}. ` : ''}${esc(a.note || '')}</div>${a.state === 'ok' ? '' : `<div class="cn-fix tiny"><b>Fix:</b> ${esc(a.fix)}</div>`}</div>`).join('');
     const oneName = S.act === 'all' ? null : (S.accounts.find(a => a.act_id === S.act)?.name || 'this brand');
-    /* One row per brand, every connection a chip that wraps: twelve columns of pills scrolled
-       sideways at 1280, which is the one thing a settings page must not do. */
-    const MARK = { ok: '✓', warn: '!', bad: '✕', off: '·' };
-    const chip = (b, i) => `<button type="button" class="cn-chip ${i.state}" data-act="${esc(b.act_id)}" data-k="${esc(i.key)}" title="${esc(i.note)}"><span class="cn-mark">${MARK[i.state] || '·'}</span>${esc(i.name.replace(' (via Triple Whale)', ''))}</button>`;
-    const table = brands.length ? brands.map(b => `
-      <div class="cn-brand" data-act="${esc(b.act_id)}"><div class="cn-bhead"><b>${esc(b.name)}</b><span class="tiny">${esc(b.summary)}</span></div>
-        <div class="cn-chips">${b.items.map(i => chip(b, i)).join('')}</div>
-        <div class="cn-detail" data-for="${esc(b.act_id)}" hidden></div></div>`).join('') : '<p class="hint">No active brands.</p>';
+    const card = (it, scope, act) => `<button type="button" class="cn-card ${it.state}" data-scope="${scope}" data-act="${esc(act || '')}" data-k="${esc(it.key)}" title="${esc(it.note || '')}">
+        ${logo(it.key)}<span class="cn-cbody"><span class="cn-cname">${esc(it.name.replace(' (via Triple Whale)', ''))}</span><span class="cn-cnote tiny">${esc((it.used_by ? 'Used by ' + it.used_by : it.note) || '')}</span></span>${pill(it.state)}</button>`;
     host.innerHTML = `
       <div class="card set-card">
-        ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0 0 12px">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0 0 12px">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
-        <p class="hint set-why" style="margin:0 0 6px">${esc(rep.how_it_works || '')}</p>
+        ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
       </div>
-      <div class="card set-card"><h3>Mobius's own connections (made once, shared by every brand)</h3><p class="hint set-why">${oneName ? `These are the agency's, not ${esc(oneName)}'s: ` : ''}a secret on the worker, or Cole signing in from Locus. Every brand rides on them; when one breaks, every brand feels it. Clients never see this page.</p>
-        <div class="set-body cn-grid">${agencyRows}</div></div>
-      <div class="card set-card"><h3>${oneName ? esc(oneName) + "'s own connections" : 'Each brand\'s own connections'} (set up at onboarding)</h3><p class="hint set-why">Tap a chip for what it is and where to fix it. New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, the Triple Whale shop and the Shopify install come from the client; Google Ads and Klaviyo are the client's own connections inside Triple Whale.</p>
-        <div class="set-body">${table}</div></div>`;
-    host.onclick = e => {
-      const cell = e.target.closest('.cn-chip'); if (!cell) return;
-      const b = brands.find(x => x.act_id === cell.dataset.act), it = b?.items.find(i => i.key === cell.dataset.k); if (!it) return;
-      const row = host.querySelector(`.cn-detail[data-for="${cell.dataset.act}"]`);
-      const open = !row.hidden && row.dataset.k === it.key;
-      host.querySelectorAll('.cn-chip.on').forEach(x => x.classList.remove('on'));
-      if (open) { row.hidden = true; row.dataset.k = ''; return; }
-      cell.classList.add('on'); row.hidden = false; row.dataset.k = it.key;
-      const sh = it.key === 'shopify' ? shopBy[b.act_id] : null;
-      const extra = sh?.install_url && it.state !== 'ok' ? `<div class="tiny" style="margin-top:6px">Install link for the client: ${link(sh.install_url)}</div>` : '';
-      /* The exact steps a person follows (links included), and a paste box when the fix is a thing to
-         paste: a Drive or Frame link, the Triple Whale shop, the brand's Klaviyo key (never shown again). */
-      const steps = (it.steps || []).length && it.state !== 'ok' ? `<ol class="cn-steps">${it.steps.map(s => `<li>${esc(s.t)}${s.u ? ` <a href="${esc(s.u)}" target="_blank" rel="noopener">Open</a>` : ''}</li>`).join('')}</ol>` : '';
+      <div class="card set-card"><h3>Mobius's own connections</h3><p class="hint set-why">Made once, shared by every brand${oneName ? ` (these are the agency's, not ${esc(oneName)}'s)` : ''}: a secret on the worker, or Cole signing in from Locus. Click one for what it does and how to fix it.</p>
+        <div class="set-body cn-cards">${agency.map(a => card(a, 'agency')).join('')}</div></div>
+      ${brands.length ? brands.map(b => `<div class="card set-card"><h3>${esc(b.name)}</h3><p class="hint set-why">${esc(b.summary)}. Set up at onboarding: New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, Triple Whale, Shopify and Klaviyo come from the client. Click a card for the exact steps.</p>
+        <div class="set-body cn-cards">${b.items.map(i => card(i, 'brand', b.act_id)).join('')}</div></div>`).join('') : '<div class="card"><p class="hint">No active brands.</p></div>'}
+      <div class="cn-scrim" id="cnScrim" hidden></div><aside class="cn-drawer" id="cnDrawer" hidden aria-label="Connection"></aside>`;
+    const drawer = $('#cnDrawer'), scrim = $('#cnScrim');
+    const close = () => { drawer.hidden = true; scrim.hidden = true; host.querySelectorAll('.cn-card.on').forEach(x => x.classList.remove('on')); };
+    scrim.onclick = close;
+    const copyChip = v => `<button type="button" class="cn-copy" data-copy="${esc(v)}" title="Copy">${esc(v)} <span>copy</span></button>`;
+    const open = (it, b, cardEl) => {
+      host.querySelectorAll('.cn-card.on').forEach(x => x.classList.remove('on')); cardEl.classList.add('on');
+      const sh = b && it.key === 'shopify' ? shopBy[b.act_id] : null;
+      const steps = (it.steps || []).length ? `<div class="cn-sec">${it.state === 'ok' ? 'How it was connected' : 'What to do'}</div><ol class="cn-steps">${it.steps.map(s => `<li>${esc(s.t)}${s.c ? ' ' + copyChip(s.c) : ''}${s.u ? ` <a class="cn-open" href="${esc(s.u)}" target="_blank" rel="noopener">Open ↗</a>` : ''}</li>`).join('')}</ol>` : (it.state !== 'ok' && it.fix ? `<div class="cn-sec">What to do</div><p class="tiny">${esc(it.fix)}</p>` : '');
       const inp = it.input;
-      const paste = inp ? `<div class="row" style="margin:8px 0 0;gap:8px;flex-wrap:wrap;align-items:center"><label class="tiny" for="cnLink">${esc(inp.label)}</label><input type="${inp.secret ? 'password' : 'text'}" id="cnLink" placeholder="${esc(inp.placeholder || '')}" value="${!inp.secret && /^https?:/.test(it.note) ? esc(it.note) : ''}" style="max-width:420px" autocomplete="off"><button class="btn primary" id="cnSave">${inp.secret ? 'Check and save' : 'Save'}</button><span class="tiny" id="cnMsg"></span></div>` : '';
-      row.innerHTML = `<div class="cn-det"><div><b>${esc(it.name)}</b> ${pill(it.state)}</div><div class="tiny" style="margin-top:4px">${link(it.note)}</div>${it.state === 'ok' ? '' : `<div class="cn-fix tiny" style="margin-top:6px"><b>What to do:</b> ${esc(it.fix)}</div>`}${steps}${extra}${paste}</div>`;
-      const save = row.querySelector('#cnSave');
+      const paste = inp ? `<div class="cn-sec">${esc(inp.label)}</div><div class="row" style="margin:0;gap:8px;flex-wrap:wrap;align-items:center"><input type="${inp.secret ? 'password' : 'text'}" id="cnLink" placeholder="${esc(inp.placeholder || '')}" value="${!inp.secret && /^https?:/.test(it.note) ? esc(it.note) : ''}" style="flex:1;min-width:200px" autocomplete="off"><button class="btn primary" id="cnSave">${inp.secret ? 'Check and save' : 'Save'}</button></div><div class="tiny" id="cnMsg" style="margin-top:6px"></div>` : '';
+      const extra = sh?.install_url && it.state !== 'ok' ? `<div class="cn-sec">Install link for the client</div><div class="tiny">${copyChip(sh.install_url)}</div>` : '';
+      drawer.innerHTML = `<div class="cn-dhead">${logo(it.key)}<div><b>${esc(it.name.replace(' (via Triple Whale)', ''))}</b><div class="tiny">${b ? esc(b.name) : 'Mobius, every brand'}</div></div>${pill(it.state)}<button type="button" class="cn-x" id="cnClose" aria-label="Close">×</button></div>
+        <p class="tiny" style="margin:10px 0 0">${link(it.note)}</p>${it.used_by ? `<p class="tiny" style="margin:4px 0 0"><b>Used by:</b> ${esc(it.used_by)}</p>` : ''}${steps}${extra}${paste}`;
+      drawer.hidden = false; scrim.hidden = false;
+      $('#cnClose').onclick = close;
+      drawer.querySelectorAll('.cn-copy').forEach(btn => btn.onclick = async () => { try { await navigator.clipboard.writeText(btn.dataset.copy); btn.querySelector('span').textContent = 'copied'; setTimeout(() => { btn.querySelector('span').textContent = 'copy'; }, 1500); } catch { btn.querySelector('span').textContent = 'select and copy'; } });
+      const save = drawer.querySelector('#cnSave');
       if (save) save.onclick = async () => {
-        const v = row.querySelector('#cnLink').value.trim(), msg = row.querySelector('#cnMsg');
+        const v = drawer.querySelector('#cnLink').value.trim(), msg = drawer.querySelector('#cnMsg');
         save.disabled = true; msg.textContent = inp.secret ? 'Checking with Klaviyo…' : 'Saving…';
         try {
           const r = await mApi('/api/brand-links', { method: 'PUT', body: JSON.stringify({ act: b.act_id, [inp.key]: v }) });
-          it.state = v ? 'ok' : 'off'; it.note = r.klaviyo ? `Connected as ${r.klaviyo.company || 'the account'}.` : (v || 'Not set.'); it.input = v && inp.secret ? null : inp;
-          cell.className = `cn-chip ${it.state} on`; cell.querySelector('.cn-mark').textContent = MARK[it.state]; msg.textContent = r.klaviyo ? `Saved. Connected as ${r.klaviyo.company || 'the account'}.` : 'Saved.';
-          if (inp.secret) row.querySelector('#cnLink').value = '';
+          it.state = v ? 'ok' : 'off'; it.note = r.klaviyo ? `Connected as ${r.klaviyo.company || 'the account'}.` : (v || 'Not set up.'); it.input = v && inp.secret ? null : inp;
+          cardEl.className = `cn-card ${it.state} on`; cardEl.querySelector('.pill').outerHTML = pill(it.state); cardEl.querySelector('.cn-cnote').textContent = it.note;
+          msg.textContent = r.klaviyo ? `Saved. Connected as ${r.klaviyo.company || 'the account'}.` : 'Saved.';
+          if (inp.secret) drawer.querySelector('#cnLink').value = '';
         } catch (err) { msg.textContent = err.message; }
         save.disabled = false;
       };
+    };
+    host.onclick = e => {
+      const c = e.target.closest('.cn-card'); if (!c) return;
+      if (c.dataset.scope === 'agency') { const it = agency.find(a => a.key === c.dataset.k); if (it) open(it, null, c); return; }
+      const b = brands.find(x => x.act_id === c.dataset.act), it = b?.items.find(i => i.key === c.dataset.k); if (it) open(it, b, c);
     };
   })();
 
