@@ -9481,11 +9481,15 @@ async function renderSettings() {
     const pill = st => { const [cls, word] = PILL[st] || PILL.off; return `<span class="pill ${cls}"${cls ? '' : ' style="background:var(--line);color:var(--ink-2)"'}>${word}</span>`; };
     const link = u => /^https?:\/\//.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : esc(u || '');
     /* Logos from simple-icons (jsDelivr); anything it lacks gets a lettered badge. */
-    const ICON = { meta: ['meta', '#0866FF'], tw: [null, 'TW', '#1F6FEB'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'], slack_internal: ['slack', '#4A154B'], slack_client: ['slack', '#4A154B'],
-      google: ['googledrive', '#4285F4'], drive: ['googledrive', '#4285F4'], frame: [null, 'Fr', '#5B53FF'], hub: [null, 'CL', '#E86A33'], onboarding: [null, 'OB', '#647684'], google_ads: ['googleads', '#4285F4'], klaviyo: ['klaviyo', '#1E1E1E'],
-      atria: [null, 'At', '#111'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], google_login: ['google', '#4285F4'], anthropic: ['anthropic', '#C15F3C'] };
+    /* [simple-icons slug] for the brands it carries; ['/brand/logos/x'] for the three it lacks (their own
+       favicons, fetched 2026-10-07: Triple Whale, Frame.io, Atria); [null, letters, colour] as the last resort. */
+    const ICON = { meta: ['meta', '#0866FF'], tw: ['/brand/logos/triplewhale.png'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'], slack_internal: ['slack', '#4A154B'], slack_client: ['slack', '#4A154B'],
+      google: ['googledrive', '#4285F4'], drive: ['googledrive', '#4285F4'], frame: ['/brand/logos/frameio.svg'], hub: [null, 'CL', '#E86A33'], onboarding: [null, 'OB', '#647684'], google_ads: ['googleads', '#4285F4'], klaviyo: ['klaviyo', '#1E1E1E'],
+      atria: ['/brand/logos/atria.svg'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], google_login: ['google', '#4285F4'], anthropic: ['anthropic', '#C15F3C'] };
     const logo = k => { const [slug, letter, color] = ICON[k] || [null, k.slice(0, 2).toUpperCase(), '#647684'];
-      return slug ? `<span class="cn-logo"><img src="https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc(slug.slice(0, 2).toUpperCase())}'}))"></span>` : `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`; };
+      if (!slug) return `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`;
+      const src = slug.startsWith('/') ? slug : `https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg`;
+      return `<span class="cn-logo"><img src="${src}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc(k.slice(0, 2).toUpperCase())}'}))"></span>`; };
     const brands = (rep.brands || []).filter(b => S.act === 'all' || b.act_id === S.act);
     const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));
     const agency = rep.agency.filter(a => !a.only || S.act === 'all' || a.only === S.act);
