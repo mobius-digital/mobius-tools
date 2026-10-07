@@ -21,7 +21,7 @@
 (function () {
 'use strict';
 
-const AH_URL = 'https://mobius-account-health.mobius-digital.workers.dev';
+const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1474,7 +1474,7 @@ async function renderToday() {
 
 /* ---------- router ---------- */
 /* The band / section / page crumb the host prints on its own pages. */
-const mcrumb = t => `<div class="ph-crumb">Every day &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b>${typeof window.whoChip === 'function' ? window.whoChip('meta') : ''}</div>`;
+const mcrumb = t => `<div class="ph-crumb">Paid &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${t}</b>${typeof window.whoChip === 'function' ? window.whoChip('meta') : ''}</div>`;
 const SUBS = [
   ['overview', 'Overview', renderMetaOverview],
   ['today', 'Today', renderToday],

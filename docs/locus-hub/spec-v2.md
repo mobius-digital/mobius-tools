@@ -322,3 +322,10 @@ Cmd/Ctrl K command and ask box, the Strategist docked as a right-hand panel that
    rollups (C10). Daily Brief moves to Reports on day one.
 4. Shopify app installs (products, refunds by product, geography) and Google / TikTok direct connections
    land when Cole's setup is done; the screens are built to take them without a redesign.
+
+### Status, 2026-10-07 night
+- Done and live: 1 (visual system, mocks v3), 2 (top bar with period, compare, attribution switch, today chip),
+  3 except the P&L and Customers restyles (they run on the v2 tokens but keep their own layouts): Home,
+  Meta Overview + Campaigns, Creative, Store, Email, Google, TikTok, All channels; Daily Brief sits under
+  Reports. Dashboards gained a hand editor (add, reorder, remove blocks).
+- Open: P&L and Customers in the v2 tile and chart components; 4 waits on Cole's setup.

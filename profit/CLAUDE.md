@@ -1818,3 +1818,44 @@ Plan: `docs/locus-hub/plan.md` (Cole approved the rail and said "start and end e
   inserts the card after the page head; `OVR_ALL[screen]` caches an hour in the page). **Role
   landing**: pressing a role in "Show tabs for" lands on `ROLE_HOME` (buyer = Test calls, strategist =
   Tests and angles) when the open page is not one of that role's.
+
+## 2026-10-07 (night): LOCUS V2, the graphite hub. Read before touching any screen.
+
+Cole: phase 1 of the hub had "no real substance", looked like Canva, and the rail was blue. Research,
+spec and mocks: `docs/locus-hub/spec-v2.md` (A audit, B architecture, B2 shared patterns, C screens,
+D visual system, E build order), `research-*.md`, `mocks-v2.html` (artifact
+https://claude.ai/artifact/M7EZSeAkxXXWrZE5TcXGZT). Commits f7761ce (data) and d4bc832 (front end).
+- **Visual system** = `profit/v2.css`, scoped to `:root[data-ui="v2"]` (set on `<html>`). Dark is the
+  default, `[data-theme="light"]` the other (switch in the rail foot, `pf_theme`). Tokens only: one
+  accent, good/warn/bad, the validated channel palette (Meta, Google, TikTok, Pinterest, Amazon,
+  Email; dark and light sets in the file). Inter. Legacy screens inherit the tokens; any hard-coded
+  light colour in an old file shows up as a light box in dark (season/calc `.on`, amb prefix were the
+  last ones). Audit with the luminance/contrast script pattern, not screenshots.
+- **Rail is ONE level**: Home, Paid (Meta, Google, TikTok, All channels), Email, Store (Sales,
+  Customers), Money (P&L, Plan), Creative, Reports (Daily Brief, Weekly and monthly, Dashboards,
+  Season, Scenarios); Settings and the theme in the foot. Every `.grp` carries `data-g` (the tour
+  points at it). Platform jobs are a segmented control at the top of the screen (`#v2seg`), never
+  rail sub-tabs: Meta = `META_JOBS` (meta, campaigns, adcreative, tests, changes); `PARENT_OF` maps
+  them to meta. changes / mtoday / mbrowser still render the old meta.js screens via `metaSub()`.
+- **`profit/v2.js`** = `window.V2.render(tab, H, first)`; index.html's `V2R(tab)` passes the host
+  helpers (S, api, apiAH, show, pageHead, rangeQ, ...). Screens: home, meta (overview | campaigns,
+  plus metaAll), creative, platform (google | tiktok), channels, store, email. Shared pieces:
+  `tile()` (label, source chip, value, delta, sparkline, goal bullet; narrow tiles put hints in a
+  tooltip), `delta(cur, prev, lower|'n')` ('n' = neutral, used for spend), `lineChart` (compare
+  period ghosted, shared tooltip, change-log markers, max 12), `stackChart`, bars BESIDE numbers
+  (`.v2ib`, never over them), `panel()` + `drillOrders` / `drillCustomer` (side panel), the read
+  slot (`readSlot` / `fillRead`, account-health `/api/read`).
+- **Data** = `profit/worker/src/hub.js` (`/api/hub/paid|creative|store|email|orders|customer|today`),
+  grouped queries for all brands (subrequest budget). Attribution switch `#hdModel` (S.model,
+  `MODEL_TABS`) = platform or a Triple Whale model; spend and delivery always the platform's.
+  Amazon and Email rows carry `platform_revenue: null` so no fake gap is drawn. The Shopify bridge
+  hides itself on wholesale-heavy brands (gross > 1.6x revenue + discounts, or > 2x revenue).
+- **Dashboards are editable by hand** (`dashEditor(d)` above `renderDash`): Build one by hand on the
+  list, Edit on an open dashboard; name, for, brand, range, compare, blocks in order (tiles with metric
+  chips from `DASH_TILES`, brands with `DASH_COLS`, channels, daily, email, note), up/down/remove,
+  Save = `PUT /api/dashboard`. Same spec the Strategist writes.
+- `meta.js` and index.html `AH_URL` honour `localStorage.pf_ah` on localhost (like brand.js), so the
+  Meta sub-screens can be checked against `ah-worker-dev` (:8798). Brief and Reports still go through
+  the profit worker's proxy and 401 locally: check those on prod.
+- Still on Cole: Google Ads (Cloud project + developer token) and TikTok (developer app) for direct
+  platform data; Shopify app installs for products and refunds on Store.

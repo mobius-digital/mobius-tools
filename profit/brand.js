@@ -1606,7 +1606,7 @@ function paintVoice(body) {
         ${skFiles.length ? `<div class="br-files">${skFiles.map(f => `<button class="br-file ${f.role === 'speaker' ? 'spk' : ''}" data-skf="${esc(f.path)}"><b>${esc(ROLE_L[f.role] || f.role)}${f.locus ? ' <span class="br-tag draft">in Locus</span>' : ''}</b><span class="tiny">${esc(f.path)} · ${Math.max(1, Math.round((f.md || '').length / 1000))}KB</span></button>`).join('')}</div>` : ''}
         ${!synced && (sk.gaps || []).length ? `<div class="br-gaps"><b>${sk.gaps.length} questions the data could not answer</b><ol>${sk.gaps.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
           <button class="btn" id="skAsk" ${o ? '' : 'disabled title="Make the interview link first (step 1)"'}>Ask the client these</button> <span class="tiny">They go to the front of the client's voice interview (same link). Rebuild the skill once they answer.</span></div>` : ''}`)}
-      <p class="tiny" style="margin:10px 0 0;border-top:1px solid var(--line);padding-top:10px">Then write on the <b>Copy desk</b> tab (under Making ads). Every line you keep or reject there lands in step 2 and makes the next lines better.</p>
+      <p class="tiny" style="margin:10px 0 0;border-top:1px solid var(--line);padding-top:10px">Then write on the <b>Copy desk</b> tab (under Creative). Every line you keep or reject there lands in step 2 and makes the next lines better.</p>
     </div>`;
   const msg = (t, ok) => { const m = $('#vgMsg'); if (m) { m.textContent = t; m.className = 'br-msg ' + (ok ? 'ok' : 'bad'); } };
   body.querySelector('#vMk')?.addEventListener('click', async () => { S.d = await post('/api/brand/onboard', {}); repaint(); });
