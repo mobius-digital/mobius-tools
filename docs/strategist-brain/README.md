@@ -42,10 +42,8 @@ state of the build.
 
 ## Not built yet (in order)
 
-1. Integrations page in Locus Settings: one matrix per brand (Meta, Triple Whale, Shopify,
-   Asana, Slack internal + client, Google Ads, Klaviyo, Drive, Frame) with state, last sync,
-   and the fix for each broken one. Today the pieces are spread over Settings > Brands,
-   Connections, Brand info and Studio > Connections.
+1. DONE 2026-10-07: Settings > Connections (account-health integrations.js): agency-wide
+   connections (made once) and per-brand ones (made at onboarding), each graded with the fix.
 2. Triple Whale direct queries (cohorts, journeys beyond 400 days, Klaviyo flows): the worker
    has no SQL door into TW; the summary-page and orders endpoints are what exist. tw_orders
    covers journey and retention questions for now.
