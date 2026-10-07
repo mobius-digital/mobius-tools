@@ -960,6 +960,14 @@
   .set-h .hint{margin:4px 0 0;font-size:13.5px;color:var(--muted);max-width:640px}
   .set-all{display:inline-block;margin-left:4px;font-weight:600;color:var(--brand-ink)}
   .set-card{padding:18px 20px}
+  /* The merchant's store report after the Shopify install (2026-10-07) */
+  .sv-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+  .sv-tile{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .sv-val{font-size:24px;font-weight:700;letter-spacing:-.01em;margin:2px 0}
+  .sv-bars{display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:1px solid var(--line);padding-bottom:2px}
+  .sv-bar{flex:1;height:100%;display:flex;align-items:flex-end}
+  .sv-bar i{display:block;width:100%;min-height:2px;background:var(--accent,#62BDEA);border-radius:3px 3px 0 0;opacity:.85}
+  .sv-bar:hover i{opacity:1}
   /* Connections (2026-10-07): integration cards + a drawer */
   .cn-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
   .cn-card{display:flex;align-items:center;gap:10px;text-align:left;font:inherit;padding:12px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
@@ -2072,6 +2080,8 @@ async function boot() {
   if (seasonTok) { chrome(false); return window.SeasonTab ? window.SeasonTab.renderShare(seasonTok, S.url) : ($('#main').innerHTML = '<div class="gate"><h1>Season plan unavailable</h1><p>season.js did not load. Refresh.</p></div>'); }
   const connected = new URLSearchParams(location.search).get('connected');
   if (connected) return renderConnected(connected);
+  const storeTok = new URLSearchParams(location.search).get('store');
+  if (storeTok) return renderStoreView(storeTok);
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
@@ -2193,6 +2203,44 @@ function renderConnected(shop) {
        it stores no customer names, email addresses, postal addresses or phone numbers.
        Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p>
   </div>`;
+}
+
+/** The merchant's own store report, right after the Shopify install (2026-10-07). Any store,
+ *  client or not: Shopify's reviewer installs on a test store and must see a working report,
+ *  which is the one thing the paused review asked for. Read live from the store by token. */
+async function renderStoreView(token) {
+  chrome(false);
+  $('.hd-title').innerHTML = 'Your store <em>at a glance</em>';
+  clientFooter();
+  $('#main').innerHTML = '<div class="card"><span class="hint">Reading your store…</span></div>';
+  let d;
+  try { d = await (await fetch(`${S.url.replace(/\/+$/, '')}/api/store-view?s=${encodeURIComponent(token)}`)).json(); } catch (e) { d = { error: e.message }; }
+  if (d.error) {
+    $('#main').innerHTML = `<div class="gate" style="max-width:560px"><h1 style="font-size:22px;margin-bottom:10px">Nothing to show yet</h1><p>${esc(d.error)}</p><p class="tiny">Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p></div>`;
+    return;
+  }
+  const cur = d.shop.currency, t = d.totals;
+  const max = Math.max(1, ...d.days.map(x => x.revenue));
+  const bars = d.days.map(x => `<div class="sv-bar" title="${esc(x.date)}: ${esc(fmtMoney(x.revenue, cur))}, ${x.orders} order${x.orders === 1 ? '' : 's'}"><i style="height:${Math.round(x.revenue / max * 100)}%"></i></div>`).join('');
+  const tile = (label, value, note) => `<div class="sv-tile"><div class="tiny">${label}</div><div class="sv-val">${value}</div>${note ? `<div class="tiny">${note}</div>` : ''}</div>`;
+  const cust = t.new_customers + t.returning_customers;
+  $('#main').innerHTML = `
+    <div class="card" style="max-width:980px;margin:0 auto 14px">
+      <h2 style="margin:0 0 2px">${esc(d.shop.name)}</h2>
+      <p class="hint" style="margin:0 0 14px">${esc(d.shop.domain)} · paid orders from ${esc(d.since)} to today, read live from your store by the Mobius Digital app.</p>
+      <div class="sv-tiles">
+        ${tile('Orders', t.orders.toLocaleString(), t.truncated ? 'first 1,000 shown' : '')}
+        ${tile('Revenue', fmtMoney(t.revenue, cur), 'order totals after discounts')}
+        ${tile('Average order', fmtMoney(t.aov, cur), '')}
+        ${tile('New vs returning', cust ? `${Math.round(t.new_customers / cust * 100)}% new` : 'no orders yet', cust ? `${t.new_customers} first-time, ${t.returning_customers} came back` : '')}
+      </div>
+      <h3 style="margin:18px 0 6px">Revenue by day</h3>
+      <div class="sv-bars">${bars}</div>
+      <div class="tiny" style="display:flex;justify-content:space-between"><span>${esc(d.days[0].date)}</span><span>today</span></div>
+      <h3 style="margin:18px 0 6px">What sold most</h3>
+      ${d.top_products.length ? `<div class="tbl-wrap"><table><thead><tr><th>Product</th><th class="num">Units</th></tr></thead><tbody>${d.top_products.map(p => `<tr><td>${esc(p.title)}</td><td class="num">${p.qty.toLocaleString()}</td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">No paid orders in the last 30 days.</p>'}
+      <p class="tiny" style="margin-top:18px">This page is built from your orders, customers and products each time it opens; nothing is written back to your store, and no customer names, emails, addresses or phone numbers are kept. Mobius Digital uses the same connection to report on the advertising it runs for you. Remove the app from your Shopify admin at any time and this link stops working. Questions: <a href="mailto:cole@go-mobius-digital.com">cole@go-mobius-digital.com</a>.</p>
+    </div>`;
 }
 
 /** The client-facing performance page. Read-only, no sign-in, one client, and

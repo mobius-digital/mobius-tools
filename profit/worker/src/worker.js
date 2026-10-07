@@ -236,6 +236,60 @@ async function registerUninstallWebhook(env, shop, token, origin) {
   } catch (e) { console.log('uninstall webhook failed', shop, e.message); }
 }
 
+/* ---------------- the merchant's own store report (2026-10-07) ----------------
+   One stable token per installed store (p_store_view), minted in the OAuth callback. The page
+   profit/?store=<token> calls GET /api/store-view?s=<token> (public: the token is the auth, like
+   every other share link) and the worker reads the store live with its access token. Nothing is
+   stored except the token; the report is computed on every open. A store that removed the app
+   gets a plain "not connected" answer, never a stale number. */
+async function storeViewToken(env, shop) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_store_view (token TEXT PRIMARY KEY, shop TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).run().catch(() => {});
+  const have = await env.DB.prepare(`SELECT token FROM p_store_view WHERE shop = ?1`).bind(shop).first().catch(() => null);
+  if (have?.token) return have.token;
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+  await env.DB.prepare(`INSERT INTO p_store_view (token, shop) VALUES (?1, ?2)`).bind(token, shop).run();
+  return token;
+}
+async function shopifyGraph(shop, token, query, variables = {}) {
+  const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token }, body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw Object.assign(new Error(`Shopify returned ${res.status}`), { status: res.status });
+  const b = await res.json().catch(() => ({}));
+  if (b.errors?.length) throw new Error(b.errors.map(e => e.message).join('; '));
+  return b.data || {};
+}
+async function storeReport(env, viewToken) {
+  const row = await env.DB.prepare(`SELECT v.shop, s.access_token, s.uninstalled_at FROM p_store_view v LEFT JOIN p_shopify s ON s.shop = v.shop WHERE v.token = ?1`).bind(viewToken).first().catch(() => null);
+  if (!row) return { error: 'No store on this link.', status: 404 };
+  if (!row.access_token || row.uninstalled_at) return { error: 'This store removed the Mobius Digital app, so there is nothing to read. Install it again from Shopify to see the report.', status: 410, shop: row.shop };
+  const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const shopQ = `{ shop { name myshopifyDomain currencyCode primaryDomain { url } } }`;
+  const ordersQ = `query($q: String!, $after: String) { orders(first: 250, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
+    nodes { id createdAt currentTotalPriceSet { shopMoney { amount } } customer { numberOfOrders } lineItems(first: 10) { nodes { title quantity } } } } }`;
+  const shop = (await shopifyGraph(row.shop, row.access_token, shopQ)).shop || {};
+  const orders = [];
+  let after = null;
+  for (let i = 0; i < 4; i++) {
+    const d = await shopifyGraph(row.shop, row.access_token, ordersQ, { q: `created_at:>=${since} AND financial_status:paid`, after });
+    orders.push(...(d.orders?.nodes || []));
+    if (!d.orders?.pageInfo?.hasNextPage) break;
+    after = d.orders.pageInfo.endCursor;
+  }
+  const byDay = {}, products = {};
+  let revenue = 0, newC = 0, retC = 0;
+  for (const o of orders) {
+    const amt = Number(o.currentTotalPriceSet?.shopMoney?.amount || 0); revenue += amt;
+    const day = String(o.createdAt).slice(0, 10); byDay[day] = byDay[day] || { orders: 0, revenue: 0 }; byDay[day].orders++; byDay[day].revenue += amt;
+    const n = Number(o.customer?.numberOfOrders || 0); if (n <= 1) newC++; else retC++;
+    for (const li of o.lineItems?.nodes || []) { products[li.title] = (products[li.title] || 0) + Number(li.quantity || 0); }
+  }
+  const days = []; for (let i = 29; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10); days.push({ date: d, orders: byDay[d]?.orders || 0, revenue: Math.round((byDay[d]?.revenue || 0) * 100) / 100 }); }
+  return { shop: { name: shop.name || row.shop, domain: shop.myshopifyDomain || row.shop, url: shop.primaryDomain?.url || null, currency: shop.currencyCode || 'USD' }, since, until: new Date().toISOString().slice(0, 10),
+    totals: { orders: orders.length, revenue: Math.round(revenue * 100) / 100, aov: orders.length ? Math.round(revenue / orders.length * 100) / 100 : 0, new_customers: newC, returning_customers: retC, truncated: orders.length >= 1000 },
+    days, top_products: Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([title, qty]) => ({ title, qty })) };
+}
+
 /** Constant-time-ish compare so a mismatched HMAC cannot be probed byte by byte. */
 function safeEq(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
@@ -1738,12 +1792,14 @@ export default {
         return Response.redirect(`${DASHBOARD_URL}?perf=${token}`, 302);
       }
 
-      // No client record matches this domain yet - but STILL redirect into the app.
-      // "Immediately redirects to app UI after authentication" is one of Shopify's
-      // automated checks, and a reviewer installs on their own test store, which by
-      // definition matches no client. Returning HTML straight from the worker looked
-      // like the flow ended here. The app page explains the state instead.
-      return Response.redirect(`${DASHBOARD_URL}?connected=${encodeURIComponent(shop)}`, 302);
+      // No client record matches this domain yet (a reviewer's test store, or a client whose
+      // domain was not on the brand yet). Shopify paused the review on 2026-08-31 because the
+      // old "Connected" note was not a UI the merchant could use: "we will be needing to see
+      // the report that was being generated by your app through our test store". So every
+      // store now lands on a report built from ITS OWN data, read live with the token it just
+      // granted: last 30 days of orders, revenue, AOV, new vs returning, top products.
+      const token = await storeViewToken(env, shop);
+      return Response.redirect(`${DASHBOARD_URL}?store=${token}`, 302);
     }
 
     /* Mandatory compliance webhooks. Review rejects the app if these are missing, or
@@ -1857,6 +1913,13 @@ export default {
     if (path === '/api/scenario/public' && request.method === 'GET') {
       const sc = await handleScenario({ path, request, env, email: null });
       if (sc) return sc;
+    }
+    /* Public by token: the merchant's own store report after the Shopify install (storeReport). */
+    if (path === '/api/store-view' && request.method === 'GET') {
+      const t = url.searchParams.get('s') || '';
+      if (!/^[0-9a-f]{32}$/.test(t)) return json({ error: 'bad link' }, 400);
+      try { const r = await storeReport(env, t); return r.error ? json({ error: r.error, shop: r.shop || null }, r.status || 400) : json(r); }
+      catch (e) { return json({ error: `Shopify could not be read: ${e.message}` }, 502); }
     }
     if (!kind) return json({ error: 'unauthorized' }, 401);
     const isDemo = kind === 'demo';

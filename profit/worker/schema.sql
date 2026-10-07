@@ -362,3 +362,11 @@ CREATE TABLE IF NOT EXISTS p_scenario (
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS p_scenario_act ON p_scenario(act_id, kind, updated_at);
+
+-- The merchant's own store report after the Shopify install (2026-10-07): one stable token per
+-- store, opened at profit/?store=<token>. Also created on first use by storeViewToken().
+CREATE TABLE IF NOT EXISTS p_store_view (
+  token      TEXT PRIMARY KEY,
+  shop       TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
