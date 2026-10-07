@@ -1896,3 +1896,30 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   report week picker), `.catpill.part`, `.shp-pill.on` and Scenarios' hero buttons were white on light grey in the
   light theme; all are tokens now. Scenarios' dollar bar uses the channel palette, never three greys.
 - **Scenarios**: "Say it in words" is an ask bar at the TOP with example chips (Enter or a chip builds it).
+
+## 2026-10-08 (later): Google direct, What moved, the email board, creative grades, creative-call settings
+
+- **Product map: `docs/locus-hub/product-map.md`.** Every page and every planned feature, with its reader, its
+  question and its status (LIVE / BUILT / NEXT / LATER). Add a row there before building anything new.
+- **Google read directly** (account-health `src/google.js`, routes `/api/google/probe|match|link|website|search|ads`,
+  admin). Same service account as Drive and Gmail, acting as `GOOGLE_AS` (default Cole). Needs, once: the scopes
+  analytics.readonly, webmasters.readonly, adwords added to the domain-wide delegation; the Analytics Data + Admin,
+  Search Console and Google Ads APIs enabled; `GOOGLE_ADS_DEV_TOKEN` + `GOOGLE_ADS_MCC` for Ads. AdSense is not
+  needed. Per brand ids in `p_br_doc` key `google` {ga4, gsc, ads}, pasted on Settings > Connections (the generic
+  `input` rows; `/api/brand-links` takes `ga4`, `gsc`, `google_ads`). Probed 2026-10-08: all three refused (scopes
+  not delegated, no developer token). Reports cache an hour in `settings` (`g4:`, `gsc:`, `gads:`).
+- **Store > Website (GA4) and Store > Search (Search Console)** are v2.js screens (`website()`, `search()`); until
+  linked they show exactly what to do. Ads > Google adds a "Campaigns, from Google Ads directly" card when the brand
+  is linked and the token works.
+- **What moved yesterday** (hub.js `movedMany`, `/api/hub/moved`): yesterday against the same weekday over 8 weeks;
+  shown when 25%+ off AND 1.5+ standard deviations; revenue names orders vs average order, MER names revenue vs
+  spend. Card on Home under the read.
+- **Klaviyo across every brand** (v2.js `emailBoard`, Email page, all brands): revenue (flows and campaigns), live
+  flows, missing core flows, open / click against Klaviyo's averages, best flow. The Golf Sock is never flagged.
+- **Ad preview: funnel grade + Make more like this.** Hook, hold, click and purchase each graded A to F against the
+  brand's median ad in the window (`medians`), the weakest step names the iteration; the button asks the
+  Strategist for an Asana brief of three iterations.
+- **Creative calls are per-brand settings** (`TEST_KEYS` cr_* in worker/src/brand.js; Settings > brand > Goals >
+  Creative calls). The Creative page reads `/api/brand/rules` and states the numbers it used.
+- `window.V2UI` (v2.js) exposes the v2 building blocks (tile, card, spark, bullet, ib, lineChart, stackChart,
+  panel, tipAttr, chip, formatters) so every screen file draws them one way.

@@ -18,6 +18,7 @@
  *   GET /api/hub/orders?act=&model=&ad=|adset=|campaign=|platform=&days|from&to
  *   GET /api/hub/customer?act=&customer=
  *   GET /api/hub/today?act=
+ *   GET /api/hub/moved?act=          what moved yesterday against the same weekday over 8 weeks
  */
 const MODELS = new Set(['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform']);
 const MODEL_LABEL = { lastPlatformClick: 'Triple Whale, last platform click', fullFirstClick: 'Triple Whale, first click', fullLastClick: 'Triple Whale, last click', linear: 'Triple Whale, linear (paid)', linearAll: 'Triple Whale, linear (all)', platform: 'Platform reported' };
@@ -65,6 +66,7 @@ export async function handleHub(ctx) {
     if (path === '/api/hub/email') return json({ ...base, window: w0, brands: await emailMany(env, ctx, accts, w0) });
     if (path === '/api/hub/orders') return json({ ...base, ...(await ordersFor(env, accts[0], win(accts[0]), model, url)) });
     if (path === '/api/hub/customer') return json(await customerFor(env, accts[0], url.searchParams.get('customer') || ''));
+    if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
     if (path === '/api/hub/today') {
       const rows = await Promise.all(accts.map(async a => {
         const t = ctx.localDate(a.tz);
@@ -77,6 +79,47 @@ export async function handleHub(ctx) {
     }
   } catch (e) { return json({ error: e.message }, 500); }
   return null;
+}
+
+/* ---------- what moved (2026-10-08, Triple Whale Lighthouse's job, done simply) ----------
+   Yesterday per brand against the SAME WEEKDAY over the last 8 weeks (a Tuesday is compared with
+   Tuesdays). A move is shown when it is 25%+ off normal AND at least 1.5 standard deviations, so a
+   noisy brand is not flagged every day. Revenue moves name the cause (orders or the average order),
+   MER moves name revenue or spend. Store numbers only: Shopify through Triple Whale. */
+async function movedMany(env, ctx, accts) {
+  const d = ctx.addDays(ctx.localDate(accts[0].tz), -1);
+  const from = ctx.addDays(d, -56);
+  const ids = ['totalSales', 'totalNetTaxes', 'blendedAds', 'totalOrders', 'newCustomersOrders'];
+  const piv = await twPivotMany(env, accts.map(a => a.act_id), from, d, ids);
+  const out = [];
+  const pctTxt = v => `${Math.abs(Math.round(v * 100))}% ${v >= 0 ? 'up' : 'down'}`;
+  for (const a of accts) {
+    const P = piv[a.act_id] || {};
+    const day = dt => { const g = k => num(P[k] && P[k][dt]); const rev = g('totalSales') - g('totalNetTaxes'), sp = g('blendedAds'), o = g('totalOrders'), n = g('newCustomersOrders');
+      return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? rev / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
+    const x = day(d); if (!x.has) continue;
+    const base = [7, 14, 21, 28, 35, 42, 49, 56].map(k => day(ctx.addDays(d, -k))).filter(r => r.has);
+    if (base.length < 4) continue;
+    const mean = k => { const v = base.map(r => r[k]).filter(v => v != null && isFinite(v)); return v.length >= 4 ? v.reduce((s, y) => s + y, 0) / v.length : null; };
+    const sd = k => { const m = mean(k); const v = base.map(r => r[k]).filter(v => v != null && isFinite(v)); return m == null ? null : Math.sqrt(v.reduce((s, y) => s + (y - m) ** 2, 0) / v.length); };
+    const flags = [];
+    for (const [k, label, lower] of [['rev', 'Revenue', false], ['mer', 'MER', false], ['sp', 'Ad spend', 'n'], ['cac', 'Cost per new customer', true], ['aov', 'Average order', false], ['o', 'Orders', false]]) {
+      const m = mean(k), s = sd(k), v = x[k];
+      if (m == null || v == null || !m) continue;
+      if ((k === 'rev' || k === 'sp') && m < 150) continue;
+      const ch = v / m - 1, z = s ? (v - m) / s : 0;
+      if (Math.abs(ch) < 0.25 || Math.abs(z) < 1.5) continue;
+      let why = '';
+      if (k === 'rev') { const oc = mean('o') ? x.o / mean('o') - 1 : 0, ac = mean('aov') && x.aov ? x.aov / mean('aov') - 1 : 0; why = Math.abs(oc) >= Math.abs(ac) ? `orders ${pctTxt(oc)}` : `average order ${pctTxt(ac)}`; }
+      if (k === 'mer') { const rc = mean('rev') ? x.rev / mean('rev') - 1 : 0, sc = mean('sp') ? x.sp / mean('sp') - 1 : 0; why = Math.abs(rc) >= Math.abs(sc) ? `revenue ${pctTxt(rc)}` : `spend ${pctTxt(sc)}`; }
+      if (k === 'cac') { const sc = mean('sp') ? x.sp / mean('sp') - 1 : 0; why = `spend ${pctTxt(sc)}`; }
+      flags.push({ act_id: a.act_id, name: a.name, currency: a.currency, date: d, metric: k, label, value: v, normal: m, change: ch, z, good: lower === 'n' ? null : ((ch > 0) !== !!lower), why });
+    }
+    /* Orders and AOV only when revenue itself did not move: otherwise they are the cause, already named. */
+    const revHit = flags.some(f => f.metric === 'rev');
+    for (const f of flags.filter(f => !(revHit && (f.metric === 'o' || f.metric === 'aov'))).slice(0, 3)) out.push(f);
+  }
+  return out.sort((p, q) => (Math.abs(q.z) * (q.good === false ? 1.4 : 1)) - (Math.abs(p.z) * (p.good === false ? 1.4 : 1))).slice(0, 24);
 }
 
 /* ---------- shared readers ---------- */

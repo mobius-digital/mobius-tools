@@ -154,10 +154,10 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-pcard:hover{border-color:var(--brand-line)}
 .br-pcard h4{margin:0;font-size:15px}
 .br-quote{border-left:3px solid var(--line-strong);padding:2px 0 2px 10px;font-size:13.5px}
-.br-quote.pain{border-color:var(--bad)}.br-quote.desire{border-color:var(--good)}.br-quote.objection{border-color:var(--warn)}.br-quote.transformation{border-color:var(--brand)}.br-quote.failed{border-color:#7C3AED}.br-quote.trigger{border-color:#0F766E}
-.br-log{background:var(--hd);color:#C9D6DE;border-radius:10px;padding:12px 14px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:240px;overflow:auto;white-space:pre-wrap}
-.br-log b{color:#fff}
-.br-log .e{color:#F09182}.br-log .ok{color:#5FD292}
+.br-quote.pain{border-color:var(--bad)}.br-quote.desire{border-color:var(--good)}.br-quote.objection{border-color:var(--warn)}.br-quote.transformation{border-color:var(--brand)}.br-quote.failed{border-color:var(--c-email)}.br-quote.trigger{border-color:var(--c-tiktok)}
+.br-log{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:240px;overflow:auto;white-space:pre-wrap}
+.br-log b{color:var(--ink)}
+.br-log .e{color:var(--bad)}.br-log .ok{color:var(--good)}
 .br-warn{border:1px solid var(--warn);background:var(--warn-bg);border-radius:10px;padding:10px 12px;font-size:13px}
 .br-call{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
 .br-call:first-of-type{border-top:0}
@@ -170,7 +170,7 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br-ans .l{font-size:12.5px;font-weight:700;color:var(--ink-2)}
 .br-ans .v{font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
 .br-ans .v.none{color:var(--muted);font-style:italic}
-.br-ans .sug{font-size:12px;color:#6A4FB3;margin-top:2px}
+.br-ans .sug{font-size:12px;color:var(--c-email);margin-top:2px}
 .br-mini{border-collapse:collapse;font-size:12.5px;margin-top:4px}
 .br-mini td,.br-mini th{border:1px solid var(--line);padding:3px 7px;text-align:left}
 .br-mini th{background:var(--unk-bg);font-weight:600}
@@ -191,8 +191,8 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .vs-step{display:grid;grid-template-columns:34px 1fr auto;gap:4px 14px;padding:16px 0;border-top:1px solid var(--line);align-items:start}
 .vs-step:first-of-type{border-top:0}
 .vs-n{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;border:1.5px solid var(--line);color:var(--ink-2)}
-.vs-step.done .vs-n{background:var(--good);border-color:var(--good);color:#fff}
-.vs-step.next .vs-n{border-color:var(--brand,#62BDEA);color:var(--ink)}
+.vs-step.done .vs-n{background:var(--good);border-color:var(--good);color:var(--surface)}
+.vs-step.next .vs-n{border-color:var(--brand);color:var(--ink)}
 .vs-t{font-weight:650;font-size:14.5px;color:var(--ink);margin:3px 0 2px}
 .vs-st{font-size:12px;font-weight:600;margin-left:8px;color:var(--ink-2)}
 .vs-step.done .vs-st{color:var(--good)}
@@ -211,8 +211,8 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .cs-row:first-of-type{border-top:0}
 .cs-l{font-size:11.5px;font-weight:700;color:var(--muted)}
 .cs-v{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
-.cs-v .sug{color:#6A4FB3}
-@media print{.side,#subtabs,.lb-seg,.br-glance,#biOnboard,.btn{display:none !important}.cs-grid{grid-template-columns:1fr 1fr}}
+.cs-v .sug{color:var(--c-email)}
+@media print{.side,#subtabs,.lb-seg,#brGlance,#brDone,.bv-bar,.v2say,#biOnboard,.btn{display:none !important}.cs-grid{grid-template-columns:1fr 1fr}}
 .lb-head h2{margin:0}
 .lb-seg{display:inline-flex;background:var(--unk-bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
 .lb-seg button{padding:7px 14px;border-radius:9px;font-weight:600;color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
@@ -342,6 +342,127 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .rs-tools .grp > .br-lbl{min-width:120px}
 .rs-step{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
 .rs-step:first-of-type{border-top:0}
+
+/* ---------- v2 (2026-10-08): Tests, Angles, Brand and Copy desk on the graphite system ---------- */
+.br.v2{gap:16px}
+.br .br-tag{font-size:11px;font-weight:600;padding:2px 8px}
+.br .v2card .br-h{font-size:13.5px;font-weight:650}
+.br .v2card > .br-bar + *{margin-top:10px}
+.bv-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.bv-sync{display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--muted)}
+.bv-tiles > div{display:flex;min-width:0}
+.bv-tiles > div > .v2tile{flex:1}
+.bv-tiles > .bv-jump{cursor:pointer}
+.bv-tiles > .bv-jump:hover .v2tile{border-color:var(--line-strong)}
+.bv-tiles .v2tile .v small{font-size:13px;font-weight:500;color:var(--muted);margin-left:6px;letter-spacing:0}
+/* test rows: number, what it is, cost per sale against the goal, spend, the call */
+.bv-rows{display:flex;flex-direction:column}
+.bv-rows .lb-row{display:grid;grid-template-columns:48px minmax(0,1fr) 170px 76px minmax(128px,auto);gap:14px;align-items:center;text-align:left;font:inherit;color:var(--ink);background:none;border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;padding:11px 8px;width:100%;cursor:pointer}
+.bv-rows .lb-row:first-child{border-top:0}
+.bv-rows .lb-row:hover{background:var(--surface-2);box-shadow:none}
+.bv-rows .lb-main b{font-size:13.5px;font-weight:600}
+.bv-rows .lb-main .learn{border-left-color:var(--good)}
+.bv-rows .lb-nums{align-items:flex-end;font-size:12.5px}
+.bv-rows .lb-nums b{font-size:13.5px;font-weight:600}
+.bv-rows .lb-nums span{color:var(--muted);font-size:11.5px}
+.bv-rows .lb-res{align-items:flex-end}
+.lb-cpa{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lb-cpa .v2bul .lb{font-size:11.5px;color:var(--ink-2)}
+.lb-cpa .nos{font-size:12px;color:var(--muted)}
+.bv-rows .br-empty{padding:16px 8px;text-align:left}
+@media (max-width:760px){.bv-rows .lb-row{grid-template-columns:40px minmax(0,1fr)}.bv-rows .lb-cpa,.bv-rows .lb-nums,.bv-rows .lb-res{grid-column:2;align-items:flex-start}}
+.bv-mins{margin:0 0 8px}
+.br .v2card.ts-box{border-radius:10px;overflow:visible;box-shadow:none}
+.br .v2card.ts-box.hot{border-color:var(--brand-line)}
+.bv-mins .br-warn{margin:0 0 6px}
+/* angle scoreboard */
+.an-sb{display:flex;flex-direction:column;gap:1px}
+.an-sbr{display:grid;grid-template-columns:minmax(150px,250px) minmax(0,1fr) 68px 148px;gap:14px;align-items:center;font:inherit;text-align:left;background:none;border:0;border-radius:8px;padding:7px 8px;color:var(--ink);cursor:pointer;width:100%}
+.an-sbr:hover{background:var(--surface-2)}
+.an-sbr .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.an-sbr .trk{display:flex;height:10px;border-radius:3px;overflow:hidden;gap:1px;min-width:4px}
+.an-sbr .trk i{display:block;height:100%;min-width:2px}
+.an-sbr .wr{font-size:12.5px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.an-sbr .wr.none{color:var(--muted);font-weight:500}
+.br .faint{color:var(--muted)}
+.an-sbr .rd{justify-self:start}
+.an-sbh{display:grid;grid-template-columns:minmax(150px,250px) minmax(0,1fr) 68px 148px;gap:14px;padding:0 8px 6px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.an-sbh span:nth-child(3){text-align:right;white-space:nowrap}
+@media (max-width:760px){.an-sbr,.an-sbh{grid-template-columns:minmax(0,1fr) 48px}.an-sbr .bar{grid-column:1/-1;grid-row:2}.an-sbr .rd,.an-sbh span:nth-child(2),.an-sbh span:nth-child(4){display:none}}
+.an-filt{margin-bottom:10px}
+.an-filt button .n{font-weight:500;opacity:.7;margin-left:5px}
+.br .an-tbl td:first-child{min-width:220px;max-width:420px;white-space:normal}
+.br .an-tbl td .tiny{display:block;margin-top:2px;white-space:normal;color:var(--muted)}
+.br .an-answer{background:var(--surface-2);border:1px solid var(--line)}
+.br .an-answer.tested{background:var(--warn-bg);border-color:transparent}
+.br .an-answer.new{background:var(--good-bg);border-color:transparent}
+.br .an-mini button{font:inherit;color:var(--ink);cursor:pointer}
+.br .an-mini button:hover{border-color:var(--line-strong)}
+.an-back{font:inherit;font-size:12.5px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;align-self:flex-start}
+.an-back:hover{text-decoration:underline}
+.an-title{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.an-title p{margin:4px 0 0;max-width:90ch;color:var(--ink-2);font-size:13.5px;line-height:1.55}
+/* brand: completeness, glance, views */
+.lb-seg.v2jobs{display:flex;background:none;border:0;padding:0;gap:4px}
+.lb-seg.v2jobs button{display:inline-flex;gap:6px;align-items:center;box-shadow:none}
+.lb-seg.v2jobs button .n{font-size:10.5px;font-weight:700;background:var(--warn-bg);color:var(--warn);border-radius:99px;padding:0 6px;line-height:16px}
+.bd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px 22px}
+.bd-grp{display:flex;flex-direction:column;gap:7px;min-width:0}
+.bd-grp > span{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.bd-chips{display:flex;flex-wrap:wrap;gap:6px}
+.bd-it{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;font-weight:550;padding:4px 11px 4px 9px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.bd-it:hover{border-color:var(--line-strong)}
+.bd-it i{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.bd-it.ok i{background:var(--good)}.bd-it.part i{background:var(--warn)}
+.bd-it.miss{color:var(--muted);border-style:dashed}
+.bd-prog{display:flex;height:6px;gap:2px;margin:0 0 14px}
+.bd-prog i{flex:1;border-radius:2px;background:var(--surface-2)}
+.bd-prog i.ok{background:var(--good)}.bd-prog i.part{background:var(--warn)}
+.br .br-glance{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px 22px;align-items:start;padding:14px 18px}
+.br .gl-i{max-width:none}
+.br .gl-l{font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--muted)}
+.br .gl-v{font-size:13px;color:var(--ink);line-height:1.45}
+.br .gl-act{margin-left:0;justify-self:end;align-self:center}
+.br .rs-sec .v2h{align-items:flex-start;margin-bottom:0}
+.br .rs-sec .v2h .rs-hd{display:flex;flex-direction:column;gap:2px;flex:1;min-width:200px}
+.br .rs-sec .v2h .rs-hd h3{font-size:15px}
+.br .rs-sec .v2h .cap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.br .rs-tiles .v2tile .v{font-size:15px;font-weight:650;line-height:1.35;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.br .rs-tiles .v2tile .btn{align-self:flex-start;margin-top:4px}
+.br .br-pcard{background:var(--surface-2);border-color:var(--line)}
+.br .br-pcard:hover{border-color:var(--line-strong)}
+.br .cs-blk{background:var(--surface-2);border-color:var(--line)}
+.br .cs-blk.cs-open{background:var(--warn-bg);border-color:transparent}
+.br .br-chip{font:inherit;font-size:12.5px;font-weight:600}
+.br .br-chip.on{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.br .br-chip.on .n{color:var(--bg);opacity:.75}
+/* copy desk: write on the left, what it has learned on the right */
+.dk-two{display:grid;grid-template-columns:minmax(0,7fr) minmax(300px,5fr);gap:16px;align-items:start}
+@media (max-width:1100px){.dk-two{grid-template-columns:1fr}}
+.dk-side{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+@media (max-width:1100px){.dk-side{position:static;max-height:none}}
+.dk-form{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:12px}
+.dk-form .full{grid-column:1/-1}
+@media (max-width:560px){.dk-form{grid-template-columns:1fr}}
+.dk-go{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.dk-lines{display:flex;flex-direction:column;gap:10px}
+.br .br-desk{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
+.br .br-desk textarea[data-t]{margin:0;border-color:transparent;background:transparent;font-size:14px;line-height:1.5;padding:4px 6px}
+.br .br-desk textarea[data-t]:hover{border-color:var(--line)}
+.br .br-desk textarea[data-t]:focus{border-color:var(--brand-ink);background:var(--surface-2)}
+.br .br-desk.done{opacity:.6}
+.dk-acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.dk-kept{display:flex;flex-direction:column;gap:10px}
+.dk-k{border-left:3px solid var(--good);padding:1px 0 1px 10px;font-size:13px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+.dk-k.no{border-left-color:var(--bad);color:var(--ink-2)}
+.dk-k small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;white-space:normal}
+.dk-k .said{display:block;color:var(--ink);margin-top:3px}
+.dk-side .v2jobs{margin-bottom:12px}
+.dk-empty{font-size:13px;color:var(--muted);line-height:1.55;margin:0}
+/* the test detail panel */
+#v2panel .lb-title{font-size:19px;font-weight:650;line-height:1.3;margin:6px 0 0;padding:0;font-family:var(--sans)}
+#v2panel .lb-kpis div{background:var(--surface-2)}
+#v2panel .br-warn{font-size:12.5px}
 `;
   document.head.appendChild(st);
 }
@@ -399,6 +520,25 @@ const crumb = t => typeof window.crumbFor === 'function' && window.crumbFor(t) ?
 const angleName = id => S.d.angles.find(a => a.id === id)?.name || '';
 const conceptName = id => S.d.concepts.find(c => c.id === id)?.name || '';
 
+/* ---------------- v2 pieces (2026-10-08) ----------------
+   The shared kit lives in v2.js (window.V2UI, loaded before any render runs). These are thin
+   wrappers so every view here draws the same page head, cards, tiles and hovers as the rest of
+   Locus. Nothing below sets a colour: tokens only, so both themes read. */
+const UI = () => window.V2UI || null;
+const tipA = h => UI() ? UI().tipAttr(h) : ` title="${esc(String(h).replace(/<[^>]+>/g, ''))}"`;
+/* The app's own page head (crumb, title, Tour / Metrics / Help), without the purpose line: the
+   verdict sentence under it does that job. */
+function head(tab, title) {
+  if (typeof window.pageHead === 'function') return window.pageHead(tab, title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '');
+  return `<div class="ph"><div>${crumb(tab)}<div class="ph-t">${title}</div></div></div>`;
+}
+/* A v2 card with an optional id / extra class: title, the one-line finding, a caption. */
+function vcard({ id = '', cls = '', title = '', find = '', cap = '', body = '' }) {
+  return `<section class="v2card ${cls}"${id ? ` id="${id}"` : ''}>${title || find || cap ? `<div class="v2h">${title ? `<h3>${title}</h3>` : ''}${find ? `<span class="find">${find}</span>` : ''}${cap ? `<span class="cap">${cap}</span>` : ''}</div>` : ''}${body}</section>`;
+}
+const vtile = o => UI() ? UI().tile(o) : `<div class="v2tile"><div class="l"><span>${esc(o.label)}</span></div><div class="v">${o.value}</div>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}</div>`;
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
 /* ---------------- entry ---------------- */
 async function render({ tok, url, act, accounts, pick, mode }) {
   Object.assign(S, { tok, url, act, accounts: accounts || [], pick, mode: ['tests', 'angles', 'copy'].includes(mode) ? mode : 'brand' });
@@ -406,7 +546,7 @@ async function render({ tok, url, act, accounts, pick, mode }) {
   const main = $('#main');
   if (act === 'all') return S.mode === 'tests' ? renderTestsAll(main) : S.mode === 'angles' ? renderAnglesAll(main) : S.mode === 'copy' ? renderCopyAll(main) : renderAll(main);
   if (S.d && S.d.account?.act_id !== act) { S.angOpen = null; S.answer = null; S.idea = ''; }
-  if (!S.d || S.d.account?.act_id !== act) main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  if (!S.d || S.d.account?.act_id !== act) main.innerHTML = `<div class="br v2">${head(S.mode, ({ tests: 'Test calls', angles: 'Tests and angles', copy: 'Copy desk', brand: 'Brand' })[S.mode])}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
   await load();
   S.view = ({ info: 'voice', library: 'research', onboarding: 'client' })[localStorage.getItem(LS_VIEW)] || localStorage.getItem(LS_VIEW) || 'research';
   const saved = localStorage.getItem(LS_LINE + ':' + act);
@@ -415,25 +555,26 @@ async function render({ tok, url, act, accounts, pick, mode }) {
 }
 
 function renderCopyAll(main) {
-  main.innerHTML = `<div class="br"><div>${crumb('copy')}<h2>Copy desk</h2><p class="sub">Pick a brand. The desk writes in that brand's voice.</p></div>
-    <div class="card"><div class="br-chips">${S.accounts.map(a => `<button class="br-chip" data-act="${esc(a.act_id)}">${esc(a.name)}</button>`).join('')}</div></div></div>`;
+  main.innerHTML = `<div class="br v2">${head('copy', 'Copy desk')}
+    <p class="v2say lead">Pick a brand. The desk writes in that brand's voice and learns from every line you keep or reject.</p>
+    ${vcard({ title: 'Brands', body: `<div class="v2jobs">${S.accounts.map(a => `<button type="button" data-act="${esc(a.act_id)}">${esc(a.name)}</button>`).join('')}</div>` })}</div>`;
   main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
 }
 
 async function renderAll(main) {
-  main.innerHTML = `<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  main.innerHTML = `<div class="br v2">${head('brand', 'Brand')}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
   const r = await api('/api/brand/overview');
-  const ob = s => s === 'submitted' ? '<span class="pill good">Submitted</span>' : s === 'started' ? '<span class="pill warn">In progress</span>' : s === 'sent' ? '<span class="pill unk">Sent</span>' : '<span class="tiny">No link yet</span>';
-  main.innerHTML = `<div class="br">
-    <div><h2>Brand</h2><p class="sub">Who buys each brand, why, and how it talks. Pick a brand to open its research and voice.</p></div>
-    <div class="card" style="padding:0"><div class="tbl-wrap"><table>
-      <thead><tr><th>Brand</th><th>Onboarding</th><th class="num">Product lines</th><th class="num">Personas</th><th class="num">Angles</th><th class="num">Batches</th><th class="num">Open tests</th><th></th></tr></thead>
-      <tbody>${r.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${ob(b.onboard)}</td><td class="num">${b.lines}</td><td class="num">${b.personas_ok}/${b.personas}</td><td class="num">${b.angles}</td><td class="num">${b.batches}</td><td class="num">${b.open}</td>
-        <td style="text-align:right"><button class="btn" data-act="${esc(b.act_id)}">Open</button></td></tr>`).join('')}</tbody></table></div></div>
-    ${(r.pending || []).length ? `<div class="card"><h3 class="br-h">New clients, not in Locus yet</h3>
-      <p class="hint" style="margin:4px 0 10px">Made from the Asana template. Locus posted their onboarding link on the "Start here" task and moves everything onto the brand once their Meta account shows up here.</p>
-      <div class="tbl-wrap"><table><thead><tr><th>Client</th><th>Onboarding</th><th>Link</th></tr></thead><tbody>${r.pending.map(p => `<tr><td><b>${esc(p.name || '')}</b></td><td>${ob(p.status)}</td>
-        <td><a href="${esc(FORM_BASE + p.token)}" target="_blank" rel="noopener">Onboarding form</a> · <a href="${esc(VOICE_BASE + p.token)}" target="_blank" rel="noopener">Voice interview</a>${p.posted ? '' : ' <span class="tiny">(posting to Asana within the hour)</span>'}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+  const ob = s => s === 'submitted' ? '<span class="v2pill good">Submitted</span>' : s === 'started' ? '<span class="v2pill warn">In progress</span>' : s === 'sent' ? '<span class="v2pill">Sent</span>' : '<span class="faint">No link yet</span>';
+  const noForm = r.brands.filter(b => b.onboard !== 'submitted'), noPersona = r.brands.filter(b => !b.personas_ok);
+  main.innerHTML = `<div class="br v2">
+    ${head('brand', 'Brand')}
+    <p class="v2say lead">Who buys each brand, why, and how it talks. ${noPersona.length ? `<b>${plural(noPersona.length, 'brand')} ${noPersona.length === 1 ? 'has' : 'have'} no approved persona yet</b>${noPersona.length <= 4 ? ` (${noPersona.map(b => esc(b.name)).join(', ')})` : ''}.` : 'Every brand has at least one approved persona.'} ${noForm.length ? `${noForm.length} still ${noForm.length === 1 ? 'owes' : 'owe'} us the onboarding form.` : ''} Click a brand to open it.</p>
+    ${vcard({ title: 'By brand', body: `<div class="v2tbl"><table>
+      <thead><tr><th>Brand</th><th>Onboarding</th><th>Product lines</th><th>Personas approved</th><th>Angles</th><th>Tests</th><th>Open tests</th></tr></thead>
+      <tbody>${r.brands.map(b => `<tr class="link" data-act="${esc(b.act_id)}"><td><b>${esc(b.name)}</b></td><td>${ob(b.onboard)}</td><td>${b.lines}</td><td class="${b.personas && !b.personas_ok ? 'warn' : ''}">${b.personas_ok} of ${b.personas}</td><td>${b.angles}</td><td>${b.batches}</td><td>${b.open}</td></tr>`).join('')}</tbody></table></div>` })}
+    ${(r.pending || []).length ? vcard({ title: 'New clients, not in Locus yet', find: 'Made from the Asana template. Locus posted their onboarding link on the "Start here" task and moves everything onto the brand once their Meta account shows up here.',
+      body: `<div class="v2tbl"><table><thead><tr><th>Client</th><th>Onboarding</th><th>Links</th></tr></thead><tbody>${r.pending.map(p => `<tr><td><b>${esc(p.name || '')}</b></td><td>${ob(p.status)}</td>
+        <td><a href="${esc(FORM_BASE + p.token)}" target="_blank" rel="noopener">Onboarding form</a> · <a href="${esc(VOICE_BASE + p.token)}" target="_blank" rel="noopener">Voice interview</a>${p.posted ? '' : ' <span class="faint">(posting to Asana within the hour)</span>'}</td></tr>`).join('')}</tbody></table></div>` }) : ''}
   </div>`;
   main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
 }
@@ -450,15 +591,80 @@ function paint() {
   const views = [['client', 'Client answers', null, sub ? 'What they told us in the onboarding form and the voice interview' : o ? 'Their onboarding form is not finished yet' : 'No onboarding link yet'],
     ['research', 'Research', drafts, 'What our research found: who buys, what they say, who else they look at'],
     ['voice', 'Voice', null, 'How the brand talks, and the copy desk that writes in it']];
-  main.innerHTML = `<div class="br">
-    <div class="lb-head"><div>${crumb('brand')}<h2>Brand · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">Who this brand is. <b>Client answers</b> before a call, <b>Research</b> before a brief, <b>Voice</b> when writing. What we tested and what won is on Angles.</p></div>
-      <nav class="lb-seg" aria-label="Brand sections">${views.map(([k, l, n, t]) => `<button data-v="${k}" class="${S.view === k ? 'on' : ''}" title="${esc(t)}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav></div>
+  const C = completeness(d);
+  const miss = C.items.filter(x => x.st === 'miss'), part = C.items.filter(x => x.st === 'part');
+  const lead = `<b>${C.ok} of ${C.items.length} things we should know about ${esc(d.account.name)} are in.</b> ${miss.length ? `Missing: ${miss.slice(0, 4).map(x => x.l.toLowerCase()).join(', ')}${miss.length > 4 ? ` and ${miss.length - 4} more` : ''}.` : 'Nothing is missing.'} ${part.length ? `${plural(part.length, 'item')} ${part.length === 1 ? 'is' : 'are'} drafted or partial.` : ''}`;
+  main.innerHTML = `<div class="br v2">
+    ${head('brand', `Brand: ${esc(d.account.name)}`)}
+    <p class="v2say lead">${lead}</p>
+    ${completenessCard(C)}
     <div id="brGlance"></div>
+    <div class="bv-bar"><nav class="lb-seg v2jobs" aria-label="Brand sections">${views.map(([k, l, n, t]) => `<button type="button" data-v="${k}" class="${S.view === k ? 'on' : ''}"${tipA(esc(t))}>${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav>
+      <span class="v2hint">${({ client: 'Before a call: what the client told us.', research: 'Before a brief: who buys and what they say.', voice: 'When writing: how the brand talks.' })[S.view]} What we tested is on <a href="#" id="brToAngles">Tests and angles</a>.</span></div>
     <div id="brBody" class="br"></div></div>`;
   main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
+  main.querySelector('#brToAngles').onclick = e => { e.preventDefault(); window.show && window.show('angles'); };
+  wireCompleteness(main);
   glanceStrip($('#brGlance'));
   const body = $('#brBody');
   ({ client: paintClient, research: paintResearch, voice: paintVoiceView })[S.view](body);
+}
+
+/* ---------------- what we know, and what is missing (2026-10-08) ----------------
+   One strip above the three views: every piece a strategist expects to find on this page,
+   filled (green), drafted or partial (amber) or missing (dashed). Built only from what the
+   page already loaded. A chip opens the view (and the research section) that holds it. */
+function completeness(d) {
+  const o = d.onboard, iv = d.docs['']?.voice_interview || {}, turns = iv.turns || [];
+  const lines = d.lines, nL = lines.length;
+  const perLine = (has, draftOnly) => { const n = lines.filter(l => has(l.id)).length; const dn = lines.filter(l => !has(l.id) && draftOnly(l.id)).length; return { n, dn, without: lines.filter(l => !has(l.id) && !draftOnly(l.id)).map(l => l.name) }; };
+  const lineSt = ({ n, dn }) => !nL ? 'miss' : n === nL ? 'ok' : n || dn ? 'part' : 'miss';
+  const lineTip = ({ n, dn, without }, what) => !nL ? `No product lines yet, so no ${what}.`
+    : `${n} of ${plural(nL, 'product line')} ${n === 1 ? 'has' : 'have'} ${what}.${dn ? ` ${dn} ${n ? 'more ' : ''}${dn === 1 ? 'has' : 'have'} only a draft waiting for approval.` : ''}${without.length && nL > 1 ? ` Nothing yet on: ${without.map(esc).join(', ')}.` : ''}`;
+  const docOk = (L, k) => { const x = d.docs[L]?.[k]; return !!x && x._status !== 'draft' && Object.keys(x).some(key => key[0] !== '_' && (Array.isArray(x[key]) ? x[key].length : x[key])); };
+  const docDraft = (L, k) => { const x = d.docs[L]?.[k]; return !!x && x._status === 'draft'; };
+  const ok = (arr, L) => arr.some(x => x.line_id === L && x.status !== 'draft');
+  const dr = (arr, L) => arr.some(x => x.line_id === L && x.status === 'draft');
+  const pP = perLine(L => ok(d.personas, L), L => dr(d.personas, L));
+  const pV = perLine(L => ok(d.voc, L), L => dr(d.voc, L));
+  const pC = perLine(L => ok(d.comps, L), L => dr(d.comps, L));
+  const pM = perLine(L => docOk(L, 'market'), L => docDraft(L, 'market'));
+  const pK = perLine(L => docOk(L, 'mechanism'), L => docDraft(L, 'mechanism'));
+  const facts = d.docs['']?.brand_facts, g = d.docs['']?.voice_guide || {}, sk = d.docs['']?.voice_skill || {}, spk = d.docs['']?.voice_speaker || {};
+  const synced = sk.source === 'repo', ownSpk = (sk.files || []).some(f => f.role === 'speaker');
+  const answered = o ? Object.keys(o.answers || {}).filter(k => o.answers[k] != null && o.answers[k] !== '').length : 0;
+  const items = [
+    { g: 'From the client', k: 'form', l: 'Onboarding form', v: 'client', st: o?.status === 'submitted' ? 'ok' : answered ? 'part' : 'miss', tip: o?.status === 'submitted' ? `Submitted ${esc((o.submitted_at || '').slice(0, 10))}, ${answered} answers.` : o ? `${o.status === 'started' ? 'Started' : 'Sent'}, ${answered} answers so far. Not submitted yet.` : 'No onboarding link yet. Make one on Client answers.' },
+    { g: 'From the client', k: 'interview', l: 'Voice interview', v: 'voice', st: iv.stage === 'done' ? 'ok' : turns.length ? 'part' : 'miss', tip: iv.stage === 'done' ? `Finished, ${turns.length} answers.` : turns.length ? `In progress, ${turns.length} answers.` : 'Not started. Send the client the voice link (Voice, step 1).' },
+    { g: 'Research', k: 'lines', l: 'Product lines', v: 'research', st: nL ? 'ok' : 'miss', tip: nL ? lines.map(l => esc(l.name)).join(', ') : 'None yet. Research tools can set them up from the website.' },
+    { g: 'Research', k: 'personas', sec: 'personas', l: 'Personas', v: 'research', st: lineSt(pP), tip: lineTip(pP, 'an approved persona') },
+    { g: 'Research', k: 'voc', sec: 'voc', l: 'Customer quotes', v: 'research', st: lineSt(pV), tip: lineTip(pV, 'approved customer quotes') },
+    { g: 'Research', k: 'market', sec: 'market', l: 'Market read', v: 'research', st: lineSt(pM), tip: lineTip(pM, 'an approved market read') },
+    { g: 'Research', k: 'mech', sec: 'mech', l: 'Mechanism', v: 'research', st: lineSt(pK), tip: lineTip(pK, 'an approved mechanism') },
+    { g: 'Research', k: 'comps', sec: 'comps', l: 'Competitors', v: 'research', st: lineSt(pC), tip: lineTip(pC, 'approved competitors') },
+    { g: 'Research', k: 'facts', sec: 'facts', l: 'Website notes', v: 'research', st: !facts ? 'miss' : facts._status === 'draft' ? 'part' : 'ok', tip: !facts ? 'The website has not been read yet.' : facts._status === 'draft' ? 'Read, waiting for approval.' : 'Read and approved.' },
+    { g: 'Voice', k: 'guide', l: 'Writing guide', v: 'voice', st: synced || (g.md && g._status !== 'draft') ? 'ok' : g.md ? 'part' : 'miss', tip: synced ? 'Lives in the synced copy skill.' : g.md ? (g._status === 'draft' ? `Draft v${g.version || 1}, needs your approval.` : `Approved v${g.version || 1}.`) : 'Not written yet (Voice, step 3).' },
+    { g: 'Voice', k: 'speaker', l: 'The speaker', v: 'voice', st: synced || spk.md || ownSpk ? 'ok' : 'miss', tip: synced || spk.md || ownSpk ? 'Written.' : 'Not written yet (Voice, step 4).' },
+    { g: 'Voice', k: 'skill', l: 'Copy skill', v: 'voice', st: synced || (sk.instructions && sk._status === 'approved') ? 'ok' : sk.instructions ? 'part' : 'miss', tip: synced ? `Synced from ${esc(sk.repo || 'the repo')}.` : sk.instructions ? (sk._status === 'approved' ? 'Built and approved.' : 'Built, waiting for your approval.') : 'Not built yet (Voice, step 5).' },
+  ];
+  return { items, ok: items.filter(x => x.st === 'ok').length };
+}
+function completenessCard(C) {
+  const groups = [...new Set(C.items.map(x => x.g))];
+  const word = { ok: 'In', part: 'Drafted or partial', miss: 'Missing' };
+  return vcard({ id: 'brDone', title: 'What we know, and what is missing', find: 'Green is in, amber is drafted or partial, dashed is missing. Hover for detail, click to go there.', cap: `<b>${C.ok}</b> of ${C.items.length}`,
+    body: `<div class="bd-prog"${tipA(`${C.ok} of ${C.items.length} in`)}>${C.items.map(x => `<i class="${x.st}"></i>`).join('')}</div>
+    <div class="bd-grid">${groups.map(gname => `<div class="bd-grp"><span>${gname}</span><div class="bd-chips">${C.items.filter(x => x.g === gname).map(x => `<button type="button" class="bd-it ${x.st}" data-bd="${x.k}"${tipA(`<b>${esc(x.l)}: ${word[x.st]}</b><br>${x.tip}`)}><i></i>${esc(x.l)}</button>`).join('')}</div></div>`).join('')}</div>` });
+}
+function wireCompleteness(root) {
+  const C = completeness(S.d);
+  root.querySelectorAll('[data-bd]').forEach(b => b.onclick = () => {
+    const it = C.items.find(x => x.k === b.dataset.bd); if (!it) return;
+    if (it.sec) { const R = rsState(); R.open[it.sec] = true; }
+    S.view = it.v; localStorage.setItem(LS_VIEW, S.view); repaint();
+    const target = it.sec ? document.querySelector(`.rs-sec[data-sec="${it.sec}"]`) : document.getElementById('brBody');
+    target?.scrollIntoView({ block: 'start' });
+  });
 }
 /* Re-paint without moving the page. */
 function repaint() { const y = window.scrollY; paint(); window.scrollTo(0, y); }
@@ -520,23 +726,53 @@ function paintAngles(main) {
   const rows = d.angles.map(a => { const s = statsOf(d.batches.filter(b => b.angle_id === a.id)); return { a, s, r: readOf(a, s) }; })
     .sort((x, y) => READS[x.r][2] - READS[y.r][2] || (y.s.won / (y.s.judged || 1)) - (x.s.won / (x.s.judged || 1)) || y.s.tests - x.s.tests);
   const unfiled = d.batches.filter(b => !b.angle_id).length;
-  main.innerHTML = `<div class="br ts">
-    <div class="ts-head"><div>${crumb('angles')}<h2>Angles · ${esc(d.account.name)}</h2>
-      <p class="sub" style="margin:0">Every reason to buy we have tested, what won, and the concepts under it. Check an idea here before you brief it.</p></div></div>
-    <section class="ts-box hot"><div class="ts-bh"><h3>Have we tested this?</h3><span>Type the idea in your own words. Locus checks it against every angle and every past test, so the same idea in different words still counts.</span></div>
-      <div class="ts-body"><form class="an-ask" id="anAsk"><input class="br-in" id="anIdea" style="margin:0" placeholder="e.g. golfers who hate paying for a logo" value="${esc(S.idea || '')}" aria-label="Your idea"><button class="btn primary" type="submit">${S.checking ? 'Checking…' : 'Check'}</button></form>
-      <div id="anAnswer">${S.answer ? testedHtml(S.answer) : ''}</div></div></section>
-    <section class="ts-box"><div class="ts-bh"><h3>All angles <span class="ts-n">${rows.length}</span></h3><span>Best first. Click one to see its concepts and what each variation did. Green: build on it. Red: skip it.</span></div>
-      <div class="tbl-wrap"><table class="an-tbl"><thead><tr><th>Angle</th><th class="num">Tests</th><th>Won</th><th class="num">Best CPA</th><th class="num">Last tested</th><th>What to do</th></tr></thead><tbody>
-      ${rows.map(({ a, s, r }) => `<tr data-ang="${a.id}"><td><b>${esc(a.name)}</b>${a.argument ? `<div class="tiny">${esc(short(a.argument, 110))}</div>` : ''}</td>
-        <td class="num">${s.tests || '-'}</td>
-        <td>${s.judged ? `<span class="an-bar"><i style="width:${Math.round(s.won / s.judged * 100)}%"></i></span>${s.won} of ${s.judged}` : `<span class="tiny">${r === 'idea' ? (a.status === 'proposed' ? 'from research' : 'no tests') : 'none judged'}</span>`}</td>
-        <td class="num">${s.best != null ? money(s.best) : '-'}</td><td class="num">${daysAgo(s.last)}</td>
-        <td><span class="br-tag ${READS[r][1]}">${READS[r][0]}</span></td></tr>`).join('')}
-      </tbody></table></div></section>
-    <p class="ts-foot">${unfiled ? `${unfiled} tests are not filed under an angle yet. ` : ''}Won counts the buyer's calls plus Locus's read of finished tests. <a href="#" id="lbTidy">${S.tidying ? 'Tidying…' : 'Merge duplicate angles'}</a> · <a href="#" id="anTidyC">${S.tidyingC ? 'Grouping…' : 'Group duplicate concepts'}</a></p>
+  const cnt = k => rows.filter(x => x.r === k).length;
+  const proven = rows.filter(x => x.r === 'proven'), dead = cnt('dead');
+  const bestA = proven.slice().sort((x, y) => (y.s.won / (y.s.judged || 1)) - (x.s.won / (x.s.judged || 1)) || y.s.won - x.s.won)[0];
+  const lead = proven.length
+    ? `<b>${plural(proven.length, 'proven angle')} to build on</b>${bestA ? `, led by "${esc(bestA.a.name)}" (${bestA.s.won} of ${bestA.s.judged} won)` : ''}. ${dead ? `${dead} ${dead === 1 ? 'is' : 'are'} dead: skip ${dead === 1 ? 'it' : 'them'}. ` : ''}${cnt('idea') ? `${plural(cnt('idea'), 'idea')} not tested yet.` : ''}`
+    : `<b>No angle is proven yet.</b> ${cnt('mixed') ? `${cnt('mixed')} mixed: try a new concept on ${cnt('mixed') === 1 ? 'it' : 'them'}. ` : ''}${cnt('open') ? `${cnt('open')} not judged yet.` : ''}`;
+  /* The scoreboard: one bar per angle with tests, length = how many tests, split by what they
+     did. Same order as the list (best first). */
+  const tested = rows.filter(x => x.s.tests && x.r !== 'retired');
+  const SHOW = 14, sbOpen = !!S.sbAll, sbRows = sbOpen ? tested : tested.slice(0, SHOW);
+  const tmx = Math.max(1, ...tested.map(x => x.s.tests));
+  const segs = (a, s) => { const L = d.batches.filter(b => b.angle_id === a.id); const mixed = L.filter(b => outcomeOf(b) === 'mixed').length; return [[s.won, '--good', 'won'], [s.lost, '--bad', 'lost'], [mixed, '--warn', 'mixed'], [s.tests - s.won - s.lost - mixed, '--line-strong', 'not judged']]; };
+  const sbRow = ({ a, s, r }) => { const sg = segs(a, s); const wr = s.judged ? Math.round(s.won / s.judged * 100) : null;
+    return `<button type="button" class="an-sbr" data-ang="${a.id}"${tipA(`<b>${esc(a.name)}</b><br>${plural(s.tests, 'test')}: ${sg.filter(x => x[0]).map(x => `${x[0]} ${x[2]}`).join(', ')}.${s.best != null ? `<br>Best cost per sale ${money(s.best)}${d.rules.target_cpa ? ` (goal ${money(d.rules.target_cpa)})` : ''}.` : ''}<br>${money(s.spend)} spent. Last tested ${daysAgo(s.last)}.`)}>
+      <span class="nm">${esc(a.name)}</span>
+      <span class="bar"><span class="trk" style="width:${(s.tests / tmx * 100).toFixed(1)}%">${sg.filter(x => x[0] > 0).map(([n, c]) => `<i style="flex:${n};background:var(${c})"></i>`).join('')}</span></span>
+      <span class="wr ${wr == null ? 'none' : ''}">${wr == null ? '-' : wr + '%'}</span>
+      <span class="rd"><span class="br-tag ${READS[r][1]}">${READS[r][0]}</span></span></button>`; };
+  const scoreboard = tested.length ? `${UI() ? UI().legend([{ color: '--good', label: 'Won' }, { color: '--bad', label: 'Lost' }, { color: '--warn', label: 'Mixed' }, { color: '--line-strong', label: 'Not judged yet' }]) : ''}
+    <div class="an-sbh"><span>Angle</span><span>Tests, longest bar = ${tmx}</span><span>Win rate</span><span>What to do</span></div>
+    <div class="an-sb">${sbRows.map(sbRow).join('')}</div>
+    ${tested.length > SHOW ? `<button type="button" class="v2link" id="anSbMore" style="margin:8px 8px 0">${sbOpen ? 'Show the top ' + SHOW : `Show all ${tested.length} tested angles`}</button>` : ''}`
+    : '<p class="v2hint">No angle has a test filed under it yet. Tests file themselves from Asana.</p>';
+  /* The list, filterable by what to do. */
+  const F = S.anFilt && READS[S.anFilt] && cnt(S.anFilt) ? S.anFilt : 'all';
+  const shown = F === 'all' ? rows : rows.filter(x => x.r === F);
+  const filt = `<div class="v2jobs an-filt">${[['all', 'All', rows.length], ...Object.keys(READS).map(k => [k, READS[k][0].split(',')[0], cnt(k)]).filter(x => x[2])].map(([k, l, n]) => `<button type="button" data-af="${k}" class="${F === k ? 'on' : ''}">${l}<span class="n">${n}</span></button>`).join('')}</div>`;
+  main.innerHTML = `<div class="br v2 ts">
+    ${head('angles', `Tests and angles: ${esc(d.account.name)}`)}
+    <p class="v2say lead">${lead}</p>
+    ${vcard({ cls: 'ts-box hot', title: 'Have we tested this?', find: 'Type the idea in your own words. Locus checks it against every angle and every past test, so the same idea in different words still counts.',
+      body: `<form class="an-ask" id="anAsk"><input class="br-in" id="anIdea" style="margin:0" placeholder="e.g. golfers who hate paying for a logo" value="${esc(S.idea || '')}" aria-label="Your idea"><button class="btn primary" type="submit">${S.checking ? 'Checking…' : 'Check'}</button></form>
+      <div id="anAnswer">${S.answer ? testedHtml(S.answer) : ''}</div>` })}
+    ${vcard({ title: 'The scoreboard', find: `${plural(tested.length, 'angle')} with tests. The longer the bar, the more we have tested it; the colour is what those tests did. Hover for the numbers, click to open.`, body: scoreboard })}
+    ${vcard({ title: 'Every angle', find: 'Best first. Click one to see its concepts and what each variation did.', cap: `<b>${shown.length}</b> of ${rows.length}`,
+      body: `${filt}<div class="v2tbl"><table class="an-tbl"><thead><tr><th>Angle</th><th>Tests</th><th>Won</th><th>Best CPA</th><th>Last tested</th><th>What to do</th></tr></thead><tbody>
+      ${shown.map(({ a, s, r }) => `<tr class="link" data-ang="${a.id}"><td><b>${esc(a.name)}</b>${a.argument ? `<span class="tiny">${esc(short(a.argument, 110))}</span>` : ''}</td>
+        <td>${s.tests || '-'}</td>
+        <td>${s.judged ? (UI() ? UI().ib(s.won, s.judged, '--good', `${s.won} of ${s.judged}`, `${Math.round(s.won / s.judged * 100)}% of judged tests won`) : `${s.won} of ${s.judged}`) : `<span class="faint">${r === 'idea' ? (a.status === 'proposed' ? 'from research' : 'no tests') : 'none judged'}</span>`}</td>
+        <td class="${s.best == null || !d.rules.target_cpa ? '' : s.best <= d.rules.target_cpa ? 'good' : ''}">${s.best != null ? money(s.best) : '-'}</td><td>${daysAgo(s.last)}</td>
+        <td><span class="br-tag ${READS[r][1]}">${READS[r][0]}</span></td></tr>`).join('') || '<tr><td colspan="6" class="v2hint">No angles yet.</td></tr>'}
+      </tbody></table></div>` })}
+    <p class="v2foot ts-foot">${unfiled ? `${unfiled} tests are not filed under an angle yet. ` : ''}Won counts the buyer's calls plus Locus's read of finished tests (a dashed pill). Proven = at least 1 in 5 judged tests won. Dead = 3 or more judged, none won. <a href="#" id="lbTidy">${S.tidying ? 'Tidying…' : 'Merge duplicate angles'}</a> · <a href="#" id="anTidyC">${S.tidyingC ? 'Grouping…' : 'Group duplicate concepts'}</a></p>
   </div>`;
   main.querySelectorAll('[data-ang]').forEach(r => r.onclick = () => { S.angOpen = r.dataset.ang; window.scrollTo(0, 0); paint(); });
+  main.querySelectorAll('[data-af]').forEach(b => b.onclick = () => { S.anFilt = b.dataset.af; repaint(); });
+  main.querySelector('#anSbMore')?.addEventListener('click', () => { S.sbAll = !S.sbAll; repaint(); });
   wireAngleTools(main);
 }
 
@@ -565,19 +801,30 @@ function paintAngle(main, a) {
   const concepts = [...groups.entries()].map(([id, tests]) => ({ id, name: id ? conceptName(id) || 'Unnamed concept' : 'No concept named', tests: tests.sort((x, y) => (parseInt(x.num, 10) || 0) - (parseInt(y.num, 10) || 0)), s: statsOf(tests) }))
     .sort((x, y) => (y.s.won - x.s.won) || ((x.s.best ?? 1e9) - (y.s.best ?? 1e9)) || (y.s.tests - x.s.tests));
   const kind = (b, i) => i === 0 ? 'First version' : b.level === 'variation' ? `Variation${b.variable ? ': ' + esc(b.variable) : ''}` : b.level === 'offer' ? 'Offer test' : 'Another version';
-  main.innerHTML = `<div class="br ts">
-    <p style="margin:0"><a href="#" id="anBack">← All angles</a></p>
-    <div class="ts-head"><div><h2>${esc(a.name)}</h2><p class="sub" style="margin:0;max-width:760px">${esc(a.argument || '')}</p></div>
-      <span class="br-tag ${READS[r][1]}" style="font-size:13px">${READS[r][0]}</span></div>
-    <div class="an-strip"><div><b>${s.tests}</b><span>tests</span></div><div><b>${s.judged ? `${s.won} of ${s.judged}` : '-'}</b><span>won</span></div><div><b>${s.best != null ? money(s.best) : '-'}</b><span>best CPA (target ${rules.target_cpa ? money(rules.target_cpa) : 'not set'})</span></div><div><b>${money(s.spend)}</b><span>spent</span></div><div><b>${daysAgo(s.last)}</b><span>last tested</span></div></div>
-    ${concepts.length ? concepts.map(c => `<section class="ts-box"><div class="ts-bh"><h3>${esc(c.name)} <span class="ts-n">${c.tests.length} test${c.tests.length === 1 ? '' : 's'}</span></h3>
-        <span>${c.s.judged ? `${c.s.won} of ${c.s.judged} won` : 'Nothing judged yet'}${c.s.best != null ? ` · best CPA ${money(c.s.best)}` : ''}</span></div>
-        <div class="ts-body">${c.tests.map((b, i) => `<button class="lb-row" data-b="${b.id}"><span class="lb-num">#${esc(shortNum(b.num))}</span>
+  const wr = s.judged ? Math.round(s.won / s.judged * 100) : null;
+  const winner = concepts.find(c => c.s.won);
+  const lead = !s.tests ? 'Nothing has been tested on this angle yet.'
+    : `${plural(s.tests, 'test')} across ${plural(concepts.length, 'concept')}${s.judged ? `, <b>${s.won} of ${s.judged} won</b>` : ', none judged yet'}.${winner ? ` The concept that wins most is "${esc(winner.name)}": build the next variation on it.` : r === 'dead' ? ' Nothing here has won: brief a different reason to buy.' : r === 'mixed' ? ' No concept has won yet: try a new way to show it.' : ''}`;
+  main.innerHTML = `<div class="br v2 ts">
+    ${head('angles', `Tests and angles: ${esc(d.account.name)}`)}
+    <button type="button" class="an-back" id="anBack">← All angles</button>
+    <div class="an-title"><div><h2 style="margin:0">${esc(a.name)}</h2>${a.argument ? `<p>${esc(a.argument)}</p>` : ''}</div>
+      <span class="br-tag ${READS[r][1]}" style="font-size:12.5px;padding:4px 11px">${READS[r][0]}</span></div>
+    <p class="v2say lead">${lead}</p>
+    <div class="v2tiles">
+      ${vtile({ label: 'Tests', value: String(s.tests), sub: `${money(s.spend)} spent in all` })}
+      ${vtile({ label: 'Won', value: s.judged ? `${s.won} of ${s.judged}` : '-', sub: wr != null ? `${wr}% of judged tests` : 'Nothing judged yet' })}
+      ${vtile({ label: 'Best cost per sale', value: s.best != null ? money(s.best) : '-', sub: !rules.target_cpa ? 'No goal set' : s.best == null ? `Goal ${money(rules.target_cpa)}` : '', bullet: s.best != null && rules.target_cpa && UI() ? UI().bullet(s.best, rules.target_cpa, true, `goal ${money(rules.target_cpa)}`) : '' })}
+      ${vtile({ label: 'Last tested', value: daysAgo(s.last), sub: s.last ? `First spend of the newest test: ${esc(s.last)}` : '' })}
+    </div>
+    ${concepts.length ? concepts.map(c => vcard({ cls: 'ts-box', title: esc(c.name), find: `${c.s.judged ? `${c.s.won} of ${c.s.judged} won` : 'Nothing judged yet'}${c.s.best != null ? ` · best ${money(c.s.best)} a sale` : ''}`, cap: `<b>${c.tests.length}</b> test${c.tests.length === 1 ? '' : 's'}`,
+        body: `<div class="bv-rows">${c.tests.map((b, i) => `<button class="lb-row" data-b="${b.id}"><span class="lb-num">#${esc(shortNum(b.num))}</span>
           <span class="lb-main"><b>${esc(b.title)}</b><span class="s">${kind(b, i)}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>${b.learning ? `<span class="learn">${esc(short(b.learning, 200))}</span>` : ''}</span>
-          <span class="lb-nums">${b.stats.spend ? `<b style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) + ' CPA' : 'no sales'}</b><span>${money(b.stats.spend)} spent</span>` : '<span class="tiny">no spend</span>'}</span>
-          <span class="lb-res">${outPill(b)}</span></button>`).join('')}</div></section>`).join('')
-      : '<div class="br-empty">No tests under this angle yet.</div>'}
-    <p class="ts-foot"><a href="#" id="lbEditAng">Rename, retire or merge this angle</a></p>
+          <span class="lb-cpa">${cpaBullet(b, rules)}</span>
+          <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b><span>spent</span>` : '<span>-</span>'}</span>
+          <span class="lb-res">${outPill(b)}</span></button>`).join('')}</div>` })).join('')
+      : vcard({ body: '<p class="v2hint">No tests under this angle yet.</p>' })}
+    <p class="v2foot ts-foot"><a href="#" id="lbEditAng">Rename, retire or merge this angle</a></p>
   </div>`;
   main.querySelector('#anBack').onclick = e => { e.preventDefault(); S.angOpen = null; paint(); };
   main.querySelector('#lbEditAng').onclick = e => { e.preventDefault(); angleModal(a); };
@@ -638,21 +885,47 @@ function resultPill(b) {
   if (b.asana_result === 'keep') return `<span class="br-tag mid">Keep running${b.check_again ? ' to ' + esc(b.check_again.slice(5)) : ''}</span>`;
   return '';
 }
+/* Cost per sale against the goal, as a bullet: the bar is the test, the tick is the goal, the
+   colour is the same three-way read as everywhere else (green at or under goal, amber up to the
+   account average, red above). Same markup as V2UI.bullet so it reads as one system. */
+function cpaBullet(b, rules) {
+  const st = b.stats || {};
+  if (!st.spend) return '<span class="nos">No spend yet</span>';
+  const t = rules.target_cpa;
+  if (!t) return st.roas != null ? `<b style="color:${tone(st.roas, rules)}">${x2(st.roas)} ROAS</b>` : '<span class="nos">No sales yet</span>';
+  const amber = rules.acct_avg || t * (1 + (rules.yellow_pct || 30) / 100);
+  if (st.cpa == null) return `<span class="nos"${tipA(`No sales on ${money(st.spend)} spent. The goal is ${money(t)} a sale.`)}>No sales on ${money(st.spend)}</span>`;
+  const max = Math.max(st.cpa, t, amber) * 1.2;
+  const col = cpaTone(st.cpa, rules);
+  const word = st.cpa <= t ? 'At or under the goal' : st.cpa <= amber ? 'Over the goal, under the account average' : amber > t ? 'Over the account average' : 'Over the goal';
+  return `<div class="v2bul"${tipA(`<b>${money(st.cpa)} a sale</b> on ${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}.<br>${word}. Goal ${money(t)} (the tick)${amber > t ? `, amber up to the ${money(amber)} account average` : ''}.`)}>
+    <div class="trk"><i style="width:${Math.min(100, st.cpa / max * 100).toFixed(1)}%;background:${col}"></i><b style="left:${(t / max * 100).toFixed(1)}%"></b></div>
+    <div class="lb"><b style="color:${col}">${money(st.cpa)}</b> vs ${money(t)} goal</div></div>`;
+}
 function testRow(b, rules, { chips = false } = {}) {
   const angle = S.d.angles.find(a => a.id === b.angle_id);
-  const metric = rules.target_cpa
-    ? `<b style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) + ' CPA' : 'no sales'}</b>`
-    : `<b style="color:${tone(b.stats.roas, rules)}">${b.stats.roas != null ? x2(b.stats.roas) + ' ROAS' : 'no sales'}</b>`;
   return `<button class="lb-row" data-b="${b.id}">
     <span class="lb-num">#${esc(shortNum(b.num))}</span>
     <span class="lb-main"><b>${esc(b.title)}</b>
       <span class="s">${angle ? 'Angle: ' + esc(angle.name) : '<i>no angle yet</i>'}${b.offer ? ' · ' + esc(short(b.offer, 40)) : ''}</span>
       ${b.learning ? `<span class="learn">${esc(short(b.learning, 180))}</span>` : ''}</span>
-    <span class="lb-nums">${b.stats.spend ? `${metric}<span>${money(b.stats.spend)} spent</span>` : '<span class="tiny">no spend yet</span>'}</span>
+    <span class="lb-cpa">${cpaBullet(b, rules)}</span>
+    <span class="lb-nums">${b.stats.spend ? `<b>${money(b.stats.spend)}</b><span>spent</span>` : '<span>-</span>'}</span>
     <span class="lb-res">${resultPill(b)}${chips ? testChips(b, rules) : ''}</span></button>`;
 }
-function tsBox(cls, title, hint, body) {
-  return `<section class="ts-box ${cls}"><div class="ts-bh"><h3>${title}</h3><span>${hint}</span></div><div class="ts-body">${body}</div></section>`;
+function tsBox(cls, title, hint, body, cap = '', id = '') {
+  return vcard({ id, cls: `ts-box ${cls}`, title, find: hint, cap, body: `<div class="bv-rows">${body}</div>` });
+}
+/* The amber zone, said plainly: between the goal and the account average, when the average
+   sits above the goal. When the account already beats its goal there is no amber zone. */
+function amberLine(rules) {
+  const t = rules.target_cpa, a = rules.acct_avg || t * (1 + (rules.yellow_pct || 30) / 100);
+  return a > t ? `Amber up to ${money(a)}, the account average.` : `The account averages ${money(a)}, under the goal, so anything over the goal reads red.`;
+}
+/* Finished this month: a call made this month, else its ads last spent this month. */
+function doneThisMonth(list) {
+  const ym = new Date().toISOString().slice(0, 7);
+  return list.filter(b => b.box === 'done' && ((b.verdict_at || '').slice(0, 7) === ym || (!b.verdict_at && (b.stats?.last || '').slice(0, 7) === ym)));
 }
 
 function paintTests(main) {
@@ -660,28 +933,43 @@ function paintTests(main) {
   const asn = d.docs['']?.asana;
   const by = k => d.batches.filter(b => b.box === k);
   const call = by('call'), running = by('running'), making = by('making');
+  const late = running.filter(b => { const n = dayOf(b); return n && n >= rules.judge_days; }).length;
+  const done = doneThisMonth(d.batches), won = done.filter(b => outcomeOf(b) === 'winner').length, lost = done.filter(b => outcomeOf(b) === 'loser').length;
+  const month = new Date().toLocaleString('en-US', { month: 'long' });
   const rulesLine = rules.target_cpa
-    ? `Target CPA ${money(rules.target_cpa)} · judged after ${money(rules.judge_spend)} or ${rules.judge_days} days`
-    : `No target CPA yet, so Locus is not suggesting calls. <a href="#" class="go-goals">Set it in Settings</a>`;
+    ? `Judged after ${money(rules.judge_spend)} or ${rules.judge_days} days against the ${money(rules.target_cpa)} goal.`
+    : `No goal cost per sale yet, so Locus is not suggesting calls. <a href="#" class="go-goals">Set it in Settings</a>.`;
+  const lead = call.length
+    ? `<b>${plural(call.length, 'test')} ${call.length === 1 ? 'needs' : 'need'} your call today.</b> ${running.length} running${late ? `, ${late} at day ${rules.judge_days} or later` : ''}. ${rulesLine}`
+    : `<b>Nothing needs a call today.</b> ${running.length ? `${running.length} running${late ? `, ${late} at day ${rules.judge_days} or later` : `, nothing to do until day ${rules.judge_days}`}.` : 'No tests are running.'} ${rulesLine}`;
+
+  const tiles = `<div class="v2tiles bv-tiles">
+    <div class="bv-jump" data-jump="tsCall">${vtile({ label: 'Make a call', value: `${call.length}`, sub: call.length ? 'Spent enough to judge. Open one to see the numbers.' : 'Nothing has spent enough to judge yet.' })}</div>
+    <div class="bv-jump" data-jump="tsRun">${vtile({ label: 'Running', value: `${running.length}${late ? `<small>${late} past day ${rules.judge_days}</small>` : ''}`, sub: `Live and spending. Day ${rules.judge_days} is when they get judged.` })}</div>
+    <div${tipA(`Tests closed with a call in ${month}, or whose ads last spent in ${month}. Winners and losers count the media buyer's call first, then Locus's read.`)}>${vtile({ label: `Finished in ${month}`, value: `${done.length}`, sub: done.length ? `${won} won, ${lost} lost${done.length - won - lost ? `, ${done.length - won - lost} mixed or too little spend` : ''}` : 'Nothing finished yet this month.' })}</div>
+    <div class="bv-jump" data-goals="1">${vtile({ label: 'Goal cost per sale', value: rules.target_cpa ? money(rules.target_cpa) : 'Not set', sub: rules.target_cpa ? `${amberLine(rules)} Change it in Settings.` : 'Set it in Settings, Goals.' })}</div>
+  </div>`;
 
   const content = `
-      ${tsBox('hot', `Make a call <span class="ts-n">${call.length}</span>`, "Spent enough to judge. Locus's read is on the right. Set Result in Asana and move the task to Completed.",
-        call.length ? call.map(b => testRow(b, rules)).join('') : '<div class="br-empty">Nothing to call right now.</div>')}
-      ${tsBox('', `Running <span class="ts-n">${running.length}</span>`, `Live and spending. Nothing to do until day ${rules.judge_days}.`,
-        minsBar(rules) + (running.length ? running.map(b => testRow(b, rules, { chips: true })).join('') : '<div class="br-empty">No tests running.</div>'))}`;
+      ${tsBox('hot', `Make a call`, "Spent enough to judge. Locus's read is on the right. Set Result in Asana and move the task to Completed.",
+        call.length ? call.map(b => testRow(b, rules)).join('') : '<div class="br-empty">Nothing to call right now.</div>', `<b>${call.length}</b> waiting`, 'tsCall')}
+      ${tsBox('', `Running`, `Live and spending. Nothing to do until day ${rules.judge_days}.`,
+        `<div class="bv-mins">${minsBar(rules)}</div>` + (running.length ? running.map(b => testRow(b, rules, { chips: true })).join('') : '<div class="br-empty">No tests running.</div>'), `<b>${running.length}</b> live`, 'tsRun')}`;
 
   const ideas = making.filter(b => b.stage === 'idea').length, prod = making.length - ideas;
-  main.innerHTML = `<div class="br ts">
-    <div class="ts-head">
-      <div>${crumb('tests')}<h2>Test calls · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">${rulesLine}. Fills itself from Asana.</p></div>
-      <div class="lb-sync">${asn?.project_gid
-        ? `<span class="tiny">Synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
-        : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div>
-    </div>
+  main.innerHTML = `<div class="br v2 ts">
+    ${head('tests', `Test calls: ${esc(d.account.name)}`)}
+    <div class="bv-bar"><p class="v2say lead" style="flex:1;min-width:280px">${lead}</p>
+      <div class="bv-sync lb-sync">${asn?.project_gid
+        ? `<span>Fills itself from Asana. Synced ${esc(ago(asn.last_sync))}</span><button class="btn" id="lbSync">${S.syncing ? 'Syncing…' : 'Sync now'}</button>`
+        : '<button class="btn primary" id="lbConnect">Connect to Asana</button>'}</div></div>
+    ${tiles}
     ${content}
-    <p class="ts-foot">${making.length ? `Being made in Asana: ${ideas} brief${ideas === 1 ? '' : 's'}, ${prod} in production. ` : ''}${asn?.url ? `<a href="${esc(asn.url)}" target="_blank" rel="noopener">Open ${esc(asn.project_name || 'the project')} in Asana</a> · ` : ''}Past tests and what won are on <a href="#" id="tsToAngles">Angles</a>.</p>
+    <p class="v2foot ts-foot">${making.length ? `Being made in Asana: ${plural(ideas, 'brief')}, ${prod} in production. ` : ''}${asn?.url ? `<a href="${esc(asn.url)}" target="_blank" rel="noopener">Open ${esc(asn.project_name || 'the project')} in Asana</a> · ` : ''}Past tests and what won are on <a href="#" id="tsToAngles">Tests and angles</a>.</p>
     ${untaggedCard()}
   </div>`;
+  main.querySelectorAll('[data-jump]').forEach(t => t.onclick = () => document.getElementById(t.dataset.jump)?.scrollIntoView({ block: 'start' }));
+  main.querySelectorAll('[data-goals]').forEach(t => t.onclick = () => window.openGoals && window.openGoals(S.act));
   wireTests(main);
 }
 function wireTests(body) {
@@ -701,29 +989,34 @@ function wireTests(body) {
 
 /* Angles with no brand picked: pick one. */
 async function renderAnglesAll(main) {
-  main.innerHTML = '<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>';
+  main.innerHTML = `<div class="br v2">${head('angles', 'Tests and angles')}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
   const r = await api('/api/brand/overview');
-  const rows = r.brands.filter(b => b.batches);
-  main.innerHTML = `<div class="br">
-    <div><h2>Angles</h2><p class="sub">Every reason to buy each brand has tested, and what won. Pick a brand.</p></div>
-    <div class="card" style="padding:0"><div class="tbl-wrap"><table>
-      <thead><tr><th>Brand</th><th class="num">Angles</th><th class="num">Tests</th><th></th></tr></thead>
-      <tbody>${rows.map(b => `<tr><td><b>${esc(b.name)}</b></td><td class="num">${b.angles}</td><td class="num">${b.batches}</td><td style="text-align:right"><button class="btn" data-act="${esc(b.act_id)}">Open</button></td></tr>`).join('')}</tbody></table></div></div>
+  const rows = r.brands.filter(b => b.batches).sort((x, y) => y.batches - x.batches);
+  const mx = Math.max(1, ...rows.map(b => b.batches));
+  main.innerHTML = `<div class="br v2">
+    ${head('angles', 'Tests and angles')}
+    <p class="v2say lead">Every reason to buy each brand has tested, and what won. <b>Pick a brand</b> to check an idea against its library before you brief it.</p>
+    ${vcard({ title: 'By brand', find: `${rows.reduce((t, b) => t + b.batches, 0)} tests filed under ${rows.reduce((t, b) => t + b.angles, 0)} angles.`, body: `<div class="v2tbl"><table>
+      <thead><tr><th>Brand</th><th>Angles</th><th>Tests</th></tr></thead>
+      <tbody>${rows.map(b => `<tr class="link" data-act="${esc(b.act_id)}"><td><b>${esc(b.name)}</b></td><td>${b.angles}</td><td>${UI() ? UI().ib(b.batches, mx, null, String(b.batches)) : b.batches}</td></tr>`).join('') || '<tr><td colspan="3" class="v2hint">No brand has tests filed yet.</td></tr>'}</tbody></table></div>` })}
   </div>`;
   main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
 }
 
 /* All brands: one row each, the numbers that need someone. */
 async function renderTestsAll(main) {
-  main.innerHTML = '<div class="br"><div class="card"><span class="hint">Loading…</span></div></div>';
+  main.innerHTML = `<div class="br v2">${head('tests', 'Test calls')}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
   const r = await api('/api/brand/tests-overview');
-  const rows = r.brands.filter(b => b.total);
-  main.innerHTML = `<div class="br">
-    <div><h2>Tests</h2><p class="sub">Which brands have tests waiting on a call. Pick a brand to open its tests.</p></div>
-    <div class="card" style="padding:0"><div class="tbl-wrap"><table>
-      <thead><tr><th>Brand</th><th class="num">Make a call</th><th class="num">Running</th><th class="num">Being made</th><th class="num">Finished</th><th></th></tr></thead>
-      <tbody>${rows.map(b => `<tr><td><b>${esc(b.name)}</b></td><td class="num">${b.call ? `<b style="color:var(--warn)">${b.call}</b>` : '0'}</td><td class="num">${b.running}</td><td class="num">${b.making}</td><td class="num">${b.done}</td>
-        <td style="text-align:right"><button class="btn ${b.call ? 'primary' : ''}" data-act="${esc(b.act_id)}">Open</button></td></tr>`).join('') || '<tr><td colspan="6" class="hint">No brand is connected to Asana yet.</td></tr>'}</tbody></table></div></div>
+  const rows = r.brands.filter(b => b.total).sort((x, y) => (y.call - x.call) || (y.running - x.running));
+  const waiting = rows.filter(b => b.call), calls = rows.reduce((t, b) => t + b.call, 0), run = rows.reduce((t, b) => t + b.running, 0);
+  const mx = Math.max(1, ...rows.map(b => b.call)), rmx = Math.max(1, ...rows.map(b => b.running));
+  const ib = (v, m, c) => UI() ? UI().ib(v, m, c, String(v)) : String(v);
+  main.innerHTML = `<div class="br v2">
+    ${head('tests', 'Test calls')}
+    <p class="v2say lead">${calls ? `<b>${plural(calls, 'test')} ${calls === 1 ? 'needs' : 'need'} a call</b> across ${plural(waiting.length, 'brand')}: ${waiting.map(b => esc(b.name)).join(', ')}.` : '<b>No brand has a test waiting on a call.</b>'} ${run} running in all. Click a brand to open its tests.</p>
+    ${vcard({ title: 'By brand', find: 'Brands with calls waiting come first.', body: `<div class="v2tbl"><table>
+      <thead><tr><th>Brand</th><th>Make a call</th><th>Running</th><th>Being made</th><th>Finished</th></tr></thead>
+      <tbody>${rows.map(b => `<tr class="link" data-act="${esc(b.act_id)}"><td><b>${esc(b.name)}</b></td><td class="${b.call ? 'warn' : ''}">${ib(b.call, mx, '--warn')}</td><td>${ib(b.running, rmx, null)}</td><td>${b.making}</td><td>${b.done}</td></tr>`).join('') || '<tr><td colspan="5" class="v2hint">No brand is connected to Asana yet.</td></tr>'}</tbody></table></div>` })}
   </div>`;
   main.querySelectorAll('[data-act]').forEach(b => b.onclick = () => S.pick && S.pick(b.dataset.act));
 }
@@ -815,10 +1108,8 @@ function testDrawer(b) {
   const d = S.d, rules = d.rules;
   const angles = d.angles.filter(a => a.status !== 'proposed');
   const lg = b.legacy;
-  const w = document.createElement('div');
-  w.innerHTML = `<div class="lb-scrim"></div><aside class="lb-drawer" role="dialog" aria-modal="true" aria-label="Test ${esc(b.num)}">
-    <button class="lb-x" aria-label="Close">×</button>
-    <div><span class="lb-num">Test ${esc(shortNum(b.num))}</span> ${resChip(b)}<h2 class="lb-title">${esc(b.title)}</h2></div>
+  const inner = `<div><span class="lb-num">Test ${esc(shortNum(b.num))}</span> ${resChip(b)}<h2 class="lb-title">${esc(b.title)}</h2></div>
+    <div class="lb-cpa">${cpaBullet(b, rules)}</div>
     <div class="lb-kpis"><div><b>${money(b.stats.spend)}</b><span>spent</span></div><div><b style="color:${cpaTone(b.stats.cpa, rules)}">${b.stats.cpa != null ? money(b.stats.cpa) : '-'}</b><span>CPA${rules.target_cpa ? ` · target ${money(rules.target_cpa)}` : ''}</span></div><div><b>${b.stats.orders || 0}</b><span>orders</span></div><div><b>${b.stats.roas != null && b.stats.spend ? x2(b.stats.roas) : '-'}</b><span>TW ROAS</span></div></div>
     ${b.stats.impr ? `<div class="lb-soft"><span>CTR <b>${pctf(b.stats.ctr)}</b></span>${b.stats.hook != null ? `<span>Hook <b>${pctf(b.stats.hook)}</b></span>` : ''}<span>Add to carts <b>${b.stats.atc || 0}</b>${b.stats.cpatc ? ` at ${money(b.stats.cpatc)}` : ''}</span><span>CPM <b>${b.stats.cpm != null ? money(b.stats.cpm) : '-'}</b></span></div>` : ''}
     ${b.asana_result === 'keep' && !b.verdict ? `<div class="br-warn" style="background:var(--unk-bg);border-color:var(--line)">Keep running${b.keep_reason ? `: <b>${esc(b.keep_reason)}</b>` : ''}. Locus checks in again ${b.check_again ? `on ${esc(b.check_again)}` : 'in 7 days'}.</div>` : ''}
@@ -837,19 +1128,28 @@ function testDrawer(b) {
     </dl>
     <div class="lb-links">${b.ads_manager ? `<a class="btn primary" href="${esc(b.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${b.asana_url ? `<a class="btn" href="${esc(b.asana_url)}" target="_blank" rel="noopener">Open in Asana</a>` : ''}${b.brief_url ? `<a class="btn" href="${esc(b.brief_url)}" target="_blank" rel="noopener">Brief</a>` : ''}${b.asset_url ? `<a class="btn" href="${esc(b.asset_url)}" target="_blank" rel="noopener">Assets</a>` : ''}</div>
     <div><div class="br-lbl">Ads named ${esc(shortNum(b.num))}</div><div id="tdAds" class="tiny">Loading…</div></div>
-    ${lg ? `<details><summary class="tiny">From the old Google Sheet</summary><dl class="br-kv" style="margin-top:8px">${Object.entries(lg).filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
-  </aside>`;
-  document.body.appendChild(w);
-  const k = e => { if (e.key === 'Escape') close(); };
-  const close = () => { w.remove(); document.removeEventListener('keydown', k); };
-  document.addEventListener('keydown', k);
-  w.querySelector('.lb-scrim').onclick = close;
-  w.querySelector('.lb-x').onclick = close;
-  w.querySelector('.lb-x').focus();
+    ${lg ? `<details><summary class="tiny">From the old Google Sheet</summary><dl class="br-kv" style="margin-top:8px">${Object.entries(lg).filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}`;
+  /* The shared v2 side panel (same one Campaigns and Creative open); the old drawer only if
+     v2.js did not load. */
+  let w;
+  if (UI() && UI().panel) w = UI().panel(`Test ${shortNum(b.num)}`, inner);
+  else {
+    w = document.createElement('div');
+    w.innerHTML = `<div class="lb-scrim"></div><aside class="lb-drawer" role="dialog" aria-modal="true" aria-label="Test ${esc(b.num)}"><button class="lb-x" aria-label="Close">×</button>${inner}</aside>`;
+    document.body.appendChild(w);
+    const k = e => { if (e.key === 'Escape') close(); };
+    const close = () => { w.remove(); document.removeEventListener('keydown', k); };
+    document.addEventListener('keydown', k);
+    w.querySelector('.lb-scrim').onclick = close;
+    w.querySelector('.lb-x').onclick = close;
+    w.querySelector('.lb-x').focus();
+  }
   w.querySelector('#tdA').onchange = async e => { await saveRow('batch', { id: b.id, angle_id: e.target.value }); repaint(); };
+  const adsEl = w.querySelector('#tdAds');
   api(`/api/brand/ads?act=${encodeURIComponent(S.act)}&batch=${b.id}`).then(r => {
-    const el = w.querySelector('#tdAds'); if (!el) return;
-    el.innerHTML = r.ads.length ? `<table class="br-mini"><tr><th>Ad</th><th>Spend</th><th>TW ROAS</th><th>Last spend</th></tr>${r.ads.map(a => `<tr><td>${esc(short(a.name, 48))}</td><td>${money(a.spend)}</td><td>${a.roas != null ? x2(a.roas) : '-'}</td><td>${esc(a.last || '-')}</td></tr>`).join('')}</table>` : 'No ads with this number yet.';
+    const el = adsEl; if (!el || !el.isConnected) return;
+    const mx = Math.max(1, ...r.ads.map(a => a.spend || 0));
+    el.innerHTML = r.ads.length ? `<div class="v2tbl"><table><thead><tr><th>Ad</th><th>Spend</th><th>TW ROAS</th><th>Last spend</th></tr></thead><tbody>${r.ads.map(a => `<tr><td style="white-space:normal">${esc(short(a.name, 48))}</td><td>${UI() ? UI().ib(a.spend || 0, mx, null, money(a.spend)) : money(a.spend)}</td><td>${a.roas != null ? x2(a.roas) : '-'}</td><td>${esc(a.last || '-')}</td></tr>`).join('')}</tbody></table></div>` : 'No ads with this number yet.';
   }).catch(() => {});
 }
 
@@ -892,25 +1192,23 @@ function callSheet(d) {
     if (h && h.length > 700 && !/<table/.test(h)) h = h.slice(0, 700) + '…';
     return `<div class="cs-row"><div class="cs-l">${esc(label)}</div><div class="cs-v">${h ?? `<span class="sug">From the website, unconfirmed: ${sug}</span>`}</div></div>`;
   };
-  const access = ACCESS_KEYS.map(([k, l]) => { const v = a[k]; const ok = v === true || v === 'yes'; return `<span class="pill ${ok ? 'good' : 'unk'}">${ok ? '✓' : '○'} ${esc(l)}</span>`; }).join(' ');
+  const access = ACCESS_KEYS.map(([k, l]) => { const v = a[k]; const ok = v === true || v === 'yes'; return `<span class="v2pill ${ok ? 'good' : ''}">${ok ? '✓' : '○'} ${esc(l)}</span>`; }).join(' ');
   const unsure = Object.keys(a).filter(k => a[k] === '__unsure' && F[k]).map(k => F[k].label);
   const missing = IMPORTANT.filter(k => F[k] && answerHtml(F[k], a[k], false) == null && a[k] !== '__unsure').map(k => F[k].label);
   const blocks = CALL_SHEET.map(([title, keys]) => { const rows = keys.map(([id, l]) => cell(id, l)).filter(Boolean).join(''); return rows ? `<div class="cs-blk"><h4>${esc(title)}</h4>${rows}</div>` : ''; }).filter(Boolean);
-  return `<div class="card"><div class="br-bar"><div><h3 class="br-h">Before the call: what they told us</h3><span class="tiny">Built from their onboarding answers, grouped the way you read them on a call. The full answers, step by step, are below.</span></div>
-      <div><button class="btn" id="csPrint">Print</button></div></div>
+  return `<section class="v2card"><div class="v2h"><h3>Before the call: what they told us</h3><span class="find">Built from their onboarding answers, grouped the way you read them on a call. The full answers, step by step, are below.</span><span class="cap"><button class="btn" id="csPrint">Print</button></span></div>
     <div class="cs-grid">${blocks.join('')}
       <div class="cs-blk"><h4>Access</h4><div class="br-chips" style="margin-top:4px">${access}</div></div>
       ${unsure.length || missing.length ? `<div class="cs-blk cs-open"><h4>Ask them on the call</h4>${unsure.length ? `<div class="cs-row"><div class="cs-l">They said “not sure”</div><div class="cs-v">${unsure.map(esc).join('<br>')}</div></div>` : ''}${missing.length ? `<div class="cs-row"><div class="cs-l">Left blank</div><div class="cs-v">${missing.map(esc).join('<br>')}</div></div>` : ''}</div>` : ''}
-    </div></div>`;
+    </div></section>`;
 }
 function paintClient(body) {
   const d = S.d, o = d.onboard;
   const iv = d.docs['']?.voice_interview || {}, turns = iv.turns || [];
   const answered = o && Object.keys(o.answers || {}).some(k => o.answers[k] != null && o.answers[k] !== '');
   body.innerHTML = `${answered ? '<div id="csSheet"></div>' : ''}<div id="biOnboard" class="br"></div>
-    ${turns.length ? `<div class="card"><h3 class="br-h">What they said in the voice interview <span class="tiny">(${turns.length} answers${iv.stage === 'done' ? ', finished' : ', in progress'})</span></h3>
-      <p class="hint" style="margin:4px 0 8px">Their own words, verbatim. The guide on the Voice view is written from this.</p>
-      <details><summary class="tiny" style="cursor:pointer">Read the transcript</summary><div class="br-voicetx">${turns.map(t => `<p><b>${esc(t.q)}</b><br>${esc(t.a || 'Skipped')}</p>`).join('')}</div></details></div>` : ''}`;
+    ${turns.length ? vcard({ title: 'What they said in the voice interview', find: 'Their own words, verbatim. The guide on the Voice view is written from this.', cap: `<b>${turns.length}</b> answers${iv.stage === 'done' ? ', finished' : ', in progress'}`,
+      body: `<details><summary class="v2link" style="cursor:pointer">Read the transcript</summary><div class="br-voicetx">${turns.map(t => `<p><b>${esc(t.q)}</b><br>${esc(t.a || 'Skipped')}</p>`).join('')}</div></details>` }) : ''}`;
   if (answered) { body.querySelector('#csSheet').innerHTML = callSheet(d); body.querySelector('#csPrint').onclick = () => window.print(); }
   paintOnboarding(body.querySelector('#biOnboard'));
 }
@@ -919,13 +1217,13 @@ function untaggedCard() {
   const u = S.d.untagged;
   if (!u.ads.length) return '';
   const open = S.showUntagged;
-  return `<div class="card"><div class="br-bar"><div><h3 class="br-h">Ads with no batch number</h3><span class="tiny">${money(u.spend30)} in the last 30 days (${u.share30}% of spend) is not linked to any test.</span></div>
-    <div><button class="btn" id="brUnt">${open ? 'Hide' : 'Show and tag'}</button></div></div>
-    ${open ? `<p class="hint" style="margin:8px 0">Tag an ad to a batch and its results count there. TikTok UGC and TRYBE creator ads usually land here because of how they are named.</p>
-    <div class="tbl-wrap"><table class="br-tbl"><thead><tr><th>Ad</th><th class="num">30 days</th><th class="num">All time</th><th class="num">TW ROAS</th><th>Tag to batch</th></tr></thead><tbody>
-    ${u.ads.map(a => `<tr><td><div class="t">${esc(short(a.name, 70))}</div>${a.trybe ? '<div class="s">TRYBE creator ad</div>' : ''}</td><td class="num">${money(a.spend30)}</td><td class="num">${money(a.spend)}</td><td class="num">${a.roas != null ? x2(a.roas) : '-'}</td>
+  const mx = Math.max(1, ...u.ads.map(a => a.spend30 || 0));
+  return vcard({ title: 'Ads with no batch number', find: `${money(u.spend30)} in the last 30 days (${u.share30}% of spend) is not linked to any test.`, cap: `<button class="btn" id="brUnt">${open ? 'Hide' : 'Show and tag'}</button>`,
+    body: open ? `<p class="v2hint" style="margin:0 0 8px">Tag an ad to a batch and its results count there. TikTok UGC and TRYBE creator ads usually land here because of how they are named.</p>
+    <div class="v2tbl"><table class="br-tbl"><thead><tr><th>Ad</th><th>30 days</th><th>All time</th><th>TW ROAS</th><th>Tag to batch</th></tr></thead><tbody>
+    ${u.ads.map(a => `<tr><td style="white-space:normal"><div class="t">${esc(short(a.name, 70))}</div>${a.trybe ? '<div class="s">TRYBE creator ad</div>' : ''}</td><td>${UI() ? UI().ib(a.spend30 || 0, mx, null, money(a.spend30)) : money(a.spend30)}</td><td>${money(a.spend)}</td><td>${a.roas != null ? x2(a.roas) : '-'}</td>
       <td><select class="br-in" data-tag="${esc(a.ad_id)}" style="margin:0;min-width:200px"><option value="">Pick a batch</option>${S.d.batches.slice(0, 200).map(b => `<option value="${b.id}">${esc(b.num)} · ${esc(short(b.title, 40))}</option>`).join('')}</select></td></tr>`).join('')}
-    </tbody></table></div>` : ''}</div>`;
+    </tbody></table></div>` : '' });
 }
 function wireUntagged(body) {
   const t = body.querySelector('#brUnt');
@@ -1042,8 +1340,8 @@ function rsState() {
 }
 /* One section: the old name as the small label, the question it answers as the heading. */
 function rsSec(key, label, question, right, inner, more) {
-  return `<div class="card rs-sec" data-sec="${key}"><div class="br-bar"><div><p class="br-lbl">${label}</p><h3>${question}</h3></div><div>${right || ''}</div></div>
-    <div class="rs-body">${inner}</div>${more ? `<div class="rs-more">${more}</div>` : ''}</div>`;
+  return `<section class="v2card rs-sec" data-sec="${key}"><div class="v2h"><div class="rs-hd"><span class="br-lbl">${label}</span><h3>${question}</h3></div>${right ? `<span class="cap">${right}</span>` : ''}</div>
+    <div class="rs-body">${inner}</div>${more ? `<div class="rs-more">${more}</div>` : ''}</section>`;
 }
 const rsToggle = (key, open, closedLabel, openLabel = 'Show less') => `<button class="btn" data-rs-open="${key}" aria-expanded="${open ? 'true' : 'false'}">${open ? openLabel : closedLabel}</button>`;
 const rsDraftTag = s => s === 'draft' ? ' <span class="br-tag draft">Draft</span>' : '';
@@ -1088,9 +1386,9 @@ function paintResearch(body) {
   if (S.running) R.tools = true;
   const runs = d.runs || [];
   body.innerHTML = `
-    <div class="br-bar"><div class="br-chips">${d.lines.map(l => `<span class="br-chip ${l.id === S.line ? 'on' : ''}" data-line="${l.id}">${esc(l.name)}</span>`).join('')}<span class="br-chip" id="brAddLine">+ Product line</span></div>
+    <div class="bv-bar"><div class="br-chips" style="align-items:center"><span class="br-lbl" style="margin-right:4px">Product line</span>${d.lines.map(l => `<button type="button" class="br-chip ${l.id === S.line ? 'on' : ''}" data-line="${l.id}">${esc(l.name)}</button>`).join('')}<button type="button" class="br-chip" id="brAddLine">+ Product line</button></div>
       <div><button class="btn" id="rsTools" aria-expanded="${R.tools ? 'true' : 'false'}">${R.tools ? 'Hide research tools' : 'Research tools'}</button></div></div>
-    ${R.tools ? `<div class="card rs-tools">
+    ${R.tools ? `<div class="v2card rs-tools">
       <p class="hint" style="margin:0;max-width:76ch">Research is done per product line: products bought for the same reason. The AI reads the website, finds the competitors, collects what real customers say across reviews, Reddit, YouTube and forums, then drafts personas, the market read and angle ideas. Everything comes back as a draft for you to approve.</p>
       <div class="grp"><span class="br-lbl">Run the AI</span>${S.running ? `<button class="btn" id="brStop">Stop</button><span class="tiny">Running. Keep this tab open.</span>` : `<button class="btn primary" id="brRunAll">Research this brand</button>${line ? `<button class="btn" id="brRunLine">Research this line</button><button class="btn" data-step="voc">Re-run customer research</button><button class="btn" data-step="competitors">Re-run competitors</button><button class="btn" data-step="synthesis">Re-run personas and angles</button>` : ''}`}</div>
       ${line ? `<div class="grp"><span class="br-lbl">Add by hand</span><button class="btn" data-rs-add="persona">+ Persona</button><button class="btn" data-rs-add="quote">+ Quote</button><button class="btn" data-rs-add="comp">+ Competitor</button></div>
@@ -1098,7 +1396,7 @@ function paintResearch(body) {
       ${S.log.length ? `<div class="br-log" id="brLog">${S.log.map(l => l).join('\n')}</div>` : ''}
       ${!S.running && runs.length ? `<p class="tiny" style="margin:0">Last run: ${esc(runs[0].step)} ${esc(runs[0].status)} ${esc((runs[0].finished_at || runs[0].started_at || '').slice(0, 16))} UTC · ${runs.filter(r => r.status === 'done').length} steps done so far</p>` : ''}
     </div>` : ''}
-    ${line ? `<div id="brLine" class="br"></div>` : `<div class="card br-empty">${d.lines.length ? 'Pick a product line.' : 'No product lines yet. Open <b>Research tools</b> and press <b>Research this brand</b>: it reads the website and sets them up for you. Or add one yourself with + Product line.'}</div>`}
+    ${line ? `<div id="brLine" class="br"></div>` : `<div class="v2card br-empty">${d.lines.length ? 'Pick a product line.' : 'No product lines yet. Open <b>Research tools</b> and press <b>Research this brand</b>: it reads the website and sets them up for you. Or add one yourself with + Product line.'}</div>`}
     ${facts ? factsCard(facts) : ''}`;
   body.querySelectorAll('[data-line]').forEach(c => c.onclick = () => { S.line = c.dataset.line; localStorage.setItem(LS_LINE + ':' + S.act, S.line); repaint(); });
   body.querySelector('#brAddLine').onclick = () => lineModal(null);
@@ -1150,11 +1448,11 @@ function paintLine(el, line) {
 
   /* ---- at a glance ---- */
   const dr = rsDrafts(L), want = rsTopWant(voc, m);
-  const tiles = `<div class="rs-tiles">
-    <div class="rs-tile"><span class="br-lbl">Who buys</span><b>${personas.length ? plural(personas.length, 'persona') : 'No personas yet'}</b><span class="tiny">${personas.length ? `Top: ${esc(personas[0].name)}` : 'Research tools can draft them.'}</span></div>
-    <div class="rs-tile"><span class="br-lbl">${want ? want.label : 'What they want most'}</span><b>${want ? esc(want.text) : 'No customer quotes yet'}</b><span class="tiny">${want ? esc(want.sub) : 'Research tools can collect them.'}</span></div>
-    <div class="rs-tile"><span class="br-lbl">Main competitor</span><b>${comps.length ? esc(comps[0].name) : 'None listed yet'}</b><span class="tiny">${comps.length ? `${plural(comps.length, 'competitor')} on the list` : 'Research tools can find them.'}</span></div>
-    <div class="rs-tile"><span class="br-lbl">Waiting for approval</span><b>${dr.n ? plural(dr.n, 'draft') : 'Nothing waiting'}</b><span class="tiny">${ideas.length ? `${plural(ideas.length, 'angle idea')} ${ideas.length === 1 ? 'needs' : 'need'} a yes or no` : dr.n ? 'AI drafts a person has not checked yet' : 'Everything here has been checked'}</span>${dr.n ? `<button class="btn" id="rsOkAll">Approve all drafts</button>` : ''}</div>
+  const tiles = `<div class="v2tiles rs-tiles">
+    ${vtile({ label: 'Who buys', value: personas.length ? plural(personas.length, 'persona') : 'No personas yet', sub: personas.length ? `Top: ${esc(personas[0].name)}` : 'Research tools can draft them.' })}
+    ${vtile({ label: want ? want.label : 'What they want most', value: want ? esc(want.text) : 'No customer quotes yet', sub: want ? esc(want.sub) : 'Research tools can collect them.' })}
+    ${vtile({ label: 'Main competitor', value: comps.length ? esc(comps[0].name) : 'None listed yet', sub: comps.length ? `${plural(comps.length, 'competitor')} on the list` : 'Research tools can find them.' })}
+    ${vtile({ label: 'Waiting for approval', value: dr.n ? plural(dr.n, 'draft') : 'Nothing waiting', sub: `${ideas.length ? `${plural(ideas.length, 'angle idea')} ${ideas.length === 1 ? 'needs' : 'need'} a yes or no` : dr.n ? 'AI drafts a person has not checked yet' : 'Everything here has been checked'}${dr.n ? `<br><button class="btn" id="rsOkAll">Approve all drafts</button>` : ''}` })}
   </div>`;
 
   /* ---- who buys this? ---- */
@@ -1411,8 +1709,8 @@ function paintOnboarding(body) {
   const d = S.d, o = d.onboard;
   const Qo = Q();
   if (!o) {
-    body.innerHTML = `<div class="card" style="max-width:720px;display:flex;flex-direction:column;gap:10px"><h3 class="br-h">Send ${esc(d.account.name)} their onboarding link</h3>
-      <p class="hint">One link, no login. It walks the client through ${Qo.STEPS.length} short steps (${Qo.STEPS.map(x => x.title.toLowerCase()).join(', ')}), saves as they go, explains why each question matters and has a help box for anything they are unsure of. "I'm not sure" is always allowed; it flags the question for our research instead.</p>
+    body.innerHTML = `<div class="v2card" style="max-width:760px;display:flex;flex-direction:column;gap:10px"><h3 class="br-h" style="margin:0">Send ${esc(d.account.name)} their onboarding link</h3>
+      <p class="v2hint">One link, no login. It walks the client through ${Qo.STEPS.length} short steps (${Qo.STEPS.map(x => x.title.toLowerCase()).join(', ')}), saves as they go, explains why each question matters and has a help box for anything they are unsure of. "I'm not sure" is always allowed; it flags the question for our research instead.</p>
       <div><button class="btn primary" id="brMkLink">Create the link</button></div></div>`;
     body.querySelector('#brMkLink').onclick = async () => { S.d = await post('/api/brand/onboard', {}); repaint(); };
     return;
@@ -1425,13 +1723,13 @@ function paintOnboarding(body) {
   /* Which onboarding steps are open, kept while you are on this brand. */
   const OB = S.ob && S.ob.act === S.act ? S.ob : (S.ob = { act: S.act, open: {} });
   body.innerHTML = `
-    <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><p class="br-lbl">Onboarding link · ${o.status === 'submitted' ? `<span style="color:var(--good)">submitted ${esc((o.submitted_at || '').slice(0, 10))}</span>` : o.status === 'started' ? '<span style="color:var(--warn)">in progress</span>' : 'not opened yet'}</p>
+    <div class="v2card"><div class="br-bar"><div style="min-width:240px;flex:1"><p class="br-lbl">Onboarding link · ${o.status === 'submitted' ? `<span style="color:var(--good)">submitted ${esc((o.submitted_at || '').slice(0, 10))}</span>` : o.status === 'started' ? '<span style="color:var(--warn)">in progress</span>' : 'not opened yet'}</p>
         <b style="word-break:break-all">${esc(link.replace('https://', ''))}</b>
         <div style="display:flex;align-items:center;gap:10px;margin-top:8px"><div class="br-prog" style="flex:1;max-width:260px"><i style="width:${pct}%"></i></div><span class="tiny">${done} of ${all.length} answered</span></div></div>
       <div><button class="btn" id="brCopy">Copy link</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open the form</a><button class="btn" id="brPrefill">${S.prefilling ? 'Reading the website…' : 'Pre-fill from website'}</button></div></div>
       <p class="tiny" style="margin:8px 0 0">Pre-fill reads the brand's website and puts suggested answers in front of the client, so they confirm instead of typing. To change an answer yourself, open the form: it saves the same way.</p>
       <div id="brPfLog"></div></div>
-    <div class="card"><h3 class="br-h">Every answer, step by step</h3><p class="hint" style="margin:4px 0 8px">The form as they filled it in. Open a step to read it.</p>
+    <div class="v2card"><div class="v2h"><h3>Every answer, step by step</h3><span class="find">The form as they filled it in. Open a step to read it.</span></div>
     ${Qo.STEPS.map((s, i) => {
       const qs = s.fields.filter(f => !f.calc), n = qs.filter(f => answerHtml(f, a[f.id]) != null).length, open = !!OB.open[i];
       return `<div class="rs-step"><div><b>${esc(s.title)}</b> <span class="tiny">${n} of ${qs.length} answered</span></div><button class="btn" data-ob="${i}" aria-expanded="${open ? 'true' : 'false'}">${open ? 'Hide answers' : 'Show answers'}</button></div>${open ? `<div style="max-width:86ch;padding-bottom:6px">${s.fields.map(f => {
@@ -1576,8 +1874,8 @@ function paintVoice(body) {
       <div class="vs-act">${act}</div>
       ${extra ? `<div class="vs-body">${extra}</div>` : ''}</div>`;
   body.innerHTML = `
-    <div class="card"><h3 class="br-h">How we write</h3>
-      <p class="hint" style="margin:4px 0 4px">Five steps that teach Locus to write like ${esc(d.account.name)}. Steps 1 and 2 collect what the client says and likes. Steps 3 to 5 turn that into what the Copy desk (and Claude) write with. Do them in order; any step can be redone later.</p>
+    <div class="v2card"><div class="v2h" style="margin-bottom:4px"><h3>How we write</h3></div>
+      <p class="v2hint" style="margin:0 0 4px">Five steps that teach Locus to write like ${esc(d.account.name)}. Steps 1 and 2 collect what the client says and likes. Steps 3 to 5 turn that into what the Copy desk (and Claude) write with. Do them in order; any step can be redone later.</p>
       <p class="br-msg" id="vgMsg"></p>
       ${step(0, 'Client voice interview', st,
         'A link the client opens and talks through for about 20 minutes. It asks follow-up questions, then has them rate sample lines as "sounds like us" or "not us".',
@@ -1676,26 +1974,42 @@ function paintDesk(body) {
   const yesN = bank.filter(x => x.verdict === 'yes').length;
   const desk = S.desk && S.desk.act === S.act ? S.desk : (S.desk = { act: S.act, format: DESK_FORMATS[0], brief: '', n: 5, lines: [], busy: false, err: '' });
   const ready = !!(sk.instructions || g.md);
-  body.innerHTML = `<div class="br">
-    <div class="lb-head"><div>${crumb('copy')}<h2>Copy desk · ${esc(d.account.name)}</h2><p class="sub" style="margin:0">Lines in this brand's voice, for one job at a time: an ad headline, an email subject, a hook. Pick a format, say what it is for, press Write lines. Keep the ones that sound like them and reject the rest with a word on why. Every call teaches it.</p></div>
-      <div class="row" style="gap:8px;align-items:center"><span class="tiny">${ready ? (sk.instructions ? 'Writes with the full copy skill' : 'Writes from the How we write guide') + ` and ${yesN} kept lines` : 'No voice guide yet: it writes from the website only'}</span><button class="btn" id="dkVoice">How the voice was built</button></div></div>
-    <div class="card">
-      <div class="br-form" style="margin-top:10px">
-        ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
-        ${inp('dN', 'How many', desk.n, { type: 'number' })}
-        ${inp('dB', 'Brief', desk.brief, { rows: 3, full: true, ph: 'The product, the angle, the offer. For example: Carver 02 Black, angle "nobody sees it coming", no discount.' })}
-        ${inp('dA', "Who's it for, and where are they?", desk.audience, { full: true, hint: 'optional: it talks to one real person', ph: 'A 40-year-old weekend golfer scrolling Instagram in the clubhouse after a bad short game day' })}
+  /* What it has learned, beside the writer: the lines the team and the client kept (or
+     rejected, with why), newest first, for the format on the left unless "All formats". */
+  const side = desk.side || 'yes', allF = !!desk.allF;
+  const pool = bank.slice().reverse().filter(x => (side === 'yes' ? x.verdict === 'yes' : x.verdict !== 'yes') && (allF || x.format === desk.format));
+  const fmtN = bank.filter(x => x.format === desk.format && x.verdict === 'yes').length;
+  const learned = `<div class="v2jobs"><button type="button" data-dks="yes" class="${side === 'yes' ? 'on' : ''}">Kept<span class="n" style="margin-left:5px;opacity:.7">${yesN}</span></button><button type="button" data-dks="no" class="${side === 'no' ? 'on' : ''}">Rejected<span class="n" style="margin-left:5px;opacity:.7">${bank.length - yesN}</span></button><button type="button" data-dkf class="${allF ? 'on' : ''}">All formats</button></div>
+    ${pool.length ? `<div class="dk-kept">${pool.slice(0, 40).map(x => `<div class="dk-k ${x.verdict === 'yes' ? '' : 'no'}">${esc(x.text)}${x.said ? `<span class="said">They'd say: ${esc(x.said)}</span>` : ''}<small>${esc(x.format || '')}${x.by ? ' · ' + esc(x.by) : ''}${x.why && x.why !== 'close' ? ` · ${esc(x.why)}` : ''}</small></div>`).join('')}</div>${pool.length > 40 ? `<p class="dk-empty" style="margin-top:10px">Showing the newest 40 of ${pool.length}.</p>` : ''}`
+      : `<p class="dk-empty">${side === 'yes' ? `Nothing kept yet${allF ? '' : ` for ${esc(desk.format.toLowerCase())}`}. Keep a line on the left and it lands here; the next lines are written to match.` : `Nothing rejected yet${allF ? '' : ` for ${esc(desk.format.toLowerCase())}`}. Reject with a word on why: that is what it learns from.`}</p>`}`;
+  body.innerHTML = `<div class="br v2">
+    ${head('copy', `Copy desk: ${esc(d.account.name)}`)}
+    <div class="bv-bar"><p class="v2say lead" style="flex:1;min-width:280px">Write lines in ${esc(d.account.name)}'s voice for one job at a time. <b>Keep</b> the ones that sound like them, <b>reject</b> the rest with a word on why. ${ready ? `It writes ${sk.instructions ? 'with the full copy skill' : 'from the How we write guide'} and ${plural(yesN, 'kept line')}.` : 'No voice guide yet, so it writes from the website only.'}</p>
+      <button class="btn" id="dkVoice">How the voice was built</button></div>
+    <div class="dk-two">
+      <div class="br" style="gap:16px;min-width:0">
+        ${vcard({ title: 'Write', find: 'Pick a format, say what it is for.', body: `<div class="dk-form">
+          ${sel('dF', 'Format', desk.format, DESK_FORMATS.map(f => [f, f]), { blank: null })}
+          ${inp('dN', 'How many', desk.n, { type: 'number' })}
+          <div class="full">${inp('dB', 'Brief', desk.brief, { rows: 3, ph: 'The product, the angle, the offer. For example: Carver 02 Black, angle "nobody sees it coming", no discount.' })}</div>
+          <div class="full">${inp('dA', "Who's it for, and where are they?", desk.audience, { hint: 'optional: it talks to one real person', ph: 'A 40-year-old weekend golfer scrolling Instagram in the clubhouse after a bad short game day' })}</div>
+        </div>
+        <div class="dk-go"><button class="btn primary" id="dGo" ${desk.busy ? 'disabled' : ''}>${desk.busy ? 'Writing…' : 'Write lines'}</button><span class="br-msg bad">${esc(desk.err || '')}</span></div>` })}
+        ${desk.lines.length || desk.busy ? vcard({ title: 'The lines', find: desk.busy ? 'Writing. This takes about a minute.' : 'Edit a line before keeping it if you like. Every keep or reject goes into the bank on the right.', cap: desk.lines.length ? `<b>${desk.lines.filter(l => l.done).length}</b> of ${desk.lines.length} decided` : '',
+          body: `${desk.spoken ? `<details class="br-spoken" style="margin:0 0 12px"><summary>What it said out loud first (the lines are cut from this)</summary><p>${esc(desk.spoken)}</p></details>` : ''}
+          <div class="dk-lines">${desk.lines.map(l => `<div class="br-desk ${l.done ? 'done' : ''}" data-l="${esc(l.id)}">
+            <textarea class="br-in" rows="${Math.min(6, Math.max(2, Math.ceil(l.text.length / 80)))}" data-t aria-label="The line; edit it before keeping if you like">${esc(l.text)}</textarea>
+            ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}${l.redone ? `<div class="tiny" style="margin-top:2px">Said again on read-back${l.why ? `: ${esc(l.why)}` : ''}</div>` : ''}${(l.tells || []).length ? `<div class="tiny" style="margin-top:2px;color:var(--warn)">Still reads like writing: ${esc(l.tells.join(', '))}</div>` : ''}
+            ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : l.done === 'said' ? 'Your version is in the bank, paired with this one' : 'Rejected: in the bank'}</div>` : `<div class="dk-acts"><button class="btn" data-k="yes">Keep</button><button class="btn" data-say>Say it your way</button><input class="br-in" data-why placeholder="Or: why it misses" aria-label="Why it misses" style="flex:1;min-width:160px;margin:0"><button class="btn" data-k="no">Reject</button></div>
+            <div class="br-say" hidden><textarea class="br-in" rows="2" data-said placeholder="How would you actually say it? Talk or type." aria-label="How you would say it"></textarea><div style="display:flex;gap:8px;margin-top:6px">${window.SpeechRecognition || window.webkitSpeechRecognition ? '<button class="btn" data-mic>Tap and talk</button>' : ''}<button class="btn primary" data-k="said">Save my version</button></div></div>`}
+          </div>`).join('')}</div>
+          ${desk.lines.length && !desk.busy ? `<div class="dk-acts" style="margin-top:12px"><input class="br-in" id="dRev" placeholder="Change something: shorter, more like #2, lead with the price, less jokey..." aria-label="Change something" style="flex:1;min-width:220px;margin:0"><button class="btn" id="dRevGo">Rewrite with this note</button></div>` : ''}` }) : ''}
       </div>
-      <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn primary" id="dGo" ${desk.busy ? 'disabled' : ''}>${desk.busy ? 'Writing…' : 'Write lines'}</button><span class="br-msg bad">${esc(desk.err || '')}</span></div>
-      ${desk.spoken ? `<details class="br-spoken"><summary>What it said out loud first (the lines are cut from this)</summary><p>${esc(desk.spoken)}</p></details>` : ''}
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${desk.lines.map(l => `<div class="br-desk ${l.done ? 'done' : ''}" data-l="${esc(l.id)}">
-        <textarea class="br-in" rows="${Math.min(6, Math.max(2, Math.ceil(l.text.length / 80)))}" data-t aria-label="The line; edit it before keeping if you like">${esc(l.text)}</textarea>
-        ${l.note ? `<div class="tiny" style="margin-top:4px">${esc(l.note)}</div>` : ''}${l.redone ? `<div class="tiny" style="margin-top:2px">Said again on read-back${l.why ? `: ${esc(l.why)}` : ''}</div>` : ''}${(l.tells || []).length ? `<div class="tiny" style="margin-top:2px;color:var(--warn)">Still reads like writing: ${esc(l.tells.join(', '))}</div>` : ''}
-        ${l.done ? `<div class="tiny" style="margin-top:6px;color:var(${l.done === 'yes' ? '--good' : '--bad'})">${l.done === 'yes' ? 'Kept: in the bank' : l.done === 'said' ? 'Your version is in the bank, paired with this one' : 'Rejected: in the bank'}</div>` : `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-k="yes">Keep</button><button class="btn" data-say>Say it your way</button><input class="br-in" data-why placeholder="Or: why it misses" aria-label="Why it misses" style="flex:1;min-width:180px;margin:0"><button class="btn" data-k="no">Reject</button></div>
-        <div class="br-say" hidden><textarea class="br-in" rows="2" data-said placeholder="How would you actually say it? Talk or type." aria-label="How you would say it"></textarea><div style="display:flex;gap:8px;margin-top:6px">${window.SpeechRecognition || window.webkitSpeechRecognition ? '<button class="btn" data-mic>Tap and talk</button>' : ''}<button class="btn primary" data-k="said">Save my version</button></div></div>`}
-      </div>`).join('')}</div>
-      ${desk.lines.length && !desk.busy ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input class="br-in" id="dRev" placeholder="Change something: shorter, more like #2, lead with the price, less jokey..." aria-label="Change something" style="flex:1;min-width:240px;margin:0"><button class="btn" id="dRevGo">Rewrite with this note</button></div>` : ''}
-    </div>`;
+      ${vcard({ cls: 'dk-side', title: 'What it has learned', find: `${plural(fmtN, 'kept line')} for ${esc(desk.format.toLowerCase())}. The next lines are written to match these.`, body: learned })}
+    </div></div>`;
+  body.querySelectorAll('[data-dks]').forEach(b => b.onclick = () => { grab(); desk.side = b.dataset.dks; repaint(); });
+  body.querySelector('[data-dkf]').onclick = () => { grab(); desk.allF = !desk.allF; repaint(); };
+  body.querySelector('#dF').onchange = () => { grab(); repaint(); };
   body.querySelector('#dkVoice').onclick = () => { S.view = 'voice'; localStorage.setItem(LS_VIEW, 'voice'); if (window.showTab) window.showTab('brand'); };
   const grab = () => { desk.format = val(body, 'dF'); desk.brief = val(body, 'dB'); desk.audience = val(body, 'dA'); desk.n = Math.max(1, Math.min(10, +val(body, 'dN') || 5)); };
   body.querySelectorAll('.br-desk [data-say]').forEach(b => b.onclick = () => { const s2 = b.closest('.br-desk').querySelector('.br-say'); s2.hidden = !s2.hidden; if (!s2.hidden) s2.querySelector('textarea').focus(); });
@@ -1753,19 +2067,18 @@ function glanceStrip(body) {
   const r = d.rules || {};
   const be = Qo.calc('breakeven', a);
   const site = p.website || a.website || '';
-  const item = (l, v, title) => v ? `<div class="gl-i" ${title ? `title="${esc(title)}"` : ''}><span class="gl-l">${l}</span><span class="gl-v">${v}</span></div>` : '';
-  body.innerHTML = `<div class="card br-glance">
-    ${item('Website', site ? `<a href="${esc(/^https?:/.test(site) ? site : 'https://' + site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : '')}
-    ${item('Drive', p.drive ? `<a href="${esc(p.drive)}" target="_blank" rel="noopener">Client folder</a>` : '<span class="tiny">not set</span>')}
+  const item = (l, v, title) => v ? `<div class="gl-i"${title ? tipA(esc(title)) : ''}><span class="gl-l">${l}</span><span class="gl-v">${v}</span></div>` : '';
+  body.innerHTML = vcard({ title: 'At a glance', find: 'The facts you need in every conversation about this brand.', cap: '<button class="btn" id="brEditProf">Edit</button>', body: `<div class="br-glance" style="padding:0">
+    ${item('Website', site ? `<a href="${esc(/^https?:/.test(site) ? site : 'https://' + site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>` : '<span class="faint">not set</span>')}
+    ${item('Drive', p.drive ? `<a href="${esc(p.drive)}" target="_blank" rel="noopener">Client folder</a>` : '<span class="faint">not set</span>')}
     ${item('Offer now', esc(short(p.current_offer || a.offers || '', 90)))}
     ${item('Free shipping', p.free_ship || a.free_ship ? 'over ' + money(+(p.free_ship || a.free_ship)) : '')}
     ${item('Average order (their number)', a.aov ? money(+a.aov) + (be != null ? ` · break-even ${money(be)} per sale` : '') : '', 'What the client typed in onboarding. The measured AOV is on Profit.')}
-    ${item('Goal cost per sale', r.target_cpa ? `${money(r.target_cpa)} <button type="button" class="link" id="brRules">test rules</button>` : `<button type="button" class="link" id="brRules">not set, set it in Settings</button>`, 'Targets live in Settings, Goals: one place for every number Locus judges against.')}
+    ${item('Goal cost per sale', r.target_cpa ? `${money(r.target_cpa)} <button type="button" class="v2link" id="brRules">test rules</button>` : `<button type="button" class="v2link" id="brRules">not set, set it in Settings</button>`, 'Targets live in Settings, Goals: one place for every number Locus judges against.')}
     ${item('Do', esc(short(p.dos || '', 120)))}
     ${item('Never', esc(short(p.donts || a.dos_donts || '', 120)))}
     ${p.notes ? item('Notes', esc(short(p.notes, 120))) : ''}
-    <div class="gl-i gl-act"><button class="btn" id="brEditProf">Edit</button></div>
-  </div>`;
+  </div>` });
   body.querySelector('#brEditProf').onclick = () => modal('At a glance', `<div class="br-form">
       ${inp('pW', 'Website', p.website || a.website, { type: 'url', full: true })}
       ${inp('pDr', 'Google Drive client folder', p.drive, { type: 'url', full: true, hint: 'the onboarding link shows it to the client' })}
@@ -1785,7 +2098,7 @@ function paintTalk(body) {
   const voice = S.d.docs['']?.voice || {};
   const fromGuide = !!S.d.docs['']?.voice_guide?.md;
   body.innerHTML = `
-    <div class="card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h">Brand voice, the short version ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3>
+    <div class="v2card"><div class="br-bar"><div style="min-width:240px;flex:1"><h3 class="br-h" style="margin:0">Brand voice, the short version ${voice._status === 'draft' ? '<span class="br-tag draft">Draft from the website</span>' : ''}</h3>
         <p class="hint" style="margin:4px 0 0">A quick read of how ${esc(S.d.account.name)} talks. ${fromGuide ? 'Refreshed from the writing guide below.' : 'Drafted from their website for now; once the writing guide below (step 3) is written, this card is refreshed from it.'}</p></div>
       <div>${voice._status === 'draft' ? `<button class="btn" id="brVoiceOk">Approve</button>` : ''}<button class="btn" id="brVoice">Edit</button></div></div>
       <dl class="br-kv" style="margin-top:10px">

@@ -36,6 +36,7 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport } from './google.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -188,6 +189,7 @@ calendlyFetch(xfetch);
 contractFetch(xfetch);
 frameFetch(xfetch);
 klaviyoFetch(xfetch);
+googleFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -7341,6 +7343,26 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview')); }
       catch (e) { return json({ error: e.message }, 502); }
     }
+    /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
+    if (path.startsWith('/api/google/')) {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const act = url.searchParams.get('act') || '';
+      const q = k => url.searchParams.get(k) || '';
+      try {
+        if (path === '/api/google/probe') return json(await googleProbe(env));
+        if (path === '/api/google/match' && request.method === 'POST') return json(await googleMatch(env));
+        if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, String(b.act || ''), b)); }
+        if (path === '/api/google/link') return json(await googleLink(env, act));
+        if (path === '/api/google/website') return json(await websiteReport(env, act, q('from'), q('to'), q('pfrom'), q('pto')));
+        if (path === '/api/google/search') {
+          const a = await env.DB.prepare(`SELECT name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first();
+          const words = [a?.name, (a?.tw_shop || '').split('.')[0]].filter(Boolean).flatMap(x => [x, ...String(x).split(/[\s-]+/)]).filter(w => w.length > 3 && !/golf|club|the/i.test(w) || w === a?.name);
+          return json(await searchReport(env, act, q('from'), q('to'), q('pfrom'), q('pto'), words));
+        }
+        if (path === '/api/google/ads') return json(await adsReport(env, act, q('from'), q('to')));
+      } catch (e) { return json({ error: e.message }, 502); }
+      return json({ error: 'unknown google route' }, 404);
+    }
     /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
     if (path === '/api/brand-links' && request.method === 'PUT') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -7361,6 +7383,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const v = String(b.tw_shop || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
         if (v && !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(v)) return json({ error: 'The store domain looks like brand.myshopify.com' }, 400);
         await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1`).bind(acct.act_id, v || null).run();
+      }
+      /* Google ids (google.js): GA4 property, Search Console property, Google Ads customer. */
+      if (b.ga4 !== undefined || b.gsc !== undefined || b.google_ads !== undefined) {
+        const g = {}; if (b.ga4 !== undefined) { const v = String(b.ga4 || '').replace(/\D/g, ''); if (b.ga4 && !v) return json({ error: 'The GA4 property ID is a number, like 312345678.' }, 400); g.ga4 = v; }
+        if (b.gsc !== undefined) { const v = String(b.gsc || '').trim(); if (v && !/^(sc-domain:|https?:\/\/)/.test(v)) return json({ error: 'Paste the Search Console property as it shows: sc-domain:brand.com or https://www.brand.com/' }, 400); g.gsc = v; }
+        if (b.google_ads !== undefined) { const v = String(b.google_ads || '').replace(/\D/g, ''); if (v && v.length !== 10) return json({ error: 'The Google Ads customer ID has 10 digits.' }, 400); g.ads = v; }
+        await googleSetLink(env, acct.act_id, g);
       }
       if (b.drive !== undefined || b.frame !== undefined) await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'links', ?2, 'approved', 'staff', datetime('now'))
         ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(acct.act_id, JSON.stringify(next)).run();

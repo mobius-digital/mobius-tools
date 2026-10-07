@@ -79,7 +79,11 @@ function cleanRow(kind, b) {
    Brand info copy; it wins until account-health's unifyGoals moves it onto the
    account (hourly). Same rule as rulesOf in account-health asana-brand.js. */
 const DEFAULT_RULES = { target_cpa: 0, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
-export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_spend: 20, min_days: 7, min_cap_pct: 25, monday_post: 0 };
+export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_spend: 20, min_days: 7, min_cap_pct: 25, monday_post: 0,
+  /* Creative calls on Ads > Meta > Creative (2026-10-08): judged after cr_judge_x goal CPAs and cr_min_days live;
+     Scale = cr_scale_buys+ purchases at or under goal; Cut = cr_cut_zero_x goal CPAs with no purchase, or
+     cr_cut_spend_x spent at a CPA over cr_cut_cpa_x the goal. */
+  cr_judge_x: 1, cr_min_days: 3, cr_scale_buys: 2, cr_cut_zero_x: 3, cr_cut_spend_x: 2, cr_cut_cpa_x: 1.5 };
 export function rulesFor(acct, doc) {
   const r = { ...DEFAULT_RULES, ...TEST_KEYS, target_cpa: null };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;

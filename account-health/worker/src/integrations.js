@@ -1,3 +1,5 @@
+import { googleProbe } from './google.js';
+const safeJsonI = v => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
 /**
  * CONNECTIONS (2026-10-07). Cole: "I'm trying to figure out which things need access once and
  * which need access all the time... what gets access automatically because it's the agency's
@@ -42,6 +44,9 @@ export async function integrationsReport(env, { brand = null } = {}) {
      are Mobius's own, not a brand's. `only` names the one brand a connection serves (the Lucky app). */
   const A = (key, name, on, { warn = false, note = '', fix = '', used_by = '', only = null } = {}) => ({ key, name, needs: 'once', state: on ? (warn ? 'warn' : 'ok') : 'off', note, fix, used_by, only });
   const luckyAct = (await first(`SELECT act_id FROM accounts WHERE lower(name) LIKE 'lucky%' AND active = 1 LIMIT 1`))?.act_id || null;
+  const gp = await googleProbe(env).catch(() => ({}));
+  const gsa = (safeJsonI(env.GOOGLE_SA_KEY) || {}).client_id || 'the service account';
+  const gsteps = (scope, apis) => `1) Google Workspace admin (admin.google.com) > Security > Access and data control > API controls > Manage domain-wide delegation > edit client ${gsa} > ADD ${scope} to the scopes already there (keep the existing ones). 2) console.cloud.google.com, the project that owns that service account > APIs and services > Enable: ${apis}.`;
   const agency = [
     A('meta', 'Meta (ads)', set(env.META_TOKEN), { used_by: 'every brand\'s ad data, the Meta tab, Test calls', note: discover?.at ? `Ad accounts last discovered ${discover.at.slice(0, 10)}.` : 'The Mobius Tools system-user token.', fix: 'Set META_TOKEN on the account-health worker (Meta Business > System users > Mobius Tools, with ads_read, business_management, pages_read_engagement).' }),
     A('tw', 'Triple Whale', set(env.TW_API_KEY), { used_by: 'revenue, attribution, orders for every brand', note: 'One key for every store; each brand names its shop below.', fix: 'Set TW_API_KEY on the account-health worker (Triple Whale > Settings > API keys).' }),
@@ -57,6 +62,9 @@ export async function integrationsReport(env, { brand = null } = {}) {
     A('downloader', 'Video downloader (ScrapeCreators)', set(env.DOWNLOADER_KEY), { used_by: 'the ideas pipeline', note: 'Fetches TikTok and Instagram videos.', fix: 'Set DOWNLOADER_KEY on the account-health worker.' }),
     A('stripe', 'Stripe', set(env.STRIPE_SECRET_KEY), { used_by: 'New client only (the first invoice and autopay)', note: 'Mobius\'s own Stripe; no brand connects to it.', fix: 'Set STRIPE_SECRET_KEY on the account-health worker.' }),
     A('lucky_app', 'Lucky creator app', set(env.LUCKY_SUPABASE_URL) && set(env.LUCKY_SUPABASE_SERVICE_KEY), { used_by: 'the ideas pipeline, Lucky Golf only', only: luckyAct, note: 'Files creator angles into creators.luckygolf.com.', fix: 'Set LUCKY_SUPABASE_URL and LUCKY_SUPABASE_SERVICE_KEY on the account-health worker.' }),
+    A('ga4', 'Google Analytics 4 (website)', !!gp.ga4?.ok, { used_by: 'Store > Website: traffic, channels, landing pages, devices, the shopping funnel', note: gp.ga4?.ok ? `${gp.ga4.properties.length} properties visible as ${gp.acting_as}.` : `Not readable yet: ${gp.ga4?.error || 'not checked'}`, fix: gp.ga4?.ok ? `For a property not listed, add ${gp.acting_as} as a Viewer on it (GA4 > Admin > Property access management).` : gsteps('https://www.googleapis.com/auth/analytics.readonly', 'Google Analytics Data API, Google Analytics Admin API') + ` 3) On each client's GA4 property, add ${gp.acting_as || 'cole@go-mobius-digital.com'} as a Viewer.` }),
+    A('gsc', 'Google Search Console (organic search)', !!gp.gsc?.ok, { used_by: 'Store > Search: queries, pages, brand vs non-brand', note: gp.gsc?.ok ? `${gp.gsc.sites.length} sites visible.` : `Not readable yet: ${gp.gsc?.error || 'not checked'}`, fix: gp.gsc?.ok ? `For a site not listed, add ${gp.acting_as} as a user (Search Console > Settings > Users and permissions).` : gsteps('https://www.googleapis.com/auth/webmasters.readonly', 'Google Search Console API') + ` 3) On each client's Search Console property, add ${gp.acting_as || 'cole@go-mobius-digital.com'} as a user.` }),
+    A('gads', 'Google Ads (direct)', !!gp.ads?.ok, { used_by: 'Ads > Google: campaigns, types, search terms (Triple Whale totals until then)', note: gp.ads?.ok ? `${gp.ads.customers.length} ad accounts reachable.` : `Not connected: ${gp.ads?.error || 'not checked'}`, fix: '1) In the Mobius Google Ads MANAGER account: Admin > API Center > apply for a developer token (Basic access; Google reviews it in a few days). 2) Set it on the account-health worker as GOOGLE_ADS_DEV_TOKEN and the manager id as GOOGLE_ADS_MCC. 3) ' + gsteps('https://www.googleapis.com/auth/adwords', 'Google Ads API').replace('1) ', '').replace(' 2) ', ' 4) ') + ' 5) Each client’s Google Ads account must be linked under the Mobius manager account.' }),
     A('google_login', 'Google sign-in to Locus', set(env.GOOGLE_CLIENT_ID), { used_by: 'the team signing in', fix: 'Set GOOGLE_CLIENT_ID on the account-health worker.' }),
   ];
 
@@ -67,7 +75,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   const ids = accounts.map(a => a.act_id);
   const IN = ids.map((_, i) => `?${i + 1}`).join(',');
   const byAct = rows => Object.fromEntries(rows.map(r => [r.act_id, r]));
-  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs] = await Promise.all([
+  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs, gDocs] = await Promise.all([
     q(`SELECT act_id, MAX(date) AS latest FROM daily_insights WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest FROM tw_daily WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest, COUNT(*) AS n FROM tw_orders WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
@@ -86,6 +94,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'links' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
     /* The brand's Klaviyo private key (klaviyo.js). Only its presence, company and date leave this function. */
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'klaviyo' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => { const d = safeJson(r.data_json, {}) || {}; return [r.act_id, { has: !!d.key, company: d.company, verified_at: d.verified_at }]; }))),
+    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'google' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
   ]);
   /* Every item carries the exact steps a person follows when it is off (Cole, 2026-10-07: "it tells me
      exactly what to do, how to do it, what to name things"), and `input` when the fix is a thing to
@@ -143,7 +152,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
     const driveUrl = n?.drive_url || links.drive || null;
     const legacy = !n && !ob;   // a brand set up before New client and the onboarding link existed
     const metaAge = daysAgo(metaD[id]?.latest), twAge = daysAgo(twD[id]?.latest), attrAge = daysAgo(twA[id]?.latest);
-    const kd = klDocs[id];
+    const kd = klDocs[id], gd = gDocs[id] || {};
     const items = [
       C('meta', 'Meta ad account', a.last_error ? 'bad' : metaAge == null ? 'off' : metaAge > 2 ? 'warn' : 'ok',
         a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}` : metaAge == null ? 'No Meta data yet.' : `Data through ${metaD[id].latest} (synced ${String(a.last_sync_insights || '').slice(0, 16) || 'never'}).`,
@@ -171,6 +180,13 @@ export async function integrationsReport(env, { brand = null } = {}) {
       C('onboarding', 'Onboarding answers', ob ? (ob.status === 'submitted' ? 'ok' : 'warn') : legacy ? 'ok' : 'off', ob ? `${ob.status}${ob.submitted_at ? ' ' + String(ob.submitted_at).slice(0, 10) : ''}.` : legacy ? 'Long-standing client: no onboarding form, on purpose. Client answers are filled from research, Asana and the website pre-fill.' : 'No onboarding link sent.',
         legacy ? 'Nothing to do. To fill the call sheet without the client: Brand tab > Client answers > Pre-fill.' : 'Brand tab > Client answers > send the onboarding link.', { steps: STEPS.onboarding }),
       C('google_ads', 'Google Ads (via Triple Whale)', (ga[id]?.v || 0) > 0 ? 'ok' : 'off', (ga[id]?.v || 0) > 0 ? `Spend in the last 14 days: ${Math.round(ga[id].v)}.` : 'No Google spend in the last 14 days (either not running, or Google Ads is not connected in the client\'s Triple Whale).', 'The client connects Google Ads inside Triple Whale.', { steps: STEPS.google_ads }),
+      /* Google read directly (google.js), 2026-10-08. The ids are pasted here or matched by Settings > Connections > Match Google. */
+      C('ga4', 'Google Analytics 4', gd.ga4 ? (gp.ga4?.ok ? 'ok' : 'warn') : 'off', gd.ga4 ? `Property ${gd.ga4}${gp.ga4?.ok ? '' : ' (Locus cannot read Google Analytics yet: see the agency row)'}.` : 'No GA4 property linked: Store > Website stays empty.',
+        'Paste the GA4 property ID (GA4 > Admin > Property details, a number like 312345678).', { input: { key: 'ga4', label: 'GA4 property ID', placeholder: '312345678' } }),
+      C('gsc', 'Google Search Console', gd.gsc ? (gp.gsc?.ok ? 'ok' : 'warn') : 'off', gd.gsc ? `${gd.gsc}${gp.gsc?.ok ? '' : ' (Locus cannot read Search Console yet: see the agency row)'}.` : 'No Search Console site linked: Store > Search stays empty.',
+        'Paste the property exactly as Search Console shows it (sc-domain:brand.com or https://www.brand.com/).', { input: { key: 'gsc', label: 'Search Console property', placeholder: 'sc-domain:brand.com' } }),
+      C('gads_direct', 'Google Ads account (direct)', gd.ads ? (gp.ads?.ok ? 'ok' : 'warn') : 'off', gd.ads ? `Customer ${gd.ads}${gp.ads?.ok ? '' : ' (waiting on the developer token)'}.` : 'Not linked directly; Ads > Google shows Triple Whale totals.',
+        'Paste the 10-digit Google Ads customer ID (top right in Google Ads).', { input: { key: 'google_ads', label: 'Google Ads customer ID', placeholder: '123-456-7890' } }),
       /* Klaviyo is a DIRECT connection now (klaviyo.js): the private key per brand. The Triple Whale side
          (email revenue on the P&L) is reported in the note, not as the connection. */
       C('klaviyo', 'Klaviyo', kd?.has ? 'ok' : 'off',

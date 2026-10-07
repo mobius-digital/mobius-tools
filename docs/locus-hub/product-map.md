@@ -1,0 +1,104 @@
+# Locus product map (2026-10-08)
+
+One page that says where everything lives, who opens it, what question it answers and how the data is framed for
+that reader. Every new feature gets a row here before it is built. Research behind it: research-v3.md (navigation,
+ask bar, Triple Whale / Hyros / Hiro features, creative visuals, cut and scale rules), spec-v2.md (screens).
+
+## The readers, and how each one reads data
+
+| Reader | Opens Locus to | Frames data as | Never wants |
+| --- | --- | --- | --- |
+| Owner (Cole) | Is each brand making money, will we hit the month, is the agency healthy | Money first: revenue, contribution margin, MER against plan; one line per brand; red only when it costs money | Ad-level noise |
+| Media buyer (Ahsan, Noma) | What do I change today | Cost per result against goal, the trend, what changed, by campaign > ad set > ad; a call on every row (scale, watch, cut) | A number without a goal beside it |
+| Creative strategist | What do we make next | By angle, format, hook, persona; thumbnails first, numbers second; proven vs dead | Spend tables with no creative |
+| Editor and designer (Ravo, William) | What am I making and is it right | The brief, the references, the product photos | Metrics |
+| Client (share links today, a portal later) | Is the agency working for me | Plain outcomes: revenue, orders, MER, what we did, what is next; no internal diagnostics, no other brands | Jargon, attribution debates |
+
+## The map
+
+Status: LIVE = shipped, BUILT = shipped and waiting on a setup step, NEXT = this quarter, LATER = after that.
+
+### Home: "Is the book making money and where is it leaking?"
+| Page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Overview | everyone (agency) / owner (brand) | the read, money tiles with goal bullets, pace to plan, revenue by day with compare, channel split, site funnel, brand small multiples | LIVE |
+| Overview: What moved | everyone | anomaly feed: yesterday against the same weekday over 8 weeks, split into spend, CPM, CTR, CVR, AOV; posts to Slack at 8am | NEXT |
+| Overview: pinned tiles | everyone | each person stars the tiles they want first | NEXT |
+| P&L | owner | waterfall from revenue to contribution, daily chart, cost health | LIVE (v2 look in progress) |
+| Plan | owner | the three numbers, the verdict, pacing, quarter | LIVE (v2 look in progress) |
+| Season | owner, strategist | offers, gantt, goals and ladder, the desk, to-do | LIVE |
+| Scenarios | owner, strategist | lead math and ROAS math, saved and shared | LIVE |
+
+### Ads: "Is the spend working, what do I change today?"
+| Page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Meta > Overview | buyer | verdict, tiles, funnel, spend by campaign with change markers, CPA by day, campaigns | LIVE |
+| Meta > Campaigns | buyer | campaign > ad set > ad with covers and previews, orders drill | LIVE |
+| Meta > Creative | buyer, strategist | ads grid with calls (rule set per brand in Settings > Goals), spend vs CPA map, hook vs hold, fatigue, launch cadence, angle and format rollups | LIVE |
+| Meta > Creative: funnel grade per ad (A to F for hook, hold, CTR, add to cart, purchase) naming what to iterate, with "Brief the iteration" | strategist | | NEXT |
+| Meta > Creative: 90-day customer value per ad (Hyros-style), from order touches + customers | buyer, owner | LTV and LTV:CAC columns | NEXT |
+| Meta > Tests | buyer | to call, running, Monday calls | LIVE |
+| Meta > Changes, Today, Creative browser | buyer | change log with why, today vs a normal day, every ad with copy | LIVE (v2 look in progress) |
+| Google | buyer | Triple Whale totals today; campaigns by type from Google Ads once connected | BUILT (waits on developer token) |
+| Google: search terms, Performance Max product groups, brand vs non-brand spend | buyer | | LATER |
+| TikTok | buyer | Triple Whale totals; direct later | LIVE / LATER |
+| All channels | buyer, owner | every source side by side, platform vs Triple Whale gap | LIVE |
+| All channels: two attribution models side by side | buyer | | NEXT |
+
+### Email and SMS: "Is email pulling its weight?"
+| Page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Klaviyo (one brand) | retention lead, owner | revenue, flows vs campaigns, flow table with core-flow gaps, campaigns with benchmark pills, lists and segments | LIVE |
+| Agency email board (all brands against targets, pacing), Hiro-style | owner | | NEXT |
+| Subject lines and send times | retention lead | which words and hours win | NEXT |
+| Flow map, SMS revenue per message | retention lead | | LATER |
+
+### Store: "What did the store and its visitors do?"
+| Page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Sales | owner | revenue bridge, new vs returning, by day, what goes in the cart | LIVE |
+| Customers | owner | LTV:CAC verdict, value curve, cohorts, first product to next | LIVE (v2 look in progress) |
+| Website (Google Analytics 4) | owner, buyer, CRO | sessions, engagement, conversion, funnel visit to purchase, channels, landing pages with leaks, devices, UTMs | BUILT (waits on Google setup) |
+| Search (Search Console) | owner, strategist | clicks, brand vs non-brand, queries just off page one, top pages | BUILT (waits on Google setup) |
+| Products (needs the Shopify app) | owner | units, revenue and refunds per product, stock runway | NEXT |
+
+### Creative: "What do we make next?"
+| Page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Tests and angles | strategist | have we tested this, angle scoreboard, concepts and tests | LIVE (v2 look in progress) |
+| Studio | strategist, designer | batches from briefs, review, Canva | LIVE (v2 look in progress) |
+| Brand | strategist | client answers, research, voice | LIVE (v2 look in progress) |
+| Copy desk | strategist | lines in the brand's voice | LIVE (v2 look in progress) |
+| Creator link | strategist | the creators' page editor | LIVE (v2 look in progress) |
+| Inspiration (Atria boards per brand and season) | strategist | | NEXT |
+| "Make more like this": a winner on Meta > Creative opens a Studio batch or an Asana brief prefilled | strategist | | NEXT |
+
+### Reports: "What do we send?"
+| Page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Daily Brief, Weekly and monthly | buyer | draft, check, send | LIVE (v2 look in progress) |
+| Dashboards | everyone | built by hand or by the Strategist, posted to Slack | LIVE |
+| Scheduled questions ("ask this every Monday, post to Slack") | everyone | | NEXT |
+| Client portal: each client signs in and sees their brand (Overview, Sales, Website, reports, their ads) | client | needs per-brand access | LATER |
+
+### Everywhere
+| Feature | Status |
+| --- | --- |
+| Six-item rail, page tabs, real platform logos | LIVE |
+| Ask bar with per-page questions, jump to page or brand (Ctrl+K) | LIVE |
+| Answers drawn as charts and tables in a side panel, "pin to a dashboard" | NEXT |
+| Command palette finds any campaign or ad by name | NEXT |
+| Per-brand team access, then client logins | LATER (Cole: after the look is finished) |
+
+## Google, exactly
+
+| Product | Needed? | Gives | Setup (Cole, once) |
+| --- | --- | --- | --- |
+| Google Ads | Yes | campaigns, types, search terms, exact spend | Mobius manager account > Admin > API Center > apply for a developer token; set GOOGLE_ADS_DEV_TOKEN and GOOGLE_ADS_MCC; add the adwords scope to the service account's delegation; enable the Google Ads API; each client's account linked under the manager |
+| Google Analytics 4 | Yes | website analytics (Store > Website) | add analytics.readonly to the delegation; enable Analytics Data API + Admin API; Cole as Viewer on each client's property |
+| Search Console | Yes | organic search (Store > Search) | add webmasters.readonly to the delegation; enable Search Console API; Cole as user on each client's property |
+| AdSense | No | it pays sites for SHOWING ads; our brands buy ads | none |
+| Merchant Center | Later | product feed health for Shopping and PMax | later |
+
+The service account (client id shown on Settings > Connections) already signs in as Cole for Drive and Gmail, so no
+new login is needed: only the three scopes, the three APIs and the developer token.

@@ -44,197 +44,207 @@ const brand = () => S.accounts.find(a => a.act_id === S.act);
 /* ---------- css ---------- */
 function injectCss() {
   if (document.getElementById('calcCss')) return;
-  const lk = document.createElement('link'); lk.rel = 'stylesheet'; lk.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap'; document.head.appendChild(lk);
   const st = document.createElement('style'); st.id = 'calcCss';
   st.textContent = `
-  .cc{--cc-line:var(--line,#E3E8EC);--cc-muted:var(--muted,#5F6F7B);--cc-surface:var(--surface,#fff);--cc-wash:var(--wash,#F3F6F8);--cc-good:var(--good,#1E7A45);--cc-warn:var(--warn,#A8801F);--cc-bad:var(--bad,#B03A2E);--cc-acc:var(--brand,#1F6F8B);--cc-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;--cc-panel:var(--ink-panel,#15212B);--cc-on:var(--on-ink,#fff)}
-  .cc .card{margin-bottom:14px}
+  /* v2 (2026-10-08): the same look as the v2 cards and tiles, tokens only, both themes. This file also
+     runs on share.html, which loads only /mobius.css, so every v2-only token carries a fallback. */
+  .cc{--cc-line:var(--line);--cc-muted:var(--muted);--cc-surface:var(--surface);--cc-wash:var(--surface-2,var(--bg));--cc-good:var(--good);--cc-warn:var(--warn);--cc-bad:var(--bad);--cc-acc:var(--brand);--cc-mono:var(--sans,system-ui);--cc-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--cc-tipbg:var(--v2-tip-bg,var(--ink));--cc-tipink:var(--v2-tip-ink,var(--surface))}
+  .cc{font-variant-numeric:tabular-nums}
+  .cc .ph{margin-bottom:16px}
+  .cc .card{margin:0 0 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:none}
   .cc .mono{font-family:var(--cc-mono);font-variant-numeric:tabular-nums}
-  .cc-seg{display:inline-flex;gap:4px;border:1px solid var(--cc-line);border-radius:99px;padding:3px;margin:0 0 14px;background:var(--bg,#fff)}
-  .cc-seg button{border:0;background:transparent;border-radius:99px;padding:7px 15px;font:600 13px var(--sans,system-ui);color:var(--cc-muted);cursor:pointer}
-  .cc-seg button.on{background:var(--ink,#111);color:var(--bg,#fff)}
-  /* hero */
-  .cc-hero{border:1px solid var(--cc-line);background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--cc-acc) 28%,var(--cc-panel)) 0%,var(--cc-panel) 55%);color:var(--cc-on);border-radius:18px;padding:22px 26px 20px;margin-bottom:14px;position:relative;overflow:hidden}
-  .cc-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 40%);pointer-events:none}
-  .cc-hero .eb{font:600 10.5px var(--sans,system-ui);letter-spacing:.14em;text-transform:uppercase;opacity:.7;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .cc-hero .big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:8px 0 4px}
-  .cc-hero .big .n{font:600 56px/1 var(--cc-mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .cc-hero .big .u{font:500 15px var(--sans,system-ui);opacity:.85;max-width:34ch;line-height:1.3}
+  .cc-seg{margin:0 0 14px}
+  .cc-seg.v2jobs{display:flex}
+  /* hero: the one answer, then the stat tiles under it */
+  .cc-hero{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:18px 20px 16px;margin-bottom:12px;position:relative}
+  .cc-hero .eb{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .cc-hero .eb b{color:var(--ink-2);font-weight:600}
+  .cc-hero .big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:10px 0 4px}
+  .cc-hero .big .n{font-size:44px;font-weight:700;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .cc-hero .big .u{font-size:14px;color:var(--ink-2);max-width:44ch;line-height:1.4}
   .cc-hero .act{margin-left:auto;display:flex;gap:8px}
-  .cc-hbtn{border:1px solid color-mix(in srgb,var(--cc-on) 28%,transparent);background:color-mix(in srgb,var(--cc-on) 8%,transparent);color:var(--cc-on);border-radius:99px;padding:7px 14px;font:600 12.5px var(--sans,system-ui);cursor:pointer;letter-spacing:0;text-transform:none}
-  .cc-hbtn:hover{background:color-mix(in srgb,var(--cc-on) 15%,transparent)}
-  .cc-hbtn.pri{background:var(--cc-acc);color:var(--on-brand,#fff);border-color:var(--cc-acc)}
-  .cc-hbtn.pri:hover{background:var(--cc-acc);filter:brightness(1.08)}
-  .cc-pill{display:inline-flex;align-items:center;gap:6px;font:600 11px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:5px 10px;background:color-mix(in srgb,var(--cc-on) 10%,transparent);color:var(--cc-on)}
+  .cc-hbtn{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 12px;font:600 12.5px var(--sans,system-ui);cursor:pointer;letter-spacing:0;text-transform:none}
+  .cc-hbtn:hover{border-color:var(--cc-acc)}
+  .cc-hbtn.pri{background:var(--cc-acc);color:var(--on-brand);border-color:var(--cc-acc)}
+  .cc-hbtn.pri:hover{filter:brightness(1.08)}
+  .cc-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;border-radius:99px;padding:2px 8px;background:var(--unk-bg);color:var(--ink-2)}
   .cc-pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
-  .cc-pill.good{color:var(--cc-good)}.cc-pill.warn{color:var(--cc-warn)}.cc-pill.bad{color:var(--cc-bad)}
-  .cc-hero .read{font-size:14px;line-height:1.5;opacity:.92;max-width:78ch;margin:6px 0 14px}
-  .cc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 0;border-top:1px solid color-mix(in srgb,var(--cc-on) 14%,transparent);padding-top:14px}
-  .cc-stats>div{padding:0 14px;border-left:1px solid color-mix(in srgb,var(--cc-on) 12%,transparent);min-width:0}
-  .cc-stats>div:first-child{border-left:0;padding-left:0}
-  .cc-stats .l{font:600 10px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;opacity:.65}
-  .cc-stats .v{font:600 20px/1.2 var(--cc-mono);margin-top:3px;font-variant-numeric:tabular-nums}
+  .cc-pill.good{background:var(--good-bg);color:var(--cc-good)}.cc-pill.warn{background:var(--warn-bg);color:var(--cc-warn)}.cc-pill.bad{background:var(--bad-bg);color:var(--cc-bad)}
+  .cc-hero .read{font-size:13.5px;line-height:1.55;color:var(--ink-2);max-width:96ch;margin:8px 0 0}
+  .cc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 16px}
+  .cc-stats>div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:4px}
+  .cc-stats .l{font-size:12px;color:var(--muted)}
+  .cc-stats .v{font-size:21px;font-weight:650;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
   .cc-stats .v.good{color:var(--cc-good)}.cc-stats .v.bad{color:var(--cc-bad)}.cc-stats .v.warn{color:var(--cc-warn)}
-  .cc-stats .s{font-size:11px;opacity:.7;margin-top:2px}
+  .cc-stats .s{font-size:12px;color:var(--muted);line-height:1.35}
   /* layout */
-  .cc-two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
-  .cc-h3{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:0 0 4px}
-  .cc-h3 h3{margin:0}
+  .cc-two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+  .cc-h3{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+  .cc-h3 h3{margin:0;font-size:13.5px;font-weight:650;color:var(--ink)}
+  .cc-h3 .find{font-size:13px;color:var(--ink-2);flex:1;min-width:200px}
+  .cc-h3 .tiny{font-size:12px;color:var(--muted);margin-left:auto}
   /* dials */
   .cc-dial{display:grid;grid-template-columns:1fr;gap:14px}
   .cc-d{display:grid;grid-template-columns:1fr 118px;gap:2px 12px;align-items:center}
-  .cc-d label{font:600 13px var(--sans,system-ui)}
+  .cc-d label{font-size:13px;font-weight:600;color:var(--ink)}
   .cc-d .in{display:flex;align-items:center;gap:6px}
-  .cc-d .in span{font:500 12px var(--cc-mono);color:var(--cc-muted);flex:none}
-  .cc .cc-d .in input.num{width:100%!important;min-width:0;margin:0!important;border:1px solid var(--cc-line)!important;border-radius:8px!important;background:var(--cc-surface)!important;box-shadow:none!important;padding:6px 9px!important;font:500 13.5px var(--cc-mono)!important;color:inherit!important;text-align:right;font-variant-numeric:tabular-nums;height:auto!important;line-height:1.3!important}
+  .cc-d .in span{font-size:12px;font-weight:500;color:var(--cc-muted);flex:none}
+  .cc .cc-d .in input.num{width:100%!important;min-width:0;margin:0!important;border:1px solid var(--line-strong)!important;border-radius:8px!important;background:var(--surface)!important;box-shadow:none!important;padding:6px 9px!important;font:500 13.5px var(--sans,system-ui)!important;color:var(--ink)!important;text-align:right;font-variant-numeric:tabular-nums;height:auto!important;line-height:1.3!important}
   .cc .cc-d .in input.num:focus{outline:0!important;border-color:var(--cc-acc)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 18%,transparent)!important}
   .cc-d input[type=range]{grid-column:1/-1;width:100%;-webkit-appearance:none;appearance:none;height:22px;margin:0;cursor:pointer;background:transparent}
   .cc-d input[type=range]:focus{outline:0}
-  .cc-d input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--cc-acc) 0,var(--cc-acc) var(--p,0%),var(--cc-line) var(--p,0%))}
-  .cc-d input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--cc-surface);border:2px solid var(--cc-acc);box-shadow:0 1px 4px rgba(0,0,0,.22);margin-top:-7px;transition:transform .1s}
+  .cc-d input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 30%,transparent)}
+  .cc-d input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--cc-acc) 0,var(--cc-acc) var(--p,0%),var(--line-strong) var(--p,0%))}
+  .cc-d input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--surface);border:2px solid var(--cc-acc);box-shadow:0 1px 4px rgba(0,0,0,.25);margin-top:-6px;transition:transform .1s}
   .cc-d input[type=range]:hover::-webkit-slider-thumb,.cc-d input[type=range]:active::-webkit-slider-thumb{transform:scale(1.15)}
-  .cc-d input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--cc-line)}
+  .cc-d input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--line-strong)}
   .cc-d input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--cc-acc)}
-  .cc-d input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--cc-surface);border:2px solid var(--cc-acc)}
+  .cc-d input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--cc-acc)}
   .cc-d small{grid-column:1/-1;font-size:11.5px;color:var(--cc-muted);line-height:1.4;margin-top:-6px}
   .cc-assume{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-  .cc-assume>div{border:1px solid var(--cc-line);border-radius:10px;padding:10px 12px}
-  .cc-assume .l{font:600 10px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--cc-muted)}
-  .cc-assume .v{font:600 18px var(--cc-mono);margin-top:3px;font-variant-numeric:tabular-nums}
+  .cc-assume>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .cc-assume .l{font-size:12px;color:var(--cc-muted)}
+  .cc-assume .v{font-size:18px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums;color:var(--ink)}
   /* scenario cards */
   .cc-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-  .cc-sc{border:1px solid var(--cc-line);border-radius:14px;padding:12px 12px 10px;background:var(--cc-surface);cursor:pointer;min-width:0;position:relative;transition:border-color .12s,box-shadow .12s}
-  .cc-sc:hover{border-color:var(--cc-acc)}
+  .cc-sc{border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px;background:var(--surface);cursor:pointer;min-width:0;position:relative;transition:border-color .12s,box-shadow .12s}
+  .cc-sc:hover{border-color:var(--line-strong)}
   .cc-sc.on{border-color:var(--cc-acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 18%,transparent)}
-  .cc-sc .nm{width:100%;border:0;background:transparent;font:600 13px var(--sans,system-ui);color:inherit;padding:0;margin-bottom:6px;border-bottom:1px dashed transparent}
+  .cc-sc .nm{width:100%;border:0;background:transparent;font:600 13px var(--sans,system-ui);color:var(--ink);padding:0 14px 0 0;margin-bottom:6px;border-bottom:1px dashed transparent}
   .cc-sc .nm:focus{outline:0;border-bottom-color:var(--cc-acc)}
-  .cc-sc .z{position:absolute;top:12px;right:12px;width:9px;height:9px;border-radius:50%}
+  .cc-sc .z{position:absolute;top:14px;right:12px;width:8px;height:8px;border-radius:50%}
   .cc-sc .z.good{background:var(--cc-good)}.cc-sc .z.warn{background:var(--cc-warn)}.cc-sc .z.bad{background:var(--cc-bad)}
-  .cc-sc .r{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--cc-muted);padding:3px 0;border-top:1px solid var(--cc-line)}
-  .cc-sc .r b{font:600 13px var(--cc-mono);color:var(--ink,#111);font-variant-numeric:tabular-nums}
+  .cc-sc .r{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--cc-muted);padding:4px 0;border-top:1px solid var(--line)}
+  .cc-sc .r b{font-size:13px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
   .cc-sc .r b.good{color:var(--cc-good)}.cc-sc .r b.bad{color:var(--cc-bad)}
   .cc-sc .act{display:flex;gap:10px;margin-top:8px}
-  .cc-sc.add{display:grid;place-items:center;min-height:120px;color:var(--cc-muted);font:600 13px var(--sans,system-ui);border-style:dashed;background:transparent}
-  .cc-link{background:none;border:0;padding:0;font:inherit;font-size:12px;color:var(--cc-acc);cursor:pointer;text-decoration:underline}
+  .cc-sc.add{display:grid;place-items:center;min-height:120px;color:var(--cc-muted);font-size:13px;font-weight:600;border-style:dashed;background:transparent}
+  .cc-sc.add:hover{color:var(--cc-acc);border-color:var(--cc-acc)}
+  .cc-link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--cc-acc);cursor:pointer}
+  .cc-link:hover{text-decoration:underline}
   .cc-link.bad{color:var(--cc-bad)}
   .cc-mini{font-size:12.5px;padding:5px 10px}
   /* zone strip */
   .cc-zone{position:relative;height:112px;margin:14px 4px 0}
   .cc-zone .trk{position:absolute;left:0;right:0;top:34px;height:14px;border-radius:7px;overflow:hidden;background:var(--cc-wash);display:flex}
   .cc-zone .trk i{display:block;height:100%}
-  .cc-zone .trk .g{background:linear-gradient(90deg,color-mix(in srgb,var(--cc-good) 55%,#fff),var(--cc-good))}
-  .cc-zone .trk .a{background:linear-gradient(90deg,var(--cc-warn),color-mix(in srgb,var(--cc-warn) 70%,var(--cc-bad)))}
-  .cc-zone .trk .r{background:color-mix(in srgb,var(--cc-bad) 85%,#000)}
-  .cc-zone .tk{position:absolute;top:50px;font:500 10.5px var(--cc-mono);color:var(--cc-muted);transform:translateX(-50%)}
-  .cc-zone .zl{position:absolute;top:0;font:600 10.5px var(--sans,system-ui);letter-spacing:.06em;text-transform:uppercase;transform:translateX(-50%);white-space:nowrap}
+  .cc-zone .trk .g{background:linear-gradient(90deg,color-mix(in srgb,var(--cc-good) 45%,var(--surface)),var(--cc-good))}
+  .cc-zone .trk .a{background:linear-gradient(90deg,var(--cc-warn),color-mix(in srgb,var(--cc-warn) 60%,var(--cc-bad)))}
+  .cc-zone .trk .r{background:var(--cc-bad)}
+  .cc-zone .tk{position:absolute;top:50px;font-size:10.5px;color:var(--cc-muted);transform:translateX(-50%)}
+  .cc-zone .zl{position:absolute;top:0;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;transform:translateX(-50%);white-space:nowrap}
   .cc-zone .mk{position:absolute;top:28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0}
-  .cc-zone .mk i{width:14px;height:26px;border-radius:7px;background:var(--ink,#111);border:3px solid var(--cc-surface);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  .cc-zone .mk i{width:14px;height:26px;border-radius:7px;background:var(--ink);border:3px solid var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.25)}
   .cc-zone .mk.on i{background:var(--cc-acc)}
-  .cc-zone .mk b{font:600 11px var(--sans,system-ui);white-space:nowrap;background:var(--cc-surface);padding:2px 7px;border-radius:6px;border:1px solid var(--cc-line);margin-top:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .cc-zone .mk b{font-size:11px;font-weight:600;white-space:nowrap;background:var(--surface);color:var(--ink);padding:2px 7px;border-radius:6px;border:1px solid var(--line);margin-top:14px}
   .cc-zone .mk.lo b{margin-top:38px}
   /* charts */
-  .cc-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--cc-muted);margin:4px 0 2px}
+  .cc-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--cc-muted);margin:0 0 6px}
   .cc-leg span{display:inline-flex;align-items:center;gap:6px}
-  .cc-leg i{width:18px;height:0;border-top:2.5px solid var(--cc-acc);display:inline-block}
+  .cc-leg i{width:18px;height:0;border-top:2px solid var(--cc-acc);display:inline-block}
   .cc-leg i.d{border-top-style:dashed;border-color:var(--cc-muted)}
   .cc-leg i.t{border-top-style:dotted;border-color:var(--cc-muted)}
   .cc-leg i.tg{border-color:var(--cc-good);border-top-style:dashed}
   .cc-leg i.be{border-color:var(--cc-bad);border-top-style:dashed}
   .cc-chart{width:100%;height:auto;display:block;cursor:crosshair;touch-action:none}
-  .cc-chart text{font:11px var(--cc-mono);fill:var(--cc-muted)}
-  .cc-chart .grid{stroke:var(--cc-line);stroke-dasharray:2 4}
-  .cc-chart .ax{stroke:var(--cc-line)}
+  .cc-chart text{font-size:11px;fill:var(--cc-muted);font-variant-numeric:tabular-nums}
+  .cc-chart .grid{stroke:var(--v2-grid,var(--line))}
+  .cc-chart .ax{stroke:var(--line-strong)}
   .cc-chart .band{fill:var(--cc-good);opacity:.08}
   .cc-chart .area{fill:url(#ccGrad)}
   .cc-chart .l0{stroke:var(--cc-muted);stroke-width:1.5;fill:none;stroke-dasharray:5 4;opacity:.8}
-  .cc-chart .l1{stroke:var(--cc-acc);stroke-width:2.5;fill:none;stroke-linejoin:round}
+  .cc-chart .l1{stroke:var(--cc-acc);stroke-width:2;fill:none;stroke-linejoin:round}
   .cc-chart .l2{stroke:var(--cc-muted);stroke-width:1.5;fill:none;stroke-dasharray:1.5 4;opacity:.8}
   .cc-chart .tgt{stroke:var(--cc-good);stroke-width:1.5;stroke-dasharray:6 4}
   .cc-chart .be{stroke:var(--cc-bad);stroke-width:1.5;stroke-dasharray:6 4}
-  .cc-chart .dot{fill:var(--cc-acc);stroke:var(--cc-surface);stroke-width:2.5}
+  .cc-chart .dot{fill:var(--cc-acc);stroke:var(--surface);stroke-width:2.5}
   .cc-chart .dot.halo{fill:var(--cc-acc);opacity:.18;stroke:none}
-  .cc-chart .xh{stroke:var(--ink,#111);stroke-width:1;opacity:.35}
-  .cc-chart .tagbox{fill:var(--cc-surface);stroke:var(--cc-line)}
-  .cc-chart .tag{font:600 10px var(--sans,system-ui);fill:var(--ink,#111)}
-  .cc-tip{position:fixed;z-index:95;pointer-events:none;background:var(--ink,#111);color:var(--on-ink,#fff);border-radius:10px;padding:9px 11px;font:12.5px/1.45 var(--sans,system-ui);box-shadow:0 10px 30px -8px rgba(0,0,0,.45);min-width:170px}
-  .cc-tip b{font:600 13px var(--cc-mono);font-variant-numeric:tabular-nums}
-  .cc-tip .h{font:600 11px var(--sans,system-ui);letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin-bottom:4px}
+  .cc-chart .xh{stroke:var(--ink);stroke-width:1;opacity:.35}
+  .cc-chart .tagbox{fill:var(--surface);stroke:var(--line)}
+  .cc-chart .tag{font-size:10px;font-weight:600}
+  .cc-tip{position:fixed;z-index:95;pointer-events:none;background:var(--cc-tipbg,var(--ink));color:var(--cc-tipink,var(--surface));border-radius:7px;padding:8px 10px;font:12px/1.45 var(--sans,system-ui);box-shadow:0 8px 24px -10px rgba(0,0,0,.5);min-width:170px;max-width:320px;font-variant-numeric:tabular-nums}
+  .cc-tip b{font-weight:600}
+  .cc-tip .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:4px}
   .cc-tip .r{display:flex;justify-content:space-between;gap:14px}
+  .cc-tip i.dt{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .cc-tip i.dt.good{background:var(--good)}.cc-tip i.dt.bad{background:var(--bad)}
   /* dollar bar */
-  .cc-dol{margin-top:8px}
-  .cc-dol .bar{display:flex;height:34px;border-radius:9px;overflow:hidden;background:var(--cc-wash)}
+  .cc-dol{margin-top:4px}
+  .cc-dol .bar{display:flex;height:28px;border-radius:6px;overflow:hidden;gap:2px;background:var(--cc-wash)}
   .cc-dol .bar i{display:block;height:100%;min-width:2px;transition:width .2s}
   .cc-dol .lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
   .cc-dol .lg div{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--cc-muted);min-width:0}
   .cc-dol .lg i{width:10px;height:10px;border-radius:3px;flex:none;margin-top:4px}
-  .cc-dol .lg b{display:block;font:600 15px var(--cc-mono);color:var(--ink,#111);font-variant-numeric:tabular-nums}
+  .cc-dol .lg b{display:block;font-size:15px;font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+  .cc-dol .lg b em{font-style:normal;font-size:12px;font-weight:500;color:var(--cc-muted)}
   .cc-dol .lg b.good{color:var(--cc-good)}.cc-dol .lg b.bad{color:var(--cc-bad)}
   /* words: an ask bar at the top */
-  .cc-say{display:grid;gap:8px;margin:0 0 14px}
-  .cc-ask{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong,var(--cc-line));border-radius:12px;background:var(--cc-surface);padding:6px 6px 6px 14px;transition:border-color .12s,box-shadow .12s}
+  .cc-say{display:grid;gap:8px;margin:0 0 16px}
+  .cc-ask{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);padding:5px 5px 5px 13px;transition:border-color .12s,box-shadow .12s}
   .cc-ask:focus-within{border-color:var(--cc-acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 16%,transparent)}
   .cc-ask svg{width:16px;height:16px;stroke:var(--cc-acc);fill:none;stroke-width:1.6;flex:none}
-  .cc .cc-ask input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;font:14px var(--sans,system-ui)!important;color:inherit!important;padding:6px 0!important;margin:0!important;height:auto!important}
+  .cc .cc-ask input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;font:13.5px var(--sans,system-ui)!important;color:var(--ink)!important;padding:6px 0!important;margin:0!important;height:auto!important}
+  .cc .cc-ask input::placeholder{color:var(--muted);opacity:1}
   .cc-ask .btn{margin:0;flex:none}
   .cc-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .cc-chips span{font-size:12px;color:var(--cc-muted);margin-right:2px}
-  .cc-chip{font:inherit;font-size:12.5px;color:var(--ink-2,inherit);background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:99px;padding:5px 11px;cursor:pointer}
-  .cc-chip:hover{border-color:var(--cc-acc);color:var(--cc-acc)}
-  /* words + saved */
-  .cc-words{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
-  .cc-words textarea{width:100%;min-height:58px;border:1px solid var(--cc-line);border-radius:10px;padding:10px 12px;font:14px/1.45 var(--sans,system-ui);background:var(--cc-surface);color:inherit;resize:vertical;box-sizing:border-box}
-  .cc-words .ex{font-size:12px;color:var(--cc-muted);margin-top:6px;line-height:1.5}
+  .cc-chip{font:inherit;font-size:12.5px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:99px;padding:4px 11px;cursor:pointer}
+  .cc-chip:hover{border-color:var(--line-strong);color:var(--ink)}
+  .cc-say #ccReading{font-size:12.5px;color:var(--ink-2)}
+  /* saved */
   .cc-saved{display:flex;gap:6px;flex-wrap:wrap}
-  .cc-saved .sv{border:1px solid var(--cc-line);border-radius:10px;padding:6px 10px;font-size:12.5px;background:var(--cc-surface);display:flex;gap:8px;align-items:center}
-  .cc-saved .sv b{font-weight:600}.cc-saved .sv .m{color:var(--cc-muted);font-family:var(--cc-mono);font-size:12px}
+  .cc-saved .sv{border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:12.5px;background:var(--surface);display:flex;gap:10px;align-items:center;color:var(--ink)}
+  .cc-saved .sv b{font-weight:600}.cc-saved .sv .m{color:var(--cc-muted);font-size:12px;font-variant-numeric:tabular-nums}
   /* roas extras */
-  .cc-mode{display:inline-flex;gap:4px;border:1px solid var(--cc-line);border-radius:9px;padding:3px}
-  .cc-mode button{border:0;background:transparent;border-radius:7px;padding:5px 10px;font:600 12px var(--sans,system-ui);color:var(--cc-muted);cursor:pointer}
-  .cc-mode button.on{background:var(--ink,#111);color:var(--bg,#fff)}
-  .cc-togs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:6px}
-  .cc-tg{border:1px solid var(--cc-line);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12.5px}
-  .cc-tg.off{opacity:.55}
+  .cc-mode{display:inline-flex;gap:4px;flex-wrap:wrap}
+  .cc-mode button{border:1px solid var(--line);background:transparent;border-radius:99px;padding:4px 11px;font:600 12px var(--sans,system-ui);color:var(--ink-2);cursor:pointer}
+  .cc-mode button:hover{border-color:var(--line-strong);color:var(--ink)}
+  .cc-mode button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .cc-togs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:14px}
+  .cc-tg{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12.5px;color:var(--ink)}
+  .cc-tg.off{opacity:.6}
   .cc-tg input[type=checkbox]{accent-color:var(--cc-acc);width:15px;height:15px;margin:0}
   .cc-tg .f{grid-column:1/-1;display:flex;gap:6px;align-items:center}
-  .cc-tg .f input{width:70px;border:1px solid var(--cc-line);border-radius:6px;padding:4px 6px;font:600 12.5px var(--cc-mono);background:var(--cc-wash);color:inherit;text-align:right}
+  .cc-tg .f input{width:70px;border:1px solid var(--line-strong);border-radius:6px;padding:4px 6px;font:600 12.5px var(--sans,system-ui);background:var(--cc-wash);color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
   .cc-tg .f span{color:var(--cc-muted);font-size:11.5px}
-  /* sensitivity grid */
-  .cc-grid{display:grid;gap:3px}
-  .cc-grid .h{font:600 10.5px var(--sans,system-ui);color:var(--cc-muted);text-align:center;padding:0 2px 4px;align-self:end;letter-spacing:.02em}
-  .cc-grid .h.rh{text-align:right;padding:0 8px 0 0;align-self:center;font-family:var(--cc-mono);font-weight:500}
-  .cc-grid .c{border-radius:7px;padding:8px 4px 6px;text-align:center;cursor:pointer;color:var(--ink,#111);font:600 12.5px var(--cc-mono);font-variant-numeric:tabular-nums;line-height:1.15;transition:transform .08s}
-  .cc-grid .c small{display:block;font:500 10.5px var(--cc-mono);opacity:.75;margin-top:2px}
-  .cc-grid .c:hover{transform:translateY(-1px);box-shadow:0 4px 12px -6px rgba(0,0,0,.35)}
-  .cc-grid .c.on{outline:2px solid var(--ink,#111);outline-offset:1px}
+  /* sensitivity grid: a heatmap, green makes money, red loses it */
+  .cc-grid{display:grid;gap:2px}
+  .cc-grid .h{font-size:10.5px;font-weight:600;color:var(--cc-muted);text-align:center;padding:0 2px 6px;align-self:end;letter-spacing:.04em;text-transform:uppercase}
+  .cc-grid .h.rh{text-align:right;padding:0 10px 0 0;align-self:center;font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none}
+  .cc-grid .c{border-radius:5px;padding:8px 4px 6px;text-align:center;cursor:pointer;color:var(--ink);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;transition:transform .08s}
+  .cc-grid .c small{display:block;font-size:10.5px;font-weight:500;color:var(--ink);opacity:.8;margin-top:2px}
+  .cc-grid .c:hover{transform:translateY(-1px);box-shadow:0 4px 12px -6px rgba(0,0,0,.4)}
+  .cc-grid .c.on{outline:2px solid var(--ink);outline-offset:1px}
   .cc-gridnote{font-size:12px;color:var(--cc-muted);margin:10px 0 0;line-height:1.5}
   /* receipts */
-  .cc-rh{font:600 10.5px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--cc-muted);margin:0 0 6px}
+  .cc-rh{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--cc-muted);margin:0 0 6px}
   .cc-rcpt{font-size:13px}
-  .cc-rcpt .r{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--cc-line)}
+  .cc-rcpt .r{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)}
   .cc-rcpt .r span{color:var(--cc-muted)}
-  .cc-rcpt .r b{font:600 13.5px var(--cc-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .cc-rcpt .r.t{border-bottom:0;border-top:2px solid var(--ink,#111);margin-top:2px}
-  .cc-rcpt .r.t span{color:var(--ink,#111);font-weight:600}
+  .cc-rcpt .r b{font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink)}
+  .cc-rcpt .r.t{border-bottom:0;border-top:1px solid var(--line-strong);margin-top:2px}
+  .cc-rcpt .r.t span{color:var(--ink);font-weight:600}
   .cc-rcpt b.good{color:var(--cc-good)}.cc-rcpt b.bad{color:var(--cc-bad)}
   /* delta row on compare cards */
   .cc-sc .r.dl{border-top:0;padding-top:0;font-size:11.5px}
   .cc-sc .r.dl b{font-size:12px}
   /* formula note */
   .cc-foot{font-size:12.5px;color:var(--cc-muted);line-height:1.6}
-  .cc-foot summary{cursor:pointer;font:600 13px var(--sans,system-ui);color:var(--ink,#111);list-style:none;display:flex;align-items:center;gap:8px}
+  .cc-foot summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);list-style:none;display:flex;align-items:center;gap:8px}
   .cc-foot summary::-webkit-details-marker{display:none}
-  .cc-foot summary::before{content:"+";display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--cc-line);font:600 13px var(--cc-mono);color:var(--cc-muted)}
+  .cc-foot summary::before{content:"+";display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--line-strong);font-size:13px;font-weight:600;color:var(--cc-muted)}
   .cc-foot[open] summary::before{content:"\\2013"}
   .cc-foot p{margin:10px 0 0}
-  .cc-foot code{font:12px var(--cc-mono);background:var(--cc-wash);padding:1px 5px;border-radius:4px;color:var(--ink,#111)}
-  @media (max-width:980px){.cc-two{grid-template-columns:1fr}.cc-hero .big .n{font-size:42px}.cc-words{grid-template-columns:1fr}}
-  @media (prefers-reduced-motion:reduce){.cc-sc,.cc-dol .bar i{transition:none}}
+  .cc-foot code{font:12px var(--cc-code);background:var(--cc-wash);padding:1px 5px;border-radius:4px;color:var(--ink)}
+  @media (max-width:980px){.cc-two{grid-template-columns:1fr}.cc-hero .big .n{font-size:36px}.cc-hero .act{margin-left:0}}
+  @media (max-width:600px){.cc-grid .c{padding:6px 2px 4px;font-size:11px}.cc-grid .c small{font-size:9.5px}.cc-d{grid-template-columns:1fr 100px}}
+  @media (prefers-reduced-motion:reduce){.cc-sc,.cc-dol .bar i,.cc-grid .c{transition:none}}
   `;
   document.head.appendChild(st);
 }
 function toast(msg, bad) {
   const t = document.createElement('div'); t.textContent = msg;
-  t.style.cssText = `position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:${bad ? 'var(--bad,#B03A2E)' : 'var(--ink,#111)'};color:#fff;padding:9px 16px;border-radius:99px;font:600 13px var(--sans,system-ui);z-index:90;box-shadow:0 6px 20px rgba(0,0,0,.2)`;
+  t.style.cssText = `position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:${bad ? 'var(--bad)' : 'var(--ink)'};color:var(--bg);padding:9px 16px;border-radius:99px;font:600 13px var(--sans,system-ui);z-index:90;box-shadow:0 6px 20px rgba(0,0,0,.25)`;
   document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
 }
 function ask(title, hint, value, cta) {
@@ -259,6 +269,7 @@ function tipShow(html, x, y) {
 }
 function tipHide() { if (TIP) TIP.style.display = 'none'; }
 function tipHtml(spec) {
+  if (!String(spec).includes('|')) return `<div>${esc(spec)}</div>`;
   const parts = String(spec).split('|'); let h = `<div class="h">${esc(parts[0])}</div>`;
   for (let i = 1; i + 1 < parts.length; i += 2) h += `<div class="r"><span>${esc(parts[i])}</span><b>${esc(parts[i + 1])}</b></div>`;
   return h;
@@ -350,11 +361,12 @@ function wireLeadCurve(f) {
     const roas = f.cvr * f.aov / cpl, leads = f.spend / cpl, buyers = leads * f.cvr, rev = buyers * f.aov, profit = rev * f.margin - f.spend;
     const x = L + cpl / xmax * (W - L - R), y = T + (1 - clamp(roas, 0, ymax) / ymax) * (H - T - B);
     xh.style.display = ''; ln.setAttribute('x1', x); ln.setAttribute('x2', x); ct.setAttribute('cx', x); ct.setAttribute('cy', y);
-    tipShow(`<div class="h">At ${money2(cpl)} a lead</div><div class="r"><span>ROAS on lead spend</span><b>${x2(roas)}</b></div><div class="r"><span>Leads for ${k(f.spend)}</span><b>${num(leads)}</b></div><div class="r"><span>Orders</span><b>${num(buyers)}</b></div><div class="r"><span>Revenue back</span><b>${k(rev)}</b></div><div class="r"><span>Left after lead spend</span><b style="color:${profit >= 0 ? '#8FD8A8' : '#F2A197'}">${k(profit)}</b></div>`, e.clientX, e.clientY);
+    tipShow(`<div class="h">At ${money2(cpl)} a lead</div><div class="r"><span>ROAS on lead spend</span><b>${x2(roas)}</b></div><div class="r"><span>Leads for ${k(f.spend)}</span><b>${num(leads)}</b></div><div class="r"><span>Orders</span><b>${num(buyers)}</b></div><div class="r"><span>Revenue back</span><b>${k(rev)}</b></div><div class="r"><span>Left after lead spend</span><b><i class="dt ${profit >= 0 ? 'good' : 'bad'}"></i>${k(profit)}</b></div>`, e.clientX, e.clientY);
   };
   svg.addEventListener('mousemove', move); svg.addEventListener('mouseleave', () => { xh.style.display = 'none'; tipHide(); });
   svg.addEventListener('touchstart', e => move(e.touches[0]), { passive: true }); svg.addEventListener('touchmove', e => move(e.touches[0]), { passive: true });
 }
+let GRID = { n: 0, win: 0, hit: 0 };
 /* What has to be true: cost per lead across, share who buy down, ROAS in the cell, what is left
    under it. Click a cell and the dials move there. */
 function leadGrid(c) {
@@ -363,7 +375,8 @@ function leadGrid(c) {
   const cvrs = [...new Set([0.5, 0.75, 1, 1.5, 2].map(x => Math.max(1, Math.round(cv * x))))];
   const cells = cvrs.map(v => cpls.map(p => ({ p, v, m: leadMath({ ...c, cpl: p, cvr: v }, S.target) })));
   const mx = Math.max(1, ...cells.flat().map(x => Math.abs(x.m.profit)));
-  const bg = m => `color-mix(in srgb,${m.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(14 + 56 * Math.min(1, Math.abs(m.profit) / mx))}%,var(--cc-surface))`;
+  GRID = { n: cells.flat().length, win: cells.flat().filter(x => x.m.profit >= 0).length, hit: cells.flat().filter(x => x.m.roas >= S.target).length };
+  const bg = m => `color-mix(in srgb,${m.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(12 + 40 * Math.min(1, Math.abs(m.profit) / mx))}%,var(--cc-surface))`;
   return `<div class="cc-grid" style="grid-template-columns:auto repeat(${cpls.length},minmax(0,1fr))">
     <div class="h rh">CVR \u2193 CPL \u2192</div>${cpls.map(p => `<div class="h">${money2(p)}</div>`).join('')}
     ${cells.map(row => `<div class="h rh">${row[0].v}%</div>` + row.map(x => `<div class="c ${Math.abs(x.p - c.cpl) < 0.13 && x.v === Math.round(c.cvr) ? 'on' : ''}" style="background:${bg(x.m)}" data-gp="${x.p}" data-gv="${x.v}" data-tip="${esc(`${money2(x.p)} a lead, ${x.v}% buy|ROAS on lead spend|${x2(x.m.roas)}|Leads|${num(x.m.leads)}|Orders|${num(x.m.buyers)}|Revenue back|${k(x.m.revenue)}|Left after lead spend|${k(x.m.profit)}`)}">${x2(x.m.roas)}<small>${k(x.m.profit)}</small></div>`).join('')).join('')}
@@ -388,8 +401,8 @@ function leadReceipt(f) {
 function dollarBar(parts, total) {
   const live = parts.filter(p => p.v > 0);
   const sum = live.reduce((a, p) => a + p.v, 0) || 1;
-  return `<div class="cc-dol"><div class="bar">${live.map(p => `<i style="width:${(p.v / sum * 100).toFixed(2)}%;background:${p.c}" title="${esc(p.l)}: ${money(p.v)}${total ? ` (${Math.round(p.v / total * 100)}% of revenue)` : ''}"></i>`).join('')}</div>
-    <div class="lg">${parts.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}<b class="${p.cls || ''}">${money(p.v)}${total ? ` <span style="font:12px var(--cc-mono);color:var(--cc-muted)">${Math.round(p.v / total * 100)}%</span>` : ''}</b></span></div>`).join('')}</div></div>`;
+  return `<div class="cc-dol"><div class="bar">${live.map(p => `<i style="width:${(p.v / sum * 100).toFixed(2)}%;background:${p.c}" data-tip="${esc(p.l)}: ${money(p.v)}${total ? `, ${Math.round(p.v / total * 100)}% of revenue` : ''}"></i>`).join('')}</div>
+    <div class="lg">${parts.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}<b class="${p.cls || ''}">${money(p.v)}${total ? ` <em>${Math.round(p.v / total * 100)}%</em>` : ''}</b></span></div>`).join('')}</div></div>`;
 }
 
 /* ---------- the ROAS model (the public calculator, same math) ---------- */
@@ -421,7 +434,8 @@ function roasGrid(r, m) {
   const keep = (R, M) => { const t = roasMath({ ...r, mode: 'roas', roas: R, margin: M, spend: m.spend || +r.spend || 0 }); return { t, p: r.fixed_on ? t.net : t.contrib }; };
   const cells = margins.map(M => roases.map(R => ({ R, M, ...keep(R, M) })));
   const mx = Math.max(1, ...cells.flat().map(x => Math.abs(x.p)));
-  const bg = p => `color-mix(in srgb,${p >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(14 + 56 * Math.min(1, Math.abs(p) / mx))}%,var(--cc-surface))`;
+  GRID = { n: cells.flat().length, win: cells.flat().filter(x => x.p >= 0).length };
+  const bg = p => `color-mix(in srgb,${p >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(12 + 40 * Math.min(1, Math.abs(p) / mx))}%,var(--cc-surface))`;
   return `<div class="cc-grid" style="grid-template-columns:auto repeat(${roases.length},minmax(0,1fr))">
     <div class="h rh">margin \u2193 roas \u2192</div>${roases.map(R => `<div class="h">${R}x</div>`).join('')}
     ${cells.map(row => `<div class="h rh">${row[0].M}%</div>` + row.map(x => `<div class="c ${Math.abs(x.R - m.roas) < 0.26 && x.M === mg ? 'on' : ''}" style="background:${bg(x.p)}" data-gr="${x.R}" data-gm="${x.M}" data-tip="${esc(`${x.R}x at ${x.M}% margin, ${k(m.spend)} spend|Revenue|${k(x.t.revenue)}|Orders|${num(x.t.orders)}|Cost per order|${money2(x.t.cpa)}|${r.fixed_on ? 'Net profit' : 'Contribution after ads'}|${k(x.p)}`)}">${k(x.p)}<small>${money2(x.t.cpa)}/order</small></div>`).join('')).join('')}
@@ -472,7 +486,7 @@ function wireRoasCurve(r, m) {
     const t = roasMath({ ...r, mode: 'roas', roas: v, spend: m.spend || +r.spend || 0 }); const p = r.fixed_on ? t.net : t.contrib;
     const x = L + (v - 0.5) / 5.5 * (W - L - R), y = T + (1 - (p - lo) / (hi - lo || 1)) * (H - T - B);
     xh.style.display = ''; ln.setAttribute('x1', x); ln.setAttribute('x2', x); ct.setAttribute('cx', x); ct.setAttribute('cy', y);
-    tipShow(`<div class="h">At ${x2(v)}</div><div class="r"><span>Revenue</span><b>${k(t.revenue)}</b></div><div class="r"><span>Orders</span><b>${num(t.orders)}</b></div><div class="r"><span>Cost per order</span><b>${money2(t.cpa)}</b></div><div class="r"><span>${r.fixed_on ? 'Net profit' : 'Contribution after ads'}</span><b style="color:${p >= 0 ? '#8FD8A8' : '#F2A197'}">${k(p)}</b></div>`, e.clientX, e.clientY);
+    tipShow(`<div class="h">At ${x2(v)}</div><div class="r"><span>Revenue</span><b>${k(t.revenue)}</b></div><div class="r"><span>Orders</span><b>${num(t.orders)}</b></div><div class="r"><span>Cost per order</span><b>${money2(t.cpa)}</b></div><div class="r"><span>${r.fixed_on ? 'Net profit' : 'Contribution after ads'}</span><b><i class="dt ${p >= 0 ? 'good' : 'bad'}"></i>${k(p)}</b></div>`, e.clientX, e.clientY);
   };
   svg.addEventListener('mousemove', move); svg.addEventListener('mouseleave', () => { xh.style.display = 'none'; tipHide(); });
   svg.addEventListener('touchstart', e => move(e.touches[0]), { passive: true }); svg.addEventListener('touchmove', e => move(e.touches[0]), { passive: true });
@@ -492,13 +506,14 @@ async function loadPre() {
 async function loadSaved() { try { S.saved = (await api(`/api/scenario?act=${encodeURIComponent(S.act)}`)).scenarios || []; } catch { S.saved = []; } }
 
 /* ---------- shared pieces ---------- */
-function crumb() { return !S.ro && typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('calc')}</div>` : ''; }
+function crumb() { return !S.ro && typeof window.pageHead !== 'function' && typeof window.crumbFor === 'function' ? `<div class="ph-crumb">${window.crumbFor('calc')}</div>` : ''; }
 function title() {
   if (S.ro) return `<h2>${esc(S.shared?.name || 'Scenario')}</h2><p class="sub">${esc(brand()?.name || '')} · a ${S.kind === 'leads' ? 'lead-gen' : 'ROAS'} scenario from Locus, shared by Mobius Digital${S.shared?.updated_at ? ' · ' + esc(String(S.shared.updated_at).slice(0, 10)) : ''}</p>`;
+  if (typeof window.pageHead === 'function') return window.pageHead('calc', 'Scenarios');
   return `<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>`;
 }
-function assumeCard(items) { return `<div class="card"><div class="cc-h3"><h3>What this assumes</h3><span class="tiny">the numbers behind the page</span></div><div class="cc-assume">${items.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div></div>`; }
-function seg() { if (S.ro) return ''; return `<div class="cc-seg" role="tablist"><button data-kind="leads" class="${S.kind === 'leads' ? 'on' : ''}">Leads</button><button data-kind="roas" class="${S.kind === 'roas' ? 'on' : ''}">ROAS</button></div>`; }
+function assumeCard(items) { return `<div class="card"><div class="cc-h3"><h3>What this assumes</h3><span class="tiny">The numbers behind the page</span></div><div class="cc-assume">${items.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div></div>`; }
+function seg() { if (S.ro) return ''; return `<div class="cc-seg v2jobs" role="tablist"><button data-kind="leads" class="${S.kind === 'leads' ? 'on' : ''}">Leads</button><button data-kind="roas" class="${S.kind === 'roas' ? 'on' : ''}">ROAS</button></div>`; }
 function preLine() {
   if (S.ro) return '';
   if (S.act === 'all') return `<p class="hint" style="margin:0 0 12px">Pick a brand up top and the dials start from its real last 90 days. Scenarios save to that brand.</p>`;
@@ -529,7 +544,7 @@ function savedCard() {
   if (S.ro) return '';
   const list = S.saved.filter(s => s.kind === S.kind);
   if (!list.length) return '';
-  return `<div class="card"><div class="cc-h3"><h3>Saved for ${esc(brand()?.name || 'all brands')}</h3><span class="tiny">Load puts it in the dials</span></div><div class="cc-saved">${list.map(s => `<div class="sv"><b>${esc(s.name)}</b><span class="m">${S.kind === 'leads' ? `${money2(s.inputs.cpl)}/lead · ${esc(String(s.inputs.cvr))}% · ${k(s.inputs.spend)}` : `${k(s.inputs.spend)} at ${x2(+s.inputs.roas)}`}</span><button class="cc-link" data-load="${esc(s.id)}">Load</button><button class="cc-link" data-share="${esc(s.id)}">Share link</button><button class="cc-link bad" data-del="${esc(s.id)}">Delete</button></div>`).join('')}</div></div>`;
+  return `<div class="card"><div class="cc-h3"><h3>Saved for ${esc(brand()?.name || 'all brands')}</h3><span class="find">${list.length} saved ${S.kind === 'leads' ? 'lead' : 'ROAS'} scenario${list.length === 1 ? '' : 's'}.</span><span class="tiny">Load puts it in the dials</span></div><div class="cc-saved">${list.map(s => `<div class="sv"><b>${esc(s.name)}</b><span class="m">${S.kind === 'leads' ? `${money2(s.inputs.cpl)}/lead · ${esc(String(s.inputs.cvr))}% · ${k(s.inputs.spend)}` : `${k(s.inputs.spend)} at ${x2(+s.inputs.roas)}`}</span><button class="cc-link" data-load="${esc(s.id)}">Load</button><button class="cc-link" data-share="${esc(s.id)}">Share link</button><button class="cc-link bad" data-del="${esc(s.id)}">Delete</button></div>`).join('')}</div></div>`;
 }
 
 function footNote() {
@@ -553,17 +568,17 @@ function paintLeads() {
   const ms = S.cols.map(c => leadMath(c, S.target));
   const c = S.cols[S.focus], f = ms[S.focus], z = zoneOf(f);
   const hero = `<div class="cc-hero">
-    <div class="eb"><span>Leads</span><span>·</span><span>${esc(brand()?.name || 'All brands')}</span><span>·</span><span>${esc(c.name)}</span><span class="cc-pill ${z}"><i></i>${ZONE_WORD[z]}</span>${S.ro ? '' : `<span class="act"><button class="cc-hbtn" id="ccSaveTop">Save</button><button class="cc-hbtn pri" id="ccShareTop">Share with the client</button></span>`}</div>
+    <div class="eb"><span>Leads</span><span>·</span><b>${esc(brand()?.name || 'All brands')}</b><span>·</span><b>${esc(c.name)}</b><span class="cc-pill ${z}"><i></i>${ZONE_WORD[z]}</span>${S.ro ? '' : `<span class="act"><button class="cc-hbtn" id="ccSaveTop">Save</button><button class="cc-hbtn pri" id="ccShareTop">Share with the client</button></span>`}</div>
     <div class="big"><span class="n">${money2(f.tgtCpl)}</span><span class="u">is the most a lead can cost and still return ${x2(S.target)}. Breakeven is ${money2(f.beCpl)}.</span></div>
-    <div class="read">${esc(leadReading(c, f))}</div>
+    <div class="read">${esc(leadReading(c, f))}</div></div>
     <div class="cc-stats">
-      <div><div class="l">Leads</div><div class="v">${num(f.leads)}</div><div class="s">${k(f.spend)} at ${money2(f.cpl)}</div></div>
-      <div><div class="l">Orders</div><div class="v">${num(f.buyers)}</div><div class="s">${pct(f.cvr * 100)} CVR</div></div>
-      <div><div class="l">Revenue back</div><div class="v">${k(f.revenue)}</div><div class="s">${num(f.buyers)} x ${money(f.aov)}</div></div>
-      <div><div class="l">ROAS on lead spend</div><div class="v ${z}">${x2(f.roas)}</div><div class="s">target ${x2(S.target)}</div></div>
-      <div><div class="l">Left after lead spend</div><div class="v ${f.profit >= 0 ? 'good' : 'bad'}">${k(f.profit)}</div><div class="s">${pct(f.margin * 100)} margin, minus ${k(f.spend)}</div></div>
-      <div><div class="l">Per order won</div><div class="v">${money2(f.cpb)}</div><div class="s">lead spend / orders</div></div>
-    </div></div>`;
+      <div data-tip="Spend divided by cost per lead."><div class="l">Leads</div><div class="v">${num(f.leads)}</div><div class="s">${k(f.spend)} at ${money2(f.cpl)}</div></div>
+      <div data-tip="Leads times the share who buy (CVR)."><div class="l">Orders</div><div class="v">${num(f.buyers)}</div><div class="s">${pct(f.cvr * 100)} CVR</div></div>
+      <div data-tip="Orders times the average order."><div class="l">Revenue back</div><div class="v">${k(f.revenue)}</div><div class="s">${num(f.buyers)} x ${money(f.aov)}</div></div>
+      <div data-tip="Revenue back divided by the lead spend. Green at or above the target, amber between breakeven and target, red below breakeven."><div class="l">ROAS on lead spend</div><div class="v ${z}">${x2(f.roas)}</div><div class="s">target ${x2(S.target)}</div></div>
+      <div data-tip="Revenue back times the margin before ads, minus the lead spend."><div class="l">Left after lead spend</div><div class="v ${f.profit >= 0 ? 'good' : 'bad'}">${k(f.profit)}</div><div class="s">${pct(f.margin * 100)} margin, minus ${k(f.spend)}</div></div>
+      <div data-tip="What the lead spend works out to per order it brings in."><div class="l">Per order won</div><div class="v">${money2(f.cpb)}</div><div class="s">lead spend / orders</div></div>
+    </div>`;
   const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial in "${esc(c.name)}"</h3><button class="cc-link" id="ccReset">reset</button></div><div class="cc-dial">
     ${dial('Lead-gen spend', 'spend', c.spend, { min: 1000, max: 100000, step: 500, pre: '$', sub: 'What goes into the giveaway or signup ads over the whole run.' })}
     ${dial('Cost per lead (CPL)', 'cpl', c.cpl, { min: 0.5, max: 15, step: 0.25, pre: '$', sub: 'Giveaway leads usually land at $1 to $4. Dartee is planning on $2 to $3.' })}
@@ -572,23 +587,25 @@ function paintLeads() {
     ${dial('Margin before ads', 'margin', c.margin, { min: 10, max: 95, step: 1, unit: '%', sub: 'After product, shipping and fees, before any ad spend. From the Profit page.' })}
     ${dial('Target ROAS on the lead spend', 'target', S.target, { min: 1, max: 8, step: 0.1, unit: 'x', sub: 'The return you want on the lead budget. Sets the green zone and the pay-up-to number.' })}
   </div></div>`;
-  const cards = `<div class="card"><div class="cc-h3"><h3>Compare</h3><span class="tiny">click one to dial it</span></div><div class="cc-cards">
+  const best = ms.reduce((bi, m, i) => m.profit > ms[bi].profit ? i : bi, 0);
+  const cards = `<div class="card"><div class="cc-h3"><h3>Compare</h3><span class="find">${S.cols.length > 1 ? `"${esc(S.cols[best].name)}" leaves the most: ${k(ms[best].profit)}.` : 'Copy a scenario to compare it.'}</span><span class="tiny">Click one to dial it</span></div><div class="cc-cards">
     ${S.cols.map((cc, i) => { const m = ms[i], zz = zoneOf(m), d = m.profit - ms[0].profit; return `<div class="cc-sc ${i === S.focus ? 'on' : ''}" data-focus="${i}"><span class="z ${zz}"></span><input class="nm" data-name="${i}" value="${esc(cc.name)}" title="Rename">
       <div class="r"><span>CPL</span><b>${money2(m.cpl)}</b></div><div class="r"><span>CVR</span><b>${pct(m.cvr * 100)}</b></div><div class="r"><span>ROAS</span><b class="${zz === 'good' ? 'good' : zz === 'bad' ? 'bad' : ''}">${x2(m.roas)}</b></div><div class="r"><span>Left</span><b class="${m.profit >= 0 ? 'good' : 'bad'}">${k(m.profit)}</b></div>${i > 0 ? `<div class="r dl"><span>vs ${esc(S.cols[0].name)}</span><b class="${d >= 0 ? 'good' : 'bad'}">${d >= 0 ? '+' : ''}${k(d)}</b></div>` : ''}
       <div class="act"><button class="cc-link" data-save="${i}">Save</button>${S.cols.length > 1 ? `<button class="cc-link bad" data-rm="${i}">Remove</button>` : ''}</div></div>`; }).join('')}
     ${S.cols.length < 8 ? `<div class="cc-sc add" id="ccAddCol">+ copy "${esc(c.name)}"</div>` : ''}
   </div>${S.act !== 'all' ? `<div style="text-align:right;margin-top:10px"><button class="cc-link" id="ccKpi">Set "${esc(c.name)}" as this brand's lead KPI</button></div>` : ''}</div>`;
-  const zone = `<div class="card"><div class="cc-h3"><h3>Where a lead pays</h3><span class="tiny">for "${esc(c.name)}": ${pct(f.cvr * 100)} CVR at ${money(f.aov)} on ${pct(f.margin * 100)} margin</span></div>${zoneStrip(ms)}</div>`;
-  const curve = `<div class="card"><div class="cc-h3"><h3>ROAS at every CPL</h3><span class="tiny">hover for the numbers</span></div>
+  const zone = `<div class="card"><div class="cc-h3"><h3>Where a lead pays</h3><span class="find">Up to ${money2(f.tgtCpl)} hits ${x2(S.target)}; past ${money2(f.beCpl)} a lead loses money. "${esc(c.name)}" sits at ${money2(f.cpl)}.</span><span class="tiny">${pct(f.cvr * 100)} CVR at ${money(f.aov)} on ${pct(f.margin * 100)} margin</span></div>${zoneStrip(ms)}</div>`;
+  const curve = `<div class="card"><div class="cc-h3"><h3>ROAS at every CPL</h3><span class="find">Halve the CPL and the ROAS doubles: ${x2(f.roas)} now, ${x2(f.roas * 2)} at ${money2(f.cpl / 2)}.</span><span class="tiny">Hover for the numbers</span></div>
     <div class="cc-leg"><span><i></i>${pct(f.cvr * 100)} CVR</span><span><i class="d"></i>${pct(f.cvr * 50)} CVR</span><span><i class="t"></i>${pct(f.cvr * 200)} CVR</span><span><i class="tg"></i>target ${x2(S.target)}</span>${f.beRoas ? `<span><i class="be"></i>breakeven ${x2(f.beRoas)}</span>` : ''}</div>
     ${leadCurve(f)}</div>`;
-  const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(f.revenue)} goes</h3><span class="tiny">"${esc(c.name)}"</span></div>${dollarBar([
+  const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(f.revenue)} goes</h3><span class="find">${f.revenue > 0 ? `The lead spend takes ${Math.round(f.spend / f.revenue * 100)}% of it; ${f.profit >= 0 ? `${Math.round(f.profit / f.revenue * 100)}% is left` : `it falls ${k(-f.profit)} short`}.` : ''}</span><span class="tiny">"${esc(c.name)}"</span></div>${dollarBar([
     { l: 'Product, shipping, fees', v: f.cost, c: 'var(--c-amazon,#D95A33)' },
     { l: 'The lead spend', v: f.spend, c: 'var(--cc-acc)' },
     { l: f.profit >= 0 ? 'Left over' : 'Short', v: Math.abs(f.profit), c: f.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)', cls: f.profit >= 0 ? 'good' : 'bad' },
   ], f.revenue || 1)}</div>`;
-  const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(f.spend)} of spend, ${money(f.aov)} orders, ${pct(f.margin * 100)} margin, target ${x2(S.target)}</span></div>${leadGrid(c)}</div>`;
-  const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">"${esc(c.name)}", one lead and one order</span></div>${leadReceipt(f)}</div>`;
+  const gridHtml = leadGrid(c);
+  const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="find">${GRID.win} of ${GRID.n} combinations make money; ${GRID.hit} hit ${x2(S.target)}.</span><span class="tiny">${k(f.spend)} of spend, ${money(f.aov)} orders, ${pct(f.margin * 100)} margin</span></div>${gridHtml}</div>`;
+  const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">"${esc(c.name)}": one lead and one order</span></div>${leadReceipt(f)}</div>`;
   const roCard = S.ro ? assumeCard([['Lead-gen spend', k(f.spend)], ['CPL', money2(f.cpl)], ['CVR', pct(f.cvr * 100)], ['Average order', money(f.aov)], ['Margin before ads', pct(f.margin * 100)], ['Target ROAS', x2(S.target)]]) : '';
   main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${wordsCard()}${hero}${S.ro ? roCard : `<div class="cc-two">${dials}${cards}</div>`}${zone}${grid}${curve}<div class="cc-two">${dollars}${rcpt}</div>${savedCard()}${footNote()}</div>`;
   wireCommon(); wireTips(main);
@@ -627,16 +644,16 @@ function paintRoas() {
   const reading = m.impossible ? 'With these costs there is no ROAS that makes money: product cost, fees and shipping take more than the order is worth. Fix the margin or the shipping before planning spend.'
     : `${k(m.spend)} at ${x2(m.roas)} brings ${k(m.revenue)} and ${num(m.orders)} orders at ${money2(m.cpa)} each. Breakeven is ${x2(be)}, so ${m.roas >= be ? `you are ${((m.roas / be - 1) * 100).toFixed(0)}% above it` : `you are ${((1 - m.roas / be) * 100).toFixed(0)}% under it`}. An order can cost up to ${money2(m.beCpa)} before it loses money.`;
   const hero = `<div class="cc-hero">
-    <div class="eb"><span>ROAS</span><span>·</span><span>${esc(brand()?.name || 'All brands')}</span>${S.roas.name ? `<span>·</span><span>${esc(S.roas.name)}</span>` : ''}<span class="cc-pill ${z}"><i></i>${word}</span>${S.ro ? '' : `<span class="act"><button class="cc-hbtn" id="ccSaveTop">Save</button><button class="cc-hbtn pri" id="ccShareTop">Share with the client</button></span>`}</div>
+    <div class="eb"><span>ROAS</span><span>·</span><b>${esc(brand()?.name || 'All brands')}</b>${S.roas.name ? `<span>·</span><b>${esc(S.roas.name)}</b>` : ''}<span class="cc-pill ${z}"><i></i>${word}</span>${S.ro ? '' : `<span class="act"><button class="cc-hbtn" id="ccSaveTop">Save</button><button class="cc-hbtn pri" id="ccShareTop">Share with the client</button></span>`}</div>
     <div class="big"><span class="n">${k(keep)}</span><span class="u">${r.fixed_on ? 'net profit after fixed costs' : 'contribution after ads'} at ${x2(m.roas)} on ${k(m.spend)}</span></div>
-    <div class="read">${esc(reading)}</div>
+    <div class="read">${esc(reading)}</div></div>
     <div class="cc-stats">
-      <div><div class="l">Revenue</div><div class="v">${k(m.revenue)}</div><div class="s">${num(m.orders)} orders</div></div>
-      <div><div class="l">Ad spend</div><div class="v">${k(m.spend)}</div><div class="s">${x2(m.roas)}</div></div>
-      <div><div class="l">Cost per order</div><div class="v">${money2(m.cpa)}</div><div class="s">ceiling ${money2(m.beCpa)}</div></div>
-      <div><div class="l">Breakeven ROAS</div><div class="v ${z}">${m.impossible ? 'none' : x2(be)}</div><div class="s">${r.fixed_on ? 'with fixed costs' : 'on contribution'}</div></div>
-      <div><div class="l">Margin per order</div><div class="v">${money2(m.perOrder)}</div><div class="s">${pct(m.netPct)} of revenue</div></div>
-    </div></div>`;
+      <div data-tip="Spend times ROAS, or orders times the average order, or the goal."><div class="l">Revenue</div><div class="v">${k(m.revenue)}</div><div class="s">${num(m.orders)} orders</div></div>
+      <div data-tip="Ad spend for the period, at this ROAS."><div class="l">Ad spend</div><div class="v">${k(m.spend)}</div><div class="s">${x2(m.roas)}</div></div>
+      <div data-tip="Spend divided by orders. The ceiling is the most an order can cost in ads before it loses money."><div class="l">Cost per order</div><div class="v">${money2(m.cpa)}</div><div class="s">ceiling ${money2(m.beCpa)}</div></div>
+      <div data-tip="The ROAS where what you keep is zero. Green when you are 15% or more above it."><div class="l">Breakeven ROAS</div><div class="v ${z}">${m.impossible ? 'none' : x2(be)}</div><div class="s">${r.fixed_on ? 'with fixed costs' : 'on contribution'}</div></div>
+      <div data-tip="What you keep divided by orders."><div class="l">Margin per order</div><div class="v">${money2(m.perOrder)}</div><div class="s">${pct(m.netPct)} of revenue</div></div>
+    </div>`;
   const spendOrRev = r.mode === 'revenue' ? dial('Revenue goal', 'revenue', r.revenue, { min: 5000, max: 1000000, step: 1000, pre: '$', sub: 'What you want the month to do. Spend is derived from the ROAS.' }) : dial('Ad spend', 'spend', r.spend, { min: 500, max: 200000, step: 500, pre: '$', sub: 'Meta + Google for the period.' });
   const roasOrOrders = r.mode === 'orders' ? dial('Orders', 'orders', r.orders, { min: 10, max: 5000, step: 10, sub: `Orders you expect that spend to produce. That is ${x2(m.roas)} and ${money2(m.cpa)} an order.` }) : dial('ROAS', 'roas', r.roas, { min: 0.5, max: 8, step: 0.05, unit: 'x', sub: `Blended, Triple Whale revenue over total spend. At ${x2(m.roas)} an order costs ${money2(m.cpa)} in ads; the ceiling is ${money2(m.beCpa)}.` });
   const T = (label, onKey, fields) => `<div class="cc-tg ${r[onKey] ? '' : 'off'}"><input type="checkbox" id="cc_${onKey}" data-rt="${onKey}" ${r[onKey] ? 'checked' : ''}><label for="cc_${onKey}">${label}</label><div class="f">${fields}</div></div>`;
@@ -663,11 +680,12 @@ function paintRoas() {
     ...(r.fixed_on ? [{ l: 'Fixed costs', v: m.fixed, c: 'var(--c-else,#2A86B3)' }] : []),
     { l: keep >= 0 ? 'You keep' : 'Short', v: Math.abs(keep), c: keep >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)', cls: keep >= 0 ? 'good' : 'bad' },
   ];
-  const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(m.revenue)} goes</h3><span class="tiny">each segment is a share of revenue</span></div>${dollarBar(parts, m.revenue || 1)}</div>`;
-  const curve = `<div class="card"><div class="cc-h3"><h3>Profit at every ROAS, same spend</h3><span class="tiny">hover for the numbers</span></div>
+  const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(m.revenue)} goes</h3><span class="find">${m.revenue > 0 ? `Ads take ${Math.round(m.spend / m.revenue * 100)}%; ${keep >= 0 ? `you keep ${Math.round(keep / m.revenue * 100)}%` : `it falls ${k(-keep)} short`}.` : ''}</span><span class="tiny">Each segment is a share of revenue</span></div>${dollarBar(parts, m.revenue || 1)}</div>`;
+  const curve = `<div class="card"><div class="cc-h3"><h3>Profit at every ROAS, same spend</h3><span class="find">${m.impossible ? 'No ROAS makes money with these costs.' : `Breakeven at ${x2(be)}; at ${x2(m.roas)} you keep ${k(keep)}.`}</span><span class="tiny">Hover for the numbers</span></div>
     <div class="cc-leg"><span><i></i>${r.fixed_on ? 'net profit' : 'contribution after ads'}</span>${be ? `<span><i class="be"></i>breakeven ${x2(be)}</span>` : ''}</div>${roasCurve(r, m)}</div>`;
-  const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(m.spend)} of spend, ${money(r.aov)} orders${r.fixed_on ? `, ${k(m.fixed)} fixed` : ''}</span></div>${roasGrid(r, m)}</div>`;
-  const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">at ${x2(m.roas)}</span></div>${roasReceipt(r, m)}</div>`;
+  const gridHtml = roasGrid(r, m);
+  const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="find">${GRID.win} of ${GRID.n} combinations of ROAS and margin make money at this spend.</span><span class="tiny">${k(m.spend)} of spend, ${money(r.aov)} orders${r.fixed_on ? `, ${k(m.fixed)} fixed` : ''}</span></div>${gridHtml}</div>`;
+  const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">At ${x2(m.roas)}</span></div>${roasReceipt(r, m)}</div>`;
   const roCard = S.ro ? assumeCard([['Average order', money(r.aov)], ['Gross margin', pct(r.margin)], ['Ad spend', k(m.spend)], ['ROAS', x2(m.roas)], ...(r.proc_on ? [['Processing', `${r.proc_pct}% + ${money2(r.proc_fixed)}`]] : []), ...(r.ful_on ? [['Pick, pack, ship', money2(r.ful) + ' an order']] : []), ...(r.fixed_on ? [['Fixed costs', k(r.fixed)]] : []), ...(r.share_on ? [['Revenue share', pct(r.share_pct)]] : []), ...(r.fee_on ? [['Agency fee', pct(r.fee_pct) + ' of spend']] : [])]) : '';
   main.innerHTML = `<div class="cc">${crumb()}${title()}${seg()}${preLine()}${wordsCard()}${hero}${S.ro ? `${roCard}<div class="cc-two">${dollars}${rcpt}</div>` : `<div class="cc-two">${dials}<div>${dollars}${rcpt}</div></div>`}${grid}${curve}${savedCard()}${footNote()}</div>`;
   wireCommon(); wireTips(main);
