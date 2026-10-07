@@ -1693,3 +1693,15 @@ Font: calc.js injects IBM Plex Mono from Google Fonts itself (index.html only lo
 
 ## Season seed 011 (Lucky, Cole's answers Oct 6 night) RAN
 Giveaway `early` starts 2026-10-14 ("Four Full Bags" working name); `putters` = announced Nov 9, sold only on Black Friday, list first; `access` has no driver/irons, 24h vs 48h open; `bf` = bundle + ONE hat per order + 400 polos + Eclipse Black first sale; `ny` = The Havoc driver Jan 6/7 locked. Asana (BFCM 2026 Lucky section + Lucky BFCM 2026 project) and the plan sheet artifact (v4) match. Still open for the Nick call Oct 7: Early Bird offer, 24h vs 48h, gift-card structure.
+
+## Scenarios v3 (2026-10-06 later, calc.js?v=3): the audit against /roas-calculator
+Cole asked whether I had really gone through the public calculator before dropping things. Inventory of the public tool: AOV + gross margin sliders; optional processing (% + per transaction), fulfilment per order, fixed monthly, revenue share, ad fee (% of spend AND "applies to" % of spend); three modes; KPI strip; "Where every dollar goes" bar; per-order receipt; "Profit by ROAS" bar chart with tooltip; reset; breakeven formula footnote. v2 had dropped the receipt, the applies-to option, reset and the formula note. v3 brings those back and adds what professional tools do for clarity:
+- "What has to be true" sensitivity grid (leads: cost per lead across x % who buy down, ROAS in the cell and what is left under it; ROAS: ROAS across x margin down, what you keep). Colour depth = size of the win/loss, outlined cell = the dials, hover = the numbers, click = move the dials there.
+- "The receipt": one lead and one order won (leads); the per-order receipt (ROAS).
+- Delta against the first scenario on every compare card.
+- Reset link in the dial card; "How this is calculated" details at the bottom with the formulas.
+- Number boxes are text inputs with commas (fmtIn/parseIn); typing or dragging keeps the dial card (`inPlace` swaps the old #ccDials back in and syncs the twin control), so the caret no longer jumps and sliders drag.
+- Up to 8 scenarios (was 4).
+
+## Season seed 012 (Lucky, implemented recommendations) RAN
+Prize = THE FOURSOME GIVEAWAY ("Every Lucky club. All four of you."), `list` key = Early Bird Nov 1 to 16 "buy any club, get 10 entries" (locked), `gift` = free hat at $100, glove + hat at $200. Asana: BFCM 2026 Lucky section has the Early Bird line (1219238618492931) with the four subtasks; Lucky BFCM 2026 has the website + email tasks; gift card lines renamed. Sheet artifact v5. Open: one day vs 48h early access (Nick, Oct 7).

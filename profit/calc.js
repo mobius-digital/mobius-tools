@@ -1,5 +1,8 @@
 /* Locus - Scenarios (2026-10-06, v2 the same night after Cole: "looks like Canva, no hover,
- * text over the lines, what is that bar chart, numbers over the lines").
+ * text over the lines, what is that bar chart, numbers over the lines"; v3 later that night after
+ * the audit against /roas-calculator: per-order receipt, ad-fee "applies to", reset and the formula
+ * note came back in, plus what pro tools add for clarity: a sensitivity grid you can click, a
+ * per-lead receipt, and a delta against the first scenario on every card).
  * Two instruments with one answer each, big, in mono:
  *   Leads  "Pay up to $X a lead." Dial spend / cost per lead / % who buy / order / margin for the
  *          scenario you are reading; compare up to four as cards; see where a lead pays on one
@@ -168,6 +171,35 @@ function injectCss() {
   .cc-tg .f{grid-column:1/-1;display:flex;gap:6px;align-items:center}
   .cc-tg .f input{width:70px;border:1px solid var(--cc-line);border-radius:6px;padding:4px 6px;font:600 12.5px var(--cc-mono);background:var(--cc-wash);color:inherit;text-align:right}
   .cc-tg .f span{color:var(--cc-muted);font-size:11.5px}
+  /* sensitivity grid */
+  .cc-grid{display:grid;gap:3px}
+  .cc-grid .h{font:600 10.5px var(--sans,system-ui);color:var(--cc-muted);text-align:center;padding:0 2px 4px;align-self:end;letter-spacing:.02em}
+  .cc-grid .h.rh{text-align:right;padding:0 8px 0 0;align-self:center;font-family:var(--cc-mono);font-weight:500}
+  .cc-grid .c{border-radius:7px;padding:8px 4px 6px;text-align:center;cursor:pointer;color:var(--ink,#111);font:600 12.5px var(--cc-mono);font-variant-numeric:tabular-nums;line-height:1.15;transition:transform .08s}
+  .cc-grid .c small{display:block;font:500 10.5px var(--cc-mono);opacity:.75;margin-top:2px}
+  .cc-grid .c:hover{transform:translateY(-1px);box-shadow:0 4px 12px -6px rgba(0,0,0,.35)}
+  .cc-grid .c.on{outline:2px solid var(--ink,#111);outline-offset:1px}
+  .cc-gridnote{font-size:12px;color:var(--cc-muted);margin:10px 0 0;line-height:1.5}
+  /* receipts */
+  .cc-rh{font:600 10.5px var(--sans,system-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--cc-muted);margin:0 0 6px}
+  .cc-rcpt{font-size:13px}
+  .cc-rcpt .r{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--cc-line)}
+  .cc-rcpt .r span{color:var(--cc-muted)}
+  .cc-rcpt .r b{font:600 13.5px var(--cc-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cc-rcpt .r.t{border-bottom:0;border-top:2px solid var(--ink,#111);margin-top:2px}
+  .cc-rcpt .r.t span{color:var(--ink,#111);font-weight:600}
+  .cc-rcpt b.good{color:var(--cc-good)}.cc-rcpt b.bad{color:var(--cc-bad)}
+  /* delta row on compare cards */
+  .cc-sc .r.dl{border-top:0;padding-top:0;font-size:11.5px}
+  .cc-sc .r.dl b{font-size:12px}
+  /* formula note */
+  .cc-foot{font-size:12.5px;color:var(--cc-muted);line-height:1.6}
+  .cc-foot summary{cursor:pointer;font:600 13px var(--sans,system-ui);color:var(--ink,#111);list-style:none;display:flex;align-items:center;gap:8px}
+  .cc-foot summary::-webkit-details-marker{display:none}
+  .cc-foot summary::before{content:"+";display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--cc-line);font:600 13px var(--cc-mono);color:var(--cc-muted)}
+  .cc-foot[open] summary::before{content:"\\2013"}
+  .cc-foot p{margin:10px 0 0}
+  .cc-foot code{font:12px var(--cc-mono);background:var(--cc-wash);padding:1px 5px;border-radius:4px;color:var(--ink,#111)}
   @media (max-width:980px){.cc-two{grid-template-columns:1fr}.cc-hero .big .n{font-size:42px}.cc-words{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){.cc-sc,.cc-dol .bar i{transition:none}}
   `;
@@ -199,6 +231,17 @@ function tipShow(html, x, y) {
   TIP.style.left = left + 'px'; TIP.style.top = top + 'px';
 }
 function tipHide() { if (TIP) TIP.style.display = 'none'; }
+function tipHtml(spec) {
+  const parts = String(spec).split('|'); let h = `<div class="h">${esc(parts[0])}</div>`;
+  for (let i = 1; i + 1 < parts.length; i += 2) h += `<div class="r"><span>${esc(parts[i])}</span><b>${esc(parts[i + 1])}</b></div>`;
+  return h;
+}
+function wireTips(root) {
+  root.querySelectorAll('[data-tip]').forEach(el => {
+    el.addEventListener('mousemove', e => tipShow(tipHtml(el.dataset.tip), e.clientX, e.clientY));
+    el.addEventListener('mouseleave', tipHide);
+  });
+}
 
 /* ---------- the lead math (unchanged) ---------- */
 function leadMath(c, target) {
@@ -285,6 +328,35 @@ function wireLeadCurve(f) {
   svg.addEventListener('mousemove', move); svg.addEventListener('mouseleave', () => { xh.style.display = 'none'; tipHide(); });
   svg.addEventListener('touchstart', e => move(e.touches[0]), { passive: true }); svg.addEventListener('touchmove', e => move(e.touches[0]), { passive: true });
 }
+/* What has to be true: cost per lead across, share who buy down, ROAS in the cell, what is left
+   under it. Click a cell and the dials move there. */
+function leadGrid(c) {
+  const base = +c.cpl || 3, cv = +c.cvr || 10;
+  const cpls = [...new Set([0.5, 0.67, 0.83, 1, 1.25, 1.5, 2].map(x => Math.max(0.25, Math.round(base * x * 4) / 4)))];
+  const cvrs = [...new Set([0.5, 0.75, 1, 1.5, 2].map(x => Math.max(1, Math.round(cv * x))))];
+  const cells = cvrs.map(v => cpls.map(p => ({ p, v, m: leadMath({ ...c, cpl: p, cvr: v }, S.target) })));
+  const mx = Math.max(1, ...cells.flat().map(x => Math.abs(x.m.profit)));
+  const bg = m => `color-mix(in srgb,${m.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(14 + 56 * Math.min(1, Math.abs(m.profit) / mx))}%,var(--cc-surface))`;
+  return `<div class="cc-grid" style="grid-template-columns:auto repeat(${cpls.length},minmax(0,1fr))">
+    <div class="h rh">buy \u2193 lead \u2192</div>${cpls.map(p => `<div class="h">${money2(p)}</div>`).join('')}
+    ${cells.map(row => `<div class="h rh">${row[0].v}%</div>` + row.map(x => `<div class="c ${Math.abs(x.p - c.cpl) < 0.13 && x.v === Math.round(c.cvr) ? 'on' : ''}" style="background:${bg(x.m)}" data-gp="${x.p}" data-gv="${x.v}" data-tip="${esc(`${money2(x.p)} a lead, ${x.v}% buy|ROAS on lead spend|${x2(x.m.roas)}|Leads|${num(x.m.leads)}|Orders|${num(x.m.buyers)}|Revenue back|${k(x.m.revenue)}|Left after lead spend|${k(x.m.profit)}`)}">${x2(x.m.roas)}<small>${k(x.m.profit)}</small></div>`).join('')).join('')}
+  </div><p class="cc-gridnote">Green makes money, red loses it; the darker the cell the more. The outlined cell is the scenario in the dials. Click any cell to move the dials there.</p>`;
+}
+/* The receipt: one lead, and one order won. */
+function leadReceipt(f) {
+  const cvr = f.cvr || 0, rev = cvr * f.aov, cost = rev * (1 - f.margin), left = rev * f.margin - f.cpl;
+  const perOrder = cvr > 0 ? f.cpl / cvr : null, leftOrder = perOrder == null ? null : f.aov * f.margin - perOrder;
+  return `<div class="cc-two"><div><div class="cc-rh">One lead</div><div class="cc-rcpt">
+      <div class="r"><span>The lead</span><b>-${money2(f.cpl)}</b></div>
+      <div class="r"><span>${pct(cvr * 100)} chance it buys a ${money(f.aov)} order</span><b>+${money2(rev)}</b></div>
+      <div class="r"><span>Product, shipping, fees on that</span><b>-${money2(cost)}</b></div>
+      <div class="r t"><span>Left per lead</span><b class="${left >= 0 ? 'good' : 'bad'}">${money2(left)}</b></div></div></div>
+    <div><div class="cc-rh">One order won</div><div class="cc-rcpt">
+      <div class="r"><span>The ${cvr > 0 ? num(1 / cvr) : '-'} leads it took at ${money2(f.cpl)}</span><b>-${money2(perOrder)}</b></div>
+      <div class="r"><span>The order</span><b>+${money(f.aov)}</b></div>
+      <div class="r"><span>Product, shipping, fees</span><b>-${money2(f.aov * (1 - f.margin))}</b></div>
+      <div class="r t"><span>Left per order</span><b class="${(leftOrder || 0) >= 0 ? 'good' : 'bad'}">${money2(leftOrder)}</b></div></div></div></div>`;
+}
 /* Where every dollar of revenue goes: product and shipping, the lead spend, what is left. */
 function dollarBar(parts, total) {
   const live = parts.filter(p => p.v > 0);
@@ -296,12 +368,12 @@ function dollarBar(parts, total) {
 /* ---------- the ROAS model (the public calculator, same math) ---------- */
 function defaultRoas() {
   return { aov: Math.round(S.pre?.new_aov || 100), margin: Math.round((S.pre?.margin ?? 0.6) * 100), mode: 'roas', spend: 10000, roas: 2.5, orders: 100, revenue: 25000,
-    proc_on: 1, proc_pct: 2.9, proc_fixed: 0.3, ful_on: 1, ful: 8, fixed_on: 0, fixed: 5000, share_on: 0, share_pct: 15, fee_on: 0, fee_pct: 12 };
+    proc_on: 1, proc_pct: 2.9, proc_fixed: 0.3, ful_on: 1, ful: 8, fixed_on: 0, fixed: 5000, share_on: 0, share_pct: 15, fee_on: 0, fee_pct: 12, fee_applies: 100 };
 }
 function roasMath(r) {
   const aov = +r.aov || 0, mf = (+r.margin || 0) / 100;
   const procPct = r.proc_on ? (+r.proc_pct || 0) / 100 : 0, procFixed = r.proc_on ? (+r.proc_fixed || 0) : 0;
-  const ful = r.ful_on ? (+r.ful || 0) : 0, shareF = r.share_on ? (+r.share_pct || 0) / 100 : 0, feeF = r.fee_on ? (+r.fee_pct || 0) / 100 : 0;
+  const ful = r.ful_on ? (+r.ful || 0) : 0, shareF = r.share_on ? (+r.share_pct || 0) / 100 : 0, feeF = r.fee_on ? (+r.fee_pct || 0) / 100 * (clamp(r.fee_applies == null ? 100 : +r.fee_applies, 0, 100) / 100) : 0;
   let revenue, orders, spend;
   if (r.mode === 'orders') { spend = +r.spend || 0; orders = +r.orders || 0; revenue = orders * aov; }
   else if (r.mode === 'revenue') { revenue = +r.revenue || 0; spend = (+r.roas || 0) > 0 ? revenue / +r.roas : 0; orders = aov > 0 ? revenue / aov : 0; }
@@ -313,6 +385,32 @@ function roasMath(r) {
   const beRoas = impossible ? null : (1 + feeF) / effM, beRoasFull = impossible || spend <= 0 ? null : (1 + feeF + fixed / spend) / effM;
   const avail = aov * mf - (aov * procPct + procFixed) - ful - aov * shareF, beCpa = avail > 0 ? avail / (1 + feeF) : 0;
   return { revenue, orders, spend, roas, cpa, cogs, proc, ful: fulT, share, fee, fixed, gross, contrib, net, beRoas, beRoasFull, beCpa, impossible, perOrder: orders > 0 ? net / orders : 0, netPct: revenue > 0 ? net / revenue * 100 : 0, effM };
+}
+/* ROAS across, gross margin down, what you keep in the cell. Click to move the dials. */
+function roasGrid(r, m) {
+  const mg = Math.round(+r.margin || 60);
+  const margins = [...new Set([mg - 15, mg - 10, mg - 5, mg, mg + 5].map(v => clamp(v, 5, 95)))];
+  const roases = [1.5, 2, 2.5, 3, 3.5, 4, 5];
+  const keep = (R, M) => { const t = roasMath({ ...r, mode: 'roas', roas: R, margin: M, spend: m.spend || +r.spend || 0 }); return { t, p: r.fixed_on ? t.net : t.contrib }; };
+  const cells = margins.map(M => roases.map(R => ({ R, M, ...keep(R, M) })));
+  const mx = Math.max(1, ...cells.flat().map(x => Math.abs(x.p)));
+  const bg = p => `color-mix(in srgb,${p >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)'} ${Math.round(14 + 56 * Math.min(1, Math.abs(p) / mx))}%,var(--cc-surface))`;
+  return `<div class="cc-grid" style="grid-template-columns:auto repeat(${roases.length},minmax(0,1fr))">
+    <div class="h rh">margin \u2193 roas \u2192</div>${roases.map(R => `<div class="h">${R}x</div>`).join('')}
+    ${cells.map(row => `<div class="h rh">${row[0].M}%</div>` + row.map(x => `<div class="c ${Math.abs(x.R - m.roas) < 0.26 && x.M === mg ? 'on' : ''}" style="background:${bg(x.p)}" data-gr="${x.R}" data-gm="${x.M}" data-tip="${esc(`${x.R}x at ${x.M}% margin, ${k(m.spend)} spend|Revenue|${k(x.t.revenue)}|Orders|${num(x.t.orders)}|Cost per order|${money2(x.t.cpa)}|${r.fixed_on ? 'Net profit' : 'Contribution after ads'}|${k(x.p)}`)}">${k(x.p)}<small>${money2(x.t.cpa)}/order</small></div>`).join('')).join('')}
+  </div><p class="cc-gridnote">Same spend in every cell. The outlined cell is the ROAS and margin in the dials. Click a cell to move the dials there.</p>`;
+}
+/* The per-order receipt from the public calculator. */
+function roasReceipt(r, m) {
+  const o = m.orders || 0, per = v => o > 0 ? v / o : 0, aov = +r.aov || 0;
+  const rows = [
+    ['The order', aov, '+'], ['Product cost', per(m.cogs), '-'],
+    ...(r.proc_on ? [['Payment processing', per(m.proc), '-']] : []), ...(r.ful_on ? [['Pick, pack and ship', per(m.ful), '-']] : []),
+    ['Ads to win it', m.cpa, '-'], ...(r.fee_on ? [['Agency fee', per(m.fee), '-']] : []), ...(r.share_on ? [['Revenue share', per(m.share), '-']] : []),
+    ...(r.fixed_on ? [['Share of fixed costs', per(m.fixed), '-']] : []),
+  ];
+  const left = r.fixed_on ? per(m.net) : per(m.contrib);
+  return `<div class="cc-rh">One order</div><div class="cc-rcpt">${rows.map(([l, v, sg]) => `<div class="r"><span>${l}</span><b>${sg}${money2(v)}</b></div>`).join('')}<div class="r t"><span>${r.fixed_on ? 'Net per order' : 'Left per order after ads'}</span><b class="${left >= 0 ? 'good' : 'bad'}">${money2(left)}</b></div></div>`;
 }
 function roasCurve(r, m) {
   const W = 760, H = 250, L = 64, R = 112, T = 16, B = 34;
@@ -376,8 +474,10 @@ function preLine() {
   const p = S.pre;
   return `<p class="hint" style="margin:0 0 12px">${esc(brand()?.name || '')}, last 90 days: new-customer order <b class="mono">${money(p.new_aov)}</b>, margin before ads <b class="mono">${p.margin != null ? pct(p.margin * 100) : '-'}</b>, cost per new customer <b class="mono">${money(p.cac)}</b>, goal ROAS <b class="mono">${x2(S.target)}</b>. <button class="cc-link" id="ccUsePre">Put these in the dials</button>${p.cm_ok === false ? ' <span style="color:var(--bad)">Cost data is flagged on the Costs page; type the real margin.</span>' : ''}</p>`;
 }
+const fmtIn = v => !fin(+v) ? '' : (+v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const parseIn = str => parseFloat(String(str).replace(/[^0-9.\-]/g, ''));
 function dial(label, key, val, { min, max, step, unit, pre, sub }) {
-  return `<div class="cc-d"><label>${label}</label><div class="in">${pre ? `<span>${pre}</span>` : ''}<input type="number" data-k="${key}" step="${step}" value="${val ?? ''}">${unit ? `<span>${unit}</span>` : ''}</div><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${clamp(+val || 0, min, max)}">${sub ? `<small>${sub}</small>` : ''}</div>`;
+  return `<div class="cc-d"><label>${label}</label><div class="in">${pre ? `<span>${pre}</span>` : ''}<input type="text" inputmode="decimal" class="num" data-k="${key}" value="${fmtIn(val)}">${unit ? `<span>${unit}</span>` : ''}</div><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${clamp(+val || 0, min, max)}">${sub ? `<small>${sub}</small>` : ''}</div>`;
 }
 function wordsCard() {
   const ex = S.kind === 'leads'
@@ -391,6 +491,19 @@ function savedCard() {
   const list = S.saved.filter(s => s.kind === S.kind);
   if (!list.length) return '';
   return `<div class="card"><div class="cc-h3"><h3>Saved for ${esc(brand()?.name || 'all brands')}</h3><span class="tiny">Load puts it in the dials</span></div><div class="cc-saved">${list.map(s => `<div class="sv"><b>${esc(s.name)}</b><span class="m">${S.kind === 'leads' ? `${money2(s.inputs.cpl)}/lead · ${esc(String(s.inputs.cvr))}% · ${k(s.inputs.spend)}` : `${k(s.inputs.spend)} at ${x2(+s.inputs.roas)}`}</span><button class="cc-link" data-load="${esc(s.id)}">Load</button><button class="cc-link bad" data-del="${esc(s.id)}">Delete</button></div>`).join('')}</div></div>`;
+}
+
+function footNote() {
+  if (S.kind === 'leads') return `<details class="card cc-foot"><summary>How this is calculated</summary>
+    <p><code>leads = spend / cost per lead</code>, <code>orders = leads x % who buy</code>, <code>revenue back = orders x average order</code>, <code>ROAS on lead spend = revenue back / spend</code>.</p>
+    <p><code>left after lead spend = revenue back x margin - spend</code>. The margin is before ads: product, shipping and fees already out.</p>
+    <p><code>pay up to = % who buy x average order / target ROAS</code> is the cost per lead that returns exactly the target. <code>breakeven = % who buy x average order x margin</code> is where a lead stops paying for itself. <code>breakeven ROAS = 1 / margin</code>.</p>
+    <p>Prefill is the brand's last 90 days on Triple Whale: new-customer order value and margin before ads from the Customers and Profit pages, goal ROAS from Settings.</p></details>`;
+  return `<details class="card cc-foot"><summary>How this is calculated</summary>
+    <p><code>revenue = spend x ROAS</code> (or orders x order, or the goal), <code>orders = revenue / average order</code>, <code>cost per order = spend / orders</code>.</p>
+    <p><code>contribution after ads = revenue - product cost - processing - pick/pack/ship - revenue share - ad spend - agency fee</code>. Net profit also takes the fixed costs off.</p>
+    <p><code>breakeven ROAS = (1 + agency fee %) / (margin % - processing % - revenue share % - (fixed per-order costs / average order))</code>. With fixed costs on, the fixed amount is added to the numerator as a share of spend.</p>
+    <p><code>cost-per-order ceiling = (margin per order - processing - shipping - revenue share per order) / (1 + agency fee %)</code>: the most an order can cost in ads before it loses money.</p></details>`;
 }
 
 /* ---------- LEADS ---------- */
@@ -412,7 +525,7 @@ function paintLeads() {
       <div><div class="l">Left after lead spend</div><div class="v ${f.profit >= 0 ? 'good' : 'bad'}">${k(f.profit)}</div><div class="s">${pct(f.margin * 100)} margin, minus ${k(f.spend)}</div></div>
       <div><div class="l">Per order won</div><div class="v">${money2(f.cpb)}</div><div class="s">lead spend / orders</div></div>
     </div></div>`;
-  const dials = `<div class="card"><div class="cc-h3"><h3>Dial in "${esc(c.name)}"</h3><span class="tiny">drag or type; the whole page follows</span></div><div class="cc-dial">
+  const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial in "${esc(c.name)}"</h3><span class="tiny">drag or type; the whole page follows · <button class="cc-link" id="ccReset">reset</button></span></div><div class="cc-dial">
     ${dial('Lead-gen spend', 'spend', c.spend, { min: 1000, max: 100000, step: 500, pre: '$', sub: 'What goes into the giveaway or signup ads over the whole run.' })}
     ${dial('Cost per lead', 'cpl', c.cpl, { min: 0.5, max: 15, step: 0.25, pre: '$', sub: 'Giveaway leads usually land at $1 to $4. Dartee is planning on $2 to $3.' })}
     ${dial('Of the leads, how many buy', 'cvr', c.cvr, { min: 1, max: 50, step: 1, unit: '%', sub: 'In the window you care about (the weekend plus December). Giveaway lists 3 to 10%; a true early-access list up to 40%.' })}
@@ -421,10 +534,10 @@ function paintLeads() {
     ${dial('Target ROAS on the lead spend', 'target', S.target, { min: 1, max: 8, step: 0.1, unit: 'x', sub: 'The return you want on the lead budget. Sets the green zone and the pay-up-to number.' })}
   </div></div>`;
   const cards = `<div class="card"><div class="cc-h3"><h3>Compare</h3><span class="tiny">click one to dial it; the dot is its zone</span></div><div class="cc-cards">
-    ${S.cols.map((cc, i) => { const m = ms[i], zz = zoneOf(m); return `<div class="cc-sc ${i === S.focus ? 'on' : ''}" data-focus="${i}"><span class="z ${zz}"></span><input class="nm" data-name="${i}" value="${esc(cc.name)}" title="Rename">
-      <div class="r"><span>Per lead</span><b>${money2(m.cpl)}</b></div><div class="r"><span>Buy</span><b>${pct(m.cvr * 100)}</b></div><div class="r"><span>ROAS</span><b class="${zz === 'good' ? 'good' : zz === 'bad' ? 'bad' : ''}">${x2(m.roas)}</b></div><div class="r"><span>Left</span><b class="${m.profit >= 0 ? 'good' : 'bad'}">${k(m.profit)}</b></div>
+    ${S.cols.map((cc, i) => { const m = ms[i], zz = zoneOf(m), d = m.profit - ms[0].profit; return `<div class="cc-sc ${i === S.focus ? 'on' : ''}" data-focus="${i}"><span class="z ${zz}"></span><input class="nm" data-name="${i}" value="${esc(cc.name)}" title="Rename">
+      <div class="r"><span>Per lead</span><b>${money2(m.cpl)}</b></div><div class="r"><span>Buy</span><b>${pct(m.cvr * 100)}</b></div><div class="r"><span>ROAS</span><b class="${zz === 'good' ? 'good' : zz === 'bad' ? 'bad' : ''}">${x2(m.roas)}</b></div><div class="r"><span>Left</span><b class="${m.profit >= 0 ? 'good' : 'bad'}">${k(m.profit)}</b></div>${i > 0 ? `<div class="r dl"><span>vs ${esc(S.cols[0].name)}</span><b class="${d >= 0 ? 'good' : 'bad'}">${d >= 0 ? '+' : ''}${k(d)}</b></div>` : ''}
       <div class="act"><button class="cc-link" data-save="${i}">Save</button>${S.cols.length > 1 ? `<button class="cc-link bad" data-rm="${i}">Remove</button>` : ''}</div></div>`; }).join('')}
-    ${S.cols.length < 4 ? `<div class="cc-sc add" id="ccAddCol">+ copy "${esc(c.name)}"</div>` : ''}
+    ${S.cols.length < 8 ? `<div class="cc-sc add" id="ccAddCol">+ copy "${esc(c.name)}"</div>` : ''}
   </div>${S.act !== 'all' ? `<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary cc-mini" id="ccKpi">Set "${esc(c.name)}" as this brand's lead KPI</button></div>` : ''}</div>`;
   const zone = `<div class="card"><div class="cc-h3"><h3>Where a lead pays</h3><span class="tiny">for "${esc(c.name)}": ${pct(f.cvr * 100)} buying at ${money(f.aov)} on ${pct(f.margin * 100)} margin</span></div>${zoneStrip(ms)}</div>`;
   const curve = `<div class="card"><div class="cc-h3"><h3>ROAS at every cost per lead</h3><span class="tiny">hover or touch the line for the numbers</span></div>
@@ -435,13 +548,16 @@ function paintLeads() {
     { l: 'The lead spend', v: f.spend, c: 'var(--cc-acc)' },
     { l: f.profit >= 0 ? 'Left over' : 'Short', v: Math.abs(f.profit), c: f.profit >= 0 ? 'var(--cc-good)' : 'var(--cc-bad)', cls: f.profit >= 0 ? 'good' : 'bad' },
   ], f.revenue || 1)}</div>`;
-  main.innerHTML = `<div class="cc">${crumb()}<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>${seg()}${preLine()}${hero}<div class="cc-two">${dials}${cards}</div>${zone}${curve}${dollars}${wordsCard()}${savedCard()}</div>`;
-  wireCommon();
+  const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(f.spend)} of spend, ${money(f.aov)} orders, ${pct(f.margin * 100)} margin, target ${x2(S.target)}</span></div>${leadGrid(c)}</div>`;
+  const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">"${esc(c.name)}", one lead and one order</span></div>${leadReceipt(f)}</div>`;
+  main.innerHTML = `<div class="cc">${crumb()}<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>${seg()}${preLine()}${hero}<div class="cc-two">${dials}${cards}</div>${zone}${grid}${curve}<div class="cc-two">${dollars}${rcpt}</div>${wordsCard()}${savedCard()}${footNote()}</div>`;
+  wireCommon(); wireTips(main);
   main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => {
-    const v = parseFloat(inp.value); if (!isFinite(v)) return;
+    const v = parseIn(inp.value); if (!isFinite(v)) return;
     if (inp.dataset.k === 'target') S.target = v; else S.cols[S.focus][inp.dataset.k] = v;
     inPlace(paintLeads, inp);
   }));
+  main.querySelectorAll('.cc-grid .c[data-gp]').forEach(el => el.onclick = () => { S.cols[S.focus].cpl = +el.dataset.gp; S.cols[S.focus].cvr = +el.dataset.gv; tipHide(); inPlace(paintLeads); });
   main.querySelectorAll('.cc-sc[data-focus]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('button,input')) return; S.focus = +el.dataset.focus; inPlace(paintLeads); }));
   main.querySelectorAll('.cc-sc input.nm').forEach(inp => inp.addEventListener('change', () => { S.cols[+inp.dataset.name].name = inp.value.trim() || 'Scenario'; inPlace(paintLeads); }));
   main.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { S.cols.splice(+b.dataset.rm, 1); S.focus = 0; inPlace(paintLeads); });
@@ -482,9 +598,9 @@ function paintRoas() {
       <div><div class="l">Margin per order</div><div class="v">${money2(m.perOrder)}</div><div class="s">${pct(m.netPct)} of revenue</div></div>
     </div></div>`;
   const spendOrRev = r.mode === 'revenue' ? dial('Revenue goal', 'revenue', r.revenue, { min: 5000, max: 1000000, step: 1000, pre: '$', sub: 'What you want the month to do. Spend is derived from the ROAS.' }) : dial('Ad spend', 'spend', r.spend, { min: 500, max: 200000, step: 500, pre: '$', sub: 'Meta + Google for the period.' });
-  const roasOrOrders = r.mode === 'orders' ? dial('Orders', 'orders', r.orders, { min: 10, max: 5000, step: 10, sub: 'Orders you expect that spend to produce.' }) : dial('ROAS', 'roas', r.roas, { min: 0.5, max: 8, step: 0.05, unit: 'x', sub: 'Blended, Triple Whale revenue over total spend.' });
+  const roasOrOrders = r.mode === 'orders' ? dial('Orders', 'orders', r.orders, { min: 10, max: 5000, step: 10, sub: `Orders you expect that spend to produce. That is ${x2(m.roas)} and ${money2(m.cpa)} an order.` }) : dial('ROAS', 'roas', r.roas, { min: 0.5, max: 8, step: 0.05, unit: 'x', sub: `Blended, Triple Whale revenue over total spend. At ${x2(m.roas)} an order costs ${money2(m.cpa)} in ads; the ceiling is ${money2(m.beCpa)}.` });
   const T = (label, onKey, fields) => `<div class="cc-tg ${r[onKey] ? '' : 'off'}"><input type="checkbox" id="cc_${onKey}" data-rt="${onKey}" ${r[onKey] ? 'checked' : ''}><label for="cc_${onKey}">${label}</label><div class="f">${fields}</div></div>`;
-  const dials = `<div class="card"><div class="cc-h3"><h3>Dial it in</h3><div class="cc-mode">${[['roas', 'Spend + ROAS'], ['orders', 'Spend + orders'], ['revenue', 'Goal + ROAS']].map(([v, l]) => `<button data-mode="${v}" class="${r.mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="cc-dial">
+  const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial it in <button class="cc-link" id="ccReset" style="margin-left:8px;font-weight:400">reset</button></h3><div class="cc-mode">${[['roas', 'Spend + ROAS'], ['orders', 'Spend + orders'], ['revenue', 'Goal + ROAS']].map(([v, l]) => `<button data-mode="${v}" class="${r.mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="cc-dial">
     ${dial('Average order', 'aov', r.aov, { min: 20, max: 600, step: 5, pre: '$', sub: 'Before discounts and refunds. Prefilled from the last 90 days.' })}
     ${dial('Gross margin', 'margin', r.margin, { min: 10, max: 95, step: 1, unit: '%', sub: 'Of the order, after product cost only. Shipping and fees have their own switches below.' })}
     ${spendOrRev}${roasOrOrders}
@@ -494,7 +610,7 @@ function paintRoas() {
     ${T('Pick, pack and ship', 'ful_on', `<input data-r="ful" type="number" step="0.5" value="${r.ful}"><span>$ an order</span>`)}
     ${T('Fixed costs', 'fixed_on', `<input data-r="fixed" type="number" step="100" value="${r.fixed}"><span>$ for the period</span>`)}
     ${T('Revenue share (creators, affiliates)', 'share_on', `<input data-r="share_pct" type="number" step="0.5" value="${r.share_pct}"><span>% of revenue</span>`)}
-    ${T('Agency fee on spend', 'fee_on', `<input data-r="fee_pct" type="number" step="0.5" value="${r.fee_pct}"><span>% of spend</span>`)}
+    ${T('Agency fee on spend', 'fee_on', `<input data-r="fee_pct" type="number" step="0.5" value="${r.fee_pct}"><span>% of</span><input data-r="fee_applies" type="number" step="5" min="0" max="100" value="${r.fee_applies == null ? 100 : r.fee_applies}"><span>% of the spend</span>`)}
   </div>
   <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><a class="btn cc-mini" href="/roas-calculator/" target="_blank" rel="noopener">Public calculator</a><button class="btn primary cc-mini" id="ccSaveRoas">Save this scenario</button></div></div>`;
   const parts = [
@@ -510,9 +626,12 @@ function paintRoas() {
   const dollars = `<div class="card"><div class="cc-h3"><h3>Where every dollar of the ${k(m.revenue)} goes</h3><span class="tiny">each segment is a share of revenue</span></div>${dollarBar(parts, m.revenue || 1)}</div>`;
   const curve = `<div class="card"><div class="cc-h3"><h3>Profit at every ROAS, same spend</h3><span class="tiny">hover the line; the dot is the ROAS in the dials</span></div>
     <div class="cc-leg"><span><i></i>${r.fixed_on ? 'net profit' : 'contribution after ads'}</span>${be ? `<span><i class="be"></i>breakeven ${x2(be)}</span>` : ''}</div>${roasCurve(r, m)}</div>`;
-  main.innerHTML = `<div class="cc">${crumb()}<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>${seg()}${preLine()}${hero}<div class="cc-two">${dials}${dollars}</div>${curve}${wordsCard()}${savedCard()}</div>`;
-  wireCommon();
-  main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (!isFinite(v)) return; r[inp.dataset.k] = v; inPlace(paintRoas, inp); }));
+  const grid = `<div class="card"><div class="cc-h3"><h3>What has to be true</h3><span class="tiny">${k(m.spend)} of spend, ${money(r.aov)} orders${r.fixed_on ? `, ${k(m.fixed)} fixed` : ''}</span></div>${roasGrid(r, m)}</div>`;
+  const rcpt = `<div class="card"><div class="cc-h3"><h3>The receipt</h3><span class="tiny">at ${x2(m.roas)}</span></div>${roasReceipt(r, m)}</div>`;
+  main.innerHTML = `<div class="cc">${crumb()}<h2>Scenarios</h2><p class="sub">Dial the numbers. See what comes back.</p>${seg()}${preLine()}${hero}<div class="cc-two">${dials}<div>${dollars}${rcpt}</div></div>${grid}${curve}${wordsCard()}${savedCard()}${footNote()}</div>`;
+  wireCommon(); wireTips(main);
+  main.querySelectorAll('.cc-grid .c[data-gr]').forEach(el => el.onclick = () => { r.roas = +el.dataset.gr; r.margin = +el.dataset.gm; if (r.mode === 'orders') { r.mode = 'roas'; } tipHide(); inPlace(paintRoas); });
+  main.querySelectorAll('.cc-d input').forEach(inp => inp.addEventListener('input', () => { const v = parseIn(inp.value); if (!isFinite(v)) return; r[inp.dataset.k] = v; inPlace(paintRoas, inp); }));
   main.querySelectorAll('[data-r]').forEach(inp => inp.addEventListener('input', () => { const v = parseFloat(inp.value); if (!isFinite(v)) return; r[inp.dataset.r] = v; inPlace(paintRoas, inp); }));
   main.querySelectorAll('[data-rt]').forEach(cb => cb.addEventListener('change', () => { r[cb.dataset.rt] = cb.checked ? 1 : 0; inPlace(paintRoas); }));
   main.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
@@ -529,28 +648,35 @@ function paintRoas() {
   wireRoasCurve(r, m);
 }
 
-/* Repaint without losing the control under the pointer: a range slider mid-drag or a number
-   box being typed in. Both dial inputs for a key share data-k, so the same kind is re-found. */
+/* Repaint while someone is typing or dragging in the dial card: everything else is redrawn,
+   the dial card itself is kept (so the caret, the slider drag and the typed text survive) and
+   only its sibling control for the same key is synced. Any other trigger repaints the lot. */
 function inPlace(fn, src) {
-  const el = src || document.activeElement;
-  const key = el && el.dataset ? (el.dataset.k || el.dataset.r || null) : null;
-  const type = el && el.type, id = el && el.id;
+  const old = document.getElementById('ccDials');
+  const keep = !!(src && old && old.contains(src));
   const y = window.scrollY;
   fn(); window.scrollTo(0, y);
-  if (!key && !id) return;
-  let n = null;
-  if (key && type === 'range') n = document.querySelector(`input[type=range][data-k="${key}"]`);
-  else if (key) n = document.querySelector(`input[type=number][data-k="${key}"], input[type=number][data-r="${key}"]`);
-  else if (id) n = document.getElementById(id);
-  if (n && document.activeElement !== n) n.focus({ preventScroll: true });
+  if (!keep) return;
+  const fresh = document.getElementById('ccDials'); if (!fresh) return;
+  fresh.replaceWith(old);
+  const key = src.dataset.k;
+  if (key) {
+    if (src.type === 'range') { const nb = old.querySelector(`input.num[data-k="${key}"]`); if (nb) nb.value = fmtIn(src.value); }
+    else { const rg = old.querySelector(`input[type=range][data-k="${key}"]`); if (rg) rg.value = parseIn(src.value); }
+  }
+  const fs = fresh.querySelectorAll('.cc-d small, .cc-h3 h3'), os = old.querySelectorAll('.cc-d small, .cc-h3 h3');
+  fs.forEach((el, i) => { const o = os[i]; if (o && o.innerHTML !== el.innerHTML && !o.contains(src)) o.innerHTML = el.innerHTML; });
+  if (document.activeElement !== src) src.focus({ preventScroll: true });
 }
 function wireCommon() {
   const main = $('#main');
+  main.querySelectorAll('input.num').forEach(inp => inp.addEventListener('blur', () => { const v = parseIn(inp.value); if (isFinite(v)) inp.value = fmtIn(v); }));
   main.querySelectorAll('.cc-seg button').forEach(b => b.onclick = () => { S.kind = b.dataset.kind; try { localStorage.setItem(LS_KIND, S.kind); } catch {} paint(); window.scrollTo(0, 0); });
+  const rs = $('#ccReset'); if (rs) rs.onclick = () => { const b = brand(); S.target = b && +b.target_roas > 0 ? +b.target_roas : 3; if (S.kind === 'leads') { S.cols = defaultCols(); S.focus = 0; } else S.roas = defaultRoas(); paint(); toast('Back to the starting numbers'); };
   const up = $('#ccUsePre'); if (up) up.onclick = () => { const p = S.pre; if (!p) return; if (S.kind === 'leads') S.cols.forEach(c => { if (p.new_aov) c.aov = Math.round(p.new_aov); if (p.margin != null) c.margin = Math.round(p.margin * 100); }); else { if (p.new_aov) S.roas.aov = Math.round(p.new_aov); if (p.margin != null) S.roas.margin = Math.round(p.margin * 100); } inPlace(paint); toast('Filled from the last 90 days'); };
   main.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#ccWords').value = b.dataset.ex; });
   const bld = $('#ccBuild'); if (bld) bld.onclick = buildFromWords;
-  main.querySelectorAll('[data-load]').forEach(b => b.onclick = () => { const s = S.saved.find(x => x.id === b.dataset.load); if (!s) return; if (S.kind === 'leads') { const c = { name: s.name, spend: s.inputs.spend, cpl: s.inputs.cpl, cvr: s.inputs.cvr, aov: s.inputs.aov, margin: s.inputs.margin }; if (s.inputs.target) S.target = +s.inputs.target; if (S.cols.length >= 4) S.cols[S.cols.length - 1] = c; else S.cols.push(c); S.focus = S.cols.length - 1; } else S.roas = { ...defaultRoas(), ...s.inputs }; paint(); window.scrollTo(0, 0); });
+  main.querySelectorAll('[data-load]').forEach(b => b.onclick = () => { const s = S.saved.find(x => x.id === b.dataset.load); if (!s) return; if (S.kind === 'leads') { const c = { name: s.name, spend: s.inputs.spend, cpl: s.inputs.cpl, cvr: s.inputs.cvr, aov: s.inputs.aov, margin: s.inputs.margin }; if (s.inputs.target) S.target = +s.inputs.target; if (S.cols.length >= 8) S.cols[S.cols.length - 1] = c; else S.cols.push(c); S.focus = S.cols.length - 1; } else S.roas = { ...defaultRoas(), ...s.inputs }; paint(); window.scrollTo(0, 0); });
   main.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const ok = typeof window.confirmModal === 'function' ? await window.confirmModal('Delete this saved scenario?', 'The dials on screen stay as they are.', 'Delete') : true; if (!ok) return; try { await api(`/api/scenario?id=${encodeURIComponent(b.dataset.del)}`, { method: 'DELETE' }); await loadSaved(); inPlace(paint); } catch (e) { toast(e.message, true); } });
 }
 async function buildFromWords() {
