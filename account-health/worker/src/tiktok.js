@@ -1,3 +1,4 @@
+import { connGet, connSet } from './brands.js';
 /**
  * TikTok Ads read directly (Locus, 2026-10-08). Until this is connected, Ads > TikTok shows Triple Whale's
  * daily totals; once it is, each linked brand also gets its campaigns from TikTok's Marketing API.
@@ -47,13 +48,13 @@ export async function tiktokCallback(env, url) {
   await putS(env, 'tiktok_state', '');
   return { advertisers };
 }
+/* The brand's TikTok advertiser lives in `connections` (kind tiktok; brands.js phase 5). */
 export async function tiktokLink(env, act) {
-  const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'tiktok'`).bind(act).first().catch(() => null);
-  return safeJson(r?.data_json, {}) || {};
+  const c = await connGet(env, act, 'tiktok').catch(() => null);
+  return c ? { advertiser_id: c.external_id } : {};
 }
 export async function setTiktokLink(env, act, advertiser_id) {
-  await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'tiktok', ?2, 'approved', 'staff', datetime('now'))
-    ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(act, JSON.stringify({ advertiser_id: String(advertiser_id || '').replace(/\D/g, '') || null })).run();
+  await connSet(env, act, 'tiktok', String(advertiser_id || '').replace(/\D/g, ''));
 }
 /** Campaigns for one brand and window, from TikTok's own reporting (cached an hour). */
 export async function tiktokReport(env, act, from, to) {

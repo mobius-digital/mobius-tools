@@ -30,13 +30,13 @@ const DB = {
 
 /* ---------------- fixtures ---------------- */
 const LUCKY = 'act_378146126054294';
-db.exec(`INSERT INTO accounts (act_id, name, active, currency, tz, slack_channel) VALUES ('${LUCKY}', 'Lucky Golf', 1, 'USD', 'America/Chicago', 'C_LUCKY')`);
+db.exec(`INSERT INTO accounts (act_id, name, currency, tz) VALUES ('${LUCKY}', 'Lucky Golf', 'USD', 'America/Chicago')`);
 
 /* Brand-first phase 3: brands are rows in `brands` (read through the brand_accounts view) and the Meta
    ad account is a connection. The fixtures keep each brand's id equal to its old act id, so every
    brand-owned row below stays as written and metaOf(brand) finds the same id on the Meta tables. */
-db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, internal_channel, client_channel, legacy_key, source)
-  SELECT act_id, lower(replace(name, ' ', '_')), name, CASE WHEN active = 1 THEN 'active' ELSE 'paused' END, COALESCE(currency, 'USD'), COALESCE(tz, 'America/Chicago'), slack_channel, brief_channel, act_id, 'locus' FROM accounts`);
+db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, internal_channel, legacy_key, source) VALUES
+  ('${LUCKY}', 'lucky_golf', 'Lucky Golf', 'active', 'USD', 'America/Chicago', 'C_LUCKY', '${LUCKY}', 'locus')`);
 db.exec(`INSERT INTO connections (id, brand_id, kind, external_id, is_primary, source) SELECT 'meta:' || act_id, act_id, 'meta', act_id, 1, 'locus' FROM accounts`);
 db.exec(`INSERT INTO p_br_doc (act_id, line_id, key, data_json) VALUES ('${LUCKY}', '', 'asana', '{"project_gid":"P1","workspace":"W1"}')`);
 db.exec(`INSERT INTO p_br_angle (id, act_id, name, argument, status) VALUES ('ang_look', '${LUCKY}', 'The look', 'Golfers notice your gear before your game. The Carver is the wedge that gets asked about.', 'active'),

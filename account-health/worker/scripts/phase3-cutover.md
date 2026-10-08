@@ -14,3 +14,4 @@ Order matters. Do it between :10 and :50 past the hour so no hourly tick lands m
 7. Rollback: `npx wrangler d1 time-travel restore mobius-account-health --bookmark=<step 2>` and redeploy
    the previous worker versions (`npx wrangler rollback` in each worker folder).
 restore bookmark before phase 3: 00000d47-000000b0-000050fe-6ff2c5dc84c53098b98060602d7079d1
+restore bookmark before phase 5 column drop: 00000d50-00000066-000050fe-346f0968aa4657afac3a19ee4f6d70bd

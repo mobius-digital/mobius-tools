@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS p_cohorts (
 -- Additive on the SHARED accounts table, so it must tolerate already existing.
 -- Since brand-first phase 3 the demo brand is brands.status = 'demo' (brand_accounts.demo = 1);
 -- this column on accounts is no longer read and is kept only so a fresh database still applies.
-ALTER TABLE accounts ADD COLUMN demo INTEGER NOT NULL DEFAULT 0;
+-- (2026-10-08) accounts.demo was retired with the brand-first rebuild: a demo brand is brands.status = 'demo'.
 
 -- A FROZEN snapshot of the creative browser, for sending to a client.
 -- Frozen, not live, for the same reason reports are: a link that keeps moving

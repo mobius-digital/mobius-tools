@@ -1,7 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
-import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf } from './brands.js';
+import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 /**
@@ -7606,9 +7606,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const b = await request.json().catch(() => ({}));
       const acct = await acctOf(env, String(b.act || ''));
       if (!acct) return json({ error: 'unknown account' }, 404);
-      const prev = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'links'`).bind(acct.act_id).first())?.data_json, {}) || {};
-      const next = { ...prev };
-      for (const k of ['drive', 'frame']) if (b[k] !== undefined) { const v = String(b[k] || '').trim(); if (v && !/^https?:\/\//.test(v)) return json({ error: `${k} must be a full link (https://...)` }, 400); next[k] = v || undefined; }
+      /* Phase 5: every id pasted here is a CONNECTION on the brand (brands.js connSet); only the Klaviyo
+         private key is kept beside it in p_br_doc. */
+      const links = {};
+      for (const k of ['drive', 'frame']) if (b[k] !== undefined) { const v = String(b[k] || '').trim(); if (v && !/^https?:\/\//.test(v)) return json({ error: `${k} must be a full link (https://...)` }, 400); links[k] = v; }
+      /* A Meta ad account onto this brand (SpeedIn once its account is shared). Only one Locus can see and no
+         other brand has; the brand's first Meta account becomes its primary. */
+      if (b.meta !== undefined && String(b.meta || '').trim()) {
+        const id = 'act_' + String(b.meta).replace(/\D/g, '');
+        const seen = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(id).first();
+        if (!seen) return json({ error: `Locus cannot see ${id}. Share it with the Mobius business in Meta, then press Find on Meta in Settings > Clients.` }, 400);
+        const hasMeta = await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'meta'`).bind(acct.act_id).first();
+        try { await addConnection(env, acct.act_id, { kind: 'meta', external_id: id, label: seen.name, is_primary: hasMeta ? 0 : 1 }); }
+        catch (e) { return json({ error: e.message }, 400); }
+        const rows = (await brandMetaRows(env, acct.act_id)).filter(r => r.act_id === id && !r.last_sync_insights);
+        if (rows.length) ctx.waitUntil(syncAccount(env, rows[0]).catch(() => {}));
+      }
       /* The Klaviyo private key: verified against the account before it is kept, never echoed back. */
       let klaviyo = null;
       if (b.klaviyo_key !== undefined) {
@@ -7630,8 +7643,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         await googleSetLink(env, acct.act_id, g);
       }
       if (b.tiktok_id !== undefined) await setTiktokLink(env, acct.act_id, b.tiktok_id);
-      if (b.drive !== undefined || b.frame !== undefined) await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'links', ?2, 'approved', 'staff', datetime('now'))
-        ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(acct.act_id, JSON.stringify(next)).run();
+      for (const [k, v] of Object.entries(links)) { try { await connSet(env, acct.act_id, k, v); } catch (e) { return json({ error: e.message }, 400); } }
+      const next = { drive: (await connGet(env, acct.act_id, 'drive'))?.external_id, frame: (await connGet(env, acct.act_id, 'frame'))?.external_id };
       return json({ ok: true, links: next, ...(klaviyo ? { klaviyo: { company: klaviyo.company, account_id: klaviyo.account_id } } : {}) });
     }
     if (path === '/api/schedule-health' && request.method === 'GET') {

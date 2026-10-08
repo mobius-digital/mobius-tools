@@ -77,6 +77,8 @@ export async function integrationsReport(env, { brand = null } = {}) {
   if (!accounts.length) return { agency, brands: [], as_of: new Date().toISOString() };
   const ids = accounts.map(a => a.act_id);
   const IN = ids.map((_, i) => `?${i + 1}`).join(',');
+  /* Meta ad accounts Locus can see that no brand has (shown on a brand with no Meta account). */
+  const freeMeta = await q(`SELECT act_id, name FROM accounts WHERE act_id NOT IN (SELECT external_id FROM connections WHERE kind = 'meta') ORDER BY name`).catch(() => []);
   const byAct = rows => Object.fromEntries(rows.map(r => [r.act_id, r]));
   const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs, gDocs, tkd, etool] = await Promise.all([
     /* daily_insights is Meta's: filed under the Meta account id. Map each back to its brand. */
@@ -94,12 +96,12 @@ export async function integrationsReport(env, { brand = null } = {}) {
     q(`SELECT act_id, COUNT(*) AS n FROM p_studio_batch WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, COUNT(*) AS n FROM p_amb_angle WHERE status = 'live' AND act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     /* Brands onboarded before New client existed: their Drive folder and Frame project live outside
-       Locus until someone pastes the links (PUT /api/brand-links -> p_br_doc key 'links'). */
-    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'links' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
+       Locus until someone pastes the links (PUT /api/brand-links -> the brand's drive / frame connections). */
+    q(`SELECT brand_id, kind, external_id FROM connections WHERE kind IN ('drive', 'frame') AND brand_id IN (${IN})`, ...ids).then(rows => { const o = {}; for (const r of rows) (o[r.brand_id] ||= {})[r.kind] = r.external_id; return o; }),
     /* The brand's Klaviyo private key (klaviyo.js). Only its presence, company and date leave this function. */
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'klaviyo' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => { const d = safeJson(r.data_json, {}) || {}; return [r.act_id, { has: !!d.key, company: d.company, verified_at: d.verified_at }]; }))),
-    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'google' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
-    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'tiktok' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
+    q(`SELECT brand_id, kind, external_id FROM connections WHERE kind IN ('ga4', 'gsc', 'google_ads') AND brand_id IN (${IN})`, ...ids).then(rows => { const o = {}; for (const r of rows) (o[r.brand_id] ||= {})[r.kind === 'google_ads' ? 'ads' : r.kind] = r.external_id; return o; }),
+    q(`SELECT brand_id, external_id FROM connections WHERE kind = 'tiktok' AND brand_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.brand_id, { advertiser_id: r.external_id }]))),
     /* A brand whose email tool is not Klaviyo (Ice & Gold = Attentive): settings emailTool:<act>. */
     q(`SELECT key, value FROM settings WHERE key LIKE 'emailTool:%'`).then(rows => Object.fromEntries(rows.map(r => [r.key.slice(10), r.value]))),
   ]);
@@ -163,7 +165,10 @@ export async function integrationsReport(env, { brand = null } = {}) {
     const items = [
       C('meta', 'Meta ad account', a.last_error ? 'bad' : metaAge == null ? 'off' : metaAge > 2 ? 'warn' : 'ok',
         a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}` : metaAge == null ? (a.meta_act ? 'No Meta data yet.' : 'No Meta ad account connected.') : `Data through ${metaD[id].latest} (synced ${String(a.last_sync_insights || '').slice(0, 16) || 'never'}).`,
-        a.last_error ? 'Check the token still sees this ad account (Meta Business > System users > assets), then Settings > Jobs and data.' : 'Partner access from the client, then the brand in Settings > Brands.', { steps: STEPS.meta }),
+        a.last_error ? 'Check the token still sees this ad account (Meta Business > System users > assets), then Settings > Jobs and data.'
+          : a.meta_act ? 'Partner access from the client, then the brand in Settings > Brands.'
+          : `Once the client shares their ad account, paste its id here.${freeMeta.length ? ` Locus can see: ${freeMeta.slice(0, 6).map(m => `${m.name} (${m.act_id})`).join(', ')}.` : ' Locus sees no unattached ad account yet.'}`,
+        { steps: STEPS.meta, input: a.meta_act ? null : { key: 'meta', label: 'Meta ad account ID', placeholder: 'act_1234567890' } }),
       C('tw', 'Triple Whale', !set(a.tw_shop) ? 'off' : twAge == null ? 'bad' : twAge > 2 ? 'warn' : 'ok',
         !set(a.tw_shop) ? 'No shop set.' : twAge == null ? `Shop ${a.tw_shop} set, no data landed.` : `${a.tw_shop}: store data through ${twD[id].latest}${attrAge != null ? `, attribution through ${twA[id].latest}` : ', no attribution rows'}${twO[id] ? `, ${twO[id].n} orders stored` : ''}.`,
         'The client adds us to their Triple Whale, then the shop domain goes on the brand.', { steps: STEPS.tw, input: set(a.tw_shop) ? null : { key: 'tw_shop', label: 'Store domain', placeholder: 'brand.myshopify.com' } }),

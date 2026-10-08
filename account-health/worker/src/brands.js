@@ -18,10 +18,10 @@
  *   brand_alias  any old id -> brand id, kept forever, so old Slack buttons, old links, Asana
  *                webhooks, Supply and saved browser picks keep resolving.
  *
- * Phase 1 (this file): the old tables are still the source of truth. `syncRegistry` mirrors them
- * here every hour and after a brand is switched on, and only ever touches what it mirrored
- * (source 'mirror'); brands and connections made in Locus (source 'locus') are left alone.
- * Plan: docs/locus-brand-first-plan.html. */
+ * Phase 5 (2026-10-08): `connections` is the ONE place a connection's id lives. Every integration reads
+ * and writes it through connGet / connSet / connClear. Secrets and an integration's own working state
+ * stay in p_br_doc (the Klaviyo private key, Asana webhook ids), written by the same function that
+ * writes the connection, so the two never drift. Plan: docs/locus-brand-first-plan.html. */
 
 export const BRAND_SQL = [
   `CREATE TABLE IF NOT EXISTS brands (
@@ -127,120 +127,6 @@ export async function listBrands(env, { includePaused = true } = {}) {
   const by = {};
   for (const c of conns) (by[c.brand_id] ||= []).push({ ...c, config: safeJson(c.config_json, {}), config_json: undefined });
   return brands.map(b => ({ ...b, connections: by[b.id] || [] }));
-}
-
-/* What the old tables say each brand's connections are. Pure: rows in, connection list out. */
-export function derivedConnections(acct, docs, shop) {
-  const out = [];
-  const add = (kind, external_id, label, extra = {}) => {
-    if (external_id == null || String(external_id).trim() === '') return;
-    out.push({ kind, external_id: String(external_id).trim(), label: label || null, is_primary: 1, status: 'connected', config: {}, last_sync: null, last_error: null, ...extra });
-  };
-  if (/^act_\d+$/.test(acct.act_id)) add('meta', acct.act_id, acct.name, {
-    status: acct.last_error ? 'error' : 'connected', last_sync: acct.last_sync_insights || null, last_error: acct.last_error || null });
-  if (acct.tw_shop) add('triple_whale', acct.tw_shop, acct.tw_shop);
-  if (shop && !shop.uninstalled_at) add('shopify', shop.shop, shop.shop, { last_sync: shop.last_sync_at || null });
-  const g = docs.google || {};
-  add('google_ads', g.ads, null); add('ga4', g.ga4, null); add('gsc', g.gsc, null);
-  add('tiktok', (docs.tiktok || {}).advertiser_id, null);
-  const k = docs.klaviyo || {};
-  if (k.key) add('klaviyo', k.account_id || `klaviyo_${acct.act_id}`, k.company || null, { last_sync: k.verified_at || null });
-  const a = docs.asana || {};
-  add('asana', a.project_gid, a.project_name || null, { config: a.url ? { url: a.url } : {} });
-  const links = docs.links || {};
-  add('drive', links.drive || (docs.profile || {}).drive, null);
-  add('frame', links.frame, null);
-  return out;
-}
-
-const DOC_KEYS = ['google', 'tiktok', 'klaviyo', 'asana', 'links', 'profile'];
-
-/** Mirror the old tables into brands / connections / brand_alias. Idempotent; writes only what
- *  changed, in one batch. Returns what it did. */
-export async function syncRegistry(env) {
-  await ensureBrandTables(env);
-  const DB = env.DB;
-  const accts = (await DB.prepare(`SELECT * FROM accounts WHERE active = 1 OR demo = 1`).all()).results || [];
-  const docRows = (await DB.prepare(`SELECT act_id, key, data_json FROM p_br_doc WHERE line_id = '' AND key IN (${DOC_KEYS.map(k => `'${k}'`).join(',')})`).all().catch(() => ({ results: [] }))).results || [];
-  const shops = (await DB.prepare(`SELECT shop, act_id, uninstalled_at, last_sync_at FROM p_shopify`).all().catch(() => ({ results: [] }))).results || [];
-  const brands = (await DB.prepare(`SELECT * FROM brands`).all()).results || [];
-  const aliases = (await DB.prepare(`SELECT alias, brand_id FROM brand_alias`).all()).results || [];
-  const conns = (await DB.prepare(`SELECT * FROM connections`).all()).results || [];
-
-  const docs = {};
-  for (const d of docRows) (docs[d.act_id] ||= {})[d.key] = safeJson(d.data_json, {});
-  const byLegacy = new Map(brands.filter(b => b.legacy_key).map(b => [b.legacy_key, b]));
-  const byId = new Map(brands.map(b => [b.id, b]));
-  const aliasTo = new Map(aliases.map(a => [a.alias, a.brand_id]));
-  const usedSlugs = new Set(brands.map(b => b.slug));
-  const connBy = new Map(conns.map(c => [`${c.kind}|${c.external_id}`, c]));
-
-  const st = [];
-  const did = { brandsAdded: [], brandsUpdated: 0, connectionsAdded: 0, connectionsUpdated: 0, connectionsRemoved: 0, conflicts: [] };
-  const mirrored = new Set();
-
-  for (const a of accts) {
-    let b = byLegacy.get(a.act_id) || byId.get(aliasTo.get(a.act_id));
-    const status = a.demo ? 'demo' : a.active ? 'active' : 'paused';
-    const fields = { name: a.name, status, tz: a.tz || 'America/Chicago', currency: a.currency || 'USD',
-      internal_channel: a.slack_channel || null, client_channel: a.brief_channel || null };
-    if (!b) {
-      let slug = slugify(a.name), n = 2;
-      while (usedSlugs.has(slug)) slug = `${slugify(a.name)}_${n++}`;
-      usedSlugs.add(slug);
-      b = { id: `brand_${slug}`, slug, legacy_key: a.act_id, ...fields };
-      st.push(DB.prepare(`INSERT INTO brands (id, slug, name, status, tz, currency, internal_channel, client_channel, legacy_key, source)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'mirror')`)
-        .bind(b.id, slug, fields.name, status, fields.tz, fields.currency, fields.internal_channel, fields.client_channel, a.act_id));
-      byLegacy.set(a.act_id, b); byId.set(b.id, b);
-      did.brandsAdded.push(b.id);
-    } else if (b.source !== 'locus' && Object.keys(fields).some(k => (b[k] ?? null) !== (fields[k] ?? null))) {
-      st.push(DB.prepare(`UPDATE brands SET name = ?2, status = ?3, tz = ?4, currency = ?5, internal_channel = ?6, client_channel = ?7, updated_at = datetime('now') WHERE id = ?1`)
-        .bind(b.id, fields.name, status, fields.tz, fields.currency, fields.internal_channel, fields.client_channel));
-      did.brandsUpdated++;
-    }
-    if (!aliasTo.has(a.act_id)) { st.push(DB.prepare(`INSERT OR IGNORE INTO brand_alias (alias, brand_id, kind) VALUES (?1, ?2, 'meta_act')`).bind(a.act_id, b.id)); aliasTo.set(a.act_id, b.id); }
-
-    const shop = shops.find(s => s.shop === a.tw_shop || s.act_id === a.act_id) || null;
-    for (const c of derivedConnections(a, docs[a.act_id] || {}, shop)) {
-      const key = `${c.kind}|${c.external_id}`;
-      mirrored.add(key);
-      const have = connBy.get(key);
-      const cfg = JSON.stringify(c.config || {});
-      if (!have) {
-        st.push(DB.prepare(`INSERT INTO connections (id, brand_id, kind, external_id, label, is_primary, status, config_json, last_sync, last_error, source)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'mirror')`)
-          .bind(`${c.kind}:${c.external_id}`, b.id, c.kind, c.external_id, c.label, c.is_primary, c.status, cfg, c.last_sync, c.last_error));
-        connBy.set(key, { ...c, brand_id: b.id, source: 'mirror' });
-        did.connectionsAdded++;
-      } else if (have.brand_id !== b.id) {
-        // The same outside account is on two brands in the old tables. Keep the first; say so.
-        did.conflicts.push(`${c.kind} ${c.external_id} is on ${have.brand_id} and ${b.id}`);
-      } else if (have.source === 'mirror' && (have.label !== c.label || have.status !== c.status || have.config_json !== cfg || (have.last_sync ?? null) !== c.last_sync || (have.last_error ?? null) !== c.last_error)) {
-        st.push(DB.prepare(`UPDATE connections SET label = ?2, status = ?3, config_json = ?4, last_sync = ?5, last_error = ?6, updated_at = datetime('now') WHERE id = ?1`)
-          .bind(have.id, c.label, c.status, cfg, c.last_sync, c.last_error));
-        did.connectionsUpdated++;
-      }
-    }
-  }
-  // A mirrored connection whose source row is gone (a Klaviyo key forgotten, a Google id cleared).
-  // Only for brands the mirror still covers, so a brand switched off keeps its record.
-  const covered = new Set(accts.map(a => byLegacy.get(a.act_id)?.id).filter(Boolean));
-  for (const c of conns) {
-    if (c.source === 'mirror' && covered.has(c.brand_id) && !mirrored.has(`${c.kind}|${c.external_id}`)) {
-      st.push(DB.prepare(`DELETE FROM connections WHERE id = ?1 AND source = 'mirror'`).bind(c.id));
-      did.connectionsRemoved++;
-    }
-  }
-  // A brand that was on and has been switched off in the old table.
-  for (const b of brands) {
-    if (b.source === 'mirror' && b.status === 'active' && /^act_/.test(b.legacy_key || '') && !accts.some(a => a.act_id === b.legacy_key)) {
-      st.push(DB.prepare(`UPDATE brands SET status = 'paused', updated_at = datetime('now') WHERE id = ?1`).bind(b.id));
-      did.brandsUpdated++;
-    }
-  }
-  for (let i = 0; i < st.length; i += 50) await DB.batch(st.slice(i, i + 50));
-  return { ...did, writes: st.length };
 }
 
 /** Attach an outside account to a brand by hand (source 'locus', so the mirror leaves it alone). */
@@ -367,4 +253,48 @@ export async function storagePrefix(env, brandId) {
   const bid = await resolveBrandId(env, brandId);
   const r = await env.DB.prepare(`SELECT storage_prefix FROM brands WHERE id = ?1`).bind(bid).first().catch(() => null);
   return r?.storage_prefix || bid;
+}
+
+
+/* ==================================================================================================
+ * PHASE 5: connections are the one source of truth for what a brand has connected.
+ * Single-valued kinds (everything but meta) hold at most one connection per brand: connSet replaces it.
+ * ================================================================================================== */
+const SINGLE = new Set(['triple_whale', 'shopify', 'google_ads', 'ga4', 'gsc', 'tiktok', 'klaviyo', 'attentive', 'asana', 'drive', 'frame']);
+
+/** The brand's connection of this kind (primary first), or null. */
+export async function connGet(env, brandId, kind) {
+  const bid = await resolveBrandId(env, brandId);
+  return env.DB.prepare(`SELECT * FROM connections WHERE brand_id = ?1 AND kind = ?2 ORDER BY is_primary DESC, added_at LIMIT 1`).bind(bid, kind).first();
+}
+
+/** Connect (or re-point) this kind for the brand. Empty id = clear it. Returns the external id or null. */
+export async function connSet(env, brandId, kind, externalId, { label = null, config = {} } = {}) {
+  if (!KINDS[kind]) throw new Error(`Unknown connection kind "${kind}".`);
+  const bid = await resolveBrandId(env, brandId);
+  const ext = String(externalId ?? '').trim();
+  if (!ext) { await connClear(env, bid, kind); return null; }
+  if (kind === 'meta') { await addConnection(env, bid, { kind, external_id: ext, label, is_primary: 1, config }); return ext; }
+  const other = await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = ?1 AND external_id = ?2`).bind(kind, ext).first();
+  if (other && other.brand_id !== bid) throw new Error(`That ${KINDS[kind]} (${ext}) is already connected to ${other.brand_id}.`);
+  if (SINGLE.has(kind)) await env.DB.prepare(`DELETE FROM connections WHERE brand_id = ?1 AND kind = ?2 AND external_id <> ?3`).bind(bid, kind, ext).run();
+  await env.DB.prepare(`INSERT INTO connections (id, brand_id, kind, external_id, label, is_primary, status, config_json, source)
+    VALUES (?1, ?2, ?3, ?4, ?5, 1, 'connected', ?6, 'locus')
+    ON CONFLICT(kind, external_id) DO UPDATE SET label = COALESCE(excluded.label, connections.label), config_json = excluded.config_json,
+      status = 'connected', last_error = NULL, updated_at = datetime('now')`)
+    .bind(`${kind}:${ext}`, bid, kind, ext, label, JSON.stringify(config || {})).run();
+  return ext;
+}
+
+/** Remove this kind (or one account of it, for meta) from the brand. */
+export async function connClear(env, brandId, kind, externalId) {
+  const bid = await resolveBrandId(env, brandId);
+  if (externalId) await env.DB.prepare(`DELETE FROM connections WHERE brand_id = ?1 AND kind = ?2 AND external_id = ?3`).bind(bid, kind, String(externalId)).run();
+  else await env.DB.prepare(`DELETE FROM connections WHERE brand_id = ?1 AND kind = ?2`).bind(bid, kind).run();
+}
+
+/** Record a sync result on a connection (status + last_sync / last_error), for the Connections page. */
+export async function connStatus(env, kind, externalId, error) {
+  await env.DB.prepare(`UPDATE connections SET status = ?3, last_error = ?4, last_sync = CASE WHEN ?4 IS NULL THEN datetime('now') ELSE last_sync END,
+    updated_at = datetime('now') WHERE kind = ?1 AND external_id = ?2`).bind(kind, String(externalId), error ? 'error' : 'connected', error ? String(error).slice(0, 300) : null).run().catch(() => {});
 }

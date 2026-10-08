@@ -17,7 +17,7 @@ const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
 const vals = a => Object.fromEntries(a.map((v, i) => ['p' + (i + 1), v === undefined ? null : v]));
 const DB = { prepare(sql) { let args = []; const st = () => db.prepare(bindSql(sql)); return { bind(...a) { args = a; return this; }, async first() { return st().get(vals(args)) || null; }, async all() { return { results: st().all(vals(args)) }; }, async run() { const r = st().run(vals(args)); return { meta: { changes: r.changes } }; } }; } };
 const env = { DB };
-db.exec(`INSERT INTO accounts (act_id, name, active) VALUES ('act_1', 'Dartee', 1)`);
+db.exec(`INSERT INTO brands (id, slug, name, status, legacy_key, source) VALUES ('act_1', 'dartee', 'Dartee', 'active', 'act_1', 'locus')`);
 
 const calls = [];
 const J = (data, extra = {}) => new Response(JSON.stringify({ data, ...extra }), { status: 200, headers: { 'Content-Type': 'application/json' } });

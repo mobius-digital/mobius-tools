@@ -3,41 +3,24 @@
 -- Safe to re-run (CREATE IF NOT EXISTS everywhere).
 
 CREATE TABLE IF NOT EXISTS accounts (
+  -- ONE ROW PER META AD ACCOUNT (since the brand-first rebuild, 2026-10-08). A brand is a row in `brands`;
+  -- its Meta ad accounts are `connections` of kind 'meta' whose external_id is this act_id. Brand settings
+  -- (goals, budgets, targets, channels, brief and report options) live on `brands`. Read a brand through
+  -- the brand_accounts view. Discovery inserts every ad account Locus can see here.
   act_id              TEXT PRIMARY KEY,          -- "act_123..."
-  name                TEXT NOT NULL,
+  name                TEXT NOT NULL,             -- the ad account's name in Meta
   currency            TEXT NOT NULL DEFAULT 'USD',
   tz                  TEXT NOT NULL DEFAULT 'America/Chicago',
-  active              INTEGER NOT NULL DEFAULT 0,
-  monthly_budget      REAL,                      -- monthly spend target (cap or goal) per calendar month
-  budgets_json        TEXT NOT NULL DEFAULT '{}',-- {"2026-08": 15000, ...} month overrides
-  target_cpa          REAL,                      -- KPI guardrail: 7d CPA above this = breach
-  target_roas         REAL,                      -- KPI guardrail: 7d ROAS below this = breach
-  slack_channel       TEXT,                      -- the brand's INTERNAL channel: drafts awaiting review, delivery alerts
-  brief_channel       TEXT,                      -- the brand's CLIENT channel: where an approved brief or report is sent.
-                                                 -- Deliberately NO fallback to slack_channel on a client send - a silent
-                                                 -- redirect to the team is the failure the review flow exists to prevent.
-  ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
-  ads_video_done      INTEGER NOT NULL DEFAULT 0,-- RETIRED 2026-08-30, superseded by ads_metrics_version
-  ads_video_cursor    TEXT,                      -- RETIRED 2026-08-30, superseded by ads_metrics_cursor
-  ads_metrics_version INTEGER NOT NULL DEFAULT 0,-- highest ADS_METRICS_VERSION this account has re-backfilled
-  ads_metrics_cursor  TEXT,                      -- resumable cursor for that re-backfill (walks back 14d per sync)
-  tw_shop             TEXT,                      -- Triple Whale shop domain (pulls Google Ads spend into the money math)
-  google_spend_json   TEXT,                      -- cached {ym, metric, mtd, lm_same_day, lm_total, updated}
-  goals_json          TEXT NOT NULL DEFAULT '{}',-- Daily Brief goals: {"2026-08":{sales,spend,amer,cm_pct},"default":{...}}
-  brief_enabled       INTEGER NOT NULL DEFAULT 0,-- the Daily Brief runs each morning for this brand
-  review_first        INTEGER NOT NULL DEFAULT 1,-- 1 = every deliverable (daily brief, weekly and monthly report)
-                                                 -- drafts to slack_channel and waits for a human to edit + send;
-                                                 -- 0 = each posts straight to brief_channel on its own
-  report_channel      TEXT,                      -- RETIRED 2026-08-27, superseded by slack_channel. Column kept so
-                                                 -- the table tolerates old rows; nothing reads it.
-  report_config_json  TEXT,                      -- {"weekly":true,"monthly":true,"hide":["amazon"]} — defaults on, hide = excluded sections
-  report_client_channel TEXT,                    -- RETIRED 2026-08-27, superseded by brief_channel. Column kept so
-                                                 -- the table tolerates old rows; nothing reads it.
   account_status      INTEGER,                   -- Meta account_status (1 = active)
   added_at            TEXT NOT NULL DEFAULT (datetime('now')),
   last_sync_insights  TEXT,
   last_sync_activities TEXT,
-  last_error          TEXT
+  last_error          TEXT,
+  ads_backfill_done   INTEGER NOT NULL DEFAULT 0,-- 90d ad-level backfill finished (walks back 14d per sync until set)
+  ads_video_done      INTEGER NOT NULL DEFAULT 0,-- RETIRED 2026-08-30, superseded by ads_metrics_version
+  ads_video_cursor    TEXT,                      -- RETIRED 2026-08-30, superseded by ads_metrics_cursor
+  ads_metrics_version INTEGER NOT NULL DEFAULT 0,-- highest ADS_METRICS_VERSION this account has re-backfilled
+  ads_metrics_cursor  TEXT                       -- resumable cursor for that re-backfill (walks back 14d per sync)
 );
 
 CREATE TABLE IF NOT EXISTS daily_insights (

@@ -17,6 +17,7 @@
  * Per brand the ids live in p_br_doc key 'google' {ga4, gsc, ads} (Settings > Connections, or
  * auto-matched by /api/google/match from the properties this person can see).
  */
+import { connGet, connSet } from './brands.js';
 import { googleToken } from './asana-brand.js';
 
 let F = fetch;
@@ -76,17 +77,16 @@ function fixFor(k, msg) {
   return '';
 }
 
+/* The brand's Google ids live in `connections` (kinds ga4, gsc, google_ads; brands.js phase 5). */
+const G_KIND = { ga4: 'ga4', gsc: 'gsc', ads: 'google_ads' };
 export async function linkFor(env, act) {
-  const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'google'`).bind(act).first().catch(() => null);
-  return safeJson(r?.data_json, {}) || {};
+  const out = {};
+  for (const [k, kind] of Object.entries(G_KIND)) { const c = await connGet(env, act, kind).catch(() => null); if (c) out[k] = c.external_id; }
+  return out;
 }
 export async function setLink(env, act, patch) {
-  const cur = await linkFor(env, act);
-  const next = { ...cur };
-  for (const k of ['ga4', 'gsc', 'ads']) if (k in patch) next[k] = patch[k] ? String(patch[k]).trim() : null;
-  await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'google', ?2, 'approved', 'staff', datetime('now'))
-    ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(act, JSON.stringify(next)).run();
-  return next;
+  for (const [k, kind] of Object.entries(G_KIND)) if (k in patch) await connSet(env, act, kind, patch[k] ? String(patch[k]).trim() : '');
+  return linkFor(env, act);
 }
 /** Match every brand to the GA4 property and Search Console site whose name or URL carries its
  *  store domain or name. Only fills what is empty; never overwrites a link someone set. */

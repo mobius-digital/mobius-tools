@@ -14,7 +14,7 @@
  * Folders whose name says agreement / contract / invoice / legal are skipped.
  */
 import { googleToken } from './asana-brand.js';
-import { storagePrefix } from './brands.js';
+import { storagePrefix, connGet } from './brands.js';
 
 let F = fetch;
 export function useFetch(f) { F = f; }
@@ -43,9 +43,11 @@ const folderId = u => (/folders\/([\w-]{10,})/.exec(String(u || '')) || /^([\w-]
 const airCode = u => (/air\.inc\/a\/(\w{6,})/.exec(String(u || '')) || [])[1] || null;
 
 export async function sourcesFor(env, act) {
-  const rows = await env.DB.prepare(`SELECT key, data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key IN ('links', 'assets')`).bind(act).all().catch(() => ({ results: [] }));
-  const by = Object.fromEntries((rows.results || []).map(r => [r.key, safeJson(r.data_json, {}) || {}]));
-  const ids = [folderId(by.links?.drive), ...((by.assets?.folders) || []).map(folderId)].filter(Boolean);
+  /* The brand's Drive folder is its `drive` connection (brands.js phase 5); extra library folders stay in p_br_doc 'assets'. */
+  const drive = await connGet(env, act, 'drive').catch(() => null);
+  const row = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'assets'`).bind(act).first().catch(() => null);
+  const folders = (safeJson(row?.data_json, {}) || {}).folders || [];
+  const ids = [folderId(drive?.external_id), ...folders.map(folderId)].filter(Boolean);
   return [...new Set(ids)];
 }
 export async function airSourcesFor(env, act) {
@@ -252,9 +254,15 @@ export async function removeLook(env, act, id) {
 /** Hourly: the stalest brand (by last sync) gets a sync and a small tagging batch. */
 export async function assetsTick(env, canAfford = () => true) {
   await ensure(env);
-  const { results } = await env.DB.prepare(`SELECT a.act_id, s.value at FROM brand_accounts a LEFT JOIN settings s ON s.key = 'assetsSyncAt:' || a.act_id WHERE a.active = 1 ORDER BY COALESCE(s.value, '') ASC LIMIT 1`).all();
+  /* Only brands with somewhere to read from (a Drive connection or extra library folders): a brand with
+     neither, like a new one, was picked every hour and logged "No Drive folder" as an error. The Golf
+     Sock is skipped by name (it is paused; the old act_id test never matched). */
+  const { results } = await env.DB.prepare(`SELECT a.act_id, a.name, s.value at FROM brand_accounts a LEFT JOIN settings s ON s.key = 'assetsSyncAt:' || a.act_id
+     WHERE a.active = 1 AND a.name NOT LIKE '%golf sock%'
+       AND (EXISTS (SELECT 1 FROM connections c WHERE c.brand_id = a.act_id AND c.kind = 'drive')
+         OR EXISTS (SELECT 1 FROM p_br_doc d WHERE d.act_id = a.act_id AND d.line_id = '' AND d.key = 'assets'))
+     ORDER BY COALESCE(s.value, '') ASC LIMIT 1`).all();
   const a = results?.[0]; if (!a || !canAfford()) return { skipped: true };
-  if (/golf sock/i.test(a.act_id)) return { skipped: true };
   const s = await syncAssets(env, a.act_id).catch(e => ({ act: a.act_id, error: e.message }));
   const t = canAfford() ? await tagAssets(env, a.act_id, 20).catch(e => ({ error: e.message })) : null;
   return { sync: s, tag: t };

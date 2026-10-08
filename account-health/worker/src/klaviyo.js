@@ -1,3 +1,4 @@
+import { connSet, connClear } from './brands.js';
 /**
  * KLAVIYO, DIRECT (2026-10-07). Cole: Triple Whale only carries email totals; "how many segments do
  * we have, which flow is dead, build a segment" need Klaviyo itself, and every brand uses Klaviyo.
@@ -61,10 +62,13 @@ export async function storeKey(env, act, key) {
   await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'klaviyo', ?2, 'approved', 'staff', datetime('now'))
     ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`)
     .bind(act, JSON.stringify({ key: String(key).replace(/\s+/g, ''), ...v, verified_at: new Date().toISOString() })).run();
+  /* The connection (account id, company) lives in `connections`; the private key stays here, never there. */
+  await connSet(env, act, 'klaviyo', v.account_id || `klaviyo_${act}`, { label: v.company || null });
   return v;
 }
 export async function forgetKey(env, act) {
   await env.DB.prepare(`DELETE FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'klaviyo'`).bind(act).run();
+  await connClear(env, act, 'klaviyo');
 }
 
 /* Klaviyo (2026-10) refuses additional-fields=profile_count on the LIST and SEGMENT collections;

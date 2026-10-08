@@ -1,4 +1,4 @@
-import { metaOf, resolveBrandId, addConnection } from './brands.js';
+import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
  *
@@ -183,6 +183,9 @@ async function getDoc(env, act, key) {
 async function putDoc(env, act, key, data) {
   await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', ?2, ?3, 'approved', 'asana', datetime('now'))
     ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(act, key, JSON.stringify(data)).run();
+  /* The project link itself is the brand's `asana` connection (brands.js phase 5); this doc keeps the
+     integration's working state (webhook ids, last sync, paused). Written together so they never drift. */
+  if (key === 'asana') await connSet(env, act, 'asana', data?.project_gid || '', { label: data?.project_name || null, config: data?.url ? { url: data.url } : {} }).catch(e => console.log('asana connection: ' + e.message));
 }
 async function getSetting(env, key) { const r = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first(); return safeJson(r?.value, null); }
 async function putSetting(env, key, v) { await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify(v)).run(); }
