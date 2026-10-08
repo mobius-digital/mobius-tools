@@ -6493,7 +6493,6 @@ async function handleSlackEvent(request, env, ctx) {
      brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
   const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
     note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.` } : null;
-  const { engine, h } = strategist();
   ctx.waitUntil((async () => {
     /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
        or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
@@ -6505,10 +6504,19 @@ async function handleSlackEvent(request, env, ctx) {
     }
     /* From here on the thread is a conversation with the Strategist: replies need no tag. */
     if (!dm) await openStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
-    const findings = await engine.openFindings(env, h()).catch(() => []);
-    await engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}) });
+    /* The answer runs on the queue: waitUntil after the Slack ack lives ~30 seconds, and a
+       big-model answer on a long thread runs past that. Cole's "analyze this" under Noma's
+       Ice & Gold write-up (2026-10-08) was killed mid-answer: eyes on, nothing posted. */
+    if (env.IDEA_Q) return env.IDEA_Q.send({ kind: 'strategist', ev, screen });
+    await strategistSlackAnswer(env, ev, screen);
   })().catch(e => console.log('strategist slack: ' + e.message)));
   return ACK();
+}
+
+async function strategistSlackAnswer(env, ev, screen) {
+  const { engine, h } = strategist();
+  const findings = await engine.openFindings(env, h()).catch(() => []);
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}) });
 }
 
 /* A thread is "open" (the Strategist answers plain replies in it) once it was mentioned there,
@@ -6663,6 +6671,7 @@ const AH_APP = {
     env = meterEnv(env); subReset(env);
     for (const m of batch.messages) {
       if (m.body?.kind === 'welcome') await welcomeOnJoinByChannel(env, m.body.channel).catch(e => console.log('welcome job: ' + e.message));
+      else if (m.body?.kind === 'strategist') await strategistSlackAnswer(env, m.body.ev, m.body.screen).catch(e => console.log('strategist job: ' + e.message));
       else if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
       m.ack();
     }
