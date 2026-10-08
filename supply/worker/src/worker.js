@@ -309,7 +309,7 @@ async function refreshSlotTask(env, brand, sl) {
 
 /* ---------- Slack digest ---------- */
 const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/supply/';   // ?slot= links in Asana tasks; supply/index.html forwards them to Locus Drops
-/* Since 2026-10-08 the screens live in Locus (Store > Stock, Buying, Drops). Slack links open there. */
+/* Since 2026-10-08 the screens live in Locus (Products > Stock, Buying, Drops). Slack links open there. */
 const stockLink = act => `https://tools.go-mobius-digital.com/profit/?open=stock${act ? `&act=${encodeURIComponent(act)}` : ''}`;
 const fmtD = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const money = n => n == null ? '' : '$' + (Math.abs(n) >= 10000 ? Math.round(n / 1000) + 'k' : Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + 'k' : Math.round(n));

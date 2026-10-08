@@ -1113,6 +1113,7 @@
   .lc-pick-menu .lc-pick-add{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:6px;color:var(--brand-ink);font-weight:600}
   .lc-me-menu small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px;white-space:normal}
   .lc-me-menu button,.lc-pick-menu button{white-space:normal}
+  #railProducts[hidden]{display:none!important}
   .lc-me,.lc-pick{display:block;width:100%;min-width:0;box-sizing:border-box}
   .lc-me-btn,.lc-pick-btn{box-sizing:border-box;min-width:0;max-width:100%;overflow:hidden}
   .lc-pick-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2201,6 +2202,7 @@
   <symbol id="i-tiktok" viewBox="0 0 16 16"><path d="M9.5 2.5v8a2.6 2.6 0 1 1-2.6-2.6"/><path d="M9.5 2.5c.4 2 1.9 3.2 3.8 3.3"/></symbol>
   <symbol id="i-email" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="m2.5 4.5 5.5 4.3 5.5-4.3"/></symbol>
   <symbol id="i-store" viewBox="0 0 16 16"><path d="M3 5.5h10l-.8 8H3.8z"/><path d="M5.5 5.5V4.5a2.5 2.5 0 0 1 5 0v1"/></symbol>
+  <symbol id="i-products" viewBox="0 0 16 16"><path d="M8 1.8 14 5v6L8 14.2 2 11V5z"/><path d="M2 5l6 3.2L14 5M8 8.2v6"/></symbol>
   <symbol id="i-chev" viewBox="0 0 16 16"><path d="m5 6 3 3 3-3"/></symbol>
   <symbol id="b-meta" viewBox="0 0 24 24"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></symbol><symbol id="b-google" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></symbol><symbol id="b-tiktok" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></symbol><symbol id="b-shopify" viewBox="0 0 24 24"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></symbol><symbol id="b-ga" viewBox="0 0 24 24"><rect x="15.5" y="2" width="6" height="20" rx="3"/><rect x="8.5" y="9" width="6" height="13" rx="3"/><circle cx="4.5" cy="18.5" r="3"/></symbol><symbol id="b-klaviyo" viewBox="0 0 24 24"><path d="M2 4.5h20l-5.2 7.5L22 19.5H2z"/></symbol><symbol id="i-ads" viewBox="0 0 16 16"><path d="M2.5 6.3v3.4h2.2l5.3 3.1V3.2L4.7 6.3z"/><path d="M11.8 5.8a2.8 2.8 0 0 1 0 4.4"/><path d="M5 9.7l.8 3.3"/></symbol>
 </defs></svg>
@@ -2230,7 +2232,8 @@
           <button data-t="overview" data-grp="home" title="Overview, P&amp;L, Plan, Season, Scenarios"><svg class="ic"><use href="#i-overview"/></svg><span>Home</span></button>
           <button data-t="meta" data-grp="ads" title="Meta, Google, TikTok, All channels"><svg class="ic"><use href="#i-ads"/></svg><span>Ads</span></button>
           <button data-t="email" data-grp="email" title="Klaviyo campaigns and flows"><svg class="ic"><use href="#i-email"/></svg><span>Email and SMS</span></button>
-          <button data-t="store" data-grp="store" title="Sales, Customers"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
+          <button data-t="store" data-grp="store" title="Sales, Customers, Website, Search"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
+          <button data-t="stock" data-grp="products" id="railProducts" hidden title="Stock, Buying, Drops"><svg class="ic"><use href="#i-products"/></svg><span>Products</span></button>
           <button data-t="angles" data-grp="creative" title="Tests and angles, Studio, Brand, Copy desk, Creator link"><svg class="ic"><use href="#i-studio"/></svg><span>Creative</span></button>
           <button data-t="brief" data-grp="reports" title="Daily Brief, Weekly and monthly, Dashboards"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button></div></div>
       <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
@@ -3309,7 +3312,7 @@ const TAB_CRUMB = {
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Meta &nbsp;/&nbsp; Tests'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Creative'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
   email: ['Email and SMS', 'Klaviyo'],
-  store: ['Store', 'Sales'], stock: ['Store', 'Stock'], buying: ['Store', 'Buying'], drops: ['Store', 'Drops'], customers: ['Store', 'Customers'], website: ['Store', 'Website'], search: ['Store', 'Search'],
+  store: ['Store', 'Sales'], stock: ['Products', 'Stock'], buying: ['Products', 'Buying'], drops: ['Products', 'Drops'], customers: ['Store', 'Customers'], website: ['Store', 'Website'], search: ['Store', 'Search'],
   library: ['Creative', 'Library'], inspo: ['Creative', 'Inspiration'], angles: ['Creative', 'Tests and angles'], studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
   brief: ['Reports', 'Daily Brief'], reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data health'], costs: ['Settings', 'Costs'],
@@ -4627,7 +4630,9 @@ const NAV = {
   home: { label: 'Home', tabs: [['overview', 'Overview'], ['profit', 'P&L'], ['plan', 'Plan'], ['season', 'Season'], ['calc', 'Scenarios']] },
   ads: { label: 'Ads', tabs: [['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['channels', 'All channels']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
-  store: { label: 'Store', tabs: [['store', 'Sales', 'b-shopify'], ['customers', 'Customers'], ['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops'], ['website', 'Website', 'b-ga'], ['search', 'Search', 'b-google']] },
+  store: { label: 'Store', tabs: [['store', 'Sales', 'b-shopify'], ['customers', 'Customers'], ['website', 'Website', 'b-ga'], ['search', 'Search', 'b-google']] },
+  /* Products (2026-10-08): stock, factory orders and new designs. Only shown for brands with a stock feed (supply.js). */
+  products: { label: 'Products', tabs: [['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']] },
   creative: { label: 'Creative', tabs: [['angles', 'Tests and angles'], ['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration'], ['brand', 'Brand'], ['copy', 'Copy desk'], ['amb', 'Creator link']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
 };
@@ -4891,7 +4896,8 @@ function show(tab) {
     /* Stock is every brand's; Buying and Drops only where the brand has them switched on (supply.js). */
     const tabsHere = def ? def.tabs.filter(t => !window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) : [];
     const row1 = tabsHere.length > 1 ? tabsHere : null;
-    if (grp === 'store' && window.SupplyTab && !window.__spBrands && S.tok) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { if (NAV_OF(S.tab) === 'store' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
+    const rp = $('#railProducts'); if (rp) rp.hidden = !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
+    if (window.SupplyTab && !window.__spBrands && S.tok) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
     const jobs = grp === 'ads' && chan === 'meta' ? META_JOBS : null;
     const lit = k => k === tab || (k === 'adcreative' && tab === 'mbrowser') || (k === 'meta' && tab === 'mtoday');
     seg.hidden = !(row1 || jobs) || !S.tok;

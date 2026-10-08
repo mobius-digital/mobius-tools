@@ -2087,8 +2087,12 @@ Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log a
   `brands.act_id` in the SUPPLY D1 (not p_br_doc), read once per session from `GET /api/brands`, switched on Brand
   settings > Stock and factories (`PUT /api/brand {buys|makes}`). Brands with no feed see no Stock tab; All clients
   sees Stock (one row per client).
+- **PRODUCTS IS ITS OWN RAIL ITEM** (Cole, same night: "make Products its own tab"): `NAV.products` = Stock, Buying, Drops;
+  Store went back to Sales, Customers, Website, Search. The rail button `#railProducts` is hidden unless
+  `SupplyTab.tabOk('stock', act)` (a brand with a stock feed, or All clients); `show()` keeps it in step and loads the
+  Supply brand list once per session. The rail is seven items for Lucky, six for brands without a feed.
 - **Code:** `profit/supply.js` (IIFE, `window.SupplyTab` / `window.SupplyStock`) + `profit/supply.css` (tokens only).
-  index.html: `NAV.store` tabs stock / buying / drops, filtered per brand by `SupplyTab.tabOk` in `show()`; `SR(tab)`
+  index.html: `NAV.products` tabs stock / buying / drops, filtered per brand by `SupplyTab.tabOk` in `show()`; `SR(tab)`
   renders with `supplyHost()`; `?open=stock|buying|drops` deep links (Asana design links arrive as
   `?open=drops&design=<slot id>`, forwarded by `supply/index.html?slot=`; supply.js loads before the boot script so it
   reads `design` first); BRAND_SECS `stock` = its own settings section (`#stockSet`, drawn by `SupplyTab.settings`).
