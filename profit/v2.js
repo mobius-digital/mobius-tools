@@ -268,6 +268,8 @@
   }
 
   /* What moved yesterday, against the same weekday over 8 weeks (hub.js movedMany). */
+  /* Clicking a moved number opens the page that explains it, for that brand. */
+  const MOVED_TAB = { rev: 'store', o: 'store', aov: 'store', mer: 'channels', sp: 'channels', cac: 'customers' };
   async function movedCard(scope) {
     const t = H.RUN(); let d;
     try { d = await get(`/api/hub/moved?act=${encodeURIComponent(H.S.act)}`); } catch { return; }
@@ -276,7 +278,7 @@
     const wd = items[0] ? new Date(items[0].date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : '';
     const fmtV = (f, v) => f.metric === 'mer' ? x2(v) : f.metric === 'o' ? int(v) : f.metric === 'aov' || f.metric === 'cac' ? money(v, f.currency) : kmoney(v, f.currency);
     if (!items.length) { host.innerHTML = `<div class="v2note"><span class="v2pill good">steady</span><span>Nothing moved more than usual yesterday for ${esc(scope)}: every number sat within its normal range for that weekday.</span></div>`; return; }
-    host.innerHTML = card(`What moved yesterday`, `${items.length} number${items.length === 1 ? '' : 's'} outside the normal range for a ${esc(wd)}.`, `<div class="v2moved">${items.slice(0, 9).map(f => `<button type="button" class="mv" data-go="act:${esc(f.act_id)}"${tipAttr(`${esc(f.name)}: ${esc(f.label)} ${fmtV(f, f.value)} against a normal ${esc(wd)} of ${fmtV(f, f.normal)} (the last 8 ${esc(wd)}s).`)}><i class="${f.good === true ? 'good' : f.good === false ? 'bad' : 'flat'}"></i><span class="b">${H.S.act === 'all' ? `<b>${esc(f.name)}</b> · ` : ''}${esc(f.label)} <b>${fmtV(f, f.value)}</b></span><span class="c ${f.good === true ? 'good' : f.good === false ? 'bad' : ''}">${f.change >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(f.change * 100))}% vs normal</span>${f.why ? `<span class="w">${esc(f.why)}</span>` : ''}</button>`).join('')}</div>`, 'same weekday, last 8 weeks');
+    host.innerHTML = card(`What moved yesterday`, `${items.length} number${items.length === 1 ? '' : 's'} outside the normal range for a ${esc(wd)}.`, `<div class="v2moved">${items.slice(0, 9).map(f => `<button type="button" class="mv" data-go="act:${esc(f.act_id)}:${MOVED_TAB[f.metric] || 'store'}"${tipAttr(`${esc(f.name)}: ${esc(f.label)} ${fmtV(f, f.value)} against a normal ${esc(wd)} of ${fmtV(f, f.normal)} (the last 8 ${esc(wd)}s).`)}><i class="${f.good === true ? 'good' : f.good === false ? 'bad' : 'flat'}"></i><span class="b">${H.S.act === 'all' ? `<b>${esc(f.name)}</b> · ` : ''}${esc(f.label)} <b>${fmtV(f, f.value)}</b></span><span class="c ${f.good === true ? 'good' : f.good === false ? 'bad' : ''}">${f.change >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(f.change * 100))}% vs normal</span>${f.why ? `<span class="w">${esc(f.why)}</span>` : ''}</button>`).join('')}</div>`, 'same weekday, last 8 weeks');
     wireGo(host);
   }
 
@@ -285,7 +287,7 @@
   const oneCur = list => { const c = [...new Set(list.map(a => a.currency))]; return c.length === 1 ? c[0] : null; };
   const head = (tab, title) => H.pageHead(tab, title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '');
   const shell = (tab, title, body) => `<div class="v2">${head(tab, title)}${body}</div>`;
-  const wireGo = root => root.querySelectorAll('[data-go]').forEach(el => { const go = () => { const g = el.dataset.go; if (g.startsWith('act:')) { pickAct(g.slice(4)); } else H.show(g); }; el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+  const wireGo = root => root.querySelectorAll('[data-go]').forEach(el => { const go = () => { const g = el.dataset.go; if (g.startsWith('act:')) { const [, id, tab] = g.split(':'); pickAct(id, tab); } else H.show(g); }; el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
   function pickAct(id, tab) { H.S.act = id; try { localStorage.setItem('pf_act', id); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = id; H.show(tab || H.S.tab); }
   const wireRows = (root, tab) => root.querySelectorAll('tr[data-act]').forEach(tr => { tr.onclick = () => pickAct(tr.dataset.act, tab); tr.onkeydown = e => { if (e.key === 'Enter') pickAct(tr.dataset.act, tab); }; });
 

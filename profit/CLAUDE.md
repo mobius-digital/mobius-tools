@@ -2044,3 +2044,25 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   3 Gold Carnation Classic Polo photos, `gpt-image-2.5-sunburst-2026-09-08`): **$0.105, 43 seconds, product 9/10,
   person kept**; the green polo became the Carnation polo with the face, hat, glove, club and sky unchanged. That
   test look was removed from the library afterwards (its R2 copy remains).
+
+## 2026-10-08 (night): brand settings vs agency settings, profile menu, client picker, Tour/Help fixed
+
+- **Two settings, two doors (Cole: "settings for a brand should only be about the brand").** The rail's
+  Settings button ("Brand settings") opens ONLY the picked brand: sections About the brand, Goals and rules,
+  Slack and sending, Money, Connections (that brand's cards only), Data repairs, Stop tracking, plus the Data
+  health and Costs pages. It is the existing brand row (`brandRow`) rendered open with one group shown at a time
+  (`.setpane.bmode[data-bg]`, groups carry `data-bg` from `BG_OF`), so every save handler is unchanged.
+  **Agency settings** open from the profile button at the bottom of the rail (`#pfMe`: Agency settings, Clients,
+  Team and access, How to use Locus, Sign out): Clients (every brand + New client + Add a brand; clicking a brand
+  opens its brand settings), Connections (agency card only), Team, Briefs and Slack, The Strategist, Jobs and
+  data, Guided tours. Mode = `SETMODE` (`pf_setmode`); All clients always shows the agency side.
+  `openGoals(act)` and `openAgencySettings(sec)` are the two ways in from other pages.
+- **Client picker is a menu** (`#pfPick`, search box, + New client). The hidden `#clientPick` select is still
+  the value every caller sets; `show()` calls `syncPick()` so the label never disagrees.
+- **What moved click fixed**: the global `[data-go]` handler called `show('act:...')` (not a page), which threw
+  "(intermediate value)... is not a function" with a dead Try again. It now ignores `act:`; a moved number opens
+  the page that explains it for that brand (`MOVED_TAB`: revenue/orders/AOV -> Sales, MER/spend -> All channels,
+  cost per new customer -> Customers). `show()` sends any unknown page id to Overview (`SHOWABLE`).
+- **Tour** is read off the page (`autoTourSteps`): page tabs, dates, attribution, headline tiles, then every card
+  by its own heading. Only `start` and `settings` keep hand-written steps. **Help** has a brief for every page
+  (`Object.assign(PAGE_BRIEF, ...)`); add one when a page is added.

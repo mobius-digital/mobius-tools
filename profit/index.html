@@ -1091,6 +1091,36 @@
   .set-body{min-width:0}
   .set-card select,.set-card input[type=text]{max-width:300px}
   /* The two ways to add a client, each with its line saying which one to use. */
+  /* Brand settings: the brand row IS the page, one group at a time; agency-only parts never show. */
+  .setpane.bmode .brow{border:0;background:none;box-shadow:none;padding:0}
+  .setpane.bmode .brow > summary,.setpane.bmode .set-add,.setpane.bmode .set-count,.setpane.bmode #brAccess,.setpane.bmode #setRollup{display:none}
+  .setpane.bmode .brow-grp{display:none}
+  .setpane.bmode[data-bg="about"] .brow-grp[data-bg="about"],.setpane.bmode[data-bg="goals"] .brow-grp[data-bg="goals"],.setpane.bmode[data-bg="slack"] .brow-grp[data-bg="slack"],
+  .setpane.bmode[data-bg="money"] .brow-grp[data-bg="money"],.setpane.bmode[data-bg="repairs"] .brow-grp[data-bg="repairs"],.setpane.bmode[data-bg="stop"] .brow-grp[data-bg="stop"]{display:block}
+  .setpane.bmode .brow-grp .brow-gh{display:none}
+  .setnav-note{font-size:12px;color:var(--muted);margin:14px 12px 0;line-height:1.5}
+  .setnav-note a{color:var(--brand-ink)}
+  /* Client picker and profile menus (same open/close rule as the date menu: closePops). */
+  .pf-pick{position:relative;margin-top:4px}
+  .pf-pick-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border-radius:9px;border:1px solid var(--hd-line,var(--line-strong));background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
+  .pf-pick-btn:hover{border-color:var(--brand)}
+  .pf-pick-btn svg{color:var(--muted);flex:none}
+  .pf-pick .pf-pick-menu{left:0;right:auto;min-width:220px;max-height:60vh;overflow:auto}
+  .pf-pick-menu input{width:100%;box-sizing:border-box;margin:0 0 6px;padding:7px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
+  .pf-pick-menu button,.pf-me-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:7px;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+  .pf-pick-menu button:hover,.pf-me-menu button:hover,.pf-pick-menu button.on{background:var(--bg);color:var(--brand-ink)}
+  .pf-pick-menu button.on{font-weight:700}
+  .pf-pick-menu .pf-pick-add{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:6px;color:var(--brand-ink);font-weight:600}
+  .pf-me-menu small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+  .pf-me{position:relative;margin:4px 0 8px}
+  .pf-me-btn{width:100%;display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;text-align:left;font:inherit}
+  .pf-me-btn:hover{border-color:var(--brand)}
+  .pf-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:#06131c;font-weight:800;font-size:12px;flex:none}
+  .pf-me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+  .pf-me-t b{font-size:12.5px}
+  .pf-me-t small{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pf-me .pf-me-menu{left:0;right:auto;top:auto;bottom:calc(100% + 6px);min-width:240px}
+  #btnOut{display:none!important}   /* Sign out lives in the profile menu now */
   .set-add{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 16px}
   .set-add-o{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
   .set-add-o .tiny{margin:0;line-height:1.45;font-size:12px}
@@ -2156,6 +2186,11 @@
     <div class="side-client">
       <span class="side-cap">Client</span>
       <select id="clientPick" style="display:none"></select>
+      <div class="hd-period pf-pick" id="pfPick" hidden>
+        <button type="button" class="pf-pick-btn" id="pfPickBtn" aria-haspopup="true"><span id="pfPickLbl">All clients</span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+        <div class="hd-per-menu pf-pick-menu" role="menu"><input type="text" id="pfPickQ" placeholder="Find a client" autocomplete="off"><div id="pfPickList"></div>
+          <button type="button" class="pf-pick-add" data-me="clients">+ New client</button></div>
+      </div>
     </div>
     <div class="side-scroll">
     <nav class="tabs" id="tabs" style="display:none">
@@ -2174,10 +2209,20 @@
     </nav>
     </div>
     <div class="side-foot">
-      <button class="v2settings" type="button" data-t="settings" id="railSettings"><svg viewBox="0 0 16 16"><use href="#i-settings"/></svg>Settings</button>
+      <button class="v2settings" type="button" data-t="settings" id="railSettings" title="This brand's own settings"><svg viewBox="0 0 16 16"><use href="#i-settings"/></svg><span id="railSetLbl">Brand settings</span></button>
       <div class="v2theme" role="group" aria-label="Theme"><button type="button" data-theme-pick="dark">Dark</button><button type="button" data-theme-pick="light">Light</button></div>
       <button class="askbtn" onclick="AskUI.open()" title="Ask the Strategist (or press Ctrl+K and type)" style="margin-bottom:8px;width:100%;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 4.5 16.8L21 21l-1.2-4.5A9 9 0 0 0 12 3Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3 2.45V13"/><path d="M12.5 16h.01"/></svg>Ask the Strategist</button>
       <button class="askbtn" id="btnGuide" style="margin-bottom:8px;width:100%;justify-content:center;display:none" title="What each tab is for, and what to do each day">How to use Locus</button>
+      <div class="hd-period pf-me" id="pfMe">
+        <button type="button" class="pf-me-btn" id="pfMeBtn" aria-haspopup="true"><span class="pf-av" id="pfAv">M</span><span class="pf-me-t"><b id="pfMeName">Mobius Digital</b><small id="pfMeMail">Agency settings</small></span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 5l4-4 4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+        <div class="hd-per-menu pf-me-menu" role="menu">
+          <button type="button" role="menuitem" data-me="agency">Agency settings<small>Team, Slack timing, the Strategist, connections made once</small></button>
+          <button type="button" role="menuitem" data-me="clients">Clients<small>Every brand, and + New client</small></button>
+          <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
+          <button type="button" role="menuitem" data-me="guide">How to use Locus</button>
+          <button type="button" role="menuitem" data-me="out">Sign out</button>
+        </div>
+      </div>
       <span class="hd-chip" id="connChip">…</span>
       <button class="hd-btn" id="btnOut" style="display:none">Sign out</button>
     </div>
@@ -2421,7 +2466,7 @@ async function boot() {
     S.accounts = r.accounts;
     S.kind = r.kind || 'admin';
     applyKind();
-    setChip('Live','live');
+    setChip('Live','live'); paintMe();
     chrome(true);
     renderPicker();
     show(S.tab);
@@ -2725,6 +2770,40 @@ function renderPicker() {
   if (!S.accounts.find(a => a.act_id === S.act)) S.act = 'all';
   p.value = S.act;
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
+  p.style.display = 'none';
+  drawPick();
+}
+/* The client picker menu. It mirrors the hidden #clientPick, which every other caller still sets; show()
+   calls syncPick() so the label can never disagree with the brand on screen. */
+function drawPick(q = '') {
+  const box = $('#pfPick'); if (!box) return; box.hidden = false;
+  const list = $('#pfPickList'), want = q.trim().toLowerCase();
+  const opts = [{ act_id: 'all', name: 'All clients' }, ...S.accounts.slice().sort((a, b) => a.name.localeCompare(b.name))].filter(a => !want || a.name.toLowerCase().includes(want));
+  list.innerHTML = opts.map(a => `<button type="button" role="menuitem" data-act="${esc(a.act_id)}" class="${a.act_id === S.act ? 'on' : ''}">${esc(a.name)}</button>`).join('') || '<p class="hd-per-note">No client matches.</p>';
+  syncPick();
+}
+function syncPick() {
+  const l = $('#pfPickLbl'); if (l) l.textContent = S.act === 'all' ? 'All clients' : (S.accounts.find(a => a.act_id === S.act)?.name || 'All clients');
+  const rl = $('#railSetLbl'); if (rl) rl.textContent = S.act === 'all' ? 'Clients' : 'Brand settings';
+}
+document.addEventListener('click', e => {
+  const pb = e.target.closest('#pfPickBtn, #pfMeBtn');
+  if (pb) { e.stopPropagation(); const box = pb.parentElement; closePops(box); const open = !box.classList.contains('open'); box.classList.toggle('open', open);
+    if (open && pb.id === 'pfPickBtn') { drawPick(); const qi = $('#pfPickQ'); qi.value = ''; setTimeout(() => qi.focus(), 0); } return; }
+  const it = e.target.closest('#pfPickList [data-act]');
+  if (it) { closePops(); const p = $('#clientPick'); p.value = it.dataset.act; S.act = it.dataset.act; localStorage.setItem(LS.act, S.act); syncPick(); show(S.tab); return; }
+  const me = e.target.closest('[data-me]');
+  if (me) { closePops(); const k = me.dataset.me;
+    if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team');
+    else if (k === 'guide') show('guide'); else if (k === 'out') $('#btnOut').click(); }
+});
+document.addEventListener('input', e => { if (e.target.id === 'pfPickQ') drawPick(e.target.value); });
+document.addEventListener('keydown', e => { if (e.target.id === 'pfPickQ' && e.key === 'Enter') { const f = $('#pfPickList [data-act]'); if (f) f.click(); } });
+/* Who is signed in, for the profile button. */
+async function paintMe() {
+  try { const r = await apiAH('/api/me'); const em = r && r.email; if (!em) return;
+    const nm = em.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    $('#pfAv').textContent = nm[0] || 'M'; $('#pfMeName').textContent = nm; $('#pfMeMail').textContent = em; } catch {}
 }
 document.querySelectorAll('#tabs button[data-t]').forEach(b => b.onclick = () => b.dataset.grp ? navGo(b.dataset.grp) : show(b.dataset.t));
 /* A group heading opens that group to browse it (the open page's group stays open too). */
@@ -2749,7 +2828,7 @@ document.addEventListener('click', e => {
   const hb = e.target.closest('[data-help]');
   if (hb) {
     const k = hb.dataset.help;
-    helpModalFor(k, { season:'The Season', overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings', health:'Data Health' }[k] || 'This page', PAGE_HELP[k]);
+    helpModalFor(k, { season:'The Season', overview:'The Overview', profit:'The Profit page', costs:'The Costs page', brief:'The Daily Brief', reports:'Reports', plan:'Planning the month', customers:'The Customers page', settings:'Settings', health:'Data Health' }[k] || TAB_TITLE[k] || 'This page', PAGE_HELP[k]);
   }
 });
 
@@ -2808,6 +2887,40 @@ const PAGE_BRIEF = {
     todo: 'Read the red line, fix the connection where it says (usually in Triple Whale), then press Re-sync and Rebuild here.',
   },
 };
+/* Every page gets the same three lines in Help (2026-10-08: Cole found Help on most pages opened nothing
+   but a link to Metrics, because only nine pages had a brief). Add a line here whenever a page is added. */
+Object.assign(PAGE_BRIEF, {
+  overview: { answers: 'How the brand (or every brand) is doing right now: revenue, spend, MER, new customers, against the plan.', when: 'Every morning, first thing.', todo: 'Read the summary at the top, check What moved yesterday, then click anything red to see why.' },
+  meta: { answers: 'How the Meta ads are doing: spend, cost per purchase and ROAS against the goal.', when: 'Every day, after Overview.', todo: 'Check the verdict line, then open Campaigns or Creative for whatever is off.' },
+  campaigns: { answers: 'Which Meta campaigns and ad sets are spending, and what each one brings back.', when: 'When spend or results moved and you need to know where.', todo: 'Sort by spend, open a campaign to see its ad sets and ads, click an ad to preview it.' },
+  adcreative: { answers: 'Which ads to keep, cut or make more of, judged by the brand’s creative rules.', when: 'A few times a week, and before a creative call.', todo: 'Read each ad’s call (Scale, Keep, Trim, Cut, Watch), click an ad for why, and use Make more like this on winners.' },
+  tests: { answers: 'Which creative tests need a decision and which are still running.', when: 'Every Monday, and whenever a test is due.', todo: 'Work down Make a call: pick Winner, Keep or Loser for each test, with one line on what you learned.' },
+  changes: { answers: 'What was changed on the ad account, and when.', when: 'When numbers moved and you want to know if a change caused it.', todo: 'Scan Changes that matter for the day it moved, and add the reason to any change that has none.' },
+  mtoday: { answers: 'How today’s Meta spend is pacing hour by hour.', when: 'During the day, if spend looks off.', todo: 'Compare today’s line to a normal day; a flat line early means delivery stopped.' },
+  mbrowser: { answers: 'Every Meta ad with its numbers, in one searchable grid.', when: 'When you need to find a specific ad.', todo: 'Search or filter, then click an ad to play it.' },
+  google: { answers: 'How Google Ads are doing: spend, revenue and cost per purchase, by campaign once linked.', when: 'A few times a week.', todo: 'Check ROAS against the goal, and split brand search from the rest before judging Google.' },
+  tiktok: { answers: 'How TikTok ads are doing.', when: 'A few times a week, for brands that run TikTok.', todo: 'Check spend and results; connect TikTok directly for campaign detail.' },
+  channels: { answers: 'Every ad channel side by side: spend, revenue, ROAS and new customers.', when: 'When deciding where the next dollar goes.', todo: 'Compare ROAS and cost per new customer across channels, and use Two models side by side to see who gets the credit.' },
+  email: { answers: 'How email and SMS are doing: revenue from flows and campaigns, open and click rates.', when: 'Weekly.', todo: 'Look for missing core flows and campaigns with weak clicks, then check Subject lines and send times.' },
+  store: { answers: 'What the store sold: revenue, orders, average order, new against returning.', when: 'When revenue moved and you want the store-side view.', todo: 'Check orders against average order to see which one moved revenue.' },
+  website: { answers: 'How the website converts: visits, add to cart, checkout and purchase, by channel and page.', when: 'When conversion drops or a new landing page goes live.', todo: 'Find the step that drops most and the landing pages that convert under the site average.' },
+  search: { answers: 'How the brand shows up in Google’s free search results.', when: 'Monthly.', todo: 'Watch brand searches grow, and look at queries sitting in positions 4 to 15: those are the cheapest wins.' },
+  season: { answers: 'The holiday plan: every offer, date and task for each brand.', when: 'Weekly through Q4.', todo: 'Check the offers are locked and the tasks due this week are done.' },
+  calc: { answers: 'What-if math: what a lead or a ROAS level is worth, and where a brand breaks even.', when: 'When setting goals or pitching a budget.', todo: 'Move the dials, compare scenarios, save or share the one you agree on.' },
+  studio: { answers: 'Static ads made by AI from a brief, a product and real photos.', when: 'When a brief needs static ads.', todo: 'Start a batch from the Asana brief, pick the product and photos, make the ads, approve or redo each one.' },
+  brand: { answers: 'Everything we know about the brand: the client’s answers, research and voice.', when: 'Before writing a brief or a call.', todo: 'Read the call sheet first, then the research and How we write.' },
+  angles: { answers: 'Which angles and concepts have been tested, and how they did.', when: 'Before briefing a new test.', todo: 'Type the idea into Have we tested this? before you brief it.' },
+  copy: { answers: 'Ad copy written in the brand’s own voice.', when: 'When you need headlines, hooks or primary text.', todo: 'Say who it is for and what it is about, keep the lines that sound right, reject the rest with a reason.' },
+  amb: { answers: 'The page creators read to know what to film.', when: 'When ideas, examples or rules for creators change.', todo: 'Edit ideas and sections, then preview the link the creators see.' },
+  library: { answers: 'Every photo in the brand’s Drive, tagged so you can search it.', when: 'When you need a photo for an ad or for Studio.', todo: 'Search by person, setting or product; dress a model photo with a product from here.' },
+  inspo: { answers: 'Other brands’ ads saved as inspiration.', when: 'When briefing new creative.', todo: 'Browse the boards and use Brief one like it on anything worth borrowing.' },
+  brief: { answers: 'Yesterday’s numbers written up for the client, ready to send.', when: 'Every morning.', todo: 'Read it, add What we did, then Send to client.' },
+  reports: { answers: 'The weekly and monthly client reports.', when: 'Monday for weekly, the 1st for monthly.', todo: 'Read the draft, fix anything wrong, then Send.' },
+  dash: { answers: 'Saved views you or the Strategist built, which can post to Slack on a schedule.', when: 'Whenever you want the same view again.', todo: 'Open one, or ask the Strategist to build one.' },
+  costs: { answers: 'Whether the brand’s cost data can be trusted, so profit numbers are real.', when: 'When contribution margin looks wrong.', todo: 'Fix costs in Triple Whale, or set a flat margin here.' },
+  health: { answers: 'Whether each brand’s data is complete and syncing.', when: 'When a number looks wrong.', todo: 'Fix anything marked broken before trusting that brand’s numbers.' },
+  guide: { answers: 'How the team uses Locus, step by step for each role.', when: 'Your first week, or when you forget where something lives.', todo: 'Follow your role’s steps; each has an Open button.' },
+});
 
 /** The two-tier help modal. `key` selects the brief; `html` is the full essay. */
 function helpModalFor(key, title, html, briefOverride) {
@@ -3096,7 +3209,7 @@ const TAB_PURPOSE = {
 };
 /* Settings sections: key, name in the list, one line saying what it is for. */
 const SET_SECS = [
-  ['brands', 'Brands', 'Everything that belongs to one brand: its sources, its goals (every platform), its Meta rules, its Slack channels and its margin. Open a row to change it. Its Google, Klaviyo and other connections are under Connections.'],
+  ['brands', 'Clients', 'Every brand Locus reports on. Add a new client here; open a brand to change its own settings.'],
   ['connections', 'Connections', 'Everything Locus is connected to, grouped by kind: ad platforms, store and analytics, email, team tools, AI. The agency-wide ones are made once; each brand has its own below. When something breaks, this says what and where to fix it.'],
   ['sending', 'Briefs and Slack', 'When the daily brief posts, who client messages come from, and who can send from inside Slack.'],
   ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
@@ -3109,7 +3222,19 @@ const SET_SECS = [
 const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];
 /* The list in groups (2026-10-08, Cole: "settings need to be super organized"): what belongs to one
    brand, what belongs to the agency, the data underneath, and help. A '@' entry is a whole page. */
-const SET_GROUPS = [['Brands', ['brands']], ['Agency', ['connections', 'team', 'sending', 'strategist']], ['Data and jobs', ['system', '@health', '@costs']], ['Help', ['tours']]];
+/* TWO SETTINGS, TWO DOORS (2026-10-08, Cole: "settings for a brand should only be about the brand; the Mobius
+   Digital settings are different"). Brand settings = the rail's Settings with a brand picked: only that brand,
+   one group at a time (BRAND_SECS). Agency settings = the profile menu at the bottom of the rail: everything
+   that applies to Mobius as a whole (SET_GROUPS). With All clients picked, Settings opens the agency side. */
+const SET_GROUPS = [['Agency', ['brands', 'connections', 'team', 'sending', 'strategist']], ['Data and jobs', ['system', '@health']], ['Help', ['tours']]];
+const BRAND_SECS = [['about', 'About the brand', 'i-brand', 'Its name, its Meta ad account and where its numbers come from.'],
+  ['goals', 'Goals and rules', 'i-overview', 'The targets every platform is judged against, then the rules only Meta uses.'],
+  ['slack', 'Slack and sending', 'i-chat', 'Where its briefs and reports go, and whether you see them first.'],
+  ['money', 'Money', 'i-costs', 'How profit is worked out for this brand.'],
+  ['conn', 'Connections', 'i-health', 'Everything this brand is connected to: ad accounts, store, analytics, email, Asana, Slack, Drive.'],
+  ['repairs', 'Data repairs', 'i-clock', 'Rarely needed: re-pull this brand\u2019s history.'],
+  ['stop', 'Stop tracking', 'i-brand', 'Take this brand out of Locus. Nothing is deleted.']];
+const BG_OF = ['about', 'goals', 'slack', 'money', 'repairs', 'stop'];   // the brand row's groups, in order
 const SET_ICONS = { brands: 'i-brand', connections: 'i-health', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
 const backToSettings = () => `<p class="set-back"><button type="button" class="link" data-go="settings">&larr; Settings</button></p>`;
@@ -3148,7 +3273,8 @@ const TAB_WHO = { overview: 'everyone', season: 'everyone', calc: 'everyone', em
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
 /* 2026-10-08: the role filter and its chips are gone; one menu for everyone. */
 const whoChip = () => '';
-const crumbFor = tab => { const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
+const crumbFor = tab => { if (tab === 'settings') { const ag = S.act === 'all' || SETMODE.get() === 'agency'; return ag ? 'Mobius Digital &nbsp;/&nbsp; <b>Agency settings</b>' : `${esc((S.accounts.find(x => x.act_id === S.act) || {}).name || 'Brand')} &nbsp;/&nbsp; <b>Settings</b>`; }
+  const c = TAB_CRUMB[tab]; return c ? `${c[0]} &nbsp;/&nbsp; <b>${c[1]}</b>${whoChip(tab)}` : ''; };
 window.crumbFor = crumbFor; window.whoChip = whoChip;
 /* The rail per role. Meta stays for the strategist: Creative shows what is working now. */
 const ROLE_TABS = { buyer: ['overview', 'season', 'brief', 'meta', 'google', 'tiktok', 'channels', 'email', 'store', 'reports', 'dash', 'calc'], strategist: ['overview', 'season', 'angles', 'studio', 'brand', 'copy', 'amb', 'meta', 'email', 'store', 'dash', 'calc'] };
@@ -3164,6 +3290,7 @@ document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]');
   if (go) {
     const k = go.dataset.go;
+    if (k.startsWith('act:')) return;   // v2.js picks the brand itself (wireGo); show('act:...') is not a page
     if (k.startsWith('meta:')) { localStorage.setItem('pf_msub', k.slice(5)); show('meta'); } else show(k);
     window.scrollTo(0, 0);
   }
@@ -3355,14 +3482,39 @@ function drawTour() {
   }
 }
 
+/* THE PAGE TOUR IS READ OFF THE PAGE (2026-10-08). The hand-written tours pointed at layouts that the v2/v3
+   redesigns replaced, so on most pages every step was filtered out and Tour did nothing at all (Cole). A
+   hand-written tour still runs when most of its steps exist; otherwise the tour walks what is actually on
+   screen: the page tabs, the date and attribution controls, then each card by its own heading and subtitle,
+   so it can never point at something that is not there and needs no upkeep when a page changes. */
+function autoTourSteps(key) {
+  document.querySelectorAll('[data-tourauto]').forEach(e => e.removeAttribute('data-tourauto'));
+  const steps = [], seen = new Set(); let n = 0;
+  const add = (el, title, body) => { if (!el || seen.has(el) || !el.offsetParent || steps.length >= 9) return; seen.add(el); el.setAttribute('data-tourauto', ++n); steps.push({ sel: `[data-tourauto="${n}"]`, title, body }); };
+  const b = PAGE_BRIEF[key];
+  steps.push({ title: TAB_TITLE[key] || 'This page', body: b ? `<b>What it answers.</b> ${b.answers}<br><b>What to do.</b> ${b.todo}` : 'A quick walk through what is on this page.' });
+  const seg = document.querySelector('#v2seg:not([hidden])');
+  if (seg && seg.querySelectorAll('button').length > 1) add(seg, 'The pages in this section', 'Each tab is a page in this section. The one you are on is highlighted.');
+  add(document.querySelector('#hdPeriod'), 'The dates', 'Every number on this page covers these dates. Change them here; the compare period is in the same menu.');
+  const model = document.querySelector('#hdModel'); if (model && !model.closest('[hidden]')) add(model, 'Who gets credit', 'Picks which attribution model credits orders to each platform. Spend is always the platform\u2019s own.');
+  const tiles = document.querySelector('#main .v2tiles, #main .lx-t5, #main .rollup'); add(tiles, 'The headline numbers', 'Each tile is one number for the dates above, with the change against the compare period. Hover a tile for its meaning.');
+  document.querySelectorAll('#main .v2card, #main section.card').forEach(c => {
+    const h = c.querySelector('.v2h h3, h3'); if (!h) return;
+    const sub = c.querySelector('.v2h .find, .v2h .sub, .v2hint, p');
+    add(c, h.textContent.trim().slice(0, 80), sub && sub.textContent.trim() ? esc(sub.textContent.trim().slice(0, 260)) : 'Hover anything here for its meaning; click a row to open it.');
+  });
+  return steps;
+}
 function startTour(key) {
-  const t = TOURS[key]; if (!t) return;
   endTour();
+  const t = TOURS[key];
   // The Settings tour points at the Brands section; open it so the steps are visible.
   if (key === 'settings') document.querySelector('#setNav [data-sec="brands"]')?.click();
   // Drop steps whose element is not on screen for this state, rather than
-  // pointing the spotlight at nothing.
-  TOUR.steps = t.steps.filter(s => !s.sel || document.querySelector(s.sel));
+  // pointing the spotlight at nothing. A tour that lost most of its steps is out of date: use the page itself.
+  const kept = t ? t.steps.filter(s => !s.sel || document.querySelector(s.sel)) : [];
+  // Only the tours re-checked against the current layout stay hand-written; every page tour is read off the page.
+  TOUR.steps = t && (key === 'start' || key === 'settings') && kept.length ? kept : autoTourSteps(key);
   if (!TOUR.steps.length) return;
   TOUR.key = key; TOUR.i = 0; TOUR.scrolled = false;
   window.addEventListener('resize', drawTour);
@@ -4631,12 +4783,23 @@ function renderPeriodBar(tab) {
    Settings, with this brand's row open on its Goals box. */
 function openGoals(act) {
   window.__openGoals = act;
+  if (act && act !== 'all') { S.act = act; localStorage.setItem(LS.act, act); }
+  SETMODE.set('brand');
   show('settings');
 }
+/* Which settings the Settings page shows: the open brand's own, or the agency's (see SET_GROUPS). */
+const SETMODE = { get: () => { try { return localStorage.getItem('pf_setmode') || 'brand'; } catch { return 'brand'; } }, set: v => { try { localStorage.setItem('pf_setmode', v); } catch {} } };
+function openAgencySettings(sec) { SETMODE.set('agency'); if (sec) { try { localStorage.setItem('pf_set_sec', sec); } catch {} } show('settings'); }
+window.openAgencySettings = openAgencySettings;
 window.openGoals = openGoals;
 
 window.showTab = tab => show(tab);
+const SHOWABLE = new Set(["overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
 function show(tab) {
+  if (typeof syncPick === 'function') syncPick();
+  /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of
+     "This page didn't load" with a Try again that retries the same unknown id. */
+  if (!SHOWABLE.has(tab)) tab = 'overview';
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   renderPeriodBar(tab);
@@ -4920,7 +5083,7 @@ function paintTheme() { const t = document.documentElement.dataset.theme || 'dar
 document.addEventListener('click', e => {
   const tp = e.target.closest('[data-theme-pick]');
   if (tp) { document.documentElement.dataset.theme = tp.dataset.themePick; try { localStorage.setItem('pf_theme', tp.dataset.themePick); } catch {} paintTheme(); if (['overview', 'meta', 'campaigns', 'adcreative', 'google', 'tiktok', 'channels', 'store', 'email'].includes(S.tab)) show(S.tab); return; }
-  const rs = e.target.closest('#railSettings'); if (rs) { show('settings'); }
+  const rs = e.target.closest('#railSettings'); if (rs) { SETMODE.set('brand'); show('settings'); }
 });
 paintTheme();
 
@@ -10017,7 +10180,8 @@ async function renderCustomers(first) {
    than left as a missing control. */
 async function renderSettings() {
   const run = ++RUN;
-  const one = S.act === 'all' ? null : S.accounts.find(a => a.act_id === S.act);
+  const AGENCY = S.act === 'all' || SETMODE.get() === 'agency';
+  const one = AGENCY ? null : S.accounts.find(a => a.act_id === S.act);
   // meta.js owns its own closure and only has a token if the host hands it one.
   // Doing this ONCE at the top, before anything calls it, is the fix for the
   // Team card reporting "the Meta section was not given a sign-in token" -
@@ -10031,18 +10195,24 @@ async function renderSettings() {
      Settings, and one section shown at a time. Every section is rendered up
      front and only hidden, so each loader below finds its host exactly as
      before and switching is instant. */
-  const sec = window.__openGoals ? 'brands' : (SET_SECS.some(s => s[0] === localStorage.getItem('pf_set_sec')) ? localStorage.getItem('pf_set_sec') : 'brands');
-  const allNote = one ? ` <span class="set-all">Applies to every brand, not only ${esc(one.name)}.</span>` : '';
+  const bsec = window.__openGoals ? 'goals' : (BRAND_SECS.some(b => b[0] === localStorage.getItem('pf_set_bsec')) ? localStorage.getItem('pf_set_bsec') : 'about');
+  const sec = !AGENCY ? (bsec === 'conn' ? 'connections' : 'brands') : (SET_SECS.some(s => s[0] === localStorage.getItem('pf_set_sec')) ? localStorage.getItem('pf_set_sec') : 'brands');
+  const allNote = '';
   const sCard = (title, hint, body) => `<div class="card set-card"><h3>${title}</h3>${hint ? `<p class="hint set-why">${hint}</p>` : ''}<div class="set-body">${body}</div></div>`;
-  const secHead = k => { const s = SET_SECS.find(x => x[0] === k); return `<div class="set-h"><h3>${s[1]}</h3><p class="hint">${s[2]}${k === 'brands' ? '' : allNote}</p></div>`; };
-  $('#main').innerHTML = `<div class="v2 lx">${LX.head('settings', `Settings${one ? ': ' + esc(one.name) : ''}`,
-    one ? `Only <b>${esc(one.name)}</b> is shown under Brands. Switch the picker to <b>All clients</b> to see every brand.` : '')}
-    <div class="setwrap">
-      <nav class="setnav" id="setNav" aria-label="Settings sections">${SET_GROUPS.map(([gl, keys]) => `<div class="setnav-g">${esc(gl)}</div>` + keys.map(k => {
+  const secHead = k => { if (!AGENCY) { const b = BRAND_SECS.find(x => x[0] === (k === 'connections' ? 'conn' : bsec)) || BRAND_SECS[0]; return `<div class="set-h" id="bsecHead"><h3>${b[1]}</h3><p class="hint">${b[3]}</p></div>`; }
+    const s = SET_SECS.find(x => x[0] === k); return `<div class="set-h"><h3>${s[1]}</h3><p class="hint">${s[2]}</p></div>`; };
+  const navHtml = AGENCY ? SET_GROUPS.map(([gl, keys]) => `<div class="setnav-g">${esc(gl)}</div>` + keys.map(k => {
           if (k.startsWith('@')) { const pg = SET_PAGES.find(p => p[0] === k.slice(1)); return `<button type="button" data-page="${pg[0]}" title="${esc(TAB_PURPOSE[pg[0]] || '')}"><svg class="ic"><use href="#${SET_ICONS[pg[0]]}"/></svg><span>${pg[1]}</span><small>page</small></button>`; }
-          const sc = SET_SECS.find(x => x[0] === k); return `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${sc[1]}</span>${k === 'brands' ? `<small>${one ? 1 : S.accounts.length}</small>` : ''}</button>`;
-        }).join('')).join('')}</nav>
-      <div class="setpane">
+          const sc = SET_SECS.find(x => x[0] === k); return `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${sc[1]}</span>${k === 'brands' ? `<small>${S.accounts.length}</small>` : ''}</button>`;
+        }).join('')).join('')
+    : `<div class="setnav-g">${esc(one ? one.name : 'This brand')}</div>` + BRAND_SECS.map(([k, label, ic]) => `<button type="button" data-bsec="${k}" class="${k === bsec ? 'on' : ''}"><svg class="ic"><use href="#${ic}"/></svg><span>${label}</span></button>`).join('')
+      + `<div class="setnav-g">Pages for this brand</div>` + SET_PAGES.map(([k, label]) => `<button type="button" data-page="${k}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${label}</span><small>page</small></button>`).join('')
+      + `<p class="setnav-note">Team, Slack timing, the Strategist and the connections made once for every brand are in <a href="#" data-agency="1">Agency settings</a>.</p>`;
+  $('#main').innerHTML = `<div class="v2 lx">${LX.head('settings', AGENCY ? 'Agency settings' : `Settings: ${esc(one ? one.name : '')}`,
+    AGENCY ? 'Everything that applies to Mobius Digital as a whole. A brand\u2019s own settings open when you pick the brand and press Settings.' : `Only <b>${esc(one ? one.name : '')}</b>. Nothing here changes another brand.`)}
+    <div class="setwrap">
+      <nav class="setnav" id="setNav" aria-label="Settings sections">${navHtml}</nav>
+      <div class="setpane${AGENCY ? '' : ' bmode'}" data-bg="${esc(bsec)}">
         <section data-sec="brands"${sec === 'brands' ? '' : ' hidden'}>${secHead('brands')}
           <div id="setRollup"></div>
           <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
@@ -10084,6 +10254,17 @@ async function renderSettings() {
     // Data health and Costs are pages of their own; each has a link back here.
     const pg = e.target.closest('button[data-page]');
     if (pg) { show(pg.dataset.page); window.scrollTo(0, 0); return; }
+    if (e.target.closest('[data-agency]')) { e.preventDefault(); openAgencySettings(); return; }
+    const bb = e.target.closest('button[data-bsec]');
+    if (bb) {
+      const k = bb.dataset.bsec; try { localStorage.setItem('pf_set_bsec', k); } catch (err) {}
+      nav.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === bb));
+      document.querySelectorAll('.setpane > section').forEach(s2 => { s2.hidden = s2.dataset.sec !== (k === 'conn' ? 'connections' : 'brands'); });
+      const pane = $('.setpane'); pane.dataset.bg = k;
+      const hd = BRAND_SECS.find(x => x[0] === k); document.querySelectorAll('.setpane .set-h h3').forEach(h => { h.textContent = hd[1]; });
+      document.querySelectorAll('.setpane .set-h .hint').forEach(h => { h.textContent = hd[3]; });
+      return;
+    }
     const b = e.target.closest('button[data-sec]'); if (!b) return;
     const k = b.dataset.sec;
     try { localStorage.setItem('pf_set_sec', k); } catch (err) {}
@@ -10156,10 +10337,12 @@ async function renderSettings() {
      they sit in five labelled groups, most used first: what the brand is,
      its goals, where its reporting goes, its money basis, then the rare
      data repairs and the way out. Every data-k hook is unchanged. */
-  const grp = (title, sub, inner, cls = '') => `<div class="brow-grp${cls}"><div class="brow-gh"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div>${inner}</div>`;
+  let grpN = 0;
+  const grp = (title, sub, inner, cls = '') => `<div class="brow-grp${cls}" data-bg="${BG_OF[grpN++ % BG_OF.length]}"><div class="brow-gh"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</div>${inner}</div>`;
   const brandRow = a => {
     const m = metaOf(a.act_id), c = connOf(a.act_id);
-    return `<details class="brow" data-act="${esc(a.act_id)}"${window.__openGoals === a.act_id ? ' open' : ''}>
+    grpN = 0;
+    return `<details class="brow" data-act="${esc(a.act_id)}"${window.__openGoals === a.act_id || !AGENCY ? ' open' : ''}>
       <summary><span class="brow-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="brow-sum">${summary(a)}</span></summary>
       <div class="brow-body">
         ${grp('The brand and its sources', 'Who it is and where its numbers come from. Google, Klaviyo and the rest are under Connections.', `
@@ -10290,7 +10473,7 @@ async function renderSettings() {
           <p class="tiny">A client whose Meta ad account Locus can already see. <a href="#" id="brWhy">Why don’t I see all my ad accounts?</a></p></div>
         <span class="tiny" id="brMsg"></span></div>
       <div id="brAccess"></div>
-      <p class="tiny set-count">${rows.length} brand${rows.length === 1 ? '' : 's'}${rows.length ? ' · open a row to change anything about it' : ''}</p>
+      <p class="tiny set-count">${rows.length} brand${rows.length === 1 ? '' : 's'}${rows.length ? ' · click a brand to open its settings' : ''}</p>
       ${rows.map(brandRow).join('') || '<div class="card"><span class="hint">No brands yet - press <b>+ Add a brand</b>.</span></div>'}
       ${conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
         The data is being held but nothing reports on it until you point it at one.
@@ -10333,6 +10516,10 @@ async function renderSettings() {
     const saveClient = (a, body) => api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, ...body }) });
     const saveMeta = (a, body) => mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify(body) });
 
+    if (AGENCY) list.querySelectorAll('.brow > summary').forEach(sm => sm.onclick = e => {
+      e.preventDefault(); const act = sm.parentElement.dataset.act;
+      S.act = act; localStorage.setItem(LS.act, act); const cp = $('#clientPick'); if (cp) cp.value = act; SETMODE.set('brand'); show('settings');
+    });
     list.querySelectorAll('.brow').forEach(row => {
       const a = S.accounts.find(x => x.act_id === row.dataset.act); if (!a) return;
       const gBox = row.querySelector('.goals');
@@ -10644,11 +10831,11 @@ async function renderSettings() {
       if (!slug) return `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`;
       const src = slug.startsWith('/') ? slug : `https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg`;
       return `<span class="cn-logo"><img src="${src}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc(k.slice(0, 2).toUpperCase())}'}))"></span>`; };
-    const brands = (rep.brands || []).filter(b => S.act === 'all' || b.act_id === S.act);
+    const brands = AGENCY ? [] : (rep.brands || []).filter(b => one && b.act_id === one.act_id);
     const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));
-    const agency = rep.agency.filter(a => !a.only || S.act === 'all' || a.only === S.act);
+    const agency = AGENCY ? rep.agency : [];
     const agOff = agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
-    const oneName = S.act === 'all' ? null : (S.accounts.find(a => a.act_id === S.act)?.name || 'this brand');
+    const oneName = null;
     /* Grouped by kind so nothing gets lost as connections grow (2026-10-08). */
     const KIND = [['Ad platforms', ['meta', 'google_ads', 'gads', 'gads_direct', 'tiktok']], ['Store and analytics', ['tw', 'shopify', 'ga4', 'gsc']], ['Email and SMS', ['klaviyo']],
       ['Team and work tools', ['asana', 'slack', 'slack_internal', 'slack_client', 'google', 'drive', 'frame', 'google_login', 'onboarding', 'hub', 'stripe', 'lucky_app']], ['AI and creative', ['anthropic', 'gemini', 'studio', 'canva', 'atria', 'downloader']]];
@@ -10660,9 +10847,9 @@ async function renderSettings() {
       <div class="card set-card">
         ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
       </div>
-      <div class="card set-card"><h3>Mobius's own connections</h3><p class="hint set-why">Made once, shared by every brand${oneName ? ` (these are the agency's, not ${esc(oneName)}'s)` : ''}: a secret on the worker, or Cole signing in from Locus. Click one for what it does and how to fix it.</p>
-        ${byKind(agency, a => card(a, 'agency'))}</div>
-      ${brands.length ? brands.map(b => `<div class="card set-card"><h3>${esc(b.name)}</h3><p class="hint set-why">${esc(b.summary)}. Set up at onboarding: New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, Triple Whale, Shopify and Klaviyo come from the client. Click a card for the exact steps.</p>
+      ${AGENCY ? `<div class="card set-card"><h3>Mobius's own connections</h3><p class="hint set-why">Made once, shared by every brand: a secret on the worker, or Cole signing in from Locus. Click one for what it does and how to fix it. Each brand's own connections are in that brand's settings.</p>
+        ${byKind(agency, a => card(a, 'agency'))}</div>` : ''}
+      ${AGENCY ? '' : brands.length ? brands.map(b => `<div class="card set-card"><h3>${esc(b.name)}</h3><p class="hint set-why">${esc(b.summary)}. Set up at onboarding: New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, Triple Whale, Shopify and Klaviyo come from the client. Click a card for the exact steps.</p>
         ${byKind(b.items, i => card(i, 'brand', b.act_id))}</div>`).join('') : '<div class="card"><p class="hint">No active brands.</p></div>'}
       <div class="cn-scrim" id="cnScrim" hidden></div><aside class="cn-drawer" id="cnDrawer" hidden aria-label="Connection"></aside>`;
     const drawer = $('#cnDrawer'), scrim = $('#cnScrim');
