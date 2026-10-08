@@ -20,9 +20,16 @@
  */
 
 const OA = 'https://api.openai.com/v1';
-const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext']);
+const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext', 'story']);
+/* 2026-10-08 TALL: every ad is made as ONE 9:16 picture (Stories and Reels), the words kept in the band
+   every placement shows, and the browser cuts the 4:5 feed ad from its middle. Replaces the square +
+   AI-painted bands, which cut legs, frames and phone screens at the square's edge (Grunk Burgundy).
+   ZONE is that band in 0-1000 of the tall picture: below the profile row (top 14%), above the Reels
+   caption and buttons (bottom 35%), 6% in from the sides. The 4:5 crop is y 148-852, so it holds too. */
+const TALL = '1008x1792';
+const ZONE = { top: 150, bottom: 650, left: 60, right: 940 };
 /* Rough USD per call, for the running cost on each ad. High-quality portrait image ~ $0.25. */
-const COST = { image: 0.25, vision: 0.01 };
+const COST = { image: 0.25, tall: 0.42, vision: 0.01 };   // tall = a 1008x1792 picture, about 1.7x the pixels of a square
 
 const STYLES = {
   auto: 'Choose the typeface that best fits this exact scene and product. It should look designed for this image, not a default font.',
@@ -156,7 +163,7 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
     const msg = j.error?.message || `OpenAI said ${res.status}`;
     if (res.status === 400) {
       const p = j.error?.param || '';
-      if ((/size/i.test(p) || /size/i.test(msg)) && opts.size !== '1024x1536') { opts.size = opts.size === '1024x1280' ? '1024x1536' : 'auto'; continue; }
+      if ((/size/i.test(p) || /size/i.test(msg)) && opts.size !== '1024x1536') { opts.size = opts.size === '1024x1280' || opts.size === TALL ? '1024x1536' : 'auto'; continue; }
       if (/input_fidelity/i.test(p + msg) && opts.input_fidelity) { delete opts.input_fidelity; continue; }
       if (/quality/i.test(p) && opts.quality) { delete opts.quality; continue; }
       if (/output_(format|compression)/i.test(p + msg) && opts.output_format) { delete opts.output_format; delete opts.output_compression; continue; }
@@ -180,13 +187,15 @@ function textLines(spec) {
 /* A line whose photograph IS the ad (a real shot from the brand's own shoot, 2026-10-06): the picture
    is kept and only the words, and whatever small change the plan asks for, go on. Realism comes free,
    because nothing is rendered. */
+const TALL_LAYOUT = 'LAYOUT: the image is TALL (9:16), one picture for Instagram and Facebook Stories and Reels, and the feed version is cut from its middle. Compose it as a natural full-height picture: the scene and background fill the whole frame, top to bottom. Every word, badge and button sits in the middle band, between 15% and 65% of the height from the top and at least 6% in from each side; put the headline near the top of that band. The top 15% and the bottom 35% hold NO words at all (the app draws its own profile row and buttons there): fill them with scene, sky, floor, table or background. The whole product sits between 18% and 80% of the height, never cut by any edge. People are shown whole as the scene needs them, never cut at the knees by the frame.';
 function basePrompt(spec, brand) {
   const lines = textLines(spec);
   return [
-    `The attached photograph is the finished picture for a Meta feed ad for ${brand}. It is a real photo of the real product and it must stay exactly as shot: the same scene, product, people, light, colours, grain and framing. Do not restage, redraw, move, resize, recolour or add anything to the scene except what is asked below. The output is SQUARE (the safe area of a 4:5 ad, extended above and below later): if the photo is not square, crop to the square that keeps the product whole and leaves natural room for the words.`,
+    `The attached photograph is the finished picture for a Meta feed ad for ${brand}. It is a real photo of the real product and it must stay exactly as shot: the same scene, product, people, light, colours, grain and framing. Do not restage, redraw, move, resize, recolour or add anything to the scene except what is asked below. The output is TALL (9:16): keep the WHOLE photo, people and product uncropped; where the photo is shorter than 9:16, continue its own background naturally above and below (same sky, ground, wall or studio backdrop), never stretch it.`,
+    TALL_LAYOUT,
     spec.look ? `Change only this on the photo: ${spec.look}` : '',
     lines.length ? `Add exactly this text, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Add no text.',
-    'Put the words in the photo\'s empty space (sky, wall, table, floor, a blank area), never over the product or a face, with a small margin from every edge, sized so every word fits completely.',
+    'Put the words in the photo\'s empty space inside the middle band (sky, wall, backdrop, a blank area), never over the product or a face, sized so every word fits completely.',
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
     TYPE_RULES,
     'No watermark, no extra logos, no made-up words, no product name unless it is in the text above, no price unless it is in the text above.',
@@ -200,7 +209,8 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     ? `The first ${counts.prod} attached image${counts.prod > 1 ? 's are' : ' is'} the real product${many ? 's' : ''}. The last ${counts.inspo} ${counts.inspo > 1 ? 'are' : 'is'} INSPIRATION ONLY.`
     : counts.inspo ? `All ${counts.inspo} attached image${counts.inspo > 1 ? 's are' : ' is'} INSPIRATION ONLY.` : '';
   return [
-    `Create a finished, scroll-stopping Meta feed ad for ${brand}. The image is SQUARE: it is the safe area of a 4:5 ad and will be extended above and below later, so let the background continue naturally past the top and bottom edges.`,
+    `Create a finished, scroll-stopping Meta ad for ${brand}.`,
+    TALL_LAYOUT,
     which,
     spec.exact ? 'THE PRODUCT IS ALREADY IN THE IMAGE, placed exactly where it must stay: a real photograph of the real product. Build the whole ad around it. Never redraw, move, resize, rotate, recolour, cover, crop or duplicate it. Give it a natural contact shadow and reflections that match the scene light, so it sits in the scene rather than on top of it.' : '',
     spec.dna && !spec.exact ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
@@ -216,7 +226,6 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     spec.who ? `It is for: ${spec.who}. Let that guide the mood, setting and casting.` : '',
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
     lines.length ? `Put exactly this text on the ad, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Put no text on the ad.',
-    'Keep every word and the whole product inside this square with a small margin from every edge.',
     'A callout that names a part of the product (heel, toe, face, sole, neck, grip, crown, collar and so on) must point at that exact part of the product itself, never at anything else in the scene. On a golf club the heel is the end nearest the shaft and the toe is the far end.',
     TYPE_RULES,
     'It must look like a real photograph with real design on top, not a CGI render: natural light, real materials, real depth of field.',
@@ -312,12 +321,24 @@ function shape(row) {
 const getAd = (env, id) => env.DB.prepare(`SELECT * FROM p_studio_ad WHERE id = ?1`).bind(id).first();
 const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
 
+/* Where the words landed on a tall ad: one read-back (about a cent). Anything outside ZONE would be
+   hidden by the Stories / Reels buttons or cut from the 4:5 feed version, so the card flags it.
+   A flag, never an automatic redo (Cole: retries waste credits). */
+async function zoneCheck(key, m, bytes, spec) {
+  const lines = await readText(key, m.vision, bytes, spec).catch(() => null);
+  if (!lines) return null;
+  const out = lines.filter(l => l.box[1] < ZONE.top || l.box[3] > ZONE.bottom || l.box[0] < ZONE.left || l.box[2] > ZONE.right);
+  return { ok: !out.length, issue: out.length ? `Words outside the Stories safe area: ${out.map(l => `"${l.text}"`).join(', ')}` : '' };
+}
 async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts, where = {}) {
   const prompt = counts.base ? basePrompt(spec, brand) : adPrompt(spec, brand, k, n, counts);
-  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: '1024x1024' });
-  let cost = COST.image, check = null;
+  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: TALL });
+  const osz = pngSize(out.bytes);
+  let cost = (osz.h > osz.w * 1.3 ? COST.tall : COST.image) + COST.vision, check = null;
+  spec = { ...spec, tall: true };
+  const zone = await zoneCheck(key, m, out.bytes, spec);
   /* The photo IS the ad: the product in it is real, so there is nothing to score. */
-  if (counts.base) return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, exact: true, issue: '' }, parent, ...where });
+  if (counts.base) return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, exact: true, issue: '', zone }, parent, ...where });
   /* One image per ad, no automatic retries (Cole: retries waste credits). The product is scored
      0-10 against the real photos (about 1 cent) and the score is shown on the card; a low score is
      the team's cue to press Redo. */
@@ -327,6 +348,7 @@ async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts
     cost += COST.vision;
     if (check) check.ok = check.ok && (check.score ?? 10) >= 7;
   }
+  if (zone) check = { ...(check || {}), zone };
   return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check, parent, ...where });
 }
 async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, parent, batch_id, line }) {
@@ -524,7 +546,7 @@ export async function handlePublic(request, env, url, path, json, CORS) {
     if (!obj) return json({ error: 'not found' }, 404);
     return new Response(obj.body, { headers: { 'Content-Type': rf[2] === 'jpg' ? 'image/jpeg' : `image/${rf[2]}`, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
   }
-  const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final|square|ext)$/);
+  const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final|square|ext|story)$/);
   if (!m || request.method !== 'GET') return null;
   const row = await getAd(env, m[1]);
   if (!row || !env.MEDIA) return json({ error: 'not found' }, 404);
@@ -808,7 +830,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const old = safeJson(base.spec_json, {});
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = (await env.MEDIA.get(keyOf(base, 'square'))) || (await env.MEDIA.get(keyOf(base, 'full')));
+      const src = (await env.MEDIA.get(keyOf(base, 'story'))) || (await env.MEDIA.get(keyOf(base, 'square'))) || (await env.MEDIA.get(keyOf(base, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
       const pairs = [['headline', 'The headline'], ['subline', 'The smaller line'], ['cta', 'The button']]
@@ -830,7 +852,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row || !ask) return json({ error: 'id and an instruction are required' }, 400);
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = (await env.MEDIA.get(keyOf(row, 'square'))) || (await env.MEDIA.get(keyOf(row, 'full')));
+      const src = (await env.MEDIA.get(keyOf(row, 'story'))) || (await env.MEDIA.get(keyOf(row, 'square'))) || (await env.MEDIA.get(keyOf(row, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
       const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the frame with a small margin. Spell every word exactly.`;
@@ -922,6 +944,8 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row || !body.png) return json({ error: 'id and png are required' }, 400);
     const cur = await env.MEDIA.get(keyOf(row, 'full'));
     if (cur && row.full_w === row.full_h) await env.MEDIA.put(keyOf(row, 'square'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
+    /* A tall master (9:16, or 2:3 if the model refused 9:16) is kept as the Stories / Reels version. */
+    else if (cur && row.full_h > row.full_w * 1.3) await env.MEDIA.put(keyOf(row, 'story'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
     const bytes = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
     const { w, h } = pngSize(bytes);
     await env.MEDIA.put(keyOf(row, 'full'), bytes, { httpMetadata: { contentType: 'image/png' } });

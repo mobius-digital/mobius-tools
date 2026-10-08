@@ -24,7 +24,7 @@
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const TESTING = [['concepts', 'Concepts', 'different ideas'], ['headlines', 'Headlines', 'same ad, new words'], ['visuals', 'Looks', 'same words, new looks'], ['offer', 'Offer', 'same ad, offer framing'], ['reviews', 'Reviews', 'same ad, review quote'], ['hooks', 'Hooks', 'the opening line'], ['copy', 'Copy', 'the body words'], ['format', 'Format', 'one idea, different layouts']];
 const STYLES = [['auto', 'AI picks'], ['bold', 'Bold condensed'], ['clean', 'Clean modern'], ['serif', 'Elegant serif'], ['hand', 'Handwritten'], ['luxe', 'Thin luxe'], ['native', 'Native social']];
-const PER_AD = 0.36;
+const PER_AD = 0.44;   // one tall 9:16 picture + the product and word-position checks (2026-10-08)
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -678,12 +678,15 @@ function adCard(a) {
   const chk = ck?.exact ? `<span class="v2pill good"${tip('Built on a real photo of the product, kept as shot. Nothing about the product was drawn.')}>Real product photo</span>`
     : ck ? (ck.ok === false ? `<span class="v2pill warn"${tip(`The check model thinks the product may not match the photos${ck.issue ? `: ${ck.issue}` : ''}. Look closely before approving.`)}>Product may be off</span>`
       : ck.ok ? `<span class="v2pill good"${tip(`The check model compared the product in this ad with the product photos${ck.score != null ? ` and scored it ${ck.score} out of 10` : ''}${ck.tries ? `. This is the best of ${ck.tries} tries` : ''}. A net, not a guarantee: still look at it.`)}>Product ${ck.score != null ? ck.score + '/10' : 'checked'}${ck.tries ? ` · best of ${ck.tries}` : ''}</span>` : '') : '';
+  const zn = ck?.zone, zone = !zn ? '' : zn.ok ? `<span class="v2pill good"${tip('Every word sits where Stories, Reels and the feed all show it.')}>Words in the safe area</span>`
+    : `<span class="v2pill warn"${tip(`${zn.issue || 'Some words are outside the safe area'}. Stories or Reels buttons may cover them. Change with AI or Redo.`)}>Words near the edge</span>`;
+  const pills = chk + zone;
   const tags = [a.line != null ? `<span class="st-tag">Ad ${a.line + 1}</span>` : '', appr ? '<span class="st-tag ok"><i></i>Approved</span>' : ''].join('');
   return `<div class="st-ad ${appr ? 'ok' : ''}"><div class="pic" data-zoom="${a.id}" title="Open it large"><img src="${esc(shown(a))}" alt="${esc(s.headline || 'Ad')}" loading="lazy"><div class="tags">${tags}</div></div>
-    <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${chk ? `<div class="pills">${chk}</div>` : ''}${ck?.ok === false && ck.issue ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
+    <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${pills ? `<div class="pills">${pills}</div>` : ''}${ck?.ok === false && ck.issue ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
       <div class="act1">${appr ? `<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}<button class="btn" data-change="${a.id}" title="Say what to change and only that changes. About 25 cents.">Change with AI</button><button class="btn" data-redo="${a.id}" title="Make this one again from the plan. The old one goes to Deleted.">Redo</button></div>
       ${vidStrip(a)}
-      <div class="act2"><button class="v2link" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="v2link" data-dl="${a.id}">Download</button><button class="v2link del" data-del="${a.id}" title="Take it out of the batch">Delete</button></div></div></div>`;
+      <div class="act2"><button class="v2link" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="v2link" data-dl="${a.id}">Download</button>${s.tall ? `<button class="v2link" data-dl9="${a.id}" title="The tall version for Stories and Reels">Download 9:16</button>` : ''}<button class="v2link del" data-del="${a.id}" title="Take it out of the batch">Delete</button></div></div></div>`;
 }
 /* ---- Videos: "Make a video" (any video, Higgsfield) and the brand's / batch's videos ---- */
 const LOOKS = [['auto', 'Let the AI decide', 'it picks the format'], ['ugc', 'UGC', 'a real-looking person on a phone'], ['cinematic', 'Product cinematic', 'premium B-roll shots'],
@@ -1162,8 +1165,21 @@ async function makeExact(b, a, i, extra = {}) {
 /* 4:5 with a guaranteed 1:1 safe area: every ad is made square, then placed in a 4:5 canvas with
    transparent bands that the model fills with background only, and the original square goes back
    on top, feathered. See /api/studio/extend. */
+/* 2026-10-08 TALL: the worker now makes one 9:16 picture (words kept in the band every placement shows).
+   The 4:5 feed ad is cut from its middle here, no AI involved; finalize keeps the tall one as 'story'. */
+async function cropFeed(ad) {
+  const tall = await loadImg(img(ad, 'full'));
+  const W = tall.naturalWidth, H = tall.naturalHeight, ch = Math.round(W * 1.25);
+  const out = document.createElement('canvas'); out.width = 1024; out.height = 1280;
+  out.getContext('2d').drawImage(tall, 0, Math.round((H - ch) / 2), W, ch, 0, 0, 1024, 1280);
+  const fin = await post('/api/studio/finalize', { id: ad.id, png: out.toDataURL('image/png') });
+  const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad; else S.d.ads.unshift(fin.ad);
+  return fin.ad;
+}
 async function extend(ad) {
-  if (!ad || ad.full_w !== ad.full_h) return ad;
+  if (!ad) return ad;
+  if (ad.full_h > ad.full_w * 1.3) return cropFeed(ad);
+  if (ad.full_w !== ad.full_h) return ad;
   const sq = await loadImg(img(ad, 'full'));
   const c = document.createElement('canvas'); c.width = 1024; c.height = 1280;
   c.getContext('2d').drawImage(sq, 0, 128, 1024, 1024);
@@ -1253,6 +1269,7 @@ function wireAds() {
   document.querySelectorAll('[data-unapprove]').forEach(x => x.onclick = () => setStatus(x.dataset.unapprove, 'review'));
   document.querySelectorAll('[data-del]').forEach(x => x.onclick = () => setStatus(x.dataset.del, 'deleted'));
   document.querySelectorAll('[data-dl]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl)));
+  document.querySelectorAll('[data-dl9]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl9), S.cur, 'story'));
   document.querySelectorAll('[data-redo]').forEach(x => x.onclick = () => redo(S.d.ads.find(a => a.id === x.dataset.redo)));
   document.querySelectorAll('[data-change]').forEach(x => x.onclick = () => change(S.d.ads.find(a => a.id === x.dataset.change)));
   document.querySelectorAll('[data-vid]').forEach(x => x.onclick = () => makeVideo(S.d.ads.find(a => a.id === x.dataset.vid)));
@@ -1291,11 +1308,11 @@ function change(a) {
   }) });
 }
 const fileName = (a, b) => `${b?.num ? `${b.num}-${(a.line ?? 0) + 1}` : (S.d.account?.name || 'ad').replace(/\W+/g, '-')} ${(a.spec?.headline || '').replace(/[^\w ]+/g, '').slice(0, 40)}`.trim() + '.png';
-async function download(a, b = S.cur) {
+async function download(a, b = S.cur, kind = '') {
   try {
-    const blob = await (await fetch(shown(a))).blob();
+    const blob = await (await fetch(kind ? img(a, kind) : shown(a))).blob();
     const o = URL.createObjectURL(blob), l = document.createElement('a');
-    l.href = o; l.download = fileName(a, b?.id === 'loose' ? null : b);
+    l.href = o; l.download = fileName(a, b?.id === 'loose' ? null : b).replace(/\.png$/, kind === 'story' ? ' 9x16.png' : '.png');
     document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(o), 4000);
   } catch (e) { S.err = e.message; paint(); }
 }
