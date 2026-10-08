@@ -1110,7 +1110,7 @@ const BUTTONS = (d) => {
         const status = i.status === 'draft' ? 'draft' : 'sent';
         return { summary: `${status === 'draft' ? 'Draft order' : 'Order'} to ${f ? f.name : 'a factory'}: ${out.reduce((x, l) => x + l.qty, 0)} units`, detail: `${a.name} · placed ${placed} · lands ${lands}\n${out.map(l => `${l._t} ${l._a || ''}: ${l.qty}`).join('\n')}`,
           request: { method: 'POST', path: `/api/supply/orders?brand=${b.id}`, body: { factory_id: f ? f.id : null, status, sent_at: placed, expected_at: lands, notes: i.notes || '', lines: out.map(({ _t, _a, ...l }) => l) } } };
-      }), done: r => `Logged ${r.id || 'the order'}. It shows on Store, Buying.` }),
+      }), done: r => `Logged ${r.id || 'the order'}. It shows on Products, Buying.` }),
     routeAction({ name: 'update_order',
       description: 'Move a factory order along on a brand we buy for: its stage (placed, production, shipped, landed, cancelled), expected landing date, tracking or a note. Landed marks every line fully received.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, id: { type: 'string', description: 'Order id, e.g. PO-0001' }, stage: { type: 'string', enum: ['placed', 'production', 'shipped', 'landed', 'cancelled'] }, lands: { type: 'string', description: 'YYYY-MM-DD' }, tracking: { type: 'string' }, note: { type: 'string' } }, required: ['brand', 'id'] },
@@ -1126,7 +1126,7 @@ const BUTTONS = (d) => {
         if (i.note != null) { body.notes = i.note; said.push('note'); }
         if (!said.length) return { error: 'Nothing to change.' };
         return { summary: `${o.id}: ${said.join(', ')}`, detail: `${a.name} · ${o.factoryName || 'factory'} · ${o.units} units · ${o.productTitles.join(', ')}`, request: { method: 'PUT', path: `/api/supply/orders/${encodeURIComponent(o.id)}?brand=${b.id}`, body } };
-      }), done: () => 'Updated. It shows on Store, Buying.' }),
+      }), done: () => 'Updated. It shows on Products, Buying.' }),
     routeAction({ name: 'set_product',
       description: 'Change how stock treats one product: kind (core, drop = a one-off that never asks for a reorder, winding_down, discontinued), keep or cut on its group\'s plan, or a note.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, product: { type: 'string' }, kind: { type: 'string', enum: ['core', 'drop', 'winding_down', 'discontinued'] }, decision: { type: 'string', enum: ['keep', 'cut', 'rule'] }, note: { type: 'string' } }, required: ['brand', 'product'] },
@@ -1155,7 +1155,7 @@ const BUTTONS = (d) => {
         if (!c) return { summary: `New drop ${i.drop} (${i.drop_date}), then add ${n} ${l.name.toLowerCase()}`, detail: 'Apply makes the drop; ask again to add the designs to it.', request: { method: 'POST', path: `/api/supply/collections?brand=${b.id}`, body: { name: i.drop, drop_at: i.drop_date } } };
         const have = st.slots.filter(x => x.collection_id === c.id && x.line_id === l.id).length;
         return { summary: `Add ${n} ${l.name.toLowerCase()} to ${c.name}`, detail: `On the site ${c.drop_at}. Each gets an Asana card.`, request: { method: 'POST', path: `/api/supply/slots?brand=${b.id}`, body: { line_id: l.id, collection_id: c.id, name: `${c.name} · ${l.name.replace(/s$/, '')} ${have + 1}`, status: 'needs_brief', _count: n } } };
-      }), done: () => 'Added. They show on Store, Drops.' }),
+      }), done: () => 'Added. They show on Products, Drops.' }),
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },
