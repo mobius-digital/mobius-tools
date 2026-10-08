@@ -495,12 +495,24 @@
            Keep, even when its own CPA looks worse: replace it with a better opener, never just switch it off;
          a SUPPORT ad that would be cut on its own reads Trim: low risk, it carries little of the set;
          a single-ad set is judged as the ad. */
-    const own = r => { if (!goal) return 'thin'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < goal * K.jx) return 'thin';
-      if (r.purchases >= K.buys && r.cpa <= goal) return 'scale';
-      if ((!r.purchases && r.spend >= goal * K.zx) || (r.purchases && r.spend >= goal * K.sx && r.cpa > goal * K.cx)) return 'cut';
+    /* JUDGED BY CUSTOMER VALUE (2026-10-08, Cole: "it can afford a higher CPA, but how is that judged?").
+       Each ad's goal is the brand goal times how much its customers are worth against the brand's average
+       ad (90-day value multiple, Triple Whale first click), between 0.75x and 1.5x, once cr_ltv_min of its
+       customers are known. An ad set's goal is its ads' value, weighted by spend. Switch: cr_ltv_off. */
+    const LV = { on: !(+RR.cr_ltv_off), min: +RR.cr_ltv_min || 10 };
+    const known = ads.filter(r => r.ltv_n >= LV.min && r.ltv_first);
+    const brandX = (() => { const f = known.reduce((s, r) => s + r.ltv_first * r.ltv_n, 0), v = known.reduce((s, r) => s + r.ltv90 * r.ltv_n, 0); return f ? v / f : null; })();
+    const idxOf = r => LV.on && brandX && r.ltv_n >= LV.min && r.ltv_x ? Math.max(0.75, Math.min(1.5, r.ltv_x / brandX)) : 1;
+    const gAd = r => goal * idxOf(r);
+    const setIdx = {}; for (const r of ads) { if (!r.adset_id) continue; const o = setIdx[r.adset_id] ||= { w: 0, s: 0 }; const i = idxOf(r); if (i !== 1) { o.w += r.spend * i; o.s += r.spend; } }
+    const gSet = x => { if (!x) return goal; const o = setIdx[x.id]; if (!o || !o.s) return goal; const share = o.s / (x.spend || o.s); return goal * (1 + (o.w / o.s - 1) * Math.min(1, share)); };
+    const own = r => { const G = gAd(r); if (!goal) return 'thin'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < goal * K.jx) return 'thin';
+      if (r.purchases >= K.buys && r.cpa <= G) return 'scale';
+      if ((!r.purchases && r.spend >= G * K.zx) || (r.purchases && r.spend >= G * K.sx && r.cpa > G * K.cx)) return 'cut';
       return 'watch'; };
-    const setCall = x => { if (!goal || !x) return null; if (x.spend < goal * K.jx) return 'thin'; if (x.purchases >= K.buys && x.cpa <= goal) return 'scale';
-      if ((!x.purchases && x.spend >= goal * K.zx) || (x.purchases && x.spend >= goal * K.sx && x.cpa > goal * K.cx)) return 'cut'; return 'watch'; };
+    const setCall = x => { const G = gSet(x); if (!goal || !x) return null; if (x.spend < goal * K.jx) return 'thin'; if (x.purchases >= K.buys && x.cpa <= G) return 'scale';
+      if ((!x.purchases && x.spend >= G * K.zx) || (x.purchases && x.spend >= G * K.sx && x.cpa > G * K.cx)) return 'cut'; return 'watch'; };
+    const valNote = r => { const i = idxOf(r); return Math.abs(i - 1) < 0.05 ? '' : `Its goal is ${money(gAd(r), cur)}, not ${money(goal, cur)}: its customers spend ${x2(r.ltv_x)} their first order in 90 days, against ${x2(brandX)} for the brand's average ad.`; };
     const role = r => !r.adset || r.adset.ads <= 1 ? 'solo' : (r.set_share >= K.anchor || (r.set_rank === 1 && r.set_share >= K.anchor - 0.1)) ? 'anchor' : 'support';
     const funnelRole = r => r.fc_rev == null || r.lc_rev == null || (r.fc_rev + r.lc_rev) < (goal || 50) ? null : r.fc_rev >= r.lc_rev * 1.3 ? 'opener' : r.lc_rev >= r.fc_rev * 1.3 ? 'closer' : null;
     const verdict = r => { const o = own(r); if (o === 'new' || o === 'thin') return o; const sc = setCall(r.adset), ro = role(r);
@@ -508,7 +520,8 @@
       if (sc === 'cut') return 'cut';
       if (ro === 'anchor') return o === 'scale' ? 'scale' : sc === 'watch' && o === 'cut' ? 'watch' : 'keep';
       return o === 'cut' ? 'trim' : o; };
-    const whyOf = r => { const sc = setCall(r.adset), ro = role(r), x = r.adset, o = own(r);
+    const whyOf = r => { const vn = valNote(r); return [whyBase(r), vn].filter(Boolean).join(' '); };
+    const whyBase = r => { const sc = setCall(r.adset), ro = role(r), x = r.adset, o = own(r);
       const setTxt = x ? `its ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${money(x.cpa, cur)} per purchase (${sc === 'scale' ? 'on goal' : sc === 'cut' ? 'missing the goal' : sc === 'watch' ? 'close to goal' : 'not judged yet'})` : '';
       const v = verdict(r);
       if (v === 'cut' && sc === 'cut' && ro !== 'solo') return `The whole set misses: ${setTxt}. Turn off the ad set, not one ad.`;
@@ -520,7 +533,8 @@
     const VL = { scale: ['Scale', 'good'], keep: ['Keep: carries the set', 'good'], watch: ['Watch', 'warn'], trim: ['Trim', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''] };
     const FR = { opener: ['Opener', 'Triple Whale credits it far more on first click: it starts journeys (top of funnel).'], closer: ['Closer', 'Triple Whale credits it more on the last click: it closes people already warmed up.'] };
     MED = medians(ads, goal || 50);
-    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(goal * K.jx, cur)}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
+    const valRule = LV.on && brandX ? ` <b>Customer value counts:</b> an ad whose customers spend more in their first 90 days than the brand's average ad (${x2(brandX)} their first order) gets a higher goal, up to 1.5x; one whose customers do not come back gets a lower one, down to 0.75x. Needs ${LV.min}+ known customers.` : '';
+    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(goal * K.jx, cur)}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>.${valRule} <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
     const top = ads.slice(0, 60);
     /* Quadrant: spend (x, log) against CPA (y), bubble = purchases, goal line. */
     const quad = (() => {
@@ -555,7 +569,7 @@
     const cadence = `<div class="v2bars cad">${wk.map(x => `<div class="b"${tipAttr(`<b>Week of ${day(x.week)}</b> · ${x.launched} new ads · ${pct(x.fresh_share, 0)} of spend on ads under 14 days old`)}><div class="col"><i style="height:${(x.launched / wmx * 100).toFixed(1)}%;background:var(--brand)"></i></div><span class="v">${x.launched}</span><span class="l">${day(x.week)}</span><span class="s">${pct(x.fresh_share, 0)} fresh</span></div>`).join('')}</div>`;
     const roll = (list, label) => { const mx = Math.max(...list.map(x => x.spend), 1); return `<div class="v2tbl"><table><thead><tr><th>${label}</th><th>Ads</th><th>Spend</th><th>ROAS</th><th>CPA</th><th>CTR</th><th>Hook</th></tr></thead><tbody>${list.slice(0, 10).map(x => `<tr><td><b>${esc(x.key)}</b></td><td>${x.ads}</td><td>${ib(x.spend, mx, null, kmoney(x.spend, cur))}</td><td>${x2(x.roas)}</td><td class="${!goal || x.cpa == null ? '' : x.cpa <= goal ? 'good' : x.cpa <= goal * 1.3 ? 'warn' : 'bad'}">${money(x.cpa, cur)}</td><td>${pct(x.ctr, 2)}</td><td>${pct(x.hook, 0)}</td></tr>`).join('')}</tbody></table></div>`; };
     const gallery = `<div class="v2gal">${ads.slice(0, 24).map(r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><span class="v2pill ${VL[v][1]}"${whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
-      ${role(r) !== 'solo' || funnelRole(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}</div>` : ''}
+      ${role(r) !== 'solo' || funnelRole(r) || Math.abs(idxOf(r) - 1) >= 0.05 ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${Math.abs(idxOf(r) - 1) >= 0.05 ? `<span class="${idxOf(r) > 1 ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>Goal ${money(gAd(r), cur)}</span>` : ''}</div>` : ''}
       <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${!goal || r.cpa == null ? '' : r.cpa <= goal ? 'good' : 'bad'}">${money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; }).join('')}</div>`;
     const counts = ads.reduce((s, r) => { s[verdict(r)] = (s[verdict(r)] || 0) + 1; return s; }, {});
     const body = `<p class="v2say lead">${ads.length} ads spent in this window. <b class="good">${counts.scale || 0} to scale</b>${counts.keep ? `, <b>${counts.keep} carrying a working set</b>` : ''}, <b class="warn">${counts.watch || 0} to watch</b>${counts.trim ? `, <b class="warn">${counts.trim} to trim</b>` : ''}, <b class="bad">${counts.cut || 0} to cut</b>${counts.thin || counts.new ? `, ${(counts.thin || 0) + (counts.new || 0)} not judged yet` : ''}, against the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
@@ -954,6 +968,42 @@
     if (rows.length > 1) wireLine('v2gsc', rows.map(r => ({ ...r, v: r.clicks })), { tip: r => `<b>${day(r.date)}</b> · ${int(r.clicks)} clicks · ${int(r.impressions)} impressions · position ${r.position ? r.position.toFixed(1) : '–'}` });
   }
 
+  /* =========================================================================================
+   * CREATIVE > LIBRARY: every image in the brand's Drive, tagged once (account-health assets.js)
+   * ======================================================================================= */
+  const LIBF = { q: '', people: '', setting: '' };
+  async function library(first) {
+    const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
+    const title = a ? `Library: ${esc(a.name)}` : 'Library';
+    if (!a) { $('#main').innerHTML = shell('library', title, card('Pick a brand', '', '<p class="v2hint">Each brand has its own photo library, read from its Drive folder. Pick a brand in the menu.</p>')); return; }
+    if (first) $('#main').innerHTML = shell('library', title, '<div class="v2card"><p class="v2hint">Reading the library…</p></div>');
+    const qs = new URLSearchParams({ act: a.act_id, q: LIBF.q, people: LIBF.people, setting: LIBF.setting, limit: '200' });
+    let d; try { d = await H.apiAH(`/api/assets?${qs}`); } catch (e) { d = { error: e.message }; }
+    if (t !== H.RUN()) return;
+    if (d.error) { $('#main').innerHTML = shell('library', title, card('The library could not load', '', `<p class="v2bad">${esc(d.error)}</p>`)); return; }
+    const c = d.counts || {}, total = (c.tagged || 0) + (c.new || 0), base = H.AH_URL || '';
+    const img = x => `${base}/assets-img/${encodeURIComponent(a.act_id)}/${encodeURIComponent(x.file_id)}`;
+    const SET = (d.settings || []).filter(s => s.setting);
+    const body = `<p class="v2say lead">${int(total)} images from ${esc(a.name)}’s Drive${c.new ? `, ${int(c.new)} still being tagged` : ''}. ${d.synced_at ? `Checked ${esc(new Date(d.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}.` : 'Not read yet.'} New files anywhere in the folder are picked up within the hour.</p>
+      <div class="v2libbar"><input type="search" id="libQ" placeholder="Search: man in a polo on a white background, wedge close-up, golf course…" value="${esc(LIBF.q)}">
+        <div class="v2jobs">${[['', 'Everything'], ['yes', 'With people'], ['no', 'No people']].map(([k, l]) => `<button type="button" data-ppl="${k}" class="${LIBF.people === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <div class="v2jobs">${[{ setting: '', n: total }, ...SET].map(s => `<button type="button" data-set="${esc(s.setting)}" class="${LIBF.setting === s.setting ? 'on' : ''}">${esc(s.setting || 'Any setting')}${s.setting ? ` <em>${s.n}</em>` : ''}</button>`).join('')}</div>
+        <button type="button" class="v2btn" id="libSync" style="margin:0">Check Drive now</button></div>
+      ${(d.items || []).length ? `<div class="v2lib">${d.items.map((x, i) => `<button type="button" class="it" data-i="${i}"${tipAttr(esc(x.descr || x.name))}>${x.thumb_key ? `<img loading="lazy" src="${img(x)}" alt="">` : `<span class="v2hint">Tagging…</span>`}${x.people ? `<em>${x.people} ${x.people === 1 ? 'person' : 'people'}</em>` : ''}</button>`).join('')}</div>`
+        : card(total ? 'Nothing matches' : 'No images yet', '', `<p class="v2hint">${total ? 'Try fewer words or another filter.' : `Locus reads ${esc(a.name)}’s Drive folder from Settings > Connections. Press Check Drive now to read it.`}</p>`)}
+      ${foot('Images stay where they are in Drive; nothing is moved, renamed or copied there. Each new image is tagged once by a small AI model (about a tenth of a cent); after that, searching is free.')}`;
+    $('#main').innerHTML = shell('library', title, body); const root = $('#main');
+    const q = root.querySelector('#libQ'); let tm = null; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { LIBF.q = q.value; library(false); }, 350); };
+    root.querySelectorAll('[data-ppl]').forEach(b => b.onclick = () => { LIBF.people = b.dataset.ppl; library(false); });
+    root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { LIBF.setting = b.dataset.set; library(false); });
+    root.querySelector('#libSync').onclick = async e => { const b = e.target; b.disabled = true; b.textContent = 'Reading Drive and tagging…'; try { const r = await H.apiAH(`/api/assets/sync?act=${encodeURIComponent(a.act_id)}&tag=30`, { method: 'POST' }); b.textContent = r.sync?.error ? r.sync.error : `Found ${int(r.sync?.files)} images; tagged ${int(r.tag?.tagged)} more`; setTimeout(() => library(false), 1200); } catch (err) { b.textContent = err.message; } };
+    root.querySelectorAll('.v2lib .it').forEach(el => el.onclick = () => { const x = d.items[+el.dataset.i];
+      panel(x.name, `<div class="v2pv"><div class="v2pv-m" style="background-image:url('${img(x)}')"></div>
+        <p class="v2say">${esc(x.descr || '')}</p>
+        <div class="v2kv"><span>Folder</span><b>${esc(x.path || 'top folder')}</b><span>People</span><b>${int(x.people)}</b><span>Setting</span><b>${esc(x.setting || '–')}</b><span>Shot</span><b>${esc(x.shot || '–')}</b>${x.products ? `<span>Products</span><b>${esc(x.products)}</b>` : ''}${x.colors ? `<span>Colours</span><b>${esc(x.colors)}</b>` : ''}${x.w ? `<span>Size</span><b>${x.w} × ${x.h}</b>` : ''}</div>
+        <div class="v2gos"><a class="v2go" href="https://drive.google.com/file/d/${esc(x.file_id)}/view" target="_blank" rel="noopener"><b>Open in Drive</b><span>The original, full size.</span><i>↗</i></a></div></div>`); });
+  }
+
   /* Shared building blocks for every other screen file (brand.js, studio.js, meta.js, season.js,
      amb.js, index.html renderers), so the whole app draws tiles, cards, charts and tooltips one way.
      None of these read the host state; `chip(cur, prev, lower)` is the delta pill without the
@@ -975,6 +1025,7 @@
       if (tab === 'email') return email(first);
       if (tab === 'website') return website(first);
       if (tab === 'inspo') return inspo(first);
+      if (tab === 'library') return library(first);
       if (tab === 'search') return search(first);
     },
     MODEL_SHORT,

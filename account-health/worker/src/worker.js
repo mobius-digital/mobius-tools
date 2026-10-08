@@ -1,3 +1,4 @@
+import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
@@ -191,6 +192,7 @@ contractFetch(xfetch);
 frameFetch(xfetch);
 klaviyoFetch(xfetch);
 googleFetch(xfetch);
+assetsFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -6713,6 +6715,7 @@ const AH_APP = {
         ran.acctAvg = await refreshAccountAvg(env).catch(e => ({ error: e.message }));
         ran.monday = await mondayTick(env).catch(e => ({ error: e.message }));
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
+        ran.assets = await assetsTick(env, () => subCanAfford(60)).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
@@ -6787,6 +6790,14 @@ const AH_APP = {
     if (path === '/frame/callback' || path.startsWith('/api/frame/')) {
       const r = await handleFrame(request, env, url, path, json, isAdmin);
       if (r) return r;
+    }
+    /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
+    if (path.startsWith('/assets-img/') && request.method === 'GET') {
+      const m = /^\/assets-img\/(act_\d+)\/([\w-]{15,})$/.exec(path);
+      if (!m || !env.MEDIA) return new Response('not found', { status: 404 });
+      const obj = await env.MEDIA.get(`assets/${m[1]}/${m[2]}.jpg`);
+      if (!obj) return new Response('not found', { status: 404 });
+      return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg', 'Cache-Control': 'public, max-age=86400', ...CORS } });
     }
     if (path === '/atria/callback' || path.startsWith('/api/atria/')) {
       const r = await handleAtria(request, env, url, path, json, isAdmin);
@@ -7378,6 +7389,19 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
+    /* The photo library (assets.js). */
+    if (path.startsWith('/api/assets')) {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const act = url.searchParams.get('act') || '';
+      if (!/^act_\d+$/.test(act)) return json({ error: 'act is required' }, 400);
+      try {
+        if (path === '/api/assets/sync' && request.method === 'POST') { const s1 = await syncAssets(env, act); const t1 = s1.error ? null : await tagAssets(env, act, Math.min(+url.searchParams.get('tag') || 30, 60)); return json({ sync: s1, tag: t1 }); }
+        if (path === '/api/assets/folders' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); const folders = (Array.isArray(b.folders) ? b.folders : String(b.folders || '').split(/[\s,]+/)).filter(Boolean).slice(0, 10);
+          await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'assets', ?2, 'approved', 'staff', datetime('now')) ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(act, JSON.stringify({ folders })).run(); return json({ ok: true, folders }); }
+        if (path === '/api/assets') return json(await listAssets(env, act, { q: url.searchParams.get('q'), people: url.searchParams.get('people'), setting: url.searchParams.get('setting'), limit: url.searchParams.get('limit') }));
+      } catch (e) { return json({ error: e.message }, 502); }
+      return json({ error: 'unknown assets route' }, 404);
+    }
     if (path.startsWith('/api/google/')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const act = url.searchParams.get('act') || '';

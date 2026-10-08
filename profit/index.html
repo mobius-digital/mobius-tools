@@ -2109,7 +2109,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=7">
+<link rel="stylesheet" href="v2.css?v=9">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=8"></script>
 <body>
@@ -2233,7 +2233,7 @@
 <script src="studio.js?v=22"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=7"></script>
+<script src="v2.js?v=9"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -3135,7 +3135,7 @@ const TAB_CRUMB = {
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
   email: ['Email and SMS', 'Klaviyo'],
   store: ['Store', 'Sales'], customers: ['Store', 'Customers'], website: ['Store', 'Website'], search: ['Store', 'Search'],
-  inspo: ['Creative', 'Inspiration'], angles: ['Creative', 'Tests and angles'], studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
+  library: ['Creative', 'Library'], inspo: ['Creative', 'Inspiration'], angles: ['Creative', 'Tests and angles'], studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
   brief: ['Reports', 'Daily Brief'], reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data health'], costs: ['Settings', 'Costs'],
 };
@@ -4425,7 +4425,7 @@ const NAV = {
   ads: { label: 'Ads', tabs: [['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['channels', 'All channels']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
   store: { label: 'Store', tabs: [['store', 'Sales', 'b-shopify'], ['customers', 'Customers'], ['website', 'Website', 'b-ga'], ['search', 'Search', 'b-google']] },
-  creative: { label: 'Creative', tabs: [['angles', 'Tests and angles'], ['studio', 'Studio'], ['inspo', 'Inspiration'], ['brand', 'Brand'], ['copy', 'Copy desk'], ['amb', 'Creator link']] },
+  creative: { label: 'Creative', tabs: [['angles', 'Tests and angles'], ['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration'], ['brand', 'Brand'], ['copy', 'Copy desk'], ['amb', 'Creator link']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
 };
 const META_KIDS = ['meta', 'campaigns', 'adcreative', 'tests', 'changes', 'mtoday', 'mbrowser'];
@@ -4435,7 +4435,7 @@ function navGo(g) { const last = NAV_LAST[g]; show(last && NAV_OF(last) === g ? 
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['tests', 'Tests'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4729,7 +4729,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: f => V2R('overview', f), profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), search: f => V2R('search', f), google: f => V2R('google', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ overview: f => V2R('overview', f), profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4763,7 +4763,7 @@ async function renderMeta(first) {
    globals, because most of them are `const` and never reach `window`. */
 function V2R(tab, first) {
   if (!window.V2) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">The v2 screens did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
-  return window.V2.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, RUN: () => RUN }, first);
+  return window.V2.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
 }
 /* Meta jobs still drawn by meta.js (Changes, Today, the creative browser). */
 async function metaSub(sub, first) {
@@ -4827,6 +4827,7 @@ const ASK_SUGGEST = {
   website: ['Which landing page on {b} leaks the most visitors?', 'Is mobile converting worse than desktop?', 'Which channel brings visitors who buy?', 'Where in the funnel do people drop off?'],
   search: ['What is {b} ranking for that is not the brand name?', 'Which queries sit just off page one?', 'Is brand search growing?', 'Which pages bring the most organic clicks?'],
   customers: ['Does a new customer pay for themselves on {b}?', 'How long until a customer orders again?', 'Which first product leads to repeat buyers?', 'Which month’s customers were worth the most?'],
+  library: ['Find photos of a person wearing a polo', 'Which product has the fewest lifestyle photos?', 'What photos do we have for a Black Friday static?', 'Which images would work as a UGC-style ad?'],
   inspo: ['What do these reference ads have in common?', 'Which of these could {b} make next week?', 'Brief one of these as a test for {b}', 'Which formats are we not using yet?'],
   angles: ['Have we tested this idea before?', 'Which angles are proven on {b}?', 'What should the next brief test?', 'Which angles died, and why?'],
   studio: ['Write three headlines for {b}’s next static batch', 'What did the best static ads have in common?', 'Which offer should this batch carry?', 'Draft a brief for a new concept'],
@@ -10225,6 +10226,8 @@ async function renderSettings() {
       ${num('cr_cut_cpa_x', 'Cut when cost per sale is over', r.cr_cut_cpa_x, 'x goal')}
       ${num('cr_cut_spend_x', '…once it has spent', r.cr_cut_spend_x, 'x goal CPA')}
       ${num('cr_anchor_pct', 'An ad carrying this share of its ad set is its anchor', r.cr_anchor_pct, '% of set spend')}
+      <label class="gl"><span>Judge by customer value <span class="tiny">an ad whose customers come back more gets a higher goal, up to 1.5x</span></span><span class="row tgl" style="margin:0;gap:6px;display:inline-flex"><span class="toggle ${r.cr_ltv_off ? '' : 'on'}" data-g="cr_ltv_on"></span><span class="tiny">${r.cr_ltv_off ? 'off' : 'on'}</span></span></label>
+      ${num('cr_ltv_min', '…once this many of its customers are known', r.cr_ltv_min, 'customers')}
       <span class="tiny">The ad set is judged first with these numbers; a set that misses means Cut for its ads. In a working set the anchor reads Keep and a small ad over the line reads Trim. Defaults: 1x, 3 days, 2 sales, 3x with no sale, 1.5x over goal after 2x, anchor 50%.</span>
       <div class="gh">Test minimums <span class="gtag meta">Meta</span> <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
       ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
@@ -10237,6 +10240,7 @@ async function renderSettings() {
     const v = k => box.querySelector(`[data-g="${k}"]`);
     const tg = v('min_track');
     tg.onclick = () => { tg.classList.toggle('on'); tg.nextElementSibling.textContent = tg.classList.contains('on') ? 'shown on the test list' : 'off'; };
+    const lv = v('cr_ltv_on'); lv.onclick = () => { lv.classList.toggle('on'); lv.nextElementSibling.textContent = lv.classList.contains('on') ? 'on' : 'off'; };
     const mp = v('monday_post');
     mp.onclick = () => { mp.classList.toggle('on'); mp.nextElementSibling.textContent = mp.classList.contains('on') ? 'posts Mondays 8am to the internal channel' : 'off'; };
     v('preview').onclick = async () => {
@@ -10258,7 +10262,7 @@ async function renderSettings() {
         if (mApi) await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
         const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: Y || 30,
           min_track: tg.classList.contains('on') ? 1 : 0, monday_post: mp.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
-          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2, cr_anchor_pct: n('cr_anchor_pct') || 50 };
+          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2, cr_anchor_pct: n('cr_anchor_pct') || 50, cr_ltv_off: v('cr_ltv_on').classList.contains('on') ? 0 : 1, cr_ltv_min: n('cr_ltv_min') || 10 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
         await refreshAccounts().catch(() => {});
         await loadGoals(box, a);

@@ -1968,3 +1968,19 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   wrangler.toml; the project needs Basic access (Cloud console > Google Ads API > Overview) to read real accounts.
 - **Onboarding Access step** now asks for the Google Ads customer ID + accepting the Mobius manager link,
   GA4 (Administrator) and Search Console (Full) for cole@ (onboard/questions.js, `MOBIUS.adsMcc`).
+
+## 2026-10-08 (late): Google Ads live, value-based goals, the photo library
+
+- **Google Ads is readable** (Cloud project on Explorer access: 2,880 production operations a day; Basic needs
+  brand verification and is not needed yet). Linked: Bonk 2589863833, Dartee 7015464946, Grunk 9147440615,
+  Lucky 6859198499, Party Patch 2167988621. Ads > Google shows "Campaigns, from Google Ads directly".
+- **Customer value moves the goal** (v2.js `creative()`): an ad's goal = brand goal x (its 90-day value
+  multiple / the brand's average ad's), clamped 0.75x to 1.5x, once `cr_ltv_min` (10) of its customers are
+  known; an ad set's goal follows its ads' value weighted by spend. Switch: Settings > Goals > "Judge by
+  customer value" (`cr_ltv_off`). The card shows "Goal $68" in green (or amber) with the reason on hover.
+- **Photo library** (account-health `src/assets.js`, table `p_asset`, R2 `assets/<act>/<file id>.jpg`, public
+  `/assets-img/<act>/<file id>`): walks each brand's Drive folder (Connections link + `p_br_doc` 'assets'
+  folders), skips agreement/contract/invoice/legal folders, never moves files; each new image tagged once by
+  Claude Haiku 4.5 from a 640px thumbnail (~$0.0011); hourly `assetsTick` = one brand (stalest) sync + 20 tags.
+  Routes `/api/assets`, `/api/assets/sync`, `/api/assets/folders`. Page: Creative > Library (search, people,
+  setting filters). Next: Studio picks from it, then the Dress step (swap clothing on real model photos).
