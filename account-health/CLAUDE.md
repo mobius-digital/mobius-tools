@@ -1060,3 +1060,15 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   via conversations.list or defaults to the brand's internal channel; view `schedules`.
 - **Dashboard Slack posts** (`dashBlocks`): a `chart` block (a Strategist answer pinned in Locus) posts as its
   title plus "open in Locus to see it".
+
+## 2026-10-08 (night): stock for the Strategist (`src/stock.js`)
+
+- Service binding `SUPPLY` -> mobius-supply, auth = secret `SUPPLY_TOKEN` (the Supply ENGINE's own admin token; the
+  engine accepts the Mobius session or that token, never this worker's ADMIN_TOKEN). Set 2026-10-08.
+- View `stock` (`what` = summary | products | orders | drops): ease off / safe to scale / push to clear with ad spend
+  per product (copy of profit hub.js `stockAds`: Triple Whale orders, never ad names), first_size_out, to order and on
+  the way on brands we buy for, drops and keep-or-cut on brands that design. Not connected = says so. Lucky ~15KB.
+- Actions `log_order`, `set_product`, `add_design` (proposals, applied through `/api/supply/*` on this worker, which
+  forwards only orders, slots, collections and products/<id> POST/PUT to Supply with the token; `add_design` with
+  `_count` makes N designs). PLAYBOOK has a STOCK section; THE CMO METHOD lists the `stock` knowledge topic
+  (`docs/strategist-brain/knowledge/stock.md`, rebuilt into knowledge.js).

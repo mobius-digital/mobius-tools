@@ -28,6 +28,12 @@ database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 # because waitUntil after a response only lives ~30 seconds. One message per job, no retries
 # (a failure is said in the thread once, never posted twice). Create once:
 #   npx wrangler queues create mobius-ideas
+# Stock (2026-10-08): the Strategist's stock view and actions read and write the Supply worker.
+# Auth is the Supply engine's own admin token, secret SUPPLY_TOKEN (not this worker's ADMIN_TOKEN).
+[[services]]
+binding = "SUPPLY"
+service = "mobius-supply"
+
 [[queues.producers]]
 binding = "IDEA_Q"
 queue = "mobius-ideas"

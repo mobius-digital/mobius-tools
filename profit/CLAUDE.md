@@ -2074,3 +2074,47 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   they show letters). The client picker and profile classes are `lc-*` because `.pf-pick` already belongs to
   the Profit chooser. Unmatched Shopify stores show on the agency Clients list only. "Stop tracking" is called
   "Remove from Locus"; Data health and Costs are "Data check" and "Cost check" in brand settings.
+
+## 2026-10-08 (night): STOCK, BUYING AND DROPS (Supply moved into Locus). Read before touching them.
+
+Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log at the top), `supply-audit.md`,
+`supply-mock-audit.md`, `docs/locus-hub/mocks-supply.html` (artifact https://claude.ai/artifact/JttW2yBYUrYTvtPHFUiWiP).
+- **Three levels, per brand.** Stock = every brand with a stock feed (the Mobius Digital Shopify app; Lucky today),
+  framed for the ADS: Ease off (out, under 30 days, or runs out by Cyber Monday with no restock landing first), Safe to
+  scale (90+ days or a restock lands in time), Push to clear (52+ weeks of stock, or 20+ units not selling). Buying =
+  brands we buy for (`brands.buys` in the Supply D1): one card per factory order to place, orders on the way. Drops =
+  brands that design (`brands.makes`): drops, designs, keep or cut, Asana. The Locus brand -> Supply brand mapping is
+  `brands.act_id` in the SUPPLY D1 (not p_br_doc), read once per session from `GET /api/brands`, switched on Brand
+  settings > Stock and factories (`PUT /api/brand {buys|makes}`). Brands with no feed see no Stock tab; All clients
+  sees Stock (one row per client).
+- **Code:** `profit/supply.js` (IIFE, `window.SupplyTab` / `window.SupplyStock`) + `profit/supply.css` (tokens only).
+  index.html: `NAV.store` tabs stock / buying / drops, filtered per brand by `SupplyTab.tabOk` in `show()`; `SR(tab)`
+  renders with `supplyHost()`; `?open=stock|buying|drops` deep links (Asana design links arrive as
+  `?open=drops&design=<slot id>`, forwarded by `supply/index.html?slot=`; supply.js loads before the boot script so it
+  reads `design` first); BRAND_SECS `stock` = its own settings section (`#stockSet`, drawn by `SupplyTab.settings`).
+  Help, purpose and ask suggestions added for the three pages.
+- **Data:** the screens call the Supply worker DIRECTLY with the Mobius Google session (`mobius_session`), like meta.js
+  calls account-health; a password-only Locus login gets "sign in with Google" on these pages. `state` is cached 2
+  minutes and every save refreshes it. **The brain is the only place a status or date is computed**; supply.js adds
+  only the ad-facing judgement (`judge()`; account-health `stock.js` copies it: keep the two in step). Supply does not
+  enforce per-brand access (brandguard); the client picker only offers a person's own brands.
+- **Ad spend per product = Triple Whale orders, never ad names**: profit worker `GET /api/hub/stockads?act=` (hub.js
+  `stockAds`; account-health stock.js copies it): each Meta ad's lastPlatformClick orders in 30 days -> the Shopify
+  product ids in `tw_orders.products_json` -> the ad's 30-day spend shared across them. Lucky: $9.8K of $12.3K ties to a
+  product. Returns products {spend, orders, ads}, ads {ad_id: [[product, n]]}, adsets [{adset_id, name, s7, s30,
+  products}].
+- **Run-out follows the first CORE size to empty** (the brain's rule): Carver 02 Black had 615 units on Oct 8 but its
+  52 degree RH runs out Nov 27, so the product is short from then. The product chart shades from that day and names
+  the size; "Short for" in the try-an-order box uses it too. Never compute an empty day from total units.
+- **Ads:** v2.js `wireCamp` calls `SupplyStock.decorate(root, act)` (chips on ad set and ad rows: "Stock runs out Nov
+  27", "Stock OK to scale", "Overstocked: push it"); `previewAd` calls `SupplyStock.previewLine` (one box under the
+  stats when stock changes the call). Dates and units only, never revenue claims.
+- **Buying on screen:** suggested < factory minimum and the minimum is over 2 years of sales = "Skip it, or call it a
+  one-off" (button sets lifecycle drop), else raised to the minimum; past due = the weekly sales lost; In / Out per row;
+  Build this order = sizes and quantities, Save as draft or Copy the order text and mark placed (POST /api/orders).
+  Stages Placed / In production / Shipped / Landed (D1 values sent, production, shipped, landed; confirmed = Placed).
+- **Drops on screen:** a group with 52+ weeks of stock shows "Hold new <group>", 0 new to make and no next-order line
+  (Hats: 253 weeks on Oct 8). Closures shown are the drop's own factories only. Asana cards started outside a drop
+  show under "Started in Asana, not in a drop" with Make it a design.
+- Old app `supply/index.html` carries a "moved to Locus" banner and forwards `?slot=`; retire it to a redirect after
+  Lucky has used Locus for a week (plan step 5). The worker, engine and D1 stay.

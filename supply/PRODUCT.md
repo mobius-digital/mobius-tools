@@ -24,7 +24,9 @@ samples, photo shoot). Lineup holds what a customer sees on a date.
 Supply sets the dates and quantities and hands off once each way.
 Slack is where it reports. See the system map (2026-09-11).
 
-**Screens.** Left rail, same shell as Locus.
+**2026-10-08: the screens moved into Locus** (Store > Stock, Buying, Drops; see the last section of profit/CLAUDE.md and docs/handoffs/supply-into-locus-plan.md). The worker, engine, D1 and brain below are unchanged and still the source of every number. The screen list below is the old app, kept for a week.
+
+**Screens (old app).** Left rail, same shell as Locus.
 - Today: four headline figures (to order, on the way, revenue at risk,
   dead stock) and the week's decisions as sentences with a button.
 - Reorder: grouped by factory with its next order window. Columns: on

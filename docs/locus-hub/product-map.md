@@ -61,13 +61,13 @@ Status: LIVE = shipped, BUILT = shipped and waiting on a setup step, NEXT = this
 | Website (Google Analytics 4) | owner, buyer, CRO | sessions, engagement, conversion, funnel visit to purchase, channels, landing pages with leaks, devices, UTMs | BUILT (waits on Google setup) |
 | Search (Search Console) | owner, strategist | clicks, brand vs non-brand, queries just off page one, top pages | BUILT (waits on Google setup) |
 | Products (needs the Shopify app) | owner | units, revenue and refunds per product (stock runway now lives on Stock) | LATER |
-| Stock (brands with a stock feed; Lucky) | owner, buyer | what to order, how many, by when: tiles (to order, on the way, revenue at risk, dead stock), Needs a decision (running out, too much stock, fine), All products (sold 90d, sell-through, weeks of stock), tick and Create order. From Supply (the old app retires) | NEXT |
-| Stock: the product panel | owner, buyer | one chart (90 days of sales, then the shelf ahead, with a try-an-order), sizes, why this rate, kind of product, minimum, lead time | NEXT |
-| Factory orders (brands with a stock feed) | owner | purchase orders: placed, in production, shipped, landed; received counts; landing detected from Shopify stock | NEXT |
-| Drops (brands that make their own products; Lucky) | owner, designer | drops by date, designs and their stage from Asana, next due, keep or cut per line with a target, the sample, where it is | NEXT |
-| Brand settings: Stock and factories | owner | factories (lead time, minimum, closures), product groups, 4 rules, design timing, the stock Slack post | NEXT |
-| Ads: stock chip on ad sets and ads | buyer | "runs out <date>" where a product's run-out falls inside its lead time; a Scale call says so | NEXT |
-| Strategist: stock view | everyone | what runs out, what is at risk for a date, what to order; actions: log an order, mark a product, add a design; knowledge file stock.md | NEXT |
+| Stock (brands with a stock feed; Lucky) | owner, buyer | what to order, how many, by when: tiles (to order, on the way, revenue at risk, dead stock), Needs a decision (running out, too much stock, fine), All products (sold 90d, sell-through, weeks of stock), tick and Create order. From Supply (the old app retires) | LIVE |
+| Stock: the product panel | owner, buyer | one chart (90 days of sales, then the shelf ahead, with a try-an-order), sizes, why this rate, kind of product, minimum, lead time | LIVE |
+| Buying (brands we buy for; Lucky) | owner | one card per factory order to place (units, cost, lands if placed today, minimum resolved), orders on the way as a timeline, received counts; landing detected from Shopify stock | LIVE |
+| Drops (brands that make their own products; Lucky) | owner, designer | drops by date, designs and their stage from Asana, next due, keep or cut per line with a target, the sample, where it is | LIVE |
+| Brand settings: Stock and factories | owner | factories (lead time, minimum, closures), product groups, 4 rules, design timing, the stock Slack post | LIVE |
+| Ads: stock chip on ad sets and ads | buyer | "runs out <date>" where a product's run-out falls inside its lead time; a Scale call says so | LIVE |
+| Strategist: stock view | everyone | what runs out, what is at risk for a date, what to order; actions: log an order, mark a product, add a design; knowledge file stock.md | LIVE |
 
 ### Creative: "What do we make next?"
 | Page | Reader | Blocks | Status |

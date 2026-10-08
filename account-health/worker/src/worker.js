@@ -7447,6 +7447,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown assets route' }, 404);
     }
+    /* Stock writes from the Strategist's actions (stock.js): forwarded to the Supply worker. */
+    if (path.startsWith('/api/supply/')) {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const { handleSupplyProxy } = await import('./stock.js');
+      return handleSupplyProxy(request, env, path, url, json, await sessionEmail(env, request).catch(() => ''));
+    }
     if (path.startsWith('/api/google/')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const act = url.searchParams.get('act') || '';

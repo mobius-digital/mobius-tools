@@ -308,10 +308,12 @@ async function refreshSlotTask(env, brand, sl) {
 }
 
 /* ---------- Slack digest ---------- */
-const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/supply/';
+const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/supply/';   // ?slot= links in Asana tasks; supply/index.html forwards them to Locus Drops
+/* Since 2026-10-08 the screens live in Locus (Store > Stock, Buying, Drops). Slack links open there. */
+const stockLink = act => `https://tools.go-mobius-digital.com/profit/?open=stock${act ? `&act=${encodeURIComponent(act)}` : ''}`;
 const fmtD = ymd => ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const money = n => n == null ? '' : '$' + (Math.abs(n) >= 10000 ? Math.round(n / 1000) + 'k' : Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + 'k' : Math.round(n));
-function digestMessage(state) {
+function digestMessage(state, link = stockLink()) {
   const h = state.headline;
   const date = new Date(`${state.today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
   const color = h.overdue || h.toOrder ? '#D0342C' : h.onTheWay ? '#ECB22E' : '#2EB67D';
@@ -323,7 +325,7 @@ function digestMessage(state) {
     { type: 'section', text: { type: 'mrkdwn', text: line1 } },
     { type: 'divider' },
     { type: 'section', text: { type: 'mrkdwn', text: (items.length ? items.join('\n') : ':white_check_mark: Nothing needs a decision this week.').slice(0, 2900) } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `Order by = run-out minus lead time · suggested covers ${state.settings.cover_days} days after landing   ·   <${DASHBOARD_URL}|Open Supply>` }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Order by = run-out minus lead time · suggested covers ${state.settings.cover_days} days after landing   ·   <${link}|Open Stock in Locus>` }] },
   ];
   return { attachments: [{ color, fallback: `${state.brandName} Supply: ${line1}`, blocks }] };
 }
@@ -346,7 +348,7 @@ function seenNow(state) {
   for (const x of state.slots) if (x.late) sl[x.id] = 1;
   return { p, o, s: sl };
 }
-function alertsMessage(state, prev) {
+function alertsMessage(state, prev, link = stockLink()) {
   const now = seenNow(state);
   const items = [];
   const byId = Object.fromEntries(state.products.map(x => [x.id, x]));
@@ -368,7 +370,7 @@ function alertsMessage(state, prev) {
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn', text: `:package:  *${state.brandName} · stock* · new since the last post` } },
     { type: 'section', text: { type: 'mrkdwn', text: items.slice(0, 8).map(i => i.text).join('\n').slice(0, 2900) } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `Only what changed. The full list comes on Monday.   ·   <${DASHBOARD_URL}|Open stock>` }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Only what changed. The full list comes on Monday.   ·   <${link}|Open Stock in Locus>` }] },
   ];
   return { attachments: [{ color: items[0].r <= 1 ? '#D0342C' : '#ECB22E', fallback: `${state.brandName} stock: ${items.length} new`, blocks }] };
 }
@@ -467,8 +469,8 @@ const app = {
         let msg;
         if (mode === 'alerts') {
           /* first run has no memory: learn today's list, post nothing */
-          msg = on('digest_alerts') && prev ? alertsMessage(state, prev) : null;
-        } else msg = on('digest_monday') || request.method === 'POST' ? digestMessage(state) : null;
+          msg = on('digest_alerts') && prev ? alertsMessage(state, prev, stockLink(db.brand?.act_id)) : null;
+        } else msg = on('digest_monday') || request.method === 'POST' ? digestMessage(state, stockLink(db.brand?.act_id)) : null;
         /* GET from the engine's cron is the real post, so it moves the memory; a
            preview or "Send now" (POST) never does */
         if (request.method === 'GET' && (msg || mode === 'alerts' || !prev)) await remember();
@@ -533,15 +535,15 @@ const app = {
       /* Which Locus brand (Meta act id) each Supply brand is, and whether it makes
          its own products (the Drops page). Locus reads this once per session. */
       if (path === '/api/brands' && request.method === 'GET') {
-        const r = await env.DB.prepare(`SELECT id, name, act_id, makes, active FROM brands ORDER BY name`).all();
-        return json({ brands: (r.results || []).map(b => ({ ...b, makes: !!b.makes, active: !!b.active })) });
+        const r = await env.DB.prepare(`SELECT id, name, act_id, makes, buys, active FROM brands ORDER BY name`).all();
+        return json({ brands: (r.results || []).map(b => ({ ...b, makes: !!b.makes, buys: !!b.buys, active: !!b.active })) });
       }
 
       if (path === '/api/brand' && request.method === 'PUT') {
         await env.DB.prepare(`UPDATE brands SET name = COALESCE(?2, name), accent = COALESCE(?3, accent), slack_channel = COALESCE(?4, slack_channel),
-            act_id = COALESCE(?5, act_id), makes = COALESCE(?6, makes) WHERE id = ?1`)
+            act_id = COALESCE(?5, act_id), makes = COALESCE(?6, makes), buys = COALESCE(?7, buys) WHERE id = ?1`)
           .bind(brand, str(body.name, 80), str(body.accent, 20), str(body.slack_channel, 40), str(body.act_id, 40),
-            body.makes == null ? null : (body.makes ? 1 : 0)).run();
+            body.makes == null ? null : (body.makes ? 1 : 0), body.buys == null ? null : (body.buys ? 1 : 0)).run();
         await log(env, brand, actor, 'brand', brand, 'update', body);
         return json({ ok: true });
       }

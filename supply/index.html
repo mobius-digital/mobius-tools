@@ -2,6 +2,12 @@
 <html lang="en" data-app="supply">
 <head>
 <meta charset="utf-8">
+<script>
+/* 2026-10-08: Stock, Buying and Drops moved into Locus. An Asana design card links here with ?slot=<id>:
+   open that design in Locus Drops instead. This app stays for a week alongside, then becomes a redirect. */
+(function () { var q = new URLSearchParams(location.search), s = q.get('slot');
+  if (s) location.replace('/profit/?open=drops&design=' + encodeURIComponent(s)); })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Supply</title>
 <meta name="description" content="Supply by Mobius Digital: the buying brain for a brand's physical products. What to order, how much, by when; what is on its way; what sells; what the next lineup should be.">
@@ -36,6 +42,7 @@
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
 </svg>
 
+<div style="position:sticky;top:0;z-index:50;background:#0C161D;color:#fff;padding:9px 16px;font:600 13px/1.4 system-ui,sans-serif;text-align:center">Supply now lives in Locus: Store, then Stock, Buying and Drops. <a href="/profit/?open=stock" style="color:#8FB3FF">Open it in Locus</a>. This page goes away next week.</div>
 <div class="app" id="app">
   <aside class="side" id="side">
     <a class="side-brand" href="../hq/" title="All Mobius tools">

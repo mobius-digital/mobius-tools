@@ -29,6 +29,7 @@ import { nextNumber, ideaStart } from './ideas.js';
 import { integrationsReport } from './integrations.js';
 import { klaviyoView } from './klaviyo.js';
 import { SCHED_SQL, whenText } from './askschedule.js';
+import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -184,7 +185,7 @@ const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brand
  * (Angle, Concept, What We're Testing) and the angles-hub hierarchy rule. */
 const PLAYBOOK = `
 THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of every platform and how they work together")
-- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
+- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
@@ -268,6 +269,13 @@ SEARCH, ORGANIC (view search, Search Console):
 STORE (view store):
 - AOV levers: bundles, a free-shipping threshold just above the current AOV, a gift with purchase. Discounts buy conversion now and train customers to wait.
 - New against returning: a brand living on returning customers is healthy only if new-customer acquisition holds; check CAC and the 90-day value per ad.
+STOCK (view stock; knowledge topic stock):
+- Before recommending a scale, a launch or a promotion on a product, read its stock. A Scale call on a product whose run-out comes before its restock (ads_call "ease off") becomes "scale only once the restock is placed" or "move the budget to a product with stock".
+- "At risk for Black Friday" = products whose run-out (or first core size out) lands on or before Cyber Monday with no order landing first. Name each, its run-out, its restock date if any, and the ad spend behind it; then name the products that are safe to scale instead.
+- Run-out dates use the last 90 days' pace, before any Black Friday lift: a product that runs out Dec 1 at today's pace runs out sooner in the week of Black Friday. Say so.
+- Too much stock (push to clear) is an ad opportunity: name the product, its weeks of stock and money tied up, and the cheapest test (a bundle with a best seller, an offer, an ad).
+- Never recommend reordering a limited drop. On brands we buy for, name the order-by date and the suggested quantity, and the factory minimum when the suggestion is under it ("the 500 minimum is 5.6 years of sales" means skip it or call it a one-off).
+- Ad spend per product comes from Triple Whale orders (last platform click), never from ad names; about 80% of Lucky's spend ties to a product.
 
 THE ANGLES HUB (what creators see)
 - Two levels, never nested. A SECTION answers one question: why would a creator film this today. Three legal kinds, all at the same level: Hot right now (pinned), a dated window (Halloween, Black Friday, the Masters; it retires itself), and a durable lane (a product line, or a standing theme). Five or six sections per brand, max.
@@ -282,6 +290,7 @@ const winOf = a => { const today = new Date(Date.now() - 864e5).toISOString().sl
   const n = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1; const pto = new Date(Date.parse(from) - 864e5).toISOString().slice(0, 10); const pfrom = new Date(Date.parse(pto) - (n - 1) * 864e5).toISOString().slice(0, 10);
   return { from, to, pfrom, pto }; };
 const VIEW_BLURBS = {
+  stock: 'the brand\'s stock, read live from Shopify through Supply (only brands with the Mobius Digital Shopify app; Lucky today). Pass `brand` and `what` = summary (ease off / safe to scale / push to clear for the ads, with ad spend per product from Triple Whale orders, plus to order and on the way on brands we buy for), products (every product), orders (factory orders and factories) or drops (new designs, keep or cut). THE view for "what is at risk for Black Friday", "can we scale X", "what should we order". Not connected = say so; never guess stock from sales.',
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -532,6 +541,11 @@ function buildViews(d) {
       return { dashboards: (results || []).map(r => ({ id: r.id, name: r.name, brand: r.brand || 'agency-wide', for_who: r.for_who, spec: d.safeJson(r.spec_json, {}), schedule: r.schedule || 'none', channel: r.channel || '', pinned: !!r.pinned, by: r.created_by, updated_at: r.updated_at, last_posted: r.last_posted, open: `${LOCUS_URL}?open=dash&id=${r.id}` })), how_to_read: VIEW_BLURBS.dashboards };
     },
     /* Google read directly (google.js): Google Ads campaigns, GA4 website, Search Console. */
+    stock: async (env, a) => {
+      const acct = await need(env, a);
+      const r = await stockView(env, acct, String(a.what || 'summary').toLowerCase());
+      return { ...r, how_to_read: VIEW_BLURBS.stock + ' ads_call: ease off = runs out by Cyber Monday or before its restock lands; safe to scale = 90+ days or a restock lands in time; push to clear = over a year of stock. first_size_out is the core size that empties first, which is what runs_out follows. Dates are today\'s pace, before any Black Friday lift.' };
+    },
     knowledge: async (env, a) => {
       const t = String(a.topic || '').toLowerCase().trim();
       if (!t || !KNOWLEDGE[t]) return { topics: KNOWLEDGE_INDEX, how_to_read: 'The expert playbooks. Call again with `topic` set to one of these before advising on that channel; for any change to one channel also read cross-channel.' };
@@ -1067,6 +1081,65 @@ const BUTTONS = (d) => {
           detail: `"${clip(i.question, 400)}"\n${a ? a.name : 'All brands'} · ${when} at ${H} Central · posts to ${label || ch}. It lands in Locus under Settings > The Strategist > Scheduled questions, where it can be run now, changed or deleted.`,
           request: { method: 'PUT', path: '/api/ask/schedules', body: { question: clip(i.question, 600), act: a ? a.act_id : 'all', cadence, hour_central: hour, channel: ch } } };
       }), done: () => 'Scheduled. It is in Locus under Settings > The Strategist > Scheduled questions.' }),
+    /* Stock actions (2026-10-08): written through /api/supply/* on this worker, which forwards to the Supply
+       worker with its own token. Each is a proposal a person applies, like every other action. */
+    routeAction({ name: 'log_order',
+      description: 'Log a factory purchase order on a brand we buy for (Lucky): the factory, products with quantities (split across sizes by the brand\'s own suggestion or size mix), placed date and expected landing. status sent = placed (counts as stock on the way), draft = not placed.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, factory: { type: 'string', description: 'Factory name as in the stock view (orders)' },
+        lines: { type: 'array', items: { type: 'object', properties: { product: { type: 'string', description: 'Product name or id' }, qty: { type: 'number' } }, required: ['product', 'qty'] } },
+        placed: { type: 'string', description: 'YYYY-MM-DD, default today' }, lands: { type: 'string', description: 'YYYY-MM-DD, default from the lead time' }, status: { type: 'string', enum: ['sent', 'draft'] }, notes: { type: 'string' } }, required: ['brand', 'lines'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const b = await supplyBrandOf(env, a.act_id);
+        if (!b || !b.buys) return { error: `${a.name} is not a brand we buy stock for.` };
+        const st = await supplyFetch(env, '/api/state', { brand: b.id });
+        const find = q => st.products.find(p => String(p.id) === String(q)) || st.products.find(p => p.title.toLowerCase() === String(q).toLowerCase()) || st.products.find(p => p.title.toLowerCase().includes(String(q).toLowerCase()));
+        const out = [], miss = [];
+        for (const l of i.lines || []) {
+          const p = find(l.product); if (!p) { miss.push(l.product); continue; }
+          const base = p.variants.map(v => Math.max(0, v.suggested || 0)); const sum = base.reduce((x, y) => x + y, 0);
+          const curve = (st.lines.find(x => x.id === p.lineId) || {}).sizeCurve || {};
+          const sh = p.variants.map((v, k) => sum ? base[k] / sum : (curve[v.sizeKey] ?? 1 / p.variants.length)); const m = sh.reduce((x, y) => x + y, 0) || 1;
+          p.variants.forEach((v, k) => { const q = Math.round(Number(l.qty) * sh[k] / m); if (q > 0) out.push({ variant_id: v.id, product_id: p.id, qty: q, unit_cost: v.cost ?? p.cost ?? null, _t: p.title, _a: v.axis || v.sku }); });
+        }
+        if (miss.length) return { error: `No product called ${miss.join(', ')}. The stock view lists them.` };
+        if (!out.length) return { error: 'Every quantity is zero.' };
+        const f = i.factory ? st.factories.find(x => x.name.toLowerCase().includes(String(i.factory).toLowerCase())) : st.factories.find(x => x.id === (find(i.lines[0].product) || {}).factoryId);
+        const lead = Math.max(0, ...i.lines.map(l => (find(l.product) || {}).leadDays || 0));
+        const placed = /^\d{4}-\d{2}-\d{2}$/.test(i.placed || '') ? i.placed : st.today;
+        const lands = /^\d{4}-\d{2}-\d{2}$/.test(i.lands || '') ? i.lands : new Date(Date.parse(placed + 'T12:00:00Z') + lead * 864e5).toISOString().slice(0, 10);
+        const status = i.status === 'draft' ? 'draft' : 'sent';
+        return { summary: `${status === 'draft' ? 'Draft order' : 'Order'} to ${f ? f.name : 'a factory'}: ${out.reduce((x, l) => x + l.qty, 0)} units`, detail: `${a.name} · placed ${placed} · lands ${lands}\n${out.map(l => `${l._t} ${l._a || ''}: ${l.qty}`).join('\n')}`,
+          request: { method: 'POST', path: `/api/supply/orders?brand=${b.id}`, body: { factory_id: f ? f.id : null, status, sent_at: placed, expected_at: lands, notes: i.notes || '', lines: out.map(({ _t, _a, ...l }) => l) } } };
+      }), done: r => `Logged ${r.id || 'the order'}. It shows on Store, Buying.` }),
+    routeAction({ name: 'set_product',
+      description: 'Change how stock treats one product: kind (core, drop = a one-off that never asks for a reorder, winding_down, discontinued), keep or cut on its group\'s plan, or a note.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, product: { type: 'string' }, kind: { type: 'string', enum: ['core', 'drop', 'winding_down', 'discontinued'] }, decision: { type: 'string', enum: ['keep', 'cut', 'rule'] }, note: { type: 'string' } }, required: ['brand', 'product'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const b = await supplyBrandOf(env, a.act_id);
+        if (!b) return { error: `${a.name} has no stock feed.` };
+        const st = await supplyFetch(env, '/api/state', { brand: b.id });
+        const q = String(i.product).toLowerCase(); const p = st.products.find(x => String(x.id) === String(i.product)) || st.products.find(x => x.title.toLowerCase() === q) || st.products.find(x => x.title.toLowerCase().includes(q));
+        if (!p) return { error: `No product called ${i.product}.` };
+        const body = {}; if (i.kind) body.lifecycle = i.kind; if (i.decision) body.decision = i.decision === 'rule' ? null : i.decision; if (i.note != null) body.notes = i.note;
+        if (!Object.keys(body).length) return { error: 'Nothing to change.' };
+        return { summary: `${p.title}: ${[i.kind && `kind ${i.kind.replace('_', ' ')}`, i.decision && (i.decision === 'rule' ? 'back to the rule' : i.decision), i.note != null && 'note'].filter(Boolean).join(', ')}`, detail: `${a.name}`, request: { method: 'PUT', path: `/api/supply/products/${p.id}?brand=${b.id}`, body } };
+      }), done: () => 'Saved.' }),
+    routeAction({ name: 'add_design',
+      description: 'Add new designs to a drop on a brand that designs its own products (Lucky): the group (Polos, Hats...), the drop (existing name, or a new name plus its on-site date) and how many. Each gets its Asana card and every date worked back from the drop.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, group: { type: 'string' }, drop: { type: 'string' }, drop_date: { type: 'string', description: 'YYYY-MM-DD, only for a new drop' }, count: { type: 'number' } }, required: ['brand', 'group', 'drop'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const b = await supplyBrandOf(env, a.act_id);
+        if (!b || !b.makes) return { error: `${a.name} does not have Drops switched on.` };
+        const st = await supplyFetch(env, '/api/state', { brand: b.id });
+        const l = st.lines.find(x => x.name.toLowerCase() === String(i.group).toLowerCase()) || st.lines.find(x => x.name.toLowerCase().includes(String(i.group).toLowerCase().replace(/s$/, '')));
+        if (!l) return { error: `No group called ${i.group}. Groups: ${st.lines.map(x => x.name).join(', ')}.` };
+        const c = (st.collections || []).find(x => x.name.toLowerCase() === String(i.drop).toLowerCase());
+        if (!c && !/^\d{4}-\d{2}-\d{2}$/.test(i.drop_date || '')) return { error: `No drop called ${i.drop}. Give its on-site date to make it.` };
+        const n = Math.min(10, Math.max(1, Math.round(+i.count || 1)));
+        if (!c) return { summary: `New drop ${i.drop} (${i.drop_date}), then add ${n} ${l.name.toLowerCase()}`, detail: 'Apply makes the drop; ask again to add the designs to it.', request: { method: 'POST', path: `/api/supply/collections?brand=${b.id}`, body: { name: i.drop, drop_at: i.drop_date } } };
+        const have = st.slots.filter(x => x.collection_id === c.id && x.line_id === l.id).length;
+        return { summary: `Add ${n} ${l.name.toLowerCase()} to ${c.name}`, detail: `On the site ${c.drop_at}. Each gets an Asana card.`, request: { method: 'POST', path: `/api/supply/slots?brand=${b.id}`, body: { line_id: l.id, collection_id: c.id, name: `${c.name} · ${l.name.replace(/s$/, '')} ${have + 1}`, status: 'needs_brief', _count: n } } };
+      }), done: () => 'Added. They show on Store, Drops.' }),
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },

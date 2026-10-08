@@ -20,6 +20,7 @@
  *   GET /api/hub/today?act=
  *   GET /api/hub/moved?act=          what moved yesterday against the same weekday over 8 weeks
  *   GET /api/hub/find?q=&act=        any Meta campaign or ad by name (the ask bar's jump list)
+ *   GET /api/hub/stockads?act=        products and ad sets tied to ad spend through Triple Whale orders (30 days)
  */
 const MODELS = new Set(['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform']);
 const MODEL_LABEL = { lastPlatformClick: 'Triple Whale, last platform click', fullFirstClick: 'Triple Whale, first click', fullLastClick: 'Triple Whale, last click', linear: 'Triple Whale, linear (paid)', linearAll: 'Triple Whale, linear (all)', platform: 'Platform reported' };
@@ -77,6 +78,7 @@ export async function handleHub(ctx) {
       return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, brand: nm[a.act_id] }))] });
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
+    if (path === '/api/hub/stockads') return json({ brands: await Promise.all(accts.map(a => stockAds(env, ctx, a))) });
     if (path === '/api/hub/today') {
       const rows = await Promise.all(accts.map(async a => {
         const t = ctx.localDate(a.tz);
@@ -526,4 +528,56 @@ async function customerFor(env, a, customer) {
   const ids = (orders || []).map(o => o.order_id);
   const { results: touches } = ids.length ? await env.DB.prepare(`SELECT t.order_id, t.model, t.platform, t.click_date, x.name ad_name FROM tw_order_touch t LEFT JOIN ads x ON x.ad_id = t.ad_id WHERE t.act_id = ?1 AND t.order_id IN (${ids.map((_, i) => `?${i + 2}`).join(',')})`).bind(a.act_id, ...ids).all() : { results: [] };
   return { customer, orders: (orders || []).map(o => ({ ...o, touches: (touches || []).filter(t => t.order_id === o.order_id) })), lifetime: (orders || []).reduce((s, o) => s + num(o.total), 0) };
+}
+
+/* ---------- stock against ad spend (2026-10-08, Supply in Locus) ----------
+   Which products each Meta ad actually sells, from Triple Whale orders, never from ad names
+   (Lucky's are "414 B | Still" and creator names). For every ad: its last-platform-click orders
+   in the last 30 days (tw_order_touch) -> the Shopify product ids in those orders
+   (tw_orders.products_json, the same ids Supply uses) -> the ad's 30-day spend shared across
+   them. On Lucky this ties ~80% of spend to a product. Read by Store > Stock, the stock chip
+   on ad sets and ads, and the Strategist's stock view (account-health copies this function:
+   keep the two in step). */
+async function stockAds(env, ctx, a) {
+  const today = ctx.localDate(a.tz), from = ctx.addDays(today, -30), from7 = ctx.addDays(today, -7);
+  const [touch, spend, sets] = await Promise.all([
+    env.DB.prepare(`SELECT t.ad_id, o.products_json FROM tw_order_touch t JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id
+      WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2`).bind(a.act_id, from).all().then(r => r.results || []).catch(() => []),
+    env.DB.prepare(`SELECT d.ad_id, a.adset_id, SUM(d.spend) s30, SUM(CASE WHEN d.date >= ?3 THEN d.spend ELSE 0 END) s7
+      FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date >= ?2 GROUP BY d.ad_id`).bind(a.act_id, from, from7).all().then(r => r.results || []).catch(() => []),
+    env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id = ?1`).bind(a.act_id).all().then(r => r.results || []).catch(() => []),
+  ]);
+  const ordersOf = new Map();
+  for (const t of touch) {
+    let ps = []; try { ps = [...new Set(JSON.parse(t.products_json || '[]').map(String))]; } catch {}
+    if (!ps.length) continue;
+    if (!ordersOf.has(t.ad_id)) ordersOf.set(t.ad_id, []);
+    ordersOf.get(t.ad_id).push(ps);
+  }
+  const products = {}, ads = {}, setAgg = {};
+  const setName = Object.fromEntries(sets.map(s => [s.adset_id, s.name]));
+  let total = 0, mapped = 0;
+  for (const s of spend) {
+    const s30 = num(s.s30); total += s30;
+    const ords = ordersOf.get(s.ad_id) || [];
+    const cnt = {};
+    for (const ps of ords) for (const p of ps) {
+      cnt[p] = (cnt[p] || 0) + 1;
+      const x = products[p] || (products[p] = { spend: 0, orders: 0, ads: 0 });
+      x.spend += s30 / ords.length / ps.length; x.orders += 1;
+    }
+    for (const p of Object.keys(cnt)) products[p].ads += 1;
+    if (ords.length) mapped += s30;
+    const top = Object.entries(cnt).sort((x, y) => y[1] - x[1]);
+    if (top.length) ads[s.ad_id] = top.slice(0, 2).map(([p, n]) => [p, n]);
+    if (s.adset_id) {
+      const g = setAgg[s.adset_id] || (setAgg[s.adset_id] = { adset_id: s.adset_id, name: setName[s.adset_id] || null, s7: 0, s30: 0, cnt: {} });
+      g.s7 += num(s.s7); g.s30 += s30;
+      for (const [p, n] of Object.entries(cnt)) g.cnt[p] = (g.cnt[p] || 0) + n;
+    }
+  }
+  for (const p of Object.values(products)) p.spend = Math.round(p.spend * 100) / 100;
+  const adsets = Object.values(setAgg).filter(g => g.s30 > 0).map(g => ({ adset_id: g.adset_id, name: g.name, s7: Math.round(g.s7 * 100) / 100, s30: Math.round(g.s30 * 100) / 100,
+    products: Object.entries(g.cnt).sort((x, y) => y[1] - x[1]).slice(0, 3) })).sort((x, y) => y.s30 - x.s30);
+  return { act_id: a.act_id, name: a.name, from, to: today, model: 'lastPlatformClick', spend: Math.round(total), mapped: Math.round(mapped), products, ads, adsets };
 }

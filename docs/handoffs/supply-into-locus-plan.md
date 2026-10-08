@@ -77,6 +77,13 @@ No em dashes anywhere. In-app modals only. Short bullet replies.
     Strategist. Dates and units only on chips, never revenue claims.
   * Setup page = the three levels with what each needs; Slack switches.
 
+- 2026-10-08 night, BUILT AND SHIPPED (Cole: "do it and I can review once it's fully implemented"): Stock, Buying,
+  Drops in Locus (profit/supply.js + supply.css), the stock section in Brand settings, `/api/hub/stockads`, the stock
+  chips on Meta ad sets / ads and the ad preview, the Strategist's `stock` view + `log_order` / `set_product` /
+  `add_design` + `stock.md` knowledge, `brands.buys`, Slack links to Locus, `?slot=` forwarded to Locus Drops, a
+  "moved" banner on the old app. Tested against live Lucky data in a local harness (no Locus session in the pane).
+  Left: step 5 (retire the old app after a week); the Strategist's actions untested live (a person has to apply one).
+
 ## Decisions already taken (do not reopen)
 
 - Two layers. **Stock** for any brand with a stock feed (Lucky today). **Make**
