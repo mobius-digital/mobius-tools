@@ -1182,11 +1182,37 @@ async function extend(ad) {
   return fin.ad;
 }
 const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => rej(new Error('Could not load the image.')); i.src = src; });
+/* 2026-10-08: a batch with several products used to hand EVERY product to EVERY ad, so the AI crammed
+   all of them into each picture (Grunk Burgundy: hoodie, polo and headcover in a weather-report ad).
+   Each ad now gets only the products its line (or its plan) names; longest titles match first so
+   "Burgundy Drinko Hoodie" is not read as "Burgundy Drinko", and "<title> Collection" is not a product.
+   A line that names none of them keeps them all, as before. */
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function lineProducts(b, a) {
+  const all = b.setup.products || [];
+  if (all.length < 2) return all;
+  const i = (b.plan?.ads || []).indexOf(a);
+  const named = src => {
+    let txt = ' ' + src.filter(Boolean).join(' ').toLowerCase() + ' ';
+    const hit = new Set();
+    for (const p of [...all].sort((x, y) => y.title.length - x.title.length)) {
+      const re = new RegExp(reEsc(p.title.toLowerCase()) + '(?! collection)', 'g');
+      if (re.test(txt)) { hit.add(p); txt = txt.replace(re, ' '); }
+    }
+    return hit;
+  };
+  /* The team's line wins; the art director's plan text is only a fallback (it tends to list everything). */
+  let hit = named([b.brief?.lines?.[i]?.text]);
+  if (!hit.size) hit = named([a.look, a.headline, a.subline, ...(a.callouts || [])]);
+  return hit.size ? all.filter(p => hit.has(p)) : all;
+}
 function specOf(b, a) {
   const su = b.setup, ref = a.ref_url && a.ref_use !== 'none' ? [a.ref_url] : [];
-  return { products: su.products.map(p => ({ title: p.title, handle: p.handle })), images: su.images.slice(), inspo: ref, ref_use: a.ref_use, base: a.photo_url || '',
+  const prods = lineProducts(b, a), own = prods.length < (su.products || []).length ? new Set(prods.flatMap(p => p.all || [])) : null;
+  const images = own && su.images.some(u => own.has(u)) ? su.images.filter(u => own.has(u)) : su.images.slice();
+  return { products: prods.map(p => ({ title: p.title, handle: p.handle })), images, inspo: ref, ref_use: a.ref_use, base: a.photo_url || '',
     headline: a.headline, subline: a.subline, callouts: a.callouts || [], cta: a.cta, art: a.art || '', look: a.look, style: a.style || 'auto', note: a.note,
-    who: b.brief.why || '', dna: su.products.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
+    who: b.brief.why || '', dna: prods.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
 }
 async function makeBatch() {
   const b = S.cur, plan = b.plan;
