@@ -679,8 +679,8 @@ function adCard(a) {
   const chk = ck?.exact ? `<span class="v2pill good"${tip('Built on a real photo of the product, kept as shot. Nothing about the product was drawn.')}>Real product photo</span>`
     : ck ? (ck.ok === false ? `<span class="v2pill warn"${tip(`The check model thinks the product may not match the photos${ck.issue ? `: ${ck.issue}` : ''}. Look closely before approving.`)}>Product may be off</span>`
       : ck.ok ? `<span class="v2pill good"${tip(`The check model compared the product in this ad with the product photos${ck.score != null ? ` and scored it ${ck.score} out of 10` : ''}${ck.tries ? `. This is the best of ${ck.tries} tries` : ''}. A net, not a guarantee: still look at it.`)}>Product ${ck.score != null ? ck.score + '/10' : 'checked'}${ck.tries ? ` · best of ${ck.tries}` : ''}</span>` : '') : '';
-  const zn = ck?.zone, zone = !zn ? '' : zn.ok ? `<span class="v2pill good"${tip('Every word is clear of the edges, so nothing is cut in the feed.')}>Words clear of the edges</span>`
-    : `<span class="v2pill warn"${tip(`${zn.issue || 'Some words are close to the edge'}. Look before approving; Change with AI or Redo if they are cut.`)}>Words near the edge</span>`;
+  const zn = ck?.zone, zone = !zn ? '' : zn.ok ? `<span class="v2pill good"${tip('Every word sits inside the centre square, so nothing is cut where Meta shows the ad square.')}>Words inside the square</span>`
+    : `<span class="v2pill warn"${tip(`${zn.issue || 'Some words are outside the centre square'}. Meta cuts them where it shows the ad square. Change with AI or Redo.`)}>Words outside the square</span>`;
   const sz = ck?.story_zone, szp = !s.story || !sz ? '' : sz.ok ? `<span class="v2pill good"${tip('The 9:16 version keeps every word clear of the Stories and Reels buttons.')}>9:16 safe</span>`
     : `<span class="v2pill warn"${tip(`${sz.issue}. The Stories or Reels buttons may cover them.`)}>9:16 words near the buttons</span>`;
   const pills = chk + zone + szp;
