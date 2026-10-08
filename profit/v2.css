@@ -425,3 +425,14 @@ td.good,td.bad,td.warn{font-weight:600}
 .v2grade .gA b,.v2grade .gB b{color:var(--good)} .v2grade .gC b{color:var(--ink-2)} .v2grade .gD b{color:var(--warn)} .v2grade .gF b{color:var(--bad)}
 .bi.b-ga{color:#E37400}
 .v2sel{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin:0 0 10px}.v2sel select{font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:7px;padding:4px 8px}
+/* ad set roles (2026-10-08) */
+.v2roles{display:flex;gap:4px;flex-wrap:wrap}
+.v2roles span{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:99px;border:1px solid var(--line-strong);color:var(--ink-2)}
+.v2roles span.opener{color:var(--c-meta);border-color:color-mix(in srgb,var(--c-meta) 45%,transparent)}
+.v2roles span.closer{color:var(--c-email);border-color:color-mix(in srgb,var(--c-email) 45%,transparent)}
+.v2call{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.v2call p{flex-basis:100%;margin:2px 0 0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.v2setc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:8px}
+.v2setc .h{display:flex;gap:8px;align-items:baseline}.v2setc .h b{font-size:12.5px}.v2setc .h span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v2bar2{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}.v2bar2 i{display:block;height:100%;background:var(--brand)}
+.v2flash td{animation:v2flash 1.6s ease}@keyframes v2flash{0%{background:var(--brand-soft)}100%{background:transparent}}

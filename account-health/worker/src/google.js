@@ -45,7 +45,9 @@ const adsHeaders = env => ({ 'developer-token': env.GOOGLE_ADS_DEV_TOKEN || '', 
 
 /** Which of the three can we read today, and what can we see. Never throws. */
 export async function googleProbe(env) {
-  const out = { acting_as: AS(env), service_account: (safeJson(env.GOOGLE_SA_KEY, {}) || {}).client_id ? `client id ${(safeJson(env.GOOGLE_SA_KEY, {})).client_id}` : 'missing' };
+  const k = safeJson(env.GOOGLE_SA_KEY, {}) || {};
+  /* Not secrets: the ids Cole needs to find the right screens. The private key never leaves. */
+  const out = { acting_as: AS(env), service_account: k.client_id ? `client id ${k.client_id}` : 'missing', client_id: k.client_id || null, client_email: k.client_email || null, project_id: k.project_id || null };
   const step = async (k, fn) => { try { out[k] = { ok: true, ...(await fn()) }; } catch (e) { out[k] = { ok: false, error: e.message, fix: fixFor(k, e.message) }; } };
   await step('ga4', async () => {
     const j = await gfetch(env, SCOPES.ga, 'https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200');
@@ -180,4 +182,18 @@ export async function adsReport(env, act, from, to) {
       campaigns: (camps.results || []).map(r => ({ id: r.campaign.id, name: r.campaign.name, status: r.campaign.status, type: r.campaign.advertisingChannelType, spend: (+r.metrics.costMicros || 0) / 1e6, impressions: +r.metrics.impressions || 0, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })),
       days: (days.results || []).map(r => ({ date: r.segments.date, spend: (+r.metrics.costMicros || 0) / 1e6, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })) };
   });
+}
+
+/** Turn on the four Google APIs in the service account's own project (Service Usage API), acting as
+ *  the service account itself. Works only if the account has that permission on its project; if
+ *  not, Google says so and Cole presses Enable in the console instead. Never throws. */
+export async function enableApis(env) {
+  const k = safeJson(env.GOOGLE_SA_KEY, {}) || {};
+  const apis = ['analyticsdata.googleapis.com', 'analyticsadmin.googleapis.com', 'searchconsole.googleapis.com', 'googleads.googleapis.com'];
+  try {
+    const tok = await googleToken(env, undefined, 'https://www.googleapis.com/auth/cloud-platform');
+    const res = await F(`https://serviceusage.googleapis.com/v1/projects/${k.project_id}/services:batchEnable`, { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceIds: apis }) });
+    const j = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, project: k.project_id, apis, operation: j.name || null } : { ok: false, project: k.project_id, error: j.error?.message || `HTTP ${res.status}` };
+  } catch (e) { return { ok: false, project: k.project_id, error: e.message }; }
 }

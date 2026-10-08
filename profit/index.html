@@ -2096,13 +2096,20 @@
 .lx .bf-head label{font-size:12.5px}
 .rp-menu:not([open]) .rp-pop{display:none}
 @media (max-width:560px){.rp-menu .rp-pop{min-width:0;width:calc(100vw - 32px);max-width:360px}}
+  /* Settings, grouped (2026-10-08) */
+  .setnav-g{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+  .setnav-g:first-child{padding-top:2px}
+  .gtag{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--line-strong);color:var(--ink-2);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+  .gtag.meta{color:var(--c-meta);border-color:color-mix(in srgb,var(--c-meta) 45%,transparent)}
+  .cn-kind{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+  .cn-kind:first-of-type{margin-top:6px}
 </style>
 <!-- Phone sheet behaviour, shared with Ledger. After this page's <style> so
      its class-gated rules win the ties they are meant to win. The script is
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=5">
+<link rel="stylesheet" href="v2.css?v=6">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=7"></script>
 <body>
@@ -2226,7 +2233,7 @@
 <script src="studio.js?v=22"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=5"></script>
+<script src="v2.js?v=6"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -3088,8 +3095,8 @@ const TAB_PURPOSE = {
 };
 /* Settings sections: key, name in the list, one line saying what it is for. */
 const SET_SECS = [
-  ['brands', 'Brands', 'Each brand’s ad account, store, goals, Slack channels and margin. Open a row to change anything about that brand.'],
-  ['connections', 'Connections', 'Everything Locus is connected to: the agency-wide ones made once, and each brand’s own. When something breaks, this says what and where to fix it.'],
+  ['brands', 'Brands', 'Everything that belongs to one brand: its sources, its goals (every platform), its Meta rules, its Slack channels and its margin. Open a row to change it. Its Google, Klaviyo and other connections are under Connections.'],
+  ['connections', 'Connections', 'Everything Locus is connected to, grouped by kind: ad platforms, store and analytics, email, team tools, AI. The agency-wide ones are made once; each brand has its own below. When something breaks, this says what and where to fix it.'],
   ['sending', 'Briefs and Slack', 'When the daily brief posts, who client messages come from, and who can send from inside Slack.'],
   ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['team', 'Team', 'Who can sign in to Locus, and whether they can change things or only look.'],
@@ -3099,6 +3106,9 @@ const SET_SECS = [
 /* The last two entries of the same list are whole pages, not sections: they open
    show('health') / show('costs'), and each of those pages has a link back here. */
 const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];
+/* The list in groups (2026-10-08, Cole: "settings need to be super organized"): what belongs to one
+   brand, what belongs to the agency, the data underneath, and help. A '@' entry is a whole page. */
+const SET_GROUPS = [['Brands', ['brands']], ['Agency', ['connections', 'team', 'sending', 'strategist']], ['Data and jobs', ['system', '@health', '@costs']], ['Help', ['tours']]];
 const SET_ICONS = { brands: 'i-brand', connections: 'i-health', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
 const backToSettings = () => `<p class="set-back"><button type="button" class="link" data-go="settings">&larr; Settings</button></p>`;
@@ -3125,7 +3135,7 @@ const TAB_CRUMB = {
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
   email: ['Email and SMS', 'Klaviyo'],
   store: ['Store', 'Sales'], customers: ['Store', 'Customers'], website: ['Store', 'Website'], search: ['Store', 'Search'],
-  angles: ['Creative', 'Tests and angles'], studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
+  inspo: ['Creative', 'Inspiration'], angles: ['Creative', 'Tests and angles'], studio: ['Creative', 'Studio'], brand: ['Creative', 'Brand'], copy: ['Creative', 'Copy desk'], amb: ['Creative', 'Creator link'],
   brief: ['Reports', 'Daily Brief'], reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data health'], costs: ['Settings', 'Costs'],
 };
@@ -4415,7 +4425,7 @@ const NAV = {
   ads: { label: 'Ads', tabs: [['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['channels', 'All channels']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
   store: { label: 'Store', tabs: [['store', 'Sales', 'b-shopify'], ['customers', 'Customers'], ['website', 'Website', 'b-ga'], ['search', 'Search', 'b-google']] },
-  creative: { label: 'Creative', tabs: [['angles', 'Tests and angles'], ['studio', 'Studio'], ['brand', 'Brand'], ['copy', 'Copy desk'], ['amb', 'Creator link']] },
+  creative: { label: 'Creative', tabs: [['angles', 'Tests and angles'], ['studio', 'Studio'], ['inspo', 'Inspiration'], ['brand', 'Brand'], ['copy', 'Copy desk'], ['amb', 'Creator link']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
 };
 const META_KIDS = ['meta', 'campaigns', 'adcreative', 'tests', 'changes', 'mtoday', 'mbrowser'];
@@ -4425,7 +4435,7 @@ function navGo(g) { const last = NAV_LAST[g]; show(last && NAV_OF(last) === g ? 
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['tests', 'Tests'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { website: 'Website', search: 'Search', season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'Season', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4719,7 +4729,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ overview: f => V2R('overview', f), profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), website: f => V2R('website', f), search: f => V2R('search', f), google: f => V2R('google', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ overview: f => V2R('overview', f), profit: renderProfit, plan: renderPlan, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), search: f => V2R('search', f), google: f => V2R('google', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -4817,6 +4827,7 @@ const ASK_SUGGEST = {
   website: ['Which landing page on {b} leaks the most visitors?', 'Is mobile converting worse than desktop?', 'Which channel brings visitors who buy?', 'Where in the funnel do people drop off?'],
   search: ['What is {b} ranking for that is not the brand name?', 'Which queries sit just off page one?', 'Is brand search growing?', 'Which pages bring the most organic clicks?'],
   customers: ['Does a new customer pay for themselves on {b}?', 'How long until a customer orders again?', 'Which first product leads to repeat buyers?', 'Which month’s customers were worth the most?'],
+  inspo: ['What do these reference ads have in common?', 'Which of these could {b} make next week?', 'Brief one of these as a test for {b}', 'Which formats are we not using yet?'],
   angles: ['Have we tested this idea before?', 'Which angles are proven on {b}?', 'What should the next brief test?', 'Which angles died, and why?'],
   studio: ['Write three headlines for {b}’s next static batch', 'What did the best static ads have in common?', 'Which offer should this batch carry?', 'Draft a brief for a new concept'],
   brand: ['Who buys from {b}, in one paragraph?', 'What do customers say in their own words?', 'What research is still missing?', 'Which persona is most underused in ads?'],
@@ -4829,7 +4840,7 @@ const ASK_SUGGEST = {
 const askScope = () => S.act === 'all' ? 'the book' : ((S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand');
 const askList = () => (ASK_SUGGEST[S.tab] || ASK_SUGGEST.overview).map(q => q.replace(/\{b\}/g, askScope()));
 function askPlaceholder() { const i = $('#v2askIn'); if (i && document.activeElement !== i) i.placeholder = `Ask: “${askList()[0]}”`; }
-const ASKB = { items: [], hi: 0 };
+const ASKB = { items: [], hi: 0, found: [], q: '', timer: null };
 function askPages() {
   const out = [];
   for (const [g, v] of Object.entries(NAV)) for (const [k, l] of v.tabs) out.push({ kind: 'go', tab: k, label: l, where: v.label });
@@ -4846,13 +4857,16 @@ function askPaint() {
     const pages = askPages().filter(p => `${p.label} ${p.where}`.toLowerCase().includes(t)).slice(0, 6);
     const brands = [{ act_id: 'all', name: 'All clients' }, ...S.accounts].filter(a => a.name.toLowerCase().includes(t)).slice(0, 4).map(a => ({ kind: 'brand', id: a.act_id, label: a.name }));
     const ask = { kind: 'ask', label: `Ask the Strategist: “${q}”`, q };
+    /* Any Meta campaign or ad by name (hub /api/hub/find), fetched as you type. */
+    if (t.length >= 3 && ASKB.q !== t) { ASKB.q = t; clearTimeout(ASKB.timer); ASKB.timer = setTimeout(() => api(`/api/hub/find?act=${encodeURIComponent(S.act)}&q=${encodeURIComponent(q)}`).then(r => { if (ASKB.q === t) { ASKB.found = r.items || []; if (document.activeElement === inp) askPaint(); } }).catch(() => {}), 220); }
+    const found = t.length >= 3 ? ASKB.found.map(x => ({ ...x, where: `${x.kind === 'camp' ? 'Campaign' : 'Ad'} · ${x.brand || ''}` })) : [];
     const wordy = q.split(/\s+/).length > 2 || /\?$/.test(q);
-    items = wordy ? [ask, ...pages, ...brands] : [...pages, ...brands, ask];
+    items = wordy ? [ask, ...pages, ...brands, ...found] : [...pages, ...brands, ...found, ask];
     head = '';
   }
   ASKB.items = items; ASKB.hi = Math.min(ASKB.hi, items.length - 1);
   const ico = k => k === 'ask' ? '<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/></svg>' : k === 'brand' ? '<svg viewBox="0 0 16 16"><circle cx="8" cy="6" r="2.6"/><path d="M3 13.5c.6-2.4 2.6-3.6 5-3.6s4.4 1.2 5 3.6"/></svg>' : '<svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>';
-  pop.innerHTML = (head ? `<div class="ah">${head}</div>` : '') + items.map((x, i) => `<button type="button" class="ai ${x.kind}${i === ASKB.hi ? ' hi' : ''}" data-i="${i}">${ico(x.kind)}<span>${x.kind === 'go' ? `Go to <b>${esc(x.label)}</b>${x.where ? ` <em>${esc(x.where)}</em>` : ''}` : x.kind === 'brand' ? `Switch to <b>${esc(x.label)}</b>` : esc(x.label)}</span></button>`).join('')
+  pop.innerHTML = (head ? `<div class="ah">${head}</div>` : '') + items.map((x, i) => `<button type="button" class="ai ${x.kind}${i === ASKB.hi ? ' hi' : ''}" data-i="${i}">${ico(x.kind)}<span>${x.kind === 'go' ? `Go to <b>${esc(x.label)}</b>${x.where ? ` <em>${esc(x.where)}</em>` : ''}` : x.kind === 'brand' ? `Switch to <b>${esc(x.label)}</b>` : x.kind === 'ad' || x.kind === 'camp' ? `Open <b>${esc(x.label)}</b> <em>${esc(x.where)}</em>` : esc(x.label)}</span></button>`).join('')
     + `<div class="af">Enter to ${items[ASKB.hi]?.kind === 'ask' ? 'ask' : 'open'} · ↑↓ to move · Esc to close</div>`;
   pop.hidden = false;
   pop.querySelectorAll('[data-i]').forEach(b => { b.onmousedown = e => e.preventDefault(); b.onclick = () => askDo(+b.dataset.i); });
@@ -4861,6 +4875,7 @@ function askDo(i) {
   const x = ASKB.items[i], inp = $('#v2askIn'); if (!x) return;
   $('#v2askPop').hidden = true; inp.value = ''; inp.blur();
   if (x.kind === 'go') show(x.tab);
+  else if (x.kind === 'ad' || x.kind === 'camp') { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; window.V2PENDING = x.kind === 'ad' ? { ad: x.id } : { campaign: x.id }; show(x.kind === 'ad' ? 'adcreative' : 'campaigns'); }
   else if (x.kind === 'brand') { S.act = x.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show(S.tab); }
   else AskUI.ask(x.q);
 }
@@ -10019,9 +10034,10 @@ async function renderSettings() {
   $('#main').innerHTML = `<div class="v2 lx">${LX.head('settings', `Settings${one ? ': ' + esc(one.name) : ''}`,
     one ? `Only <b>${esc(one.name)}</b> is shown under Brands. Switch the picker to <b>All clients</b> to see every brand.` : '')}
     <div class="setwrap">
-      <nav class="setnav" id="setNav" aria-label="Settings sections">${SET_SECS.map(([k, l]) =>
-        `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${l}</span>${k === 'brands' ? `<small>${one ? 1 : S.accounts.length}</small>` : ''}</button>`).join('')}${SET_PAGES.map(([k, l], i) =>
-        `<button type="button" data-page="${k}" class="${i ? '' : 'setnav-brk'}" title="${esc(TAB_PURPOSE[k] || '')}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${l}</span></button>`).join('')}</nav>
+      <nav class="setnav" id="setNav" aria-label="Settings sections">${SET_GROUPS.map(([gl, keys]) => `<div class="setnav-g">${esc(gl)}</div>` + keys.map(k => {
+          if (k.startsWith('@')) { const pg = SET_PAGES.find(p => p[0] === k.slice(1)); return `<button type="button" data-page="${pg[0]}" title="${esc(TAB_PURPOSE[pg[0]] || '')}"><svg class="ic"><use href="#${SET_ICONS[pg[0]]}"/></svg><span>${pg[1]}</span><small>page</small></button>`; }
+          const sc = SET_SECS.find(x => x[0] === k); return `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${sc[1]}</span>${k === 'brands' ? `<small>${one ? 1 : S.accounts.length}</small>` : ''}</button>`;
+        }).join('')).join('')}</nav>
       <div class="setpane">
         <section data-sec="brands"${sec === 'brands' ? '' : ' hidden'}>${secHead('brands')}
           <div id="setRollup"></div>
@@ -10142,7 +10158,7 @@ async function renderSettings() {
     return `<details class="brow" data-act="${esc(a.act_id)}"${window.__openGoals === a.act_id ? ' open' : ''}>
       <summary><span class="brow-name">${esc(a.name)}</span>${healthPill(a.cost_health)}<span class="brow-sum">${summary(a)}</span></summary>
       <div class="brow-body">
-        ${grp('The brand', 'Who it is and where its numbers come from', `
+        ${grp('The brand and its sources', 'Who it is and where its numbers come from. Google, Klaviyo and the rest are under Connections.', `
         ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
         ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed. A different ad account is a different brand.',
           `<div class="brow-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
@@ -10155,7 +10171,7 @@ async function renderSettings() {
             ${c.install_url ? `<button class="btn btn-s" data-k="copy" data-url="${esc(c.install_url)}">${c.status === 'connected' ? 'Copy re-connect link' : 'Copy install link'}</button>` : ''}
             ${c.status === 'connected' ? '<button class="btn btn-s" data-k="cohorts">Sync cohorts</button>' : ''}
             <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}`)}
-        ${grp('Goals', 'The one place for this brand’s targets', `
+        ${grp('Goals and Meta rules', 'The targets every platform is judged against, then the rules only Meta uses', `
         ${field('Targets and test rules', 'Test calls, the green, yellow and red colors, the test list and the alerts all read these numbers. Nothing else in Locus edits them.',
           `<div class="goals" data-goals="${esc(a.act_id)}"><span class="tiny">Loading…</span></div>`)}`)}
         ${grp('Slack and sending', 'Where briefs and reports go, and whether you see them first', `
@@ -10193,27 +10209,28 @@ async function renderSettings() {
     const T = r.target_cpa, Y = r.yellow_pct, K = r.acct_avg || (T ? T * (1 + Y / 100) : null);
     const band = T ? `<div class="gband"><i class="gk" style="flex:100">winner up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Math.round(((K - T) / T) * 100), 18)}">keep up to ${fmtMoney(K, cur)}</i><i class="gp" style="flex:40">pause</i></div><span class="tiny">Winner and keep both need 2+ sales.</span>` : '';
     box.innerHTML = `<div class="gwrap">
-      <div class="gh">Targets</div>
+      <div class="gh">Targets <span class="gtag">every platform</span></div>
       ${num('target_cpa', 'Goal cost per sale', T != null ? Math.round(T) : '', '$', 'not set')}
       ${num('target_roas', 'Goal ROAS', g.goal_roas, 'x', 'not set')}
-      <div class="gh">Judging tests</div>
+      <div class="gh">Judging tests <span class="gtag meta">Meta</span> <span class="tiny" style="font-weight:400">Ads › Meta › Tests</span></div>
       ${num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)} (3x goal)` : '150')}
       ${num('judge_days', 'Or after', r.judge_days, 'days')}
       <label class="gl"><span>Keep line: account average <span class="tiny">(last 30 days, updates on the 1st)</span></span><b>${r.acct_avg ? fmtMoney(r.acct_avg, cur) + (r.acct_avg_month ? ' · ' + esc(r.acct_avg_month) : '') : 'not set yet'}</b></label>
       ${band}
-      <div class="gh">Creative calls <span class="tiny" style="font-weight:400">Scale, Watch and Cut on Ads › Meta › Creative</span></div>
+      <div class="gh">Creative calls <span class="gtag meta">Meta</span> <span class="tiny" style="font-weight:400">Scale, Keep, Watch, Trim and Cut on Ads › Meta › Creative</span></div>
       ${num('cr_judge_x', 'Judge an ad after spending', r.cr_judge_x, 'x goal CPA')}
       ${num('cr_min_days', 'And running at least', r.cr_min_days, 'days')}
       ${num('cr_scale_buys', 'Scale needs at least', r.cr_scale_buys, 'sales at or under goal')}
       ${num('cr_cut_zero_x', 'Cut with no sale after', r.cr_cut_zero_x, 'x goal CPA spent')}
       ${num('cr_cut_cpa_x', 'Cut when cost per sale is over', r.cr_cut_cpa_x, 'x goal')}
       ${num('cr_cut_spend_x', '…once it has spent', r.cr_cut_spend_x, 'x goal CPA')}
-      <span class="tiny">Defaults: judge after 1x, 3 days, 2 sales to scale, cut at 3x with no sale or 1.5x over goal after 2x spent. An ad truly on goal has about a 5% chance of zero sales by 3x.</span>
-      <div class="gh">Test minimums <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
+      ${num('cr_anchor_pct', 'An ad carrying this share of its ad set is its anchor', r.cr_anchor_pct, '% of set spend')}
+      <span class="tiny">The ad set is judged first with these numbers; a set that misses means Cut for its ads. In a working set the anchor reads Keep and a small ad over the line reads Trim. Defaults: 1x, 3 days, 2 sales, 3x with no sale, 1.5x over goal after 2x, anchor 50%.</span>
+      <div class="gh">Test minimums <span class="gtag meta">Meta</span> <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
       ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
       ${num('min_days', 'Minimum stays on', r.min_days, 'days')}
       ${num('min_cap_pct', 'All minimums together, max', r.min_cap_pct, '%')}
-      <div class="gh">Monday test calls in Slack <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.monday_post ? 'on' : ''}" data-g="monday_post"></span><span class="tiny">${r.monday_post ? 'posts Mondays 8am to the internal channel' : 'off'}</span></span></div>
+      <div class="gh">Monday test calls in Slack <span class="gtag meta">Meta</span> <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.monday_post ? 'on' : ''}" data-g="monday_post"></span><span class="tiny">${r.monday_post ? 'posts Mondays 8am to the internal channel' : 'off'}</span></span></div>
       <div class="row" style="margin:2px 0 0;gap:10px"><button class="btn" data-g="preview">Preview this week's message</button></div>
       <pre class="gprev" data-g="prev" hidden></pre>
       <div class="row" style="margin:10px 0 0;gap:10px"><button class="btn primary" data-g="save">Save goals</button><span class="tiny" data-g="msg"></span></div></div>`;
@@ -10241,7 +10258,7 @@ async function renderSettings() {
         if (mApi) await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
         const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: Y || 30,
           min_track: tg.classList.contains('on') ? 1 : 0, monday_post: mp.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
-          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2 };
+          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2, cr_anchor_pct: n('cr_anchor_pct') || 50 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
         await refreshAccounts().catch(() => {});
         await loadGoals(box, a);
@@ -10604,7 +10621,7 @@ async function renderSettings() {
     /* [simple-icons slug] for the brands it carries; ['/brand/logos/x'] for the three it lacks (their own
        favicons, fetched 2026-10-07: Triple Whale, Frame.io, Atria); [null, letters, colour] as the last resort. */
     const ICON = { meta: ['meta', '#0866FF'], tw: ['/brand/logos/triplewhale.png'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'], slack_internal: ['slack', '#4A154B'], slack_client: ['slack', '#4A154B'],
-      google: ['googledrive', '#4285F4'], drive: ['googledrive', '#4285F4'], frame: ['/brand/logos/frameio.svg'], hub: [null, 'CL', '#E86A33'], onboarding: [null, 'OB', '#647684'], google_ads: ['googleads', '#4285F4'], klaviyo: ['klaviyo', '#1E1E1E'],
+      google: ['googledrive', '#4285F4'], drive: ['googledrive', '#4285F4'], ga4: ['googleanalytics', '#E37400'], gsc: ['googlesearchconsole', '#458CF5'], gads: ['googleads', '#4285F4'], gads_direct: ['googleads', '#4285F4'], frame: ['/brand/logos/frameio.svg'], hub: [null, 'CL', '#E86A33'], onboarding: [null, 'OB', '#647684'], google_ads: ['googleads', '#4285F4'], klaviyo: ['klaviyo', '#1E1E1E'],
       atria: ['/brand/logos/atria.svg'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], google_login: ['google', '#4285F4'], anthropic: ['anthropic', '#C15F3C'] };
     const logo = k => { const [slug, letter, color] = ICON[k] || [null, k.slice(0, 2).toUpperCase(), '#647684'];
       if (!slug) return `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`;
@@ -10615,6 +10632,11 @@ async function renderSettings() {
     const agency = rep.agency.filter(a => !a.only || S.act === 'all' || a.only === S.act);
     const agOff = agency.filter(a => a.state !== 'ok'), brOff = brands.flatMap(b => b.items.filter(i => i.state === 'bad' || i.state === 'warn').map(i => `${b.name}: ${i.name}`));
     const oneName = S.act === 'all' ? null : (S.accounts.find(a => a.act_id === S.act)?.name || 'this brand');
+    /* Grouped by kind so nothing gets lost as connections grow (2026-10-08). */
+    const KIND = [['Ad platforms', ['meta', 'google_ads', 'gads', 'gads_direct', 'tiktok']], ['Store and analytics', ['tw', 'shopify', 'ga4', 'gsc']], ['Email and SMS', ['klaviyo']],
+      ['Team and work tools', ['asana', 'slack', 'slack_internal', 'slack_client', 'google', 'drive', 'frame', 'google_login', 'onboarding', 'hub', 'stripe', 'lucky_app']], ['AI and creative', ['anthropic', 'gemini', 'studio', 'canva', 'atria', 'downloader']]];
+    const byKind = (items, draw) => { const seen = new Set(); const groups = KIND.map(([label, keys]) => { const its = items.filter(x => keys.includes(x.key)); its.forEach(x => seen.add(x.key)); return its.length ? `<div class="cn-kind">${esc(label)}</div><div class="set-body cn-cards">${its.map(draw).join('')}</div>` : ''; }).join('');
+      const rest = items.filter(x => !seen.has(x.key)); return groups + (rest.length ? `<div class="cn-kind">Other</div><div class="set-body cn-cards">${rest.map(draw).join('')}</div>` : ''); };
     const card = (it, scope, act) => `<button type="button" class="cn-card ${it.state}" data-scope="${scope}" data-act="${esc(act || '')}" data-k="${esc(it.key)}" title="${esc(it.note || '')}">
         ${logo(it.key)}<span class="cn-cbody"><span class="cn-cname">${esc(it.name.replace(' (via Triple Whale)', ''))}</span><span class="cn-cnote tiny">${esc((it.used_by ? 'Used by ' + it.used_by : it.note) || '')}</span></span>${pill(it.state)}</button>`;
     host.innerHTML = `
@@ -10622,9 +10644,9 @@ async function renderSettings() {
         ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0">✓<div>Every agency connection is up and no brand is failing.</div></div>`}
       </div>
       <div class="card set-card"><h3>Mobius's own connections</h3><p class="hint set-why">Made once, shared by every brand${oneName ? ` (these are the agency's, not ${esc(oneName)}'s)` : ''}: a secret on the worker, or Cole signing in from Locus. Click one for what it does and how to fix it.</p>
-        <div class="set-body cn-cards">${agency.map(a => card(a, 'agency')).join('')}</div></div>
+        ${byKind(agency, a => card(a, 'agency'))}</div>
       ${brands.length ? brands.map(b => `<div class="card set-card"><h3>${esc(b.name)}</h3><p class="hint set-why">${esc(b.summary)}. Set up at onboarding: New client makes the Asana project, Drive folder, Slack channels and Frame project; the ad account, Triple Whale, Shopify and Klaviyo come from the client. Click a card for the exact steps.</p>
-        <div class="set-body cn-cards">${b.items.map(i => card(i, 'brand', b.act_id)).join('')}</div></div>`).join('') : '<div class="card"><p class="hint">No active brands.</p></div>'}
+        ${byKind(b.items, i => card(i, 'brand', b.act_id))}</div>`).join('') : '<div class="card"><p class="hint">No active brands.</p></div>'}
       <div class="cn-scrim" id="cnScrim" hidden></div><aside class="cn-drawer" id="cnDrawer" hidden aria-label="Connection"></aside>`;
     const drawer = $('#cnDrawer'), scrim = $('#cnScrim');
     const close = () => { drawer.hidden = true; scrim.hidden = true; host.querySelectorAll('.cn-card.on').forEach(x => x.classList.remove('on')); };

@@ -119,8 +119,17 @@ async function klaviyoViewRaw(env, act, what = 'overview') {
       how_to_read: 'status live = sending, manual = built but off, draft = unfinished. A brand with no live abandoned-cart, welcome, post-purchase or winback flow has a gap worth naming.' };
   }
   if (what === 'campaigns') {
-    const rows = await all(k, `/api/campaigns/?filter=${encodeURIComponent("equals(messages.channel,'email')")}&fields[campaign]=name,status,send_time,created_at,updated_at&sort=-scheduled_at`, 3);
-    const sent = rows.filter(x => x.attributes?.send_time && /^sent$/i.test(x.attributes?.status || '')).sort((a, b) => String(b.attributes.send_time).localeCompare(String(a.attributes.send_time))).slice(0, 30);
+    /* Subject lines ride along as included campaign-messages (2026-10-08, for the subject-line and send-time
+       views). If Klaviyo refuses the include, the list is read without it. */
+    let rows, subj = {};
+    try {
+      const r0 = await klaviyo(k, `/api/campaigns/?filter=${encodeURIComponent("equals(messages.channel,'email')")}&fields[campaign]=name,status,send_time,created_at,updated_at&sort=-scheduled_at&include=campaign-messages&fields[campaign-message]=definition`);
+      rows = r0.data || []; let next = r0.links?.next || null; const inc = [...(r0.included || [])];
+      for (let i = 0; i < 2 && next; i++) { const r1 = await klaviyo(k, next.replace(API, '')); rows.push(...(r1.data || [])); inc.push(...(r1.included || [])); next = r1.links?.next || null; }
+      const msgSubj = Object.fromEntries(inc.filter(x => x.type === 'campaign-message').map(x => [x.id, x.attributes?.definition?.content?.subject || x.attributes?.content?.subject || null]));
+      for (const c of rows) { const mid = c.relationships?.['campaign-messages']?.data?.[0]?.id; if (mid && msgSubj[mid]) subj[c.id] = msgSubj[mid]; }
+    } catch { rows = await all(k, `/api/campaigns/?filter=${encodeURIComponent("equals(messages.channel,'email')")}&fields[campaign]=name,status,send_time,created_at,updated_at&sort=-scheduled_at`, 3); }
+    const sent = rows.filter(x => x.attributes?.send_time && /^sent$/i.test(x.attributes?.status || '')).sort((a, b) => String(b.attributes.send_time).localeCompare(String(a.attributes.send_time))).slice(0, 60);
     let results = {};
     try {
       const metric = await placedOrderMetric(k);
@@ -129,7 +138,7 @@ async function klaviyoViewRaw(env, act, what = 'overview') {
       const r = await klaviyo(k, '/api/campaign-values-reports/', { method: 'POST', body: { data: { type: 'campaign-values-report', attributes } } });
       for (const row of r.data?.attributes?.results || []) results[row.groupings?.campaign_id] = row.statistics;
     } catch (e) { results = { error: e.message }; }
-    return { ...base, campaigns: sent.map(x => ({ id: x.id, name: x.attributes?.name, sent: x.attributes?.send_time?.slice(0, 10), status: x.attributes?.status, ...(results[x.id] || {}) })), results_note: results.error ? `Results could not be read: ${results.error}` : 'open_rate, click_rate, conversion_rate are fractions (0.42 = 42%); conversion_value is revenue attributed to the campaign by Klaviyo (Placed Order), not Triple Whale.' };
+    return { ...base, campaigns: sent.map(x => ({ id: x.id, name: x.attributes?.name, subject: subj[x.id] || null, sent: x.attributes?.send_time?.slice(0, 10), send_time: x.attributes?.send_time || null, status: x.attributes?.status, ...(results[x.id] || {}) })), results_note: results.error ? `Results could not be read: ${results.error}` : 'open_rate, click_rate, conversion_rate are fractions (0.42 = 42%); conversion_value is revenue attributed to the campaign by Klaviyo (Placed Order), not Triple Whale.' };
   }
   /* Flow results (Locus v2): one flow-values-report over the last 90 days, grouped by flow,
      with the flow names joined in. */

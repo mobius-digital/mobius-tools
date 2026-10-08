@@ -19,6 +19,7 @@
  *   GET /api/hub/customer?act=&customer=
  *   GET /api/hub/today?act=
  *   GET /api/hub/moved?act=          what moved yesterday against the same weekday over 8 weeks
+ *   GET /api/hub/find?q=&act=        any Meta campaign or ad by name (the ask bar's jump list)
  */
 const MODELS = new Set(['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform']);
 const MODEL_LABEL = { lastPlatformClick: 'Triple Whale, last platform click', fullFirstClick: 'Triple Whale, first click', fullLastClick: 'Triple Whale, last click', linear: 'Triple Whale, linear (paid)', linearAll: 'Triple Whale, linear (all)', platform: 'Platform reported' };
@@ -66,6 +67,15 @@ export async function handleHub(ctx) {
     if (path === '/api/hub/email') return json({ ...base, window: w0, brands: await emailMany(env, ctx, accts, w0) });
     if (path === '/api/hub/orders') return json({ ...base, ...(await ordersFor(env, accts[0], win(accts[0]), model, url)) });
     if (path === '/api/hub/customer') return json(await customerFor(env, accts[0], url.searchParams.get('customer') || ''));
+    if (path === '/api/hub/find') {
+      const q = String(url.searchParams.get('q') || '').trim().replace(/[%_]/g, '');
+      if (q.length < 3) return json({ items: [] });
+      const ids = accts.map(a => a.act_id), nm = Object.fromEntries(accts.map(a => [a.act_id, a.name]));
+      const IN = ids.map((_, i) => `?${i + 2}`).join(',');
+      const { results: ads } = await env.DB.prepare(`SELECT ad_id, name, act_id FROM ads WHERE act_id IN (${IN}) AND name LIKE ?1 ORDER BY COALESCE(first_spend_date, created_time) DESC LIMIT 8`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
+      const { results: cs } = await env.DB.prepare(`SELECT campaign_id, name, act_id FROM meta_campaigns WHERE act_id IN (${IN}) AND name LIKE ?1 ORDER BY created_time DESC LIMIT 5`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
+      return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, brand: nm[a.act_id] }))] });
+    }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
     if (path === '/api/hub/today') {
       const rows = await Promise.all(accts.map(async a => {
@@ -369,7 +379,13 @@ async function creativeBrand(env, a, w, model) {
   const { results: ads } = await env.DB.prepare(`SELECT d.ad_id, x.name, x.media_type, x.first_spend_date, x.created_time, x.campaign_id, x.adset_id, ${META_COLS}
     FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id HAVING SUM(d.spend) > 0`).bind(act, w.from, w.to).all();
   const { byAd } = await attrByAd(env, act, w.from, w.to, model, 'meta');
+  /* First-click credit per ad, beside the screen's model: an ad Triple Whale credits far more on FIRST
+     click starts journeys (top of funnel); one credited more on the last click closes them. */
+  const fc = model === 'fullFirstClick' ? byAd : (await attrByAd(env, act, w.from, w.to, 'fullFirstClick', 'meta')).byAd;
+  const lc = model === 'lastPlatformClick' ? byAd : (await attrByAd(env, act, w.from, w.to, 'lastPlatformClick', 'meta')).byAd;
   const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name FROM meta_campaigns WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
+  const { results: setRows } = await env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
+  const sName = Object.fromEntries((setRows || []).map(x => [x.adset_id, x.name]));
   const cName = Object.fromEntries((camps || []).map(c => [c.campaign_id, c.name]));
   /* Angle per ad: the batch number leading the ad name -> the test library -> its angle. */
   const { results: batches } = await env.DB.prepare(`SELECT b.num, g.name angle FROM p_br_batch b LEFT JOIN p_br_angle g ON g.id = b.angle_id WHERE b.act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
@@ -379,10 +395,21 @@ async function creativeBrand(env, a, w, model) {
     const m = metaMetrics(r, model === 'platform' ? null : (byAd[r.ad_id] || { rev: 0, ord: 0 }));
     const first = r.first_spend_date || (r.created_time || '').slice(0, 10) || null;
     const b = batchOf(r.name);
-    return { id: r.ad_id, name: r.name || r.ad_id, media_type: r.media_type || (num(r.v3) > 0 ? 'video' : 'image'), campaign: cName[r.campaign_id] || null,
+    return { id: r.ad_id, name: r.name || r.ad_id, media_type: r.media_type || (num(r.v3) > 0 ? 'video' : 'image'), campaign: cName[r.campaign_id] || null, adset_id: r.adset_id || null,
+      fc_rev: model === 'platform' ? null : num((fc[r.ad_id] || {}).rev), lc_rev: model === 'platform' ? null : num((lc[r.ad_id] || {}).rev),
       first_spend: first, age: first ? Math.max(0, Math.round((Date.parse(today) - Date.parse(first)) / 864e5)) : null,
       format: formatOf(r.name), batch: b, angle: b ? (angleOf[b] || null) : null, ...m };
   }).sort((x, y) => y.spend - x.spend);
+  /* THE AD SET IS THE UNIT (Cole, 2026-10-08). Meta spends inside an ad set as one system: the ad that
+     takes most of the budget is often the broad opener, and the smaller ads with prettier numbers ride
+     on the traffic it warms. So every ad carries its ad set's totals, its share of that spend and its
+     rank, and the Creative screen judges the set first and the ad by its role in it. */
+  const sets = {};
+  for (const r of rows) { if (!r.adset_id) continue; const x = sets[r.adset_id] ||= { id: r.adset_id, name: sName[r.adset_id] || null, spend: 0, revenue: 0, purchases: 0, ads: 0 }; x.spend += r.spend; x.revenue += r.revenue || 0; x.purchases += r.purchases || 0; x.ads++; }
+  for (const x of Object.values(sets)) { x.cpa = div(x.spend, x.purchases); x.roas = div(x.revenue, x.spend); }
+  const rankIn = {};
+  for (const r of rows) { if (!r.adset_id) continue; const k = rankIn[r.adset_id] = (rankIn[r.adset_id] || 0) + 1; const x = sets[r.adset_id];
+    r.adset = { id: x.id, name: x.name, spend: x.spend, purchases: x.purchases, revenue: x.revenue, cpa: x.cpa, roas: x.roas, ads: x.ads }; r.set_share = div(r.spend, x.spend); r.set_rank = k; }
   /* Fatigue: CPA by days since an ad first spent, over every ad-day in the window. */
   const { results: adDays } = await env.DB.prepare(`SELECT d.ad_id, d.date, d.spend, d.impressions, d.link_clicks, d.purchases FROM ad_daily d WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 AND d.spend > 0`).bind(act, w.from, w.to).all();
   const { results: attrDays } = model === 'platform' ? { results: [] } : await env.DB.prepare(`SELECT ad_id, date, SUM(orders) ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id, date`).bind(act, model, w.from, w.to).all();

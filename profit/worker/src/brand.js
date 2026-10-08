@@ -83,7 +83,7 @@ export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_tr
   /* Creative calls on Ads > Meta > Creative (2026-10-08): judged after cr_judge_x goal CPAs and cr_min_days live;
      Scale = cr_scale_buys+ purchases at or under goal; Cut = cr_cut_zero_x goal CPAs with no purchase, or
      cr_cut_spend_x spent at a CPA over cr_cut_cpa_x the goal. */
-  cr_judge_x: 1, cr_min_days: 3, cr_scale_buys: 2, cr_cut_zero_x: 3, cr_cut_spend_x: 2, cr_cut_cpa_x: 1.5 };
+  cr_judge_x: 1, cr_min_days: 3, cr_scale_buys: 2, cr_cut_zero_x: 3, cr_cut_spend_x: 2, cr_cut_cpa_x: 1.5, cr_anchor_pct: 50 };
 export function rulesFor(acct, doc) {
   const r = { ...DEFAULT_RULES, ...TEST_KEYS, target_cpa: null };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;

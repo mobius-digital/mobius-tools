@@ -36,7 +36,7 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport } from './google.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, enableApis } from './google.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7350,6 +7350,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const q = k => url.searchParams.get(k) || '';
       try {
         if (path === '/api/google/probe') return json(await googleProbe(env));
+        if (path === '/api/google/enable-apis' && request.method === 'POST') return json(await enableApis(env));
         if (path === '/api/google/match' && request.method === 'POST') return json(await googleMatch(env));
         if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, String(b.act || ''), b)); }
         if (path === '/api/google/link') return json(await googleLink(env, act));
