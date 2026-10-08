@@ -105,8 +105,8 @@ export async function stockView(env, acct, what = 'summary') {
 
 /** /api/supply/<route>?brand=: the Strategist's actions write through here, behind this worker's auth. */
 export async function handleSupplyProxy(request, env, path, url, json, actor) {
-  const rest = path.slice('/api/supply'.length);   // '/orders', '/products/123', '/slots', '/collections'
-  if (!/^\/(orders|slots|collections|products\/[\w-]+)$/.test(rest) || !['POST', 'PUT'].includes(request.method)) return json({ error: 'not a stock route the Strategist can use' }, 404);
+  const rest = path.slice('/api/supply'.length);   // '/orders', '/orders/PO-0001', '/products/123', '/slots', '/collections'
+  if (!/^\/(orders|orders\/[\w-]+|slots|collections|products\/[\w-]+)$/.test(rest) || !['POST', 'PUT'].includes(request.method)) return json({ error: 'not a stock route the Strategist can use' }, 404);
   const body = await request.json().catch(() => ({}));
   const brand = (url.searchParams.get('brand') || 'lucky').replace(/[^a-z0-9-]/g, ''), who = `${actor || 'someone'} (via the Strategist)`;
   try {

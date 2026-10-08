@@ -1111,7 +1111,8 @@
   .lc-pick-menu button:hover,.lc-me-menu button:hover,.lc-pick-menu button.on{background:var(--bg);color:var(--brand-ink)}
   .lc-pick-menu button.on{font-weight:700}
   .lc-pick-menu .lc-pick-add{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:6px;color:var(--brand-ink);font-weight:600}
-  .lc-me-menu small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+  .lc-me-menu small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px;white-space:normal}
+  .lc-me-menu button,.lc-pick-menu button{white-space:normal}
   .lc-me,.lc-pick{display:block;width:100%;min-width:0;box-sizing:border-box}
   .lc-me-btn,.lc-pick-btn{box-sizing:border-box;min-width:0;max-width:100%;overflow:hidden}
   .lc-pick-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2817,6 +2818,7 @@ function syncPick() {
 document.addEventListener('click', e => {
   const pb = e.target.closest('#pfPickBtn, #pfMeBtn');
   if (pb) { e.stopPropagation(); const box = pb.parentElement; closePops(box); const open = !box.classList.contains('open'); box.classList.toggle('open', open);
+    if (open) placeRailMenu(pb, box.querySelector('.hd-per-menu'));
     if (open && pb.id === 'pfPickBtn') { drawPick(); const qi = $('#pfPickQ'); qi.value = ''; setTimeout(() => qi.focus(), 0); } return; }
   const it = e.target.closest('#pfPickList [data-act]');
   if (it) { closePops(); const p = $('#clientPick'); p.value = it.dataset.act; S.act = it.dataset.act; localStorage.setItem(LS.act, S.act); syncPick(); show(S.tab); return; }
@@ -2825,6 +2827,18 @@ document.addEventListener('click', e => {
     if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team');
     else if (k === 'guide') show('guide'); else if (k === 'out') $('#btnOut').click(); }
 });
+/* The rail clips anything wider than itself (.side is overflow:hidden), which cut the profile menu's
+   text off on the right. Both rail menus are pinned to the screen at the button instead, so they can be
+   wider than the rail; the profile menu opens upward, the client picker downward. */
+function placeRailMenu(btn, menu) {
+  if (!menu) return;
+  const r = btn.getBoundingClientRect(), w = Math.min(300, innerWidth - 16), left = Math.max(8, Math.min(r.left, innerWidth - w - 8));
+  menu.style.position = 'fixed'; menu.style.left = left + 'px'; menu.style.right = 'auto'; menu.style.width = w + 'px'; menu.style.minWidth = '0';
+  if (btn.id === 'pfMeBtn') { menu.style.top = 'auto'; menu.style.bottom = (innerHeight - r.top + 6) + 'px'; menu.style.maxHeight = (r.top - 16) + 'px'; }
+  else { menu.style.bottom = 'auto'; menu.style.top = (r.bottom + 6) + 'px'; menu.style.maxHeight = (innerHeight - r.bottom - 16) + 'px'; }
+  menu.style.overflowY = 'auto'; menu.style.zIndex = '80';
+}
+addEventListener('resize', () => document.querySelectorAll('.lc-me.open, .lc-pick.open').forEach(b => b.classList.remove('open')));
 document.addEventListener('input', e => { if (e.target.id === 'pfPickQ') drawPick(e.target.value); });
 document.addEventListener('keydown', e => { if (e.target.id === 'pfPickQ' && e.key === 'Enter') { const f = $('#pfPickList [data-act]'); if (f) f.click(); } });
 /* Who is signed in, for the profile button. */

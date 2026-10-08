@@ -1111,6 +1111,22 @@ const BUTTONS = (d) => {
         return { summary: `${status === 'draft' ? 'Draft order' : 'Order'} to ${f ? f.name : 'a factory'}: ${out.reduce((x, l) => x + l.qty, 0)} units`, detail: `${a.name} · placed ${placed} · lands ${lands}\n${out.map(l => `${l._t} ${l._a || ''}: ${l.qty}`).join('\n')}`,
           request: { method: 'POST', path: `/api/supply/orders?brand=${b.id}`, body: { factory_id: f ? f.id : null, status, sent_at: placed, expected_at: lands, notes: i.notes || '', lines: out.map(({ _t, _a, ...l }) => l) } } };
       }), done: r => `Logged ${r.id || 'the order'}. It shows on Store, Buying.` }),
+    routeAction({ name: 'update_order',
+      description: 'Move a factory order along on a brand we buy for: its stage (placed, production, shipped, landed, cancelled), expected landing date, tracking or a note. Landed marks every line fully received.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, id: { type: 'string', description: 'Order id, e.g. PO-0001' }, stage: { type: 'string', enum: ['placed', 'production', 'shipped', 'landed', 'cancelled'] }, lands: { type: 'string', description: 'YYYY-MM-DD' }, tracking: { type: 'string' }, note: { type: 'string' } }, required: ['brand', 'id'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const b = await supplyBrandOf(env, a.act_id);
+        if (!b || !b.buys) return { error: `${a.name} is not a brand we buy stock for.` };
+        const st = await supplyFetch(env, '/api/state', { brand: b.id });
+        const o = st.orders.find(x => x.id.toLowerCase() === String(i.id).toLowerCase()); if (!o) return { error: `No order ${i.id}. Orders: ${st.orders.map(x => x.id).join(', ') || 'none'}.` };
+        const body = {}, said = [];
+        if (i.stage) { body.status = i.stage === 'placed' ? 'sent' : i.stage; said.push(`stage ${i.stage}`); if (i.stage === 'landed') body.lines = o.lines.map(l => ({ variant_id: l.variant_id, product_id: l.product_id, qty: l.qty, received: l.qty, unit_cost: l.unit_cost })); }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(i.lands || '')) { body.expected_at = i.lands; said.push(`lands ${i.lands}`); }
+        if (i.tracking != null) { body.tracking = i.tracking; said.push('tracking'); }
+        if (i.note != null) { body.notes = i.note; said.push('note'); }
+        if (!said.length) return { error: 'Nothing to change.' };
+        return { summary: `${o.id}: ${said.join(', ')}`, detail: `${a.name} · ${o.factoryName || 'factory'} · ${o.units} units · ${o.productTitles.join(', ')}`, request: { method: 'PUT', path: `/api/supply/orders/${encodeURIComponent(o.id)}?brand=${b.id}`, body } };
+      }), done: () => 'Updated. It shows on Store, Buying.' }),
     routeAction({ name: 'set_product',
       description: 'Change how stock treats one product: kind (core, drop = a one-off that never asks for a reorder, winding_down, discontinued), keep or cut on its group\'s plan, or a note.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, product: { type: 'string' }, kind: { type: 'string', enum: ['core', 'drop', 'winding_down', 'discontinued'] }, decision: { type: 'string', enum: ['keep', 'cut', 'rule'] }, note: { type: 'string' } }, required: ['brand', 'product'] },
