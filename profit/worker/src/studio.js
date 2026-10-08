@@ -30,7 +30,7 @@ const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext', 'story']);
    FEED_ZONE / STORY_ZONE are those areas in 0-1000 of each picture: Stories/Reels hide the top 14% (profile
    row) and the bottom 35% (caption and buttons), 6% at the sides; the feed only needs a margin. */
 const FEED = '1024x1280', TALL = '1008x1792';
-const FEED_ZONE = { top: 40, bottom: 960, left: 40, right: 960 };
+const FEED_ZONE = { top: 110, bottom: 890, left: 40, right: 960 };   // the 1:1 square inside the 4:5 (y 100-900), plus a margin
 const STORY_ZONE = { top: 150, bottom: 650, left: 60, right: 940 };
 /* Rough USD per call, for the running cost on each ad. High-quality portrait image ~ $0.25. */
 const COST = { image: 0.25, feed: 0.31, tall: 0.42, vision: 0.01 };   // feed = 1024x1280, tall = 1008x1792 (pixels vs a square)
@@ -191,7 +191,7 @@ function textLines(spec) {
 /* A line whose photograph IS the ad (a real shot from the brand's own shoot, 2026-10-06): the picture
    is kept and only the words, and whatever small change the plan asks for, go on. Realism comes free,
    because nothing is rendered. */
-const FEED_LAYOUT = 'LAYOUT: the image is a 4:5 portrait feed ad. Compose for this whole frame. Every word, badge and button, and the whole product, sit fully inside the frame at least 5% in from every edge; nothing important touches or crosses an edge. A phone screen, sign, poster, painting or frame in the ad is shown whole with space around it. People are shown as the scene needs, never cut awkwardly at the knees or the top of the head.';
+const FEED_LAYOUT = 'LAYOUT: the image is a 4:5 portrait feed ad, and Meta crops it to a centred SQUARE in some placements. Compose for the whole frame, but every word, badge and button sits inside that centre square: between 12% and 88% of the height from the top, and at least 5% in from each side. The top 12% and the bottom 12% hold NO words or buttons, only scene or background. The whole product sits fully inside the frame, ideally inside the centre square too; nothing important touches or crosses an edge. A phone screen, sign, poster, painting or frame in the ad is shown whole with space around it. People are shown as the scene needs, never cut awkwardly at the knees or the top of the head.';
 const STORY_LAYOUT = 'LAYOUT: TALL 9:16 for Instagram and Facebook Stories and Reels. The scene fills the whole frame top to bottom. Every word, badge and button sits between 20% and 62% of the height from the top and at least 6% in from each side; the headline near the top of that band. The top 15% and the bottom 35% hold NO words or buttons (the app draws its own there): fill them with scene, sky, floor, table or background. The whole product sits between 18% and 85% of the height, never cut by an edge.';
 function basePrompt(spec, brand) {
   const lines = textLines(spec);
@@ -329,7 +329,7 @@ const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
 /* Where the words landed: one read-back (about a cent). Words outside the zone would be cut or hidden
    (feed edges, or the Stories / Reels buttons on the 9:16), so the card flags it.
    A flag, never an automatic redo (Cole: retries waste credits). */
-async function zoneCheck(key, m, bytes, spec, Z = FEED_ZONE, where = 'too close to the edge') {
+async function zoneCheck(key, m, bytes, spec, Z = FEED_ZONE, where = 'outside the centre square') {
   const lines = await readText(key, m.vision, bytes, spec).catch(() => null);
   if (!lines) return null;
   const out = lines.filter(l => l.box[1] < Z.top || l.box[3] > Z.bottom || l.box[0] < Z.left || l.box[2] > Z.right);
