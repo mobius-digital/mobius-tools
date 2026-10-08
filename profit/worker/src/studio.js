@@ -951,7 +951,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const m = await models(key);
       const src = await env.MEDIA.get(keyOf(row, 'full'));
       const spec = safeJson(row.spec_json, {});
-      const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same words spelled exactly, the same lettering style and colours. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
+      const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same headline and smaller line spelled exactly, the same lettering style and colours. LEAVE OUT any button or shop-now label: Stories and Reels add their own button. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
       send({ type: 'status', text: 'Making the 9:16 version. About 40 seconds.' });
       const out = await imageCall(key, m.image, { images: [{ buf: new Uint8Array(await src.arrayBuffer()), type: 'image/png' }], fidelity: true, prompt, size: TALL });
       const zone = await zoneCheck(key, m, out.bytes, spec, STORY_ZONE, 'outside the Stories safe area');
