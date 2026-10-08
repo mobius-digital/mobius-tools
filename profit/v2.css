@@ -450,3 +450,16 @@ td.good,td.bad,td.warn{font-weight:600}
 .v2lib .it img{width:100%;height:100%;object-fit:cover;display:block}
 .v2lib .it:hover{border-color:var(--brand)}
 .v2lib .it em{position:absolute;left:6px;bottom:6px;font-style:normal;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(0,0,0,.6);color:#fff}
+
+/* sparkline hover marker (v2.js spkMark) */
+#v2spkx{display:none;position:fixed;z-index:60;width:0;border-left:1px dashed var(--ink);opacity:.5;pointer-events:none;transform:translateX(-.5px)}
+#v2spkd{display:none;position:fixed;z-index:61;width:9px;height:9px;border-radius:50%;background:var(--surface);border:2px solid var(--brand);pointer-events:none;transform:translate(-50%,-50%)}
+
+/* tiles open a detail panel (v2.js tiledrill) */
+.v2tile:not([data-go]){cursor:pointer}
+.v2tile:not([data-go]):hover{border-color:var(--line-strong)}
+.v2drill .dv{font-size:28px;font-weight:700;display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.v2drill h4{margin:18px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.v2drill p{margin:0 0 6px;line-height:1.55;font-size:13.5px;color:var(--ink-2)}
+.v2drill .v2spark-big{width:100%;height:140px;display:block;cursor:crosshair}
+.v2drill .v2spark-big circle{display:none}

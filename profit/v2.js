@@ -59,17 +59,50 @@
      pointer. One fixed element, one listener, so nothing has to wire its own hover. */
   const tipEl = () => document.getElementById('v2gtip') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'v2gtip' }));
   function tipAt(e, html) { const t = tipEl(); t.innerHTML = html; t.style.display = 'block'; const w = t.offsetWidth, h = t.offsetHeight; let x = e.clientX + 14, y = e.clientY + 16; if (x + w > innerWidth - 8) x = e.clientX - w - 14; if (y + h > innerHeight - 8) y = e.clientY - h - 12; t.style.left = x + 'px'; t.style.top = y + 'px'; }
-  const tipOff = () => { const t = document.getElementById('v2gtip'); if (t) t.style.display = 'none'; };
+  const tipOff = () => { const t = document.getElementById('v2gtip'); if (t) t.style.display = 'none'; spkOff(); };
+  /* The sparkline marker: one fixed vertical line + dot laid over whichever sparkline is under the pointer, at the
+     point being read. HTML, not SVG, because sparklines stretch (preserveAspectRatio none) and a circle would too. */
+  const spkEls = () => [document.getElementById('v2spkx') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'v2spkx' })),
+    document.getElementById('v2spkd') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'v2spkd' }))];
+  function spkMark(svg, r, i, n) {
+    const pl = [...svg.querySelectorAll('polyline')].pop(); if (!pl) return;
+    const vb = svg.viewBox.baseVal; const pts = pl.getAttribute('points').trim().split(/\s+/).map(p => p.split(',').map(Number));
+    const want = vb.x + (n > 1 ? i / (n - 1) : 0) * vb.width; let best = pts[0];
+    for (const p of pts) if (Math.abs(p[0] - want) < Math.abs(best[0] - want)) best = p;
+    const x = r.left + (best[0] - vb.x) / vb.width * r.width, y = r.top + (best[1] - vb.y) / vb.height * r.height;
+    const [ln, dot] = spkEls();
+    ln.style.cssText = `display:block;left:${x}px;top:${r.top}px;height:${r.height}px`;
+    dot.style.cssText = `display:block;left:${x}px;top:${y}px`;
+  }
+  function spkOff() { const a = document.getElementById('v2spkx'), b = document.getElementById('v2spkd'); if (a) a.style.display = 'none'; if (b) b.style.display = 'none'; }
   if (!window.__v2tips) { window.__v2tips = 1;
     document.addEventListener('pointermove', e => {
       const sp = e.target.closest && e.target.closest('[data-spk]');
-      if (sp) { try { const list = JSON.parse(sp.dataset.spk); const r = sp.getBoundingClientRect(); const i = Math.max(0, Math.min(list.length - 1, Math.round((e.clientX - r.left) / r.width * (list.length - 1)))); tipAt(e, list[i]); } catch {} return; }
+      if (sp) { try { const list = JSON.parse(sp.dataset.spk); const r = sp.getBoundingClientRect(); const i = Math.max(0, Math.min(list.length - 1, Math.round((e.clientX - r.left) / r.width * (list.length - 1)))); tipAt(e, list[i]); spkMark(sp, r, i, list.length); } catch {} return; }
+      spkOff();
       const el = e.target.closest && e.target.closest('[data-v2tip]');
       if (el) tipAt(e, el.dataset.v2tip); else tipOff();
     }, { passive: true });
     document.addEventListener('scroll', tipOff, { passive: true, capture: true });
   }
   const tipAttr = html => ` data-v2tip="${esc(html)}"`;
+  /* EVERY TILE OPENS (2026-10-08, Cole: "I'm able to click on the cards I'm supposed to"). A tile that links to a
+     page keeps its data-go; any other tile opens a side panel: the number, its change, the day-by-day line drawn
+     large (same hover marker), and what the number means from the Metrics glossary. Nothing per screen to wire. */
+  if (!window.__v2tiledrill) { window.__v2tiledrill = 1;
+    document.addEventListener('click', e => {
+      const t = e.target.closest && e.target.closest('.v2tile'); if (!t || t.dataset.go || e.target.closest('a,button,input,select,[data-go]')) return;
+      const label = (t.querySelector('.l span') || t.querySelector('.l') || t).childNodes[0]?.textContent?.trim() || 'This number';
+      const sp = t.querySelector('svg.v2spark,svg[data-spk]');
+      const big = sp ? sp.outerHTML.replace('class="v2spark"', 'class="v2spark v2spark-big"').replace(/viewBox="0 0 (\d+) (\d+)"/, (m, w, h) => `viewBox="0 0 ${w} ${h}"`) : '';
+      const L = label.toLowerCase(), GL = window.GLOSSARY || [], ALIAS = { spend: 'ad spend', 'blended ad spend': 'ad spend', 'cost per purchase': 'cpa', 'cost per new customer': 'cac', purchases: 'orders', 'average order': 'aov', 'first orders': 'new customers' };
+      const want = ALIAS[L] || L; const g = GL.find(x => x.k.toLowerCase() === want) || GL.find(x => x.k.toLowerCase().includes(want) || want.includes(x.k.toLowerCase()));
+      const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul');
+      panel(label, `<div class="v2drill"><div class="dv">${v ? v.innerHTML : ''}</div>${sub ? `<p class="v2hint">${sub.innerHTML}</p>` : ''}${bul ? bul.outerHTML : ''}
+        ${big ? `<h4>Day by day</h4><p class="v2hint">Hover the line to read each day. The dashed line is the compare period.</p>${big}` : ''}
+        ${g ? `<h4>What it means</h4><p>${g.one}</p><h4>How it is worked out</h4><p>${g.f}</p><h4>What good looks like</h4><p>${g.good}</p>${g.moves ? `<h4>When it moves</h4><p>${g.moves}</p>` : ''}` : `<p class="v2hint">Open <b>Metrics</b> at the top of the page for every number's meaning.</p>`}</div>`);
+    });
+  }
 
   /* ---------- small graphics ---------- */
   function spark(vals, ghost, w = 300, h = 34, tips) {
@@ -115,18 +148,31 @@
       ${opts.key2 ? `<polyline points="${line(rows, opts.key2)}" fill="none" stroke="var(--c-google)" stroke-width="1.6" stroke-linejoin="round"/>` : ''}
       <polyline points="${line(rows, key)}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
       ${lastV != null ? `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(lastV).toFixed(1)}" r="3.5" fill="var(--brand)"/>` : ''}
-      ${marks}<line class="gl" x1="0" x2="0" y1="${pt}" y2="${h - pb}" stroke="var(--ink)" opacity="0"/></svg><div class="v2tip"></div></div>`;
+      ${marks}<line class="gl" x1="0" x2="0" y1="${pt}" y2="${h - pb}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 3" opacity="0"/><g class="gdots"></g></svg><div class="v2tip"></div></div>`;
   }
+  /** A dot where each drawn line crosses the hovered x (viewBox units), for every line chart in Locus. */
+  function markDots(svg, x, tol) {
+    let g = svg.querySelector('.gdots'); if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'gdots'); svg.appendChild(g); }
+    g.innerHTML = [...svg.querySelectorAll('polyline')].map(pl2 => {
+      const raw = (pl2.getAttribute('points') || '').trim(); if (!raw) return '';
+      const pts = raw.split(/\s+/).map(p => p.split(',').map(Number)); let best = null;
+      for (const p of pts) if (!best || Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p;
+      if (!best || Math.abs(best[0] - x) > tol) return '';
+      return `<circle cx="${best[0]}" cy="${best[1]}" r="4.5" fill="var(--surface)" stroke="${pl2.getAttribute('stroke')}" stroke-width="2"/>`;
+    }).join('');
+  }
+  const clearDots = svg => { const g = svg.querySelector('.gdots'); if (g) g.innerHTML = ''; };
   function wireLine(id, rows, opts = {}) {
     const el = document.getElementById(id); if (!el) return;
     const w = 760, pl = 48, pr = 16, n = rows.length, wrap = el.parentNode, tip = wrap.querySelector('.v2tip'), gl = el.querySelector('.gl');
     const move = e => {
       const r = el.getBoundingClientRect(); const i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width * w - pl) / (w - pl - pr) * (n - 1))));
-      const x = pl + i / (n - 1) * (w - pl - pr); gl.setAttribute('x1', x); gl.setAttribute('x2', x); gl.setAttribute('opacity', '.4');
+      const x = pl + i / (n - 1) * (w - pl - pr); gl.setAttribute('x1', x); gl.setAttribute('x2', x); gl.setAttribute('opacity', '.55');
+      markDots(el, x, (w - pl - pr) / Math.max(1, n - 1) / 2 + 1);
       tip.style.display = 'block'; tip.innerHTML = opts.tip(rows[i], i);
       const tw = tip.offsetWidth; let left = (e.clientX - r.left) + 14; if (left + tw > r.width) left = (e.clientX - r.left) - tw - 14; tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '8px';
     };
-    el.onpointermove = move; el.onpointerdown = move; el.onpointerleave = () => { tip.style.display = 'none'; gl.setAttribute('opacity', '0'); };
+    el.onpointermove = move; el.onpointerdown = move; el.onpointerleave = () => { tip.style.display = 'none'; gl.setAttribute('opacity', '0'); clearDots(el); };
   }
   /** Stacked daily bars (spend by campaign or platform), shared tooltip per day. */
   function stackChart(id, rows, series, opts = {}) {
@@ -1043,7 +1089,7 @@
      None of these read the host state; `chip(cur, prev, lower)` is the delta pill without the
      compare-period switch (lower = true when lower is better, 'n' = neutral). */
   const chip = (cur, prev, lower, label) => { if (cur == null || prev == null || !isFinite(cur) || !isFinite(prev) || !prev) return ''; const d = cur / prev - 1; if (!isFinite(d)) return ''; const tone = Math.abs(d) < 0.015 || lower === 'n' ? 'flat' : ((d > 0) !== !!lower) ? 'up' : 'down'; return `<span class="v2d ${tone}"${label ? tipAttr(label) : ''}>${d >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(d * 100))}%</span>`; };
-  window.V2UI = { tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
+  window.V2UI = { markDots, clearDots, tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
     setHost: h => { if (!H) H = h; } };
 
   window.V2 = {

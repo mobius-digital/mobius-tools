@@ -1101,26 +1101,52 @@
   .setnav-note{font-size:12px;color:var(--muted);margin:14px 12px 0;line-height:1.5}
   .setnav-note a{color:var(--brand-ink)}
   /* Client picker and profile menus (same open/close rule as the date menu: closePops). */
-  .pf-pick{position:relative;margin-top:4px}
-  .pf-pick-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border-radius:9px;border:1px solid var(--hd-line,var(--line-strong));background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
-  .pf-pick-btn:hover{border-color:var(--brand)}
-  .pf-pick-btn svg{color:var(--muted);flex:none}
-  .pf-pick .pf-pick-menu{left:0;right:auto;min-width:220px;max-height:60vh;overflow:auto}
-  .pf-pick-menu input{width:100%;box-sizing:border-box;margin:0 0 6px;padding:7px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
-  .pf-pick-menu button,.pf-me-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:7px;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
-  .pf-pick-menu button:hover,.pf-me-menu button:hover,.pf-pick-menu button.on{background:var(--bg);color:var(--brand-ink)}
-  .pf-pick-menu button.on{font-weight:700}
-  .pf-pick-menu .pf-pick-add{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:6px;color:var(--brand-ink);font-weight:600}
-  .pf-me-menu small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
-  .pf-me{position:relative;margin:4px 0 8px}
-  .pf-me-btn{width:100%;display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;text-align:left;font:inherit}
-  .pf-me-btn:hover{border-color:var(--brand)}
-  .pf-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:#06131c;font-weight:800;font-size:12px;flex:none}
-  .pf-me-t{display:flex;flex-direction:column;min-width:0;flex:1}
-  .pf-me-t b{font-size:12.5px}
-  .pf-me-t small{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .pf-me .pf-me-menu{left:0;right:auto;top:auto;bottom:calc(100% + 6px);min-width:240px}
+  .lc-pick{position:relative;margin-top:4px}
+  .lc-pick-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border-radius:9px;border:1px solid var(--hd-line,var(--line-strong));background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left}
+  .lc-pick-btn:hover{border-color:var(--brand)}
+  .lc-pick-btn svg{color:var(--muted);flex:none}
+  .lc-pick .lc-pick-menu{left:0;right:auto;min-width:220px;max-height:60vh;overflow:auto}
+  .lc-pick-menu input{width:100%;box-sizing:border-box;margin:0 0 6px;padding:7px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
+  .lc-pick-menu button,.lc-me-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:7px;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+  .lc-pick-menu button:hover,.lc-me-menu button:hover,.lc-pick-menu button.on{background:var(--bg);color:var(--brand-ink)}
+  .lc-pick-menu button.on{font-weight:700}
+  .lc-pick-menu .lc-pick-add{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:6px;color:var(--brand-ink);font-weight:600}
+  .lc-me-menu small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+  .lc-me,.lc-pick{display:block;width:100%;min-width:0;box-sizing:border-box}
+  .lc-me-btn,.lc-pick-btn{box-sizing:border-box;min-width:0;max-width:100%;overflow:hidden}
+  .lc-pick-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lc-me{position:relative;margin:4px 0 8px}
+  .lc-me-btn{width:100%;display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;text-align:left;font:inherit}
+  .lc-me-btn:hover{border-color:var(--brand)}
+  .lc-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:#06131c;font-weight:800;font-size:12px;flex:none}
+  .lc-me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+  .lc-me-t b{font-size:12.5px}
+  .lc-me-t small{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lc-me .lc-me-menu{left:0;right:auto;top:auto;bottom:calc(100% + 6px);min-width:240px}
   #btnOut{display:none!important}   /* Sign out lives in the profile menu now */
+  .gwrap2{display:grid;gap:14px;max-width:760px}
+  .setpane.bmode .brow-grp[data-bg="goals"]{background:none!important;border:0!important;padding:0!important;box-shadow:none!important}
+  .g-band .gband{height:24px;font-size:10.5px}
+  .g-band .gband i{text-overflow:ellipsis}
+  .g-sec{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--surface)}
+  .g-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .g-h h4{margin:0;font-size:14px;font-weight:700;color:var(--ink)}
+  .g-hint{margin:4px 0 8px;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .g-row{display:grid;grid-template-columns:1fr 150px;align-items:center;gap:16px;padding:9px 0;border-top:1px solid var(--line)}
+  .g-row:first-of-type{border-top:0}
+  .g-l b{display:block;font-size:13px;font-weight:600;color:var(--ink)}
+  .g-l small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px;line-height:1.4}
+  .g-c{display:flex;justify-content:flex-end}
+  .g-c .unit-in{width:150px;box-sizing:border-box;height:34px}
+  .g-c .unit-in input{width:100%;min-width:0;text-align:right;border:0;background:none;color:var(--ink);font:inherit;font-variant-numeric:tabular-nums}
+  .g-c .unit-in span{color:var(--muted);font-size:12px;white-space:nowrap}
+  .g-val{font-variant-numeric:tabular-nums}
+  .g-band{padding:6px 0 2px}
+  .g-sw{display:inline-flex;align-items:center;gap:8px}
+  .g-save{display:flex;align-items:center;gap:12px;position:sticky;bottom:0;padding:10px 0;background:var(--bg)}
+  .toggle{width:36px;height:20px;border-radius:99px;background:var(--line-strong);position:relative;transition:.15s;flex:none;cursor:pointer;display:inline-block}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff!important;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.15s}
+  .toggle.on{background:var(--brand)} .toggle.on::after{left:18px}
   .set-add{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 16px}
   .set-add-o{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
   .set-add-o .tiny{margin:0;line-height:1.45;font-size:12px}
@@ -2139,7 +2165,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=9">
+<link rel="stylesheet" href="v2.css?v=10">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=9"></script>
 <body>
@@ -2186,10 +2212,10 @@
     <div class="side-client">
       <span class="side-cap">Client</span>
       <select id="clientPick" style="display:none"></select>
-      <div class="hd-period pf-pick" id="pfPick" hidden>
-        <button type="button" class="pf-pick-btn" id="pfPickBtn" aria-haspopup="true"><span id="pfPickLbl">All clients</span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
-        <div class="hd-per-menu pf-pick-menu" role="menu"><input type="text" id="pfPickQ" placeholder="Find a client" autocomplete="off"><div id="pfPickList"></div>
-          <button type="button" class="pf-pick-add" data-me="clients">+ New client</button></div>
+      <div class="hd-period lc-pick" id="pfPick" hidden>
+        <button type="button" class="lc-pick-btn" id="pfPickBtn" aria-haspopup="true"><span id="pfPickLbl">All clients</span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+        <div class="hd-per-menu lc-pick-menu" role="menu"><input type="text" id="pfPickQ" placeholder="Find a client" autocomplete="off"><div id="pfPickList"></div>
+          <button type="button" class="lc-pick-add" data-me="clients">+ New client</button></div>
       </div>
     </div>
     <div class="side-scroll">
@@ -2213,9 +2239,9 @@
       <div class="v2theme" role="group" aria-label="Theme"><button type="button" data-theme-pick="dark">Dark</button><button type="button" data-theme-pick="light">Light</button></div>
       <button class="askbtn" onclick="AskUI.open()" title="Ask the Strategist (or press Ctrl+K and type)" style="margin-bottom:8px;width:100%;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 4.5 16.8L21 21l-1.2-4.5A9 9 0 0 0 12 3Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3 2.45V13"/><path d="M12.5 16h.01"/></svg>Ask the Strategist</button>
       <button class="askbtn" id="btnGuide" style="margin-bottom:8px;width:100%;justify-content:center;display:none" title="What each tab is for, and what to do each day">How to use Locus</button>
-      <div class="hd-period pf-me" id="pfMe">
-        <button type="button" class="pf-me-btn" id="pfMeBtn" aria-haspopup="true"><span class="pf-av" id="pfAv">M</span><span class="pf-me-t"><b id="pfMeName">Mobius Digital</b><small id="pfMeMail">Agency settings</small></span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 5l4-4 4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
-        <div class="hd-per-menu pf-me-menu" role="menu">
+      <div class="hd-period lc-me" id="pfMe">
+        <button type="button" class="lc-me-btn" id="pfMeBtn" aria-haspopup="true"><span class="lc-av" id="pfAv">M</span><span class="lc-me-t"><b id="pfMeName">Mobius Digital</b><small id="pfMeMail">Agency settings</small></span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 5l4-4 4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+        <div class="hd-per-menu lc-me-menu" role="menu">
           <button type="button" role="menuitem" data-me="agency">Agency settings<small>Team, Slack timing, the Strategist, connections made once</small></button>
           <button type="button" role="menuitem" data-me="clients">Clients<small>Every brand, and + New client</small></button>
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
@@ -2278,7 +2304,7 @@
 <script src="studio.js?v=23"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=13"></script>
+<script src="v2.js?v=14"></script>
 <script src="askextra.js?v=1"></script>
 <script>
 'use strict';
@@ -3233,7 +3259,7 @@ const BRAND_SECS = [['about', 'About the brand', 'i-brand', 'Its name, its Meta 
   ['money', 'Money', 'i-costs', 'How profit is worked out for this brand.'],
   ['conn', 'Connections', 'i-health', 'Everything this brand is connected to: ad accounts, store, analytics, email, Asana, Slack, Drive.'],
   ['repairs', 'Data repairs', 'i-clock', 'Rarely needed: re-pull this brand\u2019s history.'],
-  ['stop', 'Stop tracking', 'i-brand', 'Take this brand out of Locus. Nothing is deleted.']];
+  ['stop', 'Remove from Locus', 'i-brand', 'For a client who has left: Locus stops syncing this brand and hides it from every page. Nothing is deleted, and you can bring it back from Agency settings, Clients, + Add a brand.']];
 const BG_OF = ['about', 'goals', 'slack', 'money', 'repairs', 'stop'];   // the brand row's groups, in order
 const SET_ICONS = { brands: 'i-brand', connections: 'i-health', sending: 'i-chat', strategist: 'i-spark', team: 'i-customers', system: 'i-clock', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
@@ -4416,6 +4442,7 @@ const GLOSSARY = [
     moves: 'Rising CPM with steady CTR is usually the auction, not you. Falling CTR with steady CPM is creative fatigue.' },
 ];
 
+window.GLOSSARY = GLOSSARY;   // v2.js tile panels read it
 function glossaryModal() {
   const body = GLOSSARY.map(m => `<div class="gl-i">
     <h4>${esc(m.k)}${m.tag ? ` <span class="gl-tag">${esc(m.tag)}</span>` : ''}</h4>
@@ -6437,14 +6464,15 @@ const LX = {
     const move = e => {
       const r = el.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * c.w;
       let i = 0; c.xs.forEach((x, k) => { if (Math.abs(c.X(x) - vx) < Math.abs(c.X(c.xs[i]) - vx)) i = k; });
-      const gx = c.X(c.xs[i]); gl.setAttribute('x1', gx); gl.setAttribute('x2', gx); gl.setAttribute('opacity', '.4');
+      const gx = c.X(c.xs[i]); gl.setAttribute('x1', gx); gl.setAttribute('x2', gx); gl.setAttribute('opacity', '.55'); gl.setAttribute('stroke-dasharray', '3 3');
+      window.V2UI.markDots(el, gx, 6);
       if (!c.tips[i]) { tip.style.display = 'none'; return; }
       tip.style.display = 'block'; tip.innerHTML = c.tips[i];
       const tw = tip.offsetWidth; let left = (e.clientX - r.left) + 14; if (left + tw > r.width) left = (e.clientX - r.left) - tw - 14;
       tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '8px';
     };
     el.onpointermove = move; el.onpointerdown = move;
-    el.onpointerleave = () => { tip.style.display = 'none'; gl.setAttribute('opacity', '0'); };
+    el.onpointerleave = () => { tip.style.display = 'none'; gl.setAttribute('opacity', '0'); window.V2UI.clearDots(el); };
   },
 };
 
@@ -6491,6 +6519,7 @@ function wireSalesSpend(svgId, readoutId, rows, fmtRow) {
     const i = Math.max(0, Math.min(n - 1, Math.round((vx - pl) / (W - pl - pr) * (n - 1))));
     const gx = pl + i / Math.max(1, n - 1) * (W - pl - pr);
     guide.setAttribute('x1', gx); guide.setAttribute('x2', gx); guide.setAttribute('opacity', '.55');
+    if (window.V2UI) window.V2UI.markDots(svg, gx, (W - pl - pr) / Math.max(1, n - 1) / 2 + 1);
     ro.innerHTML = fmtRow(rows[i]);
   };
   svg.addEventListener('pointermove', e => inspect(e.clientX));
@@ -10206,7 +10235,7 @@ async function renderSettings() {
           const sc = SET_SECS.find(x => x[0] === k); return `<button type="button" data-sec="${k}" class="${k === sec ? 'on' : ''}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${sc[1]}</span>${k === 'brands' ? `<small>${S.accounts.length}</small>` : ''}</button>`;
         }).join('')).join('')
     : `<div class="setnav-g">${esc(one ? one.name : 'This brand')}</div>` + BRAND_SECS.map(([k, label, ic]) => `<button type="button" data-bsec="${k}" class="${k === bsec ? 'on' : ''}"><svg class="ic"><use href="#${ic}"/></svg><span>${label}</span></button>`).join('')
-      + `<div class="setnav-g">Pages for this brand</div>` + SET_PAGES.map(([k, label]) => `<button type="button" data-page="${k}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${label}</span><small>page</small></button>`).join('')
+      + `<div class="setnav-g">Checks for this brand</div>` + SET_PAGES.map(([k, label]) => `<button type="button" data-page="${k}" title="${k === 'health' ? 'Is this brand’s data complete and up to date? Open it when a number looks wrong.' : 'Are this brand’s product and shipping costs right? Profit and contribution margin depend on them.'}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${k === 'health' ? 'Data check' : 'Cost check'}</span><small>page</small></button>`).join('')
       + `<p class="setnav-note">Team, Slack timing, the Strategist and the connections made once for every brand are in <a href="#" data-agency="1">Agency settings</a>.</p>`;
   $('#main').innerHTML = `<div class="v2 lx">${LX.head('settings', AGENCY ? 'Agency settings' : `Settings: ${esc(one ? one.name : '')}`,
     AGENCY ? 'Everything that applies to Mobius Digital as a whole. A brand\u2019s own settings open when you pick the brand and press Settings.' : `Only <b>${esc(one ? one.name : '')}</b>. Nothing here changes another brand.`)}
@@ -10359,8 +10388,7 @@ async function renderSettings() {
             ${c.status === 'connected' ? '<button class="btn btn-s" data-k="cohorts">Sync cohorts</button>' : ''}
             <span class="tiny" data-k="shopmsg">${c.status === 'connected' && c.cohort_months ? c.cohort_months + ' cohort months' : ''}</span></div>`)}`)}
         ${grp('Goals and Meta rules', 'The targets every platform is judged against, then the rules only Meta uses', `
-        ${field('Targets and test rules', 'Test calls, the green, yellow and red colors, the test list and the alerts all read these numbers. Nothing else in Locus edits them.',
-          `<div class="goals" data-goals="${esc(a.act_id)}"><span class="tiny">Loading…</span></div>`)}`)}
+        <div class="goals" data-goals="${esc(a.act_id)}"><span class="tiny">Loading…</span></div>`)}
         ${grp('Slack and sending', 'Where briefs and reports go, and whether you see them first', `
         ${field('Internal Slack channel', 'Your team’s. Drafts waiting for review land here, along with delivery alerts. A client never sees it.', chSelect(a, 'slack_channel', ' - not set - '))}
         ${field('Client Slack channel', 'Theirs. An approved brief or report is sent here and nothing else ever is. Leave it empty for a brand with no client chat: every brief and report is then handled automatically, with no Send button and nothing waiting on you.',
@@ -10368,7 +10396,7 @@ async function renderSettings() {
             ? '<br><span class="tiny" style="color:var(--warn)">⚠ this is the same as the internal channel, so reviewing before sending achieves nothing</span>' : ''))}
         ${field('Review before sending', 'On: the daily brief and both reports draft to your internal channel and wait for you. Off: each one posts straight to the client on its own. Does nothing for a brand with no client channel; those are handled automatically.',
           `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.review_first ? 'on' : ''}" data-k="review_first"></div><span class="tiny">${a.review_first ? 'reviewed first' : 'sends itself'}</span></div>`)}
-        ${field('Daily brief', 'The morning forecast-vs-actual update. Needs a channel and a plan before it can run. The send time is under <b>Briefs and Slack</b>.',
+        ${field('Daily brief', 'The morning forecast-vs-actual update. Needs a channel and a plan before it can run. The send time is set for every brand in <b>Agency settings, Briefs and Slack</b>.',
           `<div class="row tgl" style="margin:0;gap:8px"><div class="toggle ${a.brief_enabled ? 'on' : ''}" data-k="brief_enabled"></div><span class="tiny">${a.brief_enabled ? 'running each morning' : 'off'}</span></div>`)}`)}
         ${grp('Money', 'How profit is worked out for this brand', `
         ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs. Same setting as the <b>Costs</b> page.',
@@ -10378,8 +10406,8 @@ async function renderSettings() {
           `<div class="brow-static"><button class="btn btn-s" data-k="backfill">Backfill 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
         ${field('Ad attribution', 'Which ads Triple Whale credits each order to, which the <b>Revenue from</b> picker on Meta, Creative reads. It fills itself in nightly; this pulls 120 days at once.',
           `<div class="brow-static"><button class="btn btn-s" data-k="attr">Sync 120 days</button> <span class="tiny" data-k="attrmsg"></span></div>`)}`)}
-        ${grp('Stop tracking', '', field('Stop tracking this brand', 'It disappears from every tab and stops syncing. Nothing is deleted; switch it back on any time from <b>+ Add a brand</b>.',
-          `<button class="btn" data-k="off">Stop tracking ${esc(a.name)}</button>`), ' brow-danger')}
+        ${grp('Stop tracking', '', field('Remove from Locus', 'It disappears from every page and stops syncing. Nothing is deleted; bring it back any time from Agency settings, Clients, <b>+ Add a brand</b>.',
+          `<button class="btn" data-k="off">Remove ${esc(a.name)} from Locus</button>`), ' brow-danger')}
       </div></details>`;
   };
 
@@ -10392,41 +10420,43 @@ async function renderSettings() {
     try { g = await api(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`); }
     catch (e) { box.innerHTML = `<span class="tiny" style="color:var(--bad)">${esc(e.message)}</span>`; return; }
     const r = g.rules, cur = a.currency;
-    const num = (k, label, v, unit, ph) => `<label class="gl"><span>${label}</span><span class="unit-in" style="width:116px">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null ? '' : v}" placeholder="${ph || ''}">${unit && unit !== '$' ? `<span>${unit}</span>` : ''}</span></label>`;
+    /* GOALS LAYOUT (2026-10-08, Cole: "words aren't lined up, it looks clunky"): every setting is one row, the
+       label and a one-line meaning on the left, the number in a fixed-width box on the right, grouped in cards. */
+    const num = (k, label, v, unit, ph, hint) => `<label class="g-row"><span class="g-l"><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><span class="g-c"><span class="unit-in">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null ? '' : v}" placeholder="${ph || ''}">${unit && unit !== '$' ? `<span class="g-u">${unit}</span>` : ''}</span></span></label>`;
+    const sec = (title, tag, hint, body, extra = '') => `<section class="g-sec"><div class="g-h"><h4>${title}${tag ? ` <span class="gtag${tag === 'Meta' ? ' meta' : ''}">${tag}</span>` : ''}</h4>${extra}</div>${hint ? `<p class="g-hint">${hint}</p>` : ''}${body}</section>`;
+    const sw = (k, on, onTxt) => `<span class="g-sw tgl"><span class="toggle ${on ? 'on' : ''}" data-g="${k}"></span><span class="tiny">${on ? onTxt : 'off'}</span></span>`;
     const T = r.target_cpa, Y = r.yellow_pct, K = r.acct_avg || (T ? T * (1 + Y / 100) : null);
     const band = T ? `<div class="gband"><i class="gk" style="flex:100">winner up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Math.round(((K - T) / T) * 100), 18)}">keep up to ${fmtMoney(K, cur)}</i><i class="gp" style="flex:40">pause</i></div><span class="tiny">Winner and keep both need 2+ sales.</span>` : '';
-    box.innerHTML = `<div class="gwrap">
-      <div class="gh">Targets <span class="gtag">every platform</span></div>
-      ${num('target_cpa', 'Goal cost per sale', T != null ? Math.round(T) : '', '$', 'not set')}
-      ${num('target_roas', 'Goal ROAS', g.goal_roas, 'x', 'not set')}
-      <div class="gh">Judging tests <span class="gtag meta">Meta</span> <span class="tiny" style="font-weight:400">Ads › Meta › Tests</span></div>
-      ${num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)} (3x goal)` : '150')}
-      ${num('judge_days', 'Or after', r.judge_days, 'days')}
-      <label class="gl"><span>Keep line: account average <span class="tiny">(last 30 days, updates on the 1st)</span></span><b>${r.acct_avg ? fmtMoney(r.acct_avg, cur) + (r.acct_avg_month ? ' · ' + esc(r.acct_avg_month) : '') : 'not set yet'}</b></label>
-      ${band}
-      <div class="gh">Creative calls <span class="gtag meta">Meta</span> <span class="tiny" style="font-weight:400">Scale, Keep, Watch, Trim and Cut on Ads › Meta › Creative</span></div>
-      ${num('cr_judge_x', 'Judge an ad after spending', r.cr_judge_x, 'x goal CPA')}
-      ${num('cr_min_days', 'And running at least', r.cr_min_days, 'days')}
-      ${num('cr_scale_buys', 'Scale needs at least', r.cr_scale_buys, 'sales at or under goal')}
-      ${num('cr_cut_zero_x', 'Cut with no sale after', r.cr_cut_zero_x, 'x goal CPA spent')}
-      ${num('cr_cut_cpa_x', 'Cut when cost per sale is over', r.cr_cut_cpa_x, 'x goal')}
-      ${num('cr_cut_spend_x', '…once it has spent', r.cr_cut_spend_x, 'x goal CPA')}
-      ${num('cr_anchor_pct', 'An ad carrying this share of its ad set is its anchor', r.cr_anchor_pct, '% of set spend')}
-
-      <span class="tiny">The ad set is judged first with these numbers; a set that misses means Cut for its ads. In a working set the anchor reads Keep and a small ad over the line reads Trim. Defaults: 1x, 3 days, 2 sales, 3x with no sale, 1.5x over goal after 2x, anchor 50%.</span>
-      <div class="gh">Test minimums <span class="gtag meta">Meta</span> <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
-      ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
-      ${num('min_days', 'Minimum stays on', r.min_days, 'days')}
-      ${num('min_cap_pct', 'All minimums together, max', r.min_cap_pct, '%')}
-      <div class="gh">Monday test calls in Slack <span class="gtag meta">Meta</span> <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.monday_post ? 'on' : ''}" data-g="monday_post"></span><span class="tiny">${r.monday_post ? 'posts Mondays 8am to the internal channel' : 'off'}</span></span></div>
-      <div class="row" style="margin:2px 0 0;gap:10px"><button class="btn" data-g="preview">Preview this week's message</button></div>
-      <pre class="gprev" data-g="prev" hidden></pre>
-      <div class="row" style="margin:10px 0 0;gap:10px"><button class="btn primary" data-g="save">Save goals</button><span class="tiny" data-g="msg"></span></div></div>`;
+    box.innerHTML = `<div class="gwrap2">
+      ${sec('Targets', 'Every platform', 'What a sale should cost and what it should return. Every green, yellow and red in Locus is measured against these two numbers.',
+        num('target_cpa', 'Goal cost per sale', T != null ? Math.round(T) : '', '$', 'not set', 'What you are willing to pay for one sale.')
+        + num('target_roas', 'Goal ROAS', g.goal_roas, 'x', 'not set', 'Revenue back for every dollar of ad spend.'))}
+      ${sec('Judging tests', 'Meta', 'When a new test on Ads › Meta › Tests is ready for a call, and what counts as a keeper.',
+        num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)}` : '150', T ? 'Blank means 3 times the goal cost per sale.' : '')
+        + num('judge_days', 'Or after', r.judge_days, 'days', '', 'Whichever comes first.')
+        + `<div class="g-row"><span class="g-l"><b>Keep line</b><small>The account's own average cost per sale over the last 30 days. Updates on the 1st.</small></span><span class="g-c"><b class="g-val">${r.acct_avg ? fmtMoney(r.acct_avg, cur) : 'not set yet'}</b></span></div>`
+        + (band ? `<div class="g-band">${band}</div>` : ''))}
+      ${sec('Creative calls', 'Meta', 'How Ads › Meta › Creative labels each ad Scale, Keep, Watch, Trim or Cut. The ad set is judged first; in a working set the biggest ad reads Keep.',
+        num('cr_judge_x', 'Judge an ad after spending', r.cr_judge_x, 'x goal', '', 'Times the goal cost per sale.')
+        + num('cr_min_days', 'And running at least', r.cr_min_days, 'days')
+        + num('cr_scale_buys', 'Scale needs at least', r.cr_scale_buys, 'sales', '', 'At or under the goal cost per sale.')
+        + num('cr_cut_zero_x', 'Cut with no sale after spending', r.cr_cut_zero_x, 'x goal')
+        + num('cr_cut_cpa_x', 'Cut when cost per sale is over', r.cr_cut_cpa_x, 'x goal')
+        + num('cr_cut_spend_x', 'Once it has spent', r.cr_cut_spend_x, 'x goal')
+        + num('cr_anchor_pct', 'The anchor ad carries at least', r.cr_anchor_pct, '%', '', 'Of its ad set\u2019s spend. The anchor is replaced, never just switched off.'))}
+      ${sec('Test minimums', 'Meta', 'A small daily minimum on new tests so Meta gives each one a fair start.',
+        num('min_spend', 'Minimum per new test', r.min_spend, '$', '', 'Per day.')
+        + num('min_days', 'Minimum stays on for', r.min_days, 'days')
+        + num('min_cap_pct', 'All minimums together, at most', r.min_cap_pct, '%', '', 'Of the campaign budget.'), sw('min_track', r.min_track, 'shown on the test list'))}
+      ${sec('Monday test calls in Slack', 'Meta', 'Every Monday at 8am, one message in this brand\u2019s internal channel: which tests to pause, keep or give another week.',
+        `<div class="g-row"><span class="g-l"><b>This week's message</b><small>See exactly what would post.</small></span><span class="g-c"><button class="btn" data-g="preview">Preview</button></span></div><pre class="gprev" data-g="prev" hidden></pre>`,
+        sw('monday_post', r.monday_post, 'posts Mondays at 8am'))}
+      <div class="g-save"><button class="btn primary" data-g="save">Save goals</button><span class="tiny" data-g="msg"></span></div></div>`;
     const v = k => box.querySelector(`[data-g="${k}"]`);
     const tg = v('min_track');
     tg.onclick = () => { tg.classList.toggle('on'); tg.nextElementSibling.textContent = tg.classList.contains('on') ? 'shown on the test list' : 'off'; };
     const mp = v('monday_post');
-    mp.onclick = () => { mp.classList.toggle('on'); mp.nextElementSibling.textContent = mp.classList.contains('on') ? 'posts Mondays 8am to the internal channel' : 'off'; };
+    mp.onclick = () => { mp.classList.toggle('on'); mp.nextElementSibling.textContent = mp.classList.contains('on') ? 'posts Mondays at 8am' : 'off'; };
     v('preview').onclick = async () => {
       const pre = v('prev'); pre.hidden = false; pre.textContent = 'Building…';
       try {
@@ -10475,7 +10505,7 @@ async function renderSettings() {
       <div id="brAccess"></div>
       <p class="tiny set-count">${rows.length} brand${rows.length === 1 ? '' : 's'}${rows.length ? ' · click a brand to open its settings' : ''}</p>
       ${rows.map(brandRow).join('') || '<div class="card"><span class="hint">No brands yet - press <b>+ Add a brand</b>.</span></div>'}
-      ${conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
+      ${AGENCY && conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
         The data is being held but nothing reports on it until you point it at one.
         <div style="margin-top:8px">${conns.unmatched.map(u => `<div class="row" style="margin:4px 0;gap:8px"><code style="font-size:12px">${esc(u.shop)}</code>
           <select data-map="${esc(u.shop)}" style="max-width:200px"><option value=""> - pick a brand - </option>${rows.map(b => `<option value="${esc(b.act_id)}">${esc(b.name)}</option>`).join('')}</select>
@@ -10824,12 +10854,13 @@ async function renderSettings() {
     /* Logos from simple-icons (jsDelivr); anything it lacks gets a lettered badge. */
     /* [simple-icons slug] for the brands it carries; ['/brand/logos/x'] for the three it lacks (their own
        favicons, fetched 2026-10-07: Triple Whale, Frame.io, Atria); [null, letters, colour] as the last resort. */
-    const ICON = { meta: ['meta', '#0866FF'], tw: ['/brand/logos/triplewhale.png'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'], slack_internal: ['slack', '#4A154B'], slack_client: ['slack', '#4A154B'],
+    const ICON = { meta: ['meta', '#0866FF'], tiktok: ['tiktok', '#000000'], tiktok_direct: ['tiktok', '#000000'], klaviyo: ['klaviyo', '#232426'], google_ads: ['googleads', '#4285F4'], tw: ['/brand/logos/triplewhale.png'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'], slack_internal: ['slack', '#4A154B'], slack_client: ['slack', '#4A154B'],
       google: ['googledrive', '#4285F4'], drive: ['googledrive', '#4285F4'], ga4: ['googleanalytics', '#E37400'], gsc: ['googlesearchconsole', '#458CF5'], gads: ['googleads', '#4285F4'], gads_direct: ['googleads', '#4285F4'], frame: ['/brand/logos/frameio.svg'], hub: [null, 'CL', '#E86A33'], onboarding: [null, 'OB', '#647684'], google_ads: ['googleads', '#4285F4'], klaviyo: ['klaviyo', '#1E1E1E'],
       atria: ['/brand/logos/atria.svg'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], google_login: ['google', '#4285F4'], anthropic: ['anthropic', '#C15F3C'] };
     const logo = k => { const [slug, letter, color] = ICON[k] || [null, k.slice(0, 2).toUpperCase(), '#647684'];
       if (!slug) return `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`;
-      const src = slug.startsWith('/') ? slug : `https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg`;
+      /* in the brand's own colour (simple-icons' CDN colours the mark; the jsDelivr files are black only) */
+      const src = slug.startsWith('/') ? slug : `https://cdn.simpleicons.org/${slug}/${String(letter || '#647684').replace('#', '')}`;
       return `<span class="cn-logo"><img src="${src}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc(k.slice(0, 2).toUpperCase())}'}))"></span>`; };
     const brands = AGENCY ? [] : (rep.brands || []).filter(b => one && b.act_id === one.act_id);
     const shopBy = Object.fromEntries(((conns && conns.clients) || []).map(c => [c.act_id, c]));

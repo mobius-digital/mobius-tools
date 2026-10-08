@@ -2066,3 +2066,11 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
 - **Tour** is read off the page (`autoTourSteps`): page tabs, dates, attribution, headline tiles, then every card
   by its own heading. Only `start` and `settings` keep hand-written steps. **Help** has a brief for every page
   (`Object.assign(PAGE_BRIEF, ...)`); add one when a page is added.
+- **2026-10-08 (later) polish after Cole's screenshots:** every line chart and sparkline shows a dashed guide
+  line and a dot on each line at the hovered point (`markDots`, `spkMark`); every `.v2tile` without `data-go`
+  opens a side panel (the number, its line large, its Metrics glossary entry; `window.GLOSSARY`). Goals and
+  rules is five cards with aligned rows (`.g-sec`, `.g-row`). One switch style (`.toggle`: white knob, brand
+  fill). Connection logos in brand colour from cdn.simpleicons.org (Slack and Klaviyo are not in that set, so
+  they show letters). The client picker and profile classes are `lc-*` because `.pf-pick` already belongs to
+  the Profit chooser. Unmatched Shopify stores show on the agency Clients list only. "Stop tracking" is called
+  "Remove from Locus"; Data health and Costs are "Data check" and "Cost check" in brand settings.
