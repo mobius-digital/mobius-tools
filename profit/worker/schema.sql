@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS p_cost_health (
   checked_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- The agreed month plan. The GOALS themselves still live in accounts.goals_json,
+-- The agreed month plan. The GOALS themselves still live in brands.goals_json (was accounts.goals_json before phase 3),
 -- because that is the one field every tool reads; this table carries the story
 -- around them: what the plan was built from, the growth we chose, and whether the
 -- client has actually signed off on it.
@@ -68,10 +68,11 @@ CREATE INDEX IF NOT EXISTS p_profit_share_token_idx ON p_profit_share (token);
 
 -- Shopify OAuth. One unlisted public app installs on every client store, so tokens
 -- are per-shop and arrive through the authorization code grant. `act_id` is filled in
--- once we match the shop domain to an account (accounts.tw_shop already holds it).
+-- once we match the shop domain to a brand (its triple_whale connection, brand_accounts.tw_shop).
+-- Since brand-first phase 3 (2026-10-08) act_id here, as in every p_ table, is the BRAND id.
 CREATE TABLE IF NOT EXISTS p_shopify (
   shop           TEXT PRIMARY KEY,          -- foo.myshopify.com
-  act_id         TEXT,                      -- matched to accounts.tw_shop, null until then
+  act_id         TEXT,                      -- matched to brand_accounts.tw_shop, null until then
   access_token   TEXT NOT NULL,
   scopes         TEXT,
   installed_at   TEXT NOT NULL DEFAULT (datetime('now')),
@@ -107,6 +108,8 @@ CREATE TABLE IF NOT EXISTS p_cohorts (
 -- account a demo session is pinned to; it is also written with active = 0 so Account
 -- Health's lists and the Slack brief, which both require active = 1, can never see it.
 -- Additive on the SHARED accounts table, so it must tolerate already existing.
+-- Since brand-first phase 3 the demo brand is brands.status = 'demo' (brand_accounts.demo = 1);
+-- this column on accounts is no longer read and is kept only so a fresh database still applies.
 ALTER TABLE accounts ADD COLUMN demo INTEGER NOT NULL DEFAULT 0;
 
 -- A FROZEN snapshot of the creative browser, for sending to a client.
@@ -134,7 +137,7 @@ CREATE TABLE IF NOT EXISTS p_amb_brand (
   act_id          TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,          -- the link: /angles/<slug>
   live            INTEGER NOT NULL DEFAULT 0,    -- 0 = the link says "not ready yet"
-  display_name    TEXT,                          -- what creators see (defaults to accounts.name)
+  display_name    TEXT,                          -- what creators see (defaults to the brand name)
   intro           TEXT,                          -- top of the page and the PDF
   about           TEXT,                          -- what the product is, in two lines
   audience        TEXT,                          -- who we are talking to

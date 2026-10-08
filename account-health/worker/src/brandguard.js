@@ -1,7 +1,7 @@
 /* PER-BRAND ACCESS (2026-10-08). The SAME file lives in account-health/worker/src/brandguard.js;
  * change both together.
  *
- * settings.userBrands = { "person@domain": ["act_...", ...] }. A person listed there sees ONLY those
+ * settings.userBrands = { "person@domain": ["brand_...", ...] } (old act_ ids still count). A person listed there sees ONLY those
  * brands; anyone not listed (and the owner, always) sees every brand. Enforced on the server, so a
  * hidden menu item is never the only lock:
  *   - a request naming another brand (?act= or "act" in a JSON body) is refused with 403;
@@ -17,12 +17,30 @@ export async function brandsFor(env, email) {
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null);
   let map = {}; try { map = JSON.parse(row?.value || '{}') || {}; } catch {}
   const list = map[e];
-  return Array.isArray(list) && list.length ? new Set(list) : null;
+  return Array.isArray(list) && list.length ? expandIds(env, list.map(String)) : null;
+}
+
+/* Brand-first (2026-10-08): a brand is known by its brand id (brand_x) and by every id it ever had
+ * (old act_ id, asana_ id, its Meta ad accounts). The allowed set holds all of them, so old links,
+ * old saved lists and rows from Meta's own tables are judged the same way as brand ids. */
+async function expandIds(env, list) {
+  const ids = new Set(list);
+  try {
+    const ph = list.map((_, i) => `?${i + 1}`).join(',');
+    const bids = ((await env.DB.prepare(`SELECT brand_id AS id FROM brand_alias WHERE alias IN (${ph}) UNION SELECT id FROM brands WHERE id IN (${ph}) OR legacy_key IN (${ph}) OR slug IN (${ph})`).bind(...list).all()).results || []).map(r => r.id);
+    for (const b of bids) ids.add(b);
+    if (bids.length) {
+      const bp = bids.map((_, i) => `?${i + 1}`).join(',');
+      const more = (await env.DB.prepare(`SELECT alias AS id FROM brand_alias WHERE brand_id IN (${bp}) UNION SELECT legacy_key FROM brands WHERE id IN (${bp}) AND legacy_key IS NOT NULL UNION SELECT external_id FROM connections WHERE brand_id IN (${bp}) AND kind = 'meta'`).bind(...bids).all()).results || [];
+      for (const r of more) if (r.id) ids.add(r.id);
+    }
+  } catch {}
+  return ids;
 }
 
 function filterActs(v, only) {
-  if (Array.isArray(v)) return v.filter(x => !(x && typeof x === 'object' && typeof x.act_id === 'string' && /^act_|^asana_/.test(x.act_id) && !only.has(x.act_id))).map(x => filterActs(x, only));
-  if (v && typeof v === 'object') { const o = {}; for (const [k, x] of Object.entries(v)) { if (/^act_\d+$/.test(k) && !only.has(k)) continue; o[k] = filterActs(x, only); } return o; }
+  if (Array.isArray(v)) return v.filter(x => !(x && typeof x === 'object' && typeof x.act_id === 'string' && /^(act_|asana_|brand_)/.test(x.act_id) && !only.has(x.act_id))).map(x => filterActs(x, only));
+  if (v && typeof v === 'object') { const o = {}; for (const [k, x] of Object.entries(v)) { if (/^(act_\d+|brand_[a-z0-9_]+)$/.test(k) && !only.has(k)) continue; o[k] = filterActs(x, only); } return o; }
   return v;
 }
 

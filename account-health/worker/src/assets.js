@@ -14,6 +14,7 @@
  * Folders whose name says agreement / contract / invoice / legal are skipped.
  */
 import { googleToken } from './asana-brand.js';
+import { storagePrefix } from './brands.js';
 
 let F = fetch;
 export function useFetch(f) { F = f; }
@@ -152,10 +153,11 @@ const TAG_SYSTEM = `You tag product and lifestyle photos for an ad agency's phot
 export async function tagAssets(env, act, limit = 25) {
   await ensure(env);
   if (!env.ANTHROPIC_API_KEY) return { error: 'ANTHROPIC_API_KEY not set' };
-  const brand = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  const brand = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   const pt = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`productTitles:${act}`).first().catch(() => null))?.value, {}) || {};
   const products = [...new Set(Object.values(pt.titles || pt).filter(x => typeof x === 'string'))].slice(0, 60);
   const { results } = await env.DB.prepare(`SELECT file_id, name, thumb_src FROM p_asset WHERE act_id = ?1 AND status = 'new' ORDER BY modified DESC LIMIT ?2`).bind(act, limit).all();
+  const folder = await storagePrefix(env, act);   // R2 files stay under the brand's old folder
   let done = 0, failed = 0, inTok = 0, outTok = 0;
   const tok = await googleToken(env, AS(env), SCOPE);
   for (const r of results || []) {
@@ -167,7 +169,7 @@ export async function tagAssets(env, act, limit = 25) {
       const img = await F(isAir ? src : src.replace(/=s\d+$/, '=s640'), isAir ? {} : { headers: { Authorization: `Bearer ${tok}` } });
       if (!img.ok) throw new Error(`thumbnail ${img.status}`);
       const buf = await img.arrayBuffer();
-      const key = `assets/${act}/${r.file_id}.jpg`;
+      const key = `assets/${folder}/${r.file_id}.jpg`;
       if (env.MEDIA) await env.MEDIA.put(key, buf, { httpMetadata: { contentType: img.headers.get('content-type') || 'image/jpeg' } });
       let b64 = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i += 0x8000) b64 += String.fromCharCode(...u8.subarray(i, i + 0x8000)); b64 = btoa(b64);
       const res = await F('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -250,7 +252,7 @@ export async function removeLook(env, act, id) {
 /** Hourly: the stalest brand (by last sync) gets a sync and a small tagging batch. */
 export async function assetsTick(env, canAfford = () => true) {
   await ensure(env);
-  const { results } = await env.DB.prepare(`SELECT a.act_id, s.value at FROM accounts a LEFT JOIN settings s ON s.key = 'assetsSyncAt:' || a.act_id WHERE a.active = 1 ORDER BY COALESCE(s.value, '') ASC LIMIT 1`).all();
+  const { results } = await env.DB.prepare(`SELECT a.act_id, s.value at FROM brand_accounts a LEFT JOIN settings s ON s.key = 'assetsSyncAt:' || a.act_id WHERE a.active = 1 ORDER BY COALESCE(s.value, '') ASC LIMIT 1`).all();
   const a = results?.[0]; if (!a || !canAfford()) return { skipped: true };
   if (/golf sock/i.test(a.act_id)) return { skipped: true };
   const s = await syncAssets(env, a.act_id).catch(e => ({ act: a.act_id, error: e.message }));

@@ -16,6 +16,11 @@
  * never a dollar amount.
  */
 
+import { metaOf, storagePrefix } from './brandids.js';
+
+/* Brand-first phase 3 (2026-10-08): act_id in p_amb_* is the BRAND id. Meta's ads / ad_daily stay on
+   the Meta ad account id: read them with `act_id IN ${metaOf(n)}`. Uploads go under the brand's
+   storage_prefix (its old act id) so new files sit beside the old ones. */
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
@@ -51,11 +56,11 @@ async function adStats(env, actId, adIds) {
       `SELECT d.ad_id, SUM(d.spend) spend, SUM(d.revenue) revenue, SUM(d.purchases) purchases,
               SUM(CASE WHEN d.date >= ?2 THEN d.spend ELSE 0 END) spend30,
               MIN(d.date) first_date, MAX(CASE WHEN d.spend > 0 THEN d.date END) last_spend
-         FROM ad_daily d WHERE d.act_id = ?1 AND d.ad_id IN (${q}) GROUP BY d.ad_id`,
+         FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.ad_id IN (${q}) GROUP BY d.ad_id`,
     ).bind(actId, since, ...part).all();
     for (const r of results || []) out[r.ad_id] = r;
     const names = await env.DB.prepare(
-      `SELECT ad_id, name, status, media_type FROM ads WHERE act_id = ?1 AND ad_id IN (${part.map((_, k) => `?${k + 2}`).join(',')})`,
+      `SELECT ad_id, name, status, media_type FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id IN (${part.map((_, k) => `?${k + 2}`).join(',')})`,
     ).bind(actId, ...part).all().catch(() => ({ results: [] }));
     for (const n of names.results || []) out[n.ad_id] = { ...(out[n.ad_id] || { ad_id: n.ad_id }), name: n.name, status: n.status, media_type: n.media_type };
   }
@@ -140,7 +145,7 @@ function customShape(custom, weeks = 52, back = 13) {
 async function publicPayload(env, slug, preview = false) {
   const b = await env.DB.prepare(`SELECT * FROM p_amb_brand WHERE slug = ?1`).bind(slug).first();
   if (!b) return { status: 404, body: { error: 'We could not find this creator page.' } };
-  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(b.act_id).first();
+  const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(b.act_id).first();
   if (!b.live && !preview) return { status: 200, body: { live: false, brand: { display_name: b.display_name || acct?.name || '', accent: b.accent, logo_url: b.logo_url } } };
   const { sections, angles, proof } = await loadAll(env, b.act_id);
   // Cole, 2026-10-06: creators make videos, so only VIDEO ads are proof on the link. Statics keep
@@ -149,7 +154,7 @@ async function publicPayload(env, slug, preview = false) {
   const isImage = new Set();
   for (let i = 0; i < metaIds.length; i += 80) {
     const part = metaIds.slice(i, i + 80);
-    const { results } = await env.DB.prepare(`SELECT ad_id, media_type FROM ads WHERE act_id = ?1 AND ad_id IN (${part.map((_, k) => `?${k + 2}`).join(',')})`).bind(b.act_id, ...part).all().catch(() => ({ results: [] }));
+    const { results } = await env.DB.prepare(`SELECT ad_id, media_type FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id IN (${part.map((_, k) => `?${k + 2}`).join(',')})`).bind(b.act_id, ...part).all().catch(() => ({ results: [] }));
     for (const r of results || []) if (/image|static|photo/i.test(r.media_type || '')) isImage.add(r.ad_id);
   }
   const onSecs = sections.filter(s => s.enabled);
@@ -258,7 +263,7 @@ async function serveObject(env, request, key) {
 
 async function mustAccount(env, act) {
   if (!act) throw Object.assign(new Error('act is required'), { status: 400 });
-  const a = await env.DB.prepare(`SELECT act_id, name, currency FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const a = await env.DB.prepare(`SELECT act_id, name, currency FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   if (!a) throw Object.assign(new Error('unknown account'), { status: 404 });
   return a;
 }
@@ -299,7 +304,7 @@ export async function handleStaff(request, env, url, path, json) {
         `SELECT a.act_id, a.name, b.slug, b.live, b.submit_url, b.updated_at,
                 (SELECT COUNT(*) FROM p_amb_angle x WHERE x.act_id = a.act_id AND x.status = 'live') angles,
                 (SELECT COUNT(*) FROM p_amb_proof p WHERE p.act_id = a.act_id AND p.kind = 'meta') tagged
-           FROM accounts a LEFT JOIN p_amb_brand b ON b.act_id = a.act_id
+           FROM brand_accounts a LEFT JOIN p_amb_brand b ON b.act_id = a.act_id
           WHERE a.active = 1 AND (a.demo IS NULL OR a.demo = 0) ORDER BY a.name`,
       ).all();
       return json({ brands: (results || []).map(r => ({ ...r, live: !!r.live })) });
@@ -487,7 +492,7 @@ export async function handleStaff(request, env, url, path, json) {
       if (!ang) return json({ error: 'angle not found' }, 404);
       if (body.url && !/^https:\/\/\S+$/i.test(body.url)) return json({ error: 'Links must start with https://' }, 400);
       if (body.kind === 'meta') {
-        const ad = await env.DB.prepare(`SELECT ad_id FROM ads WHERE act_id = ?1 AND ad_id = ?2`).bind(acct.act_id, body.ad_id).first();
+        const ad = await env.DB.prepare(`SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(acct.act_id, body.ad_id).first();
         if (!ad) return json({ error: 'That ad is not in this brand’s account.' }, 400);
         const dup = await env.DB.prepare(`SELECT id FROM p_amb_proof WHERE angle_id = ?1 AND ad_id = ?2`).bind(body.angle_id, body.ad_id).first();
         if (dup && !body.id) return json(await staffPayload(env, acct));
@@ -533,7 +538,7 @@ export async function handleStaff(request, env, url, path, json) {
       const len = +(request.headers.get('Content-Length') || 0);
       if (len > MAX_UPLOAD) return json({ error: 'That file is over 95MB. Trim it or paste a link instead.' }, 413);
       const ext = (type.split('/')[1] || 'bin').replace(/[^a-z0-9]/g, '').slice(0, 5);
-      const key = `amb/${acct.act_id}/${rid()}.${ext}`;
+      const key = `amb/${await storagePrefix(env, acct.act_id)}/${rid()}.${ext}`;
       await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: type } });
       return json({ file_key: key });
     }
@@ -559,7 +564,7 @@ export async function handleStaff(request, env, url, path, json) {
                 MAX(CASE WHEN d.spend > 0 THEN d.date END) last_spend,
                 (SELECT group_concat(p.angle_id) FROM p_amb_proof p WHERE p.ad_id = x.ad_id AND p.kind = 'meta') tagged
            FROM ads x JOIN ad_daily d ON d.act_id = x.act_id AND d.ad_id = x.ad_id
-          WHERE x.act_id = ?1 AND (?2 = '' OR x.name LIKE ?3 OR x.ad_id = ?2)
+          WHERE x.act_id IN ${metaOf(1)} AND (?2 = '' OR x.name LIKE ?3 OR x.ad_id = ?2)
           GROUP BY x.ad_id HAVING SUM(d.spend) >= ?4 ${untagged ? 'AND tagged IS NULL' : ''}
           ORDER BY revenue DESC LIMIT ?5`,
       ).bind(acct.act_id, q, `%${q}%`, minSpend, limit).all();

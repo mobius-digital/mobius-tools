@@ -61,7 +61,10 @@
     }).catch(e => { BRANDS_P = null; throw e; });
     return BRANDS_P;
   }
-  const brandOf = act => (BRANDS || []).find(b => b.act_id === act) || null;
+  /* Supply's brands.act_id is the Locus BRAND id (brand_lucky_golf) since brand-first phase 3. A row still
+     holding an old id (act_..., written before the data was moved) is read through the host's resolveAct. */
+  const locusId = id => { try { return (H && typeof window.resolveAct === 'function' && window.resolveAct(id, H.S.accounts)) || id; } catch { return id; } };
+  const brandOf = act => (BRANDS || []).find(b => b.act_id === act || locusId(b.act_id) === act) || null;
   const STATE = new Map();
   function state(brand, fresh) {
     const hit = STATE.get(brand);
@@ -538,7 +541,7 @@
     let act = H.S.act;
     /* An Asana task's link names the design, not the brand: open the brand that makes products. */
     const pendingDesign = PENDING.peek('design');
-    if (pendingDesign && (act === 'all' || !(brandOf(act) || {}).makes)) { const mk = (BRANDS || []).find(x => x.makes); if (mk) { H.S.act = act = mk.act_id; try { localStorage.setItem('pf_act', act); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = act; } }
+    if (pendingDesign && (act === 'all' || !(brandOf(act) || {}).makes)) { const mk = (BRANDS || []).find(x => x.makes); if (mk) { H.S.act = act = locusId(mk.act_id); try { localStorage.setItem('pf_act', act); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = act; } }
     if (act === 'all') return msg(tab, 'Drops', '<p class="sp-hint">Drops is per brand. Pick a brand that designs its own products (Lucky Golf) in the client picker.</p>');
     const b = brandOf(act);
     if (!b || !b.makes) return noFeed(tab, (H.S.accounts.find(a => a.act_id === act) || {}).name || 'This brand');

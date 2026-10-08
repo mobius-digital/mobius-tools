@@ -20,6 +20,7 @@
  *   instructions, then every reference file. That is why Locus and Claude agree.
  */
 import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
+import { resolveBrandId } from './brands.js';
 
 const S = { type: 'string' };
 const arr = items => ({ type: 'array', items });
@@ -80,8 +81,8 @@ export async function syncSkill(env, b) {
   const skillMd = files.find(f => roleOf(f.path) === 'instructions');
   if (!skillMd) throw Object.assign(new Error('No SKILL.md in the upload'), { status: 400 });
   const acct = b.act
-    ? await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(b.act).first()
-    : await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE lower(name) = lower(?1) AND active = 1`).bind(String(b.brand || '')).first();
+    ? await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE act_id = ?1`).bind(await resolveBrandId(env, b.act)).first()
+    : await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE lower(name) = lower(?1) AND active = 1`).bind(String(b.brand || '')).first();
   if (!acct) throw Object.assign(new Error(`No brand called "${b.brand}" in Locus`), { status: 404 });
   const head = splitSkillMd(skillMd.content);
   const doc = {
@@ -151,7 +152,7 @@ async function brandData(env, act) {
 
 /* Lucky's skill is the model of what "complete" looks like. */
 async function exemplar(env, exceptAct) {
-  const row = await env.DB.prepare(`SELECT d.act_id, d.data_json FROM p_br_doc d JOIN accounts a ON a.act_id = d.act_id WHERE d.key = 'voice_skill' AND d.line_id = '' AND d.source = 'repo' AND d.act_id != ?1 ORDER BY lower(a.name) = 'lucky golf' DESC LIMIT 1`).bind(exceptAct).first().catch(() => null);
+  const row = await env.DB.prepare(`SELECT d.act_id, d.data_json FROM p_br_doc d JOIN brand_accounts a ON a.act_id = d.act_id WHERE d.key = 'voice_skill' AND d.line_id = '' AND d.source = 'repo' AND d.act_id != ?1 ORDER BY lower(a.name) = 'lucky golf' DESC LIMIT 1`).bind(exceptAct).first().catch(() => null);
   return row ? safeJson(row.data_json, null) : null;
 }
 

@@ -19,6 +19,7 @@
  * Method: Schwartz (mass desire, awareness, sophistication), Georgi's RMBC
  * (research, then the mechanism), Moesta's four forces, and Wiebe-style VOC mining.
  */
+import { metaOf, resolveBrandId } from './brands.js';
 
 const MODEL = 'claude-opus-5';
 const API = 'https://api.anthropic.com/v1/messages';
@@ -201,9 +202,10 @@ function sourcesOf(m) {
 
 /* ---------------- what Locus already knows ---------------- */
 async function context(env, act, lineId) {
+  act = await resolveBrandId(env, act);
   /* A new client that has not shared Meta yet lives under a pending id (asana_<project>),
      named on its onboarding row. The website pre-fill has to work for it. */
-  const acct = (await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first())
+  const acct = (await env.DB.prepare(`SELECT act_id, name, tw_shop FROM brand_accounts WHERE act_id = ?1`).bind(act).first())
     || (/^asana_\d+$/.test(act || '') ? await env.DB.prepare(`SELECT act_id, name, NULL AS tw_shop FROM p_br_onboard WHERE act_id = ?1`).bind(act).first().catch(() => null) : null);
   if (!acct) throw Object.assign(new Error('unknown account'), { status: 404 });
   const q = (sql, ...b) => env.DB.prepare(sql).bind(...b).all().then(r => r.results || []).catch(() => []);
@@ -227,8 +229,8 @@ async function context(env, act, lineId) {
   const since = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
   const top = await q(`SELECT a.name, ROUND(SUM(d.spend)) spend, ROUND(SUM(t.revenue) / NULLIF(SUM(d.spend), 0), 2) roas
       FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
-      LEFT JOIN tw_ad_attr t ON t.act_id = d.act_id AND t.ad_id = d.ad_id AND t.date = d.date AND t.model = 'lastPlatformClick'
-      WHERE d.act_id = ?1 AND d.date >= ?2 GROUP BY d.ad_id HAVING SUM(d.spend) > 50 ORDER BY SUM(d.spend) DESC LIMIT 25`, act, since);
+      LEFT JOIN tw_ad_attr t ON t.act_id = ?1 AND t.ad_id = d.ad_id AND t.date = d.date AND t.model = 'lastPlatformClick'
+      WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 GROUP BY d.ad_id HAVING SUM(d.spend) > 50 ORDER BY SUM(d.spend) DESC LIMIT 25`, act, since);
   return { acct, lines, line, docs, doc, answers, prefill, website, angles, batches, personas, top };
 }
 
@@ -424,7 +426,7 @@ async function dedupe(env, act, b) {
 /* ---------------- onboarding: help box + website pre-fill ---------------- */
 async function onboardHelp(env, b) {
   if (!/^[a-f0-9]{24,40}$/.test(b.token || '')) return { error: 'bad link', status: 404 };
-  const row = await env.DB.prepare(`SELECT o.act_id, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(b.token).first();
+  const row = await env.DB.prepare(`SELECT o.act_id, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN brand_accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(b.token).first();
   if (!row) return { error: 'bad link', status: 404 };
   const q = clip(b.question, 800).trim();
   if (!q) return { answer: '' };

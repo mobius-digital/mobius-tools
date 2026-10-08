@@ -44,7 +44,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   /* used_by says which part of Locus leans on it, so "does Dartee have Stripe?" never comes up: these
      are Mobius's own, not a brand's. `only` names the one brand a connection serves (the Lucky app). */
   const A = (key, name, on, { warn = false, note = '', fix = '', used_by = '', only = null } = {}) => ({ key, name, needs: 'once', state: on ? (warn ? 'warn' : 'ok') : 'off', note, fix, used_by, only });
-  const luckyAct = (await first(`SELECT act_id FROM accounts WHERE lower(name) LIKE 'lucky%' AND active = 1 LIMIT 1`))?.act_id || null;
+  const luckyAct = (await first(`SELECT act_id FROM brand_accounts WHERE lower(name) LIKE 'lucky%' AND active = 1 LIMIT 1`))?.act_id || null;
   const gp = await googleProbe(env).catch(() => ({}));
   const tk = await tiktokStatus(env).catch(() => ({}));
   const gsa = (safeJsonI(env.GOOGLE_SA_KEY) || {}).client_id || 'the service account';
@@ -72,14 +72,15 @@ export async function integrationsReport(env, { brand = null } = {}) {
   ];
 
   /* ---------------- per brand ---------------- */
-  const accounts = (await q(`SELECT act_id, name, active, tz, slack_channel, brief_channel, tw_shop, last_sync_insights, last_error FROM accounts WHERE active = 1 ORDER BY name`))
-    .filter(a => !brand || a.act_id === brand || a.name.toLowerCase().includes(String(brand).toLowerCase()));
+  const accounts = (await q(`SELECT act_id, name, active, tz, slack_channel, brief_channel, tw_shop, last_sync_insights, last_error, meta_act FROM brand_accounts WHERE active = 1 ORDER BY name`))
+    .filter(a => !brand || a.act_id === brand || a.meta_act === brand || a.name.toLowerCase().includes(String(brand).toLowerCase()));
   if (!accounts.length) return { agency, brands: [], as_of: new Date().toISOString() };
   const ids = accounts.map(a => a.act_id);
   const IN = ids.map((_, i) => `?${i + 1}`).join(',');
   const byAct = rows => Object.fromEntries(rows.map(r => [r.act_id, r]));
   const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs, gDocs, tkd, etool] = await Promise.all([
-    q(`SELECT act_id, MAX(date) AS latest FROM daily_insights WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
+    /* daily_insights is Meta's: filed under the Meta account id. Map each back to its brand. */
+    q(`SELECT c.brand_id AS act_id, MAX(d.date) AS latest FROM daily_insights d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id WHERE c.brand_id IN (${IN}) GROUP BY c.brand_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest FROM tw_daily WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest, COUNT(*) AS n FROM tw_orders WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest FROM tw_ad_attr WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
@@ -161,7 +162,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
     const kd = klDocs[id], gd = gDocs[id] || {};
     const items = [
       C('meta', 'Meta ad account', a.last_error ? 'bad' : metaAge == null ? 'off' : metaAge > 2 ? 'warn' : 'ok',
-        a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}` : metaAge == null ? 'No Meta data yet.' : `Data through ${metaD[id].latest} (synced ${String(a.last_sync_insights || '').slice(0, 16) || 'never'}).`,
+        a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}` : metaAge == null ? (a.meta_act ? 'No Meta data yet.' : 'No Meta ad account connected.') : `Data through ${metaD[id].latest} (synced ${String(a.last_sync_insights || '').slice(0, 16) || 'never'}).`,
         a.last_error ? 'Check the token still sees this ad account (Meta Business > System users > assets), then Settings > Jobs and data.' : 'Partner access from the client, then the brand in Settings > Brands.', { steps: STEPS.meta }),
       C('tw', 'Triple Whale', !set(a.tw_shop) ? 'off' : twAge == null ? 'bad' : twAge > 2 ? 'warn' : 'ok',
         !set(a.tw_shop) ? 'No shop set.' : twAge == null ? `Shop ${a.tw_shop} set, no data landed.` : `${a.tw_shop}: store data through ${twD[id].latest}${attrAge != null ? `, attribution through ${twA[id].latest}` : ', no attribution rows'}${twO[id] ? `, ${twO[id].n} orders stored` : ''}.`,

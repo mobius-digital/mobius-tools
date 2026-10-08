@@ -1,4 +1,5 @@
 import { guardBrands } from './brandguard.js';
+import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
  * Mobius Profit — store-level business worker (Cloudflare Workers + D1)
  *
@@ -8,9 +9,9 @@ import { guardBrands } from './brandguard.js';
  * separate tool sharing one database.
  *
  * Reads (written by the account-health worker):
- *   accounts, tw_daily (Triple Whale per-day metrics), daily_insights (Meta)
+ *   brand_accounts (the brands view), tw_daily (Triple Whale per-day metrics), daily_insights (Meta)
  * Writes:
- *   p_sku_costs, p_cost_health, and accounts.goals_json.cm_pct (the margin
+ *   p_sku_costs, p_cost_health, and brands.goals_json.cm_pct (the margin
  *   override — deliberately the SAME field the Daily Brief reads, one source
  *   of truth rather than two that can disagree)
  *
@@ -322,7 +323,7 @@ async function validWebhookHmac(env, rawBody, header) {
   return safeEq(toB64(await hmacSha256(env.SHOPIFY_API_SECRET, rawBody)), header);
 }
 
-/** Tie a shop domain to one of our accounts. accounts.tw_shop already holds it. */
+/** Tie a shop domain to one of our brands. brand_accounts.tw_shop (the triple_whale connection) already holds it. */
 /** The client's own dashboard token, created on first use.
  *  Shared by /api/profit-share and the Shopify post-install redirect so a merchant
  *  and a share link always land on the SAME page - two mint paths would give one
@@ -339,7 +340,7 @@ async function profitShareToken(env, actId) {
 }
 
 async function matchAccount(env, shop) {
-  const row = await env.DB.prepare(`SELECT act_id FROM accounts WHERE lower(tw_shop) = lower(?1)`).bind(shop).first().catch(() => null);
+  const row = await env.DB.prepare(`SELECT act_id FROM brand_accounts WHERE lower(tw_shop) = lower(?1)`).bind(shop).first().catch(() => null);
   return row?.act_id ?? null;
 }
 
@@ -347,6 +348,8 @@ async function matchAccount(env, shop) {
 /** @param demoMode false = real accounts only, true = the demo account only,
  *                   null = both (used by maintenance passes that should cover it).
  *
+ *  Reads brand_accounts (one row per brand, act_id = the brand id). The demo brand is
+ *  brands.status = 'demo', which the view shows as demo = 1 and active = 0.
  *  The demo row is deliberately `active = 0` so Account Health's account list and the
  *  Slack brief - both of which require active = 1 - can never pick it up. That means
  *  the activeOnly filter has to be skipped for a demo session, or it would see
@@ -358,7 +361,7 @@ async function listAccounts(env, activeOnly = true, demoMode = false) {
   else if (demoMode === false) where.push('(demo IS NULL OR demo = 0)');
   if (activeOnly && demoMode !== true) where.push('active = 1');
   const { results } = await env.DB.prepare(
-    `SELECT * FROM accounts ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY name`,
+    `SELECT * FROM brand_accounts ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY name`,
   ).all();
   return results.map(a => ({ ...a, goals: safeJson(a.goals_json, {}) }));
 }
@@ -467,7 +470,7 @@ function dayEconomics(piv, meta, date, marginPct) {
 async function seriesFor(env, acct, from, to) {
   const piv = await pivot(env, acct.act_id, from, to);
   const { results: metaRows } = await env.DB.prepare(
-    `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`,
+    `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 GROUP BY date`,
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const marginPct = marginOverride(acct, monthOf(to));
@@ -613,7 +616,7 @@ function shippingMode(piv) {
 async function seriesRaw(env, acct, from, to) {
   const piv = await pivot(env, acct.act_id, from, to);
   const { results: metaRows } = await env.DB.prepare(
-    `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`,
+    `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 GROUP BY date`,
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const rows = [];
@@ -1573,18 +1576,54 @@ async function refreshCostHealth(env) {
  *  so any Overview or Costs view keeps it warm. */
 async function refreshIfStale(env, ctx, maxAgeHours = 12) {
   const row = await env.DB.prepare(`SELECT MIN(checked_at) AS oldest, COUNT(*) AS n FROM p_cost_health`).first().catch(() => null);
-  const active = await env.DB.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE active = 1`).first().catch(() => null);
+  const active = await env.DB.prepare(`SELECT COUNT(*) AS n FROM brand_accounts WHERE active = 1`).first().catch(() => null);
   const stale = !row?.oldest || (row.n ?? 0) < (active?.n ?? 0) ||
     (Date.now() - new Date(String(row.oldest).replace(' ', 'T') + 'Z').getTime()) > maxAgeHours * 3600e3;
   if (stale) ctx.waitUntil(refreshCostHealth(env).catch(() => {}));
   return stale;
 }
 
+/* Brand-first phase 3 (2026-10-08): a brand is known by its brand id (brand_x). Old ids (act_...,
+   asana_..., demo_harborline) still arrive from saved links, old browser picks and Slack buttons, so
+   ?act= and a JSON body's top-level act / act_id are resolved ONCE here (brand_alias / brands) and the
+   request is rebuilt, so every handler sees brand ids. An id no brand claims passes through unchanged
+   (a pending asana_ onboarding id, for one). */
+async function normalizeBrandIds(request, env) {
+  const url = new URL(request.url);
+  let changed = false, body = null;
+  const q = url.searchParams.get('act');
+  if (q && q !== 'all' && !isBrandId(q)) {
+    const bid = await resolveBrandId(env, q);
+    if (bid && bid !== q) { url.searchParams.set('act', bid); changed = true; }
+  }
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && (request.headers.get('Content-Type') || '').includes('json')) {
+    const b = safeJson(await request.clone().text().catch(() => ''), null);
+    if (b && typeof b === 'object' && !Array.isArray(b)) {
+      let bc = false;
+      for (const k of ['act', 'act_id']) {
+        const v = b[k];
+        if (typeof v !== 'string' || !v || v === 'all' || isBrandId(v)) continue;
+        const bid = await resolveBrandId(env, v);
+        if (bid && bid !== v) { b[k] = bid; bc = true; }
+      }
+      if (bc) { body = JSON.stringify(b); changed = true; }
+    }
+  }
+  if (!changed) return request;
+  if (body == null) return new Request(url.toString(), request);
+  const h = new Headers(request.headers); h.delete('Content-Length');
+  return new Request(url.toString(), { method: request.method, headers: h, body });
+}
+
 /* ---------------- routes ---------------- */
 export default {
 
-  /* Per-brand access wraps every request (brandguard.js). */
-  async fetch(request, env, ctx) { return guardBrands(request, env, sessionEmail, () => this.handle(request, env, ctx), CORS); },
+  /* Per-brand access wraps every request (brandguard.js). Old brand ids are turned into brand ids
+     first (normalizeBrandIds), so the guard and every handler below see brand ids only. */
+  async fetch(request, env, ctx) {
+    const req = await normalizeBrandIds(request, env).catch(() => request);
+    return guardBrands(req, env, sessionEmail, () => this.handle(req, env, ctx), CORS);
+  },
 
   async handle(request, env, ctx) {
     const url = new URL(request.url);
@@ -1625,7 +1664,7 @@ export default {
       try {
         const row = await env.DB.prepare(`SELECT * FROM p_plan WHERE share_token = ?1`).bind(pm[1]).first();
         if (!row) return json({ error: 'This plan link is no longer valid.' }, 404);
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(row.act_id).first();
+        const acct = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(row.act_id).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const goals = goalsFor({ ...acct, goals: safeJson(acct.goals_json, {}) }, row.month);
         const history = await monthHistory(env, acct, row.month, 6);
@@ -1740,7 +1779,7 @@ export default {
           `SELECT value FROM settings WHERE key = 'reportTokens'`).first())?.value, {});
         const t = tokens[rvm[1]];
         if (!t) return json({ error: 'This report link is no longer valid.' }, 404);
-        const acct = await env.DB.prepare(`SELECT name, currency, report_config_json FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
+        const acct = await env.DB.prepare(`SELECT name, currency, report_config_json FROM brand_accounts WHERE act_id = ?1`).bind(t.act_id).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         /* The attribution basis the brand's reports are on. It has to travel to
            the client page: reportBodyHTML renders both surfaces, and the rule is
@@ -1882,7 +1921,7 @@ export default {
       const row = await env.DB.prepare(
         `SELECT act_id, created_at, label, data_json FROM p_ad_share WHERE token = ?1`).bind(asm[1]).first();
       if (!row) return json({ error: 'This link is no longer valid.' }, 404);
-      const acct = await env.DB.prepare(`SELECT name, currency FROM accounts WHERE act_id = ?1`).bind(row.act_id).first();
+      const acct = await env.DB.prepare(`SELECT name, currency FROM brand_accounts WHERE act_id = ?1`).bind(row.act_id).first();
       const d = safeJson(row.data_json, null);
       if (!d) return json({ error: 'This link is no longer valid.' }, 404);
       /* Strip anything that is OURS rather than theirs. The browser carries a
@@ -2226,7 +2265,7 @@ export default {
          the story around them separately. */
       if (path === '/api/plan' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const ym = b.month || monthOf(localDate(acct.tz));
         if (b.sales == null || !(+b.sales > 0)) return json({ error: 'a sales goal is required' }, 400);
@@ -2239,7 +2278,7 @@ export default {
         if (keep != null) m.cm_pct = keep;
         goals[ym] = m;
         goals.default = { ...m };
-        await env.DB.prepare(`UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1`)
+        await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)
           .bind(acct.act_id, JSON.stringify(goals)).run();
 
         const prev = await env.DB.prepare(`SELECT share_token, agreed_at, agreed_by FROM p_plan WHERE act_id = ?1 AND month = ?2`).bind(acct.act_id, ym).first();
@@ -2283,7 +2322,7 @@ export default {
       /* Client sign-off, and the read-only link you take to the call. */
       if (path === '/api/plan-agree' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const g = goalsFor({ ...acct, goals: safeJson(acct.goals_json, {}) }, b.month);
         if (g.sales == null) return json({ error: 'there is no plan for this month to agree to yet' }, 400);
@@ -2300,7 +2339,7 @@ export default {
       }
       if (path === '/api/plan-share' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct2 = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct2 = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct2) return json({ error: 'unknown account' }, 404);
         const g2 = goalsFor({ ...acct2, goals: safeJson(acct2.goals_json, {}) }, b.month);
         if (g2.sales == null) return json({ error: 'set a revenue goal for this month first' }, 400);
@@ -2539,11 +2578,11 @@ export default {
           goals[key] = goals[key] || {};
           if (pct == null) delete goals[key].cm_pct; else goals[key].cm_pct = pct;
         }
-        await env.DB.prepare(`UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1`)
+        await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)
           .bind(acct.act_id, JSON.stringify(goals)).run();
         // Re-grade immediately: the stored snapshot decides whether the Overview
         // shows this client's profit, so a stale "broken" would keep suppressing it.
-        const fresh = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(acct.act_id).first();
+        const fresh = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(acct.act_id).first();
         const { health } = await costHealth(env, { ...fresh, goals: safeJson(fresh.goals_json, {}) });
         await env.DB.prepare(
           `INSERT INTO p_cost_health (act_id, verdict, reason, blended, p10, p90, negatives, days, checked_at)
@@ -2593,7 +2632,7 @@ export default {
          lives next to the margin override that shares the same JSON blob. */
       if (path === '/api/goals' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!acct) return json({ error: 'unknown account' }, 404);
         const goals = safeJson(acct.goals_json, {});
         const ym = b.month || monthOf(localDate(acct.tz));
@@ -2603,16 +2642,16 @@ export default {
         if (keep != null) m.cm_pct = keep;
         goals[ym] = m;
         goals.default = { ...m };
-        await env.DB.prepare(`UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1`)
+        await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)
           .bind(acct.act_id, JSON.stringify(goals)).run();
         return json({ ok: true, goals: m });
       }
 
-      /* Per-client delivery settings. These live on the SHARED accounts table, so
+      /* Per-client delivery settings. These live on the SHARED brands table, so
          editing them here edits them in Account Health too — one setting, two doors. */
       if (path === '/api/client-settings' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
-        const cur = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const cur = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(b.act).first();
         if (!cur) return json({ error: 'unknown account' }, 404);
         // Two channels per brand and nothing more: slack_channel is INTERNAL
         // (drafts, delivery alerts) and brief_channel is the CLIENT's. Every
@@ -2624,9 +2663,9 @@ export default {
            person's view setting, which is why it is saved here and not in
            localStorage. Empty string clears it back to null. */
         await env.DB.prepare(
-          `UPDATE accounts SET slack_channel = ?2, brief_channel = ?3, brief_enabled = ?4,
-             report_config_json = ?5, review_first = ?6, target_cpa = ?7 WHERE act_id = ?1`,
-        ).bind(b.act,
+          `UPDATE brands SET internal_channel = ?2, client_channel = ?3, brief_enabled = ?4,
+             report_config_json = ?5, review_first = ?6, target_cpa = ?7 WHERE id = ?1`,
+        ).bind(cur.act_id,
           'slack_channel' in b ? (b.slack_channel || null) : cur.slack_channel,
           'brief_channel' in b ? (b.brief_channel || null) : cur.brief_channel,
           'brief_enabled' in b ? (b.brief_enabled ? 1 : 0) : cur.brief_enabled,

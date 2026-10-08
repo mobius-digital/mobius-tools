@@ -22,6 +22,12 @@
  *   GET /api/hub/find?q=&act=        any Meta campaign or ad by name (the ask bar's jump list)
  *   GET /api/hub/stockads?act=        products and ad sets tied to ad spend through Triple Whale orders (30 days)
  */
+import { metaOf } from './brandids.js';
+
+/* Brand-first phase 3 (2026-10-08): `act` / `a.act_id` here is the BRAND id. Meta's own tables
+   (ad_daily, ads, meta_campaigns, meta_adsets, activities) stay on the Meta ad account id, so they
+   are read with `act_id IN ${metaOf(n)}` (every Meta account the brand has), or joined through
+   `connections` when grouped across brands. Triple Whale tables (tw_*) and p_* are the brand's. */
 const MODELS = new Set(['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform']);
 const MODEL_LABEL = { lastPlatformClick: 'Triple Whale, last platform click', fullFirstClick: 'Triple Whale, first click', fullLastClick: 'Triple Whale, last click', linear: 'Triple Whale, linear (paid)', linearAll: 'Triple Whale, linear (all)', platform: 'Platform reported' };
 const TOUCH_FALLBACK = { linear: 'linearAll', platform: 'lastPlatformClick' };
@@ -73,8 +79,8 @@ export async function handleHub(ctx) {
       if (q.length < 3) return json({ items: [] });
       const ids = accts.map(a => a.act_id), nm = Object.fromEntries(accts.map(a => [a.act_id, a.name]));
       const IN = ids.map((_, i) => `?${i + 2}`).join(',');
-      const { results: ads } = await env.DB.prepare(`SELECT ad_id, name, act_id FROM ads WHERE act_id IN (${IN}) AND name LIKE ?1 ORDER BY COALESCE(first_spend_date, created_time) DESC LIMIT 8`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
-      const { results: cs } = await env.DB.prepare(`SELECT campaign_id, name, act_id FROM meta_campaigns WHERE act_id IN (${IN}) AND name LIKE ?1 ORDER BY created_time DESC LIMIT 5`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
+      const { results: ads } = await env.DB.prepare(`SELECT x.ad_id, x.name, c.brand_id act_id FROM ads x JOIN connections c ON c.kind = 'meta' AND c.external_id = x.act_id WHERE c.brand_id IN (${IN}) AND x.name LIKE ?1 ORDER BY COALESCE(x.first_spend_date, x.created_time) DESC LIMIT 8`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
+      const { results: cs } = await env.DB.prepare(`SELECT m.campaign_id, m.name, c.brand_id act_id FROM meta_campaigns m JOIN connections c ON c.kind = 'meta' AND c.external_id = m.act_id WHERE c.brand_id IN (${IN}) AND m.name LIKE ?1 ORDER BY m.created_time DESC LIMIT 5`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
       return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, brand: nm[a.act_id] }))] });
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
@@ -195,7 +201,7 @@ function metaMetrics(r, attr) {
 async function metaBrand(env, a, w, model, detail) {
   const act = a.act_id;
   const tot = async (from, to) => {
-    const r = await env.DB.prepare(`SELECT ${META_COLS} FROM ad_daily d WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3`).bind(act, from, to).first();
+    const r = await env.DB.prepare(`SELECT ${META_COLS} FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3`).bind(act, from, to).first();
     const at = model === 'platform' ? null : await env.DB.prepare(`SELECT SUM(revenue) rev, SUM(orders) ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL)`).bind(act, model, from, to).first();
     return metaMetrics(r || {}, at ? { rev: num(at.rev), ord: num(at.ord) } : null);
   };
@@ -207,20 +213,20 @@ async function metaBrand(env, a, w, model, detail) {
 
   /* Daily series, by campaign. */
   const { results: daily } = await env.DB.prepare(`SELECT d.date, COALESCE(x.campaign_id, '?') campaign_id, ${META_COLS} FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id
-    WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date, campaign_id ORDER BY d.date`).bind(act, w.from, w.to).all();
+    WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date, campaign_id ORDER BY d.date`).bind(act, w.from, w.to).all();
   const { byAd, byDate } = await attrByAd(env, act, w.from, w.to, model, 'meta');
-  const { results: prevDaily } = w.pf ? await env.DB.prepare(`SELECT d.date, SUM(d.spend) spend, SUM(d.purchases) p_ord, SUM(d.revenue) p_rev FROM ad_daily d WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date ORDER BY d.date`).bind(act, w.pf, w.pt).all() : { results: [] };
+  const { results: prevDaily } = w.pf ? await env.DB.prepare(`SELECT d.date, SUM(d.spend) spend, SUM(d.purchases) p_ord, SUM(d.revenue) p_rev FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date ORDER BY d.date`).bind(act, w.pf, w.pt).all() : { results: [] };
   const prevAttr = w.pf ? (await attrByAd(env, act, w.pf, w.pt, model, 'meta')).byDate : {};
 
   /* Campaign > ad set > ad, with names. */
   const { results: adRows } = await env.DB.prepare(`SELECT d.ad_id, x.name ad_name, x.adset_id, x.campaign_id, x.media_type, x.first_spend_date, x.created_time, ${META_COLS}
-    FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id`).bind(act, w.from, w.to).all();
-  const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name, objective, status, daily_budget, lifetime_budget, bid_strategy FROM meta_campaigns WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
-  const { results: sets } = await env.DB.prepare(`SELECT adset_id, campaign_id, name, status, daily_budget, optimization_goal, min_spend FROM meta_adsets WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
+    FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id`).bind(act, w.from, w.to).all();
+  const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name, objective, status, daily_budget, lifetime_budget, bid_strategy FROM meta_campaigns WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
+  const { results: sets } = await env.DB.prepare(`SELECT adset_id, campaign_id, name, status, daily_budget, optimization_goal, min_spend FROM meta_adsets WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
   const cName = Object.fromEntries((camps || []).map(c => [c.campaign_id, c])), sName = Object.fromEntries((sets || []).map(s => [s.adset_id, s]));
-  const { results: prevAds } = w.pf ? await env.DB.prepare(`SELECT x.campaign_id, x.adset_id, SUM(d.spend) spend, SUM(d.purchases) p_ord FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 GROUP BY x.adset_id`).bind(act, w.pf, w.pt).all() : { results: [] };
+  const { results: prevAds } = w.pf ? await env.DB.prepare(`SELECT x.campaign_id, x.adset_id, SUM(d.spend) spend, SUM(d.purchases) p_ord FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY x.adset_id`).bind(act, w.pf, w.pt).all() : { results: [] };
   const prevAttrAd = w.pf ? (await attrByAd(env, act, w.pf, w.pt, model, 'meta')).byAd : {};
-  const { results: prevAdIds } = w.pf ? await env.DB.prepare(`SELECT DISTINCT d.ad_id, x.adset_id, x.campaign_id FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3`).bind(act, w.pf, w.pt).all() : { results: [] };
+  const { results: prevAdIds } = w.pf ? await env.DB.prepare(`SELECT DISTINCT d.ad_id, x.adset_id, x.campaign_id FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3`).bind(act, w.pf, w.pt).all() : { results: [] };
   const prevBy = { camp: {}, set: {} };
   for (const r of prevAds || []) {
     for (const [k, id] of [['camp', r.campaign_id], ['set', r.adset_id]]) { const b = prevBy[k][id] ||= { spend: 0, p_ord: 0, ord: 0 }; b.spend += num(r.spend); b.p_ord += num(r.p_ord); }
@@ -254,7 +260,7 @@ async function metaBrand(env, a, w, model, detail) {
   out.prev_series = (prevDaily || []).map(d => { const at = prevAttr[d.date]; const ord = model === 'platform' ? num(d.p_ord) : (at ? at.ord : 0), rev = model === 'platform' ? num(d.p_rev) : (at ? at.rev : 0); return { date: d.date, spend: num(d.spend), purchases: ord, revenue: rev, cpa: div(num(d.spend), ord) }; });
 
   /* The account's own changes in the window (budget, launches, pauses), for chart markers. */
-  const { results: changes } = await env.DB.prepare(`SELECT substr(event_time,1,10) date, category, summary, actor, object_name FROM activities WHERE act_id = ?1 AND substr(event_time,1,10) BETWEEN ?2 AND ?3
+  const { results: changes } = await env.DB.prepare(`SELECT substr(event_time,1,10) date, category, summary, actor, object_name FROM activities WHERE act_id IN ${metaOf(1)} AND substr(event_time,1,10) BETWEEN ?2 AND ?3
     AND category IN ('budget','new_campaign','campaign_paused','campaign_relaunched','bid_strategy','new_creative','new_adset','manual') ORDER BY event_time DESC LIMIT 60`).bind(act, w.from, w.to).all().catch(() => ({ results: [] }));
   out.changes = changes || [];
   return out;
@@ -264,8 +270,9 @@ async function metaBrand(env, a, w, model, detail) {
 async function metaMany(env, accts, w, model) {
   const acts = accts.map(a => a.act_id);
   const lo = w.pf && w.pf < w.from ? w.pf : w.from;
-  const { results } = await env.DB.prepare(`SELECT d.act_id, CASE WHEN d.date >= ?1 THEN 'cur' ELSE 'prev' END win, ${META_COLS} FROM ad_daily d
-    WHERE d.act_id IN (${inList(acts.length, 5)}) AND ((d.date BETWEEN ?1 AND ?2) OR (d.date BETWEEN ?3 AND ?4)) GROUP BY d.act_id, win`)
+  const { results } = await env.DB.prepare(`SELECT c.brand_id act_id, CASE WHEN d.date >= ?1 THEN 'cur' ELSE 'prev' END win, ${META_COLS} FROM ad_daily d
+    JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id
+    WHERE c.brand_id IN (${inList(acts.length, 5)}) AND ((d.date BETWEEN ?1 AND ?2) OR (d.date BETWEEN ?3 AND ?4)) GROUP BY c.brand_id, win`)
     .bind(w.from, w.to, w.pf || '9999', w.pt || '0000', ...acts).all();
   const at = await attrMany(env, acts, lo, w.to, model, 'meta');
   const raw = {}; for (const r of results || []) (raw[r.act_id] ??= {})[r.win] = r;
@@ -381,14 +388,14 @@ const batchOf = name => { const m = String(name || '').match(/^\s*(?:[A-Z]{1,4}_
 async function creativeBrand(env, a, w, model) {
   const act = a.act_id;
   const { results: ads } = await env.DB.prepare(`SELECT d.ad_id, x.name, x.media_type, x.first_spend_date, x.created_time, x.campaign_id, x.adset_id, ${META_COLS}
-    FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id HAVING SUM(d.spend) > 0`).bind(act, w.from, w.to).all();
+    FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id HAVING SUM(d.spend) > 0`).bind(act, w.from, w.to).all();
   const { byAd } = await attrByAd(env, act, w.from, w.to, model, 'meta');
   /* First-click credit per ad, beside the screen's model: an ad Triple Whale credits far more on FIRST
      click starts journeys (top of funnel); one credited more on the last click closes them. */
   const fc = model === 'fullFirstClick' ? byAd : (await attrByAd(env, act, w.from, w.to, 'fullFirstClick', 'meta')).byAd;
   const lc = model === 'lastPlatformClick' ? byAd : (await attrByAd(env, act, w.from, w.to, 'lastPlatformClick', 'meta')).byAd;
-  const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name FROM meta_campaigns WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
-  const { results: setRows } = await env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
+  const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name FROM meta_campaigns WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
+  const { results: setRows } = await env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
   const sName = Object.fromEntries((setRows || []).map(x => [x.adset_id, x.name]));
   const cName = Object.fromEntries((camps || []).map(c => [c.campaign_id, c.name]));
   /* Angle per ad: the batch number leading the ad name -> the test library -> its angle. */
@@ -422,7 +429,7 @@ async function creativeBrand(env, a, w, model) {
   for (const r of rows) { if (!r.adset_id) continue; const k = rankIn[r.adset_id] = (rankIn[r.adset_id] || 0) + 1; const x = sets[r.adset_id];
     r.adset = { id: x.id, name: x.name, spend: x.spend, purchases: x.purchases, revenue: x.revenue, cpa: x.cpa, roas: x.roas, ads: x.ads }; r.set_share = div(r.spend, x.spend); r.set_rank = k; }
   /* Fatigue: CPA by days since an ad first spent, over every ad-day in the window. */
-  const { results: adDays } = await env.DB.prepare(`SELECT d.ad_id, d.date, d.spend, d.impressions, d.link_clicks, d.purchases FROM ad_daily d WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 AND d.spend > 0`).bind(act, w.from, w.to).all();
+  const { results: adDays } = await env.DB.prepare(`SELECT d.ad_id, d.date, d.spend, d.impressions, d.link_clicks, d.purchases FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 AND d.spend > 0`).bind(act, w.from, w.to).all();
   const { results: attrDays } = model === 'platform' ? { results: [] } : await env.DB.prepare(`SELECT ad_id, date, SUM(orders) ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id, date`).bind(act, model, w.from, w.to).all();
   const ordAt = {}; for (const r of attrDays || []) ordAt[`${r.ad_id}|${r.date}`] = r.ord;
   const firstOf = Object.fromEntries(rows.map(r => [r.id, r.first_spend]));
@@ -436,8 +443,8 @@ async function creativeBrand(env, a, w, model) {
   const fatigue = fat.map(b => ({ label: b.label, spend: b.spend, orders: b.orders, cpa: div(b.spend, b.orders), ctr: div(b.clicks, b.impr), ads: b.ads.size }));
   /* Launch cadence, 12 weeks: new ads per week and the share of spend on ads under 14 days old. */
   const from12 = new Date(Date.parse(w.to) - 83 * 864e5).toISOString().slice(0, 10);
-  const { results: wk } = await env.DB.prepare(`SELECT d.ad_id, d.date, d.spend FROM ad_daily d WHERE d.act_id = ?1 AND d.date BETWEEN ?2 AND ?3 AND d.spend > 0`).bind(act, from12, w.to).all();
-  const { results: firsts } = await env.DB.prepare(`SELECT ad_id, first_spend_date, created_time FROM ads WHERE act_id = ?1`).bind(act).all();
+  const { results: wk } = await env.DB.prepare(`SELECT d.ad_id, d.date, d.spend FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 AND d.spend > 0`).bind(act, from12, w.to).all();
+  const { results: firsts } = await env.DB.prepare(`SELECT ad_id, first_spend_date, created_time FROM ads WHERE act_id IN ${metaOf(1)}`).bind(act).all();
   const fs = Object.fromEntries((firsts || []).map(r => [r.ad_id, r.first_spend_date || (r.created_time || '').slice(0, 10)]));
   const weeks = Array.from({ length: 12 }, (_, i) => { const s = new Date(Date.parse(from12) + i * 7 * 864e5).toISOString().slice(0, 10); return { week: s, launched: 0, spend: 0, fresh: 0 }; });
   const wIdx = d => Math.min(11, Math.floor((Date.parse(d) - Date.parse(from12)) / (7 * 864e5)));
@@ -544,8 +551,8 @@ async function stockAds(env, ctx, a) {
     env.DB.prepare(`SELECT t.ad_id, o.products_json FROM tw_order_touch t JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id
       WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2`).bind(a.act_id, from).all().then(r => r.results || []).catch(() => []),
     env.DB.prepare(`SELECT d.ad_id, a.adset_id, SUM(d.spend) s30, SUM(CASE WHEN d.date >= ?3 THEN d.spend ELSE 0 END) s7
-      FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id WHERE d.act_id = ?1 AND d.date >= ?2 GROUP BY d.ad_id`).bind(a.act_id, from, from7).all().then(r => r.results || []).catch(() => []),
-    env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id = ?1`).bind(a.act_id).all().then(r => r.results || []).catch(() => []),
+      FROM ad_daily d LEFT JOIN ads a ON a.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 GROUP BY d.ad_id`).bind(a.act_id, from, from7).all().then(r => r.results || []).catch(() => []),
+    env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id IN ${metaOf(1)}`).bind(a.act_id).all().then(r => r.results || []).catch(() => []),
   ]);
   const ordersOf = new Map();
   for (const t of touch) {

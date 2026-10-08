@@ -14,10 +14,17 @@
  * OpenAI (GPT Image) for everything: its strength is text inside images, which is the job.
  * Model ids are discovered from /v1/models so a new release needs no code change.
  * The key is connected from the Studio screen and stored in p_studio_cfg; it is never sent
- * back to a browser. Images live in R2 (MEDIA) under studio/<act>/<id>/<kind>.png and are served
+ * back to a browser. Images live in R2 (MEDIA) under studio/<prefix>/<id>/<kind>.png and are served
  * by id (24 random hex), which is the same trust model as the creator link's uploads.
  * Slow calls stream NDJSON with a 10s ping: Cloudflare cuts a silent response at 100s.
+ *
+ * Brand-first phase 3 (2026-10-08): act_id on p_studio_* / p_asset is the BRAND id. R2 files are never
+ * moved, so every key is built from the brand's storage_prefix (its old act id) or, for a brand born
+ * without one, its id (`keyOf`, `storagePrefix`). Product fingerprints were saved as dna:<old act>:<handle>;
+ * `dnaGet` reads the brand id's key first, then the old one.
  */
+
+import { storagePrefix } from './brandids.js';
 
 const OA = 'https://api.openai.com/v1';
 const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext', 'story']);
@@ -324,7 +331,7 @@ function shape(row) {
   };
 }
 const getAd = (env, id) => env.DB.prepare(`SELECT * FROM p_studio_ad WHERE id = ?1`).bind(id).first();
-const keyOf = (row, kind) => `studio/${row.act_id}/${row.id}/${kind}.png`;
+const keyOf = async (env, row, kind) => `studio/${await storagePrefix(env, row.act_id)}/${row.id}/${kind}.png`;
 
 /* Where the words landed: one read-back (about a cent). Words outside the zone would be cut or hidden
    (feed edges, or the Stories / Reels buttons on the 9:16), so the card flags it.
@@ -357,7 +364,7 @@ async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts
 async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, parent, batch_id, line }) {
   const { w, h } = pngSize(bytes);
   const id = rid();
-  await env.MEDIA.put(`studio/${act}/${id}/full.png`, bytes, { httpMetadata: { contentType: 'image/png' } });
+  await env.MEDIA.put(`studio/${await storagePrefix(env, act)}/${id}/full.png`, bytes, { httpMetadata: { contentType: 'image/png' } });
   await env.DB.prepare(`INSERT INTO p_studio_ad (id, act_id, parent_id, status, spec_json, prompt, model, full_w, full_h, cost, batch_id, line, check_json) VALUES (?1, ?2, ?3, 'review', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`)
     .bind(id, act, parent || null, JSON.stringify(spec), prompt, model, w, h, cost, batch_id || null, Number.isInteger(line) ? line : null, check ? JSON.stringify(check) : null).run();
   return shape(await getAd(env, id));
@@ -422,6 +429,13 @@ function cleanSpec(s = {}) {
    developer integration whose redirect URL is this worker's /api/studio/canva/callback). */
 const CANVA = 'https://api.canva.com/rest/v1';
 const CANVA_SCOPES = 'asset:read asset:write design:content:read design:content:write design:meta:read folder:read folder:write';
+/* A product fingerprint: under the brand id, else under the old act id it was saved with before phase 3. */
+async function dnaGet(env, act, handle) {
+  const v = await cfgGet(env, `dna:${act}:${handle}`);
+  if (v) return v;
+  const pre = await storagePrefix(env, act);
+  return pre && pre !== act ? cfgGet(env, `dna:${pre}:${handle}`) : null;
+}
 async function cfgGet(env, k) { return (await env.DB.prepare(`SELECT value FROM p_studio_cfg WHERE key = ?1`).bind(k).first().catch(() => null))?.value || null; }
 async function cfgSet(env, k, v) {
   if (v == null) return env.DB.prepare(`DELETE FROM p_studio_cfg WHERE key = ?1`).bind(k).run();
@@ -553,7 +567,7 @@ export async function handlePublic(request, env, url, path, json, CORS) {
   if (!m || request.method !== 'GET') return null;
   const row = await getAd(env, m[1]);
   if (!row || !env.MEDIA) return json({ error: 'not found' }, 404);
-  const obj = await env.MEDIA.get(keyOf(row, m[2]));
+  const obj = await env.MEDIA.get(await keyOf(env, row, m[2]));
   if (!obj) return json({ error: 'not found' }, 404);
   return new Response(obj.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
 }
@@ -578,7 +592,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
 
   if (path === '/api/studio' && request.method === 'GET') {
     const key = await getKey(env);
-    const acct = act ? await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first() : null;
+    const acct = act ? await env.DB.prepare(`SELECT act_id, name, tw_shop FROM brand_accounts WHERE act_id = ?1`).bind(act).first() : null;
     const rows = act ? (await env.DB.prepare(`SELECT * FROM p_studio_ad WHERE act_id = ?1 AND status != 'gone' ORDER BY created_at DESC LIMIT 300`).bind(act).all()).results || [] : [];
     const spent = act ? (await env.DB.prepare(`SELECT COALESCE(SUM(cost),0) c FROM p_studio_ad WHERE act_id = ?1 AND created_at >= date('now','start of month')`).bind(act).first())?.c || 0 : 0;
     /* Dressed photos (looks) live in the photo library, not p_studio_ad; their cost counts in the month too. */
@@ -601,7 +615,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
 
   /* The brand's products straight from its Shopify storefront, so picking one is a click. */
   if (path === '/api/studio/products' && request.method === 'GET') {
-    const acct = await env.DB.prepare(`SELECT tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first();
+    const acct = await env.DB.prepare(`SELECT tw_shop FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
     if (!acct?.tw_shop) return json({ products: [], note: 'This brand has no Shopify store set in Settings.' });
     const out = [];
     for (let page = 1; page <= 4; page++) {
@@ -631,7 +645,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row) return json({ error: 'not found' }, 404);
     if (body.png) {
       const bytes = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
-      await env.MEDIA.put(keyOf(row, 'final'), bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.MEDIA.put(await keyOf(env, row, 'final'), bytes, { httpMetadata: { contentType: 'image/png' } });
     }
     await env.DB.prepare(`UPDATE p_studio_ad SET layers_json = ?2, has_final = ?3, status = CASE WHEN ?4 = 1 THEN 'approved' ELSE status END, updated_at = datetime('now') WHERE id = ?1`)
       .bind(row.id, JSON.stringify(body.layers || null), body.png ? 1 : row.has_final, body.approve ? 1 : 0).run();
@@ -642,7 +656,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
   if (path === '/api/studio/revert' && request.method === 'POST') {
     const row = await getAd(env, body.id);
     if (!row) return json({ error: 'not found' }, 404);
-    await env.MEDIA.delete(keyOf(row, 'final')).catch(() => {});
+    await env.MEDIA.delete(await keyOf(env, row, 'final')).catch(() => {});
     await env.DB.prepare(`UPDATE p_studio_ad SET has_final = 0, layers_json = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
     return json({ ok: true, ad: shape(await getAd(env, row.id)) });
   }
@@ -657,7 +671,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const spec = cleanSpec(body.spec);
     if (!spec.images.length && !spec.inspo.length && !spec.base) return json({ error: 'Pick a product or add an inspiration image.' }, 400);
     const n = Math.max(1, Math.min(4, +body.n || 1));
-    const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+    const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
     if (!acct) return json({ error: 'unknown brand' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
@@ -685,7 +699,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row) return json({ error: 'not found' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
-      const obj = await env.MEDIA.get(keyOf(row, 'full'));
+      const obj = await env.MEDIA.get(await keyOf(env, row, 'full'));
       if (!obj) throw new Error('The ad image is missing.');
       const lines = await readText(key, m.vision, new Uint8Array(await obj.arrayBuffer()), safeJson(row.spec_json, {}));
       await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + ?2 WHERE id = ?1`).bind(row.id, COST.vision).run();
@@ -703,7 +717,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     return stream(CORS, async send => {
       const m = await models(key);
       const spec = safeJson(row.spec_json, {});
-      const obj = await env.MEDIA.get(keyOf(row, 'full'));
+      const obj = await env.MEDIA.get(await keyOf(env, row, 'full'));
       if (!obj) throw new Error('The ad image is missing.');
       const full = new Uint8Array(await obj.arrayBuffer());
       send({ type: 'status', text: 'Erasing the words from the picture. About 30 seconds.' });
@@ -724,7 +738,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
           'Change nothing else: the same product with its own logos and printing, the same scene, lighting, colours and framing, pixel for pixel wherever there was no text.',
         ].filter(Boolean).join(' '),
       });
-      await env.MEDIA.put(keyOf(row, 'plate'), plate.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.MEDIA.put(await keyOf(env, row, 'plate'), plate.bytes, { httpMetadata: { contentType: 'image/png' } });
       const layers = { source: 'ai', lines, art, holes };
       await env.DB.prepare(`UPDATE p_studio_ad SET has_plate = 1, layers_json = ?2, cost = cost + ?3, updated_at = datetime('now') WHERE id = ?1`)
         .bind(row.id, JSON.stringify(layers), COST.image).run();
@@ -742,7 +756,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const m = await models(key);
       const spec = safeJson(row.spec_json, {});
       const from = spec.art || clip(body.from, 40);
-      const obj = await env.MEDIA.get(keyOf(row, 'full'));
+      const obj = await env.MEDIA.get(await keyOf(env, row, 'full'));
       const full = new Uint8Array(await obj.arrayBuffer());
       send({ type: 'status', text: `Redrawing "${from}" as "${to}". About 30 seconds.` });
       const out = await imageCall(key, m.image, {
@@ -750,9 +764,9 @@ export async function handleStaff(request, env, url, path, json, CORS) {
         size: row.full_w && row.full_h ? `${row.full_w}x${row.full_h}` : '1024x1280',
         prompt: `Change the stylised title lettering "${from}" so it reads "${to}", in exactly the same lettering style, size, colour, glow and position. Spell it exactly. Change nothing else in the image.`,
       });
-      await env.MEDIA.put(keyOf(row, 'full'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
-      await env.MEDIA.delete(keyOf(row, 'plate')).catch(() => {});
-      await env.MEDIA.delete(keyOf(row, 'final')).catch(() => {});
+      await env.MEDIA.put(await keyOf(env, row, 'full'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.MEDIA.delete(await keyOf(env, row, 'plate')).catch(() => {});
+      await env.MEDIA.delete(await keyOf(env, row, 'final')).catch(() => {});
       await env.DB.prepare(`UPDATE p_studio_ad SET spec_json = ?2, has_plate = 0, has_final = 0, layers_json = NULL, cost = cost + ?3, updated_at = datetime('now') WHERE id = ?1`)
         .bind(row.id, JSON.stringify({ ...spec, art: to }), COST.image).run();
       send({ type: 'done', ad: shape(await getAd(env, row.id)) });
@@ -799,14 +813,14 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     return stream(CORS, async send => {
       const tok = await canvaToken(env);
       if (!tok) throw new Error('Connect Canva first (Studio, Canva button).');
-      const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+      const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
       const bt = body.batch_id ? await env.DB.prepare(`SELECT num, name FROM p_studio_batch WHERE id = ?1`).bind(body.batch_id).first() : null;
       const fid = await canvaFolder(env, tok, ['Locus Studio', acct?.name || 'Brand', bt ? `${bt.num ? `${bt.num} · ` : ''}${bt.name || 'Batch'}` : clip(body.folder || 'Ads', 120)]);
       const out = [];
       for (const [i, id] of ids.entries()) {
         const row = await getAd(env, id);
         if (!row) continue;
-        const obj = await env.MEDIA.get(keyOf(row, row.has_final ? 'final' : 'full'));
+        const obj = await env.MEDIA.get(await keyOf(env, row, row.has_final ? 'final' : 'full'));
         if (!obj) continue;
         const bytes = new Uint8Array(await obj.arrayBuffer());
         const spec = safeJson(row.spec_json, {});
@@ -833,7 +847,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const old = safeJson(base.spec_json, {});
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = (await env.MEDIA.get(keyOf(base, 'square'))) || (await env.MEDIA.get(keyOf(base, 'full')));
+      const src = (await env.MEDIA.get(await keyOf(env, base, 'square'))) || (await env.MEDIA.get(await keyOf(env, base, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
       const pairs = [['headline', 'The headline'], ['subline', 'The smaller line'], ['cta', 'The button']]
@@ -855,7 +869,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row || !ask) return json({ error: 'id and an instruction are required' }, 400);
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = (await env.MEDIA.get(keyOf(row, 'square'))) || (await env.MEDIA.get(keyOf(row, 'full')));
+      const src = (await env.MEDIA.get(await keyOf(env, row, 'square'))) || (await env.MEDIA.get(await keyOf(env, row, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
       const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the frame with a small margin. Spell every word exactly.`;
@@ -878,7 +892,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const baseUrl = urls([body.base], 1)[0], prodUrls = urls(body.products, 4);
     if (!baseUrl) return json({ error: 'Pick the photo of the person first.' }, 400);
     if (!prodUrls.length) return json({ error: 'Pick at least one photo of the product.' }, 400);
-    const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+    const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
     if (!acct) return json({ error: 'unknown brand' }, 404);
     const title = clip(body.product, 200).trim(), handle = clip(body.handle, 200), note = clip(body.note, 400).trim();
     return stream(CORS, async send => {
@@ -888,7 +902,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       if (!base) throw new Error('Could not load the photo of the person.');
       const prods = await refImages(env, prodUrls, 4);
       if (!prods.length) throw new Error('Could not load the product photos.');
-      const dna = handle ? clip(await cfgGet(env, `dna:${act}:${handle}`) || '', 3000) : '';
+      const dna = handle ? clip(await dnaGet(env, act, handle) || '', 3000) : '';
       const { w, h } = imgSize(new Uint8Array(base.buf));
       const size = w && h ? (w / h > 1.15 ? '1536x1024' : w / h < 0.87 ? '1024x1536' : '1024x1024') : '1024x1536';
       const prompt = dressPrompt({ title, brand: acct.name, n: prods.length, dna, note });
@@ -902,7 +916,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
          and under the library's key (so /assets-img/<act>/look-<id> serves it like any library photo). */
       const id = rid(), type = typeOf(out.bytes), ext = { 'image/jpeg': 'jpg', 'image/webp': 'webp' }[type] || 'png';
       await env.MEDIA.put(`studio/ref/${id}.${ext}`, out.bytes, { httpMetadata: { contentType: type } });
-      const fileId = `look-${id}`, thumbKey = `assets/${act}/${fileId}.jpg`;
+      const fileId = `look-${id}`, thumbKey = `assets/${await storagePrefix(env, act)}/${fileId}.jpg`;
       await env.MEDIA.put(thumbKey, out.bytes, { httpMetadata: { contentType: type } });
       const refUrl = `${url.origin}/api/studio/ref/${id}.${ext}`;
       const src = /^[\w-]{15,}$/.test(body.base_asset || '') ? await env.DB.prepare(`SELECT file_id, name, people, setting, shot, colors, descr, tags_json FROM p_asset WHERE act_id = ?1 AND file_id = ?2`).bind(act, body.base_asset).first().catch(() => null) : null;
@@ -937,7 +951,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const canvas = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
       const out = await imageCall(key, m.image, { images: [{ buf: canvas, type: 'image/png' }], mask: canvas, fidelity: true, size: '1024x1280', quality: 'medium',
         prompt: 'Extend this picture upward and downward to fill the transparent areas: continue the same background, surfaces, light and colour grade seamlessly. Add NO text, NO product, NO logos, NO new objects in the new areas. Leave the existing picture exactly as it is.' });
-      await env.MEDIA.put(keyOf(row, 'ext'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.MEDIA.put(await keyOf(env, row, 'ext'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
       await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + ?2, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, 0.08).run();
       send({ type: 'done', ad: shape(await getAd(env, row.id)) });
     });
@@ -949,13 +963,13 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row) return json({ error: 'ad not found' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = await env.MEDIA.get(keyOf(row, 'full'));
+      const src = await env.MEDIA.get(await keyOf(env, row, 'full'));
       const spec = safeJson(row.spec_json, {});
-      const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same words spelled exactly, the same lettering style and colours. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
+      const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same headline and smaller line spelled exactly, the same lettering style and colours. LEAVE OUT any button or shop-now label: Stories and Reels add their own button. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
       send({ type: 'status', text: 'Making the 9:16 version. About 40 seconds.' });
       const out = await imageCall(key, m.image, { images: [{ buf: new Uint8Array(await src.arrayBuffer()), type: 'image/png' }], fidelity: true, prompt, size: TALL });
       const zone = await zoneCheck(key, m, out.bytes, spec, STORY_ZONE, 'outside the Stories safe area');
-      await env.MEDIA.put(keyOf(row, 'story'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.MEDIA.put(await keyOf(env, row, 'story'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
       const ck = { ...(safeJson(row.check_json, {}) || {}), story_zone: zone };
       await env.DB.prepare(`UPDATE p_studio_ad SET spec_json = ?2, check_json = ?3, cost = cost + ?4, updated_at = datetime('now') WHERE id = ?1`)
         .bind(row.id, JSON.stringify({ ...spec, story: true }), JSON.stringify(ck), COST.tall + COST.vision).run();
@@ -965,13 +979,13 @@ export async function handleStaff(request, env, url, path, json, CORS) {
   if (path === '/api/studio/finalize' && request.method === 'POST') {
     const row = await getAd(env, body.id);
     if (!row || !body.png) return json({ error: 'id and png are required' }, 400);
-    const cur = await env.MEDIA.get(keyOf(row, 'full'));
-    if (cur && row.full_w === row.full_h) await env.MEDIA.put(keyOf(row, 'square'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
+    const cur = await env.MEDIA.get(await keyOf(env, row, 'full'));
+    if (cur && row.full_w === row.full_h) await env.MEDIA.put(await keyOf(env, row, 'square'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
     /* A tall master (9:16, or 2:3 if the model refused 9:16) is kept as the Stories / Reels version. */
-    else if (cur && row.full_h > row.full_w * 1.3) await env.MEDIA.put(keyOf(row, 'story'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
+    else if (cur && row.full_h > row.full_w * 1.3) await env.MEDIA.put(await keyOf(env, row, 'story'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
     const bytes = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
     const { w, h } = pngSize(bytes);
-    await env.MEDIA.put(keyOf(row, 'full'), bytes, { httpMetadata: { contentType: 'image/png' } });
+    await env.MEDIA.put(await keyOf(env, row, 'full'), bytes, { httpMetadata: { contentType: 'image/png' } });
     await env.DB.prepare(`UPDATE p_studio_ad SET full_w = ?2, full_h = ?3, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, w, h).run();
     return json({ ok: true, ad: shape(await getAd(env, row.id)) });
   }
@@ -983,7 +997,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
   if (path === '/api/studio/dna' && request.method === 'POST') {
     if (!key) return needKey();
     const handle = clip(body.handle, 200), cfgKey = `dna:${act}:${handle}`;
-    if (!body.refresh && !body.text) { const have = await cfgGet(env, cfgKey); if (have) return json({ dna: have }); }
+    if (!body.refresh && !body.text) { const have = await dnaGet(env, act, handle); if (have) return json({ dna: have }); }
     if (typeof body.text === 'string') { await cfgSet(env, cfgKey, clip(body.text, 3000)); return json({ dna: clip(body.text, 3000) }); }
     const imgs = await refImages(env, urls(body.images, 8), 8);
     if (!imgs.length) return json({ error: 'No product photos.' }, 400);
@@ -1011,7 +1025,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
   if (path === '/api/studio/make-exact' && request.method === 'POST') {
     if (!key) return needKey();
     const spec = cleanSpec({ ...(body.spec || {}), exact: true });
-    const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+    const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
     if (!acct) return json({ error: 'unknown brand' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
@@ -1048,7 +1062,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       send({ type: 'status', text: 'Adding the shadow under the product.' });
       const out = await imageCall(key, m.image, { images: [{ buf: img, type: 'image/png' }], mask, fidelity: true, size: '1024x1024', quality: 'medium',
         prompt: 'The product is a real photo placed on this scene. Add only a soft, natural contact shadow and a faint reflection where it touches the surface, matching the direction and softness of the scene light, so it sits in the scene. Do not change the product, the words or anything else. Do not add any object.' });
-      await env.MEDIA.put(keyOf(row, 'plate'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.MEDIA.put(await keyOf(env, row, 'plate'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
       await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + 0.08, updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
       send({ type: 'done', ad: shape(await getAd(env, row.id)) });
     });

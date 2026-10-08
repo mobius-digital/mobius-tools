@@ -1,7 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
-import { syncRegistry, listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS } from './brands.js';
+import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 /**
@@ -451,11 +451,16 @@ const normBrand = s => String(s || '').toLowerCase().replace(/&/g, ' and ').repl
 const myshopify = v => { const m = /([a-z0-9][a-z0-9-]*)\.myshopify\.com/i.exec(String(v || '')); return m ? `${m[1].toLowerCase()}.myshopify.com` : null; };
 async function autoConnectMeta(env) {
   /* 45 days is plenty for a client to share Meta; after that discovery stops running for them hourly. */
-  const runs = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE act_id IS NULL AND slack_internal IS NOT NULL AND created_at > datetime('now', '-45 days')`).all().catch(() => ({ results: [] }))).results || [];
+  /* Waiting = no brand yet, or a brand with no Meta account connected (phase 3: act_id is the brand id). */
+  const runs = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE (act_id IS NULL OR NOT EXISTS (SELECT 1 FROM connections c WHERE c.brand_id = p_newclient.act_id AND c.kind = 'meta'))
+      AND slack_internal IS NOT NULL AND created_at > datetime('now', '-45 days')`).all().catch(() => ({ results: [] }))).results || [];
   if (!runs.length) return { waiting: 0 };
   const disc = await discoverAccounts(env).catch(() => null);
-  /* An account we once synced (an old client switched off) is never a NEW client's account. */
-  const untracked = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%' AND NOT EXISTS (SELECT 1 FROM daily_insights d WHERE d.act_id = accounts.act_id)`).all()).results || [];
+  /* An account we once synced (an old client switched off) is never a NEW client's account. `accounts` is
+     Meta ad accounts only now: untracked = on no brand and never synced. */
+  const untracked = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id LIKE 'act_%'
+      AND NOT EXISTS (SELECT 1 FROM connections c WHERE c.kind = 'meta' AND c.external_id = accounts.act_id)
+      AND NOT EXISTS (SELECT 1 FROM daily_insights d WHERE d.act_id = accounts.act_id)`).all()).results || [];
   const out = { waiting: runs.length, connected: [] };
   for (const r of runs) {
     const want = normBrand(r.name);
@@ -499,10 +504,20 @@ async function connectMetaFor(env, r, a) {
   }
   const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.answers_json, {});
   const shop = myshopify(ans.shopify_url);
-  await env.DB.prepare(`UPDATE accounts SET active = 1, name = ?2, tw_shop = COALESCE(NULLIF(tw_shop, ''), ?3),
-      slack_channel = COALESCE(NULLIF(slack_channel, ''), ?4), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?5) WHERE act_id = ?1`)
-    .bind(a.act_id, r.name, shop, r.slack_internal, r.slack_client || null).run();
-  await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, a.act_id).run();
+  /* Phase 3: the client's BRAND gets a meta connection (the brand is made now if the client has none yet);
+     the Meta account itself is only sync state in `accounts`. Brand fields go on brands. */
+  let brand = (r.act_id && await brandOf(env, r.act_id).catch(() => null)) || (r.pending_act && await brandOf(env, r.pending_act).catch(() => null)) || null;
+  if (!brand) {
+    const made = await createBrand(env, { name: r.name, internal_channel: r.slack_internal, client_channel: r.slack_client || null })
+      .catch(() => createBrand(env, { name: r.name }));
+    brand = await brandOf(env, made.id);
+  }
+  await addConnection(env, brand.id, { kind: 'meta', external_id: a.act_id, label: a.name, is_primary: 1 });
+  await env.DB.prepare(`UPDATE brands SET status = 'active', name = ?2,
+      internal_channel = COALESCE(NULLIF(internal_channel, ''), ?3), client_channel = COALESCE(NULLIF(client_channel, ''), ?4), updated_at = datetime('now') WHERE id = ?1`)
+    .bind(brand.id, r.name, r.slack_internal, r.slack_client || null).run();
+  if (shop && !(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(brand.id).first())) await setTripleWhale(env, brand.id, shop).catch(() => {});
+  await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, brand.id).run();
   steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save('meta_connected');
   await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name} is on Meta.* Locus switched on their ad account "${a.name}": 90 days of history are syncing now, and the daily brief, reports and their Your ads page fill in from it.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set: Locus sets it when their form has it.'} Still by hand: add the media buyer to the ad account and page in Business Settings. Wrong account? Settings > the brand > Stop tracking.`, null, { username: 'Locus' }).catch(() => {});
   return { ok: true };
@@ -534,13 +549,46 @@ async function discoverAccounts(env) {
   return { found: rows.length, direct, viaBusiness, fresh: stamp.fresh };
 }
 
+/** Meta ad accounts Locus can see that no brand has connected yet ("Add a brand" picks from these). */
+async function metaAvailable(env) {
+  return ((await env.DB.prepare(`SELECT act_id, name, currency, tz, account_status FROM accounts
+     WHERE act_id NOT IN (SELECT external_id FROM connections WHERE kind = 'meta') ORDER BY name`).all()).results) || [];
+}
+
 async function listAccounts(env, activeOnly = false) {
-  const q = `SELECT * FROM accounts ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY active DESC, name`;
+  /* Brands (phase 3): act_id = the brand id, meta_act = its primary Meta account (null when none). */
+  const q = `SELECT * FROM brand_accounts ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY active DESC, name`;
   const { results } = await env.DB.prepare(q).all();
   return results.map(a => ({ ...a, budgets: safeJson(a.budgets_json, {}), goals: safeJson(a.goals_json, {}) }));
 }
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
+
+/* Phase 3: a brand's Meta numbers are the sum over its Meta accounts (`act_id IN metaOf`), so a
+   per-day query can return one row per Meta account per date. This folds them into one row per
+   date (numbers summed, everything else from the first row), so day counts and per-day maths stay
+   right for a brand with two ad accounts. One account = the rows come back unchanged. */
+function sumByDate(rows, key = 'date') {
+  const by = new Map();
+  for (const r of rows || []) {
+    const k = r[key];
+    const have = by.get(k);
+    if (!have) { by.set(k, { ...r }); continue; }
+    for (const [f, v] of Object.entries(r)) if (f !== key && typeof v === 'number') have[f] = (typeof have[f] === 'number' ? have[f] : 0) + v;
+  }
+  return [...by.values()];
+}
+
+/** One brand's Meta ad accounts with their sync state, shaped like metaSyncRows (act_id = the META id,
+ *  brand_id, the brand's name / tz / currency) but for one brand whatever its status. Backups are left
+ *  out, like metaSyncRows (a backup account holds no spend; mark it primary if it ever starts):
+ *  for a sync asked for by hand. Local helper; brands.js has only the all-brands metaSyncRows. */
+async function brandMetaRows(env, brandId) {
+  return ((await env.DB.prepare(`SELECT m.*, b.id AS brand_id, b.name AS name, b.tz AS tz, b.currency AS currency
+      FROM connections c JOIN brands b ON b.id = c.brand_id JOIN accounts m ON m.act_id = c.external_id
+     WHERE c.kind = 'meta' AND c.brand_id = ?1 AND COALESCE(json_extract(c.config_json, '$.role'), '') <> 'backup'
+     ORDER BY c.is_primary DESC, c.added_at`).bind(brandId).all()).results) || [];
+}
 
 /* ------------------------------------------------------------------ */
 /*  Sync: daily insights                                               */
@@ -883,7 +931,8 @@ async function adRetryPass(env) {
   const ids = Object.keys(q);
   if (!ids.length) return undefined;
   if (await metaBackedOff(env)) return { waiting: ids.length, deferred: 'Meta rate limit - backing off' };
-  const accounts = (await listAccounts(env, true)).filter(a => q[a.act_id]);
+  /* Keyed by the META account id: the queue is Meta's, so it walks the Meta sync rows. */
+  const accounts = (await metaSyncRows(env)).filter(a => q[a.act_id]);
   const out = [];
   for (const a of accounts) {
     if (!subCanAfford(costOf('ads', COST_SYNC_BRAND))) { out.push({ name: a.name, deferred: 'out of budget' }); break; }
@@ -1075,7 +1124,9 @@ function dashSum(list) {
 async function dashNumbers(env, row) {
   const spec = safeJson(row.spec_json, {}) || {};
   const all = await listAccounts(env, true);
-  const accts = spec.scope && spec.scope !== 'all' ? all.filter(a => a.act_id === spec.scope) : all;
+  /* A dashboard saved before phase 3 may hold an old act id as its scope. */
+  const scope = spec.scope && spec.scope !== 'all' ? await resolveBrandId(env, spec.scope) : null;
+  const accts = scope ? all.filter(a => a.act_id === scope) : all;
   if (!accts.length) throw new Error('No brand in this dashboard\'s scope is active.');
   const out = [];
   let label = '';
@@ -1201,6 +1252,7 @@ function packAccount(a, cur, prev, events, from, to) {
 
 async function writeUpdate(env, { act, from, to, template }) {
   const tpl = SUMMARISE_TEMPLATES[template] || SUMMARISE_TEMPLATES.daily;
+  act = await resolveBrandId(env, act);   // an older screen may still send an act_ id
   const accounts = (await listAccounts(env, true)).filter(a => act === 'all' || !act ? true : a.act_id === act);
   if (!accounts.length) throw new Error('no matching active account');
   if (template === 'client' && accounts.length > 1) throw new Error('pick one client for a client-facing update');
@@ -1210,12 +1262,12 @@ async function writeUpdate(env, { act, from, to, template }) {
   for (const a of accounts) {
     const { results: evs } = await env.DB.prepare(
       `SELECT event_time, category, summary, actor, reason, suggested_reason, note, confirmed, manual FROM activities
-       WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1 ORDER BY event_time`,
+       WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1 ORDER BY event_time`,
     ).bind(a.act_id, from, to + 'T23:59:59').all();
     // Meta tab Summarise: purchases, CPA and ROAS are Triple Whale's (see twMetaDaily).
     const tw = await twMetaDaily(env, a.act_id, prevFrom, to);
-    const cur = agg(attributeRows((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results, tw), true);
-    const prev = agg(attributeRows((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results, tw), true);
+    const cur = agg(attributeRows(sumByDate((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results), tw), true);
+    const prev = agg(attributeRows(sumByDate((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results), tw), true);
     packs.push(packAccount(a, cur, prev, evs, from, to));
   }
   const text = await claude(env, {
@@ -1680,7 +1732,7 @@ async function suggestGoals(env, acct) {
   const dates = Object.keys(piv.netSales || piv.totalSales || {}).sort();
   if (dates.length < 14) return { error: 'need at least 14 days of Triple Whale history - hit “Refresh Triple Whale data” first' };
   const { results: metaRows } = await env.DB.prepare(
-    `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date < ?3`,
+    `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date < ?3 GROUP BY date`,
   ).bind(acct.act_id, from, today).all();
   const metaBy = Object.fromEntries(metaRows.map(r => [r.date, r.spend]));
   let sales = 0, spend = 0, newRev = 0, marginNum = 0, marginDen = 0;
@@ -1897,7 +1949,7 @@ async function dataHealth(env, acct, { days = 14, upTo = null } = {}) {
   const piv = {};
   for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
   const { results: mRows } = await env.DB.prepare(
-    `SELECT date, spend, purchases FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+    `SELECT date, SUM(spend) AS spend, SUM(purchases) AS purchases FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`,
   ).bind(acct.act_id, from, end).all();
   const metaBy = Object.fromEntries(mRows.map(r => [r.date, r]));
   const lastSync = (await env.DB.prepare(
@@ -2000,7 +2052,7 @@ async function briefData(env, acct, upTo) {
   const piv = {};
   for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
   const { results: metaRows } = await env.DB.prepare(
-    `SELECT date, spend, purchases, revenue FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+    `SELECT date, SUM(spend) AS spend, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`,
   ).bind(acct.act_id, histFrom, upTo).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   /* ATTRIBUTION IS TRIPLE WHALE'S, ALWAYS (Cole, 2026-09-18). Per-channel
@@ -2414,7 +2466,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
     `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} aMER ${f2(x.f.amer)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} ${['Meta', 'Google'].map(P => { const r = x.a?.[`${P.toLowerCase()}_roas`], n = x.a?.[`${P.toLowerCase()}_purchases`]; return `${P}ROAS ${!x.a?.attr_source ? 'n/a - Triple Whale attribution not synced for this day' : r == null ? 'n/a - no spend' : n < 2 ? `n/a - Triple Whale attributed only ${n} order(s), too few to form a rate` : `${f2(r)} (Triple Whale, off ${n} orders)`}`; }).join(' ')} BlendedROAS ${f2(x.a?.blended_roas)} (Triple Whale)`);
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason, note FROM activities
-     WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
+     WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -7)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
   // Its own last three briefs, so it can see what it already said and not
@@ -2618,7 +2670,7 @@ async function writeBriefNarrativeV2(env, acct, data, date, steer) {
     `${x.date}: forecast sales ${f2(x.f.sales)} spend ${f2(x.f.spend)} CM ${f2(x.f.cm)} | actual sales ${f2(x.a?.sales)} new ${f2(x.a?.new_rev)} returning ${f2(x.a?.ret_rev)} spend ${f2(x.a?.spend)} (Meta ${f2(x.a?.meta_spend)}, Google ${f2(x.a?.google_spend)}) CM ${f2(x.a?.cm)} MER ${f2(x.a?.mer)} aMER ${f2(x.a?.amer)} ${['Meta', 'Google'].map(P => { const r = x.a?.[`${P.toLowerCase()}_roas`], n = x.a?.[`${P.toLowerCase()}_purchases`]; return `${P}Return ${!x.a?.attr_source ? 'n/a (not synced)' : r == null ? 'n/a (no spend)' : n < 2 ? `n/a (only ${n} order)` : `${f2(r)} off ${n} orders`}`; }).join(' ')}`);
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason, note FROM activities
-     WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
+     WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -2)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
   const { results: recent } = await env.DB.prepare(
@@ -3103,7 +3155,7 @@ async function dailyBriefs(env) {
  * not a spend story, and it must never be told as one. */
 async function insightsFreshness(env, a, day) {
   const row = await env.DB.prepare(
-    `SELECT date FROM daily_insights WHERE act_id = ?1 AND date <= ?2 ORDER BY date DESC LIMIT 1`,
+    `SELECT date FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date <= ?2 ORDER BY date DESC LIMIT 1`,
   ).bind(a.act_id, day).first().catch(() => null);
   return { latest: row?.date || null, current: row?.date === day };
 }
@@ -3193,7 +3245,7 @@ async function storePeriod(env, acct, from, to) {
   const { results: twRows } = await env.DB.prepare(`SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(acct.act_id, from, to).all();
   const piv = {};
   for (const r of twRows || []) (piv[r.metric] ??= {})[r.date] = r.value;
-  const { results: metaRows } = await env.DB.prepare(`SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(acct.act_id, from, to).all();
+  const { results: metaRows } = await env.DB.prepare(`SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`).bind(acct.act_id, from, to).all();
   const metaBy = Object.fromEntries((metaRows || []).map(r => [r.date, r]));
   const cmPct = goalsFor(acct, monthOf(to))?.cm_pct ?? null;
   const rows = [];
@@ -3615,7 +3667,7 @@ async function adVideoSource(env, adId, hint = {}) {
  *  so its video_id can be reused instead of asking Meta again. */
 async function adInSentReport(env, token, adId) {
   const tokens = safeJson(await getSetting(env, 'reportTokens'), {});
-  const actId = tokens?.[token]?.act_id;
+  const actId = await resolveBrandId(env, tokens?.[token]?.act_id);
   if (!actId || !adId) return null;
   const { results } = await env.DB.prepare(
     `SELECT data_json FROM reports WHERE act_id = ?1 AND status = 'sent'`,
@@ -3909,8 +3961,8 @@ async function reportData(env, acct, period, start, end) {
   const piv = {};
   for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
   const { results: metaRows } = await env.DB.prepare(
-    `SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue FROM daily_insights
-     WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`,
+    `SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights
+     WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`,
   ).bind(acct.act_id, histFrom, end).all();
   const metaBy = Object.fromEntries(metaRows.map(r => [r.date, r]));
 
@@ -4078,7 +4130,7 @@ async function reportData(env, acct, period, start, end) {
                    THEN SUM(d.video_avg_watch * d.impressions) / SUM(d.impressions) END AS avg_watch,
               COALESCE(a.name, d.ad_id) AS name, a.media_type
        FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
-       WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
+       WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.date <= ?3
        GROUP BY d.ad_id HAVING SUM(d.spend) > 0 ORDER BY spend DESC LIMIT 500`,
     ).bind(acct.act_id, start, end).all();
     // The SAME ads in the prior period, so each card can say whether it is being
@@ -4086,7 +4138,7 @@ async function reportData(env, acct, period, start, end) {
     // direction, which is the thing a weekly report exists to show.
     const { results: prevAdRows } = await env.DB.prepare(
       `SELECT d.ad_id, SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue
-       FROM ad_daily d WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
+       FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.date <= ?3
        GROUP BY d.ad_id HAVING SUM(d.spend) > 0`,
     ).bind(acct.act_id, prevStart, prevEnd).all();
     const prevById = Object.fromEntries(prevAdRows.map(r => [r.ad_id, r]));
@@ -4273,7 +4325,7 @@ async function reportData(env, acct, period, start, end) {
   // new ads produces a report nobody reads if each one gets a line.
   const { results: evs } = await env.DB.prepare(
     `SELECT event_time, category, summary, reason, object_id FROM activities
-     WHERE act_id = ?1 AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1
+     WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1
        AND category NOT IN ('other','name')
      ORDER BY event_time ASC LIMIT 400`,
   ).bind(acct.act_id, start, end + 'T23:59:59').all();
@@ -4643,10 +4695,14 @@ async function reportsPass(env) {
   return results;
 }
 
+/* `acct` is a brand (brand_accounts row: Meta id in meta_act) or a Meta sync row (act_id IS the Meta id). */
+const metaIdOf = acct => ('meta_act' in (acct || {}) ? acct.meta_act : acct?.act_id) || null;
 async function hourlyPacing(env, acct) {
+  const metaId = metaIdOf(acct);
+  if (!metaId) throw new Error('No Meta ad account connected for this brand.');
   const today = localDate(acct.tz);
   const since = addDays(today, -7);
-  const rows = await metaAll(env, `${acct.act_id}/insights`, {
+  const rows = await metaAll(env, `${metaId}/insights`, {
     level: 'account', time_increment: 1,
     breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
     time_range: { since, until: today },
@@ -4659,7 +4715,7 @@ async function hourlyPacing(env, acct) {
      VALUES (?1,?2,?3,?4,?5,?6,?7,datetime('now'))
      ON CONFLICT(act_id, date, hour) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
        purchases = excluded.purchases, revenue = excluded.revenue, synced_at = excluded.synced_at`,
-  ).bind(acct.act_id, r.date_start, hourOf(r), +r.spend || 0, +r.impressions || 0,
+  ).bind(metaId, r.date_start, hourOf(r), +r.spend || 0, +r.impressions || 0,
     pickAction(r.actions, PURCHASE_TYPES), pickAction(r.action_values, PURCHASE_TYPES)));
   for (let i = 0; i < stmts.length; i += D1_CHUNK) await env.DB.batch(stmts.slice(i, i + D1_CHUNK));
 
@@ -4791,7 +4847,7 @@ async function adRows(env, acct, from, to, opts = {}) {
             -- it by that day's plays to get a true average across the window.
             SUM(d.video_avg_watch * d.video_plays) AS watch_weighted
      FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
-     WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date <= ?3
+     WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.date <= ?3
      GROUP BY d.ad_id HAVING SUM(d.spend) > 0
      ORDER BY spend DESC LIMIT 500`,
   ).bind(acct.act_id, from, to).all();
@@ -4985,7 +5041,7 @@ async function adBreakdown(env, acct, windowDays, freshDays, win = null) {
     `SELECT d.ad_id, a.name, a.first_spend_date, a.created_time,
             SUM(d.spend) AS spend, SUM(d.purchases) AS purchases, SUM(d.revenue) AS revenue, SUM(d.impressions) AS impressions
      FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
-     WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3
+     WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.date < ?3
      GROUP BY d.ad_id HAVING SUM(d.spend) > 0
      ORDER BY spend DESC LIMIT 40`,
   ).bind(acct.act_id, from, to).all();
@@ -4996,7 +5052,7 @@ async function adBreakdown(env, acct, windowDays, freshDays, win = null) {
   const lastDay = addDays(to, -1);
   const synced = await twMetaDaily(env, acct.act_id, from, lastDay);
   const { results: spentDays } = await env.DB.prepare(
-    `SELECT DISTINCT date FROM ad_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3 AND spend > 0`,
+    `SELECT DISTINCT date FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date < ?3 AND spend > 0`,
   ).bind(acct.act_id, from, to).all();
   const gap = spentDays.some(r => !synced[r.date]);
   const { results: twAds } = gap ? { results: [] } : await env.DB.prepare(
@@ -5047,7 +5103,7 @@ async function creative(env, acct, freshDays, windowDays, win = null) {
   const { results: rows } = await env.DB.prepare(
     `SELECT d.date, d.spend, d.purchases, a.first_spend_date, a.created_time
      FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
-     WHERE d.act_id = ?1 AND d.date >= ?2 AND d.date < ?3 AND d.spend > 0 AND a.first_spend_date IS NOT NULL`,
+     WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.date < ?3 AND d.spend > 0 AND a.first_spend_date IS NOT NULL`,
   ).bind(acct.act_id, from, today).all();
   if (!rows.length) return { empty: true };
   // Ads already spending when our history starts would look "brand new" - for those,
@@ -5068,7 +5124,7 @@ async function creative(env, acct, freshDays, windowDays, win = null) {
   const synced = await twMetaDaily(env, acct.act_id, from, today);
   const { results: attrRows } = await env.DB.prepare(
     `SELECT t.date, SUM(t.orders) AS orders, a.first_spend_date, a.created_time
-     FROM tw_ad_attr t JOIN ads a ON a.act_id = t.act_id AND a.ad_id = t.ad_id
+     FROM tw_ad_attr t JOIN ads a ON a.ad_id = t.ad_id AND a.act_id IN ${metaOf(1)}
      WHERE t.act_id = ?1 AND t.model = ?2 AND t.date >= ?3 AND t.date < ?4
        AND (t.platform = 'meta' OR t.platform IS NULL) AND a.first_spend_date IS NOT NULL
      GROUP BY t.ad_id, t.date`,
@@ -5170,7 +5226,7 @@ async function twMetaDaily(env, actId, from, to) {
     `SELECT t.date,
             SUM(CASE WHEN ${TW_META_ROW} THEN t.revenue ELSE 0 END) AS rev,
             SUM(CASE WHEN ${TW_META_ROW} THEN t.orders ELSE 0 END) AS ord
-     FROM tw_ad_attr t LEFT JOIN ads a ON a.act_id = t.act_id AND a.ad_id = t.ad_id
+     FROM tw_ad_attr t LEFT JOIN ads a ON a.ad_id = t.ad_id AND a.act_id IN ${metaOf(1)}
      WHERE t.act_id = ?1 AND t.model = ?2 AND t.date >= ?3 AND t.date <= ?4
      GROUP BY t.date`,
   ).bind(actId, BRIEF_ATTR_MODEL, from, to).all().catch(() => ({ results: [] }));
@@ -5229,8 +5285,9 @@ async function accountOverview(env, a, { attr = true } = {}) {
   const today = localDate(a.tz);
   const from = addDays(today, -70);
   let { results: rows } = await env.DB.prepare(
-    `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
+    `SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 ORDER BY date`,
   ).bind(a.act_id, from).all();
+  rows = sumByDate(rows);
   if (attr) rows = attributeRows(rows, await twMetaDaily(env, a.act_id, from, today));
   const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
   const range = (n, endOffset = 1) => {            // last n full days ending yesterday by default
@@ -5266,7 +5323,7 @@ async function accountOverview(env, a, { attr = true } = {}) {
     attribution: attr ? `triple_whale:${BRIEF_ATTR_MODEL}` : 'meta',
     days_of_data: rows.length,
     changes_24h: (await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM activities WHERE act_id = ?1 AND event_time >= ?2`,
+      `SELECT COUNT(*) AS n FROM activities WHERE act_id IN ${metaOf(1)} AND event_time >= ?2`,
     ).bind(a.act_id, new Date(Date.now() - 86400e3).toISOString()).first())?.n ?? 0,
   };
 }
@@ -5282,7 +5339,7 @@ async function overview(env) {
 async function seriesEvents(env, actId, fromISO) {
   const { results } = await env.DB.prepare(
     `SELECT id, event_time, category, summary, reason, suggested_reason, manual FROM activities
-     WHERE act_id = ?1 AND event_time >= ?2 AND confirmed != -1
+     WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1
        AND (category IN ('budget','new_campaign','campaign_paused','campaign_relaunched','bid_strategy','targeting') OR manual = 1)
      ORDER BY event_time`,
   ).bind(actId, fromISO).all();
@@ -5790,8 +5847,10 @@ async function handleSlackInteract(request, env, ctx) {
       const v = safeJson(nc.value, {});
       ctx.waitUntil((async () => {
         const r = await env.DB.prepare(`SELECT * FROM p_newclient WHERE id = ?1`).bind(String(v.id || '')).first();
-        const a = await env.DB.prepare(`SELECT act_id, name, active FROM accounts WHERE act_id = ?1`).bind(String(v.act || '')).first();
-        const res = !r || !a ? { error: 'That client or ad account is gone.' } : r.act_id ? { error: `${r.name} is already connected.` } : await connectMetaFor(env, r, a);
+        /* v.act is the META ad account (accounts = Meta accounts); r.act_id is the client's brand. */
+        const a = await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(String(v.act || '')).first();
+        const hasMeta = r?.act_id ? await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'meta'`).bind(r.act_id).first() : null;
+        const res = !r || !a ? { error: 'That client or ad account is gone.' } : hasMeta ? { error: `${r.name} is already connected.` } : await connectMetaFor(env, r, a);
         if (payload.response_url) await xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ replace_original: true, text: res.error ? `Not connected: ${res.error}` : `✓ "${a.name}" connected to ${r.name}.` }) }).catch(() => {});
       })());
@@ -5826,7 +5885,8 @@ async function handleSlackInteract(request, env, ctx) {
   return ACK();
 }
 
-const acctById = (env, id) => env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(id).first();
+/* A brand by any id it has had: Slack buttons posted before phase 3 carry the old act_ id. */
+const acctById = (env, id) => acctOf(env, id);
 
 async function slackBlockAction(env, ctx, p) {
   const a = p.actions?.[0] || {};
@@ -6118,7 +6178,7 @@ async function deliveryState(env) {
 /** Yesterday against this account's own 7-day median. Pure D1, no Meta call. */
 async function checkCompletedDay(env, a, day) {
   const { results } = await env.DB.prepare(
-    `SELECT date, spend FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 ORDER BY date`,
+    `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`,
   ).bind(a.act_id, addDays(day, -7), day).all();
   const dayRow = results.find(r => r.date === day);
   const prior = results.filter(r => r.date !== day).map(r => r.spend).sort((x, z) => x - z);
@@ -6167,6 +6227,7 @@ async function deliveryPass(env) {
 
   const deferred = [];
   for (const a of await listAccounts(env, true)) {
+    if (!a.meta_act) continue;   // no Meta ad account (phase 3): nothing to check delivery on
     /* A brand skipped here is NOT marked as checked (st.day / st.intra stay
        put), so the next tick re-checks it. That is the whole reason the state
        flags record "a check ran" rather than "an hour passed". */
@@ -6355,25 +6416,44 @@ async function syncPass(env) {
   if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) {
     return { skipped: 'budget spent on higher-priority work this tick' };
   }
-  const accounts = await listAccounts(env, true);
-  if (!accounts.length) return { skipped: 'no active accounts' };
+  /* Phase 3: the Meta half walks the Meta ad accounts (metaSyncRows: act_id = the META id,
+     brand_id = its brand); the Triple Whale half walks brands, once per brand per tick. A brand
+     with no Meta account (Speedin) still gets its Triple Whale sync, ordered by when it last had one. */
+  const brands = await listAccounts(env, true);
+  if (!brands.length) return { skipped: 'no active accounts' };
+  const brandBy = new Map(brands.map(b => [b.act_id, b]));
+  const metaRows = await metaSyncRows(env);
+  const withMeta = new Set(metaRows.map(r => r.brand_id));
+  const noMeta = brands.filter(b => !withMeta.has(b.act_id) && b.tw_shop);
+  const twAt = {};
+  if (noMeta.length) {
+    const { results } = await env.DB.prepare(`SELECT act_id, MAX(synced_at) AS t FROM tw_daily WHERE act_id IN (${noMeta.map((_, i) => `?${i + 1}`).join(',')}) GROUP BY act_id`)
+      .bind(...noMeta.map(b => b.act_id)).all().catch(() => ({ results: [] }));
+    for (const r of results || []) twAt[r.act_id] = r.t;
+  }
+  const units = [...metaRows.map(m => ({ meta: m, brand: brandBy.get(m.brand_id), key: m.last_sync_insights })),
+    ...noMeta.map(b => ({ meta: null, brand: b, key: twAt[b.act_id] }))];
   // NULL (never synced) sorts first under an empty-string key, which is right:
   // a brand with no data at all is the most urgent thing on the list.
-  accounts.sort((x, z) =>
-    String(x.last_sync_insights || '').localeCompare(String(z.last_sync_insights || '')));
+  units.sort((x, z) => String(x.key || '').localeCompare(String(z.key || '')));
 
   // Meta said stop. Asking again on the next tick is how a short limit becomes
   // a long one, and the D1-backed data is only an hour stale meanwhile.
   if (await metaBackedOff(env)) return { skipped: 'Meta rate limit - backing off until it clears' };
   const done = [];
-  for (const a of accounts) {
-    if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) { done.push({ name: a.name, deferred: 'out of budget' }); break; }
+  const twDone = new Set();
+  for (const u of units) {
+    const name = u.brand?.name || u.meta?.name;
+    if (!subCanAfford(costOf('sync', COST_SYNC_BRAND))) { done.push({ name, deferred: 'out of budget' }); break; }
     const r = await measured('sync', async () => {
       // Cheap half only - see syncAccount. Ad-level rides the nightly.
-      const x = await syncAccount(env, a, undefined, { includeAds: false });
+      const x = u.meta ? await syncAccount(env, u.meta, undefined, { includeAds: false }) : { act_id: u.brand.act_id, name };
       // Triple Whale rides along with the same brand rather than in its own loop.
       // Doing all Meta then all TW meant TW was always the half that got cut.
-      x.tw = await syncTwDaily(env, a, 10).catch(e => ({ error: e.message }));
+      if (u.brand && !twDone.has(u.brand.act_id)) {
+        twDone.add(u.brand.act_id);
+        x.tw = await syncTwDaily(env, u.brand, 10).catch(e => ({ error: e.message }));
+      }
       return x;
     });
     done.push(r);
@@ -6488,10 +6568,10 @@ async function handleSlackEvent(request, env, ctx) {
   let brandRow = null;
   if (!dm) {
     /* The brand comes from brands (brands.js), so a brand with no Meta account (Speedin) is still a
-       brand. The old accounts lookup stays as a fallback until the registry has run once. */
+       brand. brand_accounts is the fallback (an active or demo brand's internal channel). */
     const b = await brandByChannel(env, ev.channel).catch(() => null);
-    brandRow = b ? { act_id: b.key, name: b.name, brand: b }
-      : await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
+    brandRow = b ? { act_id: b.id, name: b.name, brand: b }
+      : await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
     if (!brandRow) return ACK();   // not a team channel: stay silent
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
@@ -6614,12 +6694,12 @@ async function nightly(env) {
       const floor = addDays(today, -TW_ATTR_HISTORY_DAYS);
       const to = addDays(a.tw_attr_cursor || addDays(today, -7), -1);
       if (to <= floor) {
-        await env.DB.prepare(`UPDATE accounts SET tw_attr_done = 1 WHERE act_id = ?1`).bind(a.act_id).run();
+        await env.DB.prepare(`UPDATE brands SET tw_attr_done = 1 WHERE id = ?1`).bind(a.act_id).run();
         continue;
       }
       const from = addDays(to, -14) < floor ? floor : addDays(to, -14);
       const r = await syncTwAttribution(env, a, 0, { from, to });
-      await env.DB.prepare(`UPDATE accounts SET tw_attr_cursor = ?2 WHERE act_id = ?1`).bind(a.act_id, from).run();
+      await env.DB.prepare(`UPDATE brands SET tw_attr_cursor = ?2 WHERE id = ?1`).bind(a.act_id, from).run();
       twAttr.push({ ...r, backfill: true });
     } catch (e) { twAttr.push({ name: a.name, backfill: true, error: e.message }); }
   }
@@ -6639,10 +6719,12 @@ async function nightly(env) {
      rather than by us, so it is also the first thing to yield when Meta is
      unhappy - `metaBackedOff` short-circuits the whole pass. */
   const ads = [];
-  for (const a of accounts) {
+  /* Meta's own walk: one per Meta ad account (act_id = the Meta id), not per brand. */
+  const metaRows = await metaSyncRows(env);
+  for (const a of metaRows) {
     if (await metaBackedOff(env)) {
       // Everyone left in the loop gets queued too, or they would wait a whole day.
-      for (const b of accounts.slice(accounts.indexOf(a))) await queueAdRetry(env, b.act_id).catch(() => {});
+      for (const b of metaRows.slice(metaRows.indexOf(a))) await queueAdRetry(env, b.act_id).catch(() => {});
       ads.push({ name: a.name, deferred: 'Meta rate limit - queued for the hourly retry' });
       break;
     }
@@ -6716,8 +6798,6 @@ const AH_APP = {
         if (upgraded) ran.cardUpgrade = upgraded;
         const handled = await handledOnce(env).catch(e => ({ error: e.message }));
         if (handled) ran.handledUpgrade = handled;
-        /* Mirror accounts + brand docs into brands / connections (brands.js). ~7 subrequests. */
-        ran.registry = await syncRegistry(env).then(r => ({ writes: r.writes, added: r.brandsAdded.length, conflicts: r.conflicts })).catch(e => ({ error: e.message }));
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
@@ -6767,7 +6847,31 @@ const AH_APP = {
   },
 
   /* Per-brand access wraps every request (brandguard.js). */
-  async fetch(request, env, ctx) { return guardBrands(request, env, sessionEmail, () => AH_APP.handle(request, env, ctx), CORS); },
+  async fetch(request, env, ctx) {
+    /* STAGING ONLY (env.STAGING = "1", never set in production): run a scheduled tick on demand so a
+       copy of the database can be checked end to end. ?cron=hourly|nightly. Admin token required. */
+    if (env.STAGING === '1' && new URL(request.url).pathname === '/api/_tick') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const jobs = [];
+      const cron = new URL(request.url).searchParams.get('cron') === 'nightly' ? '30 3 * * *' : '0 * * * *';
+      await AH_APP.scheduled({ cron }, env, { waitUntil: p => jobs.push(p) });
+      const out = await Promise.allSettled(jobs);
+      const last = await env.DB.prepare(`SELECT key, value FROM settings WHERE key IN ('lastHourly', 'lastRun')`).all();
+      return json({ cron, settled: out.map(o => o.status === 'fulfilled' ? 'ok' : String(o.reason?.message || o.reason)), runs: last.results });
+    }
+    /* Phase 3: `?act=` carries a brand id. An old id (act_, asana_, demo_harborline, a slug) from a
+       saved link, a bookmark or an older client is resolved to its brand id ONCE here, before the
+       access guard and every handler, so nothing downstream sees an old id. */
+    try {
+      const u = new URL(request.url);
+      const raw = u.searchParams.get('act');
+      if (raw && raw !== 'all' && !isBrandId(raw)) {
+        const bid = await resolveBrandId(env, raw);
+        if (bid && bid !== raw) { u.searchParams.set('act', bid); request = new Request(u.toString(), request); }
+      }
+    } catch { /* an unreadable act stays as it was; the handler answers for it */ }
+    return guardBrands(request, env, sessionEmail, () => AH_APP.handle(request, env, ctx), CORS);
+  },
 
   async handle(request, env, ctx) {
     /* Metered here too. Nothing in the request path GATES on the budget - a
@@ -6804,7 +6908,7 @@ const AH_APP = {
       const ch = url.searchParams.get('channel') || '';
       /* A new client's channel counts too while its welcome is still owed, so the join event reaches us. */
       const row = /^[A-Z0-9]{5,20}$/.test(ch) ? (await brandByChannel(env, ch).catch(() => null)
-        || await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
+        || await env.DB.prepare(`SELECT 1 AS x FROM brand_accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
         || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)) : null;
       return json({ owns: !!row });
     }
@@ -6835,9 +6939,11 @@ const AH_APP = {
     }
     /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
     if (path.startsWith('/assets-img/') && request.method === 'GET') {
-      const m = /^\/assets-img\/(act_\d+)\/([\w-]{15,})$/.exec(path);
+      /* A brand id (or an old act_ id in a link made before phase 3); the files stay under the brand's storage_prefix. */
+      const m = /^\/assets-img\/(act_\d+|brand_[a-z0-9_]+)\/([\w-]{15,})$/.exec(path);
       if (!m || !env.MEDIA) return new Response('not found', { status: 404 });
-      const obj = await env.MEDIA.get(`assets/${m[1]}/${m[2]}.jpg`);
+      const prefix = await storagePrefix(env, m[1]).catch(() => m[1]);
+      const obj = await env.MEDIA.get(`assets/${prefix}/${m[2]}.jpg`);
       if (!obj) return new Response('not found', { status: 404 });
       return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg', 'Cache-Control': 'public, max-age=86400', ...CORS } });
     }
@@ -6857,7 +6963,7 @@ const AH_APP = {
       const tok = String(b.token || '').replace(/[^a-f0-9]/g, '');
       const msg = String(b.message || '').trim().slice(0, 1500);
       if (!tok || !msg) return json({ error: 'Write a message first.' }, 400);
-      const o = await env.DB.prepare(`SELECT o.name, o.act_id, n.slack_internal, a.slack_channel, a.name AS acct FROM p_br_onboard o LEFT JOIN p_newclient n ON n.token = o.token LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(tok).first().catch(() => null);
+      const o = await env.DB.prepare(`SELECT o.name, o.act_id, n.slack_internal, a.slack_channel, a.name AS acct FROM p_br_onboard o LEFT JOIN p_newclient n ON n.token = o.token LEFT JOIN brand_accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(tok).first().catch(() => null);
       if (!o) return json({ error: 'This link is not valid.' }, 404);
       const last = Number((await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`obMsg:${tok}`).first().catch(() => null))?.value || 0);
       if (Date.now() - last < 30000) return json({ error: 'Sent a moment ago. Give it a minute.' }, 429);
@@ -6911,7 +7017,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     if (path === '/api/new-client/meta-accounts') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
-      const rows = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 0 AND act_id LIKE 'act_%' ORDER BY name`).all()).results || [];
+      /* Meta ad accounts on no brand yet (accounts = Meta accounts since phase 3). */
+      const rows = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id LIKE 'act_%'
+          AND NOT EXISTS (SELECT 1 FROM connections c WHERE c.kind = 'meta' AND c.external_id = accounts.act_id) ORDER BY name`).all()).results || [];
       return json({ accounts: rows });
     }
     /* Run the "client shared Meta" check now instead of on the hour (admin). */
@@ -6959,7 +7067,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            stay inside them (brandguard.js filters the JSON; this covers the words of the answer). */
         const only = await brandsFor(env, await sessionEmail(env, request)).catch(() => null);
         let q = body.question;
-        if (only) { const { results: nm } = await env.DB.prepare(`SELECT act_id, name FROM accounts`).all(); const names = (nm || []).filter(x => only.has(x.act_id)).map(x => x.name); q = `[ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] ${q}`; }
+        if (only) { const { results: nm } = await env.DB.prepare(`SELECT act_id, name FROM brand_accounts`).all(); const names = (nm || []).filter(x => only.has(x.act_id)).map(x => x.name); q = `[ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] ${q}`; }
         const r = await engine.answerWeb(env, q, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null });
         const auth = request.headers.get('Authorization') || '';
         const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -7044,11 +7152,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        /thumb serves one ad's image (cached creative), ?dl=1 as a download. ---- */
     let yam;
     if ((yam = path.match(/^\/api\/your-ads\/([a-f0-9]{16,})(\/thumb)?$/)) && request.method === 'GET') {
-      const actId = safeJson(await getSetting(env, 'reportTokens'), {})?.[yam[1]]?.act_id;
+      const actId = await resolveBrandId(env, safeJson(await getSetting(env, 'reportTokens'), {})?.[yam[1]]?.act_id);
       if (!actId) return json({ error: 'This link is not valid. Ask your Mobius contact for a new one.' }, 404);
       if (yam[2]) {
         const adId = url.searchParams.get('ad') || '';
-        const own = /^\d+$/.test(adId) && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id = ?1 AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
+        const own = /^\d+$/.test(adId) && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
         if (!own) return new Response('not found', { status: 404, headers: CORS });
         const c = (await adThumbnails(env, [adId], LIVE_THUMBS).catch(() => ({})))[adId];
         const mm = /^data:([^;]+);base64,(.+)$/.exec(c?.thumb || '');
@@ -7058,12 +7166,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return new Response(bytes, { headers: { ...CORS, 'Content-Type': mm[1], 'Cache-Control': 'public, max-age=86400',
           ...(url.searchParams.get('dl') ? { 'Content-Disposition': `attachment; filename="ad-${adId}.${ext}"` } : {}) } });
       }
-      const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(actId).first();
+      const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(actId).first();
       const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
       const recent = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);
       const { results } = await env.DB.prepare(`SELECT d.ad_id, a.name, a.media_type, MIN(d.date) AS first, MAX(d.date) AS last
           FROM ad_daily d JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
-          WHERE d.act_id = ?1 AND d.date >= ?2 AND d.spend > 0 GROUP BY d.ad_id ORDER BY first DESC, last DESC LIMIT 400`).bind(actId, since).all();
+          WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.spend > 0 GROUP BY d.ad_id ORDER BY first DESC, last DESC LIMIT 400`).bind(actId, since).all();
       /* Our ad names carry test numbers and format tags ("326-5 | Still"); the client reads what is left. */
       const label = n => {
         let t = String(n || '').replace(/^\s*(?:[A-Za-z]{2,4}_)?#?\d{1,4}(?:[-.]\s*\d+)?\s*[-:|.]?\s*/, '').split('|').map(x => x.trim()).filter(Boolean)[0] || '';
@@ -7079,7 +7187,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/your-ads-link' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const act = url.searchParams.get('act') || '';
-      if (!/^act_\d+$/.test(act)) return json({ error: 'act is required' }, 400);
+      if (!isBrandId(act)) return json({ error: 'act is required' }, 400);
       return json({ url: `https://tools.go-mobius-digital.com/yourads/?t=${await reportToken(env, act)}` });
     }
     if (path === '/api/ad-video') {
@@ -7105,8 +7213,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         hint = { video_id: hit.video_id, page_id: hit.page_id };
       } else if (url.searchParams.get('yours')) {
         /* The client's own Your ads page plays only that brand's ads. */
-        const actId = safeJson(await getSetting(env, 'reportTokens'), {})?.[url.searchParams.get('yours')]?.act_id;
-        const own = actId && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id = ?1 AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
+        const actId = await resolveBrandId(env, safeJson(await getSetting(env, 'reportTokens'), {})?.[url.searchParams.get('yours')]?.act_id);
+        const own = actId && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
         if (!own) return json({ error: 'not on this page' }, 404);
       } else if (url.searchParams.get('angles')) {
         // A creator link plays only the ads it shows as proof (see ad-creatives above).
@@ -7215,7 +7323,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.kind === 'reset') {
         const accts = !b.act || b.act === 'all'
           ? await listAccounts(env, true)
-          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+          : [await acctOf(env, b.act)].filter(Boolean);
         const out = [];
         for (const acct of accts) {
           const date = b.date || addDays(localDate(acct.tz), -1);
@@ -7251,7 +7359,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.kind === 'rewrite') {
         const accts = !b.act || b.act === 'all'
           ? await listAccounts(env, true)
-          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+          : [await acctOf(env, b.act)].filter(Boolean);
         const out = [];
         for (const acct of accts) {
           const date = b.date || addDays(localDate(BRIEF_TZ), -1);
@@ -7275,7 +7383,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          user token that posted it. `dry: true` reports the match and the new
          text without touching anything. */
       if (b.kind === 'client-edit') {
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct || !b.date) return json({ error: 'act and date required' }, 400);
         const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, b.date).first();
         if (row?.status !== 'sent' || !row.channel) return json({ error: 'not a sent brief', status: row?.status }, 400);
@@ -7317,7 +7425,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.kind === 'report') {
         const accts = !b.act || b.act === 'all'
           ? await listAccounts(env, true)
-          : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+          : [await acctOf(env, b.act)].filter(Boolean);
         const out = [];
         for (const acct of accts) {
           const row = await env.DB.prepare(
@@ -7349,7 +7457,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       const list = !b.act || b.act === 'all'
         ? await listAccounts(env, true)
-        : [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first()].filter(Boolean);
+        : [await acctOf(env, b.act)].filter(Boolean);
       if (!list.length) return json({ error: 'unknown account' }, 404);
       const out = [];
       for (const acct of list) {
@@ -7412,9 +7520,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/meta-structure-sync' && request.method === 'POST') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const want = url.searchParams.get('act') || 'all';
-      const accts = (await listAccounts(env, true)).filter(a => want === 'all' || a.act_id === want);
+      /* Per META ad account (act_id = the Meta id); `?act=` names the brand. */
+      const accts = (await metaSyncRows(env)).filter(a => want === 'all' || a.brand_id === want);
       const out = [];
-      for (const a of accts) out.push({ name: a.name, ...(await syncMetaStructure(env, a, true).catch(e => ({ error: e.message }))) });
+      for (const a of accts) out.push({ name: a.name, meta: a.act_id, ...(await syncMetaStructure(env, a, true).catch(e => ({ error: e.message }))) });
       return json({ ok: true, brands: out });
     }
     /* Post one saved dashboard to its Slack channel now (the hub, 2026-10-07). */
@@ -7452,7 +7561,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path.startsWith('/api/assets')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const act = url.searchParams.get('act') || '';
-      if (!/^act_\d+$/.test(act)) return json({ error: 'act is required' }, 400);
+      if (!isBrandId(act)) return json({ error: 'act is required' }, 400);
       try {
         if (path === '/api/assets/sync' && request.method === 'POST') { const s1 = await syncAssets(env, act); const t1 = s1.error ? null : await tagAssets(env, act, Math.min(+url.searchParams.get('tag') || 30, 60)); return json({ sync: s1, tag: t1 }); }
         if (path === '/api/assets/folders' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); const folders = (Array.isArray(b.folders) ? b.folders : String(b.folders || '').split(/[\s,]+/)).filter(Boolean).slice(0, 10);
@@ -7479,11 +7588,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (path === '/api/google/ads-accounts') return json(await adsAccounts(env));
         if (path === '/api/google/enable-apis' && request.method === 'POST') return json(await enableApis(env));
         if (path === '/api/google/match' && request.method === 'POST') return json(await googleMatch(env));
-        if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, String(b.act || ''), b)); }
+        if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, await resolveBrandId(env, String(b.act || '')), b)); }
         if (path === '/api/google/link') return json(await googleLink(env, act));
         if (path === '/api/google/website') return json(await websiteReport(env, act, q('from'), q('to'), q('pfrom'), q('pto')));
         if (path === '/api/google/search') {
-          const a = await env.DB.prepare(`SELECT name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first();
+          const a = await env.DB.prepare(`SELECT name, tw_shop FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
           const words = [a?.name, (a?.tw_shop || '').split('.')[0]].filter(Boolean).flatMap(x => [x, ...String(x).split(/[\s-]+/)]).filter(w => w.length > 3 && !/golf|club|the/i.test(w) || w === a?.name);
           return json(await searchReport(env, act, q('from'), q('to'), q('pfrom'), q('pto'), words));
         }
@@ -7495,7 +7604,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/brand-links' && request.method === 'PUT') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const b = await request.json().catch(() => ({}));
-      const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(String(b.act || '')).first();
+      const acct = await acctOf(env, String(b.act || ''));
       if (!acct) return json({ error: 'unknown account' }, 404);
       const prev = safeJson((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'links'`).bind(acct.act_id).first())?.data_json, {}) || {};
       const next = { ...prev };
@@ -7510,7 +7619,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.tw_shop !== undefined) {
         const v = String(b.tw_shop || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
         if (v && !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(v)) return json({ error: 'The store domain looks like brand.myshopify.com' }, 400);
-        await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1`).bind(acct.act_id, v || null).run();
+        /* A connection on the brand since phase 3. */
+        try { await setTripleWhale(env, acct.act_id, v || null); } catch (e) { return json({ error: e.message }, 400); }
       }
       /* Google ids (google.js): GA4 property, Search Console property, Google Ads customer. */
       if (b.ga4 !== undefined || b.gsc !== undefined || b.google_ads !== undefined) {
@@ -7528,7 +7638,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const stale = (await env.DB.prepare(
         `SELECT a.name, a.act_id, MAX(d.date) AS latest
-           FROM accounts a LEFT JOIN daily_insights d ON d.act_id = a.act_id
+           FROM brand_accounts a LEFT JOIN daily_insights d ON d.act_id IN (SELECT external_id FROM connections WHERE brand_id = a.act_id AND kind = 'meta')
           WHERE a.active = 1 GROUP BY a.act_id ORDER BY latest`,
       ).all().catch(() => ({ results: [] }))).results;
       return json({
@@ -7559,16 +7669,16 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
         const t = tokens[sm[1]];
         if (!t) return json({ error: 'This share link is no longer valid.' }, 404);
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(t.act_id).first();
+        const acct = await acctOf(env, t.act_id);
         if (!acct) return json({ error: 'unknown account' }, 404);
         acct.budgets = safeJson(acct.budgets_json, {});
         const ov = await accountOverview(env, acct, { attr: false });   // retired link: left exactly as it was
         const from = addDays(localDate(acct.tz), -180);
         const { results: rows } = await env.DB.prepare(
-          `SELECT date, spend, impressions, clicks, link_clicks, purchases, revenue, video_views FROM daily_insights
-           WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
-        ).bind(t.act_id, from).all();
-        const events = await seriesEvents(env, t.act_id, addDays(localDate(acct.tz), -180));
+          `SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue, SUM(video_views) AS video_views FROM daily_insights
+           WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY date ORDER BY date`,
+        ).bind(acct.act_id, from).all();
+        const events = await seriesEvents(env, acct.act_id, addDays(localDate(acct.tz), -180));
         return json({ share: true, account: { name: acct.name, currency: acct.currency, tz: acct.tz },
           rows, events, mtd: ov.mtd, today: ov.today, today_spend: ov.today_spend,
           l7: ov.l7, target_cpa: ov.target_cpa, target_roas: ov.target_roas });
@@ -7604,7 +7714,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        decide what the customers table can hold. Admin only, one page, nothing stored. */
     if (path === '/api/tw-probe') {
       const act = url.searchParams.get('act');
-      const a = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act || '').first();
+      const a = await acctOf(env, act || '');
       if (!a?.tw_shop) return json({ error: 'no shop' }, 404);
       const day = url.searchParams.get('date') || addDays(localDate(a.tz), -3);
       const body = await twJourneys(env, a.tw_shop, day, day, 1);
@@ -7618,7 +7728,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        brand (or all). Admin. */
     if (path === '/api/tw-touch-backfill' && request.method === 'POST') {
       const act = url.searchParams.get('act'); const slices = Math.min(+url.searchParams.get('slices') || 4, 30);
-      const a = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+      const a = await acctOf(env, act);
       if (!a) return json({ error: 'unknown account' }, 404);
       return json(await backfillTwTouches(env, a, slices).catch(e => ({ error: e.message })));
     }
@@ -7626,7 +7736,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const act = url.searchParams.get('act');
       const slices = Math.min(+url.searchParams.get('slices') || 4, 40);
       const list = act && act !== 'all'
-        ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+        ? [await acctOf(env, act)].filter(Boolean)
         : await listAccounts(env, true);
       const out = [];
       for (const a of list) out.push(await backfillTwOrders(env, a, slices).catch(e => ({ name: a.name, error: e.message })));
@@ -7636,7 +7746,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const act = url.searchParams.get('act');
       const days = Math.min(+url.searchParams.get('days') || 30, TW_ATTR_HISTORY_DAYS);
       const list = act && act !== 'all'
-        ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
+        ? [await acctOf(env, act)].filter(Boolean)
         : await listAccounts(env, true);
       const out = [];
       for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
@@ -7703,7 +7813,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       else if (Array.isArray(b.brands)) {
         if (who && String(who).toLowerCase() !== owner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
         if (email === owner) return json({ error: 'The owner always sees every brand.' }, 400);
-        ub[email] = b.brands.map(String).filter(x => /^act_\d+$/.test(x));
+        /* Brand ids (old act_ ids from an older screen are resolved to theirs). */
+        ub[email] = (await Promise.all(b.brands.map(x => resolveBrandId(env, String(x))))).filter(isBrandId);
       } else if (!(email in ub)) ub[email] = [];
       await putSetting(env, 'allowedEmails', JSON.stringify(extra));
       await putSetting(env, 'userRoles', JSON.stringify(roles));
@@ -7727,9 +7838,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         try { return json({ ok: true, brand: await createBrand(env, b) }); }
         catch (e) { return json({ error: e.message }, 400); }
       }
-      if (path === '/api/brands/sync' && request.method === 'POST') {
-        return json({ ok: true, ...(await syncRegistry(env)) });
-      }
       if (path === '/api/brands/connect' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
         try { return json({ ok: true, ...(await addConnection(env, b.brand, b)) }); }
@@ -7739,20 +7847,34 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         // lastDiscover rides along so the Clients card can say the scan is
         // automatic and when it last ran, rather than implying a manual step.
         const ld = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastDiscover'`).first().catch(() => null);
-        return json({ accounts: await listAccounts(env), lastDiscover: safeJson(ld?.value, null) });
+        return json({ accounts: await listAccounts(env), meta_available: await metaAvailable(env), lastDiscover: safeJson(ld?.value, null) });
       }
       let m;
-      if ((m = path.match(/^\/api\/accounts\/(act_\d+)$/)) && request.method === 'PUT') {
+      /* The brand settings editor. Phase 3: writes the BRAND (brands row; the Triple Whale shop is its
+         connection). Old act_ ids in the path still resolve. */
+      if ((m = path.match(/^\/api\/accounts\/(act_\d+|asana_\d+|brand_[a-z0-9_]+|demo_[a-z0-9_]+)$/)) && request.method === 'PUT') {
         const body = await request.json();
-        const cur = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(m[1]).first();
+        let cur = await acctOf(env, m[1]);
+        /* "Add a brand" from a Meta ad account no brand has yet: make the brand, attach the account as
+           its primary Meta connection, then save the settings below onto it. */
+        if (!cur && /^act_\d+$/.test(m[1]) && body.active) {
+          const row = await env.DB.prepare(`SELECT name, tz, currency FROM accounts WHERE act_id = ?1`).bind(m[1]).first();
+          if (!row) return json({ error: 'Locus cannot see that ad account. Find it on Meta first.' }, 404);
+          const nb = await createBrand(env, { name: body.name || row.name, tz: row.tz, currency: row.currency });
+          await addConnection(env, nb.id, { kind: 'meta', external_id: m[1], label: row.name, is_primary: 1 });
+          cur = await acctOf(env, nb.id);
+        }
         if (!cur) return json({ error: 'unknown account' }, 404);
         const numOrKeep = (v, keep) => v === '' ? null : (v ?? keep);
+        /* active (0/1) became status; a demo brand stays a demo unless it is switched on. */
+        const status = body.active == null ? cur.status
+          : body.active ? 'active' : cur.status === 'demo' ? 'demo' : 'paused';
         await env.DB.prepare(
-          `UPDATE accounts SET active = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6,
-             target_cpa = ?7, target_roas = ?8, slack_channel = ?9, tw_shop = ?10, goals_json = ?11, brief_enabled = ?12,
-             brief_channel = ?13 WHERE act_id = ?1`,
-        ).bind(m[1],
-          body.active != null ? (body.active ? 1 : 0) : cur.active,
+          `UPDATE brands SET status = ?2, name = ?3, monthly_budget = ?4, budgets_json = ?5, tz = ?6,
+             target_cpa = ?7, target_roas = ?8, internal_channel = ?9, goals_json = ?10, brief_enabled = ?11,
+             client_channel = ?12, updated_at = datetime('now') WHERE id = ?1`,
+        ).bind(cur.act_id,
+          status,
           body.name ?? cur.name,
           numOrKeep(body.monthly_budget, cur.monthly_budget),
           body.budgets ? JSON.stringify(body.budgets) : cur.budgets_json,
@@ -7760,17 +7882,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           numOrKeep(body.target_cpa, cur.target_cpa),
           numOrKeep(body.target_roas, cur.target_roas),
           numOrKeep(body.slack_channel, cur.slack_channel),
-          numOrKeep(body.tw_shop, cur.tw_shop),
           body.goals ? JSON.stringify(body.goals) : cur.goals_json,
           body.brief_enabled != null ? (body.brief_enabled ? 1 : 0) : cur.brief_enabled,
           numOrKeep(body.brief_channel, cur.brief_channel),
         ).run();
-        // First activation → kick off a backfill in the background.
-        if (body.active && !cur.active && !cur.last_sync_insights) {
-          const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(m[1]).first();
-          ctx.waitUntil(syncAccount(env, acct));
+        if (body.tw_shop !== undefined) {
+          const shop = numOrKeep(body.tw_shop, cur.tw_shop);
+          if ((shop || null) !== (cur.tw_shop || null)) {
+            try { await setTripleWhale(env, cur.act_id, shop); } catch (e) { return json({ error: e.message }, 400); }
+          }
         }
-        ctx.waitUntil(syncRegistry(env).catch(() => {}));
+        // First activation → kick off a backfill in the background, for each of the brand's
+        // Meta ad accounts that has never synced.
+        if (body.active && !cur.active) {
+          const rows = (await brandMetaRows(env, cur.act_id)).filter(r => !r.last_sync_insights);
+          if (rows.length) ctx.waitUntil((async () => { for (const r of rows) await syncAccount(env, r); })());
+        }
         return json({ ok: true });
       }
       /* WHY CAN'T IT SEE MY AD ACCOUNTS? Answer it with facts instead of guesses.
@@ -7833,7 +7960,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
       if (path === '/api/discover' && request.method === 'POST') {
         const d = await discoverAccounts(env);
-        return json({ ok: true, ...d, accounts: await listAccounts(env) });
+        return json({ ok: true, ...d, accounts: await listAccounts(env), meta_available: await metaAvailable(env) });
       }
 
       /* ---- sync ---- */
@@ -7841,9 +7968,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const act = url.searchParams.get('act');
         const days = url.searchParams.get('days') ? +url.searchParams.get('days') : undefined;
         if (act) {
-          const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+          const acct = await acctOf(env, act);
           if (!acct) return json({ error: 'unknown account' }, 404);
-          return json({ ok: true, result: await syncAccount(env, acct, days) });
+          /* The Meta sync runs per Meta ad account of the brand. */
+          const rows = await brandMetaRows(env, acct.act_id);
+          if (!rows.length) return json({ ok: true, result: { act_id: acct.act_id, name: acct.name, error: 'No Meta ad account connected for this brand.' } });
+          const results = [];
+          for (const r of rows) results.push(await syncAccount(env, r, days));
+          return json({ ok: true, result: results[0], results });
         }
         ctx.waitUntil(nightly(env));
         return json({ ok: true, queued: true }, 202);
@@ -7855,16 +7987,16 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/series') {
         const act = url.searchParams.get('act');
         const days = Math.min(+url.searchParams.get('days') || 90, 400);
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const from = addDays(localDate(acct.tz), -days);
         const { results: metaRows } = await env.DB.prepare(
-          `SELECT * FROM daily_insights WHERE act_id = ?1 AND date >= ?2 ORDER BY date`,
-        ).bind(act, from).all();
+          `SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 ORDER BY date`,
+        ).bind(acct.act_id, from).all();
         // Meta tab (Averages): purchases/revenue are Triple Whale's, null on a day TW has not synced.
-        const rows = attributeRows(metaRows, await twMetaDaily(env, act, from, localDate(acct.tz)));
+        const rows = attributeRows(sumByDate(metaRows).map(r => ({ ...r, act_id: acct.act_id })), await twMetaDaily(env, acct.act_id, from, localDate(acct.tz)));
         return json({ account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz, today: localDate(acct.tz) },
-          attribution: `triple_whale:${BRIEF_ATTR_MODEL}`, rows, events: await seriesEvents(env, act, from) });
+          attribution: `triple_whale:${BRIEF_ATTR_MODEL}`, rows, events: await seriesEvents(env, acct.act_id, from) });
       }
 
       /* ONE LOCAL DAY, LIVE, WITH ITS HOURS. Two facts about the summary
@@ -7883,7 +8015,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          today (and for any single day's hours) on demand and stamps as_of. */
       if (path === '/api/tw-day') {
         const act = url.searchParams.get('act');
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         if (!acct.tw_shop) return json({ error: 'no Triple Whale shop set' }, 400);
         const today = localDate(acct.tz);
@@ -7909,8 +8041,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
       if (path === '/api/pacing') {
         const act = url.searchParams.get('act');
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
+        if (!acct.meta_act) return json({ error: 'No Meta ad account connected for this brand.' }, 400);
         return json(await hourlyPacing(env, acct));
       }
 
@@ -7952,10 +8085,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ads-type-backfill') {
         const act = url.searchParams.get('act');
         const cap = Math.min(Math.max(+url.searchParams.get('limit') || 600, 50), 2000);
-        const accts = act && act !== 'all'
-          ? [await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first()].filter(Boolean)
-          : await listAccounts(env, true);
-        if (!accts.length) return json({ error: 'unknown account' }, 404);
+        const brandList = act && act !== 'all'
+          ? [await acctOf(env, act)].filter(Boolean)
+          : null;
+        if (brandList && !brandList.length) return json({ error: 'unknown account' }, 404);
+        /* The ads edge is per META ad account: walk each brand's Meta accounts (act_id = the Meta id). */
+        const accts = brandList ? (await Promise.all(brandList.map(b => brandMetaRows(env, b.act_id)))).flat() : await metaSyncRows(env);
+        if (!accts.length) return json({ error: 'No Meta ad account connected for this brand.' }, 404);
         /* NO NESTED SUBFIELD BRACES. Asking for
            `object_story_spec{link_data{child_attachments}}` makes Meta reject the
            whole call, and the first version of this endpoint did exactly that:
@@ -8051,7 +8187,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
       if (path === '/api/ads') {
         const act = url.searchParams.get('act');
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const today = localDate(acct.tz), yday = addDays(today, -1);
         const ymd = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null;
@@ -8134,14 +8270,17 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const act = url.searchParams.get('act');
         const freshDays = Math.min(+url.searchParams.get('fresh') || 14, 60);
         const windowDays = Math.min(+url.searchParams.get('window') || 14, 30);
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         let backfill = null;
-        if (!acct.ads_backfill_done) backfill = await syncAdDaily(env, acct, { maxSlices: 3 });
-        else if ((acct.ads_metrics_version || 0) < ADS_METRICS_VERSION) ctx.waitUntil(syncAdDaily(env, acct, { maxSlices: 3 }).catch(() => {}));  // new metric columns still filling
-        else {
-          const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(act).first();
-          if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, acct).catch(() => {}));  // heal ages for pre-history ads
+        /* The ad-level walk is per META ad account of the brand (act_id = the Meta id). */
+        for (const ma of await brandMetaRows(env, acct.act_id)) {
+          if (!ma.ads_backfill_done) { const bf = await syncAdDaily(env, ma, { maxSlices: 3 }); if (!backfill || backfill.done) backfill = bf; }
+          else if ((ma.ads_metrics_version || 0) < ADS_METRICS_VERSION) ctx.waitUntil(syncAdDaily(env, ma, { maxSlices: 3 }).catch(() => {}));  // new metric columns still filling
+          else {
+            const missing = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ads WHERE act_id = ?1 AND created_time IS NULL`).bind(ma.act_id).first();
+            if (missing?.n > 0) ctx.waitUntil(syncAdMeta(env, ma).catch(() => {}));  // heal ages for pre-history ads
+          }
         }
         const r = await creative(env, acct, freshDays, windowDays,
           _cvFrom && _cvTo ? { from: _cvFrom, to: _cvTo } : null);
@@ -8209,9 +8348,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const from = url.searchParams.get('from') || '2000-01-01';
         const to = url.searchParams.get('to') || '2999-12-31';
         const { results } = await env.DB.prepare(
-          `SELECT * FROM daily_insights WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3 ORDER BY date`,
+          `SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 ORDER BY date`,
         ).bind(act, from, to).all();
-        return json({ rows: results });
+        /* One row per day for the brand (its Meta accounts summed), act_id = the brand. */
+        return json({ rows: sumByDate(results).map(r => ({ ...r, act_id: act })) });
       }
 
       if (path === '/api/activities' && request.method === 'GET') {
@@ -8220,11 +8360,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const to = url.searchParams.get('to') || '2999-12-31T23:59:59';
         const limit = Math.min(+url.searchParams.get('limit') || 500, 2000);
         const all = !act || act === 'all';
+        /* activities is Meta's (filed by Meta account); each row comes back with act_id = its BRAND and
+           meta_act = the Meta account it came from. */
+        const COLS = `a.id, b.id AS act_id, a.act_id AS meta_act, a.event_time, a.event_type, a.translated, a.actor, a.object_type, a.object_id,
+             a.object_name, a.extra_json, a.category, a.summary, a.reason, a.suggested_reason, a.note, a.confirmed, a.manual, a.created_at, b.name AS account_name`;
         const { results } = await env.DB.prepare(all
-          ? `SELECT a.*, acc.name AS account_name FROM activities a JOIN accounts acc ON acc.act_id = a.act_id
-             WHERE acc.active = 1 AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`
-          : `SELECT a.*, acc.name AS account_name FROM activities a JOIN accounts acc ON acc.act_id = a.act_id
-             WHERE a.act_id = ?4 AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`,
+          ? `SELECT ${COLS} FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id JOIN brands b ON b.id = c.brand_id
+             WHERE b.status = 'active' AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`
+          : `SELECT ${COLS} FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id JOIN brands b ON b.id = c.brand_id
+             WHERE c.brand_id = ?4 AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`,
         ).bind(...(all ? [from, to, limit] : [from, to, limit, act])).all();
         return json({ rows: results });
       }
@@ -8256,10 +8400,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/activities' && request.method === 'POST') {   // manual entry
         const b = await request.json();
         const id = `manual:${crypto.randomUUID()}`;
+        /* The Change Log is Meta's table: a manual entry for a brand is filed under its primary Meta account. */
+        const ba = await acctOf(env, b.act_id).catch(() => null);
+        const metaAct = ba ? ba.meta_act : (/^act_\d+$/.test(String(b.act_id || '')) ? b.act_id : null);
+        if (!metaAct) return json({ error: 'No Meta ad account connected for this brand, so there is no Change Log to add to.' }, 400);
         await env.DB.prepare(
           `INSERT INTO activities (id, act_id, event_time, category, summary, reason, note, confirmed, manual, actor)
            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 1, ?8)`,
-        ).bind(id, b.act_id, b.event_time || new Date().toISOString(), b.category || 'other',
+        ).bind(id, metaAct, b.event_time || new Date().toISOString(), b.category || 'other',
           b.summary || '', b.reason ?? null, b.note ?? null, b.actor || 'manual').run();
         return json({ ok: true, id });
       }
@@ -8298,7 +8446,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          the list and shows progress instead. */
       if (path === '/api/brief-rebuild' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return json({ error: 'date is required (YYYY-MM-DD)' }, 400);
@@ -8320,24 +8468,24 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       if (path === '/api/goal-suggest' && request.method === 'GET') {
         const act = url.searchParams.get('act');
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         return json(await suggestGoals(env, acct));
       }
       if (path === '/api/brief' && request.method === 'GET') {
         const act = url.searchParams.get('act');
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+        const acct = await acctOf(env, act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = url.searchParams.get('date') || addDays(localDate(acct.tz), -1);
         const data = await briefData(env, acct, date);
         const hist = (await env.DB.prepare(
           `SELECT date, posted_at, channel, status, text, steer FROM briefs WHERE act_id = ?1 ORDER BY date DESC LIMIT 15`,
-        ).bind(act).all()).results;
+        ).bind(acct.act_id).all()).results;
         return json({ ...data, date, history: hist });
       }
       if (path === '/api/brief-preview' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
         const r = await makeBrief(env, acct, date, { format: b.format === 'v2' || b.format === 'v1' ? b.format : undefined });
@@ -8353,12 +8501,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const b = await request.json().catch(() => ({}));
         if (!b.act) return json({ error: 'act is required' }, 400);
         const text = String(b.text || '').trim().slice(0, 1500);
-        await putSetting(env, `briefNote:${b.act}`, JSON.stringify({ text, at: new Date().toISOString() }));
+        await putSetting(env, `briefNote:${await resolveBrandId(env, b.act)}`, JSON.stringify({ text, at: new Date().toISOString() }));
         return json({ ok: true });
       }
       if (path === '/api/brief-send' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
         // Send what was reviewed. Regenerating here would discard any wording
@@ -8373,11 +8521,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/brief-text' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         if (typeof b.text !== 'string' || !b.text.trim()) return json({ error: 'text is required' }, 400);
+        b.act = await resolveBrandId(env, b.act);
         const r = await env.DB.prepare(
           `UPDATE briefs SET text = ?3 WHERE act_id = ?1 AND date = ?2 AND status IN ('draft','handled')`,
         ).bind(b.act, b.date, b.text).run();
         if (!r.meta?.changes) return json({ error: 'no draft for that day (a sent brief cannot be edited)' }, 404);
-        const ea = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first().catch(() => null);
+        const ea = await acctOf(env, b.act).catch(() => null);
         if (ea) await slackSyncBrief(env, ea, b.date).catch(() => {});
         return json({ ok: true });
       }
@@ -8386,7 +8535,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          Reversible: pressing Write the brief again drafts the day afresh. */
       if (path === '/api/brief-skip' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
         // A sent brief is a record of what the client received and is frozen - 
@@ -8409,7 +8558,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Build (or rebuild) today's draft by hand, for a brand set to review. */
       if (path === '/api/brief-draft' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
         // The optional steer box on Locus's Rewrite button, and the same field
@@ -8421,7 +8570,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/briefs' && request.method === 'GET') {
         const act = url.searchParams.get('act');
         const { results } = await env.DB.prepare(
-          `SELECT b.*, acc.name AS account_name FROM briefs b JOIN accounts acc ON acc.act_id = b.act_id
+          `SELECT b.*, acc.name AS account_name FROM briefs b JOIN brand_accounts acc ON acc.act_id = b.act_id
            ${act && act !== 'all' ? 'WHERE b.act_id = ?1' : ''} ORDER BY b.date DESC LIMIT 60`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all();
         return json({ rows: results });
@@ -8433,7 +8582,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const { results } = await env.DB.prepare(
           `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
                   acc.name AS account_name, acc.currency
-           FROM reports r JOIN accounts acc ON acc.act_id = r.act_id
+           FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id
            ${act && act !== 'all' ? 'WHERE r.act_id = ?1' : ''}
            ORDER BY r.period_start DESC, r.period LIMIT 80`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all();
@@ -8449,7 +8598,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       if (path === '/api/report-generate' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const period = b.period || 'weekly';
         let start = b.start;
@@ -8472,26 +8621,27 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       if (path === '/api/report-summary' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
+        b.act = await resolveBrandId(env, b.act);
         const r = await env.DB.prepare(
           `UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status IN ('draft','handled')`,
         ).bind(b.act, b.period, b.start, b.summary ?? '').run();
         if (!r.meta?.changes) return json({ error: 'no draft report for that period (a sent report is frozen)' }, 404);
-        const ra = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first().catch(() => null);
+        const ra = await acctOf(env, b.act).catch(() => null);
         if (ra) await slackSyncReport(env, ra, b.period, b.start).catch(() => {});
         return json({ ok: true });
       }
       if (path === '/api/report-send' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         try { return json(await sendReport(env, acct, b.period, b.start)); }
         catch (e) { return json({ error: e.message }, 400); }
       }
       if (path === '/api/report-link' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
-        const acct = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+        const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
-        return json({ ok: true, url: `${DASHBOARD_URL}?reports=${await reportToken(env, b.act)}` });
+        return json({ ok: true, url: `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}` });
       }
 
       if (path === '/api/summarise' && request.method === 'POST') {

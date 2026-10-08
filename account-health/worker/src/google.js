@@ -92,7 +92,7 @@ export async function setLink(env, act, patch) {
  *  store domain or name. Only fills what is empty; never overwrites a link someone set. */
 export async function autoMatch(env) {
   const probe = await googleProbe(env);
-  const { results: accts } = await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE active = 1`).all().catch(() => ({ results: [] }));
+  const { results: accts } = await env.DB.prepare(`SELECT act_id, name, tw_shop FROM brand_accounts WHERE active = 1`).all().catch(() => ({ results: [] }));
   const norm = s => String(s || '').toLowerCase().replace(/https?:\/\/|www\.|sc-domain:|\.myshopify\.com|[^a-z0-9]/g, '');
   const done = [];
   for (const a of accts || []) {

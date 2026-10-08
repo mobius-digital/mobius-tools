@@ -16,6 +16,7 @@
  * Disconnect revokes the refresh token (best effort) and forgets the client and the tokens.
  */
 import { clip, safeJson } from './research.js';
+import { resolveBrandId, storagePrefix } from './brands.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -278,8 +279,8 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
        on the public page like any upload. Idempotent per angle + ad: a second call returns the same proof. */
     if (path === '/api/atria/clip-to-angle' && request.method === 'POST') {
       const b = await request.json().catch(() => ({}));
-      const act = String(b.act || ''), angleId = String(b.angle_id || ''), adId = String(b.ad_id || '').trim();
-      if (!/^act_|^asana_/.test(act) || !/^[a-f0-9]{16}$/.test(angleId) || !/^[mt]\d{6,}$/.test(adId)) return json({ error: 'act, angle_id and an Atria ad id (m...) are required' }, 400);
+      const act = await resolveBrandId(env, String(b.act || '')), angleId = String(b.angle_id || ''), adId = String(b.ad_id || '').trim();
+      if (!/^(act_|asana_|brand_)/.test(act) || !/^[a-f0-9]{16}$/.test(angleId) || !/^[mt]\d{6,}$/.test(adId)) return json({ error: 'act, angle_id and an Atria ad id (m...) are required' }, 400);
       if (!env.MEDIA) return json({ error: 'File storage is not connected.' }, 503);
       const ang = await env.DB.prepare(`SELECT id FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(angleId, act).first();
       if (!ang) return json({ error: 'That idea is not on this brand.' }, 404);
@@ -291,7 +292,7 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
       const ad = a.ad;
       const vid = (ad.videos || []).map(v => v?.url || v).find(u => /^https:\/\//.test(u || ''));
       if (!vid) return json({ ok: false, reason: 'not_video', error: 'That ad has no video (it is an image ad).' }, 400);
-      const key = `amb/${act}/atria-${adId}.mp4`;
+      const key = `amb/${await storagePrefix(env, act)}/atria-${adId}.mp4`;
       const existing = await env.MEDIA.head(key).catch(() => null);
       if (!existing) {
         const res = await fetch(vid, { headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => null);

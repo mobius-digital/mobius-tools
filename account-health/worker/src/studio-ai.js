@@ -20,6 +20,7 @@ import { claude, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { getSkill, skillSystem } from './skill.js';
 import { readDoc, asana } from './asana-brand.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
+import { resolveBrandId, metaOf } from './brands.js';
 import { startVideo, listVideos, deleteVideo, hfStatus, hfSave, uploadRef, writeShot, estimateHf, createVideo } from './studio-video.js';
 
 const STR = { type: 'string' }, ARR = { type: 'array', items: STR };
@@ -108,12 +109,12 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   /* Raw-body upload (reference videos and images for Higgsfield): the brand comes in ?act=. */
   if (path === '/api/studio-ai/upload') {
     const u = new URL(request.url);
-    const ok = await env.DB.prepare(`SELECT act_id FROM accounts WHERE act_id = ?1`).bind(u.searchParams.get('act') || '').first();
+    const ok = await env.DB.prepare(`SELECT act_id FROM brand_accounts WHERE act_id = ?1`).bind(await resolveBrandId(env, u.searchParams.get('act') || '')).first();
     if (!ok) return json({ error: 'pick a brand first' }, 400);
     try { return json(await uploadRef(request, env, ok.act_id, u.origin)); } catch (e) { return json({ error: e.message }, 400); }
   }
   const b = await request.json().catch(() => ({}));
-  const acct = b.act && await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(b.act).first();
+  const acct = b.act && await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE act_id = ?1`).bind(await resolveBrandId(env, b.act)).first();
   if (!acct) return json({ error: 'pick a brand first' }, 400);
   const A = acct.act_id;
   const stream = work => streamed(ctx, work, e => logProblem(env, A, path, e.message));
@@ -192,7 +193,7 @@ RULES:
     /* House style: this brand's best-selling static ads (Triple Whale revenue, last 120 days),
        from the creative cache. What already sells beats any generic idea of a good ad. */
     const wins = ((await env.DB.prepare(`SELECT a.ad_id, SUM(t.revenue) rev FROM ads a JOIN tw_ad_attr t ON t.ad_id = a.ad_id AND t.model = 'lastPlatformClick'
-      WHERE a.act_id = ?1 AND a.media_type = 'image' AND t.date >= date('now', '-120 day') GROUP BY a.ad_id ORDER BY rev DESC LIMIT 10`).bind(A).all().catch(() => ({ results: [] }))).results || []);
+      WHERE a.act_id IN ${metaOf(1)} AND a.media_type = 'image' AND t.date >= date('now', '-120 day') GROUP BY a.ad_id ORDER BY rev DESC LIMIT 10`).bind(A).all().catch(() => ({ results: [] }))).results || []);
     let nWin = 0;
     for (const w of wins) {
       if (nWin >= 5) break;

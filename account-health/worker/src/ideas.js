@@ -66,6 +66,7 @@ import { claude, jsonOf, clip, safeJson } from './research.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 import { asana, numOf, googleToken, BRIEF_READERS, readDoc } from './asana-brand.js';
 import { atriaAd } from './atria.js';
+import { storagePrefix } from './brands.js';
 
 /* Outbound HTTP goes through the worker's metered fetch (xfetch). worker.js hands it in. */
 let F = (...a) => fetch(...a);
@@ -496,7 +497,7 @@ const clipExt = mime => ({ 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/
 async function stashClip(env, act, res, mime, size) {
   if (!env.MEDIA) return { res, size, why: 'no storage' };
   if (size > MAX_CLIP_BYTES) return { res, size, why: 'too big' };
-  const key = `amb/${act || 'idea'}/idea-${rid()}.${clipExt(mime)}`;
+  const key = `amb/${act ? await storagePrefix(env, act) : 'idea'}/idea-${rid()}.${clipExt(mime)}`;
   let buf = null, body = null;
   try {
     if (size > 0 && size > CLIP_BUFFER_BYTES && typeof FixedLengthStream !== 'undefined' && res.body) {
@@ -891,7 +892,7 @@ function hubText(hub) {
 }
 
 /* ---------------- Lucky Golf's creator app: PostgREST + Storage over fetch ---------------- */
-const isLuckyAct = async (env, act) => /lucky/i.test((await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first().catch(() => null))?.name || '');
+const isLuckyAct = async (env, act) => /lucky/i.test((await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null))?.name || '');
 const luckyHeaders = env => ({ apikey: env.LUCKY_SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.LUCKY_SUPABASE_SERVICE_KEY}` });
 const luckyBase = env => String(env.LUCKY_SUPABASE_URL).replace(/\/+$/, '');
 /* One PostgREST call. GET returns the rows; POST / DELETE return the rows they touched (Prefer: return=representation). */
@@ -1189,14 +1190,9 @@ async function userNames(env, ids) {
   }
   return out;
 }
-/* Every brand the ideas bot can file for: the old accounts, plus brands made in Locus with no Meta
-   account yet (brands.js), which file under their own id (legacy_key). Same shape either way. */
-const acctsOf = async env => {
-  const old = await env.DB.prepare(`SELECT act_id, name, slack_channel FROM accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
-  const fresh = await env.DB.prepare(`SELECT COALESCE(legacy_key, id) AS act_id, name, internal_channel AS slack_channel FROM brands
-    WHERE status = 'active' AND source = 'locus'`).all().then(r => r.results || []).catch(() => []);
-  return [...old, ...fresh.filter(b => !old.some(a => a.act_id === b.act_id))];
-};
+/* Every brand the ideas bot can file for: every active brand (brand_accounts, act_id = the brand id),
+   with or without a Meta account. */
+const acctsOf = async env => env.DB.prepare(`SELECT act_id, name, slack_channel FROM brand_accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
 
 export async function runIdeaJob(env, job) {
   await ensureIdeaTables(env);

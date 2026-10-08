@@ -30,6 +30,7 @@ import { integrationsReport } from './integrations.js';
 import { klaviyoView } from './klaviyo.js';
 import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
+import { metaOf, resolveBrandId } from './brands.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -57,14 +58,32 @@ it with the matching action) instead of describing how it could be done.
 `;
 
 const SCHEMA = `
-## Tables (every row carries act_id, the Meta ad account id; accounts.name is the brand)
+## Ids (read this first)
+A BRAND's id looks like brand_lucky_golf. Every brand-owned table below files
+rows under the brand id in its act_id column (the column is still called
+act_id; it holds the brand id). META's OWN tables (accounts, daily_insights,
+hourly_insights, activities, ads, ad_daily) file rows under the META AD
+ACCOUNT id (act_123...). A brand can have several Meta ad accounts, or none.
+A brand's Meta rows: WHERE act_id IN (SELECT external_id FROM connections
+WHERE brand_id = 'brand_x' AND kind = 'meta'). Never join a Meta table to a
+brand table on act_id: join on ad_id and restrict the Meta side as above.
 
-accounts        one row per client brand: act_id, name, currency, tz, active,
+## Tables
+
+brand_accounts  one row per client brand: act_id (= the brand id), name,
+                currency, tz, active, status (active | paused | demo),
                 monthly_budget, budgets_json ({"2026-09": 15000}), target_cpa,
                 target_roas, slack_channel (the team's channel), brief_channel
                 (the CLIENT's channel), tw_shop, goals_json, brief_enabled,
-                last_sync_insights, last_error
-daily_insights  Meta-reported, one row per account per day: date, spend,
+                meta_act (its main Meta ad account, null when none),
+                last_sync_insights, last_error (that Meta account's sync)
+connections     what each brand has connected: brand_id, kind (meta,
+                triple_whale, shopify, google_ads, ga4, gsc, tiktok, klaviyo,
+                asana, drive, frame), external_id (the outside account id),
+                label, status. No secrets.
+accounts        one row per META AD ACCOUNT (act_id = act_123...): its sync
+                state only. Read brands from brand_accounts, not here.
+daily_insights  Meta-reported, one row per Meta ad account per day: date, spend,
                 impressions, reach, clicks, link_clicks, purchases, revenue.
                 THESE ARE META'S OWN NUMBERS. Use spend, impressions, clicks
                 freely; never quote Meta's purchases or revenue as attribution.
@@ -76,15 +95,16 @@ tw_daily        Triple Whale, one row per account per day per metric: date,
                 klaviyoPlacedOrderSales (email revenue). Per-channel attributed
                 purchases and revenue live here too under the pixel model.
                 Pivot with SUM(CASE WHEN metric = 'netSales' THEN value END).
+                Filed under the brand id.
                 For AOV, orders, CAC, new vs returning and email share over a
                 range, read the store view instead of summing by hand.
 activities      the change log: event_time, category ('budget', 'new_campaign',
                 'campaign_paused', 'bid_strategy', 'targeting', ...), summary,
                 actor, object_name, reason, note, confirmed (-1 = dismissed)
-ads             every ad: ad_id, name, adset_id, campaign_id, created_time,
-                first_spend_date, status
-ad_daily        per ad per day: spend, impressions, link_clicks, purchases,
-                revenue, video_thruplay, reach, outbound_clicks
+ads             every ad (Meta id): ad_id, name, adset_id, campaign_id,
+                created_time, first_spend_date, status
+ad_daily        per ad per day (Meta id): spend, impressions, link_clicks,
+                purchases, revenue, video_thruplay, reach, outbound_clicks
 briefs          the Daily Brief sent to each client: date, posted_at, channel,
                 status, text
 reports         weekly and monthly reports: period, period_start, period_end,
@@ -94,7 +114,8 @@ p_cohorts       customer cohorts per account
 p_sku_costs, p_cost_health   product costs and whether contribution margin can be trusted
 tw_ad_attr      Triple Whale attribution per ad per day: date, ad_id, model
                 ('lastPlatformClick' is the house model), revenue, orders,
-                platform. Join ads on (act_id, ad_id) for the name.
+                platform. Brand id. Join ads on ad_id only (ads is on the Meta
+                id) for the name.
 tw_orders       Triple Whale orders with journeys, 400 days: order_id,
                 customer_id, date, total, currency, products_json (product
                 ids put in the cart, oldest first), source (the last platform
@@ -151,7 +172,7 @@ const RULES = `
   Shopify cohorts (p_cohorts: lifetime_spend / customers), LTV:CAC = that / CAC.
   Never answer "AOV" with a Meta-only revenue-per-purchase unless asked about
   Meta ads specifically; the store AOV is the blended one.
-- Money is in the account's currency (accounts.currency). Never add across
+- Money is in the brand's currency (brand_accounts.currency). Never add across
   currencies without saying so.
 - "This month" is the account's own calendar month in its timezone.
 - The Golf Sock is a paused test account. Never flag it, never list it as a
@@ -173,7 +194,7 @@ const RULES = `
   Put the approved words in as written; list what is still blank.
 `;
 
-const TABLES = ['accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'activities', 'ads', 'ad_daily', 'briefs', 'reports',
+const TABLES = ['brand_accounts', 'connections', 'accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'activities', 'ads', 'ad_daily', 'briefs', 'reports',
                 'p_plan', 'p_cohorts', 'p_sku_costs', 'p_cost_health', 'p_profit_share', 'p_ad_share',
                 'tw_ad_attr', 'tw_orders', 'p_br_line', 'p_br_persona', 'p_br_voc', 'p_br_comp', 'p_br_angle', 'p_br_concept', 'p_br_batch', 'p_br_doc',
                 'p_scenario', 'p_studio_batch', 'idea_thread'];
@@ -298,7 +319,7 @@ const VIEW_BLURBS = {
   search: 'one brand\'s organic Google search from Search Console: clicks, impressions, click rate, position, top queries flagged brand or not, top pages, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
   accounts: 'every client brand with its targets, budget, channels, whether the brief is on, and when it last synced. Start here to resolve a brand name to an account.',
   overview: 'the Overview tab: each active brand over the window with sales, spend, MER, AMER, new-customer revenue and contribution margin, all blended (Triple Whale). Use it for "how is the book doing".',
-  account: 'one brand, the same numbers the Daily Brief is built from: month to date and last month, sales, spend, MER, per-channel attributed revenue (Triple Whale), pace against the plan. Pass the brand name or act_id in `brand`.',
+  account: 'one brand, the same numbers the Daily Brief is built from: month to date and last month, sales, spend, MER, per-channel attributed revenue (Triple Whale), pace against the plan. Pass the brand name or its id (brand_...) in `brand`.',
   store: 'one brand over a range, store-level (Triple Whale, blended): revenue, orders, AOV, new customers and their AOV, returning orders and AOV, CAC (cost to acquire a new customer), first-order margin, MER, aMER, contribution margin, email (Klaviyo) revenue and share. THE view for "what is the AOV", "how many orders", "what does a new customer cost", "how much is email". Pass `brand` and either `days` (default 30, ends yesterday), `month` (YYYY-MM) or `from` + `to` (YYYY-MM-DD). Pass `compare: true` to get the prior period of the same length beside it.',
   series: 'one brand day by day over a range: Meta spend, impressions, clicks, and Triple Whale netSales and blendedAds per day. Pass `brand` and `days` (default 30).',
   changes: 'what was changed on one account and by whom: budgets, campaigns paused or launched, bid strategy, targeting. Pass `brand` and `days`.',
@@ -330,29 +351,25 @@ const VIEW_BLURBS = {
 /* ------------------------------------------------------------------ */
 
 function buildViews(d) {
-  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
-     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
-     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
-     to pull Meta for them. */
-  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
-    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
-      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
-  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
+  /* Every brand (brand_accounts: act_id = the brand id). A brand with no Meta ad account (meta_act null)
+     is marked no_meta so the views say its Meta numbers do not exist instead of showing zeros. */
+  const allAccounts = async (env, activeOnly) => (await d.listAccounts(env, activeOnly)).map(a => a.meta_act ? a : { ...a, no_meta: true });
   const resolve = async (env, want) => {
     const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
     if (!w) return null;
-    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+    const id = await resolveBrandId(env, String(want || '').trim());
+    return accounts.find(a => a.act_id === id || a.meta_act === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
   const need = async (env, a) => {
     const acct = await resolve(env, a.brand || a.id || a.account || a.q);
-    if (!acct) throw new Error('Which brand? Give its name or act_id. Read the accounts view for the list.');
+    if (!acct) throw new Error('Which brand? Give its name or its id (brand_...). Read the accounts view for the list.');
     return acct;
   };
   const strip = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, active: a.active, monthly_budget: a.monthly_budget,
     budgets: d.safeJson(a.budgets_json, {}), target_cpa: a.target_cpa, target_roas: a.target_roas, team_channel: a.slack_channel, client_channel: a.brief_channel,
     tw_shop: a.tw_shop, brief_enabled: a.brief_enabled, last_sync: a.last_sync_insights, last_error: a.last_error,
-    ...(a.no_meta ? { no_meta: true, note: 'Made in Locus with no Meta ad account connected yet: no Meta or Triple Whale numbers exist for it.' } : {}) });
+    ...(a.no_meta ? { no_meta: true, note: 'No Meta ad account connected: no Meta numbers exist for it. Triple Whale numbers exist only when tw_shop is set.' } : {}) });
   return {
     accounts: async env => ({ accounts: (await allAccounts(env, false)).map(strip), how_to_read: VIEW_BLURBS.accounts }),
     overview: async env => ({ accounts: await d.overview(env), how_to_read: VIEW_BLURBS.overview + ' window is the selected range; cm is null when costs cannot be trusted.' }),
@@ -379,7 +396,7 @@ function buildViews(d) {
       const acct = await need(env, a);
       const days = Math.min(120, Math.max(7, Number(a.days) || 30));
       const to = d.localDate(acct.tz), from = d.addDays(to, -days + 1);
-      const { results: meta } = await env.DB.prepare(`SELECT date, spend, impressions, link_clicks, clicks FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 ORDER BY date`).bind(acct.act_id, from, to).all();
+      const { results: meta } = await env.DB.prepare(`SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(link_clicks) AS link_clicks, SUM(clicks) AS clicks FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`).bind(acct.act_id, from, to).all();
       const { results: tw } = await env.DB.prepare(`SELECT date, SUM(CASE WHEN metric = 'netSales' THEN value END) AS netSales, SUM(CASE WHEN metric = 'blendedAds' THEN value END) AS blendedAds,
         SUM(CASE WHEN metric = 'newCustomerSales' THEN value END) AS newCustomerSales FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`).bind(acct.act_id, from, to).all();
       const byDay = {};
@@ -390,7 +407,7 @@ function buildViews(d) {
     changes: async (env, a) => {
       const acct = await need(env, a);
       const days = Math.min(90, Math.max(1, Number(a.days) || 14));
-      const { results } = await env.DB.prepare(`SELECT event_time, category, summary, actor, object_name, reason, note FROM activities WHERE act_id = ?1 AND event_time >= datetime('now', ?2) AND confirmed != -1 ORDER BY event_time DESC LIMIT 60`).bind(acct.act_id, `-${days} days`).all();
+      const { results } = await env.DB.prepare(`SELECT event_time, category, summary, actor, object_name, reason, note FROM activities WHERE act_id IN ${metaOf(1)} AND event_time >= datetime('now', ?2) AND confirmed != -1 ORDER BY event_time DESC LIMIT 60`).bind(acct.act_id, `-${days} days`).all();
       return { brand: acct.name, changes: results || [], how_to_read: VIEW_BLURBS.changes };
     },
     creatives: async (env, a) => {
@@ -399,7 +416,7 @@ function buildViews(d) {
       const to = d.localDate(acct.tz), from = d.addDays(to, -days + 1), recent = d.addDays(to, -2);
       const { results } = await env.DB.prepare(`SELECT ad.ad_id, ad.name, ad.status, SUM(x.spend) AS spend, SUM(x.impressions) AS impressions, SUM(x.link_clicks) AS link_clicks, SUM(x.video_thruplay) AS thruplays,
           SUM(CASE WHEN x.date >= ?4 THEN x.spend END) AS spend3, SUM(CASE WHEN x.date >= ?4 THEN x.impressions END) AS imp3, SUM(CASE WHEN x.date >= ?4 THEN x.link_clicks END) AS clicks3
-        FROM ad_daily x JOIN ads ad ON ad.act_id = x.act_id AND ad.ad_id = x.ad_id WHERE x.act_id = ?1 AND x.date >= ?2 AND x.date <= ?3 GROUP BY ad.ad_id ORDER BY spend DESC LIMIT 40`).bind(acct.act_id, from, to, recent).all();
+        FROM ad_daily x JOIN ads ad ON ad.act_id = x.act_id AND ad.ad_id = x.ad_id WHERE x.act_id IN ${metaOf(1)} AND x.date >= ?2 AND x.date <= ?3 GROUP BY ad.ad_id ORDER BY spend DESC LIMIT 40`).bind(acct.act_id, from, to, recent).all();
       const rows = (results || []).map(r => ({ ...r, ctr: r.impressions ? r.link_clicks / r.impressions : null, ctr_last3: r.imp3 ? r.clicks3 / r.imp3 : null }));
       return { brand: acct.name, from, to, ads: rows, how_to_read: 'Meta-reported only (spend, impressions, link CTR). No purchases or ROAS here on purpose; attribution is Triple Whale\'s and is store-level. ctr_last3 well under ctr means the ad is tiring.' };
     },
@@ -444,9 +461,9 @@ function buildViews(d) {
       const acct = await need(env, a);
       const to = d.localDate(acct.tz), from = d.addDays(to, -90);
       const { results } = await env.DB.prepare(`SELECT ad.ad_id, ad.name, SUM(t.revenue) AS tw_revenue, SUM(t.orders) AS tw_orders,
-          (SELECT SUM(spend) FROM ad_daily x WHERE x.act_id = t.act_id AND x.ad_id = t.ad_id AND x.date >= ?2 AND x.date <= ?3) AS spend,
-          (SELECT SUM(link_clicks) * 1.0 / NULLIF(SUM(impressions), 0) FROM ad_daily x WHERE x.act_id = t.act_id AND x.ad_id = t.ad_id AND x.date >= ?2 AND x.date <= ?3) AS ctr
-        FROM tw_ad_attr t JOIN ads ad ON ad.act_id = t.act_id AND ad.ad_id = t.ad_id
+          (SELECT SUM(spend) FROM ad_daily x WHERE x.act_id IN ${metaOf(1)} AND x.ad_id = t.ad_id AND x.date >= ?2 AND x.date <= ?3) AS spend,
+          (SELECT SUM(link_clicks) * 1.0 / NULLIF(SUM(impressions), 0) FROM ad_daily x WHERE x.act_id IN ${metaOf(1)} AND x.ad_id = t.ad_id AND x.date >= ?2 AND x.date <= ?3) AS ctr
+        FROM tw_ad_attr t JOIN ads ad ON ad.ad_id = t.ad_id AND ad.act_id IN ${metaOf(1)}
         WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY t.ad_id ORDER BY tw_revenue DESC LIMIT 25`).bind(acct.act_id, from, to).all();
       return { brand: acct.name, from, to, ads: (results || []).map(r => ({ ...r, roas: r.spend ? Math.round(r.tw_revenue / r.spend * 100) / 100 : null })),
         how_to_read: 'Revenue and orders are Triple Whale attributed (lastPlatformClick). spend and ctr are Meta-reported. The ad NAME carries the angle and the format after the last |; read the names for what the winning arguments were.' };
@@ -530,7 +547,7 @@ function buildViews(d) {
     },
     scenarios: async (env, a) => {
       const acct = (a.brand || a.id || a.account || a.q) ? await resolve(env, a.brand || a.id || a.account || a.q) : null;
-      const { results } = await env.DB.prepare(`SELECT s.id, s.act_id, a.name AS brand, s.kind, s.name, s.inputs_json, s.note, s.created_by, s.updated_at FROM p_scenario s LEFT JOIN accounts a ON a.act_id = s.act_id ${acct ? 'WHERE s.act_id = ?1 OR s.act_id = \'all\'' : ''} ORDER BY s.updated_at DESC LIMIT 40`).bind(...(acct ? [acct.act_id] : [])).all().catch(() => ({ results: [] }));
+      const { results } = await env.DB.prepare(`SELECT s.id, s.act_id, a.name AS brand, s.kind, s.name, s.inputs_json, s.note, s.created_by, s.updated_at FROM p_scenario s LEFT JOIN brand_accounts a ON a.act_id = s.act_id ${acct ? 'WHERE s.act_id = ?1 OR s.act_id = \'all\'' : ''} ORDER BY s.updated_at DESC LIMIT 40`).bind(...(acct ? [acct.act_id] : [])).all().catch(() => ({ results: [] }));
       return { brand: acct?.name || 'every brand', scenarios: (results || []).map(s => ({ ...s, brand: s.brand || (s.act_id === 'all' ? 'agency-wide' : s.act_id), inputs: d.safeJson(s.inputs_json, {}), inputs_json: undefined, url: SHARE_URL + s.id })),
         how_to_read: VIEW_BLURBS.scenarios + ' leads inputs: spend, cpl (cost per lead), cvr (% of leads who buy), aov, margin (%), target (ROAS). The share link opens the read-only page a client can see.' };
     },
@@ -541,12 +558,12 @@ function buildViews(d) {
     },
     schedules: async env => {
       await env.DB.prepare(SCHED_SQL).run().catch(() => {});
-      const { results } = await env.DB.prepare(`SELECT s.*, a.name AS brand FROM p_ask_schedule s LEFT JOIN accounts a ON a.act_id = s.act ORDER BY s.created_at DESC`).all();
+      const { results } = await env.DB.prepare(`SELECT s.*, a.name AS brand FROM p_ask_schedule s LEFT JOIN brand_accounts a ON a.act_id = s.act ORDER BY s.created_at DESC`).all();
       return { schedules: (results || []).map(r => ({ id: r.id, question: r.question, brand: r.act === 'all' ? 'all brands' : r.brand || r.act, when: whenText(r), channel: r.channel, by: r.created_by, last_run: r.last_run, last_status: r.last_status })), how_to_read: VIEW_BLURBS.schedules + ' Change or stop one in Locus: Settings > The Strategist > Scheduled questions.' };
     },
     dashboards: async env => {
       await env.DB.prepare(DASH_SQL).run().catch(() => {});
-      const { results } = await env.DB.prepare(`SELECT p.*, a.name AS brand FROM p_dashboard p LEFT JOIN accounts a ON a.act_id = p.act_id ORDER BY p.updated_at DESC`).all();
+      const { results } = await env.DB.prepare(`SELECT p.*, a.name AS brand FROM p_dashboard p LEFT JOIN brand_accounts a ON a.act_id = p.act_id ORDER BY p.updated_at DESC`).all();
       return { dashboards: (results || []).map(r => ({ id: r.id, name: r.name, brand: r.brand || 'agency-wide', for_who: r.for_who, spec: d.safeJson(r.spec_json, {}), schedule: r.schedule || 'none', channel: r.channel || '', pinned: !!r.pinned, by: r.created_by, updated_at: r.updated_at, last_posted: r.last_posted, open: `${LOCUS_URL}?open=dash&id=${r.id}` })), how_to_read: VIEW_BLURBS.dashboards };
     },
     /* Google read directly (google.js): Google Ads campaigns, GA4 website, Search Console. */
@@ -608,9 +625,9 @@ async function deriveBrandContext(env, d, acct) {
   const hub = await env.DB.prepare(`SELECT intro, about, audience, avoid_json, rules_json, season_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
   const { results: angs } = await env.DB.prepare(`SELECT a.title, a.argument, a.who, a.products, a.format, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live' ORDER BY a.sort LIMIT 60`).bind(acct.act_id).all();
   const to = d.localDate(acct.tz), from = d.addDays(to, -120);
-  const { results: won } = await env.DB.prepare(`SELECT ad.name, SUM(t.revenue) AS rev, SUM(t.orders) AS ord FROM tw_ad_attr t JOIN ads ad ON ad.act_id = t.act_id AND ad.ad_id = t.ad_id
+  const { results: won } = await env.DB.prepare(`SELECT ad.name, SUM(t.revenue) AS rev, SUM(t.orders) AS ord FROM tw_ad_attr t JOIN ads ad ON ad.ad_id = t.ad_id AND ad.act_id IN ${metaOf(1)}
     WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY t.ad_id ORDER BY rev DESC LIMIT 20`).bind(acct.act_id, from, to).all();
-  const { results: adNames } = await env.DB.prepare(`SELECT name FROM ads WHERE act_id = ?1 ORDER BY first_spend_date DESC LIMIT 80`).bind(acct.act_id).all();
+  const { results: adNames } = await env.DB.prepare(`SELECT name FROM ads WHERE act_id IN ${metaOf(1)} ORDER BY first_spend_date DESC LIMIT 80`).bind(acct.act_id).all();
   const { results: briefs } = await env.DB.prepare(`SELECT substr(text, 1, 1500) AS text FROM briefs WHERE act_id = ?1 AND text IS NOT NULL ORDER BY date DESC LIMIT 3`).bind(acct.act_id).all();
   const { results: reports } = await env.DB.prepare(`SELECT substr(summary, 1, 1500) AS summary FROM reports WHERE act_id = ?1 AND summary IS NOT NULL ORDER BY period_end DESC LIMIT 2`).bind(acct.act_id).all();
   /* The Brand tab: approved research and the test history. */
@@ -686,8 +703,8 @@ async function runChecks(env, h, d) {
 
     /* 3. Pacing against the month's budget. */
     const budget = Number(d.safeJson(a.budgets_json, {})[ym] ?? a.monthly_budget) || 0;
-    if (budget && dom >= 5) {
-      const mtd = (await env.DB.prepare(`SELECT SUM(spend) AS s FROM daily_insights WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(a.act_id, ym + '-01', today).first())?.s || 0;
+    if (budget && dom >= 5 && a.meta_act) {   // pacing is Meta spend: a brand with no Meta account is skipped
+      const mtd = (await env.DB.prepare(`SELECT SUM(spend) AS s FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3`).bind(a.act_id, ym + '-01', today).first())?.s || 0;
       const expected = budget * dom / d.daysInMonth(today);
       const ratio = expected ? mtd / expected : 0;
       if (ratio >= 1.15 || (dom >= 10 && ratio <= 0.7))
@@ -708,11 +725,11 @@ async function runChecks(env, h, d) {
     }
 
     /* 5. A creative tiring: link CTR over the last 3 days well under its prior 14. */
-    const tired = await all(`SELECT ad.name, SUM(CASE WHEN x.date >= ?3 THEN x.spend END) AS spend3,
+    const tired = !a.meta_act ? [] : await all(`SELECT ad.name, SUM(CASE WHEN x.date >= ?3 THEN x.spend END) AS spend3,
         SUM(CASE WHEN x.date >= ?3 THEN x.link_clicks END) * 1.0 / NULLIF(SUM(CASE WHEN x.date >= ?3 THEN x.impressions END), 0) AS ctr3,
         SUM(CASE WHEN x.date < ?3 THEN x.link_clicks END) * 1.0 / NULLIF(SUM(CASE WHEN x.date < ?3 THEN x.impressions END), 0) AS ctr14
       FROM ad_daily x JOIN ads ad ON ad.act_id = x.act_id AND ad.ad_id = x.ad_id
-      WHERE x.act_id = ?1 AND x.date >= ?2 AND x.date <= ?4 GROUP BY x.ad_id HAVING spend3 >= 150 AND ctr14 > 0 AND ctr3 < ctr14 * 0.6`, a.act_id, d.addDays(today, -17), d.addDays(today, -2), today);
+      WHERE x.act_id IN ${metaOf(1)} AND x.date >= ?2 AND x.date <= ?4 GROUP BY x.ad_id HAVING spend3 >= 150 AND ctr14 > 0 AND ctr3 < ctr14 * 0.6`, a.act_id, d.addDays(today, -17), d.addDays(today, -2), today);
     for (const t of tired.slice(0, 3))
       out.push({ key: `fatigue:${a.act_id}:${String(t.name).slice(0, 40)}:${ym}`, kind: 'fatigue', severity: 'med', amount: Math.round(t.spend3), month: ym,
         title: `${a.name}: "${String(t.name).slice(0, 50)}" is tiring, link CTR ${(t.ctr3 * 100).toFixed(2)}% vs ${(t.ctr14 * 100).toFixed(2)}% before`,
@@ -825,18 +842,14 @@ async function writeBrief(env, gid, p) {
   if (p.testing_field && p.testing_opt) await asana(env, `/tasks/${gid}`, { method: 'PUT', body: { custom_fields: { [p.testing_field]: p.testing_opt } } }).catch(() => {});
 }
 const ASANA_ACTIONS = (d) => {
-  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
-     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
-     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
-     to pull Meta for them. */
-  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
-    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
-      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
-  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
+  /* Every brand (brand_accounts: act_id = the brand id). A brand with no Meta ad account (meta_act null)
+     is marked no_meta so the views say its Meta numbers do not exist instead of showing zeros. */
+  const allAccounts = async (env, activeOnly) => (await d.listAccounts(env, activeOnly)).map(a => a.meta_act ? a : { ...a, no_meta: true });
   const resolve = async (env, want) => {
     const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
-    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+    const id = await resolveBrandId(env, String(want || '').trim());
+    return accounts.find(a => a.act_id === id || a.meta_act === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
   const prep = async (env, acct, i, doc) => {
     const a = { ...i, kind: i.kind === 'video' ? 'video' : 'static', ads: (i.ads || []).map(x => clip(x, 600)).filter(Boolean).slice(0, 12), guardrails: (i.guardrails || []).map(x => clip(x, 200)).filter(Boolean).slice(0, 6), inspo: (i.inspo || []).filter(u => /^https?:\/\//.test(u)).slice(0, 6) };
@@ -907,18 +920,14 @@ const leadMath = c => {
   return { leads: Math.round(leads), buyers: Math.round(buyers), revenue: Math.round(revenue), roas: spend ? Math.round(revenue / spend * 100) / 100 : 0, profit: Math.round(contrib - spend), be_cpl: Math.round(cvr * aov * margin * 100) / 100, target_cpl: target > 0 ? Math.round(cvr * aov / target * 100) / 100 : null };
 };
 const BUILD_ACTIONS = (d) => {
-  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
-     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
-     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
-     to pull Meta for them. */
-  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
-    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
-      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
-  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
+  /* Every brand (brand_accounts: act_id = the brand id). A brand with no Meta ad account (meta_act null)
+     is marked no_meta so the views say its Meta numbers do not exist instead of showing zeros. */
+  const allAccounts = async (env, activeOnly) => (await d.listAccounts(env, activeOnly)).map(a => a.meta_act ? a : { ...a, no_meta: true });
   const resolve = async (env, want) => {
     const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
-    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+    const id = await resolveBrandId(env, String(want || '').trim());
+    return accounts.find(a => a.act_id === id || a.meta_act === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
   return [
     { name: 'build_scenario',
@@ -1033,18 +1042,14 @@ const SLACK_TOOLS = (d) => [{
  * a redrafted brief or a generated report goes to the internal review queue
  * and waits for a person to send it, exactly as it does from the screen. */
 const BUTTONS = (d) => {
-  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
-     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
-     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
-     to pull Meta for them. */
-  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
-    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
-      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
-  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
+  /* Every brand (brand_accounts: act_id = the brand id). A brand with no Meta ad account (meta_act null)
+     is marked no_meta so the views say its Meta numbers do not exist instead of showing zeros. */
+  const allAccounts = async (env, activeOnly) => (await d.listAccounts(env, activeOnly)).map(a => a.meta_act ? a : { ...a, no_meta: true });
   const resolve = async (env, want) => {
     const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
-    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+    const id = await resolveBrandId(env, String(want || '').trim());
+    return accounts.find(a => a.act_id === id || a.meta_act === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
   const brandOr = async (env, b) => { const a = await resolve(env, b); if (!a) throw new Error(`No brand called "${b}". The accounts view lists them.`); return a; };
   const safe = fn => async (env, i, h, ctx) => { try { return await fn(env, i, h, ctx); } catch (e) { return { error: e.message }; } };
@@ -1218,18 +1223,14 @@ const BUTTONS = (d) => {
 };
 
 const ACTIONS = (d) => {
-  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
-     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
-     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
-     to pull Meta for them. */
-  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
-    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
-      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
-  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
+  /* Every brand (brand_accounts: act_id = the brand id). A brand with no Meta ad account (meta_act null)
+     is marked no_meta so the views say its Meta numbers do not exist instead of showing zeros. */
+  const allAccounts = async (env, activeOnly) => (await d.listAccounts(env, activeOnly)).map(a => a.meta_act ? a : { ...a, no_meta: true });
   const resolve = async (env, want) => {
     const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
-    return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
+    const id = await resolveBrandId(env, String(want || '').trim());
+    return accounts.find(a => a.act_id === id || a.meta_act === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
   return [
     { name: 'set_goals',
@@ -1250,10 +1251,10 @@ const ACTIONS = (d) => {
         return { summary: input.summary, detail: `${acct.name}, ${month}: ${lines.join(', ')}.`, patch: { act_id: acct.act_id, month, goals: next } };
       },
       apply: async (env, patch) => {
-        const row = await env.DB.prepare('SELECT goals_json FROM accounts WHERE act_id = ?1').bind(patch.act_id).first();
+        const row = await env.DB.prepare('SELECT goals_json FROM brands WHERE id = ?1').bind(patch.act_id).first();
         const goals = d.safeJson(row?.goals_json, {}) || {};
         goals[patch.month] = patch.goals;
-        await env.DB.prepare('UPDATE accounts SET goals_json = ?2 WHERE act_id = ?1').bind(patch.act_id, JSON.stringify(goals)).run();
+        await env.DB.prepare(`UPDATE brands SET goals_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(patch.act_id, JSON.stringify(goals)).run();
         return { ok: true, note: 'Goals updated. The next brief paces against them.' };
       } },
 
@@ -1384,7 +1385,7 @@ const ACTIONS = (d) => {
         return { summary: input.summary, detail: `${acct.name}: ${lines.join(', ')}. From the next report drafted.`, patch: { act_id: acct.act_id, cfg: next } };
       },
       apply: async (env, patch) => {
-        await env.DB.prepare('UPDATE accounts SET report_config_json = ?2 WHERE act_id = ?1').bind(patch.act_id, JSON.stringify(patch.cfg)).run();
+        await env.DB.prepare(`UPDATE brands SET report_config_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(patch.act_id, JSON.stringify(patch.cfg)).run();
         return { ok: true, note: 'Report sections updated.' };
       } },
 
@@ -1405,7 +1406,7 @@ const ACTIONS = (d) => {
         const { results: secs } = await env.DB.prepare(`SELECT id, name, line, enabled FROM p_amb_section WHERE act_id = ?1`).bind(acct.act_id).all();
         const { results: angs } = await env.DB.prepare(`SELECT a.title, a.argument, a.who, a.format, s.name AS section FROM p_amb_angle a LEFT JOIN p_amb_section s ON s.id = a.section_id WHERE a.act_id = ?1 AND a.status = 'live' ORDER BY a.sort LIMIT 60`).bind(acct.act_id).all();
         const to = d.localDate(acct.tz), from = d.addDays(to, -90);
-        const { results: won } = await env.DB.prepare(`SELECT ad.name, SUM(t.revenue) AS rev, SUM(t.orders) AS ord FROM tw_ad_attr t JOIN ads ad ON ad.act_id = t.act_id AND ad.ad_id = t.ad_id
+        const { results: won } = await env.DB.prepare(`SELECT ad.name, SUM(t.revenue) AS rev, SUM(t.orders) AS ord FROM tw_ad_attr t JOIN ads ad ON ad.ad_id = t.ad_id AND ad.act_id IN ${metaOf(1)}
           WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY t.ad_id ORDER BY rev DESC LIMIT 15`).bind(acct.act_id, from, to).all();
         const existing = (secs || []).find(x => x.name.toLowerCase() === String(input.section).toLowerCase());
         const system = `You are the Strategist at Mobius Digital writing angles for ${acct.name}'s creator hub. Follow the framework exactly:

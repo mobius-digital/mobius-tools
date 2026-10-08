@@ -39,6 +39,7 @@
  */
 import { clip, safeJson } from './research.js';
 import { numOf } from './asana-brand.js';
+import { metaOf } from './brands.js';
 
 export const BRAIN_MAX = 60000;
 export const FOCUS_MAX = 45000;
@@ -108,7 +109,7 @@ export async function brandBrain(env, act, opts = {}) {
   const q = (sql, ...b) => env.DB.prepare(sql).bind(...b).all().then(r => r.results || []).catch(() => []);
   const first = (sql, ...b) => env.DB.prepare(sql).bind(...b).first().catch(() => null);
   const [acct, lines, docs, personas, voc, comps, angles, batches, onboard, amb] = await Promise.all([
-    first(`SELECT act_id, name, currency, target_cpa, target_roas, tw_shop FROM accounts WHERE act_id = ?1`, act),
+    first(`SELECT act_id, name, currency, target_cpa, target_roas, tw_shop FROM brand_accounts WHERE act_id = ?1`, act),
     q(`SELECT id, name, about, products FROM p_br_line WHERE act_id = ?1 ORDER BY sort, created_at, id`, act),
     q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
     q(`SELECT id, line_id, name, data_json, status, source FROM p_br_persona WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id`, act),
@@ -417,9 +418,9 @@ async function batchNumbers(env, act, batches) {
   if (!batches.length) return {};
   const q = (sql) => env.DB.prepare(sql).bind(act).all().then(r => r.results || []);
   const [ads, tags, spend, tw] = await Promise.all([
-    q(`SELECT ad_id, name FROM ads WHERE act_id = ?1`),
+    q(`SELECT ad_id, name FROM ads WHERE act_id IN ${metaOf(1)}`),
     q(`SELECT ad_id, batch_id FROM p_br_adtag WHERE act_id = ?1`),
-    q(`SELECT ad_id, SUM(spend) spend FROM ad_daily WHERE act_id = ?1 GROUP BY ad_id`),
+    q(`SELECT ad_id, SUM(spend) spend FROM ad_daily WHERE act_id IN ${metaOf(1)} GROUP BY ad_id`),
     q(`SELECT ad_id, SUM(revenue) rev, SUM(orders) orders FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick' GROUP BY ad_id`),
   ]);
   const want = new Map(batches.map(b => [String(parseInt(b.num, 10)), b.id]));

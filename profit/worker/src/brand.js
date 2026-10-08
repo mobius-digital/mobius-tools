@@ -20,6 +20,11 @@
  * ready for a call. Marking a winner on a few dollars is allowed but flagged.
  */
 
+import { metaOf, storagePrefix } from './brandids.js';
+
+/* Brand-first phase 3 (2026-10-08): act_id in p_br_* and tw_* is the BRAND id. Meta's ads / ad_daily
+   stay on the Meta ad account id (`act_id IN ${metaOf(n)}`); Ads Manager links use the brand's
+   primary Meta account (`meta_act`). Uploads go under the brand's storage_prefix. */
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const clip = (s, n) => (s == null ? null : String(s).slice(0, n));
@@ -151,11 +156,11 @@ function boxOf(b, st, sug, rules) {
 async function adUniverse(env, actId) {
   const since30 = addDays(today(), -30);
   const [ads, spend, tw, tags] = await Promise.all([
-    env.DB.prepare(`SELECT ad_id, name, created_time, status, media_type FROM ads WHERE act_id = ?1`).bind(actId).all().catch(() => ({ results: [] })),
+    env.DB.prepare(`SELECT ad_id, name, created_time, status, media_type FROM ads WHERE act_id IN ${metaOf(1)}`).bind(actId).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT ad_id, SUM(spend) spend, MIN(CASE WHEN spend > 0 THEN date END) first, MAX(CASE WHEN spend > 0 THEN date END) last,
                            SUM(CASE WHEN date >= ?2 THEN spend ELSE 0 END) spend30, SUM(impressions) impr, SUM(link_clicks) clicks,
                            SUM(video_3s) v3, SUM(add_to_cart) atc
-                      FROM ad_daily WHERE act_id = ?1 GROUP BY ad_id`).bind(actId, since30).all().catch(() => ({ results: [] })),
+                      FROM ad_daily WHERE act_id IN ${metaOf(1)} GROUP BY ad_id`).bind(actId, since30).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT ad_id, SUM(revenue) rev, SUM(orders) orders FROM tw_ad_attr
                      WHERE act_id = ?1 AND model = 'lastPlatformClick' GROUP BY ad_id`).bind(actId).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT ad_id, batch_id FROM p_br_adtag WHERE act_id = ?1`).bind(actId).all().catch(() => ({ results: [] })),
@@ -187,7 +192,7 @@ const finish = st => ({ ...st, spend: r2(st.spend), rev: r2(st.rev), roas: st.sp
 /* ---------------- the whole brand ---------------- */
 async function mustAccount(env, act) {
   if (!act || act === 'all') throw Object.assign(new Error('pick a brand first'), { status: 400 });
-  const a = await env.DB.prepare(`SELECT act_id, name, currency, tz, target_cpa, target_roas, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const a = await env.DB.prepare(`SELECT act_id, name, currency, tz, target_cpa, target_roas, tw_shop, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   if (!a) throw Object.assign(new Error('unknown account'), { status: 404 });
   return a;
 }
@@ -234,7 +239,7 @@ async function payload(env, acct) {
       needs_call: box === 'call',
       /* A verdict on too little spend to judge. Allowed, but the buyer sees why it is shaky. */
       thin: !!(['winner', 'loser'].includes(b.verdict) && (sug === 'too_early' || sug === 'not_live')),
-      ads_manager: stats[b.id]?.list?.length ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A.replace(/^act_/, '')}&selected_ad_ids=${stats[b.id].list.slice(0, 30).join(',')}` : null };
+      ads_manager: stats[b.id]?.list?.length && acct.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${acct.meta_act.replace(/^act_/, '')}&selected_ad_ids=${stats[b.id].list.slice(0, 30).join(',')}` : null };
   }).sort((x, y) => (parseInt(y.num, 10) || 0) - (parseInt(x.num, 10) || 0) || String(y.created_at).localeCompare(String(x.created_at)));
 
   const angleStats = {};
@@ -281,7 +286,7 @@ async function payload(env, acct) {
 
 /* ---------------- all brands ---------------- */
 async function overview(env) {
-  const accts = (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 1 ORDER BY name`).all()).results || [];
+  const accts = (await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE active = 1 ORDER BY name`).all()).results || [];
   const cnt = async (sql) => Object.fromEntries(((await env.DB.prepare(sql).all().catch(() => ({ results: [] }))).results || []).map(r => [r.act_id, r]));
   const [lines, personas, angles, batches, onboard] = await Promise.all([
     cnt(`SELECT act_id, COUNT(*) n FROM p_br_line GROUP BY act_id`),
@@ -292,14 +297,14 @@ async function overview(env) {
   ]);
   /* New clients from the Asana template whose Meta account is not in Locus yet
      (account-health asana-brand.js section 6). */
-  const pending = ((await env.DB.prepare(`SELECT act_id, name, token, status, submitted_at, json_extract(flags_json, '$.link_posted') posted FROM p_br_onboard WHERE act_id LIKE 'asana_%' ORDER BY created_at DESC`).all().catch(() => ({ results: [] }))).results || []);
+  const pending = ((await env.DB.prepare(`SELECT act_id, name, token, status, submitted_at, json_extract(flags_json, '$.link_posted') posted FROM p_br_onboard WHERE act_id LIKE 'asana_%' AND act_id NOT IN (SELECT alias FROM brand_alias) ORDER BY created_at DESC`).all().catch(() => ({ results: [] }))).results || []);
   return { pending, brands: accts.map(a => ({ act_id: a.act_id, name: a.name, lines: lines[a.act_id]?.n || 0, personas: personas[a.act_id]?.n || 0, personas_ok: personas[a.act_id]?.ok || 0, angles: angles[a.act_id]?.n || 0, batches: batches[a.act_id]?.n || 0, open: batches[a.act_id]?.open || 0, onboard: onboard[a.act_id]?.status || null })) };
 }
 
 /* The Tests tab with no brand picked: per brand, how many tests sit in each box.
    Same boxOf as a single brand, so the counts always match what the brand shows. */
 async function testsOverview(env) {
-  const accts = (await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas FROM accounts a
+  const accts = (await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas FROM brand_accounts a
     WHERE a.active = 1 AND EXISTS (SELECT 1 FROM p_br_batch b WHERE b.act_id = a.act_id) ORDER BY a.name`).all()).results || [];
   const brands = await Promise.all(accts.map(async acct => {
     const A = acct.act_id;
@@ -390,7 +395,7 @@ async function putDoc(env, act, lineId, key, data, status, source) {
 const tokenOk = t => /^[a-f0-9]{24,40}$/.test(t || '');
 async function onboardRow(env, token) {
   if (!tokenOk(token)) return null;
-  return env.DB.prepare(`SELECT o.*, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first();
+  return env.DB.prepare(`SELECT o.*, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN brand_accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first();
 }
 function mergeAnswers(old, patch) {
   const out = { ...(old || {}) };
@@ -415,7 +420,7 @@ export async function handlePublic(request, env, url, path, json) {
     const name = (url.searchParams.get('name') || 'file').replace(/[^\w.\- ]/g, '').slice(0, 120) || 'file';
     const len = +request.headers.get('Content-Length') || 0;
     if (len > 95 * 1024 * 1024) return json({ error: 'That file is over 95MB. Send a link instead.' }, 413);
-    const key = `onboard/${row.act_id}/${field}/${rid()}-${name}`;
+    const key = `onboard/${await storagePrefix(env, row.act_id)}/${field}/${rid()}-${name}`;
     await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' } });
     return json({ ok: true, file: { key, name, at: today() } });
   }

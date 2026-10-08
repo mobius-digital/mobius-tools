@@ -25,7 +25,7 @@ export async function handleScenario({ path, request, env, email }) {
   if (path === '/api/scenario/public') {
     const id = url.searchParams.get('id') || '';
     if (!/^sc_[0-9a-f]{10}$/.test(id)) return json({ error: 'bad id' }, 400);
-    const r = await env.DB.prepare(`SELECT s.*, a.name AS brand FROM p_scenario s LEFT JOIN accounts a ON a.act_id = s.act_id WHERE s.id = ?1`).bind(id).first();
+    const r = await env.DB.prepare(`SELECT s.*, a.name AS brand FROM p_scenario s LEFT JOIN brand_accounts a ON a.act_id = s.act_id WHERE s.id = ?1`).bind(id).first();
     if (!r) return json({ error: 'No scenario with that id' }, 404);
     const out = row(r); delete out.by;
     return json({ ...out, brand: r.brand || null });

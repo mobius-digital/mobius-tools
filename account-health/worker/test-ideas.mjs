@@ -37,6 +37,13 @@ const GRUNK = 'act_313396960515158', PP = 'act_1033194534145987', LUCKY = 'act_3
 const CH = 'C06K78VC82F', LUCKY_CH = 'C06JSQY5G87';
 db.exec(`INSERT INTO accounts (act_id, name, active, slack_channel, brief_channel) VALUES
   ('${GRUNK}', 'Grunk Dolfer', 1, '${CH}', 'CCLIENT1'), ('${PP}', 'Party Patch', 1, 'C06KL1K710R', 'CCLIENT2'), ('${LUCKY}', 'Lucky Golf', 1, '${LUCKY_CH}', NULL)`);
+
+/* Brand-first phase 3: brands are rows in `brands` (read through the brand_accounts view) and the Meta
+   ad account is a connection. The fixtures keep each brand's id equal to its old act id, so every
+   brand-owned row below stays as written and metaOf(brand) finds the same id on the Meta tables. */
+db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, internal_channel, client_channel, legacy_key, source)
+  SELECT act_id, lower(replace(name, ' ', '_')), name, CASE WHEN active = 1 THEN 'active' ELSE 'paused' END, COALESCE(currency, 'USD'), COALESCE(tz, 'America/Chicago'), slack_channel, brief_channel, act_id, 'locus' FROM accounts`);
+db.exec(`INSERT INTO connections (id, brand_id, kind, external_id, is_primary, source) SELECT 'meta:' || act_id, act_id, 'meta', act_id, 1, 'locus' FROM accounts`);
 db.exec(`INSERT INTO p_amb_brand (act_id, slug, live) VALUES ('${GRUNK}', 'grunk-dolfer', 1)`);
 db.exec(`INSERT INTO p_amb_section (id, act_id, name, line, sort) VALUES ('sec_dad', '${GRUNK}', 'Dad bod approved', 'Real dads, real rounds', 1)`);
 db.exec(`INSERT INTO p_amb_angle (id, act_id, section_id, title, argument) VALUES ('ang_old', '${GRUNK}', 'sec_dad', 'The cart path cooler', 'Your drinks stay cold for all 18')`);

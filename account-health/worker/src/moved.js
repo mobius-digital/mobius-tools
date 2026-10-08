@@ -1,6 +1,6 @@
 /* WHAT MOVED, POSTED TO SLACK (2026-10-08). Locus already shows "What moved yesterday" on Home
  * (profit/worker/src/hub.js `movedMany`, GET /api/hub/moved). This posts the same finding once a
- * day per brand to the brand's INTERNAL channel (accounts.slack_channel, never brief_channel, which
+ * day per brand to the brand's INTERNAL channel (brands.internal_channel, slack_channel in brand_accounts; never brief_channel, which
  * is the client's), and only when something moved: a quiet day posts nothing.
  *
  * THE RULE IS A COPY OF hub.js movedMany. Keep the two in step: yesterday against the SAME WEEKDAY

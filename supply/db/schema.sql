@@ -13,7 +13,7 @@ CREATE TABLE brands (
   accent        TEXT,                        -- brand colour, hex
   slack_channel TEXT,
   active        INTEGER NOT NULL DEFAULT 1,
-  act_id        TEXT,                        -- the Locus brand (Meta act id), 2026-10-08
+  act_id        TEXT,                        -- the Locus brand id (brand_lucky_golf), 2026-10-08
   makes         INTEGER NOT NULL DEFAULT 0,  -- designs its own products: Locus shows Drops
   buys          INTEGER NOT NULL DEFAULT 0,  -- we buy stock for it: Locus shows Buying (factories, orders)
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))

@@ -1,3 +1,4 @@
+import { metaOf, resolveBrandId, addConnection } from './brands.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
  *
@@ -45,6 +46,12 @@ const RETIRED = ['Offer'];
    tick's subrequest budget sees these calls. worker.js hands it in. */
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
+
+/* Brand-first (phase 3, 2026-10-08): `act` everywhere in this file is the BRAND id (brand_x).
+   Meta's own tables and the Graph API use the brand's Meta ad account ids (connections kind
+   'meta'); a brand can have several, or none. */
+const metaActsOf = async (env, brandId) => ((await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta' ORDER BY is_primary DESC, added_at`).bind(brandId).all().catch(() => ({ results: [] }))).results || []).map(r => r.external_id);
+const amId = metaAct => String(metaAct || '').replace(/^act_/, '');   // Ads Manager wants the bare number
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -226,7 +233,8 @@ async function ensureProjectFields(env, doc) {
 
 /** Find the brand's Asana project by name and add the four fields to it. */
 async function connect(env, act, projectGid) {
-  const acct = await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  act = await resolveBrandId(env, act);
+  const acct = await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   if (!acct) throw Object.assign(new Error('unknown account'), { status: 404 });
   const me = await asana(env, '/users/me?opt_fields=name,workspaces.name');
   const ws = me.workspaces?.find(w => /mobius/i.test(w.name)) || me.workspaces?.[0];
@@ -242,6 +250,8 @@ async function connect(env, act, projectGid) {
   const doc = { ...prev, project_gid: project.gid, project_name: project.name, url: project.permalink_url, workspace: ws.gid, connected_at: prev.connected_at || new Date().toISOString(), as: me.name, fields_version: prev.project_gid === project.gid ? prev.fields_version : null, hook_gid: prev.project_gid === project.gid ? prev.hook_gid : null };
   await ensureProjectFields(env, doc);
   await putDoc(env, act, 'asana', doc);
+  /* The registry mirror is retired: the brand's asana connection is written here. */
+  await addConnection(env, act, { kind: 'asana', external_id: project.gid, label: project.name, is_primary: 1, config: project.permalink_url ? { url: project.permalink_url } : {} }).catch(() => {});
   return doc;
 }
 
@@ -397,7 +407,7 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
 /* ---------------- 2. TAG (+ 3. WARN) ---------------- */
 async function adCopyFor(env, act, nums) {
   if (!nums.length) return {};
-  const ads = (await env.DB.prepare(`SELECT a.ad_id, a.name, c.json FROM ads a LEFT JOIN ad_creative c ON c.ad_id = a.ad_id WHERE a.act_id = ?1`).bind(act).all().catch(() => ({ results: [] }))).results || [];
+  const ads = (await env.DB.prepare(`SELECT a.ad_id, a.name, c.json FROM ads a LEFT JOIN ad_creative c ON c.ad_id = a.ad_id WHERE a.act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }))).results || [];
   const want = new Set(nums);
   const out = {};
   for (const a of ads) {
@@ -430,7 +440,7 @@ async function tagPass(env, act, { limit = 12, warn = true } = {}) {
     if (!id) continue;
     try { briefs[r.id] = await readDoc(env, id); } catch (e) { briefErr = e.message; }
   }
-  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   const items = rows.map(r => {
     const lg = safeJson(r.legacy_json, {});
     return `### TEST ${parseInt(r.num, 10)}: ${r.title}\n${r.offer ? `Offer: ${r.offer}\n` : ''}${r.hypothesis ? `What we tested: ${r.hypothesis}\n` : ''}${r.why ? `Why: ${r.why}\n` : ''}${Object.keys(lg).length ? `Old sheet notes: ${clip(JSON.stringify(lg), 600)}\n` : ''}${briefs[r.id] ? `BRIEF:\n${clip(briefs[r.id], 2500)}\n` : ''}${copy[String(parseInt(r.num, 10))] ? `ADS THAT RAN:\n${copy[String(parseInt(r.num, 10))].slice(0, 6).join('\n')}\n` : ''}`;
@@ -512,7 +522,7 @@ Return one entry per test, keyed by its number. ${VOICE}`,
    recent ads (never fixed benchmarks): CTR, hook rate, cost per add to cart, CPM.
    Locus only suggests. The media buyer sets Result in Asana. */
 async function batchStats(env, act, rows) {
-  const ads = (await env.DB.prepare(`SELECT ad_id, name FROM ads WHERE act_id = ?1`).bind(act).all()).results || [];
+  const ads = (await env.DB.prepare(`SELECT ad_id, name FROM ads WHERE act_id IN ${metaOf(1)}`).bind(act).all()).results || [];
   const tags = Object.fromEntries(((await env.DB.prepare(`SELECT ad_id, batch_id FROM p_br_adtag WHERE act_id = ?1`).bind(act).all()).results || []).map(t => [t.ad_id, t.batch_id]));
   const want = new Map(rows.map(x => [String(parseInt(x.num, 10)), x.id]));
   const ids = new Set(rows.map(x => x.id));
@@ -526,7 +536,7 @@ async function batchStats(env, act, rows) {
   for (const [bid, list] of Object.entries(byBatch)) {
     const q = list.map((_, i) => `?${i + 2}`).join(',');
     const s = await env.DB.prepare(`SELECT SUM(spend) spend, SUM(impressions) impr, SUM(link_clicks) clicks, SUM(video_3s) v3, SUM(video_thruplay) thru,
-        SUM(add_to_cart) atc, MIN(CASE WHEN spend > 0 THEN date END) first FROM ad_daily WHERE act_id = ?1 AND ad_id IN (${q})`).bind(act, ...list).first();
+        SUM(add_to_cart) atc, MIN(CASE WHEN spend > 0 THEN date END) first FROM ad_daily WHERE act_id IN ${metaOf(1)} AND ad_id IN (${q})`).bind(act, ...list).first();
     const t = await env.DB.prepare(`SELECT SUM(revenue) rev, SUM(orders) orders FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick' AND ad_id IN (${q})`).bind(act, ...list).first();
     out[bid] = { ads: list.length, ad_ids: list, spend: s?.spend || 0, impr: s?.impr || 0, clicks: s?.clicks || 0, v3: s?.v3 || 0, thru: s?.thru || 0, atc: s?.atc || 0, first: s?.first, rev: t?.rev || 0, orders: t?.orders || 0 };
   }
@@ -536,7 +546,7 @@ async function batchStats(env, act, rows) {
 async function benchmarks(env, act) {
   const since = addDays(today(), -90);
   const r = (await env.DB.prepare(`SELECT SUM(spend) spend, SUM(impressions) impr, SUM(link_clicks) clicks, SUM(video_3s) v3, SUM(add_to_cart) atc
-      FROM ad_daily WHERE act_id = ?1 AND date >= ?2 GROUP BY ad_id HAVING SUM(spend) >= 30`).bind(act, since).all()).results || [];
+      FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY ad_id HAVING SUM(spend) >= 30`).bind(act, since).all()).results || [];
   const col = f => r.map(f).filter(x => x != null && isFinite(x)).sort((a, b) => a - b);
   return {
     ctr: col(x => x.impr > 0 ? x.clicks / x.impr : null),
@@ -575,7 +585,7 @@ function rulesOf(acct, doc) {
 }
 /** Moves any old Brand info target CPA onto the account (the one place), once. */
 export async function unifyGoals(env) {
-  const rows = (await env.DB.prepare(`SELECT d.act_id, d.data_json, a.target_cpa FROM p_br_doc d JOIN accounts a ON a.act_id = d.act_id
+  const rows = (await env.DB.prepare(`SELECT d.act_id, d.data_json, a.target_cpa FROM p_br_doc d JOIN brand_accounts a ON a.act_id = d.act_id
       WHERE d.line_id = '' AND d.key = 'rules'`).all().catch(() => ({ results: [] }))).results || [];
   const moved = [];
   for (const r of rows) {
@@ -584,7 +594,7 @@ export async function unifyGoals(env) {
     const cpa = +doc.target_cpa > 0 ? +doc.target_cpa : null;
     delete doc.target_cpa; delete doc.win_roas; delete doc.lose_roas;
     const st = [env.DB.prepare(`UPDATE p_br_doc SET data_json = ?2, updated_at = datetime('now') WHERE act_id = ?1 AND line_id = '' AND key = 'rules'`).bind(r.act_id, JSON.stringify(doc))];
-    if (cpa) st.push(env.DB.prepare(`UPDATE accounts SET target_cpa = ?2 WHERE act_id = ?1`).bind(r.act_id, cpa));
+    if (cpa) st.push(env.DB.prepare(`UPDATE brands SET target_cpa = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.act_id, cpa));
     await env.DB.batch(st);
     moved.push({ act: r.act_id, was: r.target_cpa ?? null, now: cpa ?? r.target_cpa ?? null, at: new Date().toISOString() });
   }
@@ -611,15 +621,20 @@ async function graphAll(env, path, params) {
 }
 async function testMinimums(env, act) {
   if (!env.META_TOKEN) return { error: 'META_TOKEN is not set' };
+  act = await resolveBrandId(env, act);
+  const metas = await metaActsOf(env, act);
+  if (!metas.length) return { campaigns: [], adsets: [], error: 'No Meta ad account connected.' };
   const live = [{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }];
-  const [sets, camps] = await Promise.all([
-    graphAll(env, `${act}/adsets`, { fields: 'name,campaign_id,daily_min_spend_target,created_time', filtering: live }),
-    graphAll(env, `${act}/campaigns`, { fields: 'name,daily_budget', filtering: live }),
-  ]);
-  return {
-    campaigns: camps.filter(c => +c.daily_budget > 0).map(c => ({ id: c.id, name: c.name, budget: +c.daily_budget / 100 })),
-    adsets: sets.map(a => ({ id: a.id, name: a.name, campaign_id: a.campaign_id, num: numOf(a.name), min: +(a.daily_min_spend_target || 0) / 100, created: a.created_time })),
-  };
+  const out = { campaigns: [], adsets: [] };
+  for (const m of metas) {
+    const [sets, camps] = await Promise.all([
+      graphAll(env, `${m}/adsets`, { fields: 'name,campaign_id,daily_min_spend_target,created_time', filtering: live }),
+      graphAll(env, `${m}/campaigns`, { fields: 'name,daily_budget', filtering: live }),
+    ]);
+    out.campaigns.push(...camps.filter(c => +c.daily_budget > 0).map(c => ({ id: c.id, name: c.name, budget: +c.daily_budget / 100, act: m })));
+    out.adsets.push(...sets.map(a => ({ id: a.id, name: a.name, campaign_id: a.campaign_id, num: numOf(a.name), min: +(a.daily_min_spend_target || 0) / 100, created: a.created_time, act: m })));
+  }
+  return out;
 }
 
 /* MONDAY TEST CALLS (Cole, 2026-10-04: "this needs to be stupid simple for the media
@@ -631,7 +646,8 @@ async function testMinimums(env, act) {
 const centralParts = (d = new Date()) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' })
   .formatToParts(d).map(p => [p.type, p.value]));
 export async function mondayCalls(env, act) {
-  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel FROM accounts WHERE act_id = ?1`).bind(act).first();
+  act = await resolveBrandId(env, act);
+  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   if (!acct) return { error: 'unknown account' };
   const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
   if (!rules.target_cpa) return { error: 'Set a goal cost per sale in Settings → Goals first.' };
@@ -668,7 +684,7 @@ export async function mondayCalls(env, act) {
     const line = call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent`
       : starved ? `• ${name}: Meta wouldn't spend on it (${money(st.spend)} in ${day} days)` : `• ${name}: ${nums}`;
     groups[call].push(line + (minOff ? ` · *take the ${money(min)} minimum off*` : ''));
-    if (call === 'loser' || minOff) { sets.forEach(a => open.add(a.id)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
+    if (call === 'loser' || minOff) { sets.forEach(a => open.add(`${a.act}|${a.id}`)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
     if (call === 'loser') { if (sets.length) plan.pause.push(...sets.map(a => a.id)); else plan.pauseAds.push(...(st.ad_ids || [])); }
     else if (minOff) plan.clear.push(...sets.filter(a => a.min > 0).map(a => a.id));
   }
@@ -688,15 +704,27 @@ export async function mondayCalls(env, act) {
     if (total > cap) L.push(`:warning: ${c.name}: minimums are ${money(total)}/day, over the ${money(cap)} cap (${rules.min_cap_pct}% of ${money(c.budget)}). Take minimums off, or raise the budget to ${money(Math.ceil(total / (rules.min_cap_pct / 100) / 10) * 10)}/day.`);
   }
   if (meta.error) L.push(`_(Couldn't read minimums from Meta: ${meta.error})_`);
-  const ids = [...open];
-  const A = act.replace(/^act_/, '');
-  if (ids.length) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${A}&selected_adset_ids=${ids.slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
-  else if (openAds.size) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/ads?act=${A}&selected_ad_ids=${[...openAds].slice(0, 50).join(',')}|Open the ones to change in Ads Manager>`);
-  /* Can Locus change this account? The token's own tasks on it (MANAGE / ADVERTISE). */
+  /* Ads Manager opens one ad account per link: one link per Meta account that has something to change. */
+  const byAct = new Map();
+  for (const k of open) { const [m, id] = k.split('|'); (byAct.get(m) || byAct.set(m, []).get(m)).push(id); }
+  const linkWord = n => n > 1 ? ' (one link per ad account)' : '';
+  if (byAct.size) for (const [m, ids] of byAct) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${amId(m)}&selected_adset_ids=${ids.slice(0, 50).join(',')}|Open the ones to change in Ads Manager${linkWord(byAct.size)}>`);
+  else if (openAds.size) {
+    const list = [...openAds].slice(0, 50);
+    const where = ((await env.DB.prepare(`SELECT ad_id, act_id FROM ads WHERE ad_id IN (${list.map((_, i) => `?${i + 1}`).join(',')})`).bind(...list).all().catch(() => ({ results: [] }))).results || []);
+    const adAct = new Map();
+    for (const id of list) { const m = where.find(w => w.ad_id === id)?.act_id || acct.meta_act; if (m) (adAct.get(m) || adAct.set(m, []).get(m)).push(id); }
+    for (const [m, ids] of adAct) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/ads?act=${amId(m)}&selected_ad_ids=${ids.join(',')}|Open the ones to change in Ads Manager${linkWord(adAct.size)}>`);
+  }
+  /* Can Locus change this brand's ad accounts? The token's own tasks on each (MANAGE / ADVERTISE). */
   let canEdit = false, scopes = null;
   try {
-    const u = await (await F(`https://graph.facebook.com/v23.0/${act}?fields=user_tasks&access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
-    canEdit = (u.user_tasks || []).some(t => t === 'MANAGE' || t === 'ADVERTISE');
+    const metas = await metaActsOf(env, act);
+    canEdit = metas.length > 0;
+    for (const m of metas) {
+      const u = await (await F(`https://graph.facebook.com/v23.0/${m}?fields=user_tasks&access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
+      canEdit = canEdit && (u.user_tasks || []).some(t => t === 'MANAGE' || t === 'ADVERTISE');
+    }
     /* The role is not enough: the token itself must carry ads_management. */
     const perms = await (await F(`https://graph.facebook.com/v23.0/me/permissions?access_token=${encodeURIComponent(env.META_TOKEN)}`)).json();
     if (Array.isArray(perms.data)) { scopes = perms.data.filter(x => x.status === 'granted').map(x => x.permission); canEdit = canEdit && scopes.includes('ads_management'); }
@@ -723,6 +751,7 @@ function sections(text) {
 export async function runMondayPlan(env, payload) {
   const tap = (payload.actions || []).find(a => a.action_id === 'tests_do');
   const v = safeJson(tap?.value, {});
+  v.a = await resolveBrandId(env, v.a);   // a button posted before the switch carries the old act_ id
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`mondayPlan:${v.a}:${v.w}`).first().catch(() => null);
   const plan = safeJson(row?.value, null);
   const say = body => payload.response_url ? F(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
@@ -765,7 +794,7 @@ export async function postMonday(env, act) {
  *  orders (last platform click). Stored in the brand's rules doc once a month. */
 export async function accountAvg(env, act) {
   const since = addDays(today(), -30);
-  const s = await env.DB.prepare(`SELECT SUM(spend) spend FROM ad_daily WHERE act_id = ?1 AND date >= ?2`).bind(act, since).first();
+  const s = await env.DB.prepare(`SELECT SUM(spend) spend FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date >= ?2`).bind(act, since).first();
   const o = await env.DB.prepare(`SELECT SUM(orders) orders FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick' AND date >= ?2`).bind(act, since).first();
   return s?.spend > 0 && o?.orders > 0 ? Math.round((s.spend / o.orders) * 100) / 100 : null;
 }
@@ -773,7 +802,7 @@ export async function accountAvg(env, act) {
 export async function refreshAccountAvg(env, { force = false } = {}) {
   const p = centralParts();
   const month = `${p.year}-${p.month}`;
-  const rows = (await env.DB.prepare(`SELECT a.act_id, d.data_json FROM accounts a LEFT JOIN p_br_doc d ON d.act_id = a.act_id AND d.line_id = '' AND d.key = 'rules'
+  const rows = (await env.DB.prepare(`SELECT a.act_id, d.data_json FROM brand_accounts a LEFT JOIN p_br_doc d ON d.act_id = a.act_id AND d.line_id = '' AND d.key = 'rules'
       WHERE a.active = 1 AND a.target_cpa > 0`).all().catch(() => ({ results: [] }))).results || [];
   const out = {};
   for (const r of rows) {
@@ -846,7 +875,7 @@ const esc = x => String(x ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&
    numbers (the goal CPA changed after the call, e.g. Lucky $30 -> $52, so a $44 test
    sat as "Loser" with a learning saying it did not sell). It overwrites the learning. */
 async function resultsPass(env, act, { limit = 8, quiet = false, rejudge = false } = {}) {
-  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
   if (!rules.target_cpa) return { posted: 0, skipped: 'Set a goal cost per sale in Settings → this brand → Goals to switch on result calls.' };
   const rows = (await env.DB.prepare(`SELECT b.id, b.num, b.title, b.asana_gid, b.assignee_gid, b.result_posted, b.asana_result, b.check_again, b.hypothesis, b.offer, a.name AS angle
@@ -893,7 +922,8 @@ async function resultsPass(env, act, { limit = 8, quiet = false, rejudge = false
       if (fields.keep_reason_opts?.[j.reason]) cf[fields.keep_reason] = fields.keep_reason_opts[j.reason];
       if (fields.check_again) cf[fields.check_again] = { date: nextCheck };
     }
-    const am = `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${act.replace(/^act_/, '')}&selected_ad_ids=${(st?.ad_ids || []).slice(0, 30).join(',')}`;
+    const amAct = (st?.ad_ids?.length && (await env.DB.prepare(`SELECT act_id FROM ads WHERE ad_id = ?1`).bind(st.ad_ids[0]).first().catch(() => null))?.act_id) || acct.meta_act;
+    const am = `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${amId(amAct)}&selected_ad_ids=${(st?.ad_ids || []).slice(0, 30).join(',')}`;
     /* A list, not a paragraph: the call on top, one metric per line with a mark the
        eye can scan (✅ good, ➖ average, ⚠️ weak, ❌ over target), then what to do. */
     const MARK = { top: '✅', mid: '➖', low: '⚠️' };
@@ -952,7 +982,7 @@ async function refreshAngleNames(env, act) {
 }
 const TIDY_SCHEMA = obj({ groups: { type: 'array', items: obj({ keep_id: S, merge_ids: { type: 'array', items: S }, name: S, argument: S }) } });
 async function tidyAngles(env, act) {
-  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   const angles = (await env.DB.prepare(`SELECT a.id, a.name, a.argument, COUNT(b.id) n, GROUP_CONCAT(b.title, ' / ') titles
       FROM p_br_angle a LEFT JOIN p_br_batch b ON b.angle_id = a.id WHERE a.act_id = ?1 AND a.status != 'proposed' GROUP BY a.id ORDER BY n DESC`).bind(act).all()).results || [];
   if (angles.length < 10) return { merged: 0, angles: angles.length };
@@ -996,7 +1026,7 @@ async function tidyAngles(env, act) {
    Tests move with their concept; nothing is written to Asana (it has no concept field). */
 const CTIDY_SCHEMA = obj({ groups: { type: 'array', items: obj({ keep_id: S, merge_ids: { type: 'array', items: S }, name: S }) } });
 async function tidyConcepts(env, act) {
-  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   const rows = (await env.DB.prepare(`SELECT c.id, c.angle_id, c.name, a.name angle, COUNT(b.id) n, GROUP_CONCAT(b.title, ' / ') titles
       FROM p_br_concept c JOIN p_br_angle a ON a.id = c.angle_id LEFT JOIN p_br_batch b ON b.concept_id = c.id
       WHERE c.act_id = ?1 GROUP BY c.id HAVING n > 0 ORDER BY a.name, n DESC`).bind(act).all()).results || [];
@@ -1040,7 +1070,7 @@ const TESTED_SCHEMA = obj({ verdict: { type: 'string', enum: ['tested', 'close',
 async function testedCheck(env, act, idea) {
   idea = clip(String(idea || '').trim(), 600);
   if (!idea) throw Object.assign(new Error('Type the idea first.'), { status: 400 });
-  const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+  const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status != 'proposed'`).bind(act).all()).results || [];
   const tests = (await env.DB.prepare(`SELECT num, title, hypothesis, angle_id FROM p_br_batch WHERE act_id = ?1 AND angle_id IS NOT NULL ORDER BY CAST(num AS INTEGER) DESC LIMIT 400`).bind(act).all()).results || [];
   const { out } = await claudeJson(env, {
@@ -1148,9 +1178,11 @@ async function adoptPending(env, from, to) {
    channels. When the brand's Meta account arrives, they land on the real brand, never
    over a channel someone already chose. */
 async function adoptNewClient(env, from, to) {
+  /* The old pending id keeps resolving to the brand (old links, Slack buttons). */
+  await env.DB.prepare(`INSERT OR IGNORE INTO brand_alias (alias, brand_id, kind) VALUES (?1, ?2, 'asana_pending')`).bind(from, to).run().catch(() => {});
   const n = await env.DB.prepare(`SELECT id, slack_internal, slack_client FROM p_newclient WHERE pending_act = ?1`).bind(from).first();
   if (!n) return;
-  await env.DB.prepare(`UPDATE accounts SET slack_channel = COALESCE(NULLIF(slack_channel, ''), ?2), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?3) WHERE act_id = ?1`).bind(to, n.slack_internal || null, n.slack_client || null).run();
+  await env.DB.prepare(`UPDATE brands SET internal_channel = COALESCE(NULLIF(internal_channel, ''), ?2), client_channel = COALESCE(NULLIF(client_channel, ''), ?3), updated_at = datetime('now') WHERE id = ?1`).bind(to, n.slack_internal || null, n.slack_client || null).run();
   await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(n.id, to).run();
 }
 
@@ -1182,8 +1214,12 @@ export async function onboardAsanaTick(env, canAfford = () => true) {
       const start = tasks.find(t => START_RE.test(t.name || ''));
       if (!start) { skip.add(p.gid); continue; }
       const voice = tasks.find(t => VOICE_RE.test(t.name || ''));
-      const linked = links.find(l => safeJson(l.data_json, {}).project_gid === p.gid)?.act_id;
+      const linked = links.find(l => safeJson(l.data_json, {}).project_gid === p.gid)?.act_id
+        || (await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = 'asana' AND external_id = ?1`).bind(p.gid).first().catch(() => null))?.brand_id;
       const act = linked || PENDING(p.gid);
+      /* A New client brand (phase 3) is linked by its asana connection only: give it the Brand tab's
+         Asana link now, which adoption used to do when the Meta account arrived. */
+      if (linked && !links.some(l => l.act_id === linked)) await connect(env, linked, p.gid).catch(() => null);
       const have = await env.DB.prepare(`SELECT act_id FROM p_br_onboard WHERE act_id = ?1`).bind(act).first();
       if (have) await env.DB.prepare(`UPDATE p_br_onboard SET asana_project = ?2, asana_task = ?3, voice_task = ?4, name = COALESCE(name, ?5) WHERE act_id = ?1`).bind(act, p.gid, start.gid, voice?.gid || null, p.name).run();
       else await env.DB.prepare(`INSERT INTO p_br_onboard (act_id, token, name, asana_project, asana_task, voice_task) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(act, newToken(), p.name, p.gid, start.gid, voice?.gid || null).run();
@@ -1195,7 +1231,7 @@ export async function onboardAsanaTick(env, canAfford = () => true) {
   }
 
   /* 2. Every onboarding tied to a project: adopt, post, tick. */
-  const live = (await env.DB.prepare(`SELECT o.*, a.name AS acct_name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.asana_project IS NOT NULL`).all()).results || [];
+  const live = (await env.DB.prepare(`SELECT o.*, a.name AS acct_name FROM p_br_onboard o LEFT JOIN brand_accounts a ON a.act_id = o.act_id WHERE o.asana_project IS NOT NULL`).all()).results || [];
   let accts = null;
   for (let o of live) {
     if (!canAfford(4)) break;
@@ -1204,10 +1240,15 @@ export async function onboardAsanaTick(env, canAfford = () => true) {
 
     /* Pending: has the brand's Meta account arrived in Locus? */
     if (o.act_id.startsWith('asana_')) {
-      const link = (await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'asana' AND json_extract(data_json, '$.project_gid') = ?1`).bind(o.asana_project).first())?.act_id;
+      /* After phase 3 a client made with New client has its brand from the start; a pending row
+         is an older one, or a project made from the template by hand. It joins the brand that
+         is linked to the project, or the one brand with the project's name. */
+      const link = (await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'asana' AND json_extract(data_json, '$.project_gid') = ?1`).bind(o.asana_project).first())?.act_id
+        || (await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = 'asana' AND external_id = ?1`).bind(o.asana_project).first().catch(() => null))?.brand_id
+        || (await env.DB.prepare(`SELECT act_id FROM p_newclient WHERE pending_act = ?1 AND substr(act_id, 1, 6) = 'brand_'`).bind(o.act_id).first().catch(() => null))?.act_id;
       let real = link;
       if (!real) {
-        accts ||= (await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE active = 1`).all()).results || [];
+        accts ||= (await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE active = 1`).all()).results || [];
         const hits = accts.filter(a => norm(a.name) && norm(a.name) === norm(o.name));
         if (hits.length === 1) { await connect(env, hits[0].act_id, o.asana_project).catch(() => null); real = hits[0].act_id; }
       }
@@ -1308,9 +1349,19 @@ async function hookRun(env, act) {
   await putSetting(env, key, {});
 }
 
+/* A webhook made before the switch was registered with ?act=<old act_ id> and its secret is filed
+   under that id; new ones use the brand id. Look under the brand id first, then every old id. */
+async function hookSecret(env, act, raw) {
+  for (const k of [act, raw]) { const s = k && await getSetting(env, `asanaHook_${k}`); if (s) return s; }
+  const olds = ((await env.DB.prepare(`SELECT alias FROM brand_alias WHERE brand_id = ?1`).bind(act).all().catch(() => ({ results: [] }))).results || []).map(x => x.alias);
+  for (const k of olds) { const s = await getSetting(env, `asanaHook_${k}`); if (s) return s; }
+  return null;
+}
+
 export async function handleAsanaHook(request, env, ctx) {
-  const act = new URL(request.url).searchParams.get('act') || '';
-  if (!/^act_\d+$/.test(act)) return new Response('bad act', { status: 400 });
+  const raw = new URL(request.url).searchParams.get('act') || '';
+  if (!/^(act_\d+|asana_\d+|brand_[a-z0-9_]+)$/.test(raw)) return new Response('bad act', { status: 400 });
+  const act = await resolveBrandId(env, raw);
   const hs = request.headers.get('X-Hook-Secret');
   if (hs) {
     const open = await getSetting(env, `asanaHookOpen_${act}`);
@@ -1320,7 +1371,7 @@ export async function handleAsanaHook(request, env, ctx) {
     return new Response('', { status: 200, headers: { 'X-Hook-Secret': hs } });
   }
   const body = await request.text();
-  const secret = await getSetting(env, `asanaHook_${act}`);
+  const secret = await hookSecret(env, act, raw);
   if (!secret || !sameHex(await hmacHex(secret, body), request.headers.get('X-Hook-Signature') || '')) return new Response('bad signature', { status: 401 });
   const events = safeJson(body, {}).events || [];
   if (events.some(e => e.resource?.resource_type === 'task')) ctx.waitUntil(hookRun(env, act).catch(() => {}));
@@ -1350,6 +1401,7 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     }
     if (path === '/api/brand-asana/job') return json({ ok: true, job: await asana(env, `/jobs/${String(b.gid || '').replace(/\D/g, '')}`) });
     if (!b.act) return json({ error: 'act is required' }, 400);
+    b.act = await resolveBrandId(env, b.act);   // an old act_ / asana_ id from an old screen
     if (path === '/api/brand-asana/mins') return json({ ok: true, ...(await testMinimums(env, b.act)) });
     if (path === '/api/brand-asana/tested') return json({ ok: true, ...(await testedCheck(env, b.act, b.idea)) });
     if (path === '/api/brand-asana/tidy-concepts') return json({ ok: true, ...(await tidyConcepts(env, b.act)) });

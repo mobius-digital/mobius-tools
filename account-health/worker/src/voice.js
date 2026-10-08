@@ -29,6 +29,7 @@
 import { claude, textOf, jsonOf, VOICE, clip, safeJson } from './research.js';
 import { skillSystem, syncSkill, buildSkill, getSkill, buildSpeaker, METHOD, tellsIn } from './skill.js';
 import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
+import { resolveBrandId } from './brands.js';
 
 const S = { type: 'string' };
 const arr = items => ({ type: 'array', items });
@@ -88,7 +89,7 @@ async function setDoc(env, act, key, data, status = 'approved', source = 'voice'
 }
 async function brandByToken(env, token) {
   if (!/^[a-f0-9]{24,40}$/.test(token || '')) return null;
-  return env.DB.prepare(`SELECT o.act_id, o.answers_json, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first().catch(() => null);
+  return env.DB.prepare(`SELECT o.act_id, o.answers_json, COALESCE(a.name, o.name) AS name FROM p_br_onboard o LEFT JOIN brand_accounts a ON a.act_id = o.act_id WHERE o.token = ?1`).bind(token).first().catch(() => null);
 }
 async function bankAdd(env, act, items) {
   const { data } = await getDoc(env, act, 'voice_bank');
@@ -233,7 +234,7 @@ export async function handleVoice(request, env, ctx, path, json, isAdmin) {
     /* ---- staff: the copy desk, the bank, a guide rewrite ---- */
     if (path.startsWith('/api/voice/staff')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
-      const acct = b.act && await env.DB.prepare(`SELECT a.act_id, a.name, o.answers_json FROM accounts a LEFT JOIN p_br_onboard o ON o.act_id = a.act_id WHERE a.act_id = ?1`).bind(b.act).first();
+      const acct = b.act && await env.DB.prepare(`SELECT a.act_id, a.name, o.answers_json FROM brand_accounts a LEFT JOIN p_br_onboard o ON o.act_id = a.act_id WHERE a.act_id = ?1`).bind(await resolveBrandId(env, b.act)).first();
       if (!acct) return json({ error: 'pick a brand first' }, 400);
       const A = acct.act_id;
       const bank = (await getDoc(env, A, 'voice_bank')).data.items || [];

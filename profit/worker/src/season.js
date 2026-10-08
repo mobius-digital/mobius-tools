@@ -55,15 +55,16 @@ const SWIPE = {
   ny: { id: '76718d38-5555-4e13-8813-85e07997fd02', name: 'BFCM / Boxing Day and New Year' },
   vday: { id: 'd815b344-cbbf-4658-9b0b-2291e59e47b7', name: 'BFCM / Valentine\'s' },
 };
+/* Keyed by BRAND id (brand-first phase 3, 2026-10-08; these were Meta act ids before). */
 const SWIPE_BRAND = {
-  act_378146126054294: { id: 'bb63a25a-fe40-4975-9bd9-ce49a311d0e9', name: 'BFCM / Brands / Lucky Golf' },
-  act_313396960515158: { id: 'e9acb63d-d0c8-4b65-9267-b2124bbb93e2', name: 'BFCM / Brands / Grunk Dolfer' },
-  act_963898971023823: { id: 'd3b9921b-1717-442d-834a-0ea768184b05', name: 'BFCM / Brands / Dartee Golf' },
-  act_12528825: { id: '68eb0441-1fc0-4a0e-9411-333dd65d6490', name: 'BFCM / Brands / Bonk Golf' },
-  act_1033194534145987: { id: '08230143-3516-4a00-a433-e21e1dbab220', name: 'BFCM / Brands / Party Patch' },
-  act_2964926606966267: { id: 'a86f41d2-ab13-404e-bb48-1d978f8010a1', name: 'BFCM / Brands / Yak Sports' },
-  act_952386692927446: { id: '6f02d605-7d5d-46ad-a8bc-d233483cdcf9', name: 'BFCM / Brands / Ice & Gold' },
-  act_3217552185130501: { id: '7e7bd0be-7ca4-49be-8be4-9d66b5ad94ff', name: 'BFCM / Brands / The Golf Sock' },
+  brand_lucky_golf: { id: 'bb63a25a-fe40-4975-9bd9-ce49a311d0e9', name: 'BFCM / Brands / Lucky Golf' },
+  brand_grunk_dolfer: { id: 'e9acb63d-d0c8-4b65-9267-b2124bbb93e2', name: 'BFCM / Brands / Grunk Dolfer' },
+  brand_dartee_golf: { id: 'd3b9921b-1717-442d-834a-0ea768184b05', name: 'BFCM / Brands / Dartee Golf' },
+  brand_bonk_golf: { id: '68eb0441-1fc0-4a0e-9411-333dd65d6490', name: 'BFCM / Brands / Bonk Golf' },
+  brand_party_patch: { id: '08230143-3516-4a00-a433-e21e1dbab220', name: 'BFCM / Brands / Party Patch' },
+  brand_yak_sports: { id: 'a86f41d2-ab13-404e-bb48-1d978f8010a1', name: 'BFCM / Brands / Yak Sports' },
+  brand_ice_and_gold: { id: '6f02d605-7d5d-46ad-a8bc-d233483cdcf9', name: 'BFCM / Brands / Ice & Gold' },
+  brand_the_golf_sock: { id: '7e7bd0be-7ca4-49be-8be4-9d66b5ad94ff', name: 'BFCM / Brands / The Golf Sock' },
 };
 export function templatePhases(shape) {
   const e = EARLY[shape] || EARLY.standard;
@@ -324,7 +325,7 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
 export async function seasonPublic(env, token, series) {
   const row = await env.DB.prepare(`SELECT * FROM p_season_share WHERE token = ?1`).bind(token).first();
   if (!row) return json({ error: 'This link is no longer valid.' }, 404);
-  const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(row.act_id).first();
+  const acct = await env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(row.act_id).first();
   if (!acct) return json({ error: 'unknown account' }, 404);
   const d = await seasonData(env, [acct], { series });
   const a = d.accounts[0];

@@ -532,8 +532,9 @@ const app = {
         return json({ ok: true, tasksMoved: moved });
       }
 
-      /* Which Locus brand (Meta act id) each Supply brand is, and whether it makes
-         its own products (the Drops page). Locus reads this once per session. */
+      /* Which Locus brand each Supply brand is (act_id = the Locus BRAND id, e.g. brand_lucky_golf, since
+         Locus brand-first phase 3; an older row may still hold a Meta act id, which Locus maps itself), and
+         whether it makes its own products (the Drops page). Locus reads this once per session. */
       if (path === '/api/brands' && request.method === 'GET') {
         const r = await env.DB.prepare(`SELECT id, name, act_id, makes, buys, active FROM brands ORDER BY name`).all();
         return json({ brands: (r.results || []).map(b => ({ ...b, makes: !!b.makes, buys: !!b.buys, active: !!b.active })) });
@@ -542,7 +543,7 @@ const app = {
       if (path === '/api/brand' && request.method === 'PUT') {
         await env.DB.prepare(`UPDATE brands SET name = COALESCE(?2, name), accent = COALESCE(?3, accent), slack_channel = COALESCE(?4, slack_channel),
             act_id = COALESCE(?5, act_id), makes = COALESCE(?6, makes), buys = COALESCE(?7, buys) WHERE id = ?1`)
-          .bind(brand, str(body.name, 80), str(body.accent, 20), str(body.slack_channel, 40), str(body.act_id, 40),
+          .bind(brand, str(body.name, 80), str(body.accent, 20), str(body.slack_channel, 40), str(body.act_id, 80),
             body.makes == null ? null : (body.makes ? 1 : 0), body.buys == null ? null : (body.buys ? 1 : 0)).run();
         await log(env, brand, actor, 'brand', brand, 'update', body);
         return json({ ok: true });

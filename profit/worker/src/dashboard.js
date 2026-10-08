@@ -70,12 +70,12 @@ export function cleanSpec(sp, scope) {
     if (b.type === 'chart') {
       out.spec = cleanChart(b.spec); if (!out.spec) return null;
       out.question = clip(b.question, 600);
-      out.act = clip(b.act || 'all', 40);
+      out.act = clip(b.act || 'all', 64);
       out.pinned_at = /^\d{4}-\d{2}-\d{2}/.test(String(b.pinned_at || '')) ? clip(b.pinned_at, 30) : new Date().toISOString();
     }
     return out;
   }).filter(Boolean).slice(0, 10);
-  return { scope: scope || (s.scope === 'all' ? 'all' : clip(s.scope, 40) || 'all'), range: RANGES.has(String(s.range)) ? String(s.range) : '30', compare: COMPARES.has(s.compare) ? s.compare : 'prev', blocks };
+  return { scope: scope || (s.scope === 'all' ? 'all' : clip(s.scope, 64) || 'all'), range: RANGES.has(String(s.range)) ? String(s.range) : '30', compare: COMPARES.has(s.compare) ? s.compare : 'prev', blocks };
 }
 
 export function dashRow(r) {
@@ -104,7 +104,7 @@ export async function handleDashboard({ path, request, env, email }) {
     const b = await request.json().catch(() => ({}));
     const name = String(b.name || '').trim().slice(0, 120);
     if (!name) return json({ error: 'A dashboard needs a name.' }, 400);
-    const act = b.act && b.act !== 'all' ? String(b.act).slice(0, 40) : null;
+    const act = b.act && b.act !== 'all' ? String(b.act).slice(0, 64) : null;
     const spec = cleanSpec(b.spec, act || 'all');
     if (!spec.blocks.length) return json({ error: 'A dashboard needs at least one block it can draw.' }, 400);
     const schedule = SCHEDULES.has(String(b.schedule || '')) ? String(b.schedule || '') : '';

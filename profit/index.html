@@ -2301,7 +2301,7 @@
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=11"></script>
+<script src="meta.js?v=12"></script>
 <script src="amb.js?v=19"></script>
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
@@ -2309,8 +2309,8 @@
 <script src="studio.js?v=26"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=15"></script>
-<script src="supply.js?v=1"></script>
+<script src="v2.js?v=16"></script>
+<script src="supply.js?v=2"></script>
 <script src="askextra.js?v=1"></script>
 <script>
 'use strict';
@@ -2419,6 +2419,31 @@ const S = {
   /* Locus v2: the attribution model every credited number follows (top bar switch). */
   model: (() => { try { const m = localStorage.getItem('pf_model'); return ['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform'].includes(m) ? m : 'lastPlatformClick'; } catch { return 'lastPlatformClick'; } })(),
 };
+
+/* BRAND-FIRST, phase 3 (2026-10-08): S.act, localStorage pf_act and every a.act_id hold the BRAND id
+   (brand_lucky_golf), never a Meta ad account. A brand's main Meta ad account is a.meta_act, null when
+   it has none (SpeedIn). Anything that needs the Meta id (Ads Manager, showing the account) reads it here. */
+const metaActOf = (a, m) => {
+  for (const x of [a, m]) if (x && 'meta_act' in x) return x.meta_act || null;
+  return /^act_\d+$/.test(a?.act_id || '') ? a.act_id : null;   // a list served before the switch: act_id was the Meta id
+};
+const noMetaText = a => `No Meta ad account connected for ${a?.name || 'this brand'}. Connect it in Settings > Connections.`;
+/* Ids saved or linked before the switch (localStorage, Slack links, bookmarks) -> the brand id. */
+const LEGACY_ACT = {
+  act_378146126054294: 'brand_lucky_golf', act_1033194534145987: 'brand_party_patch', act_313396960515158: 'brand_grunk_dolfer',
+  act_963898971023823: 'brand_dartee_golf', act_12528825: 'brand_bonk_golf', act_952386692927446: 'brand_ice_and_gold',
+  act_1352962423584020: 'brand_vetripaws', act_2964926606966267: 'brand_yak_sports', act_3217552185130501: 'brand_the_golf_sock',
+  demo_harborline: 'brand_harborline_supply',
+};
+/** Any id -> the brand id in `list`, or null when it matches no brand there. 'all' stays 'all'. */
+function resolveAct(id, list = S.accounts) {
+  if (!id || id === 'all') return id;
+  const has = x => list.some(a => a.act_id === x);
+  if (has(id)) return id;
+  if (LEGACY_ACT[id] && has(LEGACY_ACT[id])) return LEGACY_ACT[id];
+  const hit = list.find(a => a.meta_act === id || a.storage_prefix === id || a.legacy_key === id);
+  return hit ? hit.act_id : null;
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(S.url.replace(/\/+$/,'') + path, {
@@ -2799,7 +2824,10 @@ function renderPicker() {
   const p = $('#clientPick');
   p.style.display = '';
   p.innerHTML = `<option value="all">All clients</option>` + S.accounts.map(a => `<option value="${a.act_id}">${esc(a.name)}</option>`).join('');
-  if (!S.accounts.find(a => a.act_id === S.act)) S.act = 'all';
+  // A saved or linked id from before brand ids (act_..., demo_harborline) becomes its brand; unknown -> All clients.
+  const was = S.act;
+  S.act = resolveAct(S.act) || 'all';
+  if (S.act !== was) { try { localStorage.setItem(LS.act, S.act); } catch {} }
   p.value = S.act;
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
   p.style.display = 'none';
@@ -3122,10 +3150,10 @@ function picker(host, items, { placeholder = 'Search…', empty = 'No matches', 
    ad account the Meta login can see with a Tracked toggle on each: the shape of
    the DATA, not the shape of the JOB. This asks the four questions instead.
 
-   A brand IS a Meta ad account here - `accounts.act_id` is the primary key - so
-   the ad account is chosen, never typed, and a client that runs no Meta ads
-   cannot be added at all. That is a schema constraint, not a UI one; the modal
-   says so rather than pretending otherwise.
+   The ad account is chosen, never typed. Since brand-first phase 3 (2026-10-08)
+   a brand is its own record (brand id) and Meta ad accounts are connections on
+   it, so a client with no Meta ads is a brand too (New client); this modal is
+   only the shortcut for a Meta account Locus can already see.
 
    Resolves to the chosen act_id on success, null if cancelled. */
 function addBrandModal(untracked, chList, onDiscover, total) {
@@ -3179,7 +3207,7 @@ function addBrandModal(untracked, chList, onDiscover, total) {
     const nameIn = $$('#abName');
     const actHost = $$('#abAct');
     const actPick = actHost && picker(actHost,
-      untracked.map(a => ({ value: a.act_id, label: a.name || a.act_id, sub: a.act_id })),
+      untracked.map(a => ({ value: a.act_id, label: a.name || a.act_id, sub: metaActOf(a) || a.act_id })),
       { placeholder: 'Search your ad accounts…', empty: 'No ad account matches that',
         onPick: v => {
           const n = untracked.find(a => a.act_id === v)?.name || '';
@@ -10244,10 +10272,9 @@ async function renderCustomers(first) {
    ad accounts you do NOT use never render at all - they exist only inside the
    Add a brand picker, which is the one moment they are relevant.
 
-   A brand IS a Meta ad account here: `accounts.act_id` is the primary key. So
-   the linked account is shown and never edited - pointing a brand at a
-   different ad account would be a different brand - and that is stated rather
-   than left as a missing control. */
+   Since brand-first phase 3 (2026-10-08) a brand is its own record (a.act_id =
+   the brand id) and its Meta ad account is a connection (a.meta_act, null when
+   none). The row shows that account; adding or changing one is Connections. */
 async function renderSettings() {
   const run = ++RUN;
   const AGENCY = S.act === 'all' || SETMODE.get() === 'agency';
@@ -10420,10 +10447,11 @@ async function renderSettings() {
       <div class="brow-body">
         ${grp('The brand and its sources', 'Who it is and where its numbers come from. Google, Klaviyo and the rest are under Connections.', `
         ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
-        ${field('Meta ad account', 'A brand and its Meta ad account are the same record, so this cannot be repointed. A different ad account is a different brand.',
-          `<div class="brow-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(a.act_id)}</span>
+        ${field('Meta ad account', 'The brand’s main Meta ad account. Add or change ad accounts under Connections.',
+          metaActOf(a, m) ? `<div class="brow-static"><b>${esc(m.name || a.name)}</b> <span class="tiny">${esc(metaActOf(a, m))}</span>
             <button class="btn btn-s" data-k="sync">Sync now</button>
-            <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`)}
+            <span class="tiny" data-k="syncmsg">${m.last_sync_insights ? 'last synced ' + esc(fmtAgo(m.last_sync_insights)) : 'never synced'}</span></div>`
+            : `<div class="brow-static"><span class="tiny">${esc(noMetaText(a))}</span></div>`)}
         ${field('Triple Whale shop', '<b>Every money number depends on this</b>: revenue, MER, contribution margin, every report.',
           `<input type="text" data-k="tw_shop" value="${esc(m.tw_shop || '')}" placeholder="name.myshopify.com">${m.tw_shop ? '' : '<br><span class="tiny" style="color:var(--warn)">⚠ without this the brand has no revenue at all</span>'}`)}
         ${field('Shopify', 'Only powers the lifetime-value cohorts on <b>Customers</b>. Everything else works without it.',
@@ -10639,7 +10667,7 @@ async function renderSettings() {
         try { await saveClient(a, { [k]: on }); a[k] = on; drawBrands(); await refreshAccounts(); }
         catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); }
       });
-      q('sync').onclick = async e => {
+      if (q('sync')) q('sync').onclick = async e => {
         e.target.disabled = true; msg(e.target, '[data-k="syncmsg"]', 'syncing…');
         try { const r = await mApi(`/api/sync?act=${a.act_id}`, { method: 'POST' }); msg(e.target, '[data-k="syncmsg"]', r.result?.error || 'done ✓'); }
         catch (err) { msg(e.target, '[data-k="syncmsg"]', err.message); }
@@ -10740,11 +10768,12 @@ async function renderSettings() {
     if (nc) nc.onclick = () => NewClient.open();
     const add = $('#brAdd');
     if (add) add.onclick = async () => {
-      const untracked = metaAccts.filter(x => !x.active);
-      const picked = await addBrandModal(untracked, chList, async () => {
-        try { const r = await mApi('/api/discover', { method: 'POST' }); metaAccts = r.accounts || metaAccts; return metaAccts; }
-        catch (e) { noteModal('Could not reach Meta', `<p>${esc(e.message)}</p>`); return metaAccts; }
-      }, metaAccts.length);
+      /* Meta ad accounts no brand has connected yet (brand-first: the brand list itself is brands). */
+      let avail = (window.MetaTab && window.MetaTab.metaAvailable()) || [];
+      const picked = await addBrandModal(avail, chList, async () => {
+        try { const r = await mApi('/api/discover', { method: 'POST' }); metaAccts = r.accounts || metaAccts; avail = r.meta_available || avail; return avail; }
+        catch (e) { noteModal('Could not reach Meta', `<p>${esc(e.message)}</p>`); return avail; }
+      }, metaAccts.length + avail.length);
       if (!picked) return;
       const bm = $('#brMsg'); if (bm) bm.textContent = `Adding ${picked.name}…`;
       try {

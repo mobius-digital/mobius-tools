@@ -14,6 +14,10 @@
   const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const CH = { meta: '--c-meta', google: '--c-google', tiktok: '--c-tiktok', email: '--c-email', amazon: '--c-amazon', rest: '--c-else', pinterest: '--c-amazon' };
   const SEQ = ['--c-meta', '--c-google', '--c-tiktok', '--c-email', '--c-amazon', '--c-else'];
+  /* Brand-first phase 3: a.act_id is the BRAND id; a.meta_act is its main Meta ad account, null = none
+     connected (a list without the field counts as connected). Meta-only screens show this instead of erroring. */
+  const noMeta = a => !!a && 'meta_act' in a && !a.meta_act;
+  const noMetaCard = a => `<div class="v2card"><p class="v2hint">No Meta ad account connected for ${esc(a.name)}. Connect it in Settings &gt; Connections.</p></div>`;
 
   /* ---------- formatting ---------- */
   const sym = c => (!c || c === 'USD' ? '$' : c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'CAD' ? 'CA$' : c === 'AUD' ? 'A$' : c + ' ');
@@ -434,6 +438,8 @@
   async function meta(first, view) {
     const t = H.RUN(); const one = H.S.act !== 'all';
     const title = one ? `Meta: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}` : 'Meta';
+    const oneA = one ? H.S.accounts.find(a => a.act_id === H.S.act) : null;
+    if (noMeta(oneA)) { $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, noMetaCard(oneA)); return; }
     if (first) $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
     let d; try { d = await get(`/api/hub/paid?platform=meta&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('meta', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
@@ -526,6 +532,7 @@
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
     if (!a) { $('#main').innerHTML = shell('adcreative', 'Creative', `<div class="v2card"><p class="v2hint">Pick one brand in the menu to see its creative.</p></div>`); return; }
     const title = `Creative: ${esc(a.name)}`;
+    if (noMeta(a)) { $('#main').innerHTML = shell('adcreative', title, noMetaCard(a)); return; }
     if (first) $('#main').innerHTML = shell('adcreative', title, '<div class="v2card"><p class="v2hint">Loading…</p></div>');
     let d, RR = {}; try { [d, RR] = await Promise.all([get(`/api/hub/creative?act=${encodeURIComponent(a.act_id)}&${H.rangeQ()}${modelQ()}`), get(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`).then(x => x.rules || {}).catch(() => ({}))]); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('adcreative', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;

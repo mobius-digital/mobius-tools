@@ -7,8 +7,10 @@
  * result and can be retried on its own:
  *   asana    project from "MD - Template 2026 v2", the picked team added, the old
  *            checklist replaced by the few things a person still does
- *   onboard  the onboarding link (under the pending id asana_<project> until the
- *            brand's Meta account exists), website + contact saved as pre-fill
+ *   onboard  the onboarding link, website + contact saved as pre-fill. Since phase 3 of the
+ *            brand-first rebuild (2026-10-08) the brand is created when the client is
+ *            (p_newclient.act_id = its brand id from the start), so the link files under the
+ *            brand. Rows from before that carry pending_act = asana_<project> until adopted.
  *   drive    a client folder: Agreements (Cole + client) and From the client
  *   slack    two PRIVATE channels (<brand> and <brand>-internal), only the picked team
  *   frame    a Frame project for asset review (frame.js)
@@ -32,6 +34,7 @@ import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEd
 import { frameProject, frameStatus } from './frame.js';
 import { sendMail } from './mail.js';
 import { ensureCalendlyHook } from './calendly.js';
+import { createBrand, addConnection, resolveBrandId, setTripleWhale } from './brands.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -132,9 +135,13 @@ async function stepAsana(env, r) {
     }
     if (!gid) throw new Error('Asana is still making the project. Press Retry in a minute.');
     const p = await asana(env, `/projects/${gid}?opt_fields=permalink_url`);
-    await patchRun(env, r.id, { asana_project: gid, asana_url: p.permalink_url, pending_act: PENDING(gid) });
-    r.asana_project = gid; r.asana_url = p.permalink_url; r.pending_act = PENDING(gid);
+    const filing = r.act_id || PENDING(gid);   // a client started before phase 3 has no brand yet
+    await patchRun(env, r.id, { asana_project: gid, asana_url: p.permalink_url, pending_act: filing });
+    r.asana_project = gid; r.asana_url = p.permalink_url; r.pending_act = filing;
   }
+  /* The project is the brand's asana connection, so the onboarding pass files the link under the brand. */
+  if (r.act_id) await addConnection(env, r.act_id, { kind: 'asana', external_id: gid, label: r.name, is_primary: 1, config: r.asana_url ? { url: r.asana_url } : {} })
+    .catch(e => out.notes.push(`Asana project not attached to the brand: ${e.message}`));
 
   /* The team Cole picked, and nobody else. */
   const people = await asanaAll(env, `/users?workspace=${ws.gid}&opt_fields=name,email`);
@@ -330,9 +337,9 @@ async function stepSlack(env, r) {
   }
   await slack(bot, 'conversations.setPurpose', { channel: client.id, purpose: `${r.name} and Mobius Digital` }).catch(() => {});
   await slack(bot, 'conversations.setPurpose', { channel: internal.id, purpose: `${r.name}: Mobius team only. Drafts, alerts and ideas.` }).catch(() => {});
-  /* If the brand is already in Locus, point it at the channels now; otherwise they
-     land on it when its Meta account arrives (adoptNewClient in asana-brand.js). */
-  if (r.act_id) await env.DB.prepare(`UPDATE accounts SET slack_channel = COALESCE(NULLIF(slack_channel, ''), ?2), brief_channel = COALESCE(NULLIF(brief_channel, ''), ?3) WHERE act_id = ?1`).bind(r.act_id, internal.id, client.id).run();
+  /* The brand gets the channels now, never over one someone already chose. A client started before
+     phase 3 has no brand yet: they land on it when it is adopted (adoptNewClient in asana-brand.js). */
+  if (r.act_id) await env.DB.prepare(`UPDATE brands SET internal_channel = COALESCE(NULLIF(internal_channel, ''), ?2), client_channel = COALESCE(NULLIF(client_channel, ''), ?3), updated_at = datetime('now') WHERE id = ?1`).bind(await resolveBrandId(env, r.act_id), internal.id, client.id).run();
   return { ...out, text: `#${slug} and #${slug}-internal made, both private${out.client_invited ? `, ${r.contact_email} invited by Slack Connect` : ''}.` };
 }
 
@@ -664,8 +671,12 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const id = rid();
       const t = b.team || {};
       const team = Object.fromEntries(['strategist', 'buyer', 'editor', 'designer'].map(k => [k, roleList(Array.isArray(t[k]) ? t[k].join(',') : t[k]).join(',')]));
-      await env.DB.prepare(`INSERT INTO p_newclient (id, name, website, contact_name, contact_email, retainer, start_date, team_json, slug, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
-        .bind(id, name, website || null, String(b.contact_name || '').trim().slice(0, 120) || null, email || null, Number(b.retainer) || null, /^\d{4}-\d{2}-\d{2}$/.test(b.start_date || '') ? b.start_date : null, JSON.stringify(team), slugOf(b.slug || name), (who && await who(request, env).catch(() => null)) || null).run();
+      /* Brand-first: the client IS a brand from the first click; every step files under its id.
+         A brand already in Locus with exactly this name is used instead of making a second one. */
+      const same = (await env.DB.prepare(`SELECT id FROM brands WHERE lower(name) = lower(?1)`).bind(name).all()).results || [];
+      const brandId = same.length === 1 ? same[0].id : (await createBrand(env, { name })).id;
+      await env.DB.prepare(`INSERT INTO p_newclient (id, name, website, contact_name, contact_email, retainer, start_date, team_json, slug, created_by, act_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)
+        .bind(id, name, website || null, String(b.contact_name || '').trim().slice(0, 120) || null, email || null, Number(b.retainer) || null, /^\d{4}-\d{2}-\d{2}$/.test(b.start_date || '') ? b.start_date : null, JSON.stringify(team), slugOf(b.slug || name), (who && await who(request, env).catch(() => null)) || null, brandId).run();
       return json({ ok: true, run: view(await getRun(env, id)) });
     }
     const r = b.id ? await getRun(env, String(b.id)) : null;
@@ -824,11 +835,11 @@ async function welcomeOnJoin(env, r) {
   return true;
 }
 
-/* Where the strategist reads the answers. Once the brand is in Locus (its Meta account showed up), Brand
-   info opens straight on it; before that Locus cannot open the brand, so the link is their form itself. */
+/* Where the strategist reads the answers. A client with a brand (every one started since phase 3) opens
+   Brand info straight on it; an older pending one has only their form. */
 const LOCUS_BRAND = (act, view) => `https://tools.go-mobius-digital.com/profit/?open=brand&act=${encodeURIComponent(act)}&view=${view}`;
 const answersLink = (r, view = 'info') => r.act_id ? `<${LOCUS_BRAND(r.act_id, view)}|${view === 'research' ? 'Open Research in Locus' : 'Open their answers in Locus'}>`
-  : r.token ? `<${ONBOARD_FORM}${r.token}|Open their answers> (their form; the brand opens in Locus once its Meta account shows up)` : '';
+  : r.token ? `<${ONBOARD_FORM}${r.token}|Open their answers> (their form; the brand opens in Locus once it is adopted)` : '';
 
 /* ---------------- the strategy call, booked in Calendly (calendly.js) ---------------- */
 export async function onCallBooked(env, r, info) {
@@ -958,7 +969,11 @@ async function shopifyHeadsUp(env) {
       ] },
     ] });
     if (j.ok) { await setStep(env, r.id, 'shopify_ping', { store, at: new Date().toISOString() }); told++; }
-    if (r.act_id) await env.DB.prepare(`UPDATE accounts SET tw_shop = ?2 WHERE act_id = ?1 AND (tw_shop IS NULL OR tw_shop = '')`).bind(r.act_id, store).run().catch(() => {});
+    if (r.act_id) {
+      const bid = await resolveBrandId(env, r.act_id);
+      const has = await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(bid).first().catch(() => null);
+      if (!has) await setTripleWhale(env, bid, store).catch(() => {});
+    }
   }
   return told;
 }

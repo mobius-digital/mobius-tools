@@ -31,6 +31,13 @@ const DB = {
 /* ---------------- fixtures ---------------- */
 const LUCKY = 'act_378146126054294';
 db.exec(`INSERT INTO accounts (act_id, name, active, currency, tz, slack_channel) VALUES ('${LUCKY}', 'Lucky Golf', 1, 'USD', 'America/Chicago', 'C_LUCKY')`);
+
+/* Brand-first phase 3: brands are rows in `brands` (read through the brand_accounts view) and the Meta
+   ad account is a connection. The fixtures keep each brand's id equal to its old act id, so every
+   brand-owned row below stays as written and metaOf(brand) finds the same id on the Meta tables. */
+db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, internal_channel, client_channel, legacy_key, source)
+  SELECT act_id, lower(replace(name, ' ', '_')), name, CASE WHEN active = 1 THEN 'active' ELSE 'paused' END, COALESCE(currency, 'USD'), COALESCE(tz, 'America/Chicago'), slack_channel, brief_channel, act_id, 'locus' FROM accounts`);
+db.exec(`INSERT INTO connections (id, brand_id, kind, external_id, is_primary, source) SELECT 'meta:' || act_id, act_id, 'meta', act_id, 1, 'locus' FROM accounts`);
 db.exec(`INSERT INTO p_br_doc (act_id, line_id, key, data_json) VALUES ('${LUCKY}', '', 'asana', '{"project_gid":"P1","workspace":"W1"}')`);
 db.exec(`INSERT INTO p_br_angle (id, act_id, name, argument, status) VALUES ('ang_look', '${LUCKY}', 'The look', 'Golfers notice your gear before your game. The Carver is the wedge that gets asked about.', 'active'),
   ('ang_short', '${LUCKY}', 'Short game', 'A longer drive will not lower your score. A better short game will.', 'active')`);
@@ -76,7 +83,7 @@ const d = {
   getSetting: async (env, k) => { const r = await env.DB.prepare('SELECT value FROM settings WHERE key = ?1').bind(k).first(); try { return r?.value ? JSON.parse(r.value) : null; } catch { return r?.value ?? null; } },
   putSetting: async (env, k, v) => env.DB.prepare('INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(k, typeof v === 'string' ? v : JSON.stringify(v)).run(),
   safeJson: (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } },
-  listAccounts: async env => (await env.DB.prepare('SELECT * FROM accounts').all()).results,
+  listAccounts: async env => (await env.DB.prepare('SELECT * FROM brand_accounts').all()).results,
   overview: async () => [], briefData: async () => ({}), dataHealth: async () => ({}), storePeriod: async () => ({}),
   localDate: () => '2026-10-07', addDays: (ymd, n) => { const x = new Date(`${ymd}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); },
   ymdDiff: () => 0, daysInMonth: () => 31, briefHour: async () => 7, slack: async () => ({ ok: true }), claude: async () => '',

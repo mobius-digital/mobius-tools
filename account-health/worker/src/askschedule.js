@@ -1,13 +1,13 @@
 /* SCHEDULED QUESTIONS (2026-10-08). "Ask the Strategist this every Monday and post it to Slack."
  *
- * A row = a question, a brand ('all' or an act_id), a cadence (daily | monday | first), an hour in
+ * A row = a question, a brand ('all' or a brand id), a cadence (daily | monday | first), an hour in
  * Central and a Slack channel. The account-health hourly cron (`scheduleTick`) runs each due row once
  * per due period through the SAME path as POST /api/ask (engine.answerWeb), with the per-brand access
  * rule of the person who made it (brandsFor(created_by)), and posts the answer to the channel as the
  * Strategist. Charts become one line pointing at Locus. A cost guard caps runs at MAX_PER_DAY a day
  * (scheduled and Run now together, settings `askSchedRuns` = {date, n}) and MAX_PER_TICK an hour.
  *
- * Channels are INTERNAL only: a brand's accounts.slack_channel or the Strategist's own channel
+ * Channels are INTERNAL only: a brand's internal channel (brand_accounts.slack_channel) or the Strategist's own channel
  * (settings strategistChannel). Never a client channel: the answers carry the team's numbers.
  *
  * Routes (admin): GET /api/ask/schedules, PUT /api/ask/schedules (upsert), DELETE /api/ask/schedules?id=,
@@ -15,6 +15,7 @@
  * run). The Strategist's `schedule_question` action proposes a row and its Apply calls the PUT. */
 import { toSlackText } from '../../../ask/engine.js';
 import { brandsFor } from './brandguard.js';
+import { resolveBrandId } from './brands.js';
 
 export const SCHED_SQL = `CREATE TABLE IF NOT EXISTS p_ask_schedule (
   id           TEXT PRIMARY KEY,
@@ -71,11 +72,12 @@ export function slackAnswer(answer) {
 /** Run one schedule: ask, build the message, post it (unless dry), write down what happened. */
 export async function runSchedule(env, row, d, { dry = false } = {}) {
   const accts = await d.listAccounts(env, false);
-  const brand = row.act === 'all' ? null : accts.find(a => a.act_id === row.act);
+  const rowAct = row.act === 'all' ? 'all' : await resolveBrandId(env, row.act);
+  const brand = rowAct === 'all' ? null : accts.find(a => a.act_id === rowAct);
   const only = await brandsFor(env, row.created_by).catch(() => null);
   const note = async (status) => { if (!dry) await env.DB.prepare(`UPDATE p_ask_schedule SET last_run = ?2, last_status = ?3 WHERE id = ?1`).bind(row.id, new Date().toISOString(), String(status).slice(0, 300)).run().catch(() => {}); };
   if (row.act !== 'all' && !brand) { await note('error: that brand no longer exists'); return { error: 'That brand no longer exists.' }; }
-  if (only && (row.act === 'all' || !only.has(row.act))) { await note('error: the person who set this up no longer has access to that brand'); return { error: 'The person who set this up no longer has access to that brand.' }; }
+  if (only && (rowAct === 'all' || !only.has(rowAct))) { await note('error: the person who set this up no longer has access to that brand'); return { error: 'The person who set this up no longer has access to that brand.' }; }
   const allowed = await allowedChannels(env, d);
   if (!allowed.has(row.channel)) { await note('error: the channel is not an internal channel any more'); return { error: 'That channel is not one of the internal channels any more. Pick another.' }; }
   if (!dry && await runsToday(env, d) >= MAX_PER_DAY) return { error: `That is ${MAX_PER_DAY} scheduled questions today, which is the daily cap. It resets at midnight Central.` };
@@ -150,7 +152,7 @@ export async function handleSchedules(request, env, path, json, d) {
   if (path === '/api/ask/schedules' && request.method === 'PUT') {
     const question = String(b.question || '').trim().slice(0, 600);
     if (question.length < 8) return json({ error: 'Write the question you want asked.' }, 400);
-    const act = !b.act || b.act === 'all' ? 'all' : String(b.act).slice(0, 40);
+    const act = !b.act || b.act === 'all' ? 'all' : await resolveBrandId(env, String(b.act).slice(0, 64));
     if (only && act === 'all') return json({ error: 'You can schedule questions about your own brands only. Pick one.' }, 403);
     if (act !== 'all' && !(await d.listAccounts(env, false)).some(a => a.act_id === act)) return json({ error: 'No brand with that id.' }, 400);
     const cadence = CADENCES.has(b.cadence) ? b.cadence : 'monday';

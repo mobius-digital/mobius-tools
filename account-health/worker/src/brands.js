@@ -261,3 +261,110 @@ export async function addConnection(env, brandId, { kind, external_id, label, is
   if (kind === 'meta') await env.DB.prepare(`INSERT OR IGNORE INTO brand_alias (alias, brand_id, kind) VALUES (?1, ?2, 'meta_act')`).bind(ext, b.id).run();
   return { brand: b.id, kind, external_id: ext };
 }
+
+/* ==================================================================================================
+ * PHASE 3: THE BRAND IS THE RECORD (2026-10-08)
+ *
+ * After scripts/phase3-migrate.mjs runs:
+ *   - every brand-owned table files rows under the BRAND id (brand_lucky_golf), not a Meta id. The
+ *     column is still called act_id in those tables (a name only; renaming it is a later sweep).
+ *   - Meta's own data stays filed under the META ad account id: META_TABLES below. A brand's Meta
+ *     numbers are the sum over its Meta connections: `act_id IN ${metaOf(n)}`.
+ *   - brand settings (goals, budgets, targets, channels, brief/report options) live on `brands`;
+ *     `accounts` is only each Meta ad account's own sync state (cursors, last sync, last error).
+ *   - `brand_accounts` is a VIEW that shows each brand in the shape the code always used (act_id =
+ *     the brand id, slack_channel, brief_channel, tw_shop, goals_json, last_sync_insights...), plus
+ *     `meta_act` (the primary Meta account, null when none) and `brand_id`. Read brands from the
+ *     view; write brand settings to `brands`, Meta sync state to `accounts` (WHERE act_id = meta act).
+ *   - the registry mirror (syncRegistry) is RETIRED: brands are the source of truth.
+ * ================================================================================================== */
+
+/* Meta's own data. Keyed by the Meta ad account id forever. Everything else with an act_id column is the brand's. */
+export const META_TABLES = ['accounts', 'activities', 'ad_daily', 'ads', 'daily_insights', 'hourly_insights', 'meta_adsets', 'meta_campaigns'];
+
+/* Brand settings that moved from accounts to brands: [column, type]. */
+export const BRAND_SETTING_COLS = [
+  ['monthly_budget', 'REAL'], ['budgets_json', `TEXT NOT NULL DEFAULT '{}'`], ['goals_json', `TEXT NOT NULL DEFAULT '{}'`],
+  ['target_cpa', 'REAL'], ['target_roas', 'REAL'], ['google_spend_json', 'TEXT'],
+  ['brief_enabled', 'INTEGER NOT NULL DEFAULT 0'], ['brief_review', 'INTEGER NOT NULL DEFAULT 0'], ['review_first', 'INTEGER NOT NULL DEFAULT 1'],
+  ['report_config_json', 'TEXT'], ['tw_attr_cursor', 'TEXT'], ['tw_attr_done', 'INTEGER NOT NULL DEFAULT 0'],
+  /* The folder prefix this brand's files already sit under in R2 (its old act id), so nothing is moved. */
+  ['storage_prefix', 'TEXT'],
+];
+
+export async function ensureBrandColumns(env) {
+  await ensureBrandTables(env);
+  for (const [c, t] of BRAND_SETTING_COLS) {
+    try { await env.DB.prepare(`ALTER TABLE brands ADD COLUMN ${c} ${t}`).run(); }
+    catch (e) { if (!/duplicate column/i.test(e.message)) throw e; }
+  }
+}
+
+/* The primary Meta account of brand b (SQL expression over alias b). Backups never count as primary. */
+const PRIMARY_META = `(SELECT external_id FROM connections WHERE brand_id = b.id AND kind = 'meta' ORDER BY is_primary DESC, added_at LIMIT 1)`;
+
+/* The brand as the code has always seen it. Keep the column list in step with the old accounts table. */
+export const BRAND_VIEW_SQL = `CREATE VIEW brand_accounts AS
+SELECT b.id AS act_id, b.id AS brand_id, b.name, b.currency, b.tz,
+  CASE WHEN b.status = 'active' THEN 1 ELSE 0 END AS active, b.status,
+  b.monthly_budget, b.budgets_json, m.account_status, b.created_at AS added_at,
+  m.last_sync_insights, m.last_sync_activities, m.last_error,
+  b.target_cpa, b.target_roas, b.internal_channel AS slack_channel, m.ads_backfill_done,
+  (SELECT external_id FROM connections WHERE brand_id = b.id AND kind = 'triple_whale' ORDER BY is_primary DESC LIMIT 1) AS tw_shop,
+  b.google_spend_json, b.goals_json, b.brief_enabled, b.client_channel AS brief_channel,
+  CASE WHEN b.status = 'demo' THEN 1 ELSE 0 END AS demo,
+  NULL AS report_channel, b.report_config_json, NULL AS report_client_channel, b.brief_review, b.review_first,
+  m.ads_video_done, m.ads_video_cursor, m.ads_metrics_version, m.ads_metrics_cursor,
+  b.tw_attr_cursor, b.tw_attr_done, ${PRIMARY_META} AS meta_act, b.storage_prefix, b.slug,
+  b.internal_channel, b.client_channel
+FROM brands b LEFT JOIN accounts m ON m.act_id = ${PRIMARY_META}`;
+
+/** SQL: the Meta ad account ids of the brand bound at ?n. Use as `act_id IN ${metaOf(1)}` on META_TABLES. */
+export const metaOf = n => `(SELECT external_id FROM connections WHERE brand_id = ?${n} AND kind = 'meta')`;
+
+/** A brand id as the routes accept it (old act_ / asana_ ids are resolved to one by `resolveBrandId`). */
+export const isBrandId = s => /^brand_[a-z0-9_]+$/.test(String(s || ''));
+
+/** Any id (brand id, old act_ id, asana_ id, demo id, slug) -> the brand id, or the input when unknown ('all' stays 'all'). */
+export async function resolveBrandId(env, id) {
+  if (!id || id === 'all' || isBrandId(id)) return id;
+  const b = await brandOf(env, id).catch(() => null);
+  return b ? b.id : id;
+}
+
+/** One brand in the old shape (from the view), by any id it has ever had. */
+export async function acctOf(env, id) {
+  const bid = await resolveBrandId(env, id);
+  if (!bid) return null;
+  return env.DB.prepare(`SELECT * FROM brand_accounts WHERE act_id = ?1`).bind(bid).first();
+}
+
+/** The Meta ad accounts Locus syncs: each active (or demo) brand's Meta connections that are not a
+ *  backup, with that account's own sync state. Shaped like an old accounts row (act_id = the META
+ *  account id) plus brand_id, name and tz of the brand, so the Meta sync code runs unchanged. */
+export async function metaSyncRows(env) {
+  return ((await env.DB.prepare(`SELECT m.*, b.id AS brand_id, b.name AS name, b.tz AS tz, b.currency AS currency
+      FROM connections c JOIN brands b ON b.id = c.brand_id JOIN accounts m ON m.act_id = c.external_id
+     WHERE c.kind = 'meta' AND b.status = 'active' AND COALESCE(json_extract(c.config_json, '$.role'), '') <> 'backup'
+     ORDER BY m.last_sync_insights`).all()).results) || [];
+}
+
+/** Set (or clear, with an empty shop) a brand's Triple Whale shop: its one triple_whale connection. */
+export async function setTripleWhale(env, brandId, shop) {
+  const bid = await resolveBrandId(env, brandId);
+  const s = String(shop || '').trim().toLowerCase();
+  await env.DB.prepare(`DELETE FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'${s ? ' AND external_id <> ?2' : ''}`).bind(...(s ? [bid, s] : [bid])).run();
+  if (!s) return null;
+  const other = await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = 'triple_whale' AND external_id = ?1`).bind(s).first();
+  if (other && other.brand_id !== bid) throw new Error(`Triple Whale shop ${s} is already connected to ${other.brand_id}.`);
+  await env.DB.prepare(`INSERT INTO connections (id, brand_id, kind, external_id, label, is_primary, status, source)
+    VALUES (?1, ?2, 'triple_whale', ?3, ?3, 1, 'connected', 'locus') ON CONFLICT(kind, external_id) DO NOTHING`).bind(`triple_whale:${s}`, bid, s).run();
+  return s;
+}
+
+/** The R2 folder for a brand's files: its storage_prefix (old act id, where its files already are) or its id. */
+export async function storagePrefix(env, brandId) {
+  const bid = await resolveBrandId(env, brandId);
+  const r = await env.DB.prepare(`SELECT storage_prefix FROM brands WHERE id = ?1`).bind(bid).first().catch(() => null);
+  return r?.storage_prefix || bid;
+}

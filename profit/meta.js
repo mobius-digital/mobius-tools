@@ -81,6 +81,12 @@ function mtHead(key, title, help) {
 }
 const mtPage = (key, title, help, body) => `${MT_CSS}<div class="v2 mt2">${mtHead(key, title, help)}${body}</div>`;
 const acctOf = id => S.accounts.find(a => a.act_id === id) || null;
+/* Brand-first phase 3: a.act_id is the BRAND id; a.meta_act is its main Meta ad account, null when it has
+   none (SpeedIn). A list without the field (served before the switch) counts as having Meta. */
+const hasMeta = a => !!a && (!('meta_act' in a) || !!a.meta_act);
+const metaOn = a => a.active && hasMeta(a);
+const noMetaText = a => `No Meta ad account connected for ${a.name}. Connect it in Settings > Connections.`;
+const noMetaCard = a => `<section class="v2card"><p class="v2hint">${esc(noMetaText(a))}</p></section>`;
 /** Switch the brand the same way the host's own picker does (its change handler re-renders this tab). */
 function pickBrand(id) {
   const cp = document.getElementById('clientPick');
@@ -428,6 +434,7 @@ async function renderChangeLog() {
   const today = ymdLocal(new Date());
   CL.mainShown = 100; CL.restShown = 50; CL.restOpen = null; CL.open = new Set(); CL.series = null; CL.rows = []; CL.loaded = false; CL.helpLine = '';
   const one = act !== 'all' ? acctOf(act) : null;
+  if (one && !hasMeta(one)) { $('#main').innerHTML = CL_CSS + mtPage('changes', `What changed on ${esc(one.name)}`, 'changelog', noMetaCard(one)); return; }
   $('#main').innerHTML = CL_CSS + mtPage('changes', one ? `What changed on ${esc(one.name)}` : 'What changed on the accounts', 'changelog', `
     <p class="v2say lead" id="clSay"><span class="mt-sk"></span></p>
     ${setupNote()}
@@ -753,7 +760,7 @@ function clDrawPanel() {
   const el = $('#clPanel'); if (!el) return;
   if (!CL.panel) { el.innerHTML = ''; return; }
   const [from, to] = clDates();
-  const active = S.accounts.filter(a => a.active);
+  const active = S.accounts.filter(metaOn);
   if (CL.panel === 'add') {
     el.innerHTML = `<section class="v2card"><div class="v2h"><h3>Add a change</h3><span class="find">For things Meta’s log can’t see: landing page swaps, promo starts, tracking fixes. It lands in Changes that matter.</span></div>
       <div class="mt-form">
@@ -905,7 +912,8 @@ async function renderAverages() {
     ${setupNote()}
     <div id="avBody" class="mt-stack"><section class="v2card"><p class="v2hint">Loading the daily numbers…</p></section></div>
     ${T.foot('Spend and delivery are Meta’s. ROAS and CPA are Triple Whale attribution (last platform click), the same as the briefs. Every window ends yesterday, and the last 3 days of sales are still settling. Ignore moves under about 5%.')}`);
-  if (!one) return avAll(S.accounts.filter(a => a.active), live);
+  if (!one) return avAll(S.accounts.filter(metaOn), live);
+  if (!hasMeta(one)) { $('#avSay').textContent = noMetaText(one); $('#avBody').innerHTML = ''; return; }
   if (!one.active) { $('#avSay').textContent = `${one.name} has no Meta account switched on, so there is nothing to compare yet. Turn it on in Settings.`; $('#avBody').innerHTML = ''; return; }
   let s;
   try { s = await api(`/api/series?act=${encodeURIComponent(act)}&days=${+AV.win + 32}`); }
@@ -1122,6 +1130,7 @@ async function renderToday() {
     <div id="mtToday" class="mt-stack"><section class="v2card"><p class="v2hint">${one ? 'Pulling today’s hourly spend from Meta…' : 'Loading…'}</p></section></div>
     ${T.foot('Spend is Meta’s and matches Ads Manager, pulled live on every visit. A normal day is the average of the last 7 days by the same hour. Meta reports today with a small lag, so treat the newest hour as approximate. Purchases are Triple Whale once it has synced today, Meta’s own count until then.')}`);
   if (!one) return todayAll(live);
+  if (!hasMeta(one)) { $('#tdSay').textContent = noMetaText(one); $('#mtToday').innerHTML = ''; return; }
   if (!one.active) { $('#tdSay').textContent = `${one.name} has no Meta account switched on, so there is nothing to pace yet. Turn it on in Settings.`; $('#mtToday').innerHTML = ''; return; }
   const st = { p: null, s: null, err: '' };
   const paint = () => {
@@ -1177,7 +1186,7 @@ async function renderToday() {
 
 /** Every brand at once: who is running hot or cold right now. */
 async function todayAll(live) {
-  const T = U(), active = S.accounts.filter(a => a.active);
+  const T = U(), active = S.accounts.filter(metaOn);
   if (!active.length) { $('#tdSay').textContent = 'No Meta accounts are switched on yet.'; $('#mtToday').innerHTML = ''; return; }
   const res = new Map();
   const paint = () => {
@@ -1276,7 +1285,9 @@ function crAds(d) {
 }
 
 async function renderCreative() {
-  const active = S.accounts.filter(a => a.active);
+  const picked = S.act !== 'all' ? acctOf(S.act) : null;
+  if (picked && !hasMeta(picked)) { $('#main').innerHTML = mtPage('mbrowser', `Creative browser: ${esc(picked.name)}`, 'creative', noMetaCard(picked)); return; }
+  const active = S.accounts.filter(metaOn);
   const single = S.act !== 'all' ? active.find(a => a.act_id === S.act) : null;
   const T = U();
   /* Top to bottom: one sentence (filled from the cards once they land), the ad
@@ -1516,6 +1527,7 @@ async function ensureAccounts(force) {
     fetch(S.url + '/health').then(r => r.json()).catch(() => null),
   ]);
   S.accounts = acc.accounts || [];
+  S.metaAvailable = acc.meta_available || [];
   S.lastDiscover = acc.lastDiscover || null;
   S.health = health;
 }
@@ -1554,6 +1566,6 @@ window.MetaTab = {
     await entry[2]();
   },
   /* Used by the merged Settings tab, which lives in the host page. */
-  api, ensureAccounts, accounts: () => S.accounts, lastDiscover: () => S.lastDiscover,
+  api, ensureAccounts, accounts: () => S.accounts, metaAvailable: () => S.metaAvailable || [], lastDiscover: () => S.lastDiscover,
 };
 })();

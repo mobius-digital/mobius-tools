@@ -13,6 +13,7 @@
  * from Triple Whale orders, never from ad names. Keep the two in step. The judgement (ease off, safe to
  * scale, push to clear) copies profit/supply.js judge(): keep those in step too. */
 
+import { metaOf, resolveBrandId } from './brands.js';
 const add = (ymd, n) => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const between = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
 const num = v => (v == null || !isFinite(+v) ? 0 : +v);
@@ -28,7 +29,10 @@ export async function supplyFetch(env, path, { method = 'GET', body, brand = 'lu
 }
 export async function supplyBrandOf(env, act) {
   const r = await supplyFetch(env, '/api/brands');
-  return (r.brands || []).find(b => b.act_id === act && b.active) || null;
+  // Supply may still file a brand under its old act_ id: compare brand ids on both sides.
+  const want = await resolveBrandId(env, act);
+  for (const b of (r.brands || [])) if (b.active && b.act_id && (b.act_id === act || await resolveBrandId(env, b.act_id) === want)) return b;
+  return null;
 }
 
 /** Products each Meta ad sells (30 days), from Triple Whale orders. Copy of hub.js stockAds. */
@@ -37,7 +41,7 @@ async function stockAds(env, act, today) {
   const [touch, spend] = await Promise.all([
     env.DB.prepare(`SELECT t.ad_id, o.products_json FROM tw_order_touch t JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id
       WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2`).bind(act, from).all().then(r => r.results || []).catch(() => []),
-    env.DB.prepare(`SELECT ad_id, SUM(spend) s30 FROM ad_daily WHERE act_id = ?1 AND date >= ?2 GROUP BY ad_id`).bind(act, from).all().then(r => r.results || []).catch(() => []),
+    env.DB.prepare(`SELECT ad_id, SUM(spend) s30 FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY ad_id`).bind(act, from).all().then(r => r.results || []).catch(() => []),
   ]);
   const ordersOf = new Map();
   for (const t of touch) { let ps = []; try { ps = [...new Set(JSON.parse(t.products_json || '[]').map(String))]; } catch {} if (!ps.length) continue; if (!ordersOf.has(t.ad_id)) ordersOf.set(t.ad_id, []); ordersOf.get(t.ad_id).push(ps); }
