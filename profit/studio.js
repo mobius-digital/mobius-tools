@@ -24,7 +24,8 @@
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const TESTING = [['concepts', 'Concepts', 'different ideas'], ['headlines', 'Headlines', 'same ad, new words'], ['visuals', 'Looks', 'same words, new looks'], ['offer', 'Offer', 'same ad, offer framing'], ['reviews', 'Reviews', 'same ad, review quote'], ['hooks', 'Hooks', 'the opening line'], ['copy', 'Copy', 'the body words'], ['format', 'Format', 'one idea, different layouts']];
 const STYLES = [['auto', 'AI picks'], ['bold', 'Bold condensed'], ['clean', 'Clean modern'], ['serif', 'Elegant serif'], ['hand', 'Handwritten'], ['luxe', 'Thin luxe'], ['native', 'Native social']];
-const PER_AD = 0.44;   // one tall 9:16 picture + the product and word-position checks (2026-10-08)
+const PER_AD = 0.33;   // one 4:5 picture + the product and word-position checks (2026-10-08)
+const STORY_COST = 0.43;   // the 9:16 re-layout, made only when someone asks for it
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -678,15 +679,17 @@ function adCard(a) {
   const chk = ck?.exact ? `<span class="v2pill good"${tip('Built on a real photo of the product, kept as shot. Nothing about the product was drawn.')}>Real product photo</span>`
     : ck ? (ck.ok === false ? `<span class="v2pill warn"${tip(`The check model thinks the product may not match the photos${ck.issue ? `: ${ck.issue}` : ''}. Look closely before approving.`)}>Product may be off</span>`
       : ck.ok ? `<span class="v2pill good"${tip(`The check model compared the product in this ad with the product photos${ck.score != null ? ` and scored it ${ck.score} out of 10` : ''}${ck.tries ? `. This is the best of ${ck.tries} tries` : ''}. A net, not a guarantee: still look at it.`)}>Product ${ck.score != null ? ck.score + '/10' : 'checked'}${ck.tries ? ` · best of ${ck.tries}` : ''}</span>` : '') : '';
-  const zn = ck?.zone, zone = !zn ? '' : zn.ok ? `<span class="v2pill good"${tip('Every word sits where Stories, Reels and the feed all show it.')}>Words in the safe area</span>`
-    : `<span class="v2pill warn"${tip(`${zn.issue || 'Some words are outside the safe area'}. Stories or Reels buttons may cover them. Change with AI or Redo.`)}>Words near the edge</span>`;
-  const pills = chk + zone;
+  const zn = ck?.zone, zone = !zn ? '' : zn.ok ? `<span class="v2pill good"${tip('Every word is clear of the edges, so nothing is cut in the feed.')}>Words clear of the edges</span>`
+    : `<span class="v2pill warn"${tip(`${zn.issue || 'Some words are close to the edge'}. Look before approving; Change with AI or Redo if they are cut.`)}>Words near the edge</span>`;
+  const sz = ck?.story_zone, szp = !s.story || !sz ? '' : sz.ok ? `<span class="v2pill good"${tip('The 9:16 version keeps every word clear of the Stories and Reels buttons.')}>9:16 safe</span>`
+    : `<span class="v2pill warn"${tip(`${sz.issue}. The Stories or Reels buttons may cover them.`)}>9:16 words near the buttons</span>`;
+  const pills = chk + zone + szp;
   const tags = [a.line != null ? `<span class="st-tag">Ad ${a.line + 1}</span>` : '', appr ? '<span class="st-tag ok"><i></i>Approved</span>' : ''].join('');
   return `<div class="st-ad ${appr ? 'ok' : ''}"><div class="pic" data-zoom="${a.id}" title="Open it large"><img src="${esc(shown(a))}" alt="${esc(s.headline || 'Ad')}" loading="lazy"><div class="tags">${tags}</div></div>
     <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${pills ? `<div class="pills">${pills}</div>` : ''}${ck?.ok === false && ck.issue ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
       <div class="act1">${appr ? `<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}<button class="btn" data-change="${a.id}" title="Say what to change and only that changes. About 25 cents.">Change with AI</button><button class="btn" data-redo="${a.id}" title="Make this one again from the plan. The old one goes to Deleted.">Redo</button></div>
       ${vidStrip(a)}
-      <div class="act2"><button class="v2link" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="v2link" data-dl="${a.id}">Download</button>${s.tall ? `<button class="v2link" data-dl9="${a.id}" title="The tall version for Stories and Reels">Download 9:16</button>` : ''}<button class="v2link del" data-del="${a.id}" title="Take it out of the batch">Delete</button></div></div></div>`;
+      <div class="act2"><button class="v2link" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="v2link" data-dl="${a.id}">Download</button>${s.story || s.tall ? `<button class="v2link" data-dl9="${a.id}" title="The tall version for Stories and Reels">Download 9:16</button><button class="v2link" data-st9="${a.id}" title="Make the 9:16 again. About ${Math.round(STORY_COST * 100)} cents.">Redo 9:16</button>` : `<button class="v2link" data-st9="${a.id}" title="The same ad laid out tall for Stories and Reels, words kept clear of their buttons. About ${Math.round(STORY_COST * 100)} cents.">Make 9:16</button>`}<button class="v2link del" data-del="${a.id}" title="Take it out of the batch">Delete</button></div></div></div>`;
 }
 /* ---- Videos: "Make a video" (any video, Higgsfield) and the brand's / batch's videos ---- */
 const LOOKS = [['auto', 'Let the AI decide', 'it picks the format'], ['ugc', 'UGC', 'a real-looking person on a phone'], ['cinematic', 'Product cinematic', 'premium B-roll shots'],
@@ -1270,6 +1273,14 @@ function wireAds() {
   document.querySelectorAll('[data-del]').forEach(x => x.onclick = () => setStatus(x.dataset.del, 'deleted'));
   document.querySelectorAll('[data-dl]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl)));
   document.querySelectorAll('[data-dl9]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl9), S.cur, 'story'));
+  document.querySelectorAll('[data-st9]').forEach(x => x.onclick = async () => {
+    x.disabled = true; x.textContent = 'Making the 9:16…';
+    try {
+      const r = await streamCall(S.url, '/api/studio/story', { id: x.dataset.st9 });
+      const i = S.d.ads.findIndex(a => a.id === r.ad.id); if (i >= 0) S.d.ads[i] = r.ad;
+    } catch (e) { S.err = `9:16: ${e.message}`; }
+    paint();
+  });
   document.querySelectorAll('[data-redo]').forEach(x => x.onclick = () => redo(S.d.ads.find(a => a.id === x.dataset.redo)));
   document.querySelectorAll('[data-change]').forEach(x => x.onclick = () => change(S.d.ads.find(a => a.id === x.dataset.change)));
   document.querySelectorAll('[data-vid]').forEach(x => x.onclick = () => makeVideo(S.d.ads.find(a => a.id === x.dataset.vid)));
