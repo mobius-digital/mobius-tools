@@ -16,6 +16,7 @@ const MOBIUS = {
   domain: 'go-mobius-digital.com',
   team: [['Cole', 'cole@go-mobius-digital.com'], ['Ahsan', 'ahsan@go-mobius-digital.com']],
   calendly: 'https://calendly.com/mobius-digital/strategy-session',
+  adsMcc: '556-646-8199',
 };
 const LOOM = {
   meta: 'https://www.loom.com/share/5775fe7e6ee54ea89927e319a54b7ebd',
@@ -54,6 +55,19 @@ const STEPS = [
           'Choose Admin access and click Send invitation.',
         ],
         copy: [['Our domain', MOBIUS.domain], ...MOBIUS.team] },
+      /* 2026-10-08: Locus reads Google Ads, Analytics and Search Console directly, through the Mobius
+         manager account and Cole's login, so each needs one more step. */
+      { id: 'gads_id', label: 'Your Google Ads customer ID, if you run Google Ads', type: 'text', help: 'The 10-digit number at the top right of Google Ads, like 123-456-7890.',
+        why: 'We send a link request from the Mobius manager account so our reporting can read your campaigns.' },
+      { id: 'acc_gads_link', label: 'Google Ads: accept our manager link', type: 'check',
+        steps: ['Once you add your customer ID above, we send the request.', 'In Google Ads open Admin, then Access and security, then the Managers tab, and click Accept on the Mobius Digital request.'],
+        copy: [['Our Google Ads manager ID', MOBIUS.adsMcc]] },
+      { id: 'acc_ga4', label: 'Google Analytics', type: 'check',
+        steps: ['Go to analytics.google.com and pick your website property.', 'Click Admin (the gear, bottom left), then Property access management.', 'Click the + button, Add users, and add our email.', 'Choose the Administrator role and click Add.'],
+        copy: [MOBIUS.team[0]] },
+      { id: 'acc_gsc', label: 'Google Search Console', type: 'check',
+        steps: ['Go to search.google.com/search-console and pick your website.', 'Open Settings, then Users and permissions, then Add user.', 'Add our email with Full permission.'],
+        copy: [MOBIUS.team[0]] },
       { id: 'shopify_url', label: 'Your Shopify store address', type: 'text', help: 'The one that ends in .myshopify.com. You can see it in Shopify under Settings > Domains.',
         why: 'We send you a collaborator request from our side, so you never have to make us an account.' },
       { id: 'shopify_code', label: 'Your collaborator request code, if you have one', type: 'text', help: 'Shopify > Settings > Users > Security, under Collaborators. Leave empty if it says anyone can send a request.' },

@@ -2109,7 +2109,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=6">
+<link rel="stylesheet" href="v2.css?v=7">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=7"></script>
 <body>
@@ -2227,13 +2227,13 @@
 
 <script src="meta.js?v=11"></script>
 <script src="amb.js?v=19"></script>
-<script src="../onboard/questions.js?v=8"></script>
+<script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
 <script src="newclient.js?v=14"></script>
 <script src="studio.js?v=22"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=6"></script>
+<script src="v2.js?v=7"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -10514,6 +10514,7 @@ async function renderSettings() {
         <td><select data-k="role" style="max-width:230px">
           <option value="admin"${mm.role === 'admin' ? ' selected' : ''}>Admin - can change things</option>
           <option value="viewer"${mm.role === 'viewer' ? ' selected' : ''}>Viewer - read only</option></select></td>
+        <td>${mm.email === d.owner ? '<span class="tiny">Every brand, always</span>' : `<button class="btn" data-k="brands" ${d.can_set_brands ? '' : 'disabled title="Only Cole can change this"'} style="font-size:11.5px;padding:4px 8px">${mm.brands && mm.brands.length ? `${mm.brands.length} brand${mm.brands.length === 1 ? '' : 's'}: ${esc(mm.brands.map(id => (S.accounts.find(a => a.act_id === id) || {}).name || id).join(', '))}` : 'Every brand'}</button>`}</td>
         <td>${mm.email === d.you ? '<span class="tiny"> - </span>' : '<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px">Remove</button>'}
           <span class="tiny" data-msg></span></td></tr>`).join('');
       host.innerHTML = `<div class="card settings">
@@ -10521,8 +10522,9 @@ async function renderSettings() {
           <li><b>Anyone with an @${esc(d.domain)} email can already sign in</b>, no invite needed, as an admin. Invite anyone else below.</li>
           <li><b>Admin</b> can change anything, including sending a report into a client’s Slack.</li>
           <li><b>Viewer</b> sees every screen and can press nothing that leaves the building. Use it for a client, a contractor, or anyone who should watch the numbers without moving them.</li></ul>
-        <div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Can they change things?</th><th></th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="3" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody></table></div>
+        <ul class="set-list" style="margin-top:0"><li><b>Brands they see</b>: limit a person to some brands and every screen and list in Locus shows only those. Enforced on the server, not just hidden. Only Cole can change it.</li></ul>
+        <div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Can they change things?</th><th>Brands they see</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody></table></div>
         <label class="set-lbl" for="tmEmail">Invite someone</label>
         <div class="row" style="margin:6px 0 0;gap:8px;flex-wrap:wrap">
           <input type="text" id="tmEmail" placeholder="name@example.com" style="width:230px">
@@ -10537,6 +10539,16 @@ async function renderSettings() {
       host.querySelectorAll('[data-k="role"]').forEach(sel => sel.onchange = async () => {
         const tr = sel.closest('tr');
         if (await save(tr.dataset.e, { role: sel.value }, tr.querySelector('[data-msg]'))) reload();
+      });
+      host.querySelectorAll('[data-k="brands"]').forEach(b => b.onclick = () => {
+        const tr = b.closest('tr'), mm = d.members.find(x => x.email === tr.dataset.e); const have = new Set(mm.brands || []);
+        const w = document.createElement('div'); w.className = 'modal-wrap';
+        w.innerHTML = `<div class="modal" style="max-width:460px;width:100%"><h3>Brands ${esc(mm.email)} sees</h3><p class="hint">Tick the brands. None ticked means every brand.</p>
+          <div style="display:grid;gap:6px;margin:10px 0">${S.accounts.map(a => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" value="${esc(a.act_id)}" ${have.has(a.act_id) ? 'checked' : ''}> ${esc(a.name)}</label>`).join('')}</div>
+          <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-x>Cancel</button><button class="btn primary" data-ok>Save</button></div></div>`;
+        document.body.appendChild(w);
+        w.querySelector('[data-x]').onclick = () => w.remove();
+        w.querySelector('[data-ok]').onclick = async () => { const brands = [...w.querySelectorAll('input:checked')].map(x => x.value); w.remove(); if (await save(mm.email, { role: mm.role, brands }, tr.querySelector('[data-msg]'))) reload(); };
       });
       host.querySelectorAll('[data-k="remove"]').forEach(b => b.onclick = async () => {
         const tr = b.closest('tr');

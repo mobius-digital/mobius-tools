@@ -407,6 +407,13 @@ async function creativeBrand(env, a, w, model) {
   const sets = {};
   for (const r of rows) { if (!r.adset_id) continue; const x = sets[r.adset_id] ||= { id: r.adset_id, name: sName[r.adset_id] || null, spend: 0, revenue: 0, purchases: 0, ads: 0 }; x.spend += r.spend; x.revenue += r.revenue || 0; x.purchases += r.purchases || 0; x.ads++; }
   for (const x of Object.values(sets)) { x.cpa = div(x.spend, x.purchases); x.roas = div(x.revenue, x.spend); }
+  /* CUSTOMER VALUE PER AD (2026-10-08, the Hyros idea). The ad that STARTED a customer is the Meta ad on
+     the first-click touch of their first order (tw_order_touch, fullFirstClick); their value is everything
+     they spent in the 90 days from that first order (tw_orders). Only customers whose first order is 90+
+     days old count, so the number is never flattered by customers who have not had time to come back.
+     Independent of the date window: it is a property of the ad. */
+  const ltv = await ltvByAd(env, act, w.to).catch(() => ({}));
+  for (const r of rows) { const l = ltv[r.id]; if (l && l.n) { r.ltv_n = l.n; r.ltv_first = l.first / l.n; r.ltv90 = l.v90 / l.n; r.ltv_x = l.first ? l.v90 / l.first : null; } }
   const rankIn = {};
   for (const r of rows) { if (!r.adset_id) continue; const k = rankIn[r.adset_id] = (rankIn[r.adset_id] || 0) + 1; const x = sets[r.adset_id];
     r.adset = { id: x.id, name: x.name, spend: x.spend, purchases: x.purchases, revenue: x.revenue, cpa: x.cpa, roas: x.roas, ads: x.ads }; r.set_share = div(r.spend, x.spend); r.set_rank = k; }
@@ -437,6 +444,15 @@ async function creativeBrand(env, a, w, model) {
     return Object.values(by).map(b => ({ ...b, roas: div(b.revenue, b.spend), cpa: div(b.spend, b.purchases), ctr: div(b.clicks, b.impr), hook: b.v3 ? div(b.v3, b.impr) : null })).sort((x, y) => y.spend - x.spend); };
   return { act_id: act, name: a.name, currency: a.currency, goals: { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null }, ads: rows.slice(0, 400), fatigue, weeks: weeks.map(x => ({ ...x, fresh_share: div(x.fresh, x.spend) })),
     by_format: roll('format'), by_angle: roll('angle'), by_type: roll('media_type') };
+}
+
+async function ltvByAd(env, act, asOf) {
+  const { results } = await env.DB.prepare(`WITH firsts AS (SELECT customer_id, MIN(date) fd FROM tw_orders WHERE act_id = ?1 AND customer_id IS NOT NULL GROUP BY customer_id),
+    fo AS (SELECT o.order_id, o.customer_id, o.date fd, o.total ft FROM tw_orders o JOIN firsts f ON f.customer_id = o.customer_id AND f.fd = o.date WHERE o.act_id = ?1 AND o.date <= date(?2, '-90 day')),
+    acq AS (SELECT DISTINCT t.ad_id, fo.customer_id, fo.fd, fo.ft FROM tw_order_touch t JOIN fo ON fo.order_id = t.order_id WHERE t.act_id = ?1 AND t.model = 'fullFirstClick' AND (t.platform = 'meta' OR t.platform IS NULL)),
+    val AS (SELECT a.ad_id, a.customer_id, a.ft, (SELECT SUM(o.total) FROM tw_orders o WHERE o.act_id = ?1 AND o.customer_id = a.customer_id AND o.date >= a.fd AND o.date <= date(a.fd, '+90 day')) v90 FROM acq a)
+    SELECT ad_id, COUNT(*) n, SUM(ft) first, SUM(v90) v90 FROM val GROUP BY ad_id`).bind(act, asOf).all();
+  return Object.fromEntries((results || []).map(r => [r.ad_id, { n: r.n, first: r.first || 0, v90: r.v90 || 0 }]));
 }
 
 /* ---------- Store ---------- */

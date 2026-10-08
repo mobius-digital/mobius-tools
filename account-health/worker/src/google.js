@@ -28,7 +28,7 @@ export const SCOPES = {
   gsc: 'https://www.googleapis.com/auth/webmasters.readonly',
   ads: 'https://www.googleapis.com/auth/adwords',
 };
-const ADS_V = 'v21';
+const ADS_V = 'v25';
 
 async function gfetch(env, scope, url, init = {}) {
   const tok = await googleToken(env, AS(env), scope);
@@ -41,7 +41,9 @@ async function gfetch(env, scope, url, init = {}) {
   }
   return j;
 }
-const adsHeaders = env => ({ 'developer-token': env.GOOGLE_ADS_DEV_TOKEN || '', ...(env.GOOGLE_ADS_MCC ? { 'login-customer-id': String(env.GOOGLE_ADS_MCC).replace(/\D/g, '') } : {}) });
+/* Developer tokens were retired on 2026-09-09: access belongs to the Cloud project (mobius-tools-506114) now,
+   so the header is sent only if one is still set. */
+const adsHeaders = env => ({ ...(env.GOOGLE_ADS_DEV_TOKEN ? { 'developer-token': env.GOOGLE_ADS_DEV_TOKEN } : {}), ...(env.GOOGLE_ADS_MCC ? { 'login-customer-id': String(env.GOOGLE_ADS_MCC).replace(/\D/g, '') } : {}) });
 
 /** Which of the three can we read today, and what can we see. Never throws. */
 export async function googleProbe(env) {
@@ -59,7 +61,6 @@ export async function googleProbe(env) {
     return { sites: (j.siteEntry || []).map(s => ({ url: s.siteUrl, level: s.permissionLevel })) };
   });
   await step('ads', async () => {
-    if (!env.GOOGLE_ADS_DEV_TOKEN) throw new Error('no developer token yet');
     const j = await gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers:listAccessibleCustomers`, { headers: adsHeaders(env) });
     return { customers: (j.resourceNames || []).map(r => r.replace('customers/', '')) };
   });
@@ -69,7 +70,8 @@ function fixFor(k, msg) {
   const m = String(msg || '');
   if (/unauthorized_client|not authorized|delegation/i.test(m)) return `Add the ${k === 'ga4' ? 'analytics.readonly' : k === 'gsc' ? 'webmasters.readonly' : 'adwords'} scope to the service account's domain-wide delegation (Google Workspace admin > Security > API controls > Domain-wide delegation).`;
   if (/has not been used|is disabled|SERVICE_DISABLED|API has not/i.test(m)) return `Enable the ${k === 'ga4' ? 'Google Analytics Data API and Google Analytics Admin API' : k === 'gsc' ? 'Google Search Console API' : 'Google Ads API'} on the Google Cloud project that owns the service account.`;
-  if (/developer token/i.test(m)) return 'Apply for a Google Ads API developer token in the Mobius manager account (Admin > API Center), then set it as GOOGLE_ADS_DEV_TOKEN on the account-health worker.';
+  if (/developer token|access level|test account|DEVELOPER_TOKEN|AUTHORIZATION_ERROR|NOT_APPROVED/i.test(m)) return 'Google Cloud console > project mobius-tools-506114 > APIs and services > Google Ads API > Overview: complete brand verification and apply for Basic access (developer tokens were retired on 2026-09-09).';
+  if (k === 'ads' && /permission|PERMISSION_DENIED|403/i.test(m)) return 'The Cloud project is still on Test access, which cannot read real ad accounts. Google Cloud console > project mobius-tools-506114 > APIs and services > Google Ads API > Overview: complete brand verification and apply for Basic access.';
   if (/permission|PERMISSION_DENIED|403/i.test(m)) return `Give ${'the person Locus acts as'} access to that property.`;
   return '';
 }
@@ -121,7 +123,7 @@ const rowsOf = (j, dims, mets) => (j.rows || []).map(r => Object.fromEntries([..
 export async function websiteReport(env, act, from, to, pfrom, pto) {
   const link = await linkFor(env, act);
   if (!link.ga4) return { error: 'not_linked', what: 'ga4' };
-  return cached(env, `g4:${act}:${from}:${to}`, 3600e3, async () => {
+  return cached(env, `g4:${act}:${link.ga4}:${from}:${to}:${pfrom || ""}`, 3600e3, async () => {
     const P = link.ga4; const range = [{ startDate: from, endDate: to }];
     const M = ['sessions', 'totalUsers', 'newUsers', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'ecommercePurchases', 'purchaseRevenue', 'addToCarts', 'checkouts'];
     const [tot, prev, byDay, chan, land, dev, src] = await Promise.all([
@@ -147,7 +149,7 @@ export async function websiteReport(env, act, from, to, pfrom, pto) {
 export async function searchReport(env, act, from, to, pfrom, pto, brandWords = []) {
   const link = await linkFor(env, act);
   if (!link.gsc) return { error: 'not_linked', what: 'gsc' };
-  return cached(env, `gsc:${act}:${from}:${to}`, 3600e3, async () => {
+  return cached(env, `gsc:${act}:${encodeURIComponent(link.gsc)}:${from}:${to}:${pfrom || ""}`, 3600e3, async () => {
     const site = encodeURIComponent(link.gsc);
     const q = body => gfetch(env, SCOPES.gsc, `https://www.googleapis.com/webmasters/v3/sites/${site}/searchAnalytics/query`, { body });
     const [tot, prev, byDay, queries, pages] = await Promise.all([
@@ -172,8 +174,7 @@ export async function searchReport(env, act, from, to, pfrom, pto, brandWords = 
 export async function adsReport(env, act, from, to) {
   const link = await linkFor(env, act);
   if (!link.ads) return { error: 'not_linked', what: 'ads' };
-  if (!env.GOOGLE_ADS_DEV_TOKEN) return { error: 'no_dev_token' };
-  return cached(env, `gads:${act}:${from}:${to}`, 3600e3, async () => {
+  return cached(env, `gads:${act}:${link.ads}:${from}:${to}`, 3600e3, async () => {
     const cid = String(link.ads).replace(/\D/g, '');
     const search = query => gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${cid}/googleAds:search`, { body: { query }, headers: adsHeaders(env) });
     const camps = await search(`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC`);
@@ -196,4 +197,14 @@ export async function enableApis(env) {
     const j = await res.json().catch(() => ({}));
     return res.ok ? { ok: true, project: k.project_id, apis, operation: j.name || null } : { ok: false, project: k.project_id, error: j.error?.message || `HTTP ${res.status}` };
   } catch (e) { return { ok: false, project: k.project_id, error: e.message }; }
+}
+
+/** Every client account under the Mobius manager account, with names (for matching to brands). */
+export async function adsAccounts(env) {
+  const mcc = String(env.GOOGLE_ADS_MCC || '').replace(/\D/g, '');
+  if (!mcc) return { error: 'GOOGLE_ADS_MCC is not set' };
+  try {
+    const j = await gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${mcc}/googleAds:search`, { body: { query: 'SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager, customer_client.status, customer_client.currency_code FROM customer_client WHERE customer_client.level <= 1' }, headers: adsHeaders(env) });
+    return { accounts: (j.results || []).map(r => ({ id: String(r.customerClient.id), name: r.customerClient.descriptiveName || '', manager: !!r.customerClient.manager, status: r.customerClient.status, currency: r.customerClient.currencyCode })) };
+  } catch (e) { return { error: e.message, fix: fixFor('ads', e.message) }; }
 }

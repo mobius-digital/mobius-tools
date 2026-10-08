@@ -47,6 +47,7 @@ bucket_name = "mobius-amb-media"
 
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
+GOOGLE_ADS_MCC = "5566468199"   # the Mobius Google Ads manager account (Ads API calls go through it)
 GOOGLE_CLIENT_ID = "1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com"
 # SUBREQUEST BUDGET. Cloudflare counts every fetch AND every D1 query against a
 # single invocation: 50 on the free plan, 10,000 on Workers Paid. The scheduled

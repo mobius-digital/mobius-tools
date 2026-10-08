@@ -1,3 +1,4 @@
+import { guardBrands } from './brandguard.js';
 /**
  * Mobius Profit — store-level business worker (Cloudflare Workers + D1)
  *
@@ -1582,7 +1583,10 @@ async function refreshIfStale(env, ctx, maxAgeHours = 12) {
 /* ---------------- routes ---------------- */
 export default {
 
-  async fetch(request, env, ctx) {
+  /* Per-brand access wraps every request (brandguard.js). */
+  async fetch(request, env, ctx) { return guardBrands(request, env, sessionEmail, () => this.handle(request, env, ctx), CORS); },
+
+  async handle(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });

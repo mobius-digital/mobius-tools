@@ -1947,3 +1947,24 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   2026-10-08: the page says so.
 - Google: `POST /api/google/enable-apis` tries the Service Usage API as the service account (project
   mobius-tools-506114); it was refused, so Cole enables the four APIs himself.
+
+## 2026-10-08 (night): per-brand access, customer value per ad, Google live, onboarding
+
+- **Per-brand access** (`brandguard.js`, the SAME file in profit/worker/src and account-health/worker/src;
+  change both): `settings.userBrands` {email: [act_ids]}; [] or absent = every brand; the owner always sees
+  all. Both workers' `fetch` wraps `handle` with `guardBrands`: a request naming another brand (?act= or
+  JSON body `act`) gets 403, and every JSON answer drops objects whose `act_id` is not theirs (and keys that
+  are act ids). Only Cole changes it (Settings > Team > Brands they see; `/api/team` PUT `brands`). The
+  Strategist gets an ACCESS RULE line with the person's brands. Slack is not scoped (channels already are).
+- **Customer value per ad** (hub.js `ltvByAd`): customers whose FIRST order's first-click touch is the Meta
+  ad, first order 90+ days before the window end, their 90-day spend; `ltv_n`, `ltv90`, `ltv_x` per ad, a
+  "Which ads bring customers who come back" card and a line in the preview. Needs `tw_order_touch` history:
+  account-health `backfillTwTouches` (cursor `twTouchCursor:<act>`, one slice a night per brand, or
+  `POST /api/tw-touch-backfill?act=&slices=`), run in full on 2026-10-08 from the dev worker.
+- **Google is live** for GA4 and Search Console (scopes delegated, APIs on, 2026-10-08). Linked: Lucky
+  (GA4 358338096, sc-domain:luckygolf.com), Bonk (GA4 520141370), Party Patch (GA4 260098300,
+  sc-domain:partypatch.com). Google Ads developer tokens were RETIRED 2026-09-09: access belongs to the Cloud
+  project (mobius-tools-506114); the API version is v25; the manager is `GOOGLE_ADS_MCC` 5566468199 in
+  wrangler.toml; the project needs Basic access (Cloud console > Google Ads API > Overview) to read real accounts.
+- **Onboarding Access step** now asks for the Google Ads customer ID + accepting the Mobius manager link,
+  GA4 (Administrator) and Search Console (Full) for cole@ (onboard/questions.js, `MOBIUS.adsMcc`).

@@ -1,3 +1,4 @@
+import { guardBrands, brandsFor } from './brandguard.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -36,7 +37,7 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, enableApis } from './google.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, enableApis, adsAccounts } from './google.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -1355,6 +1356,27 @@ async function backfillTwOrders(env, acct, slices = 1) {
   return out;
 }
 
+/* Order -> ad touches for history, one 14-day slice at a time back to 400 days (cursor `twTouchCursor:<act>`).
+   The rolling sync keeps the last weeks; this fills what came before it. */
+async function backfillTwTouches(env, acct, slices = 1) {
+  if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop' };
+  const doneKey = `twTouchDone:${acct.act_id}`, curKey = `twTouchCursor:${acct.act_id}`;
+  if (await getSetting(env, doneKey)) return { name: acct.name, done: true };
+  const today = localDate(acct.tz), floor = addDays(today, -TW_ORDERS_HISTORY_DAYS);
+  const have = await env.DB.prepare(`SELECT MIN(date) d FROM tw_order_touch WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
+  let cursor = await getSetting(env, curKey) || have?.d || addDays(today, -7);
+  const out = { name: acct.name, slices: [] };
+  for (let i = 0; i < slices; i++) {
+    const to = addDays(cursor, -1);
+    if (to <= floor) { await putSetting(env, doneKey, today); out.done = true; break; }
+    const from = addDays(to, -13) < floor ? floor : addDays(to, -13);
+    const r = await syncTwAttribution(env, acct, 0, { from, to }, { ordersOnly: true, withTouches: true });
+    out.slices.push({ from, to, orders: r.orders, touched: r.touched });
+    cursor = from; await putSetting(env, curKey, cursor);
+  }
+  return out;
+}
+
 async function syncTwAttribution(env, acct, days = 7, range = null, opts = {}) {
   if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY not set' };
   if (!acct.tw_shop) return { name: acct.name, skipped: 'no Triple Whale shop' };
@@ -1431,7 +1453,10 @@ async function syncTwAttribution(env, acct, days = 7, range = null, opts = {}) {
   }
 
   const stored = await storeTwOrders(env, acct, orderRows).catch(e => { console.log('tw_orders: ' + e.message); return 0; });
-  if (opts.ordersOnly) return { name: acct.name, from: start, to: end, orders, pages, stored, earliest };
+  /* The touch backfill (2026-10-08) also keeps which ad each order touched, so a customer's first order can be
+     traced to the ad that brought them in: lifetime value per ad (the Hyros idea). */
+  let bfTouched = 0; if (opts.withTouches) bfTouched = await storeTouches(env, acct, start, end, touches).catch(e => { console.log('touches: ' + e.message); return 0; });
+  if (opts.ordersOnly) return { name: acct.name, from: start, to: end, orders, pages, stored, earliest, touched: bfTouched };
 
   /* Replace the window wholesale rather than upserting: attribution RESTATES as
      journeys resolve, so an order that moved from one ad to another must not
@@ -6578,6 +6603,7 @@ async function nightly(env) {
   for (const a of accounts) {
     if (!subCanAfford(costOf('attr', COST_SYNC_BRAND))) { twOrders.push({ name: a.name, deferred: 'out of budget' }); break; }
     twOrders.push(await backfillTwOrders(env, a, 1).catch(e => ({ name: a.name, error: e.message })));
+    if (subCanAfford(costOf('attr', COST_SYNC_BRAND))) twOrders.push(await backfillTwTouches(env, a, 1).catch(e => ({ name: a.name, touches_error: e.message })));
   }
   out.twOrders = twOrders;
 
@@ -6704,7 +6730,10 @@ const AH_APP = {
     }
   },
 
-  async fetch(request, env, ctx) {
+  /* Per-brand access wraps every request (brandguard.js). */
+  async fetch(request, env, ctx) { return guardBrands(request, env, sessionEmail, () => AH_APP.handle(request, env, ctx), CORS); },
+
+  async handle(request, env, ctx) {
     /* Metered here too. Nothing in the request path GATES on the budget - a
        dashboard call must answer or fail honestly, never half-answer - but the
        count is what makes an endpoint's real cost visible in /api/health
@@ -6870,7 +6899,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
       if (path === '/api/ask' && request.method === 'POST') {
         const findings = await engine.openFindings(env, h()).catch(() => []);
-        const r = await engine.answerWeb(env, body.question, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null });
+        /* Per-brand access: a limited person's question carries their brands, and the Strategist is told to
+           stay inside them (brandguard.js filters the JSON; this covers the words of the answer). */
+        const only = await brandsFor(env, await sessionEmail(env, request)).catch(() => null);
+        let q = body.question;
+        if (only) { const { results: nm } = await env.DB.prepare(`SELECT act_id, name FROM accounts`).all(); const names = (nm || []).filter(x => only.has(x.act_id)).map(x => x.name); q = `[ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] ${q}`; }
+        const r = await engine.answerWeb(env, q, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null });
         const auth = request.headers.get('Authorization') || '';
         const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
         const sess = tok && !(env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) ? await verifySession(env, tok) : null;
@@ -7350,6 +7384,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const q = k => url.searchParams.get(k) || '';
       try {
         if (path === '/api/google/probe') return json(await googleProbe(env));
+        if (path === '/api/google/ads-accounts') return json(await adsAccounts(env));
         if (path === '/api/google/enable-apis' && request.method === 'POST') return json(await enableApis(env));
         if (path === '/api/google/match' && request.method === 'POST') return json(await googleMatch(env));
         if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, String(b.act || ''), b)); }
@@ -7488,6 +7523,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     /* Pull customer history now instead of waiting a month of nights: N slices of 14 days for one
        brand (or all). Admin. */
+    if (path === '/api/tw-touch-backfill' && request.method === 'POST') {
+      const act = url.searchParams.get('act'); const slices = Math.min(+url.searchParams.get('slices') || 4, 30);
+      const a = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(act).first();
+      if (!a) return json({ error: 'unknown account' }, 404);
+      return json(await backfillTwTouches(env, a, slices).catch(e => ({ error: e.message })));
+    }
     if (path === '/api/tw-orders-backfill' && request.method === 'POST') {
       const act = url.searchParams.get('act');
       const slices = Math.min(+url.searchParams.get('slices') || 4, 40);
@@ -7530,11 +7571,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       ]);
       const extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
       const roles = safeJson(ur?.value, {}) || {};
-      // Everyone we know about: invited guests, plus anyone given an explicit role.
-      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase())])].sort();
+      const ub = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null))?.value, {}) || {};
+      // Everyone we know about: invited guests, anyone with an explicit role, anyone with a brand list.
+      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase())])].sort();
+      const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       return json({
-        domain: ALLOWED_DOMAIN, you: who,
-        members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e) })),
+        domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: !who || String(who).toLowerCase() === owner,
+        members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [] })),
       });
     }
     if (path === '/api/team' && request.method === 'PUT') {
@@ -7558,9 +7601,21 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (!onDomain && !extra.includes(email)) extra.push(email);   // domain accounts need no invite
         if (role === 'viewer') roles[email] = 'viewer'; else delete roles[email];
       }
+      /* Per-brand access (brandguard.js): only the owner sets who sees which brands, so nobody can widen
+         their own. [] = every brand; the entry also keeps a domain teammate on the list. */
+      const ubRow = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null);
+      const ub = safeJson(ubRow?.value, {}) || {};
+      const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      if (b.remove) delete ub[email];
+      else if (Array.isArray(b.brands)) {
+        if (who && String(who).toLowerCase() !== owner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
+        if (email === owner) return json({ error: 'The owner always sees every brand.' }, 400);
+        ub[email] = b.brands.map(String).filter(x => /^act_\d+$/.test(x));
+      } else if (!(email in ub)) ub[email] = [];
       await putSetting(env, 'allowedEmails', JSON.stringify(extra));
       await putSetting(env, 'userRoles', JSON.stringify(roles));
-      return json({ ok: true, email, role, guest: extra.includes(email) });
+      await putSetting(env, 'userBrands', JSON.stringify(ub));
+      return json({ ok: true, email, role, guest: extra.includes(email), brands: ub[email] || [] });
     }
 
     if (path === '/api/me') {
