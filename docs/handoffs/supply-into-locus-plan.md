@@ -44,6 +44,39 @@ No em dashes anywhere. In-app modals only. Short bullet replies.
   weeks of stock, (4) one-line headlines, glossary, charset, (5) deposit and
   balance as money later, (6) re-mock then build. Waiting on Cole's call.
 
+- 2026-10-08 MOCK v2 (Cole: "think like an agency, not just Lucky; more
+  visual, easy to digest"). Same artifact URL, version 2. SUPERSEDES the page
+  list below where they differ:
+  * THREE LEVELS. (1) **Stock**, every client, NO setup beyond the Mobius
+    Digital Shopify app: framed for the ads, not for buying. Lanes Ease off
+    (out, under 30 days, or runs out by Cyber Monday with no restock landing
+    first), Safe to scale (90+ days or a restock lands in time), Push to clear
+    (52+ weeks of stock, or not selling with 20+ on hand). A runway chart (one
+    bar per product, today to run-out, restock diamond, empty gap hatched,
+    Black Friday line). Tile 1 = ad spend on products running low.
+    (2) **Buying**, brands we buy for (Lucky): REPLACES the separate Factory
+    orders page. One card per factory order to place (products, units, cost,
+    lands if placed today, Build), rows resolve suggested vs minimum ("skip,
+    the 500 minimum is 5.6 years of sales" / "raised to the minimum"), past
+    due says the weekly sales lost; then On the way as a timeline per PO.
+    (3) **Drops**, brands that design (Lucky): drop timeline with milestones
+    and the CNY closure, grouped Coming due, designs table, keep-or-cut cards
+    that say "hold new designs" when the line has 52+ weeks of stock (Hats).
+  * Store tabs: Sales, Customers, Stock, Buying, Drops, Website, Search.
+  * Agency view (All clients): one row per client, ad spend on low stock,
+    out now, run out by Cyber Monday, safe to scale, too much stock, feed
+    status (others "Not connected" until the app is installed).
+  * **Ad to product match = Triple Whale orders, not ad names** (names are
+    "414 B | Still", creator names). For each ad: tw_order_touch
+    (lastPlatformClick, 30 days) -> tw_orders.products_json (Shopify product
+    ids = Supply product ids) -> share the ad's 30-day spend across the
+    products in its orders. On Lucky this ties $9.8K of $12.3K (80%) to
+    products. Computed in the profit worker (shared D1), exposed for Stock,
+    the ad set chip (Ads > Meta > Campaigns: "Runs out Nov 27" / "Stock OK to
+    scale" / "Overstocked: push it"), the Scale-call caveat and the
+    Strategist. Dates and units only on chips, never revenue claims.
+  * Setup page = the three levels with what each needs; Slack switches.
+
 ## Decisions already taken (do not reopen)
 
 - Two layers. **Stock** for any brand with a stock feed (Lucky today). **Make**
