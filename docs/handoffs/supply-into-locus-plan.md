@@ -34,6 +34,16 @@ No em dashes anywhere. In-app modals only. Short bullet replies.
   Status labels: Out, Past order date, Order now, Short before it lands,
   Coming up, On the way, Fine.
 
+- 2026-10-08 mock AUDITED after Cole asked whether it is good and whether I
+  researched the category (I had not). `docs/handoffs/supply-mock-audit.md`:
+  the category (Inventory Planner, Prediko, Stockie; Cogsy and Stocky are
+  dead) leads with dense tables, we should not; six changes before the
+  re-mock: (1) Stock home = one card per factory order to place with six
+  columns inside, (2) brain resolves suggested < minimum, (3) Drops: group
+  Next due, merge Stage + Owes next, "no new designs" on a line with 52+
+  weeks of stock, (4) one-line headlines, glossary, charset, (5) deposit and
+  balance as money later, (6) re-mock then build. Waiting on Cole's call.
+
 ## Decisions already taken (do not reopen)
 
 - Two layers. **Stock** for any brand with a stock feed (Lucky today). **Make**
