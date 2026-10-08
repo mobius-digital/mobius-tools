@@ -237,6 +237,30 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 .st-start{display:grid;gap:14px}
 .st-start .alt{display:flex;gap:4px 8px;align-items:center;flex-wrap:wrap}
 .st-brands .v2go{min-height:64px}
+/* the photo library picker and the Dress window (2026-10-08) */
+.st-lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;max-height:48vh;overflow:auto;margin-top:10px;padding:2px}
+.st-lgrid button{position:relative;aspect-ratio:1;border:2px solid var(--line);border-radius:9px;overflow:hidden;padding:0;background:var(--surface-2);cursor:pointer;display:grid;place-items:center;color:var(--muted);font:inherit;font-size:11px}
+.st-lgrid button:hover{border-color:var(--line-strong)}
+.st-lgrid button.on{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.st-lgrid img{width:100%;height:100%;object-fit:cover;display:block}
+.st-lgrid em,.st-dthumb em{position:absolute;left:5px;bottom:5px;font-style:normal;font-size:10px;font-weight:650;padding:1px 6px;border-radius:99px;background:var(--brand);color:var(--on-brand)}
+.st-lgrid .ck{position:absolute;right:5px;top:5px;width:20px;height:20px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:none;place-items:center;font-size:12px;font-weight:700}
+.st-lgrid button.on .ck{display:grid}
+.st-lmode{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.st-dress{display:grid;gap:14px}
+.st-dthumb{position:relative;width:120px;aspect-ratio:4/5;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);cursor:zoom-in;padding:0;display:block}
+.st-dthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.st-drow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.st-dgo{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)}
+.st-dres{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.st-dres figure{margin:0;display:grid;gap:6px}
+.st-dres img{width:100%;max-height:52vh;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);cursor:zoom-in}
+.st-dres figcaption{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.st-ulines{display:grid;gap:6px;max-height:40vh;overflow:auto;margin-top:8px}
+.st-ulines label{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;align-items:start;padding:9px 11px;border:1px solid var(--line);border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--ink);margin:0}
+.st-ulines label:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
+.st-ulines input{margin:2px 0 0;accent-color:var(--brand)}
+.st-ulines small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
 `;
   document.head.appendChild(st);
 }
@@ -254,7 +278,8 @@ function modal(title, inner, { cta = 'Save', wide = false, onOpen } = {}) {
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" data-m="no">${cta ? 'Cancel' : 'Close'}</button>${cta ? `<button class="btn primary" data-m="yes">${esc(cta)}</button>` : ''}</div></div>`;
     document.body.appendChild(w);
     const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
-    const k = e => { if (e.key === 'Escape') done(null); };
+    /* Escape closes only the window on top (the library picker opens over Dress, Use as the ad over both). */
+    const k = e => { if (e.key === 'Escape' && w === [...document.querySelectorAll('.st-modal')].pop()) done(null); };
     document.addEventListener('keydown', k);
     w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
     w.querySelector('[data-m="no"]').onclick = () => done(null);
@@ -581,7 +606,7 @@ function batchView(b) {
       <div style="display:grid;gap:6px"><textarea class="st-in" style="margin:0" data-line="${i}" rows="2" placeholder="The concept or piece for this ad, in the team's words">${esc(l.text)}</textarea>
         <div class="st-thumbs">${l.photo
           ? `<span class="tiny">This photo is the ad (kept as shot, words added):</span><button class="t on" data-zu="${esc(l.photo)}"><img src="${esc(thumb(l.photo))}" alt=""><span class="st-x" data-rmph="${i}" role="button" aria-label="Not the ad" title="Back to inspiration">×</span></button>`
-          : `<span class="tiny">Make it look like this:</span>${(l.inspo || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmli="${i}:${k}" role="button" aria-label="Remove" title="Remove">×</span></button><button class="st-add" data-useph="${i}:${k}" title="A real photo of our product: keep it exactly as shot and only add the words">Use as the ad</button>`).join('')}${(l.inspo || []).length < 2 ? `<button class="st-add" data-addli="${i}">Add image</button>` : ''}`}</div></div>
+          : `<span class="tiny">Make it look like this:</span>${(l.inspo || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(thumb(u))}" alt=""><span class="st-x" data-rmli="${i}:${k}" role="button" aria-label="Remove" title="Remove">×</span></button><button class="st-add" data-useph="${i}:${k}" title="A real photo of our product: keep it exactly as shot and only add the words">Use as the ad</button>`).join('')}${(l.inspo || []).length < 2 ? `<button class="st-add" data-addli="${i}">Add image</button><button class="st-add" data-libli="${i}" title="Pick from the brand’s photo library: as inspiration, or as the ad itself">From the library</button>` : ''}`}</div></div>
       <button class="btn quiet" data-rmline="${i}" title="Remove this line" aria-label="Remove line ${i + 1}">Remove</button></div>`).join('') || '<div class="st-empty"><b>No lines yet</b>Add a line for each ad you want. Studio makes one ad per line.</div>'}</div>
     <button class="btn" id="bAddLine" style="margin-top:10px">Add a line</button>`,
     `<label class="st-f" style="display:flex;gap:6px;align-items:center">Batch #<input class="st-in" data-bf="num" value="${esc(b.num)}" style="width:80px;margin:0"></label><button class="btn quiet" id="bDel">Archive this batch</button>`, { n: 1 });
@@ -595,7 +620,9 @@ function batchView(b) {
           <label class="st-f" style="margin-top:10px">Product fingerprint<small>what makes it ours; the AI must match every line. Fix anything wrong.</small>${p.dna == null ? '<span class="st-busy" style="display:flex;margin-top:6px"><span class="st-spin"></span>Reading the product photos…</span>' : `<textarea class="st-in" data-dna="${pi}" rows="5">${esc(p.dna)}</textarea>`}</label>
           <button class="btn quiet" data-redna="${pi}" style="margin-top:6px">Read the photos again</button></div>`).join('') || '<div class="st-empty" style="margin-top:10px;padding:18px"><b>No product yet</b>Choose it from the store, or add photos from a shoot.</div>'}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="bProd" ${prods.length >= 4 ? 'disabled' : ''}>${prods.length ? 'Add another product' : 'Choose the product'}</button>
-        <button class="btn quiet" id="bPhotos" title="Photos from a shoot that are not on Shopify yet. The AI draws from them and checks against them like Shopify photos.">Add your own photos</button></div>
+        <button class="btn quiet" id="bPhotos" title="Photos from a shoot that are not on Shopify yet. The AI draws from them and checks against them like Shopify photos.">Add your own photos</button>
+        <button class="btn quiet" id="bLib" title="Product photos from the brand’s photo library (its Drive), used like your own photos.">From the library</button></div>
+        <div class="st-crow" style="margin-top:12px"><div><b>Dress a photo</b><span class="tiny">Put this product on a real photo of a person: their face, pose and light stay as shot. Saved to the library as a look you can use as the ad.</span></div><button class="btn" id="bDress">Dress a photo</button></div>
       </div>
       <div><p class="st-sub">Swipe file</p><div class="hint">Ads you like, for style ideas. Nothing is copied. Up to 12: drop, click or paste.</div>
         <div class="st-thumbs" style="margin-top:10px">${(su.swipe || []).map((u, k) => `<button class="t" data-zu="${esc(u)}"><img src="${esc(u)}" alt=""><span class="st-x" data-rmsw="${k}" role="button" aria-label="Remove" title="Remove">×</span></button>`).join('')}${(su.swipe || []).length < 12 ? '<button class="st-add" id="bSwipe">Add images</button>' : ''}</div></div>
@@ -852,6 +879,19 @@ function wireBatch() {
   const sw = $('#bSwipe'); if (sw) sw.onclick = () => { target = { swipe: true }; file.click(); };
   const ph = $('#bPhotos'); if (ph) ph.onclick = () => { target = { product: true }; file.click(); };
   file.onchange = () => { upload([...file.files], target); file.value = ''; };
+  /* From the library (2026-10-08): the same targets as an upload; a line can take the pick as inspiration or as the ad itself. */
+  document.querySelectorAll('[data-libli]').forEach(el => el.onclick = () => {
+    const i = +el.dataset.libli, room = Math.max(1, 2 - (br.lines[i].inspo || []).length);
+    libPick({ title: `Line ${i + 1}: from the library`, max: room, people: '',
+      modes: [['inspo', 'Make it look like this', 'Inspiration for the AI, up to 2 a line'], ['photo', 'Use as the ad', 'One photo, kept as shot; only the words go on']],
+      onPick: async (items, mode, ctl) => upload((await libToUrls(items, t => ctl.msg(t, true))).map(url => ({ url })), mode === 'photo' ? { photo: i } : { line: i }) });
+  });
+  const bl = $('#bLib'); if (bl) bl.onclick = () => {
+    const own = su.products.find(p => p.handle === 'upload');
+    libPick({ title: 'Product photos from the library', max: Math.max(1, 8 - ((own || {}).all || []).length), people: 'no',
+      onPick: async (items, _m, ctl) => upload((await libToUrls(items, t => ctl.msg(t, true))).map(url => ({ url })), { product: true }) });
+  };
+  const bd = $('#bDress'); if (bd) bd.onclick = () => dress({ batch: b });
   document.querySelectorAll('[data-rmli]').forEach(el => el.onclick = e => { e.stopPropagation(); const [i, k] = el.dataset.rmli.split(':').map(Number); br.lines[i].inspo.splice(k, 1); queueSave(); paint(); });
   /* A real photo of our product can BE the ad: the image maker keeps it as shot and adds the words. */
   document.querySelectorAll('[data-useph]').forEach(el => el.onclick = e => { e.stopPropagation(); const [i, k] = el.dataset.useph.split(':').map(Number); br.lines[i].photo = br.lines[i].inspo.splice(k, 1)[0]; if (b.plan) b.plan = null; queueSave(); paint(); });
@@ -920,14 +960,19 @@ const FP_RUNNING = new Set();
 async function upload(files, target) {
   const b = S.cur, su = b.setup, br = b.brief;
   let own = null;
-  for (const file of files.filter(f => /^image\/(png|jpeg|webp)$/.test(f.type))) {
+  /* Items are Files from the picker or { url } already stored as a ref (library picks, looks). */
+  for (const file of files.filter(f => f.url || /^image\/(png|jpeg|webp)$/.test(f.type))) {
     if (target?.product) { own = own || su.products.find(p => p.handle === 'upload'); if (((own || {}).all || []).length >= 8) break; }
     else if (target?.line != null) { if ((br.lines[target.line].inspo || []).length >= 2) break; }
+    else if (target?.photo != null) { if (br.lines[target.photo].photo === file.url) break; }
     else if (su.swipe.length >= 12) break;
     try {
-      const url = await putRef(await shrinkImage(file));
+      const url = file.url || await putRef(await shrinkImage(file));
       refChecked.add(url);
-      if (target?.product) {
+      if (target?.photo != null) {
+        /* The ad IS this photo (same as "Use as the ad"); one per line, so stop after it. */
+        br.lines[target.photo].photo = url; if (b.plan) b.plan = null; break;
+      } else if (target?.product) {
         /* Your own photos (a shoot not on Shopify yet) become a product like any Shopify one: drawn from, checked against, fingerprinted. */
         if (!own) { own = { title: 'Your photos', handle: 'upload', all: [], dna: null }; su.products.push(own); }
         own.all.push(url); su.images = [...su.images, url].slice(-8);
@@ -1263,6 +1308,225 @@ async function sendCanva(b) {
   } catch (e) { S.making = ''; S.err = e.message; paint(); }
 }
 
+/* ---------------- the photo library, inside Studio (2026-10-08) ----------------
+   The same search and filters as Creative > Library (account-health assets.js, called directly with the
+   session token like the other account-health calls here). A pick comes back at Studio size through
+   /api/assets/file, is shrunk by the same rule as an upload (shrinkImage) and stored as a Studio ref, so
+   everything after the pick is the upload path. A look (Made by Locus) is already a ref and is used as is. */
+const LIBQ = { q: '', setting: '' };
+const DRESS_COST = 0.12;  // measured 2026-10-08: $0.105 (image call from its usage + the check), gpt-image-2.5 on the key
+const libImg = x => `${AH_URL}/assets-img/${encodeURIComponent(S.act)}/${encodeURIComponent(x.file_id)}`;
+function libPick({ title = 'From the library', max = 8, people = '', modes = null, onPick }) {
+  const sel = new Map(); let ppl = people, mode = modes ? modes[0][0] : '', items = [], settings = [], looks = 0, seq = 0;
+  const cap = () => mode === 'photo' ? 1 : max;
+  const chips = () => [['', 'Everything'], ['yes', 'With people'], ['no', 'No people'], ...(looks ? [['locus', 'Made by Locus']] : [])]
+    .map(([k, l]) => `<button type="button" class="st-chip ${ppl === k ? 'on' : ''}" data-lp="${k}">${l}</button>`).join('');
+  const setChips = () => [{ setting: '' }, ...settings].map(s => `<button type="button" class="st-chip ${LIBQ.setting === s.setting ? 'on' : ''}" data-ls="${esc(s.setting)}">${esc(s.setting || 'Any setting')}${s.n ? ` <small style="display:inline;margin-left:3px">${s.n}</small>` : ''}</button>`).join('');
+  return modal(title, `${modes ? `<div class="st-lmode">${modes.map(([k, l, h]) => `<button type="button" class="st-chip ${mode === k ? 'on' : ''}" data-lm="${k}">${esc(l)}<small>${esc(h)}</small></button>`).join('')}</div>` : ''}
+    <input class="st-in" id="lq" type="search" placeholder="Search: man in a polo on a white background, wedge close-up, golf course…" value="${esc(LIBQ.q)}" style="margin-top:${modes ? 10 : 0}px">
+    <div class="st-chips" id="lpp" style="margin-top:8px"></div><div class="st-chips" id="lst" style="margin-top:6px"></div>
+    <div class="st-lgrid" id="lg"><span class="st-busy"><span class="st-spin"></span>Reading the library…</span></div>
+    <p class="tiny" id="lnote" style="margin:8px 0 0"></p>`,
+  { cta: 'Add', wide: true, onOpen: (w, ctl) => {
+    const yes = w.querySelector('[data-m="yes"]');
+    const count = () => { const n = sel.size; yes.textContent = n ? `Add ${n} photo${n === 1 ? '' : 's'}` : 'Add'; yes.disabled = !n; };
+    const draw = () => {
+      w.querySelector('#lpp').innerHTML = chips(); w.querySelector('#lst').innerHTML = setChips();
+      w.querySelector('#lg').innerHTML = items.map((x, i) => `<button type="button" class="${sel.has(x.file_id) ? 'on' : ''}" data-li="${i}"${tip(x.descr || x.name || '')}>${x.thumb_key ? `<img loading="lazy" src="${esc(libImg(x))}" alt="">` : 'Tagging…'}${x.source === 'locus' ? '<em>Made by Locus</em>' : ''}<span class="ck">✓</span></button>`).join('')
+        || `<div class="st-empty" style="grid-column:1/-1"><b>${LIBQ.q || ppl || LIBQ.setting ? 'Nothing matches' : 'No photos in the library yet'}</b>${LIBQ.q || ppl || LIBQ.setting ? 'Try fewer words or another filter.' : 'Creative, Library reads the brand’s Drive folder. Press Check Drive now there.'}</div>`;
+      w.querySelector('#lnote').textContent = `${cap() === 1 ? 'Pick one photo.' : `Pick up to ${cap()}.`} Photos stay where they are in Drive; Studio takes a copy at 1568px.`;
+      w.querySelectorAll('[data-lp]').forEach(b => b.onclick = () => { ppl = b.dataset.lp; load(); });
+      w.querySelectorAll('[data-ls]').forEach(b => b.onclick = () => { LIBQ.setting = b.dataset.ls; load(); });
+      w.querySelectorAll('[data-li]').forEach(b => b.onclick = () => {
+        const x = items[+b.dataset.li];
+        if (sel.has(x.file_id)) sel.delete(x.file_id);
+        else { if (cap() === 1) sel.clear(); if (sel.size >= cap()) return ctl.msg(`Up to ${cap()} here. Untick one first.`); sel.set(x.file_id, x); }
+        ctl.msg('', true); draw(); count();
+      });
+    };
+    const load = async () => {
+      const t = ++seq;
+      const qs = new URLSearchParams({ act: S.act, q: LIBQ.q, people: ppl === 'locus' ? '' : ppl, source: ppl === 'locus' ? 'locus' : '', setting: LIBQ.setting, limit: '120' });
+      try { const d = await atriaCall(`/api/assets?${qs}`); if (t !== seq) return; items = d.items || []; settings = (d.settings || []).filter(s => s.setting); looks = d.looks || 0; }
+      catch (e) { if (t !== seq) return; items = []; ctl.msg(e.message); }
+      draw();
+    };
+    w.querySelectorAll('[data-lm]').forEach(b => b.onclick = () => { mode = b.dataset.lm; w.querySelectorAll('[data-lm]').forEach(x => x.classList.toggle('on', x === b)); if (sel.size > cap()) sel.clear(); draw(); count(); });
+    let tm = null; w.querySelector('#lq').oninput = e => { clearTimeout(tm); tm = setTimeout(() => { LIBQ.q = e.target.value; load(); }, 350); };
+    count(); load();
+    w.onSubmit(async () => {
+      if (!sel.size) throw new Error('Pick at least one photo.');
+      ctl.msg('Bringing the photos in…', true);
+      await onPick([...sel.values()], mode, ctl);
+      ctl.close(true);
+    });
+  } });
+}
+/* Library picks into Studio refs. Drive photos arrive as a 1600px JPEG and go through shrinkImage like an
+   upload; anything the upload route cannot take is redrawn as a JPEG first. */
+async function libToUrls(items, msg = () => {}) {
+  const out = [];
+  for (const [i, x] of items.entries()) {
+    if (x.look?.url) { out.push(x.look.url); continue; }
+    msg(`Bringing in photo ${i + 1} of ${items.length}…`);
+    const res = await fetch(`${AH_URL}/api/assets/file?act=${encodeURIComponent(S.act)}&id=${encodeURIComponent(x.file_id)}`, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Could not open ${x.name || 'that photo'}.`); }
+    let blob = await shrinkImage(await res.blob());
+    if (!/^image\/(png|jpeg|webp)$/.test(blob.type)) blob = await asJpeg(blob);
+    const url = await putRef(blob); refChecked.add(url); out.push(url);
+  }
+  return out;
+}
+async function asJpeg(blob) {
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+  c.getContext('2d').drawImage(bmp, 0, 0); bmp.close?.();
+  return new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+}
+
+/* ---------------- Dress a photo (2026-10-08, Nick's method) ----------------
+   A REAL photo of a person + 1 to 4 product photos -> one edit call that swaps only the clothing
+   (/api/studio/dress). The result is a look in the photo library; "Use as the ad" puts it on a batch line
+   as line.photo, and the existing real-photo flow makes the ad from it. One window, one primary button:
+   Dress the photo, then Use as the ad. A re-dress in the same window replaces the look it made (the library
+   keeps only what you keep). */
+async function dress({ batch = null, base = null } = {}) {
+  if (!S.products) { const r = await api(`/api/studio/products?act=${encodeURIComponent(S.act)}`).catch(() => ({ products: [] })); S.products = r.products || []; }
+  const su = batch?.setup || {}, p0 = (su.products || [])[0];
+  const st = { base, title: p0?.title || '', handle: p0 && p0.handle !== 'upload' ? p0.handle : '', all: (p0?.all || []).slice(0, 8), imgs: [], note: '', look: null, used: false, busy: '' };
+  st.imgs = st.all.filter(u => (su.images || []).includes(u)).slice(0, 4);
+  if (p0 && !st.imgs.length) st.imgs = st.all.slice(0, 3);
+  const cents = `about ${Math.round(DRESS_COST * 100)}¢`;
+  const form = () => `<div class="st-dress">
+    <p class="hint" style="margin:0">Puts one of the brand’s products on a real photo of a person. Their face, pose, light and background stay as shot; only the clothing changes. The result is saved to the photo library as a look you can use as the ad.</p>
+    <div class="st-g2">
+      <div><p class="st-lbl">1. The photo of the person</p>
+        ${st.base ? `<button class="st-dthumb" data-zu="${esc(st.base.thumb)}"><img src="${esc(st.base.thumb)}" alt="">${st.base.made ? '<em>Made by Locus</em>' : ''}</button><span class="tiny" style="display:block;margin-top:4px">${esc(st.base.name || '')}</span>`
+          : '<div class="st-empty" style="padding:16px"><b>No photo yet</b>A real person, ideally wearing something like the product.</div>'}
+        <div class="st-drow"><button class="btn quiet" data-db="lib">${st.base ? 'Pick another' : 'From the library'}</button><button class="btn quiet" data-db="up">Upload a photo</button></div></div>
+      <div><p class="st-lbl">2. The product to put on them</p>
+        <select class="st-in" id="dProd" style="margin:0"><option value="">${st.title ? 'Pick another product from the store…' : 'Pick a product from the store…'}</option>${(S.products || []).map((p, i) => `<option value="${i}">${esc(p.title)}</option>`).join('')}</select>
+        <div class="st-thumbs" style="margin-top:8px">${st.all.map(u => `<button class="t ${st.imgs.includes(u) ? 'on' : ''}" data-dimg="${esc(u)}" title="${st.imgs.includes(u) ? 'Used: click to stop using it' : 'Not used: click to use it'}"><img src="${esc(thumb(u))}" alt=""></button>`).join('')}<button class="st-add" data-db="plib" title="Product photos from the brand’s library">From the library</button></div>
+        <p class="tiny" style="margin:6px 0 0">${st.imgs.length} of 4 photos used. Clean shots of the product work best.</p>
+        <label class="st-f" style="margin-top:8px">Product name<small>so the AI and the library know what it is</small><input class="st-in" id="dTitle" value="${esc(st.title)}" placeholder="Classic Polo, navy"></label></div>
+    </div>
+    <label class="st-f">Anything to know?<small>optional, for example “tuck the shirt in” or “keep the hat brim straight”</small><input class="st-in" id="dNote" maxlength="400" value="${esc(st.note)}"></label>
+    <input type="file" id="dFile" accept="image/png,image/jpeg,image/webp" hidden>
+    <div class="st-dgo">${st.busy ? `<span class="st-busy"><span class="st-spin"></span>${esc(st.busy)}</span>` : `<button class="btn primary" id="dGo" ${st.base && st.imgs.length ? '' : 'disabled'}>Dress the photo · ${cents}</button>${st.look ? '<button class="btn quiet" id="dBack">Back to the result</button>' : ''}`}</div></div>`;
+  const result = () => {
+    const L = st.look, ck = L.check;
+    const score = ck ? `<span class="v2pill ${ck.score >= 7 ? 'good' : 'warn'}"${tip(`The check model compared the garment with the product photos and scored it ${ck.score} out of 10${ck.issue ? `: ${ck.issue}` : ''}. A net, not a guarantee: still look at it.`)}>Product ${ck.score}/10</span>${ck.person_kept === false ? `<span class="v2pill warn"${tip(ck.person_issue || 'The person or scene changed more than the clothing.')}>Person may have changed</span>` : `<span class="v2pill good">Person kept</span>`}` : '<span class="v2pill">Not checked</span>';
+    return `<div class="st-dress"><div class="st-dres"><figure><img src="${esc(st.base.thumb)}" data-zu="${esc(st.base.thumb)}" alt=""><figcaption>Before</figcaption></figure><figure><img src="${esc(L.url)}" data-zu="${esc(L.url)}" alt=""><figcaption>Dressed</figcaption></figure></div>
+      <div class="st-chips" style="gap:6px">${score}<span class="v2pill">Cost $${(+L.cost || 0).toFixed(2)}</span></div>
+      ${ck?.issue && ck.score < 7 ? `<p class="st-msg bad">${esc(ck.issue)}</p>` : ''}
+      <p class="hint" style="margin:0">Saved to the photo library as a look (Creative, Library, Made by Locus). Use it as the photo for an ad: the words go on, the photo stays as it is.</p>
+      <div class="st-dgo">${st.busy ? `<span class="st-busy"><span class="st-spin"></span>${esc(st.busy)}</span>` : `<button class="btn primary" id="dUse">Use as the ad</button><button class="btn" id="dRedo" title="Dress it again with the same photos. This one leaves the library.">Redo · ${cents}</button><button class="btn quiet" id="dEdit">Change the inputs</button><button class="btn quiet" id="dDl">Download</button>`}</div></div>`;
+  };
+  return modal(batch ? `Dress a photo · ${batch.name || 'batch'}` : 'Dress a photo', '<div id="dBody"></div>', { cta: null, wide: true, onOpen: (w, ctl) => {
+    let view = 'form';
+    const keep = () => { const t = w.querySelector('#dTitle'), n = w.querySelector('#dNote'); if (t) st.title = t.value.trim(); if (n) st.note = n.value.trim(); };
+    const draw = () => { w.querySelector('#dBody').innerHTML = view === 'result' && st.look ? result() : form(); wire(); };
+    const run = async () => {
+      keep();
+      if (!st.base) return ctl.msg('Pick the photo of the person first.');
+      if (!st.imgs.length) return ctl.msg('Pick at least one photo of the product.');
+      ctl.msg('', true); st.busy = 'Getting the photo ready…'; draw();
+      try {
+        if (!st.base.url) st.base.url = (await libToUrls([st.base.item]))[0];
+        st.busy = `Dressing the photo. About a minute; keep this window open.`; draw();
+        const r = await streamCall(S.url, '/api/studio/dress', { base: st.base.url, base_asset: st.base.asset || null, base_name: st.base.name || '', products: st.imgs, product: st.title, handle: st.handle, note: st.note, replace: st.look && !st.used ? st.look.file_id : null },
+          o => { if (o.type === 'status') { st.busy = o.text; const s = w.querySelector('.st-dgo .st-busy'); if (s) s.lastChild.textContent = o.text; } });
+        st.look = r.look; st.used = false; view = 'result';
+      } catch (e) { ctl.msg(e.message); }
+      st.busy = ''; draw();
+    };
+    const wire = () => {
+      w.querySelectorAll('[data-zu]').forEach(x => x.onclick = () => zoom(x.dataset.zu));
+      const file = w.querySelector('#dFile');
+      w.querySelectorAll('[data-db]').forEach(x => x.onclick = () => {
+        keep();
+        if (x.dataset.db === 'up') return file.click();
+        if (x.dataset.db === 'lib') return libPick({ title: 'The photo of the person', max: 1, people: 'yes', onPick: async items => { const it = items[0]; st.base = { item: it, url: it.look?.url || '', name: it.name, thumb: it.look?.url || libImg(it), asset: it.file_id, made: it.source === 'locus' }; draw(); } });
+        libPick({ title: 'Product photos from the library', max: Math.max(1, 4 - st.imgs.length), people: 'no', onPick: async (items, _m, c2) => {
+          const urls = await libToUrls(items, t => c2.msg(t, true));
+          st.all = [...new Set([...st.all, ...urls])]; st.imgs = [...new Set([...st.imgs, ...urls])].slice(0, 4);
+          if (!st.title) st.title = items[0]?.products || ''; draw();
+        } });
+      });
+      if (file) file.onchange = async () => {
+        const f = file.files[0]; file.value = ''; if (!f) return;
+        ctl.msg(`Uploading ${f.name}…`, true);
+        try { const url = await putRef(await shrinkImage(f)); refChecked.add(url); st.base = { url, name: f.name, thumb: url, asset: null }; ctl.msg('', true); draw(); }
+        catch (e) { ctl.msg(e.message); }
+      };
+      const sel = w.querySelector('#dProd'); if (sel) sel.onchange = e => {
+        const p = S.products[+e.target.value]; if (!p) return; keep();
+        st.title = p.title; st.handle = p.handle; st.all = p.images.slice(0, 8); st.imgs = p.images.slice(0, 3); draw();
+      };
+      w.querySelectorAll('[data-dimg]').forEach(x => x.onclick = () => {
+        keep(); const u = x.dataset.dimg;
+        if (st.imgs.includes(u)) st.imgs = st.imgs.filter(y => y !== u); else if (st.imgs.length < 4) st.imgs.push(u); else return ctl.msg('Up to 4 product photos. Untick one first.');
+        ctl.msg('', true); draw();
+      });
+      const go = w.querySelector('#dGo'); if (go) go.onclick = run;
+      const back = w.querySelector('#dBack'); if (back) back.onclick = () => { keep(); view = 'result'; draw(); };
+      const redo = w.querySelector('#dRedo'); if (redo) redo.onclick = run;
+      const ed = w.querySelector('#dEdit'); if (ed) ed.onclick = () => { view = 'form'; ctl.msg('', true); draw(); };
+      const dl = w.querySelector('#dDl'); if (dl) dl.onclick = async () => {
+        try { const blob = await (await fetch(st.look.url)).blob(); const o = URL.createObjectURL(blob), l = document.createElement('a'); l.href = o; l.download = `${(st.look.name || 'look').replace(/[^\w -]+/g, '').slice(0, 60)}.${blob.type === 'image/png' ? 'png' : 'jpg'}`; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(o), 4000); }
+        catch (e) { ctl.msg(e.message); }
+      };
+      const use = w.querySelector('#dUse'); if (use) use.onclick = async () => { const ok = await useAsAd(st.look.url, batch); if (ok) { st.used = true; ctl.close(true); } };
+    };
+    draw();
+  } });
+}
+
+/* Put a photo (a look, or any ref) on a batch line as the ad itself: line.photo, the real-photo flow.
+   Like "Use as the ad" under a line, the batch's plan is cleared so the line is planned with the photo. */
+async function useAsAd(image, batch = null) {
+  let list = S.d?.account?.act_id === S.act ? S.d.batches : null;
+  if (!list) { try { list = (await api(`/api/studio?act=${encodeURIComponent(S.act)}`)).batches; } catch { list = []; } }
+  list = (list || []).filter(b => b.status !== 'archived').sort((p, q) => String(q.updated_at || '').localeCompare(String(p.updated_at || '')));
+  if (!list.length) { await modal('Use as the ad', '<p class="hint" style="margin:0">This brand has no batches yet. Start one in Studio; the look is in the photo library, so any line can pick it with From the library.</p>', { cta: null }); return false; }
+  let bid = batch?.id && list.some(b => b.id === batch.id) ? batch.id : list[0].id;
+  const linesOf = b => (b.brief?.lines || []);
+  const firstFree = b => { const i = linesOf(b).findIndex(l => !l.photo); return i >= 0 ? String(i) : 'new'; };
+  let li = firstFree(list.find(b => b.id === bid));
+  const body = () => { const b = list.find(x => x.id === bid);
+    return `<div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:start"><button class="st-dthumb" style="width:96px" data-zu="${esc(image)}"><img src="${esc(image)}" alt=""></button>
+      <div><label class="st-f">Batch<select class="st-in" id="uaB">${list.map(x => `<option value="${x.id}" ${x.id === bid ? 'selected' : ''}>${batchTitle(x)}</option>`).join('')}</select></label>
+      <p class="st-lbl" style="margin:12px 0 0">Which line</p>
+      <div class="st-ulines">${linesOf(b).map((l, i) => `<label><input type="radio" name="uaL" value="${i}" ${li === String(i) ? 'checked' : ''}><span>Ad ${i + 1}: ${esc((l.text || 'No words yet').slice(0, 120))}${l.photo ? '<small>Already has a photo: this replaces it</small>' : ''}</span></label>`).join('')}
+        <label><input type="radio" name="uaL" value="new" ${li === 'new' ? 'checked' : ''}><span>A new line<small>Added at the end, words written when the batch is planned</small></span></label></div>
+      ${b?.plan ? '<p class="tiny" style="margin:8px 0 0">This batch has a plan. It is cleared so the line is planned with the photo; press Plan the ads again.</p>' : ''}</div></div>`; };
+  return modal('Use as the ad', '<div id="uaBody"></div>', { cta: 'Use as the ad', wide: true, onOpen: (w, ctl) => {
+    const draw = () => { w.querySelector('#uaBody').innerHTML = body(); w.querySelector('#uaB').onchange = e => { bid = e.target.value; li = firstFree(list.find(b => b.id === bid)); draw(); };
+      w.querySelectorAll('[name="uaL"]').forEach(r => r.onchange = () => { li = r.value; }); w.querySelectorAll('[data-zu]').forEach(x => x.onclick = () => zoom(x.dataset.zu)); };
+    draw();
+    w.onSubmit(async () => {
+      const b = list.find(x => x.id === bid); b.brief = b.brief || {}; b.brief.lines = b.brief.lines || [];
+      if (li === 'new') { if (b.brief.lines.length >= 12) throw new Error('That batch already has 12 lines.'); b.brief.lines.push({ text: 'The ad on this photo', inspo: [], photo: image }); }
+      else b.brief.lines[+li].photo = image;
+      if (b.plan) b.plan = null;
+      if (S.cur?.id === b.id) clearTimeout(saveT);
+      const r = await post('/api/studio/batch/save', { batch: b });
+      const saved = r.batch || b;
+      if (S.d?.account?.act_id === S.act) { const k = S.d.batches.findIndex(x => x.id === saved.id); if (k >= 0) S.d.batches[k] = saved; }
+      if (S.cur?.id === saved.id) { S.cur = saved; if ($('#stMain')) paint(); }
+      ctl.close(true);
+    });
+  } });
+}
+
+/* Entry points for other screens (Creative > Library). They bring their own session and brand. A different
+   brand than Studio last showed resets Studio's per-brand state, so Studio reloads cleanly next time. */
+function boot({ tok, url, act }) {
+  Object.assign(S, { tok, url });
+  if (act && act !== S.act) { S.act = act; S.products = null; S.cur = null; S.lastAct = null; }
+  injectCss();
+}
+
 /* ---------------- ads made before batches ---------------- */
 function looseView(ads) {
   const ok = ads.filter(a => a.status === 'approved').length;
@@ -1271,5 +1535,10 @@ function looseView(ads) {
     ads.length ? `<span class="tiny">${ok} of ${ads.length} approved</span>` : '');
 }
 
-window.StudioTab = { render };
+window.StudioTab = {
+  render,
+  /* Creative > Library: "Dress with a product" on a person photo, and "Use as the ad" on a look. Both resolve when the window closes. */
+  dress: o => { boot(o); return dress({ base: o.base || null }); },
+  useAsAd: o => { boot(o); return useAsAd(o.image); },
+};
 })();

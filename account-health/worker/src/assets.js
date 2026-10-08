@@ -30,6 +30,10 @@ async function ensure(env) {
     w INTEGER, h INTEGER, thumb_src TEXT, thumb_key TEXT, status TEXT DEFAULT 'new', people INTEGER, setting TEXT, shot TEXT, products TEXT, colors TEXT, descr TEXT, tags_json TEXT,
     tagged_at TEXT, seen_at TEXT, PRIMARY KEY (act_id, file_id))`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_asset_status ON p_asset (act_id, status)`).run().catch(() => {});
+  /* 2026-10-08: Studio's Dress step writes LOOKS into the same table (source 'locus', kind 'look'), so the
+     library shows them beside the Drive photos. The profit worker runs the same guarded ALTERs (studio.js
+     ensureLooks); a column that already exists just throws and is skipped. */
+  for (const c of ['source TEXT', 'kind TEXT', 'cost REAL', 'look_json TEXT']) await env.DB.prepare(`ALTER TABLE p_asset ADD COLUMN ${c}`).run().catch(() => {});
   tabled = true;
 }
 const folderId = u => (/folders\/([\w-]{10,})/.exec(String(u || '')) || /^([\w-]{20,})$/.exec(String(u || '').trim()) || [])[1] || null;
@@ -78,7 +82,7 @@ export async function syncAssets(env, act, { maxFolders = 500, maxFiles = 10000 
   }
   /* Files that disappeared from Drive (deleted or moved out) stop showing; nothing is deleted from Drive. */
   const complete = !queue.length;   // only a full walk may decide a file is gone
-  if (complete) await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND (seen_at IS NULL OR seen_at < ?2) AND status != 'gone'`).bind(act, now).run();
+  if (complete) await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND (seen_at IS NULL OR seen_at < ?2) AND status != 'gone' AND COALESCE(source, 'drive') != 'locus'`).bind(act, now).run();
   fresh = (await env.DB.prepare(`SELECT COUNT(*) n FROM p_asset WHERE act_id = ?1 AND status = 'new'`).bind(act).first())?.n || 0;
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(`assetsSyncAt:${act}`, now).run().catch(() => {});
   return { act, folders, files, to_tag: fresh, complete };
@@ -137,13 +141,48 @@ export async function listAssets(env, act, p = {}) {
   const add = (sql, v) => { args.push(v); where.push(sql.replace('?', `?${args.length}`)); };
   if (p.people === 'yes') where.push('people > 0'); if (p.people === 'no') where.push('people = 0');
   if (p.setting) add('setting = ?', p.setting);
+  if (p.source === 'locus') where.push(`source = 'locus'`);
   for (const w of String(p.q || '').toLowerCase().split(/\s+/).filter(x => x.length > 1).slice(0, 6)) add(`lower(COALESCE(descr,'') || ' ' || COALESCE(name,'') || ' ' || COALESCE(products,'') || ' ' || COALESCE(tags_json,'') || ' ' || COALESCE(path,'')) LIKE ?`, `%${w}%`);
   const lim = Math.min(+p.limit || 120, 400);
-  const { results } = await env.DB.prepare(`SELECT file_id, name, path, w, h, status, people, setting, shot, products, colors, descr, thumb_key, modified FROM p_asset WHERE ${where.join(' AND ')} ORDER BY modified DESC LIMIT ${lim}`).bind(...args).all();
+  const { results } = await env.DB.prepare(`SELECT file_id, name, path, w, h, status, people, setting, shot, products, colors, descr, thumb_key, modified, source, kind, cost, look_json FROM p_asset WHERE ${where.join(' AND ')} ORDER BY modified DESC LIMIT ${lim}`).bind(...args).all();
   const counts = await env.DB.prepare(`SELECT status, COUNT(*) n FROM p_asset WHERE act_id = ?1 GROUP BY status`).bind(act).all();
   const settings = await env.DB.prepare(`SELECT setting, COUNT(*) n FROM p_asset WHERE act_id = ?1 AND status = 'tagged' GROUP BY setting ORDER BY n DESC`).bind(act).all();
+  const looks = (await env.DB.prepare(`SELECT COUNT(*) n FROM p_asset WHERE act_id = ?1 AND source = 'locus' AND status = 'tagged'`).bind(act).first().catch(() => null))?.n || 0;
   const at = (await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`assetsSyncAt:${act}`).first().catch(() => null))?.value || null;
-  return { act, items: results || [], counts: Object.fromEntries((counts.results || []).map(r => [r.status, r.n])), settings: settings.results || [], synced_at: at, sources: await sourcesFor(env, act) };
+  return { act, items: (results || []).map(r => ({ ...r, look: r.look_json ? safeJson(r.look_json, null) : null, look_json: undefined })), looks, counts: Object.fromEntries((counts.results || []).map(r => [r.status, r.n])), settings: settings.results || [], synced_at: at, sources: await sourcesFor(env, act) };
+}
+
+/** One library image at Studio size, for the browser to shrink and upload like a file it picked (2026-10-08).
+ *  Drive photos come through Drive's own thumbnail service at 1600px: always a JPEG or PNG the browser can
+ *  draw (a camera RAW, HEIC or a 40MB original never reaches the Worker), and the browser takes it to 1568px.
+ *  A look (made by Locus) is already ours in R2. */
+export async function assetFile(env, act, id) {
+  await ensure(env);
+  const row = await env.DB.prepare(`SELECT file_id, name, mime, thumb_key, source FROM p_asset WHERE act_id = ?1 AND file_id = ?2`).bind(act, id).first();
+  if (!row) throw new Error('That image is not in this brand’s library.');
+  if (row.source === 'locus') {
+    const obj = row.thumb_key && env.MEDIA ? await env.MEDIA.get(row.thumb_key) : null;
+    if (!obj) throw new Error('That look is missing from storage.');
+    return { buf: await obj.arrayBuffer(), type: obj.httpMetadata?.contentType || 'image/jpeg', name: row.name };
+  }
+  const m = await drive(env, `files/${row.file_id}?fields=thumbnailLink,mimeType,size&supportsAllDrives=true`);
+  const tok = await googleToken(env, AS(env), SCOPE);
+  if (m.thumbnailLink) {
+    const r = await F(m.thumbnailLink.replace(/=s\d+$/, '=s1600'), { headers: { Authorization: `Bearer ${tok}` } });
+    if (r.ok) return { buf: await r.arrayBuffer(), type: (r.headers.get('content-type') || 'image/jpeg').split(';')[0], name: row.name };
+  }
+  /* No thumbnail (rare: a file Drive has not processed yet): the original, if it is a web image and not huge. */
+  if (!/^image\/(jpeg|png|webp)$/.test(m.mimeType || '') || +m.size > 25e6) throw new Error('Drive has no preview of that image yet. Try again in a few minutes.');
+  const r = await F(`https://www.googleapis.com/drive/v3/files/${row.file_id}?alt=media&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${tok}` } });
+  if (!r.ok) throw new Error(`Drive ${r.status}`);
+  return { buf: await r.arrayBuffer(), type: m.mimeType, name: row.name };
+}
+
+/** Take a look (made by Locus) out of the library. Drive photos are never touched here. */
+export async function removeLook(env, act, id) {
+  await ensure(env);
+  const r = await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND file_id = ?2 AND source = 'locus'`).bind(act, id).run();
+  return { ok: !!r.meta?.changes };
 }
 
 /** Hourly: the stalest brand (by last sync) gets a sync and a small tagging batch. */

@@ -26,7 +26,7 @@
      anything Locus still defines locally deliberately wins over it. -->
 <link rel="stylesheet" href="/mobius.css">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("pf_theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-<link rel="stylesheet" href="/ask/ask.css?v=10">
+<link rel="stylesheet" href="/ask/ask.css?v=11">
 <style>
   /* ============================================================
      Direction C, adopted app-wide 2026-09-02.
@@ -2111,7 +2111,7 @@
 <link rel="stylesheet" href="/sheet.css?v=1">
 <link rel="stylesheet" href="v2.css?v=9">
 <script src="/sheet.js?v=1"></script>
-<script src="/ask/ask-ui.js?v=8"></script>
+<script src="/ask/ask-ui.js?v=9"></script>
 <body>
 <!-- Icon sprite. One <symbol> per tab, 16x16, stroked at a single weight so the
      column reads as one set rather than ten borrowed glyphs. Referenced with
@@ -2230,10 +2230,11 @@
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
 <script src="newclient.js?v=14"></script>
-<script src="studio.js?v=22"></script>
+<script src="studio.js?v=23"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=12"></script>
+<script src="v2.js?v=13"></script>
+<script src="askextra.js?v=1"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -6031,6 +6032,8 @@ function dashBlockHtml(b, all, spec, cur) {
     return `<div class="ds-blk">${h ? `<div class="ds-h">${h}</div>` : ''}<div class="lx-t3 ds-tiles">${tiles}</div></div>`;
   }
   if (b.type === 'note') return `<section class="v2card ds-note">${h ? `<div class="v2h">${h}</div>` : ''}<p class="v2say">${esc(b.text || '')}</p></section>`;
+  /* A Strategist answer pinned from the chat (askextra.js): frozen as of its date, with Refresh. */
+  if (b.type === 'chart') return window.AskX ? AskX.chartBlock(b) : '';
   return '';
 }
 /* Build or edit a dashboard by hand (Locus v2): name, scope, range, compare, and the blocks
@@ -6051,7 +6054,7 @@ function dashEditor(d) {
         <label class="hint" style="margin:0">Range<select id="deRange">${Object.entries(DASH_RANGE_L).map(([k, l]) => `<option value="${k}" ${String(state.spec.range) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="hint" style="margin:0">Compare with<select id="deCmp">${[['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<option value="${k}" ${(state.spec.compare || 'prev') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       </div>
-      <div class="v2ed">${blocks.map((b, i) => `<div class="row"><span class="ty">${esc(DASH_BLOCK_L[b.type] || b.type)}</span>
+      <div class="v2ed">${blocks.map((b, i) => `<div class="row"><span class="ty">${esc(DASH_BLOCK_L[b.type] || (b.type === 'chart' ? 'Pinned answer' : b.type))}</span>
           <div><input type="text" data-bt="${i}" value="${esc(b.title || '')}" placeholder="Title (optional)" style="width:100%">
             ${b.type === 'tiles' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_TILES).map(([k, v]) => `<label><input type="checkbox" data-bm="${i}" value="${k}" ${(b.metrics || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
             ${b.type === 'brands' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_COLS).map(([k, v]) => `<label><input type="checkbox" data-bc="${i}" value="${k}" ${(b.columns || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
@@ -10856,6 +10859,8 @@ renderSettings = async function(){
     acs.disabled = false;
   };
   AskUI.afterSettings();
+  /* Scheduled questions (Strategist section) and the What moved switch (Briefs and Slack): askextra.js. */
+  if (window.AskX) { AskX.schedules(slot); AskX.movedSetting(); }
   try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}
 };
 boot();

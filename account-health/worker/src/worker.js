@@ -1,6 +1,8 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
-import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick } from './assets.js';
+import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
+import { movedTick, movedPreview } from './moved.js';
+import { handleSchedules, scheduleTick } from './askschedule.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -1112,6 +1114,10 @@ function dashBlocks(row, d) {
       blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}_The day-by-day chart is on the dashboard in Locus._` } });
     } else if (b.type === 'note' && b.text) {
       blocks.push({ type: 'section', text: { type: 'mrkdwn', text: b.text.slice(0, 2900) } });
+    } else if (b.type === 'chart') {
+      /* A Strategist answer pinned from the chat (2026-10-08): the picture lives in Locus. */
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || b.spec?.title || 'A pinned chart').slice(0, 150)}*
+_A chart pinned from the Strategist${b.pinned_at ? ` on ${String(b.pinned_at).slice(0, 10)}` : ''}; open in Locus to see it._` } });
     }
   }
   blocks.push({ type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: DASH_URL + row.id, action_id: 'noop_open' }] });
@@ -6390,6 +6396,11 @@ function strategist() {
   });
   return _strat;
 }
+/* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
+function hubDeps() {
+  return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
+    subCanAfford, strategist, isAdmin, sessionEmail };
+}
 /* The Strategist's night: the checks over what the syncs wrote, the watches,
    remembered; urgent new findings to the team channel; Monday, the briefing. */
 /* A post under the Strategist's name where the app allows it (chat:write.customize), the app's name where not. */
@@ -6723,6 +6734,10 @@ const AH_APP = {
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
         /* Saved dashboards with a Slack schedule (the hub, 2026-10-07). */
         ran.dashboards = await dashboardTick(env).catch(e => ({ error: e.message }));
+        /* What moved yesterday, once a day per brand to its internal channel, only when something moved (moved.js). */
+        ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
+        ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -6915,6 +6930,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     /* ---- the Strategist, in Locus ---- */
     if (path.startsWith('/api/ask')) {
+      /* Scheduled questions (askschedule.js): admin-checked inside. */
+      const sched = await handleSchedules(request, env, path, json, hubDeps());
+      if (sched) return sched;
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const { engine, h } = strategist();
       const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
@@ -7391,6 +7409,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.channel && /^[CG][A-Z0-9]{6,}$/.test(String(b.channel))) row.channel = String(b.channel);
       try { return json(await postDashboard(env, row)); } catch (e) { return json({ error: e.message }, 400); }
     }
+    /* What the What-moved post would say right now, per brand, without posting (moved.js). */
+    if (path === '/api/moved-preview' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      return json(await movedPreview(env, hubDeps()));
+    }
     /* Klaviyo, read live by the brand's own key, for the Email and SMS screen. */
     if (path === '/api/klaviyo' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -7417,7 +7440,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (path === '/api/assets/sync' && request.method === 'POST') { const s1 = await syncAssets(env, act); const t1 = s1.error ? null : await tagAssets(env, act, Math.min(+url.searchParams.get('tag') || 30, 60)); return json({ sync: s1, tag: t1 }); }
         if (path === '/api/assets/folders' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); const folders = (Array.isArray(b.folders) ? b.folders : String(b.folders || '').split(/[\s,]+/)).filter(Boolean).slice(0, 10);
           await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'assets', ?2, 'approved', 'staff', datetime('now')) ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(act, JSON.stringify({ folders })).run(); return json({ ok: true, folders }); }
-        if (path === '/api/assets') return json(await listAssets(env, act, { q: url.searchParams.get('q'), people: url.searchParams.get('people'), setting: url.searchParams.get('setting'), limit: url.searchParams.get('limit') }));
+        if (path === '/api/assets') return json(await listAssets(env, act, { q: url.searchParams.get('q'), people: url.searchParams.get('people'), setting: url.searchParams.get('setting'), source: url.searchParams.get('source'), limit: url.searchParams.get('limit') }));
+        /* Studio "From the library" (2026-10-08): one image at Studio size; the browser shrinks and uploads it like a picked file. */
+        if (path === '/api/assets/file' && request.method === 'GET') { const f = await assetFile(env, act, url.searchParams.get('id') || ''); return new Response(f.buf, { headers: { 'Content-Type': f.type, 'Cache-Control': 'private, max-age=3600', ...CORS } }); }
+        if (path === '/api/assets/remove' && request.method === 'POST') { const b = await request.json().catch(() => ({})); return json(await removeLook(env, act, String(b.id || ''))); }
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown assets route' }, 404);
     }
@@ -8096,6 +8122,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           slackSendWho: (await getSetting(env, 'slackSendWho')) === 'anyone' ? 'anyone' : 'owner',
           slackInteractive: !!env.SLACK_SIGNING_SECRET,
           paceAlertPct: +(await getSetting(env, 'paceAlertPct')) || 0.15,
+          /* What moved yesterday, posted to each brand's internal channel (moved.js). On unless 'off'. */
+          movedPost: (await getSetting(env, 'movedPost')) !== 'off',
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
@@ -8105,6 +8133,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('slackChannel' in b) await putSetting(env, 'slackChannel', b.slackChannel || '');
         if ('slackSendWho' in b) await putSetting(env, 'slackSendWho', b.slackSendWho === 'anyone' ? 'anyone' : 'owner');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));
+        if ('movedPost' in b) await putSetting(env, 'movedPost', b.movedPost ? 'on' : 'off');
         return json({ ok: true });
       }
       if (path === '/api/slack-channels') {

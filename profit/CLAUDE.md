@@ -1993,3 +1993,54 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
 - **Ads > TikTok (2026-10-08 later):** `#v2ttc` in the TikTok cards shows Connect TikTok (account-health
   `/api/tiktok/start`) or the setup state, and once connected a "Campaigns, from TikTok directly" card for a
   linked brand. Ice & Gold's email tool is Attentive (Connections says so). See account-health/CLAUDE.md.
+
+## 2026-10-08 (late): What moved to Slack, scheduled questions, pin an answer to a dashboard
+
+- **What moved, posted to Slack at 8am Central**: account-health `src/moved.js` copies hub.js `movedMany` (keep
+  the thresholds in step; hub.js says so). Switch `movedPost` on Settings > Briefs and Slack ("What moved
+  yesterday, in Slack", drawn by `profit/askextra.js`). Details in account-health/CLAUDE.md.
+- **Scheduled questions**: Settings > The Strategist > "Scheduled questions" card (askextra.js `schedules`):
+  list (question, brand, when, channel, last run + status, runs used today), Add / Edit (in-app modal: question,
+  brand, how often, hour in Central, internal channel defaulting to the brand's), Run now and Delete (both
+  confirmModal). Engine and routes: account-health `askschedule.js`, `/api/ask/schedules`.
+- **Pin to a dashboard** (2026-10-08): ask-ui.js draws a "Pin to a dashboard" button under every ```chart in an
+  answer when the host passes `onPin` (Locus sets `AskUI.state.onPin` in askextra.js; Ledger and Supply get no
+  button). `AskUI.pin(mi, k)` hands {spec, question, title}; the modal picks an existing dashboard (open brand's
+  first) or makes a new one, then `PUT /api/dashboard` with a new block `{type:'chart', title, spec, question,
+  act, pinned_at}`. Pinning the same question again on the same dashboard REPLACES the old block; 10 blocks max.
+  `cleanSpec` (dashboard.js) validates it (`cleanChart`: bar|line|table, 15 labels, 3 series, numbers only,
+  20KB). `dashBlockHtml` draws it with `AskX.chartBlock` = `AskUI.chartHTML` (now exported) in a 640px box,
+  "As of <date>", the brand, the question and Refresh (`AskUI.ask(question)`; re-pin to replace). The editor
+  labels it "Pinned answer" and keeps it. The Strategist's `save_dashboard` does not write chart blocks (they
+  come from people pinning). Versions: ask-ui.js v9, ask.css v11, askextra.js v1.
+
+## 2026-10-08 (late): Studio picks from the photo library, and the Dress step
+
+- **From the library** (studio.js `libPick` / `libToUrls`): everywhere Studio takes a photo (Product: "From the
+  library" beside "Add your own photos"; each line: "From the library" beside "Add image", as inspiration OR "Use as
+  the ad"; inside Dress for the person and the product). Same search and filters as Creative > Library, plus a
+  "Made by Locus" filter, multi-select. Calls account-health directly with the session token. A pick comes from
+  account-health `GET /api/assets/file?act=&id=` (Drive's own thumbnail service at 1600px, so HEIC / RAW / huge
+  originals never reach a Worker; looks come straight from R2), then `shrinkImage` + `/api/studio/upload` exactly like
+  an upload. `upload()` now takes `{url}` items and a `{photo: line}` target.
+- **Dress a photo** (Cole's call with Nick): a REAL photo of a person + 1 to 4 product photos -> ONE GPT Image edit
+  (`/api/studio/dress`, profit worker; `input_fidelity: high`, the person photo first, output JPEG, size from the
+  person photo's aspect) that swaps only the clothing; the product fingerprint rides along when the product has one.
+  `dressCheck` scores the garment 0-10 against the product photos and says whether the person and scene were kept
+  (about a cent). The result is a **look**: stored in R2 twice (`studio/ref/<id>.jpg`, so line.photo and every Studio
+  route use it unchanged, and `assets/<act>/look-<id>.jpg`, so `/assets-img` serves it) and written to `p_asset` with
+  `source 'locus'`, `kind 'look'`, `cost`, `look_json` {url, base, products, product, note, model, check, cost}.
+  Looks never go to the client's Drive. `syncAssets` never marks a look gone. A re-dress or Redo in the same window
+  passes `replace` and the old look leaves the library. New p_asset columns are added by guarded ALTERs in BOTH
+  workers (assets.js `ensure`, studio.js `ensureLooks`).
+- **Entry points:** Studio batch screen, Product card: "Dress a photo" (prefilled with the batch's product and its
+  ticked photos). Creative > Library: a photo with people has "Dress with a product"; a look shows "Made by Locus", how
+  it was made, the check and cost, and "Use as the ad" / "Dress it again" / "Remove from the library"
+  (account-health `POST /api/assets/remove`, looks only, a status flip). "Use as the ad" (studio.js `useAsAd`) picks
+  a batch and a line (or a new line), sets `line.photo` and clears that batch's plan, like the existing button.
+  `window.StudioTab.dress(...)` / `.useAsAd(...)` are how v2.js opens them.
+- **Cost:** logged on the look (`p_asset.cost`, from the image call's `usage` at gpt-image-1 list prices, which errs
+  high, plus 1 cent for the check) and counted in Studio's "This month". Measured 2026-10-08 on Lucky (person crop +
+  3 Gold Carnation Classic Polo photos, `gpt-image-2.5-sunburst-2026-09-08`): **$0.105, 43 seconds, product 9/10,
+  person kept**; the green polo became the Carnation polo with the face, hat, glove, club and sky unchanged. That
+  test look was removed from the library afterwards (its R2 copy remains).

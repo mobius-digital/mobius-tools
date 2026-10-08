@@ -95,7 +95,9 @@ export async function handleHub(ctx) {
    Yesterday per brand against the SAME WEEKDAY over the last 8 weeks (a Tuesday is compared with
    Tuesdays). A move is shown when it is 25%+ off normal AND at least 1.5 standard deviations, so a
    noisy brand is not flagged every day. Revenue moves name the cause (orders or the average order),
-   MER moves name revenue or spend. Store numbers only: Shopify through Triple Whale. */
+   MER moves name revenue or spend. Store numbers only: Shopify through Triple Whale.
+   COPIED in account-health/worker/src/moved.js (`movesFor`), which posts the same finding to each
+   brand's internal Slack channel at 8am Central: change the thresholds in both places together. */
 async function movedMany(env, ctx, accts) {
   const d = ctx.addDays(ctx.localDate(accts[0].tz), -1);
   const from = ctx.addDays(d, -56);

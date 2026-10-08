@@ -15,6 +15,9 @@
  *   AskUI.card()                   -> HTML: what it found, for the home screen
  *   AskUI.settingsCard()           -> HTML: what it knows + the controls
  *   AskUI.afterSettings()          wires the settings card after it is in the DOM
+ *   AskUI.chartHTML(spec)          -> HTML: one ```chart block drawn the way the chat draws it
+ *   init({ onPin: info => ... })   every chart in an answer gets "Pin to a dashboard"; the host is
+ *                                  handed { spec, question, title } (Locus: profit/askextra.js)
  *
  * Same brain as Slack, same read-only reach. Findings are marked Done / Not
  * now / Wrong on the card, and what is marked is never raised again.
@@ -190,14 +193,25 @@ window.AskUI = (() => {
     }
     return `<div class="ac">${head}${labels.map((l, i) => { const v = vals[i]; return `<div class="ac-row"><span class="ac-l" title="${esc(l)}">${esc(l)}</span><span class="ac-b"><i style="width:${isFinite(v) ? Math.max(2, v / mx * 100).toFixed(1) : 0}%"></i>${c.goal ? `<b style="left:${(+c.goal / mx * 100).toFixed(1)}%"></b>` : ''}</span><span class="ac-v">${fmtV(v, u)}</span></div>`; }).join('')}${c.goal ? `<div class="ac-leg"><span><i style="background:var(--ink,#111)"></i>goal ${fmtV(c.goal, u)}</span></div>` : ''}</div>`;
   }
-  function richText(t) {
+  /* `mi` = the message's index in the chat: with a host that pins (init onPin), each chart carries a
+     "Pin to a dashboard" button that knows which message and which chart in it. */
+  function richText(t, mi) {
     const parts = String(t || '').split(/```chart\s*([\s\S]*?)```/);
-    return parts.map((p, i) => { if (i % 2) { try { return chartHTML(JSON.parse(p)); } catch (e) { return `<pre>${esc(p)}</pre>`; } } return esc(p.trim()).replace(/\n/g, '<br>'); }).join('');
+    return parts.map((p, i) => { if (i % 2) { try { const h = chartHTML(JSON.parse(p)); return h && A.onPin && mi != null ? h.replace(/<\/div>$/, `<button type="button" class="ac-pin" onclick="AskUI.pin(${mi},${(i - 1) / 2})" title="Keep this chart on a saved dashboard">Pin to a dashboard</button></div>`) : h; } catch (e) { return `<pre>${esc(p)}</pre>`; } } return esc(p.trim()).replace(/\n/g, '<br>'); }).join('');
+  }
+  /* The chart's spec, the question that produced it (the nearest earlier question in this chat) and
+     its title, handed to the host, which asks where to keep it. */
+  function pin(mi, k) {
+    const m = A.chat[mi]; if (!m || !A.onPin) return;
+    const blocks = String(m.text || '').split(/```chart\s*([\s\S]*?)```/).filter((p, i) => i % 2);
+    let spec; try { spec = JSON.parse(blocks[k]); } catch (e) { flash('That chart could not be read.'); return; }
+    let q = ''; for (let i = mi - 1; i >= 0; i--) { const x = A.chat[i]; if (x.role === 'user' && !x.proposal && !x.report && !x.handoff) { q = String(x.text || '').replace(/^📎[^·]*·\s*/, ''); break; } }
+    A.onPin({ spec, question: q, title: spec.title || '' });
   }
   function render(intro) {
     const log = $('#askLog');
     log.innerHTML = (intro ? `<div class="m ai intro">${esc(intro).replace(/\n/g, '<br>')}</div>` : '')
-      + A.chat.map(m => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : richText(m.text)}</div>`).join('')
+      + A.chat.map((m, mi) => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : richText(m.text, mi)}</div>`).join('')
       + (A.busy ? '<div class="m ai think">Looking…</div>' : '');
     log.scrollTop = log.scrollHeight;
   }
@@ -383,5 +397,5 @@ window.AskUI = (() => {
   }
 
   function ask(q) { open(); const el = $('#askIn'); if (!el || !q) return; el.value = q; send(); }
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask, pin, chartHTML };
 })();

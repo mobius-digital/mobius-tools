@@ -50,6 +50,30 @@ function pngSize(u) {
   if (u.length > 24 && u[0] === 0x89 && u[1] === 0x50) return { w: (u[16] << 24 | u[17] << 16 | u[18] << 8 | u[19]) >>> 0, h: (u[20] << 24 | u[21] << 16 | u[22] << 8 | u[23]) >>> 0 };
   return { w: 0, h: 0 };
 }
+/* Width and height of a PNG, JPEG or WebP from its header bytes (the Dress step picks the output shape
+   from the person photo, which is usually a JPEG). No image library on Workers, so read the markers. */
+function imgSize(u) {
+  if (u[0] === 0x89) return pngSize(u);
+  if (u[0] === 0xff && u[1] === 0xd8) {
+    for (let i = 2; i + 9 < u.length;) {
+      if (u[i] !== 0xff) { i++; continue; }
+      const mk = u[i + 1];
+      if (mk === 0xff) { i++; continue; }
+      if ((mk >= 0xd0 && mk <= 0xd9) || mk === 0x01) { i += 2; continue; }
+      if (mk >= 0xc0 && mk <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(mk)) return { w: u[i + 7] << 8 | u[i + 8], h: u[i + 5] << 8 | u[i + 6] };
+      i += 2 + (u[i + 2] << 8 | u[i + 3]);
+    }
+    return { w: 0, h: 0 };
+  }
+  const tag = String.fromCharCode(...u.subarray(12, 16));
+  if (String.fromCharCode(...u.subarray(8, 12)) === 'WEBP') {
+    if (tag === 'VP8 ') return { w: (u[26] | u[27] << 8) & 0x3fff, h: (u[28] | u[29] << 8) & 0x3fff };
+    if (tag === 'VP8L') return { w: 1 + (((u[22] & 0x3f) << 8) | u[21]), h: 1 + (((u[24] & 0xf) << 10) | (u[23] << 2) | ((u[22] & 0xc0) >> 6)) };
+    if (tag === 'VP8X') return { w: 1 + (u[24] | u[25] << 8 | u[26] << 16), h: 1 + (u[27] | u[28] << 8 | u[29] << 16) };
+  }
+  return { w: 0, h: 0 };
+}
+const typeOf = u => u[0] === 0xff && u[1] === 0xd8 ? 'image/jpeg' : u[0] === 0x89 ? 'image/png' : String.fromCharCode(...u.subarray(8, 12)) === 'WEBP' ? 'image/webp' : 'image/png';
 
 /* A word box (0-1000, [l, t, r, b]) grown to cover what the vision model misses: its boxes
    run a few % off vertically, and a button's shape extends past its letters. */
@@ -113,8 +137,8 @@ async function models(key) {
 
 /* One image call. Retries without whichever optional parameter the model rejects, so a
    model that lacks 4:5 or input_fidelity still works (the editor crops to 4:5 either way). */
-async function imageCall(key, model, { prompt, images = [], size = '1024x1280', fidelity = false, mask = null, quality = 'high' }) {
-  const opts = { size, quality, ...(fidelity ? { input_fidelity: 'high' } : {}) };
+async function imageCall(key, model, { prompt, images = [], size = '1024x1280', fidelity = false, mask = null, quality = 'high', format = '' }) {
+  const opts = { size, quality, ...(fidelity ? { input_fidelity: 'high' } : {}), ...(format ? { output_format: format, output_compression: 92 } : {}) };
   for (let attempt = 0; attempt < 4; attempt++) {
     let res;
     if (images.length) {
@@ -135,6 +159,7 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
       if ((/size/i.test(p) || /size/i.test(msg)) && opts.size !== '1024x1536') { opts.size = opts.size === '1024x1280' ? '1024x1536' : 'auto'; continue; }
       if (/input_fidelity/i.test(p + msg) && opts.input_fidelity) { delete opts.input_fidelity; continue; }
       if (/quality/i.test(p) && opts.quality) { delete opts.quality; continue; }
+      if (/output_(format|compression)/i.test(p + msg) && opts.output_format) { delete opts.output_format; delete opts.output_compression; continue; }
     }
     if ((res.status === 429 || res.status >= 500) && attempt < 2) { await new Promise(r => setTimeout(r, 4000 * (attempt + 1))); continue; }
     throw new Error(msg);
@@ -432,6 +457,64 @@ function shapeBatch(r) {
     brief: safeJson(r.brief_json, {}), setup: safeJson(r.setup_json, {}), plan: safeJson(r.plan_json, null), created_at: r.created_at, updated_at: r.updated_at };
 }
 
+/* ---------------- Dress: a real person photo, wearing our product (2026-10-08) ----------------
+   Nick's method from the Oct 8 call: generated people look like AI, so take a REAL photo of a person (the
+   brand's shoot, the library) and have the image model swap only the garment for our product, using the
+   product photos. One edit call; the person, pose, face, light and background are kept. The result is a
+   LOOK: saved once to the brand's photo library (p_asset, source 'locus', kind 'look', the account-health
+   assets.js table) so one good dressed photo can feed many ads through the real-photo flow (line.photo).
+   Looks stay in Locus (R2), never in the client's Drive. */
+let LOOKS_OK = false;
+async function ensureLooks(env) {
+  if (LOOKS_OK) return;
+  /* Same table and columns as account-health assets.js ensure(); whichever worker runs first makes them. */
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_asset (act_id TEXT NOT NULL, file_id TEXT NOT NULL, name TEXT, mime TEXT, folder TEXT, path TEXT, modified TEXT,
+    w INTEGER, h INTEGER, thumb_src TEXT, thumb_key TEXT, status TEXT DEFAULT 'new', people INTEGER, setting TEXT, shot TEXT, products TEXT, colors TEXT, descr TEXT, tags_json TEXT,
+    tagged_at TEXT, seen_at TEXT, PRIMARY KEY (act_id, file_id))`).run();
+  for (const c of ['source TEXT', 'kind TEXT', 'cost REAL', 'look_json TEXT']) await env.DB.prepare(`ALTER TABLE p_asset ADD COLUMN ${c}`).run().catch(() => {});
+  LOOKS_OK = true;
+}
+/* GPT Image list prices per million tokens [text in, image in, image out]. Unknown ids use gpt-image-1's,
+   the highest, so the logged cost errs high rather than low. The API returns usage on every image call. */
+const IMG_PRICE = [[/gpt-image-1-mini/, [2, 2.5, 8]], [/./, [5, 10, 40]]];
+function imageCost(model, usage) {
+  if (!usage) return COST.image;
+  const [t, i, o] = IMG_PRICE.find(([re]) => re.test(model))[1];
+  const d = usage.input_tokens_details || {};
+  const img = d.image_tokens ?? Math.max(0, (usage.input_tokens || 0) - (d.text_tokens || 0)), txt = d.text_tokens ?? 0;
+  return (txt * t + img * i + (usage.output_tokens || 0) * o) / 1e6;
+}
+function dressPrompt({ title, brand, n, dna, note }) {
+  return [
+    `Image 1 is a real photograph of a person. ${n > 1 ? `Images 2 to ${n + 1} are product photos` : 'Image 2 is a product photo'} of ${title ? `"${title}"` : 'a product'} by ${brand}.`,
+    'Edit image 1 so the person is wearing that exact product. It replaces the matching item they have on (a shirt or polo replaces the top they wear, a hat replaces or adds headwear, a glove goes on the hand, and so on). If they wear nothing of that kind, put it where it is worn.',
+    'KEEP EVERYTHING ELSE EXACTLY AS SHOT: the same person, face, expression, skin, hair, body shape, pose, hands and anything they hold, the background, the light direction and softness, the colour grade, the grain and the framing. It is a real photo and must still read as the same real photo, not a render.',
+    'Reproduce the product exactly from its photos: the same colours, fabric and texture, collar, placket, buttons, seams and pattern, and every logo and printed word in its exact position and size. Fit it naturally to this body and pose, with real folds, creases and shadows that follow the scene light.',
+    dna ? `The product's fingerprint (every point must be true on the person):\n${dna}` : '',
+    note ? `Also: ${note}` : '',
+    'Add no text, no watermark and nothing that is not on the product.',
+  ].filter(Boolean).join('\n\n');
+}
+/* Score the garment against the product photos (0-10, same scale as the ad check) and say whether the
+   person and scene survived. About a cent; the result shows on the look so the team knows when to Redo. */
+async function dressCheck(key, model, bytes, base, refs, name, dna = '') {
+  const content = [{ type: 'text', text: `The FIRST image is a real photo of a person (before). The next images are REFERENCE photos of a product${name ? ` ("${name}")` : ''}. The LAST image is the same photo after an edit that should dress the person in that product. Judge two things. 1) Is the garment or accessory they now wear the SAME product as the references? Compare shape and cut first, then colours, fabric, collar, buttons, logos and printed details and where they sit. Be strict: a similar but different product is not ok. 2) Is it still the same person, face, pose and background as the first image? Small changes where the clothing changed are fine.${dna ? `\n\nThe product's fingerprint; check every point:\n${dna}` : ''}` }];
+  content.push({ type: 'image_url', image_url: { url: `data:${base.type};base64,${b64(base.buf)}` } });
+  for (const r of refs.slice(0, 4)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
+  content.push({ type: 'image_url', image_url: { url: `data:${typeOf(bytes)};base64,${b64(bytes)}` } });
+  const res = await fetch(`${OA}/chat/completions`, {
+    method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], response_format: { type: 'json_schema', json_schema: { name: 'dress', strict: true, schema: { type: 'object', additionalProperties: false, required: ['score', 'issue', 'person_kept', 'person_issue'], properties: {
+      score: { type: 'integer', description: '0 to 10: 10 = the worn product is identical to the references, 7 = close with small differences, below 5 = a different-looking product' },
+      issue: { type: 'string', description: 'what is wrong with the product, in a few words, or empty' },
+      person_kept: { type: 'boolean' }, person_issue: { type: 'string', description: 'what changed about the person or scene, in a few words, or empty' } } } } } }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error?.message || 'check failed');
+  const c = safeJson(j.choices?.[0]?.message?.content, null);
+  return c ? { ...c, ok: (c.score ?? 0) >= 7 && c.person_kept !== false } : null;
+}
+
 /* ---------------- public: the images ---------------- */
 export async function handlePublic(request, env, url, path, json, CORS) {
   if (path === '/api/studio/canva/callback' && request.method === 'GET') return canvaCallback(env, url);
@@ -473,9 +556,11 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const acct = act ? await env.DB.prepare(`SELECT act_id, name, tw_shop FROM accounts WHERE act_id = ?1`).bind(act).first() : null;
     const rows = act ? (await env.DB.prepare(`SELECT * FROM p_studio_ad WHERE act_id = ?1 AND status != 'gone' ORDER BY created_at DESC LIMIT 300`).bind(act).all()).results || [] : [];
     const spent = act ? (await env.DB.prepare(`SELECT COALESCE(SUM(cost),0) c FROM p_studio_ad WHERE act_id = ?1 AND created_at >= date('now','start of month')`).bind(act).first())?.c || 0 : 0;
+    /* Dressed photos (looks) live in the photo library, not p_studio_ad; their cost counts in the month too. */
+    const lookSpent = act ? (await env.DB.prepare(`SELECT COALESCE(SUM(cost),0) c FROM p_asset WHERE act_id = ?1 AND source = 'locus' AND tagged_at >= date('now','start of month')`).bind(act).first().catch(() => null))?.c || 0 : 0;
     const canvaState = { configured: !!(await cfgGet(env, 'canva_client_id')), connected: !!(await cfgGet(env, 'canva_tokens')) };
     const batches = act ? ((await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE act_id = ?1 AND status != 'archived' ORDER BY updated_at DESC LIMIT 200`).bind(act).all()).results || []).map(shapeBatch) : [];
-    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, canva: canvaState, spent_month: Math.round(spent * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
+    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, canva: canvaState, spent_month: Math.round((spent + lookSpent) * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
   }
 
   if (path === '/api/studio/key' && request.method === 'POST') {
@@ -755,6 +840,60 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const ad = await saveAd(env, row.act_id, { bytes: out.bytes, spec, prompt, model: m.image, cost: COST.image, parent: row.id, batch_id: row.batch_id, line: row.line });
       await env.DB.prepare(`UPDATE p_studio_ad SET status = 'deleted', updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
       send({ type: 'done', ad });
+    });
+  }
+
+  /* ---- Dress: put the product on a real person photo, save it as a look in the photo library ----
+     Inputs are URLs Studio already holds (uploads and library picks are in R2 as refs; Shopify photos are
+     public), so nothing new is uploaded here. `replace` = the look this one replaces (Redo, or a re-dress in
+     the same window): it leaves the library so rejects do not pile up. */
+  if (path === '/api/studio/dress' && request.method === 'POST') {
+    if (!key) return needKey();
+    if (!env.MEDIA) return json({ error: 'Image storage is not set up on this worker.' }, 500);
+    const baseUrl = urls([body.base], 1)[0], prodUrls = urls(body.products, 4);
+    if (!baseUrl) return json({ error: 'Pick the photo of the person first.' }, 400);
+    if (!prodUrls.length) return json({ error: 'Pick at least one photo of the product.' }, 400);
+    const acct = await env.DB.prepare(`SELECT name FROM accounts WHERE act_id = ?1`).bind(act).first();
+    if (!acct) return json({ error: 'unknown brand' }, 404);
+    const title = clip(body.product, 200).trim(), handle = clip(body.handle, 200), note = clip(body.note, 400).trim();
+    return stream(CORS, async send => {
+      await ensureLooks(env);
+      const m = await models(key);
+      const [base] = await refImages(env, [baseUrl], 1);
+      if (!base) throw new Error('Could not load the photo of the person.');
+      const prods = await refImages(env, prodUrls, 4);
+      if (!prods.length) throw new Error('Could not load the product photos.');
+      const dna = handle ? clip(await cfgGet(env, `dna:${act}:${handle}`) || '', 3000) : '';
+      const { w, h } = imgSize(new Uint8Array(base.buf));
+      const size = w && h ? (w / h > 1.15 ? '1536x1024' : w / h < 0.87 ? '1024x1536' : '1024x1024') : '1024x1536';
+      const prompt = dressPrompt({ title, brand: acct.name, n: prods.length, dna, note });
+      send({ type: 'status', text: `Dressing the photo with ${m.image}. About a minute.` });
+      const out = await imageCall(key, m.image, { prompt, images: [base, ...prods], fidelity: true, size, quality: 'high', format: 'jpeg' });
+      let cost = imageCost(m.image, out.usage);
+      send({ type: 'status', text: 'Checking the product against its photos.' });
+      const check = await dressCheck(key, m.check || m.vision, out.bytes, base, prods, title, dna).catch(() => null);
+      cost += COST.vision;
+      /* Stored twice on purpose: as a Studio ref (so line.photo and every Studio route use it unchanged)
+         and under the library's key (so /assets-img/<act>/look-<id> serves it like any library photo). */
+      const id = rid(), type = typeOf(out.bytes), ext = { 'image/jpeg': 'jpg', 'image/webp': 'webp' }[type] || 'png';
+      await env.MEDIA.put(`studio/ref/${id}.${ext}`, out.bytes, { httpMetadata: { contentType: type } });
+      const fileId = `look-${id}`, thumbKey = `assets/${act}/${fileId}.jpg`;
+      await env.MEDIA.put(thumbKey, out.bytes, { httpMetadata: { contentType: type } });
+      const refUrl = `${url.origin}/api/studio/ref/${id}.${ext}`;
+      const src = /^[\w-]{15,}$/.test(body.base_asset || '') ? await env.DB.prepare(`SELECT file_id, name, people, setting, shot, colors, descr, tags_json FROM p_asset WHERE act_id = ?1 AND file_id = ?2`).bind(act, body.base_asset).first().catch(() => null) : null;
+      const sz = imgSize(out.bytes), now = new Date().toISOString();
+      const baseName = clip(body.base_name || src?.name || 'a photo', 160);
+      const look = { url: refUrl, base: baseUrl, base_asset: src?.file_id || null, base_name: baseName, products: prodUrls, product: title, handle, note, model: m.image,
+        check: check ? { score: check.score, ok: check.ok, issue: check.issue || '', person_kept: check.person_kept, person_issue: check.person_issue || '' } : null, cost: Math.round(cost * 1000) / 1000 };
+      const srcTags = safeJson(src?.tags_json, {}) || {};
+      const tags = { ...srcTags, source: 'locus', kind: 'look', wearing: [...new Set([...(srcTags.wearing || []), title].filter(Boolean))], products: [title].filter(Boolean) };
+      const descr = clip(`Made by Locus: ${src?.descr ? src.descr.replace(/\.$/, '') + ', now' : 'a real photo of a person'} wearing ${title || 'the product'}.`, 300);
+      const name = clip(`${title || 'Product'} on ${baseName}`, 200);
+      await env.DB.prepare(`INSERT INTO p_asset (act_id, file_id, name, mime, folder, path, modified, w, h, thumb_key, status, people, setting, shot, products, colors, descr, tags_json, tagged_at, seen_at, source, kind, cost, look_json)
+        VALUES (?1, ?2, ?3, ?4, 'locus', 'Made by Locus', ?5, ?6, ?7, ?8, 'tagged', ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?5, ?5, 'locus', 'look', ?16, ?17)`)
+        .bind(act, fileId, name, type, now, sz.w || null, sz.h || null, thumbKey, src?.people ?? 1, src?.setting || '', src?.shot || '', title, src?.colors || '', descr, JSON.stringify(tags), cost, JSON.stringify(look)).run();
+      if (/^look-[a-f0-9]{24}$/.test(body.replace || '')) await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND file_id = ?2 AND source = 'locus'`).bind(act, body.replace).run();
+      send({ type: 'done', look: { file_id: fileId, name, w: sz.w, h: sz.h, ...look } });
     });
   }
 

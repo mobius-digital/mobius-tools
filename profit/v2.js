@@ -993,19 +993,19 @@
     const title = a ? `Library: ${esc(a.name)}` : 'Library';
     if (!a) { $('#main').innerHTML = shell('library', title, card('Pick a brand', '', '<p class="v2hint">Each brand has its own photo library, read from its Drive folder. Pick a brand in the menu.</p>')); return; }
     if (first) $('#main').innerHTML = shell('library', title, '<div class="v2card"><p class="v2hint">Reading the library…</p></div>');
-    const qs = new URLSearchParams({ act: a.act_id, q: LIBF.q, people: LIBF.people, setting: LIBF.setting, limit: '200' });
+    const qs = new URLSearchParams({ act: a.act_id, q: LIBF.q, people: LIBF.people === 'locus' ? '' : LIBF.people, source: LIBF.people === 'locus' ? 'locus' : '', setting: LIBF.setting, limit: '200' });
     let d; try { d = await H.apiAH(`/api/assets?${qs}`); } catch (e) { d = { error: e.message }; }
     if (t !== H.RUN()) return;
     if (d.error) { $('#main').innerHTML = shell('library', title, card('The library could not load', '', `<p class="v2bad">${esc(d.error)}</p>`)); return; }
     const c = d.counts || {}, total = (c.tagged || 0) + (c.new || 0), base = H.AH_URL || '';
     const img = x => `${base}/assets-img/${encodeURIComponent(a.act_id)}/${encodeURIComponent(x.file_id)}`;
     const SET = (d.settings || []).filter(s => s.setting);
-    const body = `<p class="v2say lead">${int(total)} images from ${esc(a.name)}’s Drive${c.new ? `, ${int(c.new)} still being tagged` : ''}. ${d.synced_at ? `Checked ${esc(new Date(d.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}.` : 'Not read yet.'} New files anywhere in the folder are picked up within the hour.</p>
+    const body = `<p class="v2say lead">${int(total - (d.looks || 0))} images from ${esc(a.name)}’s Drive${d.looks ? ` and ${int(d.looks)} made by Locus` : ''}${c.new ? `, ${int(c.new)} still being tagged` : ''}. ${d.synced_at ? `Checked ${esc(new Date(d.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}.` : 'Not read yet.'} New files anywhere in the folder are picked up within the hour.</p>
       <div class="v2libbar"><input type="search" id="libQ" placeholder="Search: man in a polo on a white background, wedge close-up, golf course…" value="${esc(LIBF.q)}">
-        <div class="v2jobs">${[['', 'Everything'], ['yes', 'With people'], ['no', 'No people']].map(([k, l]) => `<button type="button" data-ppl="${k}" class="${LIBF.people === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <div class="v2jobs">${[['', 'Everything'], ['yes', 'With people'], ['no', 'No people'], ...(d.looks ? [['locus', 'Made by Locus']] : [])].map(([k, l]) => `<button type="button" data-ppl="${k}" class="${LIBF.people === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div class="v2jobs">${[{ setting: '', n: total }, ...SET].map(s => `<button type="button" data-set="${esc(s.setting)}" class="${LIBF.setting === s.setting ? 'on' : ''}">${esc(s.setting || 'Any setting')}${s.setting ? ` <em>${s.n}</em>` : ''}</button>`).join('')}</div>
         <button type="button" class="v2btn" id="libSync" style="margin:0">Check Drive now</button></div>
-      ${(d.items || []).length ? `<div class="v2lib">${d.items.map((x, i) => `<button type="button" class="it" data-i="${i}"${tipAttr(esc(x.descr || x.name))}>${x.thumb_key ? `<img loading="lazy" src="${img(x)}" alt="">` : `<span class="v2hint">Tagging…</span>`}${x.people ? `<em>${x.people} ${x.people === 1 ? 'person' : 'people'}</em>` : ''}</button>`).join('')}</div>`
+      ${(d.items || []).length ? `<div class="v2lib">${d.items.map((x, i) => `<button type="button" class="it" data-i="${i}"${tipAttr(esc(x.descr || x.name))}>${x.thumb_key ? `<img loading="lazy" src="${img(x)}" alt="">` : `<span class="v2hint">Tagging…</span>`}${x.people ? `<em>${x.people} ${x.people === 1 ? 'person' : 'people'}</em>` : ''}${x.source === 'locus' ? '<em style="top:6px;bottom:auto;background:var(--brand);color:var(--on-brand)">Made by Locus</em>' : ''}</button>`).join('')}</div>`
         : card(total ? 'Nothing matches' : 'No images yet', '', `<p class="v2hint">${total ? 'Try fewer words or another filter.' : `Locus reads ${esc(a.name)}’s Drive folder from Settings > Connections. Press Check Drive now to read it.`}</p>`)}
       ${foot('Images stay where they are in Drive; nothing is moved, renamed or copied there. Each new image is tagged once by a small AI model (about a tenth of a cent); after that, searching is free.')}`;
     $('#main').innerHTML = shell('library', title, body); const root = $('#main');
@@ -1013,11 +1013,27 @@
     root.querySelectorAll('[data-ppl]').forEach(b => b.onclick = () => { LIBF.people = b.dataset.ppl; library(false); });
     root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { LIBF.setting = b.dataset.set; library(false); });
     root.querySelector('#libSync').onclick = async e => { const b = e.target; b.disabled = true; b.textContent = 'Reading Drive and tagging…'; try { const r = await H.apiAH(`/api/assets/sync?act=${encodeURIComponent(a.act_id)}&tag=30`, { method: 'POST' }); b.textContent = r.sync?.error ? r.sync.error : `Found ${int(r.sync?.files)} images; tagged ${int(r.tag?.tagged)} more`; setTimeout(() => library(false), 1200); } catch (err) { b.textContent = err.message; } };
-    root.querySelectorAll('.v2lib .it').forEach(el => el.onclick = () => { const x = d.items[+el.dataset.i];
-      panel(x.name, `<div class="v2pv"><div class="v2pv-m" style="background-image:url('${img(x)}')"></div>
+    /* Studio's Dress step and "Use as the ad" (studio.js, 2026-10-08). A look (made by Locus) shows how it was made instead of a Drive link. */
+    const st = { tok: H.S.tok, url: H.S.url, act: a.act_id };
+    root.querySelectorAll('.v2lib .it').forEach(el => el.onclick = () => { const x = d.items[+el.dataset.i], L = x.look || null, ck = L?.check;
+      const go = (k, b, s) => `<button type="button" class="v2go" data-lk="${k}"><b>${b}</b><span>${s}</span><i>›</i></button>`;
+      const pb = panel(x.name, `<div class="v2pv"><div class="v2pv-m" style="background-image:url('${img(x)}')"></div>
+        ${L ? `<p class="v2say"><span class="v2pill good">Made by Locus</span> ${esc(L.product || 'The product')} put on ${esc(L.base_name || 'a real photo')} by the image AI. The person, pose and light are the original photo’s.</p>` : ''}
         <p class="v2say">${esc(x.descr || '')}</p>
-        <div class="v2kv"><span>Folder</span><b>${esc(x.path || 'top folder')}</b><span>People</span><b>${int(x.people)}</b><span>Setting</span><b>${esc(x.setting || '–')}</b><span>Shot</span><b>${esc(x.shot || '–')}</b>${x.products ? `<span>Products</span><b>${esc(x.products)}</b>` : ''}${x.colors ? `<span>Colours</span><b>${esc(x.colors)}</b>` : ''}${x.w ? `<span>Size</span><b>${x.w} × ${x.h}</b>` : ''}</div>
-        <div class="v2gos"><a class="v2go" href="https://drive.google.com/file/d/${esc(x.file_id)}/view" target="_blank" rel="noopener"><b>Open in Drive</b><span>The original, full size.</span><i>↗</i></a></div></div>`); });
+        <div class="v2kv">${L ? `<span>Made from</span><b>${esc(L.base_name || '–')}</b><span>Product check</span><b>${ck ? `${ck.score}/10${ck.issue ? `, ${esc(ck.issue)}` : ''}${ck.person_kept === false ? '; the person may have changed' : ''}` : 'not checked'}</b><span>Cost</span><b>$${(+L.cost || 0).toFixed(2)}</b>${L.note ? `<span>Note</span><b>${esc(L.note)}</b>` : ''}` : `<span>Folder</span><b>${esc(x.path || 'top folder')}</b>`}<span>People</span><b>${int(x.people)}</b><span>Setting</span><b>${esc(x.setting || '–')}</b><span>Shot</span><b>${esc(x.shot || '–')}</b>${x.products ? `<span>Products</span><b>${esc(x.products)}</b>` : ''}${x.colors ? `<span>Colours</span><b>${esc(x.colors)}</b>` : ''}${x.w ? `<span>Size</span><b>${x.w} × ${x.h}</b>` : ''}</div>
+        <div class="v2gos">${L ? `${go('use', 'Use as the ad', 'Put it on a line of a Studio batch. The words go on; the photo stays as it is.')}${go('dress', 'Dress it again', 'Start from this look with another product.')}${go('rm', 'Remove from the library', 'Only this look. Nothing in Drive is touched.')}`
+          : `${x.people ? go('dress', 'Dress with a product', 'Put one of the brand’s products on this person. Their face, pose and light stay as shot. About 12¢.') : ''}<a class="v2go" href="https://drive.google.com/file/d/${esc(x.file_id)}/view" target="_blank" rel="noopener"><b>Open in Drive</b><span>The original, full size.</span><i>↗</i></a>`}</div></div>`);
+      const S2 = window.StudioTab;
+      pb.querySelectorAll('[data-lk]').forEach(b => b.onclick = async () => {
+        const k = b.dataset.lk;
+        if (!S2?.dress) { b.querySelector('span').textContent = 'Studio did not load. Refresh the page.'; return; }
+        if (k === 'dress') { await S2.dress({ ...st, base: { item: x, url: L?.url || '', name: x.name, thumb: img(x), asset: x.file_id, made: !!L } }); return library(false); }
+        if (k === 'use') return S2.useAsAd({ ...st, image: L.url });
+        if (k === 'rm') {
+          if (!b.dataset.sure) { b.dataset.sure = '1'; b.querySelector('b').textContent = 'Press again to remove it'; return; }
+          b.disabled = true; try { await H.apiAH(`/api/assets/remove?act=${encodeURIComponent(a.act_id)}`, { method: 'POST', body: JSON.stringify({ id: x.file_id }) }); document.getElementById('v2scrim')?.click(); library(false); } catch (e) { b.querySelector('span').textContent = e.message; b.disabled = false; }
+        }
+      }); });
   }
 
   /* Shared building blocks for every other screen file (brand.js, studio.js, meta.js, season.js,

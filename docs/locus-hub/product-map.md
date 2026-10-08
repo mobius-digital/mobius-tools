@@ -22,7 +22,7 @@ Status: LIVE = shipped, BUILT = shipped and waiting on a setup step, NEXT = this
 | Page | Reader | Blocks | Status |
 | --- | --- | --- | --- |
 | Overview | everyone (agency) / owner (brand) | the read, money tiles with goal bullets, pace to plan, revenue by day with compare, channel split, site funnel, brand small multiples | LIVE |
-| Overview: What moved | everyone | anomaly feed: yesterday against the same weekday over 8 weeks, split into spend, CPM, CTR, CVR, AOV; posts to Slack at 8am | NEXT |
+| Overview: What moved | everyone | anomaly feed: yesterday against the same weekday over 8 weeks, split into spend, CPM, CTR, CVR, AOV; posts to Slack at 8am | LIVE |
 | Overview: pinned tiles | everyone | each person stars the tiles they want first | NEXT |
 | P&L | owner | waterfall from revenue to contribution, daily chart, cost health | LIVE (v2 look in progress) |
 | Plan | owner | the three numbers, the verdict, pacing, quarter | LIVE (v2 look in progress) |
@@ -35,22 +35,22 @@ Status: LIVE = shipped, BUILT = shipped and waiting on a setup step, NEXT = this
 | Meta > Overview | buyer | verdict, tiles, funnel, spend by campaign with change markers, CPA by day, campaigns | LIVE |
 | Meta > Campaigns | buyer | campaign > ad set > ad with covers and previews, orders drill | LIVE |
 | Meta > Creative | buyer, strategist | ads grid with calls (rule set per brand in Settings > Goals), spend vs CPA map, hook vs hold, fatigue, launch cadence, angle and format rollups | LIVE |
-| Meta > Creative: funnel grade per ad (A to F for hook, hold, CTR, add to cart, purchase) naming what to iterate, with "Brief the iteration" | strategist | | NEXT |
-| Meta > Creative: 90-day customer value per ad (Hyros-style), from order touches + customers | buyer, owner | LTV and LTV:CAC columns | NEXT |
+| Meta > Creative: funnel grade per ad (A to F for hook, hold, CTR, add to cart, purchase) naming what to iterate, with "Brief the iteration" | strategist | | LIVE |
+| Meta > Creative: 90-day customer value per ad (Hyros-style), from order touches + customers | buyer, owner | LTV and LTV:CAC columns | LIVE |
 | Meta > Tests | buyer | to call, running, Monday calls | LIVE |
 | Meta > Changes, Today, Creative browser | buyer | change log with why, today vs a normal day, every ad with copy | LIVE (v2 look in progress) |
 | Google | buyer | Triple Whale totals today; campaigns by type from Google Ads once connected | BUILT (waits on developer token) |
 | Google: search terms, Performance Max product groups, brand vs non-brand spend | buyer | | LATER |
 | TikTok | buyer | Triple Whale totals; direct later | LIVE / LATER |
 | All channels | buyer, owner | every source side by side, platform vs Triple Whale gap | LIVE |
-| All channels: two attribution models side by side | buyer | | NEXT |
+| All channels: two attribution models side by side | buyer | | LIVE |
 
 ### Email and SMS: "Is email pulling its weight?"
 | Page | Reader | Blocks | Status |
 | --- | --- | --- | --- |
 | Klaviyo (one brand) | retention lead, owner | revenue, flows vs campaigns, flow table with core-flow gaps, campaigns with benchmark pills, lists and segments | LIVE |
-| Agency email board (all brands against targets, pacing), Hiro-style | owner | | NEXT |
-| Subject lines and send times | retention lead | which words and hours win | NEXT |
+| Agency email board (all brands against targets, pacing), Hiro-style | owner | | LIVE |
+| Subject lines and send times | retention lead | which words and hours win | LIVE |
 | Flow map, SMS revenue per message | retention lead | | LATER |
 
 ### Store: "What did the store and its visitors do?"
@@ -70,15 +70,15 @@ Status: LIVE = shipped, BUILT = shipped and waiting on a setup step, NEXT = this
 | Brand | strategist | client answers, research, voice | LIVE (v2 look in progress) |
 | Copy desk | strategist | lines in the brand's voice | LIVE (v2 look in progress) |
 | Creator link | strategist | the creators' page editor | LIVE (v2 look in progress) |
-| Inspiration (Atria boards per brand and season) | strategist | | NEXT |
-| "Make more like this": a winner on Meta > Creative opens a Studio batch or an Asana brief prefilled | strategist | | NEXT |
+| Inspiration (Atria boards per brand and season) | strategist | | LIVE |
+| "Make more like this": a winner on Meta > Creative opens a Studio batch or an Asana brief prefilled | strategist | | LIVE |
 
 ### Reports: "What do we send?"
 | Page | Reader | Blocks | Status |
 | --- | --- | --- | --- |
 | Daily Brief, Weekly and monthly | buyer | draft, check, send | LIVE (v2 look in progress) |
 | Dashboards | everyone | built by hand or by the Strategist, posted to Slack | LIVE |
-| Scheduled questions ("ask this every Monday, post to Slack") | everyone | | NEXT |
+| Scheduled questions ("ask this every Monday, post to Slack") | everyone | | LIVE |
 | Client portal: each client signs in and sees their brand (Overview, Sales, Website, reports, their ads) | client | needs per-brand access | LATER |
 
 ### Everywhere
@@ -86,9 +86,9 @@ Status: LIVE = shipped, BUILT = shipped and waiting on a setup step, NEXT = this
 | --- | --- |
 | Six-item rail, page tabs, real platform logos | LIVE |
 | Ask bar with per-page questions, jump to page or brand (Ctrl+K) | LIVE |
-| Answers drawn as charts and tables in a side panel, "pin to a dashboard" | NEXT |
-| Command palette finds any campaign or ad by name | NEXT |
-| Per-brand team access, then client logins | LATER (Cole: after the look is finished) |
+| Answers drawn as charts and tables in a side panel, "pin to a dashboard" | LIVE |
+| Command palette finds any campaign or ad by name | LIVE |
+| Per-brand team access, then client logins | LIVE (team); client logins LATER |
 
 ## Google, exactly
 

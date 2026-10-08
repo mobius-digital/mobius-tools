@@ -1033,3 +1033,30 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
 - **RULE: every new connection ships with its knowledge.** Adding a platform to Locus means, in the same change: a
   `docs/strategist-brain/knowledge/<platform>.md` file (same 7 sections), a Strategist view that reads it, a line
   in THE CMO METHOD if it changes the cross-channel picture, then `build_knowledge.py` + deploy.
+
+## 2026-10-08: What moved to Slack, scheduled questions, chart blocks on dashboards
+
+- **What moved, posted** (`src/moved.js`, `movedTick` in the hourly cron after `dashboardTick`): 8am to 1pm
+  Central, once per Central day per brand (`settings.movedDone` = {date, acts}), to `accounts.slack_channel`
+  only (never brief_channel), only when something moved. The rule is a COPY of profit hub.js `movedMany`
+  (`movesFor`): keep the two in step. Differences on purpose: each brand's own timezone for yesterday, and a
+  brand whose yesterday was not synced since its own midnight (`tw_daily.synced_at`) waits for the next hour,
+  so a half-synced day never reads as a drop. Skips inactive brands, the paused ones and The Golf Sock by
+  name. Block Kit: header, the rule in a line, one line per move with the number, normal and why, "Open in
+  Locus" (`profit/?open=overview&act=`; a bare `?act=` does not switch brand). Switch: `settings.movedPost`
+  ('off' stops it, on by default), in `GET/PUT /api/settings` and Locus Settings > Briefs and Slack.
+  `GET /api/moved-preview` (admin) shows what would post now without posting. Checked 2026-10-08 against
+  `/api/hub/moved`: identical moves (Bonk CAC, Dartee AOV, Lucky AOV, Party Patch orders; Golf Sock skipped).
+- **Scheduled questions** (`src/askschedule.js`, table `p_ask_schedule` created on first use: id sq_, question,
+  act 'all'|act_id, cadence daily|monday|first, hour_central, channel, created_by, created_at, last_run,
+  last_status). Routes (admin, mounted at the top of the `/api/ask` block): `GET/PUT/DELETE /api/ask/schedules`,
+  `POST /api/ask/schedules/run {id, dry}` (dry = build the message, post nothing, record nothing).
+  `scheduleTick` (hourly, after movedTick): due = cadence day + `centralHour() >= hour` + not run this Central
+  day; runs `engine.answerWeb` with the creator's ACCESS RULE (`brandsFor(created_by)`) and a "do not propose,
+  save or build" prefix, posts as "Strategist" with charts turned into one "open Locus" line. Caps: 10 runs a
+  Central day (scheduled + Run now, `settings.askSchedRuns`), 3 per tick, `subCanAfford(80)` each. Channels are
+  INTERNAL only (any active brand's slack_channel or `strategistChannel`); the route refuses others. Strategist
+  action `schedule_question` (routeAction: Apply = PUT through the caller's own front door) resolves "#name"
+  via conversations.list or defaults to the brand's internal channel; view `schedules`.
+- **Dashboard Slack posts** (`dashBlocks`): a `chart` block (a Strategist answer pinned in Locus) posts as its
+  title plus "open in Locus to see it".

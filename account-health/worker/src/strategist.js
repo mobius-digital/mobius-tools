@@ -28,6 +28,7 @@ import { asana, asanaAll, numOf } from './asana-brand.js';
 import { nextNumber, ideaStart } from './ideas.js';
 import { integrationsReport } from './integrations.js';
 import { klaviyoView } from './klaviyo.js';
+import { SCHED_SQL, whenText } from './askschedule.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -204,7 +205,7 @@ THINKING LIKE A STRATEGIST (every answer, not only the creative ones)
 - Know why the question is being asked. Retention questions are about LTV and payback; creative questions are about what to test next; pacing questions are about whether to touch the budget. Answer the question behind the question.
 - Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used. Where the evidence is missing, say so and name what would settle it.
 - Gaps are findings. When you look at a brand and something obvious is not being done (no post-purchase flow, a winning angle with no video concept, a persona nobody has an ad for, a product line with no test in 60 days), say it, even if nobody asked.
-- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
+- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A QUESTION to be asked again on a schedule ("ask this every Monday", "post the answer in #lucky-internal every morning") = schedule_question (read the schedules view first so you do not make a twin). A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
 - Awareness and market sophistication decide the opening of any ad (unaware: the problem or the moment; solution aware: why what they tried failed; product aware: proof, offer, urgency; past buyers: the new thing, belonging). Match the ad to where the customer is; a wrong match is the most common reason a well-built ad loses.
 
 BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "execution" or "variation" in anything sent to the team)
@@ -308,7 +309,8 @@ const VIEW_BLURBS = {
   brief: 'ONE brief by its number: the test-library row plus the live Asana task (the brief text as written, section, assignee, the Testing / Angle / Result fields, the link). Pass `brand` and `number`. Read it before fill_brief, and to review what a strategist wrote.',
   customers: 'who the customers are and what they do next, from Triple Whale orders (400 days): customers, orders, revenue, repeat rate, orders per customer, revenue by order number (1st, 2nd, 3rd+), time from first to second order in buckets, where first orders came from (last platform click), the products most often in a first cart and in a second cart (product ids; the Shopify product titles are not in Locus yet). Pass `brand` and `days` (default 365). THE view for retention, LTV shape, journey and "what do they buy next" questions; query tw_orders for anything it does not give.',
   scenarios: 'the saved what-if scenarios from the lead-gen and ROAS calculators for one brand (or agency-wide): name, kind, inputs, note, the share link. Pass `brand` (optional). Read it before build_scenario so you extend what exists instead of duplicating it.',
-  dashboards: 'the saved dashboards in Locus (Reports > Dashboards): name, who it is for, scope, range, blocks, Slack schedule and channel. Read it before saving a new one so you do not make a twin.',
+  dashboards: 'the saved dashboards in Locus (Reports > Dashboards): name, who it is for, scope, range, blocks, Slack schedule and channel. Read it before saving a new one so you do not make a twin. A block of type chart is a Strategist answer someone pinned from the chat (title, the chart, the question, when).',
+  schedules: 'the scheduled questions: questions the Strategist answers on its own on a schedule (every morning, every Monday or the 1st, at an hour in Central) and posts to an internal Slack channel; with brand, last run and its status. Read it before schedule_question so you do not make a twin.',
   integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Asana, Slack, Google, Atria, Frame, Studio image key, Canva, Gemini, downloader, Stripe, Lucky creator app) and PER BRAND ones (ad account, Triple Whale shop, Shopify install, Asana project, Slack channels, Drive folder, Frame project, creator link, onboarding, Google Ads and Klaviyo via Triple Whale). Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
   klaviyo: 'the brand\'s Klaviyo, read live with its own key: pass `brand` and `what` = overview (counts, live flows, biggest lists and segments), lists, segments (with profile counts), flows (status and trigger), campaigns (last 30 sent with open, click, conversion rate and revenue) or metrics. THE view for email questions: how many segments, which flows are live or dead, how the last sends did, who is in what. Not connected = the reply says how to connect it (Settings > Connections).',
   brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
@@ -518,6 +520,11 @@ function buildViews(d) {
       const acct = (a.brand || a.id || a.account || a.q) ? await resolve(env, a.brand || a.id || a.account || a.q) : null;
       const r = await integrationsReport(env, { brand: acct?.act_id || null });
       return { ...r, how_to_read: VIEW_BLURBS.integrations + ' state: ok, warn (connected but stale or half set up), bad (failing), off (not set up). Quote the fix text when something is off; the agency ones are Cole\'s to fix, the per-brand ones the team can do in Locus.' };
+    },
+    schedules: async env => {
+      await env.DB.prepare(SCHED_SQL).run().catch(() => {});
+      const { results } = await env.DB.prepare(`SELECT s.*, a.name AS brand FROM p_ask_schedule s LEFT JOIN accounts a ON a.act_id = s.act ORDER BY s.created_at DESC`).all();
+      return { schedules: (results || []).map(r => ({ id: r.id, question: r.question, brand: r.act === 'all' ? 'all brands' : r.brand || r.act, when: whenText(r), channel: r.channel, by: r.created_by, last_run: r.last_run, last_status: r.last_status })), how_to_read: VIEW_BLURBS.schedules + ' Change or stop one in Locus: Settings > The Strategist > Scheduled questions.' };
     },
     dashboards: async env => {
       await env.DB.prepare(DASH_SQL).run().catch(() => {});
@@ -1019,6 +1026,47 @@ const BUTTONS = (d) => {
       input_schema: { type: 'object', properties: { hour: { type: 'integer' }, summary: { type: 'string' } }, required: ['hour', 'summary'] },
       describe: async (env, i) => Number.isInteger(i.hour) && i.hour >= 0 && i.hour <= 23 ? { summary: i.summary, detail: `The Daily Brief drafts at ${i.hour}:00 Central from tomorrow.`, request: { method: 'PUT', path: '/api/brief-time', body: { hour: i.hour } } } : { error: 'hour must be 0 to 23.' },
       done: () => 'Brief time updated.' }),
+    /* Scheduled questions (2026-10-08, askschedule.js): "ask this every Monday at 8 in #lucky-internal".
+       Apply = PUT /api/ask/schedules as the person, so the route's rules hold: internal channels only,
+       the person's own brands only. */
+    routeAction({ name: 'schedule_question',
+      description: 'Set up a question the Strategist answers on its own on a schedule and posts to an internal Slack channel: every morning (daily), every Monday (monday) or on the 1st (first), at an hour in Central (0 to 23, default 8). The answer is written fresh each time from the data, as if asked then. Only internal channels: a brand\'s internal channel or the Strategist\'s own channel, never a client channel. Read the schedules view first.',
+      input_schema: { type: 'object', properties: {
+        question: { type: 'string', description: 'The question exactly as it should be asked each time, in the person\'s words, self-contained (name the brand and the period, e.g. "How did Lucky do last week against plan, and what moved?").' },
+        brand: { type: 'string', description: 'A brand name, or "all".' },
+        cadence: { type: 'string', enum: ['daily', 'monday', 'first'] },
+        hour: { type: 'integer', description: 'Hour in Central, 0 to 23. Default 8.' },
+        channel: { type: 'string', description: 'A channel id (C... or G...), a channel name like #lucky-internal, or empty for the brand\'s internal channel.' },
+        summary: { type: 'string' } }, required: ['question', 'brand', 'cadence', 'summary'] },
+      describe: safe(async (env, i) => {
+        const all = /^(all|agency|everyone|mobius|all brands)$/i.test(String(i.brand || '').trim());
+        const a = all ? null : await brandOr(env, i.brand);
+        const cadence = ['daily', 'monday', 'first'].includes(i.cadence) ? i.cadence : 'monday';
+        const hour = Number.isInteger(+i.hour) && +i.hour >= 0 && +i.hour <= 23 ? +i.hour : 8;
+        /* The allowed channels: every active brand's internal one and the Strategist's own. */
+        const accts = await d.listAccounts(env, true);
+        const allowed = new Map(accts.filter(x => x.slack_channel).map(x => [x.slack_channel, `${x.name} internal`]));
+        const sc = String((await d.getSetting(env, 'strategistChannel')) || '').trim();
+        if (/^[CG][A-Z0-9]{6,}$/.test(sc) && !allowed.has(sc)) allowed.set(sc, 'the Strategist channel');
+        let ch = String(i.channel || '').trim(), label = '';
+        if (/^[CG][A-Z0-9]{6,}$/.test(ch)) label = allowed.get(ch) || '';
+        else if (!ch || /^(our|the)?\s*(internal|team|brand|usual)?\s*(channel)?$/i.test(ch)) { ch = a?.slack_channel || sc || ''; label = allowed.get(ch) || ''; }
+        else {
+          /* A name: look it up once in Slack's channel list. */
+          const want = ch.replace(/^#/, '').toLowerCase();
+          const r = await d.slack(env, 'conversations.list', { limit: 1000, exclude_archived: true, types: 'public_channel,private_channel' });
+          const hit = (r?.channels || []).find(c => String(c.name).toLowerCase() === want);
+          if (!hit) return { error: `No Slack channel called #${want} that the bot can see.` };
+          ch = hit.id; label = allowed.get(ch) ? `#${hit.name}` : '';
+        }
+        if (!ch) return { error: `${a ? a.name : 'That'} has no internal channel set. Name a channel.` };
+        if (!allowed.has(ch)) return { error: 'Scheduled answers only go to an internal channel (a brand\'s internal channel or the Strategist\'s channel), never a client channel. Pick one of those.' };
+        const H = `${hour % 12 === 0 ? 12 : hour % 12}${hour < 12 ? 'am' : 'pm'}`;
+        const when = cadence === 'daily' ? 'every morning' : cadence === 'monday' ? 'every Monday' : 'on the 1st of the month';
+        return { summary: i.summary || `Ask "${clip(i.question, 60)}" ${when}`,
+          detail: `"${clip(i.question, 400)}"\n${a ? a.name : 'All brands'} · ${when} at ${H} Central · posts to ${label || ch}. It lands in Locus under Settings > The Strategist > Scheduled questions, where it can be run now, changed or deleted.`,
+          request: { method: 'PUT', path: '/api/ask/schedules', body: { question: clip(i.question, 600), act: a ? a.act_id : 'all', cadence, hour_central: hour, channel: ch } } };
+      }), done: () => 'Scheduled. It is in Locus under Settings > The Strategist > Scheduled questions.' }),
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },

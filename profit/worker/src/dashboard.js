@@ -12,8 +12,12 @@
  * The spec: { scope: 'all' | act_id, range: 'yesterday'|'7'|'30'|'90'|'mtd'|'lastmonth',
  *   compare: 'prev'|'yoy'|'none', blocks: [ { type: 'tiles', title, metrics: [...] }
  *   | { type: 'brands', title, columns: [...] } | { type: 'channels', title }
- *   | { type: 'daily', title } | { type: 'email', title } | { type: 'note', text } ] }
- * The vocabularies (METRICS, COLUMNS) are the same words the Strategist is told to use. */
+ *   | { type: 'daily', title } | { type: 'email', title } | { type: 'note', text }
+ *   | { type: 'chart', title, spec, question, act, pinned_at } ] }
+ * The vocabularies (METRICS, COLUMNS) are the same words the Strategist is told to use.
+ * `chart` (2026-10-08) is a Strategist answer pinned from the chat (ask-ui.js "Pin to a dashboard"):
+ * `spec` is the ```chart JSON exactly as it was drawn, frozen as of `pinned_at`; Locus draws it with
+ * AskUI.chartHTML and offers Refresh (re-asks `question`); the Slack post shows its title only. */
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, POST, PATCH, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', ...CORS } });
 const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, n);
@@ -23,7 +27,19 @@ export const COLUMNS = ['revenue', 'mtd_vs_plan', 'spend', 'mer', 'amer', 'new_s
 const RANGES = new Set(['yesterday', '7', '30', '90', 'mtd', 'lastmonth']);
 const COMPARES = new Set(['prev', 'yoy', 'none']);
 const SCHEDULES = new Set(['', 'daily', 'monday', 'first']);
-const BLOCKS = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'note']);
+const BLOCKS = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'note', 'chart']);
+const CHART_MAX = 20000;
+/** A pinned chart's spec, cleaned to what AskUI.chartHTML draws: bar | line | table, 15 labels, 3 series. */
+function cleanChart(c) {
+  if (!c || typeof c !== 'object' || !['bar', 'line', 'table'].includes(c.type)) return null;
+  const labels = (Array.isArray(c.labels) ? c.labels : []).slice(0, 15).map(l => String(l ?? '').slice(0, 80));
+  const series = (Array.isArray(c.series) ? c.series : []).slice(0, 3).map(x => ({ name: String(x?.name ?? '').slice(0, 60),
+    values: (Array.isArray(x?.values) ? x.values : []).slice(0, 15).map(v => (v == null || v === '' || !isFinite(+v) ? null : +v)) }));
+  if (!labels.length || !series.length) return null;
+  const out = { type: c.type, title: String(c.title ?? '').slice(0, 160), unit: ['$', 'x', '%', ''].includes(c.unit) ? c.unit : '', labels, series };
+  if (c.goal != null && isFinite(+c.goal)) out.goal = +c.goal;
+  return JSON.stringify(out).length <= CHART_MAX ? out : null;
+}
 
 export const DASH_SQL = `CREATE TABLE IF NOT EXISTS p_dashboard (
   id          TEXT PRIMARY KEY,
@@ -51,6 +67,12 @@ export function cleanSpec(sp, scope) {
     if (b.type === 'tiles') { out.metrics = (Array.isArray(b.metrics) ? b.metrics : []).filter(m => METRICS.includes(m)).slice(0, 8); if (!out.metrics.length) return null; }
     if (b.type === 'brands') out.columns = (Array.isArray(b.columns) ? b.columns : []).filter(c => COLUMNS.includes(c)).slice(0, 8);
     if (b.type === 'note') { out.text = clip(b.text, 600); if (!out.text) return null; }
+    if (b.type === 'chart') {
+      out.spec = cleanChart(b.spec); if (!out.spec) return null;
+      out.question = clip(b.question, 600);
+      out.act = clip(b.act || 'all', 40);
+      out.pinned_at = /^\d{4}-\d{2}-\d{2}/.test(String(b.pinned_at || '')) ? clip(b.pinned_at, 30) : new Date().toISOString();
+    }
     return out;
   }).filter(Boolean).slice(0, 10);
   return { scope: scope || (s.scope === 'all' ? 'all' : clip(s.scope, 40) || 'all'), range: RANGES.has(String(s.range)) ? String(s.range) : '30', compare: COMPARES.has(s.compare) ? s.compare : 'prev', blocks };
