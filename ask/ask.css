@@ -128,3 +128,20 @@
 #askFile[hidden]{display:none}
 #askFile{display:flex;align-items:center;gap:8px;margin:0 20px;padding:8px 12px;background:var(--ask-wash);border-radius:10px;font-size:12.5px;color:var(--ask-ink)}
 #askFile .x{margin-left:auto;border:0;background:none;opacity:.6;cursor:pointer;color:var(--ask-ink)}
+
+/* charts inside answers (2026-10-08) */
+.ac{margin:10px 0 2px;padding:10px 12px;border:1px solid var(--line,#E3E8EC);border-radius:10px;background:var(--surface,#fff)}
+.ac-t{font-size:12px;font-weight:650;margin-bottom:8px;color:var(--ink,#111)}
+.ac-row{display:grid;grid-template-columns:minmax(0,38%) 1fr auto;gap:8px;align-items:center;font-size:12px;margin:3px 0}
+.ac-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2,#444)}
+.ac-b{position:relative;height:8px;border-radius:4px;background:var(--surface-2,#F1F5F8)}
+.ac-b i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--brand,#5B8DEF)}
+.ac-b b{position:absolute;top:-3px;width:2px;height:14px;background:var(--ink,#111)}
+.ac-v{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink,#111)}
+.ac-svg{width:100%;height:auto;display:block}
+.ac-x{font-size:10px;fill:var(--muted,#777)}
+.ac-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted,#777);margin-top:6px}
+.ac-leg i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.ac-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.ac-tbl th,.ac-tbl td{padding:4px 6px;border-bottom:1px solid var(--line,#E3E8EC);text-align:right}
+.ac-tbl th:first-child,.ac-tbl td:first-child{text-align:left}

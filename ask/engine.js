@@ -912,7 +912,13 @@ export function createAssistant(config) {
     if (usage.count >= C.dailyCap) return { error: `That is ${C.dailyCap} questions today, which is the cap. It resets at midnight.` };
 
     const system = [...(await systemBlocks(env, h, extra)),
-      { type: 'text', text: extra.style || `You are answering inside the ${C.app || 'app'}, not Slack. Write plain sentences with no markdown, no asterisks and no bullets beyond "- ". Lead with the number. Two or three sentences unless more is genuinely needed.` }];
+      { type: 'text', text: extra.style || `You are answering inside the ${C.app || 'app'}, not Slack. Write plain sentences with no markdown, no asterisks and no bullets beyond "- ". Lead with the number. Two or three sentences unless more is genuinely needed.
+
+When the answer compares several things (brands, campaigns, ads, channels, months) or shows a trend over days or weeks, add ONE visual AFTER the sentences, as a fenced block exactly like this and nothing else inside it:
+\`\`\`chart
+{"type":"bar","title":"Cost per purchase by campaign, last 7 days","unit":"$","labels":["Campaign A","Campaign B"],"series":[{"name":"CPA","values":[41.2,58.9]}],"goal":50}
+\`\`\`
+type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (several columns: series become columns). unit is "$", "x", "%" (values as percents, 12.5 = 12.5%) or "". goal is optional (a target line). Only numbers you actually read, at most 15 labels and 3 series. No visual for a single number.` }];
     const messages = [];
     for (const m of (history || []).slice(-8)) {
       const text = String(m.text || '').slice(0, 2000);

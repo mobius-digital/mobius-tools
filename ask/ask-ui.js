@@ -168,10 +168,36 @@ window.AskUI = (() => {
       <div class="pv">${esc(h.prompt)}</div>
       <div class="pa"><button class="btn primary" onclick="navigator.clipboard.writeText(this.closest('.hand').querySelector('.pv').textContent).then(()=>{this.textContent='Copied'})">Copy the prompt</button></div>
     </div>`;
+  /* Answers can carry ONE ```chart {json}``` block (engine.js web style): drawn here as bars, a line or a
+     table in the theme's colours, so a comparison reads at a glance. Anything malformed shows as text. */
+  function fmtV(v, u) { if (v == null || v === '' || !isFinite(v)) return '–'; const n = +v; if (u === '$') return '$' + (Math.abs(n) >= 1000 ? Math.round(n).toLocaleString('en-US') : n.toFixed(Math.abs(n) < 100 ? 2 : 0)); if (u === 'x') return n.toFixed(2) + 'x'; if (u === '%') return n.toFixed(1) + '%'; return Math.abs(n) >= 1000 ? Math.round(n).toLocaleString('en-US') : String(+n.toFixed(2)); }
+  function chartHTML(c) {
+    const labels = (c.labels || []).slice(0, 15).map(String), ser = (c.series || []).slice(0, 3), u = c.unit || '';
+    const cols = ['var(--brand,#5B8DEF)', 'var(--c-google,#B5761A)', 'var(--c-tiktok,#27A392)'];
+    const head = c.title ? `<div class="ac-t">${esc(c.title)}</div>` : '';
+    if (c.type === 'table' || (ser.length > 1 && c.type !== 'line')) {
+      return `<div class="ac">${head}<table class="ac-tbl"><thead><tr><th></th>${ser.map(x => `<th>${esc(x.name || '')}</th>`).join('')}</tr></thead><tbody>${labels.map((l, i) => `<tr><td>${esc(l)}</td>${ser.map(x => `<td>${fmtV((x.values || [])[i], u)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+    const vals = (ser[0] && ser[0].values || []).slice(0, labels.length).map(Number);
+    const mx = Math.max(...vals.filter(v => isFinite(v)), +c.goal || 0, 0) || 1;
+    if (c.type === 'line') {
+      const w = 320, h = 110, n = vals.length; if (n < 2) return '';
+      const X = i => 6 + i / (n - 1) * (w - 12), Y = v => h - 16 - v / mx * (h - 26);
+      const pts = ser.map((x, k) => `<polyline points="${(x.values || []).slice(0, n).map((v, i) => `${X(i).toFixed(1)},${Y(+v || 0).toFixed(1)}`).join(' ')}" fill="none" stroke="${cols[k]}" stroke-width="2" stroke-linejoin="round"/>`).join('');
+      const goal = c.goal ? `<line x1="6" x2="${w - 6}" y1="${Y(+c.goal)}" y2="${Y(+c.goal)}" stroke="var(--warn,#EBBF63)" stroke-dasharray="4 4"/>` : '';
+      return `<div class="ac">${head}<svg viewBox="0 0 ${w} ${h}" class="ac-svg">${goal}${pts}<text x="6" y="${h - 2}" class="ac-x">${esc(labels[0])}</text><text x="${w - 6}" y="${h - 2}" text-anchor="end" class="ac-x">${esc(labels[n - 1])}</text></svg>
+        <div class="ac-leg">${ser.map((x, k) => `<span><i style="background:${cols[k]}"></i>${esc(x.name || '')} ${fmtV((x.values || [])[n - 1], u)}</span>`).join('')}${c.goal ? `<span><i style="background:var(--warn,#EBBF63)"></i>goal ${fmtV(c.goal, u)}</span>` : ''}</div></div>`;
+    }
+    return `<div class="ac">${head}${labels.map((l, i) => { const v = vals[i]; return `<div class="ac-row"><span class="ac-l" title="${esc(l)}">${esc(l)}</span><span class="ac-b"><i style="width:${isFinite(v) ? Math.max(2, v / mx * 100).toFixed(1) : 0}%"></i>${c.goal ? `<b style="left:${(+c.goal / mx * 100).toFixed(1)}%"></b>` : ''}</span><span class="ac-v">${fmtV(v, u)}</span></div>`; }).join('')}${c.goal ? `<div class="ac-leg"><span><i style="background:var(--ink,#111)"></i>goal ${fmtV(c.goal, u)}</span></div>` : ''}</div>`;
+  }
+  function richText(t) {
+    const parts = String(t || '').split(/```chart\s*([\s\S]*?)```/);
+    return parts.map((p, i) => { if (i % 2) { try { return chartHTML(JSON.parse(p)); } catch (e) { return `<pre>${esc(p)}</pre>`; } } return esc(p.trim()).replace(/\n/g, '<br>'); }).join('');
+  }
   function render(intro) {
     const log = $('#askLog');
     log.innerHTML = (intro ? `<div class="m ai intro">${esc(intro).replace(/\n/g, '<br>')}</div>` : '')
-      + A.chat.map(m => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${esc(m.text).replace(/\n/g, '<br>')}</div>`).join('')
+      + A.chat.map(m => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : richText(m.text)}</div>`).join('')
       + (A.busy ? '<div class="m ai think">Looking…</div>' : '');
     log.scrollTop = log.scrollHeight;
   }
