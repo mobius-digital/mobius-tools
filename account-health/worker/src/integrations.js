@@ -1,3 +1,4 @@
+import { tiktokStatus } from './tiktok.js';
 import { googleProbe } from './google.js';
 const safeJsonI = v => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
 /**
@@ -45,6 +46,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   const A = (key, name, on, { warn = false, note = '', fix = '', used_by = '', only = null } = {}) => ({ key, name, needs: 'once', state: on ? (warn ? 'warn' : 'ok') : 'off', note, fix, used_by, only });
   const luckyAct = (await first(`SELECT act_id FROM accounts WHERE lower(name) LIKE 'lucky%' AND active = 1 LIMIT 1`))?.act_id || null;
   const gp = await googleProbe(env).catch(() => ({}));
+  const tk = await tiktokStatus(env).catch(() => ({}));
   const gsa = (safeJsonI(env.GOOGLE_SA_KEY) || {}).client_id || 'the service account';
   const gsteps = (scope, apis) => `1) Google Workspace admin (admin.google.com) > Security > Access and data control > API controls > Manage domain-wide delegation > edit client ${gsa} > ADD ${scope} to the scopes already there (keep the existing ones). 2) console.cloud.google.com, the project that owns that service account > APIs and services > Enable: ${apis}.`;
   const agency = [
@@ -65,6 +67,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
     A('ga4', 'Google Analytics 4 (website)', !!gp.ga4?.ok, { used_by: 'Store > Website: traffic, channels, landing pages, devices, the shopping funnel', note: gp.ga4?.ok ? `${gp.ga4.properties.length} properties visible as ${gp.acting_as}.` : `Not readable yet: ${gp.ga4?.error || 'not checked'}`, fix: gp.ga4?.ok ? `For a property not listed, add ${gp.acting_as} as a Viewer on it (GA4 > Admin > Property access management).` : gsteps('https://www.googleapis.com/auth/analytics.readonly', 'Google Analytics Data API, Google Analytics Admin API') + ` 3) On each client's GA4 property, add ${gp.acting_as || 'cole@go-mobius-digital.com'} as a Viewer.` }),
     A('gsc', 'Google Search Console (organic search)', !!gp.gsc?.ok, { used_by: 'Store > Search: queries, pages, brand vs non-brand', note: gp.gsc?.ok ? `${gp.gsc.sites.length} sites visible.` : `Not readable yet: ${gp.gsc?.error || 'not checked'}`, fix: gp.gsc?.ok ? `For a site not listed, add ${gp.acting_as} as a user (Search Console > Settings > Users and permissions).` : gsteps('https://www.googleapis.com/auth/webmasters.readonly', 'Google Search Console API') + ` 3) On each client's Search Console property, add ${gp.acting_as || 'cole@go-mobius-digital.com'} as a user.` }),
     A('gads', 'Google Ads (direct)', !!gp.ads?.ok, { used_by: 'Ads > Google: campaigns, types, search terms (Triple Whale totals until then)', note: gp.ads?.ok ? `${gp.ads.customers.length} ad accounts reachable through the Mobius manager account.` : `Not connected: ${gp.ads?.error || 'not checked'}`, fix: 'Developer tokens were retired on 2026-09-09; access now belongs to the Cloud project. 1) console.cloud.google.com > project mobius-tools-506114 > APIs and services > Google Ads API > Overview. 2) Complete brand verification for the project (OAuth consent screen > Branding). 3) Make sure the project has billing on a paid tier (Free Trial projects get rejected). 4) Apply for Basic access there; it is reviewed in minutes. 5) Each client’s Google Ads account must be linked under the Mobius manager account 556-646-8199.' }),
+    A('tiktok', 'TikTok Ads (direct)', !!tk.connected, { used_by: 'Ads > TikTok: campaigns from TikTok itself (Triple Whale totals until then)', warn: tk.app && !tk.connected, note: tk.connected ? `Connected ${String(tk.since || '').slice(0, 10)}: ${(tk.advertisers || []).map(a => a.name || a.id).join(', ')}.` : tk.app ? 'App set up; press Connect TikTok on Ads > TikTok and sign in.' : 'No TikTok developer app yet.', fix: '1) business-api.tiktok.com: sign in with the Mobius TikTok for Business account, Become a Developer, then My Apps > Create an app (Marketing API). 2) Ask for the scopes Ad Account Management (read) and Reporting. 3) Advertiser redirect URL: https://mobius-account-health.mobius-digital.workers.dev/tiktok/callback 4) When TikTok approves it (usually a few days), run these in account-health/worker and paste each value when asked: npx.cmd wrangler secret put TIKTOK_APP_ID, then npx.cmd wrangler secret put TIKTOK_APP_SECRET. 5) Locus > Ads > TikTok > Connect TikTok, sign in, tick every ad account.' }),
     A('google_login', 'Google sign-in to Locus', set(env.GOOGLE_CLIENT_ID), { used_by: 'the team signing in', fix: 'Set GOOGLE_CLIENT_ID on the account-health worker.' }),
   ];
 
@@ -75,7 +78,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   const ids = accounts.map(a => a.act_id);
   const IN = ids.map((_, i) => `?${i + 1}`).join(',');
   const byAct = rows => Object.fromEntries(rows.map(r => [r.act_id, r]));
-  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs, gDocs] = await Promise.all([
+  const [metaD, twD, twO, twA, asanaDocs, nc, hubs, onb, shops, ga, kl, studioN, hubN, linkDocs, klDocs, gDocs, tkd, etool] = await Promise.all([
     q(`SELECT act_id, MAX(date) AS latest FROM daily_insights WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest FROM tw_daily WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, MAX(date) AS latest, COUNT(*) AS n FROM tw_orders WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
@@ -95,6 +98,9 @@ export async function integrationsReport(env, { brand = null } = {}) {
     /* The brand's Klaviyo private key (klaviyo.js). Only its presence, company and date leave this function. */
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'klaviyo' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => { const d = safeJson(r.data_json, {}) || {}; return [r.act_id, { has: !!d.key, company: d.company, verified_at: d.verified_at }]; }))),
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'google' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
+    q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'tiktok' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, {}) || {}]))),
+    /* A brand whose email tool is not Klaviyo (Ice & Gold = Attentive): settings emailTool:<act>. */
+    q(`SELECT key, value FROM settings WHERE key LIKE 'emailTool:%'`).then(rows => Object.fromEntries(rows.map(r => [r.key.slice(10), r.value]))),
   ]);
   /* Every item carries the exact steps a person follows when it is off (Cole, 2026-10-07: "it tells me
      exactly what to do, how to do it, what to name things"), and `input` when the fix is a thing to
@@ -187,8 +193,12 @@ export async function integrationsReport(env, { brand = null } = {}) {
         'Paste the property exactly as Search Console shows it (sc-domain:brand.com or https://www.brand.com/).', { input: { key: 'gsc', label: 'Search Console property', placeholder: 'sc-domain:brand.com' } }),
       C('gads_direct', 'Google Ads account (direct)', gd.ads ? (gp.ads?.ok ? 'ok' : 'warn') : 'off', gd.ads ? `Customer ${gd.ads}${gp.ads?.ok ? '' : ' (waiting on Basic access for the Cloud project)'}.` : 'Not linked directly; Ads > Google shows Triple Whale totals.',
         'Paste the 10-digit Google Ads customer ID (top right in Google Ads).', { input: { key: 'google_ads', label: 'Google Ads customer ID', placeholder: '123-456-7890' } }),
+      C('tiktok_direct', 'TikTok ad account (direct)', tkd[id]?.advertiser_id ? (tk.connected ? 'ok' : 'warn') : 'off', tkd[id]?.advertiser_id ? `Advertiser ${tkd[id].advertiser_id}${tk.connected ? '' : ' (TikTok not connected agency-wide yet)'}.` : 'Not linked; Ads > TikTok shows Triple Whale totals.',
+        'Paste the TikTok advertiser ID (TikTok Ads Manager, top left account menu).', { input: { key: 'tiktok_id', label: 'TikTok advertiser ID', placeholder: '7012345678901234567' } }),
       /* Klaviyo is a DIRECT connection now (klaviyo.js): the private key per brand. The Triple Whale side
          (email revenue on the P&L) is reported in the note, not as the connection. */
+      etool[id] && !kd?.has ? C('klaviyo', `Email: ${etool[id][0].toUpperCase()}${etool[id].slice(1)}`, 'off', `This brand sends email and SMS through ${etool[id][0].toUpperCase()}${etool[id].slice(1)}, not Klaviyo. Its email revenue reaches Locus only if Triple Whale has ${etool[id][0].toUpperCase()}${etool[id].slice(1)} connected. Reading campaigns and flows directly is not built for it yet.`,
+        `Ask the client to connect ${etool[id][0].toUpperCase()}${etool[id].slice(1)} inside their Triple Whale (Integrations).`) :
       C('klaviyo', 'Klaviyo', kd?.has ? 'ok' : 'off',
         kd?.has ? `Connected as ${kd.company || 'the account'} (key verified ${String(kd.verified_at || '').slice(0, 10)}). ${(kl[id]?.v || 0) > 0 ? `Email revenue in Triple Whale, last 14 days: ${Math.round(kl[id].v)}.` : 'No email revenue in Triple Whale in the last 14 days: connect Klaviyo inside the client\'s Triple Whale too.'}` : `Not connected. ${(kl[id]?.v || 0) > 0 ? 'Triple Whale carries the email revenue, but lists, segments, flows and campaigns need the brand\'s own key.' : 'No Klaviyo revenue in Triple Whale either.'}`,
         'Paste the brand\'s private API key.', { steps: STEPS.klaviyo, input: kd?.has ? null : { key: 'klaviyo_key', label: 'Private API key', placeholder: 'pk_...', secret: true } }),

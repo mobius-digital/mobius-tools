@@ -1002,3 +1002,26 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   TW team invite; Klaviyo key scopes) and `input` when the fix is a paste. The Strategist's nightly
   `connections` check turns a missing or failing Meta / TW / Asana / internal channel / Klaviyo into
   a finding (one per brand per month) with the first step, so it reaches Slack.
+
+## 2026-10-08: the Strategist as a CMO (knowledge base), TikTok direct, Attentive
+
+- **Knowledge base.** `docs/strategist-brain/knowledge/*.md` (meta, tiktok, google-ads, seo-search, email-sms,
+  retention-ltv, website-cro, offers-pricing, measurement-budget, cross-channel; each: how it works now, decision
+  rules with thresholds, diagnostics, effects on the other channels, worked suggestions, traps, sources). Bundled
+  into `src/knowledge.js` by `python scripts/build_knowledge.py` (run it after editing any file, then deploy).
+  The Strategist reads it through the `knowledge` view (topic, part) and the PLAYBOOK opens with THE CMO METHOD:
+  read the platform file AND cross-channel before any cross-platform call, name the lag, the noise band and the
+  credit-shift checks. Measured: "raise Lucky Meta 25%" came back with lag per channel, the noise band from
+  orders a week, the over-attribution ratio, and a phased 12% + 13% step (Sonnet 5, ~51k in / 5k out).
+- **ask/engine.js loop fix (affects Ledger and Supply too, all three redeployed).** The last round used to drop the
+  tool list while the history held tool calls; the API refuses that, so any question needing more than 5 lookups
+  ended "I could not work that one out". Now the last round keeps the tools with `tool_choice: none`; rounds are
+  5 / 8 (strong) / 10 (deep); max_tokens 1200 / 14000 / 20000 because Sonnet 5 and Opus 5 spend thinking inside it.
+- **TikTok direct** (`src/tiktok.js`): agency OAuth (Cole signs in once on Ads > TikTok > Connect TikTok;
+  `POST /api/tiktok/start`, public `GET /tiktok/callback`, token in `settings.tiktok_tokens`), per-brand advertiser
+  id in `p_br_doc` 'tiktok' (Connections paste box `tiktok_id` via `/api/brand-links`), `GET /api/tiktok/report`
+  (campaigns + days, cached an hour in `ttr:*`), Strategist view `tiktok_ads`. Needs Cole's developer app at
+  business-api.tiktok.com (redirect `https://mobius-account-health.mobius-digital.workers.dev/tiktok/callback`)
+  and the secrets TIKTOK_APP_ID / TIKTOK_APP_SECRET. Untested against the real API until then.
+- **A brand's email tool**: `settings.emailTool:<act>` (Ice & Gold = attentive). Connections shows "Email:
+  Attentive" instead of a Klaviyo row; the Strategist says email numbers come only from Triple Whale for it.

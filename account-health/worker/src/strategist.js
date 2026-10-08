@@ -1,3 +1,5 @@
+import { tiktokReport } from './tiktok.js';
+import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
 /**
  * Locus: the Strategist.
@@ -180,6 +182,12 @@ const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brand
  * Settings wins over this one. The creative half is Mobius's own framework
  * (Angle, Concept, What We're Testing) and the angles-hub hierarchy rule. */
 const PLAYBOOK = `
+THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of every platform and how they work together")
+- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
+- Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
+- Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
+- Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
+
 READING AN ACCOUNT
 - Is the brand making money: blended (Triple Whale) first, MER and aMER against the plan. Then are the ads working: Meta-reported delivery (spend, CPM, CTR, hook, hold). Say which lens you are using.
 - Pace is spend against the month's budget by day of month; a brand under pace late in the month is throttled or broken, not "saving".
@@ -241,6 +249,7 @@ TIKTOK (Triple Whale's tiktok rows until connected directly):
 - Creative tires in 7 to 14 days, faster than Meta; plan 3 to 5 new ads a week to keep spend.
 - Learning needs about 50 conversions a week per ad group; consolidate rather than spread thin. Judge on Triple Whale, not TikTok's view-through counts.
 EMAIL AND SMS (views klaviyo, email via the store view):
+- Not every brand is on Klaviyo: Ice & Gold uses Attentive (the integrations view names a brand's email tool). For those, email numbers come only from Triple Whale; say so.
 - Healthy stores take roughly 25 to 40% of revenue from email and SMS; under 15% means flows are missing or weak.
 - Flows before campaigns: welcome, abandoned cart, abandoned checkout, browse abandonment, post-purchase, win-back, sunset. A missing core flow is the first finding.
 - Open rates are inflated by Apple Mail; judge on click rate, placed-order rate and revenue per recipient. Unsubscribes over ~0.3% per send mean the list is tired or the message is wrong.
@@ -272,6 +281,8 @@ const winOf = a => { const today = new Date(Date.now() - 864e5).toISOString().sl
   const n = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1; const pto = new Date(Date.parse(from) - 864e5).toISOString().slice(0, 10); const pfrom = new Date(Date.parse(pto) - (n - 1) * 864e5).toISOString().slice(0, 10);
   return { from, to, pfrom, pto }; };
 const VIEW_BLURBS = {
+  tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
+  knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
   search: 'one brand\'s organic Google search from Search Console: clicks, impressions, click rate, position, top queries flagged brand or not, top pages, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -514,6 +525,17 @@ function buildViews(d) {
       return { dashboards: (results || []).map(r => ({ id: r.id, name: r.name, brand: r.brand || 'agency-wide', for_who: r.for_who, spec: d.safeJson(r.spec_json, {}), schedule: r.schedule || 'none', channel: r.channel || '', pinned: !!r.pinned, by: r.created_by, updated_at: r.updated_at, last_posted: r.last_posted, open: `${LOCUS_URL}?open=dash&id=${r.id}` })), how_to_read: VIEW_BLURBS.dashboards };
     },
     /* Google read directly (google.js): Google Ads campaigns, GA4 website, Search Console. */
+    knowledge: async (env, a) => {
+      const t = String(a.topic || '').toLowerCase().trim();
+      if (!t || !KNOWLEDGE[t]) return { topics: KNOWLEDGE_INDEX, how_to_read: 'The expert playbooks. Call again with `topic` set to one of these before advising on that channel; for any change to one channel also read cross-channel.' };
+      const text = KNOWLEDGE[t], size = 45000, parts = Math.max(1, Math.ceil(text.length / size)), part = Math.min(Math.max(1, +a.part || 1), parts);
+      return { topic: t, part, parts, text: text.slice((part - 1) * size, part * size), how_to_read: parts > 1 && part < parts ? `Part ${part} of ${parts}: call again with part=${part + 1} for the rest.` : 'Apply these rules to the numbers from the data views; quote the rule you used in one line.' };
+    },
+    tiktok_ads: async (env, a) => {
+      const acct = await need(env, a); const w = winOf(a);
+      const r = await tiktokReport(env, acct.act_id, w.from, w.to);
+      return { brand: acct.name, from: w.from, to: w.to, ...r, how_to_read: r.error ? 'TikTok is not read directly for this brand yet (not connected or not linked); use the channels view (Triple Whale totals) and say so.' : 'TikTok\x27s own numbers: spend, impressions, clicks, CTR, CPM exact; purchases and ROAS are TikTok\x27s (include view-through), quote Triple Whale for results.' };
+    },
     google_ads: async (env, a) => {
       const acct = await need(env, a); const w = winOf(a);
       const r = await adsReport(env, acct.act_id, w.from, w.to);

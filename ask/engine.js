@@ -473,7 +473,7 @@ export function createAssistant(config) {
     return (C.strongWhen && C.strongWhen.test(s)) ? C.strongModel : C.model;
   };
 
-  async function callClaude(env, system, messages, tools, model = C.model) {
+  async function callClaude(env, system, messages, tools, model = C.model, final = false) {
     const strong = model !== C.model;
     const deep = !!C.deepModel && model === C.deepModel;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -482,7 +482,7 @@ export function createAssistant(config) {
       /* Top-level cache_control caches the conversation so far: every round of
        * the tool loop re-sends it, and each round now reads it back at a tenth
        * of the price instead of paying for it again. */
-      body: JSON.stringify({ model, max_tokens: deep ? 8000 : strong ? 4000 : 1200, system, messages, ...(tools ? { tools } : {}), cache_control: { type: 'ephemeral' } }),
+      body: JSON.stringify({ model, max_tokens: deep ? 20000 : strong ? 14000 : 1200, system, messages, ...(tools ? { tools } : {}), ...(tools && final ? { tool_choice: { type: 'none' } } : {}), cache_control: { type: 'ephemeral' } }),
     });
     const body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
     let j; try { j = JSON.parse(body); } catch { j = {}; }
@@ -762,8 +762,12 @@ export function createAssistant(config) {
   async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null) {
     let inTok = 0, outTok = 0, answer = '', sql = [], flags = {};
     try {
-      for (let round = 0; round <= C.maxRounds; round++) {
-        const reply = await callClaude(env, system, messages, round < C.maxRounds ? toolDefs : null, model);
+      /* A cross-channel question reads several views; the strong and deep tiers get more rounds. The last
+         round keeps the tool list (the history holds tool calls, and the API refuses that history without
+         it) but turns tool use off, so it must answer. Dropping the list made such questions end empty. */
+      const maxR = model === C.deepModel ? (C.maxRoundsDeep || 10) : model !== C.model ? (C.maxRoundsStrong || 8) : C.maxRounds;
+      for (let round = 0; round <= maxR; round++) {
+        const reply = await callClaude(env, system, messages, toolDefs, model, round === maxR);
         inTok += (reply.usage?.input_tokens || 0) + (reply.usage?.cache_read_input_tokens || 0);
         outTok += reply.usage?.output_tokens || 0;
         const calls = reply.content.filter(c => c.type === 'tool_use');

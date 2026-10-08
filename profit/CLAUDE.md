@@ -1990,3 +1990,6 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   PLATFORM (Meta, Google Ads, TikTok, email and SMS, website, organic search, store). New views `google_ads`,
   `website`, `search` read google.js. Tested: a Google question came back with one 20% budget change, its
   numbers, the brand-vs-non-brand reason, a 7-day watch and a chart.
+- **Ads > TikTok (2026-10-08 later):** `#v2ttc` in the TikTok cards shows Connect TikTok (account-health
+  `/api/tiktok/start`) or the setup state, and once connected a "Campaigns, from TikTok directly" card for a
+  linked brand. Ice & Gold's email tool is Attentive (Connections says so). See account-health/CLAUDE.md.

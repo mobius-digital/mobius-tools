@@ -1,3 +1,4 @@
+import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
 /**
@@ -193,6 +194,7 @@ frameFetch(xfetch);
 klaviyoFetch(xfetch);
 googleFetch(xfetch);
 assetsFetch(xfetch);
+tiktokFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -6791,6 +6793,11 @@ const AH_APP = {
       const r = await handleFrame(request, env, url, path, json, isAdmin);
       if (r) return r;
     }
+    /* TikTok sign-in comes back here (public; the one-time state is the check). */
+    if (path === '/tiktok/callback' && request.method === 'GET') {
+      try { const r = await tiktokCallback(env, url); return new Response(`<p style="font:16px system-ui;padding:40px">TikTok is connected: ${r.advertisers.length} ad account${r.advertisers.length === 1 ? '' : 's'}. You can close this tab and go back to Locus.</p>`, { headers: { 'Content-Type': 'text/html' } }); }
+      catch (e) { return new Response(`<p style="font:16px system-ui;padding:40px">TikTok did not connect: ${String(e.message).replace(/</g, '&lt;')}</p>`, { status: 400, headers: { 'Content-Type': 'text/html' } }); }
+    }
     /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
     if (path.startsWith('/assets-img/') && request.method === 'GET') {
       const m = /^\/assets-img\/(act_\d+)\/([\w-]{15,})$/.exec(path);
@@ -7389,6 +7396,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
+    if (path.startsWith('/api/tiktok/')) {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      try {
+        if (path === '/api/tiktok/status') return json(await tiktokStatus(env));
+        if (path === '/api/tiktok/start' && request.method === 'POST') return json(await tiktokStart(env, url.origin));
+        if (path === '/api/tiktok/report') return json(await tiktokReport(env, url.searchParams.get('act') || '', url.searchParams.get('from') || '', url.searchParams.get('to') || ''));
+      } catch (e) { return json({ error: e.message }, 502); }
+      return json({ error: 'unknown tiktok route' }, 404);
+    }
     /* The photo library (assets.js). */
     if (path.startsWith('/api/assets')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -7451,6 +7467,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (b.google_ads !== undefined) { const v = String(b.google_ads || '').replace(/\D/g, ''); if (v && v.length !== 10) return json({ error: 'The Google Ads customer ID has 10 digits.' }, 400); g.ads = v; }
         await googleSetLink(env, acct.act_id, g);
       }
+      if (b.tiktok_id !== undefined) await setTiktokLink(env, acct.act_id, b.tiktok_id);
       if (b.drive !== undefined || b.frame !== undefined) await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'links', ?2, 'approved', 'staff', datetime('now'))
         ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at`).bind(acct.act_id, JSON.stringify(next)).run();
       return json({ ok: true, links: next, ...(klaviyo ? { klaviyo: { company: klaviyo.company, account_id: klaviyo.account_id } } : {}) });
