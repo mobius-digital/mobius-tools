@@ -24,6 +24,16 @@ No em dashes anywhere. In-app modals only. Short bullet replies.
   makes 1), read by Locus from `GET /api/brands`, written by `PUT /api/brand`;
   NOT in `p_br_doc`. (2) The `?slot=` redirect waits for the Drops page.
 
+- 2026-10-08 mock DONE: `docs/locus-hub/mocks-supply.html` (Lucky's real
+  data inlined), artifact https://claude.ai/artifact/JttW2yBYUrYTvtPHFUiWiP .
+  Waiting on Cole. Mock decisions to carry into the build: "Too much stock" =
+  more than 52 weeks of stock or 20+ units with no sale in 90 days, FOLDED by
+  default into one line (count, money tied up at cost = on hand x unit cost,
+  the three biggest), because on Lucky it catches 22 products (mostly hats at
+  4 to 8 years of stock); the Needs a decision count is Running out only.
+  Status labels: Out, Past order date, Order now, Short before it lands,
+  Coming up, On the way, Fine.
+
 ## Decisions already taken (do not reopen)
 
 - Two layers. **Stock** for any brand with a stock feed (Lucky today). **Make**
