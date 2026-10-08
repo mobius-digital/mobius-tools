@@ -328,6 +328,51 @@ function digestMessage(state) {
   return { attachments: [{ color, fallback: `${state.brandName} Supply: ${line1}`, blocks }] };
 }
 
+/* ---------- same-day alerts (2026-10-08) ----------
+   Monday gets the summary above. Every other morning posts ONLY what newly
+   crossed since the last post: a product newly out, newly overdue, newly due
+   (order-by inside two weeks), newly short of a landing order; an order that
+   looks landed; a design that went late. What was posted is remembered in
+   settings.digest_seen, so the same item never posts twice in a row; an item
+   that recovers and crosses again posts again. Monday resets the memory. */
+const P_RANK = { out: 0, overdue: 1, order: 2, gap: 3 };
+function seenNow(state) {
+  const p = {}, o = {}, sl = {};
+  for (const x of state.products) {
+    const k = x.status === 'out' ? 'out' : x.status === 'order' && x.overdue ? 'overdue' : x.status === 'order' ? 'order' : x.status === 'gap' ? 'gap' : null;
+    if (k) p[x.id] = P_RANK[k];
+  }
+  for (const x of state.orders) if (x.likelyLanded) o[x.id] = 1;
+  for (const x of state.slots) if (x.late) sl[x.id] = 1;
+  return { p, o, s: sl };
+}
+function alertsMessage(state, prev) {
+  const now = seenNow(state);
+  const items = [];
+  const byId = Object.fromEntries(state.products.map(x => [x.id, x]));
+  for (const [id, r] of Object.entries(now.p)) {
+    if (prev.p?.[id] != null && prev.p[id] <= r) continue;          // same or worse already posted
+    const x = byId[id]; if (!x) continue;
+    const lands = x.leadDays != null ? fmtD(addDays(state.today, x.leadDays)) : null;
+    const head = r === 0 ? `${x.title} just ran out.` : r === 1 ? `${x.title}: the order date passed (${fmtD(x.orderByDate)}).` : r === 2 ? `Order ${x.title} by ${fmtD(x.orderByDate)}.` : `${x.title} runs out before its order lands.`;
+    const body = [`${x.onHand} on hand, ${x.perWeek} a week`, x.runOutDate && r !== 0 ? `runs out ${fmtD(x.runOutDate)}` : null, r === 3 && x.incomingLands ? `order lands ${fmtD(x.incomingLands)}` : lands ? `an order placed today lands ${lands}` : null, x.suggested ? `suggested ${x.suggested}` : null].filter(Boolean).join(', ');
+    items.push({ r, text: `${r <= 1 ? ':red_circle:' : ':large_yellow_circle:'}  *${head}*
+        ${body}.` });
+  }
+  for (const id of Object.keys(now.o)) if (!prev.o?.[id]) { const x = state.orders.find(y => y.id === id); items.push({ r: 4, text: `:large_green_circle:  *${id} looks landed.*
+        Stock on ${x?.productTitles?.[0] || 'its products'} rose ${x?.jumpUnits || ''} units. Confirm it so it stops counting as on the way.` }); }
+  for (const id of Object.keys(now.s)) if (!prev.s?.[id]) { const x = state.slots.find(y => y.id === id); if (x) items.push({ r: 5, text: `:red_circle:  *${x.name} is late.*
+        ${x.next ? `${x.next.what} was due ${fmtD(x.next.on)}.` : 'A date has passed.'}` }); }
+  if (!items.length) return null;
+  items.sort((a, b) => a.r - b.r);
+  const blocks = [
+    { type: 'section', text: { type: 'mrkdwn', text: `:package:  *${state.brandName} · stock* · new since the last post` } },
+    { type: 'section', text: { type: 'mrkdwn', text: items.slice(0, 8).map(i => i.text).join('\n').slice(0, 2900) } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Only what changed. The full list comes on Monday.   ·   <${DASHBOARD_URL}|Open stock>` }] },
+  ];
+  return { attachments: [{ color: items[0].r <= 1 ? '#D0342C' : '#ECB22E', fallback: `${state.brandName} stock: ${items.length} new`, blocks }] };
+}
+
 /* ---------- the Buyer (buyer.js, on the shared Ask engine) ---------- */
 /* One state per request, the same one the screens draw. The nightly pass
    runs inside the digest call, which is the one call a day that arrives with
@@ -414,20 +459,20 @@ const app = {
         if (!raw.catalog) return bad('no snapshot yet', 404);
         let db = await loadDb(env, brand);
         if (!db.brand) { await seed(env, brand, raw, actor); db = await loadDb(env, brand); }
-        const msg = digestMessage(computeSupply(raw, db));
-        /* The Buyer looks the brand over on the same call, once a day: what is
-           new and urgent goes under the digest, and on Monday the briefing. */
-        try {
-          const night = await buyerNightly(env, brand, request);
-          const lines = night.urgent.slice(0, 5).map(f => `:red_circle:  *${f.title}*\n        ${f.detail || ''}`);
-          const blocks = msg.attachments[0].blocks;
-          if (lines.length) blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: (`*The Buyer found, overnight:*\n` + lines.join('\n')).slice(0, 2900) } });
-          if (new Date().getUTCDay() === 1 && env.ANTHROPIC_API_KEY) {
-            const { engine, h } = await buyerFor(env, brand, request);
-            const text = await engine.briefing(env, h, { force: false }).catch(() => null);
-            if (text) blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: (`*Monday, from the Buyer:*\n` + text).slice(0, 2900) } });
-          }
-        } catch (e) { console.log('buyer night: ' + e.message); }
+        const state = computeSupply(raw, db);
+        const mode = url.searchParams.get('mode') === 'alerts' ? 'alerts' : 'monday';
+        const on = k => db.settings[k] !== false && db.settings[k] !== 'false' && db.settings[k] !== 0;
+        const prev = safeJson(db.settings.digest_seen, null);
+        const remember = () => env.DB.prepare(`INSERT INTO settings (brand_id, key, value) VALUES (?1, 'digest_seen', ?2) ON CONFLICT(brand_id, key) DO UPDATE SET value = excluded.value`).bind(brand, JSON.stringify(seenNow(state))).run();
+        let msg;
+        if (mode === 'alerts') {
+          /* first run has no memory: learn today's list, post nothing */
+          msg = on('digest_alerts') && prev ? alertsMessage(state, prev) : null;
+        } else msg = on('digest_monday') || request.method === 'POST' ? digestMessage(state) : null;
+        /* GET from the engine's cron is the real post, so it moves the memory; a
+           preview or "Send now" (POST) never does */
+        if (request.method === 'GET' && (msg || mode === 'alerts' || !prev)) await remember();
+        if (!msg) return json({ skip: true, mode });
         if (request.method === 'POST') return json(await restock(env, request, `/api/slack-post?store=${brand}`, { method: 'POST', body: msg }));
         return json(msg);
       }
@@ -485,9 +530,19 @@ const app = {
         return json({ ok: true, tasksMoved: moved });
       }
 
+      /* Which Locus brand (Meta act id) each Supply brand is, and whether it makes
+         its own products (the Drops page). Locus reads this once per session. */
+      if (path === '/api/brands' && request.method === 'GET') {
+        const r = await env.DB.prepare(`SELECT id, name, act_id, makes, active FROM brands ORDER BY name`).all();
+        return json({ brands: (r.results || []).map(b => ({ ...b, makes: !!b.makes, active: !!b.active })) });
+      }
+
       if (path === '/api/brand' && request.method === 'PUT') {
-        await env.DB.prepare(`UPDATE brands SET name = COALESCE(?2, name), accent = COALESCE(?3, accent), slack_channel = COALESCE(?4, slack_channel) WHERE id = ?1`)
-          .bind(brand, str(body.name, 80), str(body.accent, 20), str(body.slack_channel, 40)).run();
+        await env.DB.prepare(`UPDATE brands SET name = COALESCE(?2, name), accent = COALESCE(?3, accent), slack_channel = COALESCE(?4, slack_channel),
+            act_id = COALESCE(?5, act_id), makes = COALESCE(?6, makes) WHERE id = ?1`)
+          .bind(brand, str(body.name, 80), str(body.accent, 20), str(body.slack_channel, 40), str(body.act_id, 40),
+            body.makes == null ? null : (body.makes ? 1 : 0)).run();
+        await log(env, brand, actor, 'brand', brand, 'update', body);
         return json({ ok: true });
       }
 

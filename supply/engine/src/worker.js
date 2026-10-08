@@ -635,32 +635,6 @@ function digestMessage(store, report, settings) {
   };
 }
 
-function redAlertMessage(store, items) {
-  // items: [{p: product, v: variant}] — group under product names
-  const byProduct = new Map();
-  for (const { p, v } of items) {
-    if (!byProduct.has(p.id)) byProduct.set(p.id, { p, vs: [] });
-    byProduct.get(p.id).vs.push(v);
-  }
-  const lines = [...byProduct.values()].map(({ p, vs }) =>
-    p.variants.length === 1
-      ? `*${p.title}* — ${lineBody(p, vs[0])}${moqNote(p)}`
-      : `*${p.title}*${moqNote(p)}\n${vs.slice(0, 8).map(v => `        •  \`${skuOr(v)}\` — ${lineBody(p, v)}`).join('\n')}`);
-  const blocks = [
-    { type: 'section', text: { type: 'mrkdwn',
-      text: `🔴  *${store.name} — Reorder point crossed*` } },
-    { type: 'divider' },
-    { type: 'section', text: { type: 'mrkdwn',
-      text: lines.slice(0, 12).join('\n').slice(0, 2900) } },
-    { type: 'context', elements: [{ type: 'mrkdwn',
-      text: `At current sell-through these run out inside their manufacturer lead time.   ·   <${DASHBOARD_URL}|Open Supply →>` }] },
-  ];
-  return {
-    attachments: [{ color: '#D0342C',
-      fallback: `${store.name}: ${items.length} item(s) crossed the reorder point`, blocks }],
-  };
-}
-
 /* ------------------------------------------------------------------ */
 /*  Snapshot run                                                       */
 /* ------------------------------------------------------------------ */
@@ -728,33 +702,32 @@ async function runSnapshot(env, store, { digest = false, forceDigest = false } =
   const channel = settings.stores[store.id]?.channel;
   let alerted = 0, digested = false;
   if (channel && env.SLACK_BOT_TOKEN) {
-    if (newReds.length) {
-      await slackApi(env, 'chat.postMessage',
-        { channel, ...redAlertMessage(store, newReds), unfurl_links: false });
-      alerted = newReds.length;
-    }
-    const issues = report.counts.stockout + report.counts.reorder + report.counts.watch;
-    const wantDigest = forceDigest ||
-      (digest && newState.lastDigestDate !== today &&
-        (settings.digestMode === 'always' || issues > 0));
+    /* The old "Reorder point crossed" alert is off (2026-10-08): it judged by
+       the legacy report and contradicted Supply. Supply's same-day alerts below
+       replace it. newReds is still tracked in state, nothing posts it. */
+    /* 2026-10-08: Monday = Supply's summary; other days = Supply's same-day
+       alerts, which answer {skip:true} unless something NEW crossed. Supply
+       owns both switches (settings digest_monday, digest_alerts). The legacy
+       digest is only a Monday fallback when Supply cannot answer. */
+    const monday = new Intl.DateTimeFormat('en-US', { timeZone: store.tz, weekday: 'short' }).format(new Date()) === 'Mon';
+    const mode = forceDigest || monday ? 'monday' : 'alerts';
+    const wantDigest = forceDigest || (digest && newState.lastDigestDate !== today);
     if (wantDigest) {
-      // Since 2026-09-11 the digest is Supply's (decisions, landings, revenue at
-      // risk), fetched over the service binding. This worker still owns the
-      // schedule and the Slack token. Falls back to the legacy digest if Supply
-      // cannot answer, so the morning message never silently disappears.
-      let msg = null;
+      let msg = null, failed = !env.SUPPLY;
       if (env.SUPPLY) {
         try {
-          const res = await env.SUPPLY.fetch(new Request(`https://mobius-supply.internal/api/digest?brand=${store.id}`,
+          const res = await env.SUPPLY.fetch(new Request(`https://mobius-supply.internal/api/digest?brand=${store.id}&mode=${mode}`,
             { headers: { 'Authorization': `Bearer ${env.ADMIN_TOKEN}` } }));
           if (res.ok) msg = await res.json();
-          else console.log(`Supply digest ${res.status}: ${(await res.text()).slice(0, 200)}`);
-        } catch (e) { console.log(`Supply digest failed: ${e.message}`); }
+          else { failed = true; console.log(`Supply digest ${res.status}: ${(await res.text()).slice(0, 200)}`); }
+        } catch (e) { failed = true; console.log(`Supply digest failed: ${e.message}`); }
       }
-      await slackApi(env, 'chat.postMessage',
-        { channel, ...(msg || digestMessage(store, report, settings)), unfurl_links: false });
+      if (failed && mode === 'monday') msg = digestMessage(store, report, settings);
+      if (msg && !msg.skip) {
+        await slackApi(env, 'chat.postMessage', { channel, ...msg, unfurl_links: false });
+        digested = true;
+      }
       newState.lastDigestDate = today;
-      digested = true;
     }
   }
   await env.KV.put(`state:${store.id}`, JSON.stringify(newState));

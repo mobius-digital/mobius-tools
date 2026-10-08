@@ -145,7 +145,12 @@ export function computeSupply(raw, db) {
     thin_days: 45, core_share: 0.8, dead_days: 90,
   }, db.settings || {});
   const num = (k, fb) => { const n = Number(S[k]); return Number.isFinite(n) ? n : fb; };
-  const BUFFER = num('buffer_days', 10), COVER = num('cover_days', 180), WATCH = num('watch_days', 60);
+  const BUFFER = num('buffer_days', 10), COVER = num('cover_days', 180);
+  /* Fixed on purpose (2026-10-08): "Order now" = the order-by date is within
+     two weeks (or passed); "Coming up" = within the next 60 days after that.
+     The factory order cycle used to stretch Order now to 60 or 90 days out,
+     which made most of the shelf look urgent. Not settings: nobody tunes them. */
+  const ORDER_NOW = 14, WATCH = 60;
 
   const factories = Object.fromEntries((db.factories || []).map(f => [f.id, { ...f, closures: safeJson(f.closures, []) }]));
   const lines = Object.fromEntries((db.lines || []).map(l => [l.id, { ...l, size_curve: safeJson(l.size_curve, null) }]));
@@ -233,7 +238,7 @@ export function computeSupply(raw, db) {
      velocity). Its demand comes from the line's size curve applied to the rate of
      the sizes that WERE on the shelf; when none were, from plain sales over the
      window, which is conservative rather than inflated. */
-  const RELIABLE = num('reliable_days', 45);
+  const RELIABLE = 45;
   for (const p of products) {
     const curve = p.lineId ? lineCurves[p.lineId]?.used : null;
     const curved = curve && Object.keys(curve).length && p.axis !== 'none' && p.axis !== 'hand';
@@ -309,8 +314,8 @@ export function computeSupply(raw, db) {
     else if (coreOut) status = 'out';
     else if (orderByDays == null) status = 'ok';
     else if (orderByDays <= 0) status = 'order';
-    else if (orderByDays <= cycle) status = 'order';
-    else if (orderByDays <= cycle + WATCH) status = 'soon';
+    else if (orderByDays <= ORDER_NOW) status = 'order';
+    else if (orderByDays <= ORDER_NOW + WATCH) status = 'soon';
     else status = 'ok';
     const overdue = status === 'order' && orderByDays != null && orderByDays < 0;
     const suggested = sum(vs, v => v.suggested);
@@ -481,13 +486,13 @@ export function computeSupply(raw, db) {
     const lands = p.leadDays != null ? fmtDate(addDays(today, p.leadDays)) : null;
     decisionsOut.push({
       kind: 'bad', productId: p.id, screen: 'reorder',
-      title: p.status === 'out' ? `${p.title} is out. Order now, or mark it as a drop.` : p.overdue ? `Order ${p.title} now. It was due ${due}.` : `Order ${p.title} by ${due}.`,
+      title: p.status === 'out' ? `${p.title} is out. Order now, or say it was a one-off.` : p.overdue ? `Order ${p.title} now. It was due ${due}.` : `Order ${p.title} by ${due}.`,
       body: [
         `${p.onHand} on hand, selling ${p.perWeek} a week, ${p.leadDays} day lead time`,
         p.runOutDate && p.status !== 'out' ? `Runs out ${fmtDate(p.runOutDate)}${lands ? `; an order sent today lands ${lands}` : ''}` : lands ? `An order sent today lands ${lands}` : null,
         p.suggested ? `Suggested ${p.suggested} units${p.atCost != null ? `, about ${money(p.atCost)} at cost` : ''}${p.moqMet === false ? `, under the minimum of ${p.moq}` : ''}` : null,
         p.sizeGap.length ? `Size gap: ${p.sizeGap.join(', ')}` : null,
-        p.status === 'out' ? 'If this was a one-off, set its lifecycle to limited drop in Settings and it stops asking' : null,
+        p.status === 'out' ? 'If it was a one-off, say so on the product and it stops asking' : null,
       ].filter(Boolean).join('. ') + '.',
     });
   }

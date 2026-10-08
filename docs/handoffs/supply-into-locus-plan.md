@@ -12,6 +12,18 @@ Branch: `claude/charming-mcnulty-9201f4` (worktree). Commit and push as you go,
 deploy without asking. Stop only for money, client-facing or destructive calls.
 No em dashes anywhere. In-app modals only. Short bullet replies.
 
+## Progress log
+
+- 2026-10-08 prep DONE: engine's old "Reorder point crossed" alert removed;
+  Slack = Monday summary + same-day new-only alerts (Supply `/api/digest?mode=`,
+  memory in settings `digest_seen`, switches `digest_monday` / `digest_alerts`);
+  brain: Order now = order-by within 14 days, Coming up = 60 days after that
+  (order cycle, watch_days, reliable_days no longer read); product-map rows.
+  Two changes from the plan below: (1) the Locus-brand mapping lives in
+  SUPPLY's `brands` table (`act_id`, `makes`; Lucky = act_378146126054294,
+  makes 1), read by Locus from `GET /api/brands`, written by `PUT /api/brand`;
+  NOT in `p_br_doc`. (2) The `?slot=` redirect waits for the Drops page.
+
 ## Decisions already taken (do not reopen)
 
 - Two layers. **Stock** for any brand with a stock feed (Lucky today). **Make**
