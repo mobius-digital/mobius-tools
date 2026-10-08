@@ -37,12 +37,59 @@ async function ensure(env) {
   tabled = true;
 }
 const folderId = u => (/folders\/([\w-]{10,})/.exec(String(u || '')) || /^([\w-]{20,})$/.exec(String(u || '').trim()) || [])[1] || null;
+/* 2026-10-08: an Air share link (app.air.inc/a/<code>) is a library source too. Grunk keeps every collection
+   in Air; public share links answer Air's own share API with no login. */
+const airCode = u => (/air\.inc\/a\/(\w{6,})/.exec(String(u || '')) || [])[1] || null;
 
 export async function sourcesFor(env, act) {
   const rows = await env.DB.prepare(`SELECT key, data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key IN ('links', 'assets')`).bind(act).all().catch(() => ({ results: [] }));
   const by = Object.fromEntries((rows.results || []).map(r => [r.key, safeJson(r.data_json, {}) || {}]));
   const ids = [folderId(by.links?.drive), ...((by.assets?.folders) || []).map(folderId)].filter(Boolean);
   return [...new Set(ids)];
+}
+export async function airSourcesFor(env, act) {
+  const row = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'assets'`).bind(act).first().catch(() => null);
+  return [...new Set(((safeJson(row?.data_json, {}) || {}).folders || []).map(airCode).filter(Boolean))];
+}
+
+async function air(code, path, body) {
+  const res = await F(`https://api.air.inc/shorturl/${code}${path}`, body ? { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://app.air.inc' }, body: JSON.stringify(body) } : { headers: { origin: 'https://app.air.inc' } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Air ${res.status}`);
+  return j;
+}
+/** Walk one Air share (boards inside boards), upserting every photo as source 'air'. The file_id is
+ *  'air-<clip id>'; thumb_src is Air's resizable image URL, and the 1600px URL rides in look_json. */
+async function syncAir(env, act, code, now, cap) {
+  const root = (await air(code, '')).data;
+  if (!root?.id) throw new Error('That Air link is not a shared board.');
+  const queue = [{ id: root.id, path: root.title || 'Air' }]; let boards = 0, files = 0;
+  while (queue.length && boards < 200 && files < cap) {
+    const b = queue.shift(); boards++;
+    let cur = null;
+    do {
+      const j = await air(code, `/boards/${b.id}`, { ancestorCutoff: b.id, numThumbnails: 1, sortBy: 'custom', view: b.id, includeAncestors: true, libraryBoards: 'ALL', limit: 30, cursor: cur });
+      for (const x of j.data || []) queue.push({ id: x.id, path: b.path + ' / ' + (x.title || '') });
+      cur = j.pagination?.hasMore ? j.pagination.cursor : null;
+    } while (cur);
+    cur = null;
+    do {
+      const j = await air(code, '/clips/search', { limit: 72, type: 'all', cursor: cur, withOpenDiscussionStatus: true, filters: { board: { is: b.id } }, boardId: b.id, sortField: { direction: 'desc', name: 'dateModified' } });
+      const batch = [];
+      for (const c of j.data?.clips || []) {
+        if (c.type !== 'photo' || !c.assets?.image) continue;
+        files++;
+        batch.push(env.DB.prepare(`INSERT INTO p_asset (act_id, file_id, name, mime, folder, path, modified, w, h, thumb_src, status, seen_at, source, kind, look_json) VALUES (?1, ?2, ?3, 'image/jpeg', ?4, ?5, ?6, ?7, ?8, ?9, 'new', ?10, 'air', 'photo', ?11)
+          ON CONFLICT(act_id, file_id) DO UPDATE SET name = excluded.name, path = excluded.path, thumb_src = excluded.thumb_src, seen_at = excluded.seen_at, look_json = excluded.look_json,
+          status = CASE WHEN p_asset.modified IS NOT excluded.modified OR p_asset.status = 'gone' THEN 'new' ELSE p_asset.status END, modified = excluded.modified`)
+          .bind(act, 'air-' + c.id, c.importedName || c.displayName || 'Air photo', `air:${code}`, b.path, c.updatedAt || c.createdAt, c.width || null, c.height || null,
+            `${c.assets.image}?w=640&fm=jpg&auto=compress`, now, JSON.stringify({ url: `${c.assets.image}?w=1600&fm=jpg&q=85`, air: code })));
+      }
+      for (let i = 0; i < batch.length; i += 50) await env.DB.batch(batch.slice(i, i + 50));
+      cur = j.pagination?.hasMore ? j.pagination.cursor : null;
+    } while (cur);
+  }
+  return { boards, files, complete: !queue.length };
 }
 
 async function drive(env, path) {
@@ -56,8 +103,8 @@ async function drive(env, path) {
 /** Walk the folders, upsert every image; changed files go back to 'new'. Returns counts. */
 export async function syncAssets(env, act, { maxFolders = 500, maxFiles = 10000 } = {}) {
   await ensure(env);
-  const roots = await sourcesFor(env, act);
-  if (!roots.length) return { act, error: 'No Drive folder for this brand: Settings > Connections > Google Drive folder.' };
+  const roots = await sourcesFor(env, act), airs = await airSourcesFor(env, act);
+  if (!roots.length && !airs.length) return { act, error: 'No Drive folder for this brand: Settings > Connections > Google Drive folder.' };
   const queue = roots.map(id => ({ id, path: '' })), seen = new Set(); let folders = 0, files = 0, fresh = 0;
   const now = new Date().toISOString();
   while (queue.length && folders < maxFolders && files < maxFiles) {
@@ -81,8 +128,16 @@ export async function syncAssets(env, act, { maxFolders = 500, maxFiles = 10000 
     } while (token);
   }
   /* Files that disappeared from Drive (deleted or moved out) stop showing; nothing is deleted from Drive. */
-  const complete = !queue.length;   // only a full walk may decide a file is gone
-  if (complete) await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND (seen_at IS NULL OR seen_at < ?2) AND status != 'gone' AND COALESCE(source, 'drive') != 'locus'`).bind(act, now).run();
+  let complete = !queue.length;   // only a full walk may decide a file is gone
+  if (complete) await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND (seen_at IS NULL OR seen_at < ?2) AND status != 'gone' AND COALESCE(source, 'drive') = 'drive'`).bind(act, now).run();
+  let airOk = true;
+  for (const code of airs) {
+    const r = await syncAir(env, act, code, now, maxFiles).catch(e => ({ error: e.message }));
+    if (r.error || !r.complete) airOk = false;
+    folders += r.boards || 0; files += r.files || 0;
+  }
+  if (airs.length && airOk) await env.DB.prepare(`UPDATE p_asset SET status = 'gone' WHERE act_id = ?1 AND (seen_at IS NULL OR seen_at < ?2) AND status != 'gone' AND source = 'air'`).bind(act, now).run();
+  complete = complete && airOk;
   fresh = (await env.DB.prepare(`SELECT COUNT(*) n FROM p_asset WHERE act_id = ?1 AND status = 'new'`).bind(act).first())?.n || 0;
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(`assetsSyncAt:${act}`, now).run().catch(() => {});
   return { act, folders, files, to_tag: fresh, complete };
@@ -108,7 +163,8 @@ export async function tagAssets(env, act, limit = 25) {
       let src = r.thumb_src;
       if (!src) { const m = await drive(env, `files/${r.file_id}?fields=thumbnailLink&supportsAllDrives=true`); src = m.thumbnailLink; }
       if (!src) throw new Error('no thumbnail');
-      const img = await F(src.replace(/=s\d+$/, '=s640'), { headers: { Authorization: `Bearer ${tok}` } });
+      const isAir = String(r.file_id).startsWith('air-');   // Air's image host: never send it the Google token
+      const img = await F(isAir ? src : src.replace(/=s\d+$/, '=s640'), isAir ? {} : { headers: { Authorization: `Bearer ${tok}` } });
       if (!img.ok) throw new Error(`thumbnail ${img.status}`);
       const buf = await img.arrayBuffer();
       const key = `assets/${act}/${r.file_id}.jpg`;
@@ -164,6 +220,12 @@ export async function assetFile(env, act, id) {
     const obj = row.thumb_key && env.MEDIA ? await env.MEDIA.get(row.thumb_key) : null;
     if (!obj) throw new Error('That look is missing from storage.');
     return { buf: await obj.arrayBuffer(), type: obj.httpMetadata?.contentType || 'image/jpeg', name: row.name };
+  }
+  if (row.source === 'air') {
+    const u = (safeJson((await env.DB.prepare(`SELECT look_json FROM p_asset WHERE act_id = ?1 AND file_id = ?2`).bind(act, id).first())?.look_json, {}) || {}).url;
+    const r = u ? await F(u) : null;
+    if (!r?.ok) throw new Error('Air did not send that photo. Try again in a minute.');
+    return { buf: await r.arrayBuffer(), type: (r.headers.get('content-type') || 'image/jpeg').split(';')[0], name: row.name };
   }
   const m = await drive(env, `files/${row.file_id}?fields=thumbnailLink,mimeType,size&supportsAllDrives=true`);
   const tok = await googleToken(env, AS(env), SCOPE);
