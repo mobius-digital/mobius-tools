@@ -1,0 +1,203 @@
+<title>Locus Brand-First Rebuild</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column, a phase ladder down the middle, tables scroll in their own boxes. */
+:root{
+  --bg:#f6f7f5; --panel:#ffffff; --fg:#1b2420; --muted:#5d6b64; --line:#d9dfdb;
+  --accent:#2f6b55; --accent-soft:#e3efe9; --warn:#9a5b12; --warn-soft:#f8ecdb;
+  --display:"Fraunces", Georgia, serif; --body:"IBM Plex Sans", system-ui, sans-serif; --mono:"IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121715; --panel:#1a211e; --fg:#e4ebe7; --muted:#9aa8a1; --line:#2c3632;
+  --accent:#7cc4a6; --accent-soft:#1f3229; --warn:#e3a85c; --warn-soft:#33281a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121715; --panel:#1a211e; --fg:#e4ebe7; --muted:#9aa8a1; --line:#2c3632;
+  --accent:#7cc4a6; --accent-soft:#1f3229; --warn:#e3a85c; --warn-soft:#33281a; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15.5px/1.6 var(--body);padding-inline:16px;padding-block:40px 80px}
+main{max-width:760px;margin:0 auto;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:2.3rem;font-weight:650}
+h2{font-size:1.45rem;font-weight:650}
+h3{font-size:1.08rem;font-weight:650;font-family:var(--body)}
+p{margin:0} ul{margin:0;padding-left:1.2em;display:grid;gap:6px}
+section{display:grid;gap:14px}
+.eyebrow{font:500 .74rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{font-size:1.06rem;color:var(--muted);max-width:62ch}
+code{font:.86em var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.callout{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:16px 18px;display:grid;gap:8px}
+.callout.warn{background:var(--warn-soft);border-color:transparent}
+.callout.warn h3{color:var(--warn)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:520px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 .72rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td.n{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.ladder{display:grid;gap:0;border-left:2px solid var(--line);margin-left:10px}
+.step{position:relative;padding:0 0 26px 26px;display:grid;gap:8px}
+.step:last-child{padding-bottom:0}
+.step::before{content:"";position:absolute;left:-8px;top:5px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.step .tag{font:500 .72rem var(--mono);color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.step .done{font-size:.9rem;color:var(--muted)}
+.step .done b{color:var(--fg);font-weight:600}
+.diagram{font:.85rem/1.5 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;white-space:pre;margin:0}
+.q{display:grid;gap:4px;padding:14px 0;border-bottom:1px solid var(--line)}
+.q:last-child{border-bottom:0}
+.q .rec{color:var(--accent);font-weight:500}
+</style>
+
+<main>
+  <header style="display:grid;gap:12px">
+    <span class="eyebrow">Locus · plan · 8 Oct 2026</span>
+    <h1>Locus brand-first rebuild</h1>
+    <p class="lede">Today a brand in Locus <em>is</em> its Meta ad account. After this, a brand is its own thing, and Meta, Triple Whale, Google, TikTok, Klaviyo, Asana and the rest are connections added on top of it.</p>
+  </header>
+
+  <section>
+    <span class="eyebrow">Why</span>
+    <h2>What broke, and why it will keep breaking</h2>
+    <ul>
+      <li>Ahsan tagged @Mobius Digital in #speedin-internal and got nothing. Speedin has no Meta account shared yet, so it can't exist in Locus, so the Slack router never treats the channel as a Locus channel.</li>
+      <li>New clients already hit this. The New client flow gives them a temporary <code>asana_…</code> ID, and some special code moves their data across when Meta arrives. Only 4 tables get moved, and everything else is stuck waiting.</li>
+      <li>Brands with more than one ad account (Party Patch has 2, Instant IV 3, Gum of Gods 2) show up as separate "brands".</li>
+      <li>Lineup and Pulse are moving into Locus next. They need one brand list to read from, and it can't depend on Meta.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="eyebrow">The model</span>
+    <h2>Brand first, connections on top</h2>
+    <pre class="diagram">brand  (brand_speedin, permanent, never an outside ID)
+ ├─ name, status, timezone, currency, goals, targets, team
+ ├─ Slack: internal channel, brief channel, report channels
+ └─ connections  (zero or more of each kind)
+     ├─ meta       act_1352962423584020   connected · synced 2m ago
+     ├─ meta       act_7012…              connected   ← a 2nd ad account
+     ├─ triple whale  speedin.myshopify.com  not connected
+     ├─ google / ga4 / gsc / tiktok / klaviyo / attentive
+     ├─ asana project · drive · frame · atria
+     └─ each one: status, last sync, last error</pre>
+    <ul>
+      <li><b>Brand-owned things</b> (briefs, reports, goals, plan, season, angles, research, voice, Studio, assets, test library, costs) are filed under the brand ID.</li>
+      <li><b>Meta's own data</b> (daily and hourly numbers, ads, campaigns, ad sets, activity log) stays filed under the Meta account it came from. A brand's Meta totals are the sum of its connected accounts, which fixes the multi-account brands.</li>
+      <li><b>One lookup, forever.</b> Every old ID (<code>act_…</code>, <code>asana_…</code>) is kept as an alias that points to the new brand ID. Old Slack buttons, old links, the Asana webhooks, Supply, and the saved brand in each person's browser all keep working.</li>
+      <li><b>Discovery stops creating brands.</b> Meta accounts we can see but haven't connected show up in Connections as "available to connect".</li>
+      <li><b>Missing connections are a normal state, not an error.</b> Pages say "Connect Meta"; the Strategist knows what it can and can't see and says so.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="eyebrow">Scope, from the code</span>
+    <h2>How big this is</h2>
+    <div class="scroll"><table>
+      <tr><th>Area</th><th>What</th><th>Size</th></tr>
+      <tr><td>Database</td><td>One shared D1 behind both Locus workers</td><td class="n">~45 tables carry the brand ID; ~20 have it in the key</td></tr>
+      <tr><td>Saved settings</td><td>Per-brand keys (brand context, writing style, cursors, caches, Asana hooks)</td><td class="n">~25 key patterns</td></tr>
+      <tr><td>Stored files</td><td>Studio images, assets, angles media, onboarding uploads</td><td class="n">4 folder layouts</td></tr>
+      <tr><td>Backend code</td><td>Locus main worker + the profit worker</td><td class="n">~2,300 references</td></tr>
+      <tr><td>Front end</td><td>Locus screens</td><td class="n">~1,300 references</td></tr>
+      <tr><td>Real Meta calls</td><td>Calls that genuinely need a Meta account</td><td class="n">~15 places</td></tr>
+      <tr><td>Outside</td><td>Supply, Slack buttons already posted, Asana webhooks, links in old Slack posts</td><td class="n">covered by aliases</td></tr>
+    </table></div>
+    <p class="done" style="color:var(--muted);font-size:.92rem">Client links (reports, plan, season, store view, creator links, onboarding) use tokens and slugs, not the Meta ID, so none of them change.</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">How it ships</span>
+    <h2>Five phases, each one live and checked before the next</h2>
+    <div class="ladder">
+      <div class="step">
+        <span class="tag">Phase 1 · foundation</span>
+        <h3>Brands, connections and aliases exist, filled from today's data</h3>
+        <ul>
+          <li>New tables: brands, connections, brand aliases. Backfill every active brand, its Meta account, Triple Whale shop, Slack channels, and the Google, TikTok, Klaviyo and Asana settings that already live in brand docs.</li>
+          <li>One function every route uses to turn any ID (old or new) into a brand.</li>
+          <li>Old tables are still the source of truth; the new ones are mirrored on every change.</li>
+        </ul>
+        <p class="done"><b>Done when</b> every active brand has a matching brand row and its connections, and counts line up.</p>
+      </div>
+      <div class="step">
+        <span class="tag">Phase 2 · brands without Meta</span>
+        <h3>The Slack router, the Strategist and the syncs read brands and connections</h3>
+        <ul>
+          <li>The Slack router asks "is this a brand's channel?" from brands, not ad accounts. <b>Speedin goes live here</b>: name plus #speedin-internal, and tags get answered.</li>
+          <li>Meta and Triple Whale syncs run per connection, not per brand. Brands with two ad accounts add up both.</li>
+          <li>The Strategist sees each brand's connections and answers honestly about what's missing.</li>
+        </ul>
+        <p class="done"><b>Done when</b> Speedin answers in Slack, every existing brand's numbers match the day before to the cent, and the nightly runs clean.</p>
+      </div>
+      <div class="step">
+        <span class="tag">Phase 3 · the big move</span>
+        <h3>Every brand-owned table and setting moves to the brand ID</h3>
+        <ul>
+          <li>Done overnight with the crons paused (about 30 minutes). A restore point is taken right before, so the database can be put back in one step.</li>
+          <li>Each table is copied across with a row-count check. Saved settings are renamed. Stored files keep their paths; the rows record the path instead of rebuilding it from the ID.</li>
+          <li>The temporary <code>asana_…</code> IDs and the code that moved new clients' data go away.</li>
+        </ul>
+        <p class="done"><b>Done when</b> every table's counts match before and after, and a full click-through of every tab for 3 brands shows the same thing as before.</p>
+      </div>
+      <div class="step">
+        <span class="tag">Phase 4 · screens</span>
+        <h3>The front end and every route speak brand IDs</h3>
+        <ul>
+          <li>The brand picker, the Overview, Paid ads, Brief, Reports, Studio, Season and the rest switch over. Old saved picks and old links resolve through the aliases.</li>
+          <li>"Connect Meta / Triple Whale / Google" states everywhere a connection is missing.</li>
+          <li>Supply's link to Locus brands switches to the brand ID.</li>
+        </ul>
+        <p class="done"><b>Done when</b> a brand with no connections and a brand with all of them both look right on every tab.</p>
+      </div>
+      <div class="step">
+        <span class="tag">Phase 5 · adding brands</span>
+        <h3>Add brand and Connections, rebuilt around the new model</h3>
+        <ul>
+          <li>Add brand = name + internal channel. It's live immediately. New client flow creates the brand on day one.</li>
+          <li>Connections page per brand: what's connected, sync health, and "available to connect" Meta accounts.</li>
+          <li>After two clean weeks, the old brand columns on the ad-account table are removed.</li>
+        </ul>
+        <p class="done"><b>Done when</b> a brand can go from nothing to fully connected without touching code or the database.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Safety</span>
+    <h2>What protects the live system</h2>
+    <ul>
+      <li>A database restore point before every phase that changes data (D1 keeps 30 days of point-in-time restore).</li>
+      <li>Phases 1 and 2 only add things; nothing old is removed until phase 5.</li>
+      <li>Numbers are compared before and after for every brand: spend, revenue, ROAS, orders, brief and report counts.</li>
+      <li>Clients see nothing change. Briefs and reports go out the same way the whole time.</li>
+    </ul>
+    <div class="callout warn">
+      <h3>Biggest risk</h3>
+      <p>Phase 3, if a cron writes under the old ID mid-move. That's why the crons are paused for it and the move runs as one step per table with counts checked, and why there's a restore point right before.</p>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">Your calls</span>
+    <h2>Three decisions before phase 3</h2>
+    <div class="callout" style="gap:0">
+      <div class="q"><h3>1. IDs for existing brands</h3>
+        <p>New readable IDs (<code>brand_lucky</code>, <code>brand_dartee</code>), with the old Meta numbers kept as aliases; or keep the Meta numbers as the IDs.</p>
+        <p class="rec">Recommend new IDs. Keeping the Meta numbers leaves the same confusion in place for whoever works on Locus next.</p></div>
+      <div class="q"><h3>2. The extra ad accounts</h3>
+        <p>Party Patch Ad Acc 2, Instant IV 2 and 3, Gum of Gods #2 and the others that aren't active brands today.</p>
+        <p class="rec">Recommend: attach Party Patch Ad Acc 2 to Party Patch; everything else that isn't an active brand becomes "available to connect", not a brand.</p></div>
+      <div class="q"><h3>3. Phase 3 timing</h3>
+        <p>A 30-minute overnight window with briefs and syncs paused.</p>
+        <p class="rec">Recommend after 9pm Central on a weeknight, so the 8am briefs run on the new IDs the next morning.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">After this</span>
+    <h2>What it sets up</h2>
+    <ul>
+      <li>Lineup moves into Locus and reads the same brands (its own project).</li>
+      <li>Pulse moves into Locus (its own project).</li>
+      <li>Ledger stays separate. It isn't brand-based.</li>
+    </ul>
+  </section>
+</main>

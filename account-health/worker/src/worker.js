@@ -1,6 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
+import { syncRegistry, listBrands, addConnection, KINDS as BRAND_KINDS } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 /**
@@ -6711,6 +6712,8 @@ const AH_APP = {
         if (upgraded) ran.cardUpgrade = upgraded;
         const handled = await handledOnce(env).catch(e => ({ error: e.message }));
         if (handled) ran.handledUpgrade = handled;
+        /* Mirror accounts + brand docs into brands / connections (brands.js). ~7 subrequests. */
+        ran.registry = await syncRegistry(env).then(r => ({ writes: r.writes, added: r.brandsAdded.length, conflicts: r.conflicts })).catch(e => ({ error: e.message }));
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
@@ -7710,6 +7713,18 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     try {
       /* ---- accounts ---- */
+      /* ---- brands and their connections (brands.js, the brand-first rebuild) ---- */
+      if (path === '/api/brands' && request.method === 'GET') {
+        return json({ brands: await listBrands(env), kinds: BRAND_KINDS });
+      }
+      if (path === '/api/brands/sync' && request.method === 'POST') {
+        return json({ ok: true, ...(await syncRegistry(env)) });
+      }
+      if (path === '/api/brands/connect' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        try { return json({ ok: true, ...(await addConnection(env, b.brand, b)) }); }
+        catch (e) { return json({ error: e.message }, 400); }
+      }
       if (path === '/api/accounts' && request.method === 'GET') {
         // lastDiscover rides along so the Clients card can say the scan is
         // automatic and when it last ran, rather than implying a manual step.
@@ -7745,6 +7760,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           const acct = await env.DB.prepare(`SELECT * FROM accounts WHERE act_id = ?1`).bind(m[1]).first();
           ctx.waitUntil(syncAccount(env, acct));
         }
+        ctx.waitUntil(syncRegistry(env).catch(() => {}));
         return json({ ok: true });
       }
       /* WHY CAN'T IT SEE MY AD ACCOUNTS? Answer it with facts instead of guesses.

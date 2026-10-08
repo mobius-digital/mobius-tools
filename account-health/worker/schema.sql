@@ -236,3 +236,27 @@ CREATE TABLE IF NOT EXISTS tw_orders (
   PRIMARY KEY (act_id, order_id)
 );
 CREATE INDEX IF NOT EXISTS tw_orders_cust ON tw_orders (act_id, customer_id, date);
+
+-- Brands and their connections (2026-10-08, the brand-first rebuild; src/brands.js, which also
+-- creates these at runtime). A brand has its own permanent id; Meta, Triple Whale, Shopify, Google,
+-- TikTok, Klaviyo, Asana, Drive and Frame are connections on top, any number of each.
+-- legacy_key = the id the older tables still file the brand under (its act_ id) until phase 3.
+-- connections never hold a secret: the Strategist can read them.
+CREATE TABLE IF NOT EXISTS brands (
+  id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active', tz TEXT NOT NULL DEFAULT 'America/Chicago', currency TEXT NOT NULL DEFAULT 'USD',
+  internal_channel TEXT, client_channel TEXT,
+  legacy_key TEXT UNIQUE, source TEXT NOT NULL DEFAULT 'mirror',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS brands_internal_idx ON brands (internal_channel);
+CREATE TABLE IF NOT EXISTS connections (
+  id TEXT PRIMARY KEY, brand_id TEXT NOT NULL, kind TEXT NOT NULL, external_id TEXT NOT NULL,
+  label TEXT, is_primary INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'connected',
+  config_json TEXT NOT NULL DEFAULT '{}', last_sync TEXT, last_error TEXT, source TEXT NOT NULL DEFAULT 'mirror',
+  added_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (kind, external_id));
+CREATE INDEX IF NOT EXISTS connections_brand_idx ON connections (brand_id, kind);
+-- Any id a brand has ever had -> its brand id. Kept forever (old Slack buttons, links, webhooks).
+CREATE TABLE IF NOT EXISTS brand_alias (
+  alias TEXT PRIMARY KEY, brand_id TEXT NOT NULL, kind TEXT NOT NULL, added_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS brand_alias_brand_idx ON brand_alias (brand_id);
