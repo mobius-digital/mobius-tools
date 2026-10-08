@@ -1025,3 +1025,11 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   and the secrets TIKTOK_APP_ID / TIKTOK_APP_SECRET. Untested against the real API until then.
 - **A brand's email tool**: `settings.emailTool:<act>` (Ice & Gold = attentive). Connections shows "Email:
   Attentive" instead of a Klaviyo row; the Strategist says email numbers come only from Triple Whale for it.
+- **TikTok app status (2026-10-08):** developer registered (Agency, cole@) and app "Locus by Mobius Digital"
+  submitted with every scope ticked, advertiser redirect `/tiktok/callback`, account-holder redirect
+  `/tiktok/account-callback` (a placeholder page; TikTok requires it once the "TikTok accounts" scope is ticked).
+  Pending TikTok review (up to ~3 days). Then: TIKTOK_APP_ID (not secret, Claude can set it) and
+  TIKTOK_APP_SECRET (Cole pastes), then Connect TikTok on Ads > TikTok.
+- **RULE: every new connection ships with its knowledge.** Adding a platform to Locus means, in the same change: a
+  `docs/strategist-brain/knowledge/<platform>.md` file (same 7 sections), a Strategist view that reads it, a line
+  in THE CMO METHOD if it changes the cross-channel picture, then `build_knowledge.py` + deploy.

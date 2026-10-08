@@ -6793,6 +6793,9 @@ const AH_APP = {
       const r = await handleFrame(request, env, url, path, json, isAdmin);
       if (r) return r;
     }
+    /* TikTok ACCOUNT HOLDER sign-in (creator/brand TikTok accounts, the "TikTok accounts" scope). TikTok's app form
+       requires this redirect once that scope is ticked; Locus does not use it yet, so it only says so. */
+    if (path === '/tiktok/account-callback' && request.method === 'GET') return new Response('<p style="font:16px system-ui;padding:40px">Locus does not connect TikTok accounts (organic posts) yet. You can close this tab.</p>', { headers: { 'Content-Type': 'text/html' } });
     /* TikTok sign-in comes back here (public; the one-time state is the check). */
     if (path === '/tiktok/callback' && request.method === 'GET') {
       try { const r = await tiktokCallback(env, url); return new Response(`<p style="font:16px system-ui;padding:40px">TikTok is connected: ${r.advertisers.length} ad account${r.advertisers.length === 1 ? '' : 's'}. You can close this tab and go back to Locus.</p>`, { headers: { 'Content-Type': 'text/html' } }); }
