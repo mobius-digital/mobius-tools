@@ -129,6 +129,41 @@ export async function handleStudioAI(request, env, ctx, path, json, isAdmin) {
   if (path === '/api/studio-ai/video-delete') return run(() => deleteVideo(env, A, b.id));
   if (path === '/api/studio-ai/higgsfield') return run(() => hfSave(env, b));
 
+  /* ---- Attach finished Studio ads to an Asana task (2026-10-08) ----
+     Studio images live on the profit worker at unguessable public addresses; this copies them onto the
+     batch's Asana task as real attachments so the media buyer sees and downloads them in Asana. Only
+     Studio image addresses are accepted. Returns the attachment ids so a description can show them inline. */
+  if (path === '/api/studio-ai/asana-attach') return run(async () => {
+    const task = String(b.task_gid || '').trim(), token = (env.ASANA_TOKEN || '').trim();
+    if (!/^\d{6,}$/.test(task)) throw new Error('task_gid is required');
+    if (!token) throw new Error('Asana is not connected.');
+    const out = [];
+    for (const im of (Array.isArray(b.images) ? b.images : []).slice(0, 30)) {
+      const u = String(im.url || '');
+      if (!/^https:\/\/mobius-profit\.mobius-digital\.workers\.dev\/api\/studio\/img\/[a-f0-9]{24}\/(full|story)$/.test(u)) { out.push({ name: im.name, error: 'not a Studio image' }); continue; }
+      /* Same R2 bucket as the profit worker: read the file directly (worker-to-worker fetches on
+         workers.dev can be refused). The folder is the brand's storage prefix, else its id. */
+      const [, id, kind] = u.match(/img\/([a-f0-9]{24})\/(full|story)$/);
+      const row = await env.DB.prepare(`SELECT act_id FROM p_studio_ad WHERE id = ?1`).bind(id).first();
+      let buf = null;
+      if (row && env.MEDIA) {
+        const pre = await env.DB.prepare(`SELECT storage_prefix FROM brands WHERE id = ?1`).bind(row.act_id).first().catch(() => null);
+        for (const p of [...new Set([pre?.storage_prefix, row.act_id].filter(Boolean))]) {
+          const obj = await env.MEDIA.get(`studio/${p}/${id}/${kind}.png`);
+          if (obj) { buf = await obj.arrayBuffer(); break; }
+        }
+      }
+      if (!buf) { out.push({ name: im.name, error: 'image not found' }); continue; }
+      const fd = new FormData();
+      fd.append('parent', task);
+      fd.append('file', new Blob([buf], { type: 'image/png' }), `${String(im.name || 'ad').replace(/[^\w .()-]+/g, '').slice(0, 90)}.png`);
+      const res = await fetch('https://app.asana.com/api/1.0/attachments', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const j = await res.json().catch(() => ({}));
+      out.push(res.ok ? { name: im.name, gid: j.data?.gid } : { name: im.name, error: j.errors?.[0]?.message || `Asana ${res.status}` });
+    }
+    return { attached: out };
+  });
+
   /* ---- read briefs into batches ---- */
   if (path === '/api/studio-ai/brief') return stream(async put => {
     const parts = [];
