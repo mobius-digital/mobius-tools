@@ -1923,3 +1923,27 @@ not see an ad from Campaigns or Creative. Research: `docs/locus-hub/research-v3.
   Creative calls). The Creative page reads `/api/brand/rules` and states the numbers it used.
 - `window.V2UI` (v2.js) exposes the v2 building blocks (tile, card, spark, bullet, ib, lineChart, stackChart,
   panel, tipAttr, chip, formatters) so every screen file draws them one way.
+
+## 2026-10-08 (evening): the ad set is the unit; Settings grouped; search; email timing; Inspiration
+
+- **Meta calls judge the AD SET first** (Cole: Meta optimises the set as one funnel; the ad taking most of
+  the budget is usually the broad opener, the small ads with prettier numbers convert people it warmed).
+  hub.js `creativeBrand` gives every ad its set's totals, `set_share`, `set_rank`, and first-click vs last
+  platform click revenue (`fc_rev`, `lc_rev`). v2.js `creative()`: the set gets the same thresholds; a set
+  that misses = Cut for every ad in it; the anchor (`cr_anchor_pct`, default 50% of set spend) in a working
+  set = Keep (replace it, never just switch it off); a small ad over the cut line = Trim; single-ad sets are
+  judged as the ad. Opener / Closer chips: first-click credit 1.3x+ the last-click credit or the reverse.
+  The preview carries the call, the why and the ad set scorecard. Settings > Goals labels which rules are Meta's.
+- **Settings is grouped**: Brands / Agency (Connections, Team, Briefs and Slack, Strategist) / Data and jobs
+  (Jobs and data, Data health, Costs) / Help. Connections cards are grouped by kind (Ad platforms, Store and
+  analytics, Email and SMS, Team and work tools, AI and creative) for the agency and for each brand.
+- **Ask bar finds any campaign or ad** (hub `/api/hub/find`); picking one switches brand and opens Campaigns
+  with it expanded, or Creative with its preview (`window.V2PENDING`).
+- **Email > Subject lines and send times** (v2.js `subjectsCard`): from the last 60 sent campaigns (Klaviyo
+  campaigns now include their subject through `include=campaign-messages`), by weekday and time of day in the
+  brand's zone, subject features (question, number, emoji, short, name, discount) against the rest.
+- **Creative > Inspiration** (v2.js `inspo`): the brand's Atria board and the season boards (from
+  `/api/season` swipe ids), "Brief one like it" asks the Strategist. Atria answered 402 (out of credits) on
+  2026-10-08: the page says so.
+- Google: `POST /api/google/enable-apis` tries the Service Usage API as the service account (project
+  mobius-tools-506114); it was refused, so Cole enables the four APIs himself.
