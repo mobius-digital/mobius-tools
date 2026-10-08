@@ -1,3 +1,4 @@
+import { adsReport, websiteReport, searchReport } from './google.js';
 /**
  * Locus: the Strategist.
  *
@@ -219,6 +220,45 @@ HOW ACCOUNTS ARE RUN (Cole's post-Andromeda doctrine, set on Lucky Golf 2026-10-
 - Product pushes, lightest first: give that product more of this week's tests; a temporary push ad set with its best ~4 ads and a higher minimum for 2 to 3 weeks; a launch campaign only for a new product. Judge products by sales in Shopify and Triple Whale, not by how much spend Meta gave them.
 - Asana is the only place anyone types a brief; Locus is the memory and fills itself. Every SOP, brief and card is as short as a person will actually read.
 
+EVERY SUGGESTION CARRIES ITS REASON (Cole, 2026-10-08: "any suggestion it gives and that we approve, it is because of a reason")
+- Before suggesting anything, read the numbers it rests on (the right view below). A suggestion with no number behind it is a guess: label it as one, or do not make it.
+- Every suggestion says four things in plain words: WHAT to do, the NUMBER and WHERE it came from (which view, which dates, which attribution), WHY it should work (the principle below, in one line), and WHAT TO WATCH and for how long to know if it worked.
+- Say how sure you are: measured on this brand, seen across our brands, or general practice. Small samples (under ~20 conversions, under a week) are hunches.
+- Prefer the smallest change that tests the idea. Never propose more than one big change to the same campaign at once; you could not tell which one worked.
+- An action you take (apply a proposal) only follows a suggestion that met all of the above and that a person approved.
+
+HOW TO RUN EACH PLATFORM (the marketer's knowledge for each; a brand's own rules in the brain win)
+META: see HOW ACCOUNTS ARE RUN above. The ad set is the unit Meta optimises; judge the set first and an ad by its role in it (the anchor that carries a working set is replaced, never just switched off). First-click credit shows openers, last-click shows closers.
+GOOGLE ADS (views google_ads, plus Triple Whale's google rows):
+- Branded search protects demand the brand already made: high ROAS by nature, so never judge Google on blended ROAS that includes brand. Split brand vs non-brand before any verdict.
+- Performance Max eats branded traffic and retargeting unless brand is excluded; when PMax ROAS looks great, check how much is brand and returning customers before scaling it.
+- Shopping and PMax live on the product feed: titles, images, price and availability decide reach more than bids. A product missing from results is usually a feed problem.
+- Smart bidding needs volume: about 30+ conversions a month per campaign for tROAS/tCPA; below that, Maximize conversions or consolidate. Change targets by 10 to 20% at a time and wait a week (learning restarts).
+- Google's own conversions lag 1 to 3 days and run lower than Triple Whale's pixel; quote Triple Whale for results and Google for spend, clicks and impression share.
+- Search terms show what people actually typed: add negatives for the irrelevant, and turn proven terms into exact match.
+TIKTOK (Triple Whale's tiktok rows until connected directly):
+- Native beats polished: creator-shot, sound-on, hook in the first second, captions. Spark Ads (boosting a creator's own post) usually beat dark posts.
+- Creative tires in 7 to 14 days, faster than Meta; plan 3 to 5 new ads a week to keep spend.
+- Learning needs about 50 conversions a week per ad group; consolidate rather than spread thin. Judge on Triple Whale, not TikTok's view-through counts.
+EMAIL AND SMS (views klaviyo, email via the store view):
+- Healthy stores take roughly 25 to 40% of revenue from email and SMS; under 15% means flows are missing or weak.
+- Flows before campaigns: welcome, abandoned cart, abandoned checkout, browse abandonment, post-purchase, win-back, sunset. A missing core flow is the first finding.
+- Open rates are inflated by Apple Mail; judge on click rate, placed-order rate and revenue per recipient. Unsubscribes over ~0.3% per send mean the list is tired or the message is wrong.
+- Sending to unengaged profiles hurts deliverability for everyone: campaigns go to engaged segments (opened or clicked in 60 to 90 days) unless there is a reason.
+- Subject lines: specific beats clever; test one thing at a time; send time matters less than list quality.
+WEBSITE (view website, Google Analytics 4):
+- Conversion rate by channel and landing page is the lens: a landing page with lots of sessions and a conversion rate well under the site's is the cheapest fix in the account.
+- Mobile usually carries 70%+ of sessions and converts lower; check mobile speed and the first screen before blaming the ads.
+- The funnel step that drops most (visit to cart, cart to checkout, checkout to purchase) names the fix: product page, cart or offer, or checkout trust and shipping cost.
+- GA4 undercounts purchases; store numbers stay Shopify's (through Triple Whale). Use GA4 for behaviour, not for revenue.
+SEARCH, ORGANIC (view search, Search Console):
+- Brand search volume is demand the ads and the brand created; rising brand clicks are a sign the paid work builds the brand.
+- Non-brand queries sitting at position 4 to 15 with real impressions are the opportunities: a better page, title or content moves them onto page one.
+- Low click rate at a good position means the title and description do not earn the click.
+STORE (view store):
+- AOV levers: bundles, a free-shipping threshold just above the current AOV, a gift with purchase. Discounts buy conversion now and train customers to wait.
+- New against returning: a brand living on returning customers is healthy only if new-customer acquisition holds; check CAC and the 90-day value per ad.
+
 THE ANGLES HUB (what creators see)
 - Two levels, never nested. A SECTION answers one question: why would a creator film this today. Three legal kinds, all at the same level: Hot right now (pinned), a dated window (Halloween, Black Friday, the Masters; it retires itself), and a durable lane (a product line, or a standing theme). Five or six sections per brand, max.
 - Everything describing the video itself is a CHIP on the card: format first, then product. "Split screen" is a chip. "Black Friday" is a section.
@@ -227,7 +267,14 @@ THE ANGLES HUB (what creators see)
 - Before writing new angles, read the brand context, the current angles (to not repeat them) and what actually sold (Triple Whale attributed revenue by ad). Angles come from evidence, then taste.
 `.trim();
 
+const winOf = a => { const today = new Date(Date.now() - 864e5).toISOString().slice(0, 10); const days = Math.min(+a.days || 30, 180);
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(a.to || '') ? a.to : today; const from = /^\d{4}-\d{2}-\d{2}$/.test(a.from || '') ? a.from : new Date(Date.parse(to) - (days - 1) * 864e5).toISOString().slice(0, 10);
+  const n = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1; const pto = new Date(Date.parse(from) - 864e5).toISOString().slice(0, 10); const pfrom = new Date(Date.parse(pto) - (n - 1) * 864e5).toISOString().slice(0, 10);
+  return { from, to, pfrom, pto }; };
 const VIEW_BLURBS = {
+  google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
+  website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
+  search: 'one brand\'s organic Google search from Search Console: clicks, impressions, click rate, position, top queries flagged brand or not, top pages, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
   accounts: 'every client brand with its targets, budget, channels, whether the brief is on, and when it last synced. Start here to resolve a brand name to an account.',
   overview: 'the Overview tab: each active brand over the window with sales, spend, MER, AMER, new-customer revenue and contribution margin, all blended (Triple Whale). Use it for "how is the book doing".',
   account: 'one brand, the same numbers the Daily Brief is built from: month to date and last month, sales, spend, MER, per-channel attributed revenue (Triple Whale), pace against the plan. Pass the brand name or act_id in `brand`.',
@@ -465,6 +512,23 @@ function buildViews(d) {
       await env.DB.prepare(DASH_SQL).run().catch(() => {});
       const { results } = await env.DB.prepare(`SELECT p.*, a.name AS brand FROM p_dashboard p LEFT JOIN accounts a ON a.act_id = p.act_id ORDER BY p.updated_at DESC`).all();
       return { dashboards: (results || []).map(r => ({ id: r.id, name: r.name, brand: r.brand || 'agency-wide', for_who: r.for_who, spec: d.safeJson(r.spec_json, {}), schedule: r.schedule || 'none', channel: r.channel || '', pinned: !!r.pinned, by: r.created_by, updated_at: r.updated_at, last_posted: r.last_posted, open: `${LOCUS_URL}?open=dash&id=${r.id}` })), how_to_read: VIEW_BLURBS.dashboards };
+    },
+    /* Google read directly (google.js): Google Ads campaigns, GA4 website, Search Console. */
+    google_ads: async (env, a) => {
+      const acct = await need(env, a); const w = winOf(a);
+      const r = await adsReport(env, acct.act_id, w.from, w.to);
+      return { brand: acct.name, from: w.from, to: w.to, ...r, how_to_read: r.error === 'not_linked' ? 'This brand has no Google Ads account linked in Locus. Say so.' : 'Google Ads\' own numbers: spend, clicks and impressions are exact; conversions and value are Google\'s and lag 1 to 3 days. For results quote Triple Whale (store or channels views). Campaign types: SEARCH, PERFORMANCE_MAX, DEMAND_GEN, SHOPPING, VIDEO.' };
+    },
+    website: async (env, a) => {
+      const acct = await need(env, a); const w = winOf(a);
+      const r = await websiteReport(env, acct.act_id, w.from, w.to, w.pfrom, w.pto);
+      return { brand: acct.name, from: w.from, to: w.to, ...r, how_to_read: r.error === 'not_linked' ? 'No Google Analytics property linked for this brand. Say so.' : 'Google Analytics 4: sessions, engagement, the funnel (sessions, addToCarts, checkouts, ecommercePurchases), channels, landing pages, devices, source/medium. GA4 undercounts purchases; use it for behaviour, not revenue. cur = the window, prev = the window before.' };
+    },
+    search: async (env, a) => {
+      const acct = await need(env, a); const w = winOf(a);
+      const words = [acct.name, String(acct.tw_shop || '').split('.')[0]].filter(Boolean);
+      const r = await searchReport(env, acct.act_id, w.from, w.to, w.pfrom, w.pto, words);
+      return { brand: acct.name, from: w.from, to: w.to, ...r, how_to_read: r.error === 'not_linked' ? 'No Search Console property linked for this brand. Say so.' : 'Google Search Console, organic only: clicks, impressions, click rate, average position; queries flagged brand or not; split = brand vs non-brand clicks. Lags about 2 days.' };
     },
     klaviyo: async (env, a) => {
       const acct = await need(env, a);

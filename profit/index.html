@@ -2233,7 +2233,7 @@
 <script src="studio.js?v=22"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=9"></script>
+<script src="v2.js?v=10"></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -10226,8 +10226,7 @@ async function renderSettings() {
       ${num('cr_cut_cpa_x', 'Cut when cost per sale is over', r.cr_cut_cpa_x, 'x goal')}
       ${num('cr_cut_spend_x', '…once it has spent', r.cr_cut_spend_x, 'x goal CPA')}
       ${num('cr_anchor_pct', 'An ad carrying this share of its ad set is its anchor', r.cr_anchor_pct, '% of set spend')}
-      <label class="gl"><span>Judge by customer value <span class="tiny">an ad whose customers come back more gets a higher goal, up to 1.5x</span></span><span class="row tgl" style="margin:0;gap:6px;display:inline-flex"><span class="toggle ${r.cr_ltv_off ? '' : 'on'}" data-g="cr_ltv_on"></span><span class="tiny">${r.cr_ltv_off ? 'off' : 'on'}</span></span></label>
-      ${num('cr_ltv_min', '…once this many of its customers are known', r.cr_ltv_min, 'customers')}
+
       <span class="tiny">The ad set is judged first with these numbers; a set that misses means Cut for its ads. In a working set the anchor reads Keep and a small ad over the line reads Trim. Defaults: 1x, 3 days, 2 sales, 3x with no sale, 1.5x over goal after 2x, anchor 50%.</span>
       <div class="gh">Test minimums <span class="gtag meta">Meta</span> <span class="row tgl" style="margin:0 0 0 8px;gap:6px;display:inline-flex;vertical-align:middle"><span class="toggle ${r.min_track ? 'on' : ''}" data-g="min_track"></span><span class="tiny">${r.min_track ? 'shown on the test list' : 'off'}</span></span></div>
       ${num('min_spend', 'Minimum per new test', r.min_spend, '$')}
@@ -10240,7 +10239,6 @@ async function renderSettings() {
     const v = k => box.querySelector(`[data-g="${k}"]`);
     const tg = v('min_track');
     tg.onclick = () => { tg.classList.toggle('on'); tg.nextElementSibling.textContent = tg.classList.contains('on') ? 'shown on the test list' : 'off'; };
-    const lv = v('cr_ltv_on'); lv.onclick = () => { lv.classList.toggle('on'); lv.nextElementSibling.textContent = lv.classList.contains('on') ? 'on' : 'off'; };
     const mp = v('monday_post');
     mp.onclick = () => { mp.classList.toggle('on'); mp.nextElementSibling.textContent = mp.classList.contains('on') ? 'posts Mondays 8am to the internal channel' : 'off'; };
     v('preview').onclick = async () => {
@@ -10262,7 +10260,7 @@ async function renderSettings() {
         if (mApi) await mApi(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
         const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: Y || 30,
           min_track: tg.classList.contains('on') ? 1 : 0, monday_post: mp.classList.contains('on') ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
-          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2, cr_anchor_pct: n('cr_anchor_pct') || 50, cr_ltv_off: v('cr_ltv_on').classList.contains('on') ? 0 : 1, cr_ltv_min: n('cr_ltv_min') || 10 };
+          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2, cr_anchor_pct: n('cr_anchor_pct') || 50 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
         await refreshAccounts().catch(() => {});
         await loadGoals(box, a);
