@@ -330,8 +330,16 @@ const VIEW_BLURBS = {
 /* ------------------------------------------------------------------ */
 
 function buildViews(d) {
+  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
+     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
+     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
+     to pull Meta for them. */
+  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
+    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
+      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
+  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
   const resolve = async (env, want) => {
-    const accounts = await d.listAccounts(env, false);
+    const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
     if (!w) return null;
     return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
@@ -343,9 +351,10 @@ function buildViews(d) {
   };
   const strip = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, active: a.active, monthly_budget: a.monthly_budget,
     budgets: d.safeJson(a.budgets_json, {}), target_cpa: a.target_cpa, target_roas: a.target_roas, team_channel: a.slack_channel, client_channel: a.brief_channel,
-    tw_shop: a.tw_shop, brief_enabled: a.brief_enabled, last_sync: a.last_sync_insights, last_error: a.last_error });
+    tw_shop: a.tw_shop, brief_enabled: a.brief_enabled, last_sync: a.last_sync_insights, last_error: a.last_error,
+    ...(a.no_meta ? { no_meta: true, note: 'Made in Locus with no Meta ad account connected yet: no Meta or Triple Whale numbers exist for it.' } : {}) });
   return {
-    accounts: async env => ({ accounts: (await d.listAccounts(env, false)).map(strip), how_to_read: VIEW_BLURBS.accounts }),
+    accounts: async env => ({ accounts: (await allAccounts(env, false)).map(strip), how_to_read: VIEW_BLURBS.accounts }),
     overview: async env => ({ accounts: await d.overview(env), how_to_read: VIEW_BLURBS.overview + ' window is the selected range; cm is null when costs cannot be trusted.' }),
     account: async (env, a) => {
       const acct = await need(env, a);
@@ -816,8 +825,16 @@ async function writeBrief(env, gid, p) {
   if (p.testing_field && p.testing_opt) await asana(env, `/tasks/${gid}`, { method: 'PUT', body: { custom_fields: { [p.testing_field]: p.testing_opt } } }).catch(() => {});
 }
 const ASANA_ACTIONS = (d) => {
+  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
+     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
+     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
+     to pull Meta for them. */
+  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
+    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
+      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
+  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
   const resolve = async (env, want) => {
-    const accounts = await d.listAccounts(env, false);
+    const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
     return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
@@ -890,8 +907,16 @@ const leadMath = c => {
   return { leads: Math.round(leads), buyers: Math.round(buyers), revenue: Math.round(revenue), roas: spend ? Math.round(revenue / spend * 100) / 100 : 0, profit: Math.round(contrib - spend), be_cpl: Math.round(cvr * aov * margin * 100) / 100, target_cpl: target > 0 ? Math.round(cvr * aov / target * 100) / 100 : null };
 };
 const BUILD_ACTIONS = (d) => {
+  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
+     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
+     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
+     to pull Meta for them. */
+  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
+    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
+      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
+  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
   const resolve = async (env, want) => {
-    const accounts = await d.listAccounts(env, false);
+    const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
     return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
@@ -1008,8 +1033,16 @@ const SLACK_TOOLS = (d) => [{
  * a redrafted brief or a generated report goes to the internal review queue
  * and waits for a person to send it, exactly as it does from the screen. */
 const BUTTONS = (d) => {
+  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
+     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
+     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
+     to pull Meta for them. */
+  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
+    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
+      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
+  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
   const resolve = async (env, want) => {
-    const accounts = await d.listAccounts(env, false);
+    const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
     return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
@@ -1185,8 +1218,16 @@ const BUTTONS = (d) => {
 };
 
 const ACTIONS = (d) => {
+  /* Brands made in Locus with no Meta account yet (brands.js) have no accounts row. They are shaped
+     like one here so every view can name them; their Meta and Triple Whale numbers are simply empty,
+     and `connected` says what exists. Kept out of d.listAccounts on purpose: the syncs must not try
+     to pull Meta for them. */
+  const locusBrands = async env => ((await env.DB.prepare(`SELECT * FROM brands WHERE source = 'locus' AND status = 'active'`).all().catch(() => ({ results: [] }))).results || [])
+    .map(b => ({ act_id: b.legacy_key || b.id, brand_id: b.id, name: b.name, currency: b.currency, tz: b.tz, active: 1, budgets_json: '{}', goals_json: '{}',
+      slack_channel: b.internal_channel, brief_channel: b.client_channel, tw_shop: null, no_meta: true }));
+  const allAccounts = async (env, activeOnly) => [...await d.listAccounts(env, activeOnly), ...await locusBrands(env)];
   const resolve = async (env, want) => {
-    const accounts = await d.listAccounts(env, false);
+    const accounts = await allAccounts(env, false);
     const w = String(want || '').toLowerCase().trim();
     return accounts.find(a => a.act_id === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };

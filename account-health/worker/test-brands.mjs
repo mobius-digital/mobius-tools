@@ -142,6 +142,32 @@ await check('listBrands nests connections and never returns a secret', async () 
   assert.ok(!JSON.stringify(list).includes('pk_') && !JSON.stringify(list).includes('shpat_'));
 });
 
+await check('a brand with no Meta account can be made, found by its channel, and the mirror leaves it alone', async () => {
+  const made = await B.createBrand(env, { name: 'SpeedIn', internal_channel: 'C0SPEEDIN1' });
+  assert.equal(made.id, 'brand_speedin');
+  const b = await B.brandByChannel(env, 'C0SPEEDIN1');
+  assert.equal(b.id, 'brand_speedin'); assert.equal(b.key, 'brand_speedin'); assert.deepEqual(b.connections, []);
+  assert.match(B.connectionNote(b), /SpeedIn has nothing connected\. Not connected: Meta ad account, Triple Whale/);
+  const r = await B.syncRegistry(env);
+  const after = db.prepare(`SELECT status, source, legacy_key FROM brands WHERE id = 'brand_speedin'`).get();
+  assert.deepEqual({ ...after }, { status: 'active', source: 'locus', legacy_key: 'brand_speedin' });
+  assert.ok(!r.brandsAdded.includes('brand_speedin'));
+});
+
+await check('making a brand refuses a bad or taken channel and an empty name', async () => {
+  await assert.rejects(B.createBrand(env, { name: 'X', internal_channel: '#speedin-internal' }), /not a Slack channel id/);
+  await assert.rejects(B.createBrand(env, { name: 'Y', internal_channel: 'C0SPEEDIN1' }), /already SpeedIn's internal channel/);
+  await assert.rejects(B.createBrand(env, { name: '  ' }), /needs a name/);
+  assert.equal((await B.createBrand(env, { name: 'SpeedIn' })).id, 'brand_speedin_2');
+});
+
+await check('the channel lookup finds mirrored brands too, and a connected brand reads as connected', async () => {
+  const b = await B.brandByChannel(env, 'C_PP_INT');
+  assert.equal(b.id, 'brand_party_patch'); assert.equal(b.key, 'act_103');
+  assert.match(B.connectionNote(b), /Party Patch has [^.]*Meta ad account/);
+  assert.equal(await B.brandByChannel(env, 'C_NOBODY'), null);
+});
+
 const failed = checks.filter(x => !x).length;
 console.log(`\n${checks.length - failed}/${checks.length} passed`);
 process.exit(failed ? 1 : 0);

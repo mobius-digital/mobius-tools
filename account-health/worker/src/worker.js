@@ -1,7 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor } from './brandguard.js';
-import { syncRegistry, listBrands, addConnection, KINDS as BRAND_KINDS } from './brands.js';
+import { syncRegistry, listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 /**
@@ -6487,13 +6487,17 @@ async function handleSlackEvent(request, env, ctx) {
   if (!claim.meta?.changes) return ACK();
   let brandRow = null;
   if (!dm) {
-    brandRow = await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
+    /* The brand comes from brands (brands.js), so a brand with no Meta account (Speedin) is still a
+       brand. The old accounts lookup stays as a fallback until the registry has run once. */
+    const b = await brandByChannel(env, ev.channel).catch(() => null);
+    brandRow = b ? { act_id: b.key, name: b.name, brand: b }
+      : await env.DB.prepare(`SELECT act_id, name FROM accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
     if (!brandRow) return ACK();   // not a team channel: stay silent
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
      brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
   const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
-    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.` } : null;
+    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''}` } : null;
   ctx.waitUntil((async () => {
     /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
        or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
@@ -6799,7 +6803,8 @@ const AH_APP = {
     if (path === '/slack/owns') {
       const ch = url.searchParams.get('channel') || '';
       /* A new client's channel counts too while its welcome is still owed, so the join event reaches us. */
-      const row = /^[A-Z0-9]{5,20}$/.test(ch) ? (await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
+      const row = /^[A-Z0-9]{5,20}$/.test(ch) ? (await brandByChannel(env, ch).catch(() => null)
+        || await env.DB.prepare(`SELECT 1 AS x FROM accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
         || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)) : null;
       return json({ owns: !!row });
     }
@@ -7716,6 +7721,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* ---- brands and their connections (brands.js, the brand-first rebuild) ---- */
       if (path === '/api/brands' && request.method === 'GET') {
         return json({ brands: await listBrands(env), kinds: BRAND_KINDS });
+      }
+      if (path === '/api/brands' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        try { return json({ ok: true, brand: await createBrand(env, b) }); }
+        catch (e) { return json({ error: e.message }, 400); }
       }
       if (path === '/api/brands/sync' && request.method === 'POST') {
         return json({ ok: true, ...(await syncRegistry(env)) });

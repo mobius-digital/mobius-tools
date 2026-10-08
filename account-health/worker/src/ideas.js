@@ -1189,7 +1189,14 @@ async function userNames(env, ids) {
   }
   return out;
 }
-const acctsOf = env => env.DB.prepare(`SELECT act_id, name, slack_channel FROM accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
+/* Every brand the ideas bot can file for: the old accounts, plus brands made in Locus with no Meta
+   account yet (brands.js), which file under their own id (legacy_key). Same shape either way. */
+const acctsOf = async env => {
+  const old = await env.DB.prepare(`SELECT act_id, name, slack_channel FROM accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
+  const fresh = await env.DB.prepare(`SELECT COALESCE(legacy_key, id) AS act_id, name, internal_channel AS slack_channel FROM brands
+    WHERE status = 'active' AND source = 'locus'`).all().then(r => r.results || []).catch(() => []);
+  return [...old, ...fresh.filter(b => !old.some(a => a.act_id === b.act_id))];
+};
 
 export async function runIdeaJob(env, job) {
   await ensureIdeaTables(env);

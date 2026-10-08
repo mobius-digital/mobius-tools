@@ -74,6 +74,45 @@ export async function brandOf(env, id) {
     || null;
 }
 
+/** The brand whose INTERNAL Slack channel this is (active or demo), with its connections, or null. */
+export async function brandByChannel(env, channel) {
+  if (!channel) return null;
+  await ensureBrandTables(env);
+  const b = await env.DB.prepare(`SELECT * FROM brands WHERE internal_channel = ?1 AND status IN ('active', 'demo') ORDER BY source = 'mirror' DESC LIMIT 1`).bind(channel).first();
+  if (!b) return null;
+  const conns = (await env.DB.prepare(`SELECT kind, external_id, label, status FROM connections WHERE brand_id = ?1`).bind(b.id).all()).results || [];
+  return { ...b, key: b.legacy_key || b.id, connections: conns };
+}
+
+/** One plain sentence on what a brand has connected and what it does not, for the Strategist. */
+export function connectionNote(b) {
+  const have = [...new Set((b.connections || []).filter(c => c.status !== 'disconnected').map(c => KINDS[c.kind] || c.kind))];
+  const core = ['meta', 'triple_whale', 'shopify', 'klaviyo', 'google_ads', 'tiktok'];
+  const missing = core.filter(k => !(b.connections || []).some(c => c.kind === k)).map(k => KINDS[k]);
+  return `${b.name} has ${have.length ? have.join(', ') : 'nothing'} connected.${missing.length ? ` Not connected: ${missing.join(', ')}. Numbers from those do not exist for ${b.name} yet; say so plainly instead of guessing, and you can still use brand research, other brands' data and general strategy.` : ''}`;
+}
+
+/** A brand made in Locus with no outside account yet. It files under its own id from day one. */
+export async function createBrand(env, { name, internal_channel, client_channel, tz, currency }) {
+  await ensureBrandTables(env);
+  const nm = String(name || '').trim();
+  if (!nm) throw new Error('A brand needs a name.');
+  const ch = v => { const s = String(v || '').trim(); if (s && !/^[CG][A-Z0-9]{6,}$/.test(s)) throw new Error(`"${s}" is not a Slack channel id (it looks like C0123ABCD).`); return s || null; };
+  const internal = ch(internal_channel), client = ch(client_channel);
+  if (internal) {
+    const taken = await env.DB.prepare(`SELECT name FROM brands WHERE internal_channel = ?1 AND status IN ('active', 'demo')`).bind(internal).first();
+    if (taken) throw new Error(`That channel is already ${taken.name}'s internal channel.`);
+  }
+  const base = slugify(nm);
+  let slug = base, n = 2;
+  while (await env.DB.prepare(`SELECT 1 FROM brands WHERE slug = ?1`).bind(slug).first()) slug = `${base}_${n++}`;
+  const id = `brand_${slug}`;
+  await env.DB.prepare(`INSERT INTO brands (id, slug, name, status, tz, currency, internal_channel, client_channel, legacy_key, source)
+    VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?7, ?1, 'locus')`)
+    .bind(id, slug, nm, tz || 'America/Chicago', currency || 'USD', internal, client).run();
+  return { id, slug, name: nm };
+}
+
 /** The key the older tables file this brand under (phase 1 and 2): its legacy_key. */
 export async function legacyKeyOf(env, id) {
   const b = await brandOf(env, id);
