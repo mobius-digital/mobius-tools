@@ -1007,7 +1007,7 @@
     const g = one && bs[0] ? bs[0].goals || {} : {};
     const saysRoas = c.spend && c.platform_revenue != null ? c.platform_revenue / c.spend : null;
     const saysTile = tile({ compact: true, label: `${P.label} says`, src: P.label.toUpperCase(), hint: `ROAS on ${P.label}'s own count`, value: x2(saysRoas), sub: c.platform_revenue != null ? `${kmoney(c.platform_revenue, cur)} claimed by ${P.label}` : 'no claim carried', spark: tspark(rows, prows, r => r.spend && r.platform_revenue != null ? r.platform_revenue / r.spend : null, x2, `${P.label}'s own ROAS`) });
-    const note = direct ? `<div class="v2note"><span class="v2pill good">Google Ads linked</span> <span>The tiles and chart are Google's spend, impressions and clicks with the orders Triple Whale credits to Google. Every campaign, read from Google Ads directly, is on <b>Campaigns</b>.</span> <button type="button" class="v2link" data-go="gcampaigns">Campaigns ›</button></div>`
+    const note = direct ? `<div class="v2note"><span class="v2pill good">Google Ads linked</span> <span>The tiles and chart are Google's spend, impressions and clicks with the orders Triple Whale credits to Google. Read from Google Ads directly: <b>Campaigns</b>, <b>Ads</b> (headlines and descriptions), <b>Search terms</b> and <b>Changes</b>.</span> <button type="button" class="v2link" data-go="gcampaigns">Campaigns ›</button></div>`
       : `<div class="v2note"><span class="v2pill warn">via Triple Whale</span> <span>${P.label} is not connected to Locus directly yet, so this page shows what Triple Whale carries: ${P.label}'s daily spend, impressions and clicks, and the orders Triple Whale credits to ${P.label}. No campaigns or ads until it is connected.</span> <button type="button" class="v2link" data-go="settings">Connections ›</button></div>`;
     const body = !bs.length ? `${card(direct ? `No ${P.label} spend in this window` : `${P.label} is not connected directly`, '', `<p class="v2hint">No ${P.label} spend in this window${one ? ' for this brand' : ''}, as far as Triple Whale sees.${direct ? ' Widen the dates at the top, or open Campaigns for what Google Ads itself reports.' : ` ${esc(P.adds)}`}</p>${direct ? '<button type="button" class="v2btn" data-go="gcampaigns">Open Campaigns</button>' : kind === 'tiktok' ? '<div id="v2ttc" style="margin-top:10px"></div>' : '<button type="button" class="v2btn" data-go="settings">Open Integrations</button>'}`)}` : `
       ${note}
@@ -1044,8 +1044,7 @@
   /* =========================================================================================
    * PAID > GOOGLE > CAMPAIGNS (2026-10-09): read from Google Ads directly (account-health /api/google/ads), for a
    * brand with a Google Ads link. Google's own conversions and value, named as Google's on every number; the
-   * Triple Whale credit for Google stays on the Overview job. No Creative or Changes job: the read carries no ads
-   * and no change history.
+   * Triple Whale credit for Google stays on the Overview job. Ads, Search terms and Changes are their own jobs below.
    * ======================================================================================= */
   async function gcampaigns(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
@@ -1084,6 +1083,135 @@
       ${foot(`Read from Google Ads directly, ${esc(w.from)} to ${esc(w.to)}, refreshed hourly. Conversions and value are Google’s own count, which runs differently from Triple Whale’s; the Overview job shows what Triple Whale credits to Google.`)}`;
     $('#main').innerHTML = shell('gcampaigns', title, body); wireGo($('#main'));
     wirePaidChart('v2gc', rows, prows, cur);
+  }
+
+  /* =========================================================================================
+   * PAID > GOOGLE > ADS, SEARCH TERMS, CHANGES (2026-10-09): the same depth as Meta for a brand with a direct
+   * Google Ads link (account-health google.js adsAds / adsTerms / adsChanges, each cached an hour). Purchases and
+   * value here are GOOGLE'S OWN count and say so on every number; Triple Whale's credit stays on Overview.
+   * ======================================================================================= */
+  function gStyle() {
+    if (document.getElementById('v2gcss')) return;
+    const st = document.createElement('style'); st.id = 'v2gcss';
+    st.textContent = `.gad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.gad{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--surface);display:flex;flex-direction:column;gap:10px;min-width:0}
+.gad .top{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.gad .top b{color:var(--ink);font-weight:600;font-size:13px}
+.gad .chips{display:flex;flex-wrap:wrap;gap:5px}
+.gad .chips span{font-size:12px;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--ink);background:var(--bg,transparent);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gad .chips span i{font-style:normal;color:var(--muted);margin-left:4px;font-size:11px}
+.gad .desc{margin:0;padding-left:16px;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.gad .url{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gad .url a{color:inherit}
+.gad .nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 10px;border-top:1px solid var(--line);padding-top:10px;margin-top:auto}
+.gad .nums div{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.gad .nums div b{display:block;font-size:14px;color:var(--ink);text-transform:none;letter-spacing:0;font-weight:600;margin-top:2px}
+.gch-day{display:flex;align-items:baseline;gap:10px;font-size:12.5px;font-weight:650;color:var(--ink);margin:18px 0 2px}
+.gch-day:first-child{margin-top:2px}
+.gch-day span{font-weight:500;color:var(--muted)}
+.gch-tl{border-left:2px solid var(--line);margin-left:4px;padding-left:18px}
+.gch-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 16px;padding:9px 0;font-size:13px;line-height:1.5;position:relative}
+.gch-row::before{content:'';position:absolute;left:-24px;top:14px;width:8px;height:8px;border-radius:50%;background:var(--line-strong);box-shadow:0 0 0 3px var(--surface)}
+.gch-row.m::before{background:var(--c-google)}
+.gch-row .w{font-size:12px;color:var(--muted)}
+.gch-row .w b{display:block;color:var(--ink);font-weight:600}
+.gch-row .f{font-size:12px;color:var(--muted);margin-top:2px}
+.gch-fold summary{cursor:pointer;font-weight:600;font-size:13.5px;list-style:none;display:flex;justify-content:space-between}
+.gch-fold summary::-webkit-details-marker{display:none}
+.gch-fold summary span{font-weight:500;color:var(--muted);font-size:12.5px}
+@media (max-width:640px){.gch-row{grid-template-columns:1fr}.gad .nums{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
+    document.head.appendChild(st);
+  }
+  /** The brand guard every Google job shares: pick a brand, linked or not, then the skeleton. */
+  function gStart(tab, label, first) {
+    const a = H.S.accounts.find(x => x.act_id === H.S.act);
+    const title = a ? `Google ${label.toLowerCase()}: ${esc(a.name)}` : `Google ${label.toLowerCase()}`;
+    if (!a) { $('#main').innerHTML = shell(tab, title, card('Pick a brand', '', `<p class="v2hint">${esc(label)} are read from each brand’s own Google Ads account. Pick a brand in the menu.</p>`)); return null; }
+    if (!(a.conn_kinds || []).includes('google_ads')) { $('#main').innerHTML = shell(tab, title, card(`Google Ads is not linked for ${esc(a.name)}`, '', `<p class="v2hint">${esc(PLAT.google.adds)}</p><button type="button" class="v2btn" data-go="settings">Open Integrations</button>`)); wireGo($('#main')); return null; }
+    gStyle();
+    if (first) $('#main').innerHTML = shell(tab, title, skPage({ tiles: 0, chart: false, rows: 8 }));
+    return { a, title };
+  }
+  /** A refusal from Google Ads, in plain words, with the fix and a retry. */
+  function gFail(tab, title, g, retry) {
+    $('#main').innerHTML = shell(tab, title, card('Google Ads did not answer', '', `<p class="v2bad">${esc(g?.error === 'not_linked' ? 'This brand has no Google Ads customer ID yet.' : g?.error || 'No answer.')}</p>${g?.fix ? `<p class="v2hint" style="margin-top:8px"><b>What to fix:</b> ${esc(g.fix)}</p>` : ''}<button type="button" class="v2btn" id="gRetry" style="margin-top:10px">Try again</button>`));
+    const rb = $('#gRetry'); if (rb) rb.onclick = () => retry(false);
+  }
+  const gR = (x, y) => (y ? x / y : null);
+  const gNote = '<div class="v2note"><span class="v2pill warn">Google-reported</span> <span>Conversions, value and ROAS on this page are Google Ads’ own count, which runs differently from Triple Whale’s. Overview shows what Triple Whale credits to Google.</span> <button type="button" class="v2link" data-go="google">Overview ›</button></div>';
+
+  async function gads(first) {
+    const t = H.RUN(); const s = gStart('gads', 'Ads', first); if (!s) return; const { a, title } = s;
+    const w = win(); let g;
+    try { g = await H.apiAH(`/api/google/ads-ads?act=${encodeURIComponent(a.act_id)}&from=${w.from}&to=${w.to}`); } catch (e) { g = { error: e.message }; }
+    if (t !== H.RUN()) return;
+    if (!g || g.error) return gFail('gads', title, g, gads);
+    const cur = a.currency, ads = g.ads || [], groups = g.asset_groups || [];
+    const spend = ads.reduce((x, y) => x + y.spend, 0) + groups.reduce((x, y) => x + y.spend, 0);
+    const nums = x => `<div class="nums">
+        <div>Spend<b>${kmoney(x.spend, cur)}</b></div><div>Clicks<b>${int(x.clicks)}</b></div><div>CTR<b>${pct(gR(x.clicks, x.impressions), 2)}</b></div><div>CPC<b>${money2(gR(x.spend, x.clicks), cur)}</b></div>
+        <div>Conv. (Google)<b>${(x.conversions || 0).toFixed(1)}</b></div><div>Value (Google)<b>${kmoney(x.value, cur)}</b></div><div>ROAS (Google)<b>${x2(gR(x.value, x.spend))}</b></div><div>Cost / conv.<b>${money(gR(x.spend, x.conversions), cur)}</b></div></div>`;
+    const tone = s => (s === 'excellent' || s === 'good' ? 'good' : s === 'poor' ? 'bad' : s === 'average' ? 'warn' : '');
+    const adCard = x => `<article class="gad">
+        <div class="top"><b>${esc(x.ad_group || x.campaign)}</b><span>${esc(x.campaign)}</span></div>
+        <div class="top"><span class="v2pill">${esc(x.type || 'ad')}</span>${x.status && x.status !== 'enabled' ? `<span class="v2pill warn">${esc(x.status)}</span>` : ''}${x.strength ? `<span class="v2pill ${tone(x.strength)}">ad strength: ${esc(x.strength)}</span>` : ''}</div>
+        ${x.headlines.length ? `<div class="chips">${x.headlines.map(h => `<span title="${esc(h.text)}">${esc(h.text)}${h.pinned ? `<i>pinned ${esc(h.pinned.replace(/^headline /, 'H'))}</i>` : ''}</span>`).join('')}</div>` : `<p class="v2hint">${/dynamic search/.test(x.type) ? 'Google writes the headline from the site for each search (dynamic search ad).' : /shopping|product/.test(x.type) ? 'A Shopping ad: the product photo, title and price come from the Merchant Center feed.' : 'No headlines carried for this ad type.'}</p>`}
+        ${x.descriptions.length ? `<ul class="desc">${x.descriptions.map(d => `<li>${esc(d.text)}</li>`).join('')}</ul>` : ''}
+        ${x.url ? `<div class="url"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\?.*$/, ''))}</a></div>` : ''}
+        ${nums(x)}</article>`;
+    const gmx = Math.max(...groups.map(x => x.spend), 1);
+    const body = `${gNote}
+      <p class="v2say lead">The top ${ads.length} ad${ads.length === 1 ? '' : 's'}${groups.length ? ` and ${groups.length} Performance Max asset group${groups.length === 1 ? '' : 's'}` : ''} took <b>${kmoney(spend, cur)}</b> from ${esc(day(w.from))} to ${esc(day(w.to))}.</p>
+      ${card('Ads, by spend', 'Each ad with its headlines and descriptions as Google shows them. Pinned headlines always show in that slot.', ads.length ? `<div class="gad-grid">${ads.map(adCard).join('')}</div>` : '<p class="v2hint">No ad spent in this window. Widen the dates at the top.</p>', 'Google Ads API')}
+      ${groups.length ? card('Performance Max asset groups', 'Performance Max has no single ads: Google mixes each asset group’s headlines, images and videos itself.', `<div class="v2tbl wide"><table><thead><tr><th>Asset group</th><th>Campaign</th><th>Spend</th><th>Clicks</th><th>Conv. (Google)</th><th>Value (Google)</th><th>ROAS (Google)</th><th>Cost / conv.</th></tr></thead><tbody>${groups.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.strength ? ` <span class="v2pill ${tone(x.strength)}">${esc(x.strength)}</span>` : ''}${x.status !== 'enabled' ? ` <span class="v2pill">${esc(x.status)}</span>` : ''}</td><td><span class="nm" title="${esc(x.campaign)}">${esc(x.campaign)}</span></td><td>${ib(x.spend, gmx, '--c-google', kmoney(x.spend, cur))}</td><td>${int(x.clicks)}</td><td>${x.conversions.toFixed(1)}</td><td>${kmoney(x.value, cur)}</td><td>${x2(gR(x.value, x.spend))}</td><td>${money(gR(x.spend, x.conversions), cur)}</td></tr>`).join('')}</tbody></table></div>`, 'Google Ads API') : ''}
+      ${g.asset_groups_error ? `<p class="v2hint">Performance Max asset groups could not be read: ${esc(g.asset_groups_error)}</p>` : ''}
+      <div class="v2gos"><button type="button" class="v2go" data-go="gterms"><b>What people searched before they clicked</b><span>The top 50 search terms by spend, with the ones that never converted marked.</span><i>›</i></button></div>
+      ${foot(`Read from Google Ads directly (account ${esc(g.customer)}), ${esc(w.from)} to ${esc(w.to)}, refreshed hourly. Top 20 ads by spend.`)}`;
+    $('#main').innerHTML = shell('gads', title, body); wireGo($('#main'));
+  }
+
+  async function gterms(first) {
+    const t = H.RUN(); const s = gStart('gterms', 'Search terms', first); if (!s) return; const { a, title } = s;
+    const w = win(); let g;
+    try { g = await H.apiAH(`/api/google/ads-terms?act=${encodeURIComponent(a.act_id)}&from=${w.from}&to=${w.to}`); } catch (e) { g = { error: e.message }; }
+    if (t !== H.RUN()) return;
+    if (!g || g.error) return gFail('gterms', title, g, gterms);
+    const cur = a.currency, terms = g.terms || [];
+    const words = String(a.name || '').toLowerCase().split(/[\s&-]+/).filter(x => x.length > 2 && !/^(golf|the|and|club|co)$/.test(x));
+    const isBrand = q => words.some(x => q.toLowerCase().replace(/\s+/g, '').includes(x));
+    const tot = terms.reduce((x, y) => x + y.spend, 0), dead = terms.filter(x => x.spend > 0 && x.conversions < 0.5), deadS = dead.reduce((x, y) => x + y.spend, 0);
+    const br = terms.filter(x => isBrand(x.term)), brS = br.reduce((x, y) => x + y.spend, 0), brV = br.reduce((x, y) => x + y.value, 0), nbS = tot - brS, nbV = terms.reduce((x, y) => x + y.value, 0) - brV;
+    const mx = Math.max(...terms.map(x => x.spend), 1);
+    const ST = { added: 'keyword', excluded: 'negative', 'added excluded': 'keyword + negative', none: '' };
+    const body = `${gNote}
+      <p class="v2say lead">The top ${terms.length} search terms took <b>${kmoney(tot, cur)}</b>. ${words.length ? `Searches for the brand: <b>${kmoney(brS, cur)}</b> at ${x2(gR(brV, brS))}; everything else: <b>${kmoney(nbS, cur)}</b> at ${x2(gR(nbV, nbS))} (Google-reported). ` : ''}${dead.length ? `<b>${kmoney(deadS, cur)}</b> went on ${dead.length} term${dead.length === 1 ? '' : 's'} with no conversion.` : 'Every term here converted at least once.'}</p>
+      ${card('Search terms, by spend', 'What people typed before they clicked. Keyword = it is already a keyword; Negative = it is blocked. A term with spend and no conversion is a candidate negative.', terms.length ? `<div class="v2tbl wide"><table><thead><tr><th>Search term</th><th>Campaign / ad group</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>CPC</th><th>Conv. (Google)</th><th>Value (Google)</th><th>ROAS (Google)</th><th>Cost / conv.</th></tr></thead><tbody>${terms.map(x => `<tr><td><span class="nm" title="${esc(x.term)}">${esc(x.term)}</span>${isBrand(x.term) ? ' <span class="v2pill">brand</span>' : ''}${ST[x.status] ? ` <span class="v2pill">${ST[x.status]}</span>` : ''}${x.conversions < 0.5 ? ' <span class="v2pill bad">no conversion</span>' : ''}</td><td><span class="nm" title="${esc(x.campaign)} / ${esc(x.ad_group)}">${esc(x.ad_group || x.campaign)}</span></td><td>${ib(x.spend, mx, '--c-google', money2(x.spend, cur))}</td><td>${int(x.clicks)}</td><td>${pct(gR(x.clicks, x.impressions), 1)}</td><td>${money2(gR(x.spend, x.clicks), cur)}</td><td>${x.conversions.toFixed(1)}</td><td>${kmoney(x.value, cur)}</td><td>${x2(gR(x.value, x.spend))}</td><td>${money(gR(x.spend, x.conversions), cur)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="v2hint">No search term spent in this window. Performance Max and Demand Gen do not report search terms here.</p>', 'Google Ads API')}
+      ${foot(`Read from Google Ads directly (account ${esc(g.customer)}), ${esc(w.from)} to ${esc(w.to)}, refreshed hourly. Top 50 terms by spend from Search and Shopping; Performance Max search terms are not included. Brand terms are matched on the brand name.`)}`;
+    $('#main').innerHTML = shell('gterms', title, body); wireGo($('#main'));
+  }
+
+  async function gchanges(first) {
+    const t = H.RUN(); const s = gStart('gchanges', 'Changes', first); if (!s) return; const { a, title } = s;
+    const w = win(); let g;
+    try { g = await H.apiAH(`/api/google/ads-changes?act=${encodeURIComponent(a.act_id)}&from=${w.from}&to=${w.to}`); } catch (e) { g = { error: e.message }; }
+    if (t !== H.RUN()) return;
+    if (!g || g.error) return gFail('gchanges', title, g, gchanges);
+    const rows = g.changes || [], main = rows.filter(x => x.matters), rest = rows.filter(x => !x.matters);
+    const CAT = { budget: ['Budget', 'warn'], bids: ['Bid strategy', 'warn'], status: ['On / off', ''], new: ['New', 'good'], keywords: ['Keywords', ''], other: ['Other', ''] };
+    const when = s => { const d = new Date(String(s).replace(' ', 'T').slice(0, 19)); return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
+    const dkey = s => String(s).slice(0, 10);
+    const row = x => { const c = CAT[x.category] || CAT.other; const extra = x.fields.length > 1 || (x.fields.length === 1 && x.category === 'other' && x.fields[0].old != null && x.fields[0].new != null && !x.summary.includes(x.fields[0].new)) ? `<div class="f">${x.fields.map(f => `${esc(f.field)}: ${esc(f.old ?? '(new)')} → ${esc(f.new ?? '(removed)')}`).join(' · ')}</div>` : '';
+      return `<div class="gch-row${x.matters ? ' m' : ''}"><div class="w"><b>${esc(when(x.at))}</b>${esc(x.who ? x.who.replace(/@.*/, '') : 'Google')}${x.via ? ` ${esc(x.via)}` : ''}</div><div><span class="v2pill ${c[1]}">${esc(c[0])}</span> ${esc(x.summary)}${extra}</div></div>`; };
+    const days = list => { const m = new Map(); for (const x of list) { const k = dkey(x.at); (m.get(k) || m.set(k, []).get(k)).push(x); } return [...m.entries()].map(([k, xs]) => `<div class="gch-day">${esc(new Date(k + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}<span>${xs.length} change${xs.length === 1 ? '' : 's'}</span></div><div class="gch-tl">${xs.map(row).join('')}</div>`).join(''); };
+    const who = [...new Set(rows.map(x => x.who).filter(Boolean))];
+    const body = `${g.clamped && w.from < g.from && (Date.parse(g.from) - Date.parse(w.from)) > 3 * 864e5 ? `<div class="v2note"><span class="v2pill">30 days</span> <span>Google keeps change history for 30 days only, so this starts ${esc(day(g.from))} even though the period at the top starts earlier.</span></div>` : ''}
+      <p class="v2say lead">${rows.length ? `<b>${rows.length}</b> change${rows.length === 1 ? '' : 's'} on the Google Ads account from ${esc(day(g.from))} to ${esc(day(g.to))}${main.length ? `, <b>${main.length}</b> that matter${main.length === 1 ? 's' : ''}` : ''}${who.length ? `, by ${esc(who.map(x => x.replace(/@.*/, '')).join(', '))}` : ''}.` : `No changes on the Google Ads account from ${esc(day(g.from))} to ${esc(day(g.to))}.`}</p>
+      <section class="v2card"><div class="v2h"><h3>Changes that matter</h3><span class="find">Budgets, bid strategy and targets, campaigns and ad groups switched on or off, new campaigns, ad groups and ads, and keywords. Newest first.</span><span class="cap"><b>${main.length}</b> in this list</span></div>
+        ${main.length ? days(main) : '<p class="v2hint">None in this period.</p>'}</section>
+      ${rest.length ? `<section class="v2card"><details class="gch-fold"><summary>Everything else (${rest.length})<span>Open</span></summary><p class="v2hint" style="margin-top:4px">Assets, renames, URLs, audience signals and the rest. Here for reference.</p><div style="margin-top:6px">${days(rest)}</div></details></section>` : ''}
+      ${foot(`Read from Google Ads’ change history (account ${esc(g.customer)}), refreshed hourly. Times are the account’s time zone.${g.truncated ? ' Showing the latest 200 changes; pick a shorter period to see everything.' : ''}`)}`;
+    $('#main').innerHTML = shell('gchanges', title, body); wireGo($('#main'));
+    const fd = $('#main').querySelector('.gch-fold'); if (fd) fd.addEventListener('toggle', () => { const sp = fd.querySelector('summary span'); if (sp) sp.textContent = fd.open ? 'Close' : 'Open'; });
   }
 
   /* =========================================================================================
@@ -1516,6 +1644,9 @@
       if (tab === 'adcreative') return creative(first);
       if (tab === 'google' || tab === 'tiktok') return platform(tab, first);
       if (tab === 'gcampaigns') return gcampaigns(first);
+      if (tab === 'gads') return gads(first);
+      if (tab === 'gterms') return gterms(first);
+      if (tab === 'gchanges') return gchanges(first);
       if (tab === 'channels') return channels(first);
       if (tab === 'store') return store(first);
       if (tab === 'email') return email(first);

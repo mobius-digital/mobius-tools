@@ -2296,7 +2296,7 @@
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=10"></script>
-<script src="v2.js?v=32"></script>
+<script src="v2.js?v=33"></script>
 <script src="desk.js?v=9"></script>
 <script src="calendar.js?v=6"></script>
 <script src="supply.js?v=2"></script>
@@ -2501,7 +2501,7 @@ async function boot() {
   if (adsTok) return renderAdShare(adsTok);
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['gcampaigns', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -2989,6 +2989,9 @@ Object.assign(PAGE_BRIEF, {
   changes: { answers: 'What was changed on the ad account, and when.', when: 'When numbers moved and you want to know if a change caused it.', todo: 'Scan Changes that matter for the day it moved, and add the reason to any change that has none.' },
   mtoday: { answers: 'How today’s Meta spend is pacing hour by hour.', when: 'During the day, if spend looks off.', todo: 'Compare today’s line to a normal day; a flat line early means delivery stopped.' },
   mbrowser: { answers: 'Every Meta ad with its numbers, in one searchable grid.', when: 'When you need to find a specific ad.', todo: 'Search or filter, then click an ad to play it.' },
+  gads: { answers: 'The top 20 Google ads by spend with their headlines and descriptions, plus Performance Max asset groups, read from Google Ads directly.', when: 'Weekly, for brands linked to Google Ads.', todo: 'Find the ad taking money at a weak Google ROAS; check pinned headlines and ad strength before rewriting.' },
+  gterms: { answers: 'What people typed before they clicked: the top 50 search terms by spend, brand against everything else.', when: 'Weekly on Search and Shopping.', todo: 'Terms with spend and no conversion are candidate negatives; strong terms that are not keywords yet are candidate keywords.' },
+  gchanges: { answers: 'What was changed on the Google Ads account in the last 30 days, who changed it, and old to new.', when: 'When Google numbers moved and you want to know if a change caused it.', todo: 'Read Changes that matter first: budgets, bid targets, campaigns switched on or off, new ads and keywords.' },
   gcampaigns: { answers: 'Every Google Ads campaign with its type, spend, clicks, conversions and value, read from Google Ads directly.', when: 'A few times a week, for brands linked to Google Ads.', todo: 'Find the campaign types taking money at a weak ROAS; brand search usually reads best because those people were coming anyway.' },
   google: { answers: 'How Google Ads are doing: spend, revenue and cost per purchase, by campaign once linked.', when: 'A few times a week.', todo: 'Check ROAS against the goal, and split brand search from the rest before judging Google.' },
   tiktok: { answers: 'How TikTok ads are doing.', when: 'A few times a week, for brands that run TikTok.', todo: 'Check spend and results; connect TikTok directly for campaign detail.' },
@@ -3280,6 +3283,9 @@ function addBrandModal(untracked, chList, onDiscover, total) {
 const TAB_PURPOSE = {
   calendar:  'What customers see and when, for every client, and what has to be ready for each date. The countdown ticks itself from Asana, Klaviyo and Meta.',
   yesterday: 'Was yesterday a bad day on Meta? One answer a day from four signs; red when two or more agree. The last 30 days as squares, and how our brands did that day.',
+  gads: 'The top Google ads by spend, with headlines as chips, descriptions and Google-reported numbers, plus Performance Max asset groups.',
+  gterms: 'The top 50 Google search terms by spend, with brand terms and terms that never converted marked.',
+  gchanges: 'The Google Ads change history in plain words: who changed what, old to new, grouped by day.',
   gcampaigns: 'Every Google Ads campaign for the brand, read from Google Ads directly: type, spend, clicks, conversions and value as Google counts them.',
   today:     'What the media buyer changes today, ad set first: scale, cut, trim, refresh, fix and test calls, each with its reason. Done goes to the Change Log.',
   war:       'The season\u2019s live board: sales today, the offer running now and the next change for every brand in the season.',
@@ -3366,7 +3372,7 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 const TAB_CRUMB = {
   calendar: ['Calendar', 'Calendar'],
   overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
-  today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
+  today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], gads: ['Ads', 'Google &nbsp;/&nbsp; Ads'], gterms: ['Ads', 'Google &nbsp;/&nbsp; Search terms'], gchanges: ['Ads', 'Google &nbsp;/&nbsp; Changes'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Creative'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
   email: ['Email and SMS', 'Klaviyo'],
@@ -4678,7 +4684,7 @@ let RUN = 0;
 
 /* Tabs whose data actually follows the range picker. Everywhere else it is hidden
    rather than left visible and inert - a control that does nothing reads as broken. */
-const RANGE_TABS = new Set(['gcampaigns', 'website', 'search', 'overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store', 'meta', 'campaigns', 'adcreative', 'channels']);
+const RANGE_TABS = new Set(['gcampaigns', 'gads', 'gterms', 'gchanges', 'website', 'search', 'overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store', 'meta', 'campaigns', 'adcreative', 'channels']);
 /* Screens where a credited number appears, so the attribution switch shows (Locus v2). */
 const MODEL_TABS = new Set(['overview', 'meta', 'campaigns', 'adcreative', 'google', 'tiktok', 'channels']);
 /* THE RAIL HAS SIX DESTINATIONS (2026-10-08, after "too many tabs, it's clunky"). Each one's
@@ -4708,10 +4714,10 @@ const NAV = {
   tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status']] },
 };
 const META_KIDS = ['meta', 'campaigns', 'adcreative', 'tests', 'changes', 'mtoday', 'mbrowser'];
-/* Google's jobs (2026-10-09): Overview and Campaigns where the brand has a direct Google Ads link. No Creative (search
-   ads have no gallery and the Google Ads read carries no ads yet) and no Changes (it carries no change history). */
-const GOOGLE_KIDS = ['google', 'gcampaigns'];
-const GOOGLE_JOBS = [['google', 'Overview'], ['gcampaigns', 'Campaigns']];
+/* Google's jobs (2026-10-09): where the brand has a direct Google Ads link, the same depth as Meta: Overview,
+   Campaigns, Ads (headlines as chips, Performance Max asset groups), Search terms and Changes (account-health google.js). */
+const GOOGLE_KIDS = ['google', 'gcampaigns', 'gads', 'gterms', 'gchanges'];
+const GOOGLE_JOBS = [['google', 'Overview'], ['gcampaigns', 'Campaigns'], ['gads', 'Ads'], ['gterms', 'Search terms'], ['gchanges', 'Changes']];
 /* Studio's two modes (2026-10-09): Ads (the batches) and Words (what was the Copy desk). */
 const STUDIO_JOBS = [['studio', 'Ads'], ['copy', 'Words']];
 /* Brand > Client answers / Research / Voice are the three views of brand.js; 'brand' opens the last one used. */
@@ -4758,7 +4764,7 @@ function navGo(g) { const last = NAV_LAST[g]; show(last && NAV_OF(last) === g ? 
 /* Test calls left the Meta jobs (2026-10-09): a call is a buying decision, so it is a row on Ads > Today; the page still opens from there. */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { gcampaigns: 'Google campaigns', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -4955,7 +4961,7 @@ function renderPeriodBar(tab) {
    and the top bar runs the moment a period is picked; screens that read their own data (/api/hub/*) repaint straight
    away while the snapshot refreshes behind them; screens that read the snapshot's window (Home, P&L, Customers)
    wait for it, still dimmed. */
-const HUB_TABS = new Set(['meta', 'campaigns', 'adcreative', 'google', 'gcampaigns', 'tiktok', 'channels', 'store', 'email', 'website', 'search']);
+const HUB_TABS = new Set(['meta', 'campaigns', 'adcreative', 'google', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'tiktok', 'channels', 'store', 'email', 'website', 'search']);
 async function periodChanged() {
   const m = $('#main'); if (m && m.firstElementChild) m.classList.add('busy');
   document.body.classList.add('pf-loading');
@@ -4981,7 +4987,7 @@ window.openAgencySettings = openAgencySettings;
 window.openGoals = openGoals;
 
 window.showTab = tab => show(tab);
-const SHOWABLE = new Set(["gcampaigns", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
 function show(tab) {
   if (typeof syncPick === 'function') syncPick();
   /* Old ids that moved (2026-10-09): the Creative browser is Creative; 'brand' opens the brand view last used. */
@@ -5098,7 +5104,7 @@ function show(tab) {
   const after = () => { done(); offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
 }
@@ -5264,6 +5270,9 @@ const ASK_SUGGEST = {
   mbrowser: ['Which ads are tiring on {b}?', 'Which angle is winning right now?', 'What should we make more of?', 'Which ads hook but do not convert?'],
   tests: ['Which tests need a call this week?', 'What did we learn from the last 10 tests?', 'Which angles are proven on {b}?', 'What should we test next?'],
   changes: ['What changed on {b} this week and who did it?', 'Did the last budget change help?', 'What changed before CPA moved?', 'Summarise this week’s changes for the client'],
+  gads: ['Which Google ad should we rewrite on {b}?', 'Are the pinned headlines helping?', 'Which ad has the best Google ROAS?'],
+  gterms: ['Which search terms should be negatives on {b}?', 'How much of Google is brand search?', 'Which terms should become keywords?'],
+  gchanges: ['What changed on Google for {b} this month?', 'Did the last bid change move Google ROAS?', 'Who changed the Google budgets?'],
   gcampaigns: ['Which Google campaign should get more budget on {b}?', 'Is Performance Max paying back?', 'How much of Google is brand search?', 'Where is Google spend wasted?'],
   google: ['How is Google doing for {b} against Meta?', 'Is Google’s own conversion count far from Triple Whale’s?', 'Is Google spend paying back?', 'What would connecting Google directly show us?'],
   tiktok: ['Is TikTok worth more budget for {b}?', 'How does TikTok compare with Meta?', 'What is TikTok’s cost per purchase?', 'What would connecting TikTok directly show us?'],

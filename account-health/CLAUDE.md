@@ -1219,3 +1219,19 @@ META, ASANA AND DRIVE". Tests: `node test-metawrite.mjs` (14 offline checks, Gra
 - **What Cole grants per ad account** before any Meta card can be applied: in Business settings > Ad accounts, the
   Mobius Tools system user with Manage campaigns. The token also needs ads_management (if the Monday "Do it" button
   shows on a brand, both are already in place there).
+
+## 2026-10-09: Google Ads in depth (`src/google.js`)
+
+- Reads, all admin, all `?act=&from=&to=`, each ONE report cached an hour in `settings` (like `gads:`), errors never
+  cached and returned as `{error, fix}`: `/api/google/ads` (campaigns + days, 2 GAQL), `/api/google/ads-ads` (`gadad:`,
+  top 20 `ad_group_ad` by cost with RSA / Demand Gen / display headlines and descriptions, plus `asset_group` metrics for
+  Performance Max; 2 GAQL in parallel, an asset-group refusal never sinks the ads), `/api/google/ads-terms` (`gadst:`,
+  top 50 `search_term_view` by cost), `/api/google/ads-changes` (`gadch:`, `change_event`, 200 newest; `from` clamped to
+  today minus 29 days because Google keeps 30 days; `describeChange` turns each row into who / via / category / plain
+  summary / fields old to new, budgets in dollars from micros, target ROAS as %; `matters` = budget, bids, status, new,
+  keywords).
+- API v25 through the MCC `GOOGLE_ADS_MCC` 5566468199 (login-customer-id), Explorer access (2,880 operations a day).
+  Every call goes through xfetch (`googleFetch(xfetch)`), so it counts against the subrequest budget. Verified
+  2026-10-09 on Lucky 6859198499 and Bonk 2589863833: nothing refused (change_event, search_term_view, asset_group
+  metrics and the Demand Gen ad fields all answered).
+- The Strategist reaches them through `locus_get` (routes.js rebuilt). strategist.js has no view for them on purpose.
