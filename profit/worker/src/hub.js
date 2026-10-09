@@ -443,14 +443,18 @@ async function attrByAd(env, act, from, to, model, platform) {
 
 /* ---------- Paid > Meta ---------- */
 const META_COLS = `SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.reach) reach, SUM(d.link_clicks) clicks, SUM(d.clicks_all) clicks_all, SUM(d.add_to_cart) atc,
-  SUM(d.purchases) p_ord, SUM(d.revenue) p_rev, SUM(d.video_3s) v3, SUM(d.video_thruplay) thru, SUM(d.video_plays) plays`;
+  SUM(d.purchases) p_ord, SUM(d.revenue) p_rev, SUM(d.video_3s) v3, SUM(d.video_thruplay) thru, SUM(d.video_plays) plays,
+  SUM(d.video_p25) p25, SUM(d.video_p50) p50, SUM(d.video_p75) p75, SUM(d.video_p100) p100`;
 function metaMetrics(r, attr) {
   const spend = num(r.spend), impr = num(r.impr), clicks = num(r.clicks), atc = num(r.atc);
   const ord = attr ? attr.ord : num(r.p_ord), rev = attr ? attr.rev : num(r.p_rev);
   return { spend, impressions: impr, reach: num(r.reach), clicks, atc, purchases: ord, revenue: rev, platform_purchases: num(r.p_ord), platform_revenue: num(r.p_rev),
     roas: div(rev, spend), cpa: div(spend, ord), cpm: div(spend * 1000, impr), ctr: div(clicks, impr), cpc: div(spend, clicks), cost_per_atc: div(spend, atc),
     atc_rate: div(atc, clicks), purchase_rate: div(ord, atc), frequency: div(impr, num(r.reach)),
-    hook: num(r.v3) ? div(num(r.v3), impr) : null, hold: num(r.v3) ? div(num(r.thru), num(r.v3)) : null };
+    hook: num(r.v3) ? div(num(r.v3), impr) : null, hold: num(r.v3) ? div(num(r.thru), num(r.v3)) : null,
+    /* Where people stop watching (Motion's retention curve): share of IMPRESSIONS still watching at 3
+       seconds, 25%, 50%, 75% and the end. Meta's own watch counts, video ads only. */
+    curve: num(r.v3) && num(r.p25) ? [num(r.v3), num(r.p25), num(r.p50), num(r.p75), num(r.p100)].map(v => div(v, impr)) : null };
 }
 async function metaBrand(env, a, w, model, detail) {
   const act = a.act_id;
@@ -641,7 +645,7 @@ const formatOf = name => { const parts = String(name || '').split('|'); if (part
 const batchOf = name => { const m = String(name || '').match(/^\s*(?:[A-Z]{1,4}_)?(\d{2,4})\b/); return m ? m[1] : null; };
 async function creativeBrand(env, a, w, model) {
   const act = a.act_id;
-  const { results: ads } = await env.DB.prepare(`SELECT d.ad_id, x.name, x.media_type, x.first_spend_date, x.created_time, x.campaign_id, x.adset_id, ${META_COLS}
+  const { results: ads } = await env.DB.prepare(`SELECT d.ad_id, x.name, x.media_type, x.first_spend_date, x.created_time, x.campaign_id, x.adset_id, x.asset_key, ${META_COLS}
     FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id HAVING SUM(d.spend) > 0`).bind(act, w.from, w.to).all();
   const { byAd } = await attrByAd(env, act, w.from, w.to, model, 'meta');
   /* First-click credit per ad, beside the screen's model: an ad Triple Whale credits far more on FIRST
@@ -656,6 +660,9 @@ async function creativeBrand(env, a, w, model) {
   const { results: batches } = await env.DB.prepare(`SELECT b.num, g.name angle FROM p_br_batch b LEFT JOIN p_br_angle g ON g.id = b.angle_id WHERE b.act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
   const angleOf = Object.fromEntries((batches || []).map(b => [String(b.num).replace(/^\D+/, ''), b.angle]));
   const today = w.to;
+  /* AI tags per creative (account-health creative.js fills ad_tag hourly). */
+  const { results: tagRows } = await env.DB.prepare(`SELECT asset_key, tags_json FROM ad_tag WHERE act_id = ?1 AND tags_json IS NOT NULL`).bind(act).all().catch(() => ({ results: [] }));
+  const tagOf = Object.fromEntries((tagRows || []).map(t => { try { return [t.asset_key, JSON.parse(t.tags_json)]; } catch { return [t.asset_key, null]; } }));
   const rows = (ads || []).map(r => {
     const m = metaMetrics(r, model === 'platform' ? null : (byAd[r.ad_id] || { rev: 0, ord: 0 }));
     const first = r.first_spend_date || (r.created_time || '').slice(0, 10) || null;
@@ -663,7 +670,7 @@ async function creativeBrand(env, a, w, model) {
     return { id: r.ad_id, name: r.name || r.ad_id, media_type: r.media_type || (num(r.v3) > 0 ? 'video' : 'image'), campaign: cName[r.campaign_id] || null, adset_id: r.adset_id || null,
       fc_rev: model === 'platform' ? null : num((fc[r.ad_id] || {}).rev), lc_rev: model === 'platform' ? null : num((lc[r.ad_id] || {}).rev),
       first_spend: first, age: first ? Math.max(0, Math.round((Date.parse(today) - Date.parse(first)) / 864e5)) : null,
-      format: formatOf(r.name), batch: b, angle: b ? (angleOf[b] || null) : null, ...m };
+      format: formatOf(r.name), batch: b, angle: b ? (angleOf[b] || null) : null, asset_key: r.asset_key || null, tags: r.asset_key ? (tagOf[r.asset_key] || null) : null, ...m };
   }).sort((x, y) => y.spend - x.spend);
   /* THE AD SET IS THE UNIT (Cole, 2026-10-08). Meta spends inside an ad set as one system: the ad that
      takes most of the budget is often the broad opener, and the smaller ads with prettier numbers ride

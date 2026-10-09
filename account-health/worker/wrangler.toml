@@ -57,6 +57,11 @@ max_retries = 0
 binding = "MEDIA"
 bucket_name = "mobius-amb-media"
 
+# Ad covers are shrunk to 600px WebP before they go into R2 (creative.js). Free up to 5,000
+# unique transformations a month; each ad is transformed once. Without it the original is stored.
+[images]
+binding = "IMAGES"
+
 # Public config (Google OAuth client id is public by design; used to verify sign-ins).
 [vars]
 GOOGLE_ADS_MCC = "5566468199"   # the Mobius Google Ads manager account (Ads API calls go through it)
