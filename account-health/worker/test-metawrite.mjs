@@ -347,6 +347,25 @@ await check('drive: list the brand folder, copy into a subfolder, share outside 
   assert.deepEqual(drivePosts.at(-1).body, { type: 'user', role: 'commenter', emailAddress: 'nick@grunk.com' }); assert.equal(drivePosts.at(-1).q.sendNotificationEmail, 'false');
 });
 
+await check('Locus screen writes (POST /api/meta/write): dry shows before and after, the write logs as the person, stale refuses, undo from the toast', async () => {
+  const dry = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'budget', level: 'adset', object: '2300011', amount: 400, dry: true }, COLE);
+  assert.ok(!dry.error, dry.error); assert.match(dry.summary, /\+\d+%/); assert.equal(dry.step[0].field, 'daily_budget');
+  const stale = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'budget', level: 'adset', object: '2300011', amount: 400, expect: { daily_budget: '1' } }, COLE);
+  assert.ok(stale.stale, 'stale refused');
+  const r = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'budget', level: 'adset', object: '2300011', amount: 400, expect: dry.before }, COLE);
+  assert.ok(!r.error, r.error); assert.ok(r.write); assert.equal(objs['2300011'].daily_budget, '40000');
+  const line = db.prepare(`SELECT actor, event_type FROM activities WHERE manual = 1 ORDER BY event_time DESC LIMIT 1`).get();
+  assert.match(line.actor, /in Locus/); assert.equal(line.event_type, 'locus_write');
+  const other = await mw.locusUndo(env, d, { act: 'brand_dartee', write: r.write }, COLE);
+  assert.match(other.error, /another brand/);
+  const u = await mw.locusUndo(env, d, { act: 'brand_lucky', write: r.write }, COLE);
+  assert.ok(!u.error, u.error); assert.equal(objs['2300011'].daily_budget, dry.before.daily_budget);
+  const ro = await mw.locusWrite(env, d, { act: 'brand_dartee', kind: 'pause', level: 'adset', object: '2300031', dry: true }, COLE);
+  assert.match(ro.error, /can only read/);
+  const live = await mw.metaLive(env, d, 'brand_lucky');
+  assert.equal(live.can, true); assert.equal(live.adsets['2300011'].campaign, '2300002');
+});
+
 const failed = checks.filter(c => !c.pass);
 console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
 process.exit(failed.length ? 1 : 0);

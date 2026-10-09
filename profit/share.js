@@ -254,12 +254,16 @@
     fr.style.colorScheme = 'light';
     fr.style.width = `${w + 64}px`;
     const mark = new URL('../brand/mobius-mark.webp', location.href).href;
-    fr.innerHTML = `<div class="lx-shot-h"><div class="l"><b>${esc(meta.brand)}</b><span>${esc([meta.page, meta.title].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(' · '))}</span></div>
-      ${meta.dates ? `<div class="r"><b>${esc(meta.dates)}</b>${meta.cmp ? `<span>${esc(meta.cmp)}</span>` : ''}</div>` : ''}</div>
+    /* 2026-10-09 (Cole: "the logo is squished"): the mark is 2000 x 1294, so it is drawn 20 x 13 (its own shape), never
+       in a square. Head = the page as a small label over the brand, the dates on the right (the card carries its own title); foot = a
+       hairline, the mark, "Locus by Mobius Digital", and the attribution. A thin line in the mark's colours on top. */
+    const crumb = meta.page || meta.title || 'Locus', big = meta.brand || meta.title;
+    fr.innerHTML = `<div class="lx-shot-h"><div class="l"><small>${esc(crumb)}</small><b>${esc(big)}</b></div>
+      ${meta.dates ? `<div class="r"><small>Dates</small><b>${esc(meta.dates)}</b>${meta.cmp ? `<span>${esc(meta.cmp)}</span>` : ''}</div>` : ''}</div>
       <div class="lx-shot-b"></div>
-      <div class="lx-shot-f"><span class="l"><img src="${esc(mark)}" width="18" height="18" alt=""><span><b>Locus</b> by Mobius Digital</span></span>${meta.attr ? `<span class="r">${esc(meta.attr)}</span>` : ''}</div>`;
+      <div class="lx-shot-f"><span class="l"><img src="${esc(mark)}" width="20" height="13" alt=""><span><b>Locus</b> <span class="by">by Mobius Digital</span></span></span>${meta.attr ? `<span class="r">${esc(meta.attr)}</span>` : ''}</div>`;
     const c = el.cloneNode(true);
-    c.querySelectorAll('.lx-exp, .v2tip, .v2pick').forEach(x => x.remove());
+    c.querySelectorAll('.lx-exp, .v2tip, .v2pick, .v2tbar, .v2rm').forEach(x => x.remove());
     c.classList.remove('lx-flash', 'lx-more', 'busy');
     c.querySelectorAll('.lx-more').forEach(x => x.classList.remove('lx-more'));
     /* Ids are made unique so a chart's gradient in the copy points at its own copy, not the dark-themed original. */
@@ -383,5 +387,7 @@
     init(h) { H = h; },
     readURL, sync, setExtra, decorate,
     link: id => (H ? linkTo(id) : location.href),
+    /* the picture of one card as a PNG blob (used to check the frame by eye) */
+    picture: el => render(el, metaOf(el)),
   };
 })();
