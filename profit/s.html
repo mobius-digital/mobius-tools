@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared view · Locus</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/locus-round-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet">
+<style>
+  /* The public snapshot page (2026-10-09). One card or page from Locus, frozen when the link was made, opened without
+     a login. Nothing here is live: the page reads ONE payload (GET /api/snapshot/:token on the profit worker) and draws
+     it. The frozen markup is cleaned by DOMPurify and drawn inside a shadow root, so its CSS cannot touch this page
+     and nothing in it can run. Always light; prints on paper. */
+  :root{--bg:#F4F5F7;--surface:#FFFFFF;--ink:#16181D;--ink-2:#3A3F48;--muted:#646B76;--line:#E3E6EB;--bad:#B4322A}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink)}
+  body{font:15px/1.5 "Inter","Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  .bar{height:4px;background:linear-gradient(90deg,#9FD3C7 0%,#5AB4E5 48%,#7FA9D6 72%,#D8C3A5 100%)}
+  .wrap{max-width:1240px;margin:0 auto;padding:22px 16px 40px}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin:0 0 18px}
+  header .l{min-width:0}
+  header small{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+  header h1{margin:0;font-size:24px;line-height:1.2;font-weight:650;letter-spacing:-.02em}
+  header .sub{font-size:14px;color:var(--ink-2);margin-top:4px}
+  header .r{text-align:right}
+  header .r b{display:block;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+  header .r span{display:block;font-size:12.5px;color:var(--muted);margin-top:3px}
+  .frozen{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 0 16px}
+  .frozen .dot{width:8px;height:8px;border-radius:50%;background:#5AB4E5;flex:none;align-self:center}
+  .frozen button{margin-left:auto;font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+  .frozen button:hover{border-color:#C9CED6}
+  #snap{display:block;min-width:0}
+  footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:26px;padding-top:12px;font-size:12.5px;color:var(--muted)}
+  footer .brand{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+  footer .brand b{color:var(--ink)}
+  .msg{max-width:520px;margin:12vh auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px 26px;text-align:center}
+  .msg h1{font-size:20px;margin:0 0 8px}
+  .msg p{margin:0;color:var(--ink-2)}
+  .msg img{margin-bottom:14px}
+  @media (max-width:640px){ header .r{text-align:left} header h1{font-size:20px} }
+  @media print{
+    @page{margin:12mm}
+    html,body{background:#fff}
+    .frozen button{display:none}
+    .wrap{max-width:none;padding:0}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<div class="wrap" id="app"><p style="color:var(--muted)">Loading…</p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script>
+(() => {
+  const app = document.getElementById('app');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const MARK = '<img src="../brand/mobius-mark.webp" width="20" height="13" alt="">';
+  const worker = (() => { try { return (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && localStorage.getItem('pf_worker')) || null; } catch { return null; } })()
+    || 'https://mobius-profit.mobius-digital.workers.dev';
+  const fail = (h, p) => { app.innerHTML = `<div class="msg">${MARK}<h1>${esc(h)}</h1><p>${esc(p)}</p></div>`; };
+  const t = new URLSearchParams(location.search).get('t') || '';
+  if (!/^[a-f0-9]{32}$/.test(t)) return fail('This link is not complete', 'Check that the whole link was copied, or ask whoever sent it for a new one.');
+  if (!window.DOMPurify) return fail('This page could not load', 'Check the connection and refresh.');
+
+  const when = iso => { const d = new Date(String(iso).replace(' ', 'T') + 'Z'); return isNaN(d) ? '' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+  const day = iso => { const d = new Date(String(iso).replace(' ', 'T') + 'Z'); return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
+
+  fetch(`${worker}/api/snapshot/${t}`, { credentials: 'omit', referrerPolicy: 'no-referrer' }).then(async r => {
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 429) return fail('Too many opens at once', 'Wait a minute and refresh.');
+    if (!r.ok || !j.snapshot) return fail('This link has expired or was turned off', j.error && !/expired|turned off/.test(j.error) ? j.error : 'Ask whoever sent it for a new one.');
+    draw(j);
+  }).catch(() => fail('This page could not load', 'Check the connection and refresh.'));
+
+  function draw(j) {
+    document.title = `${j.title}${j.brand ? ' · ' + j.brand : ''} · Locus`;
+    /* Same frame as the exported picture: the page as a small label, the brand big; a card carries its own title. */
+    const crumb = j.kind === 'page' ? (j.title || 'Locus') : (j.page || 'Locus');
+    app.innerHTML = `<header><div class="l"><small>${esc(crumb)}</small><h1>${esc(j.brand || j.title)}</h1></div>
+      ${j.dates ? `<div class="r"><small>Dates</small><b>${esc(j.dates)}</b>${j.cmp ? `<span>${esc(j.cmp)}</span>` : ''}</div>` : ''}</header>
+      <div class="frozen"><span class="dot"></span><span>Numbers as of <b>${esc(when(j.created_at))}</b>. They do not update.${j.expires_at ? ` This link works until ${esc(day(j.expires_at))}.` : ''}</span><button type="button" id="pr">Print or save as PDF</button></div>
+      <div id="snap"></div>
+      <footer><span class="brand">${MARK}<span><b>Locus</b> by Mobius Digital</span></span>${j.attr ? `<span>${esc(j.attr)}</span>` : ''}</footer>`;
+    document.getElementById('pr').onclick = () => window.print();
+
+    /* Only links inside the snapshot (icons) survive; anything pointing elsewhere is dropped. */
+    DOMPurify.addHook('uponSanitizeAttribute', (node, d) => {
+      if ((d.attrName === 'href' || d.attrName === 'xlink:href') && !String(d.attrValue).startsWith('#') && node.nodeName.toLowerCase() !== 'image') d.keepAttr = false;
+    });
+    const frag = DOMPurify.sanitize(j.html, { RETURN_DOM_FRAGMENT: true, ADD_TAGS: ['use'], ADD_ATTR: ['xlink:href'], FORBID_TAGS: ['form', 'input', 'textarea', 'select', 'iframe', 'object', 'embed', 'style'], SANITIZE_DOM: false });
+    const host = document.getElementById('snap');
+    const root = host.attachShadow({ mode: 'open' });
+    const st = document.createElement('style');
+    /* The frozen CSS, then the frame: the copied page wrappers lose their layout so the card fills this page. */
+    st.textContent = String(j.css || '').replace(/<\/?style/gi, '') + `
+      .lxs-html{display:block;background:var(--bg,#F7F7F8);color:var(--ink);border-radius:14px;padding:14px;overflow-x:auto;height:auto!important;min-height:0!important}
+      .lxs-body{display:block!important;margin:0!important;padding:0!important;min-height:0!important;height:auto!important;overflow:visible!important;background:transparent!important}
+      .lxs-w{display:block!important;position:static!important;margin:0!important;padding:0!important;width:auto!important;max-width:none!important;min-width:0!important;min-height:0!important;height:auto!important;overflow:visible!important;transform:none!important;opacity:1!important;border:0!important;box-shadow:none!important;background:transparent!important;grid-template-columns:none!important}
+      .lxs-html #main{max-width:none!important;margin:0!important;opacity:1!important;animation:none!important}
+      .lxs-html *{animation:none!important;transition:none!important}
+      .lxs-html button,.lxs-html a,.lxs-html [data-go],.lxs-html [role=button],.lxs-html summary{pointer-events:none!important;cursor:default!important}
+      @media (max-width:640px){ .lxs-html{padding:8px;border-radius:10px} }
+      @media print{ .lxs-html{padding:0;background:#fff;overflow:visible} .lxs-html .v2card,.lxs-html .card,.lxs-html tr{break-inside:avoid} }`;
+    root.appendChild(st);
+    root.appendChild(frag);
+    /* A frozen page shows every folded section open (nobody can click it). */
+    root.querySelectorAll('details').forEach(d => { d.open = true; });
+  }
+})();
+</script>
+</body>
+</html>

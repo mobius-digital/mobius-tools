@@ -28,6 +28,10 @@ const mock = async (url, init = {}) => {
   if (u.pathname === '/api/lists/') return J([{ id: 'L1', attributes: { name: 'Newsletter', profile_count: 12000 } }, { id: 'L2', attributes: { name: 'VIP', profile_count: 800 } }]);
   if (u.pathname === '/api/segments/') return J([{ id: 'S1', attributes: { name: 'Bought twice', profile_count: 1400, is_active: true } }]);
   if (u.pathname === '/api/flows/') return J([{ id: 'F1', attributes: { name: 'Welcome', status: 'live', archived: false, trigger_type: 'List' } }, { id: 'F2', attributes: { name: 'Abandoned Cart', status: 'manual', archived: false, trigger_type: 'Metric' } }, { id: 'F3', attributes: { name: 'Old', status: 'live', archived: true } }]);
+  /* Counts come from the single-object route (2026-10: the collections refuse profile_count). */
+  const one = u.pathname.match(/^\/api\/(list|segment)s\/(\w+)\/$/);
+  if (one) { const n = { L1: 12000, L2: 800, S1: 1400 }[one[2]]; return J({ id: one[2], attributes: { profile_count: n ?? null } }); }
+  if (u.pathname === '/api/campaigns/' && /sms/.test(decodeURIComponent(u.search))) return J([]);
   if (u.pathname === '/api/campaigns/') return J([{ id: 'C1', attributes: { name: 'Oct drop', status: 'Sent', send_time: '2026-10-01T14:00:00Z' } }]);
   if (u.pathname === '/api/metrics/') return J([{ id: 'M1', attributes: { name: 'Placed Order', integration: { name: 'Shopify' } } }]);
   if (u.pathname === '/api/campaign-values-reports/') { const body = JSON.parse(init.body); assert.match(body.data.attributes.filter, /any\(campaign_id,\["C1"\]\)/); assert.equal(body.data.attributes.conversion_metric_id, 'M1'); return J({ attributes: { results: [{ groupings: { campaign_id: 'C1' }, statistics: { recipients: 9000, open_rate: 0.41, click_rate: 0.03, conversion_rate: 0.012, conversion_value: 4100 } }] } }); }
@@ -68,7 +72,7 @@ await check('klaviyoView: overview, lists, segments, flows (archived dropped), c
 await check('not connected: a plain error that names the fix, no call to Klaviyo', async () => {
   const n = calls.length;
   const r = await kv.klaviyoView(env, 'act_none');
-  assert.match(r.error, /Settings > Connections > Klaviyo/); assert.equal(calls.length, n);
+  assert.match(r.error, /Brand settings > Integrations > Klaviyo/); assert.equal(calls.length, n);
 });
 
 const failed = checks.filter(c => !c.pass);

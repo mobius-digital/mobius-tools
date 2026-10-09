@@ -298,10 +298,16 @@ async function status(id, autorun) {
       </div>
       ${invoiceBlock()}
       ${contractBlock()}
+      <div style="margin-top:16px"><b style="font-size:14px">4. Their Locus login</b>
+        <span class="tiny" style="display:block;margin-top:2px">Their own sign-in to Locus with Google: ${esc(run.name)} only, read-only (Home, Ads, Email, Store, the Calendar and the reports you send). You see the email before it goes; nothing is sent on its own.</span>
+        <button class="btn" id="ncLocus" style="margin-top:6px">Invite to Locus</button></div>
       <div style="margin-top:16px"><b style="font-size:14px">Still by hand for now</b>
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div class="row" style="justify-content:space-between;gap:8px;margin:14px 0 0"><button class="btn" id="ncRemove" style="color:var(--bad)">Remove this client</button><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
+    /* Invite to Locus (2026-10-09): the same invite as Agency settings > Clients (clients.js), prefilled. */
+    const lb = body.querySelector('#ncLocus');
+    if (lb) lb.onclick = () => { if (window.ClientsTab) window.ClientsTab.invite({ emails: run.contact_email || '', name: run.contact_name || '', brands: run.act_id && /^brand_/.test(run.act_id) ? [run.act_id] : [] }); };
     wireAmend();
     wireChange();
     wireMeta();

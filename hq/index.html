@@ -186,6 +186,8 @@ function sessionValid() {
 }
 
 function showDir() {
+  /* A client login (2026-10-09) has no HQ: it goes straight to its brand in Locus. */
+  if (localStorage.getItem('mobius_session_role') === 'client') { location.href = '/profit/'; return; }
   $('#scene').style.display = 'none';
   $('#dir').classList.add('show');
   $('#footNote').style.display = 'none';
@@ -213,6 +215,7 @@ async function onGoogle(resp) {
     localStorage.setItem(LS.tok, j.token);
     localStorage.setItem(LS.email, j.email);
     localStorage.setItem(LS.exp, String(j.exp));
+    if (j.role === 'client') localStorage.setItem('mobius_session_role', 'client'); else localStorage.removeItem('mobius_session_role');
     showDir();
   } catch (e) { fail('Could not reach the sign-in service — try again.'); }
 }
@@ -242,7 +245,7 @@ $('#keyGo').onclick = async () => {
   showDir();
 };
 $('#keyInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('#keyGo').click(); });
-$('#btnOut').onclick = () => { [LS.tok, LS.email, LS.exp].forEach(k => localStorage.removeItem(k)); location.reload(); };
+$('#btnOut').onclick = () => { [LS.tok, LS.email, LS.exp, 'mobius_session_role'].forEach(k => localStorage.removeItem(k)); location.reload(); };
 
 if (sessionValid()) showDir(); else initGoogle();
 </script>

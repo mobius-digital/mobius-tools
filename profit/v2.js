@@ -481,6 +481,8 @@
   const READS = {};
   function readSlot(id) { return `<div id="${id}" class="v2read"><div class="v2strip">${[0, 1, 2].map(() => '<div class="v2ins sk"><i></i><div><b></b><span></span></div></div>').join('')}</div><p class="v2say sk"><span></span></p></div>`; }
   async function fillRead(id, screen, scope, facts, links) {
+    /* Client logins (2026-10-09): no AI read (it costs per call and speaks to the team). */
+    if (H.S.role === 'client') { const el = document.getElementById(id); if (el) el.remove(); return; }
     const key = JSON.stringify([screen, scope, facts]); const t = H.RUN();
     try {
       const r = READS[key] || (READS[key] = await H.apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen, scope, range: H.rangeLabel(), compare: cmpLabel(), facts }) }));
@@ -501,6 +503,7 @@
      (desk.js, /api/hub/yesterday): every brand judged against its own same weekday, the reason, and whether it was the market. */
   async function movedCard(scope) {
     /* THE DAY CHECK LINE (2026-10-09): was yesterday a bad day ON META (account-health /api/metaday). */
+    if (H.S.role === 'client') return;   // reads every brand: the team's
     const t = H.RUN(); let m;
     try { m = await H.apiAH('/api/metaday?days=14'); } catch { return; }
     const host = document.getElementById('v2moved'); if (t !== H.RUN() || !host) return;
@@ -568,7 +571,7 @@
       ${tile({ label: 'aMER', src: 'BLENDED', hint: 'new-customer revenue ÷ ad spend', value: x2(c.amer), delta: delta(c.amer, p.amer), sub: `${kmoney(c.newRev, cur)} from first orders`, spark: tspark(rows, prev, 'amer', x2, 'aMER'), go: 'customers' })}
       ${tile({ label: 'New customers', src: 'TW', hint: 'first paid orders', value: int(c.newOrd), delta: delta(c.newOrd, p.newOrd), sub: `${pct(c.newShare, 0)} of revenue from first orders`, spark: tspark(rows, prev, 'new_orders', int, 'new customers'), go: 'customers' })}
       ${tile({ label: 'Cost per new customer', src: 'TW', hint: 'lower is better', value: money(c.cac, cur), delta: delta(c.cac, p.cac, true), bullet: bullet(c.cac, goalCac, true, goalCac ? `goal ${money(goalCac, cur)}` : ''), sub: `${int(c.newOrd)} first orders`, spark: tspark(rows, prev, 'cac', mo, 'cost per new customer'), go: 'customers' })}
-      ${tile({ label: 'Contribution margin', src: 'TW', hint: 'after every variable cost', value: kmoney(c.cm, cur), delta: delta(c.cm, p.cm), sub: c.cmPct != null ? `${pct(c.cmPct, 0)} of revenue` : 'cost data needed', spark: c.cm != null ? tspark(rows, prev, 'cm', km, 'contribution margin') : '', go: 'profit' })}
+      ${H.S.role === 'client' && c.cm == null ? '' : tile({ label: 'Contribution margin', src: 'TW', hint: 'after every variable cost', value: kmoney(c.cm, cur), delta: delta(c.cm, p.cm), sub: c.cmPct != null ? `${pct(c.cmPct, 0)} of revenue` : 'cost data needed', spark: c.cm != null ? tspark(rows, prev, 'cm', km, 'contribution margin') : '', go: 'profit' })}
     </div>` : `<div class="v2card"><p class="v2hint">These brands report in different currencies (${esc([...new Set(all.map(a => a.currency))].join(', '))}), so there is no combined total. Pick one brand, or read the table below.</p></div>`;
 
     const chart = cur && rows.length > 1 ? card('Revenue by day', `${rows.length} days${p.sales ? `, ${delta(c.sales, p.sales).replace(/<[^>]+>/g, '')} against ${cmpLabel()}` : ''}.`,
@@ -612,7 +615,7 @@
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
-    if (window.DeskTab && window.DeskTab.needs) window.DeskTab.needs(document.getElementById('v2needs'), H, all);
+    if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
     /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
     if (window.CalendarTab) {
       window.CalendarTab.homeCard(document.getElementById('v2cal'), H);
@@ -695,35 +698,382 @@
     prefetch([`/api/hub/creative?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`]);
     if (view !== 'campaigns') { wirePaidChart('v2msr', sz, psz, cur); wireStack('v2camp', campSeries, ser, cur); wireLine('v2cpa', sz.map(r => ({ ...r, v: r.cpa })), { tip: (r, i) => `<b>${day(r.date)}</b> · CPA ${money(r.cpa, cur)} · ${int(r.purchases)} purchases on ${kmoney(r.spend, cur)}` }); }
   }
+  /* =========================================================================================
+   * TABLES YOU CAN SORT AND SHAPE (2026-10-09, Cole: "I can't sort by anything", "Can I add more metrics?")
+   * Click a header to sort (again to flip), the Columns menu shows, hides and reorders every metric the rows carry.
+   * Saved per table in localStorage `pf_tbl_<id>` {order, show, sort, dir}. A def: {k, l, v(row), cell(row), lo
+   * (lower is better, so the first click sorts up), txt (sort as text), tip, hide()}. The first column (the name)
+   * is fixed. In the Meta tree a sort orders campaigns, then the ad sets inside each, then the ads inside each.
+   * ======================================================================================= */
+  const TBL = {
+    load(id, defs, def) {
+      let s = null; try { s = JSON.parse(localStorage.getItem('pf_tbl_' + id) || 'null'); } catch {}
+      s = s || {}; const keys = defs.map(d => d.k);
+      const order = (s.order || []).filter(k => keys.includes(k)); for (const k of keys) if (!order.includes(k)) order.push(k);
+      return { id, def, order, show: new Set(Array.isArray(s.show) ? s.show.filter(k => keys.includes(k)) : def), sort: s.sort || null, dir: s.dir || -1 };
+    },
+    save(st) { try { localStorage.setItem('pf_tbl_' + st.id, JSON.stringify({ order: st.order, show: [...st.show], sort: st.sort, dir: st.dir })); } catch {} },
+    cols(st, defs) { return st.order.map(k => defs.find(d => d.k === k)).filter(d => d && st.show.has(d.k) && !(d.hide && d.hide())); },
+    cmp(st, defs) {
+      const d = st.sort === '_name' ? { v: r => r.name, txt: 1 } : defs.find(x => x.k === st.sort); if (!d) return null;
+      return (a, b) => {
+        const x = d.v(a), y = d.v(b), nx = x == null || (!d.txt && !isFinite(x)), ny = y == null || (!d.txt && !isFinite(y));
+        if (nx || ny) return nx === ny ? 0 : nx ? 1 : -1;               // empty cells always last
+        return (d.txt ? String(x).localeCompare(String(y)) : x - y) * st.dir;
+      };
+    },
+    th(st, k, label, cls = '') {
+      const on = st.sort === k, arrow = on ? (st.dir > 0 ? '▲' : '▼') : '';
+      return `<th class="v2srt${on ? ' on' : ''}${cls ? ' ' + cls : ''}" aria-sort="${on ? (st.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" data-srt="${esc(k)}" data-tip="Sort by ${esc(label.toLowerCase())}">${esc(label)}<i aria-hidden="true">${arrow}</i></button></th>`;
+    },
+    menu(st, defs) {
+      const n = TBL.cols(st, defs).length;
+      const rows = st.order.map(k => defs.find(d => d.k === k)).filter(d => d && !(d.hide && d.hide())).map((d, i, a) => `<div class="v2col-r${st.show.has(d.k) ? ' on' : ''}" data-ck="${esc(d.k)}">
+        <label><input type="checkbox"${st.show.has(d.k) ? ' checked' : ''}><span><b>${esc(d.l)}</b>${d.tip ? `<small>${esc(d.tip)}</small>` : ''}</span></label>
+        <span class="mv"><button type="button" data-mv="-1" aria-label="Move ${esc(d.l)} earlier"${i ? '' : ' disabled'}>${ICN('chevron-up')}</button><button type="button" data-mv="1" aria-label="Move ${esc(d.l)} later"${i < a.length - 1 ? '' : ' disabled'}>${ICN('chevron-down')}</button></span></div>`).join('');
+      return `<button type="button" class="hd-per-btn" aria-haspopup="true" aria-expanded="false"><span class="hd-per-l">Columns</span><span class="hd-per-d">${n} shown</span>
+        <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+        <div class="hd-per-menu md-menu v2cols-m" role="menu"><p class="hd-per-note">Tick what to show; the arrows move a column left or right. Saved for you on this computer.</p><div class="v2col-l">${rows}</div>
+        <div class="v2col-f"><button type="button" data-creset>Back to the default</button></div></div>`;
+    },
+    /* Wires the header sort and the Columns menu inside `root`; `redraw()` repaints the table only. */
+    wire(root, st, defs, redraw) {
+      root.querySelectorAll('[data-srt]').forEach(b => b.onclick = e => {
+        e.stopPropagation(); const k = b.dataset.srt, d = defs.find(x => x.k === k);
+        if (st.sort === k) st.dir = -st.dir; else { st.sort = k; st.dir = k === '_name' || (d && (d.lo || d.txt)) ? 1 : -1; }
+        TBL.save(st); redraw();
+      });
+      const box = root.querySelector(`.v2cols[data-tbl="${st.id}"]`); if (!box) return;
+      const paint = () => { const open = box.classList.contains('open'); box.innerHTML = TBL.menu(st, defs); box.classList.toggle('open', open); hook(); };
+      const hook = () => {
+        const b = box.querySelector('.hd-per-btn');
+        b.onclick = e => { e.stopPropagation(); if (typeof closePops === 'function') closePops(box); const o = !box.classList.contains('open'); box.classList.toggle('open', o); b.setAttribute('aria-expanded', String(o)); };
+        box.querySelector('.hd-per-menu').onclick = e => e.stopPropagation();
+        box.querySelectorAll('.v2col-r input').forEach(inp => inp.onchange = () => { const k = inp.closest('[data-ck]').dataset.ck; inp.checked ? st.show.add(k) : st.show.delete(k); TBL.save(st); paint(); redraw(); });
+        box.querySelectorAll('[data-mv]').forEach(m => m.onclick = () => {
+          const k = m.closest('[data-ck]').dataset.ck, vis = st.order.filter(x => { const d = defs.find(y => y.k === x); return d && !(d.hide && d.hide()); });
+          const i = vis.indexOf(k), j = i + +m.dataset.mv; if (j < 0 || j >= vis.length) return;
+          const a = st.order.indexOf(k), b2 = st.order.indexOf(vis[j]); [st.order[a], st.order[b2]] = [st.order[b2], st.order[a]];
+          TBL.save(st); paint(); redraw();
+          const again = box.querySelector(`[data-ck="${CSS.escape(k)}"] [data-mv="${m.dataset.mv}"]`); if (again && !again.disabled) again.focus();
+        });
+        box.querySelector('[data-creset]').onclick = () => { st.order = defs.map(d => d.k); st.show = new Set(st.def); st.sort = null; st.dir = -1; TBL.save(st); paint(); redraw(); };
+      };
+      hook();
+    },
+  };
+  const ICN = n => (window.icon ? window.icon(n, { size: 14 }) : '');
+
+  /* The Meta columns: everything metaMetrics returns, plus the live status and budget. */
+  const META_COLS = () => [
+    { k: 'status', l: 'Status', v: x => (x.live_status === 'ACTIVE' ? 1 : x.live_status ? 0 : null), tip: 'On or paused. Switch it here.' },
+    { k: 'budget', l: 'Budget', v: x => x.live_budget ?? null, tip: 'Daily or lifetime, where it is set. Click to change.' },
+    { k: 'spend', l: 'Spend', v: x => x.spend },
+    { k: 'purchases', l: 'Purchases', v: x => x.purchases, tip: 'Under the attribution switch.' },
+    { k: 'platform_purchases', l: 'Meta says', v: x => x.platform_purchases, tip: 'Meta’s own purchase count.', hide: () => isPlat() },
+    { k: 'revenue', l: 'Revenue', v: x => x.revenue },
+    { k: 'roas', l: 'ROAS', v: x => x.roas },
+    { k: 'cpa', l: 'CPA', v: x => x.cpa, lo: 1 },
+    { k: 'cpm', l: 'CPM', v: x => x.cpm, lo: 1 },
+    { k: 'ctr', l: 'CTR', v: x => x.ctr, tip: 'Link clicks per impression.' },
+    { k: 'cpc', l: 'CPC', v: x => x.cpc, lo: 1, tip: 'Cost per link click.' },
+    { k: 'frequency', l: 'Freq.', v: x => x.frequency, tip: 'Impressions per person reached.' },
+    { k: 'impressions', l: 'Impressions', v: x => x.impressions },
+    { k: 'reach', l: 'Reach', v: x => x.reach },
+    { k: 'clicks', l: 'Link clicks', v: x => x.clicks },
+    { k: 'hook', l: 'Hook', v: x => x.hook, tip: '3-second views per impression (video).' },
+    { k: 'hold', l: 'Hold', v: x => x.hold, tip: 'Watched to the end per 3-second view.' },
+    { k: 'atc', l: 'Add to cart', v: x => x.atc },
+    { k: 'cost_per_atc', l: 'Cost per ATC', v: x => x.cost_per_atc, lo: 1 },
+    { k: 'atc_rate', l: 'Click to cart', v: x => x.atc_rate, tip: 'Add to carts per link click.' },
+    { k: 'purchase_rate', l: 'Cart to purchase', v: x => x.purchase_rate },
+    { k: 'platform_revenue', l: 'Meta revenue', v: x => x.platform_revenue, tip: 'Meta’s own purchase value.', hide: () => isPlat() },
+  ];
+  const META_DEF = ['status', 'budget', 'spend', 'purchases', 'platform_purchases', 'revenue', 'roas', 'cpa', 'cpm', 'ctr', 'frequency', 'hook', 'hold'];
+
+  /* ---------- live state and edits (Meta) ---------- */
+  let MLIVE = null, MLIVE_ACT = null, MLIVE_AT = 0;
+  const lvWord = { campaign: 'campaign', adset: 'ad set', ad: 'ad' };
+  const liveOf = (lvl, id) => !MLIVE || MLIVE_ACT !== H.S.act ? null : lvl === 0 ? MLIVE.campaigns[id] : lvl === 1 ? MLIVE.adsets[id] : MLIVE.ads[id];
+  const canOf = o => { if (!MLIVE || MLIVE_ACT !== H.S.act) return { can: false, why: 'Reading the live state from Meta…' }; if (MLIVE.error) return { can: false, why: MLIVE.error }; const a = o && MLIVE.accounts.find(x => x.act === o.act); if (!o) return { can: false, why: 'Meta did not list this one (deleted or archived?).' }; return a && a.can ? { can: true } : { can: false, why: (a && a.fix) || 'Locus can only read this ad account.' }; };
+  function decorate(x, lvl) {
+    const o = liveOf(lvl, x.id);
+    x.live_status = o ? o.status : null; x.live_eff = o ? o.eff : null;
+    x.live_budget = o ? (o.daily ?? o.lifetime ?? null) : (lvl < 2 ? x.budget ?? null : null);
+    x.live_kind = o ? (o.daily ? 'daily' : o.lifetime ? 'lifetime' : null) : (x.budget ? 'daily' : null);
+    if (o && o.name) x.name = o.name;
+    return x;
+  }
+  function statusCell(x, lvl) {
+    const o = liveOf(lvl, x.id), c = canOf(o);
+    const lv = ['campaign', 'adset', 'ad'][lvl];
+    if (!o) return `<span class="faint"${tipAttr(esc(c.why))}>${x.status ? esc(String(x.status).toLowerCase().replace(/_/g, ' ')) : '–'}</span>`;
+    const on = o.status === 'ACTIVE';
+    const eff = o.eff && o.eff !== o.status && o.eff !== 'ACTIVE' ? String(o.eff).toLowerCase().replace(/_/g, ' ').replace('campaign paused', 'campaign off').replace('adset paused', 'ad set off') : '';
+    return `<span class="v2sw-w"><button type="button" class="v2sw${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${on ? 'Pause' : 'Turn on'} this ${lvWord[lv]}" data-sw="${lv}:${esc(x.id)}"${c.can ? '' : ' disabled'}${tipAttr(c.can ? `${on ? 'On. Click to pause' : 'Paused. Click to turn on'} this ${lvWord[lv]}.` : esc(c.why))}><i></i></button>${eff ? `<span class="sub">${esc(eff)}</span>` : ''}</span>`;
+  }
+  function budgetCell(x, lvl, cur) {
+    if (lvl === 2) return '<span class="faint">–</span>';
+    const lv = lvl === 0 ? 'campaign' : 'adset', o = liveOf(lvl, x.id), c = canOf(o);
+    if (o && (o.daily || o.lifetime)) {
+      const v = o.daily ? `${money(o.daily, cur)}/day` : `${money(o.lifetime, cur)} total`;
+      return `<button type="button" class="v2ed-b" data-bud="${lv}:${esc(x.id)}"${c.can ? '' : ' disabled'}${tipAttr(c.can ? `Change this ${lvWord[lv]}’s ${o.daily ? 'daily' : 'lifetime'} budget` : esc(c.why))}>${v}${c.can ? ICN('pencil') : ''}</button>`;
+    }
+    if (lvl === 1 && o) {
+      const camp = MLIVE.campaigns[o.campaign];
+      if (camp && (camp.daily || camp.lifetime)) {
+        const lim = [o.min ? `min ${money(o.min, cur)}` : '', o.cap ? `cap ${money(o.cap, cur)}` : ''].filter(Boolean).join(' · ');
+        return `<button type="button" class="v2ed-b soft" data-min="adset:${esc(x.id)}"${c.can ? '' : ' disabled'}${tipAttr(c.can ? 'The campaign holds the budget. Set this ad set’s daily minimum or cap.' : esc(c.why))}>${lim || 'Campaign’s'}${c.can ? ICN('pencil') : ''}</button>`;
+      }
+    }
+    if (lvl === 0 && o) return `<span class="faint"${tipAttr('The ad sets carry the budgets in this campaign.')}>Ad sets’</span>`;
+    return x.budget ? `${money(x.budget, cur)}/day` : '<span class="faint">–</span>';
+  }
+
   const CAMP_OPEN = new Set();
   function campTable(b, cur, full) {
-    const camps = b.campaigns || []; const mx = Math.max(...camps.map(x => x.spend), 1); const g = b.goals || {};
+    const defs = META_COLS(), st = TBL.load('meta-camps', defs, META_DEF);
+    return card(full ? 'Campaigns, ad sets and ads' : 'Campaigns', `${(b.campaigns || []).length} campaign${(b.campaigns || []).length === 1 ? '' : 's'} spent in this window. Open one for its ad sets, an ad set for its ads.${full ? ' Switch, budget and the ⋯ menu change it in Meta, after you confirm.' : ''}`,
+      `<div class="v2tbar">${full ? `<span class="v2tbar-l" id="v2mlive">${MLIVE && MLIVE_ACT === H.S.act ? liveLine() : '<span class="faint">Reading live status and budgets from Meta…</span>'}</span>` : '<span class="v2tbar-l faint">Click a column to sort.</span>'}<div class="hd-period pm v2cols" data-tbl="${st.id}">${TBL.menu(st, defs)}</div></div>
+      <div class="v2tbl wide" id="v2campwrap">${campRows(b, cur, full, st, defs)}</div>`, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`);
+  }
+  function liveLine() {
+    if (!MLIVE) return '';
+    if (MLIVE.error) return `<span class="v2bad">${esc(MLIVE.error)}</span>`;
+    const ro = MLIVE.accounts.filter(a => !a.can);
+    const last = lastWrite();
+    return `${ro.length ? `<span class="v2warn-t"${tipAttr(esc(ro.map(a => a.fix).join(' ')))}>${ICN('circle-alert')} Read only: Locus cannot change ${esc(ro.map(a => a.name).join(', '))} yet (hover for the fix).</span>` : `<span class="faint">Live from Meta at ${new Date(MLIVE_AT).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.</span>`}${last ? ` <span class="v2last">Last change: ${esc(last.summary)} <button type="button" class="v2lnk" data-undo="${esc(last.write)}">Undo</button></span>` : ''}`;
+  }
+  function campRows(b, cur, full, st, defs) {
+    const camps = (b.campaigns || []).map(c => decorate(c, 0)); const mx = Math.max(...camps.map(x => x.spend), 1); const g = b.goals || {};
+    const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs);
     const cpaCls = v => !g.cpa || v == null ? '' : v <= g.cpa ? 'good' : v <= g.cpa * 1.3 ? 'warn' : 'bad';
+    const cell = (x, d, lvl, kind) => {
+      switch (d.k) {
+        case 'status': return full ? statusCell(x, lvl) : (x.status && !/ACTIVE/.test(x.status) ? `<span class="v2pill">${esc(x.status.toLowerCase().replace(/_/g, ' '))}</span>` : '<span class="faint">on</span>');
+        case 'budget': return full ? budgetCell(x, lvl, cur) : (lvl < 2 && x.budget ? `${money(x.budget, cur)}/day` : lvl === 1 && x.min_spend ? `min ${money(x.min_spend, cur)}` : '<span class="faint">–</span>');
+        case 'spend': return ib(x.spend, mx, null, kmoney(x.spend, cur));
+        case 'purchases': return `<button type="button" class="v2cell" data-drill="${kind}:${esc(x.id)}" title="See the orders">${int(x.purchases)}</button>`;
+        case 'platform_purchases': return `<span class="faint">${int(x.platform_purchases)}</span>`;
+        case 'revenue': case 'platform_revenue': return kmoney(x[d.k], cur);
+        case 'roas': return x2(x.roas);
+        case 'cpa': return `<span class="${cpaCls(x.cpa)}">${money(x.cpa, cur)}</span>${x.prev && x.prev.cpa ? delta(x.cpa, x.prev.cpa, true) : ''}`;
+        case 'cpm': case 'cpc': case 'cost_per_atc': return money2(x[d.k], cur);
+        case 'ctr': return pct(x.ctr, 2);
+        case 'frequency': return x.frequency ? x.frequency.toFixed(2) : '–';
+        case 'hook': case 'hold': case 'atc_rate': case 'purchase_rate': return pct(x[d.k], d.k === 'hook' || d.k === 'hold' ? 0 : 1);
+        default: return int(x[d.k]);
+      }
+    };
+    const cls = d => d.k === 'cpa' ? '' : d.k === 'status' ? 'c' : '';
     const row = (x, lvl, kind) => `<tr class="lvl${lvl}" data-${kind}="${esc(x.id)}">
-      <td>${lvl < 2 ? `<button type="button" class="v2ex${CAMP_OPEN.has(x.id) ? ' open' : ''}" data-tog="${esc(x.id)}" aria-label="Show what is inside">›</button>` : `<button type="button" class="v2th" data-prev="${esc(x.id)}" data-thumb="${esc(x.id)}" aria-label="Preview this ad"${THUMBS.has(x.id) ? ` style="background-image:url('${THUMBS.get(x.id)}')"` : ''}></button>`}<span class="nm${lvl === 2 ? ' v2open' : ''}" title="${esc(x.name)}"${lvl === 2 ? ` data-prev="${esc(x.id)}"` : ''}>${esc(x.name)}</span>${x.status && !/ACTIVE/.test(x.status) ? ` <span class="v2pill">${esc(x.status.toLowerCase().replace(/_/g, ' '))}</span>` : ''}${lvl === 0 && x.objective ? `<span class="sub">${esc(x.objective.replace('OUTCOME_', '').toLowerCase())}${x.budget ? ` · ${money(x.budget, cur)}/day` : ''}</span>` : ''}${lvl === 1 && (x.budget || x.min_spend) ? `<span class="sub">${x.budget ? `${money(x.budget, cur)}/day` : ''}${x.min_spend ? ` · min ${money(x.min_spend, cur)}` : ''}</span>` : ''}</td>
-      <td>${ib(x.spend, mx, null, kmoney(x.spend, cur))}</td>
-      <td><button type="button" class="v2cell" data-drill="${kind}:${esc(x.id)}" title="See the orders">${int(x.purchases)}</button></td>
-      ${isPlat() ? '' : `<td class="faint">${int(x.platform_purchases)}</td>`}
-      <td>${kmoney(x.revenue, cur)}</td><td>${x2(x.roas)}</td><td class="${cpaCls(x.cpa)}">${money(x.cpa, cur)}${x.prev && x.prev.cpa ? delta(x.cpa, x.prev.cpa, true) : ''}</td>
-      <td>${money2(x.cpm, cur)}</td><td>${pct(x.ctr, 2)}</td><td>${x.frequency ? x.frequency.toFixed(2) : '–'}</td><td>${pct(x.hook, 0)}</td><td>${pct(x.hold, 0)}</td></tr>`;
+      <td>${lvl < 2 ? `<button type="button" class="v2ex${CAMP_OPEN.has(x.id) ? ' open' : ''}" data-tog="${esc(x.id)}" aria-label="Show what is inside">›</button>` : `<button type="button" class="v2th" data-prev="${esc(x.id)}" data-thumb="${esc(x.id)}" aria-label="Preview this ad"${THUMBS.has(x.id) ? ` style="background-image:url('${THUMBS.get(x.id)}')"` : ''}></button>`}<span class="nm${lvl === 2 ? ' v2open' : ''}" title="${esc(x.name)}"${lvl === 2 ? ` data-prev="${esc(x.id)}"` : ''}>${esc(x.name)}</span>${full ? `<button type="button" class="v2rm" data-rm="${['campaign', 'adset', 'ad'][lvl]}:${esc(x.id)}" aria-label="More for this ${lvWord[['campaign', 'adset', 'ad'][lvl]]}">${ICN('more-horizontal')}</button>` : ''}${lvl === 0 && x.objective ? `<span class="sub">${esc(x.objective.replace('OUTCOME_', '').toLowerCase())}</span>` : ''}</td>
+      ${cols.map(d => `<td class="${cls(d)}">${cell(x, d, lvl, kind)}</td>`).join('')}</tr>`;
+    const sorted = list => by ? list.slice().sort(by) : list;
     let rows = '';
-    for (const cp of camps) { rows += row(cp, 0, 'campaign'); if (CAMP_OPEN.has(cp.id)) for (const s of cp.adsets) { rows += row(s, 1, 'adset'); if (CAMP_OPEN.has(s.id)) for (const a of s.ads.slice(0, 25)) rows += row(a, 2, 'ad'); } }
-    const c = b.cur;
-    rows += `<tr class="tot"><td>All campaigns</td><td>${kmoney(c.spend, cur)}</td><td>${int(c.purchases)}</td>${isPlat() ? '' : `<td class="faint">${int(c.platform_purchases)}</td>`}<td>${kmoney(c.revenue, cur)}</td><td>${x2(c.roas)}</td><td>${money(c.cpa, cur)}</td><td>${money2(c.cpm, cur)}</td><td>${pct(c.ctr, 2)}</td><td>${c.frequency ? c.frequency.toFixed(2) : '–'}</td><td>${pct(c.hook, 0)}</td><td>${pct(c.hold, 0)}</td></tr>`;
-    return card(full ? 'Campaigns, ad sets and ads' : 'Campaigns', `${camps.length} campaign${camps.length === 1 ? '' : 's'} spent in this window. Open one for its ad sets, an ad set for its ads.`,
-      `<div class="v2tbl wide"><table id="v2camptbl"><thead><tr><th>Campaign</th><th>Spend</th><th>Purchases</th>${isPlat() ? '' : '<th>Meta says</th>'}<th>Revenue</th><th>ROAS</th><th>CPA</th><th>CPM</th><th>CTR</th><th>Freq.</th><th>Hook</th><th>Hold</th></tr></thead><tbody>${rows}</tbody></table></div>`, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`);
+    for (const cp of sorted(camps)) {
+      rows += row(cp, 0, 'campaign');
+      if (CAMP_OPEN.has(cp.id)) for (const s of sorted((cp.adsets || []).map(z => decorate(z, 1)))) {
+        rows += row(s, 1, 'adset');
+        if (CAMP_OPEN.has(s.id)) for (const a of sorted((s.ads || []).map(z => decorate(z, 2))).slice(0, 25)) rows += row(a, 2, 'ad');
+      }
+    }
+    const c = b.cur, tot = d => {
+      if (d.k === 'status' || d.k === 'budget') return '';
+      if (d.k === 'purchases') return int(c.purchases);
+      if (d.k === 'spend') return kmoney(c.spend, cur);
+      if (d.k === 'cpa') return money(c.cpa, cur);
+      return cell({ ...c, id: 'all', prev: null }, d, 0, 'campaign');
+    };
+    rows += `<tr class="tot"><td>All campaigns</td>${cols.map(d => `<td>${tot(d)}</td>`).join('')}</tr>`;
+    return `<table id="v2camptbl"><thead><tr>${TBL.th(st, '_name', 'Campaign')}${cols.map(d => TBL.th(st, d.k, d.l, cls(d))).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
   }
   function wireCamp(root, b, cur) {
+    const full = H.S.tab === 'campaigns';
     const adsById = new Map(); for (const cp of b.campaigns || []) for (const st of cp.adsets || []) for (const a of st.ads || []) adsById.set(a.id, a);
     MED = medians([...adsById.values()], (b.goals || {}).cpa || 50);
-    root.querySelectorAll('#v2camptbl [data-prev]').forEach(el => el.onclick = e => { e.stopPropagation(); const a = adsById.get(el.dataset.prev); if (a) previewAd(a, cur, b.goals); });
-    loadThumbs(root, [...root.querySelectorAll('#v2camptbl [data-thumb]')].map(x => x.dataset.thumb));
-    root.querySelectorAll('[data-tog]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const id = btn.dataset.tog; CAMP_OPEN.has(id) ? CAMP_OPEN.delete(id) : CAMP_OPEN.add(id); if (window.LocusShare && btn.closest('tr[data-campaign]')) window.LocusShare.setExtra({ camp: CAMP_OPEN.has(id) ? id : null }); const tb = root.querySelector('#v2camptbl'); if (!tb) return; const host = tb.closest('.v2card'); host.outerHTML = campTable(b, cur, H.S.tab === 'campaigns'); wireCamp(root, b, cur); });
-    root.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const [k, id] = btn.dataset.drill.split(':'); const name = btn.closest('tr').querySelector('.nm')?.textContent || ''; drillOrders(name, `${k === 'campaign' ? 'campaign' : k === 'adset' ? 'adset' : 'ad'}=${encodeURIComponent(id)}`); });
-    /* Stock on the ad set and the ad (supply.js): "Stock runs out Nov 27", "Stock OK to scale". */
-    if (window.SupplyStock && H.S.act !== 'all') window.SupplyStock.decorate(root, H.S.act);
+    const defs = META_COLS(), st = TBL.load('meta-camps', defs, META_DEF);
+    const wrap = root.querySelector('#v2campwrap'); if (!wrap) return;
+    const card0 = wrap.closest('.v2card');
+    const redraw = () => { wrap.innerHTML = campRows(b, cur, full, st, defs); wireRowsCamp(); };
+    function wireRowsCamp() {
+      TBL.wire(wrap, st, defs, redraw);
+      wrap.querySelectorAll('#v2camptbl [data-prev]').forEach(el => el.onclick = e => { e.stopPropagation(); const a = adsById.get(el.dataset.prev); if (a) previewAd(a, cur, b.goals); });
+      loadThumbs(wrap, [...wrap.querySelectorAll('#v2camptbl [data-thumb]')].map(x => x.dataset.thumb));
+      wrap.querySelectorAll('[data-tog]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const id = btn.dataset.tog; CAMP_OPEN.has(id) ? CAMP_OPEN.delete(id) : CAMP_OPEN.add(id); if (window.LocusShare && btn.closest('tr[data-campaign]')) window.LocusShare.setExtra({ camp: CAMP_OPEN.has(id) ? id : null }); redraw(); });
+      wrap.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const [k, id] = btn.dataset.drill.split(':'); const name = btn.closest('tr').querySelector('.nm')?.textContent || ''; drillOrders(name, `${k === 'campaign' ? 'campaign' : k === 'adset' ? 'adset' : 'ad'}=${encodeURIComponent(id)}`); });
+      if (full) {
+        wrap.querySelectorAll('[data-sw]').forEach(el => el.onclick = e => { e.stopPropagation(); const [lv, id] = el.dataset.sw.split(':'); editMeta(lv, id, el.classList.contains('on') ? 'pause' : 'resume', b, cur, redraw); });
+        wrap.querySelectorAll('[data-bud]').forEach(el => el.onclick = e => { e.stopPropagation(); const [lv, id] = el.dataset.bud.split(':'); editMeta(lv, id, 'budget', b, cur, redraw); });
+        wrap.querySelectorAll('[data-min]').forEach(el => el.onclick = e => { e.stopPropagation(); const [lv, id] = el.dataset.min.split(':'); editMeta(lv, id, 'min_spend', b, cur, redraw); });
+        wrap.querySelectorAll('[data-rm]').forEach(el => el.onclick = e => { e.stopPropagation(); const [lv, id] = el.dataset.rm.split(':'); rowMenu(el, lv, id, b, cur, redraw); });
+      }
+      /* Stock on the ad set and the ad (supply.js): "Stock runs out Nov 27", "Stock OK to scale". */
+      if (window.SupplyStock && H.S.act !== 'all') window.SupplyStock.decorate(root, H.S.act);
+    }
+    wireRowsCamp();
+    TBL.wire(card0.querySelector('.v2tbar'), st, defs, redraw);
+    const liveEl = () => root.querySelector('#v2mlive');
+    const wireLive = () => { const u = liveEl() && liveEl().querySelector('[data-undo]'); if (u) u.onclick = () => undoMeta(u.dataset.undo, b, cur, redraw); };
+    if (full) {
+      wireLive();
+      const act = H.S.act;
+      if (!(MLIVE && MLIVE_ACT === act && Date.now() - MLIVE_AT < 60e3)) {
+        H.apiAH(`/api/meta/live?act=${encodeURIComponent(act)}`).then(l => { MLIVE = l; MLIVE_ACT = act; MLIVE_AT = Date.now(); }).catch(e => { MLIVE = { error: `Could not read the live state from Meta: ${e.message}`, accounts: [], campaigns: {}, adsets: {}, ads: {} }; MLIVE_ACT = act; MLIVE_AT = Date.now(); })
+          .then(() => { if (H.S.act !== act || !root.contains(wrap)) return; redraw(); const le = liveEl(); if (le) { le.innerHTML = liveLine(); wireLive(); } });
+      }
+    }
     /* A link that names an ad (?ad=, share.js) opens its preview here too, not only on Creative. */
     const pa = window.V2PENDING; if (pa && pa.ad && !pa.campaign) { window.V2PENDING = null; const a = adsById.get(pa.ad); if (a) previewAd(a, cur, b.goals); }
+    MWIRE = { b, cur, redraw, wireLive, liveEl };
+  }
+  let MWIRE = null;
+
+  /* ---------- the ⋯ menu on a row: rename, copy an ad set, open in Ads Manager ---------- */
+  function rowMenu(btn, lv, id, b, cur, redraw) {
+    document.querySelectorAll('.v2fm').forEach(x => x.remove());
+    const o = liveOf(lv === 'campaign' ? 0 : lv === 'adset' ? 1 : 2, id), c = canOf(o);
+    const actNum = String((o && o.act) || ((H.S.accounts.find(a => a.act_id === H.S.act) || {}).meta_act) || '').replace('act_', '');
+    const sel = lv === 'campaign' ? 'selected_campaign_ids' : lv === 'adset' ? 'selected_adset_ids' : 'selected_ad_ids';
+    const items = [
+      ['rename', 'Rename', c.can ? `Change this ${lvWord[lv]}’s name in Meta.` : c.why, c.can],
+      ...(lv === 'adset' ? [['dup', 'Copy this ad set', c.can ? 'A copy with its ads, in the same campaign, paused until you turn it on.' : c.why, c.can]] : []),
+      ['open', 'Open in Ads Manager', 'In a new tab, with this one selected.', true],
+    ];
+    const m = document.createElement('div'); m.className = 'v2fm md-menu hd-per-menu'; m.setAttribute('role', 'menu');
+    m.innerHTML = items.map(([k, l, d, ok]) => `<button type="button" role="menuitem" data-fm="${k}"${ok ? '' : ' disabled'}><b>${esc(l)}</b><small>${esc(d)}</small></button>`).join('');
+    document.body.appendChild(m);
+    const r = btn.getBoundingClientRect(); m.style.top = `${Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 6)}px`; m.style.left = `${Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.left))}px`;
+    const close = () => { m.remove(); document.removeEventListener('mousedown', out, true); document.removeEventListener('keydown', esc1); window.removeEventListener('scroll', close, true); };
+    const out = e => { if (!m.contains(e.target)) close(); };
+    const esc1 = e => { if (e.key === 'Escape') close(); };
+    setTimeout(() => { document.addEventListener('mousedown', out, true); document.addEventListener('keydown', esc1); window.addEventListener('scroll', close, true); }, 0);
+    m.querySelectorAll('[data-fm]').forEach(x => x.onclick = () => {
+      close(); const k = x.dataset.fm;
+      if (k === 'open') window.open(`https://adsmanager.facebook.com/adsmanager/manage/${lv === 'campaign' ? 'campaigns' : lv === 'adset' ? 'adsets' : 'ads'}?act=${actNum}&${sel}=${id}`, '_blank', 'noopener');
+      else editMeta(lv, id, k === 'dup' ? 'duplicate' : 'rename', b, cur, redraw);
+    });
+    m.querySelector('[data-fm]:not([disabled])')?.focus();
+  }
+
+  /* ---------- one modal for every edit: what it is now, what it will be, then Apply ---------- */
+  const moneyIn = (n, c) => n == null ? '' : (Math.round(n * 100) / 100).toString();
+  function findRow(b, lv, id) {
+    for (const cp of b.campaigns || []) { if (lv === 'campaign' && cp.id === id) return cp; for (const s of cp.adsets || []) { if (lv === 'adset' && s.id === id) return s; for (const a of s.ads || []) if (lv === 'ad' && a.id === id) return a; } }
+    return null;
+  }
+  function editMeta(lv, id, kind, b, cur, redraw) {
+    const L = lv === 'campaign' ? 0 : lv === 'adset' ? 1 : 2, o = liveOf(L, id), row = findRow(b, lv, id) || {};
+    const c = canOf(o); if (!c.can) { wtoast(c.why, true); return; }
+    const name = o.name || row.name || id, word = lvWord[lv], s = sym(cur);
+    let body = '', title = '', cta = 'Apply', expect = {};
+    const pc = (a, z) => a ? `${z >= a ? '+' : ''}${Math.round((z - a) / a * 100)}%` : '';
+    if (kind === 'pause' || kind === 'resume') {
+      title = `${kind === 'pause' ? 'Pause' : 'Turn on'} this ${word}?`; cta = kind === 'pause' ? 'Pause it' : 'Turn it on'; expect = { status: o.status };
+      const parent = kind === 'resume' && /^(CAMPAIGN|ADSET)_PAUSED$/.test(o.eff || '') ? `<p class="hint v2warn-t">Its ${o.eff === 'CAMPAIGN_PAUSED' ? 'campaign' : 'ad set'} is off, so it will not deliver until that is on too.</p>` : '';
+      const spend = row.spend ? `<p class="hint">It spent ${kmoney(row.spend, cur)} in this window${row.purchases != null ? ` for ${int(row.purchases)} purchase${row.purchases === 1 ? '' : 's'}` : ''}.</p>` : '';
+      body = `<div class="v2ba"><span>${o.status === 'ACTIVE' ? 'On' : 'Paused'}</span><i>→</i><b>${kind === 'pause' ? 'Paused' : 'On'}</b></div>${spend}${parent}`;
+    } else if (kind === 'budget') {
+      const daily = !!o.daily, from = o.daily || o.lifetime; title = `Change the ${daily ? 'daily' : 'lifetime'} budget`; expect = { [daily ? 'daily_budget' : 'lifetime_budget']: String(Math.round(from * 100)) };
+      body = `<label class="v2fld"><span>New ${daily ? 'daily' : 'lifetime'} budget</span><span class="v2in"><i>${esc(s)}</i><input type="number" min="1" step="1" inputmode="decimal" id="v2edv" value="${moneyIn(from)}"></span></label>
+        <div class="v2ba" id="v2edba"></div><p class="hint" id="v2edw"></p>`;
+    } else if (kind === 'min_spend') {
+      const camp = MLIVE.campaigns[o.campaign] || {}; title = 'Daily minimum and cap'; expect = { daily_min_spend_target: String(Math.round((o.min || 0) * 100)), daily_spend_cap: String(Math.round((o.cap || 0) * 100)) };
+      body = `<p class="hint">The campaign holds the budget (${camp.daily ? `${money(camp.daily, cur)}/day` : `${money(camp.lifetime, cur)} total`}). A minimum makes Meta spend at least that here each day; a cap stops it above. Empty clears it.</p>
+        <div class="v2two-in"><label class="v2fld"><span>Daily minimum</span><span class="v2in"><i>${esc(s)}</i><input type="number" min="0" step="1" id="v2edmin" value="${o.min ? moneyIn(o.min) : ''}" placeholder="none"></span></label>
+        <label class="v2fld"><span>Daily cap</span><span class="v2in"><i>${esc(s)}</i><input type="number" min="0" step="1" id="v2edcap" value="${o.cap ? moneyIn(o.cap) : ''}" placeholder="none"></span></label></div><div class="v2ba" id="v2edba"></div>`;
+    } else if (kind === 'rename') {
+      title = `Rename this ${word}`; expect = { name };
+      body = `<label class="v2fld"><span>Name in Meta</span><input type="text" id="v2edv" value="${esc(name)}" maxlength="400"></label><p class="hint">Keep the team’s pattern: the number, the angle, the format after the last |.</p>`;
+    } else if (kind === 'duplicate') {
+      title = 'Copy this ad set'; cta = 'Make the copy';
+      body = `<label class="v2fld"><span>Name of the copy</span><input type="text" id="v2edv" value="${esc(name)} | copy" maxlength="400"></label>
+        ${o.daily ? `<label class="v2fld"><span>Daily budget for the copy</span><span class="v2in"><i>${esc(s)}</i><input type="number" min="1" step="1" id="v2edb" value="${moneyIn(o.daily)}"></span></label>` : ''}
+        <p class="hint">Copies the ad set with all its ads into the same campaign. It stays <b>paused</b> until someone turns it on, and shows here after the next Meta sync.</p>`;
+    }
+    const w = document.createElement('div'); w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal v2edm" role="dialog" aria-modal="true" aria-labelledby="v2edt"><h3 id="v2edt">${esc(title)}</h3><p class="v2ed-o">${esc(word.replace(/^./, x => x.toUpperCase()))} · <b>${esc(name)}</b></p>${body}
+      <p class="v2bad" id="v2ederr" hidden></p>
+      <div class="row v2ed-a"><span class="faint">Written to Meta and logged in the Change Log. Undo for 24 hours.</span><button class="btn" data-m="no" type="button">Cancel</button><button class="btn primary" data-m="yes" type="button">${esc(cta)}</button></div></div>`;
+    document.body.appendChild(w);
+    const $w = q => w.querySelector(q), err = $w('#v2ederr'), yes = $w('[data-m="yes"]');
+    const close = () => { w.remove(); document.removeEventListener('keydown', key); };
+    const key = e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !yes.disabled) yes.click(); };
+    document.addEventListener('keydown', key);
+    w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+    $w('[data-m="no"]').onclick = close;
+    const preview = () => {
+      const ba = $w('#v2edba'); if (!ba) return true;
+      if (kind === 'budget') {
+        const from = o.daily || o.lifetime, to = +$w('#v2edv').value, per = o.daily ? '/day' : ' total';
+        const okv = to > 0 && Math.abs(to - from) >= 0.01;
+        ba.innerHTML = okv ? `<span>${money(from, cur, from % 1 ? 2 : 0)}${per}</span><i>→</i><b>${money(to, cur, to % 1 ? 2 : 0)}${per}</b><em class="${to > from ? 'up' : 'down'}">${pc(from, to)}</em>` : '<span class="faint">Type the new amount.</span>';
+        const step = Math.abs(to - from) / from;
+        $w('#v2edw').innerHTML = okv && step > 0.5 ? `<span class="v2warn-t">${ICN('circle-alert')} Over 50% in one step. Meta may restart learning; the house rule is 20 to 50% a step.</span>` : okv && o.daily ? `About ${money(Math.abs(to - from) * 30, cur)} a month ${to > from ? 'more' : 'less'} at full delivery.` : '';
+        return okv;
+      }
+      if (kind === 'min_spend') {
+        const mn = $w('#v2edmin').value === '' ? 0 : +$w('#v2edmin').value, cp = $w('#v2edcap').value === '' ? 0 : +$w('#v2edcap').value;
+        const parts = [];
+        if (Math.round(mn * 100) !== Math.round((o.min || 0) * 100)) parts.push(`<span>min ${o.min ? money(o.min, cur) : 'none'}</span><i>→</i><b>${mn ? money(mn, cur) : 'none'}</b>`);
+        if (Math.round(cp * 100) !== Math.round((o.cap || 0) * 100)) parts.push(`<span>cap ${o.cap ? money(o.cap, cur) : 'none'}</span><i>→</i><b>${cp ? money(cp, cur) : 'none'}</b>`);
+        ba.innerHTML = parts.length ? parts.join('<span class="sep"></span>') : '<span class="faint">Nothing changed yet.</span>';
+        return parts.length > 0;
+      }
+      return true;
+    };
+    w.querySelectorAll('input').forEach(i => i.oninput = () => { yes.disabled = !preview() || (kind === 'rename' && (!i.value.trim() || i.value.trim() === name)); });
+    yes.disabled = !preview() || kind === 'rename';
+    const first = w.querySelector('input'); if (first) { first.focus(); first.select(); } else yes.focus();
+    yes.onclick = async () => {
+      const body2 = { act: H.S.act, kind, level: lv, object: id, expect };
+      if (kind === 'budget') body2.amount = +$w('#v2edv').value;
+      if (kind === 'min_spend') { body2.min = $w('#v2edmin').value === '' ? 0 : +$w('#v2edmin').value; body2.cap = $w('#v2edcap').value === '' ? 0 : +$w('#v2edcap').value; }
+      if (kind === 'rename' || kind === 'duplicate') body2.name = $w('#v2edv').value.trim();
+      if (kind === 'duplicate' && $w('#v2edb')) body2.daily_budget = +$w('#v2edb').value;
+      if (kind === 'duplicate') delete body2.expect;
+      yes.disabled = true; yes.textContent = 'Writing to Meta…'; err.hidden = true;
+      let r; try { r = await H.apiAH('/api/meta/write', { method: 'POST', body: JSON.stringify(body2) }); } catch (e) { r = { error: e.message }; }
+      if (!r || r.error) { err.textContent = (r && r.error) || 'Meta did not answer.'; err.hidden = false; yes.disabled = false; yes.textContent = cta; return; }
+      close(); applyLocal(lv, id, r.after, b);
+      dropHubCache(); redraw();
+      if (r.write) rememberWrite({ write: r.write, summary: shortSummary(r.summary), act: H.S.act, at: Date.now() });
+      if (MWIRE && MWIRE.liveEl()) { MWIRE.liveEl().innerHTML = liveLine(); MWIRE.wireLive(); }
+      wtoast(kind === 'duplicate' ? `Copied, paused. It shows here after the next Meta sync.` : shortSummary(r.summary), false, r.write ? () => undoMeta(r.write, b, cur, redraw) : null);
+    };
+  }
+  const shortSummary = s => String(s || 'Done').replace(/^[^:]+:\s*/, '');
+  function applyLocal(lv, id, after, b) {
+    if (!after || !MLIVE) return;
+    const L = lv === 'campaign' ? 0 : lv === 'adset' ? 1 : 2, o = liveOf(L, id); if (!o) return;
+    if (after.status) o.status = o.eff = after.status;
+    if (after.daily_budget != null) o.daily = +after.daily_budget / 100 || null;
+    if (after.lifetime_budget != null) o.lifetime = +after.lifetime_budget / 100 || null;
+    if (after.daily_min_spend_target != null) o.min = +after.daily_min_spend_target / 100 || null;
+    if (after.daily_spend_cap != null) o.cap = +after.daily_spend_cap / 100 || null;
+    if (after.name) { o.name = after.name; const r = findRow(b, lv, id); if (r) r.name = after.name; }
+  }
+  /* The hub caches /api/hub/* for 5 minutes; a write makes those copies stale. */
+  const dropHubCache = () => { for (const k of [...CACHE.keys()]) if (k.startsWith('/api/hub/paid') || k.startsWith('/api/hub/creative')) CACHE.delete(k); };
+  const LASTW = 'pf_mw_last';
+  const lastWrite = () => { try { const l = JSON.parse(localStorage.getItem(LASTW) || 'null'); return l && l.act === H.S.act && Date.now() - l.at < 24 * 3600e3 ? l : null; } catch { return null; } };
+  const rememberWrite = l => { try { localStorage.setItem(LASTW, JSON.stringify(l)); } catch {} };
+  async function undoMeta(write, b, cur, redraw) {
+    wtoast('Undoing…', false, null, 1500);
+    let r; try { r = await H.apiAH('/api/meta/undo', { method: 'POST', body: JSON.stringify({ act: H.S.act, write }) }); } catch (e) { r = { error: e.message }; }
+    if (!r || r.error) { wtoast((r && r.error) || 'Could not undo.', true); return; }
+    if (r.before) applyLocal(r.level, r.object, r.before, b);
+    try { const l = JSON.parse(localStorage.getItem(LASTW) || 'null'); if (l && l.write === write) localStorage.removeItem(LASTW); } catch {}
+    dropHubCache(); redraw(); if (MWIRE && MWIRE.liveEl()) { MWIRE.liveEl().innerHTML = liveLine(); MWIRE.wireLive(); }
+    wtoast(r.after && r.after.created ? 'Undone: the copy is archived.' : 'Undone. Meta has the old value back.');
+  }
+  /* One toast with an optional Undo, ~12 seconds when it can be undone. */
+  function wtoast(msg, bad, undo, ms) {
+    document.querySelectorAll('.lx-toast.v2wt').forEach(x => x.remove());
+    const t = document.createElement('div'); t.className = 'lx-toast v2wt' + (bad ? ' bad' : ''); t.setAttribute('role', 'status');
+    t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
+    if (undo) t.querySelector('button').onclick = () => { t.remove(); undo(); };
+    document.body.appendChild(t); setTimeout(() => t.remove(), ms || (undo ? 12000 : bad ? 6000 : 3000));
   }
   function metaAll(d, title) {
     const bs = d.brands.filter(b => b.cur.spend > 0); const cur = oneCur(bs);
@@ -785,8 +1135,8 @@
   }
   async function creative(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
-    if (!a) { $('#main').innerHTML = shell('adcreative', 'Creative', `<div class="v2card"><p class="v2hint">Pick one brand in the menu to see its creative.</p></div>`); return; }
-    const title = `Creative: ${esc(a.name)}`;
+    if (!a) { $('#main').innerHTML = shell('adcreative', 'Meta ads', `<div class="v2card"><p class="v2hint">Pick one brand in the menu to see its ads.</p></div>`); return; }
+    const title = `Meta ads: ${esc(a.name)}`;
     if (noMeta(a)) { $('#main').innerHTML = shell('adcreative', title, noMetaCard(a)); return; }
     if (first) $('#main').innerHTML = shell('adcreative', title, `<p class="v2say lead v2sk"><i class="r"></i></p><section class="v2card v2sk"><i class="h"></i>${skGal(8)}</section>`);
     let d, RR = {}; try { [d, RR] = await Promise.all([get(`/api/hub/creative?act=${encodeURIComponent(a.act_id)}&${H.rangeQ()}${modelQ()}`), get(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`).then(x => x.rules || {}).catch(() => ({}))]); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('adcreative', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
@@ -1049,6 +1399,114 @@
    * brand with a Google Ads link. Google's own conversions and value, named as Google's on every number; the
    * Triple Whale credit for Google stays on the Overview job. Ads, Search terms and Changes are their own jobs below.
    * ======================================================================================= */
+  /* ---------- Google campaigns: the same sortable table, Columns menu, status switch and budget edit (2026-10-09) ----------
+     Writes go through account-health POST /api/google/write (google.js adsCampaignWrite). A shared or total budget is
+     refused with the reason; if Google refuses writes for our access level, the reason shows on every control. */
+  const G_COLS = () => [
+    { k: 'status', l: 'Status', v: x => (x.status === 'ENABLED' ? 1 : 0), tip: 'On or paused. Switch it here.' },
+    { k: 'budget', l: 'Budget', v: x => x.budget, tip: 'Daily budget. Click to change.' },
+    { k: 'type', l: 'Type', v: x => String(x.type || ''), txt: 1 },
+    { k: 'spend', l: 'Spend', v: x => x.spend },
+    { k: 'impressions', l: 'Impressions', v: x => x.impressions },
+    { k: 'clicks', l: 'Clicks', v: x => x.clicks },
+    { k: 'ctr', l: 'CTR', v: x => (x.impressions ? x.clicks / x.impressions : null) },
+    { k: 'cpc', l: 'CPC', v: x => (x.clicks ? x.spend / x.clicks : null), lo: 1 },
+    { k: 'cpm', l: 'CPM', v: x => (x.impressions ? x.spend * 1000 / x.impressions : null), lo: 1 },
+    { k: 'conversions', l: 'Conversions', v: x => x.conversions, tip: 'Google’s own count.' },
+    { k: 'cvr', l: 'Conv. rate', v: x => (x.clicks ? x.conversions / x.clicks : null), tip: 'Conversions per click.' },
+    { k: 'value', l: 'Value', v: x => x.value, tip: 'Google’s own conversion value.' },
+    { k: 'roas', l: 'ROAS', v: x => (x.spend ? x.value / x.spend : null) },
+    { k: 'cpa', l: 'Cost per conversion', v: x => (x.conversions ? x.spend / x.conversions : null), lo: 1 },
+  ];
+  const G_DEF = ['status', 'budget', 'type', 'spend', 'clicks', 'ctr', 'conversions', 'value', 'roas', 'cpa'];
+  let G_REFUSED = null;
+  function gRows(camps, cur, st, defs) {
+    const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs), mx = Math.max(...camps.map(x => x.spend), 1);
+    const r = (x, y) => (y ? x / y : null);
+    const cell = (x, d) => {
+      switch (d.k) {
+        case 'status': { const on = x.status === 'ENABLED'; if (!/^(ENABLED|PAUSED)$/.test(x.status)) return `<span class="v2pill">${esc(String(x.status).toLowerCase())}</span>`;
+          return `<button type="button" class="v2sw${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${on ? 'Pause' : 'Turn on'} this campaign" data-gsw="${esc(x.id)}"${G_REFUSED ? ' disabled' : ''}${tipAttr(G_REFUSED ? esc(G_REFUSED) : `${on ? 'On. Click to pause' : 'Paused. Click to turn on'} this campaign.`)}><i></i></button>`; }
+        case 'budget': return x.budget == null ? `<span class="faint"${tipAttr(x.budget_total ? 'A total budget; change it in Google Ads.' : 'No budget read yet.')}>${x.budget_total ? `${money(x.budget_total, cur)} total` : '–'}</span>`
+          : x.budget_shared ? `<span${tipAttr('A shared budget: changing it moves every campaign on it, so it stays in Google Ads.')}>${money(x.budget, cur)}/day <span class="faint">shared</span></span>`
+          : `<button type="button" class="v2ed-b" data-gbud="${esc(x.id)}"${G_REFUSED ? ' disabled' : ''}${tipAttr(G_REFUSED ? esc(G_REFUSED) : 'Change this campaign’s daily budget')}>${money(x.budget, cur)}/day${G_REFUSED ? '' : ICN('pencil')}</button>`;
+        case 'type': return esc(String(x.type || '').replace(/_/g, ' ').toLowerCase());
+        case 'spend': return ib(x.spend, mx, '--c-google', kmoney(x.spend, cur));
+        case 'impressions': case 'clicks': return int(x[d.k]);
+        case 'ctr': return pct(r(x.clicks, x.impressions), 2);
+        case 'cvr': return pct(r(x.conversions, x.clicks), 1);
+        case 'cpc': case 'cpm': return money2(d.v(x), cur);
+        case 'conversions': return (x.conversions || 0).toFixed(1);
+        case 'value': return kmoney(x.value, cur);
+        case 'roas': return x2(r(x.value, x.spend));
+        case 'cpa': return money(r(x.spend, x.conversions), cur);
+        default: return '';
+      }
+    };
+    const list = by ? camps.slice().sort(by) : camps;
+    return `<table id="v2gctbl"><thead><tr>${TBL.th(st, '_name', 'Campaign')}${cols.map(d => TBL.th(st, d.k, d.l, d.k === 'status' ? 'c' : '')).join('')}</tr></thead><tbody>${list.map(x => `<tr data-gc="${esc(x.id)}"><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span></td>${cols.map(d => `<td class="${d.k === 'status' ? 'c' : ''}">${cell(x, d)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  }
+  function gCampCard(camps, cur) {
+    const defs = G_COLS(), st = TBL.load('google-camps', defs, G_DEF);
+    return card('Campaigns', camps.length ? `${camps.length} campaign${camps.length === 1 ? '' : 's'} spent in this window. The switch and the budget change it in Google Ads, after you confirm.` : 'No campaign spent in this window.',
+      camps.length ? `<div class="v2tbar"><span class="v2tbar-l" id="v2glive">${G_REFUSED ? `<span class="v2warn-t">${ICN('circle-alert')} ${esc(G_REFUSED)}</span>` : '<span class="faint">Click a column to sort.</span>'}</span><div class="hd-period pm v2cols" data-tbl="${st.id}">${TBL.menu(st, defs)}</div></div><div class="v2tbl wide" id="v2gcwrap">${gRows(camps, cur, st, defs)}</div>` : '', 'Google Ads API');
+  }
+  function wireGCamp(root, camps, cur, a) {
+    const wrap = root.querySelector('#v2gcwrap'); if (!wrap) return;
+    const defs = G_COLS(), st = TBL.load('google-camps', defs, G_DEF);
+    const redraw = () => { wrap.innerHTML = gRows(camps, cur, st, defs); hook(); };
+    const hook = () => {
+      TBL.wire(wrap, st, defs, redraw);
+      wrap.querySelectorAll('[data-gsw]').forEach(el => el.onclick = () => { const x = camps.find(c => String(c.id) === el.dataset.gsw); if (x) gEdit(x, x.status === 'ENABLED' ? 'pause' : 'resume', cur, a, redraw); });
+      wrap.querySelectorAll('[data-gbud]').forEach(el => el.onclick = () => { const x = camps.find(c => String(c.id) === el.dataset.gbud); if (x) gEdit(x, 'budget', cur, a, redraw); });
+    };
+    hook(); TBL.wire(wrap.closest('.v2card').querySelector('.v2tbar'), st, defs, redraw);
+  }
+  function gEdit(x, kind, cur, a, redraw) {
+    const s = sym(cur), budget = kind === 'budget';
+    const title = budget ? 'Change the daily budget' : kind === 'pause' ? 'Pause this campaign?' : 'Turn this campaign on?';
+    const cta = budget ? 'Apply' : kind === 'pause' ? 'Pause it' : 'Turn it on';
+    const w = document.createElement('div'); w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal v2edm" role="dialog" aria-modal="true"><h3>${esc(title)}</h3><p class="v2ed-o">Google campaign · <b>${esc(x.name)}</b></p>
+      ${budget ? `<label class="v2fld"><span>New daily budget</span><span class="v2in"><i>${esc(s)}</i><input type="number" min="1" step="1" id="v2edv" value="${Math.round(x.budget * 100) / 100}"></span></label><div class="v2ba" id="v2edba"></div><p class="hint" id="v2edw"></p>`
+        : `<div class="v2ba"><span>${x.status === 'ENABLED' ? 'On' : 'Paused'}</span><i>→</i><b>${kind === 'pause' ? 'Paused' : 'On'}</b></div>${x.spend ? `<p class="hint">It spent ${kmoney(x.spend, cur)} in this window for ${(x.conversions || 0).toFixed(1)} conversions.</p>` : ''}`}
+      <p class="v2bad" id="v2ederr" hidden></p>
+      <div class="row v2ed-a"><span class="faint">Written to Google Ads; it shows in Google’s change history. Undo from the message.</span><button class="btn" data-m="no" type="button">Cancel</button><button class="btn primary" data-m="yes" type="button">${esc(cta)}</button></div></div>`;
+    document.body.appendChild(w);
+    const $w = q => w.querySelector(q), yes = $w('[data-m="yes"]'), err = $w('#v2ederr');
+    const close = () => { w.remove(); document.removeEventListener('keydown', key); };
+    const key = e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !yes.disabled) yes.click(); };
+    document.addEventListener('keydown', key); w.addEventListener('mousedown', e => { if (e.target === w) close(); }); $w('[data-m="no"]').onclick = close;
+    const prev = () => {
+      if (!budget) return true;
+      const to = +$w('#v2edv').value, from = x.budget, ok = to > 0 && Math.abs(to - from) >= 0.01;
+      $w('#v2edba').innerHTML = ok ? `<span>${money(from, cur)}/day</span><i>→</i><b>${money(to, cur)}/day</b><em class="${to > from ? 'up' : 'down'}">${to >= from ? '+' : ''}${Math.round((to - from) / from * 100)}%</em>` : '<span class="faint">Type the new amount.</span>';
+      $w('#v2edw').innerHTML = ok && Math.abs(to - from) / from > 0.5 ? `<span class="v2warn-t">${ICN('circle-alert')} Over 50% in one step. Smart bidding may need a few days to settle.</span>` : ok ? `About ${money(Math.abs(to - from) * 30.4, cur)} a month ${to > from ? 'more' : 'less'} at full delivery.` : '';
+      return ok;
+    };
+    if (budget) { const i = $w('#v2edv'); i.oninput = () => { yes.disabled = !prev(); }; yes.disabled = !prev(); i.focus(); i.select(); } else yes.focus();
+    yes.onclick = async () => {
+      const body = { act: a.act_id, kind, object: x.id, expect: budget ? { budget: x.budget } : { status: x.status } };
+      if (budget) body.amount = +$w('#v2edv').value;
+      yes.disabled = true; yes.textContent = 'Writing to Google…'; err.hidden = true;
+      let r; try { r = await H.apiAH('/api/google/write', { method: 'POST', body: JSON.stringify(body) }); } catch (e) { r = { error: e.message }; }
+      if (!r || r.error) {
+        err.textContent = (r && r.error) || 'Google Ads did not answer.'; err.hidden = false; yes.disabled = false; yes.textContent = cta;
+        if (r && r.refused) { G_REFUSED = `Google Ads refused changes from Locus: ${String(r.error).replace(/^Google Ads refused the change:\s*/, '')}`; redraw(); }
+        return;
+      }
+      close();
+      const before = { status: x.status, budget: x.budget };
+      if (r.after.status) x.status = r.after.status; if (r.after.budget != null) x.budget = r.after.budget;
+      redraw();
+      wtoast(r.summary.replace(/^Google campaign /, ''), false, async () => {
+        const back = budget ? { act: a.act_id, kind: 'budget', object: x.id, amount: before.budget } : { act: a.act_id, kind: before.status === 'ENABLED' ? 'resume' : 'pause', object: x.id };
+        let u; try { u = await H.apiAH('/api/google/write', { method: 'POST', body: JSON.stringify(back) }); } catch (e) { u = { error: e.message }; }
+        if (!u || u.error) { wtoast((u && u.error) || 'Could not undo.', true); return; }
+        x.status = before.status; x.budget = before.budget; redraw(); wtoast('Undone. Google has the old value back.');
+      });
+    };
+  }
   async function gcampaigns(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
     const title = a ? `Google campaigns: ${esc(a.name)}` : 'Google campaigns';
@@ -1082,9 +1540,10 @@
     const body = `<div class="v2tiles">${tl}</div>
       ${paidChart('v2gc', rows, prows, cur, 'Spend and conversion value by day', 'Google Ads’ own conversion value; spend is exact.')}
       ${types.length > 1 ? card('By campaign type', 'Search, Shopping, Performance Max and the rest, side by side.', `<div class="v2tbl"><table><thead><tr><th>Type</th><th>Campaigns</th><th>Spend</th><th>Conversions</th><th>Value</th><th>ROAS</th><th>Cost per conversion</th></tr></thead><tbody>${types.map(x => `<tr><td><b>${esc(x.k)}</b></td><td>${x.n}</td><td>${ib(x.spend, tmx, '--c-google', kmoney(x.spend, cur))}</td><td>${x.conv.toFixed(1)}</td><td>${kmoney(x.value, cur)}</td><td>${x2(r(x.value, x.spend))}</td><td>${money(r(x.spend, x.conv), cur)}</td></tr>`).join('')}</tbody></table></div>`, 'Google Ads API') : ''}
-      ${card('Campaigns', camps.length ? `${camps.length} campaign${camps.length === 1 ? '' : 's'} spent in this window.` : 'No campaign spent in this window.', camps.length ? `<div class="v2tbl wide"><table><thead><tr><th>Campaign</th><th>Type</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Conversions</th><th>Value</th><th>ROAS</th><th>Cost per conversion</th></tr></thead><tbody>${camps.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.status !== 'ENABLED' ? ` <span class="v2pill">${esc(String(x.status).toLowerCase())}</span>` : ''}</td><td>${esc(String(x.type || '').replace(/_/g, ' ').toLowerCase())}</td><td>${ib(x.spend, mx, '--c-google', kmoney(x.spend, cur))}</td><td>${int(x.clicks)}</td><td>${pct(r(x.clicks, x.impressions), 2)}</td><td>${(x.conversions || 0).toFixed(1)}</td><td>${kmoney(x.value, cur)}</td><td>${x2(r(x.value, x.spend))}</td><td>${money(r(x.spend, x.conversions), cur)}</td></tr>`).join('')}</tbody></table></div>` : '', 'Google Ads API')}
+      ${gCampCard(camps, cur)}
       ${foot(`Read from Google Ads directly, ${esc(w.from)} to ${esc(w.to)}, refreshed hourly. Conversions and value are Google’s own count, which runs differently from Triple Whale’s; the Overview job shows what Triple Whale credits to Google.`)}`;
     $('#main').innerHTML = shell('gcampaigns', title, body); wireGo($('#main'));
+    wireGCamp($('#main'), camps, cur, a);
     wirePaidChart('v2gc', rows, prows, cur);
   }
 
@@ -1335,7 +1794,9 @@
   /* =========================================================================================
    * EMAIL & SMS
    * ======================================================================================= */
-  const BENCH = { open: 0.38, click: 0.012, rpr: 0.1, unsub: 0.003 };
+  /* Klaviyo's published averages: campaigns open 38%, click 1.2%, $0.10 per recipient, placed order 0.08%, unsubscribe
+     0.3%; spam under 0.01% and bounces under 1% are its healthy lines (2026-10-09 added the last three). */
+  const BENCH = { open: 0.38, click: 0.012, rpr: 0.1, unsub: 0.003, spam: 0.0001, bounce: 0.01, por: 0.0008 };
   /* The agency email board (Hiro Analytics' best idea, 2026-10-08): every brand's Klaviyo on one
      screen, from each brand's own key (Klaviyo caches 6 hours per brand, so this is cheap after the
      first open). Core-flow gaps first, because a missing abandoned-cart flow is money left behind. */
@@ -1403,71 +1864,310 @@
   }
   const INSPO = { get: k => { try { return localStorage.getItem('pf_inspo_' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('pf_inspo_' + k, v); } catch {} } };
 
+  /* =========================================================================================
+   * EMAIL AND SMS, the 2026-10-09 pass. Cole: "Am I missing stats or charts in Email and SMS? Should campaigns and
+   * flows have charts the way revenue does? Should I be able to edit email stuff the same way I can edit ads?"
+   * What an agency strategist reads (Klaviyo's own dashboards, Triple Whale's email/SMS view, Polar's Klaviyo
+   * connector, Lifetimely and Hyros were the references): revenue by day split campaigns vs flows with the compare
+   * period behind it, email vs SMS, revenue per recipient, placed order rate, the engagement and deliverability
+   * rates against Klaviyo's averages, list growth, then each campaign's money after it went out and each flow's line.
+   * Data: Triple Whale (hub /api/hub/email) for the headline money; Klaviyo (account-health klaviyo.js `daily`,
+   * `campaigns`, `flows_report`, `flow`) for everything inside. Writes go through account-health
+   * POST /api/klaviyo/write (klaviyowrite.js): preview first, an in-app modal with before -> after, then apply.
+   * ======================================================================================= */
+  const klGet = (act, what, extra = '') => H.apiAH(`/api/klaviyo?act=${encodeURIComponent(act)}&what=${what}${extra}`);
+  const sumK = (rows, k) => rows.reduce((s, r) => s + (+r[k] || 0), 0);
+  const klSlice = (days, from, to) => (days || []).filter(r => r.date >= from && r.date <= to);
+  /** Period totals and rates from Klaviyo day rows. Rates are per email received. */
+  function klRoll(rows) {
+    const s = k => sumK(rows, k);
+    const rec = s('received'), rev = s('rev_email') + s('rev_sms');
+    return { rev, rev_email: s('rev_email'), rev_sms: s('rev_sms'), orders_email: s('orders_email'), orders_sms: s('orders_sms'), received: rec, sms_received: s('sms_received'), sms_clicked: s('sms_clicked'),
+      open: rec ? s('opened') / rec : null, click: rec ? s('clicked') / rec : null, unsub: rec ? s('unsub') / rec : null, spam: rec ? s('spam') / rec : null, bounce: rec ? s('bounced') / rec : null,
+      por: rec ? s('orders_email') / rec : null, rpr: rec ? s('rev_email') / rec : null, sms_share: rev ? s('rev_sms') / rev : null,
+      gained: s('gained'), lost: s('lost'), net: s('gained') - s('lost'), flow: s('rev_flow'), camp: s('rev_campaign') };
+  }
+  /** Long windows read better by week: 7-day buckets, summed. */
+  function klBucket(rows, weekly) {
+    if (!weekly) return rows;
+    const out = [];
+    for (let i = 0; i < rows.length; i += 7) { const g = rows.slice(i, i + 7); const o = { date: g[0].date, days: g.length }; for (const r of g) for (const [k, v] of Object.entries(r)) if (k !== 'date' && typeof v === 'number') o[k] = (o[k] || 0) + v; out.push(o); }
+    return out;
+  }
+  /** What is wrong with sending, in plain words, worst first. */
+  function klFlags(c, p, ov, flows) {
+    const f = [];
+    if (c.spam != null && c.received >= 1000) { if (c.spam > 0.001) f.push(['bad', `Spam complaints ${pct(c.spam, 3)}: over 0.1%, the line where Gmail and Yahoo start sending to spam (0.3% is their hard limit).`]); else if (c.spam > 0.0003) f.push(['warn', `Spam complaints ${pct(c.spam, 3)}: Klaviyo calls under 0.01% healthy. Trim unengaged profiles from campaigns.`]); }
+    if (c.bounce != null && c.received >= 1000) { if (c.bounce > 0.02) f.push(['bad', `Bounces ${pct(c.bounce, 2)}: over 2%. Clean the list (suppress hard bounces, check the signup source).`]); else if (c.bounce > 0.01) f.push(['warn', `Bounces ${pct(c.bounce, 2)}: over Klaviyo's 1% line.`]); }
+    if (c.unsub != null && c.received >= 1000 && c.unsub > 0.005) f.push([c.unsub > 0.01 ? 'bad' : 'warn', `Unsubscribes ${pct(c.unsub, 2)} per email: over 0.5%, sending too often or to the wrong people.`]);
+    if (c.open != null && p && p.open && c.received >= 1000 && c.open < p.open * 0.85) f.push(['warn', `Opens fell to ${pct(c.open, 1)} from ${pct(p.open, 1)} (${cmpLabel()}). Often the first sign of inbox placement slipping.`]);
+    if (c.received >= 1000 && c.net < 0) f.push(['warn', `The email list shrank by ${int(-c.net)} (${int(c.gained)} joined, ${int(c.lost)} left).`]);
+    for (const x of (flows || []).filter(x => x.status && x.status !== 'live' && (x.revenue || 0) > 0).slice(0, 3)) f.push(['warn', `"${x.name}" is ${x.status} but earned ${kmoney(x.revenue)} in 90 days. Check it was switched off on purpose.`]);
+    const live = (ov && ov.live_flows) || [];
+    const miss = [['welcome', /welcome/i], ['abandoned cart', /cart/i], ['browse abandonment', /browse/i], ['post purchase', /post.?purchase|thank/i], ['win-back', /win.?back/i]].filter(([, re]) => !live.some(n => re.test(n))).map(([n]) => n);
+    if (ov && !ov.error && miss.length) f.push(['warn', `No live flow named for: ${miss.join(', ')}.`]);
+    return f;
+  }
+  const flagHtml = list => list.length ? `<ul class="kl-flags">${list.map(([t, x]) => `<li><span class="v2pill ${t}">${t === 'bad' ? 'fix' : 'check'}</span>${esc(x)}</li>`).join('')}</ul>` : '<p class="v2hint"><span class="v2pill good">ok</span> Nothing off: spam, bounces and unsubscribes are inside Klaviyo\'s healthy ranges.</p>';
+  const benchPill = (v, b, lower) => v == null ? '' : `<span class="v2pill ${(lower ? v <= b : v >= b) ? 'good' : 'warn'}"${tipAttr(`Klaviyo average ${pct(b, b < 0.001 ? 3 : b < 0.02 ? 2 : 1)}`)}>${(lower ? v <= b : v >= b) ? 'better than avg' : 'worse than avg'}</span>`;
+  const isAttentive = a => a && a.email_tool === 'attentive';
+
+  /** A rate line with Klaviyo's average as a dashed amber rule and the compare period ghosted. Hover reads each point. */
+  function rateSpark(rows, prev, f, bench, fmt, label) {
+    const w = 300, h = 60, pd = 4;
+    const v = rows.map(f), pv = (prev || []).map(f);
+    if (v.filter(x => x != null).length < 2) return '<p class="v2hint kl-none">Too few sends in this window to draw a line.</p>';
+    const all = v.concat(H.S.cmp !== 'none' ? pv : [], [bench]).filter(x => x != null && isFinite(x));
+    const mx = (Math.max(...all) || 1) * 1.15;
+    const X = i => pd + i / Math.max(1, v.length - 1) * (w - pd * 2), Y = y => h - pd - (y / mx) * (h - pd * 2);
+    const pts = a => a.slice(0, v.length).map((y, i) => y == null || !isFinite(y) ? null : `${X(i).toFixed(1)},${Y(y).toFixed(1)}`).filter(Boolean).join(' ');
+    const tips = rows.map((r, i) => `<b>${r.days > 1 ? 'Week of ' : ''}${day(r.date)}</b> · ${esc(label)} ${v[i] == null ? '–' : fmt(v[i])}${pv[i] != null && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${fmt(pv[i])}</span>` : ''}<br><span class="faint">Klaviyo average ${fmt(bench)}</span>`);
+    return `<svg class="v2spark kl-rate" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(tips))}"><line x1="0" x2="${w}" y1="${Y(bench).toFixed(1)}" y2="${Y(bench).toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>${pv.length > 1 && H.S.cmp !== 'none' ? `<polyline points="${pts(pv)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}<polyline points="${pts(v)}" fill="none" stroke="var(--brand)" stroke-width="1.9" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+  /** Stacked bars (campaigns, flows) with the compare period's total as a dashed line over them. */
+  function emStack(id, rows, prev, series, cur) {
+    const w = 1000, h = 210, pl = 48, pr = 10, pt = 10, pb = 24, n = rows.length; if (n < 2) return '';
+    const tot = r => series.reduce((s, k) => s + (+r[k.key] || 0), 0);
+    const ptot = (prev || []).map(r => r.email != null ? +r.email : tot(r));
+    const mx = Math.max(...rows.map(tot), ...(H.S.cmp !== 'none' ? ptot : []), 1) * 1.12;
+    const bw = (w - pl - pr) / n, Y = v => pt + (1 - v / mx) * (h - pt - pb);
+    let out = [0.5, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f).toFixed(1)}" y2="${Y(mx * f).toFixed(1)}" stroke="var(--v2-grid)"/><text x="${pl - 6}" y="${(Y(mx * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--muted)">${kmoney(mx * f, cur)}</text>`).join('');
+    rows.forEach((r, i) => { let base = 0; series.forEach(sr => { const v = +r[sr.key] || 0; if (v <= 0) return; const y0 = Y(base + v), y1 = Y(base); out += `<rect x="${(pl + i * bw + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(1, bw - 3).toFixed(1)}" height="${Math.max(0, y1 - y0 - 1).toFixed(1)}" rx="2" fill="var(${sr.color})"/>`; base += v; }); });
+    if (H.S.cmp !== 'none' && ptot.length > 1) out += `<polyline points="${ptot.slice(0, n).map((v, i) => `${(pl + i * bw + bw / 2).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+    const idx = n <= 10 ? rows.map((_, i) => i) : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)))];
+    out += idx.map(i => `<text x="${(pl + i * bw + bw / 2).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
+    return `<div class="v2chart"><svg id="${id}" viewBox="0 0 ${w} ${h}">${out}<rect class="hov" x="0" y="${pt}" width="0" height="${h - pt - pb}" fill="var(--ink)" opacity="0"/></svg><div class="v2tip"></div></div>`;
+  }
+  function wireEmStack(id, rows, prev, series, cur) {
+    const el = document.getElementById(id); if (!el) return;
+    const w = 1000, pl = 48, pr = 10, n = rows.length, bw = (w - pl - pr) / n, tip = el.parentNode.querySelector('.v2tip'), hov = el.querySelector('.hov');
+    el.onpointermove = el.onpointerdown = e => {
+      const r = el.getBoundingClientRect(); const i = Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - r.left) / r.width * w - pl) / bw)));
+      hov.setAttribute('x', pl + i * bw); hov.setAttribute('width', bw); hov.setAttribute('opacity', '.06');
+      const row = rows[i], tot = series.reduce((s, k) => s + (+row[k.key] || 0), 0), pr0 = prev && prev[i];
+      tip.style.display = 'block';
+      tip.innerHTML = `<b>${day(row.date)}</b> · ${kmoney(tot, cur)}<br>${series.map(sr => `<span class="sw" style="background:var(${sr.color})"></span>${esc(sr.label)} ${kmoney(+row[sr.key] || 0, cur)}`).join('<br>')}${pr0 && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(pr0.email ?? ((+pr0.campaigns || 0) + (+pr0.flows || 0)), cur)} on ${day(pr0.date)}</span>` : ''}`;
+      const tw = tip.offsetWidth; let left = (e.clientX - r.left) + 14; if (left + tw > r.width) left = (e.clientX - r.left) - tw - 14; tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '8px';
+    };
+    el.onpointerleave = () => { tip.style.display = 'none'; hov.setAttribute('opacity', '0'); };
+  }
+  /** Subscribers gained (up) and lost (down) per day or week, the net as a line. */
+  function growthChart(id, rows, gk = 'gained', lk = 'lost') {
+    const w = 560, h = 200, pl = 40, pr = 10, pt = 10, pb = 24, n = rows.length; if (n < 2) return '';
+    const mx = Math.max(...rows.map(r => Math.max(+r[gk] || 0, +r[lk] || 0)), 1) * 1.1;
+    const mid = pt + (h - pt - pb) / 2, sc = (h - pt - pb) / 2 / mx, bw = (w - pl - pr) / n;
+    let out = `<line x1="${pl}" x2="${w - pr}" y1="${mid}" y2="${mid}" stroke="var(--line-strong)"/><text x="${pl - 6}" y="${pt + 8}" font-size="10" text-anchor="end" fill="var(--muted)">+${int(mx)}</text><text x="${pl - 6}" y="${h - pb}" font-size="10" text-anchor="end" fill="var(--muted)">-${int(mx)}</text>`;
+    rows.forEach((r, i) => { const g = +r[gk] || 0, l = +r[lk] || 0, x = pl + i * bw + 1, bwi = Math.max(1, bw - 3);
+      if (g) out += `<rect x="${x.toFixed(1)}" y="${(mid - g * sc).toFixed(1)}" width="${bwi.toFixed(1)}" height="${(g * sc).toFixed(1)}" rx="2" fill="var(--good)" opacity=".85"/>`;
+      if (l) out += `<rect x="${x.toFixed(1)}" y="${mid.toFixed(1)}" width="${bwi.toFixed(1)}" height="${(l * sc).toFixed(1)}" rx="2" fill="var(--bad)" opacity=".75"/>`; });
+    out += `<polyline points="${rows.map((r, i) => `${(pl + i * bw + bw / 2).toFixed(1)},${(mid - ((+r[gk] || 0) - (+r[lk] || 0)) * sc).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--ink-2)" stroke-width="1.6"/>`;
+    const idx = n <= 10 ? rows.map((_, i) => i) : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)))];
+    out += idx.map(i => `<text x="${(pl + i * bw + bw / 2).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
+    return `<div class="v2chart"><svg id="${id}" viewBox="0 0 ${w} ${h}">${out}<rect class="hov" x="0" y="${pt}" width="0" height="${h - pt - pb}" fill="var(--ink)" opacity="0"/></svg><div class="v2tip"></div></div>`;
+  }
+  function wireGrowth(id, rows, gk = 'gained', lk = 'lost') {
+    const el = document.getElementById(id); if (!el) return;
+    const w = 560, pl = 40, pr = 10, n = rows.length, bw = (w - pl - pr) / n, tip = el.parentNode.querySelector('.v2tip'), hov = el.querySelector('.hov');
+    el.onpointermove = el.onpointerdown = e => {
+      const r = el.getBoundingClientRect(); const i = Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - r.left) / r.width * w - pl) / bw)));
+      hov.setAttribute('x', pl + i * bw); hov.setAttribute('width', bw); hov.setAttribute('opacity', '.06');
+      const row = rows[i], g = +row[gk] || 0, l = +row[lk] || 0;
+      tip.style.display = 'block'; tip.innerHTML = `<b>${row.days > 1 ? 'Week of ' : ''}${day(row.date)}</b><br><span class="sw" style="background:var(--good)"></span>Joined ${int(g)}<br><span class="sw" style="background:var(--bad)"></span>Left ${int(l)}<br>Net ${g - l >= 0 ? '+' : ''}${int(g - l)}`;
+      const tw = tip.offsetWidth; let left = (e.clientX - r.left) + 14; if (left + tw > r.width) left = (e.clientX - r.left) - tw - 14; tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '8px';
+    };
+    el.onpointerleave = () => { tip.style.display = 'none'; hov.setAttribute('opacity', '0'); };
+  }
+  /** A campaign's revenue on each of the 14 days after it went out (day 0 = send day), as small bars. */
+  function afterSend(x, D) {
+    const series = D && (D.by_message[x.message_id] || D.by_message[x.id]); if (!series || !x.sent) return '<span class="faint">–</span>';
+    const i0 = Math.round((Date.parse(x.sent) - Date.parse(D.attr_from)) / 864e5); if (i0 < 0) return '<span class="faint">older</span>';
+    const v = series.slice(i0, i0 + 14); if (!v.length) return '<span class="faint">–</span>';
+    const tot = v.reduce((s, y) => s + y, 0); if (!tot) return '<span class="faint">none</span>';
+    const mx = Math.max(...v), w = 84, h = 22, bw = w / 14;
+    let c = 0, d2 = null; v.forEach((y, i) => { c += y; if (d2 == null && c >= tot * 0.8) d2 = i; });
+    return `<svg class="kl-after" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${tipAttr(`<b>Revenue by day after send</b><br>${v.map((y, i) => `day ${i}: ${kmoney(y)}`).join(' · ')}<br>80% of it by day ${d2}. Klaviyo attribution, by order date.`)}>${v.map((y, i) => `<rect x="${(i * bw + 0.5).toFixed(1)}" y="${(h - Math.max(1, y / mx * (h - 2))).toFixed(1)}" width="${(bw - 1.2).toFixed(1)}" height="${Math.max(1, y / mx * (h - 2)).toFixed(1)}" rx="1" fill="var(${i === 0 ? '--brand' : '--c-email'})"/>`).join('')}</svg>`;
+  }
+  /** A flow's revenue per day over the window (Klaviyo attribution). */
+  function flowSpark(id, D, from, to) {
+    const s = D && D.by_flow[id]; if (!s) return '<span class="faint">–</span>';
+    const i0 = Math.max(0, Math.round((Date.parse(from) - Date.parse(D.attr_from)) / 864e5)), i1 = Math.round((Date.parse(to) - Date.parse(D.attr_from)) / 864e5);
+    const v = s.slice(i0, i1 + 1); if (v.length < 2) return '<span class="faint">–</span>';
+    const start = new Date(Date.parse(D.attr_from) + i0 * 864e5);
+    const tips = v.map((y, i) => { const d = new Date(start.getTime() + i * 864e5).toISOString().slice(0, 10); return `<b>${day(d)}</b> · ${kmoney(y)}`; });
+    return `<span class="kl-fspark">${spark(v, null, 120, 24, tips)}</span>`;
+  }
+
+  /* ---------- writes: preview, an in-app modal with before -> after, confirm, done ---------- */
+  function klModal(title, html, ok, onOk, o = {}) {
+    const w = document.createElement('div'); w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal kl-m${o.wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3><div class="kl-mb">${html}</div><p class="kl-msg" hidden></p>
+      <div class="kl-ma"><button type="button" class="btn" data-m="no">${ok ? 'Cancel' : 'Close'}</button>${ok ? `<button type="button" class="btn primary${o.danger ? ' kl-danger' : ''}" data-m="yes">${esc(ok)}</button>` : ''}</div></div>`;
+    document.body.appendChild(w);
+    const k = e => { if (e.key === 'Escape') close(); };
+    const close = () => { w.remove(); document.removeEventListener('keydown', k); };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+    w.querySelector('[data-m="no"]').onclick = close;
+    const msg = (t, bad) => { const m = w.querySelector('.kl-msg'); m.hidden = !t; m.textContent = t || ''; m.className = 'kl-msg' + (bad ? ' bad' : ''); };
+    const yes = w.querySelector('[data-m="yes"]');
+    if (yes) yes.onclick = async () => { yes.disabled = true; try { await onOk({ w, close, msg }); } catch (e) { msg(e.message, true); } yes.disabled = false; };
+    return { w, close, msg };
+  }
+  const OKWORD = { flow_status: 'Change it in Klaviyo', campaign_draft: 'Create the draft', campaign_schedule: 'Schedule it', campaign_unschedule: 'Unschedule it', campaign_cancel: 'Cancel the send', campaign_duplicate: 'Make the copy' };
+  const BA_LABEL = { status: 'Status', send_time: 'Sends', name: 'Name', to: 'To', not_to: 'Not to', subject: 'Subject', preview: 'Preview text', from: 'From', template: 'Content' };
+  function beforeAfter(b, a, tz) {
+    const fmt = (k, v) => v == null ? '–' : Array.isArray(v) ? v.join(', ') : k === 'send_time' ? new Date(v).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : String(v);
+    const keys = [...new Set([...Object.keys(b || {}), ...Object.keys(a || {})])];
+    if (!keys.length) return '';
+    return `<table class="kl-ba"><thead><tr><th></th>${b ? '<th>Now</th><th></th>' : ''}<th>${b ? 'After' : 'Will be'}</th></tr></thead><tbody>${keys.map(k => `<tr><td>${esc(BA_LABEL[k] || k)}</td>${b ? `<td class="was">${esc(fmt(k, b[k]))}</td><td class="arr">→</td>` : ''}<td class="is">${esc(fmt(k, a && a[k]))}</td></tr>`).join('')}</tbody></table>`;
+  }
+  async function klWrite(a, op, input, done) {
+    const post = extra => H.apiAH('/api/klaviyo/write', { method: 'POST', body: JSON.stringify({ act: a.act_id, op, input, ...extra }) });
+    const m0 = klModal('Checking Klaviyo', '<p class="v2hint">Reading what is there now, so you see the exact change before anything is written.</p>', null);
+    let pv; try { pv = await post({}); } catch (e) { m0.close(); klModal('Klaviyo cannot do this yet', `<p class="kl-err">${esc(e.message)}</p>`, null); return; }
+    m0.close();
+    klModal(pv.summary, `${beforeAfter(pv.before, pv.after)}<p class="kl-detail">${esc(pv.detail || '').replace(/\n/g, '<br>')}</p><p class="v2hint">Written to ${esc(a.name)}'s Klaviyo and logged in the Change Log with your name.</p>`, OKWORD[op] || 'Confirm', async ({ close, msg }) => {
+      msg('Writing to Klaviyo…');
+      const r = await post({ confirm: true, expect: pv.summary });
+      close();
+      klModal('Done', `<p>${esc(r.note || 'Done.')}</p>${r.link ? `<p><a class="v2link" href="${esc(r.link)}" target="_blank" rel="noopener">Open it in Klaviyo ›</a></p>` : ''}`, null);
+      if (done) done(r);
+    }, { danger: op === 'campaign_cancel' });
+  }
+  /* The new-draft form: everything Klaviyo needs for a draft, labelled, with the account's sender filled in. */
+  async function klNewDraft(a, done, from) {
+    const m = klModal('New draft campaign', '<p class="v2hint">Reading the lists, segments and templates…</p>', null, null, { wide: true });
+    let au, tp;
+    try { [au, tp] = await Promise.all([klGet(a.act_id, 'audiences'), klGet(a.act_id, 'templates').catch(e => ({ error: e.message }))]); }
+    catch (e) { m.w.querySelector('.kl-mb').innerHTML = `<p class="kl-err">${esc(e.message)}</p>`; return; }
+    m.close();
+    const aud = [...(au.lists || []).map(x => ({ ...x, kind: 'list' })), ...(au.segments || []).map(x => ({ ...x, kind: 'segment' }))];
+    const pickList = (name, rows, multi) => `<div class="kl-pick" data-pick="${name}"><input type="search" placeholder="Search ${rows.length} ${name === 'tpl' ? 'templates' : 'lists and segments'}" aria-label="Search"><div class="kl-opts">${rows.map(x => `<label data-n="${esc(String(x.name || '').toLowerCase())}"><input type="${multi ? 'checkbox' : 'radio'}" name="${name}" value="${esc(x.id)}"><span>${esc(x.name)}</span><em>${esc(x.kind || x.editor || x.updated || '')}</em></label>`).join('')}</div></div>`;
+    const f = from || {};
+    const w = klModal('New draft campaign', `<div class="kl-form">
+      <label class="kl-f"><b>Name</b><span>What the team sees in Klaviyo. Never shown to customers.</span><input name="name" value="${esc(f.name || '')}" placeholder="e.g. Burgundy drop, launch day"></label>
+      <div class="kl-f"><b>Send to</b><span>One or more lists or segments. Nothing sends now: the draft waits until someone schedules it.</span>${pickList('to', aud, true)}</div>
+      <div class="kl-f"><b>Leave out</b><span>Optional: people in these never get it (for example recent buyers or unengaged).</span>${pickList('not', aud, true)}</div>
+      <label class="kl-f"><b>Subject line</b><span>What shows in the inbox.</span><input name="subject" value="${esc(f.subject || '')}" maxlength="200"></label>
+      <label class="kl-f"><b>Preview text</b><span>The grey line after the subject.</span><input name="preview" value="${esc(f.preview || '')}" maxlength="200"></label>
+      <div class="kl-row"><label class="kl-f"><b>From name</b><input name="from_label" value="${esc(au.from_label || '')}"></label><label class="kl-f"><b>From email</b><input name="from_email" value="${esc(au.from_email || '')}"></label></div>
+      <div class="kl-f"><b>Content</b><span>${tp.error ? `Templates could not be read: ${esc(tp.error)}` : 'Start from an existing template, or leave empty and design it in Klaviyo.'}</span>${tp.error ? '' : pickList('tpl', [{ id: '', name: 'No template (design it in Klaviyo)' }, ...(tp.templates || [])], false)}</div>
+    </div>`, 'Review the draft', async ({ w: el, close, msg }) => {
+      const val = n => (el.querySelector(`[name="${n}"]`)?.value || '').trim();
+      const picked = n => [...el.querySelectorAll(`[data-pick="${n}"] input[name="${n}"]:checked`)].map(x => x.value).filter(Boolean);
+      const input = { name: val('name'), subject: val('subject'), preview: val('preview'), from_label: val('from_label'), from_email: val('from_email'), audiences: picked('to'), exclude: picked('not'), template: picked('tpl')[0] || undefined };
+      if (!input.name || !input.subject || !input.audiences.length) { msg('Name, subject and at least one list or segment are needed.', true); return; }
+      close(); klWrite(a, 'campaign_draft', input, done);
+    }, { wide: true });
+    w.w.querySelectorAll('.kl-pick').forEach(p => { const q = p.querySelector('input[type=search]'); q.oninput = () => { const s = q.value.trim().toLowerCase(); p.querySelectorAll('label').forEach(l => { l.hidden = !!s && !l.dataset.n.includes(s); }); }; });
+    const first = w.w.querySelector('[data-pick="tpl"] input'); if (first) first.checked = true;
+    setTimeout(() => w.w.querySelector('[name="name"]')?.focus(), 30);
+  }
+  function klSchedule(a, c, done) {
+    const t = new Date(Date.now() + 864e5); t.setHours(9, 0, 0, 0);
+    const local = new Date(t.getTime() - t.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+    const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'your time zone'; } })();
+    klModal(`Schedule "${c.name}"`, `<div class="kl-form"><label class="kl-f"><b>Send at</b><span>In your time zone (${esc(zone)}). At least 15 minutes from now: Locus never sends straight away.</span><input type="datetime-local" name="at" value="${local}"></label></div>`, 'Review', ({ w, close, msg }) => {
+      const v = w.querySelector('[name="at"]').value; const d = v ? new Date(v) : null;
+      if (!d || isNaN(d)) { msg('Pick a date and time.', true); return; }
+      close(); klWrite(a, 'campaign_schedule', { campaign: c.id, at: d.toISOString() }, done);
+    });
+  }
+
+  /* ---------- all brands: the board ---------- */
   async function emailBoard(bs, t) {
     const host = document.getElementById('v2klall'); if (!host) return;
     host.innerHTML = card('Klaviyo across every brand', '<span class="v2hint">Reading each brand’s Klaviyo…</span>', skCard(6).replace('<section class="v2card v2sk"><i class="h"></i>', '<div class="v2sk">').replace(/<\/section>$/, '</div>'));
+    const W = win();
     const CORE = { welcome: /welcome/i, 'abandoned cart': /cart/i, checkout: /checkout/i, browse: /browse/i, 'post purchase': /post.?purchase|thank/i, winback: /win.?back/i };
+    const acct = id => H.S.accounts.find(x => x.act_id === id) || {};
     const rows = await Promise.all(bs.map(async b => {
-      const [ov, fl, cp] = await Promise.all(['overview', 'flows_report', 'campaigns'].map(w => H.apiAH(`/api/klaviyo?act=${encodeURIComponent(b.act_id)}&what=${w}`).catch(e => ({ error: e.message }))));
+      if (isAttentive(acct(b.act_id))) { const at = await klGet(b.act_id, 'attentive', `&from=${W.from}&to=${W.to}`).catch(() => null); return { b, attentive: true, at }; }
+      const [ov, fl, dl] = await Promise.all(['overview', 'flows_report', 'daily'].map(w => klGet(b.act_id, w).catch(e => ({ error: e.message }))));
       if (!ov || ov.error) return /not connected/i.test(ov?.error || '') ? { b, off: true } : { b, failed: true, err: ov?.error || 'no answer' };
       const live = ov.live_flows || []; const missing = Object.keys(CORE).filter(k => !live.some(f => CORE[k].test(f)));
-      const flows = (fl && fl.flows) || []; const camps = ((cp && cp.campaigns) || []).filter(x => x.recipients);
-      const fRev = flows.reduce((s, x) => s + (x.revenue || 0), 0), cRev = camps.reduce((s, x) => s + (x.conversion_value || 0), 0);
-      const rec = camps.reduce((s, x) => s + (x.recipients || 0), 0);
-      const wavg = k => rec ? camps.reduce((s, x) => s + (x[k] || 0) * (x.recipients || 0), 0) / rec : null;
+      const flows = (fl && fl.flows) || [];
+      const cur = dl && dl.days ? klRoll(klSlice(dl.days, W.from, W.to)) : null, prev = dl && dl.days && W.pf ? klRoll(klSlice(dl.days, W.pf, W.pt)) : null;
       const top = flows.slice().sort((x, y) => (y.revenue || 0) - (x.revenue || 0))[0];
-      return { b, live: live.length, missing, fRev, cRev, open: wavg('open_rate'), click: wavg('click_rate'), rpr: rec ? cRev / rec : null, sends: camps.length, top };
+      return { b, live: live.length, missing, cur, prev, top, flags: cur ? klFlags(cur, prev, ov, flows) : [], dlErr: dl && dl.error };
     }));
     if (t !== H.RUN()) return;
-    const on = rows.filter(r => !r.off && !r.failed), off = rows.filter(r => r.off && !/golf sock/i.test(r.b.name)), failed = rows.filter(r => r.failed);   // The Golf Sock is a paused test account: never flagged
-    const mx = Math.max(...on.map(r => r.fRev + r.cRev), 1);
-    const gaps = on.filter(r => r.missing.length);
-    host.innerHTML = card('Klaviyo across every brand', `${on.length} brand${on.length === 1 ? '' : 's'} connected.${gaps.length ? ` ${gaps.length} ${gaps.length === 1 ? 'is' : 'are'} missing a core flow.` : ' Every connected brand runs its core flows.'}`,
-      `<div class="v2tbl wide"><table><thead><tr><th>Brand</th><th>Klaviyo revenue, 90 days</th><th>Flows</th><th>Campaigns</th><th>Live flows</th><th>Missing core flows</th><th>Open</th><th>Click</th><th>Per recipient</th><th>Best flow</th></tr></thead><tbody>
-      ${on.sort((x, y) => (y.fRev + y.cRev) - (x.fRev + x.cRev)).map(r => `<tr data-act="${esc(r.b.act_id)}" tabindex="0" class="link"><td><b>${esc(r.b.name)}</b></td><td>${ib(r.fRev + r.cRev, mx, '--c-email', kmoney(r.fRev + r.cRev, r.b.currency), `Flows ${kmoney(r.fRev, r.b.currency)} · campaigns ${kmoney(r.cRev, r.b.currency)} (last ${r.sends} sends)`)}</td><td>${kmoney(r.fRev, r.b.currency)}</td><td>${kmoney(r.cRev, r.b.currency)}</td><td>${r.live}</td>
+    const on = rows.filter(r => !r.off && !r.failed && !r.attentive), off = rows.filter(r => r.off && !/golf sock/i.test(r.b.name)), failed = rows.filter(r => r.failed), att = rows.filter(r => r.attentive);   // The Golf Sock is a paused test account: never flagged
+    const mx = Math.max(...on.map(r => r.cur ? r.cur.rev : 0), 1);
+    const gaps = on.filter(r => r.missing.length), bad = on.filter(r => r.flags.some(f => f[0] === 'bad'));
+    const cell = (v, b, lower, d) => { if (v == null) return '<td class="faint">–</td>'; const ok = lower ? v <= b : v >= b; return `<td class="${ok ? 'good' : 'warn'}"${tipAttr(`Klaviyo average ${pct(b, d)}`)}>${pct(v, d)}</td>`; };
+    host.innerHTML = card('Klaviyo across every brand', `${on.length} brand${on.length === 1 ? '' : 's'} connected.${bad.length ? ` ${bad.map(r => esc(r.b.name)).join(', ')} need${bad.length === 1 ? 's' : ''} a sending fix.` : ''}${gaps.length ? ` ${gaps.length} ${gaps.length === 1 ? 'is' : 'are'} missing a core flow.` : ' Every connected brand runs its core flows.'}`,
+      `<div class="v2tbl wide"><table class="kl-board"><thead><tr><th>Brand</th><th>Klaviyo revenue</th><th>Flows</th><th>Campaigns</th><th>SMS share</th><th>Per recipient</th><th>Placed order</th><th>Open</th><th>Click</th><th>Unsub</th><th>Spam</th><th>Bounce</th><th>List growth</th><th>Live flows</th><th>Missing core flows</th><th>Needs a look</th></tr></thead><tbody>
+      ${on.sort((x, y) => ((y.cur || {}).rev || 0) - ((x.cur || {}).rev || 0)).map(r => { const c = r.cur || {}, p = r.prev || {}, cu = r.b.currency; return `<tr data-act="${esc(r.b.act_id)}" tabindex="0" class="link"><td><b>${esc(r.b.name)}</b>${r.top && r.top.revenue ? `<span class="sub" title="${esc(r.top.name)}">best flow: ${esc(String(r.top.name).slice(0, 28))}</span>` : ''}</td>
+        <td>${r.cur ? `${ib(c.rev, mx, '--c-email', kmoney(c.rev, cu), `Email ${kmoney(c.rev_email, cu)} · SMS ${kmoney(c.rev_sms, cu)}`)} ${delta(c.rev, p.rev)}` : `<span class="faint"${tipAttr(esc(r.dlErr || ''))}>not read</span>`}</td><td>${kmoney(c.flow, cu)}</td><td>${kmoney(c.camp, cu)}</td><td>${pct(c.sms_share, 0)}</td>
+        <td>${money2(c.rpr, cu)}</td>${cell(c.por, BENCH.por, false, 2)}${cell(c.open, BENCH.open, false, 1)}${cell(c.click, BENCH.click, false, 2)}${cell(c.unsub, BENCH.unsub, true, 2)}${cell(c.spam, BENCH.spam, true, 3)}${cell(c.bounce, BENCH.bounce, true, 2)}
+        <td class="${c.net == null ? '' : c.net >= 0 ? 'good' : 'bad'}"${tipAttr(`${int(c.gained)} joined, ${int(c.lost)} left`)}>${c.net == null ? '–' : `${c.net >= 0 ? '+' : ''}${int(c.net)}`}</td><td>${r.live}</td>
         <td>${r.missing.length ? r.missing.map(m => `<span class="v2pill warn">${esc(m)}</span>`).join(' ') : '<span class="v2pill good">none</span>'}</td>
-        <td class="${r.open == null ? '' : r.open >= BENCH.open ? 'good' : 'warn'}">${pct(r.open, 1)}</td><td class="${r.click == null ? '' : r.click >= BENCH.click ? 'good' : 'warn'}">${pct(r.click, 2)}</td><td>${money2(r.rpr, r.b.currency)}</td><td><span class="nm" title="${esc(r.top?.name || '')}">${esc(r.top?.name || '–')}</span></td></tr>`).join('')}
-      </tbody></table></div>${off.length ? `<p class="v2hint" style="margin-top:10px">Not connected to Klaviyo directly: ${esc(off.map(r => r.b.name).join(', '))}. Brand settings > Integrations > paste each brand’s private key.</p>` : ''}${failed.length ? `<p class="v2hint" style="margin-top:6px">Klaviyo did not answer for ${esc(failed.map(r => r.b.name).join(', '))} (it limits how often reports can be read). <button type="button" class="v2link" data-klretry="1">Try again ›</button></p>` : ''}`,
-      'Klaviyo’s own attribution · open and click are the last 30 campaigns, weighted by recipients');
+        <td>${r.flags.length ? `<span class="v2pill ${r.flags.some(f => f[0] === 'bad') ? 'bad' : 'warn'}"${tipAttr(r.flags.map(f => esc(f[1])).join('<br>'))}>${r.flags.length} ${r.flags.length === 1 ? 'thing' : 'things'}</span>` : '<span class="v2pill good">ok</span>'}</td></tr>`; }).join('')}
+      </tbody></table></div>${att.length ? `<p class="v2hint" style="margin-top:10px">${att.map(r => `<b>${esc(r.b.name)}</b> sends with Attentive, which is not connected directly: Triple Whale credits ${kmoney(r.at?.revenue, r.b.currency)} from ${int(r.at?.orders)} orders to Attentive links in this window.`).join(' ')}</p>` : ''}${off.length ? `<p class="v2hint" style="margin-top:10px">Not connected to Klaviyo directly: ${esc(off.map(r => r.b.name).join(', '))}. Brand settings > Integrations > paste each brand’s private key.</p>` : ''}${failed.length ? `<p class="v2hint" style="margin-top:6px">Klaviyo did not answer for ${esc(failed.map(r => r.b.name).join(', '))} (it limits how often reports can be read). <button type="button" class="v2link" data-klretry="1">Try again ›</button></p>` : ''}`,
+      `Klaviyo’s own attribution, ${esc(day(W.from))} to ${esc(day(W.to))} · rates per email received, against Klaviyo’s averages`);
     wireRows(host, 'email');
     const rb = host.querySelector('[data-klretry]'); if (rb) rb.onclick = () => emailBoard(bs, H.RUN());
-  }   // Klaviyo published 2026 campaign averages (research-email-sms.md)
+  }
+
+  /* ---------- one brand ---------- */
   async function email(first) {
     const t = H.RUN(); const one = H.S.act !== 'all'; const a = H.S.accounts.find(x => x.act_id === H.S.act);
     const title = one ? `Email and SMS: ${esc(a?.name || '')}` : 'Email and SMS';
     if (first) $('#main').innerHTML = shell('email', title, skPage({ tiles: 4 }));
-    let d; try { d = await get(`/api/hub/email?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('email', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    const W = win();
+    let d, dp = null;
+    try { [d, dp] = await Promise.all([get(`/api/hub/email?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`), one && W.pf ? get(`/api/hub/email?act=${encodeURIComponent(H.S.act)}&from=${W.pf}&to=${W.pt}&cmp=none`).catch(() => null) : null]); }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('email', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const bs = d.brands; const cur = oneCur(bs);
     if (!one) {
       const live = bs.filter(b => b.cur.email); const mx = Math.max(...live.map(b => b.cur.email), 1);
       const tot = k => live.reduce((s, b) => s + (b.cur[k] || 0), 0), ptot = k => live.reduce((s, b) => s + ((b.prev || {})[k] || 0), 0);
-      const body = `${cur ? `<div class="v2tiles">${[tile({ compact: true, label: 'Email and SMS revenue', src: 'KLAVIYO', value: kmoney(tot('email'), cur), delta: delta(tot('email'), ptot('email')) }), tile({ compact: true, label: 'Campaigns', value: kmoney(tot('campaigns'), cur), delta: delta(tot('campaigns'), ptot('campaigns')) }), tile({ compact: true, label: 'Flows', value: kmoney(tot('flows'), cur), delta: delta(tot('flows'), ptot('flows')) }), tile({ compact: true, label: 'Brands with email revenue', value: `${live.length} of ${bs.length}` })].join('')}</div>` : ''}
-        ${card('Each brand', `Brands with no Klaviyo revenue in Triple Whale: ${esc(bs.filter(b => !b.cur.email).map(b => b.name).join(', ') || 'none')}.`, `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Email revenue</th><th>Share of revenue</th><th>Campaigns</th><th>Flows</th><th>Flows share</th></tr></thead><tbody>${live.sort((x, y) => y.cur.email - x.cur.email).map(b => { const x = b.cur, p = b.prev || {}; return `<tr data-act="${esc(b.act_id)}" tabindex="0" class="link"><td><b>${esc(b.name)}</b></td><td>${ib(x.email, mx, '--c-email', kmoney(x.email, b.currency))} ${delta(x.email, p.email)}</td><td>${pct(x.share, 0)}</td><td>${kmoney(x.campaigns, b.currency)}</td><td>${kmoney(x.flows, b.currency)}</td><td>${x.email ? pct(x.flows / x.email, 0) : '–'}</td></tr>`; }).join('')}</tbody></table></div>`)}`;
+      const days = cur ? mergeDays(bs.map(b => b.series), ['email', 'campaigns', 'flows']) : [];
+      const body = `${cur ? `<div class="v2tiles">${[tile({ compact: true, label: 'Email and SMS revenue', src: 'KLAVIYO', value: kmoney(tot('email'), cur), delta: delta(tot('email'), ptot('email')), spark: tspark(days, null, 'email', v => kmoney(v, cur), 'email and SMS') }), tile({ compact: true, label: 'Campaigns', value: kmoney(tot('campaigns'), cur), delta: delta(tot('campaigns'), ptot('campaigns')), spark: tspark(days, null, 'campaigns', v => kmoney(v, cur), 'campaigns') }), tile({ compact: true, label: 'Flows', value: kmoney(tot('flows'), cur), delta: delta(tot('flows'), ptot('flows')), spark: tspark(days, null, 'flows', v => kmoney(v, cur), 'flows') }), tile({ compact: true, label: 'Brands with email revenue', value: `${live.length} of ${bs.length}` })].join('')}</div>` : ''}
+        ${card('Each brand', `Brands with no Klaviyo revenue in Triple Whale: ${esc(bs.filter(b => !b.cur.email).map(b => b.name).join(', ') || 'none')}.`, `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Email revenue</th><th>Line</th><th>Share of revenue</th><th>Campaigns</th><th>Flows</th><th>Flows share</th></tr></thead><tbody>${live.sort((x, y) => y.cur.email - x.cur.email).map(b => { const x = b.cur, p = b.prev || {}; return `<tr data-act="${esc(b.act_id)}" tabindex="0" class="link"><td><b>${esc(b.name)}</b></td><td>${ib(x.email, mx, '--c-email', kmoney(x.email, b.currency))} ${delta(x.email, p.email)}</td><td class="kl-linecell">${spark((b.series || []).map(r => r.email), null, 120, 24)}</td><td>${pct(x.share, 0)}</td><td>${kmoney(x.campaigns, b.currency)}</td><td>${kmoney(x.flows, b.currency)}</td><td>${x.email ? pct(x.flows / x.email, 0) : '–'}</td></tr>`; }).join('')}</tbody></table></div>`, 'Triple Whale carries Klaviyo’s attributed revenue')}`;
       $('#main').innerHTML = shell('email', title, body + '<div id="v2klall"></div>'); wireRows($('#main'), 'email');
       emailBoard(bs, t); return;
     }
-    const b = bs[0], c = b.cur, p = b.prev || {};
+    const b = bs[0], c = b.cur, p = b.prev || {}, rows = b.series || [], prows = (dp && dp.brands && dp.brands[0] && dp.brands[0].series) || null;
+    const SER = [{ key: 'flows', label: 'Flows', color: '--c-email' }, { key: 'campaigns', label: 'Campaigns', color: '--brand' }];
     const body0 = `<div class="v2tiles">${[
-        tile({ compact: true, label: 'Email and SMS revenue', src: 'KLAVIYO', value: kmoney(c.email, cur), delta: delta(c.email, p.email), spark: spark((b.series || []).map(r => r.email)) }),
+        tile({ compact: true, label: 'Email and SMS revenue', src: 'KLAVIYO', value: kmoney(c.email, cur), delta: delta(c.email, p.email), spark: tspark(rows, prows, 'email', v => kmoney(v, cur), 'email and SMS') }),
         tile({ compact: true, label: 'Share of store revenue', value: pct(c.share, 0), delta: delta(c.share, p.share, false, true), bullet: bullet(c.share, 0.3, false, 'healthy store: about 30%') }),
-        tile({ compact: true, label: 'Campaigns', value: kmoney(c.campaigns, cur), delta: delta(c.campaigns, p.campaigns), sub: c.email ? `${pct(c.campaigns / c.email, 0)} of email` : '' }),
-        tile({ compact: true, label: 'Flows', value: kmoney(c.flows, cur), delta: delta(c.flows, p.flows), sub: c.email ? `${pct(c.flows / c.email, 0)} of email` : '' })].join('')}</div>
-      ${(b.series || []).length > 1 ? card('Campaigns and flows by day', '', legend([{ color: '--c-email', label: 'Flows' }, { color: '--brand', label: 'Campaigns' }]) + stackChart('v2em', b.series, [{ key: 'flows', label: 'Flows', color: '--c-email' }, { key: 'campaigns', label: 'Campaigns', color: '--brand' }], { cur, h: 180 })) : ''}
+        tile({ compact: true, label: 'Campaigns', value: kmoney(c.campaigns, cur), delta: delta(c.campaigns, p.campaigns), sub: c.email ? `${pct(c.campaigns / c.email, 0)} of email` : '', spark: tspark(rows, prows, 'campaigns', v => kmoney(v, cur), 'campaigns') }),
+        tile({ compact: true, label: 'Flows', value: kmoney(c.flows, cur), delta: delta(c.flows, p.flows), sub: c.email ? `${pct(c.flows / c.email, 0)} of email` : '', spark: tspark(rows, prows, 'flows', v => kmoney(v, cur), 'flows') })].join('')}</div>
+      ${rows.length > 1 ? card('Email and SMS revenue by day', `${kmoney(c.email, cur)} in this window${p.email ? `, ${c.email >= p.email ? 'up' : 'down'} from ${kmoney(p.email, cur)}` : ''}. Flows are the base; campaigns are the spikes.`, legend([{ color: '--c-email', label: 'Flows' }, { color: '--brand', label: 'Campaigns' }, ...(H.S.cmp !== 'none' && prows ? [{ dash: true, label: `Total, ${cmpLabel()}` }] : [])]) + emStack('v2em', rows, prows, SER, cur), 'Triple Whale') : ''}
       <div id="v2kl"></div>`;
-    $('#main').innerHTML = shell('email', title, body0 + foot('Revenue is Klaviyo’s placed-order attribution as Triple Whale carries it. Campaign and flow tables are Klaviyo’s own results for the last 90 days, refreshed every 6 hours. Benchmarks are Klaviyo’s published 2026 averages.'));
-    if ((b.series || []).length > 1) wireStack('v2em', b.series, [{ key: 'flows', label: 'Flows', color: '--c-email' }, { key: 'campaigns', label: 'Campaigns', color: '--brand' }], cur);
-    /* THE KLAVIYO CARD LOADS ON ITS OWN (2026-10-09, Cole: "Klaviyo felt slow and sometimes did not load"). The rest of
-       the screen is already painted; the card shows its shape in shimmer while Klaviyo answers, and an error with Try
+    $('#main').innerHTML = shell('email', title, body0 + foot(isAttentive(a) ? 'Revenue above is Klaviyo’s as Triple Whale carries it; this brand sends with Attentive, read below through Triple Whale.' : 'Headline revenue is Klaviyo’s placed-order attribution as Triple Whale carries it. Everything below is read from Klaviyo itself with the brand’s own key: day-by-day lines by event date (kept 6 hours), campaign and flow results for the last 90 days. Benchmarks are Klaviyo’s published averages.'));
+    if (rows.length > 1) wireEmStack('v2em', rows, prows, SER, cur);
+    /* THE KLAVIYO PART LOADS ON ITS OWN (2026-10-09, Cole: "Klaviyo felt slow and sometimes did not load"). The rest of
+       the screen is already painted; the cards show their shape in shimmer while Klaviyo answers, and an error with Try
        again if it does not. Not awaited, so the page is never held dimmed behind a slow Klaviyo read. */
-    klaviyoCards(a, cur, t);
+    if (isAttentive(a)) attentiveCards(a, cur, t, W); else klaviyoCards(a, cur, t);
   }
+  async function attentiveCards(a, cur, t, W) {
+    const host = document.getElementById('v2kl'); if (!host) return;
+    host.innerHTML = skCard(0, true);
+    const at = await klGet(a.act_id, 'attentive', `&from=${W.from}&to=${W.to}`).catch(e => ({ error: e.message }));
+    if (t !== H.RUN() || !document.getElementById('v2kl')) return;
+    const days = (at.days || []).map(x => ({ date: x.date, v: x.revenue, n: x.orders }));
+    host.innerHTML = card(`Attentive, as Triple Whale sees it`, at.error ? esc(at.error) : `${kmoney(at.revenue, cur)} from ${int(at.orders)} orders credited to Attentive links (last platform click).`,
+      `${days.length > 1 ? lineChart('v2att', days, { cur, h: 200 }) : '<p class="v2hint">No orders credited to Attentive links in this window.</p>'}
+      <div class="v2note" style="margin-top:12px"><span class="v2pill warn">not connected</span> ${esc(a.name)} sends with Attentive, which is not connected to Locus directly. Sends, opens, journeys, list size and editing need Attentive’s beta API or its nightly data files; neither is built. Until then this card and the revenue above (Triple Whale) are what Locus can see.</div>`, 'Triple Whale');
+    if (days.length > 1) wireLine('v2att', days, { tip: r => `<b>${day(r.date)}</b> · ${kmoney(r.v, cur)} · ${int(r.n)} orders` });
+  }
+  /* The campaigns table uses the Ads tables' own TBL helper (sort on a header, the Columns menu, saved per person as
+     pf_tbl_kl-camps), so it behaves exactly like Ads > Campaigns. */
+  const KL_DEFAULT = ['sent', 'channel', 'recipients', 'open', 'click', 'por', 'rev', 'rpr', 'unsub', 'after'];
+  const KLS = { all: false };
+  const FLOW_OPEN = new Set();
   async function klaviyoCards(a, cur, t) {
     const host0 = document.getElementById('v2kl'); if (!host0) return;
-    host0.innerHTML = `<div class="v2two">${skCard(6)}${skCard(6)}</div>${skCard(8)}<p class="v2hint v2klwait">Reading Klaviyo… The first read of a brand can take 20 seconds; after that it is kept for 6 hours.</p>`;
-    let ov, camps, flows;
-    const k = what => H.apiAH(`/api/klaviyo?act=${encodeURIComponent(a.act_id)}&what=${what}`);
-    try { [ov, camps, flows] = await Promise.all([k('overview'), k('campaigns').catch(() => null), k('flows_report').catch(() => null)]); } catch (e) { ov = { error: e.message, failed: true }; }
+    host0.innerHTML = `${skTiles(4)}${skCard(0, true)}<div class="v2two">${skCard(6)}${skCard(6)}</div>${skCard(8)}<p class="v2hint v2klwait">Reading Klaviyo… The first read of a brand can take 20 seconds; after that it is kept for 6 hours.</p>`;
+    let ov, camps, flows, dly, can;
+    const k = what => klGet(a.act_id, what);
+    try { [ov, camps, flows, dly, can] = await Promise.all([k('overview'), k('campaigns').catch(() => null), k('flows_report').catch(() => null), k('daily').catch(e => ({ error: e.message })), k('can').catch(() => null)]); } catch (e) { ov = { error: e.message, failed: true }; }
     if (t !== H.RUN()) return; const host = document.getElementById('v2kl'); if (!host) return;
     const notConnected = ov && ov.error && /not connected/i.test(ov.error);
     if (!ov || ov.error) {
@@ -1476,18 +2176,111 @@
       wireGo(host); const rb = host.querySelector('[data-klretry]'); if (rb) rb.onclick = () => klaviyoCards(a, cur, H.RUN());
       return;
     }
-    const bench = (v, b, lower) => v == null ? '' : `<span class="v2pill ${(lower ? v <= b : v >= b) ? 'good' : 'warn'}" title="Klaviyo average ${pct(b, 1)}">${(lower ? v <= b : v >= b) ? 'above avg' : 'below avg'}</span>`;
-    const crAll = (camps?.campaigns || []).filter(x => x.recipients != null); const cr = crAll.slice(0, 15); const fr = (flows?.flows || []).filter(x => x.recipients).slice(0, 15);
-    const fmx = Math.max(...fr.map(x => x.revenue || 0), 1), cmx = Math.max(...cr.map(x => x.conversion_value || 0), 1);
+    const W = win(), D = dly && dly.days ? dly : null;
+    const span = Math.round((Date.parse(W.to) - Date.parse(W.from)) / 864e5) + 1, weekly = span > 45;
+    const kd = D ? klSlice(D.days, W.from, W.to) : [], kp = D && W.pf ? klSlice(D.days, W.pf, W.pt) : [];
+    const K = klRoll(kd), KP = W.pf ? klRoll(kp) : null;
+    const flowRows = (flows?.flows || []);
+    const flags = klFlags(K, KP, ov, flowRows);
+    const writeOK = can && !can.error ? { flows: can.flows !== false, campaigns: can.campaigns !== false } : { flows: true, campaigns: true };
+    const lock = need => `<div class="v2note kl-lock"><span class="v2pill warn">read only</span> Changing ${need === 'flows' ? 'flows' : 'campaigns'} from Locus needs the <b>${need === 'flows' ? 'flows:write' : 'campaigns:write'}</b> scope on ${esc(a.name)}’s Klaviyo key. In Klaviyo > Settings > API keys, create a private key with ${need === 'flows' ? 'Flows' : 'Campaigns'}: Full access (keep the read scopes), then paste it in Brand settings > Integrations > Klaviyo.</div>`;
+    /* tiles from Klaviyo */
+    const kb = klBucket(kd, weekly), kpb = klBucket(kp, weekly);
+    const rprF = r => r.received >= 200 ? (r.rev_email || 0) / r.received : null, porF = r => r.received >= 200 ? (r.orders_email || 0) / r.received : null;
+    const tiles = D ? `<div class="v2tiles">${[
+      tile({ compact: true, label: 'SMS share of email and SMS', src: 'KLAVIYO', value: pct(K.sms_share, 0), delta: KP ? delta(K.sms_share, KP.sms_share, 'n', true) : '', sub: `SMS ${kmoney(K.rev_sms, cur)} · email ${kmoney(K.rev_email, cur)}`, spark: tspark(kb, kpb, r => (r.rev_email || 0) + (r.rev_sms || 0) ? (r.rev_sms || 0) / ((r.rev_email || 0) + (r.rev_sms || 0)) : null, v => pct(v, 0), 'SMS share') }),
+      tile({ compact: true, label: 'Revenue per email', src: 'KLAVIYO', value: money2(K.rpr, cur), delta: KP ? delta(K.rpr, KP.rpr) : '', bullet: bullet(K.rpr, BENCH.rpr, false, 'Klaviyo campaign average $0.10'), spark: tspark(kb, kpb, rprF, v => money2(v, cur), 'per email') }),
+      tile({ compact: true, label: 'Placed order rate', src: 'KLAVIYO', value: pct(K.por, 2), delta: KP ? delta(K.por, KP.por) : '', bullet: bullet(K.por, BENCH.por, false, 'Klaviyo campaign average 0.08%'), spark: tspark(kb, kpb, porF, v => pct(v, 3), 'placed order rate') }),
+      tile({ compact: true, label: 'List growth', src: 'KLAVIYO', value: `${K.net >= 0 ? '+' : ''}${int(K.net)}`, delta: KP ? delta(K.gained, KP.gained) : '', sub: `${int(K.gained)} joined · ${int(K.lost)} left`, spark: tspark(kb, kpb, r => (r.gained || 0) - (r.lost || 0), v => `${v >= 0 ? '+' : ''}${int(v)}`, 'net') })].join('')}</div>` : `<div class="v2card"><p class="v2hint">The day-by-day Klaviyo read failed: ${esc(dly?.error || 'no answer')}. Campaign and flow tables below still work.</p></div>`;
+    /* engagement and deliverability */
+    const RATES = [['Open', 'opened', BENCH.open, false, 1], ['Click', 'clicked', BENCH.click, false, 2], ['Placed order', 'orders_email', BENCH.por, false, 3], ['Unsubscribe', 'unsub', BENCH.unsub, true, 2], ['Spam complaints', 'spam', BENCH.spam, true, 3], ['Bounce', 'bounced', BENCH.bounce, true, 2]];
+    const rateKey = { opened: 'open', clicked: 'click', orders_email: 'por', unsub: 'unsub', spam: 'spam', bounced: 'bounce' };
+    const rates = D ? card('Engagement and deliverability', `Per email received, ${weekly ? 'week by week' : 'day by day'}. The amber dashed line is Klaviyo’s average.${(D.metrics_missing || []).length ? ` Not in this account: ${esc(D.metrics_missing.join(', ').replace(/_/g, ' '))}.` : ''}`,
+      `${flagHtml(flags)}<div class="kl-rates">${RATES.map(([l, key, bn, lower, dp]) => { const v = K[rateKey[key]], pv = KP && KP[rateKey[key]]; const f = r => r.received >= 200 ? (r[key] || 0) / r.received : null;
+        return `<div class="kl-r"><div class="kl-rh"><span>${l}</span>${benchPill(v, bn, lower)}</div><div class="kl-rv">${pct(v, dp)} ${pv != null ? delta(v, pv, lower) : ''}</div>${rateSpark(kb, kpb, f, bn, x => pct(x, dp), l.toLowerCase())}</div>`; }).join('')}</div>`, 'Klaviyo · opens include Apple’s automatic opens') : '';
+    /* list growth + email vs SMS */
+    const growth = D ? card('List growth', `${int(K.gained)} joined and ${int(K.lost)} left ${weekly ? 'by week' : 'by day'} (${esc(String(D.metrics_used?.gained || 'subscribed'))} vs ${esc(String(D.metrics_used?.lost || 'unsubscribed'))}).`, growthChart('v2klg', kb) || '<p class="v2hint">Not enough days.</p>', 'Klaviyo') : '';
+    const split = D ? card('Email vs SMS', K.rev ? `SMS is ${pct(K.sms_share, 0)} of Klaviyo-attributed revenue in this window.` : 'No Klaviyo-attributed revenue in this window.',
+      `<div class="kl-split"><i style="width:${K.rev ? (K.rev_email / K.rev * 100).toFixed(1) : 0}%;background:var(--c-email)"></i><i style="width:${K.rev ? (K.rev_sms / K.rev * 100).toFixed(1) : 0}%;background:var(--brand)"></i></div>
+      <div class="v2tbl"><table><thead><tr><th>Channel</th><th>Revenue</th><th>Orders</th><th>Sends</th></tr></thead><tbody>
+        <tr><td><span class="sw" style="background:var(--c-email)"></span>Email</td><td>${kmoney(K.rev_email, cur)} ${KP ? delta(K.rev_email, KP.rev_email) : ''}</td><td>${int(K.orders_email)}</td><td>${int(K.received)}<span class="sub">${money2(K.rpr, cur)} each</span></td></tr>
+        <tr><td><span class="sw" style="background:var(--brand)"></span>SMS</td><td>${kmoney(K.rev_sms, cur)} ${KP && KP.rev_sms ? delta(K.rev_sms, KP.rev_sms) : ''}</td><td>${int(K.orders_sms)}</td><td>${D.metrics_used?.sms_received ? `${int(K.sms_received)}<span class="sub">${K.sms_received ? money2(K.rev_sms / K.sms_received, cur) : '–'} each</span>` : '<span class="faint"' + tipAttr('This Klaviyo account has no Received SMS metric: it does not send SMS through Klaviyo, or has not yet.') + '>none</span>'}</td></tr></tbody></table></div>`, 'Klaviyo') : '';
+    /* flows */
+    const fmx = Math.max(...flowRows.map(x => x.revenue || 0), 1);
     const CORE = /welcome|abandon|cart|checkout|browse|post.?purchase|thank|win.?back|sunset/i;
-    const missing = ['welcome', 'abandon', 'browse', 'post', 'win'].filter(k => !(ov.live_flows || []).some(f => new RegExp(k, 'i').test(f)));
-    host.innerHTML = `<div class="v2two">
-        ${card('Flows', fr.length ? `${fr.length} flows sent in 90 days. Core flows are marked.` : esc(flows?.results_note || 'No flow results came back.'), fr.length ? `<div class="v2tbl"><table><thead><tr><th>Flow</th><th>Revenue</th><th>Per recipient</th><th>Conversion</th><th>Click</th></tr></thead><tbody>${fr.map(x => `<tr><td>${CORE.test(x.name) ? '<span class="v2pill good">core</span> ' : ''}${esc(x.name)}${x.status && x.status !== 'live' ? ` <span class="v2pill">${esc(x.status)}</span>` : ''}</td><td>${ib(x.revenue, fmx, '--c-email', kmoney(x.revenue, cur))}</td><td>${money2(x.revenue_per_recipient, cur)}</td><td>${pct(x.conversion_rate, 2)}</td><td>${pct(x.click_rate, 1)}</td></tr>`).join('')}</tbody></table></div>` : '')}
-        ${card('What Klaviyo is running', `${int(ov.flows_live)} live flows of ${int(ov.flows_total)} · ${int(ov.lists)} lists · ${int(ov.segments)} segments.`, `${missing.length ? `<div class="v2note"><span class="v2pill warn">gap</span> No live flow named for: ${missing.map(m => ({ welcome: 'welcome', abandon: 'abandoned cart', browse: 'browse abandonment', post: 'post purchase', win: 'win-back' })[m]).join(', ')}.</div>` : '<div class="v2note"><span class="v2pill good">ok</span> Every core flow is live.</div>'}
-          <div class="v2tbl"><table><tbody>${(ov.biggest_lists || []).slice(0, 4).map(l => `<tr><td>${esc(l.name)} <span class="faint">list</span></td><td>${int(l.profiles)}</td></tr>`).join('')}${(ov.biggest_segments || []).slice(0, 5).map(l => `<tr><td>${esc(l.name)} <span class="faint">segment</span></td><td>${int(l.profiles)}</td></tr>`).join('')}</tbody></table></div>`)}</div>
-      ${subjectsCard(crAll, cur, a.tz)}
-      ${card('Recent campaigns', cr.length ? 'Klaviyo’s own results, last 90 days, with Klaviyo’s 2026 averages as pills.' : esc(camps?.results_note || 'No campaign results came back.'), cr.length ? `<div class="v2tbl wide"><table><thead><tr><th>Campaign</th><th>Sent</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${cr.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span></td><td>${x.sent ? day(x.sent) : '–'}</td><td>${int(x.recipients)}</td><td>${pct(x.open_rate, 1)} ${bench(x.open_rate, BENCH.open)}</td><td>${pct(x.click_rate, 2)} ${bench(x.click_rate, BENCH.click)}</td><td>${pct(x.conversion_rate, 2)}</td><td>${ib(x.conversion_value || 0, cmx, '--brand', kmoney(x.conversion_value, cur))}</td><td>${money2(x.recipients ? (x.conversion_value || 0) / x.recipients : null, cur)}</td><td>${pct(x.unsubscribe_rate, 2)} ${bench(x.unsubscribe_rate, BENCH.unsub, true)}</td></tr>`).join('')}</tbody></table></div>` : '')}`;
+    const STATUS = [['live', 'Live', 'Sending to everyone who triggers it'], ['manual', 'Manual', 'Built but switched off: nobody new enters'], ['draft', 'Draft', 'Unfinished and off']];
+    const flowRow = x => `<tr data-flow="${esc(x.id)}"><td>${x.messages && x.messages.length ? `<button type="button" class="v2ex${FLOW_OPEN.has(x.id) ? ' open' : ''}" data-ftog="${esc(x.id)}" aria-label="Show its messages">›</button>` : '<span class="v2ex-sp"></span>'}${CORE.test(x.name) ? '<span class="v2pill good">core</span> ' : ''}<span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.trigger ? `<span class="sub">${esc(x.trigger)}${(x.channels || []).length ? ` · ${esc(x.channels.map(c => c === 'sms' ? 'SMS' : 'email').join(' + '))}` : ''}</span>` : ''}</td>
+      <td>${writeOK.flows ? `<span class="kl-st">${PM().html('klst-' + x.id, 'Status', STATUS, x.status, { cls: 'kl-stm st-' + esc(x.status || '') })}</span>` : `<span class="v2pill ${x.status === 'live' ? 'good' : ''}">${esc(x.status || '–')}</span>`}</td>
+      <td>${ib(x.revenue || 0, fmx, '--c-email', kmoney(x.revenue, cur))}</td><td class="kl-linecell">${flowSpark(x.id, D, W.from, W.to)}</td><td>${int(x.recipients)}</td><td>${(x.channels || []).length === 1 && x.channels[0] === 'sms' ? '–' : pct(x.open_rate, 1)}</td><td>${pct(x.click_rate, 1)}</td><td>${pct(x.conversion_rate, 2)}</td><td>${money2(x.revenue_per_recipient, cur)}</td><td>${pct(x.unsubscribe_rate, 2)}</td></tr>`;
+    const flowsCard = card('Flows', flowRows.length ? `${flowRows.filter(x => x.status === 'live').length} live of ${flowRows.length}. Results are the last 90 days; the line is ${esc(day(W.from))} to ${esc(day(W.to))}. Open a flow for each message.` : esc(flows?.results_note || 'No flow results came back.'),
+      `${writeOK.flows ? '' : lock('flows')}${flowRows.length ? `<div class="v2tbl wide"><table id="v2klflows"><thead><tr><th>Flow</th><th>Status</th><th>Revenue, 90 days</th><th>Line</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${flowRows.map(x => flowRow(x) + (FLOW_OPEN.has(x.id) ? `<tr class="kl-sub" data-fsub="${esc(x.id)}"><td colspan="10"><p class="v2hint">Reading the messages…</p></td></tr>` : '')).join('')}</tbody></table></div>` : ''}`, 'Klaviyo');
+    /* campaigns */
+    const sentAll = (camps?.campaigns || []).filter(x => x.recipients != null);
+    const up = camps?.upcoming || [];
+    const cmx = Math.max(...sentAll.map(x => x.conversion_value || 0), 1);
+    const sms = x => x.channel === 'sms';
+    const afterTot = x => { const s0 = D && (D.by_message[x.message_id] || D.by_message[x.id]); if (!s0 || !x.sent) return null; const i0 = Math.round((Date.parse(x.sent) - Date.parse(D.attr_from)) / 864e5); return i0 < 0 ? null : s0.slice(i0, i0 + 14).reduce((t, y) => t + y, 0); };
+    const defs = [
+      { k: 'sent', l: 'Sent', v: x => x.send_time ? Date.parse(x.send_time) : null, cell: x => x.sent ? day(x.sent) : '–' },
+      { k: 'channel', l: 'Channel', txt: 1, v: x => x.channel, cell: x => `<span class="v2pill">${sms(x) ? 'SMS' : 'Email'}</span>` },
+      { k: 'recipients', l: 'Recipients', v: x => x.recipients, cell: x => int(x.recipients) },
+      { k: 'open', l: 'Open', v: x => sms(x) ? null : x.open_rate, cell: x => sms(x) ? '–' : `${pct(x.open_rate, 1)} ${benchPill(x.open_rate, BENCH.open)}`, tip: 'Includes Apple Mail’s automatic opens' },
+      { k: 'click', l: 'Click', v: x => x.click_rate, cell: x => `${pct(x.click_rate, 2)}${sms(x) ? '' : ` ${benchPill(x.click_rate, BENCH.click)}`}` },
+      { k: 'por', l: 'Placed order', v: x => x.conversion_rate, cell: x => pct(x.conversion_rate, 2), tip: 'Recipients who placed an order, Klaviyo attribution' },
+      { k: 'rev', l: 'Revenue', v: x => x.conversion_value || 0, cell: x => ib(x.conversion_value || 0, cmx, '--brand', kmoney(x.conversion_value, cur)) },
+      { k: 'rpr', l: 'Per recipient', v: x => x.recipients ? (x.conversion_value || 0) / x.recipients : null, cell: x => money2(x.recipients ? (x.conversion_value || 0) / x.recipients : null, cur) },
+      { k: 'unsub', l: 'Unsub', lo: 1, v: x => x.unsubscribe_rate, cell: x => `${pct(x.unsubscribe_rate, 2)}${sms(x) ? '' : ` ${benchPill(x.unsubscribe_rate, BENCH.unsub, true)}`}` },
+      { k: 'spam', l: 'Spam', lo: 1, v: x => sms(x) ? null : x.spam_complaint_rate, cell: x => sms(x) ? '–' : pct(x.spam_complaint_rate, 3) },
+      { k: 'bounce', l: 'Bounce', lo: 1, v: x => sms(x) ? null : x.bounce_rate, cell: x => sms(x) ? '–' : pct(x.bounce_rate, 2) },
+      { k: 'after', l: 'After send', v: afterTot, cell: x => afterSend(x, D), tip: 'Revenue on each of the 14 days after the send; sorts by their total' },
+    ];
+    const st = TBL.load('kl-camps', defs, KL_DEFAULT);
+    const table = () => { const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs);
+      const list = by ? sentAll.slice().sort(by) : sentAll.slice().sort((x, y) => String(y.send_time || '').localeCompare(String(x.send_time || '')));
+      const shown = KLS.all ? list : list.slice(0, 20);
+      return `<table id="v2klcamps"><thead><tr>${TBL.th(st, '_name', 'Campaign')}${cols.map(d => TBL.th(st, d.k, d.l)).join('')}<th></th></tr></thead><tbody>${shown.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.subject ? `<span class="sub" title="${esc(x.subject)}">${esc(x.subject)}</span>` : ''}</td>${cols.map(d => `<td>${d.cell(x)}</td>`).join('')}<td class="kl-acts">${actBtns(x, 'sent')}</td></tr>`).join('')}</tbody></table>${list.length > 20 ? `<button type="button" class="v2link" data-klall="1" style="margin-top:8px">${KLS.all ? 'Show the first 20' : `Show all ${list.length}`} ›</button>` : ''}`; };
+    const actBtns = (x, kind) => !writeOK.campaigns ? '' : kind === 'up'
+      ? `${/^draft$/i.test(x.status) ? `<button type="button" class="kl-act" data-kact="schedule" data-cid="${esc(x.id)}">Schedule</button>` : ''}${/schedul|queued|adding|preparing/i.test(x.status) ? `<button type="button" class="kl-act" data-kact="unschedule" data-cid="${esc(x.id)}">Unschedule</button><button type="button" class="kl-act warn" data-kact="cancel" data-cid="${esc(x.id)}">Cancel</button>` : ''}<button type="button" class="kl-act" data-kact="duplicate" data-cid="${esc(x.id)}">Duplicate</button>`
+      : `<button type="button" class="kl-act" data-kact="duplicate" data-cid="${esc(x.id)}"${tipAttr('Copy it as a new draft: same audience, content and sender')}>Duplicate</button>`;
+    const upCard = card('Drafts and scheduled', up.length ? `${up.length} not sent yet. Schedule a draft, move or stop a scheduled send, or copy one.` : 'Nothing drafted or scheduled in Klaviyo right now.',
+      `${writeOK.campaigns ? '' : lock('campaigns')}${up.length ? `<div class="v2tbl"><table><thead><tr><th>Campaign</th><th>Channel</th><th>Status</th><th>Sends</th><th></th></tr></thead><tbody>${up.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.subject ? `<span class="sub">${esc(x.subject)}</span>` : ''}</td><td><span class="v2pill">${x.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td><span class="v2pill ${/schedul/i.test(x.status) ? 'good' : ''}">${esc(String(x.status || '').toLowerCase())}</span></td><td>${x.send_at && !/^draft$/i.test(x.status) ? esc(new Date(x.send_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : '–'}</td><td class="kl-acts">${actBtns(x, 'up')}<a class="kl-act" href="https://www.klaviyo.com/campaign/${esc(x.id)}/wizard" target="_blank" rel="noopener">Open in Klaviyo</a></td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${writeOK.campaigns ? '<button type="button" class="v2btn" data-klnew="1">New draft campaign</button>' : ''}`, 'Klaviyo');
+    const sentCard = card('Campaigns sent', sentAll.length ? `${sentAll.length} sent in 90 days, Klaviyo’s own results. Click a heading to sort; the last column is the money in the 14 days after the send.` : esc(camps?.results_note || 'No campaign results came back.'),
+      sentAll.length ? `<div class="v2tbar"><span class="v2tbar-l faint">Click a column to sort.</span><div class="hd-period pm v2cols" data-tbl="${st.id}">${TBL.menu(st, defs)}</div></div><div class="v2tbl wide" id="v2klcwrap">${table()}</div>` : '', 'Klaviyo');
+    host.innerHTML = `${tiles}${rates}<div class="v2two">${growth}${split}</div>${flowsCard}${upCard}${sentCard}
+      <div class="v2two">${subjectsCard(sentAll.filter(x => x.channel !== 'sms'), cur, a.tz) || '<div></div>'}
+        ${card('What Klaviyo is running', `${int(ov.flows_live)} live flows of ${int(ov.flows_total)} · ${int(ov.lists)} lists · ${int(ov.segments)} segments.`, `<div class="v2tbl"><table><tbody>${(ov.biggest_lists || []).slice(0, 4).map(l => `<tr><td>${esc(l.name)} <span class="faint">list</span></td><td>${int(l.profiles)}</td></tr>`).join('')}${(ov.biggest_segments || []).slice(0, 5).map(l => `<tr><td>${esc(l.name)} <span class="faint">segment</span></td><td>${int(l.profiles)}</td></tr>`).join('')}</tbody></table></div>`)}</div>`;
+    if (D) wireGrowth('v2klg', kb);
     wireGo(host);
+    const again = () => klaviyoCards(a, cur, H.RUN());
+    /* flows: status menus and the per-message rows */
+    host.querySelectorAll('.kl-stm').forEach(box => { const id = box.id.replace(/^klst-/, ''); const x = flowRows.find(f => f.id === id); PM().wire(box, v => { if (v !== x.status) klWrite(a, 'flow_status', { flow: id, status: v }, again); }); });
+    const fill = async id => {
+      const row = host.querySelector(`[data-fsub="${CSS.escape(id)}"] td`); if (!row) return;
+      try {
+        const r = await klGet(a.act_id, 'flow', `&id=${encodeURIComponent(id)}`);
+        const ms = r.messages || [];
+        row.innerHTML = ms.length ? `<table class="kl-msgs"><thead><tr><th>Message</th><th>Channel</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${ms.map((m, i) => `<tr><td><b>${i + 1}.</b> ${esc(m.name || m.id || 'Message')}${m.subject ? `<span class="sub">${esc(m.subject)}</span>` : ''}</td><td><span class="v2pill">${m.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td>${int(m.recipients)}</td><td>${m.channel === 'sms' ? '–' : pct(m.open_rate, 1)}</td><td>${pct(m.click_rate, 2)}</td><td>${pct(m.conversion_rate, 2)}</td><td>${kmoney(m.revenue, cur)}</td><td>${money2(m.revenue_per_recipient, cur)}</td><td>${pct(m.unsubscribe_rate, 2)}</td></tr>`).join('')}</tbody></table>` : '<p class="v2hint">No message sent in 90 days.</p>';
+      } catch (e) { row.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
+    };
+    host.querySelectorAll('[data-ftog]').forEach(btn => btn.onclick = () => { const id = btn.dataset.ftog; FLOW_OPEN.has(id) ? FLOW_OPEN.delete(id) : FLOW_OPEN.add(id); const tr = btn.closest('tr'); const sub = host.querySelector(`[data-fsub="${CSS.escape(id)}"]`);
+      if (sub) sub.remove(); else { tr.insertAdjacentHTML('afterend', `<tr class="kl-sub" data-fsub="${esc(id)}"><td colspan="10"><p class="v2hint">Reading the messages…</p></td></tr>`); fill(id); } btn.classList.toggle('open', FLOW_OPEN.has(id)); });
+    FLOW_OPEN.forEach(id => fill(id));
+    /* campaigns: sort, columns, actions, new draft */
+    const byId = id => up.find(x => x.id === id) || sentAll.find(x => x.id === id);
+    const wireActs = root => root.querySelectorAll('[data-kact]').forEach(btn => btn.onclick = () => { const c = byId(btn.dataset.cid); if (!c) return; const act = btn.dataset.kact;
+      if (act === 'schedule') klSchedule(a, c, again);
+      else if (act === 'unschedule') klWrite(a, 'campaign_unschedule', { campaign: c.id }, again);
+      else if (act === 'cancel') klWrite(a, 'campaign_cancel', { campaign: c.id, mode: 'cancel' }, again);
+      else klWrite(a, 'campaign_duplicate', { campaign: c.id }, again); });
+    const cwrap = host.querySelector('#v2klcwrap');
+    if (cwrap) {
+      const redraw = () => { cwrap.innerHTML = table(); hookC(); };
+      const hookC = () => { TBL.wire(cwrap, st, defs, redraw); wireActs(cwrap); const ab = cwrap.querySelector('[data-klall]'); if (ab) ab.onclick = () => { KLS.all = !KLS.all; redraw(); }; };
+      hookC(); TBL.wire(cwrap.closest('.v2card').querySelector('.v2tbar'), st, defs, redraw);
+    }
+    const upEl = [...host.querySelectorAll('.v2card')].find(c => c.querySelector('[data-klnew]') || /Drafts and scheduled/.test(c.querySelector('h3')?.textContent || '')); if (upEl) wireActs(upEl);
+    const nb = host.querySelector('[data-klnew]'); if (nb) nb.onclick = () => klNewDraft(a, again);
   }
 
   /* =========================================================================================

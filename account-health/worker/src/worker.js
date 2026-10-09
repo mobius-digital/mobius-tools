@@ -1,11 +1,13 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
-import { guardBrands, brandsFor } from './brandguard.js';
+import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
+import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
+import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
@@ -47,9 +49,12 @@ import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
+import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts } from './google.js';
+import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
+import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -6034,8 +6039,12 @@ async function handleSlackInteract(request, env, ctx) {
       const val = safeJson(tap.value, {});
       const { engine, h } = strategist();
       const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null) } }).catch(e => ({ error: String(e.message || e) }));
+      /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
+      const done = res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
+      const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
       if (payload.response_url) ctx.waitUntil(xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` }) }).catch(() => {}));
+        body: JSON.stringify({ replace_original: true, text: done, ...(link ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
+          { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] } : {}) }) }).catch(() => {}));
       return ACK();
     }
     if (payload.type === 'block_actions') return await slackBlockAction(env, ctx, payload);
@@ -6466,8 +6475,10 @@ const ALLOWED_DOMAIN = 'go-mobius-digital.com';
 const SESSION_DAYS = 30;
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+/* No 'dev' fallback (2026-10-09): with neither secret set, nothing verifies (see profit worker.js for why). */
 async function hmacKey(env) {
-  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'dev'),
+  if (!(env.SESSION_SECRET || env.ADMIN_TOKEN)) throw new Error('SESSION_SECRET is not set');
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
@@ -6481,7 +6492,7 @@ async function mintSession(env, email) {
 
 async function verifySession(env, token) {
   const m = /^mds\.([\w-]+)\.([\w-]+)$/.exec(token || '');
-  if (!m) return null;
+  if (!m || !(env.SESSION_SECRET || env.ADMIN_TOKEN)) return null;
   const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(m[1])));
   if (sig !== m[2]) return null;
   let email, exp;
@@ -6507,9 +6518,13 @@ async function googleLogin(env, credential) {
   const info = await res.json().catch(() => ({}));
   if (!res.ok || info.aud !== env.GOOGLE_CLIENT_ID) return { error: 'Invalid Google token', status: 401 };
   if (info.email_verified !== 'true' && info.email_verified !== true) return { error: 'Email not verified', status: 401 };
-  if (!(await emailAllowed(env, info.email))) return { error: `${info.email} is not a Mobius account`, status: 403 };
+  /* A client login (clients.js) signs in the same way; brandguard.js decides what it may open. */
+  const team = await emailAllowed(env, info.email);
+  const client = !team && await isClientEmail(env, info.email);
+  if (!team && !client) return { error: `${info.email} has no Locus login. Ask Mobius Digital to invite this email.`, status: 403 };
   const s = await mintSession(env, info.email);
-  return { ...s, name: info.name || '', picture: info.picture || '' };
+  if (client) await touchClient(env, info.email, 'login').catch(() => {});
+  return { ...s, name: info.name || '', picture: info.picture || '', role: client ? 'client' : 'team' };
 }
 
 /* ---- Roles ----
@@ -6543,6 +6558,8 @@ async function isAdmin(request, env) {
   if (!auth.startsWith('Bearer ')) return false;
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  /* A client login passes ONLY on a route brandguard.js cleared for it (its allowlist). */
+  if (clientScope(request)) return true;
   const sess = await verifySession(env, tok);
   if (sess && (await emailAllowed(env, sess.email))) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
@@ -6642,8 +6659,15 @@ function strategist() {
     /* The Viktor-grade pass (2026-10-09, strattools.js): Slack index, Locus routes as Cole, files. */
     xfetch, mintSession, idx: idxDeps(),
     ahFetch: (req, env) => AH_APP.fetch(req, env, { waitUntil() {} }),
+    /* Live checks, alerts, scheduled tasks, the Ledger door (alerts.js, checknow.js, 2026-10-09). */
+    auto: autoDeps(),
   });
   return _strat;
+}
+/* What checknow.js, alerts.js and the scheduled checks need from here. */
+function autoDeps() {
+  return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, twSummary, twShift, metaAll, pickAction, PURCHASE_TYPES, xfetch,
+    subCanAfford, centralHour, centralDate, slackApi, isAdmin, sessionEmail, goalsFor, daysInMonth, twMetaDaily, mintSession, postDashboard };
 }
 /* What the Slack index (slackindex.js) needs from here. */
 function idxDeps() {
@@ -6652,7 +6676,7 @@ function idxDeps() {
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
-    subCanAfford, strategist, isAdmin, sessionEmail };
+    subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
 }
 /* The Strategist's night: the checks over what the syncs wrote, the watches,
    remembered; urgent new findings to the team channel; Monday, the briefing. */
@@ -6750,10 +6774,19 @@ async function handleSlackEvent(request, env, ctx) {
       : await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
     if (!brandRow) return ACK();   // not a team channel: stay silent
   }
+  /* DMs to the app come HERE since 2026-10-09 (slack-router sends every DM to Locus; they went to the Ledger).
+     Team members only (the numbers are the team's); the brand comes from the words; the Ledger is one tool
+     away (ask_ledger, Cole only). */
+  let dmScreen = null;
+  if (dm) {
+    const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
+    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Strategist' }).catch(() => {})); return ACK(); }
+    dmScreen = { dm: true, note: gate.note };
+  }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
      brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
   const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
-    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''}` } : null;
+    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''}` } : dmScreen;
   ctx.waitUntil((async () => {
     /* 2026-10-09, Cole: "stop having a list of words that make it do X or Y, it should judge from the
        context". EVERY tag goes to the Strategist. It reads the thread and decides; when the job is
@@ -6774,6 +6807,25 @@ async function handleSlackEvent(request, env, ctx) {
     await strategistSlackAnswer(env, ev, screen);
   })().catch(e => console.log('strategist slack: ' + e.message)));
   return ACK();
+}
+
+/* Who may DM the Strategist: a full member of our workspace (no guests, no Slack Connect strangers, no bots) with
+   a Mobius email or one Locus allows. A person limited to some brands (settings userBrands) gets the ACCESS RULE. */
+async function dmGate(env, ev) {
+  const u = await slackApi(env, 'users.info', { user: ev.user });
+  if (!u?.ok) throw new Error(u?.error || 'Slack did not answer');
+  const x = u.user || {}, email = String(x.profile?.email || '').toLowerCase();
+  const no = { ok: false, reply: 'I only answer the Mobius Digital team here. Ask your Mobius contact in your shared channel.' };
+  if (x.is_bot || x.deleted || x.is_restricted || x.is_ultra_restricted || x.is_stranger || !email) return no;
+  if (!(await emailAllowed(env, email))) {
+    const map = safeJson(await getSetting(env, 'userBrands'), {}) || {};
+    if (!map[email]) return no;
+  }
+  const only = await brandsFor(env, email).catch(() => null);
+  let rule = '';
+  if (only) { const names = (await listAccounts(env, false)).filter(a => only.has(a.act_id)).map(a => a.name); rule = ` ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.`; }
+  const name = x.profile?.real_name || x.real_name || x.name || 'a teammate';
+  return { ok: true, email, note: `This is a direct message from ${name} (${email}) to you, the Strategist. There is no channel brand: work out the brand from their words and the conversation; when it matters and is unclear, ask which brand in one line. Questions about Mobius Digital's OWN money (the agency's income, expenses, receipts, bills, its P&L, taxes, the bank) go to ask_ledger, which only works for Cole.${rule}` };
 }
 
 async function strategistSlackAnswer(env, ev, screen) {
@@ -7016,6 +7068,8 @@ const AH_APP = {
         ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* Alerts: rules checked at their hour, posted at most once a Central day (alerts.js). */
+        ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
@@ -7112,6 +7166,12 @@ const AH_APP = {
     }
     if (path.startsWith('/studio-ref/')) {
       const r = await serveRef(request, env, path);
+      if (r) return r;
+    }
+    /* ---- What the Strategist makes (stratmake.js): images and files at /strat/<id>.<ext>, report pages at /r/<token>
+       and /r/<token>.pdf, /api/report-public (all public by unguessable id); /api/strat/* is admin inside. ---- */
+    if (path.startsWith('/strat/') || path.startsWith('/r/') || path === '/api/report-public' || path.startsWith('/api/strat/')) {
+      const r = await handleMake(request, env, url, path, json, isAdmin, { xfetch, slack: slackApi, getSetting, putSetting, safeJson, listAccounts });
       if (r) return r;
     }
     /* ---- Frame.io V4 (Adobe sign-in): Connect / status / tree are admin, the callback is public; frame.js ---- */
@@ -7225,6 +7285,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleNewClient(request, env, path, json, isAdmin, (rq, e) => sessionEmail(e, rq));
       if (r) return r;
     }
+    /* ---- Client logins (clients.js; who may open what is brandguard.js) ---- */
+    if (path.startsWith('/api/clients')) {
+      const r = await handleClients(request, env, path, json, { isAdmin, sessionEmail });
+      if (r) return r;
+    }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
     /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
     if (path.startsWith('/api/calendar')) {
@@ -7250,6 +7315,46 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (r) return r;
     }
 
+    /* ---- Edit in place on Ads > Meta / Google > Campaigns (2026-10-09) ----
+       Cole: "How do I actually make changes from within the dashboard?" GET /api/meta/live?act= = live status, budgets
+       and whether the token may write; POST /api/meta/write {act, kind, level, object, amount|min|cap|name, dry, expect}
+       runs metawrite.js's own propose + apply (one code path with the Strategist: brand check, Manage check, p_meta_write
+       for undo, the Change Log line as the person); POST /api/meta/undo {act, write} within 24h. POST /api/google/write
+       {act, kind: pause|resume|budget, object, amount, dry, expect} on google.js. Admin, and brandsFor limits. After a
+       Meta write the synced row (meta_campaigns / meta_adsets) takes the new value at once, so the screen agrees. */
+    if (path === '/api/meta/live' || path === '/api/meta/write' || path === '/api/meta/undo' || path === '/api/google/write') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const email = await sessionEmail(env, request).catch(() => null);
+      const only = await brandsFor(env, email).catch(() => null);
+      const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      const act = await resolveBrandId(env, String((request.method === 'POST' ? body.act : url.searchParams.get('act')) || '')).catch(() => '');
+      if (!/^[\w-]{3,80}$/.test(act)) return json({ error: 'Pick a brand first.' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const md = { xfetch, listAccounts, getSetting, putSetting };
+      const who = email || 'someone in Locus';
+      try {
+        if (path === '/api/meta/live') return json(await metaLive(env, md, act));
+        if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+        if (path === '/api/google/write') return json(await adsCampaignWrite(env, act, body));
+        if (path === '/api/meta/undo') {
+          const r = await metaLocusUndo(env, md, { act, write: body.write }, { who });
+          if (r.ok && r.before && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.before);
+          if (r.ok && r.after?.created) await env.DB.prepare(`UPDATE meta_adsets SET status = 'ARCHIVED' WHERE adset_id = ?1`).bind(String(r.after.created)).run().catch(() => {});
+          return json(r);
+        }
+        const r = await metaLocusWrite(env, md, { ...body, act }, { who });
+        if (r.ok && !r.dry && r.after && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.after);
+        return json(r);
+      } catch (e) { return json({ error: e.message }, 502); }
+      async function syncedRow(level, id, vals) {
+        const t = level === 'campaign' ? 'meta_campaigns' : 'meta_adsets', k = level === 'campaign' ? 'campaign_id' : 'adset_id';
+        const map = { status: ['status', v => v], name: ['name', v => v], daily_budget: ['daily_budget', v => (+v > 0 ? +v / 100 : null)], lifetime_budget: ['lifetime_budget', v => (+v > 0 ? +v / 100 : null)], daily_min_spend_target: ['min_spend', v => (+v > 0 ? +v / 100 : null)] };
+        for (const [f, v] of Object.entries(vals || {})) {
+          const m = map[f]; if (!m || (level === 'adset' && f === 'lifetime_budget')) continue;
+          await env.DB.prepare(`UPDATE ${t} SET ${m[0]} = ?2 WHERE ${k} = ?1`).bind(String(id), m[1](v)).run().catch(() => {});
+        }
+      }
+    }
     /* ---- Export > Send to Slack (Locus share.js, 2026-10-09) ----
        A picture of one Locus card into the brand's OWN internal (slack_channel) or client (brief_channel) channel.
        The channel is looked up here from the brand; the browser never names one. Admin, and a person limited to
@@ -7304,6 +7409,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     /* ---- the Strategist, in Locus ---- */
     if (path.startsWith('/api/ask')) {
+      /* A client login gets the client-safe Strategist (clients.js), never this one. brandguard.js lets a client
+         reach only POST /api/ask, and only where Cole switched the Strategist on for the brand. */
+      if (clientScope(request)) {
+        if (path !== '/api/ask' || request.method !== 'POST') return json({ error: 'Your Locus login shows your own brand.' }, 403);
+        const r = await clientAsk(env, request, await request.json().catch(() => ({})), { ahFetch: (rq, e) => AH_APP.fetch(rq, e, { waitUntil() {} }), xfetch });
+        return json(r, r.status || (r.error ? 400 : 200));
+      }
       /* Scheduled questions (askschedule.js): admin-checked inside. */
       const sched = await handleSchedules(request, env, path, json, hubDeps());
       if (sched) return sched;
@@ -7818,6 +7930,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        leaks and the one focus. The screen SENDS the numbers it is showing, so the read can
        never cite a figure that is not on the page. Cached an hour per exact set of facts
        (settings `read:<hash>`); made on open, never on a cron. Sonnet tier, about a cent. */
+    /* Right now (checknow.js) and the alerts (alerts.js): GET /api/daycheck/now, /api/alerts*. Admin-checked inside. */
+    if (path === '/api/daycheck/now' || path.startsWith('/api/alerts')) {
+      const r = await handleAlerts(request, env, path, json, autoDeps());
+      if (r) return r;
+    }
     if (path === '/api/daycheck' && request.method === 'POST') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       return json(await dayCheckVerdict(env, await request.json().catch(() => ({}))));
@@ -7867,10 +7984,24 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json(await movedPreview(env, hubDeps()));
     }
     /* Klaviyo, read live by the brand's own key, for the Email and SMS screen. */
-    if (path === '/api/klaviyo' && request.method === 'GET') {
+    /* 2026-10-09: + what=daily|flow|templates|audiences|attentive (from/to/id), and POST /api/klaviyo/write
+       (klaviyowrite.js: flow status, draft, schedule, unschedule, cancel, duplicate; logged with who did it). */
+    if (path === '/api/klaviyo' || path === '/api/klaviyo/write') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const email = await sessionEmail(env, request).catch(() => null);
+      const only = await brandsFor(env, email).catch(() => null);
+      if (path === '/api/klaviyo/write' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        if (only && !only.has(String(body.act || ''))) return json({ error: 'You do not have access to this brand.' }, 403);
+        try { const r = await klaviyoWriteRoute(env, body, email || 'admin token'); return json(r.body, r.status); }
+        catch (e) { return json({ error: e.message }, 502); }
+      }
+      if (request.method !== 'GET') return json({ error: 'GET' }, 405);
       const act = url.searchParams.get('act') || '';
-      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p))); }
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const q = k => url.searchParams.get(k) || undefined;
+      if (url.searchParams.get('what') === 'can') return json(await klaviyoCan(env, act).catch(e => ({ error: e.message })));
+      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p), { id: q('id'), from: q('from'), to: q('to') })); }
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
@@ -8176,7 +8307,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     if (path === '/api/me') {
       const sess = await verifySession(env, (request.headers.get('Authorization') || '').slice(7));
-      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess });
+      /* role: owner | team | client (2026-10-09). The profit and ledger workers delegate here, so a client
+         must say so: they refuse role 'client' outside the client allowlist. */
+      const cs = clientScope(request);
+      if (cs) { await touchClient(env, cs.email, 'seen').catch(() => {}); return json({ email: cs.email, exp: sess?.exp || null, master: false, role: 'client', client: await meClient(env, cs.email) }); }
+      const owner = !sess || String(sess.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess, role: owner ? 'owner' : 'team' });
     }
 
     try {

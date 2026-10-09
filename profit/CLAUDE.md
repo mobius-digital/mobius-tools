@@ -2294,7 +2294,129 @@ Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-se
 - **Print or save as PDF**: `beforeprint` switches to the light theme and puts the page title, brand, dates and compare at
   the top of `#main` (`.lx-print-h`); `afterprint` puts it back. v2.css print rules hide the rail, top bar, page tabs,
   menus, panels and toasts and keep cards, tiles and table rows whole.
-- NOT built (Cole decides): public no-login snapshot links. The chart's area gradient does not come through in the
+- Public no-login snapshot links: BUILT the same day (section below). The chart's area gradient does not come through in the
   picture (the line does); everything else matched.
 - Files: share.js (new), index.html (`pillMenuInner` icon option, `shareHost`, boot + show hooks), v2.js (ad / campaign
   hooks), v2.css (block at the end), icons.js (`share`, `printer`), account-health worker.js (`/api/share/slack`).
+
+## 2026-10-09: Ads screens, Cole's pass (sort, columns, edit in place, export frame, Day check, parallel jobs)
+
+- **Tables you can sort and shape** (v2.js `TBL`): click any header to sort, again to flip (arrow on the column; CPA,
+  CPM, CPC and cost columns sort low first); the **Columns** menu (top-bar menu style, `.v2cols`) ticks columns on or off
+  and moves them up/down; "Back to the default". Saved per table in localStorage `pf_tbl_<id>` (`meta-camps`,
+  `google-camps`). Meta columns = everything `metaMetrics` returns (spend, purchases, Meta says, revenue, Meta revenue,
+  ROAS, CPA, CPM, CTR, CPC, frequency, impressions, reach, link clicks, hook, hold, add to cart, cost per ATC, click to
+  cart, cart to purchase) plus Status and Budget; the same columns and sort apply to ad set and ad rows (sorted inside
+  their parent). polish.js skips header icons on sortable tables (`th.v2srt`).
+- **Edit in place on Ads > Meta > Campaigns** (only the Campaigns job; Overview's table stays read only): a status
+  switch per campaign / ad set / ad, the budget (daily or lifetime, wherever Meta holds it), an ad set inside a campaign
+  budget shows its min / cap (click to set), and the row's ⋯ menu = Rename, Copy this ad set (paused), Open in Ads
+  Manager. Every edit opens one in-app modal (`editMeta`) with before -> after in dollars and %, a warning over 50%, then
+  writes, updates the row in place and shows a toast with Undo; the last change also sits in the table bar with Undo for
+  24h (`pf_mw_last`). Live status and budgets come from account-health `GET /api/meta/live?act=` on load (Meta's own
+  values; D1 can be 6h old); a read-only account says why on every control (the metaCan fix text).
+- **Google > Campaigns**: same table, plus a status switch and daily budget edit (`gEdit`, account-health
+  `POST /api/google/write`). Shared and total budgets are refused with the reason. Google ACCEPTS our mutates (checked
+  2026-10-09 with `validateOnly` on Lucky: pause and budget both validated). Undo = the toast writes the old value back.
+- **Jobs are parallel**: Meta = Overview, Campaigns, Ads (the creative gallery, page id still `adcreative`), Changes;
+  Google = Overview, Campaigns, Ads, Search terms, Changes. TAB_TITLE: Meta campaigns / Meta ads / Meta changes.
+- **Export frame** (share.js `frame`): the mark is drawn at its own shape (20 x 13; it is 2000 x 1294, it used to be
+  squeezed into 18 x 18), a 4px line in the mark's colours on top, the page as a small label over the brand, dates on
+  the right, a hairline footer with the mark, "Locus by Mobius Digital" and the attribution. The table bar and row ⋯
+  buttons are dropped from the picture. `LocusShare.picture(el)` returns the PNG blob (to check the frame by eye).
+- **Day check strip**: the chosen day is an inset ring at the square's own radius (was an offset outline cut by the
+  scrolling strip); tooltip = "Monday, Oct 5 / Mixed signals · 1 of 4 signs".
+- Not tested live: an actual Meta or Google write from the screen (all dry / validate only, so no client account was
+  touched); the write path is the Strategist's tested `metawrite.js` code (`node test-metawrite.mjs`).
+
+## 2026-10-09: EMAIL AND SMS, AS STRONG AS ADS (charts, flows, campaigns, and changing Klaviyo from Locus)
+
+Cole: "Should I be able to edit email stuff the same way I can edit ads? Am I missing stats or charts? Should campaigns
+and flows have charts the way revenue does?" References read: Klaviyo's own dashboards (business performance,
+deliverability hub, list growth), Triple Whale's email/SMS view, Polar's Klaviyo connector, Lifetimely, Hyros. Kept
+what a strategist acts on. Backend: account-health/CLAUDE.md, same date. v2.js email block (`klGet` to `klaviyoCards`).
+- **One brand, top to bottom:** Triple Whale tiles (each with its line and the compare period) and "Email and SMS
+  revenue by day" (`emStack`: flows and campaigns stacked, the compare window's total as a dashed line, hover
+  reads both); then from Klaviyo itself (`klaviyoCards`, loads on its own): four tiles (SMS share, revenue per email
+  with Klaviyo's $0.10, placed order rate with 0.08%, list growth), **Engagement and deliverability** (flags in plain
+  words first, `klFlags`: spam over 0.1% / 0.03%, bounces over 2% / 1%, unsubscribes over 0.5%, opens down 15%, list
+  shrinking, a flow that is off but earned, missing core flows; then six rate lines, open / click / placed order /
+  unsubscribe / spam / bounce, each with Klaviyo's average as a dashed amber rule, `rateSpark`), **List growth**
+  (`growthChart`: joined up, left down, net line), **Email vs SMS**, **Flows** (status menu per flow, revenue 90
+  days, the flow's line over the window from `by_flow`, rates; the chevron opens each message with its own rates and
+  subject), **Drafts and scheduled** (Schedule / Unschedule / Cancel / Duplicate / Open in Klaviyo, New draft
+  campaign), **Campaigns sent** (the Ads tables' `TBL` helper: sort on a header, Columns menu, saved as
+  `pf_tbl_kl-camps`; After send = revenue on each of the 14 days after the send, `afterSend`; Duplicate per row),
+  then Subject lines and send times and What Klaviyo is running. Days need 200+ emails received to draw a rate; over
+  45 days the lines go weekly (`klBucket`).
+- **All brands:** the TW table gains a line per brand; the board (`emailBoard`) reads overview + flows_report + daily
+  per brand and shows Klaviyo revenue (flows, campaigns), SMS share, per recipient, placed order, open, click, unsub,
+  spam, bounce (each coloured against Klaviyo's average), list growth, live flows, missing core flows and "Needs a
+  look" (the flags as a tooltip). Attentive brands get one line from Triple Whale. The Golf Sock is never flagged.
+- **Attentive brand (Ice & Gold):** the TW part, then "Attentive, as Triple Whale sees it" (what=attentive) and a
+  plain "not connected directly" note.
+- **Edits** (`klWrite`): preview from POST /api/klaviyo/write, an in-app modal (`klModal`) with a Now -> After table
+  and what happens, confirm sends `expect` = the summary shown, a Done modal with the Klaviyo link, then the cards
+  reload. `klNewDraft` = the labelled form (name, send to, leave out, subject, preview, sender, template; searchable
+  lists). `klSchedule` = a datetime in the viewer's zone, 15+ minutes ahead. A key without the scope shows a "read
+  only" note with the exact scope and hides the controls. **Real finding on the first local run: Lucky's "Welcome
+  (NEW) - Email [BHM]" flow is DRAFT and earned $11.8K in 90 days** (the flag catches it).
+- CSS at the end of v2.css (`kl-*`). A checkbox inside `.modal` needs `width:auto` (the modal stretches inputs).
+  index.html: v2.css?v=24, v2.js?v=35. Screens were checked on the local pair (worktree statics + `ah-worker-dev` +
+  `profit-worker-dev`) for Lucky, Party Patch, Ice & Gold and all brands; no write was applied live.
+
+## 2026-10-09: Public snapshot links ("Share a public link" in every Export menu)
+
+Cole approved section 15 step 3 of docs/strategist-viktor-grade-plan.md: one card or a whole page, frozen, no login.
+- **Freeze, never live.** share.js `freeze(el)` clones the card (or `#main` for the page item), turns canvases into
+  images, drops menus / controls / skeletons / scripts / inputs, strips handlers and `<a href>`, makes src URLs absolute,
+  copies the sprite symbols its `<use>` point at, and collects ONLY the CSS rules the element or its ancestors use
+  (`usedCss`, read with the page switched to light for that instant). Selectors on `:root` / `html` / `body` are rewritten
+  to `.lxs-html` / `.lxs-body`, the wrappers the snapshot carries (with the ancestor chain as `.lxs-w` divs), because the
+  public page draws it in a SHADOW ROOT. Brand, title, page, dates, compare and attribution ride as meta.
+- **One brand per link.** All clients is refused (modal and server). The worker refuses a view whose text names another
+  client from `brand_accounts` (`otherBrandIn`), and scrubs scripts, handlers, javascript: URLs and `act_` / `brand_` ids.
+  A limited user (brandguard `brandsFor`) can only share, list and turn off their own brands.
+- **Worker** (`src/snapshot.js`, table `p_snapshot`, `migrations/snapshot-001.sql`, also created on first use):
+  `GET /api/snapshot/:token` PUBLIC, before the auth gate (32-hex token; 404 when missing, revoked or expired; counts a
+  view; 60 a minute per IP per isolate; never returns who made it or any id); `POST /api/snapshot` {act, kind, title,
+  page, dates, cmp, attr, html, css, root, days 7|30|0} (1.8 MB cap); `GET /api/snapshots`; `POST /api/snapshot/revoke`.
+- **Public page** `profit/s.html?t=<token>`: light, Locus header (page label, brand, dates, compare), "Numbers as of ...
+  They do not update", Print or save as PDF, footer with the attribution. The frozen markup goes through DOMPurify 3.1.6
+  (cdnjs) into a shadow root: its CSS cannot leak out, nothing in it runs, links out are dropped, folded sections open.
+- **Create modal**: expiry 7 days / 30 days (default) / never, the note "Anyone with this link can see these numbers as
+  they are now", then the link with Copy (copied on create) and Open it.
+- **Agency settings > Shared links** (`SET_SECS` `links`, host `#snapList`, filled by share.js `links()`): title, brand,
+  who, when, views (+ last view), state, Copy / Open / Turn off (confirm modal).
+- Tests: `node test-snapshot.mjs` (profit/worker; token required, revoked 404, expired 404, payload has one brand and no
+  author or ids, other-brand refusal, brand limits, views, rate limit). Checked in the browser against a local mock: a
+  card frozen from dark mode came out light, a page with tiles, chart and a wide table, 375px wide with no sideways
+  scroll, the modal and the list. Not checked with a real signed-in session (no prod sign-in here).
+- `LocusShare.freeze(el)` returns the payload a link would carry, to check by eye.
+
+## 2026-10-09: CLIENT LOGINS. Clients sign in to Locus. Read before touching the rail, show() or Settings.
+
+The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandguard.js`); this page only draws them.
+- **How a client gets in.** Cole: Agency settings > Clients > "Client logins" card (or Brand settings > Client access,
+  or the New client setup screen's "4. Their Locus login") > Invite a client: emails, first name, brands, P&L and
+  Strategist switches > Next: the email (editable text, Copy, "Give access, no email", Send invite = Cole's Gmail
+  after a confirm). The client opens tools.go-mobius-digital.com/profit, Continue with Google (any email; a non-Gmail
+  address can be a Google account via "Use my current email address instead"), HQ sends a client straight back to
+  /profit/ (`mobius_session_role`). No password option: the old shared password is an admin key.
+- **What a client sees** (index.html `CLIENT_TABS` / `clientTabOk` / `applyClientMode`, `isClient()` = `S.role === 'client'`
+  from /api/me in `boot()`): Home (Overview; P&L only with the switch), Ads (All channels, Meta Overview + Campaigns,
+  Google Overview + Campaigns; Changes only with the switch), Email and SMS, Store (Sales, Customers, Website, Search),
+  Calendar (add a date, edit / move its own, leave a note; no Remove, ticks or Asana), Reports (`ClientsTab.reports`:
+  sent only, the client archive layout), Creative > Creators only with the switch (`ClientsTab.creators`: the public
+  link). Settings = `ClientsTab.profile` (name, brands, sign out). Profile menu = Your profile, Sign out. No All
+  clients, no picker with one brand, no Products / Brand / Season / Tools, no ask bar unless the Strategist switch
+  is on (then AskUI only ever calls POST /api/ask). First sign-in: a welcome card on Home until "Got it"
+  (`/api/clients/me` welcomed). `body.is-client` CSS (in clients.js) hides the team's buttons; `[hidden]` is forced.
+- **Role checks elsewhere (kept minimal):** v2.js (no AI read, no Day check line, no Needs you today, no CM tile when
+  P&L is off), calendar.js (client panel actions, note box, no team line), share.js (no Send to Slack for a client).
+- **profit/clients.js** (`window.ClientsTab`): card, invite, welcome, profile, reports, creators.
+- **Local check (2026-10-09):** both dev workers from the worktree with SESSION_SECRET = the dev ADMIN_TOKEN in the
+  gitignored .dev.vars, a temporary `clientUsers` row (removed after), headless Chrome over CDP: client rail = Home, Ads,
+  Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
+  Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
+
