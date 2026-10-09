@@ -23,6 +23,7 @@
  *   GET /api/hub/moved?act=          what moved yesterday against the same weekday over 8 weeks
  *   GET /api/hub/find?q=&act=        any Meta campaign or ad by name (the ask bar's jump list)
  *   GET /api/hub/stockads?act=        products and ad sets tied to ad spend through Triple Whale orders (30 days)
+ *   GET /api/hub/command?act=all      the agency command center: why each brand needs attention (team only)
  */
 import { metaOf } from './brandids.js';
 import { rulesFor } from './brand.js';
@@ -90,6 +91,7 @@ export async function handleHub(ctx) {
       return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, brand: nm[a.act_id] }))] });
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
+    if (path === '/api/hub/command') return json(await commandMany(env, ctx, accts));
     if (path === '/api/hub/stockads') return json({ brands: await Promise.all(accts.map(a => stockAds(env, ctx, a))) });
     if (path === '/api/hub/yesterday') return json(await yesterdayMany(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || '')), act === 'all'));
     if (path === '/api/hub/today' && url.searchParams.get('live') !== '1') return json(await buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))));
@@ -892,4 +894,125 @@ async function stockAds(env, ctx, a) {
   const adsets = Object.values(setAgg).filter(g => g.s30 > 0).map(g => ({ adset_id: g.adset_id, name: g.name, s7: Math.round(g.s7 * 100) / 100, s30: Math.round(g.s30 * 100) / 100,
     products: Object.entries(g.cnt).sort((x, y) => y[1] - x[1]).slice(0, 3) })).sort((x, y) => y.s30 - x.s30);
   return { act_id: a.act_id, name: a.name, from, to: today, model: 'lastPlatformClick', spend: Math.round(total), mapped: Math.round(mapped), products, ads, adsets };
+}
+
+/* ---------- THE COMMAND CENTER (2026-10-09): why each brand needs attention ----------
+   Home for "All clients" (profit/command.js). Every signal is read from data Locus already has, on FIXED
+   windows ending yesterday (so the reasons do not move with the period picker), and each comes back as a
+   reason {sev bad|warn|info, kind, text, go (the Locus page that shows it)}:
+   - GOAL: blended cost per paid order (all ad spend / paid orders, the same CPA the alerts use) against the
+     brand's goal CPA, or MER against the month's plan (sales / spend) or target ROAS when there is no goal
+     CPA. Judged on a rolling 3 days so one slow day is not a streak; "off" = 10%+ the wrong side of goal.
+     The streak is the run of off days ending yesterday (only days with spend count). 3+ days = warn, 7+ = bad.
+   - CADENCE: days since the last new Meta ad (ads.created_time over every Meta account of the brand), only for
+     a brand spending $100+ on Meta in the last 7 days. 10+ days = warn, 21+ = bad.
+   - FATIGUE: Meta link CTR, hook (3s views / impressions) and frequency (impressions / reach per day), the last
+     7 days against the 14 before (daily_insights). Flagged when 2 of the 3 moved the wrong way by 15%+ on
+     $300+ of Meta spend in the 7 days.
+   - DAY CHECK: yesterdayMany's verdict for yesterday, and the bad days in the last 7.
+   - SETUP: no Triple Whale shop, no Meta account, no goals, no Asana project.
+   Paused and test brands (SKIP_HUB) come back `paused` with no reasons: never flag them (Cole's rule).
+   Asana, pending new clients and alerts live on account-health (/api/command/work); the AI read is /api/read. */
+function monthGoals(goals, ym) {
+  const g = goals && typeof goals === 'object' ? goals : {};
+  if (g[ym]) return g[ym];
+  const prior = Object.keys(g).filter(k => /^\d{4}-\d{2}$/.test(k) && k < ym).sort().pop();
+  return prior ? g[prior] || {} : g.default || {};
+}
+async function commandMany(env, ctx, accts) {
+  const as_of = new Date().toISOString();
+  if (!accts.length) return { as_of, brands: [] };
+  const y = ctx.addDays(ctx.localDate(accts[0].tz), -1);
+  const live = accts.filter(a => !SKIP_HUB.test(a.name || ''));
+  const acts = live.map(a => a.act_id);
+  const none = { results: [] };
+  let piv = {}, adQ = none, fatQ = none, conQ = none, docQ = none, yd = null;
+  if (acts.length) {
+    const IN1 = inList(acts.length, 1), IN3 = inList(acts.length, 3);
+    [piv, adQ, fatQ, conQ, docQ, yd] = await Promise.all([
+      twPivotMany(env, acts, ctx.addDays(y, -22), y, ['totalSales', 'totalNetTaxes', 'blendedAds', 'totalOrders']),
+      env.DB.prepare(`SELECT c.brand_id act_id, MAX(substr(x.created_time, 1, 10)) last_ad, SUM(CASE WHEN substr(x.created_time, 1, 10) >= ?2 THEN 1 ELSE 0 END) new14
+        FROM ads x JOIN connections c ON c.kind = 'meta' AND c.external_id = x.act_id WHERE c.brand_id IN (${IN3}) AND x.created_time IS NOT NULL AND substr(x.created_time, 1, 10) <= ?1 GROUP BY c.brand_id`).bind(y, ctx.addDays(y, -13), ...acts).all().catch(() => none),
+      env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.reach) reach, SUM(d.link_clicks) clicks, SUM(d.video_views) v3
+        FROM daily_insights d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id WHERE c.brand_id IN (${IN3}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(ctx.addDays(y, -20), y, ...acts).all().catch(() => none),
+      env.DB.prepare(`SELECT brand_id, kind FROM connections WHERE brand_id IN (${IN1})`).bind(...acts).all().catch(() => none),
+      env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE act_id IN (${IN1}) AND line_id = '' AND key = 'rules'`).bind(...acts).all().catch(() => none),
+      yesterdayMany(env, ctx, live, true).catch(() => null),
+    ]);
+  }
+  const AD = Object.fromEntries((adQ.results || []).map(r => [r.act_id, r]));
+  const FT = {}; for (const r of fatQ.results || []) (FT[r.act_id] ??= {})[r.date] = r;
+  const KINDS = {}; for (const r of conQ.results || []) (KINDS[r.brand_id] ??= new Set()).add(r.kind);
+  const DOC = {}; for (const r of docQ.results || []) { try { DOC[r.act_id] = JSON.parse(r.data_json || 'null'); } catch {} }
+  const YD = Object.fromEntries(((yd && yd.brands) || []).map(b => [b.act_id, b]));
+  const days = dates(ctx.addDays(y, -13), y, ctx.addDays);
+  const out = [];
+  for (const a of accts) {
+    const base = { act_id: a.act_id, name: a.name, currency: a.currency };
+    if (SKIP_HUB.test(a.name || '')) { out.push({ ...base, paused: true, reasons: [] }); continue; }
+    const reasons = [], add = (sev, kind, text, go, extra) => reasons.push({ sev, kind, text, go, ...(extra || {}) });
+    const $ = moneyOf(a.currency || 'USD');
+    /* GOAL */
+    const P = piv[a.act_id] || {}, val = (k, d) => num(P[k] && P[k][d]);
+    const roll = (d, n) => { const r = { rev: 0, sp: 0, o: 0 }; for (let i = 0; i < n; i++) { const x = ctx.addDays(d, -i); r.rev += val('totalSales', x) - val('totalNetTaxes', x); r.sp += val('blendedAds', x); r.o += val('totalOrders', x); } return r; };
+    const rules = rulesFor(a, DOC[a.act_id]);
+    const mg = monthGoals(a.goals, y.slice(0, 7));
+    const goalCpa = rules.target_cpa || null;
+    const goalMer = mg.sales > 0 && mg.spend > 0 ? mg.sales / mg.spend : a.target_roas > 0 ? +a.target_roas : null;
+    const goal = goalCpa ? { kind: 'cpa', target: goalCpa } : goalMer ? { kind: 'mer', target: goalMer } : null;
+    if (goal) {
+      const w7 = roll(y, 7);
+      goal.value7 = goal.kind === 'cpa' ? (w7.o ? w7.sp / w7.o : null) : (w7.sp ? w7.rev / w7.sp : null);
+      let streak = 0;
+      for (let i = days.length - 1; i >= 0; i--) {
+        const r = roll(days[i], 3); if (!(r.sp > 0)) break;
+        const v = goal.kind === 'cpa' ? (r.o ? r.sp / r.o : Infinity) : r.rev / r.sp;
+        if (!(goal.kind === 'cpa' ? v > goal.target * 1.1 : v < goal.target * 0.9)) break;
+        streak++;
+      }
+      goal.off_days = streak;
+      const fmt = v => goal.kind === 'cpa' ? $(v) : `${(+v).toFixed(2)}x`;
+      if (streak >= 3 && goal.value7 != null) add(streak >= 7 ? 'bad' : 'warn', 'goal',
+        `${goal.kind === 'cpa' ? 'CPA' : 'MER'} ${fmt(goal.value7)} vs ${fmt(goal.target)} goal over 7 days, off goal ${streak >= days.length ? `${streak}+` : streak} days running`, 'overview', { days: streak });
+    }
+    /* CADENCE */
+    const F = FT[a.act_id] || {};
+    const sum = (r, k) => { let s = 0; for (const d in F) if (d >= r.from && d <= r.to) s += num(F[d][k]); return s; };
+    const w = { from: ctx.addDays(y, -6), to: y }, b = { from: ctx.addDays(y, -20), to: ctx.addDays(y, -7) };
+    const metaSpend7 = sum(w, 'spend');
+    const ad = AD[a.act_id];
+    const cadence = ad && ad.last_ad ? { last_ad: ad.last_ad, days_since: Math.round((Date.parse(y) - Date.parse(ad.last_ad)) / 864e5), new_14: num(ad.new14) } : null;
+    if (cadence && metaSpend7 >= 100 && cadence.days_since >= 10) add(cadence.days_since >= 21 ? 'bad' : 'warn', 'cadence', `No new Meta ad in ${cadence.days_since} days (last one ${cadence.last_ad})`, 'adcreative', { days: cadence.days_since });
+    /* FATIGUE */
+    const rate = (r, k, d) => { const n = sum(r, k), q = sum(r, d); return q ? n / q : null; };
+    const freq = r => { let s = 0, n = 0; for (const d in F) if (d >= r.from && d <= r.to && num(F[d].reach) > 0) { s += num(F[d].impr) / num(F[d].reach); n++; } return n ? s / n : null; };
+    const ch = (x, p) => (x != null && p ? x / p - 1 : null);
+    const fat = { spend7: Math.round(metaSpend7), ctr: rate(w, 'clicks', 'impr'), ctr_prev: rate(b, 'clicks', 'impr'), hook: rate(w, 'v3', 'impr'), hook_prev: rate(b, 'v3', 'impr'), freq: freq(w), freq_prev: freq(b) };
+    fat.ctr_change = ch(fat.ctr, fat.ctr_prev); fat.hook_change = ch(fat.hook, fat.hook_prev); fat.freq_change = ch(fat.freq, fat.freq_prev);
+    const signs = [];
+    if (fat.ctr_change != null && fat.ctr_change <= -0.15) signs.push(`CTR down ${Math.round(-fat.ctr_change * 100)}%`);
+    if (fat.hook_change != null && fat.hook_change <= -0.15 && fat.hook_prev > 0.02) signs.push(`hook rate down ${Math.round(-fat.hook_change * 100)}%`);
+    if (fat.freq_change != null && fat.freq_change >= 0.15) signs.push(`frequency up ${Math.round(fat.freq_change * 100)}%`);
+    fat.signs = signs;
+    if (metaSpend7 >= 300 && signs.length >= 2) add(signs.length >= 3 ? 'bad' : 'warn', 'fatigue', `Creative fatigue on Meta: ${signs.join(', ')} (last 7 days vs the 14 before)`, 'adcreative');
+    /* DAY CHECK */
+    const yb = YD[a.act_id];
+    let daycheck = null;
+    if (yb && yb.cells && yb.cells.length) {
+      const last = yb.cells[yb.cells.length - 1], wk = yb.cells.slice(-7);
+      daycheck = { date: last.date, verdict: last.verdict, moved: (last.moved || []).filter(m => m.bad).map(m => m.label), bad7: wk.filter(c => c.verdict === 'bad' || c.verdict === 'vbad').length };
+      if (last.verdict === 'bad' || last.verdict === 'vbad') add(last.verdict === 'vbad' ? 'bad' : 'warn', 'daycheck', `Bad day yesterday${daycheck.moved.length ? `: ${daycheck.moved.join(', ').toLowerCase()} off its normal` : ''}`, 'yesterday');
+      else if (daycheck.bad7 >= 3) add('warn', 'daycheck', `${daycheck.bad7} bad days in the last 7`, 'yesterday');
+    }
+    /* SETUP */
+    const K = KINDS[a.act_id] || new Set();
+    const gaps = [];
+    if (!a.tw_shop && !K.has('triple_whale')) gaps.push(['No Triple Whale shop, so no store numbers', 'settings']);
+    if (!K.has('meta')) gaps.push(['No Meta ad account connected', 'settings']);
+    if (!goal && !(mg.sales > 0)) gaps.push(['No goals set (goal CPA or a monthly plan)', 'plan']);
+    if (!K.has('asana')) gaps.push(['No Asana project linked', 'settings']);
+    for (const [t, go] of gaps) add('info', 'setup', t, go);
+    out.push({ ...base, goal, cadence, fatigue: fat, daycheck, gaps: gaps.map(g => g[0]), reasons });
+  }
+  return { as_of, yesterday: y, market: yd ? yd.market : null, brands: out };
 }

@@ -106,7 +106,7 @@ await check('Google sign-in: a client email signs in as a client, a stranger is 
 await check('/api/me says who: client (with brands), team, owner', async () => {
   const c = await ah(CLIENT, 'GET', '/api/me');
   assert.equal(c.status, 200); assert.equal(c.j.role, 'client'); assert.deepEqual(c.j.client.brands.map(b => b.id), ['brand_alpha']);
-  assert.equal(c.j.client.brands[0].access.pl, false, 'P&L is off by default');
+  assert.deepEqual(c.j.client.brands[0].access, { pl: true, strategist: true, changes: true, creators: true }, 'every switch is ON by default');
   assert.equal((await ah(TEAM, 'GET', '/api/me')).j.role, 'team');
   assert.equal((await ah(OWNER, 'GET', '/api/me')).j.role, 'owner');
 });
@@ -133,22 +133,24 @@ await check('a client cannot call a write route (403 on every non-GET outside th
 await check('a client cannot open settings, team, integrations, data health or the brief', async () => {
   for (const [w, p] of [['ah', '/api/settings'], ['ah', '/api/team'], ['ah', '/api/integrations'], ['ah', '/api/clients'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
     ['pf', '/api/briefs?act=brand_alpha'], ['pf', '/api/brief?act=brand_alpha'], ['ah', '/api/brand/rules?act=brand_alpha'], ['pf', '/api/brand/rules?act=brand_alpha'], ['ah', '/api/assets?act=brand_alpha'],
-    ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'], ['ah', '/api/schedule-health'], ['ah', '/api/research/run?act=brand_alpha']]) {
+    ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'], ['ah', '/api/schedule-health'], ['ah', '/api/research/run?act=brand_alpha'],
+    ['pf', '/api/hub/command?act=brand_alpha'], ['pf', '/api/hub/command?act=all'], ['ah', '/api/command/work']]) {
     const r = await call(w, CLIENT, 'GET', p);
     assert.equal(r.status, 403, `${w} ${p} -> ${r.status}`);
   }
 });
 
-await check('the Strategist internals are refused; the client Strategist is off by default and never the team engine', async () => {
+await check('the Strategist internals are refused; the client Strategist is ON by default, can be turned off, and is never the team engine', async () => {
   for (const p of ['/api/ask/findings', '/api/ask/memory', '/api/ask/settings', '/api/ask/usage', '/api/ask/skills', '/api/ask/progress?id=abcdef1', '/api/ask/reports', '/api/ask/schedules'])
     assert.equal((await ah(CLIENT, 'GET', p)).status, 403, p);
   assert.equal((await ah(CLIENT, 'POST', '/api/ask/memory', { text: 'x' })).status, 403);
   assert.equal((await ah(CLIENT, 'POST', '/api/ask/apply', { id: 'p1' })).status, 403);
-  const off = await ah(CLIENT, 'POST', '/api/ask', { question: 'how are sales', screen: { act_id: 'brand_alpha' } });
-  assert.equal(off.status, 403, 'off by default'); assert.match(off.j.error, /switched off/);
-  setSetting('clientAccess', { brand_alpha: { strategist: true } });
   const on = await ah(CLIENT, 'POST', '/api/ask', { question: 'how are sales', screen: { act_id: 'brand_alpha' } });
-  assert.notEqual(on.status, 403); assert.match(on.j.error, /not set up/, 'reaches the client-safe path (no model key offline)');
+  assert.notEqual(on.status, 403, 'on by default'); assert.match(on.j.error, /not set up/, 'reaches the client-safe path (no model key offline)');
+  setSetting('clientAccess', { brand_alpha: { strategist: false } });
+  const off = await ah(CLIENT, 'POST', '/api/ask', { question: 'how are sales', screen: { act_id: 'brand_alpha' } });
+  assert.equal(off.status, 403, 'turned off for the brand'); assert.match(off.j.error, /switched off/);
+  setSetting('clientAccess', {});
   const other = await ah(CLIENT, 'POST', '/api/ask', { question: 'how is beta', screen: { act_id: 'brand_beta' } });
   assert.equal(other.status, 403);
   setSetting('clientAccess', {});
@@ -162,21 +164,50 @@ await check('reports: a client sees SENT reports only, never a draft', async () 
   assert.equal(draft.status, 404); assert.ok(!JSON.stringify(draft.j).includes('DRAFT TEXT'));
   const sent = await ah(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-09-28');
   assert.equal(sent.status, 200); assert.equal(sent.j.summary, 'Sent one');
-  assert.equal(sent.j.data.cm, undefined, 'contribution margin scrubbed while P&L is off');
+  assert.equal(sent.j.data.cm, 5, 'P&L is on by default, so the margin shows');
   assert.equal(sent.j.slack_channel, undefined);
-});
-
-await check('P&L is behind its switch', async () => {
-  assert.equal((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403);
-  setSetting('clientAccess', { brand_alpha: { pl: true } });
-  assert.notEqual((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403);
-  const sent = await ah(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-09-28');
-  assert.equal(sent.j.data.cm, 5, 'with P&L on, the margin is shown');
+  setSetting('clientAccess', { brand_alpha: { pl: false } });
+  const off = await ah(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-09-28');
+  assert.equal(off.j.data.cm, undefined, 'contribution margin scrubbed once P&L is turned off');
   setSetting('clientAccess', {});
 });
 
-await check('Home: /api/overview answers with the client\'s brand only, internal keys and costs scrubbed', async () => {
+await check('P&L is on by default and still behind its switch', async () => {
+  assert.notEqual((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403, 'on by default');
+  setSetting('clientAccess', { brand_alpha: { pl: false } });
+  assert.equal((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403, 'turned off = refused');
+  setSetting('clientAccess', {});
+});
+
+await check('defaults: P&L, change history, the creator link and the Strategist are ON with nothing stored; an override turns one off', async () => {
+  setSetting('clientAccess', {});
+  for (const [w, p] of [['ah', '/api/activities?act=brand_alpha'], ['ah', '/api/google/ads-changes?act=brand_alpha'], ['pf', '/api/client?act=brand_alpha&days=30'], ['pf', '/api/forecast?act=brand_alpha']]) {
+    let r; try { r = await call(w, CLIENT, 'GET', p); } catch (e) { r = { status: 'handler ran: ' + e.message }; }
+    assert.notEqual(r.status, 403, `${w} ${p} refused with every switch on by default`);
+  }
+  const me = await ah(CLIENT, 'GET', '/api/clients/me');
+  assert.equal(me.j.brands[0].access.creators, true, 'creator link on by default');
+  /* The owner turns Changes off for the brand: only the override is stored, and the route is refused. */
+  const put = await ah(OWNER, 'PUT', '/api/clients/access', { act: 'brand_alpha', changes: false });
+  assert.equal(put.status, 200); assert.deepEqual(getSetting('clientAccess'), { brand_alpha: { changes: false } }, 'only the override is stored');
+  assert.equal((await ah(CLIENT, 'GET', '/api/activities?act=brand_alpha')).status, 403, 'Changes turned off = refused');
+  assert.notEqual((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403, 'P&L untouched');
+  const list = await ah(OWNER, 'GET', '/api/clients?act=brand_alpha');
+  assert.deepEqual(list.j.access.brand_alpha, { pl: true, strategist: true, changes: false, creators: true }, 'the card reads the defaults plus the override');
+  /* Turned back on = the override row goes. */
+  await ah(OWNER, 'PUT', '/api/clients/access', { act: 'brand_alpha', changes: true });
+  assert.deepEqual(getSetting('clientAccess'), {}, 'back to the default leaves nothing stored');
+  /* A teammate cannot change a switch, and a client never can. */
+  assert.equal((await ah(TEAM, 'PUT', '/api/clients/access', { act: 'brand_alpha', pl: false })).status, 403);
+  assert.equal((await ah(CLIENT, 'PUT', '/api/clients/access', { act: 'brand_alpha', pl: false })).status, 403);
+});
+
+await check('Home: /api/overview answers with the client\'s brand only, internal keys always scrubbed, costs once P&L is off', async () => {
+  const dflt = JSON.stringify((await pf(CLIENT, 'GET', '/api/overview?days=30&series=0')).j);
+  for (const k of ['"slack_channel"', '"brief_channel"', '"report_config"']) assert.ok(!dflt.includes(k), `${k} leaked with the defaults on`);
+  setSetting('clientAccess', { brand_alpha: { pl: false } });
   const r = await pf(CLIENT, 'GET', '/api/overview?days=30&series=0');
+  setSetting('clientAccess', {});
   assert.equal(r.status, 200, JSON.stringify(r.j).slice(0, 200));
   assert.deepEqual(r.j.accounts.map(a => a.act_id), ['brand_alpha']);
   const s = JSON.stringify(r.j);
@@ -240,15 +271,28 @@ await check('inviting: owner only, Mobius emails refused, the email goes only on
   assert.equal((await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], send: true, subject: 's', body: 'b' })).status, 400, 'no send without approval');
   const draft = await ah(OWNER, 'GET', '/api/clients/draft?brands=brand_beta&email=new@beta.com&name=Sam%20Lee');
   assert.match(draft.j.body, /Hi Sam,/); assert.match(draft.j.body, /Continue with Google/); assert.ok(!/\u2014/.test(draft.j.body + draft.j.subject), 'no em dashes');
-  const inv = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], access: { pl: true }, send: true, approved: true, subject: draft.j.subject, body: draft.j.body });
+  const inv = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], access: { pl: false, strategist: true, changes: true, creators: true }, send: true, approved: true, subject: draft.j.subject, body: draft.j.body });
   assert.equal(inv.status, 200, JSON.stringify(inv.j)); assert.deepEqual(inv.j.sent, ['new@beta.com']); assert.equal(mails.length, 1);
-  assert.equal(getSetting('clientAccess').brand_beta.pl, true);
+  assert.deepEqual(getSetting('clientAccess').brand_beta, { pl: false }, 'the invite stores only what was turned off');
   const list = await ah(OWNER, 'GET', '/api/clients?act=brand_beta');
   assert.deepEqual(list.j.clients.map(c => c.email), ['new@beta.com']); assert.ok(list.j.clients[0].last_invite);
   const NEW = mint('new@beta.com');
   assert.equal((await ah(NEW, 'GET', '/api/reports?act=brand_alpha')).status, 403);
   assert.equal((await ah(OWNER, 'POST', '/api/clients/remove', { email: 'new@beta.com' })).status, 200);
   assert.equal((await ah(NEW, 'GET', '/api/me')).status, 401, 'removed = locked out at once');
+});
+
+await check('the command center answers the team (every brand with its reasons) and a limited teammate only their brands', async () => {
+  const c = await pf(OWNER, 'GET', '/api/hub/command?act=all');
+  assert.equal(c.status, 200, JSON.stringify(c.j).slice(0, 300));
+  assert.deepEqual(c.j.brands.map(b => b.act_id).sort(), ['brand_alpha', 'brand_beta']);
+  for (const b of c.j.brands) { assert.ok(Array.isArray(b.reasons)); assert.ok(b.reasons.some(r => r.kind === 'setup'), 'no data = setup gaps named'); }
+  const w = await ah(OWNER, 'GET', '/api/command/work');
+  assert.equal(w.status, 200, JSON.stringify(w.j).slice(0, 300)); assert.ok(Array.isArray(w.j.pending) && Array.isArray(w.j.alerts));
+  setSetting('userBrands', { 'ahsan@go-mobius-digital.com': ['brand_beta'] });
+  const t = await pf(TEAM, 'GET', '/api/hub/command?act=all');
+  assert.deepEqual(t.j.brands.map(b => b.act_id), ['brand_beta']);
+  setSetting('userBrands', {});
 });
 
 await check('a client can edit only its own profile', async () => {

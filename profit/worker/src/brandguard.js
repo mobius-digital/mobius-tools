@@ -12,7 +12,7 @@
  *     its array, so "All clients" quietly means "your brands".
  *
  * CLIENT. settings.clientUsers = { "person@brand.com": { brands: ["brand_x"], name, invited_at, ... } } and
- * settings.clientAccess = { "brand_x": { pl, strategist, changes, creators } } (all off by default). A client
+ * settings.clientAccess = { "brand_x": { pl, strategist, changes, creators } } (all ON by default since 2026-10-09; a stored false turns one off). A client
  * is READ-ONLY and sees one brand at a time. The rule is an ALLOWLIST (CLIENT_RULES below): any route not
  * on it is refused with 403, whatever the route's own check would have said. On an allowed route:
  *   - `act` must be one of the client's brands ("all" is refused); a route marked need refuses no act;
@@ -74,8 +74,9 @@ function filterActs(v, only) {
 /*  CLIENTS                                                                                    */
 /* ------------------------------------------------------------------------------------------ */
 
-/* What a client may see beyond the base pages, per brand. Off until Cole turns it on. */
-export const CLIENT_SWITCHES = { pl: false, strategist: false, changes: false, creators: false };
+/* What a client may see beyond the base pages, per brand. ON by default (2026-10-09, Cole: a client sees everything
+   about their own business); settings.clientAccess holds only the overrides, a false turns one off for that brand. */
+export const CLIENT_SWITCHES = { pl: true, strategist: true, changes: true, creators: true };
 
 /** The client record for an email, or null when the email is not a client (the owner, anyone on the
  *  Mobius domain and an invited team guest are never clients, whatever clientUsers says). */
@@ -152,7 +153,7 @@ export const CLIENT_RULES = [
   { m: 'POST', p: '/api/calendar/move', act: 'none', cal: true },
   { m: 'POST', p: '/api/calendar/end', act: 'none', cal: true },
   { m: 'POST', p: '/api/calendar/comment', act: 'none', cal: true },
-  // The client-safe Strategist (clientask.js), only where Cole switched it on.
+  // The client-safe Strategist (clientask.js): on by default, refused where the brand has it turned off.
   { m: 'POST', p: '/api/ask', act: 'need', opt: 'strategist' },
 ];
 
