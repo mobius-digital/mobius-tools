@@ -817,18 +817,22 @@
     const sparkRow = a => { const sr = a.series || []; if (sr.length < 2) return ''; const mx = Math.max(...sr.map(r => r.sales || 0), 1);
       const pts = sr.map((r, i) => `${(i / (sr.length - 1) * 90).toFixed(1)},${(22 - (r.sales || 0) / mx * 20).toFixed(1)}`).join(' ');
       return `<svg viewBox="0 0 90 24" width="90" height="24" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(sr.map(r => `<b>${day(r.date)}</b> ${kmoney(r.sales, a.currency)}`)))}"><polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="1.5"/></svg>`; };
-    const brandTable = !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>By day</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
+    /* THE COMMAND CENTER (2026-10-09, command.js): for the team on All clients, one row per brand sorted by what needs
+       attention, with the reasons and one AI read across brands. It replaces the brand table and the screen read here. */
+    const cmdOn = !one && all.length > 1 && H.S.role !== 'client' && !!window.CommandCenter;
+    const brandTable = !cmdOn && !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>By day</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
         ${all.slice().sort((x, y) => (y.window?.sales || 0) - (x.window?.sales || 0)).map(a => { const w = a.window || {}; const off = a.plan?.sales && a.mtd?.sales != null ? a.mtd.sales / a.plan.sales - 1 : null;
           return `<tr data-act="${esc(a.act_id)}" tabindex="0" class="link"><td><b>${esc(a.name)}</b></td><td>${sparkRow(a)}</td><td>${kmoney(w.sales, a.currency)} ${a.prev ? delta(w.sales, a.prev.sales) : ''}</td><td>${off == null ? '<span class="faint">no plan</span>' : `<span class="v2pill ${off >= 0 ? 'good' : off > -0.08 ? 'warn' : 'bad'}">${off >= 0 ? '+' : ''}${Math.round(off * 100)}%</span>`}</td>
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
-    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div><div id="v2needs"></div><div id="v2cal"></div>${readSlot('v2read')}${tiles}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
+    if (cmdOn) window.CommandCenter.render(document.getElementById('v2cmd'), H, all);
     if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
     /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
     if (window.CalendarTab) {
@@ -837,7 +841,7 @@
     }
     if (rows.length > 1) wireLine('v2rev', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · revenue ${kmoney(r.sales, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · MER ${x2(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)} on ${day(prev[i].date)}</span>` : ''}` });
     if (false && chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
-    if (cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
+    if (!cmdOn && cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
       month_to_date: mtd.plan ? { revenue: mtd.sales, planned_by_now: mtd.plan } : null, site: fun.ses ? { sessions: fun.ses, carts: fun.cart, orders: fun.ord, sessions_before: fun.pses, orders_before: fun.pord } : null,
       channels: chRows.map(r => ({ channel: r.label, spend: r.spend, revenue: r.revenue, platform_says: r.hasP ? r.platform_revenue : null, revenue_before: r.hasPrev ? r.prev_revenue : null })),
       brands: one ? undefined : all.map(a => ({ name: a.name, revenue: a.window?.sales, revenue_before: a.prev?.sales, mer: a.window?.mer, mtd_vs_plan: a.plan?.sales && a.mtd?.sales != null ? Math.round((a.mtd.sales / a.plan.sales - 1) * 100) + '%' : null })) });
