@@ -93,19 +93,233 @@
   /* EVERY TILE OPENS (2026-10-08, Cole: "I'm able to click on the cards I'm supposed to"). A tile that links to a
      page keeps its data-go; any other tile opens a side panel: the number, its change, the day-by-day line drawn
      large (same hover marker), and what the number means from the Metrics glossary. Nothing per screen to wire. */
+  /* THE DATA BEHIND THE NUMBER (2026-10-09, Cole: "what Triple Whale does"). On Home, Ads, Store, Email and P&L a
+     headline tile opens a drill-down instead: the number large with its delta, the day line, then a BREAKDOWN for that
+     metric (spend by platform, revenue by channel, new against returning, top products, CM as a waterfall down to net
+     profit, email campaigns against flows), and one "What it is" line at the bottom. Data: /api/hub/drill (hub.js
+     drillMany), one call for every metric, cached in the page. A tile that linked to a page now opens its drill-down and
+     offers the page at the bottom. Other tiles (and other pages) keep the simple panel. Capture phase, so a tile's own
+     data-go click never fires first. */
   if (!window.__v2tiledrill) { window.__v2tiledrill = 1;
     document.addEventListener('click', e => {
-      const t = e.target.closest && e.target.closest('.v2tile'); if (!t || t.dataset.go || e.target.closest('a,button,input,select,[data-go]')) return;
+      const t = e.target.closest && e.target.closest('.v2tile'); if (!t || !H || t.closest('.v2sk,#v2panel') || e.target.closest('a,button,input,select')) return;
       const label = (t.querySelector('.l span') || t.querySelector('.l') || t).childNodes[0]?.textContent?.trim() || 'This number';
-      const sp = t.querySelector('svg.v2spark,svg[data-spk]');
-      const big = sp ? sp.outerHTML.replace('class="v2spark"', 'class="v2spark v2spark-big"').replace(/viewBox="0 0 (\d+) (\d+)"/, (m, w, h) => `viewBox="0 0 ${w} ${h}"`) : '';
-      const L = label.toLowerCase(), GL = window.GLOSSARY || [], ALIAS = { spend: 'ad spend', 'blended ad spend': 'ad spend', 'cost per purchase': 'cpa', 'cost per new customer': 'cac', purchases: 'orders', 'average order': 'aov', 'first orders': 'new customers' };
-      const want = ALIAS[L] || L; const g = GL.find(x => x.k.toLowerCase() === want) || GL.find(x => x.k.toLowerCase().includes(want) || want.includes(x.k.toLowerCase()));
-      const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul');
-      panel(label, `<div class="v2drill"><div class="dv">${v ? v.innerHTML : ''}</div>${sub ? `<p class="v2hint">${sub.innerHTML}</p>` : ''}${bul ? bul.outerHTML : ''}
-        ${big ? `<h4>Day by day</h4><p class="v2hint">Hover the line to read each day. The dashed line is the compare period.</p>${big}` : ''}
-        ${g ? `<h4>What it means</h4><p>${g.one}</p><h4>How it is worked out</h4><p>${g.f}</p><h4>What good looks like</h4><p>${g.good}</p>${g.moves ? `<h4>When it moves</h4><p>${g.moves}</p>` : ''}` : `<p class="v2hint">Open <b>Metrics</b> at the top of the page for every number's meaning.</p>`}</div>`);
-    });
+      const m = DRILL_TABS.has(H.S.tab) ? METRIC_OF[label.toLowerCase()] || null : null;
+      if (!m && t.dataset.go) return;
+      e.stopPropagation(); e.preventDefault();
+      openDrill(t, label, m);
+    }, true);
+  }
+  const DRILL_TABS = new Set(['overview', 'profit', 'store', 'channels', 'meta', 'campaigns', 'google', 'tiktok', 'email']);
+  const METRIC_OF = { revenue: 'revenue', 'returning revenue': 'revenue', orders: 'orders', 'average order': 'aov', 'ad spend': 'spend', spend: 'spend', mer: 'mer', amer: 'amer', roas: 'roas',
+    'new customers': 'newcust', 'first orders': 'newcust', 'cost per new customer': 'cac', 'contribution margin': 'cm', 'net profit': 'net', 'email and sms': 'email', 'email and sms revenue': 'email',
+    campaigns: 'email', flows: 'email', purchases: 'purchases', 'paid purchases': 'purchases', 'cost per purchase': 'cpa' };
+  const PLAT_OF = { meta: 'meta', campaigns: 'meta', google: 'google', tiktok: 'tiktok' };
+  /* One sentence each: what the number IS. The long glossary stays under Metrics in the top bar. */
+  const WHAT = {
+    revenue: 'Everything the store sold from every source, paid, organic, email and direct: Shopify total sales minus sales tax.',
+    spend: 'Every ad platform’s spend added together, as Triple Whale carries it. Spend is a choice, so it has no good or bad colour.',
+    mer: 'Revenue divided by all ad spend: how much the whole store took for every advertising dollar.',
+    amer: 'Revenue from first-time buyers divided by all ad spend: what the ads brought in new, so repeat buyers and email cannot flatter it.',
+    roas: 'Revenue credited to the ads divided by their spend, under the attribution model picked in the top bar.',
+    orders: 'Paid orders from every channel, and the average order: revenue divided by orders.',
+    aov: 'Revenue divided by paid orders, store-wide.',
+    newcust: 'Paid orders from people buying for the first time.',
+    cac: 'All ad spend divided by first orders: what one new customer cost.',
+    cm: 'What is left after every variable cost (product, delivery, handling, payment fees and ad spend). Fixed costs like rent and salaries are not in it.',
+    net: 'Contribution margin minus the fixed expenses set in Brand settings > Data and costs, spread evenly over each month’s days.',
+    email: 'Orders Klaviyo credits to an email or text, split into one-off campaigns and automated flows.',
+    purchases: 'Orders the ad platforms are credited with under the attribution model in the top bar. Two platforms can claim one order.',
+    cpa: 'Paid spend divided by the purchases credited to it.',
+  };
+  const PAGE_NAME = { store: 'Sales', channels: 'All channels', customers: 'Customers', profit: 'P&L', email: 'Email and SMS', meta: 'Meta', google: 'Google' };
+  if (!document.getElementById('v2dcss')) document.head.appendChild(Object.assign(document.createElement('style'), { id: 'v2dcss', textContent: `
+    .v2drill .v2dsec{margin-top:6px}
+    .v2drill .v2dtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+    .v2drill .v2dtbl th{text-align:right;font-weight:500;color:var(--muted);font-size:11px;padding:4px 6px;border-bottom:1px solid var(--line)}
+    .v2drill .v2dtbl th:first-child,.v2drill .v2dtbl td:first-child{text-align:left}
+    .v2drill .v2dtbl td{text-align:right;padding:6px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--ink)}
+    .v2drill .v2dtbl td:first-child{white-space:normal}
+    .v2drill .v2dtbl tr.me td{font-weight:650}
+    .v2drill .v2dtbl tr.tot td{font-weight:650;border-top:1px solid var(--line-strong,var(--line))}
+    .v2drill .v2dtbl td .v2ib{min-width:120px}
+    .v2drill .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0}
+    .v2drill .pnl-fall .r{grid-template-columns:minmax(110px,1fr) minmax(48px,.7fr) 158px;gap:10px}
+    .v2drill .pnl-fall .n em .v2d{margin-left:4px}
+    .v2drill .pnl-fall .r.sub .l{padding-left:14px;font-size:12px}
+    .v2drill .pnl-fall .r.sub .n{font-weight:500;font-size:12px}
+    .v2drill .pnl-fall .r.sub{padding:2px 0}
+    .v2drill .v2what{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2)}
+    .v2drill .v2dgo{margin-top:4px}
+    .v2drill .v2dnote{font-size:12px;color:var(--muted);margin:6px 0 0}` }));
+  const glossOne = label => { const L = label.toLowerCase(), GL = window.GLOSSARY || []; const g = GL.find(x => x.k.toLowerCase() === L) || GL.find(x => x.k.toLowerCase().includes(L)); return g ? g.one : ''; };
+  /** Sum many brands' drill payloads into one (one currency only). Day rows are merged by date. */
+  function drillSum(bs) {
+    const add = (list, keys) => { if (!list.some(Boolean)) return null; const o = {}; for (const k of keys) { let s = 0, any = false; for (const x of list) if (x && x[k] != null && isFinite(x[k])) { s += +x[k]; any = true; } o[k] = any ? s : null; } return o; };
+    const HK = ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'ret_rev', 'email_rev', 'campaigns', 'flows'];
+    const derive = o => o && Object.assign(o, { aov: o.orders ? o.sales / o.orders : null, new_aov: o.new_orders ? (o.new_rev || 0) / o.new_orders : null, cac: o.new_orders ? o.spend / o.new_orders : null, mer: o.spend ? o.sales / o.spend : null, amer: o.spend && o.new_rev != null ? o.new_rev / o.spend : null });
+    const ch = {}; for (const b of bs) for (const r of b.channels || []) { const o = ch[r.id] ||= { id: r.id, label: r.label, spend: null, prev_spend: null, revenue: null, prev_revenue: null, purchases: null, nc: 0 }; for (const k of ['spend', 'prev_spend', 'revenue', 'prev_revenue', 'purchases']) if (r[k] != null) o[k] = (o[k] || 0) + r[k]; o.nc += r.nc || 0; }
+    const PK = ['sales', 'net_sales', 'ship_rev', 'tax', 'cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'spend', 'cm', 'fixed', 'net'];
+    const costed = bs.filter(b => b.profit && b.cost_verdict !== 'broken');
+    const profit = bs.some(b => b.profit) ? { cur: add(costed.map(b => b.profit.cur), PK), prev: add(costed.map(b => b.profit.prev), PK),
+      fixed_items: bs.length === 1 ? (bs[0].profit?.fixed_items || []) : costed.filter(b => b.profit.cur?.fixed).map(b => ({ name: b.name, amount: b.profit.cur.fixed })),
+      series: mergeDays(costed.map(b => b.profit.series), ['cm', 'fixed']), prev_series: mergeDays(costed.map(b => b.profit.prev_series), ['cm']),
+      left_out: bs.filter(b => b.profit && b.cost_verdict === 'broken').map(b => b.name), margin_pct: bs.length === 1 ? bs[0].margin_pct : null } : null;
+    return { cur: derive(add(bs.map(b => b.cur), HK)), prev: derive(add(bs.map(b => b.prev), HK)), channels: Object.values(ch),
+      series: mergeDays(bs.map(b => b.series), ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'email_rev', 'campaigns', 'flows', 'meta', 'google', 'tiktok']),
+      prev_series: mergeDays(bs.map(b => b.prev_series), ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'email_rev', 'campaigns', 'flows']),
+      products: bs.length === 1 ? bs[0].products || [] : [], profit };
+  }
+  async function openDrill(t, label, m) {
+    const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul'), go = t.dataset.go;
+    const sp = t.querySelector('svg.v2spark,svg[data-spk]');
+    const big = sp ? sp.outerHTML.replace('class="v2spark"', 'class="v2spark v2spark-big"') : '';
+    const what = WHAT[m] || glossOne(label);
+    const plat = PLAT_OF[H.S.tab] || null;
+    const goBtn = go && !go.startsWith('act:') && go !== H.S.tab ? `<button type="button" class="v2link v2dgo" data-dgo="${esc(go)}">Open ${esc(PAGE_NAME[go] || 'its page')} ›</button>` : '';
+    const head = `<div class="dv">${v ? v.innerHTML : ''}</div>${sub ? `<p class="v2hint">${sub.innerHTML}</p>` : ''}${bul ? bul.outerHTML : ''}`;
+    const tail = `${goBtn}${what ? `<p class="v2what"><b>What it is.</b> ${what}</p>` : ''}`;
+    const wireTail = body => { body.querySelectorAll('[data-dgo]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); H.show(b.dataset.dgo); });
+      body.querySelectorAll('[data-dfix]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); if (window.openFixedCosts) window.openFixedCosts(H.S.act); }); };
+    const simple = (extra = '') => { const body = panel(label, `<div class="v2drill">${head}${big ? `<h4>Day by day</h4>${big}` : ''}${extra}${tail}</div>`); wireTail(body); return body; };
+    if (!m) return simple();
+    const body = panel(label, `<div class="v2drill">${head}${skCard(4, true)}${tail}</div>`); wireTail(body);
+    let d;
+    try { d = await get(`/api/hub/drill?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); }
+    catch (err) { body.querySelector('.v2drill').innerHTML = `${head}<p class="v2bad">${esc(err.message)}</p>${tail}`; wireTail(body); return; }
+    if (document.querySelector('#v2panel .ph b')?.textContent !== label) return;
+    const bs = (d.brands || []).filter(b => b.cur || b.channels?.length);
+    const curs = [...new Set(bs.map(b => b.currency || 'USD'))];
+    if (!bs.length || curs.length > 1) { const el = simple(`<p class="v2dnote">${curs.length > 1 ? 'These brands report in different currencies, so there is no combined breakdown. Pick one brand.' : 'No stored days in this window yet. Today is live on the tile; its breakdown lands overnight.'}</p>`); return el; }
+    const D = drillSum(bs), cur = curs[0];
+    const html = drillBody(m, D, cur, plat, label, big);
+    body.querySelector('.v2drill').innerHTML = `${head}${html}${tail}`; wireTail(body);
+    const ch = body.querySelector('[data-dchart]'); if (ch) { const k = ch.dataset.dchart; const rows = DRILL_ROWS[k]; if (rows) (rows.stack ? wireStack('v2dchart', rows.rows, rows.stack, cur) : wireLine('v2dchart', rows.rows, { tip: rows.tip })); }
+  }
+  const DRILL_ROWS = {};
+  /** The chart and the breakdown for one metric. */
+  function drillBody(m, D, cur, plat, label, big) {
+    const c = D.cur || {}, p = D.prev || {}, km = v => kmoney(v, cur), mo = v => money(v, cur), cmpOn = H.S.cmp !== 'none';
+    const rr = (a, b) => (b ? a / b : null);
+    /* the day line, from the drill data (blended screens) or the tile's own line (one platform) */
+    const KEY = { revenue: [r => r.sales, km], spend: [r => r.spend, km], mer: [r => rr(r.sales, r.spend), x2], amer: [r => rr(r.new_rev, r.spend), x2], orders: [r => r.orders, int], aov: [r => rr(r.sales, r.orders), v => money2(v, cur)],
+      newcust: [r => r.new_orders, int], cac: [r => rr(r.spend, r.new_orders), mo],
+      email: [/^campaigns$/i.test(label) ? r => r.campaigns : /^flows$/i.test(label) ? r => r.flows : r => r.email_rev, km] };
+    let chart = '';
+    const mkLine = (rows, prev, f, fmt) => { const R = rows.map(r => ({ date: r.date, v: f(r) })), P = cmpOn ? prev.map(r => ({ date: r.date, v: f(r) })) : [];
+      DRILL_ROWS.line = { rows: R, tip: (r, i) => `<b>${day(r.date)}</b> · ${esc(label)} ${r.v == null ? '–' : fmt(r.v)}${P[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${P[i].v == null ? '–' : fmt(P[i].v)}</span>` : ''}` };
+      return `<h4>Day by day</h4>${legend([{ color: '--brand', label: 'This period' }, ...(P.length > 1 ? [{ dash: true, label: cmpLabel() }] : [])])}<div data-dchart="line">${lineChart('v2dchart', R, { key: 'v', prev: P, cur, fmt, h: 190 })}</div>`; };
+    const platMode = plat && ['spend', 'revenue', 'roas', 'purchases', 'cpa'].includes(m);
+    if (platMode) chart = big ? `<h4>Day by day</h4>${big}` : '';
+    else if (m === 'spend' && D.series.some(r => r.meta || r.google || r.tiktok)) {
+      const ser = [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }].filter(s => D.series.some(r => r[s.key]));
+      DRILL_ROWS.stack = { rows: D.series, stack: ser };
+      chart = `<h4>Day by day, by platform</h4>${legend(ser)}<div data-dchart="stack">${stackChart('v2dchart', D.series, ser, { cur, h: 170 })}</div>`;
+    } else if (m === 'cm' || m === 'net') {
+      const pr = D.profit; if (pr && pr.series.length > 1) chart = mkLine(pr.series, pr.prev_series || [], m === 'cm' ? r => r.cm : r => r.cm == null ? null : r.cm - (r.fixed || 0), km);
+    } else if (KEY[m]) chart = mkLine(D.series, D.prev_series, KEY[m][0], KEY[m][1]);
+    if (!platMode && D.series.length < 2) chart = big ? `<h4>Day by day</h4>${big}` : '';
+
+    const sw = id => `<span class="sw" style="background:var(${CH[id] || '--c-else'})"></span>`;
+    const tbl = (heads, rows) => `<div class="v2tbl"><table class="v2dtbl"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+    const sec = (title, find, inner, note) => `<div class="v2dsec"><h4>${title}</h4>${find ? `<p class="v2hint">${find}</p>` : ''}${inner}${note ? `<p class="v2dnote">${note}</p>` : ''}</div>`;
+    const paid = D.channels.filter(r => (r.spend || 0) > 0);
+    const blended = c.spend || 0, platSum = paid.reduce((s, r) => s + (r.spend || 0), 0);
+    const modelNote = isPlat() ? 'Revenue on the platforms’ own numbers.' : `Credited under ${esc(MODEL_SHORT[H.S.model] || '')}; two platforms can claim one order.`;
+    const out = [];
+
+    /* ad spend by platform: share of all spend, and each platform's change */
+    /* Triple Whale's blended spend (the tile) leaves Amazon ads out on the brands measured 2026-10-09 (Bonk: Meta + Google
+       = blended to the dollar, Amazon on top). When that is what the numbers say, Amazon is shown OUTSIDE the total. */
+    const amz = paid.find(r => r.id === 'amazon');
+    const amzOut = !!amz && blended > 0 && Math.abs(platSum - amz.spend - blended) < Math.abs(platSum - blended);
+    const spendTable = me => { const mx = Math.max(...paid.map(r => r.spend), 1); const rest = blended - platSum + (amzOut ? amz.spend : 0);
+      const rows = paid.slice().sort((a, b) => b.spend - a.spend).map(r => { const out = amzOut && r.id === 'amazon';
+        return `<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}${out ? '<br><span class="faint">not in the total</span>' : ''}</td><td>${ib(r.spend, mx, CH[r.id] || '--c-else', km(r.spend))}</td><td>${out ? '–' : blended ? pct(r.spend / blended, 0) : '–'}</td><td>${cmpOn && r.prev_spend ? delta(r.spend, r.prev_spend, 'n') + `<br><span class="faint">${km(r.prev_spend)}</span>` : ''}</td></tr>`; });
+      if (blended && rest > blended * 0.01) rows.push(`<tr><td>${sw('rest')}Not split by platform</td><td>${ib(rest, mx, '--c-else', km(rest))}</td><td>${pct(rest / blended, 0)}</td><td></td></tr>`);
+      rows.push(`<tr class="tot"><td>All ad spend</td><td>${km(blended)}</td><td>100%</td><td>${cmpOn ? delta(c.spend, p.spend, 'n') : ''}</td></tr>`);
+      return tbl(['Platform', 'Spend', 'Share', cmpOn ? 'vs before' : ''], rows) + (amzOut ? `<p class="v2dnote">Amazon ads (${km(amz.spend)}) are not in Triple Whale’s blended ad spend, so the tile, MER and contribution margin leave them out.</p>` : ''); };
+    /* ROAS per platform (and the blended MER on top) */
+    const roasTable = me => { const rows = [`<tr class="tot"><td>Whole store (MER)</td><td>${km(c.sales)}</td><td>${km(c.spend)}</td><td>${x2(c.mer)}</td><td>${cmpOn ? delta(c.mer, p.mer) : ''}</td></tr>`];
+      for (const r of paid.slice().sort((a, b) => b.spend - a.spend)) rows.push(`<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}</td><td>${r.revenue == null ? '–' : km(r.revenue)}</td><td>${km(r.spend)}</td><td>${r.revenue == null ? '–' : x2(r.revenue / r.spend)}</td><td>${cmpOn && r.prev_spend && r.prev_revenue != null ? delta(r.revenue / r.spend, r.prev_revenue / r.prev_spend) : ''}</td></tr>`);
+      return tbl(['', 'Revenue', 'Spend', 'ROAS', cmpOn ? 'vs before' : ''], rows); };
+    const ncTable = () => { const rows = D.channels.filter(r => r.nc > 0 || (r.spend || 0) > 0).sort((a, b) => b.nc - a.nc); const mx = Math.max(...rows.map(r => r.nc), 1);
+      return tbl(['Where the first order came from', 'First orders', 'Spend', 'Cost each'], rows.map(r => `<tr><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.nc, mx, CH[r.id] || '--c-else', int(r.nc))}</td><td>${r.spend ? km(r.spend) : '–'}</td><td>${r.spend && r.nc ? mo(r.spend / r.nc) : '–'}</td></tr>`)); };
+    const newRet = () => { const ret = c.orders != null && c.new_orders != null ? c.orders - c.new_orders : null, pret = p.orders != null && p.new_orders != null ? p.orders - p.new_orders : null;
+      const row = (l, col, o, po, rev, prev) => `<tr><td><span class="sw" style="background:var(${col})"></span>${l}</td><td>${int(o)}${cmpOn ? ' ' + delta(o, po) : ''}</td><td>${km(rev)}${cmpOn ? ' ' + delta(rev, prev) : ''}</td><td>${o ? money2(rev / o, cur) : '–'}</td><td>${c.sales && rev != null ? pct(rev / c.sales, 0) : '–'}</td></tr>`;
+      return `<div class="v2stackbar"><i style="flex:${Math.max(0, c.new_rev || 0)};background:var(--brand)"></i><i style="flex:${Math.max(0, c.ret_rev || 0)};background:var(--c-email)"></i></div>`
+        + tbl(['', 'Orders', 'Revenue', 'AOV', 'Share'], [row('New customers', '--brand', c.new_orders, p.new_orders, c.new_rev, p.new_rev), row('Returning', '--c-email', ret, pret, c.ret_rev, p.ret_rev),
+          `<tr class="tot"><td>All</td><td>${int(c.orders)}</td><td>${km(c.sales)}</td><td>${money2(c.aov, cur)}</td><td>100%</td></tr>`]); };
+
+    if (platMode) {
+      const me = plat, row = D.channels.find(r => r.id === me);
+      const lead = row && blended ? `${esc(row.label)} is ${pct((row.spend || 0) / blended, 0)} of all ad spend${row.revenue != null && c.sales ? ` and is credited with ${pct(row.revenue / c.sales, 0)} of store revenue` : ''}.` : '';
+      if (m === 'spend') out.push(sec('Against every platform', lead, spendTable(me)));
+      else if (m === 'revenue' || m === 'roas') out.push(sec('Against every platform', `${lead} ${modelNote}`, roasTable(me)));
+      else { const rows = paid.filter(r => r.purchases != null).sort((a, b) => b.spend - a.spend); const mx = Math.max(...rows.map(r => r.purchases || 0), 1);
+        out.push(sec('Against every platform', `${lead} ${modelNote}`, tbl(['Platform', 'Purchases', 'Spend', 'Cost each'], rows.map(r => `<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.purchases || 0, mx, CH[r.id] || '--c-else', int(r.purchases))}</td><td>${km(r.spend)}</td><td>${r.purchases ? mo(r.spend / r.purchases) : '–'}</td></tr>`)))); }
+    } else if (m === 'revenue') {
+      const chs = D.channels.filter(r => (r.revenue || 0) > 0).sort((a, b) => (b.revenue || 0) - (a.revenue || 0)); const mx = Math.max(...chs.map(r => r.revenue), 1);
+      out.push(sec('By channel', modelNote, tbl(['Channel', 'Revenue', 'Share', cmpOn ? 'vs before' : ''], chs.map(r => `<tr><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.revenue, mx, CH[r.id] || '--c-else', km(r.revenue))}</td><td>${c.sales ? pct(r.revenue / c.sales, 0) : '–'}</td><td>${cmpOn && r.prev_revenue ? delta(r.revenue, r.prev_revenue) : ''}</td></tr>`)), 'Everything else = organic, direct and referral: store revenue no platform or email was credited with.'));
+      out.push(sec('New against returning', `${pct(c.sales ? (c.new_rev || 0) / c.sales : null, 0)} of revenue came from first orders.`, newRet()));
+      if (D.products.length) { const mx = Math.max(...D.products.map(x => x.orders), 1); out.push(sec('Top products', 'Orders with the product in the cart, and the order value shared across what was in it.', tbl(['Product', 'Orders', 'Order value'], D.products.map(x => `<tr><td>${esc(x.title)}</td><td>${ib(x.orders, mx, null, int(x.orders))}</td><td>${km(x.revenue)}</td></tr>`)))); }
+    } else if (m === 'spend') {
+      out.push(sec('By platform', `${paid.length ? `${esc(paid.slice().sort((a, b) => b.spend - a.spend)[0].label)} takes the most.` : ''} Each platform’s spend is its own number.`, spendTable(null)));
+    } else if (m === 'mer' || m === 'roas') {
+      out.push(sec('By platform', `MER is the whole store on all spend; each platform’s ROAS is its credited revenue on its own spend. ${modelNote}`, roasTable(null)));
+    } else if (m === 'amer') {
+      out.push(sec('How it is made', '', tbl(['', 'This period', cmpOn ? 'Before' : ''], [`<tr><td>Revenue from first orders</td><td>${km(c.new_rev)}</td><td>${cmpOn ? km(p.new_rev) : ''}</td></tr>`, `<tr><td>All ad spend</td><td>${km(c.spend)}</td><td>${cmpOn ? km(p.spend) : ''}</td></tr>`, `<tr class="tot"><td>aMER</td><td>${x2(c.amer)}</td><td>${cmpOn ? x2(p.amer) : ''}</td></tr>`, `<tr><td>MER, for comparison</td><td>${x2(c.mer)}</td><td>${cmpOn ? x2(p.mer) : ''}</td></tr>`])));
+      out.push(sec('Where the first orders came from', 'By the source Triple Whale gives each order.', ncTable()));
+    } else if (m === 'orders' || m === 'aov') {
+      out.push(sec('New against returning', `First orders average ${money2(c.new_aov, cur)}; repeat orders ${c.orders && c.new_orders != null && c.orders > c.new_orders ? money2((c.ret_rev || 0) / (c.orders - c.new_orders), cur) : '–'}.`, newRet()));
+      const days = D.series.slice(-14).reverse(), mx = Math.max(...days.map(r => r.orders || 0), 1);
+      if (days.length > 1) out.push(sec('By day', days.length < D.series.length ? 'The last 14 days of the window.' : '', tbl(['Day', 'Orders', 'AOV', 'First orders'], days.map(r => `<tr><td>${day(r.date)}</td><td>${ib(r.orders || 0, mx, null, int(r.orders))}</td><td>${r.orders ? money2(r.sales / r.orders, cur) : '–'}</td><td>${int(r.new_orders)}</td></tr>`))));
+    } else if (m === 'newcust' || m === 'cac') {
+      out.push(sec('By platform', m === 'cac' ? 'Each platform’s spend divided by the first orders that came through it. Orders with no platform cost nothing to that line.' : 'By the source Triple Whale gives each first order.', ncTable(), 'Counted from stored orders, so the platforms can add up to slightly less than the headline.'));
+      out.push(sec('New against returning', '', newRet()));
+    } else if (m === 'email') {
+      const tot = (c.campaigns || 0) + (c.flows || 0), ptot = (p.campaigns || 0) + (p.flows || 0);
+      const row = (l, col, v, pv) => `<tr><td><span class="sw" style="background:var(${col})"></span>${l}</td><td>${ib(v || 0, Math.max(c.campaigns || 0, c.flows || 0, 1), col, km(v))}</td><td>${tot ? pct((v || 0) / tot, 0) : '–'}</td><td>${cmpOn && pv ? delta(v, pv) : ''}</td></tr>`;
+      out.push(sec('Campaigns against flows', `Email and SMS was ${c.sales && c.email_rev != null ? pct(c.email_rev / c.sales, 0) : '–'} of store revenue.`, tbl(['', 'Revenue', 'Share', cmpOn ? 'vs before' : ''], [row('Flows (automated)', '--c-email', c.flows, p.flows), row('Campaigns (one-off sends)', '--c-meta', c.campaigns, p.campaigns), `<tr class="tot"><td>Email and SMS</td><td>${km(c.email_rev ?? tot)}</td><td>100%</td><td>${cmpOn ? delta(c.email_rev ?? tot, p.email_rev ?? ptot) : ''}</td></tr>`])));
+    } else if (m === 'cm' || m === 'net') {
+      out.push(drillFall(D.profit, cur, m));
+    } else if (m === 'purchases' || m === 'cpa') {
+      const rows = paid.filter(r => r.purchases != null).sort((a, b) => b.spend - a.spend), mx = Math.max(...rows.map(r => r.purchases || 0), 1);
+      out.push(sec('By platform', modelNote, tbl(['Platform', 'Purchases', 'Spend', 'Cost each'], rows.map(r => `<tr><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.purchases || 0, mx, CH[r.id] || '--c-else', int(r.purchases))}</td><td>${km(r.spend)}</td><td>${r.purchases ? mo(r.spend / r.purchases) : '–'}</td></tr>`))));
+    }
+    return chart + out.join('');
+  }
+  /** Contribution margin as a waterfall, then fixed expenses down to net profit. Each line: amount, % of revenue, change. */
+  function drillFall(pr, cur, m) {
+    if (!pr || !pr.cur) return `<div class="v2dsec"><p class="v2dnote">${H.S.role === 'client' ? 'Costs and margin are shown on the P&L only.' : 'No cost data for this window.'}</p></div>`;
+    const t = pr.cur, p = pr.prev || {}, cmpOn = H.S.cmp !== 'none', M = v => money(v, cur);
+    const top = Math.max(t.sales || 0, 1), P = x => Math.max(0, Math.min(100, x / top * 100)).toFixed(2);
+    const bar = (from, to, cls) => `<div class="t"><i class="${cls}" style="left:${P(Math.min(from, to))}%;width:${P(Math.abs(to - from))}%"></i></div>`;
+    const of = x => (t.sales ? `${pct(x / t.sales, 0)} of revenue` : '');
+    const chg = (k, lower) => (cmpOn && p[k] != null && t[k] != null ? ' ' + delta(t[k], p[k], lower) : '');
+    let at = t.sales || 0; const lines = [];
+    const leave = (label, note, x, k) => { if (!x) return; lines.push(`<div class="r"${tipAttr(note)}><span class="l">${label}</span>${bar(at - x, at, 'out')}<span class="n neg">−${M(x)}<em>${of(x)}${chg(k, true)}</em></span></div>`); at -= x; };
+    const tot = (label, note, val, cls, k) => `<div class="r tot"${tipAttr(note)}><span class="l">${label}</span>${bar(0, Math.abs(val || 0), cls)}<span class="n">${M(val)}<em>${of(val || 0)}${chg(k)}</em></span></div>`;
+    lines.push(tot('Revenue', 'Shopify total sales minus sales tax.', t.sales, 'in', 'sales'));
+    if (pr.margin_pct != null) leave(`Product and delivery, at the ${Math.round(pr.margin_pct * 100)}% margin override`, 'A flat margin replaces the whole cost chain for this brand.', (t.sales || 0) - (t.gross_profit || 0), 'gross_profit');
+    else {
+      leave('Product cost', 'Cost of goods sold, from Triple Whale.', t.cogs, 'cogs');
+      leave('Shipping and fulfilment', 'What delivery actually cost.', t.ship_cost, 'ship_cost');
+      leave('Handling', 'Pick, pack and handling fees.', t.handling, 'handling');
+      leave('Payment fees', 'Gateway and processing.', t.fees, 'fees');
+    }
+    lines.push(tot('Gross profit', 'Revenue less every variable cost, before marketing.', t.gross_profit, 'in', 'gross_profit'));
+    at = t.gross_profit || 0; leave('Ad spend', 'Every ad platform combined.', t.spend, 'spend');
+    lines.push(tot('Contribution margin', 'What the marketing made on the margin. Fixed costs are not in it.', t.cm, (t.cm || 0) >= 0 ? 'keep' : 'lose', 'cm'));
+    const items = pr.fixed_items || [];
+    if (t.fixed) {
+      at = t.cm || 0; leave('Fixed expenses', 'Set per brand in Brand settings > Data and costs, spread over each month’s days.', t.fixed, 'fixed');
+      for (const it of items) lines.push(`<div class="r sub"><span class="l">${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`);
+      lines.push(tot('Net profit', 'Contribution margin minus fixed expenses.', t.net, (t.net || 0) >= 0 ? 'keep' : 'lose', 'net'));
+    }
+    const note = [pr.left_out && pr.left_out.length ? `Left out because their cost data is unreliable: ${esc(pr.left_out.join(', '))}.` : '',
+      !t.fixed ? (H.S.role === 'client' ? '' : `No fixed expenses set${H.S.act === 'all' ? ' for these brands' : ''}, so there is no net profit line. ${H.S.act === 'all' ? 'Add them per brand in Brand settings > Data and costs.' : '<button type="button" class="v2link" data-dfix="1">Add software, salaries, rent or the agency fee ›</button>'}`) : ''].filter(Boolean).join(' ');
+    return `<div class="v2dsec"><h4>${m === 'net' ? 'From revenue to net profit' : 'Where the money went'}</h4><div class="pnl-fall">${lines.join('')}</div>${note ? `<p class="v2dnote">${note}</p>` : ''}</div>`;
   }
 
   /* ---------- small graphics ---------- */

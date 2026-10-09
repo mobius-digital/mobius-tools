@@ -2420,3 +2420,43 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+## 2026-10-09: THE DATA BEHIND A TILE (drill-downs) + fixed expenses and Net profit
+
+Cole: the tile popup explained what a metric MEANS; he wants Triple Whale's answer, the DATA behind the number ("ad spend
+should break down Google, Meta, what was each; contribution margin should break down every part").
+- **Click a headline tile** on Home (Overview), P&L, Store > Sales, Email and SMS, Ads > All channels / Meta / Google / TikTok
+  (`DRILL_TABS` in v2.js) = the number large with its delta, the day line (blended screens draw it from the drill data with the
+  compare period dashed; ad spend is a stacked bar by platform; on one platform's screen the tile's own line), a BREAKDOWN, then
+  ONE "What it is" sentence (`WHAT`, fallback the glossary's `one`). The long glossary text lives only under Metrics now.
+  Labels map to metrics in `METRIC_OF`; any other tile (Discounts, CPM, CTR...) or any other page keeps the simple panel.
+  A tile that linked to a page (Home's `go`) now opens its drill-down and offers "Open <page> ›" at the bottom; the click
+  listener runs in the CAPTURE phase so the tile's own data-go never fires first. CSS is injected by v2.js (`#v2dcss`).
+- **Breakdowns** (`drillBody`): revenue = by channel (credited, share, change) + new vs returning + top products (one brand);
+  ad spend = by platform with share of blended and each platform's change; MER / ROAS = per-platform ROAS under the whole-store
+  MER; aMER = how it is made + first orders by source; orders / AOV = new vs returning (orders, revenue, AOV) + the last 14 days;
+  new customers / CAC = first orders and cost each by source; paid purchases / CPA = per platform; email = flows vs campaigns;
+  contribution margin / net profit = the waterfall (`drillFall`, reuses `.pnl-fall`): revenue, product cost, shipping and
+  fulfilment, handling, payment fees, gross profit, ad spend, CM, then fixed expenses (each line) and net profit; every line
+  with % of revenue and its change. A margin override shows one "product and delivery at X%" line. All brands sums one currency
+  only and leaves out brands whose cost check is broken (named), like the Home CM tile.
+- **Amazon ads sit OUTSIDE the blended total.** Measured on Bonk: Meta + Google = TW `blendedAds` to the dollar; Amazon ads
+  ($2.7K) are on top. When the numbers say so the spend table marks Amazon "not in the total" with a note, instead of shares
+  adding to 115%.
+- **Data** = `GET /api/hub/drill?act=&model=&cmp=&days|from&to` (hub.js `drillMany`, one call for every metric, cached in the
+  page): the host's own `dayEconomics` + `totals` over a grouped tw_daily pivot and grouped `daily_insights` (so the panel
+  matches the tile to the dollar), `allChannelsMany` for platforms, `storeMany` for products (one brand), `p_cost_health`,
+  fixed.js. Costs, CM and fixed ride under `profit` so **clients** get the same drill-downs and brandguard scrubs `profit` while
+  their P&L switch is off (`/api/hub/drill` is on CLIENT_RULES, `fixed` and `cost_verdict` added to PL_OUT; both brandguard
+  copies identical, test-clients 17/17). Today's window has no stored days: the panel says the breakdown lands overnight.
+- **Fixed expenses** (Triple Whale's "Edit expenses"): Brand settings > Data and costs > Fixed expenses (`loadFixed` in
+  index.html): one card per expense (name, kind, each month, from, until), Save replaces the list. Table `p_fixed_cost`
+  (`migrations/fixed-001.sql`, also created on first use by `src/fixed.js`), `GET/PUT /api/fixed-costs` (not on CLIENT_RULES).
+  `fixedFor(env, acts, from, to)` spreads each monthly amount over its month's days. **They feed ONE line: Net profit = CM minus
+  fixed**, on P&L (a Net profit tile; Orders now carries AOV so the row stays eight; waterfall lines Fixed expenses, each item,
+  Net profit; "Add them ›" when none, `openFixedCosts(act)`) and in the CM drill-down. Contribution margin, briefs, reports and
+  the Strategist are unchanged. `/api/client` returns `fixed {total, items}`.
+- Checked locally 2026-10-09 against real data (worktree statics + own dev workers on 8811/8813, headless Chrome): Bonk Home
+  tiles all eight drills match their tiles; Meta tab (spend, purchases, revenue, ROAS, CPA), Store, Email, P&L; all brands CM
+  ($69.7K, Bonk's fixed listed). Two test expenses on Bonk ($1,200 from Aug, $3,000 from Sep) gave $4,164 over Sep 9 to Oct 8,
+  checked by hand, then removed. index.html loads v2.js?v=37.
+

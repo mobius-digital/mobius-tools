@@ -28,6 +28,7 @@ import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { handleHub } from './hub.js';
+import { handleFixed, fixedFor } from './fixed.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -2183,8 +2184,11 @@ export default {
             if (to === today) { const row = liveRow(acct, day); if (row) { rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
           }
         }
+        /* Fixed expenses over the window (2026-10-09): only for the Net profit line; CM is untouched. */
+        const fx = (await fixedFor(env, [acct.act_id], from, to).catch(() => ({})))[acct.act_id] || { total: 0, items: [] };
         return json({
           account: pubAccount(acct), days, from, to, margin_pct, rows, shipping,
+          fixed: { total: fx.total, items: fx.items },
           totals: totals(rows), mtd: totals(mtdRows),
           goals: goalsFor(acct, ym), plan,
           live_as_of: liveAsOf, hours,
@@ -2730,8 +2734,15 @@ export default {
       /* Locus v2 data layer (2026-10-07). Routes live in hub.js. */
       if (path.startsWith('/api/hub/')) {
         const hr = await handleHub({ path, url, request, env, json, accountsFor: () => accountsFor(), windowFor, addDays, localDate,
-          twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids) });
+          twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids),
+          /* The tile drill-downs (2026-10-09) price contribution margin exactly like /api/overview. */
+          econ: dayEconomics, totals, marginOverride, monthOf, fixedFor });
         if (hr) return hr;
+      }
+      /* Fixed expenses per brand (2026-10-09): Brand settings > Data and costs. fixed.js. */
+      if (path === '/api/fixed-costs') {
+        const fr = await handleFixed({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request) });
+        if (fr) return fr;
       }
       /* Saved dashboards (the hub, 2026-10-07). Routes live in dashboard.js. */
       if (path === '/api/dashboards' || path === '/api/dashboard') {
