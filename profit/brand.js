@@ -540,15 +540,16 @@ const vtile = o => UI() ? UI().tile(o) : `<div class="v2tile"><div class="l"><sp
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 /* ---------------- entry ---------------- */
-async function render({ tok, url, act, accounts, pick, mode }) {
-  Object.assign(S, { tok, url, act, accounts: accounts || [], pick, mode: ['tests', 'angles', 'copy'].includes(mode) ? mode : 'brand' });
+async function render({ tok, url, act, accounts, pick, mode, view }) {
+  /* 2026-10-09: Client answers, Research and Voice are tabs of Locus's Brand item; the host passes the view and draws the switcher. */
+  Object.assign(S, { tok, url, act, accounts: accounts || [], pick, mode: ['tests', 'angles', 'copy'].includes(mode) ? mode : 'brand', hostView: ['client', 'research', 'voice'].includes(view) ? view : null });
   injectCss();
   const main = $('#main');
   if (act === 'all') return S.mode === 'tests' ? renderTestsAll(main) : S.mode === 'angles' ? renderAnglesAll(main) : S.mode === 'copy' ? renderCopyAll(main) : renderAll(main);
   if (S.d && S.d.account?.act_id !== act) { S.angOpen = null; S.answer = null; S.idea = ''; }
   if (!S.d || S.d.account?.act_id !== act) main.innerHTML = `<div class="br v2">${head(S.mode, ({ tests: 'Test calls', angles: 'Tests and angles', copy: 'Copy desk', brand: 'Brand' })[S.mode])}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
   await load();
-  S.view = ({ info: 'voice', library: 'research', onboarding: 'client' })[localStorage.getItem(LS_VIEW)] || localStorage.getItem(LS_VIEW) || 'research';
+  S.view = S.hostView || ({ info: 'voice', library: 'research', onboarding: 'client' })[localStorage.getItem(LS_VIEW)] || localStorage.getItem(LS_VIEW) || 'research';
   const saved = localStorage.getItem(LS_LINE + ':' + act);
   S.line = S.d.lines.some(l => l.id === saved) ? saved : (S.d.lines[0]?.id || null);
   paint();
@@ -599,8 +600,8 @@ function paint() {
     <p class="v2say lead">${lead}</p>
     ${completenessCard(C)}
     <div id="brGlance"></div>
-    <div class="bv-bar"><nav class="lb-seg v2jobs" aria-label="Brand sections">${views.map(([k, l, n, t]) => `<button type="button" data-v="${k}" class="${S.view === k ? 'on' : ''}"${tipA(esc(t))}>${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav>
-      <span class="v2hint">${({ client: 'Before a call: what the client told us.', research: 'Before a brief: who buys and what they say.', voice: 'When writing: how the brand talks.' })[S.view]} What we tested is on <a href="#" id="brToAngles">Tests and angles</a>.</span></div>
+    <div class="bv-bar">${S.hostView ? '' : `<nav class="lb-seg v2jobs" aria-label="Brand sections">${views.map(([k, l, n, t]) => `<button type="button" data-v="${k}" class="${S.view === k ? 'on' : ''}"${tipA(esc(t))}>${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav>`}
+      <span class="v2hint">${({ client: 'Before a call: what the client told us.', research: 'Before a brief: who buys and what they say.', voice: 'When writing: how the brand talks.' })[S.view]} What we tested is on <a href="#" id="brToAngles">Ads, Tests and angles</a>.</span></div>
     <div id="brBody" class="br"></div></div>`;
   main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
   main.querySelector('#brToAngles').onclick = e => { e.preventDefault(); window.show && window.show('angles'); };
@@ -661,6 +662,7 @@ function wireCompleteness(root) {
   root.querySelectorAll('[data-bd]').forEach(b => b.onclick = () => {
     const it = C.items.find(x => x.k === b.dataset.bd); if (!it) return;
     if (it.sec) { const R = rsState(); R.open[it.sec] = true; }
+    if (S.hostView && it.v !== S.view && window.show) { localStorage.setItem(LS_VIEW, it.v); window.show(({ client: 'answers', research: 'research', voice: 'voice' })[it.v]); return; }
     S.view = it.v; localStorage.setItem(LS_VIEW, S.view); repaint();
     const target = it.sec ? document.querySelector(`.rs-sec[data-sec="${it.sec}"]`) : document.getElementById('brBody');
     target?.scrollIntoView({ block: 'start' });

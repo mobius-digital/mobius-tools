@@ -17,12 +17,15 @@
  *   GET /api/hub/email?act=&cmp=&days|from&to
  *   GET /api/hub/orders?act=&model=&ad=|adset=|campaign=|platform=&days|from&to
  *   GET /api/hub/customer?act=&customer=
- *   GET /api/hub/today?act=
+ *   GET /api/hub/live?act=           today so far, live from Triple Whale (the top-bar chip; also /api/hub/today?live=1)
+ *   GET /api/hub/today?act=          the media buyer's list: ad set calls over the last 7 days of attribution
+ *   GET /api/hub/yesterday?act=      a verdict per brand per day for 14 days, and the detail behind the last one
  *   GET /api/hub/moved?act=          what moved yesterday against the same weekday over 8 weeks
  *   GET /api/hub/find?q=&act=        any Meta campaign or ad by name (the ask bar's jump list)
  *   GET /api/hub/stockads?act=        products and ad sets tied to ad spend through Triple Whale orders (30 days)
  */
 import { metaOf } from './brandids.js';
+import { rulesFor } from './brand.js';
 
 /* Brand-first phase 3 (2026-10-08): `act` / `a.act_id` here is the BRAND id. Meta's own tables
    (ad_daily, ads, meta_campaigns, meta_adsets, activities) stay on the Meta ad account id, so they
@@ -85,7 +88,11 @@ export async function handleHub(ctx) {
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
     if (path === '/api/hub/stockads') return json({ brands: await Promise.all(accts.map(a => stockAds(env, ctx, a))) });
-    if (path === '/api/hub/today') {
+    if (path === '/api/hub/yesterday') return json(await yesterdayMany(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || '')), act === 'all'));
+    if (path === '/api/hub/today' && url.searchParams.get('live') !== '1') return json(await buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))));
+    /* Live "today so far" (the top-bar chip). It was /api/hub/today until 2026-10-09, when that path
+       became the media buyer's list; /api/hub/today?live=1 still answers the old shape. */
+    if (path === '/api/hub/live' || path === '/api/hub/today') {
       const rows = await Promise.all(accts.map(async a => {
         const t = ctx.localDate(a.tz);
         const d = await ctx.twDay(a, t).catch(() => null);
@@ -140,6 +147,246 @@ async function movedMany(env, ctx, accts) {
     for (const f of flags.filter(f => !(revHit && (f.metric === 'o' || f.metric === 'aov'))).slice(0, 3)) out.push(f);
   }
   return out.sort((p, q) => (Math.abs(q.z) * (q.good === false ? 1.4 : 1)) - (Math.abs(p.z) * (p.good === false ? 1.4 : 1))).slice(0, 24);
+}
+
+/* ---------- Yesterday: a verdict per brand per day (2026-10-09) ----------
+   Each of the last 14 days (ending yesterday) judged against the SAME WEEKDAY over the 8 weeks before
+   it (4+ of them with data), with the What moved test: flagged when 25%+ off normal AND 1.5+ standard
+   deviations. Revenue and email tests are skipped when their normal is under 150; spend-based ratios
+   (MER, cost per new customer, Meta / Google cost per sale) when the normal SPEND behind them is.
+   Store money is Shopify through Triple Whale (tw_daily); Meta spend and delivery are Meta's own
+   (daily_insights over every Meta account of the brand); orders per platform are Triple Whale
+   lastPlatformClick (tw_ad_attr). Triple Whale attribution lands a day or two late: a day after the
+   brand's latest tw_ad_attr row is `attr_pending` and its cost-per-sale tests are skipped (a day inside
+   the synced range with no rows really had no attributed sale). A day with spend and no sale counts
+   its cost per sale as the whole spend (a floor on the true figure), so it can still be flagged.
+   Same paused / test brands as account-health moved.js are left out. */
+const SKIP_HUB = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock/i;
+const CHANGE_CATS = ['budget', 'new_campaign', 'campaign_paused', 'campaign_relaunched', 'bid_strategy', 'targeting', 'new_creative', 'new_adset', 'manual'];
+const YD_TESTS = [   // [metric, label, lower is better, the key whose normal must be 150+]
+  ['rev', 'Revenue', false, 'rev'], ['mer', 'MER', false, 'sp'], ['cac', 'Cost per new customer', true, 'sp'],
+  ['mcpa', 'Meta cost per sale', true, 'msp'], ['gcpa', 'Google cost per sale', true, 'gsp'], ['email', 'Email revenue', false, 'email']];
+const YD_LINKS = [['cpm', 'Meta CPM', 'up'], ['ctr', 'Meta link CTR', 'down'], ['cvr', 'Meta clicks that buy', 'down'], ['aov', 'Average order', 'down'], ['sp', 'Ad spend', null]];
+const YD_IDS = ['totalSales', 'totalNetTaxes', 'blendedAds', 'totalOrders', 'newCustomersOrders', 'fb_ads_spend', 'klaviyoPlacedOrderSales', 'totalKlaviyoPlacedOrderTotalPriceCampaigns'];
+const statOf = (rows, k) => {
+  const v = rows.map(r => r[k]).filter(x => x != null && isFinite(x));
+  if (v.length < 4) return null;
+  const m = v.reduce((s, y) => s + y, 0) / v.length;
+  return { m, s: Math.sqrt(v.reduce((s, y) => s + (y - m) ** 2, 0) / v.length) };
+};
+async function yesterdayMany(env, ctx, accts, all) {
+  const as_of = new Date().toISOString();
+  if (!accts.length) return { as_of, days: [], brands: [], market: null };
+  const last = ctx.addDays(ctx.localDate(accts[0].tz), -1);
+  const first = ctx.addDays(last, -13), lo = ctx.addDays(first, -56);
+  const acts = accts.map(a => a.act_id);
+  const IN = inList(acts.length, 3);
+  const [piv, metaQ, attrQ, chQ] = await Promise.all([
+    twPivotMany(env, acts, lo, last, YD_IDS),
+    env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.link_clicks) clicks FROM daily_insights d
+      JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id WHERE c.brand_id IN (${IN}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(lo, last, ...acts).all(),
+    env.DB.prepare(`SELECT act_id, date, CASE WHEN platform = 'meta' OR platform IS NULL THEN 'meta' WHEN platform = 'google' THEN 'google' ELSE 'other' END p, SUM(orders) ord, SUM(revenue) rev
+      FROM tw_ad_attr WHERE act_id IN (${IN}) AND model = 'lastPlatformClick' AND date BETWEEN ?1 AND ?2 GROUP BY act_id, date, p`).bind(lo, last, ...acts).all(),
+    env.DB.prepare(`SELECT c.brand_id act_id, a.event_time, a.category, a.summary, a.reason FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id
+      WHERE c.brand_id IN (${IN}) AND substr(a.event_time, 1, 10) BETWEEN ?1 AND ?2 AND a.category IN (${CHANGE_CATS.map(c => `'${c}'`).join(',')}) AND NOT (a.category = 'targeting' AND (a.summary LIKE 'Custom audience%' OR a.summary LIKE '%Triple Whale Generated Audience%')) ORDER BY a.event_time DESC`).bind(ctx.addDays(last, -2), last, ...acts).all().catch(() => ({ results: [] })),
+  ]);
+  const MD = {}, AT = {}, MAXA = {}, CH = {};
+  for (const r of metaQ.results || []) (MD[r.act_id] ??= {})[r.date] = { spend: num(r.spend), impr: num(r.impr), clicks: num(r.clicks) };
+  for (const r of attrQ.results || []) { ((AT[r.act_id] ??= {})[r.date] ??= {})[r.p] = { ord: num(r.ord), rev: num(r.rev) }; if (!MAXA[r.act_id] || r.date > MAXA[r.act_id]) MAXA[r.act_id] = r.date; }
+  /* Meta logs one action as several rows (an audience made twice in the same second): fold same summary, same minute. */
+  const seen = new Set();
+  for (const r of chQ.results || []) { const k = `${r.act_id}|${String(r.event_time).slice(0, 16)}|${r.summary}`; if (seen.has(k)) continue; seen.add(k); (CH[r.act_id] ??= []).push(r); }
+  const days = dates(first, last, ctx.addDays);
+  const out = [], mk = [];
+  for (const a of accts) {
+    const P = piv[a.act_id] || {}, M = MD[a.act_id] || {}, A = AT[a.act_id] || {}, maxA = MAXA[a.act_id] || null;
+    if (all && !Object.keys(P).length && !Object.keys(M).length) continue;   // no Triple Whale and no Meta: nothing to judge
+    const day = dt => {
+      const g = k => num(P[k] && P[k][dt]);
+      const rev = g('totalSales') - g('totalNetTaxes'), sp = g('blendedAds'), o = g('totalOrders'), n = g('newCustomersOrders');
+      const m = M[dt] || { spend: 0, impr: 0, clicks: 0 }, at = A[dt];
+      const pending = !at && !(maxA && dt <= maxA);
+      const mo = pending ? null : num(at?.meta?.ord), go = pending ? null : num(at?.google?.ord);
+      const gsp = Math.max(0, sp - g('fb_ads_spend'));
+      const cpa = (s, ord) => (ord == null ? null : ord > 0 ? s / ord : s > 0 ? s : null);
+      return { has: !!(P.totalSales && P.totalSales[dt] != null), pending, rev, sp, orders: o, new_orders: n, mer: sp ? rev / sp : null, cac: n ? sp / n : null, aov: o ? rev / o : null,
+        msp: m.spend, impr: m.impr, clicks: m.clicks, meta_orders: mo, meta_rev: pending ? null : num(at?.meta?.rev), mcpa: cpa(m.spend, mo),
+        gsp, google_orders: go, gcpa: cpa(gsp, go), email: P.klaviyoPlacedOrderSales && P.klaviyoPlacedOrderSales[dt] != null ? g('klaviyoPlacedOrderSales') : null,
+        cpm: m.impr ? m.spend * 1000 / m.impr : null, ctr: m.impr ? m.clicks / m.impr : null, cvr: mo != null && m.clicks ? mo / m.clicks : null };
+    };
+    const judge = dt => {
+      const x = day(dt);
+      const base = [7, 14, 21, 28, 35, 42, 49, 56].map(k => day(ctx.addDays(dt, -k))).filter(r => r.has);
+      if (!x.has || base.length < 4) return { date: dt, verdict: 'none', x, base, flags: [] };
+      const flags = [];
+      for (const [k, label, lower, floorKey] of YD_TESTS) {
+        if ((k === 'mcpa' || k === 'gcpa') && x.pending) continue;
+        const st = statOf(base, k), fl = statOf(base, floorKey), v = x[k];
+        if (!st || !st.m || v == null || !fl || fl.m < 150) continue;
+        const change = v / st.m - 1, z = st.s ? (v - st.m) / st.s : 0;
+        if (Math.abs(change) < 0.25 || Math.abs(z) < 1.5) continue;
+        flags.push({ metric: k, label, value: v, normal: st.m, change, z, bad: lower ? change > 0 : change < 0 });
+      }
+      const bad = flags.filter(f => f.bad);
+      const verdict = bad.length >= 2 || bad.some(f => Math.abs(f.z) >= 2.5) ? 'vbad' : bad.length === 1 ? 'bad'
+        : flags.some(f => !f.bad && (f.metric === 'rev' || f.metric === 'mer')) ? 'good' : 'normal';
+      return { date: dt, verdict, x, base, flags };
+    };
+    const js = days.map(judge);
+    const L = js[js.length - 1];
+    const NK = ['rev', 'sp', 'orders', 'new_orders', 'mer', 'cac', 'aov', 'msp', 'impr', 'clicks', 'meta_orders', 'meta_rev', 'mcpa', 'gsp', 'google_orders', 'gcpa', 'email', 'cpm', 'ctr', 'cvr'];
+    const norm = {}; for (const k of NK) { const st = statOf(L.base, k); norm[k] = st ? st.m : null; }
+    const links = YD_LINKS.map(([k, label, worseWhen]) => {
+      const v = L.x[k], st = statOf(L.base, k);
+      const change = v != null && st && st.m ? v / st.m - 1 : null;
+      return { k, label, value: v, normal: st ? st.m : null, change, z: change != null && st.s ? (v - st.m) / st.s : null,
+        worse: worseWhen == null || change == null ? null : worseWhen === 'up' ? change > 0 : change < 0 };
+    });
+    const hasCamp = P.totalKlaviyoPlacedOrderTotalPriceCampaigns && Object.keys(P.totalKlaviyoPlacedOrderTotalPriceCampaigns).length > 0;
+    const x = {}; for (const k of NK) x[k] = L.x[k];
+    const detail = { date: L.date, verdict: L.verdict, attr_pending: L.x.pending, base_weeks: L.base.length,
+      flags: L.flags, links, x, norm,
+      changes: (CH[a.act_id] || []).slice(0, 6).map(c => ({ at: c.event_time, category: c.category, summary: c.summary, reason: c.reason || null })),
+      email_sent: hasCamp ? num(P.totalKlaviyoPlacedOrderTotalPriceCampaigns[L.date]) > 0 : null };
+    out.push({ act_id: a.act_id, name: a.name, currency: a.currency, cells: js.map(j => ({ date: j.date, verdict: j.verdict, ...(j.x.pending ? { attr_pending: true } : {}) })), last: detail });
+    if (L.x.msp >= 50) mk.push({ name: a.name, x: L.x, norm });
+  }
+  /* The market: when CPM jumped on half or more of the brands spending on Meta, it is Meta's auction, not one account. */
+  const up = (v, n, by) => v != null && n ? v >= n * (1 + by) : false, down = (v, n, by) => v != null && n ? v <= n * (1 - by) : false;
+  const cpmUp = mk.filter(b => up(b.x.cpm, b.norm.cpm, 0.2)), ctrDown = mk.filter(b => down(b.x.ctr, b.norm.ctr, 0.2)), cvrDown = mk.filter(b => !b.x.pending && down(b.x.cvr, b.norm.cvr, 0.2));
+  const market = { date: last, meta_brands: mk.length, cpm_up: cpmUp.length, ctr_down: ctrDown.length, cvr_down: cvrDown.length,
+    cpm_up_brands: cpmUp.map(b => b.name), verdict: mk.length >= 3 && cpmUp.length >= mk.length / 2 ? 'market' : 'normal' };
+  return { as_of, days, brands: out, market };
+}
+
+/* ---------- Today: the media buyer's list (2026-10-09) ----------
+   Meta only for now. Per brand, the 7 days ending on the latest day Triple Whale attribution has
+   landed (tw_ad_attr, lastPlatformClick), so a window never ends on a half-attributed day. THE AD SET
+   IS THE UNIT (Cole's doctrine): a set is judged once it has spent cr_judge_x goal CPAs; Scale =
+   cr_scale_buys+ sales at or under goal; Cut = cr_cut_zero_x goals spent with no sale, or cr_cut_spend_x
+   spent at a CPA over cr_cut_cpa_x the goal. Inside a WORKING set (CPA within 1.3x goal) the anchor
+   (top-spend ad with cr_anchor_pct%+ of the set) is never cut or trimmed; a small ad over the cut line
+   is a Trim; an anchor whose link CTR fell 20%+ against the 7 days before is a Refresh (replace it,
+   never just switch it off). Rules and goal are the brand's own (brand.js rulesFor, the same numbers
+   the Creative page states). Every call carries the money at stake; rows sort on it. */
+const OFF_STATUS = /^(PAUSED|CAMPAIGN_PAUSED|ADSET_PAUSED|DELETED|ARCHIVED)$/;
+const moneyOf = (cur) => v => (v == null ? '' : `${cur && cur !== 'USD' ? cur + ' ' : '$'}${Math.round(v).toLocaleString('en-US')}`);
+const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+async function buyerList(env, ctx, accts) {
+  const as_of = new Date().toISOString();
+  const y = accts.length ? ctx.addDays(ctx.localDate(accts[0].tz), -1) : null;
+  if (!accts.length) return { as_of, rules_note: '', brands: [], rows: [] };
+  const acts = accts.map(a => a.act_id);
+  const IN = inList(acts.length, 3);
+  const wk = [0, 7, 14, 21, 28].map(k => ctx.addDays(y, -k));
+  const [conQ, maxQ, docQ, spQ] = await Promise.all([
+    env.DB.prepare(`SELECT brand_id, external_id, last_error FROM connections WHERE kind = 'meta' AND brand_id IN (${inList(acts.length, 1)})`).bind(...acts).all(),
+    env.DB.prepare(`SELECT act_id, MAX(date) d FROM tw_ad_attr WHERE act_id IN (${IN}) AND model = 'lastPlatformClick' AND date BETWEEN ?1 AND ?2 GROUP BY act_id`).bind(ctx.addDays(y, -30), y, ...acts).all(),
+    env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE act_id IN (${inList(acts.length, 1)}) AND line_id = '' AND key = 'rules'`).bind(...acts).all().catch(() => ({ results: [] })),
+    env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend FROM daily_insights d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id
+      WHERE c.brand_id IN (${inList(acts.length, 6)}) AND d.date IN (?1, ?2, ?3, ?4, ?5) GROUP BY c.brand_id, d.date`).bind(...wk, ...acts).all(),
+  ]);
+  const metas = {}; for (const r of conQ.results || []) (metas[r.brand_id] ??= []).push(r);
+  const toOf = Object.fromEntries((maxQ.results || []).map(r => [r.act_id, r.d]));
+  const docOf = Object.fromEntries((docQ.results || []).map(r => { let d = {}; try { d = JSON.parse(r.data_json || '{}'); } catch {} return [r.act_id, d]; }));
+  const spOf = {}; for (const r of spQ.results || []) (spOf[r.act_id] ??= {})[r.date] = num(r.spend);
+  const meta = accts.filter(a => metas[a.act_id]);
+  const W = meta.filter(a => toOf[a.act_id]).map(a => { const t = toOf[a.act_id]; return { act: a.act_id, f: ctx.addDays(t, -6), t, l2: ctx.addDays(t, -1), pf: ctx.addDays(t, -13), pt: ctx.addDays(t, -7) }; });
+  let adRows = [], attrRows = [];
+  if (W.length) {
+    /* Two parameters a brand (D1 binds at most 100); the window edges are worked out in SQL. */
+    const vals = W.map((_, i) => `(?${i * 2 + 3}, ?${i * 2 + 4})`).join(', ');
+    const binds = W.flatMap(w => [w.act, w.t]);
+    const lo = W.map(w => w.pf).sort()[0], hi = W.map(w => w.t).sort().pop();
+    const CTE = `WITH w0(brand, t) AS (VALUES ${vals}), w AS (SELECT brand, t, date(t, '-6 day') f, date(t, '-1 day') l2, date(t, '-13 day') pf, date(t, '-7 day') pt FROM w0)`;
+    [adRows, attrRows] = await Promise.all([
+      env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.spend ELSE 0 END) spend,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.impressions ELSE 0 END) impr,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.link_clicks ELSE 0 END) clicks,
+          SUM(CASE WHEN d.date BETWEEN w.l2 AND w.t THEN d.spend ELSE 0 END) s2,
+          SUM(CASE WHEN d.date BETWEEN w.pf AND w.pt THEN d.impressions ELSE 0 END) p_impr,
+          SUM(CASE WHEN d.date BETWEEN w.pf AND w.pt THEN d.link_clicks ELSE 0 END) p_clicks
+        FROM ad_daily d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id JOIN w ON w.brand = c.brand_id
+        LEFT JOIN ads x ON x.act_id = d.act_id AND x.ad_id = d.ad_id LEFT JOIN meta_adsets s ON s.adset_id = x.adset_id
+        WHERE d.date BETWEEN ?1 AND ?2 AND d.date BETWEEN w.pf AND w.t GROUP BY c.brand_id, d.ad_id HAVING spend > 0`).bind(lo, hi, ...binds).all().then(r => r.results || []),
+      env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id, SUM(t.orders) ord, SUM(t.revenue) rev FROM tw_ad_attr t JOIN w ON w.brand = t.act_id
+        WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'lastPlatformClick' AND (t.platform = 'meta' OR t.platform IS NULL) AND t.date BETWEEN w.f AND w.t GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []),
+    ]);
+  }
+  const atOf = {}; for (const r of attrRows) atOf[`${r.act_id}|${r.ad_id}`] = { ord: num(r.ord), rev: num(r.rev) };
+  const rows = [], brands = [];
+  let note = null;
+  for (const a of meta) {
+    const R = rulesFor(a, docOf[a.act_id] || null);
+    const goal = R.target_cpa > 0 ? R.target_cpa : null;
+    if (!note || accts.length === 1) note = R;
+    const $ = moneyOf(a.currency), w = W.find(v => v.act === a.act_id);
+    const from = w ? w.f : null, to = w ? w.t : null;
+    const base = { act_id: a.act_id, brand: a.name, currency: a.currency, from, to };
+    const fix = (meta_act, why) => rows.push({ kind: 'fix', ...base, meta_act, adset_id: null, adset: null, ad_id: null, ad: null, spend: null, orders: null, revenue: null, cpa: null, goal, roas: null, n_ads: null, anchor: null, stake: 1e6, why });
+    /* fix: the connection, and a Meta account that went quiet yesterday. */
+    for (const c of metas[a.act_id]) if (c.last_error) fix(c.external_id, `Meta connection error, so these numbers may be stale: ${String(c.last_error).slice(0, 140)}`);
+    const S = spOf[a.act_id] || {}, normY = (num(S[wk[1]]) + num(S[wk[2]]) + num(S[wk[3]]) + num(S[wk[4]])) / 4;
+    if (!(num(S[y]) > 0) && normY > 50) fix(metas[a.act_id][0].external_id, `Meta spent nothing yesterday; a normal ${WEEKDAY[new Date(`${y}T12:00:00Z`).getUTCDay()]} is ${$(normY)}. Check billing, rejected ads and paused campaigns.`);
+    if (!w) { brands.push({ act_id: a.act_id, name: a.name, from: null, to: null, goal, n_sets_judged: 0, note: 'No Triple Whale attribution in the last 30 days.' }); continue; }
+    /* Ad sets from the ads that spent in the window. */
+    const sets = {};
+    for (const r of adRows.filter(r => r.act_id === a.act_id)) {
+      if (!r.adset_id || !(num(r.spend) > 0)) continue;
+      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0 };
+      const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, meta_act: r.meta_act, spend: 0, s2: 0, orders: 0, revenue: 0, ads: [] };
+      s.spend += num(r.spend); s.s2 += num(r.s2); s.orders += at.ord; s.revenue += at.rev;
+      s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, spend: num(r.spend), orders: at.ord, revenue: at.rev, impr: num(r.impr), clicks: num(r.clicks), p_impr: num(r.p_impr), p_clicks: num(r.p_clicks) });
+    }
+    const live = Object.values(sets).filter(s => s.spend > 0 && !(s.status && OFF_STATUS.test(s.status) && !(s.s2 > 0)));
+    if (!goal) {
+      const worst = live.filter(s => s.spend > 300 && !s.orders).sort((p, q) => q.spend - p.spend)[0];
+      if (worst) fix(worst.meta_act, `No goal cost per sale set, and "${worst.name}" spent ${$(worst.spend)} with no sale in 7 days. Set the goal in Settings > Goals so Locus can make the calls.`);
+      brands.push({ act_id: a.act_id, name: a.name, from, to, goal: null, n_sets_judged: 0 });
+      continue;
+    }
+    let judged = 0;
+    for (const s of live) {
+      if (s.spend < R.cr_judge_x * goal) continue;
+      judged++;
+      s.ads.sort((p, q) => q.spend - p.spend);
+      const cpa = s.orders ? s.spend / s.orders : null, roas = div(s.revenue, s.spend);
+      const top = s.ads[0], share = top ? top.spend / s.spend : 0;
+      const anchor = top && share >= R.cr_anchor_pct / 100 ? { ad_id: top.id, name: top.name, share } : null;
+      const working = cpa != null && cpa <= 1.3 * goal;
+      const setRow = { ...base, meta_act: s.meta_act, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, goal, roas, n_ads: s.ads.length, anchor,
+        set: { spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, status: s.status, budget: s.budget } };
+      const sales = n => `${n} sale${n === 1 ? '' : 's'}`;
+      if (s.orders >= R.cr_scale_buys && cpa <= goal) rows.push({ kind: 'scale', ...setRow, stake: 0.2 * s.spend,
+        why: `${sales(s.orders)} at ${$(cpa)} each, ${Math.round(cpa) < Math.round(goal) ? 'under' : 'at'} the ${$(goal)} goal over 7 days. Raise the budget 20% and watch 3 days.` });
+      else if (!working && !s.orders && s.spend >= R.cr_cut_zero_x * goal) rows.push({ kind: 'cut', ...setRow, stake: s.spend,
+        why: `Spent ${$(s.spend)} (${(s.spend / goal).toFixed(1)}x the goal) with no sale in 7 days.` });
+      else if (!working && cpa != null && s.spend >= R.cr_cut_spend_x * goal && cpa > R.cr_cut_cpa_x * goal) rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, s.spend - goal * s.orders),
+        why: `Cost per sale ${$(cpa)}, ${(cpa / goal).toFixed(1)}x the ${$(goal)} goal, on ${$(s.spend)} spent.` });
+      if (!working) continue;
+      if (s.ads.length >= 2) for (const ad of s.ads) {
+        if (anchor && ad.id === anchor.ad_id) continue;
+        const acpa = ad.orders ? ad.spend / ad.orders : null;
+        if (ad.spend < 2 * goal || !(ad.orders === 0 || acpa > R.cr_cut_cpa_x * goal)) continue;
+        rows.push({ kind: 'trim', ...setRow, ad_id: ad.id, ad: ad.name, spend: ad.spend, orders: ad.orders, revenue: ad.revenue, cpa: acpa, roas: div(ad.revenue, ad.spend), stake: Math.max(0, ad.spend - goal * ad.orders),
+          why: ad.orders ? `This ad costs ${$(acpa)} a sale, ${(acpa / goal).toFixed(1)}x the ${$(goal)} goal, on ${$(ad.spend)} spent, while the set works at ${$(cpa)}. Turn off this ad only.`
+            : `This ad spent ${$(ad.spend)} with no sale while the set works at ${$(cpa)} a sale. Turn off this ad only.` });
+      }
+      if (anchor) {
+        const ad = s.ads[0];
+        if (ad.impr >= 2000 && ad.p_impr >= 2000) {
+          const ctr = ad.clicks / ad.impr, pctr = ad.p_clicks / ad.p_impr;
+          if (pctr > 0 && ctr <= pctr * 0.8) rows.push({ kind: 'refresh', ...setRow, ad_id: ad.id, ad: ad.name, stake: 0.3 * s.spend, ctr, prev_ctr: pctr,
+            why: `The main ad (${Math.round(anchor.share * 100)}% of the set's spend) gets ${Math.round((1 - ctr / pctr) * 100)}% fewer clicks than the week before (${(ctr * 100).toFixed(2)}% vs ${(pctr * 100).toFixed(2)}%). Brief a new version of it now; do not switch it off.` });
+        }
+      }
+    }
+    brands.push({ act_id: a.act_id, name: a.name, from, to, goal, n_sets_judged: judged });
+  }
+  const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct);
+  const rules_note = `Ad sets first, over the last 7 days of Triple Whale attribution: judged after ${r.cr_judge_x}x the goal cost per sale is spent; scale at ${r.cr_scale_buys}+ sales at or under goal; cut at ${r.cr_cut_zero_x}x the goal spent with no sale, or ${r.cr_cut_spend_x}x spent at over ${r.cr_cut_cpa_x}x the goal; in a set working within 1.3x the goal, the main ad (${pct}%+ of its spend) is never cut${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
+  return { as_of, rules_note, brands, rows: rows.sort((p, q) => q.stake - p.stake) };
 }
 
 /* ---------- shared readers ---------- */

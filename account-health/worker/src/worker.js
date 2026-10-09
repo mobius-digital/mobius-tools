@@ -3,6 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor } from './brandguard.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
+import { marketFor, useFetch as marketFetch } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
@@ -198,6 +199,7 @@ klaviyoFetch(xfetch);
 googleFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
+marketFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -555,6 +557,13 @@ async function metaAvailable(env) {
      WHERE act_id NOT IN (SELECT external_id FROM connections WHERE kind = 'meta') ORDER BY name`).all()).results) || [];
 }
 
+/* settings.seasonTab (2026-10-09): the seasonal rail item. label max 40 characters; mode auto (shows in
+   season) | on | off. Accepts the stored JSON string or an object; anything missing falls back. */
+function seasonTabOf(v) {
+  const o = typeof v === 'string' ? safeJson(v, {}) : (v && typeof v === 'object' ? v : {});
+  const label = String(o?.label ?? '').replace(/s+/g, ' ').trim().slice(0, 40) || 'Black Friday';
+  return { label, mode: ['auto', 'on', 'off'].includes(o?.mode) ? o.mode : 'auto' };
+}
 async function listAccounts(env, activeOnly = false) {
   /* Brands (phase 3): act_id = the brand id, meta_act = its primary Meta account (null when none). */
   const q = `SELECT * FROM brand_accounts ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY active DESC, name`;
@@ -7549,7 +7558,16 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.channel && /^[CG][A-Z0-9]{6,}$/.test(String(b.channel))) row.channel = String(b.channel);
       try { return json(await postDashboard(env, row)); } catch (e) { return json({ error: e.message }, 400); }
     }
-    /* What the What-moved post would say right now, per brand, without posting (moved.js). */
+    /* The market on a day (market.js): Pulse outages, Breezeway's Meta score, what advertisers said
+       online (Claude + web search, once per date, cached). Same gate as /api/read: any signed-in member.
+       ?date=YYYY-MM-DD, default yesterday Central. */
+    if (path === '/api/market' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const date = url.searchParams.get('date') || '';
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: 'date looks like 2026-10-08' }, 400);
+      return json(await marketFor(env, date || addDays(centralDate(), -1)));
+    }
+    /* What the Yesterday post would say right now, per brand, without posting (moved.js). */
     if (path === '/api/moved-preview' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       return json(await movedPreview(env, hubDeps()));
@@ -7657,6 +7675,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         await googleSetLink(env, acct.act_id, g);
       }
       if (b.tiktok_id !== undefined) await setTiktokLink(env, acct.act_id, b.tiktok_id);
+      /* The brand's email tool (2026-10-09): Klaviyo (the default, so the key is removed) or Attentive. */
+      if (b.email_tool !== undefined) {
+        const t = String(b.email_tool || '').toLowerCase();
+        if (t && !['klaviyo', 'attentive'].includes(t)) return json({ error: 'email_tool is klaviyo or attentive' }, 400);
+        if (t === 'attentive') await putSetting(env, `emailTool:${acct.act_id}`, 'attentive');
+        else await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(`emailTool:${acct.act_id}`).run();
+      }
       for (const [k, v] of Object.entries(links)) { try { await connSet(env, acct.act_id, k, v); } catch (e) { return json({ error: e.message }, 400); } }
       const next = { drive: (await connGet(env, acct.act_id, 'drive'))?.external_id, frame: (await connGet(env, acct.act_id, 'frame'))?.external_id };
       return json({ ok: true, links: next, ...(klaviyo ? { klaviyo: { company: klaviyo.company, account_id: klaviyo.account_id } } : {}) });
@@ -8331,6 +8356,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           paceAlertPct: +(await getSetting(env, 'paceAlertPct')) || 0.15,
           /* What moved yesterday, posted to each brand's internal channel (moved.js). On unless 'off'. */
           movedPost: (await getSetting(env, 'movedPost')) !== 'off',
+          /* The "what advertisers said online" check on Home > Yesterday (market.js). On unless 'off'. */
+          marketChatter: (await getSetting(env, 'marketChatter')) !== 'off',
+          /* The seasonal rail item (Black Friday): its label and whether it shows (auto = in season). */
+          seasonTab: seasonTabOf(await getSetting(env, 'seasonTab')),
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
@@ -8341,6 +8370,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('slackSendWho' in b) await putSetting(env, 'slackSendWho', b.slackSendWho === 'anyone' ? 'anyone' : 'owner');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));
         if ('movedPost' in b) await putSetting(env, 'movedPost', b.movedPost ? 'on' : 'off');
+        if ('marketChatter' in b) await putSetting(env, 'marketChatter', b.marketChatter ? 'on' : 'off');
+        if ('seasonTab' in b) await putSetting(env, 'seasonTab', JSON.stringify(seasonTabOf(b.seasonTab)));
         return json({ ok: true });
       }
       if (path === '/api/slack-channels') {

@@ -194,9 +194,9 @@ await check('integrations view: agency list with fixes, per-brand items graded, 
   assert.equal(r.brands.length, 1);
   const by = Object.fromEntries(r.brands[0].items.map(i => [i.key, i]));
   assert.equal(by.asana.state, 'warn'); assert.match(by.asana.note, /no webhook/);
-  assert.equal(by.slack_internal.state, 'ok'); assert.equal(by.slack_client.state, 'off');
+  assert.ok(!by.slack_internal && !by.slack_client, 'Slack channels are settings, not integrations (2026-10-09)');
   assert.equal(by.tw.state, 'off'); assert.equal(by.shopify.state, 'off'); assert.equal(by.drive.state, 'off');
-  assert.match(r.how_to_read, /ok, warn/);
+  assert.match(r.how_to_read, /ok, part/);
 });
 await check('the engine lists every new action and the brain view is part-wise', async () => {
   for (const n of ['fill_brief', 'create_brief', 'build_scenario', 'studio_batch', 'create_angles']) assert.ok(engine.actions.includes(n), n);

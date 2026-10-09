@@ -104,7 +104,7 @@ export async function klaviyoView(env, act, what = 'overview') {
 }
 async function klaviyoViewRaw(env, act, what = 'overview') {
   const doc = await keyFor(env, act);
-  if (!doc?.key) return { error: 'Klaviyo is not connected for this brand. Settings > Connections > Klaviyo: paste the brand\'s private API key (Klaviyo > Settings > API keys > Create private key, read scopes).' };
+  if (!doc?.key) return { error: 'Klaviyo is not connected for this brand. Brand settings > Integrations > Klaviyo: paste the brand\'s private API key (Klaviyo > Settings > API keys > Create private key, read scopes).' };
   const k = doc.key;
   const base = { company: doc.company, account_id: doc.account_id, verified_at: doc.verified_at };
   if (what === 'lists') {

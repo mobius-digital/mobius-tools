@@ -1,21 +1,32 @@
-/* WHAT MOVED, POSTED TO SLACK (2026-10-08). Locus already shows "What moved yesterday" on Home
- * (profit/worker/src/hub.js `movedMany`, GET /api/hub/moved). This posts the same finding once a
- * day per brand to the brand's INTERNAL channel (brands.internal_channel, slack_channel in brand_accounts; never brief_channel, which
- * is the client's), and only when something moved: a quiet day posts nothing.
+/* THE YESTERDAY POST (2026-10-09; was "What moved", 2026-10-08). Locus shows "What moved yesterday"
+ * on Home (profit/worker/src/hub.js `movedMany`, GET /api/hub/moved). This posts to a brand's INTERNAL
+ * channel (brands.internal_channel, slack_channel in brand_accounts; never brief_channel, which is the
+ * client's) ONLY WHEN THE BRAND HAD A BAD DAY. Good moves and quiet days post nothing.
  *
- * THE RULE IS A COPY OF hub.js movedMany. Keep the two in step: yesterday against the SAME WEEKDAY
- * over the last 8 weeks (at least 4 of them with data), shown when 25%+ off normal AND at least 1.5
+ * THE MOVES ARE A COPY OF hub.js movedMany. Keep the two in step: yesterday against the SAME WEEKDAY
+ * over the last 8 weeks (at least 4 of them with data), a move when 25%+ off normal AND at least 1.5
  * standard deviations, revenue and spend ignored when normal is under 150, revenue names orders vs
  * average order, MER names revenue vs spend, cost per new customer names spend, orders and average
- * order left out when revenue already moved, 3 per brand. One difference on purpose: here each
- * brand uses its OWN timezone for yesterday (hub.js uses the first brand's), and a brand whose
- * yesterday has not been synced since its own midnight is skipped and retried next hour, so a
- * half-synced day never reads as a revenue drop in Slack.
+ * order left out when revenue already moved, 3 per brand. One difference on purpose: here each brand
+ * uses its OWN timezone for yesterday (hub.js uses the first brand's), and a brand whose yesterday has
+ * not been synced since its own midnight is skipped and retried next hour, so a half-synced day never
+ * reads as a revenue drop in Slack.
+ *
+ * THE VERDICT (`verdictOf`, before the 3-move cut): a move in the BAD direction on revenue (down), MER
+ * (down) or cost per new customer (up) makes the day 'bad'; two of them, or any one at 2.5+ standard
+ * deviations, makes it 'vbad'. Ad spend alone never counts (it is a choice, not a result); average
+ * order and orders only show as the reason. Otherwise 'good' (a good move only) or 'normal'.
+ *
+ * The post: "Bad day yesterday: <brand>" (or "Very bad day..."), the date against the last N same
+ * weekdays, one market line when Pulse saw a Meta outage that day or Breezeway called it BAD / VERY BAD
+ * (market.js `marketLine`: cached, one lookup per date per tick, never a Claude call), a line per move,
+ * and "Open Yesterday in Locus" (profit/?open=yesterday&act=<brand id>).
  *
  * Runs inside the account-health hourly cron (`movedTick`), from 8am to 1pm Central, once per
  * Central day per brand (settings `movedDone` = {date, acts}). Global switch: settings `movedPost`
  * ('off' stops it; on by default), editable in Locus Settings > Briefs and Slack.
- * Preview without posting: GET /api/moved-preview (admin). */
+ * Preview without posting: GET /api/moved-preview (admin), with each brand's verdict. */
+import { marketLine } from './market.js';
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
@@ -48,8 +59,22 @@ export function movesFor(a, P, d, addDays) {
     flags.push({ metric: k, label, value: v, normal: m, change: ch, z, good: lower === 'n' ? null : ((ch > 0) !== !!lower), why });
   }
   const revHit = flags.some(f => f.metric === 'rev');
-  return { flags: flags.filter(f => !(revHit && (f.metric === 'o' || f.metric === 'aov'))).slice(0, 3), weeks: base.length };
+  const kept = flags.filter(f => !(revHit && (f.metric === 'o' || f.metric === 'aov')));
+  /* The verdict reads every move, before the cut to 3, so a bad cost per new customer behind three
+     other moves still counts. bad = the bad moves themselves, shown first in the post. */
+  const v = verdictOf(kept);
+  return { flags: kept.slice(0, 3), weeks: base.length, verdict: v.verdict, bad: v.bad };
 }
+
+/** Bad day or not, from the moves. Only the money results count: revenue down, MER down, cost per
+ *  new customer up. Ad spend never does. vbad = 2+ bad moves, or one at 2.5+ standard deviations. */
+const RESULT = new Set(['rev', 'mer', 'cac']);
+export function verdictOf(flags) {
+  const bad = (flags || []).filter(f => RESULT.has(f.metric) && f.good === false);
+  if (bad.length) return { verdict: bad.length >= 2 || bad.some(f => Math.abs(f.z) >= 2.5) ? 'vbad' : 'bad', bad };
+  return { verdict: (flags || []).some(f => f.good === true) ? 'good' : 'normal', bad };
+}
+const isBad = r => r.verdict === 'bad' || r.verdict === 'vbad';
 
 /** Every eligible brand's moves for its own yesterday, plus whether that day is fully synced. */
 export async function movedAll(env, d) {
@@ -79,25 +104,31 @@ const money = (n, cur) => { const c = cur || 'USD', sym = c === 'USD' ? '$' : c 
   return Math.abs(n) >= 1000 ? `${n < 0 ? '-' : ''}${sym}${(Math.abs(n) / 1000).toFixed(1)}K` : new Intl.NumberFormat('en-US', { style: 'currency', currency: c, maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 }).format(n); };
 const fmtOf = (k, v, cur) => k === 'mer' ? `${v.toFixed(2)}x` : k === 'o' ? Math.round(v).toLocaleString('en-US') : money(v, cur);
 
-/** The Slack message for one brand: a header, the rule in a line, one line per move, the button. */
-export function movedBlocks(r) {
-  const { a, date, flags, weeks } = r;
+/** The Slack message for one brand's bad day: a header, the date against its normal, the market line
+ *  (when there is one), one line per move (the bad ones first), the button. */
+export function movedBlocks(r, market = null) {
+  const { a, date, weeks } = r;
   const wd = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   const nice = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  /* The bad moves first, then the rest of the shown moves, 4 at most. */
+  const flags = [...(r.bad || []), ...(r.flags || []).filter(f => !(r.bad || []).some(b => b.metric === f.metric))].slice(0, 4);
   const lines = flags.map(f => {
     const pct = Math.abs(Math.round(f.change * 100));
     const tone = f.good === false ? ' (worth a look)' : '';
     return `• *${f.label}* ${fmtOf(f.metric, f.value, a.currency)}, ${pct}% ${f.change >= 0 ? 'above' : 'below'} a normal ${wd} (${fmtOf(f.metric, f.normal, a.currency)})${f.why ? `. Why: ${f.why}` : ''}${tone}.`;
   });
-  const text = `What moved yesterday at ${a.name}: ${flags.map(f => f.label.toLowerCase()).join(', ')}`;
+  const head = r.verdict === 'vbad' ? 'Very bad day yesterday' : 'Bad day yesterday';
+  const text = `${head} at ${a.name}: ${(r.bad || flags).map(f => f.label.toLowerCase()).join(', ')}`;
   const blocks = [
-    { type: 'header', text: { type: 'plain_text', text: `What moved yesterday: ${a.name}`.slice(0, 150) } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice} against the last ${weeks} ${wd}s. Only shown when a number is 25% or more off normal and unusual for this brand. Store numbers from Triple Whale.` }] },
+    { type: 'header', text: { type: 'plain_text', text: `${head}: ${a.name}`.slice(0, 150) } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice} against the last ${weeks} ${wd}s. Store numbers from Triple Whale.` }] },
+    ...(market ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: market.slice(0, 2900) }] }] : []),
     { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n').slice(0, 2900) } },
-    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=overview&act=${encodeURIComponent(a.act_id)}`, action_id: 'noop_open' }] },
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open Yesterday in Locus' }, url: `${LOCUS}?open=yesterday&act=${encodeURIComponent(a.act_id)}`, action_id: 'noop_open' }] },
   ];
   return { text, blocks };
 }
+const marketSafe = (env, date, memo) => marketLine(env, date, memo).catch(() => null);
 
 /** The hourly job. d = { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, subCanAfford } */
 export async function movedTick(env, d) {
@@ -111,12 +142,14 @@ export async function movedTick(env, d) {
   const done = new Set(state.acts || []);
   const all = await movedAll(env, d);
   const out = { posted: [], quiet: [], waiting: [], errors: [] };
+  const memo = new Map();   // one market lookup per date per tick
   for (const r of all) {
     if (done.has(r.a.act_id)) continue;
     if (!r.fresh) { out.waiting.push(r.a.name); continue; }
-    if (!r.flags.length) { out.quiet.push(r.a.name); done.add(r.a.act_id); continue; }
-    if (!d.subCanAfford(4)) { out.deferred = true; break; }
-    const m = movedBlocks(r);
+    /* Only a bad day posts. A good or quiet day is done for today. */
+    if (!isBad(r)) { out.quiet.push(r.a.name); done.add(r.a.act_id); continue; }
+    if (!d.subCanAfford(memo.has(r.date) ? 4 : 8)) { out.deferred = true; break; }
+    const m = movedBlocks(r, await marketSafe(env, r.date, memo));
     try { await d.slackPost(env, r.a.slack_channel, m.text, m.blocks, { username: 'Locus' }); out.posted.push(r.a.name); }
     catch (e) { out.errors.push(`${r.a.name}: ${e.message}`); }
     /* Recorded after each brand, posted or failed, so a kill later in the tick never re-posts it. */
@@ -131,9 +164,12 @@ export async function movedTick(env, d) {
 export async function movedPreview(env, d) {
   const all = await movedAll(env, d);
   let state = {}; try { state = JSON.parse((await d.getSetting(env, 'movedDone')) || '{}') || {}; } catch {}
-  return {
-    on: (await d.getSetting(env, 'movedPost')) !== 'off', done_today: state.date === d.centralDate() ? state.acts || [] : [],
-    brands: all.map(r => ({ act_id: r.a.act_id, name: r.a.name, date: r.date, fresh: r.fresh, weeks: r.weeks, channel: r.a.slack_channel,
-      moves: r.flags, would_post: r.fresh && r.flags.length > 0, message: r.flags.length ? movedBlocks(r) : null })),
-  };
+  const memo = new Map(), brands = [];
+  for (const r of all) {
+    const post = isBad(r);
+    brands.push({ act_id: r.a.act_id, name: r.a.name, date: r.date, fresh: r.fresh, weeks: r.weeks, channel: r.a.slack_channel,
+      verdict: r.verdict || (r.nodata ? 'no data' : 'normal'), moves: r.flags, bad: r.bad || [], would_post: r.fresh && post,
+      message: post ? movedBlocks(r, await marketSafe(env, r.date, memo)) : null });
+  }
+  return { on: (await d.getSetting(env, 'movedPost')) !== 'off', done_today: state.date === d.centralDate() ? state.acts || [] : [], brands };
 }

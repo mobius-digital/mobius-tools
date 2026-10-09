@@ -2122,3 +2122,44 @@ Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log a
   show under "Started in Asana, not in a drop" with Make it a design.
 - Old app `supply/index.html` carries a "moved to Locus" banner and forwards `?slot=`; retire it to a redirect after
   Lucky has used Locus for a week (plan step 5). The worker, engine and D1 stay.
+
+## 2026-10-09: THE RESTRUCTURE (Cole signed off the audit). Read before touching the rail, settings or integrations.
+
+Audit, research and every move with its reason: `docs/handoffs/locus-structure-audit-step1.md` (page
+https://claude.ai/artifact/HGz5WWWAuBZFkSMiWhvJb1); mocks `docs/locus-hub/mocks-structure.html`.
+- **Rail (`NAV`)**: Home (Overview, Yesterday, P&L) / Ads (Today, Meta, Google, TikTok, All channels, Tests and angles) /
+  Email and SMS / Store / Products* / Creative (Studio, Library, Inspiration) / Brand (Goals = `plan`, Client answers =
+  `answers`, Research, Voice, Creator link) / Reports / the season item* (War room `war`, The plan `season`) ; foot: Tools
+  (Scenarios `calc`, Platform status `pulse`), Brand settings, profile. `*` = conditional.
+- **Old ids still route**: `mbrowser` -> adcreative, `brand` -> the last brand view (`BRAND_VIEW_TAB`), `tests` (Test calls)
+  still renders (opened from Call rows on Today, not a Meta job any more), `copy` is Studio's Words mode (`STUDIO_JOBS`),
+  `mtoday` still renders (linked from Today for one brand). `?open=` accepts the new ids.
+- **Season item**: `SEASON` + `seasonOn()` + `seasonRail()` in index.html; settings `seasonTab` {label, mode auto|on|off} on
+  account-health `/api/settings`; auto = six weeks before the first season phase to a week after the last (`/api/season`).
+  Edited from the War room ("Name and when it shows") and Agency settings > Clients (desk.js `seasonCfg`).
+- **desk.js** (new, own closure, `window.DeskTab`): Home > Yesterday (`/api/hub/yesterday` + account-health `/api/market`),
+  Ads > Today (`/api/hub/today` + `/api/brand/tests-overview`; Done = POST account-health `/api/activities` manual line,
+  Not now = localStorage until tomorrow), War room shell (`/api/season`, `/api/season/live`), Platform status (Pulse
+  `https://mobius-ad-status.mobius-digital.workers.dev/api/status`, public). **`/api/hub/today` is the buyer list now;
+  the top-bar chip reads `/api/hub/live`** (old shape, also `?live=1`).
+- **hub.js**: `yesterdayMany` (14-day verdict grid, links cpm/ctr/cvr/aov/sp, changes minus automatic audience rows,
+  market = our own brands' CPM moving together; attribution not landed = `attr_pending`, CPA checks wait) and
+  `buyerList` (ad set first, brand rules from `rulesFor`, anchor never cut in a working set, stake ranking). The judge
+  is a copy of account-health `moved.js` `verdictOf`: keep them in step.
+- **Slack 8am post (moved.js)** posts ONLY on a bad day now ("Bad day yesterday: <brand>"), with one market line
+  (Pulse outage or Breezeway BAD), button to `?open=yesterday`. **market.js**: Pulse incidents for the date, Breezeway's
+  public `cpa_z_data.json` (unofficial; a hint), and a once-per-date Claude Haiku + web search for advertiser chatter
+  (cached `chatter:<date>`, ~3 to 5 cents a date, switch `marketChatter`).
+- **Settings**: brand = About (name, tz, currency, Archive at the bottom), Integrations, Ads rules (`goals` key; targets
+  moved out), Slack and sending (+ Monday test calls switch `data-mon` and every automatic post), Stock and factories,
+  Data and costs (`data`: data check + cost check pages, margin override, re-pulls, Meta Sync now, cohorts). Agency =
+  Clients (+ season tab), Integrations (+ Every brand grid), Team and access, Slack and sending, The Strategist, Data and
+  jobs (+ link to the Data health page). Tours live in How to use Locus; scheduled questions on Reports > Dashboards.
+  Goal CPA / ROAS are on Brand > Goals (`addGoalTargets` after `renderPlan`).
+- **Integrations** (account-health integrations.js): per brand groups Ads / Store / Website / Email and SMS / Work; one
+  Google Ads card with `levels`; `options` pick lists (manager accounts, GA4 properties, GSC sites, TikTok advertisers,
+  free Meta accounts) PUT to `/api/brand-links`; email card `tool` klaviyo|attentive (`email_tool`); state `part` =
+  through Triple Whale only. Agency: one Google card with `checks`. Slack channels, creator link and onboarding left.
+- **Platform tabs per brand**: `/api/overview` accounts carry `conn_kinds` and `email_tool`; Google / TikTok / Website /
+  Search tabs hide where the brand has neither the connection nor spend; Email tab reads Attentive where set.
+- **Strategist**: PLAYBOOK "WHERE THINGS ARE IN LOCUS" block (strategist.js) with every page id.

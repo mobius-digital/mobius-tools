@@ -27,6 +27,7 @@ import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 import { asana, asanaAll, numOf } from './asana-brand.js';
 import { nextNumber, ideaStart } from './ideas.js';
 import { integrationsReport } from './integrations.js';
+import { marketFor } from './market.js';
 import { klaviyoView } from './klaviyo.js';
 import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
@@ -205,6 +206,18 @@ const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brand
  * Settings wins over this one. The creative half is Mobius's own framework
  * (Angle, Concept, What We're Testing) and the angles-hub hierarchy rule. */
 const PLAYBOOK = `
+WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
+- Home: Overview (open=overview, the central dashboard), Yesterday (open=yesterday: was yesterday a bad day for each brand, why, and whether it was the market), P&L (open=profit).
+- Ads: Today (open=today: the media buyer's list for the day, ad set first: scale, cut, trim, refresh, fix, test calls), Meta (open=meta; jobs Campaigns open=campaigns, Creative open=adcreative, Changes open=changes), Google (open=google), TikTok (open=tiktok), All channels (open=channels), Tests and angles (open=angles). Test calls open from Today (open=tests).
+- Email and SMS (open=email; the tab is named Klaviyo or Attentive per brand). Store: Sales (open=store), Customers, Website, Search. Products: Stock, Buying, Drops (brands with a stock feed).
+- Creative: Studio (open=studio; its Words mode, open=copy, is the old Copy desk), Library, Inspiration.
+- Brand: Goals (open=plan: the month's revenue, spend and MER plus the goal cost per sale and goal ROAS), Client answers (open=answers), Research (open=research), Voice (open=voice), Creator link (open=amb).
+- Reports: Daily Brief, Weekly and monthly, Dashboards (scheduled questions are listed there too).
+- The season item (named by Cole, e.g. Black Friday or Q5 war room; shown in season): War room (open=war), The plan (open=season).
+- Tools (rail foot): Scenarios (open=calc), Platform status (open=pulse, Pulse's outage monitor).
+- Brand settings: About the brand, Integrations (every connection, with pick lists and exact steps), Ads rules (how ad sets and ads are called), Slack and sending (every automatic post), Stock and factories, Data and costs (data check, cost check, margin override, re-pulls). Agency settings (profile menu): Clients, Integrations, Team and access, Slack and sending, The Strategist, Data and jobs.
+- Never say Settings > Connections, Home > Plan, Creative > Brand or Copy desk: those names are gone.
+
 THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of every platform and how they work together")
 - You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
@@ -341,8 +354,9 @@ const VIEW_BLURBS = {
   scenarios: 'the saved what-if scenarios from the lead-gen and ROAS calculators for one brand (or agency-wide): name, kind, inputs, note, the share link. Pass `brand` (optional). Read it before build_scenario so you extend what exists instead of duplicating it.',
   dashboards: 'the saved dashboards in Locus (Reports > Dashboards): name, who it is for, scope, range, blocks, Slack schedule and channel. Read it before saving a new one so you do not make a twin. A block of type chart is a Strategist answer someone pinned from the chat (title, the chart, the question, when).',
   schedules: 'the scheduled questions: questions the Strategist answers on its own on a schedule (every morning, every Monday or the 1st, at an hour in Central) and posts to an internal Slack channel; with brand, last run and its status. Read it before schedule_question so you do not make a twin.',
-  integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Asana, Slack, Google, Atria, Frame, Studio image key, Canva, Gemini, downloader, Stripe, Lucky creator app) and PER BRAND ones (ad account, Triple Whale shop, Shopify install, Asana project, Slack channels, Drive folder, Frame project, creator link, onboarding, Google Ads and Klaviyo via Triple Whale). Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
-  klaviyo: 'the brand\'s Klaviyo, read live with its own key: pass `brand` and `what` = overview (counts, live flows, biggest lists and segments), lists, segments (with profile counts), flows (status and trigger), campaigns (last 30 sent with open, click, conversion rate and revenue) or metrics. THE view for email questions: how many segments, which flows are live or dead, how the last sends did, who is in what. Not connected = the reply says how to connect it (Settings > Connections).',
+  market: 'whether the MARKET had a bad day, for "was it us or the market?": pass `date` (YYYY-MM-DD, default yesterday). pulse = platform outages that overlapped the day from Mobius Pulse (Meta, Google Ads, Shopify...); breezeway = the public Breezeway Meta cost-per-purchase score across about 50 of their own customers (NORMAL / BAD / VERY BAD; unofficial, a hint, not a verdict); chatter = whether advertisers on X, Reddit or in the news reported Meta or Google Ads problems that day (asked once per date, cached). Read it before blaming a bad day on the account.',
+  integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Google with its five checks, the TikTok app, Asana, Slack, Stripe, Frame, Claude, Studio image key, Gemini, Atria, Canva, downloader, Lucky creator app) and PER BRAND ones grouped Ads (Meta, Google Ads, TikTok), Store (Triple Whale, Shopify), Website (GA4, Search Console), Email and SMS (Klaviyo or Attentive), Work (Asana, Drive, Frame). Google Ads, TikTok and email carry `levels`: Through Triple Whale (daily totals) and Direct; state part = only through Triple Whale. Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
+  klaviyo: 'the brand\'s Klaviyo, read live with its own key: pass `brand` and `what` = overview (counts, live flows, biggest lists and segments), lists, segments (with profile counts), flows (status and trigger), campaigns (last 30 sent with open, click, conversion rate and revenue) or metrics. THE view for email questions: how many segments, which flows are live or dead, how the last sends did, who is in what. Not connected = the reply says how to connect it (Brand settings > Integrations).',
   brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
 };
 
@@ -551,10 +565,11 @@ function buildViews(d) {
       return { brand: acct?.name || 'every brand', scenarios: (results || []).map(s => ({ ...s, brand: s.brand || (s.act_id === 'all' ? 'agency-wide' : s.act_id), inputs: d.safeJson(s.inputs_json, {}), inputs_json: undefined, url: SHARE_URL + s.id })),
         how_to_read: VIEW_BLURBS.scenarios + ' leads inputs: spend, cpl (cost per lead), cvr (% of leads who buy), aov, margin (%), target (ROAS). The share link opens the read-only page a client can see.' };
     },
+    market: async (env, a) => ({ ...(await marketFor(env, String(a.date || a.day || ''))), how_to_read: VIEW_BLURBS.market + ' One source alone is a hint; an outage in pulse is the strongest; Breezeway and chatter agreeing is a market day; neither = look at the account.' }),
     integrations: async (env, a) => {
       const acct = (a.brand || a.id || a.account || a.q) ? await resolve(env, a.brand || a.id || a.account || a.q) : null;
       const r = await integrationsReport(env, { brand: acct?.act_id || null });
-      return { ...r, how_to_read: VIEW_BLURBS.integrations + ' state: ok, warn (connected but stale or half set up), bad (failing), off (not set up). Quote the fix text when something is off; the agency ones are Cole\'s to fix, the per-brand ones the team can do in Locus.' };
+      return { ...r, how_to_read: VIEW_BLURBS.integrations + ' state: ok, part (partly connected: only through Triple Whale), warn (connected but stale or half set up), bad (failing), off (not set up). Quote the fix text when something is off; the agency ones are Cole\'s to fix, the per-brand ones the team can do in Locus.' };
     },
     schedules: async env => {
       await env.DB.prepare(SCHED_SQL).run().catch(() => {});
@@ -668,16 +683,19 @@ async function runChecks(env, h, d) {
      take, so it reaches the team channel and the Monday briefing. One finding per brand per month. */
   try {
     const rep = await integrationsReport(env);
-    const CARE = new Set(['meta', 'tw', 'asana', 'slack_internal', 'klaviyo', 'shopify']);
+    const CARE = new Set(['meta', 'tw', 'asana', 'slack_internal', 'email', 'shopify']);
     for (const b of rep.brands) {
       if (PAUSED.test(b.name)) continue;
+      /* The team channel left the Integrations report on 2026-10-09 (it is a setting); still checked here. */
+      const acc = accounts.find(a => a.act_id === b.act_id);
+      if (acc && !String(acc.slack_channel || '').trim()) b.items = [...b.items, { key: 'slack_internal', name: 'Slack internal channel', state: 'off', note: 'No team channel: the Strategist and the ideas bot cannot be tagged for this brand.', fix: 'Settings > Brands > the brand > Team channel (the -internal channel id), then invite @Mobius Digital to it.' }];
       const miss = b.items.filter(i => CARE.has(i.key) && (i.state === 'bad' || i.state === 'off') && !(i.key === 'shopify' && i.state === 'off'));
       if (!miss.length) continue;
       const ym = d.localDate(accounts.find(a => a.act_id === b.act_id)?.tz || 'America/Chicago').slice(0, 7);
       const bad = miss.some(i => i.state === 'bad');
       out.push({ key: `connections:${b.act_id}:${ym}`, kind: 'connections', severity: bad ? 'high' : 'med', amount: null, month: ym,
         title: `${b.name}: ${miss.length === 1 ? miss[0].name + ' is' : miss.length + ' connections are'} ${bad ? 'failing' : 'not set up'} (${miss.map(i => i.name).join(', ')})`,
-        detail: miss.map(i => `${i.name}: ${i.note} First step: ${(i.steps || [])[0]?.t || i.fix}`).join('\n').slice(0, 1500) + '\nAll of it, with links: Locus > Settings > Connections.',
+        detail: miss.map(i => `${i.name}: ${i.note} First step: ${(i.steps || [])[0]?.t || i.fix}`).join('\n').slice(0, 1500) + '\nAll of it, with links: Locus > Brand settings > Integrations (agency-wide: Agency settings > Integrations).',
         evidence: { items: miss.map(i => ({ key: i.key, state: i.state })) } });
     }
   } catch (e) { console.log('connections check: ' + e.message); }

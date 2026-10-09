@@ -85,7 +85,7 @@ const acctOf = id => S.accounts.find(a => a.act_id === id) || null;
    none (SpeedIn). A list without the field (served before the switch) counts as having Meta. */
 const hasMeta = a => !!a && (!('meta_act' in a) || !!a.meta_act);
 const metaOn = a => a.active && hasMeta(a);
-const noMetaText = a => `No Meta ad account connected for ${a.name}. Connect it in Settings > Connections.`;
+const noMetaText = a => `No Meta ad account connected for ${a.name}. Connect it in Brand settings > Integrations.`;
 const noMetaCard = a => `<section class="v2card"><p class="v2hint">${esc(noMetaText(a))}</p></section>`;
 /** Switch the brand the same way the host's own picker does (its change handler re-renders this tab). */
 function pickBrand(id) {

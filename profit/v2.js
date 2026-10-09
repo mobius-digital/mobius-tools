@@ -17,7 +17,7 @@
   /* Brand-first phase 3: a.act_id is the BRAND id; a.meta_act is its main Meta ad account, null = none
      connected (a list without the field counts as connected). Meta-only screens show this instead of erroring. */
   const noMeta = a => !!a && 'meta_act' in a && !a.meta_act;
-  const noMetaCard = a => `<div class="v2card"><p class="v2hint">No Meta ad account connected for ${esc(a.name)}. Connect it in Settings &gt; Connections.</p></div>`;
+  const noMetaCard = a => `<div class="v2card"><p class="v2hint">No Meta ad account connected for ${esc(a.name)}. Connect it in Brand settings &gt; Integrations.</p></div>`;
 
   /* ---------- formatting ---------- */
   const sym = c => (!c || c === 'USD' ? '$' : c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'CAD' ? 'CA$' : c === 'AUD' ? 'A$' : c + ' ');
@@ -321,15 +321,20 @@
   /* What moved yesterday, against the same weekday over 8 weeks (hub.js movedMany). */
   /* Clicking a moved number opens the page that explains it, for that brand. */
   const MOVED_TAB = { rev: 'store', o: 'store', aov: 'store', mer: 'channels', sp: 'channels', cac: 'customers' };
+  /* THE YESTERDAY LINE (2026-10-09): replaces the What moved card. One line on Home; the full view is Home > Yesterday
+     (desk.js, /api/hub/yesterday): every brand judged against its own same weekday, the reason, and whether it was the market. */
   async function movedCard(scope) {
     const t = H.RUN(); let d;
-    try { d = await get(`/api/hub/moved?act=${encodeURIComponent(H.S.act)}`); } catch { return; }
+    try { d = await get(`/api/hub/yesterday?act=${encodeURIComponent(H.S.act)}`); } catch { return; }
     const host = document.getElementById('v2moved'); if (t !== H.RUN() || !host) return;
-    const items = d.items || [];
-    const wd = items[0] ? new Date(items[0].date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : '';
-    const fmtV = (f, v) => f.metric === 'mer' ? x2(v) : f.metric === 'o' ? int(v) : f.metric === 'aov' || f.metric === 'cac' ? money(v, f.currency) : kmoney(v, f.currency);
-    if (!items.length) { host.innerHTML = `<div class="v2note"><span class="v2pill good">steady</span><span>Nothing moved more than usual yesterday for ${esc(scope)}: every number sat within its normal range for that weekday.</span></div>`; return; }
-    host.innerHTML = card(`What moved yesterday`, `${items.length} number${items.length === 1 ? '' : 's'} outside the normal range for a ${esc(wd)}.`, `<div class="v2moved">${items.slice(0, 9).map(f => `<button type="button" class="mv" data-go="act:${esc(f.act_id)}:${MOVED_TAB[f.metric] || 'store'}"${tipAttr(`${esc(f.name)}: ${esc(f.label)} ${fmtV(f, f.value)} against a normal ${esc(wd)} of ${fmtV(f, f.normal)} (the last 8 ${esc(wd)}s).`)}><i class="${f.good === true ? 'good' : f.good === false ? 'bad' : 'flat'}"></i><span class="b">${H.S.act === 'all' ? `<b>${esc(f.name)}</b> · ` : ''}${esc(f.label)} <b>${fmtV(f, f.value)}</b></span><span class="c ${f.good === true ? 'good' : f.good === false ? 'bad' : ''}">${f.change >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(f.change * 100))}% vs normal</span>${f.why ? `<span class="w">${esc(f.why)}</span>` : ''}</button>`).join('')}</div>`, 'same weekday, last 8 weeks');
+    const bs = d.brands || [], days = d.days || [], last = days[days.length - 1]; if (!last || !bs.length) return;
+    const nice = new Date(last + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const bad = bs.filter(b => b.last && /bad/.test(b.last.verdict)), mk = d.market || {};
+    const dot = v => `<i class="v2ydot ${v || 'none'}"></i>`;
+    host.innerHTML = `<div class="v2note v2yline"><b>${esc(nice)}</b><span class="v2ydots">${bs.map(b => `<span${tipAttr(`${esc(b.name)}: ${({ good: 'good', normal: 'normal', bad: 'bad', vbad: 'very bad', none: 'no data' })[b.last?.verdict || 'none']}`)}>${dot(b.last?.verdict)}</span>`).join('')}</span>
+      <span>${bad.length ? `${bad.length} bad day${bad.length > 1 ? 's' : ''}: ${bad.map(b => esc(b.name)).join(', ')}.` : 'No bad days.'}${mk.verdict === 'market' ? ` Meta ad costs rose 20%+ at ${mk.cpm_up} of ${mk.meta_brands} brands: looks like the market.` : ''}</span>
+      <button type="button" class="v2link" data-go="yesterday" style="margin-left:auto">Open Yesterday ›</button></div>`;
+    if (!document.getElementById('v2ycss')) { const st = document.createElement('style'); st.id = 'v2ycss'; st.textContent = '.v2yline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.v2ydots{display:inline-flex;gap:4px}.v2ydot{width:11px;height:11px;border-radius:3px;display:inline-block;background:var(--surface-2);border:1px solid var(--line)}.v2ydot.good{background:var(--good-bg);border-color:var(--good)}.v2ydot.bad{background:var(--bad-bg);border-color:var(--bad)}.v2ydot.vbad{background:var(--bad);border-color:var(--bad)}.v2ydot.none{background:transparent;border-style:dashed}'; document.head.appendChild(st); }
     wireGo(host);
   }
 
@@ -411,20 +416,24 @@
     const multiples = !one && all.length > 1 ? (() => { const mx = Math.max(...all.flatMap(a => (a.series || []).map(r => r.sales || 0)), 1);
       return card('Each brand, revenue by day', 'One scale, so the sizes compare. Click one to open it.', `<div class="v2mult">${all.slice().sort((x, y) => (y.window?.sales || 0) - (x.window?.sales || 0)).map(a => { const s = a.series || []; const pts = s.map((r, i) => `${(i / Math.max(1, s.length - 1) * 200).toFixed(1)},${(56 - (r.sales || 0) / mx * 50).toFixed(1)}`).join(' ');
         return `<button type="button" class="m" data-go="act:${esc(a.act_id)}"><span class="n">${esc(a.name)}</span><span class="v">${kmoney(a.window?.sales, a.currency)} ${a.prev ? delta(a.window?.sales, a.prev?.sales) : ''}</span><svg viewBox="0 0 200 60" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(s.map(r => `<b>${esc(a.name)}</b> · ${day(r.date)} · ${kmoney(r.sales, a.currency)}`)))}"><polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></button>`; }).join('')}</div>`); })() : '';
-    const brandTable = !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
+    /* The small charts per brand became a column here (2026-10-09): one card for the brands, not two. Same scale as before: each brand's own. */
+    const sparkRow = a => { const sr = a.series || []; if (sr.length < 2) return ''; const mx = Math.max(...sr.map(r => r.sales || 0), 1);
+      const pts = sr.map((r, i) => `${(i / (sr.length - 1) * 90).toFixed(1)},${(22 - (r.sales || 0) / mx * 20).toFixed(1)}`).join(' ');
+      return `<svg viewBox="0 0 90 24" width="90" height="24" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(sr.map(r => `<b>${day(r.date)}</b> ${kmoney(r.sales, a.currency)}`)))}"><polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="1.5"/></svg>`; };
+    const brandTable = !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>By day</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
         ${all.slice().sort((x, y) => (y.window?.sales || 0) - (x.window?.sales || 0)).map(a => { const w = a.window || {}; const off = a.plan?.sales && a.mtd?.sales != null ? a.mtd.sales / a.plan.sales - 1 : null;
-          return `<tr data-act="${esc(a.act_id)}" tabindex="0" class="link"><td><b>${esc(a.name)}</b></td><td>${kmoney(w.sales, a.currency)} ${a.prev ? delta(w.sales, a.prev.sales) : ''}</td><td>${off == null ? '<span class="faint">no plan</span>' : `<span class="v2pill ${off >= 0 ? 'good' : off > -0.08 ? 'warn' : 'bad'}">${off >= 0 ? '+' : ''}${Math.round(off * 100)}%</span>`}</td>
+          return `<tr data-act="${esc(a.act_id)}" tabindex="0" class="link"><td><b>${esc(a.name)}</b></td><td>${sparkRow(a)}</td><td>${kmoney(w.sales, a.currency)} ${a.prev ? delta(w.sales, a.prev.sales) : ''}</td><td>${off == null ? '<span class="faint">no plan</span>' : `<span class="v2pill ${off >= 0 ? 'good' : off > -0.08 ? 'warn' : 'bad'}">${off >= 0 ? '+' : ''}${Math.round(off * 100)}%</span>`}</td>
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
     $('#main').innerHTML = shell('overview', title, `${readSlot('v2read')}<div id="v2moved"></div>${tiles}
-      <div class="v2two">${chart}${funnel}</div>${chTable}${spendStack}${multiples}${brandTable}
+      <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
     if (rows.length > 1) wireLine('v2rev', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · revenue ${kmoney(r.sales, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · MER ${x2(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)} on ${day(prev[i].date)}</span>` : ''}` });
-    if (chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
+    if (false && chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
     if (cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
       month_to_date: mtd.plan ? { revenue: mtd.sales, planned_by_now: mtd.plan } : null, site: fun.ses ? { sessions: fun.ses, carts: fun.cart, orders: fun.ord, sessions_before: fun.pses, orders_before: fun.pord } : null,
       channels: chRows.map(r => ({ channel: r.label, spend: r.spend, revenue: r.revenue, platform_says: r.hasP ? r.platform_revenue : null, revenue_before: r.hasPrev ? r.prev_revenue : null })),
@@ -674,7 +683,7 @@
     const pm = new Map(); for (const b of bs) for (const r of b.prev_series || []) { const o = pm.get(r.date) || { date: r.date, revenue: 0, spend: 0 }; o.revenue += r.revenue || 0; o.spend += r.spend || 0; pm.set(r.date, o); }
     const prows = [...pm.values()].sort((x, y) => x.date < y.date ? -1 : 1);
     const g = one && bs[0] ? bs[0].goals || {} : {};
-    const body = !bs.length ? `${card(`${P.label} is not connected directly`, '', `<p class="v2hint">No ${P.label} spend in this window${one ? ' for this brand' : ''}, as far as Triple Whale sees. ${esc(P.adds)}</p>${kind === 'tiktok' ? '<div id="v2ttc" style="margin-top:10px"></div>' : '<button type="button" class="v2btn" data-go="settings">Open Connections</button>'}`)}` : `
+    const body = !bs.length ? `${card(`${P.label} is not connected directly`, '', `<p class="v2hint">No ${P.label} spend in this window${one ? ' for this brand' : ''}, as far as Triple Whale sees. ${esc(P.adds)}</p>${kind === 'tiktok' ? '<div id="v2ttc" style="margin-top:10px"></div>' : '<button type="button" class="v2btn" data-go="settings">Open Integrations</button>'}`)}` : `
       <div class="v2note"><span class="v2pill warn">via Triple Whale</span> <span>${P.label} is not connected to Locus directly yet, so this page shows what Triple Whale carries: ${P.label}'s daily spend, impressions and clicks, and the orders Triple Whale credits to ${P.label}. No campaigns or ads until it is connected.</span> <button type="button" class="v2link" data-go="settings">Connections ›</button></div>
       <div class="v2tiles">${[
         tile({ compact: true, label: 'Spend', src: P.label.toUpperCase(), value: kmoney(c.spend, cur), delta: delta(c.spend, p.spend, 'n'), sub: `${int(c.impr)} impressions · ${pct(c.impr ? c.clicks / c.impr : null, 2)} CTR` }),
@@ -684,7 +693,7 @@
       ${cur && rows.length > 1 ? card('Revenue and spend by day', `Revenue credited to ${P.label} under ${esc(MODEL_SHORT[H.S.model])}.`, legend([{ color: '--brand', label: 'Revenue' }, { color: '--c-google', label: 'Spend' }, ...(prows.length ? [{ dash: true, label: cmpLabel() }] : [])]) + lineChart('v2plat', rows.map(r => ({ ...r, v: r.revenue, s: r.spend })), { key: 'v', key2: 's', prev: prows.map(r => ({ ...r, v: r.revenue })), cur })) : ''}
       ${!one ? card(`Each brand on ${P.label}`, 'Click a brand to open it.', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Spend</th><th>Revenue</th><th>${esc(P.label)} says</th><th>Gap</th><th>ROAS</th><th>CPA</th><th>CTR</th></tr></thead><tbody>${bs.sort((x, y) => y.cur.spend - x.cur.spend).map(b => { const x = b.cur; const gap = isPlat() || x.platform_revenue == null ? null : x.revenue - x.platform_revenue; return `<tr data-act="${esc(b.act_id)}" tabindex="0" class="link"><td><b>${esc(b.name)}</b></td><td>${ib(x.spend, Math.max(...bs.map(y => y.cur.spend), 1), P.color, kmoney(x.spend, b.currency))}</td><td>${kmoney(x.revenue, b.currency)} ${delta(x.revenue, b.prev?.revenue)}</td><td class="faint">${kmoney(x.platform_revenue, b.currency)}</td><td class="${gap == null ? '' : gap >= 0 ? 'good' : 'bad'}">${gap == null ? '–' : (gap >= 0 ? '+' : '−') + kmoney(Math.abs(gap), b.currency)}</td><td>${x2(x.roas)}</td><td>${money(x.cpa, b.currency)}</td><td>${pct(x.ctr, 2)}</td></tr>`; }).join('')}</tbody></table></div>`, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`) : ''}
       ${one ? `<div class="v2gos"><button type="button" class="v2go" data-drill="platform:${kind}"><b>The orders ${esc(P.label)} is credited with</b><span>Each order, its value, whether it was a first order, and the customer's whole journey.</span><i>›</i></button><button type="button" class="v2go" data-go="channels"><b>${esc(P.label)} next to every other channel</b><span>Spend, revenue, ROAS and new customers side by side, with each platform's own claim.</span><i>›</i></button></div>` : ''}
-      ${card(`What connecting ${P.label} directly adds`, '', `<p class="v2hint">${esc(P.adds)}</p><p class="v2hint" style="margin-top:8px">${kind === 'google' ? 'What it needs from Cole: a Google Cloud project with the Google Ads API switched on, and a Google Ads developer token from the agency manager account.' : 'What it needs from Cole: a TikTok for Business developer app approved for the Marketing API (steps in Settings > Connections > TikTok Ads), then one sign-in here with Connect TikTok.'}</p>${kind === 'tiktok' ? '<div id="v2ttc" style="margin-top:10px"></div>' : ''}`)}`;
+      ${card(`What connecting ${P.label} directly adds`, '', `<p class="v2hint">${esc(P.adds)}</p><p class="v2hint" style="margin-top:8px">${kind === 'google' ? 'What it needs from Cole: a Google Cloud project with the Google Ads API switched on, and a Google Ads developer token from the agency manager account.' : 'What it needs from Cole: a TikTok for Business developer app approved for the Marketing API (steps in Agency settings > Integrations > TikTok app), then one sign-in here with Connect TikTok.'}</p>${kind === 'tiktok' ? '<div id="v2ttc" style="margin-top:10px"></div>' : ''}`)}`;
     $('#main').innerHTML = shell(kind, title, body + foot(`Spend, impressions and clicks are ${P.label}’s own as Triple Whale carries them. Revenue and purchases follow the attribution switch; ${P.label}’s own figures sit beside them.`));
     const root = $('#main'); wireGo(root); wireRows(root, kind);
     if (rows.length > 1) wireLine('v2plat', rows, { tip: r => `<b>${day(r.date)}</b> · revenue ${kmoney(r.revenue, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · ROAS ${x2(r.revenue / r.spend)}` : ''}` });
@@ -695,9 +704,9 @@
       H.apiAH('/api/tiktok/status').then(st => {
         if (t !== H.RUN() || !st) return;
         const host = root.querySelector('#v2ttc');
-        if (host) host.innerHTML = st.connected ? `<p class="v2hint">TikTok is connected (${(st.advertisers || []).length} ad account${(st.advertisers || []).length === 1 ? '' : 's'}). Link a brand to its advertiser ID in Settings > Connections.</p>`
+        if (host) host.innerHTML = st.connected ? `<p class="v2hint">TikTok is connected (${(st.advertisers || []).length} ad account${(st.advertisers || []).length === 1 ? '' : 's'}). Link a brand to its advertiser ID in Brand settings > Integrations.</p>`
           : st.app ? '<button type="button" class="v2btn" id="v2ttGo">Connect TikTok</button> <span class="v2hint">Opens TikTok for Business; sign in and tick every ad account.</span>'
-          : '<p class="v2hint">The TikTok developer app is not set up yet. The steps are in Settings > Connections > TikTok Ads.</p>';
+          : '<p class="v2hint">The TikTok developer app is not set up yet. The steps are in Agency settings > Integrations > TikTok app.</p>';
         const go = root.querySelector('#v2ttGo'); if (go) go.onclick = async () => { go.disabled = true; try { const r = await H.apiAH('/api/tiktok/start', { method: 'POST', body: '{}' }); if (r.url) window.open(r.url, '_blank'); else go.textContent = r.error || 'Could not start'; } catch (e) { go.textContent = e.message; } go.disabled = false; };
         if (!st.connected || !one) return;
         const w = win(); H.apiAH(`/api/tiktok/report?act=${encodeURIComponent(H.S.act)}&from=${w.from}&to=${w.to}`).then(r => {
@@ -908,7 +917,7 @@
       ${on.sort((x, y) => (y.fRev + y.cRev) - (x.fRev + x.cRev)).map(r => `<tr data-act="${esc(r.b.act_id)}" tabindex="0" class="link"><td><b>${esc(r.b.name)}</b></td><td>${ib(r.fRev + r.cRev, mx, '--c-email', kmoney(r.fRev + r.cRev, r.b.currency), `Flows ${kmoney(r.fRev, r.b.currency)} · campaigns ${kmoney(r.cRev, r.b.currency)} (last ${r.sends} sends)`)}</td><td>${kmoney(r.fRev, r.b.currency)}</td><td>${kmoney(r.cRev, r.b.currency)}</td><td>${r.live}</td>
         <td>${r.missing.length ? r.missing.map(m => `<span class="v2pill warn">${esc(m)}</span>`).join(' ') : '<span class="v2pill good">none</span>'}</td>
         <td class="${r.open == null ? '' : r.open >= BENCH.open ? 'good' : 'warn'}">${pct(r.open, 1)}</td><td class="${r.click == null ? '' : r.click >= BENCH.click ? 'good' : 'warn'}">${pct(r.click, 2)}</td><td>${money2(r.rpr, r.b.currency)}</td><td><span class="nm" title="${esc(r.top?.name || '')}">${esc(r.top?.name || '–')}</span></td></tr>`).join('')}
-      </tbody></table></div>${off.length ? `<p class="v2hint" style="margin-top:10px">Not connected to Klaviyo directly: ${esc(off.map(r => r.b.name).join(', '))}. Settings > Connections > paste each brand’s private key.</p>` : ''}`,
+      </tbody></table></div>${off.length ? `<p class="v2hint" style="margin-top:10px">Not connected to Klaviyo directly: ${esc(off.map(r => r.b.name).join(', '))}. Brand settings > Integrations > paste each brand’s private key.</p>` : ''}`,
       'Klaviyo’s own attribution · open and click are the last 30 campaigns, weighted by recipients');
     wireRows(host, 'email');
   }   // Klaviyo published 2026 campaign averages (research-email-sms.md)
@@ -940,7 +949,7 @@
     let ov, camps, flows;
     try { [ov, camps, flows] = await Promise.all([H.apiAH(`/api/klaviyo?act=${encodeURIComponent(a.act_id)}&what=overview`), H.apiAH(`/api/klaviyo?act=${encodeURIComponent(a.act_id)}&what=campaigns`).catch(() => null), H.apiAH(`/api/klaviyo?act=${encodeURIComponent(a.act_id)}&what=flows_report`).catch(() => null)]); } catch (e) { ov = { error: e.message }; }
     if (t !== H.RUN()) return; const host = document.getElementById('v2kl'); if (!host) return;
-    if (!ov || ov.error) { host.innerHTML = card(`Klaviyo is not connected for ${esc(a.name)}`, '', `<p class="v2hint">${esc(ov?.error || '')}</p><button type="button" class="v2btn" data-go="settings">Open Connections</button>`); wireGo(host); return; }
+    if (!ov || ov.error) { host.innerHTML = card(`Klaviyo is not connected for ${esc(a.name)}`, '', `<p class="v2hint">${esc(ov?.error || '')}</p><button type="button" class="v2btn" data-go="settings">Open Integrations</button>`); wireGo(host); return; }
     const bench = (v, b, lower) => v == null ? '' : `<span class="v2pill ${(lower ? v <= b : v >= b) ? 'good' : 'warn'}" title="Klaviyo average ${pct(b, 1)}">${(lower ? v <= b : v >= b) ? 'above avg' : 'below avg'}</span>`;
     const crAll = (camps?.campaigns || []).filter(x => x.recipients != null); const cr = crAll.slice(0, 15); const fr = (flows?.flows || []).filter(x => x.recipients).slice(0, 15);
     const fmx = Math.max(...fr.map(x => x.revenue || 0), 1), cmx = Math.max(...cr.map(x => x.conversion_value || 0), 1);
@@ -969,14 +978,14 @@
     return { from, to, pf, pt, q: `from=${from}&to=${to}${pf ? `&pfrom=${pf}&pto=${pt}` : ''}` };
   }
   const GSTEPS = {
-    ga4: ['In Google Workspace admin, give the Locus service account the Google Analytics read scope (Settings > Connections > Google Analytics 4 shows the exact client ID and scope).', 'Turn on the Google Analytics Data API and Admin API in the Google Cloud project.', 'On the brand’s GA4 property, add cole@go-mobius-digital.com as a Viewer.', 'Settings > Connections: paste the brand’s GA4 property ID.'],
-    gsc: ['In Google Workspace admin, give the Locus service account the Search Console read scope (Settings > Connections shows the exact client ID and scope).', 'Turn on the Search Console API in the Google Cloud project.', 'On the brand’s Search Console property, add cole@go-mobius-digital.com as a user.', 'Settings > Connections: paste the property (sc-domain:brand.com).'],
+    ga4: ['In Google Workspace admin, give the Locus service account the Google Analytics read scope (Brand settings > Integrations > Google Analytics 4 shows the exact client ID and scope).', 'Turn on the Google Analytics Data API and Admin API in the Google Cloud project.', 'On the brand’s GA4 property, add cole@go-mobius-digital.com as a Viewer.', 'Brand settings > Integrations: paste the brand’s GA4 property ID.'],
+    gsc: ['In Google Workspace admin, give the Locus service account the Search Console read scope (Agency settings > Integrations shows the exact client ID and scope).', 'Turn on the Search Console API in the Google Cloud project.', 'On the brand’s Search Console property, add cole@go-mobius-digital.com as a user.', 'Brand settings > Integrations: paste the property (sc-domain:brand.com).'],
   };
   function notLinked(kind, brand, err) {
     const what = kind === 'ga4' ? 'Google Analytics' : 'Search Console';
     const gives = kind === 'ga4' ? 'Where visitors come from (channels and sources), which landing pages convert and which leak, mobile against desktop, and the shopping funnel from visit to purchase.' : 'What people search on Google before they find the brand, which queries and pages bring clicks, how much is people already searching the brand name, and which queries sit just off page one.';
     return card(`Connect ${what} for ${esc(brand)}`, '', `<p class="v2hint">${gives}</p>${err && err !== 'not_linked' ? `<p class="v2hint" style="margin-top:8px">Google answered: ${esc(err)}</p>` : ''}
-      <ol class="v2steps">${GSTEPS[kind].map(x => `<li>${esc(x)}</li>`).join('')}</ol><button type="button" class="v2btn" data-go="settings">Open Connections</button>`);
+      <ol class="v2steps">${GSTEPS[kind].map(x => `<li>${esc(x)}</li>`).join('')}</ol><button type="button" class="v2btn" data-go="settings">Open Integrations</button>`);
   }
   async function website(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
@@ -1064,7 +1073,7 @@
         <div class="v2jobs">${[{ setting: '', n: total }, ...SET].map(s => `<button type="button" data-set="${esc(s.setting)}" class="${LIBF.setting === s.setting ? 'on' : ''}">${esc(s.setting || 'Any setting')}${s.setting ? ` <em>${s.n}</em>` : ''}</button>`).join('')}</div>
         <button type="button" class="v2btn" id="libSync" style="margin:0">Check Drive now</button></div>
       ${(d.items || []).length ? `<div class="v2lib">${d.items.map((x, i) => `<button type="button" class="it" data-i="${i}"${tipAttr(esc(x.descr || x.name))}>${x.thumb_key ? `<img loading="lazy" src="${img(x)}" alt="">` : `<span class="v2hint">Tagging…</span>`}${x.people ? `<em>${x.people} ${x.people === 1 ? 'person' : 'people'}</em>` : ''}${x.source === 'locus' ? '<em style="top:6px;bottom:auto;background:var(--brand);color:var(--on-brand)">Made by Locus</em>' : ''}</button>`).join('')}</div>`
-        : card(total ? 'Nothing matches' : 'No images yet', '', `<p class="v2hint">${total ? 'Try fewer words or another filter.' : `Locus reads ${esc(a.name)}’s Drive folder from Settings > Connections. Press Check Drive now to read it.`}</p>`)}
+        : card(total ? 'Nothing matches' : 'No images yet', '', `<p class="v2hint">${total ? 'Try fewer words or another filter.' : `Locus reads ${esc(a.name)}’s Drive folder from Brand settings > Integrations. Press Check Drive now to read it.`}</p>`)}
       ${foot('Images stay where they are in Drive; nothing is moved, renamed or copied there. Each new image is tagged once by a small AI model (about a tenth of a cent); after that, searching is free.')}`;
     $('#main').innerHTML = shell('library', title, body); const root = $('#main');
     const q = root.querySelector('#libQ'); let tm = null; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { LIBF.q = q.value; library(false); }, 350); };

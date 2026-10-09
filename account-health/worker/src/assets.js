@@ -107,7 +107,7 @@ async function drive(env, path) {
 export async function syncAssets(env, act, { maxFolders = 500, maxFiles = 10000 } = {}) {
   await ensure(env);
   const roots = await sourcesFor(env, act), airs = await airSourcesFor(env, act);
-  if (!roots.length && !airs.length) return { act, error: 'No Drive folder for this brand: Settings > Connections > Google Drive folder.' };
+  if (!roots.length && !airs.length) return { act, error: 'No Drive folder for this brand: Brand settings > Integrations > Google Drive folder.' };
   const queue = roots.map(id => ({ id, path: '' })), seen = new Set(); let folders = 0, files = 0, fresh = 0;
   const now = new Date().toISOString();
   while (queue.length && folders < maxFolders && files < maxFiles) {

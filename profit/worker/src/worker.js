@@ -2049,6 +2049,12 @@ export default {
            ghost the compare period behind it without a second round trip per brand. */
         const cmp = ['prev', 'yoy', 'none'].includes(url.searchParams.get('cmp')) ? url.searchParams.get('cmp') : 'prev';
         const wantSeries = url.searchParams.get('series') !== '0';
+        /* What each brand has connected (2026-10-09): the page tabs for Google, TikTok, Website and Search show only
+           where the brand has that integration, and the Email tab is named for the brand's tool. */
+        const connKinds = {};
+        try { for (const r of (await env.DB.prepare(`SELECT brand_id, kind FROM connections`).all()).results || []) (connKinds[r.brand_id] ??= new Set()).add(r.kind); } catch {}
+        const emailTool = {};
+        try { for (const r of (await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'emailTool:%'`).all()).results || []) emailTool[r.key.slice(10)] = r.value; } catch {}
         const out = [];
         for (const a of accounts) {
           const today = localDate(a.tz);
@@ -2086,6 +2092,7 @@ export default {
             ...pubAccount(a),
             window: totals(rows),
             mtd: totals(mtdRows),
+            conn_kinds: [...(connKinds[a.act_id] || [])], email_tool: emailTool[a.act_id] || 'klaviyo',
             // Daily revenue for the sparkline on Overview's cards. A figure says
             // where a brand is; the line says which way it is going, and that is
             // most of what a glance is for. Capped at 60 points so a 90-day window
