@@ -1,4 +1,13 @@
-# Locus product map (2026-10-08)
+# Locus product map (2026-10-08; restructured 2026-10-09)
+
+**2026-10-09 restructure (signed off; docs/handoffs/locus-structure-audit-step1.md):** Home = Overview, Yesterday, P&L. Ads = Today (the buyer's list), Meta, Google, TikTok, All channels, Tests and angles. Creative = Studio (Words = old Copy desk), Library, Inspiration. NEW Brand item = Goals (was Plan), Client answers, Research, Voice, Creator link. The season item (Black Friday, named in settings) = War room, The plan. Tools (rail foot) = Scenarios, Platform status (Pulse). Rows below keep their content; where a page moved, read its new home from this paragraph.
+
+| New page | Reader | Blocks | Status |
+| --- | --- | --- | --- |
+| Home > Yesterday | everyone | 14-day verdict grid per brand, the link that broke on Meta, account changes, the market (our brands, Pulse, Breezeway, advertiser chatter); Slack 8am only on a bad day | LIVE |
+| Ads > Today | buyer | scale / cut / trim / refresh / fix / test calls, ad set first, ranked by money at stake; Done logs to the Change Log | LIVE |
+| Season > War room | owner, buyer | per brand in season: offer live now, next change, today so far live | LIVE (shell) |
+| Tools > Platform status | everyone | Pulse: platforms now, recent changes | LIVE |
 
 One page that says where everything lives, who opens it, what question it answers and how the data is framed for
 that reader. Every new feature gets a row here before it is built. Research behind it: research-v3.md (navigation,
