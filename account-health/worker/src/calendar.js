@@ -202,13 +202,15 @@ function stepsFor(e, team, today, sig) {
 }
 
 /** Everything on the calendar for some brands between two dates, with the countdowns worked out. */
-export async function calendarData(env, { act = 'all', from, to, today } = {}) {
+export async function calendarData(env, { act = 'all', from, to, today, lite = false } = {}) {
   today = today || centralToday();
   from = from || add(today, -21); to = to || add(today, 120);
   const brands = await brandsList(env, act);
   const ids = brands.map(b => b.act_id);
   const [typed, season, drops, team] = await Promise.all([typedEvents(env, ids, from, to), seasonEvents(env, ids, from, to), dropEvents(env, brands, from, to), teamOf(env, ids)]);
   const items = [...typed, ...season, ...drops];
+  /* lite: the dates only (chart bands), no Klaviyo, Meta or Asana reads and no countdown. */
+  if (lite) { items.sort((a, b) => a.start.localeCompare(b.start)); return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name })), items: items.map(e => ({ ...e, steps: [], kind_label: KIND_LABEL[e.kind] })), emails: [] }; }
   const emails = [];
   const sig = {};
   await Promise.all(brands.map(async b => {
@@ -314,7 +316,7 @@ export async function handleCalendar(request, env, url, path, json, isAdmin, ses
   const by = await actorName(env, await sessionEmail(env, request).catch(() => null));
   try {
     if (path === '/api/calendar' && request.method === 'GET') {
-      return json(await calendarData(env, { act: url.searchParams.get('act') || 'all', from: url.searchParams.get('from') || undefined, to: url.searchParams.get('to') || undefined }));
+      return json(await calendarData(env, { act: url.searchParams.get('act') || 'all', from: url.searchParams.get('from') || undefined, to: url.searchParams.get('to') || undefined, lite: url.searchParams.get('lite') === '1' }));
     }
     if (path === '/api/calendar/history' && request.method === 'GET') {
       const { results } = await env.CAL.prepare(`SELECT change_summary s, changed_by b, created_at t FROM changelog WHERE event_id = ?1 ORDER BY created_at DESC LIMIT 20`).bind(url.searchParams.get('id') || '').all();

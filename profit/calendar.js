@@ -532,7 +532,7 @@
   /** Date ranges for chart bands: [{from, to, label, kind}] for one brand (or all), from the calendar. */
   async function bandsFor(act, from, to) {
     try {
-      const d = await load(act || 'all');
+      const d = await H.apiAH(`/api/calendar?act=${encodeURIComponent(act || 'all')}&from=${from}&to=${to}&lite=1`);
       return d.items.filter(e => e.src !== 'drop' && e.start <= to && endOf(e) >= from && (act === 'all' || e.act === act) && ['drop', 'sale'].includes(e.kind))
         .map(e => ({ from: e.start, to: e.end || (e.start <= d.today ? d.today : e.start), label: (act === 'all' ? `${brandName(d, e.act)}: ` : '') + e.name, kind: e.kind }));
     } catch { return []; }
