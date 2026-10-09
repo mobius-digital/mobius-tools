@@ -2294,7 +2294,7 @@ Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-se
 - **Print or save as PDF**: `beforeprint` switches to the light theme and puts the page title, brand, dates and compare at
   the top of `#main` (`.lx-print-h`); `afterprint` puts it back. v2.css print rules hide the rail, top bar, page tabs,
   menus, panels and toasts and keep cards, tiles and table rows whole.
-- NOT built (Cole decides): public no-login snapshot links. The chart's area gradient does not come through in the
+- Public no-login snapshot links: BUILT the same day (section below). The chart's area gradient does not come through in the
   picture (the line does); everything else matched.
 - Files: share.js (new), index.html (`pillMenuInner` icon option, `shareHost`, boot + show hooks), v2.js (ad / campaign
   hooks), v2.css (block at the end), icons.js (`share`, `printer`), account-health worker.js (`/api/share/slack`).
@@ -2364,6 +2364,35 @@ what a strategist acts on. Backend: account-health/CLAUDE.md, same date. v2.js e
 - CSS at the end of v2.css (`kl-*`). A checkbox inside `.modal` needs `width:auto` (the modal stretches inputs).
   index.html: v2.css?v=24, v2.js?v=35. Screens were checked on the local pair (worktree statics + `ah-worker-dev` +
   `profit-worker-dev`) for Lucky, Party Patch, Ice & Gold and all brands; no write was applied live.
+
+## 2026-10-09: Public snapshot links ("Share a public link" in every Export menu)
+
+Cole approved section 15 step 3 of docs/strategist-viktor-grade-plan.md: one card or a whole page, frozen, no login.
+- **Freeze, never live.** share.js `freeze(el)` clones the card (or `#main` for the page item), turns canvases into
+  images, drops menus / controls / skeletons / scripts / inputs, strips handlers and `<a href>`, makes src URLs absolute,
+  copies the sprite symbols its `<use>` point at, and collects ONLY the CSS rules the element or its ancestors use
+  (`usedCss`, read with the page switched to light for that instant). Selectors on `:root` / `html` / `body` are rewritten
+  to `.lxs-html` / `.lxs-body`, the wrappers the snapshot carries (with the ancestor chain as `.lxs-w` divs), because the
+  public page draws it in a SHADOW ROOT. Brand, title, page, dates, compare and attribution ride as meta.
+- **One brand per link.** All clients is refused (modal and server). The worker refuses a view whose text names another
+  client from `brand_accounts` (`otherBrandIn`), and scrubs scripts, handlers, javascript: URLs and `act_` / `brand_` ids.
+  A limited user (brandguard `brandsFor`) can only share, list and turn off their own brands.
+- **Worker** (`src/snapshot.js`, table `p_snapshot`, `migrations/snapshot-001.sql`, also created on first use):
+  `GET /api/snapshot/:token` PUBLIC, before the auth gate (32-hex token; 404 when missing, revoked or expired; counts a
+  view; 60 a minute per IP per isolate; never returns who made it or any id); `POST /api/snapshot` {act, kind, title,
+  page, dates, cmp, attr, html, css, root, days 7|30|0} (1.8 MB cap); `GET /api/snapshots`; `POST /api/snapshot/revoke`.
+- **Public page** `profit/s.html?t=<token>`: light, Locus header (page label, brand, dates, compare), "Numbers as of ...
+  They do not update", Print or save as PDF, footer with the attribution. The frozen markup goes through DOMPurify 3.1.6
+  (cdnjs) into a shadow root: its CSS cannot leak out, nothing in it runs, links out are dropped, folded sections open.
+- **Create modal**: expiry 7 days / 30 days (default) / never, the note "Anyone with this link can see these numbers as
+  they are now", then the link with Copy (copied on create) and Open it.
+- **Agency settings > Shared links** (`SET_SECS` `links`, host `#snapList`, filled by share.js `links()`): title, brand,
+  who, when, views (+ last view), state, Copy / Open / Turn off (confirm modal).
+- Tests: `node test-snapshot.mjs` (profit/worker; token required, revoked 404, expired 404, payload has one brand and no
+  author or ids, other-brand refusal, brand limits, views, rate limit). Checked in the browser against a local mock: a
+  card frozen from dark mode came out light, a page with tiles, chart and a wide table, 375px wide with no sideways
+  scroll, the modal and the list. Not checked with a real signed-in session (no prod sign-in here).
+- `LocusShare.freeze(el)` returns the payload a link would carry, to check by eye.
 
 ## 2026-10-09: CLIENT LOGINS. Clients sign in to Locus. Read before touching the rail, show() or Settings.
 

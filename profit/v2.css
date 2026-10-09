@@ -1268,3 +1268,17 @@ tr.kl-sub > td{background:var(--surface-2);padding:8px 10px 12px 28px!important;
 .kl-opts label[hidden]{display:none}
 /* the modal's own input rule (width 100%, block) must not stretch a checkbox or radio */
 .kl-opts input[type=checkbox],.kl-opts input[type=radio],.kl-cols input[type=checkbox]{width:auto!important;display:inline-block!important;flex:none;margin:0;padding:0}
+
+/* public snapshot links (share.js publicModal + Agency settings > Shared links) */
+.lx-pl{display:flex;gap:8px;margin:12px 0 10px}
+.lx-pl input{flex:1;min-width:0;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:9px 11px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface-2);color:var(--ink)}
+.lx-links .lx-lt{width:100%;border-collapse:collapse;font-size:13px}
+.lx-links .lx-lt th{text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+.lx-links .lx-lt td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink)}
+.lx-links .lx-lt td small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.lx-links .lx-lt .n{text-align:right;font-variant-numeric:tabular-nums}
+.lx-links .lx-lt td.a{white-space:nowrap;text-align:right}
+.lx-links .lx-lt td.a .btn{margin-left:4px}
+.lx-links .lx-lt tr.dead td{color:var(--muted)}
+.lx-st{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:var(--r-pill);background:var(--surface-2);color:var(--muted)}
+.lx-st.on{background:var(--good-bg);color:var(--good)}

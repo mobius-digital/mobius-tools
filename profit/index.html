@@ -2177,7 +2177,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=24">
+<link rel="stylesheet" href="v2.css?v=25">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=11"></script>
@@ -3338,6 +3338,7 @@ const SET_SECS = [
   ['brands', 'Clients', 'Every brand Locus reports on. Add a new client here; open a brand to change its own settings. The season tab is named here too.'],
   ['connections', 'Integrations', 'What Mobius connects once for every brand, then every brand in one grid so a gap anywhere shows. Click a card for what it does and the exact steps.'],
   ['team', 'Team and access', 'Who can sign in to Locus, whether they can change things or only look, and which brands each person sees.'],
+  ['links', 'Shared links', 'Every public link made from an Export menu: who made it, how often it was opened, when it expires. Copy one or turn it off.'],
   ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack. Each brand’s own posts are in its brand settings.'],
   ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['system', 'Data and jobs', 'Whether the automatic syncs and sends are running, which brand’s data is stale, and one-off data fixes.'],
@@ -3351,7 +3352,7 @@ const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];   // still pa
    Digital settings are different"). Brand settings = the rail's Settings with a brand picked: only that brand,
    one group at a time (BRAND_SECS). Agency settings = the profile menu at the bottom of the rail: everything
    that applies to Mobius as a whole (SET_GROUPS). With All clients picked, Settings opens the agency side. */
-const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'sending', 'strategist', 'system']]];   // 2026-10-09: tours moved to How to use Locus, Data health into Data and jobs
+const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'links', 'sending', 'strategist', 'system']]];   // 2026-10-09: tours moved to How to use Locus, Data health into Data and jobs
 /* BRAND SETTINGS, 6 SECTIONS (2026-10-09 restructure). Meta, Triple Whale and Shopify moved from About to Integrations;
    goal CPA and ROAS moved to Home > Goals; Money, Data repairs and the Data check / Cost check pages are one section,
    Data and costs; Remove from Locus is "Archive this brand" at the bottom of About. One icon each, never repeated. */
@@ -3363,7 +3364,7 @@ const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zon
   ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.'],
   ['clients', 'Client access', 'i-key', 'Who from the client signs in to Locus, and what they can see beyond the basics. Read-only, this brand only.']];
 const BG_OF = ['about', 'goals', 'slack', 'data'];   // the brand row's groups, in order
-const SET_ICONS = { brands: 'i-building', connections: 'i-plug', sending: 'i-plane', strategist: 'i-spark', team: 'i-key', system: 'i-refresh', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
+const SET_ICONS = { brands: 'i-building', connections: 'i-plug', links: 'i-globe', sending: 'i-plane', strategist: 'i-spark', team: 'i-key', system: 'i-refresh', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
 const backToSettings = () => `<p class="set-back"><button type="button" class="link" data-go="settings">&larr; Settings</button></p>`;
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
@@ -5187,7 +5188,7 @@ async function renderMeta(first) {
 /* The helpers v2.js draws with; also handed to V2.adsBlock on a dashboard. */
 function v2Host() { return { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }; }
 /* The helpers share.js (the address, the Export menu, print) reads; most are `const`, so they are handed over. */
-function shareHost() { return { S, LS, apiAH, show, confirmModal, resolveRange, rangeLabel, prettyDate, daySpan, ymd, parseYmd, PB, MODELS, TAB_TITLE, PillMenu: window.PillMenu, RUN: () => RUN }; }
+function shareHost() { return { S, LS, api, apiAH, show, confirmModal, resolveRange, rangeLabel, prettyDate, daySpan, ymd, parseYmd, PB, MODELS, TAB_TITLE, PillMenu: window.PillMenu, RUN: () => RUN }; }
 function V2R(tab, first) {
   if (!window.V2) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">The v2 screens did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
   return window.V2.render(tab, v2Host(), first);
@@ -10598,6 +10599,7 @@ async function renderSettings() {
         <section data-sec="team"${sec === 'team' ? '' : ' hidden'}>${secHead('team')}
           <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
         </section>
+        ${AGENCY ? `<section data-sec="links"${sec === 'links' ? '' : ' hidden'}>${secHead('links')}<div id="snapList"></div></section>` : ''}
         <section data-sec="system"${sec === 'system' ? '' : ' hidden'}>${secHead('system')}
           ${sCard('Is every brand\u2019s data complete?', 'The data check for every brand at once: what is stale, what is missing, what to re-pull. Each brand\u2019s own version is in its brand settings, Data and costs.', '<button type="button" class="btn" data-page="health">Open the data check</button>')}
           ${sCard('Are the automatic jobs running?', 'The briefs, the reports and the Meta sync run on a schedule you never see. If one fails, no other page says so. This card does.',
