@@ -154,6 +154,22 @@
       ${lastV != null ? `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(lastV).toFixed(1)}" r="3.5" fill="var(--brand)"/>` : ''}
       ${marks}<line class="gl" x1="0" x2="0" y1="${pt}" y2="${h - pb}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 3" opacity="0"/><g class="gdots"></g></svg><div class="v2tip"></div></div>`;
   }
+  /** Shaded date ranges on a lineChart already drawn (calendar dates: a sale or drop as a band). Same geometry as lineChart. */
+  function addBands(id, rows, bands, opts = {}) {
+    const svg = document.getElementById(id); if (!svg || !bands || !bands.length || rows.length < 2) return;
+    const w = 760, h = opts.h || 240, pl = 48, pr = 16, pt = 14, pb = 26, n = rows.length, step = (w - pl - pr) / (n - 1);
+    const X = i => pl + i * step, first = rows[0].date, last = rows[n - 1].date;
+    svg.querySelectorAll('.v2band').forEach(g => g.remove());
+    const anchor = svg.querySelector('polyline');
+    bands.slice(0, 6).forEach((b, k) => {
+      if (b.to < first || b.from > last) return;
+      const i0 = Math.max(0, rows.findIndex(r => r.date >= b.from)), i1r = rows.map(r => r.date <= b.to).lastIndexOf(true), i1 = i1r < 0 ? n - 1 : i1r;
+      const x0 = Math.max(pl, X(i0) - step / 2), x1 = Math.min(w - pr, X(i1) + step / 2), col = b.kind === 'drop' ? 'var(--c-meta)' : 'var(--c-email)';
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'v2band');
+      g.innerHTML = `<rect x="${x0.toFixed(1)}" y="${pt}" width="${Math.max(3, x1 - x0).toFixed(1)}" height="${h - pt - pb}" fill="${col}" opacity=".13"${tipAttr(`<b>${esc(b.label)}</b><br>${esc(b.from)}${b.to !== b.from ? ' to ' + esc(b.to) : ''}<br><span class=\"faint\">From the calendar</span>`)}/><text x="${(x0 + 4).toFixed(1)}" y="${pt + 11 + (k % 2) * 12}" font-size="10" font-weight="600" fill="${col}">${esc(String(b.label).slice(0, 28))}</text>`;
+      svg.insertBefore(g, anchor);
+    });
+  }
   /** A dot where each drawn line crosses the hovered x (viewBox units), for every line chart in Locus. */
   function markDots(svg, x, tol) {
     let g = svg.querySelector('.gdots'); if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'gdots'); svg.appendChild(g); }
@@ -426,13 +442,18 @@
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
-    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div><div id="v2needs"></div>${readSlot('v2read')}${tiles}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div><div id="v2needs"></div><div id="v2cal"></div>${readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
     if (window.DeskTab && window.DeskTab.needs) window.DeskTab.needs(document.getElementById('v2needs'), H, all);
+    /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
+    if (window.CalendarTab) {
+      window.CalendarTab.homeCard(document.getElementById('v2cal'), H);
+      if (rows.length > 1) window.CalendarTab.bandsFor(H.S.act || 'all', rows[0].date, rows[rows.length - 1].date, H).then(b => addBands('v2rev', rows, b)).catch(() => {});
+    }
     if (rows.length > 1) wireLine('v2rev', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · revenue ${kmoney(r.sales, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · MER ${x2(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)} on ${day(prev[i].date)}</span>` : ''}` });
     if (false && chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
     if (cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
@@ -1109,7 +1130,7 @@
      None of these read the host state; `chip(cur, prev, lower)` is the delta pill without the
      compare-period switch (lower = true when lower is better, 'n' = neutral). */
   const chip = (cur, prev, lower, label) => { if (cur == null || prev == null || !isFinite(cur) || !isFinite(prev) || !prev) return ''; const d = cur / prev - 1; if (!isFinite(d)) return ''; const tone = Math.abs(d) < 0.015 || lower === 'n' ? 'flat' : ((d > 0) !== !!lower) ? 'up' : 'down'; return `<span class="v2d ${tone}"${label ? tipAttr(label) : ''}>${d >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(d * 100))}%</span>`; };
-  window.V2UI = { markDots, clearDots, tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
+  window.V2UI = { addBands, markDots, clearDots, tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
     setHost: h => { if (!H) H = h; } };
 
   window.V2 = {

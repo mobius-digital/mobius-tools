@@ -30,6 +30,12 @@ database_id = "93e7cdeb-19a9-4950-8146-e24b189f410f"
 #   npx wrangler queues create mobius-ideas
 # Stock (2026-10-08): the Strategist's stock view and actions read and write the Supply worker.
 # Auth is the Supply engine's own admin token, secret SUPPLY_TOKEN (not this worker's ADMIN_TOKEN).
+# The calendar (2026-10-09): Lineup's database, the same rows the old Lineup app reads and writes (calendar.js).
+[[d1_databases]]
+binding = "CAL"
+database_name = "marketing-hub"
+database_id = "e8bd83a8-100e-44ed-a639-2c3415f90e41"
+
 [[services]]
 binding = "SUPPLY"
 service = "mobius-supply"

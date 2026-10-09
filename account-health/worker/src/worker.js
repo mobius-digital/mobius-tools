@@ -5,6 +5,7 @@ import { listBrands, addConnection, createBrand, brandByChannel, connectionNote,
 import { movedTick, movedPreview } from './moved.js';
 import { marketFor, useFetch as marketFetch } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
+import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -196,6 +197,7 @@ calendlyFetch(xfetch);
 contractFetch(xfetch);
 frameFetch(xfetch);
 klaviyoFetch(xfetch);
+calendarFetch(xfetch);
 googleFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
@@ -6936,6 +6938,8 @@ const AH_APP = {
         ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
+        ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -7136,6 +7140,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (r) return r;
     }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
+    /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
+    if (path.startsWith('/api/calendar')) {
+      const r = await handleCalendar(request, env, url, path, json, isAdmin, sessionEmail);
+      if (r) return r;
+    }
     if (path.startsWith('/api/brand-asana')) {
       const r = await handleBrandAsana(request, env, path, json, isAdmin);
       if (r) return r;
