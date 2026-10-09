@@ -1109,4 +1109,8 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
 - **Elsewhere:** Strategist view `calendar` + actions `add_date`, `move_date`, `end_date`, `make_asana_tasks` + knowledge
   topic `calendar` (docs/strategist-brain/knowledge/calendar.md). The Day check Slack post adds "On the calendar that day"
   (`liveOn`). The v2 Daily Brief adds "*Today:* X goes live" under the headline for drops and sales starting that day.
-
+- **Client posts (2026-10-09, Cole: "a time and a place for internal and external")**: `clientMessages` = TWO posts to the
+  brand's CLIENT channel (`brief_channel`): Monday "This week and next" (confirmed dates in 14 days, scheduled Klaviyo sends,
+  "We need from you": photos, an offer to decide, a sale with no end) and a daily "Tomorrow: X goes live". Never tasks,
+  owners or lateness. Off until `settings.calendarClient` = 'on'; `GET /api/calendar/client-preview?date=` shows what would
+  post. Internal pings now fire only when something is still open.
