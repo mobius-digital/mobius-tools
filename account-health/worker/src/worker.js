@@ -34,6 +34,7 @@ import { buildStrategist } from './strategist.js';
 import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
+import { accessReport, grantSelf } from './metaaccess.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
@@ -7309,6 +7310,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ skills: await skillsList(env, { all: true }) });
       }
       if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));
+      /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */
+      if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {
         if (request.method === 'POST') return json(await backfillTick(env, idxDeps()));
         return json(await indexStatus(env));
