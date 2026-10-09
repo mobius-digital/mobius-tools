@@ -92,9 +92,12 @@
     const rank = { vbad: 0, bad: 1, good: 2, normal: 3, none: 4 };
     if (!YSEL || !bs.some(b => b.act_id === YSEL)) YSEL = bs.slice().sort((x, y) => rank[x.last?.verdict || 'none'] - rank[y.last?.verdict || 'none'])[0].act_id;
     if (YDAY == null || YDAY >= days.length) YDAY = days.length - 1;
-    const mk = d.market || {};
-    const intro = `<div class="dk-strip"><span class="v2pill">Team only: clients never see this page</span>
-      <span>Every brand is compared with <b>itself</b>: yesterday against its own normal for that weekday (its last 8 of them). Then four outside checks say whether Meta was rough for everyone.</span></div>`;
+    const mk = { ...(d.market || {}) };
+    /* Clients will log in to their own brand (Cole, 2026-10-09: "nothing should be hidden"). The one thing a single-brand
+       viewer must not see is how our OTHER clients did, so "Our other brands" only shows to people who see several brands. */
+    const agency = (H.S.accounts || []).length > 1;
+    if (!agency) mk.meta_brands = 0;
+    const intro = `<div class="dk-strip"><span>Every brand is compared with <b>itself</b>: yesterday against its own normal for that weekday (its last 8 of them). Then outside checks say whether Meta was rough for everyone that day.</span></div>`;
     /* the grid: rows = brands, squares = days, every square opens its day */
     const cols = `grid-template-columns:130px repeat(${days.length},minmax(20px,1fr))`;
     const cellTip = (b, c) => { const m = (c.moved || []).map(f => `${f.label} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%`).join(', ');
@@ -123,7 +126,7 @@
       detail = U().card(`${g.name}, ${wdl(cell.date)} ${md(cell.date)}: ${VNAME[cell.verdict]}`, '', `${moved}${money}${more}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button type="button" class="v2btn ghost" data-go="act:${esc(g.act_id)}:today">${esc(g.name)}'s Today list</button><button type="button" class="v2btn ghost" data-go="act:${esc(g.act_id)}:changes">Change Log</button></div>`);
     }
-    const outside = U().card('Was Meta rough for everyone?', 'Four outside checks for the latest day. Green: normal. Amber: some signs. Red: a rough day.', `<div class="dk-mk" id="dkMk">
+    const outside = U().card('Was Meta rough for everyone?', 'Outside checks for the latest day. Green: normal. Amber: some signs. Red: a rough day.', `<div class="dk-mk" id="dkMk">
       ${mk.meta_brands >= 3 ? `<div class="${mk.cpm_up * 2 >= mk.meta_brands ? 'red' : mk.cpm_up * 3 >= mk.meta_brands ? 'amber' : 'green'}"><span class="l">Our other brands</span><b>${mk.cpm_up} of ${mk.meta_brands} paid more for Meta</b><span class="v2hint" style="margin:0">Costs up 20% or more against their own normal.</span></div>` : ''}
       <div class="grey"><span class="l">Other advertisers</span><b>Checking…</b></div><div class="grey"><span class="l">Meta's own status page</span><b>Checking…</b></div><div class="grey"><span class="l">Talk on X and Reddit</span><b>Checking…</b></div></div>`);
     $('#main').innerHTML = shell('yesterday', title, `${intro}<div id="dkVerdict">${U().card('The verdict', '', '<p class="v2hint">Reading every signal for the day…</p>')}</div>${outside}
@@ -153,7 +156,7 @@
     const facts = {
       brands: (bs || []).map(b => ({ name: b.name, verdict: b.last?.verdict, moved: (b.last?.flags || []).map(f => `${f.label} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%${f.bad ? ' (bad)' : ''}`),
         meta_links: (b.last?.links || []).filter(l => l.change != null && Math.abs(l.change) >= 0.15).map(l => `${l.label} ${l.change >= 0 ? '+' : ''}${Math.round(l.change * 100)}%`), changes: (b.last?.changes || []).slice(0, 3).map(c => c.summary), attribution_pending: !!b.last?.attr_pending })),
-      our_brands: mk ? { on_meta: mk.meta_brands, meta_costs_up_20pct: mk.cpm_up, click_rate_down: mk.ctr_down, conversion_down: mk.cvr_down } : null,
+      our_brands: mk && mk.meta_brands >= 3 ? { on_meta: mk.meta_brands, meta_costs_up_20pct: mk.cpm_up, click_rate_down: mk.ctr_down, conversion_down: mk.cvr_down } : null,
       other_advertisers_breezeway: bwS ? { status: bwS } : null,
       meta_status_page_outages: inc.map(i => `${i.platform}: ${i.service || i.title || ''} ${i.state || i.note || ''}`.trim()),
       advertisers_online: ch && ch.summary ? { meta: ch.meta, google: ch.google, said: ch.summary } : null,
