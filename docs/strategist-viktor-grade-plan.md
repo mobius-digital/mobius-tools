@@ -285,3 +285,48 @@ system (profit/DESIGN.md + tokens in mobius.css) and apply it screen by screen:
     it to icon + label, 40px rows, active state as a soft pill.
 Order: tokens + icon set + card/chip/table/sheet primitives first (one CSS), then Home, Integrations, the ad
 popup, the brand popup, Settings. Every new screen uses only the primitives.
+
+## 13. Live vs stored: which is better, which is cheaper, what can go wrong (Cole, 2026-10-09)
+
+- Viktor keeps NO copy of Slack. It searches Slack through the API at question time and reads the threads
+  it finds (that is its "lazy loading"). Same for every connector: live reads, nothing cached.
+- Ours is BOTH, on purpose, by what kind of thing it is:
+  - Things that change (numbers): Triple Whale, Meta, Klaviyo, Shopify are SYNCED (hourly/nightly) and
+    read from D1, with the live API behind a tool for "right now". Same freshness as Viktor for anything
+    older than an hour, far cheaper and faster per question.
+  - Slack messages: a message never changes after it is posted, so a copy is as live as Slack. The index
+    is written IN REAL TIME from the events the worker already receives (every channel the bot is in), and
+    backfilled hourly (as Cole) for channels it is not in. Search hits the index (one D1 query, ~0 cost);
+    the thread itself is then read live from Slack (so edits and new replies are seen). Nothing stale.
+  - Research (personas, quotes, competitors, market stage) was made ONCE, by Viktor itself, and imported.
+    Viktor would have to redo that research every time it needs it (and did: the Ice & Gold audit was one
+    $5 job). Stored is the only sane way; it is Viktor's own output.
+- "What if the research is wrong?" Three guards, all in the plan: every fact carries source + date and
+  draft/approved status (the brain prints "Viktor research, draft" today); the playbook rule LIVE BEATS
+  STORED: when a live number or a client's words contradict a stored note, say so, use the live one and
+  propose the fix (an upsert, or an edit on the Brand tab); and Cole/the team can edit or delete any fact
+  on the Brand tab and the Memory screen. Research that was never checked stays labelled draft.
+- Cost: stored + indexed is cheaper (a D1 query is free; a live Slack search + 5 thread reads is 10-30k
+  tokens of reading on every question). Live is only "better" for things that change by the minute, and
+  those we read live anyway. Both together is strictly better than Viktor's live-only.
+- Potential problems and the guard for each:
+  - a stale fact -> upsert by topic, dates on every fact, LIVE BEATS STORED, nightly consolidation.
+  - a channel the bot is not in -> hourly backfill as Cole; the digest says which channels it covers.
+  - cost creep -> round cap per answer (10), cost footer on every answer, daily cap (150), Usage page.
+  - approval fatigue -> Always-approve per action kind for Cole; reads never ask.
+  - the prompt cache missing -> the always-on block is deterministic (no timestamps, fixed order).
+  - a wrong answer from thin context -> the playbook says search Slack and read the brand digest before
+    saying "I don't know"; gaps are named, never filled with generic words.
+- Cole is not overthinking it; these are the right questions. The answers above are the design.
+
+## 14. The Mobius strip (Cole's idea, 2026-10-09)
+
+- Locus "working" state and page load: a true 3D animated Mobius strip (Three.js, a parametric strip
+  with a soft gradient, slow rotation) that resolves into the Mobius logo on load; the same strip, small,
+  pulses while the Strategist works. Build it once as a web component (`<mobius-loader>`), use it on the
+  Locus load screen, the composer working state and skeletons. Keep a reduced-motion fallback (static
+  logo). Separate session; it touches profit/index.html + mobius.css only.
+- Slack cannot animate a message, but it CAN show an animated custom emoji: render the strip as a small
+  looping GIF, add it as a workspace emoji (:mobius:), and the Strategist reacts with it instead of :eyes:
+  while working, then removes it. Same feel, zero API tricks.
+- The website can load the same way later (go-mobius-digital.com).
