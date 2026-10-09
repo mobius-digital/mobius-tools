@@ -2202,6 +2202,14 @@ Audit, goal and the approved mock: `docs/handoffs/lineup-audit.md`, `docs/locus-
   bad days fell from up to ~6 a month per brand (Bonk, Grunk) to ~1 to 3. hub.js `yesterdayMany` and account-health
   moved.js `movesFor` both use it (min 20 days of data). The page is client-ready: a single-brand viewer never sees the
   "Our other brands" box; no "team only" label (Cole: Locus is for clients too).
+- **DAY CHECK = "WAS IT A BAD DAY ON META?" (2026-10-09, final, Cole: "the goal is Breezeway's").** One answer a day from
+  four signs (account-health market.js `metaDay`, `GET /api/metaday`): our brands' Meta cost per sale (Meta's own count,
+  each brand vs its last 28 days, averaged; a sign when in our worst 15% of days), Breezeway BAD/VERY BAD, Meta posting
+  an ads problem (Pulse), advertisers complaining online (chatter). Normal / mixed (1 sign) / bad (2+) / very bad (3+,
+  or ours in its top 1%). Calibrated Feb to Oct: ours and Breezeway agreed on ~1 in 4 of their bad days; 2+ = ~1 a
+  month. Page: the answer, 30-day squares, the four signs, our brands that day (desk.js). 8am Slack: ONE post to the
+  agency channel (strategistChannel, else slackChannel) only on a bad/very bad Meta day (moved.js `movedTick`); the
+  per-brand bad-day posts are gone. `/api/hub/yesterday` (per-brand verdicts) stays for the Strategist but no page uses it.
 
 ## 2026-10-09: Ads > Creative does what Motion does
 

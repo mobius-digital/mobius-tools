@@ -441,17 +441,16 @@
   /* THE YESTERDAY LINE (2026-10-09): replaces the What moved card. One line on Home; the full view is Home > Yesterday
      (desk.js, /api/hub/yesterday): every brand judged against its own same weekday, the reason, and whether it was the market. */
   async function movedCard(scope) {
-    const t = H.RUN(); let d;
-    try { d = await get(`/api/hub/yesterday?act=${encodeURIComponent(H.S.act)}`); } catch { return; }
+    /* THE DAY CHECK LINE (2026-10-09): was yesterday a bad day ON META (account-health /api/metaday). */
+    const t = H.RUN(); let m;
+    try { m = await H.apiAH('/api/metaday?days=14'); } catch { return; }
     const host = document.getElementById('v2moved'); if (t !== H.RUN() || !host) return;
-    const bs = d.brands || [], days = d.days || [], last = days[days.length - 1]; if (!last || !bs.length) return;
-    const nice = new Date(last + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-    const bad = bs.filter(b => b.last && /bad/.test(b.last.verdict)), mk = d.market || {};
-    const dot = v => `<i class="v2ydot ${v || 'none'}"></i>`;
-    host.innerHTML = `<div class="v2note v2yline"><b>${esc(nice)}</b><span class="v2ydots">${bs.map(b => `<span${tipAttr(`${esc(b.name)}: ${({ good: 'good', normal: 'normal', bad: 'bad', vbad: 'very bad', none: 'no data' })[b.last?.verdict || 'none']}`)}>${dot(b.last?.verdict)}</span>`).join('')}</span>
-      <span>${bad.length ? `${bad.length} bad day${bad.length > 1 ? 's' : ''}: ${bad.map(b => esc(b.name)).join(', ')}.` : 'No bad days.'}${mk.verdict === 'market' ? ` Meta ad costs rose 20%+ at ${mk.cpm_up} of ${mk.meta_brands} brands: looks like the market.` : ''}</span>
+    const L = m.latest; if (!L) return;
+    const nice = new Date(L.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const V = { normal: ['Normal day on Meta', 'good'], mixed: ['Mixed signals on Meta', 'warn'], bad: ['Bad day on Meta', 'bad'], vbad: ['Very bad day on Meta', 'bad'] }[L.verdict] || ['Normal day on Meta', 'good'];
+    host.innerHTML = `<div class="v2note v2yline"><b>${esc(nice)}</b><span class="v2pill ${V[1]}">${V[0]}</span><span>${L.hits} of 4 signs agree.</span>
       <button type="button" class="v2link" data-go="yesterday" style="margin-left:auto">Open Day check ›</button></div>`;
-    if (!document.getElementById('v2ycss')) { const st = document.createElement('style'); st.id = 'v2ycss'; st.textContent = '.v2yline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.v2ydots{display:inline-flex;gap:4px}.v2ydot{width:11px;height:11px;border-radius:3px;display:inline-block;background:var(--surface-2);border:1px solid var(--line)}.v2ydot.good{background:var(--good-bg);border-color:var(--good)}.v2ydot.bad{background:var(--bad-bg);border-color:var(--bad)}.v2ydot.vbad{background:var(--bad);border-color:var(--bad)}.v2ydot.none{background:transparent;border-style:dashed}'; document.head.appendChild(st); }
+    if (!document.getElementById('v2ycss')) { const st = document.createElement('style'); st.id = 'v2ycss'; st.textContent = '.v2yline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}'; document.head.appendChild(st); }
     wireGo(host);
   }
 

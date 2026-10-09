@@ -26,7 +26,7 @@
  * Central day per brand (settings `movedDone` = {date, acts}). Global switch: settings `movedPost`
  * ('off' stops it; on by default), editable in Locus Settings > Briefs and Slack.
  * Preview without posting: GET /api/moved-preview (admin), with each brand's verdict. */
-import { marketLine } from './market.js';
+import { marketLine, metaDay, chatterFor } from './market.js';
 import { liveOn } from './calendar.js';
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
@@ -135,6 +135,25 @@ export function movedBlocks(r, market = null, onCal = []) {
 const marketSafe = (env, date, memo) => marketLine(env, date, memo).catch(() => null);
 
 /** The hourly job. d = { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, subCanAfford } */
+/* THE 8AM POST IS THE DAY CHECK (2026-10-09, Cole: "the goal is: was it a bad day on Meta"). ONE message a day,
+ * only when Meta had a bad day (two or more of the four signs in market.js metaDay agree), to the agency's internal
+ * channel (settings strategistChannel, else slackChannel). A normal or mixed day posts nothing. The per-brand
+ * "bad day for Lucky" posts above are no longer sent (movesFor / movedBlocks stay for the preview and the Strategist). */
+export function metaDayBlocks(m) {
+  const L = m.latest, s = L.signs, nice = new Date(L.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const lines = [];
+  if (s.ours && s.ours.high) lines.push(`• *Our brands* paid more per sale than usual on Meta (${s.ours.worse} of ${s.ours.brands} clearly worse${s.ours.cpm_change != null ? `, costs per 1,000 views ${s.ours.cpm_change >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(s.ours.cpm_change * 100))}%` : ''}).`);
+  if (s.breezeway && s.breezeway !== 'NORMAL') lines.push(`• *Other advertisers* had a ${s.breezeway === 'VERY BAD' ? 'very bad' : 'bad'} Meta day too.`);
+  if (s.outage.length) lines.push(`• *Meta posted a problem*: ${s.outage.slice(0, 2).join('; ')}.`);
+  if (s.chatter && s.chatter.issues) lines.push(`• *Advertisers online* reported problems: ${s.chatter.summary || ''}`);
+  const head = `${L.verdict === 'vbad' ? 'Very bad' : 'Bad'} day on Meta yesterday`;
+  return { text: `${head}: ${L.hits} of 4 signs agree`, blocks: [
+    { type: 'header', text: { type: 'plain_text', text: head } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice}. ${L.hits} of 4 signs agree. Hold big changes on Meta until it settles.` }] },
+    { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n').slice(0, 2900) || 'Two signs agree.' } },
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open Day check in Locus' }, url: `${LOCUS}?open=yesterday`, action_id: 'noop_open' }] },
+  ] };
+}
 export async function movedTick(env, d) {
   const hour = d.centralHour();
   if (hour < MOVED_HOUR) return { skipped: 'before 8am Central' };
@@ -142,26 +161,18 @@ export async function movedTick(env, d) {
   if ((await d.getSetting(env, 'movedPost')) === 'off') return { skipped: 'switched off in Settings' };
   const today = d.centralDate();
   let state = {}; try { state = JSON.parse((await d.getSetting(env, 'movedDone')) || '{}') || {}; } catch {}
-  if (state.date !== today) state = { date: today, acts: [] };
-  const done = new Set(state.acts || []);
-  const all = await movedAll(env, d);
-  const out = { posted: [], quiet: [], waiting: [], errors: [] };
-  const memo = new Map();   // one market lookup per date per tick
-  for (const r of all) {
-    if (done.has(r.a.act_id)) continue;
-    if (!r.fresh) { out.waiting.push(r.a.name); continue; }
-    /* Only a bad day posts. A good or quiet day is done for today. */
-    if (!isBad(r)) { out.quiet.push(r.a.name); done.add(r.a.act_id); continue; }
-    if (!d.subCanAfford(memo.has(r.date) ? 4 : 8)) { out.deferred = true; break; }
-    if (!memo.has('cal:' + r.date)) memo.set('cal:' + r.date, await liveOn(env, r.date).catch(() => ({})));
-    const m = movedBlocks(r, await marketSafe(env, r.date, memo), (memo.get('cal:' + r.date) || {})[r.a.act_id] || []);
-    try { await d.slackPost(env, r.a.slack_channel, m.text, m.blocks, { username: 'Locus' }); out.posted.push(r.a.name); }
-    catch (e) { out.errors.push(`${r.a.name}: ${e.message}`); }
-    /* Recorded after each brand, posted or failed, so a kill later in the tick never re-posts it. */
-    done.add(r.a.act_id);
-    await d.putSetting(env, 'movedDone', JSON.stringify({ date: today, acts: [...done] }));
+  if (state.date === today && state.meta) return { skipped: 'checked today', verdict: state.verdict };
+  if (!d.subCanAfford(30)) return { deferred: true };
+  await chatterFor(env, d.addDays(today, -1)).catch(() => null);
+  const m = await metaDay(env, { days: 1 });
+  const L = m.latest; if (!L) return { skipped: 'no Meta data yet' };
+  const out = { date: L.date, verdict: L.verdict, hits: L.hits };
+  if (L.verdict === 'bad' || L.verdict === 'vbad') {
+    const ch = (await d.getSetting(env, 'strategistChannel')) || (await d.getSetting(env, 'slackChannel'));
+    if (ch) { const b = metaDayBlocks(m); try { await d.slackPost(env, ch, b.text, b.blocks, { username: 'Locus' }); out.posted = ch; } catch (e) { out.error = e.message; } }
+    else out.error = 'No agency channel set (Agency settings, The Strategist)';
   }
-  await d.putSetting(env, 'movedDone', JSON.stringify({ date: today, acts: [...done] }));
+  await d.putSetting(env, 'movedDone', JSON.stringify({ date: today, meta: true, verdict: L.verdict }));
   return out;
 }
 
