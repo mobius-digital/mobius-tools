@@ -481,6 +481,8 @@
   const READS = {};
   function readSlot(id) { return `<div id="${id}" class="v2read"><div class="v2strip">${[0, 1, 2].map(() => '<div class="v2ins sk"><i></i><div><b></b><span></span></div></div>').join('')}</div><p class="v2say sk"><span></span></p></div>`; }
   async function fillRead(id, screen, scope, facts, links) {
+    /* Client logins (2026-10-09): no AI read (it costs per call and speaks to the team). */
+    if (H.S.role === 'client') { const el = document.getElementById(id); if (el) el.remove(); return; }
     const key = JSON.stringify([screen, scope, facts]); const t = H.RUN();
     try {
       const r = READS[key] || (READS[key] = await H.apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen, scope, range: H.rangeLabel(), compare: cmpLabel(), facts }) }));
@@ -501,6 +503,7 @@
      (desk.js, /api/hub/yesterday): every brand judged against its own same weekday, the reason, and whether it was the market. */
   async function movedCard(scope) {
     /* THE DAY CHECK LINE (2026-10-09): was yesterday a bad day ON META (account-health /api/metaday). */
+    if (H.S.role === 'client') return;   // reads every brand: the team's
     const t = H.RUN(); let m;
     try { m = await H.apiAH('/api/metaday?days=14'); } catch { return; }
     const host = document.getElementById('v2moved'); if (t !== H.RUN() || !host) return;
@@ -568,7 +571,7 @@
       ${tile({ label: 'aMER', src: 'BLENDED', hint: 'new-customer revenue ÷ ad spend', value: x2(c.amer), delta: delta(c.amer, p.amer), sub: `${kmoney(c.newRev, cur)} from first orders`, spark: tspark(rows, prev, 'amer', x2, 'aMER'), go: 'customers' })}
       ${tile({ label: 'New customers', src: 'TW', hint: 'first paid orders', value: int(c.newOrd), delta: delta(c.newOrd, p.newOrd), sub: `${pct(c.newShare, 0)} of revenue from first orders`, spark: tspark(rows, prev, 'new_orders', int, 'new customers'), go: 'customers' })}
       ${tile({ label: 'Cost per new customer', src: 'TW', hint: 'lower is better', value: money(c.cac, cur), delta: delta(c.cac, p.cac, true), bullet: bullet(c.cac, goalCac, true, goalCac ? `goal ${money(goalCac, cur)}` : ''), sub: `${int(c.newOrd)} first orders`, spark: tspark(rows, prev, 'cac', mo, 'cost per new customer'), go: 'customers' })}
-      ${tile({ label: 'Contribution margin', src: 'TW', hint: 'after every variable cost', value: kmoney(c.cm, cur), delta: delta(c.cm, p.cm), sub: c.cmPct != null ? `${pct(c.cmPct, 0)} of revenue` : 'cost data needed', spark: c.cm != null ? tspark(rows, prev, 'cm', km, 'contribution margin') : '', go: 'profit' })}
+      ${H.S.role === 'client' && c.cm == null ? '' : tile({ label: 'Contribution margin', src: 'TW', hint: 'after every variable cost', value: kmoney(c.cm, cur), delta: delta(c.cm, p.cm), sub: c.cmPct != null ? `${pct(c.cmPct, 0)} of revenue` : 'cost data needed', spark: c.cm != null ? tspark(rows, prev, 'cm', km, 'contribution margin') : '', go: 'profit' })}
     </div>` : `<div class="v2card"><p class="v2hint">These brands report in different currencies (${esc([...new Set(all.map(a => a.currency))].join(', '))}), so there is no combined total. Pick one brand, or read the table below.</p></div>`;
 
     const chart = cur && rows.length > 1 ? card('Revenue by day', `${rows.length} days${p.sales ? `, ${delta(c.sales, p.sales).replace(/<[^>]+>/g, '')} against ${cmpLabel()}` : ''}.`,
@@ -612,7 +615,7 @@
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
-    if (window.DeskTab && window.DeskTab.needs) window.DeskTab.needs(document.getElementById('v2needs'), H, all);
+    if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
     /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
     if (window.CalendarTab) {
       window.CalendarTab.homeCard(document.getElementById('v2cal'), H);

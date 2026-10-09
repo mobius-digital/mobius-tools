@@ -1235,3 +1235,48 @@ META, ASANA AND DRIVE". Tests: `node test-metawrite.mjs` (14 offline checks, Gra
   2026-10-09 on Lucky 6859198499 and Bonk 2589863833: nothing refused (change_event, search_term_view, asset_group
   metrics and the Demand Gen ad fields all answered).
 - The Strategist reaches them through `locus_get` (routes.js rebuilt). strategist.js has no view for them on purpose.
+
+## 2026-10-09: CLIENT LOGINS (`src/clients.js`, `src/brandguard.js`). Read before touching auth, /api/me or any route a client might reach.
+
+- **Three roles.** owner (Cole or the admin token), team (@go-mobius-digital.com or `settings.allowedEmails`), client
+  (`settings.clientUsers` = {email: {brands, name, invited_at, invited_by, last_invite, last_sign_in, last_seen,
+  welcomed_at}}). Clients are NOT in allowedEmails, so `emailAllowed` and `isAdmin` are false for them everywhere.
+  `googleLogin` accepts a client email too (`isClientEmail`), records `last_sign_in` and returns `role`.
+  A team guest or a Mobius-domain email is never a client, whatever clientUsers says.
+- **brandguard.js is the whole rule** (same file in profit/worker/src; `test-clients.mjs` checks they are identical).
+  A client request passes only if its method + path is in `CLIENT_RULES` (an ALLOWLIST), its `act` (query, or JSON
+  body `act` / `screen.act_id`) is one of its brands (never "all"), the brand switch the rule needs is on
+  (`settings.clientAccess` {brand: {pl, strategist, changes, creators}}, all off by default), and any ad ids in
+  `ads` / `ad` belong to its brands (looked up in `ads`). Then the request is remembered (`clientScope(request)`):
+  `isAdmin` answers true for exactly that request, so the handler runs. The answer is filtered (`filterActs`)
+  and scrubbed (`scrub`): Slack channels, report config and team names always go; costs and margins unless P&L is
+  on; change logs unless Changes is on. `/api/reports` keeps sent rows only, `/api/report` 404s a draft.
+  A client with no brand left gets 401. Anything not on the list is 403 before any handler runs.
+- **Adding a page clients should see = add its GET route to CLIENT_RULES** (both copies) and a test. Never widen
+  a rule to a prefix.
+- **Calendar** (calendar.js): a client may GET its brand, POST event (its brand; editing an existing date checks the
+  date's own brand), move, end, and the new `POST /api/calendar/comment {id, text}` (a "Note: ..." changelog row,
+  for the team too). Never delete, restore, tick or make Asana tasks. Its changelog rows carry the client's name,
+  so `calendarTick` posts them to the brand's internal channel like Lineup client edits.
+- **/api/me** now returns `role` (owner | team | client) and, for a client, `client` {name, welcomed, brands
+  [{id, name, access}]}; it updates `last_seen` at most hourly. The profit and ledger workers delegate to it; the
+  profit worker refuses `role: 'client'` outside the allowlist (ledger only accepts its own email list).
+- **Routes** (clients.js): `GET /api/clients?act=` (team; a limited teammate sees only their brands' rows),
+  `GET /api/clients/draft?brands=&name=&email=` (the invite text), `POST /api/clients/invite {emails, brands,
+  name, access, send, approved, subject, body}` (OWNER only; Mobius emails refused; the email goes from Cole's Gmail
+  through mail.js `sendMail` only with send + approved), `POST /api/clients/remove {email, brand?}`,
+  `PUT /api/clients/access {act, pl?, strategist?, changes?, creators?}` (owner), `GET/PUT /api/clients/me` (the
+  client: its brands, switches, creator link; name and welcomed only).
+- **The client Strategist** (`clientAsk`, OFF per brand until Cole switches it on): NOT the team engine. Haiku 4.5,
+  one read-only tool `read_page` over a fixed page list pinned to the brand, fetched THROUGH the client's own
+  login (so brandguard scrubs it), no SQL, no memory, no skills, no Slack, no actions; 20 questions or $0.50 per
+  client per day (`settings clientAsk:<date>:<email>`). Every other /api/ask route is 403 for a client.
+- **The 'dev' signing key is gone.** `hmacKey` used `SESSION_SECRET || ADMIN_TOKEN || 'dev'`; the profit worker runs
+  with neither set, so ANY token signed with 'dev' passed its local verify (an admin session forgeable for any
+  Mobius email). Both workers now verify nothing locally without a key; the profit worker asks this worker
+  (`delegateWho`, cached a minute), which also lets brandguard see who is asking there for the first time
+  (per-brand team limits were not enforced on the profit worker before this).
+- **Tests:** `node test-clients.mjs` (17 checks: the real workers in node, the profit AUTH binding wired to this worker
+  as in production, sign-in, other brand / "all" / writes / settings / Strategist internals / drafts / P&L / ads /
+  calendar refused, the dev-key forgery refused, invites owner-only and approval-gated).
+

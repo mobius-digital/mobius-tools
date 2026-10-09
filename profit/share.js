@@ -118,16 +118,18 @@
     return pick(card.querySelector(':scope > .v2h')) || pick(card.querySelector(':scope > .bf-top')) || pick(card.firstElementChild && card.firstElementChild.tagName === 'H3' ? card.firstElementChild : null);
   }
   const slackImg = () => window.logoSrc && window.logoSrc('slack') ? `<img src="${esc(window.logoSrc('slack'))}" width="16" height="16" alt="">` : ICN('send');
+  /* A client login (2026-10-09) gets no Send to Slack: that posts as the Locus app into our channels. */
+  const isClient = () => document.body.classList.contains('is-client');
   const CARD_ITEMS = () => [
     ['copy', 'Copy as image', 'A picture of this card, for Slack, email or a deck', '', ICN('copy')],
     ['png', 'Download PNG', 'The same picture, as a file', '', ICN('download')],
-    ['slack', 'Send to Slack', 'Into this brand’s internal or client channel', '', slackImg()],
+    ...(isClient() ? [] : [['slack', 'Send to Slack', 'Into this brand’s internal or client channel', '', slackImg()]]),
     ['link', 'Copy link to this section', 'This page, these dates, scrolled to this card', '', ICN('link')],
   ];
   const PAGE_ITEMS = tiles => [
     ['page-link', 'Copy link to this page', 'This page with this brand, these dates, compare and attribution', '', ICN('link')],
     ...(tiles ? [['tiles-copy', 'Copy the headline numbers as image', 'The row of tiles at the top, as a picture', '', ICN('copy')],
-      ['tiles-slack', 'Send the headline numbers to Slack', 'Into this brand’s internal or client channel', '', slackImg()]] : []),
+      ...(isClient() ? [] : [['tiles-slack', 'Send the headline numbers to Slack', 'Into this brand’s internal or client channel', '', slackImg()]])] : []),
     ['print', 'Print or save as PDF', 'The whole page on paper: light, no menus, cards kept whole', '', ICN('printer')],
   ];
   function menu(label, items) {

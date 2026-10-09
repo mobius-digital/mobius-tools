@@ -1,6 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
-import { guardBrands, brandsFor } from './brandguard.js';
+import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
+import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
@@ -6466,8 +6467,10 @@ const ALLOWED_DOMAIN = 'go-mobius-digital.com';
 const SESSION_DAYS = 30;
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+/* No 'dev' fallback (2026-10-09): with neither secret set, nothing verifies (see profit worker.js for why). */
 async function hmacKey(env) {
-  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'dev'),
+  if (!(env.SESSION_SECRET || env.ADMIN_TOKEN)) throw new Error('SESSION_SECRET is not set');
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
@@ -6481,7 +6484,7 @@ async function mintSession(env, email) {
 
 async function verifySession(env, token) {
   const m = /^mds\.([\w-]+)\.([\w-]+)$/.exec(token || '');
-  if (!m) return null;
+  if (!m || !(env.SESSION_SECRET || env.ADMIN_TOKEN)) return null;
   const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(m[1])));
   if (sig !== m[2]) return null;
   let email, exp;
@@ -6507,9 +6510,13 @@ async function googleLogin(env, credential) {
   const info = await res.json().catch(() => ({}));
   if (!res.ok || info.aud !== env.GOOGLE_CLIENT_ID) return { error: 'Invalid Google token', status: 401 };
   if (info.email_verified !== 'true' && info.email_verified !== true) return { error: 'Email not verified', status: 401 };
-  if (!(await emailAllowed(env, info.email))) return { error: `${info.email} is not a Mobius account`, status: 403 };
+  /* A client login (clients.js) signs in the same way; brandguard.js decides what it may open. */
+  const team = await emailAllowed(env, info.email);
+  const client = !team && await isClientEmail(env, info.email);
+  if (!team && !client) return { error: `${info.email} has no Locus login. Ask Mobius Digital to invite this email.`, status: 403 };
   const s = await mintSession(env, info.email);
-  return { ...s, name: info.name || '', picture: info.picture || '' };
+  if (client) await touchClient(env, info.email, 'login').catch(() => {});
+  return { ...s, name: info.name || '', picture: info.picture || '', role: client ? 'client' : 'team' };
 }
 
 /* ---- Roles ----
@@ -6543,6 +6550,8 @@ async function isAdmin(request, env) {
   if (!auth.startsWith('Bearer ')) return false;
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return true;
+  /* A client login passes ONLY on a route brandguard.js cleared for it (its allowlist). */
+  if (clientScope(request)) return true;
   const sess = await verifySession(env, tok);
   if (sess && (await emailAllowed(env, sess.email))) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
@@ -7225,6 +7234,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleNewClient(request, env, path, json, isAdmin, (rq, e) => sessionEmail(e, rq));
       if (r) return r;
     }
+    /* ---- Client logins (clients.js; who may open what is brandguard.js) ---- */
+    if (path.startsWith('/api/clients')) {
+      const r = await handleClients(request, env, path, json, { isAdmin, sessionEmail });
+      if (r) return r;
+    }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
     /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
     if (path.startsWith('/api/calendar')) {
@@ -7304,6 +7318,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     /* ---- the Strategist, in Locus ---- */
     if (path.startsWith('/api/ask')) {
+      /* A client login gets the client-safe Strategist (clients.js), never this one. brandguard.js lets a client
+         reach only POST /api/ask, and only where Cole switched the Strategist on for the brand. */
+      if (clientScope(request)) {
+        if (path !== '/api/ask' || request.method !== 'POST') return json({ error: 'Your Locus login shows your own brand.' }, 403);
+        const r = await clientAsk(env, request, await request.json().catch(() => ({})), { ahFetch: (rq, e) => AH_APP.fetch(rq, e, { waitUntil() {} }), xfetch });
+        return json(r, r.status || (r.error ? 400 : 200));
+      }
       /* Scheduled questions (askschedule.js): admin-checked inside. */
       const sched = await handleSchedules(request, env, path, json, hubDeps());
       if (sched) return sched;
@@ -8176,7 +8197,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     if (path === '/api/me') {
       const sess = await verifySession(env, (request.headers.get('Authorization') || '').slice(7));
-      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess });
+      /* role: owner | team | client (2026-10-09). The profit and ledger workers delegate here, so a client
+         must say so: they refuse role 'client' outside the client allowlist. */
+      const cs = clientScope(request);
+      if (cs) { await touchClient(env, cs.email, 'seen').catch(() => {}); return json({ email: cs.email, exp: sess?.exp || null, master: false, role: 'client', client: await meClient(env, cs.email) }); }
+      const owner = !sess || String(sess.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess, role: owner ? 'owner' : 'team' });
     }
 
     try {

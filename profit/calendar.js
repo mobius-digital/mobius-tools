@@ -283,8 +283,9 @@
     const late = G.filter(g => g[0].day === 'late').reduce((s, g) => s + g.length, 0), due = G.filter(g => g[0].day !== 'late').reduce((s, g) => s + g.length, 0);
     const parts = [];
     if (next) { const ready = !(next.steps || []).some(s => s.state !== 'done'); parts.push(`${next.name}${d.brands.length > 1 ? ` (${brandName(d, next.act)})` : ''} goes live ${next.start === today ? 'today' : next.start <= wk ? wd(next.start) : `${wd(next.start)} ${md(next.start)}`}${ready && (next.steps || []).length ? ' and everything for it is done' : ''}.`); }
-    if (late) parts.push(`${late} step${late === 1 ? ' is' : 's are'} late.`);
-    if (due) parts.push(`${due} more ${due === 1 ? 'is' : 'are'} due this week.`);
+    const CLH = document.body.classList.contains('is-client');   // a client login: no internal steps or owners
+    if (late && !CLH) parts.push(`${late} step${late === 1 ? ' is' : 's are'} late.`);
+    if (due && !CLH) parts.push(`${due} more ${due === 1 ? 'is' : 'are'} due this week.`);
     if (!parts.length) parts.push('Nothing on the calendar in the next six weeks.');
     return parts.join(' ');
   }
@@ -345,7 +346,7 @@
     }).join('') : '<p class="v2hint" style="margin:0">Nothing in the next six weeks.</p>';
     $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', `Calendar: ${esc(b.name)}`)}
       <p style="margin:-4px 0 4px;font-size:15px;font-weight:600;max-width:80ch">${esc(headLine(d, mine))}</p>
-      <p class="v2hint" style="margin:0 0 14px">Strategist <b>${esc(T.strat || 'Ahsan')}</b>, buyer <b>${esc(T.buyer || 'Ahsan')}</b>, email <b>${esc(T.email || '?')}</b> (from the Black Friday plan's call sheet). ${b.channel ? 'Pings go to the brand’s internal Slack channel.' : 'No internal Slack channel is set, so nothing pings.'}</p>
+      <p class="v2hint cal-team" style="margin:0 0 14px">Strategist <b>${esc(T.strat || 'Ahsan')}</b>, buyer <b>${esc(T.buyer || 'Ahsan')}</b>, email <b>${esc(T.email || '?')}</b> (from the Black Friday plan's call sheet). ${b.channel ? 'Pings go to the brand’s internal Slack channel.' : 'No internal Slack channel is set, so nothing pings.'}</p>
       <div class="cal-two"><div class="cal-card"><div class="cal-ch"><h3 id="calMonT"></h3><span class="cap">Click an empty day to add a date there; drag a date to move it.</span><div class="r"><button type="button" class="cal-btn" data-m="-1">&#8249;</button><button type="button" class="cal-btn" data-m="0">Today</button><button type="button" class="cal-btn" data-m="1">&#8250;</button><button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
         <div class="cal-mo" id="calMonth"></div>
         <div class="cal-lg"><span><i style="border:1px solid var(--c-meta,#5b8def);background:color-mix(in srgb,var(--c-meta,#5b8def) 22%,var(--surface))"></i>Drop</span><span><i style="border:1px solid var(--c-email,#9b7bd8);background:color-mix(in srgb,var(--c-email,#9b7bd8) 22%,var(--surface))"></i>Sale or offer</span><span><i style="border:1px solid var(--muted);background:var(--surface-2)"></i>Teaser, list, other</span><span><i style="border:1px solid var(--good)"></i>Email or text</span><span>Striped = pencilled &middot; dashed = no offer yet</span></div></div>
@@ -422,13 +423,15 @@
     if (x.src === 'cal' && !past && (isOpen(x) || (live && x.kind !== 'drop'))) h += `<div class="wb"><b>${isOpen(x) ? 'When does it end?' : 'Ending early?'}</b><span>${isOpen(x) ? 'Until it has an end, the Monday Slack post asks "still running?".' : 'Tap when it stops.'}</span><div class="acts"><button type="button" class="cal-btn" data-end="${today}">It ended today</button>${isOpen(x) ? '<button type="button" class="cal-btn" data-endpick="1">Set an end date</button>' : ''}</div></div>`;
     if (st.length && !past) h += `<div><h4>Countdown (ticks itself)</h4><div class="cd">${st.map(s => `<div class="st ${s.state === 'late' ? 'lt' : ''}"><button type="button" class="ok ${s.state === 'done' ? 'y' : s.state === 'late' ? 'w' : ''}" ${x.src === 'cal' ? `data-tick="${s.key}" data-done="${s.state === 'done' ? 0 : 1}"` : 'disabled'}${tip(esc(s.state === 'done' ? (x.ticks && x.ticks[s.key] ? 'Ticked by hand. Click to untick.' : 'Done. ' + s.how + '.') : `${s.how}. ${x.src === 'cal' ? 'Or click to tick it by hand.' : ''}`))}>${s.state === 'done' ? '&#10003;' : ''}</button><div><b>${esc(s.label)}</b><span class="s">${esc(s.note)}</span></div><div class="r"><b>${wd(s.due)} ${md(s.due)}</b>${esc(s.who)}</div></div>`).join('')}</div></div>`;
     const acts = [];
-    if (x.src === 'cal' && !past && st.some(s => ['briefs', 'built'].includes(s.key) && !s.asana && s.state !== 'done')) acts.push('<button type="button" class="cal-btn pri" data-asana-p="1">Make the Asana tasks</button>');
+    /* A client login (2026-10-09) may edit and move its own typed dates and leave a note; nothing else here. */
+    const CL = H.S && H.S.role === 'client';
+    if (!CL && x.src === 'cal' && !past && st.some(s => ['briefs', 'built'].includes(s.key) && !s.asana && s.state !== 'done')) acts.push('<button type="button" class="cal-btn pri" data-asana-p="1">Make the Asana tasks</button>');
     if (x.src === 'cal' && st.some(s => s.asana)) acts.push(`<span class="v2hint" style="margin:0;align-self:center">${st.filter(s => s.asana).length} Asana tasks made</span>`);
-    if (x.src === 'cal') acts.push('<button type="button" class="cal-btn" data-edit="1">Edit</button><button type="button" class="cal-btn" data-movep="1">Move the date</button><button type="button" class="cal-btn" data-del="1" style="color:var(--bad)">Remove</button>');
-    if (x.src === 'season') acts.push('<button type="button" class="cal-btn pri" data-go="season">Edit on the Black Friday plan</button>');
-    if (x.src === 'drop') acts.push('<button type="button" class="cal-btn pri" data-go="drops">Open Drops</button>');
+    if (x.src === 'cal') acts.push('<button type="button" class="cal-btn" data-edit="1">Edit</button><button type="button" class="cal-btn" data-movep="1">Move the date</button>' + (CL ? '' : '<button type="button" class="cal-btn" data-del="1" style="color:var(--bad)">Remove</button>'));
+    if (!CL && x.src === 'season') acts.push('<button type="button" class="cal-btn pri" data-go="season">Edit on the Black Friday plan</button>');
+    if (!CL && x.src === 'drop') acts.push('<button type="button" class="cal-btn pri" data-go="drops">Open Drops</button>');
     h += `<div class="acts">${acts.join('')}</div>`;
-    if (x.src === 'cal') h += `<div><h4>History</h4><div class="hist" id="calHist"><span>Loading…</span></div></div>`;
+    if (x.src === 'cal') h += `<div class="cal-note"><h4>Leave a note</h4><textarea id="calNote" rows="2" maxlength="600" placeholder="${CL ? 'A question or a detail for the Mobius team' : 'A note on this date, kept in its history'}"></textarea><div class="acts"><button type="button" class="cal-btn" data-note="1">Add the note</button></div></div><div><h4>History</h4><div class="hist" id="calHist"><span>Loading…</span></div></div>`;
     h += '</div>';
     const body = show(x.name, h, d, x);
     if (x.src === 'cal') H.apiAH(`/api/calendar/history?id=${encodeURIComponent(x.id)}`).then(r => { const el = body.querySelector('#calHist'); if (el) el.innerHTML = (r.history || []).length ? r.history.map(l => `<div><span>${md(l.t.slice(0, 10))}</span> ${esc(l.s)} &middot; ${esc(l.b)}</div>`).join('') : '<span>No changes recorded.</span>'; }).catch(() => {});
@@ -437,6 +440,14 @@
     const body = U().panel(title, html);
     const close = () => document.querySelector('#v2panel .ph button')?.click();
     body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { close(); H.show(b.dataset.go); });
+    body.querySelectorAll('[data-note]').forEach(b => b.onclick = async () => {
+      const ta = body.querySelector('#calNote'); const text = (ta && ta.value || '').trim(); if (!text) return toast('Write the note first.');
+      b.disabled = true;
+      try { await call('/api/calendar/comment', { id: x.id, text }); ta.value = ''; toast('Note added. The team sees it in Slack.');
+        const r = await H.apiAH(`/api/calendar/history?id=${encodeURIComponent(x.id)}`, { fresh: true }); const el = body.querySelector('#calHist'); if (el) el.innerHTML = (r.history || []).map(l => `<div><span>${md(l.t.slice(0, 10))}</span> ${esc(l.s)} &middot; ${esc(l.b)}</div>`).join(''); }
+      catch (e) { toast(e.message); } finally { b.disabled = false; }
+    });
+    if (H.S && H.S.role === 'client') body.querySelectorAll('[data-tick]').forEach(b => { b.removeAttribute('data-tick'); b.disabled = true; });
     body.querySelectorAll('[data-tick]').forEach(b => b.onclick = async () => { try { await call('/api/calendar/tick', { id: x.id, key: b.dataset.tick, done: b.dataset.done === '1' }); const nd = await load(H.S.act || 'all', true); refresh(); openEv(nd, x.id); } catch (e) { toast(e.message); } });
     body.querySelectorAll('[data-end]').forEach(b => b.onclick = async () => { try { await call('/api/calendar/end', { id: x.id, date: b.dataset.end }); toast(`${x.name} ends ${md(b.dataset.end)}.`); close(); refresh(); } catch (e) { toast(e.message); } });
     body.querySelectorAll('[data-endpick]').forEach(b => b.onclick = () => dateModal('When does it end?', `${x.name} went live ${md(x.start)}.`, x.start, async v => { await call('/api/calendar/end', { id: x.id, date: v }); toast(`${x.name} ends ${md(v)}.`); close(); refresh(); }));

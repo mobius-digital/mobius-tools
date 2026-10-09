@@ -2298,3 +2298,30 @@ Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-se
   picture (the line does); everything else matched.
 - Files: share.js (new), index.html (`pillMenuInner` icon option, `shareHost`, boot + show hooks), v2.js (ad / campaign
   hooks), v2.css (block at the end), icons.js (`share`, `printer`), account-health worker.js (`/api/share/slack`).
+
+## 2026-10-09: CLIENT LOGINS. Clients sign in to Locus. Read before touching the rail, show() or Settings.
+
+The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandguard.js`); this page only draws them.
+- **How a client gets in.** Cole: Agency settings > Clients > "Client logins" card (or Brand settings > Client access,
+  or the New client setup screen's "4. Their Locus login") > Invite a client: emails, first name, brands, P&L and
+  Strategist switches > Next: the email (editable text, Copy, "Give access, no email", Send invite = Cole's Gmail
+  after a confirm). The client opens tools.go-mobius-digital.com/profit, Continue with Google (any email; a non-Gmail
+  address can be a Google account via "Use my current email address instead"), HQ sends a client straight back to
+  /profit/ (`mobius_session_role`). No password option: the old shared password is an admin key.
+- **What a client sees** (index.html `CLIENT_TABS` / `clientTabOk` / `applyClientMode`, `isClient()` = `S.role === 'client'`
+  from /api/me in `boot()`): Home (Overview; P&L only with the switch), Ads (All channels, Meta Overview + Campaigns,
+  Google Overview + Campaigns; Changes only with the switch), Email and SMS, Store (Sales, Customers, Website, Search),
+  Calendar (add a date, edit / move its own, leave a note; no Remove, ticks or Asana), Reports (`ClientsTab.reports`:
+  sent only, the client archive layout), Creative > Creators only with the switch (`ClientsTab.creators`: the public
+  link). Settings = `ClientsTab.profile` (name, brands, sign out). Profile menu = Your profile, Sign out. No All
+  clients, no picker with one brand, no Products / Brand / Season / Tools, no ask bar unless the Strategist switch
+  is on (then AskUI only ever calls POST /api/ask). First sign-in: a welcome card on Home until "Got it"
+  (`/api/clients/me` welcomed). `body.is-client` CSS (in clients.js) hides the team's buttons; `[hidden]` is forced.
+- **Role checks elsewhere (kept minimal):** v2.js (no AI read, no Day check line, no Needs you today, no CM tile when
+  P&L is off), calendar.js (client panel actions, note box, no team line), share.js (no Send to Slack for a client).
+- **profit/clients.js** (`window.ClientsTab`): card, invite, welcome, profile, reports, creators.
+- **Local check (2026-10-09):** both dev workers from the worktree with SESSION_SECRET = the dev ADMIN_TOKEN in the
+  gitignored .dev.vars, a temporary `clientUsers` row (removed after), headless Chrome over CDP: client rail = Home, Ads,
+  Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
+  Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
+

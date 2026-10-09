@@ -2237,6 +2237,7 @@
           <button type="button" role="menuitem" data-me="agency">Agency settings<small>Team, Slack timing, the Strategist, connections made once</small></button>
           <button type="button" role="menuitem" data-me="clients">Clients<small>Every brand, and + New client</small></button>
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
+          <button type="button" role="menuitem" data-me="profile" hidden>Your profile<small>Your name, your brands, sign out</small></button>
           <button type="button" role="menuitem" data-me="guide">How to use Locus</button>
           <button type="button" role="menuitem" data-me="out">Sign out</button>
         </div>
@@ -2292,16 +2293,17 @@
 <script src="amb.js?v=19"></script>
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
-<script src="newclient.js?v=14"></script>
+<script src="newclient.js?v=15"></script>
+<script src="clients.js?v=1"></script>
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=10"></script>
-<script src="v2.js?v=33"></script>
+<script src="v2.js?v=34"></script>
 <script src="desk.js?v=9"></script>
-<script src="calendar.js?v=6"></script>
+<script src="calendar.js?v=7"></script>
 <script src="supply.js?v=2"></script>
 <script src="askextra.js?v=1"></script>
-<script src="share.js?v=1"></script>
+<script src="share.js?v=2"></script>
 <script src="polish.js?v=1" defer></script>
 <script>
 'use strict';
@@ -2534,10 +2536,15 @@ async function boot() {
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
+    /* CLIENT LOGINS (2026-10-09): owner | team | client from account-health /api/me. A client gets the client rail,
+       its own brand only, no All clients. The server enforces all of it (brandguard.js); this only draws it. */
+    try { const me = await apiAH('/api/me'); S.role = me.role || 'team'; S.client = me.client || null; S.meEmail = me.email || ''; }
+    catch (e) { if (/unauthorized/i.test(e.message)) throw e; S.role = 'team'; }
     const r = await api('/api/overview?' + rangeQ());
     S.accounts = r.accounts;
     S.kind = r.kind || 'admin';
     applyKind();
+    applyClientMode();
     setChip('Live','live'); paintMe();
     chrome(true);
     renderPicker();
@@ -2812,7 +2819,7 @@ function renderGate(err, offerRetry) {
   $('#main').innerHTML = `
   <div class="gate">
     <h1>Locus</h1>
-    <p><b>Locus</b> is the Mobius Digital system: every client and every channel in one place - blended contribution margin, MER and aMER, the agreed monthly plan, the reports you send, and the Meta accounts behind them. Sign in once at Mobius HQ.</p>
+    <p><b>Locus</b> is the Mobius Digital dashboard: sales, ads, email, the store, the calendar and the reports, in one place. Sign in with Google, using the email Mobius invited.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
@@ -2833,7 +2840,7 @@ function renderGate(err, offerRetry) {
   $('#gGo').onclick = go;
   $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
 }
-$('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp'].forEach(k=>localStorage.removeItem(k)); renderGate(); };
+$('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp','mobius_session_role'].forEach(k=>localStorage.removeItem(k)); S.role = null; S.client = null; document.body.classList.remove('is-client'); renderGate(); };
 
 function renderPicker() {
   const p = $('#clientPick');
@@ -2841,7 +2848,8 @@ function renderPicker() {
   p.innerHTML = `<option value="all">All clients</option>` + S.accounts.map(a => `<option value="${a.act_id}">${esc(a.name)}</option>`).join('');
   // A saved or linked id from before brand ids (act_..., demo_harborline) becomes its brand; unknown -> All clients.
   const was = S.act;
-  S.act = resolveAct(S.act) || 'all';
+  S.act = resolveAct(S.act) || (isClient() ? (S.accounts[0] || {}).act_id || 'all' : 'all');
+  if (isClient() && S.act === 'all' && S.accounts[0]) S.act = S.accounts[0].act_id;
   if (S.act !== was) { try { localStorage.setItem(LS.act, S.act); } catch {} }
   p.value = S.act;
   p.onchange = () => { S.act = p.value; localStorage.setItem(LS.act, S.act); show(S.tab); };
@@ -2853,7 +2861,7 @@ function renderPicker() {
 function drawPick(q = '') {
   const box = $('#pfPick'); if (!box) return; box.hidden = false;
   const list = $('#pfPickList'), want = q.trim().toLowerCase();
-  const opts = [{ act_id: 'all', name: 'All clients' }, ...S.accounts.slice().sort((a, b) => a.name.localeCompare(b.name))].filter(a => !want || a.name.toLowerCase().includes(want));
+  const opts = [...(isClient() ? [] : [{ act_id: 'all', name: 'All clients' }]), ...S.accounts.slice().sort((a, b) => a.name.localeCompare(b.name))].filter(a => !want || a.name.toLowerCase().includes(want));
   list.innerHTML = opts.map(a => `<button type="button" role="menuitem" data-act="${esc(a.act_id)}" class="${a.act_id === S.act ? 'on' : ''}">${esc(a.name)}</button>`).join('') || '<p class="hd-per-note">No client matches.</p>';
   syncPick();
 }
@@ -2870,7 +2878,7 @@ document.addEventListener('click', e => {
   if (it) { closePops(); const p = $('#clientPick'); p.value = it.dataset.act; S.act = it.dataset.act; localStorage.setItem(LS.act, S.act); syncPick(); show(S.tab); return; }
   const me = e.target.closest('[data-me]');
   if (me) { closePops(); const k = me.dataset.me;
-    if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team');
+    if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team'); else if (k === 'profile') show('settings');
     else if (k === 'guide') show('guide'); else if (k === 'out') $('#btnOut').click(); }
 });
 /* The rail clips anything wider than itself (.side is overflow:hidden), which cut the profile menu's
@@ -3352,7 +3360,8 @@ const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zon
   ['goals', 'Ads rules', 'i-sliders', 'How Ads > Today and Meta > Creative call each ad set and ad. The goal cost per sale they use is set in Home > Goals.'],
   ['slack', 'Slack and sending', 'i-plane', 'Where its briefs and reports go, whether you see them first, and every automatic post it makes.'],
   ['stock', 'Stock and factories', 'i-factory', 'Stock is on for every brand with the Shopify app. Buying (factories, order dates) and Drops (new designs) switch on here.'],
-  ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.']];
+  ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.'],
+  ['clients', 'Client access', 'i-key', 'Who from the client signs in to Locus, and what they can see beyond the basics. Read-only, this brand only.']];
 const BG_OF = ['about', 'goals', 'slack', 'data'];   // the brand row's groups, in order
 const SET_ICONS = { brands: 'i-building', connections: 'i-plug', sending: 'i-plane', strategist: 'i-spark', team: 'i-key', system: 'i-refresh', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
@@ -4745,10 +4754,10 @@ function seasonOn() {
 }
 function seasonRail() {
   const el = document.getElementById('railSeason'); if (!el) return;
-  el.hidden = !S.tok || !seasonOn();
+  el.hidden = !S.tok || !seasonOn() || isClient();
   const lb = document.getElementById('railSeasonLbl'); if (lb) lb.textContent = SEASON.label || 'Black Friday';
   NAV.season.label = SEASON.label || 'Black Friday';
-  if (S.tok && !window.__seasonLoaded) { window.__seasonLoaded = 1; loadSeasonTab(); }
+  if (S.tok && !isClient() && !window.__seasonLoaded) { window.__seasonLoaded = 1; loadSeasonTab(); }
 }
 async function loadSeasonTab() {
   try {
@@ -4764,7 +4773,35 @@ async function loadSeasonTab() {
   try { localStorage.setItem('pf_season', JSON.stringify(SEASON)); } catch {}
   seasonRail();
 }
-function navGo(g) { const last = NAV_LAST[g]; show(last && NAV_OF(last) === g ? last : NAV[g].tabs[0][0]); }
+function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = NAV_LAST[g]; const first = (NAV[g].tabs.find(t => ok(t[0])) || NAV[g].tabs[0])[0]; show(last && NAV_OF(last) === g && ok(last) ? last : first); }
+/* ---------- CLIENT LOGINS (2026-10-09) ----------
+   A client (account-health clients.js; who may open what = brandguard.js on both workers) sees one brand, read-only:
+   Home (Overview, P&L when Cole switched it on), Ads (All channels, Meta and Google overview + campaigns, Changes when on),
+   Email and SMS, Store, Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
+   when on), and Settings = their own profile. Everything here only DRAWS that; the server refuses the rest. */
+const isClient = () => S.role === 'client';
+const CLIENT_TABS = new Set(['overview', 'profit', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings']);
+function clientCan(k, act = S.act) { const b = ((S.client && S.client.brands) || []).find(x => x.id === act); return !!(b && b.access && b.access[k]); }
+function clientTabOk(t) {
+  if (!CLIENT_TABS.has(t)) return false;
+  if (t === 'profit') return clientCan('pl');
+  if (t === 'changes' || t === 'gchanges') return clientCan('changes');
+  if (t === 'amb') return clientCan('creators');
+  return true;
+}
+const CLIENT_R = { reports: f => window.ClientsTab.reports(f), settings: () => window.ClientsTab.profile(), amb: () => window.ClientsTab.creators() };
+function applyClientMode() {
+  const on = isClient();
+  document.body.classList.toggle('is-client', on);
+  document.body.classList.toggle('cl-changes', on && clientCan('changes'));
+  if (!on) return;
+  if (!S.accounts.some(a => a.act_id === S.act) && S.accounts[0]) { S.act = S.accounts[0].act_id; try { localStorage.setItem(LS.act, S.act); } catch {} }
+  document.querySelectorAll('#tabs button[data-grp], #tabbar button[data-grp]').forEach(b => { const g = NAV[b.dataset.grp]; b.hidden = !g || !g.tabs.some(t => clientTabOk(t[0])); });
+  ['#railTools', '#railProducts', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
+  const rs = $('#railSetLbl'); if (rs) rs.textContent = 'Your profile';
+  document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me); });
+  const pk = $('#pfPick'); if (pk) pk.hidden = S.accounts.length < 2;
+}
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
 /* Test calls left the Meta jobs (2026-10-09): a call is a buying decision, so it is a row on Ads > Today; the page still opens from there. */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['changes', 'Changes']];
@@ -5001,6 +5038,7 @@ function show(tab) {
   /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of
      "This page didn't load" with a Try again that retries the same unknown id. */
   if (!SHOWABLE.has(tab)) tab = 'overview';
+  if (isClient()) { applyClientMode(); if (!clientTabOk(tab)) tab = 'overview'; }
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
   renderPeriodBar(tab);
@@ -5048,12 +5086,13 @@ function show(tab) {
     const platOk = k => { if (!oneA || !Array.isArray(oneA.conn_kinds)) return true; const ck = oneA.conn_kinds;
       if (k === 'google') return ck.includes('google_ads') || chSpend('google'); if (k === 'tiktok') return ck.includes('tiktok') || chSpend('tiktok');
       if (k === 'website') return ck.includes('ga4'); if (k === 'search') return ck.includes('gsc'); return true; };
-    const tabsHere = def ? def.tabs.filter(t => (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0])).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
+    const tabsHere = def ? def.tabs.filter(t => (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
     const row1 = tabsHere.length > 1 ? tabsHere : null;
-    const rp = $('#railProducts'); if (rp) rp.hidden = !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
-    if (window.SupplyTab && !window.__spBrands && S.tok) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
+    const rp = $('#railProducts'); if (rp) rp.hidden = isClient() || !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
+    if (window.SupplyTab && !window.__spBrands && S.tok && !isClient()) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
     const gDirect = !!(oneA && Array.isArray(oneA.conn_kinds) && oneA.conn_kinds.includes('google_ads'));
-    const jobs = grp === 'ads' && chan === 'meta' ? META_JOBS : grp === 'ads' && chan === 'google' && gDirect ? GOOGLE_JOBS : grp === 'creative' && chan === 'studio' ? STUDIO_JOBS : null;
+    const jobs0 = grp === 'ads' && chan === 'meta' ? META_JOBS : grp === 'ads' && chan === 'google' && gDirect ? GOOGLE_JOBS : grp === 'creative' && chan === 'studio' ? STUDIO_JOBS : null;
+    const jobs = jobs0 && isClient() ? jobs0.filter(j => clientTabOk(j[0])) : jobs0;
     const lit = k => k === tab || (k === 'adcreative' && tab === 'mbrowser') || (k === 'meta' && tab === 'mtoday');
     seg.hidden = !(row1 || jobs) || !S.tok;
     if (!seg.hidden) {
@@ -5063,7 +5102,7 @@ function show(tab) {
     }
   }
   renderModelMenu(tab);
-  const ab = $('#v2ask'); if (ab) { ab.hidden = !S.tok; askPlaceholder(); }
+  const ab = $('#v2ask'); if (ab) { ab.hidden = !S.tok || (isClient() && !clientCan('strategist')); askPlaceholder(); }
   todayChip(tab);
   const sn = $('#subtabs');
   if (sn) sn.style.display = 'none';
@@ -5106,10 +5145,10 @@ function show(tab) {
       <button class="btn primary" id="tabRetry">Try again</button></div>`;
     const rb = $('#tabRetry'); if (rb) rb.onclick = () => show(tab);
   };
-  const after = () => { done(); offerTour(tab); };
+  const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -10514,7 +10553,7 @@ async function renderSettings() {
      front and only hidden, so each loader below finds its host exactly as
      before and switching is instant. */
   const bsec = window.__openGoals ? 'goals' : (BRAND_SECS.some(b => b[0] === localStorage.getItem('pf_set_bsec')) ? localStorage.getItem('pf_set_bsec') : 'about');
-  const sec = !AGENCY ? (bsec === 'conn' ? 'connections' : bsec === 'stock' ? 'stock' : 'brands') : (SET_SECS.some(s => s[0] === localStorage.getItem('pf_set_sec')) ? localStorage.getItem('pf_set_sec') : 'brands');
+  const sec = !AGENCY ? (bsec === 'conn' ? 'connections' : bsec === 'stock' ? 'stock' : bsec === 'clients' ? 'clientacc' : 'brands') : (SET_SECS.some(s => s[0] === localStorage.getItem('pf_set_sec')) ? localStorage.getItem('pf_set_sec') : 'brands');
   const allNote = '';
   const sCard = (title, hint, body) => `<div class="card set-card"><h3>${title}</h3>${hint ? `<p class="hint set-why">${hint}</p>` : ''}<div class="set-body">${body}</div></div>`;
   const secHead = k => { if (!AGENCY) { const b = BRAND_SECS.find(x => x[0] === (k === 'connections' ? 'conn' : bsec)) || BRAND_SECS[0]; return `<div class="set-h" id="bsecHead"><h3>${b[1]}</h3><p class="hint">${b[3]}</p></div>`; }
@@ -10535,8 +10574,10 @@ async function renderSettings() {
           ${AGENCY ? sCard('The season tab', `Shown in the menu as <b>${esc(SEASON.label)}</b>, ${({ auto: 'automatically around the season dates', on: 'always', off: 'hidden' })[SEASON.mode] || 'automatically'}. Rename it as the season moves (BFCM war room, then Q5 war room) or hide it.`, '<button type="button" class="btn" id="seasonCfgBtn">Name and when it shows</button>') : ''}
           <div id="setRollup"></div>
           <div id="brandList"><div class="card"><span class="hint">Loading your brands…</span></div></div>
+          ${AGENCY ? '<div id="clientLogins" style="margin-top:16px"></div>' : ''}
         </section>
         ${AGENCY ? '' : `<section data-sec="stock"${sec === 'stock' ? '' : ' hidden'}>${secHead('stock')}<div id="stockSet"></div></section>`}
+        ${AGENCY ? '' : `<section data-sec="clientacc"${sec === 'clientacc' ? '' : ' hidden'}>${secHead('clientacc')}<div id="clientAcc"></div></section>`}
         <section data-sec="connections"${sec === 'connections' ? '' : ' hidden'}>${secHead('connections')}
           <div id="connPage"><div class="card"><span class="hint">Checking every connection…</span></div></div>
         </section>
@@ -10565,6 +10606,7 @@ async function renderSettings() {
     </div></div>`;
 
   if (!AGENCY && bsec === 'stock' && window.SupplyTab) window.SupplyTab.settings($('#stockSet'), S.act, supplyHost());
+  if (window.ClientsTab) { if (AGENCY) window.ClientsTab.card($('#clientLogins')); else if (bsec === 'clients') window.ClientsTab.card($('#clientAcc'), { act: S.act }); }
   document.querySelectorAll('.setpane button[data-page]').forEach(b => b.onclick = () => { show(b.dataset.page); window.scrollTo(0, 0); });
   { const sb = $('#seasonCfgBtn'); if (sb) sb.onclick = () => { if (window.DeskTab && window.DeskTab.seasonCfg) window.DeskTab.seasonCfg({ apiAH, api, S }); }; }
   /* Switching sections only flips `hidden`; nothing is re-fetched or re-drawn,
@@ -10579,8 +10621,9 @@ async function renderSettings() {
     if (bb) {
       const k = bb.dataset.bsec; try { localStorage.setItem('pf_set_bsec', k); } catch (err) {}
       nav.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === bb));
-      document.querySelectorAll('.setpane > section').forEach(s2 => { s2.hidden = s2.dataset.sec !== (k === 'conn' ? 'connections' : k === 'stock' ? 'stock' : 'brands'); });
+      document.querySelectorAll('.setpane > section').forEach(s2 => { s2.hidden = s2.dataset.sec !== (k === 'conn' ? 'connections' : k === 'stock' ? 'stock' : k === 'clients' ? 'clientacc' : 'brands'); });
       if (k === 'stock' && window.SupplyTab) window.SupplyTab.settings($('#stockSet'), S.act, supplyHost());
+      if (k === 'clients' && window.ClientsTab) window.ClientsTab.card($('#clientAcc'), { act: S.act });
       const pane = $('.setpane'); pane.dataset.bg = k;
       const hd = BRAND_SECS.find(x => x[0] === k); document.querySelectorAll('.setpane .set-h h3').forEach(h => { h.textContent = hd[1]; });
       document.querySelectorAll('.setpane .set-h .hint').forEach(h => { h.textContent = hd[3]; });
@@ -11039,7 +11082,7 @@ async function renderSettings() {
         <ul class="set-list">
           <li><b>Anyone with an @${esc(d.domain)} email can already sign in</b>, no invite needed, as an admin. Invite anyone else below.</li>
           <li><b>Admin</b> can change anything, including sending a report into a client’s Slack.</li>
-          <li><b>Viewer</b> sees every screen and can press nothing that leaves the building. Use it for a client, a contractor, or anyone who should watch the numbers without moving them.</li></ul>
+          <li><b>Viewer</b> sees every screen and can press nothing that leaves the building. Use it for a contractor or anyone on our side who should watch the numbers without moving them. <b>For a client, use Client logins</b> (Agency settings > Clients): they see only their own brand.</li></ul>
         <ul class="set-list" style="margin-top:0"><li><b>Brands they see</b>: limit a person to some brands and every screen and list in Locus shows only those. Enforced on the server, not just hidden. Only Cole can change it.</li></ul>
         <div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Can they change things?</th><th>Brands they see</th><th></th></tr></thead>
           <tbody>${rows || '<tr><td colspan="4" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody></table></div>
@@ -11349,7 +11392,7 @@ async function apiAH(path, opts = {}) {
 }
 const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)', dash: 'Dashboards (saved, drawn live)', store: 'Store sales (Triple Whale store level)' };
 AskUI.init({
-  name: 'Strategist', api: apiAH, esc, hotkey: false, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
+  name: 'Strategist', api: (p, o) => isClient() && !/^\/api\/ask(\?|$)/.test(p) ? Promise.resolve(/findings/.test(p) ? { findings: [], memory: {}, pending: [] } : { steps: [], done: true, reports: [] }) : apiAH(p, o), esc, hotkey: false, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   onApplied: () => { try { show(S.tab); } catch (e) {} },
   flash: msg => { const el = document.getElementById('connChip'); if (el) { const was = el.textContent; el.textContent = msg; setTimeout(() => { el.textContent = was; }, 2500); } },
   cardH: (t, q, right = '') => `<div class="ch" style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:0"><h3 style="margin:0 0 4px">${esc(t)}</h3>${q ? `<div class="hint">${esc(q)}</div>` : ''}</div>${right}</div>`,

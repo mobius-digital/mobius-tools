@@ -1,4 +1,4 @@
-import { guardBrands } from './brandguard.js';
+import { guardBrands, clientScope } from './brandguard.js';
 import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
  * Mobius Profit — store-level business worker (Cloudflare Workers + D1)
@@ -96,14 +96,21 @@ async function sha256hex(s) {
 const ALLOWED_DOMAIN = 'go-mobius-digital.com';
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+/* THE SIGNING KEY, OR NONE (2026-10-09). This worker used to fall back to the literal key 'dev' when
+   SESSION_SECRET and ADMIN_TOKEN were both unset, which is exactly how production runs: any token signed
+   with 'dev' passed local_session_verify, so a forged Mobius-domain session read as an admin here.
+   With no key, nothing is verified locally and every session goes to the auth worker (delegateWho). */
 async function hmacKey(env) {
-  return crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'dev'),
-    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+  const k = env.SESSION_SECRET || env.ADMIN_TOKEN;
+  if (!k) return null;
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(k), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 async function verifySession(env, token) {
   const m = /^mds\.([\w-]+)\.([\w-]+)$/.exec(token || '');
   if (!m) return null;
-  const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(m[1])));
+  const key = await hmacKey(env);
+  if (!key) return null;
+  const sig = b64u(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(m[1])));
   if (sig !== m[2]) return null;
   let email, exp;
   try { [email, exp] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return null; }
@@ -116,34 +123,45 @@ async function emailAllowed(env, email) {
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
   return safeJson(row?.value, []).map(e => String(e).toLowerCase()).includes(email.toLowerCase());
 }
-/** Ask the account-health worker to vouch for a session token.
- *  Lets SSO work without duplicating SESSION_SECRET onto this worker; if the
- *  secret IS set here, local verification wins and this never runs. */
-async function delegateSession(env, tok) {
-  if (!tok || tok.length < 8) return false;
+/** Ask the account-health worker who a session token belongs to: {email, role, master} or null.
+ *  Production has no SESSION_SECRET here, so this is how every Google session is checked. Answers are
+ *  kept a minute per isolate (a page load makes several calls); failures are not kept. */
+const WHO = new Map();
+async function delegateWho(env, tok) {
+  if (!tok || tok.length < 8) return null;
+  const hit = WHO.get(tok);
+  if (hit && hit.until > Date.now()) return hit.who;
   const req = new Request(`${AUTH_WORKER}/api/me`, { headers: { Authorization: `Bearer ${tok}` } });
   try {
     // Service binding first (direct worker-to-worker, no public round-trip).
     const res = env.AUTH ? await env.AUTH.fetch(req) : await fetch(req);
-    if (!res.ok) return false;
+    if (!res.ok) return null;
     const j = await res.json().catch(() => ({}));
-    return !!(j.email || j.master);
-  } catch { return false; }
+    const who = j.email || j.master ? { email: j.email || null, role: j.role || (j.master ? 'owner' : 'team'), master: !!j.master } : null;
+    if (who) { if (WHO.size > 500) WHO.clear(); WHO.set(tok, { who, until: Date.now() + 60e3 }); }
+    return who;
+  } catch { return null; }
 }
+/** Kept for /api/auth-check: does the auth worker vouch for this token as a TEAM session? */
+async function delegateSession(env, tok) { const w = await delegateWho(env, tok); return !!w && w.role !== 'client'; }
 
-/** Who is asking: 'admin', 'demo', or null.
+/** Who is asking: 'admin', 'client', 'demo', or null.
  *
  *  The demo kind exists for the Shopify App Store reviewer. Shopify requires a test
  *  login and explicitly REJECTS accounts behind Google SSO, so it cannot be the
  *  normal sign-in - and handing a reviewer the real password would show them six
  *  live brands' revenue and margins. A demo session is pinned to the fabricated
  *  account and is read-only.
+ *
+ *  'client' (2026-10-09) is a client login whose request passed the client allowlist in brandguard.js
+ *  (clientScope). A client token on any other route is null here, so it gets 401.
  */
 async function authKind(request, env) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return null;
   const tok = auth.slice(7);
   if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return 'admin';
+  if (clientScope(request)) return 'client';
   const sess = await verifySession(env, tok);
   if (sess && (await emailAllowed(env, sess.email))) return 'admin';
   // Dashboard password lives in the SHARED settings table, so one password
@@ -154,7 +172,9 @@ async function authKind(request, env) {
   // be forwarded to HQ, which would reject it and cost a round trip.
   const demo = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'demoPasswordHash'`).first();
   if (demo?.value && (await sha256hex(tok)) === demo.value) return 'demo';
-  return (await delegateSession(env, tok)) ? 'admin' : null;
+  /* A client session is never an admin, whatever the auth worker vouches. */
+  const who = await delegateWho(env, tok);
+  return who && who.role !== 'client' ? 'admin' : null;
 }
 
 const isAdmin = async (request, env) => (await authKind(request, env)) === 'admin';
@@ -181,8 +201,14 @@ async function roleFor(env, email) {
 async function sessionEmail(env, request) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return null;
-  const sess = await verifySession(env, auth.slice(7));
-  return sess?.email || null;
+  const tok = auth.slice(7);
+  if (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) return null;
+  const sess = await verifySession(env, tok);
+  if (sess) return sess.email;
+  /* No local key in production: the auth worker says whose session it is (cached a minute). This is
+     what lets brandguard.js see WHO is asking here at all; before 2026-10-09 it never could. */
+  if (!/^mds\./.test(tok)) return null;
+  return (await delegateWho(env, tok))?.email || null;
 }
 
 
