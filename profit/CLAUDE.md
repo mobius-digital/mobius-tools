@@ -2163,3 +2163,15 @@ https://claude.ai/artifact/HGz5WWWAuBZFkSMiWhvJb1); mocks `docs/locus-hub/mocks-
 - **Platform tabs per brand**: `/api/overview` accounts carry `conn_kinds` and `email_tool`; Google / TikTok / Website /
   Search tabs hide where the brand has neither the connection nor spend; Email tab reads Attentive where set.
 - **Strategist**: PLAYBOOK "WHERE THINGS ARE IN LOCUS" block (strategist.js) with every page id.
+- **Later 2026-10-09 (Cole's second pass):** Yesterday is named **Day check** (page id still `yesterday`); it opens with
+  **The verdict** (account-health `POST /api/daycheck`, Sonnet, cached per date + facts: headline, scope market/some/none,
+  why, what to do today, and a `client_line` safe to tell a client, never naming other brands or Breezeway). Settings
+  `marketHandles` = X handles the daily chatter search reads first. **Goals moved to Home** (`plan` is Home > Goals;
+  Brand = Client answers, Research, Voice). **Creative = AI ads (`studio`), Creators (`amb`), Library, Inspiration**;
+  Templates come from a separate chat (docs/handoffs/creative-templates.md). **Home has "Needs you today"** (desk.js
+  `needs`: ad sets to change, accounts to fix, tests to call, briefs and reports to send, research drafts, season live /
+  next change), drawn under the Day check line.
+- **PAID ORDERS ONLY (2026-10-09).** `totalOrders` / `newCustomersOrders` in tw_daily are paid orders now (account-health
+  `paidOrdersOnly` at sync, history converted by `account-health/worker/scripts/paid-orders-migrate.mjs`); the raw counts
+  are `totalOrdersAll` / `newCustomersOrdersAll`. Every reader (AOV, CAC, orders, Day check, briefs, reports, the
+  Strategist) uses paid orders without a code change. Costs come from TW's cost metrics, so seeding still costs money.

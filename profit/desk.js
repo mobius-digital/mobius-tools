@@ -60,6 +60,9 @@
       .dk .dk-mk .l{font-size:11.5px;color:var(--muted)}
       .dk .dk-pl{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
       .dk .dk-pl>div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+      .dk-needs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px}.dk-needs .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-right:4px}
+      .dk-need{display:inline-flex;gap:6px;align-items:baseline;border:1px solid var(--line);border-radius:999px;padding:5px 12px;background:var(--surface);color:var(--ink);cursor:pointer;font:inherit;font-size:12.5px}
+      .dk-need b{font-size:13.5px}.dk-need:hover{border-color:var(--brand)}
       .dk-form{display:flex;flex-direction:column;gap:12px}.dk-form label{display:flex;flex-direction:column;gap:4px;font-weight:550}
       .dk-form input[type=text]{padding:8px 10px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface-2);color:var(--ink)}
       .dk-form .opt{display:flex;gap:8px;align-items:flex-start;font-weight:400}.dk-form .opt small{display:block;color:var(--muted)}`;
@@ -109,14 +112,14 @@
     const market = U().card('Is it us or the market?', 'Four checks, so a bad day on Meta itself is not read as a bad day for one brand.', `<div class="dk-mk" id="dkMk">
       <div><span class="l">Our own brands</span><b>${mk.meta_brands >= 3 ? `${mk.cpm_up} of ${mk.meta_brands} had Meta costs up 20%+` : 'Too few brands on Meta that day'}</b><span class="v2hint" style="margin:0">${mk.verdict === 'market' ? 'Moving together: looks like the auction.' : 'Not moving together.'}</span></div>
       <div><span class="l">Platform outages (Pulse)</span><b>Checking…</b></div><div><span class="l">Breezeway's Meta score</span><b>Checking…</b></div><div><span class="l">What advertisers said (X, Reddit)</span><b>Checking…</b></div></div>`);
-    $('#main').innerHTML = shell('yesterday', title, `${strip}${U().card('The last 14 days', 'Each square is one day against that brand\'s normal for the same weekday. Green good, red bad, solid red very bad. Click a brand to read its last day.', grid)}${detail}${market}
+    $('#main').innerHTML = shell('yesterday', title, `${strip}<div id="dkVerdict">${U().card('The verdict', '', '<p class="v2hint">Reading every signal for the day…</p>')}</div>${U().card('The last 14 days', 'Each square is one day against that brand\'s normal for the same weekday. Green good, red bad, solid red very bad. Click a brand to read its last day.', grid)}${detail}${market}
       ${U().foot('Money from Shopify through Triple Whale; ad costs per purchase on Triple Whale last platform click; delivery from Meta. A number is called when it is 25% or more off normal and unusual for that brand (1.5 standard deviations); very bad = two calls, or one far out. Ad spend alone never makes a bad day.')}`);
     const root = $('#main');
     root.querySelectorAll('[data-b]').forEach(el => el.onclick = () => { YSEL = el.dataset.b; yesterday(false); });
     root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
-    if (last) fillMarket(last, t);
+    if (last) fillMarket(last, t, bs, mk);
   }
-  async function fillMarket(date, t) {
+  async function fillMarket(date, t, bs, mk) {
     let m = null; try { m = await H.apiAH(`/api/market?date=${date}`); } catch {}
     const host = document.getElementById('dkMk'); if (t !== H.RUN() || !host) return;
     const box = host.children;
@@ -127,6 +130,20 @@
     box[3].innerHTML = `<span class="l">What advertisers said (X, Reddit)</span><b>${!ch ? 'Not checked' : ch.error ? 'Search failed' : (ch.meta === 'issues' || ch.google === 'issues') ? 'People reported problems' : 'Nothing unusual'}</b><span class="v2hint" style="margin:0">${ch && ch.summary ? esc(ch.summary) : ''}${ch && (ch.sources || []).length ? '<br>' + ch.sources.slice(0, 3).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc((s.title || s.url).slice(0, 60))}</a>`).join('<br>') : ''}</span>`;
     const pill = document.getElementById('dkMkPill');
     if (pill && (inc.length || /BAD/.test(bw?.hyb_status || '') || ch?.meta === 'issues')) pill.innerHTML = `<span class="v2pill warn">Outside signs of a rough day on Meta</span>`;
+    /* THE VERDICT: every signal above, read together into one call (account-health /api/daycheck, cached per day). */
+    const facts = {
+      brands: (bs || []).map(b => ({ name: b.name, verdict: b.last?.verdict, moved: (b.last?.flags || []).map(f => `${f.label} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%${f.bad ? ' (bad)' : ''}`),
+        meta_links: (b.last?.links || []).filter(l => l.change != null && Math.abs(l.change) >= 0.15).map(l => `${l.label} ${l.change >= 0 ? '+' : ''}${Math.round(l.change * 100)}%`), changes: (b.last?.changes || []).slice(0, 3).map(c => c.summary), attribution_pending: !!b.last?.attr_pending })),
+      our_brands: mk ? { on_meta: mk.meta_brands, meta_costs_up_20pct: mk.cpm_up, click_rate_down: mk.ctr_down, conversion_down: mk.cvr_down } : null,
+      breezeway: bw && bw.hyb_status ? { status: bw.hyb_status, outside_brands: bw.n_biz || null, incident: bw.incident_description || null } : null,
+      outages: inc.map(i => `${i.platform}: ${i.service || i.title || ''} ${i.state || i.note || ''}`.trim()),
+      advertisers_online: ch && ch.summary ? { meta: ch.meta, google: ch.google, said: ch.summary } : null,
+    };
+    let v = null; try { v = await H.apiAH('/api/daycheck', { method: 'POST', body: JSON.stringify({ date, facts }) }); } catch (e) { v = { error: e.message }; }
+    const vh = document.getElementById('dkVerdict'); if (t !== H.RUN() || !vh) return;
+    vh.innerHTML = v && v.headline ? U().card('The verdict', 'Every signal on this page read together: each brand against its own normal, our brands side by side, Breezeway, outages and what advertisers said online.',
+      `<p class="v2say lead" style="margin:0 0 8px"><b>${esc(v.headline)}</b></p>${v.why ? `<p class="v2say" style="margin:0 0 6px">${esc(v.why)}</p>` : ''}${v.todo ? `<p class="v2say" style="margin:0 0 6px"><b>Today:</b> ${esc(v.todo)}</p>` : ''}${v.client_line ? `<p class="v2hint" style="margin:8px 0 0"${U().tipAttr('Safe to repeat to a client: it talks about the platform and their own result, never about other brands.')}><b>If a client asks:</b> ${esc(v.client_line)}</p>` : ''}`)
+      : U().card('The verdict', '', `<p class="v2hint">${esc((v && v.error) || 'No verdict yet.')}</p>`);
   }
 
   /* =========================================================================================
@@ -275,7 +292,38 @@
       ${U().foot('Pulse reads the public status feeds of Meta, Google Ads, Shopify, Pinterest, OpenAI and Anthropic. TikTok, Microsoft, LinkedIn, Snap, X, Amazon and Apple publish no machine feed, so they show their status page link. Slack alerts and client fan-out stay on the Pulse page.')}`);
   }
 
+  /* =========================================================================================
+   * HOME: NEEDS YOU TODAY (2026-10-09). Home is the one place to see everything at a glance, so it carries one strip
+   * of what is waiting, each a number that opens the page where it gets done. Hidden counts are zero.
+   * ======================================================================================= */
+  async function needs(el, all) {
+    if (!el) return; css();
+    const t = H.RUN(), q = encodeURIComponent(H.S.act);
+    const [ov, td, se] = await Promise.allSettled([window.ovTodayLoad ? window.ovTodayLoad(all) : Promise.resolve(null), get(`/api/hub/today?act=${q}`), H.api(`/api/season?act=${q}`)]);
+    if (t !== H.RUN() || !el.isConnected) return;
+    const o = ov.status === 'fulfilled' ? ov.value : null, d = td.status === 'fulfilled' ? td.value : null, sd = se.status === 'fulfilled' ? se.value : null;
+    const rows = (d?.rows || []), c = k => rows.filter(r => r.kind === k).length;
+    const chips = [];
+    const chip = (n, label, go, tip) => { if (n > 0) chips.push(`<button type="button" class="dk-need" data-go="${go}"${tip ? U().tipAttr(esc(tip)) : ''}><b>${n}</b>${esc(label)}</button>`); };
+    chip(c('fix'), c('fix') === 1 ? 'ad account to fix' : 'ad accounts to fix', 'today', 'Delivery stopped, a sync failing or a missing goal.');
+    chip(c('scale') + c('cut') + c('trim') + c('refresh'), 'ad sets to change', 'today', `${c('scale')} to scale, ${c('cut')} to cut, ${c('trim')} to trim, ${c('refresh')} to refresh. Ad set first.`);
+    chip(o?.calls?.n || 0, 'tests to call', 'today', (o?.calls?.who || []).join(', '));
+    chip(o?.briefs?.n || 0, 'daily briefs to send', 'brief', (o?.briefs?.who || []).join(', '));
+    chip(o?.reports?.n || 0, 'reports to send', 'reports', (o?.reports?.who || []).join(', '));
+    chip(o?.drafts?.n || 0, 'research drafts to approve', 'research', (o?.drafts?.who || []).join(', '));
+    /* The season: what is live today, or the next change within two weeks. */
+    const today = sd?.today || ymdL(new Date()), soon = (() => { const x = new Date(today + 'T12:00:00'); x.setDate(x.getDate() + 14); return ymdL(x); })();
+    const ph = (sd?.accounts || []).flatMap(a => (a.phases || []).filter(p => p.status !== 'skip' && p.start).map(p => ({ ...p, brand: a.name })));
+    const liveNow = ph.filter(p => p.start <= today && (p.end || p.start) >= today), next = ph.filter(p => p.start > today && p.start <= soon).sort((x, y) => x.start.localeCompare(y.start))[0];
+    const label = (window.SEASON_TAB && window.SEASON_TAB().label) || 'Season';
+    if (liveNow.length) chips.push(`<button type="button" class="dk-need" data-go="war"${U().tipAttr(esc(liveNow.map(p => `${p.brand}: ${p.name}`).join(', ')))}><b>${liveNow.length}</b>${esc(label)} offers live now</button>`);
+    if (next) chips.push(`<button type="button" class="dk-need" data-go="season"><b>${md(next.start)}</b>${esc(next.brand)}: ${esc(next.name)} starts</button>`);
+    el.innerHTML = `<div class="dk-needs"><span class="lbl">Needs you today</span>${chips.length ? chips.join('') : '<span class="v2hint" style="margin:0">Nothing waiting.</span>'}</div>`;
+    el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go));
+  }
+
   window.DeskTab = {
+    needs(el, host, all) { H = host; return needs(el, all); },
     render(tab, host, first) {
       H = host;
       if (tab === 'yesterday') return yesterday(first);

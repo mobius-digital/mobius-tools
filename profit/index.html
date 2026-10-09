@@ -2252,13 +2252,13 @@
            are a switcher at the top of the screen (#v2seg), never sub-tabs in the rail.
            Settings lives in the foot. Every tab selector stays scoped to `button[data-t]`. -->
       <div class="grp v2nav" data-g="main"><div class="grp-btns">
-          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
+          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L, Goals"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
           <button data-t="today" data-grp="ads" title="Today, Meta, Google, TikTok, All channels, Tests and angles"><svg class="ic"><use href="#i-mega"/></svg><span>Ads</span></button>
           <button data-t="email" data-grp="email" title="Klaviyo or Attentive: campaigns and flows"><svg class="ic"><use href="#i-email"/></svg><span>Email and SMS</span></button>
           <button data-t="store" data-grp="store" title="Sales, Customers, Website, Search"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
           <button data-t="stock" data-grp="products" id="railProducts" hidden title="Stock, Buying, Drops"><svg class="ic"><use href="#i-products"/></svg><span>Products</span></button>
-          <button data-t="studio" data-grp="creative" title="Studio, Library, Inspiration"><svg class="ic"><use href="#i-brush"/></svg><span>Creative</span></button>
-          <button data-t="research" data-grp="brand" title="Goals, Client answers, Research, Voice, Creator link"><svg class="ic"><use href="#i-bookmark"/></svg><span>Brand</span></button>
+          <button data-t="studio" data-grp="creative" title="AI ads, Creators, Library, Inspiration"><svg class="ic"><use href="#i-brush"/></svg><span>Creative</span></button>
+          <button data-t="research" data-grp="brand" title="Client answers, Research, Voice"><svg class="ic"><use href="#i-bookmark"/></svg><span>Brand</span></button>
           <button data-t="brief" data-grp="reports" title="Daily Brief, Weekly and monthly, Dashboards"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
           <button data-t="war" data-grp="season" id="railSeason" hidden title="The war room and the season plan"><svg class="ic"><use href="#i-flame"/></svg><span id="railSeasonLbl">Black Friday</span></button></div></div>
       <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
@@ -2333,8 +2333,8 @@
 <script src="studio.js?v=27"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=17"></script>
-<script src="desk.js?v=1"></script>
+<script src="v2.js?v=18"></script>
+<script src="desk.js?v=2"></script>
 <script src="supply.js?v=2"></script>
 <script src="askextra.js?v=1"></script>
 <script>
@@ -3345,11 +3345,11 @@ const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];   // still pa
    that applies to Mobius as a whole (SET_GROUPS). With All clients picked, Settings opens the agency side. */
 const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'sending', 'strategist', 'system']]];   // 2026-10-09: tours moved to How to use Locus, Data health into Data and jobs
 /* BRAND SETTINGS, 6 SECTIONS (2026-10-09 restructure). Meta, Triple Whale and Shopify moved from About to Integrations;
-   goal CPA and ROAS moved to Brand > Goals; Money, Data repairs and the Data check / Cost check pages are one section,
+   goal CPA and ROAS moved to Home > Goals; Money, Data repairs and the Data check / Cost check pages are one section,
    Data and costs; Remove from Locus is "Archive this brand" at the bottom of About. One icon each, never repeated. */
 const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zone and currency. Archive a brand that has left at the bottom.'],
   ['conn', 'Integrations', 'i-plug', 'Everything this brand is connected to: ad platforms, store, website, email, work tools. Click a card for what Locus gets from it and the exact steps.'],
-  ['goals', 'Ads rules', 'i-sliders', 'How Ads > Today and Meta > Creative call each ad set and ad. The goal cost per sale they use is set in Brand > Goals.'],
+  ['goals', 'Ads rules', 'i-sliders', 'How Ads > Today and Meta > Creative call each ad set and ad. The goal cost per sale they use is set in Home > Goals.'],
   ['slack', 'Slack and sending', 'i-plane', 'Where its briefs and reports go, whether you see them first, and every automatic post it makes.'],
   ['stock', 'Stock and factories', 'i-factory', 'Stock is on for every brand with the Shopify app. Buying (factories, order dates) and Drops (new designs) switch on here.'],
   ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.']];
@@ -3375,13 +3375,13 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Brand', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
+  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   today: ['Ads', 'Today'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Creative'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
   email: ['Email and SMS', 'Klaviyo'],
   store: ['Store', 'Sales'], stock: ['Products', 'Stock'], buying: ['Products', 'Buying'], drops: ['Products', 'Drops'], customers: ['Store', 'Customers'], website: ['Store', 'Website'], search: ['Store', 'Search'],
-  library: ['Creative', 'Library'], inspo: ['Creative', 'Inspiration'], angles: ['Ads', 'Tests and angles'], studio: ['Creative', 'Studio'], brand: ['Brand', 'Brand'], copy: ['Creative', 'Studio &nbsp;/&nbsp; Words'], amb: ['Brand', 'Creator link'],
+  library: ['Creative', 'Library'], inspo: ['Creative', 'Inspiration'], angles: ['Ads', 'Tests and angles'], studio: ['Creative', 'AI ads'], brand: ['Brand', 'Brand'], copy: ['Creative', 'AI ads &nbsp;/&nbsp; Words'], amb: ['Creative', 'Creators'],
   brief: ['Reports', 'Daily Brief'], reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data check'], costs: ['Settings', 'Cost check'],
 };
@@ -4696,18 +4696,20 @@ const MODEL_TABS = new Set(['overview', 'meta', 'campaigns', 'adcreative', 'goog
    A destination opens on the page you last used there. Deep links and old ids all still route. */
 const NAV = {
   /* 2026-10-09 RESTRUCTURE (docs/handoffs/locus-structure-audit-step1.md, signed off by Cole): Home is one
-     dashboard (Overview, Yesterday, P&L); Plan is Brand > Goals; Season is its own item (named and shown per
+     dashboard (Overview, Yesterday, P&L); Plan is Home > Goals; Season is its own item (named and shown per
      settings.seasonTab); Scenarios and Pulse are Tools in the rail foot; Ads opens on Today (the buyer's list);
      Tests and angles moved to Ads; Creative is Studio (with Words, the old Copy desk), Library, Inspiration;
      Brand holds what we know about the client. Every old page id still routes. */
-  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L']] },
+  /* 2026-10-09 (later): Goals moved to Home (they change every month; Brand is what rarely changes). Creative is
+     grouped by where ads come from: AI ads (Studio, with Words), Creators (the creator link), Library, Inspiration. */
+  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L'], ['plan', 'Goals']] },
   ads: { label: 'Ads', tabs: [['today', 'Today'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['channels', 'All channels'], ['angles', 'Tests and angles']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
   store: { label: 'Store', tabs: [['store', 'Sales', 'b-shopify'], ['customers', 'Customers'], ['website', 'Website', 'b-ga'], ['search', 'Search', 'b-google']] },
   /* Products (2026-10-08): stock, factory orders and new designs. Only shown for brands with a stock feed (supply.js). */
   products: { label: 'Products', tabs: [['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']] },
-  creative: { label: 'Creative', tabs: [['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration']] },
-  brand: { label: 'Brand', tabs: [['plan', 'Goals'], ['answers', 'Client answers'], ['research', 'Research'], ['voice', 'Voice'], ['amb', 'Creator link']] },
+  creative: { label: 'Creative', tabs: [['studio', 'AI ads'], ['amb', 'Creators'], ['library', 'Library'], ['inspo', 'Inspiration']] },
+  brand: { label: 'Brand', tabs: [['answers', 'Client answers'], ['research', 'Research'], ['voice', 'Voice']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
   season: { label: 'Black Friday', tabs: [['war', 'War room'], ['season', 'The plan']] },
   tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status']] },
@@ -4761,7 +4763,7 @@ const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreativ
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { yesterday: 'Day check', today: 'Today', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
+  health: 'Data Health', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
@@ -5115,7 +5117,7 @@ function V2R(tab, first) {
   if (!window.V2) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">The v2 screens did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
   return window.V2.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
 }
-/* BRAND > GOALS (2026-10-09): Plan is Brand > Goals, and the two targets every ad is judged by (goal cost per sale,
+/* HOME > GOALS (2026-10-09; first Brand > Goals, moved to Home the same day): Plan is Goals, and the two targets every ad is judged by (goal cost per sale,
    goal ROAS) moved here from Settings > Goals and rules, so every number the client agreed sits on one page. Same saves
    as the old card: /api/client-settings target_cpa, the Meta accounts route target_roas. */
 async function addGoalTargets() {
@@ -5452,22 +5454,22 @@ const GUIDE = [
       ['Meta, Creative', 'What is working in the account right now: hook and hold, fatigue, and the angles and formats that pay.', 'adcreative'],
       ['Brand, Research', 'Who buys, what they say in their own words, the competitors.', 'research'],
       ['Brand, Client answers', 'What the client told us, and what to ask on the next call.', 'answers'],
-      ['Brand, Creator link', "What the brand's creators are being asked to film right now. Keep it current.", 'amb'],
+      ['Creative, Creators', "What the brand's creators are being asked to film right now. Keep it current.", 'amb'],
     ]],
     ['Making it', [
       ['Write the brief in Asana', 'Same as always. Locus files the test under its angle and concept by itself.', null],
-      ['Creative, Studio', 'For statics: New batch, pick the Asana brief, review, send to Canva.', 'studio'],
-      ['Studio, Words', "Headlines, hooks, subject lines in the brand's voice. Keep or reject each line; it learns from the calls.", 'copy'],
+      ['Creative, AI ads', 'Studio for statics: New batch, pick the Asana brief, review, send to Canva.', 'studio'],
+      ['AI ads, Words', "Headlines, hooks, subject lines in the brand's voice. Keep or reject each line; it learns from the calls.", 'copy'],
     ]],
   ] },
   { role: 'owner', name: 'Cole', sub: 'Is each brand making money, and is it set up right.', parts: [
     ['Every week', [
-      ['Home', 'Overview, Day check and P&L: is the book making money and where is it leaking.', 'overview'],
+      ['Home', 'Overview, Day check, P&L and Goals: is the book making money, where is it leaking, will we hit the month.', 'overview'],
       ['Customers (under Store)', 'What a customer is worth over time against what we paid, and what they buy first and next.', 'customers'],
       ['Reports', 'What went to each client, and your dashboards.', 'reports'],
     ]],
     ['End of the month', [
-      ['Brand, Goals', 'Set next month\u2019s revenue, spend and MER with the client, and the goal cost per sale.', 'plan'],
+      ['Home, Goals', 'Set next month\u2019s revenue, spend and MER with the client, and the goal cost per sale.', 'plan'],
       ['Settings', 'A brand\u2019s integrations, ads rules and Slack posts; agency integrations, team and data from the profile menu.', 'settings'],
     ]],
   ] },
@@ -10652,10 +10654,10 @@ async function renderSettings() {
     const T = r.target_cpa, Y = r.yellow_pct, K = r.acct_avg || (T ? T * (1 + Y / 100) : null);
     const band = T ? `<div class="gband"><i class="gk" style="flex:100">winner up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Math.round(((K - T) / T) * 100), 18)}">keep up to ${fmtMoney(K, cur)}</i><i class="gp" style="flex:40">pause</i></div><span class="tiny">Winner and keep both need 2+ sales.</span>` : '';
     box.innerHTML = `<div class="gwrap2">
-      ${sec('The goal these rules use', 'Every platform', 'Agreed with the client and set with the month plan in Brand > Goals. Every green, yellow and red in Locus is measured against it.',
+      ${sec('The goal these rules use', 'Every platform', 'Agreed with the client and set with the month plan in Home > Goals. Every green, yellow and red in Locus is measured against it.',
         `<div class="g-row"><span class="g-l"><b>Goal cost per sale</b><small>What the client is willing to pay for one sale.</small></span><span class="g-c"><b class="g-val">${T != null ? fmtMoney(T, cur) : 'not set'}</b></span></div>`
         + `<div class="g-row"><span class="g-l"><b>Goal ROAS</b><small>Revenue back for every dollar of ad spend.</small></span><span class="g-c"><b class="g-val">${g.goal_roas ? g.goal_roas + 'x' : 'not set'}</b></span></div>`
-        + `<div class="g-row"><span class="g-l"></span><span class="g-c"><button type="button" class="btn" data-g="togoals">Change in Brand &gt; Goals</button></span></div>`)}
+        + `<div class="g-row"><span class="g-l"></span><span class="g-c"><button type="button" class="btn" data-g="togoals">Change in Home &gt; Goals</button></span></div>`)}
       ${sec('Judging tests', 'Meta', 'When a new test is ready for a call on Ads › Today, and what counts as a keeper.',
         num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)}` : '150', T ? 'Blank means 3 times the goal cost per sale.' : '')
         + num('judge_days', 'Or after', r.judge_days, 'days', '', 'Whichever comes first.')
@@ -10681,7 +10683,7 @@ async function renderSettings() {
     v('save').onclick = async () => {
       const n = k => { const raw = v(k).value.replace(/[^0-9.]/g, ''); return raw === '' ? '' : +raw; };
       const msg = v('msg');
-      /* Goals moved to Brand > Goals (2026-10-09): this box saves only the rules. */
+      /* Goals moved to Home > Goals (2026-10-09): this box saves only the rules. */
       v('save').disabled = true; msg.textContent = 'Saving…';
       try {
         const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: Y || 30,

@@ -1053,6 +1053,41 @@ const READ_SYSTEM = `You are the Strategist at Mobius Digital reading one screen
 - "leaks": up to three, each {"what": a number and a cause in one short sentence, "where": the brand or channel}. Only leaks the numbers show. Empty list if nothing leaks.
 - "focus": one short sentence, the single most useful thing to do today.
 Rules: cite ONLY numbers in the JSON (rounded is fine; say "about"). Never invent a cause the numbers do not show; say "the numbers do not say why" when so. Compare against the compare period or the plan when they are in the JSON, else against nothing. Attribution is Triple Whale's. No jargon, no exclamation marks, no em dashes, no headers. Money in the brand's currency as given. Return ONLY a JSON object {lines, leaks, focus}.`;
+/* THE DAY CHECK VERDICT (2026-10-09, Cole: "combine all that into a comprehensive analysis: was it bad, is it
+ * across the board, why, and is there anything we can do or is it just waiting"). Locus posts the facts on the Day
+ * check screen (each brand against its own normal, our brands moving together, Breezeway's outside panel, Pulse
+ * outages, what advertisers said online) and gets one verdict. Cached per date and facts; Sonnet tier, about a cent.
+ * `client_line` is safe to repeat to a client: it talks about the platform, never about other brands or how many. */
+const DAYCHECK_SYSTEM = `You write the Day check for Mobius Digital, an ad agency: was yesterday a bad day for our brands, and was it the market or us.
+You get JSON: each brand's verdict for the day against ITS OWN normal for that weekday (good, normal, bad, very bad), the numbers that moved and which link on Meta moved (auction cost, click rate, site conversion, average order, spend); how many of our brands saw Meta costs jump the same day; Breezeway's Meta score across about 50 outside brands (a hint); platform outages from our status monitor; and what advertisers said online that day.
+Reply with JSON only:
+{"headline": one short sentence verdict, e.g. "A rough day on Meta for everyone, not just us." or "A bad day for Grunk Dolfer only." or "A normal day.",
+ "scope": "market" | "some" | "none",
+ "why": one or two sentences, the likely cause, citing which signals agree,
+ "todo": one sentence, what to do today: hold and change nothing, or what to look at or change and where,
+ "client_line": one sentence safe to tell a client who asks, about the platform and their own result only; never mention other brands, how many brands we compare, or Breezeway}
+Rules: cite only the facts given; when the signals disagree say so; never invent a cause. Plain words, no em dashes.`;
+async function dayCheckVerdict(env, b) {
+  const date = String(b.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date looks like 2026-10-08' };
+  const facts = b.facts && typeof b.facts === 'object' ? b.facts : {};
+  const key = `daycheck:${date}:${fnv(JSON.stringify(facts))}`;
+  const cached = safeJson(await getSetting(env, key).catch(() => null), null);
+  if (cached && cached.headline) return { ...cached, cached: true };
+  let text;
+  try { text = await claude(env, { system: DAYCHECK_SYSTEM, user: `DAY: ${date}
+
+FACTS:
+${JSON.stringify(facts).slice(0, 20000)}`, maxTokens: 2000, model: READ_MODEL }); }
+  catch (e) { return { error: 'The verdict could not run: ' + e.message }; }
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  let out; try { out = JSON.parse(m ? m[0] : '{}'); } catch { return { error: 'The verdict did not come back clean.' }; }
+  const clean = s => String(s || '').replace(/—|–/g, ',').trim().slice(0, 400);
+  const res = { date, headline: clean(out.headline), scope: ['market', 'some', 'none'].includes(out.scope) ? out.scope : 'none', why: clean(out.why), todo: clean(out.todo), client_line: clean(out.client_line), at: new Date().toISOString() };
+  if (!res.headline) return { error: 'The verdict came back empty.' };
+  await putSetting(env, key, JSON.stringify(res)).catch(() => {});
+  return res;
+}
 async function screenRead(env, b) {
   const screen = String(b.screen || 'overview').slice(0, 40);
   const facts = b.facts && typeof b.facts === 'object' ? b.facts : {};
@@ -1701,6 +1736,27 @@ function twDailySeries(raw, start, end) {
   return out;
 }
 
+/* PAID ORDERS ONLY (Cole, 2026-10-09). Triple Whale counts $0 orders (product seeding to creators, replacements) as
+ * orders AND as new customers: Grunk and Party Patch were ~35% free orders Sep 1 to Oct 8, which made orders too high,
+ * average order too low and cost per new customer look better than it was. So at the door, for EVERY reader (Locus,
+ * the Daily Brief, reports, the Strategist, Day check): `totalOrders` = TW's `totalOrdersWithAmount` (orders with money
+ * on them), and `newCustomersOrders` = TW's new-customer orders less the free orders (seeding goes to new people; an
+ * approximation, floored at 0). The raw counts stay as `totalOrdersAll` / `newCustomersOrdersAll`. Revenue is untouched
+ * ($0 adds nothing) and costs come from TW's own cost metrics, so a seeded product still costs money in profit.
+ * History was converted once on 2026-10-09 (scripts/paid-orders-migrate.mjs); never convert a row twice. */
+function paidOrdersOnly(daily) {
+  const all = daily.totalOrders, paid = daily.totalOrdersWithAmount, nco = daily.newCustomersOrders;
+  if (!all || !paid) return;
+  daily.totalOrdersAll = { ...all };
+  if (nco) daily.newCustomersOrdersAll = { ...nco };
+  for (const d of Object.keys(all)) {
+    if (paid[d] == null) continue;
+    const free = Math.max(0, all[d] - paid[d]);
+    daily.totalOrders[d] = paid[d];
+    if (nco && nco[d] != null) daily.newCustomersOrders[d] = Math.max(0, nco[d] - free);
+  }
+}
+
 /** Pull the last `days` days of per-day TW metrics into tw_daily (one API call). */
 async function syncTwDaily(env, acct, days = 10) {
   if (!env.TW_API_KEY) return { name: acct.name, skipped: 'TW_API_KEY secret not set' };
@@ -1711,6 +1767,7 @@ async function syncTwDaily(env, acct, days = 10) {
   const start = addDays(today, -Math.min(days, 430));
   const res = await twSummary(env, acct.tw_shop, start, today);
   const daily = twDailySeries(res.raw, start, today);
+  paidOrdersOnly(daily);
   const stmts = [];
   for (const [id, byDate] of Object.entries(daily))
     for (const [date, v] of Object.entries(byDate))
@@ -7534,6 +7591,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        leaks and the one focus. The screen SENDS the numbers it is showing, so the read can
        never cite a figure that is not on the page. Cached an hour per exact set of facts
        (settings `read:<hash>`); made on open, never on a cron. Sonnet tier, about a cent. */
+    if (path === '/api/daycheck' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      return json(await dayCheckVerdict(env, await request.json().catch(() => ({}))));
+    }
     if (path === '/api/read' && request.method === 'POST') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const b = await request.json().catch(() => ({}));
@@ -8356,6 +8417,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           paceAlertPct: +(await getSetting(env, 'paceAlertPct')) || 0.15,
           /* What moved yesterday, posted to each brand's internal channel (moved.js). On unless 'off'. */
           movedPost: (await getSetting(env, 'movedPost')) !== 'off',
+          marketHandles: (await getSetting(env, 'marketHandles')) || '',
           /* The "what advertisers said online" check on Home > Yesterday (market.js). On unless 'off'. */
           marketChatter: (await getSetting(env, 'marketChatter')) !== 'off',
           /* The seasonal rail item (Black Friday): its label and whether it shows (auto = in season). */
@@ -8370,6 +8432,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('slackSendWho' in b) await putSetting(env, 'slackSendWho', b.slackSendWho === 'anyone' ? 'anyone' : 'owner');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));
         if ('movedPost' in b) await putSetting(env, 'movedPost', b.movedPost ? 'on' : 'off');
+        if ('marketHandles' in b) await putSetting(env, 'marketHandles', String(b.marketHandles || '').slice(0, 400));
         if ('marketChatter' in b) await putSetting(env, 'marketChatter', b.marketChatter ? 'on' : 'off');
         if ('seasonTab' in b) await putSetting(env, 'seasonTab', JSON.stringify(seasonTabOf(b.seasonTab)));
         return json({ ok: true });

@@ -1069,3 +1069,13 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   forwards only orders, slots, collections and products/<id> POST/PUT to Supply with the token; `add_design` with
   `_count` makes N designs). PLAYBOOK has a STOCK section; THE CMO METHOD lists the `stock` knowledge topic
   (`docs/strategist-brain/knowledge/stock.md`, rebuilt into knowledge.js).
+
+## 2026-10-09: paid orders only, the Day check, integrations rebuilt
+- **`paidOrdersOnly(daily)`** runs inside `syncTwDaily` before the insert: `totalOrders` = TW `totalOrdersWithAmount`,
+  `newCustomersOrders` = raw new-customer orders minus the free orders (floored at 0; seeding goes to new people), raw kept
+  as `totalOrdersAll` / `newCustomersOrdersAll`. Free orders were ~35% of Grunk's and Party Patch's orders Sep 1 to Oct 8.
+  `scripts/paid-orders-migrate.mjs` converted the history once (idempotent; dry run without `--go`).
+- **moved.js is the Day check post**: only on a bad day, button `?open=yesterday`. `market.js` + `GET /api/market` (Pulse,
+  Breezeway's public file, a once-per-date Haiku web search; `marketHandles` setting = X handles to read first).
+  `POST /api/daycheck` = the verdict for the Day check screen (see profit/CLAUDE.md).
+- **integrations.js** groups, levels, pick lists, email tool (see profit/CLAUDE.md "THE RESTRUCTURE").

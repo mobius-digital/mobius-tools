@@ -134,7 +134,9 @@ At most 4 sources, only pages you actually found. Plain words, no em dashes.`;
 
 async function askChatter(env, date) {
   const nice = new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-  const messages = [{ role: 'user', content: `The day: ${nice} (${date}), US time. Did advertisers report Meta Ads or Google Ads problems that day?` }];
+  /* Cole's list of advertisers he follows on X (settings marketHandles, comma separated), checked first when set. */
+  const handles = String((await getS(env, 'marketHandles')) || '').split(/[,\s]+/).map(h => h.trim().replace(/^@?/, '@')).filter(h => h.length > 1).slice(0, 12);
+  const messages = [{ role: 'user', content: `The day: ${nice} (${date}), US time. Did advertisers report Meta Ads or Google Ads problems that day?${handles.length ? ` Look first at what these advertisers posted on X around that day: ${handles.join(', ')}.` : ''}` }];
   const use = { in: 0, out: 0, searches: 0 };
   let last = null;
   for (let turn = 0; turn < 3; turn++) {
