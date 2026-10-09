@@ -71,7 +71,9 @@
       .cal-bar.miss{background:transparent;border-style:dashed;border-color:var(--warn);color:var(--warn)} .cal-bar.miss .af{color:var(--warn)}
       .cal-bar.open{border-right-style:dashed;-webkit-mask-image:linear-gradient(90deg,#000 75%,rgba(0,0,0,.25));mask-image:linear-gradient(90deg,#000 75%,rgba(0,0,0,.25))}
       .cal-bar.drop,.cal-chip.drop,.cal-pin.drop{--c:var(--c-meta,#5b8def)} .cal-bar.sale,.cal-chip.sale,.cal-pin.sale{--c:var(--c-email,#9b7bd8)} .cal-bar.other,.cal-chip.other,.cal-pin.other{--c:var(--muted)}
-      .cal-chip.mail{--c:var(--good)}
+      .cal-chip.mail{--c:var(--good);background:transparent;border-color:transparent;color:var(--muted);font-weight:500;padding-left:12px}
+      .cal-chip.mail::before{content:"";position:absolute;left:3px;top:6px;width:6px;height:6px;border-radius:50%;background:var(--good)} .cal-chip.mail.pen::before{background:transparent;border:1.5px solid var(--good);width:4px;height:4px}
+      .cal-chip.mail.pen{background:transparent}
       .cal-pin{position:absolute;height:20px;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;white-space:nowrap;transform:translateX(-5px);cursor:pointer;z-index:2;color:var(--ink);background:none;border:0;padding:0;font-family:inherit}
       .cal-pin i{width:10px;height:10px;transform:rotate(45deg);border-radius:2px;background:var(--c);flex:none} .cal-pin:hover span{text-decoration:underline}
       .cal-mail{position:absolute;width:12px;height:12px;transform:translateX(-6px);z-index:2;display:grid;place-items:center}
@@ -151,6 +153,10 @@
   const bfOf = today => { const y = +today.slice(0, 4); const nov1 = new Date(Date.UTC(y, 10, 1)); const thu = (4 - nov1.getUTCDay() + 7) % 7; return add(new Date(Date.UTC(y, 10, 1 + thu + 21)).toISOString().slice(0, 10), 1); };
   const brandName = (d, id) => (d.brands.find(b => b.id === id) || (H.S.accounts || []).find(a => a.act_id === id) || {}).name || id;
   const isOpen = e => e.kind === 'sale' && !e.end;
+  /* Klaviyo names carry the team's filing prefix ("REM - Email - FRI 10/09/2026 - Fall Lies"): show the part a person wrote. */
+  const mailName = n => { const parts = String(n || '').split(/\s+-\s+/); const i = parts.map(p => /\d{1,2}\/\d{1,2}(\/\d{2,4})?/.test(p)).lastIndexOf(true); return (i >= 0 && i < parts.length - 1 ? parts.slice(i + 1).join(' - ') : parts[parts.length - 1]).trim() || n; };
+  /* A date with a teaser shows the teaser as its own striped lead-in, opening the same date. */
+  const withTeasers = list => list.concat(list.filter(e => e.teaser && e.teaser < e.start).map(e => ({ ...e, name: `${e.name}: teaser`, kind: 'other', start: e.teaser, end: add(e.start, -1), status: 'pen', steps: [], teaserOf: true })));
   const endOf = e => e.end || add(e.start, 27);
   function merged(items, bf) {
     const inBF = x => x.src === 'season' && x.start >= add(bf, -3) && x.end && x.end <= add(bf, 3);
@@ -203,7 +209,7 @@
     const mk = (d.today >= START && d.today <= END ? `<span class="mk t" style="left:${pct(d.today)}%">Today</span>` : '') + (bf >= START && bf <= END ? `<span class="mk b" style="left:${pct(bf)}%">Black Friday</span>` : '');
     let h = `<div class="cal-hdr"><div></div><div class="cal-wk">${wk}${mk}</div></div>`;
     for (const b of d.brands) {
-      const items = merged(d.items.filter(x => x.act === b.id && endOf(x) >= START && x.start <= END), bf).filter(x => on(CLS(x.kind))).sort((x, y) => x.start.localeCompare(y.start));
+      const items = merged(withTeasers(d.items.filter(x => x.act === b.id && endOf(x) >= START && x.start <= END)), bf).filter(x => on(CLS(x.kind))).sort((x, y) => x.start.localeCompare(y.start));
       const rows = [];
       let inner = grid + (d.today >= START && d.today <= END ? `<i class="td" style="left:${pct(d.today)}%"></i>` : '') + (bf >= START && bf <= END ? `<i class="bf" style="left:${pct(bf)}%"></i>` : '');
       for (const x of items) {
@@ -221,7 +227,7 @@
       const mails = on('mail') ? d.emails.filter(m => m.act === b.id && m.date >= START && m.date <= END) : [];
       const has = d.items.some(x => x.act === b.id && endOf(x) >= START && x.start <= END);
       const hgt = Math.max(1, rows.length) * 25 + 10 + (mails.length ? 14 : 0);
-      for (const m of mails) inner += `<i class="cal-mail ${m.status === 'scheduled' ? 'sch' : ''}" style="left:${pct(m.date) + 50 / DAYS}%;top:${hgt - 17}px"${tip(`<b>${esc(b.name)}: ${m.channel === 'sms' ? 'text' : 'email'}, ${md(m.date)}</b><br>${esc(m.name)}<br>${m.status} &middot; from Klaviyo`)}></i>`;
+      for (const m of mails) inner += `<i class="cal-mail ${m.status === 'scheduled' ? 'sch' : ''}" style="left:${pct(m.date) + 50 / DAYS}%;top:${hgt - 17}px"${tip(`<b>${esc(b.name)}: ${m.channel === 'sms' ? 'text' : 'email'}, ${md(m.date)}</b><br>${esc(mailName(m.name))}<br>${m.status} &middot; from Klaviyo`)}></i>`;
       if (!has) inner += `<div class="cal-empty"><b>Nothing planned in these 13 weeks.</b> Ask ${esc(b.name)} what is coming, or add what you know.</div>`;
       h += `<div class="cal-row"><button type="button" class="cal-nm" data-brand="${esc(b.id)}">${esc(b.name)}<span>${esc((b.team || {}).strat || '')}</span></button><div class="cal-tr" style="height:${has ? hgt : 42}px">${inner}</div></div>`;
     }
@@ -235,8 +241,8 @@
     const [y, m] = mon.split('-').map(Number);
     const first = `${mon}-01`, dow = (D(first).getUTCDay() + 6) % 7, start = add(first, -dow);
     const n = new Date(Date.UTC(y, m, 0)).getUTCDate(), weeks = Math.ceil((dow + n) / 7);
-    const items = d.items.filter(x => x.act === act).map(x => ({ ...x }));
-    for (const e of d.emails.filter(e => e.act === act)) items.push({ id: `mail:${e.date}:${e.name}`, src: 'email', name: `${e.channel === 'sms' ? 'Text' : 'Email'}: ${e.name}`, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e });
+    const items = withTeasers(d.items.filter(x => x.act === act)).map(x => ({ ...x }));
+    for (const e of d.emails.filter(e => e.act === act)) items.push({ id: `mail:${e.date}:${e.name}`, src: 'email', name: `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e });
     items.sort((a, b) => a.start.localeCompare(b.start) || (a.kind === 'mail') - (b.kind === 'mail'));
     let h = '<div class="dhr">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => `<div class="dh">${x}</div>`).join('') + '</div>';
     for (let w = 0; w < weeks; w++) {
@@ -251,7 +257,7 @@
         used[r] = c1;
         const cls = `cal-chip ${x.kind === 'mail' ? 'mail' : CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
         const tt = x.kind === 'mail' ? tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.status}, from Klaviyo`) : tip(tipOf(d, x));
-        bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < a ? '&#8592; ' : ''}${esc(x.name)}${isOpen(x) && e > z ? ' (no end date)' : ''}</button>`;
+        bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable && !x.teaserOf ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < a ? '&#8592; ' : ''}${esc(x.name)}${isOpen(x) && e > z ? ' (no end date)' : ''}</button>`;
       }
       for (const [c, k] of Object.entries(hidden)) bars += `<span class="cal-chip more" style="left:${c / 7 * 100}%;top:66px">+${k} more</span>`;
       h += `<div class="wr">${ds.map(x => `<div class="c ${x.slice(0, 7) === mon ? '' : 'x'} ${x === d.today ? 'td' : ''}" data-day="${x}"><span class="n">${+x.slice(8)}</span></div>`).join('')}<div class="bars">${bars}</div></div>`;
