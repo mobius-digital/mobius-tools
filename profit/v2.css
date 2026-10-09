@@ -397,6 +397,14 @@ td.good,td.bad,td.warn{font-weight:600}
 .v2pv-m{position:relative;aspect-ratio:4/5;width:100%;border-radius:10px;border:1px solid var(--line);background:var(--surface-2) center/contain no-repeat;overflow:hidden;display:grid;place-items:center}
 .v2pv-m video,.v2pv-m iframe{width:100%;height:100%;border:0;background:#000;display:block}
 .v2pv-m .v2pill{position:absolute;left:10px;bottom:10px}
+/* Meta's preview is a fixed 340x620 phone layout: shown at its own size, centred. */
+.v2pv-m.pvf{aspect-ratio:auto;width:340px;max-width:100%;height:620px;margin:0 auto;display:block;background:#fff}
+.v2pv-m.pvf iframe{width:100%;height:100%;background:#fff}
+.v2sort{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px;font-size:12.5px;color:var(--muted)}
+.v2sort span{margin-right:2px}
+.v2sort button{font:inherit;font-size:12.5px;font-weight:550;padding:4px 11px;border-radius:99px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.v2sort button:hover{color:var(--ink);border-color:var(--ink-2)}
+.v2sort button.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .v2play{font:inherit;font-size:13px;font-weight:650;padding:9px 16px;border-radius:99px;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;backdrop-filter:blur(4px)}
 .v2play:hover{background:rgba(0,0,0,.75)}
 .v2pv-m.still .v2play{display:none}
