@@ -139,3 +139,76 @@ Viktor's trick is short files loaded only when relevant, plus corrections writte
 - Re-authorise the Slack app with `search:read` if the user token lacks it.
 - Meta write access: the system user needs ads_management for pause/budget/delete.
 - Viktor: keep for now; switch off once 1-4 are live and judged. ($260/month.)
+
+## 6. How the "brain" actually works (Cole's question, 2026-10-09, plain words)
+
+Cole's picture is right: it is a network with an index, not one huge file read every time.
+- The STORE is big and lives in D1/R2: every Slack message (90 days), every brand's research, tests, orders,
+  ads, reports, memory facts, knowledge files. Nothing is deleted to keep the prompt small.
+- The PROMPT per question is small and fixed in shape (~25-30k tokens, cache-read): who it is, how to think,
+  the brand brain, the brand's 40 facts, a 14-day digest of the brand's channels, and a MAP of what else exists
+  and how to reach it (tool list + view blurbs, one line each). That map is the "knowing where to go".
+- LOOKUP is the model's own call, one tool at a time, up to 8-10 rounds: it reads the question, decides
+  "this needs the Dartee thread from 9/20" -> search_slack -> read_thread; "this needs the test history" ->
+  tests view. Each lookup returns a capped slice (10 hits, one thread, one view), never the whole store.
+- SAVING is deliberate and tiny: only facts worth keeping, upserted by topic, capped per brand, consolidated
+  nightly, visible in Locus. Threads are never "saved into memory"; they stay in the index and are found
+  when needed. So memory cannot bloat, and a changed fact replaces the old one the day it is said.
+- Viktor does the same: its skills are short files matched by description; its tool docs load lazily; it
+  searches Slack live. It does not keep your whole workspace in the prompt either.
+- Cost of context: the always-on block is cache-read (~$0.03 a question on Opus 5.5); each lookup adds
+  ~2-6k tokens (~$0.01-0.03). The 90-day Slack index is a few MB in D1: no storage concern.
+- Judging what to look up: the playbook tells it the order (read the brand digest first; search Slack
+  before saying "I don't know"; read the knowledge file before advising on a channel; quote the evidence).
+  Opus 5.5 is good at this when the map is clear and the tool descriptions say WHEN to use each one.
+
+## 7. Showing that it is working (the "animation")
+
+Viktor's web chat shows a live step line while it runs ("Used Slack, ran a command"), a STOP button, the
+model picker in the composer ("Smart"), and "You stopped after 6s". In Slack it posts an "On it..." line first.
+- Slack: post the ack line immediately, then EDIT it as steps happen ("Reading the Dartee thread... Checking
+  Triple Whale... Writing"), finally replace with the answer. Slack's assistant status
+  (`assistant.threads.setStatus`, "is thinking...") where the app has the Agents & AI Apps feature on.
+- Locus (ask-ui.js): stream tool steps as a live line under the question (one per tool call, with the tool's
+  plain name), a pulsing dot, a Stop button that aborts the loop, elapsed time, the model chip in the composer
+  (Smart / Quick / Deep; chosen by the person). The engine already loops tool calls; emit a step event per call.
+
+## 8. Settings the person controls (mirror Viktor's settings surface)
+
+Locus > Agency settings > The Strategist:
+- Model: presets Smart (Opus 5.5 medium, default), Quick (Sonnet 5.5), Deep (Opus 5.5 high); which preset
+  "quick" / "deep" in a message means. Cost estimate shown per preset, actual cost shown per answer.
+- Instructions: workspace instructions (free text, 4000 chars) appended to the playbook; per-brand instructions
+  on the Brand tab.
+- Memory: per-brand facts, agency facts; edit, delete, "forget everything about X".
+- Permissions: who can tag it, which channels (internal only today), who can approve writes (IDEA_APPROVERS
+  today), "always approve" per action kind for Cole.
+- Usage: questions/day, cost/day, by person, by brand, by model (we already log inTok/outTok; add cost rows
+  per answer like idea_run).
+- Skills: the taught how-tos (step 6 of the build order).
+- Connections: exists (Integrations page).
+
+## 9. Locus UI: Viktor-grade polish (Cole: "that's what we need for Locus")
+
+Reference screenshots: docs/viktor-reference/ (home, integrations, settings-model, settings-permissions,
+usage, chat-working-state). What makes Viktor read as "a real professional app", and the Locus equivalent:
+- One icon system, outlined, 1.5px, consistent size, one per rail item and one per settings row (Viktor uses a
+  Lucide-like set). Locus: adopt Lucide (or Phosphor) everywhere, delete the mixed emoji/SVG icons.
+- Real brand logos on integrations (Google Ads, Drive, Meta, Shopify, Klaviyo, Asana, Canva, Frame, TW, Atria,
+  TikTok...): a card per integration with the logo, name, "N accounts connected" and a green dot. Locus
+  Integrations page: same grid, same card, logos as SVG in /profit/logos/.
+- The home composer: a big rounded input "Ask the Strategist", a + (attach / pick brand / pick view), a mic
+  (speech-to-text via the browser's SpeechRecognition), four suggestion chips under it (Summarize my week,
+  Prep my next client call, Schedule a daily report, Build a report), "Pick up where you left off" recent
+  threads. The Strategist becomes the front door of Locus Home, with the dashboards below.
+- Left rail like Viktor's: product name, search, rail items with icons, a Chats section (recent Strategist
+  threads), account + settings gear at the foot. Locus already has the rail; align spacing, weights, hover.
+- Settings: left sub-nav grouped PERSONAL / WORKSPACE / EXPERIMENTAL with an icon per row, content column with
+  section headers in small caps, toggles, segmented controls, "Save changes" per section.
+- Typography and space: one sans (Viktor uses a geometric sans), 15px body, generous padding, hairline borders,
+  very light grey surfaces, one accent (Viktor purple; Locus keeps its accent token).
+- Motion: subtle fade/slide on page change, the working-state pulse, skeletons while loading.
+- Chat view: the question right-aligned in a soft bubble, steps as a quiet grey line, answer in prose with
+  tables, the composer pinned at the bottom with the model chip.
+Build this as its own step (7) after the Strategist steps, or in parallel in a second session: it touches
+profit/index.html + mobius.css + ask-ui.js only.
