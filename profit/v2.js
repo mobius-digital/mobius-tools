@@ -614,6 +614,7 @@
     const VL = { scale: ['Scale', 'good'], keep: ['Keep: carries the set', 'good'], watch: ['Watch', 'warn'], trim: ['Trim', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''], nogoal: ['No goal CPA', ''] };
     const FR = { opener: ['Opener', 'Triple Whale credits it far more on first click: it starts journeys (top of funnel).'], closer: ['Closer', 'Triple Whale credits it more on the last click: it closes people already warmed up.'] };
     MED = medians(ads, goal || 50);
+    const bar = (goal || 50) * K.jx;   // the judging bar; RULE below and the sort row both use it
     const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
     const top = ads.slice(0, 60);
     /* Quadrant: spend (x, log) against CPA (y), bubble = purchases, goal line. */
@@ -651,7 +652,6 @@
     /* SORT THE GALLERY BY ANY NUMBER (Cole, 2026-10-09: "it only shows by spend"). A ratio sort only
        ranks ads that have spent the judging bar (the same bar the calls use), or one lucky sale on $12
        tops every list; hook and hold rank video ads only. */
-    const bar = (goal || 50) * K.jx;
     /* SAY WHERE THE BAR COMES FROM (Cole, 2026-10-09: "it just auto goes to $50, why?"). It is the goal
        CPA x "judge after" from Settings > Goals (the one place goals live); with no goal it is the
        account's average CPA, and with no sales either it is a $50 placeholder. */
