@@ -2225,3 +2225,6 @@ Cole: "ideally this would replace Motion". Backend in account-health `creative.j
   (`StudioTab.fromAd` -> /api/ad-original -> Studio ref -> the Use as the ad batch picker).
 - Cards show the whole ad (`background-size: contain`); "No goal CPA" instead of "Not enough spend" when a brand
   has no goal; "no sales" on a spent ad with no purchases.
+- **No separate 8am post (2026-10-09, Cole: "we already have a daily report").** moved.js `movedTick` returns early. On a
+  bad or very bad Meta day the Daily Brief v2 says so in one sentence (account-health `metaDayFor`, cached
+  `metaday:<date>`, passed to `writeBriefNarrativeV2` as META THAT DAY). The agency "What moved" switch is gone.
