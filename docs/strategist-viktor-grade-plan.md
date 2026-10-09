@@ -330,3 +330,20 @@ popup, the brand popup, Settings. Every new screen uses only the primitives.
   looping GIF, add it as a workspace emoji (:mobius:), and the Strategist reacts with it instead of :eyes:
   while working, then removes it. Same feel, zero API tricks.
 - The website can load the same way later (go-mobius-digital.com).
+
+## 15. Sharing a view with a client (Cole, 2026-10-09; queued after the Ads screens job)
+
+Researched: Triple Whale puts the state in the URL (shop-id, start, end, prev-start, prev-end) and gives each
+SECTION an Export menu: Email, Slack, Google Sheets, Share section URL. Shares are to logged-in members only
+(kb.triplewhale.com "sharing a dashboard"); no public link found. Hyros exports a dashboard as a PDF (Print View).
+Build, in this order (cheap, nothing slows the app):
+1. The address IS the view: page, brand, period, compare, attribution, sort/filters, open ad / campaign in the URL
+   (replaceState on every change, read on boot). "Copy link" in the page header. A client with a login lands exactly
+   there; no "go to this tab then that tab".
+2. A share menu on every card/chart (like TW's per-section Export): Copy as image (2x PNG to the clipboard, rendered
+   client-side with a header: brand, what, dates, "Locus by Mobius Digital"), Download PNG, Send to Slack (the image
+   into the brand's internal or client channel, Cole confirms), Copy link to this card (URL + #card id, scrolls and
+   highlights it).
+3. Public snapshot link (no login) for one card or a whole page: frozen numbers at that moment, like the report
+   archive links, revocable. For clients without a login or a quick "look at this".
+4. Print / PDF of a page (print stylesheet) for the Hyros-style export.
