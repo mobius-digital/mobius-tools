@@ -53,7 +53,7 @@ export function movesFor(a, P, d, addDays) {
     if (m == null || v == null || !m) continue;
     if ((k === 'rev' || k === 'sp') && m < 150) continue;
     const ch = v / m - 1, z = s ? (v - m) / s : 0;
-    if (Math.abs(ch) < 0.25 || Math.abs(z) < 1.5) continue;
+    if (!(k === 'rev' && ch <= -0.6) && (Math.abs(ch) < 0.25 || Math.abs(z) < 1.5)) continue;   // revenue down 60%+ always counts (keep hub.js in step)
     let why = '';
     if (k === 'rev') { const oc = mean('o') ? x.o / mean('o') - 1 : 0, ac = mean('aov') && x.aov ? x.aov / mean('aov') - 1 : 0; why = Math.abs(oc) >= Math.abs(ac) ? `orders ${pctTxt(oc)}` : `average order ${pctTxt(ac)}`; }
     if (k === 'mer') { const rc = mean('rev') ? x.rev / mean('rev') - 1 : 0, sc = mean('sp') ? x.sp / mean('sp') - 1 : 0; why = Math.abs(rc) >= Math.abs(sc) ? `revenue ${pctTxt(rc)}` : `spend ${pctTxt(sc)}`; }

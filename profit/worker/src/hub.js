@@ -227,7 +227,8 @@ async function yesterdayMany(env, ctx, accts, all) {
         const st = statOf(base, k), fl = statOf(base, floorKey), v = x[k];
         if (!st || !st.m || v == null || !fl || fl.m < 150) continue;
         const change = v / st.m - 1, z = st.s ? (v - st.m) / st.s : 0;
-        if (Math.abs(change) < 0.25 || Math.abs(z) < 1.5) continue;
+        /* Revenue down 60% or more always counts, however swingy the brand (Grunk Oct 8: $289 vs $988 read 'normal'). Tested: ~1 more alarm a month. */
+        if (!(k === 'rev' && change <= -0.6) && (Math.abs(change) < 0.25 || Math.abs(z) < 1.5)) continue;
         flags.push({ metric: k, label, value: v, normal: st.m, change, z, bad: lower ? change > 0 : change < 0 });
       }
       const bad = flags.filter(f => f.bad);
