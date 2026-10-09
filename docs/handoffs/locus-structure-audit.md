@@ -36,6 +36,10 @@ Settings and Integrations
 Agency first
 - Look at every page from the agency's side (all clients, the team: Ahsan and Noma strategists and media buyers, Ravo editor) and then what a single brand view needs. Lucky is the deepest brand; build for every brand.
 
+LINKS AND REFERENCES (from Cole)
+- Breezeway "was it a bad day": https://headwinds.breezeway.co/ . Study what it shows and how it decides a bad day. Ours should be far better: more intuitive, more data (every brand, every channel, the reason, what changed), built on what Locus already has (What moved, the Change Log, Triple Whale, the platforms).
+- Black Friday war room: look at Triple Whale's own BFCM material (its BFCM war room / dashboards / benchmarks; the Triple Whale MCP knowledge base and their public pages). Ours should be far more useful: built on Season (offers, gantt, goals, desk), Products (stock at risk by Cyber Monday), live sales against goal by hour, ads pacing, email sends, and what to do next.
+
 STEPS
 1. Audit: every rail item, page tab, card, settings section and integration: what it is for, who needs it, how often, keep / merge / move / cut. Research what the best tools do (Triple Whale, Northbeam, Motion, Polar, and Breezeway once I send it). Propose ONE new structure: the rail, the tabs under each, and Settings / Integrations, with the reason for every move. Stop for my sign-off.
 2. Mock the new structure (rail, Home, the media buyer page, Integrations, Settings) for approval.

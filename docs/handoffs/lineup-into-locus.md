@@ -25,6 +25,11 @@ LOCUS RULES THAT APPLY
 - Fetch and merge origin/main before deploying any worker; other sessions deploy from this tree.
 - The Strategist gets a view of the calendar plus its knowledge, in the same change (the rule: every new connection ships with its knowledge).
 
+A PARALLEL CHAT is auditing the whole Locus structure (docs/handoffs/locus-structure-audit.md): the rail, where Season,
+Plan and Scenarios go, a Black Friday war room, a Tools section. Before proposing where the calendar lives, read that
+brief and anything it has committed since (git log, profit/CLAUDE.md); if the placement is still open, propose one
+and say it depends on that audit.
+
 STEPS
 1. Audit: every Lineup screen and feature, what it is for, whether an agency and a brand NEED it, keep / merge / cut, plus what the best tools in the category show. Stop for my sign-off.
 2. Mock the Locus page(s) on real data for my approval.
