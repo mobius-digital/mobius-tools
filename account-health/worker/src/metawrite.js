@@ -202,14 +202,16 @@ async function record(env, p, ctx, { before, after, object, summary, category })
   const by = approver(ctx);
   await env.DB.prepare(`INSERT INTO p_meta_write (id, act, brand, level, object, name, action, field, before, after, summary, by, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`)
     .bind(id, p.act, p.brand, p.level, object || p.id, p.name || null, p.action, Object.keys(after || {}).join(','), before ? JSON.stringify(before) : null, after ? JSON.stringify(after) : null, summary, by, new Date().toISOString()).run();
-  await logChange(env, p, { summary, category, by, object: object || p.id, note: `Write ${id}. ${p.proposer ? `Proposed for ${p.proposer}. ` : ''}Undo within ${UNDO_HOURS}h with meta_undo.` });
+  await logChange(env, p, { summary, category, by, object: object || p.id, via: ctx?.via, note: `Write ${id}. ${p.proposer && ctx?.via !== 'locus' ? `Proposed for ${p.proposer}. ` : ''}Undo within ${UNDO_HOURS}h${ctx?.via === 'locus' ? ' from the toast in Locus or' : ''} with meta_undo.` });
   return id;
 }
-async function logChange(env, p, { summary, category, by, object, note }) {
+async function logChange(env, p, { summary, category, by, object, note, via }) {
+  /* A change made by hand on a Locus screen (ctx.via 'locus') is logged as that person's, not the Strategist's. */
+  const locus = via === 'locus';
   await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, reason, note, confirmed, manual, actor, object_type, object_id, object_name)
-    VALUES (?1, ?2, ?3, 'strategist_write', ?4, ?5, ?6, ?7, 1, 1, ?8, ?9, ?10, ?11)`)
+    VALUES (?1, ?2, ?3, ?12, ?4, ?5, ?6, ?7, 1, 1, ?8, ?9, ?10, ?11)`)
     .bind(`manual:${crypto.randomUUID()}`, p.act, new Date().toISOString(), category || 'other', summary, p.reason || null, note || null,
-      `the Strategist, approved by ${by}`, LEVELS[p.level]?.type || null, object || p.id, p.name || null).run().catch(() => {});
+      locus ? `${by} in Locus` : `the Strategist, approved by ${by}`, LEVELS[p.level]?.type || null, object || p.id, p.name || null, locus ? 'locus_write' : 'strategist_write').run().catch(() => {});
 }
 /** Apply re-reads the object: a card made before someone else changed it must not overwrite that change. */
 async function unchanged(env, d, p) {
@@ -228,7 +230,7 @@ async function applyUpdate(env, d, p, ctx) {
   if (moved) return { error: moved };
   await gpost(d, env, p.id, p.after);
   const wid = await record(env, p, ctx, { before: p.before, after: p.after, summary: p.logLine, category: p.category });
-  return { ok: true, note: `${p.done} Logged in the Change Log (undo: ${wid}).` };
+  return { ok: true, write: wid, note: `${p.done} Logged in the Change Log (undo: ${wid}).` };
 }
 
 /* ---------------- B. the Meta actions ---------------- */
@@ -346,7 +348,7 @@ const duplicateAction = d => ({
     if (!nid) return { error: 'Meta did not return the copy\'s id.' };
     await gpost(d, env, nid, { name: p.new_name, ...(p.daily_budget ? { daily_budget: String(p.daily_budget) } : {}) });
     const wid = await record(env, { ...p, level: 'adset', name: p.new_name }, ctx, { before: null, after: { created: nid, from: p.id }, object: nid, summary: `${p.logLine}: new ad set ${nid}`, category: 'new_adset' });
-    return { ok: true, note: `Copied: "${p.new_name}" (${nid}), paused, ${(c.ad_object_ids || []).length || p.ads} ads. Logged (undo: ${wid}).` };
+    return { ok: true, write: wid, created: nid, note: `Copied: "${p.new_name}" (${nid}), paused, ${(c.ad_object_ids || []).length || p.ads} ads. Logged (undo: ${wid}).` };
   },
 });
 
@@ -456,7 +458,7 @@ const undoAction = d => ({
     await gpost(d, env, p.object, p.params);
     const by = approver(ctx);
     await env.DB.prepare(`UPDATE p_meta_write SET undone = ?2 WHERE id = ?1`).bind(p.write, `${new Date().toISOString()} by ${by}`).run();
-    await logChange(env, { ...p, id: p.object }, { summary: `Undone: ${p.summary}`, category: 'other', by, object: p.object, note: `Undo of ${p.write}.` });
+    await logChange(env, { ...p, id: p.object }, { summary: `Undone: ${p.summary}`, category: 'other', by, object: p.object, via: ctx?.via, note: `Undo of ${p.write}.` });
     return { ok: true, note: `Undone: ${p.summary}.` };
   },
 });
@@ -691,4 +693,76 @@ export function metaActions(d) {
 /** Everything here for strategist.js: `tools` (reads) and `actions` (Apply cards). */
 export function writeTools(d) { return [...metaTools(d), ...driveTools(d)]; }
 export function writeActions(d) { return [...metaActions(d), ...asanaActions(d), ...driveActions(d)]; }
+/* ---------------- C. the same writes from a Locus screen (2026-10-09) ----------------
+   Ads > Meta > Campaigns edits in place: a status switch, the budget, the minimum, a rename, a copy of an ad set.
+   The route (worker.js POST /api/meta/write) runs the SAME propose and apply as the Strategist's Apply card, so the
+   lookup, the brand check, the Manage check, the before/after, the p_meta_write row (undo) and the Change Log line
+   are one code path. Two calls: dry (the confirm modal shows the summary and detail), then the write itself, which
+   proposes again from a fresh read and refuses when the before-state is not what the modal showed (`expect`). The
+   person typed the exact budget, so a step over 50% is allowed (big) and the modal says so. */
+const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset' };
+export const LOCUS_KINDS = Object.keys(KIND);
+function locusInput(b) {
+  const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
+  const base = { brand: String(b.act || ''), target: String(b.object || ''), level: lv, reason: clip(b.reason || 'Changed by hand in Locus', 300) };
+  if (b.kind === 'budget') return { ...base, amount: +b.amount, big: true };
+  if (b.kind === 'min_spend') return { ...base, ...(b.min != null && b.min !== '' ? { min: +b.min } : {}), ...(b.cap != null && b.cap !== '' ? { cap: +b.cap } : {}) };
+  if (b.kind === 'rename') return { ...base, new_name: b.name };
+  if (b.kind === 'duplicate') return { ...base, new_name: b.name, ...(b.daily_budget != null && b.daily_budget !== '' ? { daily_budget: +b.daily_budget } : {}) };
+  return base;
+}
+export async function locusWrite(env, d, b, ctx) {
+  const name = KIND[b.kind];
+  if (!name) return { error: 'Unknown change.' };
+  if (!/^\d{6,}$/.test(String(b.object || ''))) return { error: 'Which campaign, ad set or ad? (id missing)' };
+  const act = metaActions(d).find(a => a.name === name);
+  const c = { ...ctx, via: 'locus', screen: { act_id: b.act } };
+  const p = await act.propose(env, locusInput(b), null, c);
+  if (p.error) return { error: p.error };
+  const step = p.patch.before && p.patch.after ? Object.keys(p.patch.after).map(k => ({ field: k, from: p.patch.before[k] ?? null, to: p.patch.after[k] })) : null;
+  if (b.dry) return { ok: true, dry: true, summary: p.summary, detail: p.detail, level: p.patch.level, name: p.patch.name, step, before: p.patch.before || null };
+  if (b.expect && p.patch.before) {
+    for (const [k, v] of Object.entries(b.expect)) if (k in p.patch.before && String(p.patch.before[k] ?? '0') !== String(v ?? '0'))
+      return { error: `"${p.patch.name}" changed since you opened this (${k} is now ${p.patch.before[k]}, was ${v}). Nothing was written; look again.`, stale: true };
+  }
+  const r = await act.apply(env, p.patch, null, c);
+  if (r.error) return { error: r.error };
+  return { ok: true, summary: p.summary, note: r.note, write: r.write || null, created: r.created || null, level: p.patch.level, object: p.patch.id, name: p.patch.name, after: p.patch.after || null, act: p.patch.act };
+}
+/** Undo from the toast: the write must be this brand's and under 24 hours old (meta_undo's own checks). */
+export async function locusUndo(env, d, b, ctx) {
+  await ensureTable(env);
+  const w = await env.DB.prepare(`SELECT id, brand, object, level, before, after FROM p_meta_write WHERE id = ?1`).bind(String(b.write || '')).first();
+  if (!w) return { error: 'Nothing to undo by that id.' };
+  if (b.act && w.brand !== b.act) return { error: 'That change belongs to another brand.' };
+  const act = metaActions(d).find(a => a.name === 'meta_undo');
+  const c = { ...ctx, via: 'locus' };
+  const p = await act.propose(env, { write: w.id, reason: 'Undone from the toast in Locus' }, null, c);
+  if (p.error) return { error: p.error };
+  const r = await act.apply(env, p.patch, null, c);
+  if (r.error) return { error: r.error };
+  return { ok: true, note: r.note, object: w.object, level: w.level, before: parse(w.before, null), after: parse(w.after, null) };
+}
+/** Live state for the Campaigns screen: status, budgets and spend limits straight from Meta, plus whether the token
+ *  may write, so a read-only account says why on the controls instead of failing at the click. */
+export async function metaLive(env, d, brandId) {
+  const metas = await metaActs(env, brandId);
+  if (!metas.length) return { error: 'No Meta ad account connected.' };
+  const out = { accounts: [], campaigns: {}, adsets: {}, ads: {} };
+  const c2 = v => (v == null || v === '' || !(+v > 0) ? null : +v / 100);
+  for (const m of metas) {
+    const can = await metaCan(env, m.act, d, m.name);
+    out.accounts.push({ act: m.act, name: m.name, can: can.can, fix: can.can ? null : can.fix });
+    const [cs, ss, as] = await Promise.all([
+      gall(d, env, `${m.act}/campaigns`, { fields: 'id,name,status,effective_status,daily_budget,lifetime_budget', limit: '200' }, 3).catch(() => []),
+      gall(d, env, `${m.act}/adsets`, { fields: 'id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,daily_min_spend_target,daily_spend_cap', limit: '300' }, 3).catch(() => []),
+      gall(d, env, `${m.act}/ads`, { fields: 'id,status,effective_status', limit: '500' }, 4).catch(() => []),
+    ]);
+    for (const c of cs) out.campaigns[c.id] = { act: m.act, name: c.name, status: c.status, eff: c.effective_status, daily: c2(c.daily_budget), lifetime: c2(c.lifetime_budget) };
+    for (const s of ss) out.adsets[s.id] = { act: m.act, name: s.name, status: s.status, eff: s.effective_status, campaign: s.campaign_id, daily: c2(s.daily_budget), lifetime: c2(s.lifetime_budget), min: c2(s.daily_min_spend_target), cap: c2(s.daily_spend_cap) };
+    for (const a of as) out.ads[a.id] = { act: m.act, status: a.status, eff: a.effective_status };
+  }
+  out.can = out.accounts.some(a => a.can);
+  return out;
+}
 export const _test = { findObject, driveIdOf, targetingSummary, WRITE_SQL, resetTable: () => { tabled = false; } };

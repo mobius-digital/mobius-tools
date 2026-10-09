@@ -2177,10 +2177,10 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=22">
+<link rel="stylesheet" href="v2.css?v=24">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
-<script src="/ask/ask-ui.js?v=10"></script>
+<script src="/ask/ask-ui.js?v=11"></script>
 <script src="strategist.js?v=2"></script>
 <body>
 <!-- The Mobius strip on first paint (DESIGN.md section 7): an overlay that ignores the pointer and is gone within 1.5s. -->
@@ -2298,13 +2298,13 @@
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=10"></script>
-<script src="v2.js?v=34"></script>
-<script src="desk.js?v=9"></script>
-<script src="calendar.js?v=7"></script>
+<script src="v2.js?v=36"></script>
+<script src="desk.js?v=11"></script>
+<script src="calendar.js?v=8"></script>
 <script src="supply.js?v=2"></script>
-<script src="askextra.js?v=1"></script>
-<script src="share.js?v=2"></script>
-<script src="polish.js?v=1" defer></script>
+<script src="askextra.js?v=2"></script>
+<script src="share.js?v=3"></script>
+<script src="polish.js?v=2" defer></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -2995,9 +2995,9 @@ const PAGE_BRIEF = {
    but a link to Metrics, because only nine pages had a brief). Add a line here whenever a page is added. */
 Object.assign(PAGE_BRIEF, {
   overview: { answers: 'How the brand (or every brand) is doing right now: revenue, spend, MER, new customers, against the plan.', when: 'Every morning, first thing.', todo: 'Read the summary at the top, check What moved yesterday, then click anything red to see why.' },
-  meta: { answers: 'How the Meta ads are doing: spend, cost per purchase and ROAS against the goal.', when: 'Every day, after Overview.', todo: 'Check the verdict line, then open Campaigns or Creative for whatever is off.' },
-  campaigns: { answers: 'Which Meta campaigns and ad sets are spending, and what each one brings back.', when: 'When spend or results moved and you need to know where.', todo: 'Sort by spend, open a campaign to see its ad sets and ads, click an ad to preview it.' },
-  adcreative: { answers: 'Which ads to keep, cut or make more of, judged by the brand’s creative rules.', when: 'A few times a week, and before a creative call.', todo: 'Read each ad’s call (Scale, Keep, Trim, Cut, Watch), click an ad for why, and use Make more like this on winners.' },
+  meta: { answers: 'How the Meta ads are doing: spend, cost per purchase and ROAS against the goal.', when: 'Every day, after Overview.', todo: 'Check the verdict line, then open Campaigns or Ads for whatever is off.' },
+  campaigns: { answers: 'Which Meta campaigns and ad sets are spending, and what each one brings back; and the place to change them.', when: 'When spend or results moved and you need to know where.', todo: 'Click any column to sort, add metrics from Columns, open a campaign for its ad sets and ads. The switch pauses or turns on, the budget changes it, the ⋯ menu renames or copies an ad set; every change asks first and can be undone for 24 hours.' },
+  adcreative: { answers: 'Meta’s ads, one card each with the creative: which to keep, cut or make more of, judged by the brand’s creative rules.', when: 'A few times a week, and before a creative call.', todo: 'Read each ad’s call (Scale, Keep, Trim, Cut, Watch), click an ad for why, and use Make more like this on winners.' },
   tests: { answers: 'Which creative tests need a decision and which are still running.', when: 'Every Monday, and whenever a test is due.', todo: 'Work down Make a call: pick Winner, Keep or Loser for each test, with one line on what you learned.' },
   changes: { answers: 'What was changed on the ad account, and when.', when: 'When numbers moved and you want to know if a change caused it.', todo: 'Scan Changes that matter for the day it moved, and add the reason to any change that has none.' },
   mtoday: { answers: 'How today’s Meta spend is pacing hour by hour.', when: 'During the day, if spend looks off.', todo: 'Compare today’s line to a normal day; a flat line early means delivery stopped.' },
@@ -3005,7 +3005,7 @@ Object.assign(PAGE_BRIEF, {
   gads: { answers: 'The top 20 Google ads by spend with their headlines and descriptions, plus Performance Max asset groups, read from Google Ads directly.', when: 'Weekly, for brands linked to Google Ads.', todo: 'Find the ad taking money at a weak Google ROAS; check pinned headlines and ad strength before rewriting.' },
   gterms: { answers: 'What people typed before they clicked: the top 50 search terms by spend, brand against everything else.', when: 'Weekly on Search and Shopping.', todo: 'Terms with spend and no conversion are candidate negatives; strong terms that are not keywords yet are candidate keywords.' },
   gchanges: { answers: 'What was changed on the Google Ads account in the last 30 days, who changed it, and old to new.', when: 'When Google numbers moved and you want to know if a change caused it.', todo: 'Read Changes that matter first: budgets, bid targets, campaigns switched on or off, new ads and keywords.' },
-  gcampaigns: { answers: 'Every Google Ads campaign with its type, spend, clicks, conversions and value, read from Google Ads directly.', when: 'A few times a week, for brands linked to Google Ads.', todo: 'Find the campaign types taking money at a weak ROAS; brand search usually reads best because those people were coming anyway.' },
+  gcampaigns: { answers: 'Every Google Ads campaign with its type, spend, clicks, conversions and value, read from Google Ads directly.', when: 'A few times a week, for brands linked to Google Ads.', todo: 'Find the campaign types taking money at a weak ROAS; brand search usually reads best because those people were coming anyway. Click a column to sort; the switch and the budget change the campaign in Google Ads after you confirm.' },
   google: { answers: 'How Google Ads are doing: spend, revenue and cost per purchase, by campaign once linked.', when: 'A few times a week.', todo: 'Check ROAS against the goal, and split brand search from the rest before judging Google.' },
   tiktok: { answers: 'How TikTok ads are doing.', when: 'A few times a week, for brands that run TikTok.', todo: 'Check spend and results; connect TikTok directly for campaign detail.' },
   channels: { answers: 'Every ad channel side by side: spend, revenue, ROAS and new customers.', when: 'When deciding where the next dollar goes.', todo: 'Compare ROAS and cost per new customer across channels, and use Two models side by side to see who gets the credit.' },
@@ -3357,7 +3357,7 @@ const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'sendin
    Data and costs; Remove from Locus is "Archive this brand" at the bottom of About. One icon each, never repeated. */
 const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zone and currency. Archive a brand that has left at the bottom.'],
   ['conn', 'Integrations', 'i-plug', 'Everything this brand is connected to: ad platforms, store, website, email, work tools. Click a card for what Locus gets from it and the exact steps.'],
-  ['goals', 'Ads rules', 'i-sliders', 'How Ads > Today and Meta > Creative call each ad set and ad. The goal cost per sale they use is set in Home > Goals.'],
+  ['goals', 'Ads rules', 'i-sliders', 'How Ads > Today and Meta > Ads call each ad set and ad. The goal cost per sale they use is set in Home > Goals.'],
   ['slack', 'Slack and sending', 'i-plane', 'Where its briefs and reports go, whether you see them first, and every automatic post it makes.'],
   ['stock', 'Stock and factories', 'i-factory', 'Stock is on for every brand with the Shopify app. Buying (factories, order dates) and Drops (new designs) switch on here.'],
   ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.'],
@@ -3387,7 +3387,7 @@ const TAB_CRUMB = {
   calendar: ['Calendar', 'Calendar'],
   overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], gads: ['Ads', 'Google &nbsp;/&nbsp; Ads'], gterms: ['Ads', 'Google &nbsp;/&nbsp; Search terms'], gchanges: ['Ads', 'Google &nbsp;/&nbsp; Changes'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
-  meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Creative'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
+  meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Ads'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
   email: ['Email and SMS', 'Klaviyo'],
   store: ['Store', 'Sales'], stock: ['Products', 'Stock'], buying: ['Products', 'Buying'], drops: ['Products', 'Drops'], customers: ['Store', 'Customers'], website: ['Store', 'Website'], search: ['Store', 'Search'],
@@ -4804,9 +4804,11 @@ function applyClientMode() {
 }
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
 /* Test calls left the Meta jobs (2026-10-09): a call is a buying decision, so it is a row on Ads > Today; the page still opens from there. */
-const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['changes', 'Changes']];
+/* 2026-10-09 (Cole: "why does Google go overview, campaigns, ads, search terms, changes where Meta just has overview, campaigns...?"):
+   the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
+const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5556,7 +5558,7 @@ const GUIDE = [
   { role: 'strategist', name: 'Creative strategist', sub: 'Decide what to test next and brief it.', parts: [
     ['Before every brief', [
       ['Ads, Tests and angles', 'Start with the angles marked Proven. Skip the ones marked Dead. Type an idea at the top to see if it already ran.', 'angles'],
-      ['Meta, Creative', 'What is working in the account right now: hook and hold, fatigue, and the angles and formats that pay.', 'adcreative'],
+      ['Meta, Ads', 'Every ad with its creative: what is working right now, hook and hold, fatigue, and the angles and formats that pay.', 'adcreative'],
       ['Brand, Research', 'Who buys, what they say in their own words, the competitors.', 'research'],
       ['Brand, Client answers', 'What the client told us, and what to ask on the next call.', 'answers'],
       ['Creative, Creators', "What the brand's creators are being asked to film right now. Keep it current.", 'amb'],
@@ -6625,9 +6627,10 @@ async function renderDash(first) {
         <p class="hint">Tell the Strategist what you look at every day and who it is for. It builds the dashboard, you press Apply, and it lands here. Say "post it to our channel every morning" and it will.</p>
         <div class="row" style="margin:10px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="dsNew">Ask the Strategist for one</button><button class="btn" type="button" id="dsMake">Build one by hand</button><span class="tiny">Try: "Build Ahsan a dashboard: spend, revenue and MER per brand against last week, plus Meta and Google side by side, every morning in #mobius-internal."</span></div></div>
       ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="card"><p class="hint">No dashboards yet${S.act === 'all' ? '' : ' for this brand'}.</p></div>`}
-      <div id="dsSched"></div>`);
+      <div id="dsAlerts"></div><div id="dsSched"></div>`);
     /* Scheduled questions sit here since 2026-10-09 (were Settings > The Strategist): like a dashboard, they post themselves to Slack. */
     if (window.AskX && AskX.schedules) AskX.schedules($('#dsSched'));
+    if (window.AskX && AskX.alerts) AskX.alerts($("#dsAlerts"));
     $('#dsNew').onclick = () => AskUI.open(`Build ${S.act === 'all' ? 'us' : (S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand'} a dashboard that shows `);
     const mk = $('#dsMake'); if (mk) mk.onclick = () => dashEditor(null);
     $('#main').querySelectorAll('[data-open]').forEach(b => b.onclick = () => { DS.id = b.dataset.open; try { localStorage.setItem('pf_dash', DS.id); } catch {} show('dash'); });

@@ -46,6 +46,13 @@ service = "mobius-supply"
 binding = "PROFIT"
 service = "mobius-profit"
 
+# The Strategist's ask_ledger tool (alerts.js, 2026-10-09): DMs to the app now go to the Strategist, and a money
+# question about Mobius's own books is passed to the Ledger's /api/ask with a minted Cole session. A binding,
+# because a worker cannot fetch another worker's workers.dev URL on the same account.
+[[services]]
+binding = "LEDGER"
+service = "mobius-ledger"
+
 [[queues.producers]]
 binding = "IDEA_Q"
 queue = "mobius-ideas"
