@@ -6981,7 +6981,7 @@ const AH_APP = {
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
         ran.assets = await assetsTick(env, () => subCanAfford(60)).catch(e => ({ error: e.message }));
         /* Ad covers in R2, one-creative keys and AI tags for every ad that spent lately (creative.js). */
-        ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta }).catch(e => ({ error: e.message }));
+        ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta, perBrand: 120, tags: 150 }).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
