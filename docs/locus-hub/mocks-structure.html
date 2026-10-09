@@ -1,0 +1,462 @@
+<title>Locus Restructure Mocks</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the Locus shell itself (graphite rail + content), so Cole judges the real thing; a note column says what changed. Tokens copied from profit/v2.css. */
+:root{
+  --bg:#131316; --surface:#1A1A1E; --surface-2:#212126; --ink:#F2F2F4; --ink-2:#B4B4BE; --muted:#8E8E9A; --faint:#5E5E6A;
+  --line:#2A2A31; --line-strong:#3A3A43; --brand:#8FB3FF; --brand-soft:rgba(143,179,255,.14); --on-brand:#0E1420;
+  --good:#5FD292; --good-bg:rgba(95,210,146,.14); --warn:#EBBF63; --warn-bg:rgba(235,191,99,.14); --bad:#F09182; --bad-bg:rgba(240,145,130,.14);
+  --c-meta:#5B8DEF; --c-google:#B5761A; --c-tiktok:#27A392; --c-email:#8F72E8;
+  --rail-bg:#0F0F12; --rail-ink:#C9C9D2; --rail-muted:#6E6E7A; --rail-hover:#1C1C21; --rail-on:rgba(143,179,255,.14);
+  --note-bg:#1F1D16; --note-line:#4A4228; --note-ink:#E9DDB5;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif; color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#F6F6F7; --surface:#FFFFFF; --surface-2:#F3F3F5; --ink:#151518; --ink-2:#45454F; --muted:#6B6B78; --faint:#9A9AA6;
+  --line:#E6E6EB; --line-strong:#D5D5DC; --brand:#2F62D9; --brand-soft:#EAF0FD; --on-brand:#FFFFFF;
+  --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E; --bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-tiktok:#1E9C8C; --c-email:#7C5CE6;
+  --rail-bg:#EDEDF0; --rail-ink:#2C2C33; --rail-muted:#8A8A96; --rail-hover:#E2E2E7; --rail-on:#DCE6FB;
+  --note-bg:#FBF6E6; --note-line:#E8D9A8; --note-ink:#5C4A12; color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#F6F6F7; --surface:#FFFFFF; --surface-2:#F3F3F5; --ink:#151518; --ink-2:#45454F; --muted:#6B6B78; --faint:#9A9AA6;
+  --line:#E6E6EB; --line-strong:#D5D5DC; --brand:#2F62D9; --brand-soft:#EAF0FD; --on-brand:#FFFFFF;
+  --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E; --bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-tiktok:#1E9C8C; --c-email:#7C5CE6;
+  --rail-bg:#EDEDF0; --rail-ink:#2C2C33; --rail-muted:#8A8A96; --rail-hover:#E2E2E7; --rail-on:#DCE6FB;
+  --note-bg:#FBF6E6; --note-line:#E8D9A8; --note-ink:#5C4A12; color-scheme:light}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:13.5px/1.5 var(--sans);font-feature-settings:"tnum" 1;margin:0;padding-inline:0}
+button{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100%}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static!important;height:auto!important}}
+/* rail */
+.side{background:var(--rail-bg);color:var(--rail-ink);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:6px;padding:14px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+.logo{font-weight:700;font-size:17px;padding:2px 8px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.logo small{font-weight:500;font-size:11px;color:var(--rail-muted)}
+.pick{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;background:var(--surface);color:var(--ink);cursor:pointer;width:100%;text-align:left}
+.pick select{all:unset;flex:1;cursor:pointer}
+.nav{display:flex;flex-direction:column;gap:1px;margin-top:6px}
+.nav button{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:7px;border:0;background:none;cursor:pointer;text-align:left;color:var(--rail-ink)}
+.nav button:hover{background:var(--rail-hover)}
+.nav button.on{background:var(--rail-on);color:var(--ink);font-weight:600}
+.nav button.off{opacity:.55}
+.nav svg,.ico{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.nav .tag{margin-left:auto;font-size:10px;padding:1px 6px;border-radius:5px;background:var(--brand-soft);color:var(--brand)}
+.nav .sep{height:1px;background:var(--line);margin:8px 4px}
+.foot{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+.me{display:flex;gap:9px;align-items:center;padding:8px;border-radius:8px;border:1px solid var(--line);font-size:12px}
+.me b{display:block;font-size:12.5px}.me span{color:var(--rail-muted)}
+.av{width:26px;height:26px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-weight:700;font-size:12px}
+/* content */
+.main{min-width:0;display:flex;flex-direction:column}
+.top{display:flex;gap:10px;align-items:center;padding:12px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.crumb{font-size:12px;color:var(--muted)}.crumb b{color:var(--ink)}
+.ask{flex:1;min-width:180px;max-width:420px;margin-left:auto;border:1px solid var(--line-strong);border-radius:8px;padding:7px 11px;color:var(--faint);background:var(--surface)}
+.chipbtn{border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;background:var(--surface);font-size:12.5px}
+.tabs{display:flex;gap:2px;padding:10px 22px 0;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;padding:8px 12px;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-weight:500}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--brand)}
+.tabs button.newt::after{content:"new";font-size:9.5px;margin-left:6px;padding:1px 5px;border-radius:4px;background:var(--warn-bg);color:var(--warn);vertical-align:2px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:20px;padding:20px 22px 48px}
+@media (max-width:1180px){.body{grid-template-columns:1fr}}
+.page{display:flex;flex-direction:column;gap:16px;min-width:0}
+h1{font-size:22px;font-weight:650;letter-spacing:-.01em;margin:0}
+h2{font-size:14px;font-weight:600;margin:0}
+.sub{color:var(--muted);font-size:12.5px;margin:2px 0 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card .hd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+/* note column */
+.note{background:var(--note-bg);border:1px solid var(--note-line);color:var(--note-ink);border-radius:10px;padding:14px;font-size:12.5px;display:flex;flex-direction:column;gap:8px;align-self:start;position:sticky;top:12px}
+.note b{font-weight:600}.note ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:5px}
+.note .h{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;opacity:.8}
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:3px}
+.tile .l{font-size:11.5px;color:var(--muted)}.tile .v{font-size:22px;font-weight:650;letter-spacing:-.01em}
+.d{font-size:11.5px;font-weight:600}.d.up{color:var(--good)}.d.dn{color:var(--bad)}.d.n{color:var(--muted)}
+.src{font-size:9.5px;letter-spacing:.06em;color:var(--faint);font-weight:600}
+/* strip */
+.strip{display:flex;gap:12px;align-items:center;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);flex-wrap:wrap}
+.strip .dots{display:flex;gap:4px}
+.dot{width:12px;height:12px;border-radius:3px;display:inline-block;background:var(--surface-2);border:1px solid var(--line)}
+.dot.good{background:var(--good-bg);border-color:var(--good)} .dot.bad{background:var(--bad-bg);border-color:var(--bad)} .dot.vbad{background:var(--bad);border-color:var(--bad)} .dot.normal{background:var(--surface-2)} .dot.none{background:transparent;border-style:dashed}
+.link{color:var(--brand);cursor:pointer;border:0;background:none;padding:0;font-weight:500}
+/* tables */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:11.5px;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.bad{background:var(--bad-bg);color:var(--bad)}.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.n{background:var(--surface-2);color:var(--ink-2)}.pill.brand{background:var(--brand-soft);color:var(--brand)}
+/* grid (Yesterday) */
+.bdg{display:grid;grid-template-columns:120px repeat(14,minmax(22px,1fr)) 150px;gap:5px;align-items:center;min-width:640px}
+.bdg .h{font-size:10.5px;color:var(--muted);text-align:center}
+.bdg .nm{font-weight:500}
+.cell{height:26px;border-radius:5px;border:1px solid var(--line);background:var(--surface-2);cursor:pointer;padding:0}
+.cell.good{background:var(--good-bg);border-color:var(--good)} .cell.bad{background:var(--bad-bg);border-color:var(--bad)} .cell.vbad{background:var(--bad);border-color:var(--bad)} .cell.none{background:transparent;border-style:dashed;cursor:default}
+.cell.sel{outline:2px solid var(--brand);outline-offset:1px}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.lk{border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:flex;flex-direction:column;gap:2px}
+.lk .l{font-size:11.5px;color:var(--muted)}.lk .v{font-weight:600}
+.lk.worse{border-color:var(--bad)}.lk.better{border-color:var(--good)}
+/* Today rows */
+.counts{display:flex;gap:8px;flex-wrap:wrap}
+.cnt{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--surface);display:flex;gap:8px;align-items:baseline;cursor:pointer}
+.cnt b{font-size:18px}.cnt.on{border-color:var(--brand)}
+.grp{display:flex;flex-direction:column;gap:0}
+.grp .gh{display:flex;justify-content:space-between;align-items:center;padding:4px 0 10px;gap:10px;flex-wrap:wrap}
+.row{display:grid;grid-template-columns:70px minmax(0,1.3fr) minmax(0,1.6fr) auto;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
+@media (max-width:760px){.row{grid-template-columns:1fr}}
+.k{font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:5px;text-align:center}
+.k.scale{background:var(--good-bg);color:var(--good)}.k.cut{background:var(--bad-bg);color:var(--bad)}.k.trim{background:var(--warn-bg);color:var(--warn)}.k.fix{background:var(--surface-2);color:var(--ink)}.k.refresh{background:var(--brand-soft);color:var(--brand)}.k.call{background:var(--brand-soft);color:var(--brand)}
+.row .nm{font-weight:600;word-break:break-word}.row .meta{font-size:12px;color:var(--muted)}
+.row .why{font-size:12.5px;color:var(--ink-2)}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer}
+.btn.p{background:var(--brand);border-color:var(--brand);color:var(--on-brand);font-weight:600}
+.row.done{opacity:.4}
+/* integrations */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ic{display:flex;gap:11px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface);cursor:pointer;text-align:left;width:100%}
+.ic:hover{border-color:var(--line-strong)}.ic.sel{border-color:var(--brand)}
+.lg{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none;color:#fff}
+.ic .t{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.ic .t b{font-weight:600}.ic .t span{font-size:12px;color:var(--muted)}
+.kind{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:4px}
+.drawer{border:1px solid var(--brand);border-radius:10px;padding:16px;background:var(--surface);display:flex;flex-direction:column;gap:12px}
+.lv{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px;border:1px solid var(--line);border-radius:8px}
+.lv .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--good-bg);color:var(--good)}
+.steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:7px;padding:8px 10px;gap:8px;flex-wrap:wrap}
+.opt.cur{border-color:var(--good)}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.mx{display:grid;gap:4px;align-items:center;font-size:12px;min-width:720px}
+.mx .c{height:24px;border-radius:5px;display:grid;place-items:center;font-size:10.5px;font-weight:600}
+.mx .c.ok{background:var(--good-bg);color:var(--good)}.mx .c.off{background:var(--surface-2);color:var(--faint)}.mx .c.bad{background:var(--bad-bg);color:var(--bad)}.mx .c.tw{background:var(--warn-bg);color:var(--warn)}
+/* settings */
+.set{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px}
+@media (max-width:760px){.set{grid-template-columns:1fr}}
+.snav{display:flex;flex-direction:column;gap:2px}
+.snav .g{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 9px 4px}
+.snav button{display:flex;gap:9px;align-items:center;border:0;background:none;padding:8px 9px;border-radius:7px;cursor:pointer;text-align:left}
+.snav button:hover{background:var(--surface-2)}.snav button.on{background:var(--brand-soft);color:var(--ink);font-weight:600}
+.snav .ico{stroke:var(--brand)}
+.f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:11px 0;border-top:1px solid var(--line);align-items:center}
+.f:first-of-type{border-top:0}
+.f .l b{display:block;font-weight:600}.f .l span{font-size:12px;color:var(--muted)}
+.f .c{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inp{border:1px solid var(--line-strong);border-radius:7px;padding:6px 9px;background:var(--surface-2);min-width:0}
+.tg{width:34px;height:19px;border-radius:999px;background:var(--line-strong);position:relative;flex:none}.tg::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff}
+.tg.on{background:var(--brand)}.tg.on::after{left:17px}
+.danger{border:1px solid var(--bad);border-radius:10px;padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+svg.chart{width:100%;height:220px;display:block}
+.chart text{fill:var(--muted);font-size:10px}
+.mutedtxt{color:var(--muted)}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+  <symbol id="mega" viewBox="0 0 24 24"><path d="M3 10v4h3l7 4V6L6 10H3z"/><path d="M17 9a4 4 0 0 1 0 6"/></symbol>
+  <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+  <symbol id="bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
+  <symbol id="box" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7z"/><path d="M3 7l9 4 9-4M12 11v10"/></symbol>
+  <symbol id="brush" viewBox="0 0 24 24"><path d="M14 4l6 6-8 8-6-6 8-8z"/><path d="M6 12c-2 1-3 3-3 6 3 0 5-1 6-3"/></symbol>
+  <symbol id="bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4V3z"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="flame" viewBox="0 0 24 24"><path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 3 3 5 1-2 1-5 1-9z"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="wrench" viewBox="0 0 24 24"><path d="M14 6a4 4 0 0 0 5 5l-9 9a2 2 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></symbol>
+  <symbol id="idcard" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c1-2 5-2 6 0M14 10h4M14 13h4"/></symbol>
+  <symbol id="plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8z"/><path d="M12 17v4"/></symbol>
+  <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="plane" viewBox="0 0 24 24"><path d="M21 3L3 11l7 3 3 7 8-18z"/><path d="M10 14l4-4"/></symbol>
+  <symbol id="factory" viewBox="0 0 24 24"><path d="M3 21V10l5 3V10l5 3V6h4l1 15H3z"/></symbol>
+  <symbol id="steth" viewBox="0 0 24 24"><path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M10 13v3a4 4 0 0 0 8 0v-2"/><circle cx="18" cy="12" r="2"/></symbol>
+  <symbol id="building" viewBox="0 0 24 24"><path d="M5 21V4h10v17M15 9h4v12"/><path d="M8 8h4M8 12h4M8 16h4"/></symbol>
+  <symbol id="key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><path d="M3 20c0-3 2-6 5-6"/><circle cx="16" cy="15" r="2"/><path d="M17.5 16.5L21 20M19 18l1-1"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6z"/></symbol>
+  <symbol id="refresh" viewBox="0 0 24 24"><path d="M20 7a8 8 0 0 0-14-2L4 7M4 17a8 8 0 0 0 14 2l2-2"/><path d="M4 3v4h4M20 21v-4h-4"/></symbol>
+  <symbol id="archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M10 12h4"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side">
+    <div class="logo">Locus <small>mock, step 2</small></div>
+    <label class="pick" for="scope"><select id="scope" aria-label="Client"><option value="all">All clients</option><option value="lucky">Lucky Golf</option></select><span class="mutedtxt">▾</span></label>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot">
+      <div class="nav" id="navfoot"></div>
+      <div class="me"><span class="av">C</span><span><b>Cole</b><span>Agency settings, Clients, Team, Help</span></span></div>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="top"><span class="crumb" id="crumb"></span><span class="ask">Ask anything, or jump to a page (Ctrl+K)</span><span class="chipbtn" id="period">Last 7 days</span><span class="chipbtn">Triple Whale, last platform click</span></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="body"><div class="page" id="page"></div><aside class="note" id="note"></aside></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const M = {"Y":"2026-10-07","days":["2026-09-24","2026-09-25","2026-09-26","2026-09-27","2026-09-28","2026-09-29","2026-09-30","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"],"grid":[{"name":"Bonk Golf","cells":["vbad","good","good","normal","bad","good","normal","good","normal","normal","bad","normal","normal","normal"],"y":{"verdict":"normal","flags":[{"label":"Cost per new customer","v":17.890398278293247,"m":29.917773673928462,"ch":-0.4020143853857798,"bad":false}],"links":[{"k":"cpm","label":"auction (CPM)","ch":0.21305086400071271,"worse":true},{"k":"ctr","label":"creative (click rate)","ch":0.8602694108438571,"worse":false},{"k":"cvr","label":"site (conversion)","ch":-0.32468038124666165,"worse":true},{"k":"aov","label":"basket (average order)","ch":-0.16078074677391552,"worse":true}],"x":{"rev":1900.1200000000006,"sp":679.8351345751435,"o":40,"n":38,"mer":2.7949717561853618,"aov":47.503000000000014,"cac":17.890398278293247,"mspend":533.3,"cpm":19.01112220162555,"ctr":0.02538143447882504,"cvr":0.01544943820224719,"mcpa":48.48181818181818,"mord":11,"gsp":146.5351344347,"gcpa":null,"email":26.299999237060547},"norm":{"rev":1780.8475000000003,"mer":2.3086354773606255,"cpm":15.672155855794667,"ctr":0.013643956262932631,"cvr":0.022877224018409754,"mcpa":54.772399679998365}},"acts":[{"t":"2026-10-06T04:03","c":"new_creative","s":"New ad \"326 - 2 | Still\"","why":null},{"t":"2026-10-06T04:03","c":"new_creative","s":"New ad \"327 - 2 | Still\"","why":null},{"t":"2026-10-06T04:03","c":"new_creative","s":"New ad \"327 - 1 | Still\"","why":null},{"t":"2026-10-06T04:03","c":"new_creative","s":"New ad \"327 - 3 | Still\"","why":null}]},{"name":"Dartee Golf","cells":["normal","bad","vbad","normal","normal","normal","normal","good","normal","normal","normal","normal","normal","normal"],"y":{"verdict":"normal","flags":[],"links":[{"k":"cpm","label":"auction (CPM)","ch":0.4093107651344321,"worse":true},{"k":"aov","label":"basket (average order)","ch":-0.33693139181886533,"worse":true},{"k":"sp","label":"volume (ad spend)","ch":-0.1886034155139732,"worse":null}],"x":{"rev":1037.39,"sp":583.0090256575495,"o":18,"n":11,"mer":1.779372109771328,"aov":57.63277777777778,"cac":53.00082051432268,"mspend":478.18,"cpm":36.19559458027401,"ctr":0.012792369994701385,"cvr":0.029585798816568046,"mcpa":95.636,"mord":5,"gsp":104.82902085222304,"gcpa":52.41451042611152,"email":0},"norm":{"rev":1346.5100000000002,"mer":1.800579349689367,"cpm":25.683188886179668,"ctr":0.012918300012338207,"cvr":0.026796280378256217,"mcpa":81.5811506477591}},"acts":[{"t":"2026-10-06T07:26","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T07:26","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T07:26","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T07:26","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null}]},{"name":"Grunk Dolfer","cells":["good","normal","normal","vbad","good","normal","bad","good","normal","good","vbad","normal","normal","normal"],"y":{"verdict":"normal","flags":[],"links":[{"k":"cvr","label":"site (conversion)","ch":-0.44135545246856145,"worse":true}],"x":{"rev":669.1699999999998,"sp":415.2109811808914,"o":18,"n":11,"mer":1.6116384930302898,"aov":37.176111111111105,"cac":37.74645283462649,"mspend":344.64,"cpm":20.205194348361378,"ctr":0.011725391334935803,"cvr":0.02,"mcpa":86.16,"mord":4,"gsp":70.57098281383514,"gcpa":7.84122031264835,"email":0},"norm":{"rev":879.3662499999999,"mer":2.1131637326675676,"cpm":18.914880050603884,"ctr":0.012052626610904622,"cvr":0.03580094012977809,"mcpa":81.37225694444443}},"acts":[{"t":"2026-10-06T04:55","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T04:55","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T04:55","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T04:55","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null}]},{"name":"Ice & Gold","cells":["normal","normal","normal","good","normal","good","good","normal","normal","normal","vbad","bad","bad","normal"],"y":{"verdict":"normal","flags":[],"links":[{"k":"cpm","label":"auction (CPM)","ch":0.19678828971070272,"worse":true},{"k":"aov","label":"basket (average order)","ch":0.41459221350721776,"worse":false}],"x":{"rev":794,"sp":178.799998216331,"o":4,"n":3,"mer":4.440715927968498,"aov":198.5,"cac":59.59999940544367,"mspend":178.9,"cpm":29.560475875743556,"ctr":0.01982815598149372,"cvr":0.008333333333333333,"mcpa":178.9,"mord":1,"gsp":0,"gcpa":null,"email":0},"norm":{"rev":535.29875,"mer":3.5333740626645045,"cpm":24.699837164089523,"ctr":0.020587453036381542,"cvr":0.008538854668358076,"mcpa":141.6292}},"acts":[{"t":"2026-10-07T14:06","c":"budget","s":"Budget: $40.00/day → $45.00/day \"Broad 2 Trybe Mix & Match - Creators Batch 2\"","why":null},{"t":"2026-10-07T14:06","c":"budget","s":"Budget: $25.00/day → $15.00/day \"Online shopping (retail) Trybe Mix & Match\"","why":null},{"t":"2026-10-07T14:06","c":"new_creative","s":"New ad \"10/7 - All Products Catalog\"","why":null},{"t":"2026-10-07T14:04","c":"budget","s":"Budget: $10.00/day → $15.00/day \"Pageviews (Web visitors), Add to Cart, IG/FB Engagement (180days)\"","why":null}]},{"name":"Lucky Golf","cells":["vbad","normal","vbad","normal","normal","bad","vbad","normal","normal","good","normal","normal","vbad","normal"],"y":{"verdict":"normal","flags":[{"label":"Email revenue","v":780.089973449707,"m":493.6762499809265,"ch":0.5801650848705935,"bad":false}],"links":[{"k":"cpm","label":"auction (CPM)","ch":0.20482513744897624,"worse":true},{"k":"ctr","label":"creative (click rate)","ch":0.49158571350312985,"worse":false},{"k":"cvr","label":"site (conversion)","ch":-0.27285398559010776,"worse":true},{"k":"aov","label":"basket (average order)","ch":-0.3599014628027033,"worse":true},{"k":"sp","label":"volume (ad spend)","ch":-0.17394393306458023,"worse":null}],"x":{"rev":1161.6100000000001,"sp":803.0800951626152,"o":12,"n":8,"mer":1.4464435203873238,"aov":96.80083333333334,"cac":100.3850118953269,"mspend":480.47,"cpm":15.997536125724181,"ctr":0.018012918692148897,"cvr":0.0073937153419593345,"mcpa":120.1175,"mord":4,"gsp":322.6100912094116,"gcpa":107.53669706980388,"email":780.089973449707},"norm":{"rev":2013.5774999999999,"mer":2.0519099576296593,"cpm":13.277890399594746,"ctr":0.012076355069025069,"cvr":0.010168130190412482,"mcpa":110.37134126984128}},"acts":[{"t":"2026-10-07T10:02","c":"targeting","s":"Custom audience updated \"Triple Whale Generated Audience Loyal\"","why":null},{"t":"2026-10-06T13:03","c":"campaign_relaunched","s":"Relaunched campaign \"999 | Ambassadors | Launcher test - 100626\"","why":null},{"t":"2026-10-06T13:02","c":"new_creative","s":"New ad \"999 A | LeoGrossman_Carver02Gold_100626_META\"","why":null},{"t":"2026-10-06T13:02","c":"new_adset","s":"New ad set \"999 | Ambassadors | Launcher test - 100626\"","why":null}]},{"name":"Party Patch","cells":["normal","normal","good","vbad","good","normal","good","normal","normal","bad","bad","normal","good","normal"],"y":{"verdict":"normal","flags":[],"links":[{"k":"cpm","label":"auction (CPM)","ch":1.0928728711780393,"worse":true},{"k":"ctr","label":"creative (click rate)","ch":0.7422886116539011,"worse":false},{"k":"cvr","label":"site (conversion)","ch":-0.4734841537329003,"worse":true},{"k":"aov","label":"basket (average order)","ch":-0.5050023533443919,"worse":true},{"k":"sp","label":"volume (ad spend)","ch":0.1799301932929449,"worse":null}],"x":{"rev":485.4599999999999,"sp":337.777104139328,"o":32,"n":25,"mer":1.4372199715459546,"aov":15.170624999999998,"cac":13.51108416557312,"mspend":235.73,"cpm":44.80707089906861,"ctr":0.01102452005322182,"cvr":0.034482758620689655,"mcpa":117.865,"mord":2,"gsp":102.0471043586731,"gcpa":51.02355217933655,"email":0},"norm":{"rev":472.62375,"mer":1.7049383261367494,"cpm":21.409361034837985,"ctr":0.006327608399366498,"cvr":0.06549234722025188,"mcpa":57.34791666666668}},"acts":[{"t":"2026-10-07T20:38","c":"targeting","s":"Custom audience updated \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-07T20:38","c":"targeting","s":"Custom audience updated \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T06:42","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null},{"t":"2026-10-06T06:42","c":"targeting","s":"Custom audience created \"asa_auto_custom_audience\"","why":null}]}],"market":{"cpmUp":4,"withMeta":6},"tiles":{"w":{"rev":51212.500000000015,"sp":22314.922473831102,"o":796,"n":561,"mer":2.2949889277033044,"cac":39.77704540789858,"aov":64.33731155778896},"p":{"rev":55642.23999999999,"sp":20997.767353935167,"o":689,"n":465,"mer":2.6499122055265625,"cac":45.156488933193906,"aov":80.75796806966616}},"series":[{"d":"2026-09-08","rev":11452,"sp":3876},{"d":"2026-09-09","rev":7870,"sp":3624},{"d":"2026-09-10","rev":8318,"sp":2976},{"d":"2026-09-11","rev":5798,"sp":3014},{"d":"2026-09-12","rev":5925,"sp":3102},{"d":"2026-09-13","rev":6130,"sp":3274},{"d":"2026-09-14","rev":4528,"sp":2965},{"d":"2026-09-15","rev":6184,"sp":2903},{"d":"2026-09-16","rev":6281,"sp":2711},{"d":"2026-09-17","rev":4090,"sp":2522},{"d":"2026-09-18","rev":8973,"sp":2515},{"d":"2026-09-19","rev":5157,"sp":2446},{"d":"2026-09-20","rev":5728,"sp":2705},{"d":"2026-09-21","rev":6795,"sp":2635},{"d":"2026-09-22","rev":7173,"sp":2655},{"d":"2026-09-23","rev":4830,"sp":2721},{"d":"2026-09-24","rev":6233,"sp":2933},{"d":"2026-09-25","rev":8326,"sp":2993},{"d":"2026-09-26","rev":9546,"sp":2676},{"d":"2026-09-27","rev":7882,"sp":3091},{"d":"2026-09-28","rev":8955,"sp":2868},{"d":"2026-09-29","rev":8303,"sp":3233},{"d":"2026-09-30","rev":6397,"sp":3204},{"d":"2026-10-01","rev":8641,"sp":3262},{"d":"2026-10-02","rev":8372,"sp":3210},{"d":"2026-10-03","rev":7714,"sp":3140},{"d":"2026-10-04","rev":6080,"sp":3636},{"d":"2026-10-05","rev":8387,"sp":3065},{"d":"2026-10-06","rev":5969,"sp":3005},{"d":"2026-10-07","rev":6048,"sp":2998}],"brandRows":[{"id":"brand_bonk_golf","name":"Bonk Golf","cur":"USD","rev":11789.220000000001,"sp":4776.223225234076,"mer":2.4683142818188166,"prev":15351.91,"spark":[1925,1515,1377,1350,1829,1893,1900],"plan":null,"mtd":11789.220000000001},{"id":"brand_dartee_golf","name":"Dartee Golf","cur":"USD","rev":9749.82,"sp":4216.173405708745,"mer":2.31248078810009,"prev":9328.310000000001,"spark":[1973,1238,1225,1861,1861,555,1037],"plan":null,"mtd":9749.82},{"id":"brand_grunk_dolfer","name":"Grunk Dolfer","cur":"USD","rev":9000.41,"sp":2959.6091518569738,"mer":3.0410806083474884,"prev":7190.980000000001,"spark":[2345,1857,1102,923,1193,910,669],"plan":null,"mtd":9000.41},{"id":"brand_ice_and_gold","name":"Ice & Gold","cur":"USD","rev":4187.639999999999,"sp":1273.4899991769344,"mer":3.2883179315946736,"prev":5685.5,"spark":[559,798,905,359,413,359,794],"plan":22688,"mtd":4187.639999999999},{"id":"brand_lucky_golf","name":"Lucky Golf","cur":"USD","rev":11783.939999999999,"sp":5570.281579256058,"mer":2.1155016730004896,"prev":10560.109999999999,"spark":[1255,2231,2753,1171,1859,1353,1162],"plan":null,"mtd":11783.939999999999},{"id":"brand_party_patch","name":"Party Patch","cur":"USD","rev":4701.47,"sp":3519.145112598315,"mer":1.3359693475466634,"prev":7525.43,"spark":[583,733,352,416,1232,900,485],"plan":null,"mtd":4701.47}],"rows":[{"brand":"Bonk Golf","cur":"USD","goal":25,"set":"235 | Still","spend":2172,"ord":50,"cpa":43,"roas":1.5958351088605551,"nads":2,"anchor":"235 B | Still","share":0.9365550010129099,"kind":"cut","why":"Cost per sale 43, 1.7x the 25 goal, on 2172 spent."},{"brand":"Bonk Golf","cur":"USD","goal":25,"set":"245 | Still - Bundle","spend":36,"ord":2,"cpa":18,"roas":3.060373333492342,"nads":1,"anchor":"245 B | Still","share":1,"kind":"scale","why":"2 sales at 18 each, under the 25 goal over 7 days. Raise the budget 20% and watch 3 days."},{"brand":"Bonk Golf","cur":"USD","goal":25,"set":"298 | Lifestyle Bundle","spend":237,"ord":0,"cpa":null,"roas":0,"nads":4,"anchor":"298 - 9 | Lifestyle Bundle","share":0.4992832447929843,"kind":"cut","why":"Spent 237 (9.5x the goal) with no sale in 7 days."},{"brand":"Bonk Golf","cur":"USD","goal":25,"set":"299 | Still","spend":179,"ord":4,"cpa":45,"roas":1.091274281905927,"nads":1,"anchor":"299 - 2 | Still","share":1,"kind":"cut","why":"Cost per sale 45, 1.8x the 25 goal, on 179 spent."},{"brand":"Bonk Golf","cur":"USD","goal":25,"set":"316 | Still - Hats","spend":256,"ord":4,"cpa":64,"roas":0.9853314373043295,"nads":2,"anchor":"316 - 1 | Still","share":0.923419030156439,"kind":"cut","why":"Cost per sale 64, 2.6x the 25 goal, on 256 spent."},{"brand":"Dartee Golf","cur":"USD","goal":39,"set":"291 | UGC","spend":424,"ord":4,"cpa":106,"roas":1.0635628121402871,"nads":1,"anchor":"291 B | UGC","share":1,"kind":"cut","why":"Cost per sale 106, 2.7x the 39 goal, on 424 spent."},{"brand":"Dartee Golf","cur":"USD","goal":39,"set":"298 | Still","spend":283,"ord":3,"cpa":94,"roas":1.063328265857329,"nads":2,"anchor":"298 A | Still","share":0.5640173870021556,"kind":"cut","why":"Cost per sale 94, 2.4x the 39 goal, on 283 spent."},{"brand":"Dartee Golf","cur":"USD","goal":39,"set":"367 | UGC","spend":92,"ord":1,"cpa":92,"roas":1.1495225959353976,"nads":1,"anchor":"367 - 2","share":1,"kind":"cut","why":"Cost per sale 92, 2.4x the 39 goal, on 92 spent."},{"brand":"Dartee Golf","cur":"USD","goal":39,"set":"Muni | UGC","spend":619,"ord":5,"cpa":124,"roas":1.0328811453294384,"nads":3,"anchor":"Muni - 4","share":0.5203488372093023,"kind":"cut","why":"Cost per sale 124, 3.2x the 39 goal, on 619 spent."},{"brand":"Grunk Dolfer","cur":"USD","goal":32,"set":"Broad | 2211","spend":258,"ord":3,"cpa":86,"roas":1.0325742031992502,"nads":3,"anchor":"287-12 | Still","share":0.6611278952668681,"kind":"cut","why":"Cost per sale 86, 2.7x the 32 goal, on 258 spent."},{"brand":"Grunk Dolfer","cur":"USD","goal":32,"set":"Tiktok | UGC","spend":585,"ord":8,"cpa":73,"roas":0.46784335401922394,"nads":2,"anchor":"Tiktok #6 | UGC","share":0.6562211666609712,"kind":"cut","why":"Cost per sale 73, 2.3x the 32 goal, on 585 spent."},{"brand":"Grunk Dolfer","cur":"USD","goal":32,"set":"346 | Still","spend":104,"ord":1,"cpa":104,"roas":0.7973585181188919,"nads":1,"anchor":"346 C | Still","share":1,"kind":"cut","why":"Cost per sale 104, 3.2x the 32 goal, on 104 spent."},{"brand":"Grunk Dolfer","cur":"USD","goal":32,"set":"Trybe | Tyson - 2","spend":260,"ord":4,"cpa":65,"roas":1.0875530059167644,"nads":1,"anchor":"TysonHeller_DesertGamo_RedChunkManPolo_TheBlackDrinko_20260905_trybe=6e1d5f05","share":1,"kind":"cut","why":"Cost per sale 65, 2.0x the 32 goal, on 260 spent."},{"brand":"Grunk Dolfer","cur":"USD","goal":32,"set":"342 | Still","spend":327,"ord":4,"cpa":82,"roas":1.0291021802199356,"nads":2,"anchor":"342 C | Still","share":0.774129383683212,"kind":"cut","why":"Cost per sale 82, 2.6x the 32 goal, on 327 spent."},{"brand":"Grunk Dolfer","cur":"USD","goal":32,"set":"Trybe | Hats - 09/25","spend":257,"ord":1,"cpa":257,"roas":0.17014739625870182,"nads":1,"anchor":"RudyConcepcion_GrunkNavyOpenHat_20260925_trybe=b198ac88","share":1,"kind":"cut","why":"Cost per sale 257, 8.0x the 32 goal, on 257 spent."},{"brand":"Lucky Golf","cur":"USD","goal":52,"set":"Jett Slepak | Partnership - 0616","spend":225,"ord":0,"cpa":null,"roas":0,"nads":1,"anchor":"Jett Slepak - 2 | 0616","share":1,"kind":"cut","why":"Spent 225 (4.3x the goal) with no sale in 7 days."},{"brand":"Lucky Golf","cur":"USD","goal":52,"set":"Jett Slepak | Partnership - 0727","spend":169,"ord":2,"cpa":84,"roas":2.0365059086111352,"nads":1,"anchor":"Jett - 1","share":1,"kind":"cut","why":"Cost per sale 84, 1.6x the 52 goal, on 169 spent."},{"brand":"Lucky Golf","cur":"USD","goal":52,"set":"Black Wedges | Still","spend":1145,"ord":12,"cpa":95,"roas":2.2518227474576546,"nads":4,"anchor":"Black Wedges - 9","share":0.595459506657935,"kind":"cut","why":"Cost per sale 95, 1.8x the 52 goal, on 1145 spent."},{"brand":"Lucky Golf","cur":"USD","goal":52,"set":"414 | Still","spend":428,"ord":2,"cpa":214,"roas":0.8915685274641544,"nads":1,"anchor":"414 B | Still","share":1,"kind":"cut","why":"Cost per sale 214, 4.1x the 52 goal, on 428 spent."},{"brand":"Party Patch","cur":"USD","goal":32,"set":"Tybe - Partnerships | 08/28","spend":514,"ord":2,"cpa":257,"roas":0.1517688514812117,"nads":5,"anchor":"Tylergauthier_TRYBEDailyWellnessPartyPatches_20260828_trybe=18f67a6d","share":0.5086544265103873,"kind":"cut","why":"Cost per sale 257, 8.0x the 32 goal, on 514 spent."},{"brand":"Party Patch","cur":"USD","goal":32,"set":"GAMIFIED_OFFER","spend":905,"ord":15,"cpa":60,"roas":0.574210729721835,"nads":6,"anchor":"Offer - 5","share":0.39435079424695674,"kind":"cut","why":"Cost per sale 60, 1.9x the 32 goal, on 905 spent."},{"brand":"Party Patch","cur":"USD","goal":32,"set":"SITEWIDE_OFFERS","spend":94,"ord":3,"cpa":31,"roas":2.169644723570466,"nads":3,"anchor":"381 B | Still","share":0.6261433737502659,"kind":"scale","why":"3 sales at 31 each, under the 32 goal over 7 days. Raise the budget 20% and watch 3 days."},{"brand":"Party Patch","cur":"USD","goal":32,"set":"Tybe - Partnerships | 10/01 | Inc. Attribution","spend":571,"ord":4,"cpa":143,"roas":0.37116779517051507,"nads":2,"anchor":"KariStratton_TRYBEDailyWellnessPartyPatches_20261001_trybe=eb0e1f55","share":0.9780491223152658,"kind":"cut","why":"Cost per sale 143, 4.5x the 32 goal, on 571 spent."}],"conns":[{"b":"brand_bonk_golf","k":"asana","id":"1211632180804303","l":"Bonk Golf","s":"connected","e":null},{"b":"brand_bonk_golf","k":"drive","id":"https://drive.google.com/drive/folders/1aaC1j4JnsuDz-w97LHZi-T0CZGBPh0zn","l":null,"s":"connected","e":null},{"b":"brand_bonk_golf","k":"frame","id":"https://next.frame.io/project/2d71d275-ff6a-448c-8247-4f011ca72823","l":null,"s":"connected","e":null},{"b":"brand_bonk_golf","k":"ga4","id":"520141370","l":null,"s":"connected","e":null},{"b":"brand_bonk_golf","k":"google_ads","id":"2589863833","l":null,"s":"connected","e":null},{"b":"brand_bonk_golf","k":"klaviyo","id":"VZhq6b","l":"BONK Golf","s":"connected","e":null},{"b":"brand_bonk_golf","k":"meta","id":"act_12528825","l":"Bonk Golf","s":"connected","e":null},{"b":"brand_bonk_golf","k":"triple_whale","id":"9f63c4-2.myshopify.com","l":"9f63c4-2.myshopify.com","s":"connected","e":null},{"b":"brand_dartee_golf","k":"asana","id":"1206810358123640","l":"Dartee","s":"connected","e":null},{"b":"brand_dartee_golf","k":"drive","id":"https://drive.google.com/drive/folders/1oVeuI7_qfDM1fN327YPe2AuXcjpIPKgp","l":null,"s":"connected","e":null},{"b":"brand_dartee_golf","k":"frame","id":"https://next.frame.io/project/b5b8e040-bb2f-4eea-90a5-4c7e80219c2c","l":null,"s":"connected","e":null},{"b":"brand_dartee_golf","k":"google_ads","id":"7015464946","l":null,"s":"connected","e":null},{"b":"brand_dartee_golf","k":"klaviyo","id":"WhEpB3","l":"Dartee Golf","s":"connected","e":null},{"b":"brand_dartee_golf","k":"meta","id":"act_963898971023823","l":"Dartee Golf","s":"connected","e":null},{"b":"brand_dartee_golf","k":"triple_whale","id":"dartee-dev.myshopify.com","l":"dartee-dev.myshopify.com","s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"asana","id":"1206625971082090","l":"Grunk Dolfer","s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"drive","id":"https://drive.google.com/drive/folders/1_wXyy4iqHlD5E-TiNRD_yfgGqI49NVn4","l":null,"s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"frame","id":"https://next.frame.io/project/4a5fc9f9-66aa-4cc5-ac62-425d357d7417","l":null,"s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"google_ads","id":"9147440615","l":null,"s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"klaviyo","id":"VJ3i73","l":"Grunk Dolfer","s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"meta","id":"act_313396960515158","l":"Grunk Dolfer","s":"connected","e":null},{"b":"brand_grunk_dolfer","k":"triple_whale","id":"grunk-dolfer.myshopify.com","l":"grunk-dolfer.myshopify.com","s":"connected","e":null},{"b":"brand_harborline_supply","k":"triple_whale","id":"harborline-supply-demo.myshopify.com","l":"harborline-supply-demo.myshopify.com","s":"connected","e":null},{"b":"brand_ice_and_gold","k":"asana","id":"1219139176599344","l":"Ice & Gold","s":"connected","e":null},{"b":"brand_ice_and_gold","k":"drive","id":"https://drive.google.com/drive/folders/1sBzksZX4vaQtjXnTKXj54-Rsd9h2M_A9","l":null,"s":"connected","e":null},{"b":"brand_ice_and_gold","k":"frame","id":"https://next.frame.io/project/7996652b-20c0-4b9f-8489-acad7dda4b38","l":null,"s":"connected","e":null},{"b":"brand_ice_and_gold","k":"meta","id":"act_952386692927446","l":"Ice & Gold","s":"connected","e":null},{"b":"brand_ice_and_gold","k":"triple_whale","id":"iceandgld.myshopify.com","l":"iceandgld.myshopify.com","s":"connected","e":null},{"b":"brand_lucky_golf","k":"asana","id":"1206625971082086","l":"Lucky Golf","s":"connected","e":null},{"b":"brand_lucky_golf","k":"drive","id":"https://drive.google.com/drive/folders/11qKoo3Mz09zuc7wzNVOdHqPVKwGcDSoz","l":null,"s":"connected","e":null},{"b":"brand_lucky_golf","k":"frame","id":"https://next.frame.io/project/86c96a8e-18a0-4172-950d-d061f7de6f89","l":null,"s":"connected","e":null},{"b":"brand_lucky_golf","k":"ga4","id":"358338096","l":null,"s":"connected","e":null},{"b":"brand_lucky_golf","k":"google_ads","id":"6859198499","l":null,"s":"connected","e":null},{"b":"brand_lucky_golf","k":"gsc","id":"sc-domain:luckygolf.com","l":null,"s":"connected","e":null},{"b":"brand_lucky_golf","k":"klaviyo","id":"SquHGF","l":"Lucky Golf","s":"connected","e":null},{"b":"brand_lucky_golf","k":"meta","id":"act_378146126054294","l":"Lucky Golf","s":"connected","e":null},{"b":"brand_lucky_golf","k":"triple_whale","id":"lucky-wedges.myshopify.com","l":"lucky-wedges.myshopify.com","s":"connected","e":null},{"b":"brand_party_patch","k":"asana","id":"1206625971082094","l":"Party Patch","s":"connected","e":null},{"b":"brand_party_patch","k":"drive","id":"https://drive.google.com/drive/folders/1rEQhUFY72YuuoN5ZcXPMY0UOyd-X4mi-","l":null,"s":"connected","e":null},{"b":"brand_party_patch","k":"frame","id":"https://next.frame.io/project/15dcd05d-20c4-4417-9592-f72aa674a4b6","l":null,"s":"connected","e":null},{"b":"brand_party_patch","k":"ga4","id":"260098300","l":null,"s":"connected","e":null},{"b":"brand_party_patch","k":"google_ads","id":"2167988621","l":null,"s":"connected","e":null},{"b":"brand_party_patch","k":"gsc","id":"sc-domain:partypatch.com","l":null,"s":"connected","e":null},{"b":"brand_party_patch","k":"klaviyo","id":"Rg2isQ","l":"Party Patch","s":"connected","e":null},{"b":"brand_party_patch","k":"meta","id":"act_1033194534145987","l":"Party Patch","s":"connected","e":null},{"b":"brand_party_patch","k":"meta","id":"act_701950745018992","l":"Party Patch Ad Acc 2 (backup)","s":"connected","e":null},{"b":"brand_party_patch","k":"triple_whale","id":"party-patch-1.myshopify.com","l":"party-patch-1.myshopify.com","s":"connected","e":null},{"b":"brand_the_golf_sock","k":"drive","id":"https://drive.google.com/drive/folders/1ONo65wF4m32v7H3iMleOmR_Z8b0wBw_Y","l":null,"s":"connected","e":null},{"b":"brand_the_golf_sock","k":"google_ads","id":"1339068799","l":null,"s":"connected","e":null},{"b":"brand_the_golf_sock","k":"meta","id":"act_3217552185130501","l":"The Golf Sock","s":"error","e":"(#200) Ad account owner has NOT grant ads_management or ads_read permission, refer to https://developers.facebook.com/docs/marketing-api/get-started/authorization/#permissions-and-features for details."},{"b":"brand_the_golf_sock","k":"triple_whale","id":"thegolfsock.myshopify.com","l":"thegolfsock.myshopify.com","s":"connected","e":null},{"b":"brand_vetripaws","k":"asana","id":"1216089758071928","l":"VetriPaws","s":"connected","e":null},{"b":"brand_vetripaws","k":"drive","id":"https://drive.google.com/drive/folders/1QsroZaxb0dUJ2SI7-O0Fmx2uARDdOs4-","l":null,"s":"connected","e":null},{"b":"brand_vetripaws","k":"frame","id":"https://next.frame.io/project/fd53f0f6-fcb8-4369-b71e-5049cb839d82","l":null,"s":"connected","e":null},{"b":"brand_vetripaws","k":"meta","id":"act_1352962423584020","l":"VetriPaws","s":"connected","e":null},{"b":"brand_yak_sports","k":"asana","id":"1219118566467248","l":"Yak Sports","s":"connected","e":null},{"b":"brand_yak_sports","k":"drive","id":"https://drive.google.com/drive/folders/1mo7rwOBVq8ys1vSfI7NZ3mYSyQbLLPdR","l":null,"s":"connected","e":null},{"b":"brand_yak_sports","k":"frame","id":"https://next.frame.io/project/657558a8-9c45-47f1-b3e7-2dc3086c14bd","l":null,"s":"connected","e":null},{"b":"brand_yak_sports","k":"meta","id":"act_2964926606966267","l":"Yak Sports","s":"connected","e":null}],"brands":[{"id":"brand_bonk_golf","name":"Bonk Golf","cpa":25,"ic":"C09LEBJQK60","cc":"C09LEBG54S0"},{"id":"brand_dartee_golf","name":"Dartee Golf","cpa":39,"ic":"C06NR0MRN86","cc":"C06NH2R4J6B"},{"id":"brand_grunk_dolfer","name":"Grunk Dolfer","cpa":32,"ic":"C06K78VC82F","cc":"C06JWPGHCRL"},{"id":"brand_ice_and_gold","name":"Ice & Gold","cpa":null,"ic":"C0C6D3FJ5K8","cc":"C0C6JN6HA2G"},{"id":"brand_lucky_golf","name":"Lucky Golf","cpa":52,"ic":"C06JSQY5G87","cc":null},{"id":"brand_party_patch","name":"Party Patch","cpa":32,"ic":"C06KL1K710R","cc":"C06K37820CB"},{"id":"brand_speedin","name":"SpeedIn","cpa":null,"ic":"C0BDM76UF5G","cc":"C0BDP3U8RNV"},{"id":"brand_the_golf_sock","name":"The Golf Sock","cpa":null,"ic":null,"cc":null},{"id":"brand_vetripaws","name":"VetriPaws","cpa":null,"ic":"C0BDHQZGL1K","cc":"C0BDM87N8QJ"},{"id":"brand_yak_sports","name":"Yak Sports","cpa":null,"ic":"C0C6J7DDMU4","cc":"C0C6CJ32UUW"}]};
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const k$ = v => v == null ? '–' : '$' + (Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'K' : Math.round(v).toLocaleString());
+const $2 = v => v == null ? '–' : '$' + v.toFixed(2);
+const x2 = v => v == null ? '–' : v.toFixed(2) + 'x';
+const pc = (a, b) => (a == null || !b) ? null : a / b - 1;
+const dl = (a, b, lower, neutral) => { const c = pc(a, b); if (c == null) return ''; const good = lower ? c < 0 : c > 0; return `<span class="d ${neutral ? 'n' : good ? 'up' : 'dn'}">${c >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(c * 100))}%</span>`; };
+const wd = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+const md = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const icon = id => `<svg class="ico"><use href="#${id}"/></svg>`;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); }
+
+/* ---------------- the new rail ---------------- */
+const NAV = [
+  ['home', 'Home', 'home', [['overview', 'Overview'], ['yesterday', 'Yesterday', 1], ['pl', 'P&L']]],
+  ['ads', 'Ads', 'mega', [['today', 'Today', 1], ['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['channels', 'All channels'], ['angles', 'Tests and angles']]],
+  ['email', 'Email and SMS', 'mail', [['klaviyo', 'Klaviyo']]],
+  ['store', 'Store', 'bag', [['sales', 'Sales'], ['customers', 'Customers'], ['website', 'Website'], ['search', 'Search']]],
+  ['products', 'Products', 'box', [['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']], 'lucky'],
+  ['creative', 'Creative', 'brush', [['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration']]],
+  ['brand', 'Brand', 'bookmark', [['goals', 'Goals'], ['answers', 'Client answers'], ['research', 'Research'], ['voice', 'Voice'], ['creator', 'Creator link']]],
+  ['calendar', 'Calendar', 'cal', [['cal', 'Calendar']], 'lineup'],
+  ['reports', 'Reports', 'doc', [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']]],
+  ['season', 'Black Friday', 'flame', [['war', 'War room', 1], ['plan', 'The plan']], 'season'],
+];
+const FOOT = [['tools', 'Tools', 'wrench', [['scenarios', 'Scenarios'], ['pulse', 'Platform status']]], ['settings', 'Brand settings', 'gear', [['bset', 'Brand settings']]], ['agency', 'Agency settings', 'building', [['aset', 'Agency settings']]]];
+const MOCKED = { overview: 1, yesterday: 1, today: 1, integrations: 1, bset: 1, aset: 1 };
+const S = { scope: 'all', dest: 'home', tab: 'overview', bsec: 'about', asec: 'integrations', conn: 'gads', yb: null, kind: 'all', done: {} };
+try { const h = (location.hash || '').slice(1); if (h && MOCKED[h]) S.tab = h; } catch (e) {}
+const destOf = t => [...NAV, ...FOOT].find(n => n[3].some(x => x[0] === t))?.[0];
+S.dest = destOf(S.tab) || 'home';
+function drawNav() {
+  const btn = n => { const [id, label, ic, tabs, cond] = n; const off = cond === 'lucky' && S.scope === 'all' ? false : false;
+    const tag = cond === 'season' ? '<span class="tag">in season</span>' : cond === 'lineup' ? '<span class="tag">Lineup</span>' : cond === 'lucky' ? '<span class="tag">stock feed</span>' : '';
+    return `<button data-d="${id}" class="${S.dest === id ? 'on' : ''}${cond === 'lineup' ? ' off' : ''}">${icon(ic)}<span>${label}</span>${tag}</button>`; };
+  $('#nav').innerHTML = NAV.map(btn).join('');
+  $('#navfoot').innerHTML = FOOT.map(btn).join('');
+  document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { const n = [...NAV, ...FOOT].find(x => x[0] === b.dataset.d); const first = n[3].find(t => MOCKED[t[0]]) || n[3][0]; go(first[0]); });
+}
+function go(tab) {
+  if (tab === 'integrations') { S.dest = S.scope === 'all' ? 'agency' : 'settings'; }
+  else S.dest = destOf(tab) || S.dest;
+  if (!MOCKED[tab]) { toast('Not in this mock: this page moves as it is.'); const n = [...NAV, ...FOOT].find(x => x[0] === S.dest); }
+  S.tab = MOCKED[tab] ? tab : S.tab;
+  if (MOCKED[tab]) { S.dest = tab === 'integrations' ? (S.scope === 'all' ? 'agency' : 'settings') : destOf(tab); try { history.replaceState(null, '', '#' + tab); } catch (e) {} }
+  render();
+}
+$('#scope').onchange = e => { S.scope = e.target.value; render(); };
+
+/* ---------------- screens ---------------- */
+const NOTES = {};
+function shell(destId) {
+  const n = [...NAV, ...FOOT].find(x => x[0] === destId);
+  const tabs = destId === 'settings' ? [] : destId === 'agency' ? [] : n[3];
+  $('#tabs').innerHTML = tabs.map(([id, l, isNew]) => `<button data-t="${id}" class="${S.tab === id ? 'on' : ''}${isNew ? ' newt' : ''}">${esc(l)}</button>`).join('');
+  $('#tabs').hidden = !tabs.length;
+  document.querySelectorAll('#tabs [data-t]').forEach(b => b.onclick = () => go(b.dataset.t));
+  $('#crumb').innerHTML = `<b>${esc(n[1])}</b>${S.scope === 'all' ? ' · All clients' : ' · Lucky Golf'}`;
+}
+function render() {
+  drawNav();
+  const T = S.tab;
+  const screen = { overview: home, yesterday, today, integrations, bset, aset }[T] || home;
+  screen();
+  $('#note').innerHTML = `<span class="h">What changed here</span>${NOTES[T] || ''}`;
+  document.querySelectorAll('#page [data-go]').forEach(el => el.onclick = () => go(el.dataset.go));
+}
+
+/* HOME > OVERVIEW */
+NOTES.overview = `<ul><li><b>Home is one dashboard</b>: Overview, Yesterday, P&amp;L. Plan moved to Brand &gt; Goals, Season to its own item, Scenarios to Tools.</li><li>The <b>Yesterday line</b> replaces the What moved card and opens the full view.</li><li>The two brand cards became <b>one table</b> with a sparkline column.</li><li>The spend-by-platform chart left (Ads &gt; All channels has it).</li><li>Numbers are live: Oct 1 to 7 against Sep 24 to 30, six active brands.</li></ul>`;
+function home() {
+  shell('home');
+  const w = M.tiles.w, p = M.tiles.p, y = M.grid, bad = y.filter(g => g.y && (g.y.verdict === 'bad' || g.y.verdict === 'vbad'));
+  const day = M.Y;
+  const strip = `<div class="strip"><b>${wd(day)} ${md(day)}</b><span class="dots">${y.map(g => `<span class="dot ${g.y ? g.y.verdict : 'none'}" title="${esc(g.name)}"></span>`).join('')}</span>
+    <span>${bad.length ? `${bad.length} bad day${bad.length > 1 ? 's' : ''}: ${bad.map(g => esc(g.name)).join(', ')}.` : 'No bad days.'} ${M.market.cpmUp >= Math.ceil(M.market.withMeta / 2) ? `Meta ad costs rose 20%+ at ${M.market.cpmUp} of ${M.market.withMeta} brands: looks like the market.` : 'The market looked normal.'}</span>
+    <button class="link" data-go="yesterday" style="margin-left:auto">Open Yesterday →</button></div>`;
+  const tile = (l, src, v, d, sub) => `<div class="tile"><span class="l">${l} <span class="src">${src}</span></span><span class="v">${v}</span><span>${d} <span class="mutedtxt" style="font-size:11.5px">${sub || ''}</span></span></div>`;
+  const tiles = `<div class="tiles">${tile('Revenue', 'SHOPIFY', k$(w.rev), dl(w.rev, p.rev), 'vs the 7 days before')}${tile('MER', 'BLENDED', x2(w.mer), dl(w.mer, p.mer), `${k$(w.sp)} ad spend`)}${tile('Cost per new customer', 'TW', $2(w.cac), dl(w.cac, p.cac, true), `${w.n} first orders`)}${tile('Orders', 'TW', w.o.toLocaleString(), dl(w.o, p.o), `AOV ${$2(w.aov)}`)}</div>`;
+  // chart
+  const s = M.series, W = 760, H = 220, pad = 34, max = Math.max(...s.map(r => r.rev)) * 1.08;
+  const X = i => pad + i * (W - pad - 8) / (s.length - 1), Yp = v => H - 22 - v / max * (H - 36);
+  const line = k => s.map((r, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Yp(r[k]).toFixed(1)}`).join('');
+  const ticks = [0, max / 2, max].map(v => `<text x="2" y="${Yp(v) + 3}">${k$(v)}</text><line x1="${pad}" x2="${W - 8}" y1="${Yp(v)}" y2="${Yp(v)}" stroke="var(--line)"/>`).join('');
+  const xl = s.map((r, i) => i % 7 === 6 ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle">${md(r.d)}</text>` : '').join('');
+  const chart = `<div class="card"><div class="hd"><h2>Revenue by day</h2><span class="sub">30 days, all clients · <span style="color:var(--brand)">■</span> revenue <span style="color:var(--c-google)">■</span> ad spend</span></div>
+    <svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Revenue and ad spend by day">${ticks}<path d="${line('rev')}" fill="none" stroke="var(--brand)" stroke-width="2"/><path d="${line('sp')}" fill="none" stroke="var(--c-google)" stroke-width="1.6"/>${xl}</svg></div>`;
+  const spk = v => { const mx = Math.max(...v, 1); return `<svg viewBox="0 0 70 20" width="70" height="20"><path d="${v.map((y, i) => `${i ? 'L' : 'M'}${(i * 70 / Math.max(1, v.length - 1)).toFixed(1)},${(19 - y / mx * 17).toFixed(1)}`).join('')}" fill="none" stroke="var(--brand)" stroke-width="1.5"/></svg>`; };
+  const rows = M.brandRows.slice().sort((a, b) => b.rev - a.rev).map(r => { const g = M.grid.find(x => x.name === r.name); return `<tr><td><b>${esc(r.name)}</b></td><td>${spk(r.spark)}</td><td class="r">${k$(r.rev)} ${dl(r.rev, r.prev)}</td><td class="r">${k$(r.sp)}</td><td class="r">${x2(r.mer)}</td><td>${r.plan ? `<span class="pill ${r.mtd / r.plan > 0.2 ? 'good' : 'warn'}">${Math.round(r.mtd / r.plan * 100)}% of plan</span>` : '<span class="mutedtxt">no October plan</span>'}</td><td><span class="dot ${g && g.y ? g.y.verdict : 'none'}"></span> <span class="mutedtxt">${g && g.y ? { good: 'Good', normal: 'Normal', bad: 'Bad', vbad: 'Very bad' }[g.y.verdict] : ''}</span></td></tr>`; }).join('');
+  $('#page').innerHTML = `<div><h1>Overview</h1><p class="sub">Is the book making money, and where is it leaking? Oct 1 to 7, all clients.</p></div>${strip}
+    <div class="card" style="gap:6px"><div class="hd"><h2>The read</h2><span class="sub">written by the Strategist from the numbers on this screen</span></div><p style="margin:0">Revenue fell ${Math.abs(Math.round(pc(w.rev, p.rev) * 100))}% on slightly more ad spend, so MER slipped from ${x2(p.mer)} to ${x2(w.mer)}. Orders were up but the average order fell from ${$2(p.aov)} to ${$2(w.aov)}: more, smaller orders. New customers got cheaper.</p></div>
+    ${tiles}${chart}
+    <div class="card"><div class="hd"><h2>Each brand</h2><span class="sub">click a row to open that brand's Home</span></div><div class="tw"><table><thead><tr><th>Brand</th><th>7 days</th><th class="r">Revenue</th><th class="r">Ad spend</th><th class="r">MER</th><th>Month so far</th><th>Yesterday</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+/* HOME > YESTERDAY */
+NOTES.yesterday = `<ul><li><b>New tab.</b> Replaces the What moved card; the 8am Slack post becomes one line per bad brand.</li><li>Each brand is judged against <b>its own same weekday over 8 weeks</b> (the What moved test: 25%+ off and 1.5+ standard deviations, spend floor $150).</li><li>Money first (revenue, MER, cost per new customer), then each channel (Meta and Google cost per purchase on Triple Whale, email revenue).</li><li><b>The link that broke</b> splits Meta into auction, creative, site, basket, volume.</li><li><b>Us or the market</b>: our own brands moving together. Pulse outages join when Pulse moves in.</li><li>Live data. Shown as of Oct 7, the last day every source (incl. Triple Whale attribution) had landed. The Golf Sock is left out (paused test account).</li></ul>`;
+function yesterday() {
+  shell('home');
+  const days = M.days, vname = { good: 'Good', normal: 'Normal', bad: 'Bad', vbad: 'Very bad', none: 'No data' };
+  const sel = S.yb || (M.grid.find(g => g.y && g.y.verdict !== 'normal' && g.y.verdict !== 'good') || M.grid[0]).name;
+  const nBad = M.grid.filter(g => g.y && /bad/.test(g.y.verdict)).length;
+  const grid = `<div class="tw"><div class="bdg"><span></span>${days.map(d => `<span class="h">${wd(d).slice(0, 2)}<br>${md(d).split(' ')[1]}</span>`).join('')}<span class="h" style="text-align:left">${wd(M.Y)} ${md(M.Y)}</span>
+    ${M.grid.map(g => `<span class="nm">${esc(g.name)}</span>${g.cells.map((c, i) => `<button class="cell ${c}${g.name === sel && i === 13 ? ' sel' : ''}" title="${esc(g.name)} · ${wd(days[i])} ${md(days[i])}: ${vname[c]}" data-b="${esc(g.name)}" data-i="${i}" aria-label="${esc(g.name)} ${md(days[i])} ${vname[c]}"></button>`).join('')}<span class="mutedtxt" style="font-size:12px">${g.y ? vname[g.y.verdict] : ''}${g.y && g.y.flags.length ? ': ' + esc(g.y.flags.map(f => f.label).join(', ')) : ''}</span>`).join('')}
+  </div></div>`;
+  const g = M.grid.find(x => x.name === sel), y = g && g.y;
+  const linkName = { cpm: ['Auction', 'Meta cost per 1,000 views (CPM)', true, v => '$' + v.toFixed(2)], ctr: ['Creative', 'Click rate', false, v => (v * 100).toFixed(2) + '%'], cvr: ['Site', 'Clicks that bought (Triple Whale)', false, v => (v * 100).toFixed(1) + '%'], aov: ['Basket', 'Average order', false, v => '$' + v.toFixed(2)], sp: ['Volume', 'Ad spend', 'n', v => k$(v)] };
+  const lk = y ? ['cpm', 'ctr', 'cvr', 'aov', 'sp'].map(k => { const L = linkName[k], v = y.x[k], n = k === 'sp' ? null : y.norm[k]; const l = y.links.find(z => z.k === k); const cls = l && l.worse === true ? 'worse' : l && l.worse === false ? 'better' : '';
+    return `<div class="lk ${cls}"><span class="l">${L[0]} · ${L[1]}</span><span class="v">${v == null ? '–' : L[3](v)} ${l ? `<span class="d ${l.worse == null ? 'n' : l.worse ? 'dn' : 'up'}">${l.ch >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(l.ch * 100))}% vs a normal ${wd(M.Y)}</span>` : '<span class="mutedtxt" style="font-size:11.5px">normal</span>'}</span></div>`; }).join('') : '';
+  const acts = g && g.acts.length ? g.acts.map(a => `<tr><td class="mutedtxt" style="white-space:nowrap">${md(a.t.slice(0, 10))} ${a.t.slice(11)}</td><td><span class="pill n">${esc(a.c.replace('_', ' '))}</span></td><td>${esc(a.s)}</td><td class="mutedtxt">${a.why ? esc(a.why) : '<button class="link">Add why</button>'}</td></tr>`).join('') : '<tr><td class="mutedtxt">No account changes in the 3 days before.</td></tr>';
+  $('#page').innerHTML = `<div><h1>Yesterday</h1><p class="sub">Was it a bad day, for every brand, and why? Each square is one day against that brand's normal for the same weekday.</p></div>
+    <div class="strip"><b>${wd(M.Y)} ${md(M.Y)}:</b> ${nBad ? `${nBad} bad day${nBad > 1 ? 's' : ''}.` : 'no bad days.'} <span class="pill ${M.market.cpmUp >= Math.ceil(M.market.withMeta / 2) ? 'warn' : 'n'}">Meta ad costs up 20%+ at ${M.market.cpmUp} of ${M.market.withMeta} brands${M.market.cpmUp >= Math.ceil(M.market.withMeta / 2) ? ': looks like the market' : ''}</span><span class="pill n">Platform outages: from Pulse once it moves in</span></div>
+    <div class="card"><div class="hd"><h2>Last 14 days</h2><span class="sub"><span class="dot good"></span> good <span class="dot normal"></span> normal <span class="dot bad"></span> bad <span class="dot vbad"></span> very bad · click a brand's last square</span></div>${grid}</div>
+    ${y ? `<div class="card"><div class="hd"><h2>${esc(g.name)}, ${wd(M.Y)} ${md(M.Y)}: ${vname[y.verdict]}</h2><span class="sub">Revenue ${k$(y.x.rev)} (normal ${k$(y.norm.rev)}) · MER ${x2(y.x.mer)} (normal ${x2(y.norm.mer)})</span></div>
+      ${y.flags.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${y.flags.map(f => `<span class="pill ${f.bad ? 'bad' : 'good'}">${esc(f.label)} ${f.ch >= 0 ? '+' : ''}${Math.round(f.ch * 100)}%</span>`).join('')}</div>` : '<p class="mutedtxt" style="margin:0">Nothing was far enough from normal to call. The links below show what moved anyway.</p>'}
+      <h2 style="font-size:13px">On Meta, which link moved</h2><div class="links">${lk}</div>
+      <h2 style="font-size:13px">What changed on the account (3 days before)</h2><div class="tw"><table><tbody>${acts}</tbody></table></div>
+      <p class="mutedtxt" style="margin:0;font-size:12px">In the build this panel also shows: email sends that day, a promo starting or ending (Season, Calendar), products that went out of stock, and site conversion from Google Analytics where linked.</p></div>` : ''}`;
+  document.querySelectorAll('.cell[data-b]').forEach(c => c.onclick = () => { if (+c.dataset.i !== 13) { toast('The mock explains the last day; the build explains every square.'); return; } S.yb = c.dataset.b; yesterday(); $('#note').innerHTML = `<span class="h">What changed here</span>${NOTES.yesterday}`; });
+}
+
+/* ADS > TODAY */
+NOTES.today = `<ul><li><b>New tab, and where Ahsan and Noma land.</b> Ads' own question: what do I change today.</li><li><b>Ad set first</b> (your doctrine): the set is judged, then its ads by role. A working set's anchor is never a Cut row.</li><li>Rules are each brand's <b>Ads rules</b>, on Triple Whale last platform click, Oct 1 to 7.</li><li><b>Done</b> writes to the Change Log, which the Daily Brief's "What we did" already reads. Nothing changes in Meta by itself.</li><li><b>A real finding:</b> on these rules about 20 ad sets are over the cut line this week. So the page ranks by money at stake and shows 3 per brand, the rest folded. Worth a look: it's what Meta &gt; Creative already says.</li><li>Test calls (Call) and spend-today lines come from Asana and the hourly pace; not pulled for this mock.</li></ul>`;
+function today() {
+  shell('ads');
+  const R = M.rows.map((r, i) => ({ ...r, i, stake: r.kind === 'cut' ? Math.max(0, r.spend - (r.goal || 0) * (r.ord || 0)) : r.kind === 'scale' ? (r.spend || 0) * 0.2 : r.kind === 'fix' ? 1e6 : (r.spend || 0) * 0.3 }));
+  const kinds = [['all', 'All'], ['fix', 'Fix'], ['scale', 'Scale'], ['cut', 'Cut'], ['trim', 'Trim'], ['refresh', 'Refresh'], ['call', 'Call']];
+  const cnt = k => k === 'all' ? R.length : R.filter(r => r.kind === k).length;
+  const counts = `<div class="counts">${kinds.map(([k, l]) => `<button class="cnt${S.kind === k ? ' on' : ''}" data-k="${k}"><b>${k === 'call' ? '·' : cnt(k)}</b>${l}</button>`).join('')}</div>`;
+  const sh = R.filter(r => S.kind === 'all' || r.kind === S.kind);
+  const by = {}; for (const r of sh) (by[r.brand] ??= []).push(r);
+  const order = Object.entries(by).sort((a, b) => b[1].reduce((s, r) => s + r.stake, 0) - a[1].reduce((s, r) => s + r.stake, 0));
+  const yv = n => { const g = M.grid.find(x => x.name === n); return g && g.y ? `<span class="dot ${g.y.verdict}"></span> <span class="mutedtxt">yesterday ${({ good: 'good', normal: 'normal', bad: 'bad', vbad: 'very bad' })[g.y.verdict]}</span>` : ''; };
+  const row = r => `<div class="row${S.done[r.i] ? ' done' : ''}"><span class="k ${r.kind}">${r.kind.toUpperCase()}</span>
+      <div><div class="nm">${esc(r.set || '')}</div><div class="meta">${r.spend != null ? `${k$(r.spend)} spent · ${r.ord} sale${r.ord === 1 ? '' : 's'} · ${r.cpa ? '$' + r.cpa + ' per sale' : 'no sale'}${r.goal ? ` · goal $${r.goal}` : ''} · ${r.nads} ad${r.nads === 1 ? '' : 's'}` : 'Meta account'}</div></div>
+      <div class="why">${esc(r.why)}${r.kind === 'cut' && r.nads > 1 ? ` <span class="mutedtxt">Anchor: "${esc(r.anchor)}" (${Math.round(r.share * 100)}% of spend).</span>` : ''}</div>
+      <div class="acts">${r.kind === 'refresh' ? '<button class="btn p">Brief the iteration</button>' : '<button class="btn">Open in Ads Manager</button>'}<button class="btn" data-done="${r.i}">${S.done[r.i] ? 'Undo' : 'Done'}</button><button class="btn" data-snooze="${r.i}">Not now</button></div></div>`;
+  const groups = order.map(([b, rs]) => { rs.sort((a, c) => c.stake - a.stake); const open = S['open_' + b]; const shown = open ? rs : rs.slice(0, 3);
+    return `<div class="card grp"><div class="gh"><span><b style="font-size:14px">${esc(b)}</b> &nbsp;${yv(b)}</span><span class="mutedtxt" style="font-size:12px">${rs.length} to do</span></div>${shown.map(row).join('')}${rs.length > 3 ? `<button class="link" style="padding-top:8px;text-align:left" data-more="${esc(b)}">${open ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</div>`; }).join('');
+  $('#page').innerHTML = `<div><h1>Today</h1><p class="sub">What do I change today? Every brand you handle, ad set first, ranked by money at stake. Judged on Triple Whale last platform click, Oct 1 to 7.</p></div>
+    ${counts}${S.kind === 'call' ? '<div class="card"><p class="mutedtxt" style="margin:0">Tests ready for a call land here from Asana (today\'s Meta &gt; Tests). Not pulled for this mock.</p></div>' : groups || '<div class="card"><p class="mutedtxt" style="margin:0">Nothing of this kind today.</p></div>'}`;
+  document.querySelectorAll('.cnt').forEach(b => b.onclick = () => { S.kind = b.dataset.k; today(); });
+  document.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { const i = +b.dataset.done; S.done[i] = !S.done[i]; if (S.done[i]) toast('Logged to the Change Log: shows in tomorrow\'s brief under What we did'); today(); });
+  document.querySelectorAll('[data-snooze]').forEach(b => b.onclick = () => toast('Hidden until tomorrow'));
+  document.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { S['open_' + b.dataset.more] = !S['open_' + b.dataset.more]; today(); });
+}
+
+/* INTEGRATIONS */
+const LOGO = { meta: ['M', '#0866FF'], gads: ['G', '#4285F4'], tiktok: ['T', '#111'], tw: ['TW', '#1F2B5B'], shopify: ['S', '#5E8E3E'], ga4: ['GA', '#E37400'], gsc: ['SC', '#458CF5'], email: ['K', '#232426'], attentive: ['A', '#1A1A1A'], asana: ['As', '#F06A6A'], drive: ['D', '#1FA463'], frame: ['F', '#5B53FF'] };
+const fmtG = id => String(id).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+const BNAME = Object.fromEntries(M.brands.map(b => [b.id, b.name]));
+NOTES.integrations = `<ul><li><b>Connections is now Integrations</b>, grouped by what Locus gets.</li><li><b>Google Ads is one card</b> with two levels: through Triple Whale, and direct.</li><li>The direct ones <b>list what Locus can see</b> (accounts under our manager, GA4 properties, Search Console sites, TikTok advertisers, Meta accounts on no brand) instead of a paste box, plus the exact link and steps.</li><li>Meta, Triple Whale and Shopify moved here from About the brand. Slack channels, Creator link and Onboarding moved out.</li><li>Email lets you pick the tool: Klaviyo or Attentive (switch the client to All clients and open Ice &amp; Gold in the grid).</li><li>Ids are live from the connections table.</li></ul>`;
+function integrations() {
+  if (S.scope === 'all') return agencyIntegrations();
+  shell('settings'); bsetFrame('conn', brandIntegrations());
+}
+function lucky(k) { return M.conns.filter(c => c.b === 'brand_lucky_golf' && c.k === k); }
+function brandIntegrations(bid = 'brand_lucky_golf') {
+  const has = k => M.conns.some(c => c.b === bid && c.k === k), id = k => (M.conns.find(c => c.b === bid && c.k === k) || {}).id;
+  const isAtt = bid === 'brand_ice_and_gold';
+  const card = (key, name, st, sub) => `<button class="ic${S.conn === key ? ' sel' : ''}" data-c="${key}"><span class="lg" style="background:${LOGO[key][1]}">${LOGO[key][0]}</span><span class="t"><b>${name}</b><span>${sub}</span></span><span class="pill ${st === 'ok' ? 'good' : st === 'part' ? 'warn' : 'n'}">${st === 'ok' ? 'Connected' : st === 'part' ? 'Partly' : 'Not set up'}</span></button>`;
+  const groups = [
+    ['Ads', [card('meta', 'Meta', has('meta') ? 'ok' : 'off', has('meta') ? id('meta') : 'no ad account'), card('gads', 'Google Ads', has('google_ads') ? 'ok' : 'part', has('google_ads') ? 'Direct + through Triple Whale' : 'Through Triple Whale only'), card('tiktok', 'TikTok', 'off', 'Not running TikTok')]],
+    ['Store', [card('tw', 'Triple Whale', has('triple_whale') ? 'ok' : 'off', id('triple_whale') || 'no shop'), card('shopify', 'Shopify', bid === 'brand_lucky_golf' ? 'ok' : 'off', bid === 'brand_lucky_golf' ? 'Installed: runs Stock' : 'Not installed')]],
+    ['Website', [card('ga4', 'Google Analytics 4', has('ga4') ? 'ok' : 'off', has('ga4') ? 'Property ' + id('ga4') : 'No property linked'), card('gsc', 'Search Console', has('gsc') ? 'ok' : 'off', has('gsc') ? id('gsc') : 'No site linked')]],
+    ['Email and SMS', [isAtt ? card('attentive', 'Attentive', 'part', 'Revenue through Triple Whale') : card('email', 'Klaviyo', has('klaviyo') ? 'ok' : 'off', has('klaviyo') ? 'Account ' + id('klaviyo') : 'No key')]],
+    ['Work', [card('asana', 'Asana project', has('asana') ? 'ok' : 'off', has('asana') ? 'Project linked' : 'none'), card('drive', 'Drive folder', has('drive') ? 'ok' : 'off', has('drive') ? 'Folder linked' : 'none'), card('frame', 'Frame project', has('frame') ? 'ok' : 'off', has('frame') ? 'Project linked' : 'none')]],
+  ];
+  const gads = M.conns.filter(c => c.k === 'google_ads'), ga4s = M.conns.filter(c => c.k === 'ga4'), gscs = M.conns.filter(c => c.k === 'gsc');
+  const opt = (label, sub, cur) => `<div class="opt${cur ? ' cur' : ''}"><span><b class="mono">${esc(label)}</b> <span class="mutedtxt">${esc(sub)}</span></span>${cur ? '<span class="pill good">This brand</span>' : '<button class="btn">Use this one</button>'}</div>`;
+  const D = {
+    gads: `<div class="hd"><h2>Google Ads</h2><span class="pill good">Connected</span></div><p class="mutedtxt" style="margin:0">One integration, two levels. Locus uses the highest one it has.</p>
+      <div class="lv"><span class="n">1</span><div><b>Through Triple Whale</b><div class="mutedtxt">Spend and sales by day. Comes in once the client connects Google Ads inside their Triple Whale.</div></div><span class="pill good">On</span></div>
+      <div class="lv"><span class="n">2</span><div><b>Direct</b><div class="mutedtxt">Campaigns, campaign types, search terms, exact spend. Read through the Mobius manager account 556-646-8199.</div></div><span class="pill ${has('google_ads') ? 'good' : 'n'}">${has('google_ads') ? fmtG(id('google_ads')) : 'Pick below'}</span></div>
+      <h2 style="font-size:13px">Accounts under the Mobius manager (${gads.length})</h2>${gads.map(c => opt(fmtG(c.id), c.b === bid ? '' : 'linked to ' + (BNAME[c.b] || c.b), c.b === bid)).join('')}
+      <h2 style="font-size:13px">Not in the list?</h2><ol class="steps"><li>Ask the client for their 10-digit customer ID (top right in Google Ads).</li><li>In the Mobius manager: Accounts &gt; + &gt; Link existing account, paste the ID, send. <a class="link" href="https://ads.google.com/aw/accounts" target="_blank" rel="noopener">Open Google Ads ↗</a></li><li>The client accepts it: Admin &gt; Access and security &gt; Managers. It shows up here within the hour.</li></ol>`,
+    ga4: `<div class="hd"><h2>Google Analytics 4</h2><span class="pill ${has('ga4') ? 'good' : 'n'}">${has('ga4') ? 'Connected' : 'Not set up'}</span></div><p class="mutedtxt" style="margin:0">Powers Store &gt; Website: sessions, channels, landing pages, the funnel.</p>
+      <h2 style="font-size:13px">Properties Locus can see (${ga4s.length})</h2>${ga4s.map(c => opt(c.id, c.b === bid ? '' : 'linked to ' + (BNAME[c.b] || c.b), c.b === bid)).join('')}
+      <h2 style="font-size:13px">Not in the list?</h2><ol class="steps"><li>The client opens GA4 &gt; Admin &gt; Property access management. <a class="link" href="https://analytics.google.com/analytics/web/" target="_blank" rel="noopener">Open GA4 ↗</a></li><li>Adds <span class="mono">cole@go-mobius-digital.com</span> as Viewer.</li><li>It appears here within the hour; pick it.</li></ol>`,
+    gsc: `<div class="hd"><h2>Search Console</h2><span class="pill ${has('gsc') ? 'good' : 'n'}">${has('gsc') ? 'Connected' : 'Not set up'}</span></div><p class="mutedtxt" style="margin:0">Powers Store &gt; Search: queries, pages, brand vs everything else.</p>
+      <h2 style="font-size:13px">Sites Locus can see (${gscs.length})</h2>${gscs.map(c => opt(c.id, c.b === bid ? '' : 'linked to ' + (BNAME[c.b] || c.b), c.b === bid)).join('')}
+      <h2 style="font-size:13px">Not in the list?</h2><ol class="steps"><li>The client opens Search Console &gt; Settings &gt; Users and permissions. <a class="link" href="https://search.google.com/search-console/users" target="_blank" rel="noopener">Open Search Console ↗</a></li><li>Adds <span class="mono">cole@go-mobius-digital.com</span> as a Full user.</li></ol>`,
+    attentive: `<div class="hd"><h2>Attentive</h2><span class="pill warn">Partly</span></div>
+      <div class="lv"><span class="n">1</span><div><b>Revenue and orders, through Triple Whale</b><div class="mutedtxt">Campaigns only. No journeys, clicks or cost. Needs link tracking on in Attentive (Settings &gt; Google Analytics) so links carry utm_source=attentive.</div></div><span class="pill good">Yes</span></div>
+      <div class="lv"><span class="n" style="background:var(--surface-2);color:var(--muted)">2</span><div><b>Campaign and journey detail</b><div class="mutedtxt">Attentive's normal API key can't read reports. Getting it means Attentive's beta connection (campaign metrics, journeys, subject lines, segment counts) or their nightly data files through the account manager. A separate decision.</div></div><span class="pill n">Not yet</span></div>`,
+    meta: `<div class="hd"><h2>Meta</h2><span class="pill good">Connected</span></div><p class="mutedtxt" style="margin:0">${esc(lucky('meta').map(c => c.id).join(', '))}. Every ad screen, the calls, Test calls.</p><h2 style="font-size:13px">Add another ad account</h2><p class="mutedtxt" style="margin:0">Pick from the Meta ad accounts Locus sees on no brand (a list), or the steps to add Mobius as a partner in the client's Business Manager.</p>`,
+  };
+  const dr = D[S.conn] || `<div class="hd"><h2>${esc(S.conn)}</h2></div><p class="mutedtxt" style="margin:0">Same four parts in the build: what Locus gets, its state, the steps with the link, and the picker.</p>`;
+  return `${groups.map(([g, cs]) => `<div class="kind">${g}</div><div class="cards">${cs.join('')}</div>`).join('')}<div class="drawer">${dr}</div>`;
+}
+function agencyIntegrations() {
+  shell('agency');
+  const KS = [['meta', 'Meta'], ['triple_whale', 'Triple Whale'], ['google_ads', 'Google Ads'], ['ga4', 'GA4'], ['gsc', 'Search'], ['klaviyo', 'Email'], ['asana', 'Asana'], ['drive', 'Drive'], ['frame', 'Frame']];
+  const bs = M.brands.filter(b => b.id !== 'brand_the_golf_sock');
+  const cell = (b, k) => { const c = M.conns.find(x => x.b === b.id && x.k === k); if (k === 'klaviyo' && b.id === 'brand_ice_and_gold') return '<span class="c tw">Attentive</span>'; if (k === 'google_ads' && !c && M.conns.some(x => x.b === b.id && x.k === 'triple_whale')) return '<span class="c tw">via TW</span>'; return c ? (c.e ? '<span class="c bad">failing</span>' : '<span class="c ok">✓</span>') : '<span class="c off">–</span>'; };
+  const grid = `<div class="tw"><div class="mx" style="grid-template-columns:130px repeat(${KS.length},minmax(64px,1fr))"><span></span>${KS.map(k => `<span class="mutedtxt" style="text-align:center">${k[1]}</span>`).join('')}${bs.map(b => `<b>${esc(b.name)}</b>${KS.map(k => cell(b, k[0])).join('')}`).join('')}</div></div>`;
+  const agency = [['Meta', 'System user token: every ad account', 'ok'], ['Triple Whale', 'One key for every store', 'ok'], ['Google', '5 checks: sign-in, Drive and Gmail, Analytics, Search Console, Ads API', 'ok'], ['TikTok app', 'Developer app made; not signed in yet', 'part'], ['Asana', 'Locus fields on the workspace', 'ok'], ['Slack', 'The Mobius Digital app', 'ok'], ['Claude', 'Strategist, briefs, reports', 'ok'], ['OpenAI', 'Studio images', 'ok'], ['Atria', 'Ad library (out of credits Oct 8)', 'part'], ['Frame', 'Review projects', 'ok'], ['Stripe', 'New client invoices', 'ok'], ['Gemini', 'Watches reference videos', 'ok']];
+  bsetFrameAgency('integrations', `<div class="card"><div class="hd"><h2>Every brand</h2><span class="sub">one row per brand; a gap across the agency shows in one look.</span></div>${grid}</div>
+    <div class="card"><div class="hd"><h2>Mobius's own</h2><span class="sub">made once, shared by every brand</span></div><div class="cards">${agency.map(([n, s, st]) => `<div class="ic" style="cursor:default"><span class="lg" style="background:var(--surface-2);color:var(--ink)">${n.slice(0, 2)}</span><span class="t"><b>${n}</b><span>${s}</span></span><span class="pill ${st === 'ok' ? 'good' : 'warn'}">${st === 'ok' ? 'Connected' : 'Check'}</span></div>`).join('')}</div></div>
+    <div class="card"><div class="hd"><h2>Ice &amp; Gold, Email and SMS</h2><span class="sub">what the Attentive card says</span></div>${(() => { const keep = S.conn; S.conn = 'attentive'; const h = brandIntegrations('brand_ice_and_gold').split('<div class="drawer">')[1].replace(/<\/div>$/, ''); S.conn = keep; return h; })()}</div>`);
+}
+
+/* SETTINGS */
+const BSECS = [['about', 'About the brand', 'idcard'], ['conn', 'Integrations', 'plug'], ['rules', 'Ads rules', 'sliders'], ['slack', 'Slack and sending', 'plane'], ['stock', 'Stock and factories', 'factory'], ['data', 'Data and costs', 'steth']];
+const ASECS = [['clients', 'Clients', 'building'], ['integrations', 'Integrations', 'plug'], ['team', 'Team and access', 'key'], ['sending', 'Slack and sending', 'plane'], ['strategist', 'The Strategist', 'spark'], ['jobs', 'Data and jobs', 'refresh']];
+NOTES.bset = `<ul><li><b>6 sections</b> (was 8 + 2 pages), one icon each, none repeated.</li><li>About keeps only the brand itself; <b>Archive this brand</b> sits at its bottom (was the "Remove from Locus" section).</li><li>Goal CPA and ROAS moved to <b>Brand &gt; Goals</b> with the month plan; the Meta rules stay here as <b>Ads rules</b>.</li><li><b>Slack and sending</b> lists every automatic post of the brand in one place.</li><li><b>Data and costs</b> = Data check + Cost check + margin override + the two re-pull buttons.</li></ul>`;
+NOTES.aset = `<ul><li><b>6 sections</b>: Clients, Integrations, Team and access, Slack and sending, The Strategist, Data and jobs.</li><li>Jobs and data + the Data health page = <b>Data and jobs</b>.</li><li>Guided tours moved into How to use Locus; scheduled questions moved to Reports.</li><li>Opened from the profile menu, or Settings with All clients picked.</li></ul>`;
+function bsetFrame(sec, inner) {
+  S.bsec = sec;
+  $('#page').innerHTML = `<div><h1>Brand settings: Lucky Golf</h1><p class="sub">How Locus behaves for this one brand. What we know about the brand lives in Brand.</p></div>
+    <div class="set"><nav class="snav"><span class="g">Lucky Golf</span>${BSECS.map(([k, l, ic]) => `<button data-bs="${k}" class="${k === sec ? 'on' : ''}">${icon(ic)}${l}</button>`).join('')}</nav><div class="card">${inner}</div></div>`;
+  document.querySelectorAll('[data-bs]').forEach(b => b.onclick = () => { S.bsec = b.dataset.bs; if (b.dataset.bs === 'conn') { S.tab = 'integrations'; } else S.tab = 'bset'; render(); });
+  document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.conn = b.dataset.c; render(); });
+}
+function bsetFrameAgency(sec, inner) {
+  $('#page').innerHTML = `<div><h1>Agency settings</h1><p class="sub">What applies to Mobius as a whole.</p></div>
+    <div class="set"><nav class="snav"><span class="g">Mobius Digital</span>${ASECS.map(([k, l, ic]) => `<button data-as="${k}" class="${k === sec ? 'on' : ''}">${icon(ic)}${l}</button>`).join('')}</nav><div style="display:flex;flex-direction:column;gap:14px;min-width:0">${inner}</div></div>`;
+  document.querySelectorAll('[data-as]').forEach(b => b.onclick = () => { S.asec = b.dataset.as; S.tab = b.dataset.as === 'integrations' ? 'integrations' : 'aset'; render(); });
+}
+const fld = (l, h, c) => `<div class="f"><div class="l"><b>${l}</b><span>${h}</span></div><div class="c">${c}</div></div>`;
+function bset() {
+  if (S.scope === 'all') { S.scope = 'lucky'; $('#scope').value = 'lucky'; }
+  shell('settings');
+  if (S.bsec === 'conn') S.bsec = 'about';
+  const L = M.brands.find(b => b.id === 'brand_lucky_golf');
+  const body = {
+    about: `<h2>About the brand</h2>${fld('Brand name', 'What clients and reports see.', '<input class="inp" value="Lucky Golf">')}${fld('Time zone', 'Every "yesterday" and every hourly chart uses it.', '<span>Central (America/Chicago)</span>')}${fld('Currency', 'From the store.', '<span>USD</span>')}
+      <div class="danger"><span><b>Archive this brand</b><br><span class="mutedtxt" style="font-size:12px">For a client who has left. Locus stops syncing it and hides it everywhere. Nothing is deleted; bring it back from Agency settings &gt; Clients.</span></span><button class="btn">${icon('archive')} Archive Lucky Golf</button></div>`,
+    rules: `<h2>Ads rules</h2><p class="mutedtxt" style="margin:0">How Ads &gt; Today and Meta &gt; Creative call each ad set and ad. The goal cost per sale they use is set in <button class="link">Brand &gt; Goals</button> ($${L.target_cpa}).</p>${fld('Judge an ad after spending', 'Times the goal cost per sale.', '<input class="inp" value="1" style="width:60px"> x goal')}${fld('Scale needs at least', 'Sales at or under the goal.', '<input class="inp" value="2" style="width:60px"> sales')}${fld('Cut with no sale after', '', '<input class="inp" value="3" style="width:60px"> x goal')}${fld('Cut when cost per sale is over', 'Once it has spent 2x the goal.', '<input class="inp" value="1.5" style="width:60px"> x goal')}${fld('The anchor ad carries at least', 'Of its set\'s spend. Replaced, never just switched off.', '<input class="inp" value="50" style="width:60px"> %')}${fld('Judging tests, test minimums', 'Unchanged from today.', '<button class="link">Show</button>')}`,
+    slack: `<h2>Slack and sending</h2>${fld('Internal channel', 'Your team\'s. Drafts, alerts, the Strategist.', `<span class="mono">${esc(L.internal_channel || 'not set')}</span>`)}${fld('Client channel', 'Theirs. Only approved briefs and reports go here.', `<span class="mono">${esc(L.client_channel || 'none: handled automatically')}</span>`)}${fld('Review before sending', 'Drafts wait for you in the internal channel.', '<span class="tg on"></span>')}
+      <div class="tw"><table><thead><tr><th>Every automatic post for Lucky Golf</th><th>Where</th><th>When</th><th>On</th></tr></thead><tbody>
+      <tr><td>Daily Brief</td><td>client, reviewed first</td><td>9am</td><td><span class="tg${L.brief_enabled ? ' on' : ''}"></span></td></tr><tr><td>Weekly and monthly reports</td><td>client, reviewed first</td><td>Mon, 1st</td><td><span class="tg on"></span></td></tr><tr><td>Yesterday (bad days)</td><td>internal</td><td>8am, only on a bad day</td><td><span class="tg on"></span></td></tr><tr><td>Monday test calls <span class="pill n">moved here</span></td><td>internal</td><td>Mon 8am</td><td><span class="tg on"></span></td></tr><tr><td>Stock <span class="pill n">moved here</span></td><td>internal</td><td>Mon + when something new runs out</td><td><span class="tg on"></span></td></tr></tbody></table></div>`,
+    stock: `<h2>Stock and factories</h2><p class="mutedtxt" style="margin:0">Unchanged: factories, product groups, 4 rules, design timing. Only its Slack switch moved to Slack and sending.</p>`,
+    data: `<h2>Data and costs</h2><p class="mutedtxt" style="margin:0">Are this brand's numbers right, and how to fix them. One page instead of four.</p>
+      <div class="lv"><span class="n">✓</span><div><b>Is the data complete and fresh?</b><div class="mutedtxt">Meta, Triple Whale and attribution all landed through yesterday. (Was the Data check page.)</div></div><span class="pill good">Good</span></div>
+      <div class="lv"><span class="n">✓</span><div><b>Are the costs right?</b><div class="mutedtxt">Product, shipping and fees from Triple Whale; contribution margin trusted. (Was the Cost check page.)</div>${fld('Margin override', 'One flat margin instead of real costs. Blank = use the real costs.', '<input class="inp" placeholder="auto" style="width:70px"> %')}</div><span class="pill good">Good</span></div>
+      <div class="lv"><span class="n" style="background:var(--surface-2);color:var(--muted)">↻</span><div><b>Fix it</b><div class="mutedtxt">Only when a check above says so. (Was Data repairs.)</div><div class="c" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn">Re-pull 430 days of Triple Whale</button><button class="btn">Re-pull 120 days of ad attribution</button></div></div><span></span></div>`,
+  }[S.bsec] || '';
+  bsetFrame(S.bsec, body);
+}
+function aset() {
+  if (S.scope !== 'all') { S.scope = 'all'; $('#scope').value = 'all'; }
+  shell('agency');
+  if (S.asec === 'integrations') { S.tab = 'integrations'; return agencyIntegrations(); }
+  const body = {
+    clients: `<div class="card"><h2>Clients</h2><div class="tw"><table><thead><tr><th>Brand</th><th>Status</th><th>Integrations</th></tr></thead><tbody>${M.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td><span class="pill ${b.id === 'brand_the_golf_sock' ? 'n' : 'good'}">${b.id === 'brand_the_golf_sock' ? 'Paused (test)' : 'Active'}</span></td><td class="mutedtxt">${M.conns.filter(c => c.b === b.id).length} connected</td></tr>`).join('')}</tbody></table></div><div><button class="btn p">+ New client</button> <button class="btn">+ Add a brand</button></div></div>`,
+    team: `<div class="card"><h2>Team and access</h2><p class="mutedtxt" style="margin:0">Unchanged: who signs in, change or only look, which brands each person sees. Also sets where each person lands (Ahsan and Noma: Ads &gt; Today).</p></div>`,
+    sending: `<div class="card"><h2>Slack and sending</h2><p class="mutedtxt" style="margin:0">Brief send time for every brand, who client messages come from, who can send from Slack, the Yesterday post switch. Each brand's own posts are in its brand settings.</p></div>`,
+    strategist: `<div class="card"><h2>The Strategist</h2><p class="mutedtxt" style="margin:0">What it knows, how it thinks, its Monday briefing. Scheduled questions moved to Reports, next to Dashboards.</p></div>`,
+    jobs: `<div class="card"><h2>Data and jobs</h2><p class="mutedtxt" style="margin:0">Are the syncs and sends running, which brand's data is stale, what errored. The all-brands version of each brand's Data and costs. (Was Jobs and data + the Data health page.)</p></div>`,
+  }[S.asec] || '';
+  bsetFrameAgency(S.asec, body);
+}
+render();
+</script>

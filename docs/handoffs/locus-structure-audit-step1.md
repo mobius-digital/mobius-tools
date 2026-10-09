@@ -1,6 +1,11 @@
 # Locus structure audit: step 1 (2026-10-09)
 
-Status: WAITING FOR COLE'S SIGN-OFF. Nothing mocked or built.
+Status: SIGNED OFF by Cole 2026-10-09 (all five answers = the recommendation: rail and moves yes; Plan in
+Brand > Goals; Copy desk inside Studio as a Words mode; Brand is its own rail item; the season item shows only
+while a season is on, labelled with its name). Page: https://claude.ai/artifact/HGz5WWWAuBZFkSMiWhvJb1
+Step 2 mocks (live data, waiting for approval): https://claude.ai/artifact/EAh93jhCJopQ8BGKALw75D , source
+docs/locus-hub/mocks-structure.html. Mock finding: on Triple Whale last platform click, ~20 of the judged ad sets
+across brands sit over the cut line for Oct 1 to 7, so Ads > Today ranks by money at stake and shows 3 per brand.
 Brief: docs/handoffs/locus-structure-audit.md. Lineup is moving in through its own chat
 (docs/handoffs/lineup-into-locus.md); this leaves room for it and for Pulse and builds neither.
 
