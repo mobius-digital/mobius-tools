@@ -2247,9 +2247,13 @@ Cole: "ideally this would replace Motion". Backend in account-health `creative.j
   switch and Creative's Sort by / Show / Tag; every menu closes through `closePops`.
 - **Ads order**: Today's calls (page id `today`), All channels, Meta, Google, TikTok, Tests and angles. All channels
   says which platform tabs are hidden for the brand and why.
-- **Google jobs** (`GOOGLE_JOBS`, only with a `google_ads` connection): Overview (`google`) and Campaigns
-  (`gcampaigns`, account-health `/api/google/ads`, Google's own conversions named as Google's). No Creative or
-  Changes job: that route returns no ads and no change history (google.js would need ad_group_ad / change_event).
+- **Google jobs** (`GOOGLE_JOBS`, only with a `google_ads` connection): Overview (`google`), Campaigns
+  (`gcampaigns`, `/api/google/ads`), Ads (`gads`, `/api/google/ads-ads`: top 20 ads by spend, headlines as chips,
+  descriptions, final URL, ad strength; Performance Max asset groups as a table), Search terms (`gterms`,
+  `/api/google/ads-terms`: top 50 by spend, brand vs the rest, "no conversion" marked) and Changes (`gchanges`,
+  `/api/google/ads-changes`: Google's change history in plain words, grouped by day, Changes that matter first,
+  the rest folded; Google keeps 30 days only). v2.js `gads` / `gterms` / `gchanges` share `gStart` / `gFail` /
+  `gStyle` (CSS `#v2gcss`). Conversions, value and ROAS on these screens are Google's own and say so on every number.
 - **Skeletons** (`skPage`, `skTiles`, `skCard`, `skGal`) on every v2 first load. Email paints first and loads the
   Klaviyo cards on their own (`klaviyoCards`, not awaited, error + Try again). account-health klaviyo.js serves an
   expired copy at once and refreshes behind (`waitUntil`), keeps the last good copy when a refresh fails, and keeps

@@ -49,7 +49,7 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, enableApis, adsAccounts } from './google.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts } from './google.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7923,6 +7923,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           return json(await searchReport(env, act, q('from'), q('to'), q('pfrom'), q('pto'), words));
         }
         if (path === '/api/google/ads') return json(await adsReport(env, act, q('from'), q('to')));
+        /* Google Ads top 20 ads by spend (search ad headlines + descriptions) and Performance Max asset groups, Google's own conversions */
+        if (path === '/api/google/ads-ads') return json(await adsAds(env, act, q('from'), q('to')));
+        /* Google Ads top 50 search terms by spend for the window */
+        if (path === '/api/google/ads-terms') return json(await adsTerms(env, act, q('from'), q('to')));
+        /* Google Ads change history in plain words (who, what, old to new), last 30 days only */
+        if (path === '/api/google/ads-changes') return json(await adsChanges(env, act, q('from'), q('to')));
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown google route' }, 404);
     }

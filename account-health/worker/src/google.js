@@ -208,3 +208,125 @@ export async function adsAccounts(env) {
     return { accounts: (j.results || []).map(r => ({ id: String(r.customerClient.id), name: r.customerClient.descriptiveName || '', manager: !!r.customerClient.manager, status: r.customerClient.status, currency: r.customerClient.currencyCode })) };
   } catch (e) { return { error: e.message, fix: fixFor('ads', e.message) }; }
 }
+
+/* ---------- Google Ads in depth (2026-10-09): Changes, Ads, Search terms ----------
+   Each is ONE report cached an hour in settings like 'gads:' (keys gadch:, gadad:, gadst:). Every call goes
+   through xfetch (useFetch), so it counts against the subrequest budget. The Explorer access tier gives 2,880
+   operations a day; an hourly cache per brand and window keeps a busy day well under a hundred. A refusal comes
+   back as { error, fix } (never thrown, never cached), so the screen can say what to do. */
+const adsSearch = (env, cid, query) => gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${cid}/googleAds:search`, { body: { query }, headers: adsHeaders(env) });
+const gaqlErr = e => { const d = e.body?.error?.details?.[0]?.errors?.[0]; return d?.message ? `${d.message}${d.errorCode ? ` (${Object.values(d.errorCode)[0]})` : ''}` : e.message; };
+async function adsRead(env, act, prefix, from, to, fn) {
+  const link = await linkFor(env, act);
+  if (!link.ads) return { error: 'not_linked', what: 'ads' };
+  const cid = String(link.ads).replace(/\D/g, '');
+  return cached(env, `${prefix}:${act}:${cid}:${from}:${to}`, 3600e3, async () => {
+    try { return { customer: cid, ...(await fn(cid)) }; }
+    catch (e) { const msg = gaqlErr(e); return { error: msg, fix: fixFor('ads', msg) || 'Check the brand’s Google Ads customer ID in Settings > Connections, and that the account is linked under the Mobius manager account (5566468199).' }; }
+  });
+}
+const M_ = r => ({ impressions: +r.metrics?.impressions || 0, clicks: +r.metrics?.clicks || 0, spend: (+r.metrics?.costMicros || 0) / 1e6, conversions: +r.metrics?.conversions || 0, value: +r.metrics?.conversionsValue || 0 });
+const lc = s => String(s || '').replace(/_/g, ' ').toLowerCase();
+
+/** Top 20 ads by spend (responsive search ads with their headlines and descriptions; other ad types by
+ *  type), plus Performance Max asset groups. Google's own conversions and value. Two GAQL calls in parallel
+ *  (ads, asset groups), cached together; an asset-group refusal never sinks the ads list. */
+export async function adsAds(env, act, from, to) {
+  return adsRead(env, act, 'gadad', from, to, async cid => {
+    const W = `segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0`;
+    const MET = 'metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value';
+    const [ads, groups] = await Promise.all([
+      adsSearch(env, cid, `SELECT ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.ad.name, ad_group_ad.status, ad_group_ad.ad_strength, ad_group_ad.ad.final_urls, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions, ad_group_ad.ad.demand_gen_video_responsive_ad.headlines, ad_group_ad.ad.demand_gen_video_responsive_ad.descriptions, ad_group_ad.ad.demand_gen_multi_asset_ad.headlines, ad_group_ad.ad.demand_gen_multi_asset_ad.descriptions, ad_group_ad.ad.responsive_display_ad.headlines, ad_group_ad.ad.responsive_display_ad.descriptions, campaign.name, campaign.advertising_channel_type, ad_group.name, ${MET} FROM ad_group_ad WHERE ${W} ORDER BY metrics.cost_micros DESC LIMIT 20`),
+      adsSearch(env, cid, `SELECT asset_group.id, asset_group.name, asset_group.status, asset_group.ad_strength, asset_group.final_urls, campaign.name, ${MET} FROM asset_group WHERE ${W} ORDER BY metrics.cost_micros DESC LIMIT 20`).catch(e => ({ error: gaqlErr(e) })),
+    ]);
+    const txt = list => (list || []).map(h => ({ text: h.text, pinned: h.pinnedField ? lc(h.pinnedField) : null })).filter(h => h.text);
+    const strength = s => (s && !/UNSPECIFIED|UNKNOWN|PENDING/.test(s) ? lc(s) : null);
+    return {
+      ads: (ads.results || []).map(r => { const a = r.adGroupAd || {}, ad = a.ad || {}, rsa = ad.responsiveSearchAd || ad.demandGenVideoResponsiveAd || ad.demandGenMultiAssetAd || ad.responsiveDisplayAd || {};
+        return { id: ad.id, type: lc(ad.type), name: ad.name || '', status: lc(a.status), strength: strength(a.adStrength), url: (ad.finalUrls || [])[0] || null,
+          headlines: txt(rsa.headlines), descriptions: txt(rsa.descriptions), campaign: r.campaign?.name || '', campaign_type: lc(r.campaign?.advertisingChannelType), ad_group: r.adGroup?.name || '', ...M_(r) }; }),
+      asset_groups: groups.error ? [] : (groups.results || []).map(r => ({ id: r.assetGroup?.id, name: r.assetGroup?.name || '', status: lc(r.assetGroup?.status), strength: strength(r.assetGroup?.adStrength), url: (r.assetGroup?.finalUrls || [])[0] || null, campaign: r.campaign?.name || '', ...M_(r) })),
+      asset_groups_error: groups.error || null,
+    };
+  });
+}
+
+/** The top 50 search terms by spend: what people typed before they clicked (Search and Shopping). */
+export async function adsTerms(env, act, from, to) {
+  return adsRead(env, act, 'gadst', from, to, async cid => {
+    const j = await adsSearch(env, cid, `SELECT search_term_view.search_term, search_term_view.status, campaign.name, ad_group.name, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value FROM search_term_view WHERE segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC LIMIT 50`);
+    return { terms: (j.results || []).map(r => ({ term: r.searchTermView?.searchTerm || '', status: lc(r.searchTermView?.status), campaign: r.campaign?.name || '', ad_group: r.adGroup?.name || '', ...M_(r) })) };
+  });
+}
+
+/* Change history. change_event covers only the last 30 days and needs a date filter and a LIMIT. */
+const RES_LABEL = { CAMPAIGN: 'Campaign', AD_GROUP: 'Ad group', AD_GROUP_AD: 'Ad', AD: 'Ad', AD_GROUP_CRITERION: 'Keyword or targeting', CAMPAIGN_CRITERION: 'Campaign targeting', CAMPAIGN_BUDGET: 'Budget', AD_GROUP_BID_MODIFIER: 'Bid adjustment', ASSET: 'Asset', ASSET_GROUP: 'Asset group', ASSET_GROUP_ASSET: 'Asset group asset', ASSET_GROUP_SIGNAL: 'Audience signal', ASSET_GROUP_LISTING_GROUP_FILTER: 'Listing group', CAMPAIGN_ASSET: 'Campaign asset', AD_GROUP_ASSET: 'Ad group asset', CUSTOMER_ASSET: 'Account asset', ASSET_SET: 'Asset set', ASSET_SET_ASSET: 'Asset set item', CAMPAIGN_ASSET_SET: 'Campaign asset set', FEED: 'Feed', FEED_ITEM: 'Feed item' };
+const VIA = { GOOGLE_ADS_WEB_CLIENT: 'in Google Ads', GOOGLE_ADS_EDITOR: 'in Google Ads Editor', GOOGLE_ADS_MOBILE_APP: 'in the Google Ads app', GOOGLE_ADS_API: 'through the API', GOOGLE_ADS_SCRIPTS: 'by a Google Ads script', GOOGLE_ADS_AUTOMATED_RULE: 'by an automated rule', GOOGLE_ADS_BULK_UPLOAD: 'by a bulk upload', GOOGLE_ADS_RECOMMENDATIONS: 'by an auto-applied Google recommendation', GOOGLE_ADS_RECOMMENDATIONS_SUBSCRIPTION: 'by an auto-applied Google recommendation', SEARCH_ADS_360_SYNC: 'by Search Ads 360', SEARCH_ADS_360_POST: 'by Search Ads 360', INTERNAL_TOOL: 'by Google', OTHER: '' };
+const BID_RE = /bidding|targetRoas|targetCpa|maximizeConversion|manualCpc|targetSpend|targetImpressionShare|cpcBidMicros|cpmBidMicros|percentCpc|biddingStrategy/i;
+const FIELD_LABEL = { amountMicros: 'daily budget', status: 'status', name: 'name', cpcBidMicros: 'max CPC', 'targetRoas.targetRoas': 'target ROAS', 'maximizeConversionValue.targetRoas': 'target ROAS', 'maximizeConversions.targetCpaMicros': 'target CPA', 'targetCpa.targetCpaMicros': 'target CPA', biddingStrategyType: 'bid strategy', 'keyword.text': 'keyword', 'keyword.matchType': 'match type', negative: 'negative', finalUrls: 'final URL', 'ad.finalUrls': 'final URL', startDate: 'start date', endDate: 'end date', startDateTime: 'start date', endDateTime: 'end date' };
+function pathGet(o, p) { return String(p).split('.').reduce((x, k) => (x == null ? undefined : x[k]), o); }
+function fmtVal(field, v) {
+  if (v == null || v === '') return '(none)';
+  if (/Micros$/i.test(field) && !isNaN(+v)) return `$${(+v / 1e6).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (/targetRoas$/.test(field) && !isNaN(+v)) return `${Math.round(+v * 100)}%`;
+  if (Array.isArray(v)) return v.map(x => (x && typeof x === 'object' ? (x.text || x.url || Object.values(x)[0]) : x)).join(', ').slice(0, 160) || '(none)';
+  if (typeof v === 'object') { const ks = Object.keys(v); return ks.length ? ks.map(k => `${k.replace(/([A-Z])/g, ' $1').toLowerCase()} ${fmtVal(k, v[k])}`).join(', ').slice(0, 160) : 'on'; }
+  if (typeof v === 'string' && /^[A-Z_]+$/.test(v)) return lc(v);
+  return String(v).slice(0, 160);
+}
+const fieldName = f => FIELD_LABEL[f] || f.split('.').pop().replace(/Micros$/, '').replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+export function describeChange(r) {
+  const ev = r.changeEvent || {}, type = ev.changeResourceType || 'UNKNOWN', op = ev.resourceChangeOperation || 'UPDATE';
+  const inner = o => { const k = Object.keys(o || {})[0]; return k ? o[k] : {}; };
+  const o = inner(ev.oldResource), n = inner(ev.newResource);
+  const fields = String(ev.changedFields || '').split(',').map(s => s.trim()).filter(f => f && !/resourceName$|^id$|^ad\.id$/.test(f));
+  const label = RES_LABEL[type] || lc(type).replace(/^./, c => c.toUpperCase());
+  const camp = r.campaign?.name || '', grp = r.adGroup?.name || '';
+  const where = grp ? ` in ${grp}` : camp ? ` in ${camp}` : '';
+  const diffs = fields.map(f => ({ raw: f, field: fieldName(f), old: op === 'CREATE' ? null : fmtVal(f, pathGet(o, f)), new: op === 'REMOVE' ? null : fmtVal(f, pathGet(n, f)) }));
+  const fromTo = d => (d.old == null || d.old === '(none)' ? `${d.field} set to ${d.new}` : `${d.field} from ${d.old} to ${d.new}`);
+  const kw = n.keyword || o.keyword;
+  let category = 'other', summary = '';
+  if (type === 'CAMPAIGN_BUDGET' && fields.some(f => /amountMicros/.test(f))) {
+    category = 'budget'; const d = diffs.find(x => /amountMicros/.test(x.raw));
+    summary = op === 'CREATE' ? `${camp ? `${camp}: ` : ''}new daily budget of ${d.new}` : `${camp ? `${camp}: ` : ''}daily budget ${d.old} to ${d.new}${d.old && d.new && !isNaN(parseFloat(d.old.slice(1).replace(/,/g, ''))) ? (() => { const a = parseFloat(d.old.slice(1).replace(/,/g, '')), b = parseFloat(d.new.slice(1).replace(/,/g, '')); return a ? ` (${b >= a ? '+' : ''}${Math.round((b / a - 1) * 100)}%)` : ''; })() : ''}`;
+  } else if (op === 'CREATE' && ['CAMPAIGN', 'AD_GROUP', 'AD_GROUP_AD', 'AD', 'ASSET_GROUP'].includes(type)) {
+    category = 'new';
+    summary = type === 'CAMPAIGN' ? `New campaign "${n.name || camp}"` : type === 'AD_GROUP' ? `New ad group "${n.name || grp}"${camp ? ` in ${camp}` : ''}` : type === 'ASSET_GROUP' ? `New asset group "${n.name || ''}"${camp ? ` in ${camp}` : ''}` : `New ${lc(n.ad?.type || n.type || '').replace(/ ad$/, '') || 'responsive search'} ad${where}`;
+  } else if ((type === 'AD_GROUP_CRITERION' || type === 'CAMPAIGN_CRITERION') && kw) {
+    category = 'keywords'; const neg = n.negative || o.negative;
+    const what = `${neg ? 'negative keyword' : 'keyword'} "${kw.text}"${kw.matchType ? ` (${lc(kw.matchType)})` : ''}`;
+    summary = op === 'CREATE' ? `Added ${what}${where}` : op === 'REMOVE' ? `Removed ${what}${where}` : fields.includes('status') ? `${n.status === 'PAUSED' ? 'Paused' : n.status === 'ENABLED' ? 'Turned on' : 'Changed'} ${what}${where}` : `Changed ${what}${where}: ${diffs.map(fromTo).join('; ')}`;
+  } else if (type === 'AD_GROUP_CRITERION' && op === 'REMOVE') {
+    category = 'keywords'; summary = `Removed a keyword or target${where}`;
+  } else if (fields.some(f => BID_RE.test(f))) {
+    category = 'bids';
+    const who = type === 'CAMPAIGN' ? `Campaign "${camp || n.name || ''}"` : type === 'AD_GROUP' ? `Ad group "${grp || n.name || ''}"` : `${label}${where}`;
+    summary = `${who}: ${diffs.filter(d => BID_RE.test(d.raw)).map(fromTo).join('; ')}`;
+  } else if (fields.includes('status') && op === 'UPDATE') {
+    category = 'status'; const s = n.status; const verb = s === 'PAUSED' ? 'paused' : s === 'ENABLED' ? 'turned on' : s === 'REMOVED' ? 'removed' : `set to ${lc(s)}`;
+    const who = type === 'CAMPAIGN' ? `Campaign "${camp || n.name || ''}"` : type === 'AD_GROUP' ? `Ad group "${grp || n.name || ''}"` : `${label}${where}`;
+    summary = `${who} ${verb}`;
+  } else if (op === 'REMOVE') {
+    category = ['CAMPAIGN', 'AD_GROUP', 'AD_GROUP_AD'].includes(type) ? 'status' : 'other';
+    summary = `${label} removed${type === 'CAMPAIGN' && camp ? `: "${camp}"` : where}`;
+  } else {
+    const nm = n.name || n.text || n.keyword?.text || '';
+    summary = op === 'CREATE' ? `Added ${label.toLowerCase()}${nm ? ` "${nm}"` : ''}${where}` : `${label}${type === 'CAMPAIGN' && camp ? ` "${camp}"` : where} changed${diffs.length ? `: ${diffs.slice(0, 3).map(fromTo).join('; ')}` : ''}`;
+  }
+  return { at: ev.changeDateTime, who: ev.userEmail || '', via: VIA[ev.clientType] ?? lc(ev.clientType), resource: label, op: lc(op), campaign: camp, ad_group: grp, category,
+    matters: ['budget', 'new', 'keywords', 'bids', 'status'].includes(category), summary, fields: diffs.map(({ raw, ...d }) => d) };
+}
+/** What changed on the Google Ads account, newest first (up to 200), in plain words. Clamped to the last 30 days. */
+export async function adsChanges(env, act, from, to) {
+  const floor = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const f = from && from > floor ? from : floor, t = to && to < today ? to : today;
+  if (t < floor) return { changes: [], from: floor, to: t, clamped: true, floor, note: 'Google keeps change history for 30 days only.' };
+  const out = await adsRead(env, act, 'gadch', f, t, async cid => {
+    const j = await adsSearch(env, cid, `SELECT change_event.change_date_time, change_event.user_email, change_event.client_type, change_event.change_resource_type, change_event.resource_change_operation, change_event.changed_fields, change_event.old_resource, change_event.new_resource, campaign.name, ad_group.name FROM change_event WHERE change_event.change_date_time >= '${f} 00:00:00' AND change_event.change_date_time <= '${t} 23:59:59' ORDER BY change_event.change_date_time DESC LIMIT 200`);
+    const changes = (j.results || []).map(describeChange);
+    return { changes, from: f, to: t, truncated: changes.length >= 200 };
+  });
+  return out.error ? out : { ...out, clamped: !!from && f !== from, floor };
+}
