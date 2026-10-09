@@ -1082,3 +1082,31 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   Breezeway's public file, a once-per-date Haiku web search; `marketHandles` setting = X handles to read first).
   `POST /api/daycheck` = the verdict for the Day check screen (see profit/CLAUDE.md).
 - **integrations.js** groups, levels, pick lists, email tool (see profit/CLAUDE.md "THE RESTRUCTURE").
+
+## 2026-10-09: THE CALENDAR (`src/calendar.js`, Lineup moved into Locus)
+
+- **Binding `CAL`** = Lineup's D1 `marketing-hub` (wrangler.toml). The SAME `events` / `changelog` / `people` rows the old
+  Lineup app (worker `launch-calendar`) reads and writes, so clients (Nick at Grunk, Dartee) keep working there until they
+  sign in to Locus. Added columns (guarded ALTERs in `ensure`): `locus_brand` (brand id), `asana` (JSON step -> task gid),
+  `ticks` (JSON step -> {by, at}). Lineup brands are hyphen slugs (`grunk-dolfer`) = Locus brand slug with `-` for `_`;
+  new rows write both `brand_id` (slug) and `locus_brand`. Writes use Lineup's type keys (product_launch, promo, ad_push,
+  site_change, other) so the old app still shows them. Lineup's own Slack (`settings.slack_enabled`) was switched OFF for
+  all its brands on 2026-10-09 so nothing pings twice.
+- **One list, four sources**: typed events, `p_season_phase` (read-only), Supply drops (`SUPPLY` binding, brands with
+  `makes`), Klaviyo email + SMS campaigns (`calklv:<brand>` cached an hour). Paused brands, The Golf Sock and Harborline are
+  skipped by name.
+- **The countdown ticks itself** (`stepsFor`): offer = written + confirmed (season: locked); photos = assets link; briefed /
+  built = the Asana task "Make the Asana tasks" created is completed (`calasana:<brand>` cached 10 min), or a manual tick;
+  email = a Klaviyo send within a day of going live; ads loaded = Meta `ads.created_time` in the 10 days before. Offsets in
+  `STEPS` (keep the copy in profit/calendar.js in step). Once a date has gone live it has no countdown.
+- **Routes** (admin): GET `/api/calendar?act&from&to&lite`, `/api/calendar/history?id`; POST `/api/calendar/event`
+  (create or update), `/move` (shifts every date by the delta), `/end`, `/tick`, `/asana`, `/restore`; DELETE `/event?id`
+  (status cancelled, logged). Every write logs to Lineup's `changelog`; the actor's name comes from `people`.
+- **Slack** (`calendarTick`, hourly cron after scheduleTick; switch `settings.calendarPost`): client changes every tick
+  (changelog rows after `calLogCursor` whose `changed_by` is not the team: go-mobius-digital.com people plus Nick Y. and
+  Nick S.), then once a Central day from 8am (`calRemindDay`): live tomorrow (always, "All set" when done), one week out
+  (only when something is open), Mondays "still running?" for a typed sale with no end live 7+ days. Brand internal channel.
+- **Elsewhere:** Strategist view `calendar` + actions `add_date`, `move_date`, `end_date`, `make_asana_tasks` + knowledge
+  topic `calendar` (docs/strategist-brain/knowledge/calendar.md). The Day check Slack post adds "On the calendar that day"
+  (`liveOn`). The v2 Daily Brief adds "*Today:* X goes live" under the headline for drops and sales starting that day.
+

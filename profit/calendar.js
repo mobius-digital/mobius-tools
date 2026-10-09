@@ -476,7 +476,7 @@
       ${!editing && !act ? `<label class="f">Brand<select id="cmB">${brands.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select></label>` : ''}
       <label class="f">What is it?<span class="pills">${Object.entries(KL).map(([k, l]) => pill('kind', k, l === 'Teaser, list, other' ? 'Other' : l, S2.kind === k)).join('')}</span></label>
       <label class="f">Name<input type="text" id="cmN" value="${esc(ev.name || '')}" maxlength="120" placeholder="Burgundy Drinko drop"></label>
-      <div class="row3"><label class="f">Goes live<input type="date" id="cmS" value="${esc(ev.start || '')}"></label><label class="f">Ends <em>(blank = same day; a sale with no end is flagged)</em><input type="date" id="cmE" value="${esc(ev.end && ev.end !== ev.start ? ev.end : '')}"></label><label class="f">Teaser starts <em>(optional)</em><input type="date" id="cmT" value="${esc(ev.teaser || '')}"></label></div>
+      <div class="row3"><label class="f">Goes live<input type="date" id="cmS" value="${esc(ev.start || '')}"></label><label class="f">Ends <em>(optional)</em><input type="date" id="cmE" value="${esc(ev.end && ev.end !== ev.start ? ev.end : '')}"></label><label class="f">Teaser starts <em>(optional)</em><input type="date" id="cmT" value="${esc(ev.teaser || '')}"></label></div>
       <label class="f">What the customer sees <em>(the offer, in their words)</em><textarea id="cmO" placeholder="Full price launch week, then 2 save 15%">${esc(ev.offer || '')}</textarea></label>
       <div class="row3"><label class="f">Channels<span class="pills">${[['paid', 'Ads'], ['email', 'Email'], ['sms', 'SMS'], ['organic', 'Organic']].map(([k, l]) => pill('ch', k, l, S2.channels.has(k))).join('')}</span></label>
         <label class="f">Is the date real?<span class="pills">${pill('status', 'pen', 'Pencilled', S2.status === 'pen')}${pill('status', 'conf', 'Confirmed', S2.status === 'conf')}</span></label>
@@ -491,7 +491,7 @@
       if (!s) { el.innerHTML = '<div><span>Pick the day it goes live.</span></div>'; w.querySelector('#cmNote').textContent = ''; return; }
       el.innerHTML = steps.map(([, l, o]) => { const due = add(s, o); return `<div><b>${esc(l)}</b><span class="${due < d.today ? 'late' : ''}">${md(due)}${due < d.today ? ', passed' : ''}</span></div>`; }).join('') + `<div><b>Live</b><span>${md(s)}</span></div>`;
       const passed = steps.filter(([, , o]) => add(s, o) < d.today).length;
-      w.querySelector('#cmNote').textContent = (passed ? `Short notice: ${passed} step${passed > 1 ? 's are' : ' is'} already late, so ${passed > 1 ? 'they land' : 'it lands'} on this week's list. ` : '') + 'Ticks come from Asana, Klaviyo and Meta; "Make the Asana tasks" is on the date once it is added. Pings go to the brand’s internal channel.';
+      w.querySelector('#cmNote').textContent = (S2.kind === 'sale' && !val('#cmE') ? 'A sale with no end date is flagged until it gets one. ' : '') + (passed ? `Short notice: ${passed} step${passed > 1 ? 's are' : ' is'} already late, so ${passed > 1 ? 'they land' : 'it lands'} on this week's list. ` : '') + 'Ticks come from Asana, Klaviyo and Meta; "Make the Asana tasks" is on the date once it is added. Pings go to the brand’s internal channel.';
     };
     w.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
       const g = b.dataset.p, v = b.dataset.v;
