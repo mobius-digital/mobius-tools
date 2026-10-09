@@ -1,6 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
+import { handleCommand } from './command.js';
 import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -1068,6 +1069,15 @@ const READ_SYSTEM = `You are the Strategist at Mobius Digital reading one screen
 - "leaks": up to three, each {"what": a number and a cause in one short sentence, "where": the brand or channel}. Only leaks the numbers show. Empty list if nothing leaks.
 - "focus": one short sentence, the single most useful thing to do today.
 Rules: cite ONLY numbers in the JSON (rounded is fine; say "about"). Never invent a cause the numbers do not show; say "the numbers do not say why" when so. Compare against the compare period or the plan when they are in the JSON, else against nothing. Attribution is Triple Whale's. No jargon, no exclamation marks, no em dashes, no headers. Money in the brand's currency as given. Return ONLY a JSON object {lines, leaks, focus}.`;
+/* THE COMMAND CENTER READ (2026-10-09): Locus Home for All clients (profit/command.js) posts every brand's numbers
+ * and its attention reasons; the read says what to look at first ACROSS brands and connects the signals on one brand
+ * into a likely cause. Same route, cache and model as the screen read; `order` is the extra field. */
+const COMMAND_SYSTEM = `You are the Strategist at Mobius Digital reading the agency command center in Locus: every client brand with its numbers for the period on screen and the reasons it may need attention (results against goal and for how many days, days since a new Meta ad launched, creative fatigue signs, overdue or stuck Asana tasks, setup gaps, bad days on the Day check, alerts that fired). Decide what the team should focus on first across ALL brands. Write JSON:
+- "order": up to 4 items, most urgent first, each {"brand": the brand name exactly as in the JSON, "why": one sentence that connects that brand's signals into a likely cause, citing the numbers (for example "CPA has been over goal 8 days, no new ad in 12 days and CTR is down 18%: likely creative fatigue"), "do": one short concrete action for today}.
+- "lines": exactly two short sentences: how the agency looks overall, and what can wait.
+- "leaks": an empty list.
+- "focus": one sentence, the single first thing to do today.
+Rules: connect signals only on the same brand and only when the numbers support it; say "likely" for a cause, never certain; money off goal and many days off goal outrank a setup gap; a setup gap or an overdue task alone is low unless it blocks results; never list a paused brand; cite ONLY numbers in the JSON (rounded is fine). Plain English, no jargon, no exclamation marks, no em dashes, no headers. Return ONLY the JSON object {order, lines, leaks, focus}.`;
 /* THE DAY CHECK VERDICT (2026-10-09, Cole: "combine all that into a comprehensive analysis: was it bad, is it
  * across the board, why, and is there anything we can do or is it just waiting"). Locus posts the facts on the Day
  * check screen (each brand against its own normal, our brands moving together, Breezeway's outside panel, Pulse
@@ -1113,7 +1123,8 @@ async function screenRead(env, b) {
   const user = `SCREEN: ${screen}\nSCOPE: ${scope}\nRANGE: ${String(b.range || '').slice(0, 120)}\nCOMPARE: ${String(b.compare || 'none').slice(0, 60)}\n\nFACTS (everything on the screen):\n${JSON.stringify(facts).slice(0, 24000)}`;
   let text;
   /* The model thinks inside max_tokens; 700 cut the JSON mid-sentence on the first live run. */
-  try { text = await claude(env, { system: READ_SYSTEM, user, maxTokens: 3000, model: READ_MODEL }); }
+  const cmd = screen === 'command';
+  try { text = await claude(env, { system: cmd ? COMMAND_SYSTEM : READ_SYSTEM, user, maxTokens: cmd ? 4000 : 3000, model: READ_MODEL }); }
   catch (e) { return { error: 'The read could not run: ' + e.message }; }
   const m = String(text || '').match(/\{[\s\S]*\}/);
   let out; try { out = JSON.parse(m ? m[0] : '{}'); } catch { return { error: 'The read did not come back clean.', raw: String(text || '').slice(0, 600) }; }
@@ -1122,6 +1133,7 @@ async function screenRead(env, b) {
     lines: (Array.isArray(out.lines) ? out.lines : []).slice(0, 3).map(clean).filter(Boolean),
     leaks: (Array.isArray(out.leaks) ? out.leaks : []).slice(0, 3).map(l => ({ what: clean(l?.what), where: clean(l?.where) })).filter(l => l.what),
     focus: clean(out.focus), at: new Date().toISOString(), screen, scope,
+    ...(cmd ? { order: (Array.isArray(out.order) ? out.order : []).slice(0, 4).map(o => ({ brand: clean(o?.brand), why: clean(o?.why), do: clean(o?.do) })).filter(o => o.brand && o.why) } : {}),
   };
   if (!res.lines.length) return { error: 'The read came back empty.', raw: String(text || '').slice(0, 400) };
   await putSetting(env, key, JSON.stringify(res)).catch(() => {});
@@ -7935,6 +7947,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* Right now (checknow.js) and the alerts (alerts.js): GET /api/daycheck/now, /api/alerts*. Admin-checked inside. */
     if (path === '/api/daycheck/now' || path.startsWith('/api/alerts')) {
       const r = await handleAlerts(request, env, path, json, autoDeps());
+      if (r) return r;
+    }
+    /* The agency command center (command.js): Asana overdue / stuck per brand, new clients being set up, alerts fired. */
+    if (path === '/api/command/work') {
+      const r = await handleCommand(request, env, path, json, isAdmin, async rq => brandsFor(env, await sessionEmail(env, rq).catch(() => null)));
       if (r) return r;
     }
     if (path === '/api/daycheck' && request.method === 'POST') {

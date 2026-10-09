@@ -26,6 +26,7 @@ import { allowedChannels } from './askschedule.js';
 import { brandsFor } from './brandguard.js';
 import { resolveBrandId, metaOf } from './brands.js';
 import { routeAction } from '../../../ask/engine.js';
+import { stockView } from './stock.js';
 
 export const ALERT_SQL = `CREATE TABLE IF NOT EXISTS p_alert (
   id              TEXT PRIMARY KEY,
@@ -46,7 +47,15 @@ export const ALERT_SQL = `CREATE TABLE IF NOT EXISTS p_alert (
   last_checked    TEXT,
   last_status     TEXT
 )`;
-export async function ensureAlerts(env) { await env.DB.prepare(ALERT_SQL).run().catch(() => {}); }
+/* starts / ends (Central dates, 2026-10-09, the Black Friday War Room): a rule that only runs inside a window, so a sale's
+   MER floor or overspend line never fires on an ordinary day. source = who made it ('war' = the War Room). Guarded ALTERs. */
+let alertCols = false;
+export async function ensureAlerts(env) {
+  await env.DB.prepare(ALERT_SQL).run().catch(() => {});
+  if (alertCols) return;
+  for (const c of ['starts TEXT', 'ends TEXT', 'source TEXT']) await env.DB.prepare(`ALTER TABLE p_alert ADD COLUMN ${c}`).run().catch(() => {});
+  alertCols = true;
+}
 
 const OWNER = 'cole@go-mobius-digital.com';
 const COLE_SLACK = 'U06C37MDWD7';
@@ -68,10 +77,14 @@ export const METRICS = {
   cpa: { label: 'CPA', kind: 'ratio', fmt: 'money', lower: true },
   roas: { label: 'Meta ROAS (Triple Whale)', kind: 'ratio', fmt: 'x', finished: true },
   meta_cpm: { label: 'Meta CPM', kind: 'ratio', fmt: 'money', lower: true },
+  /* 2026-10-09, the War Room thresholds. */
+  aov: { label: 'AOV', kind: 'ratio', fmt: 'money' },
+  meta_spend: { label: 'Meta spend', kind: 'sum', fmt: 'money' },
+  stock_cover: { label: 'stock cover (days) on the best sellers', kind: 'stock', fmt: 'days', fixedOnly: true },
 };
 export const WINDOWS = { today: 'today so far', yesterday: 'yesterday', last7: 'the last 7 days' };
 const BASELINES = { normal: 'a normal day', goal: 'the goal', fixed: 'a fixed number' };
-const fmtV = (m, v, cur = 'USD') => v == null ? 'n/a' : METRICS[m]?.fmt === 'money' ? (m === 'cpa' || m === 'meta_cpm' ? `${cur === 'USD' ? '$' : cur + ' '}${(+v).toFixed(2)}` : moneyOf(v, cur)) : METRICS[m]?.fmt === 'x' ? `${(+v).toFixed(2)}x` : String(Math.round(v));
+const fmtV = (m, v, cur = 'USD') => v == null ? 'n/a' : METRICS[m]?.fmt === 'days' ? `${Math.round(v)} days` : METRICS[m]?.fmt === 'money' ? (m === 'cpa' || m === 'meta_cpm' ? `${cur === 'USD' ? '$' : cur + ' '}${(+v).toFixed(2)}` : moneyOf(v, cur)) : METRICS[m]?.fmt === 'x' ? `${(+v).toFixed(2)}x` : String(Math.round(v));
 
 /** A rule from loose input, or { error }. Shared by the route and the Strategist's card. */
 export function cleanRule(b) {
@@ -80,7 +93,7 @@ export function cleanRule(b) {
   const win = String(b.window || 'today').toLowerCase();
   const window = win === 'last7' || /7/.test(win) ? 'last7' : /yester/.test(win) ? 'yesterday' : 'today';
   if (window === 'today' && METRICS[metric].finished) return { error: 'ROAS on Triple Whale attribution only exists for finished days (its credits land overnight). Use yesterday or the last 7 days, or watch MER today.' };
-  const baseline = ['normal', 'goal', 'fixed'].includes(b.baseline) ? b.baseline : 'normal';
+  const baseline = METRICS[metric].fixedOnly ? 'fixed' : ['normal', 'goal', 'fixed'].includes(b.baseline) ? b.baseline : 'normal';
   const comparison = b.comparison === 'above' ? 'above' : 'below';
   const threshold = Number(b.threshold);
   if (!isFinite(threshold) || threshold < 0) return { error: 'The threshold must be a number (a percent of the normal day or the goal, or the number itself for a fixed line).' };
@@ -88,7 +101,10 @@ export function cleanRule(b) {
   const h = b.at_hour_central;
   const at = h === null || h === undefined || h === '' ? null : Number.isInteger(+h) && +h >= 0 && +h <= 23 ? +h : NaN;
   if (Number.isNaN(at)) return { error: 'The hour is 0 to 23, Central.' };
-  return { rule: { metric, window, baseline, comparison, threshold, at_hour_central: at } };
+  const iso = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+  const starts = iso(b.starts), ends = iso(b.ends);
+  if (starts && ends && ends < starts) return { error: 'The window ends before it starts.' };
+  return { rule: { metric, window: METRICS[metric].kind === 'stock' ? 'today' : window, baseline, comparison, threshold, at_hour_central: at, starts, ends } };
 }
 
 /** The rule in plain words. */
@@ -98,7 +114,10 @@ export function ruleText(r, brandName) {
   const scope = r.window === 'today' ? `${m} today so far${when}` : `${m} ${WINDOWS[r.window]}`;
   const line = r.baseline === 'fixed' ? `${r.comparison === 'below' ? 'under' : 'over'} ${fmtV(r.metric, r.threshold)}`
     : `${r.comparison === 'below' ? 'under' : 'over'} ${+r.threshold}% of ${r.baseline === 'goal' ? 'the goal' : r.window === 'today' ? 'a normal day by that hour' : 'a normal stretch (the 28 days before)'}`;
-  return `Tell us when ${who}'s ${scope} is ${line}.`;
+  const md = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const span = r.starts && r.ends ? ` Only from ${md(r.starts)} to ${md(r.ends)}.` : r.starts ? ` From ${md(r.starts)}.` : r.ends ? ` Until ${md(r.ends)}.` : '';
+  if (METRICS[r.metric]?.kind === 'stock') return `Tell us when one of ${who}'s best sellers has under ${Math.round(r.threshold)} days of stock left.${span}`;
+  return `Tell us when ${who}'s ${scope} is ${line}.${span}`;
 }
 
 /* ---------------- evaluating ---------------- */
@@ -124,6 +143,7 @@ async function periodData(env, d, acct, window) {
     }
     o.mer = o.spend > 0 ? o.revenue / o.spend : null;
     o.cpa = o.orders > 0 ? o.spend / o.orders : null;
+    o.aov = o.orders > 0 ? o.revenue / o.orders : null;
     o.meta_cpm = o.imps > 0 ? o.meta_spend / o.imps * 1000 : null;
     o.roas = o.meta_spend > 0 && o.attrDays ? o.attr / o.meta_spend : null;
     return o;
@@ -147,12 +167,24 @@ function goalFor(d, acct, metric, days, share) {
 export async function evalBrand(env, d, row, acct, memo = new Map()) {
   const m = row.metric, cur = acct.currency || 'USD';
   let value = null, base = null, how = '';
+  if (METRICS[m]?.kind === 'stock') {
+    /* Days of stock on the brand's five best sellers (90-day units, Supply's brain); the shortest one counts. */
+    let v; try { v = await stockView(env, acct, 'products'); } catch (e) { return { skip: e.message }; }
+    if (!v || v.connected === false) return { skip: `${acct.name} has no stock feed.` };
+    const top = (v.products || []).filter(p => p.weeks_of_stock != null && (p.sold_90d || 0) > 0).sort((x, y) => (y.sold_90d || 0) - (x.sold_90d || 0)).slice(0, 5);
+    if (!top.length) return { skip: 'No product with sales and stock to judge.' };
+    const low = top.reduce((a, p) => (p.weeks_of_stock < a.weeks_of_stock ? p : a));
+    value = low.weeks_of_stock * 7;
+    const out = low.runs_out === 'now' ? ' (out now)' : low.runs_out ? ` (runs out ${low.runs_out})` : '';
+    return { value, base: null, ratio: null, fire: value < row.threshold, text: noDash(`*${acct.name}: ${low.product} has about ${Math.round(value)} days of stock left${out}, under your line of ${Math.round(row.threshold)} days.*`) };
+  }
   if (row.window === 'today') {
     let b = memo.get(acct.act_id);
     if (!b) { b = await brandNow(env, d, acct); memo.set(acct.act_id, b); }
     if (b.error) return { skip: b.error };
-    value = b.today_so_far?.[m] ?? null;
-    if (row.baseline === 'normal') { base = b.normal_by_now?.[m] ?? null; how = METRICS[m].kind === 'sum' ? 'a normal day by this hour (last 28 days)' : 'its last 28 days'; }
+    const per = (o, k) => k === 'aov' ? (o?.orders > 0 && o?.revenue != null ? o.revenue / o.orders : null) : o?.[k] ?? null;
+    value = per(b.today_so_far, m);
+    if (row.baseline === 'normal') { base = m === 'aov' ? per(b.normal_day, m) : b.normal_by_now?.[m] ?? null; how = METRICS[m].kind === 'sum' ? 'a normal day by this hour (last 28 days)' : 'its last 28 days'; }
     else if (row.baseline === 'goal') { base = goalFor(d, acct, m, 1, METRICS[m].kind === 'sum' ? (b.share_of_day ?? 1) : 1); how = METRICS[m].kind === 'sum' ? 'the goal pro-rated to this hour' : 'the goal'; }
     if (value == null) return { skip: `No ${METRICS[m].label} today yet${b.notes?.length ? ': ' + b.notes[0] : ''}.` };
   } else {
@@ -236,6 +268,7 @@ async function channelOf(env, d, row) {
 export function isDue(row, d) {
   const today = d.centralDate(), hour = d.centralHour();
   if (!row.active) return false;
+  if ((row.starts && today < row.starts) || (row.ends && today > row.ends)) return false;
   if (row.last_fired && d.centralDate(new Date(row.last_fired)) === today) return false;
   const checkedToday = row.last_checked && d.centralDate(new Date(row.last_checked)) === today;
   if (row.at_hour_central != null) return hour >= row.at_hour_central && hour <= row.at_hour_central + 2 && !checkedToday;
@@ -348,12 +381,13 @@ export async function handleAlerts(request, env, path, json, d) {
     let id = /^al_[0-9a-f]{10}$/.test(String(b.id || '')) ? b.id : null;
     if (id) { const have = await getRow(id); if (!have || !mine(have)) id = null; }
     const R = c.rule;
-    if (id) await env.DB.prepare(`UPDATE p_alert SET act = ?2, metric = ?3, comparison = ?4, threshold = ?5, at_hour_central = ?6, "window" = ?7, baseline = ?8, channel = ?9, mention = ?10, active = ?11 WHERE id = ?1`)
-      .bind(id, act, R.metric, R.comparison, R.threshold, R.at_hour_central, R.window, R.baseline, channel, mention, b.active === false ? 0 : 1).run();
+    const source = b.source ? clip(String(b.source), 40) : null;
+    if (id) await env.DB.prepare(`UPDATE p_alert SET act = ?2, metric = ?3, comparison = ?4, threshold = ?5, at_hour_central = ?6, "window" = ?7, baseline = ?8, channel = ?9, mention = ?10, active = ?11, starts = ?12, ends = ?13, source = COALESCE(?14, source) WHERE id = ?1`)
+      .bind(id, act, R.metric, R.comparison, R.threshold, R.at_hour_central, R.window, R.baseline, channel, mention, b.active === false ? 0 : 1, R.starts, R.ends, source).run();
     else {
       id = 'al_' + hex(10);
-      await env.DB.prepare(`INSERT INTO p_alert (id, act, metric, comparison, threshold, at_hour_central, "window", baseline, channel, mention, created_by, active) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,1)`)
-        .bind(id, act, R.metric, R.comparison, R.threshold, R.at_hour_central, R.window, R.baseline, channel, mention, clip(email || b.by || 'admin', 120)).run();
+      await env.DB.prepare(`INSERT INTO p_alert (id, act, metric, comparison, threshold, at_hour_central, "window", baseline, channel, mention, created_by, active, starts, ends, source) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,1,?12,?13,?14)`)
+        .bind(id, act, R.metric, R.comparison, R.threshold, R.at_hour_central, R.window, R.baseline, channel, mention, clip(email || b.by || 'admin', 120), R.starts, R.ends, source).run();
     }
     return json({ ok: true, alert: await view(await getRow(id), await allowedChannels(env, d)) });
   }

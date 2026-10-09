@@ -7,12 +7,24 @@
  */
 (function () {
 'use strict';
+/* 2026-10-09 (Cole: a client sees EVERYTHING about their own business): every switch is ON by default on the server
+   (brandguard CLIENT_SWITCHES); a switch here only turns one thing off for a brand. On = they see it. */
 const SW = [
   ['pl', 'P&L', 'Costs, margins and contribution margin. Off: they see sales, spend and results, never what is left after costs.'],
   ['changes', 'Change history', 'The Meta and Google change logs: budgets, launches and pauses, with who made them.'],
   ['strategist', 'Ask the Strategist', 'A client-safe Strategist that answers questions about their own numbers only. No internal notes, no Slack, no changes. Up to 20 questions a day.'],
-  ['creators', 'Creator link', 'Shows their creator link page under Creative.'],
+  ['creators', 'Creator link', 'Their creator link page under Creative.'],
 ];
+const DEFAULT_ON = { pl: true, changes: true, strategist: true, creators: true };
+const accOf = a => ({ ...DEFAULT_ON, ...(a || {}) });
+/* The one line, then the overrides folded away. `on` = {key: bool}, `editable` = the toggles answer clicks. */
+const everythingBlock = (on, brandName, editable, applies) => {
+  const off = SW.filter(([k]) => on[k] === false);
+  return `<div class="cl-all"><p class="cl-all-h"><b>Clients see everything about their own business.</b> Sales, ads, email and SMS, the store, the calendar, P&L, change history, their creator link and a Strategist that answers about their own numbers. Never another brand, a draft, settings or the team's notes.</p>
+    <details class="cl-off"${off.length ? ' open' : ''}><summary>Turn something off for this client${off.length ? ` <span class="cl-offn">${off.length} off: ${esc(off.map(x => x[1]).join(', '))}</span>` : ''}</summary>
+      <p class="hint" style="margin:6px 0 2px">${esc(applies || `Applies to every client login on ${brandName || 'this brand'}.`)} On means they see it.</p>
+      <div class="cl-sw">${SW.map(([k, l, h]) => `<label>${toggle(k, on[k] !== false, editable ? '' : ' aria-disabled="true"')}<b>${l}</b><small>${h}</small></label>`).join('')}</div></details></div>`;
+};
 const ago = iso => { if (!iso) return 'never'; const d = (Date.now() - Date.parse(iso)) / 864e5; return d < 1 / 24 ? 'just now' : d < 1 ? `${Math.round(d * 24)}h ago` : d < 30 ? `${Math.round(d)}d ago` : String(iso).slice(0, 10); };
 function css() {
   if (document.getElementById('clCss')) return;
@@ -25,8 +37,16 @@ function css() {
   .cl-sw label .toggle{margin-top:2px}
   .cl-sw small{grid-column:2;color:var(--muted);font-size:12.5px;line-height:1.45}
   .cl-chips{display:flex;flex-wrap:wrap;gap:6px}
-  .cl-chip{border:1px solid var(--line-strong);background:transparent;color:inherit;border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
-  .cl-chip[aria-pressed="true"]{background:var(--brand);color:var(--on-brand,#fff);border-color:transparent}
+  .cl-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line-strong);background:transparent;color:inherit;border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+  .cl-chip .cl-ck{display:none;width:13px;height:13px;flex:none}
+  .cl-chip[aria-pressed="true"] .cl-ck{display:block}
+  .cl-chip[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand-ink,var(--ink));border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);font-weight:600}
+  .cl-all{margin:18px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+  .cl-all-h{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+  .cl-all-h b{color:var(--ink)}
+  .cl-off{margin:10px 0 0}
+  .cl-off summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);list-style-position:inside}
+  .cl-offn{font-weight:500;color:var(--warn);margin-left:6px}
   .cl-m label.set-lbl{display:block;margin:14px 0 4px;font-weight:600;font-size:13px}
   .cl-m input[type=text],.cl-m textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 10px;font:inherit;font-size:13.5px;line-height:1.5;background:transparent;color:inherit}
   .cl-m .hint{margin:2px 0 0}
@@ -43,6 +63,12 @@ function css() {
   body.is-client [data-go="season"], body.is-client [data-go="drops"], body.is-client [data-go="plan"], body.is-client [data-go="today"], body.is-client [data-go="tiktok"],
   body.is-client:not(.cl-changes) [data-go="changes"], body.is-client:not(.cl-changes) [data-go="gchanges"]{display:none !important}`;
   document.head.appendChild(s);
+}
+/** Keeps "N off: ..." beside the fold in step after a switch flips (no redraw, the fold stays as it is). */
+function offLine(root, on) {
+  const s = root.querySelector('.cl-off summary'); if (!s) return;
+  const off = SW.filter(([k]) => on[k] === false);
+  s.innerHTML = `Turn something off for this client${off.length ? ` <span class="cl-offn">${off.length} off: ${esc(off.map(x => x[1]).join(', '))}</span>` : ''}`;
 }
 const toggle = (k, on, extra = '') => `<span class="toggle${on ? ' on' : ''}" data-sw="${k}" role="switch" aria-checked="${on}" tabindex="0"${extra}></span>`;
 function wireToggles(root, onFlip) {
@@ -62,19 +88,18 @@ async function card(host, opts = {}) {
   let d;
   try { d = await apiAH('/api/clients' + (act ? `?act=${encodeURIComponent(act)}` : ''), { fresh: true }); }
   catch (e) { host.innerHTML = `<div class="card set-card"><h3>Client logins</h3><p style="color:var(--bad)">${esc(e.message)}</p></div>`; return; }
-  const acc = act ? (d.access[act] || {}) : null;
+  const acc = act ? accOf(d.access[act]) : null;
   const rows = d.clients.map(c => `<tr data-e="${esc(c.email)}"><td><b>${esc(c.name || c.email)}</b>${c.name ? `<span class="tiny">${esc(c.email)}</span>` : ''}</td>
       <td>${c.brands.map(b => esc(b.name)).join(', ')}</td>
       <td>${c.last_sign_in ? ago(c.last_sign_in) : '<span class="faint">not yet</span>'}${c.last_seen && c.last_seen !== c.last_sign_in ? `<span class="tiny">last open ${ago(c.last_seen)}</span>` : ''}</td>
       <td>${c.last_invite ? `emailed ${ago(c.last_invite)}` : c.invited_at ? `added ${ago(c.invited_at)}` : ''}</td>
       <td style="white-space:nowrap">${d.can_edit ? `<button class="btn" data-k="resend">Resend invite</button> <button class="btn" data-k="remove" style="color:var(--bad)">Remove</button>` : ''}</td></tr>`).join('');
   host.innerHTML = `<div class="card set-card"><h3>${act ? `Client logins for ${esc(one?.name || '')}` : 'Client logins'}</h3>
-    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>tools.go-mobius-digital.com/profit</b>. They see only their own brand and can change nothing: Home, Ads (All channels, Meta and Google overview and campaigns), Email and SMS, Store, the Calendar (they can add a date and leave a note, and the team hears about it in Slack) and the reports you sent. Never drafts, settings, research, Studio, the Library, other brands or the team's Strategist.</p>
+    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>tools.go-mobius-digital.com/profit</b>. They see everything about their own brand and change nothing except the Calendar (they can add a date and leave a note, and the team hears about it in Slack). Never drafts, settings, research, Studio, the Library, other brands or the team's Strategist.</p>
     <div class="tbl-wrap"><table class="cl-tbl"><thead><tr><th>Person</th><th>Brands</th><th>Last sign-in</th><th>Invite</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="tiny">No client logins${act ? ' for this brand' : ''} yet.</td></tr>`}</tbody></table></div>
     ${d.can_edit ? `<div class="row" style="margin:12px 0 0;gap:8px"><button class="btn primary" data-k="invite">Invite a client</button></div>` : '<p class="tiny" style="margin-top:10px">Only Cole invites or removes clients.</p>'}
-    ${act ? `<h4 style="margin:22px 0 4px">What ${esc(one?.name || 'this brand')}'s clients can see beyond the basics</h4><p class="hint">Each switch applies to every client login on this brand. All off by default.</p>
-      <div class="cl-sw">${SW.map(([k, l, h]) => `<label>${toggle(k, !!acc[k], d.can_edit ? '' : ' aria-disabled="true"')}<b>${l}</b><small>${h}</small></label>`).join('')}</div>` : ''}
+    ${act ? everythingBlock(acc, one?.name, d.can_edit) : ''}
   </div>`;
   const reload = () => card(host, opts);
   const q = s => host.querySelector(s);
@@ -88,7 +113,7 @@ async function card(host, opts = {}) {
     catch (err) { noteModal('Could not remove', `<p>${esc(err.message)}</p>`); }
   });
   if (act && d.can_edit) wireToggles(host, async (k, on) => {
-    try { await apiAH('/api/clients/access', { method: 'PUT', body: JSON.stringify({ act, [k]: on }) }); return true; }
+    try { await apiAH('/api/clients/access', { method: 'PUT', body: JSON.stringify({ act, [k]: on }) }); acc[k] = on; offLine(host, acc); return true; }
     catch (err) { noteModal('Could not save', `<p>${esc(err.message)}</p>`); return false; }
   });
 }
@@ -103,9 +128,9 @@ async function invite(o = {}) {
   const close = () => { w.remove(); document.removeEventListener('keydown', esc_); };
   const esc_ = e => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', esc_);
-  const st = { emails: o.emails || '', name: o.name || '', brands: new Set(o.brands || (S.act && S.act !== 'all' ? [S.act] : [])), pl: false, strategist: false, subject: '', body: '', touched: false };
-  /* The switches start from the brand's current setting when one brand is picked. */
-  if (st.brands.size === 1) { try { const a = (await apiAH(`/api/clients?act=${encodeURIComponent([...st.brands][0])}`, { fresh: true })).access || {}; const x = a[[...st.brands][0]] || {}; st.pl = !!x.pl; st.strategist = !!x.strategist; } catch {} }
+  const st = { emails: o.emails || '', name: o.name || '', brands: new Set(o.brands || (S.act && S.act !== 'all' ? [S.act] : [])), on: { ...DEFAULT_ON }, subject: '', body: '', touched: false };
+  /* Everything is on; with one brand picked the switches start from what that brand has turned off. */
+  if (st.brands.size === 1) { try { const a = (await apiAH(`/api/clients?act=${encodeURIComponent([...st.brands][0])}`, { fresh: true })).access || {}; st.on = accOf(a[[...st.brands][0]]); } catch {} }
   const brandList = S.accounts.slice().sort((a, b) => a.name.localeCompare(b.name));
   const form = () => {
     m.innerHTML = `<h3>${o.resend ? 'Resend the Locus invite' : 'Invite a client to Locus'}</h3>
@@ -116,14 +141,12 @@ async function invite(o = {}) {
       <label class="set-lbl" for="clNm">First name, for the greeting</label>
       <input type="text" id="clNm" placeholder="Nick" value="${esc(st.name)}">
       <label class="set-lbl">Brands they see</label>
-      <div class="cl-chips">${brandList.map(a => `<button type="button" class="cl-chip" data-b="${esc(a.act_id)}" aria-pressed="${st.brands.has(a.act_id)}">${esc(a.name)}</button>`).join('')}</div>
-      <label class="set-lbl">What they can see beyond the basics</label>
-      <p class="hint">Applies to the ticked brands and every client login on them. You can change it later in Brand settings > Client access.</p>
-      <div class="cl-sw">${SW.filter(x => ['pl', 'strategist'].includes(x[0])).map(([k, l, h]) => `<label>${toggle(k, st[k])}<b>${l}</b><small>${h}</small></label>`).join('')}</div>
+      <div class="cl-chips">${brandList.map(a => `<button type="button" class="cl-chip" data-b="${esc(a.act_id)}" aria-pressed="${st.brands.has(a.act_id)}"><svg class="cl-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>${esc(a.name)}</button>`).join('')}</div>
+      ${everythingBlock(st.on, '', true, 'Applies to the ticked brands and every client login on them; change it later in Brand settings > Client access.')}
       <p class="tiny" id="clErr" style="color:var(--bad);margin-top:10px"></p>
       <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0"><button class="btn" data-x>Cancel</button><button class="btn primary" data-next>Next: the email</button></div>`;
     m.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const id = b.dataset.b; st.brands.has(id) ? st.brands.delete(id) : st.brands.add(id); b.setAttribute('aria-pressed', st.brands.has(id)); });
-    wireToggles(m, (k, on) => { st[k] = on; });
+    wireToggles(m, (k, on) => { st.on[k] = on; offLine(m, st.on); });
     m.querySelector('[data-x]').onclick = close;
     m.querySelector('[data-next]').onclick = async () => {
       st.emails = m.querySelector('#clEm').value.trim(); st.name = m.querySelector('#clNm').value.trim();
@@ -161,7 +184,7 @@ async function invite(o = {}) {
       const btns = m.querySelectorAll('button'); btns.forEach(b => b.disabled = true);
       const msg = m.querySelector('#clErr'); msg.style.color = ''; msg.textContent = send ? 'Sending…' : 'Saving…';
       try {
-        const r = await apiAH('/api/clients/invite', { method: 'POST', body: JSON.stringify({ emails: list, name: st.name, brands: [...st.brands], access: { pl: st.pl, strategist: st.strategist }, send, approved: send, subject: st.subject, body: st.body }) });
+        const r = await apiAH('/api/clients/invite', { method: 'POST', body: JSON.stringify({ emails: list, name: st.name, brands: [...st.brands], access: { ...st.on }, send, approved: send, subject: st.subject, body: st.body }) });
         if (r.failed && r.failed.length) { msg.style.color = 'var(--bad)'; msg.textContent = r.failed.map(f => `${f.email}: ${f.error}`).join(' '); btns.forEach(b => b.disabled = false); if (o.onDone) o.onDone(); return; }
         close();
         noteModal(send ? 'Invite sent' : 'Access given', `<p>${esc((send ? r.sent : r.added).join(', '))} ${send ? 'got the email and' : ''} can sign in now with Google at tools.go-mobius-digital.com/profit.</p>`);
@@ -183,15 +206,17 @@ function welcome(main) {
   if (!S.client || S.client.welcomed || !main) return;
   const b = brandOf(); const name = (S.client.name || '').split(/\s+/)[0];
   const el = document.createElement('div'); el.className = 'cl-wel';
-  const pl = b && b.access && b.access.pl;
+  const A = accOf(b && b.access), pl = A.pl;
   el.innerHTML = `<h3>Welcome to Locus${name ? `, ${esc(name)}` : ''}</h3>
     <p class="hint" style="margin:0">This is ${esc(b ? b.name : 'your brand')}'s dashboard: the same numbers Mobius works from every day, updated every morning.</p>
     <ul><li><b>Home</b>: sales, orders, ad spend and what the ads brought back${pl ? ', and the P&L' : ''}.</li>
-      <li><b>Ads</b>: every channel side by side, then Meta and Google campaign by campaign. Click an ad to see it.</li>
+      <li><b>Ads</b>: every channel side by side, then Meta and Google campaign by campaign. Click an ad to see it.${A.changes ? ' Changes shows every budget, launch and pause we made.' : ''}</li>
       <li><b>Email and SMS</b>: what your emails and texts sold.</li>
       <li><b>Store</b>: sales, customers, your website and search.</li>
       <li><b>Calendar</b>: your launches and sales. Add a date or leave a note and the team hears about it right away.</li>
-      <li><b>Reports</b>: every weekly and monthly report we sent you.</li></ul>
+      <li><b>Reports</b>: every weekly and monthly report we sent you.</li>
+      ${A.creators ? '<li><b>Creative</b>: your creator link, the page your creators film from.</li>' : ''}
+      ${A.strategist ? '<li><b>Ask</b>: type a question about your numbers in the bar at the top and the Strategist answers from your own data.</li>' : ''}</ul>
     <p class="hint" style="margin:0 0 12px">Change the dates and what they compare to in the top bar. Everything is read-only except the calendar, so there is nothing you can break.</p>
     <button class="btn primary" type="button">Got it</button>`;
   const head = main.querySelector('.ph'); if (head && head.parentElement) head.parentElement.insertBefore(el, head.nextSibling); else main.prepend(el);
@@ -202,14 +227,14 @@ function welcome(main) {
 function profile() {
   css();
   const me = S.client || { brands: [] };
-  const sw = b => SW.filter(([k]) => b.access && b.access[k]).map(x => x[1]);
+  const sw = b => SW.filter(([k]) => accOf(b.access)[k] === false).map(x => x[1]);
   $('#main').innerHTML = `<div class="v2 lx">${pageHead('cl_profile', 'Your profile')}<div class="card cl-prof">
     <h3>You</h3>
     <div class="kv"><span>Signed in as</span><b>${esc(S.meEmail || '')}</b>
       <span>Brands</span><b>${me.brands.map(b => esc(b.name)).join(', ') || 'none'}</b></div>
     <label class="set-lbl" for="clMyName" style="display:block;margin:16px 0 4px;font-weight:600">Your name</label>
     <div class="row" style="gap:8px;margin:0"><input type="text" id="clMyName" value="${esc(me.name || '')}" placeholder="How the team sees you on the calendar" style="max-width:320px"><button class="btn" id="clMySave">Save</button><span class="tiny" id="clMyMsg"></span></div>
-    <p class="hint" style="margin-top:14px">Your login is read-only: you can add dates and notes on the calendar, nothing else changes anything. ${me.brands.map(b => sw(b).length ? `On ${esc(b.name)} Mobius has also turned on: ${esc(sw(b).join(', '))}.` : '').join(' ')}</p>
+    <p class="hint" style="margin-top:14px">Your login is read-only: you can add dates and notes on the calendar, nothing else changes anything. You see everything about your own business${me.brands.some(b => sw(b).length) ? `, except: ${me.brands.filter(b => sw(b).length).map(b => `${esc(sw(b).join(', '))} on ${esc(b.name)}`).join('; ')}` : ''}.</p>
     <p class="hint">Need a teammate added, or something you cannot find? Ask us in Slack.</p>
     <div class="row" style="margin:16px 0 0"><button class="btn" id="clOut">Sign out</button></div></div></div>`;
   $('#clMySave').onclick = async () => { const v = $('#clMyName').value.trim(); try { const r = await apiAH('/api/clients/me', { method: 'PUT', body: JSON.stringify({ name: v }) }); S.client.name = r.name; $('#clMyMsg').textContent = 'Saved.'; } catch (e) { $('#clMyMsg').textContent = e.message; } };
