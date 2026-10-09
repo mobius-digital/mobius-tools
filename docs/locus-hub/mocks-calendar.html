@@ -102,89 +102,99 @@ button{font:inherit;color:inherit}
 .layer.off{opacity:.4}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
 @media (max-width:1180px){.grid2{grid-template-columns:1fr}}
-/* lanes */
+/* lanes: same look as the Season gantt (outlined bar in its colour, label inside or beside it) */
 .ln{position:relative}
-.ln .hdr{display:grid;grid-template-columns:150px minmax(0,1fr);border-bottom:1px solid var(--line);padding-bottom:6px}
-.ln .wk{position:relative;height:34px}
-.ln .wk span{position:absolute;bottom:0;font-size:10.5px;color:var(--muted);transform:translateX(2px);white-space:nowrap}
-.ln .row{display:grid;grid-template-columns:150px minmax(0,1fr);border-bottom:1px solid var(--line);min-height:40px}
+.ln .hdr{display:grid;grid-template-columns:160px minmax(0,1fr);border-bottom:1px solid var(--line)}
+.ln .wk{position:relative;height:44px}
+.ln .wk span{position:absolute;bottom:5px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transform:translateX(3px);white-space:nowrap}
+.ln .row{display:grid;grid-template-columns:160px minmax(0,1fr);border-bottom:1px solid var(--line);min-height:42px}
 .ln .row:last-child{border-bottom:0}
+.ln .row:hover{background:linear-gradient(90deg,var(--card-hi),transparent 40%)}
 .ln .nm{padding:8px 10px 8px 0;font-weight:600;display:flex;flex-direction:column;justify-content:center;gap:1px;cursor:pointer}
+.ln .nm:hover{color:var(--accent)}
 .ln .nm span{font-size:11px;font-weight:500;color:var(--muted)}
-.ln .tr{position:relative;padding:6px 0}
-.ln .gridl{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.55}
-.ln .today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:3}
+.ln .tr{position:relative;overflow:hidden}
+.ln .gridl{position:absolute;top:0;bottom:0;border-left:1px dashed var(--line)}
+.ln .today{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:3;opacity:.85}
 .ln .bfl{position:absolute;top:0;bottom:0;width:0;border-left:1.5px dashed var(--sale);z-index:2;opacity:.8}
-.ln .mk{position:absolute;top:0!important;bottom:auto!important;font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:4px;transform:translateX(-50%);white-space:nowrap;z-index:4}
+.ln .wk .mk{position:absolute;top:1px;bottom:auto;font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:none;padding:1px 6px;border-radius:4px;transform:translateX(-50%);white-space:nowrap;z-index:4}
 .ln .mk.t{background:var(--accent);color:var(--accent-ink)} .ln .mk.b{background:var(--sale);color:var(--bg)}
-.bar{position:absolute;height:19px;border-radius:5px;font-size:11px;font-weight:600;line-height:19px;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
-.bar:hover{filter:brightness(1.15);z-index:5;overflow:visible}
-.bar.drop{background:var(--drop-bg);color:var(--ink);box-shadow:inset 3px 0 0 var(--drop)}
-.bar.sale{background:var(--sale-bg);color:var(--ink);box-shadow:inset 3px 0 0 var(--sale)}
-.bar.other{background:var(--other-bg);color:var(--ink);box-shadow:inset 3px 0 0 var(--other)}
-.bar.pen{background-image:repeating-linear-gradient(135deg,transparent 0 5px,rgba(127,127,140,.18) 5px 9px)}
-.bar.miss{background:transparent!important;border:1.5px dashed var(--warn);color:var(--warn);line-height:16px;box-shadow:none}
-.bar.day{min-width:10px}
-.bar.open{-webkit-mask-image:linear-gradient(90deg,#000 70%,transparent);mask-image:linear-gradient(90deg,#000 70%,transparent)}
-.pin{position:absolute;height:19px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;white-space:nowrap;transform:translateX(-5px);cursor:pointer;z-index:2}
-.pin i{width:9px;height:9px;transform:rotate(45deg);border-radius:2px;background:var(--drop);flex:none}
-.pin.sale i{background:var(--sale)} .pin.other i{background:var(--other)} .pin.miss i{background:transparent;border:1.5px dashed var(--warn)} .pin.miss{color:var(--warn)}
-.pin:hover{text-decoration:underline}
-.mail{position:absolute;bottom:2px;width:6px;height:6px;border-radius:50%;background:var(--mail);transform:translateX(-3px)}
-.empty{font-size:12px;color:var(--faint);padding-top:5px}
+.bar{position:absolute;height:20px;border-radius:5px;font-size:11px;font-weight:600;line-height:18px;padding:0 6px;white-space:nowrap;cursor:pointer;z-index:1;border:1px solid var(--c);background:color-mix(in srgb,var(--c) 22%,var(--card));color:var(--ink);transition:transform .12s,box-shadow .12s}
+.bar .in{display:block;overflow:hidden;text-overflow:ellipsis}
+.bar .after{position:absolute;left:100%;top:-1px;padding-left:7px;color:var(--ink-2);font-weight:500}
+.bar .after.l{left:auto;right:100%;padding:0 7px 0 0}
+.bar:hover{transform:translateY(-1px);box-shadow:0 4px 12px -6px rgba(0,0,0,.5);z-index:6}
+.bar.pen{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 28%,var(--card)) 0 6px,color-mix(in srgb,var(--c) 8%,var(--card)) 6px 12px)}
+.bar.miss{background:transparent;border-style:dashed;border-color:var(--warn);color:var(--warn)} .bar.miss .after{color:var(--warn)}
+.bar.open{border-right-style:dashed;-webkit-mask-image:linear-gradient(90deg,#000 75%,rgba(0,0,0,.25));mask-image:linear-gradient(90deg,#000 75%,rgba(0,0,0,.25))}
+.bar.drop{--c:var(--drop)} .bar.sale{--c:var(--sale)} .bar.other{--c:var(--other)}
+.pin{position:absolute;height:20px;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;white-space:nowrap;transform:translateX(-5px);cursor:pointer;z-index:2;color:var(--ink)}
+.pin i{width:10px;height:10px;transform:rotate(45deg);border-radius:2px;background:var(--drop);flex:none}
+.pin.sale i{background:var(--sale)} .pin.other i{background:var(--other)}
+.pin:hover span{text-decoration:underline}
+.mail{position:absolute;width:12px;height:12px;transform:translateX(-6px);cursor:pointer;z-index:2;display:grid;place-items:center}
+.mail::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--mail)}
+.mail.sch::after{background:transparent;border:1.5px solid var(--mail)}
+.empty{font-size:12px;color:var(--muted);padding-top:12px;display:flex;gap:10px;align-items:center}
 .empty b{color:var(--warn);font-weight:600}
-.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:10px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:12px;align-items:center}
 .legend span{display:inline-flex;gap:6px;align-items:center}
-.legend i{display:inline-block;width:20px;height:10px;border-radius:3px}
+.legend i{display:inline-block;width:20px;height:11px;border-radius:3px}
 /* work list */
 .wl{display:grid}
-.wi{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.wi{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px}
 .wi:last-child{border-bottom:0} .wi:hover{background:var(--card-hi)}
 .wi .d{font-weight:650;font-size:12.5px} .wi .d span{display:block;font-size:11px;color:var(--muted);font-weight:500}
 .wi .t{font-weight:600} .wi .t em{font-style:normal;color:var(--muted);font-weight:500}
 .wi .s{font-size:12px;color:var(--muted);margin-top:1px}
+.lnk{color:var(--ink-2);cursor:pointer;border-bottom:1px dotted var(--g7)} .lnk:hover{color:var(--accent);border-color:var(--accent)}
 .src{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap;background:var(--g4);color:var(--ink-2)}
 .src.good{background:var(--good-bg);color:var(--good)} .src.warn{background:var(--warn-bg);color:var(--warn)}
-.wh{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:10px 4px 4px}
+.wh{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:10px 6px 4px}
 /* month */
-.mo{border-top:1px solid var(--line);border-left:1px solid var(--line)} .mo .dhr,.mo .wr{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));position:relative} .mo .bars{position:absolute;left:0;right:0;top:24px;pointer-events:none} .mo .bars .chip{position:absolute;pointer-events:auto;margin:0 3px}
+.mo{border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.mo .dhr,.mo .wr{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));position:relative}
 .mo .dh{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
-.mo .c{min-height:100px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 6px;display:flex;flex-direction:column;gap:3px;min-width:0}
-.mo .c.x{background:var(--g1);opacity:.5} .mo .c .n{font-size:11.5px;color:var(--muted);font-weight:600}
+.mo .c{min-height:104px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;min-width:0;cursor:copy}
+.mo .c:hover{background:var(--card-hi)}
+.mo .c.x{background:var(--g1)} .mo .c.x .n{opacity:.45} .mo .c .n{font-size:11.5px;color:var(--muted);font-weight:600}
 .mo .c.td{box-shadow:inset 0 0 0 2px var(--accent)} .mo .c.td .n{color:var(--accent)}
-.chip{font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.chip.drop{background:var(--drop-bg);box-shadow:inset 3px 0 0 var(--drop)} .chip.sale{background:var(--sale-bg);box-shadow:inset 3px 0 0 var(--sale)}
-.chip.other{background:var(--other-bg);box-shadow:inset 3px 0 0 var(--other)} .chip.pen{background-image:repeating-linear-gradient(135deg,transparent 0 5px,rgba(127,127,140,.18) 5px 9px)}
-.chip.cont{opacity:.65} .chip.mailc{background:transparent;color:var(--mail);padding-left:2px}
-.chip.warnc{box-shadow:inset 0 0 0 1.5px var(--warn)}
-/* coming up cards */
+.mo .bars{position:absolute;left:0;right:0;top:25px;pointer-events:none}
+.chip{position:absolute;pointer-events:auto;margin:0 3px;font-size:11px;font-weight:600;padding:0 6px;height:19px;line-height:17px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border:1px solid var(--c);background:color-mix(in srgb,var(--c) 22%,var(--card));color:var(--ink)}
+.chip.drop{--c:var(--drop)} .chip.sale{--c:var(--sale)} .chip.other{--c:var(--other)} .chip.mailc{--c:var(--mail)}
+.chip.pen{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 28%,var(--card)) 0 6px,color-mix(in srgb,var(--c) 8%,var(--card)) 6px 12px)}
+.chip.miss{background:transparent;border-style:dashed;border-color:var(--warn);color:var(--warn)}
+.chip.cont{border-left-style:dashed}
+.chip.more{border:0;background:transparent;color:var(--muted)}
+.chip:hover{filter:brightness(1.12)}
+/* coming up */
 .cu{display:grid;gap:10px}
 .ev{border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:12px 13px;display:grid;gap:7px;cursor:pointer}
-.ev:hover{border-color:var(--line-strong)}
+.ev:hover{border-color:var(--line-strong);background:var(--card-hi)}
 .ev .top1{display:flex;gap:8px;align-items:baseline}
 .ev .top1 b{font-size:13.5px} .ev .top1 span{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
 .ev .ty{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center}
 .ev .ty i{width:8px;height:8px;border-radius:2px}
 .steps{display:flex;gap:3px}
 .steps i{flex:1;height:5px;border-radius:3px;background:var(--track)}
-.steps i.done{background:var(--good)} .steps i.now{background:var(--warn)}
+.steps i.done{background:var(--good)} .steps i.late{background:var(--warn)}
 .ev .nx{font-size:12px;color:var(--ink-2)} .ev .nx b{font-weight:600}
 .warnbox{padding:10px 12px;border-radius:8px;background:var(--warn-bg);font-size:12.5px;display:grid;gap:3px}
-.warnbox b{color:var(--warn)}
+.warnbox b{color:var(--warn)} .warnbox .acts{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
 .infobox{padding:10px 12px;border-radius:8px;background:var(--accent-soft);font-size:12.5px}
 .infobox b{color:var(--accent)}
 /* panel */
-.scrim{position:absolute;inset:0;background:var(--scrim);z-index:20}
-.panel{position:absolute;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--bg);border-left:1px solid var(--line-strong);z-index:21;overflow-y:auto;padding:18px 20px 30px;display:grid;gap:14px;align-content:start}
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:20}
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--bg);border-left:1px solid var(--line-strong);z-index:21;overflow-y:auto;padding:18px 20px 30px;display:grid;gap:14px;align-content:start}
 .panel .ph{display:flex;gap:12px;align-items:flex-start}
 .panel .ph h3{margin:0;font-size:18px;font-weight:650}
 .panel .ph .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:4px 8px;border-radius:6px;border:1px solid var(--line)}
 .panel .meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--g4);color:var(--ink-2)}
-.tag.drop{background:var(--drop-bg)} .tag.sale{background:var(--sale-bg)}
+.tag.drop{background:var(--drop-bg)} .tag.sale{background:var(--sale-bg)} .tag.warn{background:var(--warn-bg);color:var(--warn)}
 .verdict{padding:12px 14px;border-radius:10px;display:grid;gap:3px}
-.verdict.good{background:var(--good-bg)} .verdict.warn{background:var(--warn-bg)}
-.verdict b{font-size:14px} .verdict.good b{color:var(--good)} .verdict.warn b{color:var(--warn)}
+.verdict.good{background:var(--good-bg)} .verdict.warn{background:var(--warn-bg)} .verdict.info{background:var(--accent-soft)}
+.verdict b{font-size:14px} .verdict.good b{color:var(--good)} .verdict.warn b{color:var(--warn)} .verdict.info b{color:var(--accent)}
 .verdict span{font-size:12.5px;color:var(--ink-2)}
 .sec h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
 .sec p{margin:0;color:var(--ink-2)}
@@ -195,16 +205,20 @@ button{font:inherit;color:inherit}
 .cd .st{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line)}
 .cd .st:last-child{border-bottom:0}
 .cd .ok{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700}
-.cd .ok.y{background:var(--good);color:var(--bg)} .cd .ok.n{border:1.5px solid var(--g7)} .cd .ok.w{border:1.5px solid var(--warn)}
+.cd .ok.y{background:var(--good);color:var(--bg)} .cd .ok.n{border:1.5px solid var(--g7)} .cd .ok.w{border:1.5px solid var(--warn);background:var(--warn-bg)}
 .cd .st b{font-weight:600} .cd .st .s{display:block;font-size:11.5px;color:var(--muted)}
 .cd .st .r{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap} .cd .st .r b{display:block;color:var(--ink-2)}
+.cd .st.lt .r b{color:var(--warn)}
 .hist{display:grid;gap:6px;font-size:12.5px;color:var(--ink-2)} .hist span{color:var(--muted)}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
 .stats>div{padding:10px 12px;border-right:1px solid var(--line)} .stats>div:last-child{border-right:0}
 .stats .l{font-size:11.5px;color:var(--muted)} .stats .v{font-size:18px;font-weight:650;margin:2px 0} .stats .s{font-size:11.5px;color:var(--muted)}
 .stats .s.g{color:var(--good)}
+.parts{display:grid;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+.parts div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+.parts div:last-child{border-bottom:0} .parts span{color:var(--muted)}
 /* modal */
-.modal{position:absolute;left:50%;top:40px;transform:translateX(-50%);width:min(860px,94%);background:var(--bg);border:1px solid var(--line-strong);border-radius:14px;z-index:21;display:grid;grid-template-columns:minmax(0,1fr) 300px}
+.modal{position:fixed;left:50%;top:40px;max-height:calc(100vh - 60px);overflow-y:auto;transform:translateX(-50%);width:min(860px,94%);background:var(--bg);border:1px solid var(--line-strong);border-radius:14px;z-index:21;display:grid;grid-template-columns:minmax(0,1fr) 300px}
 @media (max-width:820px){.modal{grid-template-columns:1fr}}
 .modal .l{padding:18px 20px;display:grid;gap:14px;align-content:start}
 .modal .rr{padding:18px 18px;border-left:1px solid var(--line);background:var(--card);border-radius:0 14px 14px 0;display:grid;gap:10px;align-content:start}
@@ -219,25 +233,19 @@ textarea.inp{min-height:62px;resize:vertical}
 .row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;padding-top:6px}
 .mini{display:grid;gap:0}
-.mini div{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
-.mini div:last-child{border-bottom:0} .mini span{color:var(--muted)} .mini .late{color:var(--warn);font-weight:600}
-/* client link */
-.client{max-width:1000px;margin:0 auto;border:1px solid var(--line);border-radius:14px;background:var(--bg);overflow:hidden}
-.client .chd{padding:22px 26px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.client .lg{width:40px;height:40px;border-radius:10px;background:#6b1e2a;color:#fff;display:grid;place-items:center;font-weight:800}
-.client .chd h1{margin:0;font-size:19px} .client .chd p{margin:2px 0 0;color:var(--muted)}
-.client .cb{padding:20px 26px;display:grid;gap:14px}
-.cl{display:grid;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
-.cl .it{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:14px;align-items:start;padding:12px 14px;border-bottom:1px solid var(--line)}
-.cl .it:last-child{border-bottom:0}
-.cl .it .d{font-weight:650} .cl .it .d span{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
-.cl .it .w b{font-weight:600} .cl .it .w p{margin:2px 0 0;font-size:12.5px;color:var(--ink-2)}
-.cl .it .w .need{margin-top:5px;font-size:12px;color:var(--warn);font-weight:600}
-.cl .it .w .from{margin-top:5px;font-size:11.5px;color:var(--muted)}
-.mh{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:12px 14px 2px}
+.mini>div{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:7px 4px;border-bottom:1px solid var(--line);font-size:12.5px;gap:8px}
+.mini>div:last-child{border-bottom:0} .mini span{color:var(--muted)} .mini .late{color:var(--warn);font-weight:600}
+.mini>div[data-ev]{cursor:pointer;border-radius:6px} .mini>div[data-ev]:hover{background:var(--card-hi)}
+.toggle{position:relative;width:34px;height:19px;border-radius:99px;background:var(--accent);display:inline-block;flex:none}
+.toggle::after{content:"";position:absolute;right:3px;top:3px;width:13px;height:13px;border-radius:50%;background:#fff}
+.menu{position:absolute;left:10px;top:96px;width:176px;background:var(--card);border:1px solid var(--line-strong);border-radius:10px;padding:5px;z-index:30;box-shadow:0 12px 30px -12px rgba(0,0,0,.5)}
+.menu div{padding:6px 9px;border-radius:6px;cursor:pointer;font-weight:500} .menu div:hover{background:var(--card-hi)}
+.banner{padding:9px 22px;background:var(--accent-soft);font-size:12.5px;color:var(--ink-2);border-bottom:1px solid var(--line)}
+.banner b{color:var(--accent)}
 /* slack */
 .slack{max-width:760px;margin:0 auto;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
-.slack .sh{padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700}
+.slack .sh{padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700;display:flex;gap:10px;align-items:baseline}
+.slack .sh span{font-weight:400;font-size:12px;color:var(--muted)}
 .msg{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
 .msg:last-child{border-bottom:0}
 .msg .av{width:36px;height:36px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800}
@@ -245,26 +253,26 @@ textarea.inp{min-height:62px;resize:vertical}
 .msg .bd{margin-top:4px;display:grid;gap:4px;color:var(--ink-2)} .msg .bd b{color:var(--ink)}
 .msg .bt{display:flex;gap:6px;margin-top:6px}
 .msg .why{font-size:11.5px;color:var(--faint);margin-top:6px}
-/* chart */
 .chart svg{width:100%;height:auto;display:block}
-.tip{position:fixed;pointer-events:none;background:var(--tipbg);color:var(--tipink);font-size:12px;padding:6px 9px;border-radius:7px;z-index:50;max-width:320px;display:none}
+.tip{position:fixed;pointer-events:none;background:var(--tipbg);color:var(--tipink);font-size:12px;padding:7px 10px;border-radius:7px;z-index:50;max-width:340px;display:none;line-height:1.45}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:9px;font-weight:600;z-index:60;display:none}
 .hide{display:none!important}
 @media (prefers-reduced-motion: no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}}
+@media (prefers-reduced-motion: reduce){.bar{transition:none}}
 </style>
 </head>
 <body>
 
 <div class="note">
-  <b>Calendar in Locus, mock v1</b>
+  <b>Calendar in Locus, mock v2</b>
   <div class="grp" id="scr">
     <button data-s="all" class="on">1 All clients</button>
     <button data-s="brand">2 One brand</button>
     <button data-s="event">3 A date (before)</button>
     <button data-s="past">4 A date (after)</button>
     <button data-s="add">5 Add a date</button>
-    <button data-s="client">6 Client link</button>
-    <button data-s="slack">7 Slack</button>
+    <button data-s="clientv">6 What a client sees</button>
+    <button data-s="slack">7 Slack messages</button>
     <button data-s="home">8 Home and charts</button>
   </div>
   <span class="sp"></span>
@@ -272,53 +280,52 @@ textarea.inp{min-height:62px;resize:vertical}
 </div>
 
 <details class="readme" open>
-  <summary>Read me first: what this page is for, in one minute</summary>
+  <summary>Read me first: what changed in v2, and your three questions</summary>
   <div class="cols">
     <div>
-      <h4>The goal</h4>
-      <p><b>The dates customers see drive the work that must be ready for them.</b> Every drop or sale gets a countdown (assets, ads, emails, live) that ticks ITSELF from Asana, Klaviyo and Meta. Nobody keeps it tidy by hand: Season's tasks show why (none ever ticked) and so does Burgundy (Oct 7 was missed and nothing said so).</p>
+      <h4>Everything opens</h4>
+      <p>Every bar, drop pin, email dot, work row, Coming up card, tile and brand name opens something. Bars look like the Black Friday gantt already in Locus (outlined in their colour, solid = confirmed, striped = pencilled, dashed = no offer yet) and a label that does not fit sits beside its bar. Hover shows the dates and the offer. The month view moves with &#8249; &#8250; (September to December).</p>
     </div>
     <div>
-      <h4>Who uses it, when</h4>
+      <h4>How a sale ends</h4>
       <ul>
-        <li><b>Clients</b> add their drops and sales on their link. We get a Slack ping.</li>
-        <li><b>Ahsan and Noma, Monday:</b> "Work due this week" and one click to make the Asana tasks.</li>
-        <li><b>Media buyer, daily:</b> the day-before ping and what goes live today.</li>
-        <li><b>Cole, weekly:</b> every client in one picture: what is coming, what clashes, who has nothing planned.</li>
-        <li><b>Everyone after:</b> the date shows on the charts with "did it work".</li>
+        <li>Every sale asks for an end date. If there isn't one, it shows "No end date" (dashed end) and a warning, like Burgundy's tiers.</li>
+        <li>Open-ended sales get one line in the Monday post: "still running?" with <b>It ended today</b>, one tap.</li>
+        <li>A sale that ends early: same button on its panel. Nothing else to remember.</li>
+        <li>Later, with the Mobius Shopify app on a store, the end comes straight from the Shopify discount.</li>
       </ul>
     </div>
     <div>
-      <h4>What is real in this mock</h4>
+      <h4>Clients and Slack</h4>
       <ul>
-        <li>Every date and offer: Season (live D1), Lineup (Nick's and Dartee's events), Lucky's Klaviyo sends, Dartee's sales by day (Triple Whale).</li>
-        <li>Burgundy's Asana state (7 tasks, Ready for Launch) is real.</li>
-        <li>Ticks marked "example" are illustrative: in the build they come from Asana, Klaviyo and Meta.</li>
-        <li>The rail follows the structure audit's proposal (not signed off yet).</li>
+        <li><b>No client link.</b> Clients sign in to Locus (per-brand access already exists) and see their own calendar: screen 6. They add and move their own dates; we get pinged.</li>
+        <li>Until clients have Locus logins, Nick and Dartee keep using the old Lineup: it writes the same dates, so nothing is lost.</li>
+        <li>Screen 7 is what the messages look like IN Slack. They go to each brand's internal channel, already set in Brand settings; nothing new to connect.</li>
       </ul>
     </div>
   </div>
 </details>
 
-<!-- ============ LOCUS FRAME (screens 1 to 5, 8) ============ -->
 <div class="frame" id="frame">
-  <nav class="rail">
+  <nav class="rail" id="rail">
     <div class="brand"><i></i><b>Locus</b></div>
-    <div class="pick" id="pick">All clients <span>&#9662;</span></div>
-    <a><i></i>Home</a>
-    <a><i></i>Ads</a>
-    <a><i></i>Email and SMS</a>
-    <a><i></i>Store</a>
-    <a><i></i>Creative</a>
-    <a><i></i>Brand</a>
+    <div class="pick" id="pick"><span id="pickName" style="color:var(--ink);font-weight:600">All clients</span><span>&#9662;</span></div>
+    <a data-r="o"><i></i>Home</a>
+    <a data-r="o"><i></i>Ads</a>
+    <a data-r="o"><i></i>Email and SMS</a>
+    <a data-r="o"><i></i>Store</a>
+    <a data-r="o"><i></i>Creative</a>
+    <a data-r="o"><i></i>Brand</a>
     <a class="on" id="railCal"><i></i>Calendar</a>
-    <a><i></i>Reports</a>
-    <div class="foot"><a><i></i>Tools</a><a><i></i>Brand settings</a></div>
+    <a data-r="o"><i></i>Reports</a>
+    <div class="foot" data-r="o"><a><i></i>Tools</a><a><i></i>Brand settings</a></div>
   </nav>
+  <div class="menu hide" id="menu"></div>
   <div class="content">
+    <div class="banner hide" id="cvBanner"><b>This is Locus as Nick Bender (Grunk) sees it when he signs in.</b> His brand only, this page only, no numbers, no internal work list. Per-brand access already exists; which pages a client sees is part of the structure audit.</div>
     <div class="top">
-      <div class="ask">Ask the Strategist, or jump to a page or brand (Ctrl+K)</div>
-      <span class="ctl">&#8249;</span><span class="ctl"><b>Today</b></span><span class="ctl">&#8250;</span>
+      <div class="ask" id="askBar">Ask the Strategist, or jump to a page or brand (Ctrl+K)</div>
+      <span class="btn sm q" id="prev">&#8249;</span><span class="btn sm q" id="todayBtn">Today</span><span class="btn sm q" id="next">&#8250;</span>
       <span class="ctl" id="rangeLbl"><b>Oct 5 to Jan 3</b></span>
       <button class="btn pri" data-go="add">+ Add a date</button>
     </div>
@@ -327,17 +334,17 @@ textarea.inp{min-height:62px;resize:vertical}
     <main class="main" id="s-all">
       <div class="head">
         <div class="eyebrow">Calendar &middot; All clients &middot; Fri Oct 9</div>
-        <h1>Burgundy goes live Tuesday and its ads are built. Splatter has no briefs yet, and two clients have nothing planned before Black Friday.</h1>
+        <h1>Burgundy goes live Tuesday and its ads are built. Five clients' November ads are due for briefs today, and two clients have nothing planned.</h1>
         <p>Next 6 weeks across 9 clients: <b>5 drops, 14 offers, Lucky's 4 emails</b>. What customers see is on the picture; what we owe is the list under it.</p>
       </div>
       <div class="tiles">
-        <div class="tile" data-tip="Dartee giveaway (today), Burgundy (Tue), Lucky giveaway (Wed), Grunk Racing teaser (Thu)"><div class="l">Goes live this week</div><div class="v">4</div><div class="sub"><b>Burgundy</b> Tue, Lucky giveaway Wed</div></div>
-        <div class="tile warn" data-tip="Six steps due Oct 9 to 15; one has no Asana task yet"><div class="l">Work due this week</div><div class="v">6</div><div class="sub"><b>1 not in Asana yet</b> (Splatter briefs)</div></div>
-        <div class="tile warn"><div class="l">Needs an offer</div><div class="v">3</div><div class="sub">Party Patch Black Friday (2), Grunk Dec drops</div></div>
-        <div class="tile"><div class="l">Nothing planned (6 weeks)</div><div class="v">2</div><div class="sub">SpeedIn, VetriPaws: ask them</div></div>
+        <div class="tile" data-ev="gr-burg" data-tip="Dartee giveaway (today), Burgundy (Tue), Lucky giveaway (Wed), Grunk Racing teaser (Thu). Opens Burgundy."><div class="l">Goes live this week</div><div class="v">4</div><div class="sub"><b>Burgundy</b> Tue, Lucky giveaway Wed</div></div>
+        <div class="tile warn" data-scroll="work"><div class="l">Work due this week</div><div class="v" id="wkN">0</div><div class="sub" id="wkSub"></div></div>
+        <div class="tile warn" data-ev="pp-bf"><div class="l">Needs an offer</div><div class="v">3</div><div class="sub">Party Patch Black Friday (2), Grunk Dec drops</div></div>
+        <div class="tile" data-brand="speedin"><div class="l">Nothing planned (6 weeks)</div><div class="v">2</div><div class="sub">SpeedIn, VetriPaws: ask them</div></div>
       </div>
       <div class="card">
-        <div class="ch"><h2>What customers see, every client</h2><span class="cap">13 weeks. Click a bar to open it.</span>
+        <div class="ch"><h2>What customers see, every client</h2><span class="cap">13 weeks. Click anything to open it; click a client to see their month.</span>
           <div class="r">
             <span class="layer" data-l="drop"><i style="background:var(--drop)"></i>Drops</span>
             <span class="layer" data-l="sale"><i style="background:var(--sale)"></i>Sales and offers</span>
@@ -347,39 +354,35 @@ textarea.inp{min-height:62px;resize:vertical}
         </div>
         <div class="ln" id="lanes"></div>
         <div class="legend">
-          <span><i style="background:var(--drop-bg);box-shadow:inset 3px 0 0 var(--drop)"></i>Confirmed</span>
-          <span><i style="background:var(--other-bg);background-image:repeating-linear-gradient(135deg,transparent 0 4px,rgba(127,127,140,.35) 4px 7px)"></i>Pencilled or proposed</span>
-          <span><i style="border:1.5px dashed var(--warn)"></i>On the plan, no offer yet</span>
-          <span>Bars marked <b>BF plan</b> come from the Black Friday plan; drops from Products; emails from Klaviyo. Nobody types them twice.</span>
+          <span><i style="border:1px solid var(--sale);background:var(--sale-bg)"></i>Confirmed</span>
+          <span><i style="border:1px solid var(--other);background:repeating-linear-gradient(135deg,var(--other-bg) 0 4px,transparent 4px 8px)"></i>Pencilled or proposed</span>
+          <span><i style="border:1.5px dashed var(--warn)"></i>No offer yet</span>
+          <span><i style="width:10px;height:10px;transform:rotate(45deg);background:var(--drop);border-radius:2px"></i>&nbsp;One-day drop</span>
+          <span><i style="width:8px;height:8px;border-radius:50%;background:var(--mail)"></i>Email sent</span>
+          <span><i style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--mail)"></i>Email scheduled</span>
+          <span>Black Friday week shows as one bar per client; open it for the parts.</span>
         </div>
       </div>
-      <div class="card">
-        <div class="ch"><h2>Work due this week</h2><span class="cap">The countdown of every date, Oct 9 to 15. Ticks come from Asana, Klaviyo and Meta.</span><div class="r"><span class="btn sm q">Next week</span></div></div>
+      <div class="card" id="workCard">
+        <div class="ch"><h2>Work due this week</h2><span class="cap">Every date's countdown, Oct 9 to 15, plus anything late. Ticks come from Asana, Klaviyo and Meta (examples in this mock). Click a name to open it.</span></div>
         <div class="wl" id="work"></div>
       </div>
     </main>
 
-    <!-- 2 ONE BRAND -->
+    <!-- 2 ONE BRAND (also 6, the client's view) -->
     <main class="main hide" id="s-brand">
       <div class="head">
-        <div class="eyebrow">Calendar &middot; Grunk Dolfer</div>
-        <h1>Burgundy goes live Tuesday. Splatter is two weeks out with no briefs yet, and 19th Hole lands three days before Black Friday.</h1>
-        <p>Strategist <b>Ahsan</b>, buyer <b>Ahsan</b>, email <b>Nick</b> (from the Black Friday plan's call sheet). Nick adds drops on his client link.</p>
+        <div class="eyebrow" id="bEyebrow">Calendar &middot; Grunk Dolfer</div>
+        <h1 id="bHead"></h1>
+        <p id="bSub"></p>
       </div>
       <div class="grid2">
         <div class="card">
-          <div class="ch"><h2>October 2026</h2><div class="r"><div class="seg"><span class="on">Month</span><span>Lanes</span></div><span class="btn sm q">&#8249;</span><span class="btn sm q">&#8250;</span></div></div>
+          <div class="ch"><h2 id="mTitle">October 2026</h2><span class="cap" id="mCap">Click an empty day to add a date there.</span><div class="r"><span class="btn sm q" data-m="-1">&#8249;</span><span class="btn sm q" data-m="1">&#8250;</span></div></div>
           <div class="mo" id="month"></div>
-          <div class="legend"><span><i style="background:var(--drop-bg);box-shadow:inset 3px 0 0 var(--drop)"></i>Drop</span><span><i style="background:var(--sale-bg);box-shadow:inset 3px 0 0 var(--sale)"></i>Sale or offer</span><span><i style="background:var(--other-bg);background-image:repeating-linear-gradient(135deg,transparent 0 4px,rgba(127,127,140,.35) 4px 7px)"></i>Teaser or pencilled</span><span style="color:var(--warn)">Outlined = a warning</span></div>
+          <div class="legend"><span><i style="border:1px solid var(--drop);background:var(--drop-bg)"></i>Drop</span><span><i style="border:1px solid var(--sale);background:var(--sale-bg)"></i>Sale or offer</span><span><i style="border:1px solid var(--other);background:var(--other-bg)"></i>Teaser, list, other</span><span><i style="border:1px solid var(--mail);background:transparent"></i>Email</span><span>Striped = pencilled &middot; dashed = no offer yet</span></div>
         </div>
-        <div style="display:grid;gap:12px">
-          <div class="warnbox"><b>19th Hole (Nov 23) is 3 days before the 24-hour deal and the BOGO.</b><span>Is the new collection in the BOGO? Decide by Oct 24 (30 days out) so the briefs say it.</span></div>
-          <div class="warnbox"><b>Burgundy's tiers have no end date.</b><span>15 / 20 / 25% from Oct 20 runs straight into Black Friday. End it Nov 25?</span></div>
-          <div class="card" style="padding:12px 13px">
-            <div class="ch" style="margin-bottom:8px"><h2>Coming up</h2><span class="cap">6 weeks</span></div>
-            <div class="cu" id="cu"></div>
-          </div>
-        </div>
+        <div style="display:grid;gap:12px;align-content:start" id="bSide"></div>
       </div>
     </main>
 
@@ -387,24 +390,35 @@ textarea.inp{min-height:62px;resize:vertical}
     <main class="main hide" id="s-home">
       <div class="head">
         <div class="eyebrow">Home &middot; Overview, two new pieces</div>
-        <h1>The calendar shows up where people already look: a Coming up card on Home, and the dates on every chart.</h1>
+        <h1>The calendar shows up where people already look: what is live and coming up on Home, the dates on every chart, and the reason when a number moves.</h1>
       </div>
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start" class="grid2">
+      <div class="grid2">
         <div class="card chart">
-          <div class="ch"><h2>Dartee Golf: revenue by day</h2><span class="cap">Aug 20 to Sep 20 &middot; Triple Whale. The band is the Warehouse Sale from the calendar; hover it.</span></div>
+          <div class="ch"><h2>Dartee Golf: revenue by day</h2><span class="cap">Aug 20 to Sep 20 &middot; Triple Whale. The band is the Warehouse Sale from the calendar; hover or click it.</span></div>
           <div id="chart"></div>
           <div class="infobox" style="margin-top:10px"><b>Same band on Sales, Overview, the Daily Brief and the Strategist's charts.</b> Change Log markers already draw there; calendar dates join them as shaded ranges.</div>
         </div>
-        <div style="display:grid;gap:12px">
+        <div style="display:grid;gap:12px;align-content:start">
           <div class="card">
-            <div class="ch"><h2>Coming up, 14 days</h2><span class="r"><span class="btn sm q" data-go="all">Calendar</span></span></div>
+            <div class="ch"><h2>Live now</h2><span class="cap">what customers see today</span><span class="r"><span class="btn sm q" data-go="all">Calendar</span></span></div>
             <div class="mini">
-              <div><b>Today &middot; Dartee giveaway starts</b><span>live</span></div>
-              <div><b>Tue Oct 13 &middot; Grunk Burgundy drop</b><span>ready</span></div>
-              <div><b>Wed Oct 14 &middot; Lucky giveaway</b><span>ads load Sat</span></div>
-              <div><b>Thu Oct 15 &middot; Grunk Racing teaser</b><span>ads load Tue</span></div>
-              <div><b>Fri Oct 23 &middot; Grunk Splatter drop</b><span class="late">no briefs</span></div>
+              <div data-ev="dt-give"><b>Dartee &middot; October giveaway</b><span>started today, to Nov 16</span></div>
             </div>
+            <div class="ch" style="margin:14px 0 6px"><h2>Coming up, 14 days</h2></div>
+            <div class="mini">
+              <div data-ev="gr-burg"><b>Tue Oct 13 &middot; Grunk Burgundy drop</b><span>ready</span></div>
+              <div data-ev="lk-give"><b>Wed Oct 14 &middot; Lucky giveaway</b><span>ads load Sat</span></div>
+              <div data-ev="gr-racing-t"><b>Thu Oct 15 &middot; Grunk Racing teaser</b><span>ads built Sat</span></div>
+              <div data-ev="gr-tiers"><b>Tue Oct 20 &middot; Burgundy tiers start</b><span class="late">no end date</span></div>
+              <div data-ev="gr-splat"><b>Fri Oct 23 &middot; Grunk Splatter drop</b><span class="late">no briefs</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="ch"><h2>What moved yesterday (Wed Oct 14, one line added)</h2></div>
+            <div class="mini">
+              <div data-ev="gr-burg"><b>Grunk revenue up 38% vs a normal Wednesday</b><span>day 2 of Burgundy</span></div>
+            </div>
+            <p style="margin:8px 0 0;font-size:12px;color:var(--muted)">When a number moves on a day with a calendar date, the date is named as the likely reason, here and in the 8am Slack post. Example numbers.</p>
           </div>
           <div class="card">
             <div class="ch"><h2>Daily Brief, Tue Oct 13 (one line added)</h2></div>
@@ -415,48 +429,7 @@ textarea.inp{min-height:62px;resize:vertical}
     </main>
 
     <div class="scrim hide" id="scrim"></div>
-
-    <!-- 3 EVENT PANEL (before) -->
-    <aside class="panel hide" id="p-event">
-      <div class="ph"><div><h3>Burgundy Drinko Collection</h3>
-        <div class="meta"><span class="tag drop">Drop</span><span class="tag">Confirmed</span><span>Grunk Dolfer &middot; added by Nick Bender, Sep 15</span></div></div>
-        <span class="x" data-close>&times;</span></div>
-      <div class="verdict good"><b>On track for Tue Oct 13.</b><span>Ads are built and in Asana. Two things left: Nick schedules the email by Saturday, Ahsan loads the ads Sunday.</span></div>
-      <div class="sec"><h4>What the customer sees</h4>
-        <p>7 Anchorman-themed products (driver cover, polo, hat, hoodie, Den Caddy, two more covers). Launch week at full price. From Oct 20: 2 items save 15%, 3 save 20%, 4 save 25% ("Assemble the News Team").</p></div>
-      <div class="kv"><div><span>Goes live</span><b>Tue Oct 13</b></div><div><span>Offer changes</span><b>Tue Oct 20, tiers</b></div><div><span>Ends</span><b style="color:var(--warn)">No end date</b></div></div>
-      <div class="kv"><div><span>Channels</span><b>Ads, Email, SMS</b></div><div><span>Assets</span><b><a style="color:var(--accent)">Air board &#8599;</a></b></div><div><span>Pings</span><b>#grunk-internal</b></div></div>
-      <div class="sec"><h4>Countdown (ticks itself)</h4>
-        <div class="cd">
-          <div class="st"><span class="ok y">&#10003;</span><div><b>Assets in</b><span class="s">The Air board link is on the date</span></div><div class="r"><b>Oct 1</b>Nick</div></div>
-          <div class="st"><span class="ok y">&#10003;</span><div><b>Ads briefed and built</b><span class="s">7 Asana tasks (363 to 369), all in Ready to Launch, 28 ads in Frame</span></div><div class="r"><b>Oct 8</b>Ahsan</div></div>
-          <div class="st"><span class="ok n"></span><div><b>Email and text scheduled</b><span class="s">Ticks when Klaviyo has a send on Oct 13 (example: none yet)</span></div><div class="r"><b>Sat Oct 10</b>Nick</div></div>
-          <div class="st"><span class="ok n"></span><div><b>Ads loaded</b><span class="s">Ticks when Meta shows new ads in the Grunk account</span></div><div class="r"><b>Sun Oct 11</b>Ahsan</div></div>
-          <div class="st"><span class="ok n"></span><div><b>Live</b><span class="s">The day before, #grunk-internal gets "live tomorrow" with what is still open</span></div><div class="r"><b>Tue Oct 13</b>&nbsp;</div></div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="btn">Open the 7 Asana tasks</span><span class="btn">Open the ads in Frame</span><span class="btn q">Move the date</span><span class="btn q">Edit</span></div>
-      <div class="sec"><h4>History</h4>
-        <div class="hist"><div><span>Oct 9</span> Cole moved it Oct 7 to Oct 13 (Nick's note said 10/13; the team also missed Oct 7)</div><div><span>Sep 15</span> Nick Bender added it for Oct 7 with the assets link</div></div></div>
-      <div class="infobox"><b>After Oct 13</b> this panel shows "did it work": revenue, orders and order size during the drop against the days before.</div>
-    </aside>
-
-    <!-- 4 PAST EVENT PANEL -->
-    <aside class="panel hide" id="p-past">
-      <div class="ph"><div><h3>Dartee Warehouse Sale</h3>
-        <div class="meta"><span class="tag sale">Sale</span><span class="tag">Done</span><span>Dartee Golf &middot; Sep 3 to 10 &middot; added by James Biernesser</span></div></div>
-        <span class="x" data-close>&times;</span></div>
-      <div class="verdict good"><b>It worked: 3x the revenue of the 8 days before.</b><span>325 orders against 101, on 12% more ad spend. The week after came in 31% under the week before, partly because spend was cut 34%.</span></div>
-      <div class="sec"><h4>What the customer saw</h4><p>Buy any belt, get a Raincheck belt free. Paid ads first, email and organic supporting.</p></div>
-      <div class="stats">
-        <div><div class="l">Revenue, 8 days</div><div class="v">$31.3K</div><div class="s g">+198% vs $10.5K before</div></div>
-        <div><div class="l">Orders</div><div class="v">325</div><div class="s g">vs 101 before</div></div>
-        <div><div class="l">Average order</div><div class="v">$96</div><div class="s">vs $104 before</div></div>
-        <div><div class="l">Ad spend</div><div class="v">$7.8K</div><div class="s">+12% (MER 4.0 vs 1.5)</div></div>
-      </div>
-      <div class="card chart" style="padding:12px"><div id="chart2"></div></div>
-      <div class="sec"><h4>For the next one</h4><p>The free-belt offer roughly tripled orders at a slightly lower order size. A sale too soon after this one teaches customers to wait: the calendar warns if Dartee's next sale is inside 6 weeks (Early Bird, Nov 1, is 7.5 weeks after: fine).</p></div>
-    </aside>
+    <aside class="panel hide" id="panel"></aside>
 
     <!-- 5 ADD A DATE -->
     <div class="modal hide" id="m-add">
@@ -466,7 +439,7 @@ textarea.inp{min-height:62px;resize:vertical}
         <div class="field"><label>Name</label><input class="inp" value="Halloween: the costume that plays 18"></div>
         <div class="row3">
           <div class="field"><label>Goes live</label><input class="inp" value="Thu Oct 29"></div>
-          <div class="field"><label>Ends <em>(optional)</em></label><input class="inp" value="Sat Oct 31"></div>
+          <div class="field"><label>Ends <em>(or "until we stop it")</em></label><input class="inp" value="Sat Oct 31"></div>
           <div class="field"><label>Teaser starts <em>(optional)</em></label><input class="inp" placeholder="No teaser"></div>
         </div>
         <div class="field"><label>What the customer sees <em>(the offer, in their words)</em></label><textarea class="inp">Dress as your golf hero. Post it, tag us, and we pick the best costume: it wins the full Burgundy kit.</textarea></div>
@@ -482,283 +455,406 @@ textarea.inp{min-height:62px;resize:vertical}
         <h4 style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)">This creates</h4>
         <div class="mini">
           <div><b>Offer locked</b><span class="late">Oct 8, passed</span></div>
-          <div><b>Briefs due</b><span>Oct 15</span></div>
+          <div><b>Ads briefed</b><span>Oct 15</span></div>
           <div><b>Ads built</b><span>Oct 24</span></div>
           <div><b>Email and text scheduled</b><span>Oct 26</span></div>
           <div><b>Ads loaded</b><span>Oct 27</span></div>
           <div><b>Live</b><span>Oct 29</span></div>
         </div>
-        <p style="margin:0;font-size:12px;color:var(--muted)">Short notice: the offer step is already late, so it shows on this week's list. Owners come from the brand's call sheet (Ahsan, Nick).</p>
-        <label style="display:flex;gap:8px;align-items:center;font-weight:600"><span style="position:relative;width:34px;height:19px;border-radius:99px;background:var(--accent);display:inline-block;flex:none"><i style="position:absolute;right:3px;top:3px;width:13px;height:13px;border-radius:50%;background:#fff"></i></span>Make the Asana tasks in the Grunk project</label>
-        <p style="margin:0;font-size:12px;color:var(--muted)">Ping goes to #grunk-internal. Nick sees it on his link.</p>
+        <p style="margin:0;font-size:12px;color:var(--muted)">Short notice: the offer step is already late, so it lands on this week's list. Owners come from the brand's call sheet (Ahsan, Nick Y.).</p>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:600"><span class="toggle"></span>Make the Asana tasks in the Grunk project</label>
+        <p style="margin:0;font-size:12px;color:var(--muted)">Pings #grunk-internal. Nick Bender sees it on his calendar when he signs in.</p>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 6 CLIENT LINK -->
-<div class="client hide" id="s-client">
-  <div class="chd"><div class="lg">GD</div><div><h1>Grunk Dolfer &middot; launch calendar</h1><p>Shared by Mobius Digital. Add or move your drops here; we see it straight away.</p></div><span style="margin-left:auto" class="btn pri">+ Add a date</span></div>
-  <div class="cb">
-    <div class="infobox"><b>Next up: Burgundy Drinko goes live Tuesday, Oct 13.</b> Everything we need from you is in. Thank you.</div>
-    <div class="cl">
-      <div class="mh">October</div>
-      <div class="it"><div class="d">Oct 13<span>Tue</span></div><div class="w"><b>Burgundy Drinko Collection</b><p>Full price launch week, then 2 save 15%, 3 save 20%, 4 save 25% from Oct 20.</p></div><span class="btn sm q">Move</span></div>
-      <div class="it"><div class="d">Oct 15<span>teaser starts</span></div><div class="w"><b>Grunk Racing Collection</b><p>Teasing until it goes live on the site Nov 11.</p><div class="need">We need: the photos by Nov 1</div></div><span class="btn sm q">Move</span></div>
-      <div class="it"><div class="d">Oct 23<span>Fri</span></div><div class="w"><b>Splatter Collection</b><p>Add what the customer sees so we can write the ads.</p><div class="need">We need: a line on the offer (full price or a deal?)</div></div><span class="btn sm q">Move</span></div>
-      <div class="mh">November</div>
-      <div class="it"><div class="d">Nov 1 to 25</div><div class="w"><b>Lead list</b><p>Growing the list before Black Friday.</p><div class="from">From your Black Friday plan. Changes go through us.</div></div><span></span></div>
-      <div class="it"><div class="d">Nov 23<span>Mon</span></div><div class="w"><b>19th Hole Drop</b><p>Launching on the site.</p><div class="need">We need: is it in the Black Friday BOGO? And the photos by Nov 1</div></div><span class="btn sm q">Move</span></div>
-      <div class="it"><div class="d">Nov 26 to 30</div><div class="w"><b>Black Friday</b><p>Thursday 24-hour deal (polos 3 for $99, hats $89), sitewide BOGO Fri to Sun, polo flash sale Cyber Monday.</p><div class="from">From your Black Friday plan.</div></div><span></span></div>
-      <div class="mh">Later</div>
-      <div class="it"><div class="d">Dec 4 to 6</div><div class="w"><b>December drops</b><p>No offer yet.</p><div class="need">We need: what drops, and at what price</div></div><span></span></div>
-      <div class="it"><div class="d">Jan 10<span>Sun</span></div><div class="w"><b>Wasted Western Collection</b><p>For the Waste Management Open (the People's Open).</p><div class="need">We need: the photos by Dec 1</div></div><span class="btn sm q">Move</span></div>
-    </div>
-    <p style="margin:0;font-size:12px;color:var(--muted)">This link shows one brand only: no numbers, no internal notes, no ad spend. Anything you add or move pings the Mobius team in Slack.</p>
-  </div>
-</div>
-
 <!-- 7 SLACK -->
 <div class="slack hide" id="s-slack">
-  <div class="sh"># grunk-internal</div>
-  <div class="msg"><div class="av">L</div><div><div class="who">Locus <span>Sep 15, 4:44 PM</span></div>
-    <div class="bd"><div><b>Nick Bender added a date:</b> Wasted Western Collection, Sun Jan 10 (drop).</div><div>Assets by Dec 1. Briefs due Dec 29, ads built Jan 5.</div></div>
+  <div class="sh"># grunk-internal <span>What these look like in Slack. Channel = the brand's internal channel from Brand settings > Slack and sending.</span></div>
+  <div class="msg"><div class="av">L</div><div><div class="who">Locus <span>when a client adds a date</span></div>
+    <div class="bd"><div><b>Nick Bender added a date:</b> Wasted Western Collection, Sun Jan 10 (drop).</div><div>Photos by Dec 27. Briefs due Dec 29, ads built Jan 5.</div></div>
     <div class="bt"><span class="btn sm">Open in Locus</span><span class="btn sm">Make the Asana tasks</span></div>
-    <div class="why">Sent when a client adds or moves a date. Today this ping never reached anyone: Grunk had no Slack channel mapped in Lineup.</div></div></div>
+    <div class="why">Sent when a client adds or moves a date. In Lineup this never reached anyone: Grunk had no Slack channel mapped.</div></div></div>
   <div class="msg"><div class="av">L</div><div><div class="who">Locus <span>Fri Oct 16, 8:00 AM</span></div>
-    <div class="bd"><div><b>One week out: Splatter Collection</b>, Fri Oct 23.</div><div>Ready: assets in. <b>Not yet:</b> briefs (were due Oct 11, Ahsan), ads built (Oct 18).</div></div>
+    <div class="bd"><div><b>One week out: Splatter Collection</b>, Fri Oct 23.</div><div>Ready: photos in. <b>Not yet:</b> briefs (were due Oct 11, Ahsan), ads built (Oct 18).</div></div>
     <div class="bt"><span class="btn sm">Open in Locus</span></div>
-    <div class="why">A week before every date, with only what is still open.</div></div></div>
+    <div class="why">A week before every date, listing only what is still open.</div></div></div>
   <div class="msg"><div class="av">L</div><div><div class="who">Locus <span>Mon Oct 12, 8:00 AM</span></div>
-    <div class="bd"><div><b>Live tomorrow: Burgundy Drinko Collection.</b></div><div>Ads loaded: 28. <b>Email:</b> nothing in Klaviyo for Oct 13 yet (Nick). (example)</div></div>
+    <div class="bd"><div><b>Live tomorrow: Burgundy Drinko Collection.</b></div><div>Ads loaded: 28. <b>Email:</b> nothing in Klaviyo for Oct 13 yet (Nick Y.). (example)</div></div>
     <div class="bt"><span class="btn sm">Open in Locus</span></div>
     <div class="why">The day before. If everything is ticked, it says "all set" in one line.</div></div></div>
-  <div class="msg"><div class="av">L</div><div><div class="who">Locus <span>Mon Oct 12, 8:00 AM, in the Monday post</span></div>
-    <div class="bd"><div><b>Next 14 days:</b> Burgundy Tue (ready) &middot; Lucky giveaway Wed &middot; Racing teaser Thu &middot; Splatter Oct 23 (no briefs).</div></div>
-    <div class="why">Joins the Monday post that already goes out; no new channel, no new message type.</div></div></div>
+  <div class="msg"><div class="av">L</div><div><div class="who">Locus <span>Mon Oct 26, 8:00 AM, inside the Monday post</span></div>
+    <div class="bd"><div><b>Next 14 days:</b> Halloween contest Thu &middot; Racing live Nov 11 (photos due Nov 1).</div><div><b>Still running?</b> Burgundy tiers (no end date, 7 days in). <span class="btn sm">It ended today</span> <span class="btn sm">Keep it going</span></div></div>
+    <div class="why">Joins the Monday post that already goes out. The "still running?" line is how an open-ended sale gets its end without anyone remembering.</div></div></div>
 </div>
 
 <div class="tip" id="tip"></div>
 <div class="toast" id="toast"></div>
 
 <script>
-/* ---------- data (real: Season D1, Lineup D1, Lucky Klaviyo; pulled 2026-10-09) ---------- */
-const START = '2026-10-05', DAYS = 91, TODAY = '2026-10-09', BF = '2026-11-27';
+/* ===== real data, pulled 2026-10-09: Season (p_season_phase), Lineup (events), Lucky Klaviyo, Triple Whale ===== */
+const TODAY = '2026-10-09', START = '2026-10-05', DAYS = 91, BF = '2026-11-27';
 const dd = s => new Date(s + 'T00:00:00Z');
+const add = (s, n) => new Date(dd(s).getTime() + n * 864e5).toISOString().slice(0, 10);
 const off = s => Math.round((dd(s) - dd(START)) / 864e5);
 const pct = s => Math.max(0, Math.min(100, off(s) / DAYS * 100));
 const fmt = s => dd(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-const BRANDS = [
-  ['Lucky Golf', 'Ahsan + Noma', [
-    ['Giveaway, then member signup', 'sale', '2026-10-14', '2026-11-18', 'conf', 'BF plan'],
-    ['Early Bird: towel with any club', 'sale', '2026-11-01', '2026-11-16', 'pen', 'BF plan'],
-    ['Eclipse Black announced', 'other', '2026-11-09', '2026-11-25', 'conf', 'BF plan'],
-    ['Early access 48h', 'sale', '2026-11-24', '2026-11-25', 'conf', 'BF plan'],
-    ['Black Friday to Cyber Monday', 'sale', '2026-11-26', '2026-11-30', 'pen', 'BF plan'],
-    ['Apparel drop', 'drop', '2026-12-04', '2026-12-16', 'conf', 'BF plan'],
-    ['Order by Christmas', 'sale', '2026-12-07', '2026-12-16', 'conf', 'BF plan'],
-    ['Gift cards', 'sale', '2026-12-17', '2026-12-24', 'pen', 'BF plan'],
-    ['Run-back to non-buyers', 'sale', '2026-12-26', '2026-12-31', 'conf', 'BF plan']],
-    ['2026-10-06', '2026-10-07', '2026-10-09', '2026-10-10']],
-  ['Grunk Dolfer', 'Ahsan', [
-    ['Burgundy Drinko', 'drop', '2026-10-13', '2026-10-13', 'conf', 'Nick', 'event'],
-    ['Burgundy tiers 15/20/25%', 'sale', '2026-10-20', '2026-11-25', 'open', 'Nick'],
-    ['Racing teaser', 'other', '2026-10-15', '2026-11-10', 'pen', 'Nick'],
-    ['Splatter', 'drop', '2026-10-23', '2026-10-23', 'conf', 'Nick'],
-    ['Racing live', 'drop', '2026-11-11', '2026-11-11', 'conf', 'Nick'],
-    ['Lead list', 'other', '2026-11-01', '2026-11-22', 'conf', 'BF plan'],
-    ['19th Hole', 'drop', '2026-11-23', '2026-11-23', 'conf', 'Nick'],
-    ['24h deal', 'sale', '2026-11-26', '2026-11-26', 'conf', 'BF plan'],
-    ['BOGO', 'sale', '2026-11-27', '2026-11-29', 'conf', 'BF plan'],
-    ['Polo flash', 'sale', '2026-11-30', '2026-11-30', 'conf', 'BF plan'],
-    ['Dec drops: no offer', 'drop', '2026-12-04', '2026-12-06', 'miss', 'BF plan']], []],
-  ['Dartee Golf', 'Ahsan', [
-    ['October giveaway', 'sale', '2026-10-09', '2026-11-16', 'conf', 'BF plan'],
-    ['Early Bird: 2nd belt 50%', 'sale', '2026-11-01', '2026-11-16', 'conf', 'BF plan'],
-    ['List build', 'other', '2026-11-17', '2026-11-22', 'conf', 'BF plan'],
-    ['Early access', 'sale', '2026-11-24', '2026-11-25', 'conf', 'BF plan'],
-    ['BF: free Raincheck', 'sale', '2026-11-26', '2026-11-29', 'conf', 'BF plan'],
-    ['Lizard drop', 'drop', '2026-11-30', '2026-12-04', 'conf', 'BF plan'],
-    ['Gifting + cutoffs', 'sale', '2026-12-05', '2026-12-18', 'pen', 'BF plan'],
-    ['Gift cards', 'sale', '2026-12-21', '2026-12-24', 'pen', 'BF plan'],
-    ['Run it back', 'sale', '2026-12-26', '2026-12-31', 'pen', 'BF plan']], []],
-  ['Bonk Golf', 'Noma', [
-    ['Early Black Friday', 'sale', '2026-11-01', '2026-11-25', 'conf', 'BF plan'],
-    ['BF bundle', 'sale', '2026-11-27', '2026-11-30', 'conf', 'BF plan']], []],
-  ['Ice & Gold', 'Noma', [
-    ['Gift list + early signup', 'other', '2026-11-02', '2026-11-25', 'pen', 'BF plan'],
-    ['Early access', 'sale', '2026-11-26', '2026-11-26', 'pen', 'BF plan'],
-    ['BF tiered spend', 'sale', '2026-11-27', '2026-11-30', 'pen', 'BF plan'],
-    ['Holiday sets', 'drop', '2026-12-04', '2026-12-06', 'pen', 'BF plan'],
-    ['Order by Christmas', 'sale', '2026-12-07', '2026-12-16', 'pen', 'BF plan'],
-    ['Gift cards', 'sale', '2026-12-17', '2026-12-24', 'pen', 'BF plan']], []],
-  ['Yak Sports', 'Ahsan', [
-    ['Hoodie + free snapback', 'sale', '2026-11-06', '2026-11-25', 'pen', 'BF plan'],
-    ['BF: 2 hoodies $140', 'sale', '2026-11-27', '2026-11-30', 'pen', 'BF plan'],
-    ['Order by Christmas', 'sale', '2026-12-07', '2026-12-16', 'pen', 'BF plan'],
-    ['2027 line tease', 'other', '2026-12-29', '2027-01-03', 'pen', 'BF plan']], []],
-  ['Party Patch', 'Noma', [
-    ['Early BF: no offer', 'sale', '2026-11-01', '2026-11-25', 'miss', 'BF plan'],
-    ['BF: no offer', 'sale', '2026-11-27', '2026-11-30', 'miss', 'BF plan']], []],
-  ['SpeedIn', 'Ahsan', [], []],
-  ['VetriPaws', 'Noma', [], []]
-];
+const wday = s => dd(s).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+const BR = {
+  lucky: ['Lucky Golf', 'Ahsan + Noma', 'Ahsan', 'Nick Y.', '#lucky-internal'],
+  grunk: ['Grunk Dolfer', 'Ahsan', 'Ahsan', 'Nick Y.', '#grunk-internal', 'Nick Bender'],
+  dartee: ['Dartee Golf', 'Ahsan', 'Ahsan', 'Nick Y.', '#dartee-internal', 'James Biernesser'],
+  bonk: ['Bonk Golf', 'Noma', 'Ahsan', 'Nick Y.', '#bonk-internal'],
+  ig: ['Ice & Gold', 'Noma', 'Ahsan', 'ask Fela', '#iceandgold-internal'],
+  yak: ['Yak Sports', 'Ahsan', 'Ahsan', 'J.C.', '#yak-internal'],
+  pp: ['Party Patch', 'Noma', 'Ahsan', 'ask Josh', '#partypatch-internal'],
+  speedin: ['SpeedIn', 'Ahsan', 'Ahsan', '', '#speedin-internal'],
+  vetri: ['VetriPaws', 'Noma', 'Ahsan', '', '#vetripaws-internal']
+};
+// id, brand, name, type, start, end (null = no end date), status conf|pen|miss, source season|client, offer
+const EV = [
+  ['lk-give', 'lucky', 'Giveaway, then member signup', 'other', '2026-10-14', '2026-11-18', 'conf', 'season', 'Win it for your whole foursome: all four of you get three Carvers. Then member signup.'],
+  ['lk-early', 'lucky', 'Early Bird: towel with any club', 'sale', '2026-11-01', '2026-11-16', 'pen', 'season', 'Free towel with any club. Buy two or more and a divot tool comes too.'],
+  ['lk-eclipse', 'lucky', 'Eclipse Black announced', 'other', '2026-11-09', '2026-11-25', 'conf', 'season', 'The Eclipse Blade and Mallet in black. Shown in November, not sold until Black Friday.'],
+  ['lk-access', 'lucky', 'Early access, 48 hours', 'sale', '2026-11-24', '2026-11-25', 'conf', 'season', 'The full Black Friday offer two days early, list only, and first pick of the Eclipse Black.'],
+  ['lk-bf', 'lucky', 'Black Friday to Cyber Monday', 'sale', '2026-11-26', '2026-11-30', 'pen', 'season', 'Every club comes with a towel and a divot tool. Buy 2 clubs, take $50 off. Buy 3, more off (proposed).'],
+  ['lk-apparel', 'lucky', 'Apparel drop', 'drop', '2026-12-04', '2026-12-16', 'conf', 'season', 'The new apparel at full price. Members Dec 3, everyone Dec 4.'],
+  ['lk-xmas', 'lucky', 'Order by Christmas', 'sale', '2026-12-07', '2026-12-16', 'conf', 'season', 'Full price. Order by Dec 13 standard, Dec 16 expedited.'],
+  ['lk-gift', 'lucky', 'Gift cards', 'sale', '2026-12-17', '2026-12-24', 'pen', 'season', 'Gift cards; structure to settle with Nick.'],
+  ['lk-boxing', 'lucky', 'Run-back to non-buyers', 'sale', '2026-12-26', '2026-12-31', 'conf', 'season', 'The bundle one more time, only to people who did not buy.'],
+  ['gr-burg', 'grunk', 'Burgundy Drinko', 'drop', '2026-10-13', '2026-10-13', 'conf', 'client', '7 Anchorman-themed products. Launch week at full price.'],
+  ['gr-tiers', 'grunk', 'Burgundy tiers 15/20/25%', 'sale', '2026-10-20', null, 'conf', 'part', '2 items save 15%, 3 save 20%, 4 save 25% ("Assemble the News Team"). Approved by Nick Bender in #grunk on Sep 30.'],
+  ['gr-racing-t', 'grunk', 'Racing teaser', 'other', '2026-10-15', '2026-11-10', 'conf', 'client', 'Teasing the Grunk Racing Collection until it goes live on the site Nov 11.'],
+  ['gr-splat', 'grunk', 'Splatter', 'drop', '2026-10-23', '2026-10-23', 'conf', 'client', ''],
+  ['gr-lead', 'grunk', 'Lead list', 'other', '2026-11-01', '2026-11-25', 'conf', 'season', '$5,000 lead list campaign, about $200 a day for 25 days.'],
+  ['gr-racing', 'grunk', 'Racing live', 'drop', '2026-11-11', '2026-11-11', 'conf', 'client', 'Grunk Racing Collection live on the website.'],
+  ['gr-19', 'grunk', '19th Hole', 'drop', '2026-11-23', '2026-11-23', 'conf', 'client', ''],
+  ['gr-24', 'grunk', '24-hour deal', 'sale', '2026-11-26', '2026-11-26', 'conf', 'season', 'Polos 3 for $99 (53% off), hats $89.'],
+  ['gr-bogo', 'grunk', 'Black Friday BOGO', 'sale', '2026-11-27', '2026-11-29', 'conf', 'season', 'Sitewide BOGO.'],
+  ['gr-cm', 'grunk', 'Cyber Monday polo flash', 'sale', '2026-11-30', '2026-11-30', 'conf', 'season', 'Polo flash sale again.'],
+  ['gr-dec', 'grunk', 'December drops', 'drop', '2026-12-04', '2026-12-06', 'miss', 'season', ''],
+  ['gr-ww', 'grunk', 'Wasted Western', 'drop', '2027-01-10', '2027-01-10', 'conf', 'client', 'For the Waste Management Open (the People\'s Open).'],
+  ['dt-ware', 'dartee', 'Warehouse Sale', 'sale', '2026-09-03', '2026-09-10', 'conf', 'client', 'Buy any belt, get a Raincheck belt free.'],
+  ['dt-muni', 'dartee', 'Muni Collection drop', 'drop', '2026-09-18', '2026-09-18', 'pen', 'client', 'New Muni Collection drop goes live.'],
+  ['dt-give', 'dartee', 'October giveaway', 'other', '2026-10-09', '2026-11-16', 'conf', 'season', 'We are giving every single Dartee belt away to your foursome. Enter free.'],
+  ['dt-early', 'dartee', 'Early Bird: 2nd belt 50%', 'sale', '2026-11-01', '2026-11-16', 'conf', 'season', 'Buy one belt, get a second 50% off. Any belt on the site.'],
+  ['dt-list', 'dartee', 'Early access list', 'other', '2026-11-17', '2026-11-22', 'conf', 'season', 'Sign up for 48 hours of early access to Black Friday.'],
+  ['dt-access', 'dartee', 'Early access, 48 hours', 'sale', '2026-11-24', '2026-11-25', 'conf', 'season', 'The full Black Friday offer two days early: a free Raincheck belt with every order.'],
+  ['dt-bf', 'dartee', 'Black Friday', 'sale', '2026-11-26', '2026-11-29', 'conf', 'season', 'Free Raincheck belt with every order. Up to 70% off sitewide.'],
+  ['dt-cm', 'dartee', 'Cyber Monday + Lizard drop', 'drop', '2026-11-30', '2026-12-04', 'conf', 'season', 'The Black Friday offer keeps running. The new Lizard belt drops at $120, full price.'],
+  ['dt-xmas', 'dartee', 'Gifting + shipping cutoffs', 'sale', '2026-12-05', '2026-12-18', 'pen', 'season', 'Gift season: bundle builder and shipping-cutoff tiers.'],
+  ['dt-gift', 'dartee', 'Gift cards matched', 'sale', '2026-12-21', '2026-12-24', 'pen', 'season', 'Buy a gift card, get it matched: $25 gets $25, $50 gets $50, $100 gets $100.'],
+  ['dt-boxing', 'dartee', 'Run it back', 'sale', '2026-12-26', '2026-12-31', 'pen', 'season', 'Run the Black Friday offer back.'],
+  ['bk-early', 'bonk', 'Early Black Friday', 'sale', '2026-11-01', '2026-11-25', 'conf', 'season', 'New bundles go to the list before any ads, then a public warm-up.'],
+  ['bk-bf', 'bonk', 'Black Friday bundle', 'sale', '2026-11-27', '2026-11-30', 'conf', 'season', 'Everything a Golfer Needs bundle: hat, ball marker, divot tool, towel, tees.'],
+  ['ig-list', 'ig', 'Gift list + early signup', 'other', '2026-11-02', '2026-11-25', 'pen', 'season', 'Proposal: join the list for early access Thursday and a free pair of studs.'],
+  ['ig-access', 'ig', 'Early access', 'sale', '2026-11-26', '2026-11-26', 'pen', 'season', 'Proposal: 24 hours early on the Black Friday offer.'],
+  ['ig-bf', 'ig', 'Black Friday tiers', 'sale', '2026-11-27', '2026-11-30', 'pen', 'season', 'Proposal: spend $100 save $25, $200 save $60, $300 save $100.'],
+  ['ig-sets', 'ig', 'Holiday sets', 'drop', '2026-12-04', '2026-12-06', 'pen', 'season', 'Proposal: three curated gift sets (her, him, the pair) at full price.'],
+  ['ig-xmas', 'ig', 'Order by Christmas', 'sale', '2026-12-07', '2026-12-16', 'pen', 'season', 'Proposal: free gift wrapping on every order until the cutoff.'],
+  ['ig-gift', 'ig', 'Gift cards', 'sale', '2026-12-17', '2026-12-24', 'pen', 'season', 'Proposal: digital gift cards lead every channel after the cutoff.'],
+  ['yk-early', 'yak', 'Hoodie + free snapback', 'sale', '2026-11-06', '2026-11-25', 'pen', 'season', 'Proposal: buy any hoodie, pick a free snapback ($50 value).'],
+  ['yk-bf', 'yak', 'Two hoodies $140', 'sale', '2026-11-27', '2026-11-30', 'pen', 'season', 'Proposal: two hoodies for $140 plus a free snapback.'],
+  ['yk-xmas', 'yak', 'Order by Christmas', 'sale', '2026-12-07', '2026-12-16', 'pen', 'season', 'Proposal: full price, hoodie + hat gift set with gift wrap.'],
+  ['yk-ny', 'yak', '2027 line tease', 'other', '2026-12-29', '2027-01-05', 'pen', 'season', 'Proposal: early look at the 2027 hat line for the email list.'],
+  ['pp-early', 'pp', 'Early Black Friday', 'sale', '2026-11-01', '2026-11-25', 'miss', 'season', ''],
+  ['pp-bf', 'pp', 'Black Friday', 'sale', '2026-11-27', '2026-11-30', 'miss', 'season', '']
+].map(([id, b, n, t, s, e, st, src, offer]) => ({ id, b, n, t, s, e, st, src, offer }));
+const MAILS = [['2026-10-06', 'The Season Ends The Hat Doesn\'t', 'sent'], ['2026-10-07', 'The trial outlasts your season (plain text)', 'sent'], ['2026-10-09', 'Eclipse Mallet Miss It Closer', 'scheduled'], ['2026-10-10', 'Fall Lies Carver 02', 'scheduled']];
+const byId = Object.fromEntries(EV.map(x => [x.id, x]));
 const LAY = { drop: true, sale: true, other: true, mail: true };
+const ORDER = ['lucky', 'grunk', 'dartee', 'bonk', 'ig', 'yak', 'pp', 'speedin', 'vetri'];
 
-/* Black Friday week: a brand's Season phases from Nov 24 to Nov 30 become ONE bar (the detail lives on the Black Friday page). */
-function merged(items) {
-  const inBF = x => x[5] === 'BF plan' && x[2] >= '2026-11-24' && x[3] <= '2026-11-30';
-  const bf = items.filter(inBF), rest = items.filter(x => !inBF(x));
-  if (bf.length < 2) return items;
-  const st = bf.some(x => x[4] === 'miss') ? 'miss' : bf.some(x => x[4] === 'pen') ? 'pen' : 'conf';
-  const s = bf.map(x => x[2]).sort()[0], e = bf.map(x => x[3]).sort().pop();
-  return rest.concat([['Black Friday', 'sale', s, e, st, 'BF plan', null, bf.map(x => x[0] + ' (' + fmt(x[2]) + (x[2] !== x[3] ? ' to ' + fmt(x[3]) : '') + ')').join(', ')]]);
-}
-function lanes() {
-  const el = document.getElementById('lanes');
-  const tw = (el.clientWidth || 1110) - 150, pxd = tw / DAYS;
-  let wk = '';
-  for (let i = 0; i < 13; i++) { const d = new Date(dd(START).getTime() + i * 7 * 864e5).toISOString().slice(0, 10); wk += `<span style="left:${i / 13 * 100}%">${fmt(d)}</span>`; }
-  const gridl = Array.from({ length: 13 }, (_, i) => `<i class="gridl" style="left:${i / 13 * 100}%"></i>`).join('');
-  let h = `<div class="hdr"><div></div><div class="wk">${wk}<span class="mk t" style="left:${pct(TODAY)}%;top:auto">Today</span><span class="mk b" style="left:${pct(BF)}%;top:auto">BF</span></div></div>`;
-  for (const [name, who, items, mails] of BRANDS) {
-    const vis = merged(items).filter(x => LAY[x[1]]).sort((a, b) => a[2].localeCompare(b[2]));
-    const rows = [];
-    const placed = vis.map(x => { const s = off(x[2]); const day = x[2] === x[3]; const e = day ? s + Math.ceil((x[0].length * 6.4 + 22) / pxd) : off(x[3]) + 1; let r = rows.findIndex(end => end <= s); if (r < 0) { r = rows.length; rows.push(0); } rows[r] = e + 1; return { x, r }; });
-    const hgt = Math.max(1, rows.length) * 23 + (mails.length && LAY.mail ? 10 : 0) + 4;
-    let inner = gridl + `<i class="today" style="left:${pct(TODAY)}%"></i><i class="bfl" style="left:${pct(BF)}%"></i>`;
-    for (const { x, r } of placed) {
-      const [n, t, s, e, st, src, id, parts] = x; const l = pct(s), w = Math.max(.9, pct(e) - l + 100 / DAYS);
-      const cls = `bar ${t} ${st === 'pen' ? 'pen' : ''} ${st === 'miss' ? 'miss' : ''} ${st === 'open' ? 'open' : ''} ${s === e ? 'day' : ''}`;
-      const tipTxt = `${name}: ${n} &middot; ${fmt(s)}${s !== e ? ' to ' + fmt(e) : ''}${st === 'open' ? ' (no end date)' : ''} &middot; ${st === 'conf' ? 'confirmed' : st === 'pen' ? 'pencilled or proposed' : st === 'miss' ? 'needs an offer' : 'open-ended'} &middot; from ${src === 'BF plan' ? 'the Black Friday plan' : 'Nick, on his link'}${parts ? '<br>' + parts : ''}`;
-      if (s === e) { inner += `<span class="pin ${t} ${st === 'miss' ? 'miss' : ''}" style="left:${l + 50 / DAYS}%;top:${6 + r * 23}px" data-tip="${tipTxt}" ${id ? 'data-go="event"' : 'data-toast="1"'}><i></i>${n}</span>`; continue; }
-      inner += `<span class="${cls}" style="left:${l}%;width:${w}%;top:${6 + r * 23}px" data-tip="${tipTxt}" data-full="${n}" data-short="${SHORT[n] || ''}" ${id ? 'data-go="event"' : 'data-toast="1"'}>${n}</span>`;
-    }
-    if (LAY.mail) for (const m of mails) inner += `<i class="mail" style="left:${pct(m)}%" data-tip="Lucky Golf: Klaviyo email ${fmt(m)}${m > TODAY ? ' (scheduled)' : ' (sent)'}"></i>`;
-    if (!items.length) inner += `<div class="empty"><b>Nothing planned.</b> No dates in 13 weeks. Ask them what is coming, or send the client link.</div>`;
-    h += `<div class="row"><div class="nm" data-toast="1">${name}<span>${who}</span></div><div class="tr" style="height:${items.length ? hgt : 40}px">${inner}</div></div>`;
-  }
-  el.innerHTML = h;
-  requestAnimationFrame(fit);
-}
-if (document.fonts) document.fonts.ready.then(() => { lanes(); });
-/* A label that does not fit tries its short form, then goes blank (the hover still names it). */
-function fit() {
-  document.querySelectorAll('#lanes .bar').forEach(b => {
-    if (!b.clientWidth) return;
-    b.textContent = b.dataset.full; if (b.scrollWidth <= b.clientWidth + 1) return;
-    if (b.dataset.short) { b.textContent = b.dataset.short; if (b.scrollWidth <= b.clientWidth + 1) return; }
-    b.textContent = '';
+/* ===== the countdown: derived from the date, ticked by Asana / Klaviyo / Meta ===== */
+const SRC = { offer: 'Offer written and locked', assets: 'A photos link on the date', briefs: 'Asana tasks made', built: 'Asana tasks done', email: 'A Klaviyo send on the day', loaded: 'New ads in Meta', live: 'The date' };
+function steps(ev) {
+  if (ev.src === 'part') return [];
+  const T = BR[ev.b];
+  let k;
+  if (ev.src === 'season') k = [['offer', 'Offer locked', -30, 'Cole'], ['briefs', 'Ads briefed', -23, T[1]], ['built', 'Ads built', -9, T[1]], ['loaded', 'Ads loaded', -4, T[2]], ['live', 'Live', 0, T[2]]];
+  else if (ev.t === 'drop') k = [['assets', 'Photos in', -14, T[5] || 'client'], ['briefs', 'Ads briefed', -12, T[1]], ['built', 'Ads built', -5, T[1]], ['email', 'Email and text scheduled', -3, T[3]], ['loaded', 'Ads loaded', -2, T[2]], ['live', 'Live', 0, T[2]]];
+  else if (ev.t === 'sale') k = [['offer', 'Offer locked', -21, 'Cole'], ['briefs', 'Ads briefed', -14, T[1]], ['built', 'Ads built', -5, T[1]], ['email', 'Email and text scheduled', -3, T[3]], ['loaded', 'Ads loaded', -2, T[2]], ['live', 'Live', 0, T[2]]];
+  else k = [['briefs', 'Ads briefed', -14, T[1]], ['built', 'Ads built', -5, T[1]], ['loaded', 'Ads loaded', -2, T[2]], ['live', 'Live', 0, T[2]]];
+  const FIX = {
+    'gr-burg': { assets: [1, 'Air board linked on Sep 15', '2026-10-01'], briefs: [1, 'Asana 363 to 369 made'], built: [1, '7 Asana tasks in Ready to Launch, 28 ads in Frame'], email: [0, 'Ticks when Klaviyo has a send on Oct 13 (example: none yet)'] },
+    'gr-splat': { assets: [1, 'Drive link on the date'], briefs: [0, 'Not in Asana yet'] },
+    'gr-racing': { assets: [0, 'Nick Bender said photos by Nov 1', '2026-11-01'] },
+    'gr-19': { assets: [0, 'Nick Bender said photos by Nov 1', '2026-11-01'] }
+  }[ev.id] || {};
+  return k.map(([key, label, o, who]) => {
+    const f = FIX[key]; const due = f && f[2] ? f[2] : add(ev.s, o);
+    let state = due < TODAY ? (ev.st === 'conf' ? 'done' : 'late') : 'open', note = SRC[key];
+    if (f) { state = f[0] ? 'done' : (due < TODAY ? 'late' : 'open'); note = f[1]; }
+    if (key === 'offer' && ev.st === 'miss') { state = due < TODAY ? 'late' : 'open'; note = 'No offer written yet'; }
+    if (key === 'live' && ev.s <= TODAY) state = 'done';
+    return { key, label, due, who, state, note };
   });
 }
-addEventListener('resize', fit);
-const SHORT = { 'Early Bird: towel with any club': 'Early Bird', 'Black Friday to Cyber Monday': 'BF to CM', 'Order by Christmas': 'Xmas', 'Run-back to non-buyers': 'Run-back', 'BF: free Raincheck': 'BF', 'Lizard drop': 'Lizard', 'Gift cards': 'Gifts', 'Run it back': 'Run-back', 'BF bundle': 'BF', 'BF tiered spend': 'BF', 'BF: 2 hoodies $140': 'BF', '2027 line tease': 'Tease', 'BF: no offer': 'BF?', 'Early BF: no offer': 'Early BF: no offer', 'Early access 48h': 'Access', 'Early access': 'Access', 'Gifting + cutoffs': 'Gifting', 'Holiday sets': 'Sets', 'Dec drops: no offer': 'Drops?', 'Black Friday': 'BF', 'Burgundy tiers 15/20/25%': 'Burgundy tiers', 'Early Bird: 2nd belt 50%': 'Early Bird', 'Gift list + early signup': 'Gift list', 'Hoodie + free snapback': 'Hoodie + snapback' };
 
-const WORK = [
-  ['2026-10-10', 'Grunk', 'Burgundy', 'Email and text scheduled', 'Nick', ['', 'Klaviyo: no send on Oct 13 yet (example)']],
-  ['2026-10-10', 'Lucky', 'Giveaway', 'Ads loaded', 'Ahsan', ['', 'Meta: 8 ads expected']],
-  ['2026-10-11', 'Grunk', 'Burgundy', 'Ads loaded', 'Ahsan', ['good', 'Asana: 7 tasks Ready to Launch']],
-  ['2026-10-11', 'Grunk', 'Splatter', 'Briefs due', 'Ahsan', ['warn', 'Not in Asana yet'], 'Make the Asana tasks'],
-  ['2026-10-13', 'Grunk', 'Racing teaser', 'Teaser ads loaded', 'Ahsan', ['', 'Meta']],
-  ['2026-10-14', 'Lucky', 'Giveaway', 'Signup page live', 'Cole', ['', 'Site check']]
-];
-function work() {
-  const el = document.getElementById('work'); let h = '', last = '';
-  for (const [d, b, ev, step, who, [cls, src], act] of WORK) {
-    const day = dd(d).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
-    if (d !== last) { h += `<div class="wh">${day} ${fmt(d)}</div>`; last = d; }
-    h += `<div class="wi" ${ev === 'Burgundy' ? 'data-go="event"' : 'data-toast="1"'}><div class="d">${fmt(d)}<span>${day}</span></div><div><div class="t">${step} <em>&middot; ${b} ${ev}</em></div><div class="s">${who}</div></div><div style="display:flex;gap:6px;align-items:center">${act ? `<span class="btn sm pri">${act}</span>` : ''}<span class="src ${cls}">${src}</span></div></div>`;
-  }
-  el.innerHTML = h;
+/* ===== lanes ===== */
+function merged(items) {
+  const inBF = x => x.src === 'season' && x.s >= '2026-11-24' && x.e && x.e <= '2026-11-30';
+  const bf = items.filter(inBF), rest = items.filter(x => !inBF(x));
+  if (bf.length < 2) return items;
+  const st = bf.some(x => x.st === 'miss') ? 'miss' : bf.some(x => x.st === 'pen') ? 'pen' : 'conf';
+  return rest.concat([{ id: 'bf:' + bf[0].b, b: bf[0].b, n: 'Black Friday week', t: 'sale', s: bf.map(x => x.s).sort()[0], e: bf.map(x => x.e).sort().pop(), st, src: 'season', parts: bf }]);
 }
-
-function month() {
-  const el = document.getElementById('month');
-  // [name, class, start, end, opens]
-  const EV = [['Burgundy Drinko', 'drop', '2026-10-13', '2026-10-13', 'event'], ['Racing teaser (live Nov 11)', 'other pen', '2026-10-15', '2026-11-10'],
-    ['Burgundy tiers 15/20/25% (no end date)', 'sale warnc', '2026-10-20', '2026-11-25', 'event'], ['Splatter drop', 'drop', '2026-10-23', '2026-10-23']];
-  let h = '<div class="dhr">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => `<div class="dh">${x}</div>`).join('') + '</div>';
-  const first = dd('2026-09-28');
-  for (let w = 0; w < 5; w++) {
-    const days = Array.from({ length: 7 }, (_, i) => new Date(first.getTime() + (w * 7 + i) * 864e5).toISOString().slice(0, 10));
-    const a = days[0], z = days[6];
-    const used = [];
-    let bars = '';
-    for (const [n, c, s, e, g] of EV) {
-      if (e < a || s > z) continue;
-      const c0 = Math.max(0, off(s) - off(a)), c1 = Math.min(6, off(e) - off(a));
-      let r = used.findIndex(end => end < c0); if (r < 0) { r = used.length; used.push(-1); } used[r] = c1;
-      bars += `<span class="chip ${c}${s < a ? ' cont' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${g ? `data-go="${g}"` : 'data-toast="1"'} data-tip="${n}: ${fmt(s)}${s !== e ? ' to ' + fmt(e) : ''}">${s < a ? '&#8592; ' : ''}${n}</span>`;
+const tipOf = x => `<b>${BR[x.b][0]}: ${x.n}</b><br>${fmt(x.s)}${x.e === null ? ', no end date' : x.e !== x.s ? ' to ' + fmt(x.e) : ''} &middot; ${x.st === 'conf' ? 'confirmed' : x.st === 'pen' ? 'pencilled or proposed' : 'no offer yet'}${x.parts ? '<br>' + x.parts.map(p => p.n + ' (' + fmt(p.s) + ')').join(', ') : x.offer ? '<br>' + x.offer : ''}<br><span style="opacity:.7">${x.src === 'season' ? 'From the Black Friday plan' : x.src === 'part' ? 'Part of Burgundy Drinko' : 'Added by ' + (BR[x.b][5] || 'the team')}. Click to open.</span>`;
+function lanes() {
+  const el = document.getElementById('lanes');
+  const tw = (el.clientWidth || 1110) - 160, pxd = tw / DAYS, END = add(START, DAYS - 1);
+  const wk = Array.from({ length: 13 }, (_, i) => `<span style="left:${i / 13 * 100}%">${fmt(add(START, i * 7))}</span>`).join('');
+  const gridl = Array.from({ length: 13 }, (_, i) => `<i class="gridl" style="left:${i / 13 * 100}%"></i>`).join('');
+  let h = `<div class="hdr"><div></div><div class="wk">${wk}<span class="mk t" style="left:${pct(TODAY)}%">Today</span><span class="mk b" style="left:${pct(BF)}%">Black Friday</span></div></div>`;
+  for (const b of ORDER) {
+    const items = merged(EV.filter(x => x.b === b && (x.e || END) >= START && x.s <= END)).filter(x => LAY[x.t]).sort((a, c) => a.s.localeCompare(c.s));
+    const rows = [];
+    let inner = gridl + `<i class="today" style="left:${pct(TODAY)}%"></i><i class="bfl" style="left:${pct(BF)}%"></i>`;
+    for (const x of items) {
+      const e = x.e || add(x.s, 27), s0 = off(x.s), day = x.s === x.e;  // no end date: draw 4 weeks, fading out
+      const wpx = day ? 0 : (off(e) - s0 + 1) * pxd;
+      const lab = (x.n.length + (x.e === null ? 15 : 0)) * 6.3 + 16, fits = day || wpx >= lab;
+      const nearEnd = pct(x.s) > 84;
+      const ext = day ? s0 + Math.ceil((lab + 8) / pxd) : fits || nearEnd ? off(e) + 1 : off(e) + 1 + Math.ceil(lab / pxd);
+      const from = !fits && nearEnd ? s0 - Math.ceil(lab / pxd) : s0;
+      let r = rows.findIndex(end => end <= from); if (r < 0) { r = rows.length; rows.push(0); } rows[r] = ext + 1;
+      const top = 7 + r * 25, tip = tipOf(x).replace(/"/g, '&quot;');
+      if (day) { inner += `<span class="pin ${x.t}" style="left:${pct(x.s) + 50 / DAYS}%;top:${top}px" data-tip="${tip}" data-ev="${x.id}"><i></i><span>${x.n}</span></span>`; continue; }
+      const l = pct(x.s), w = Math.max(.9, pct(e) - l + 100 / DAYS);
+      const cls = `bar ${x.t} ${x.st === 'pen' ? 'pen' : ''} ${x.st === 'miss' ? 'miss' : ''} ${x.e === null ? 'open' : ''}`;
+      const nm = x.e === null ? x.n + ' (no end date)' : x.n;
+      const label = fits ? `<span class="in">${nm}</span>` : `<span class="after${nearEnd ? ' l' : ''}">${nm}</span>`;
+      inner += `<span class="${cls}" style="left:${l}%;width:${w}%;top:${top}px" data-tip="${tip}" data-ev="${x.id}">${label}</span>`;
     }
-    h += `<div class="wr">${days.map(d => `<div class="c ${d.slice(5, 7) === '10' ? '' : 'x'} ${d === TODAY ? 'td' : ''}" data-toast="1"><span class="n">${+d.slice(8)}</span></div>`).join('')}<div class="bars">${bars}</div></div>`;
+    const mails = b === 'lucky' && LAY.mail ? MAILS : [];
+    const hgt = Math.max(1, rows.length) * 25 + 10 + (mails.length ? 14 : 0);
+    for (const [d, n, k] of mails) inner += `<i class="mail ${k === 'scheduled' ? 'sch' : ''}" style="left:${pct(d) + 50 / DAYS}%;top:${hgt - 17}px" data-tip="<b>Lucky Golf email, ${fmt(d)}</b><br>${n}<br>${k} &middot; from Klaviyo" data-mail="${d}"></i>`;
+    if (!EV.some(x => x.b === b)) inner += `<div class="empty"><b>Nothing planned in 13 weeks.</b> <span class="btn sm" data-brand="${b}">Open ${BR[b][0]}</span></div>`;
+    h += `<div class="row"><div class="nm" data-brand="${b}">${BR[b][0]}<span>${BR[b][1]}</span></div><div class="tr" style="height:${EV.some(x => x.b === b) ? hgt : 44}px">${inner}</div></div>`;
   }
   el.innerHTML = h;
 }
 
-function cu() {
-  const list = [
-    ['Burgundy Drinko', 'Tue Oct 13', 'drop', 'Drop', [1, 1, 0, 0, 0], 2, '<b>Next:</b> email scheduled by Sat (Nick)', 'event'],
-    ['Racing teaser', 'Thu Oct 15', 'other', 'Teaser, live Nov 11', [1, 0, 0, 0, 0], 1, '<b>Next:</b> teaser ads loaded by Tue (Ahsan)'],
-    ['Splatter', 'Fri Oct 23', 'drop', 'Drop', [1, 0, 0, 0, 0], 1, '<b style="color:var(--warn)">Late:</b> briefs were due Oct 11, not in Asana'],
-    ['Lead list', 'Nov 1 to 22', 'other', 'From the Black Friday plan', [0, 0, 0, 0, 0], 0, '<b>Next:</b> briefs due Oct 9 (15 ads)'],
-    ['Racing live', 'Wed Nov 11', 'drop', 'Drop', [0, 0, 0, 0, 0], 0, '<b>Next:</b> photos from Nick by Nov 1']
-  ];
-  document.getElementById('cu').innerHTML = list.map(([n, d, t, ty, st, now, nx, g]) =>
-    `<div class="ev" ${g ? `data-go="${g}"` : 'data-toast="1"'}><div class="top1"><b>${n}</b><span>${d}</span></div><div class="ty"><i style="background:var(--${t})"></i>${ty}</div><div class="steps">${st.map((x, i) => `<i class="${x ? 'done' : i === now ? 'now' : ''}"></i>`).join('')}</div><div class="nx">${nx}</div></div>`).join('');
+/* ===== work due this week (Oct 9 to 15): the SAME steps the panels show, grouped so it stays short ===== */
+const WEEK_END = '2026-10-15';
+const SRCLABEL = { offer: 'Black Friday plan', assets: 'Photos link', briefs: 'Asana', built: 'Asana', email: 'Klaviyo', loaded: 'Meta' };
+function workRows() {
+  const rows = [];
+  for (const x of EV) {
+    if (x.e && x.e < TODAY) continue;
+    for (const k of steps(x)) {
+      if (k.state === 'done' || k.key === 'live') continue;
+      const late = k.state === 'late' && x.s <= add(TODAY, 42);
+      if (late || (k.due >= TODAY && k.due <= WEEK_END)) rows.push({ day: late ? 'late' : k.due, k, x });
+    }
+  }
+  const groups = {};
+  for (const r of rows) { const g = r.day + '|' + r.k.label; (groups[g] = groups[g] || []).push(r); }
+  return Object.values(groups).map(rs => ({ day: rs[0].day, label: rs[0].k.label, rs }));
+}
+function work() {
+  const G = workRows().sort((a, b) => (a.day === 'late' ? '0' : a.day).localeCompare(b.day === 'late' ? '0' : b.day));
+  let h = '', last = '';
+  for (const g of G) {
+    if (g.day !== last) { h += `<div class="wh">${g.day === 'late' ? 'Late' : (g.day === TODAY ? 'Today, ' : '') + wday(g.day) + ' ' + fmt(g.day)}</div>`; last = g.day; }
+    const one = g.rs.length === 1, r0 = g.rs[0];
+    const who = [...new Set(g.rs.map(r => r.k.who))].join(', ');
+    const names = g.rs.map(r => `<span class="lnk" data-ev="${r.x.id}">${BR[r.x.b][0]}${one ? ', ' + r.x.n : ''}</span>`).join(' &middot; ');
+    const noAsana = g.rs.some(r => r.k.note === 'Not in Asana yet');
+    const src = noAsana ? ['warn', 'Not in Asana yet'] : g.day === 'late' ? ['warn', g.label === 'Offer locked' ? 'Still a proposal or blank' : 'Not ticked'] : r0.k.note.startsWith('Ticks when') ? ['', 'Klaviyo: no send yet (example)'] : r0.k.note.startsWith('7 Asana') ? ['good', 'Asana: ready'] : ['', SRCLABEL[r0.k.key] || ''];
+    const dues = g.rs.map(r => r.k.due).sort(), d = g.day === 'late' ? dues[0] : g.day;
+    h += `<div class="wi" ${one ? `data-ev="${r0.x.id}"` : ''}><div class="d">${g.day === 'late' && dues[0] !== dues[dues.length - 1] ? fmt(dues[0]) + '+' : fmt(d)}<span>${g.day === 'late' ? 'was due' : wday(d)}</span></div><div><div class="t">${g.label}${one ? '' : ` <em>&middot; ${g.rs.length} dates</em>`}</div><div class="s">${names} &middot; ${who}</div></div><div style="display:flex;gap:6px;align-items:center">${noAsana ? `<span class="btn sm pri" data-toast="Makes the Asana tasks with these dates.">Make the Asana tasks</span>` : ''}<span class="src ${src[0]}">${src[1]}</span></div></div>`;
+  }
+  document.getElementById('work').innerHTML = h;
+  const n = G.filter(g => g.day !== 'late').reduce((t, g) => t + g.rs.length, 0), late = G.filter(g => g.day === 'late').reduce((t, g) => t + g.rs.length, 0);
+  document.getElementById('wkN').textContent = n;
+  document.getElementById('wkSub').innerHTML = `<b>${late} late</b> (offers not locked) &middot; 1 not in Asana`;
 }
 
-/* Dartee, Triple Whale: revenue = totalSales - totalTaxes, Aug 20 to Sep 20 */
+/* ===== one brand ===== */
+let BRAND = 'grunk', MON = '2026-10', CLIENTV = false;
+function monthGrid() {
+  const el = document.getElementById('month');
+  const [y, m] = MON.split('-').map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1)), dow = (first.getUTCDay() + 6) % 7;
+  const start = add(first.toISOString().slice(0, 10), -dow);
+  const weeks = Math.ceil((dow + new Date(Date.UTC(y, m, 0)).getUTCDate()) / 7);
+  document.getElementById('mTitle').textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  document.getElementById('rangeLbl').innerHTML = `<b>${document.getElementById('mTitle').textContent}</b>`;
+  const items = EV.filter(x => x.b === BRAND).map(x => ({ ...x }));
+  if (BRAND === 'lucky' && !CLIENTV) MAILS.forEach(([d, n, k]) => items.push({ id: 'mail:' + d, b: 'lucky', n: 'Email: ' + n, t: 'mailc', s: d, e: d, st: k === 'scheduled' ? 'pen' : 'conf' }));
+  let h = '<div class="dhr">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => `<div class="dh">${x}</div>`).join('') + '</div>';
+  for (let w = 0; w < weeks; w++) {
+    const days = Array.from({ length: 7 }, (_, i) => add(start, w * 7 + i)), a = days[0], z = days[6];
+    const used = []; let bars = '', hidden = 0;
+    for (const x of items.sort((p, q) => p.s.localeCompare(q.s))) {
+      const e = x.e || '2027-12-31';
+      if (e < a || x.s > z) continue;
+      const c0 = Math.max(0, Math.round((dd(x.s) - dd(a)) / 864e5)), c1 = Math.min(6, Math.round((dd(e) - dd(a)) / 864e5));
+      let r = used.findIndex(end => end < c0); if (r < 0) { r = used.length; used.push(-1); }
+      if (r > 2) { hidden++; continue; }
+      used[r] = c1;
+      const cls = `chip ${x.t} ${x.st === 'pen' ? 'pen' : ''} ${x.st === 'miss' ? 'miss' : ''} ${x.s < a ? 'cont' : ''}`;
+      bars += `<span class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" data-ev="${x.id}" data-tip="${(x.id.startsWith('mail') ? '<b>' + x.n + '</b><br>' + fmt(x.s) + ', from Klaviyo' : tipOf(x)).replace(/"/g, '&quot;')}">${x.s < a ? '&#8592; ' : ''}${x.n}${x.e === null && e > z ? ' (no end date)' : ''}</span>`;
+    }
+    if (hidden) bars += `<span class="chip more" style="left:0;top:66px">+${hidden} more</span>`;
+    h += `<div class="wr">${days.map(d => `<div class="c ${d.slice(0, 7) === MON ? '' : 'x'} ${d === TODAY ? 'td' : ''}" data-day="${d}"><span class="n">${+d.slice(8)}</span></div>`).join('')}<div class="bars">${bars}</div></div>`;
+  }
+  el.innerHTML = h;
+}
+function brandView() {
+  const T = BR[BRAND], mine = EV.filter(x => x.b === BRAND);
+  const ahead = mine.filter(x => (x.e || '2099') >= TODAY && x.s <= add(TODAY, 42)).sort((a, b) => a.s.localeCompare(b.s));
+  document.getElementById('bEyebrow').textContent = (CLIENTV ? 'Your calendar' : 'Calendar') + ' · ' + T[0];
+  const heads = {
+    grunk: 'Burgundy goes live Tuesday. Splatter is two weeks out with no briefs yet, and 19th Hole lands three days before Black Friday.',
+    lucky: 'The giveaway starts Wednesday; its ads load Saturday. Black Friday is still pencilled.',
+    dartee: 'The October giveaway started today. Black Friday is locked: a free Raincheck belt with every order.',
+    speedin: 'Nothing on SpeedIn\'s calendar for the next 13 weeks.', vetri: 'Nothing on VetriPaws\' calendar for the next 13 weeks.'
+  };
+  document.getElementById('bHead').textContent = CLIENTV ? 'Burgundy Drinko goes live Tuesday. Three things we need from you are below.' : heads[BRAND] || `${ahead.length} dates in the next 6 weeks. ${mine.some(x => x.st !== 'conf') ? 'Some offers are still proposals.' : ''}`;
+  document.getElementById('bSub').innerHTML = CLIENTV ? 'Add or move your drops and sales here. Black Friday dates come from the plan we agreed; change those with us.' : `Strategist <b>${T[1]}</b>, buyer <b>${T[2]}</b>${T[3] ? `, email <b>${T[3]}</b>` : ''} (from the call sheet). Pings go to <b>${T[4]}</b>.${T[5] ? ` ${T[5]} adds dates when he signs in.` : ''}`;
+  document.getElementById('mCap').textContent = CLIENTV ? 'Click an empty day to add a drop or sale.' : 'Click an empty day to add a date there.';
+  monthGrid();
+  // side column: warnings (computed), then Coming up
+  const warns = [];
+  if (!mine.length) warns.push(['Nothing planned.', `No dates in 13 weeks. Ask ${T[0]} what is coming, or add what you know.`, CLIENTV ? '' : `<span class="btn sm" data-toast="Drafts a message in ${T[0]}'s client channel; you send it.">Ask them in Slack</span>`]);
+  for (const x of mine) {
+    if (x.e === null) warns.push([`${x.n} has no end date.`, 'Runs straight into Black Friday. End it Nov 25?', `<span class="btn sm" data-ev="${x.id}">Set an end date</span><span class="btn sm q" data-toast="Marks it ended today; the impact card closes on today.">It ended today</span>`]);
+    if (x.st === 'miss') warns.push([`${x.n}: no offer yet.`, 'It is on the Black Friday plan with nothing written.', `<span class="btn sm" data-ev="${x.id}">Open it</span>`]);
+    if (x.t === 'drop' && x.s >= '2026-11-20' && x.s < '2026-11-26') warns.push([`${x.n} (${fmt(x.s)}) is 3 days before the 24-hour deal and the BOGO.`, 'Is the new collection in the BOGO? Decide by Oct 24 so the briefs say it.', `<span class="btn sm" data-ev="${x.id}">Open it</span>`]);
+  }
+  const need = [['Photos for Grunk Racing', 'by Nov 1', 'gr-racing'], ['A line on the Splatter offer: full price or a deal?', 'by Oct 11', 'gr-splat'], ['Is 19th Hole in the Black Friday BOGO?', 'by Oct 24', 'gr-19']];
+  let side = '';
+  if (CLIENTV) side += `<div class="card" style="padding:12px 13px"><div class="ch" style="margin-bottom:6px"><h2>What we need from you</h2></div><div class="mini">${need.map(([t, d, id]) => `<div data-ev="${id}"><b>${t}</b><span class="late">${d}</span></div>`).join('')}</div></div>`;
+  else side += warns.map(([b, s, acts]) => `<div class="warnbox"><b>${b}</b><span>${s}</span>${acts ? `<div class="acts">${acts}</div>` : ''}</div>`).join('');
+  side += `<div class="card" style="padding:12px 13px"><div class="ch" style="margin-bottom:8px"><h2>Coming up</h2><span class="cap">6 weeks</span></div><div class="cu">${ahead.length ? ahead.slice(0, 6).map(x => {
+    const st = steps(x), nx = st.find(k => k.state !== 'done'), late = st.find(k => k.state === 'late');
+    const line = CLIENTV ? (x.offer ? x.offer.slice(0, 70) : 'Tell us what the customer sees.') : !st.length ? '<b style="color:var(--warn)">No end date.</b> Set one before Black Friday.' : late ? `<b style="color:var(--warn)">Late:</b> ${late.label.toLowerCase()} (was due ${fmt(late.due)})` : nx ? `<b>Next:</b> ${nx.label.toLowerCase()} by ${fmt(nx.due)} (${nx.who})` : '<b>All set.</b>';
+    return `<div class="ev" data-ev="${x.id}"><div class="top1"><b>${x.n}</b><span>${wday(x.s)} ${fmt(x.s)}${x.e && x.e !== x.s ? ' to ' + fmt(x.e) : ''}</span></div><div class="ty"><i style="background:var(--${x.t})"></i>${{ drop: 'Drop', sale: 'Sale or offer', other: 'Teaser, list, other' }[x.t]}${x.src === 'season' ? ' · Black Friday plan' : x.src === 'part' ? ' · offer change, part of Burgundy' : ''}</div>${CLIENTV || !st.length ? '' : `<div class="steps">${st.map(k => `<i class="${k.state}"></i>`).join('')}</div>`}<div class="nx">${line}</div></div>`;
+  }).join('') : '<p style="margin:0;color:var(--muted)">Nothing in the next 6 weeks.</p>'}</div></div>`;
+  document.getElementById('bSide').innerHTML = side;
+}
+
+/* ===== the panel: every date opens here ===== */
 const DART = [3490, 2234, 3306, 2572, 1369, 947, 1323, 1125, 1438, 1855, 1642, 760, 1332, 1059, 2628, 4668, 4370, 4800, 5015, 5745, 3237, 879, 890, 378, 1221, 397, 478, 1330, 898, 1660, 2047, 666];
 function chart(id) {
-  const w = 760, h = 230, pl = 46, pr = 12, pt = 16, pb = 26, n = DART.length, mx = 6400;
+  const w = 760, h = 220, pl = 46, pr = 12, pt = 16, pb = 26, n = DART.length, mx = 6400;
   const X = i => pl + i / (n - 1) * (w - pl - pr), Y = v => pt + (1 - v / mx) * (h - pt - pb);
-  const pts = DART.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
   const a = X(14) - 6, b = X(21) + 6;
   const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f)}" y2="${Y(mx * f)}" stroke="var(--line)"/><text x="${pl - 6}" y="${Y(mx * f) + 4}" font-size="10" text-anchor="end" fill="var(--muted)">$${(mx * f / 1000).toFixed(1)}K</text>`).join('');
-  const lab = [0, 7, 14, 21, 28].map(i => { const d = new Date(dd('2026-08-20').getTime() + i * 864e5).toISOString().slice(0, 10); return `<text x="${X(i)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${fmt(d)}</text>`; }).join('');
-  document.getElementById(id).innerHTML = `<svg viewBox="0 0 ${w} ${h}">${grid}${lab}
-    <rect x="${a}" y="${pt}" width="${b - a}" height="${h - pt - pb}" fill="var(--sale-bg)" data-tip="Warehouse Sale, Sep 3 to 10: buy any belt, get a Raincheck belt free. $31.3K revenue, 3x the 8 days before."/>
-    <text x="${a + 6}" y="${pt + 13}" font-size="11" font-weight="600" fill="var(--sale)">Warehouse Sale</text>
-    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/></svg>`;
+  const lab = [0, 7, 14, 21, 28].map(i => `<text x="${X(i)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${fmt(add('2026-08-20', i))}</text>`).join('');
+  document.getElementById(id).innerHTML = `<svg viewBox="0 0 ${w} ${h}">${grid}${lab}<rect x="${a}" y="${pt}" width="${b - a}" height="${h - pt - pb}" fill="var(--sale-bg)" style="cursor:pointer" data-ev="dt-ware" data-tip="<b>Warehouse Sale, Sep 3 to 10</b><br>Buy any belt, get a Raincheck belt free.<br>$31.3K, 3x the 8 days before. Click to open."/><text x="${a + 6}" y="${pt + 13}" font-size="11" font-weight="600" fill="var(--sale)">Warehouse Sale</text><polyline points="${DART.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/></svg>`;
+}
+function openEv(id) {
+  if (id.startsWith('mail:')) id = '';
+  let x = byId[id];
+  if (!x && id.startsWith('bf:')) x = merged(EV.filter(e => e.b === id.slice(3))).find(e => e.id === id);
+  if (!x) return;
+  const T = BR[x.b], P = document.getElementById('panel');
+  const past = x.e && x.e < TODAY, live = x.s <= TODAY && (!x.e || x.e >= TODAY);
+  const tl = { drop: 'Drop', sale: 'Sale or offer', other: 'Teaser, list, other' }[x.t];
+  const stl = { conf: 'Confirmed', pen: 'Pencilled', miss: 'No offer yet' }[x.st];
+  let h = `<div class="ph"><div><h3>${x.n}</h3><div class="meta"><span class="tag ${x.t}">${tl}</span><span class="tag ${x.st === 'miss' ? 'warn' : ''}">${past ? 'Done' : stl}</span><span>${T[0]} &middot; ${x.src === 'season' ? 'from the Black Friday plan' : x.src === 'part' ? 'part of Burgundy Drinko' : 'added by ' + (T[5] || 'the team')}</span></div></div><span class="x" data-close>&times;</span></div>`;
+  if (x.parts) {
+    h += `<div class="verdict info"><b>Black Friday week for ${T[0]}, ${fmt(x.s)} to ${fmt(x.e)}.</b><span>One bar on the calendar so the busiest week stays readable. The parts:</span></div>`;
+    h += `<div class="parts">${x.parts.map(p => `<div><span>${fmt(p.s)}${p.e !== p.s ? ' to ' + fmt(p.e) : ''}</span><b>${p.n}</b><span style="grid-column:2;color:var(--ink-2)">${p.offer || 'No offer written yet.'}</span></div>`).join('')}</div>`;
+    h += `<div style="display:flex;gap:8px"><span class="btn pri" data-toast="Opens Black Friday > The plan for ${T[0]}.">Open the Black Friday plan</span></div>`;
+    P.innerHTML = h; P.scrollTop = 0; return;
+  }
+  const st = steps(x), late = st.filter(k => k.state === 'late'), nx = st.find(k => k.state !== 'done');
+  if (x.id === 'dt-ware') {
+    h += `<div class="verdict good"><b>It worked: 3x the revenue of the 8 days before.</b><span>325 orders against 101, on 12% more ad spend. The 8 days after came in 31% under the 8 days before, partly because spend was cut 34%.</span></div>`;
+  } else if (past) {
+    h += `<div class="verdict info"><b>Done ${fmt(x.e)}.</b><span>"Did it work" (revenue, orders and order size against the days before) shows here. Not pulled for this mock.</span></div>`;
+  } else if (x.st === 'miss') {
+    h += `<div class="verdict warn"><b>No offer written yet.</b><span>It is on the Black Friday plan with a date and nothing in it. ${late.length ? 'The offer was due ' + fmt(late[0].due) + '.' : ''}</span></div>`;
+  } else if (x.src === 'part') {
+    h += `<div class="verdict warn"><b>The offer changes on ${wday(x.s)} ${fmt(x.s)}, with no end date.</b><span>Part of Burgundy Drinko, so its ads and emails sit on Burgundy's countdown. What is missing is the end: it would run into the 24-hour deal and the BOGO.</span></div>`;
+  } else if (live) {
+    h += `<div class="verdict good"><b>Live now${x.e ? ', until ' + fmt(x.e) : ', no end date'}.</b><span>${x.e ? 'Ended early? One tap below and the "did it work" card closes on that day.' : 'Nothing says when this ends. Set the end, or tap "It ended today" when it does.'}</span></div>`;
+  } else if (late.length) {
+    h += `<div class="verdict warn"><b>${late.length} step${late.length > 1 ? 's' : ''} late for ${wday(x.s)} ${fmt(x.s)}.</b><span>${late.map(k => k.label + ' (was due ' + fmt(k.due) + ', ' + k.who + ')').join('; ')}.</span></div>`;
+  } else {
+    h += `<div class="verdict good"><b>On track for ${wday(x.s)} ${fmt(x.s)}.</b><span>${nx ? 'Next: ' + nx.label.toLowerCase() + ' by ' + fmt(nx.due) + ' (' + nx.who + ').' : 'Everything is ticked.'}</span></div>`;
+  }
+  h += `<div class="sec"><h4>What the customer sees</h4><p>${x.offer || '<span style="color:var(--warn)">Nothing written yet. ' + (x.src === 'client' ? T[5] + ' can add it when he signs in, or we write it.' : 'Write it on the Black Friday plan.') + '</span>'}</p></div>`;
+  h += `<div class="kv"><div><span>Goes live</span><b>${wday(x.s)} ${fmt(x.s)}</b></div><div><span>Ends</span><b ${x.e === null ? 'style="color:var(--warn)"' : ''}>${x.e === null ? 'No end date' : x.e === x.s ? 'Same day' : fmt(x.e)}</b></div><div><span>Pings</span><b>${T[4]}</b></div></div>`;
+  if (!past && (x.e === null || (live && x.t !== 'drop'))) h += `<div class="warnbox"><b>${x.e === null ? 'When does it end?' : 'Ending early?'}</b><span>${x.e === null ? 'Until it has an end date, the Monday post asks "still running?" each week.' : 'Tap when it stops so the calendar and the charts show the real dates.'}</span><div class="acts"><span class="btn sm" data-toast="Sets today as the end date.">It ended today</span>${x.e === null ? '<span class="btn sm q" data-toast="Opens a date picker in the panel.">Set an end date</span>' : ''}</div></div>`;
+  if (x.id === 'dt-ware') {
+    h += `<div class="stats"><div><div class="l">Revenue, 8 days</div><div class="v">$31.3K</div><div class="s g">+198% vs $10.5K before</div></div><div><div class="l">Orders</div><div class="v">325</div><div class="s g">vs 101 before</div></div><div><div class="l">Average order</div><div class="v">$96</div><div class="s">vs $104 before</div></div><div><div class="l">Ad spend</div><div class="v">$7.8K</div><div class="s">+12% (MER 4.0 vs 1.5)</div></div></div><div class="card chart" style="padding:12px"><div id="chart2"></div></div><div class="sec"><h4>For the next one</h4><p>The free-belt offer roughly tripled orders at a slightly lower order size. Dartee's next offer (Early Bird, Nov 1) is 7.5 weeks after: far enough apart.</p></div>`;
+  } else if (!past && st.length) {
+    h += `<div class="sec"><h4>Countdown (ticks itself${x.id === 'gr-burg' ? '' : '; ticks in this mock are examples'})</h4><div class="cd">${st.map(k => `<div class="st ${k.state === 'late' ? 'lt' : ''}"><span class="ok ${k.state === 'done' ? 'y' : k.state === 'late' ? 'w' : 'n'}">${k.state === 'done' ? '&#10003;' : ''}</span><div><b>${k.label}</b><span class="s">${k.note}</span></div><div class="r"><b>${wday(k.due)} ${fmt(k.due)}</b>${k.who}</div></div>`).join('')}</div></div>`;
+    h += `<div style="display:flex;gap:8px;flex-wrap:wrap">${x.id === 'gr-burg' ? '<span class="btn" data-toast="Opens Asana 363 to 369.">Open the 7 Asana tasks</span><span class="btn" data-toast="Opens the Grunk Frame folders.">Open the ads in Frame</span>' : x.src === 'season' ? `<span class="btn" data-toast="Opens Black Friday > The plan for ${T[0]}.">Edit on the Black Friday plan</span>` : '<span class="btn pri" data-toast="Makes the Asana tasks with these dates.">Make the Asana tasks</span>'}<span class="btn q" data-toast="Drag it on the calendar, or pick a new date here; every step moves with it.">Move the date</span><span class="btn q" data-toast="Opens the same form as Add a date.">Edit</span></div>`;
+  }
+  if (x.id === 'gr-burg') h += `<div class="sec"><h4>History</h4><div class="hist"><div><span>Oct 9</span> Cole moved it Oct 7 to Oct 13 (Nick's note said 10/13; the team also missed Oct 7)</div><div><span>Sep 15</span> Nick Bender added it for Oct 7 with the photos link</div></div></div>`;
+  else if (x.src === 'client') h += `<div class="sec"><h4>History</h4><div class="hist"><div><span>Lineup</span> Added by ${T[5] || 'the team'}; moved into Locus with the rest of Lineup</div></div></div>`;
+  P.innerHTML = h; P.scrollTop = 0;
+  if (x.id === 'dt-ware') chart('chart2');
 }
 
-/* ---------- screens ---------- */
+/* ===== screens ===== */
 const $ = s => document.querySelector(s);
-const MAIN = ['all', 'brand', 'home'];
-function go(s) {
-  document.querySelectorAll('#scr button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
-  const inFrame = s !== 'client' && s !== 'slack';
+let CUR = 'all';
+function show(s, opts = {}) {
+  CUR = s;
+  document.querySelectorAll('#scr button').forEach(b => b.classList.toggle('on', b.dataset.s === s || (s === 'brand' && CLIENTV && b.dataset.s === 'clientv')));
+  const inFrame = s !== 'slack';
   $('#frame').classList.toggle('hide', !inFrame);
-  $('#s-client').classList.toggle('hide', s !== 'client');
   $('#s-slack').classList.toggle('hide', s !== 'slack');
-  const base = s === 'all' ? 'all' : s === 'home' ? 'home' : s === 'past' ? 'all' : 'brand';
-  MAIN.forEach(m => $('#s-' + m).classList.toggle('hide', m !== base));
-  $('#pick').firstChild.textContent = base === 'all' ? 'All clients ' : base === 'home' ? 'All clients ' : 'Grunk Dolfer ';
-  $('#rangeLbl').innerHTML = base === 'brand' ? '<b>October 2026</b>' : '<b>Oct 5 to Jan 3</b>';
+  const base = { all: 'all', home: 'home', past: 'all', event: 'brand', add: 'brand', brand: 'brand', clientv: 'brand' }[s] || 'all';
+  CLIENTV = s === 'clientv';
+  if (s === 'clientv') { BRAND = 'grunk'; MON = '2026-10'; }
+  ['all', 'brand', 'home'].forEach(m => $('#s-' + m).classList.toggle('hide', m !== base));
+  $('#cvBanner').classList.toggle('hide', !CLIENTV);
+  document.querySelectorAll('[data-r="o"]').forEach(a => a.classList.toggle('hide', CLIENTV));
+  $('#pickName').textContent = base === 'brand' ? BR[BRAND][0] : 'All clients';
   document.querySelectorAll('.rail a').forEach(a => a.classList.toggle('on', base === 'home' ? a.textContent === 'Home' : a.id === 'railCal'));
-  $('#p-event').classList.toggle('hide', s !== 'event');
-  $('#p-past').classList.toggle('hide', s !== 'past');
+  $('#askBar').classList.toggle('hide', CLIENTV);
+  if (base === 'brand') brandView(); else $('#rangeLbl').innerHTML = '<b>Oct 5 to Jan 3</b>';
+  if (base === 'home') chart('chart');
+  const pan = s === 'event' ? 'gr-burg' : s === 'past' ? 'dt-ware' : opts.ev;
+  $('#panel').classList.toggle('hide', !pan);
   $('#m-add').classList.toggle('hide', s !== 'add');
-  $('#scrim').classList.toggle('hide', !['event', 'past', 'add'].includes(s));
-  if (s === 'past') chart('chart2');
-  if (s === 'home') chart('chart');
-  window.CUR = s;
-  requestAnimationFrame(fit);
+  $('#scrim').classList.toggle('hide', !pan && s !== 'add');
+  if (pan) openEv(pan);
+  if (base === 'all') requestAnimationFrame(lanes);
 }
-document.querySelectorAll('#scr button').forEach(b => b.onclick = () => go(b.dataset.s));
+function closeOverlay() { $('#panel').classList.add('hide'); $('#m-add').classList.add('hide'); $('#scrim').classList.add('hide'); if (CUR === 'event' || CUR === 'add') show('brand'); else if (CUR === 'past') show('all'); }
+document.querySelectorAll('#scr button').forEach(b => b.onclick = () => { if (b.dataset.s === 'brand') { BRAND = 'grunk'; MON = '2026-10'; } show(b.dataset.s); });
+function toast(t) { const el = $('#toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(window.TT); window.TT = setTimeout(() => el.style.display = 'none', 2400); }
 document.addEventListener('click', e => {
-  const c = e.target.closest('[data-close]'); if (c || e.target.id === 'scrim') { go(window.CUR === 'past' ? 'all' : window.CUR === 'event' || window.CUR === 'add' ? 'brand' : window.CUR); return; }
-  const g = e.target.closest('[data-go]'); if (g) { go(g.dataset.go); return; }
-  const l = e.target.closest('.layer'); if (l) { LAY[l.dataset.l] = !LAY[l.dataset.l]; l.classList.toggle('off', !LAY[l.dataset.l]); lanes(); return; }
-  const t = e.target.closest('[data-toast]'); if (t) { const el = $('#toast'); el.textContent = 'In the build every date opens like Burgundy (screen 3).'; el.style.display = 'block'; clearTimeout(window.TT); window.TT = setTimeout(() => el.style.display = 'none', 1800); }
+  const q = sel => e.target.closest(sel);
+  if (!q('#pick') && !q('#menu')) $('#menu').classList.add('hide');
+  if (q('[data-close]') || e.target.id === 'scrim') return closeOverlay();
+  if (q('[data-toast]')) return toast(q('[data-toast]').dataset.toast);
+  if (q('#pick')) { if (CLIENTV) return toast('A client sees only their own brand.'); const m = $('#menu'); m.innerHTML = `<div data-pick="all">All clients</div>` + ORDER.map(b => `<div data-pick="${b}">${BR[b][0]}</div>`).join(''); m.classList.toggle('hide'); return; }
+  if (q('[data-pick]')) { const p = q('[data-pick]').dataset.pick; $('#menu').classList.add('hide'); if (p === 'all') return show('all'); BRAND = p; MON = '2026-10'; return show('brand'); }
+  if (q('[data-mail]')) return toast('Klaviyo campaign. In the build this opens it in Email and SMS.');
+  if (q('[data-ev]')) { const id = q('[data-ev]').dataset.ev; if (id.startsWith('mail:')) return toast('Klaviyo campaign. In the build this opens it in Email and SMS.'); $('#panel').classList.remove('hide'); $('#scrim').classList.remove('hide'); return openEv(id); }
+  if (q('[data-brand]')) { BRAND = q('[data-brand]').dataset.brand; MON = '2026-10'; return show('brand'); }
+  if (q('[data-scroll]')) return $('#workCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (q('[data-day]')) { const d = q('[data-day]').dataset.day; if (d < TODAY) return toast('That day has passed.'); return show('add'); }
+  if (q('[data-m]') || q('#prev') || q('#next')) {
+    const dir = q('[data-m]') ? +q('[data-m]').dataset.m : q('#prev') ? -1 : 1;
+    if ($('#s-brand').classList.contains('hide')) return toast('All clients moves a week at a time in the build.');
+    const [y, m] = MON.split('-').map(Number); const nx = new Date(Date.UTC(y, m - 1 + dir, 1)).toISOString().slice(0, 7);
+    if (nx < '2026-09' || nx > '2027-01') return toast('The mock covers September to January.');
+    MON = nx; return brandView();
+  }
+  if (q('#todayBtn')) { MON = '2026-10'; if (!$('#s-brand').classList.contains('hide')) brandView(); return; }
+  const l = q('.layer'); if (l) { LAY[l.dataset.l] = !LAY[l.dataset.l]; l.classList.toggle('off', !LAY[l.dataset.l]); return lanes(); }
+  if (q('#rail a') && !q('#railCal')) return toast('Other pages are not part of this mock.');
 });
 const tip = $('#tip');
-document.addEventListener('mousemove', e => { const t = e.target.closest('[data-tip]'); if (!t) { tip.style.display = 'none'; return; } tip.innerHTML = t.dataset.tip; tip.style.display = 'block'; tip.style.left = Math.min(e.clientX + 12, innerWidth - 330) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
+document.addEventListener('mousemove', e => { const t = e.target.closest('[data-tip]'); if (!t) { tip.style.display = 'none'; return; } tip.innerHTML = t.dataset.tip; tip.style.display = 'block'; tip.style.left = Math.min(e.clientX + 14, innerWidth - 350) + 'px'; tip.style.top = (e.clientY + 16) + 'px'; });
 $('#thD').onclick = () => { document.documentElement.dataset.theme = 'dark'; $('#thD').classList.add('on'); $('#thL').classList.remove('on'); };
 $('#thL').onclick = () => { document.documentElement.dataset.theme = 'light'; $('#thL').classList.add('on'); $('#thD').classList.remove('on'); };
-// a past-event bar: Dartee's Warehouse Sale lives before the window; the tile row offers it via screen 4
-lanes(); work(); month(); cu(); go('all');
 (matchMedia('(prefers-color-scheme: dark)').matches ? $('#thD') : $('#thL')).classList.add('on');
+addEventListener('resize', () => { if (!$('#s-all').classList.contains('hide')) lanes(); });
+if (document.fonts) document.fonts.ready.then(() => { if (!$('#s-all').classList.contains('hide')) lanes(); });
+work(); show('all');
 </script>
 </body>
 </html>
