@@ -1421,6 +1421,36 @@ const ACTIONS = (d) => {
         return { ok: true, note: 'Section updated.' };
       } },
 
+    /* 2026-10-09: Fela (Ice & Gold) asked to drop a line from "Who we are talking to" and asked what "What it is"
+       was for. Nothing could edit the page's own text: the request went to the ideas bot and died as "No draft yet". */
+    { name: 'edit_creator_page',
+      description: 'Change the creator link PAGE text for a brand (not an angle): intro (top of What to film), about ("What it is", the product overview creators read), audience ("Who we are talking to"), rules ("Before you film" claim and filming rules), avoid ("please stop filming these"). Each field you pass REPLACES that field whole, so read the angles view first, start from the current text and change only what was asked (e.g. drop one sentence, keep the rest word for word). Use it when a client or Cole asks to edit, remove or reword something on the creator link.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string' }, intro: { type: 'string' }, about: { type: 'string' }, audience: { type: 'string' },
+        rules: { type: 'array', items: { type: 'string' } },
+        avoid: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } }, required: ['title'] } },
+        summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const cur = await env.DB.prepare(`SELECT intro, about, audience, avoid_json, rules_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
+        if (!cur) return { error: `${acct.name} has no creator link yet.` };
+        const set = {}, lines = [];
+        const label = { intro: 'Intro', about: 'What it is', audience: 'Who we are talking to' };
+        for (const k of ['intro', 'about', 'audience']) if (input[k] !== undefined && String(input[k]).trim() !== String(cur[k] || '').trim()) {
+          set[k] = clip(String(input[k]).trim(), 2000);
+          lines.push(`${label[k]}\n  before: ${clip(cur[k] || '(empty)', 600)}\n  after:  ${clip(set[k] || '(empty)', 600)}`);
+        }
+        if (input.rules) { set.rules_json = JSON.stringify(input.rules.map(r => clip(String(r).trim(), 400)).filter(Boolean).slice(0, 20)); lines.push(`Before you film: ${d.safeJson(cur.rules_json, []).length} rules → ${JSON.parse(set.rules_json).length}`); }
+        if (input.avoid) { set.avoid_json = JSON.stringify(input.avoid.filter(x => x?.title).slice(0, 20).map(x => ({ title: clip(x.title, 200), why: clip(x.why || '', 400) }))); lines.push(`Stop filming: ${d.safeJson(cur.avoid_json, []).length} → ${JSON.parse(set.avoid_json).length}`); }
+        if (!lines.length) return { error: 'Nothing changes: the text you gave is what the page already says.' };
+        return { summary: input.summary, detail: `${acct.name} creator link:\n${lines.join('\n')}`, patch: { act_id: acct.act_id, set } };
+      },
+      apply: async (env, patch) => {
+        const cols = Object.keys(patch.set);
+        await env.DB.prepare(`UPDATE p_amb_brand SET ${cols.map((c, i) => `${c} = ?${i + 2}`).join(', ')}, updated_at = datetime('now') WHERE act_id = ?1`).bind(patch.act_id, ...cols.map(c => patch.set[c])).run();
+        return { ok: true, note: 'The creator link page is updated; creators see it on their next load.' };
+      } },
+
     { name: 'set_writing_style',
       description: 'Change HOW Daily Briefs or weekly/monthly reports are written from now on, when Cole says he does not like how they read ("lead with profit", "shorter", "stop mentioning Google", "no hedging", "always end with one action for the client"). Standing direction, for every brand or for one. It changes emphasis, order, length, tone and what is left out; it can never add a number. Read writing_style first. Structural changes (a new section, a new number, a different layout) are a code change: use hand_to_claude_code for those.',
       input_schema: { type: 'object', properties: {
