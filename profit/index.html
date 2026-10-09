@@ -1106,6 +1106,14 @@
   .brow-danger2 .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;vertical-align:-3px;margin-right:4px}
   .dc-block{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 12px}
   .dc-block h4{margin:0 0 4px;font-size:14px}
+  .fx-list{display:grid;gap:8px}
+  .fx-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 28px;grid-template-areas:"n n m d" "k f u u";gap:8px 10px;align-items:end;padding:10px;border:1px solid var(--line);border-radius:8px}
+  .fx-row>:nth-child(1){grid-area:n}.fx-row>:nth-child(2){grid-area:m}.fx-row>:nth-child(3){grid-area:d}.fx-row>:nth-child(4){grid-area:k}.fx-row>:nth-child(5){grid-area:f}.fx-row>:nth-child(6){grid-area:u}
+  .fx-f{display:flex;flex-direction:column;gap:3px;min-width:0}.fx-f>span:first-child{font-size:11.5px;color:var(--muted)}
+  .fx-f input[type=text],.fx-f input[type=month],.fx-f select{width:100%;min-width:0;box-sizing:border-box}
+  .fx-f .unit-in{width:100%;box-sizing:border-box}
+  .fx-f input[type=month],.fx-f>input[type=text]{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;height:38px}
+  @media (max-width:560px){.fx-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px;grid-template-areas:"n n d" "m k k" "f u u"}}
   .posts-tbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}.posts-tbl td,.posts-tbl th{padding:8px 6px;border-top:1px solid var(--line);text-align:left;vertical-align:middle}.posts-tbl th{color:var(--muted);font-weight:500;font-size:12px;border-top:0}
   .setpane.bmode .brow-grp .brow-gh{display:none}
   .setnav-note{font-size:12px;color:var(--muted);margin:14px 12px 0;line-height:1.5}
@@ -2178,7 +2186,7 @@
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
 <link rel="stylesheet" href="v2.css?v=26">
-<link rel="stylesheet" href="supply.css?v=1">
+<link rel="stylesheet" href="supply.css?v=3">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=11"></script>
 <script src="strategist.js?v=2"></script>
@@ -2293,15 +2301,16 @@
 <script src="amb.js?v=19"></script>
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
-<script src="newclient.js?v=15"></script>
-<script src="clients.js?v=1"></script>
+<script src="newclient.js?v=16"></script>
+<script src="clients.js?v=2"></script>
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=10"></script>
-<script src="v2.js?v=36"></script>
+<script src="command.js?v=1"></script>
+<script src="v2.js?v=38"></script>
 <script src="desk.js?v=12"></script>
 <script src="calendar.js?v=8"></script>
-<script src="supply.js?v=2"></script>
+<script src="supply.js?v=3"></script>
 <script src="askextra.js?v=2"></script>
 <script src="share.js?v=3"></script>
 <script src="polish.js?v=2" defer></script>
@@ -3362,7 +3371,7 @@ const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zon
   ['slack', 'Slack and sending', 'i-plane', 'Where its briefs and reports go, whether you see them first, and every automatic post it makes.'],
   ['stock', 'Stock and factories', 'i-factory', 'Stock is on for every brand with the Shopify app. Buying (factories, order dates) and Drops (new designs) switch on here.'],
   ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.'],
-  ['clients', 'Client access', 'i-key', 'Who from the client signs in to Locus, and what they can see beyond the basics. Read-only, this brand only.']];
+  ['clients', 'Client access', 'i-key', 'Who from the client signs in to Locus. They see everything about this brand, read-only; turn something off here.']];
 const BG_OF = ['about', 'goals', 'slack', 'data'];   // the brand row's groups, in order
 const SET_ICONS = { brands: 'i-building', connections: 'i-plug', links: 'i-globe', sending: 'i-plane', strategist: 'i-spark', team: 'i-key', system: 'i-refresh', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
@@ -5030,6 +5039,13 @@ const SETMODE = { get: () => { try { return localStorage.getItem('pf_setmode') |
 function openAgencySettings(sec) { SETMODE.set('agency'); if (sec) { try { localStorage.setItem('pf_set_sec', sec); } catch {} } show('settings'); }
 window.openAgencySettings = openAgencySettings;
 window.openGoals = openGoals;
+/** Brand settings > Data and costs, where the fixed expenses are (P&L's "Add them", the CM drill-down). */
+function openFixedCosts(act) {
+  if (act && act !== 'all') { S.act = act; localStorage.setItem(LS.act, act); }
+  try { localStorage.setItem('pf_set_bsec', 'data'); } catch {}
+  window.__openFixed = 1; SETMODE.set('brand'); show('settings');
+}
+window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
 const SHOWABLE = new Set(["gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
@@ -7065,7 +7081,9 @@ async function renderProfit(first) {
   // The weekday rhythm used to be fetched here; it lives on Plan now.
   if (run !== RUN) return;
   const U = window.V2UI;
+  if (U.setHost) U.setHost(v2Host());   // the tile drill-downs (v2.js) need the host even when P&L is the first page opened
   const cur = d.account.currency, t = d.totals, rows = d.rows || [];
+  const fx = d.fixed?.total || 0, net = t.cm != null ? t.cm - fx : null;
   const acct = S.accounts.find(a => a.act_id === S.act);
   const h = acct?.cost_health;
   const trusted = cmTrusted(h) || d.margin_pct != null;
@@ -7094,7 +7112,6 @@ async function renderProfit(first) {
   const ser = k => rows.map(r => r[k] ?? null);
   const tipsOf = (k, f) => rows.map(r => `<b>${U.day(r.date)}</b> · ${r[k] == null ? '–' : f(r[k])}`);
   const sp = (k, f) => rows.length > 1 ? LX.spark(ser(k), tipsOf(k, f)) : '';
-  const aovRows = rows.map(r => r.orders ? r.sales / r.orders : null);
   const v = h?.verdict;
   const costWord = d.margin_pct != null || v === 'override' ? ['Flat margin', 'warn', `Profit here is priced at a flat ${Math.round((d.margin_pct ?? h?.blended ?? 0) * 100)}% margin, so it is estimated, not measured.`]
     : !h || v === 'none' ? ['Not checked', '', 'No cost verdict has been recorded for this brand. Open Costs to run the check.']
@@ -7112,14 +7129,19 @@ async function renderProfit(first) {
       sub: mtdMer != null && planMer != null ? `MTD ${fmtX(mtdMer)} against ${fmtX(planMer)} planned ${mtdPill(mtdMer, planMer, 'mer')}` : `${K(t.sales)} divided by ${K(t.spend)}` }),
     LX.tile({ label: 'aMER', value: fmtX(t.amer), spark: sp('amer', fmtX), info: 'Acquisition MER: new-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it.',
       sub: `${fmtPct(t.new_share)} of revenue was new customers` }),
-    LX.tile({ label: 'Orders', value: t.orders == null ? '–' : fmtInt(t.orders), spark: sp('orders', fmtInt), info: 'Store orders from every channel (Triple Whale totalOrders). New customers = first-time orders.',
-      sub: t.new_orders != null ? `${fmtInt(t.new_orders)} from new customers` : 'store orders, every channel' }),
-    LX.tile({ label: 'Average order', value: M(t.aov), spark: rows.length > 1 ? LX.spark(aovRows, rows.map((r, i) => `<b>${U.day(r.date)}</b> · ${aovRows[i] == null ? '–' : M(aovRows[i])}`)) : '', info: 'Average order value: revenue divided by orders, store-wide. The same figure Reports and the Strategist use.',
-      sub: t.new_aov != null ? `first order ${M(t.new_aov)}` : 'revenue divided by orders' }),
+    /* Orders carries the average order (2026-10-09) so Net profit fits the row of eight; its drill-down has AOV by day. */
+    LX.tile({ label: 'Orders', value: t.orders == null ? '–' : fmtInt(t.orders), spark: sp('orders', fmtInt), info: 'Paid store orders from every channel (Triple Whale totalOrders), and the average order: revenue divided by orders.',
+      sub: `AOV ${M(t.aov)}${t.new_orders != null ? ` · ${fmtInt(t.new_orders)} from new customers` : ''}` }),
     trusted
       ? LX.tile({ label: 'Contribution margin', value: `<span class="${t.cm == null ? '' : t.cm >= 0 ? 'good' : 'bad'}">${M(t.cm)}</span>`, spark: sp('cm', M), info: 'What is left after product costs, fulfilment, fees and all ad spend. Not net profit: it ignores fixed costs like rent, salaries and software.',
           sub: `margin ${fmtPct(t.margin)} before ad spend` })
       : LX.tile({ label: 'Contribution margin', value: '<span style="color:var(--muted)">Hidden</span>', go: 'costs', info: 'Switched off because the cost data cannot be trusted. Open Costs to see why.', sub: 'cost data unreliable, open Costs' }),
+    /* NET PROFIT (2026-10-09): contribution margin minus the brand's fixed expenses (Brand settings > Data and costs).
+       A separate line on purpose: CM keeps its definition everywhere else (briefs, reports, the Strategist). */
+    trusted && t.cm != null
+      ? LX.tile({ label: 'Net profit', value: fx ? `<span class="${net >= 0 ? 'good' : 'bad'}">${M(net)}</span>` : M(t.cm), info: 'Contribution margin minus fixed expenses (software, salaries, rent, the agency fee), spread evenly over each month’s days.',
+          sub: fx ? `after ${M(fx)} of fixed expenses` : 'no fixed expenses set yet' })
+      : LX.tile({ label: 'Net profit', value: '<span style="color:var(--muted)">Hidden</span>', go: 'costs', info: 'Needs contribution margin, which is switched off until the cost data passes.', sub: 'needs trusted cost data' }),
     LX.tile({ label: 'Cost data', value: `<span class="${costWord[1]}">${costWord[0]}</span>`, go: 'costs', info: costWord[2], sub: esc(costWord[2]).slice(0, 110) + (costWord[2].length > 110 ? '…' : '') }),
   ].join('');
 
@@ -7150,9 +7172,13 @@ async function renderProfit(first) {
         ${tot('Gross profit', 'Revenue less every variable cost, before any marketing.', t.gross_profit, 'in', `${fmtPct(t.margin)} of revenue`)}
         ${t.spend ? line('Ad spend', 'Every ad platform combined.', (t.gross_profit || 0) - t.spend, t.gross_profit || 0, 'out', t.spend, true, ofRev(t.spend)) : ''}
         ${tot('Contribution margin', 'What the marketing made on the margin. Fixed costs (rent, salaries, software, our retainer) are not in it.', t.cm, t.cm >= 0 ? 'keep' : 'lose', ofRev(t.cm))}
+        ${fx && t.cm != null ? `${line('Fixed expenses', 'Set in Brand settings > Data and costs, spread evenly over each month’s days.', Math.min(t.cm, net), Math.max(t.cm, net), 'out', fx, true, ofRev(fx))}
+          ${(d.fixed.items || []).map(it => `<div class="r note"><span class="l">&nbsp;&nbsp;${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`).join('')}
+          ${tot('Net profit', 'Contribution margin minus fixed expenses.', net, net >= 0 ? 'keep' : 'lose', ofRev(net))}`
+          : isClient() ? '' : `<div class="r note"><span class="l">No fixed expenses set, so no net profit</span><span></span><span class="n"><button type="button" class="v2link" id="pfFixed">Add them ›</button></span></div>`}
       </div>
       <details class="footnote" style="margin-top:12px"><summary>What contribution margin counts, and what it leaves out</summary>
-        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfilment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?"${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></section>`;
+        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfilment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?" <b>Net profit</b> under it takes off the fixed expenses set for this brand in Brand settings > Data and costs; contribution margin itself, and every brief and report, stay as they are.${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></section>`;
   })();
 
   /* By day (or by hour on a single day), with the reading under the pointer. */
@@ -7190,6 +7216,7 @@ async function renderProfit(first) {
   if (single) LX.wireChart('pfHours');
   else if (rows.length > 1) LX.wireDual('pfSvg', rows, r => `<b>${U.day(r.date)}</b> · revenue ${M(r.sales)} · spend ${M(r.spend)}<br>MER ${fmtX(r.mer)} · aMER ${fmtX(r.amer)}${r.cm != null && trusted ? ` · CM <span class="${r.cm >= 0 ? '' : 'faint'}">${M(r.cm)}</span>` : ''}`);
   const tt = $('#pfToToday'); if (tt) tt.onclick = () => { localStorage.setItem(MSUB.key, 'today'); show('meta'); };
+  const pfx = $('#pfFixed'); if (pfx) pfx.onclick = () => openFixedCosts(S.act);
 
   const shareBtn = $('#pfShare');
   if (shareBtn) shareBtn.onclick = async () => {
@@ -10746,6 +10773,8 @@ async function renderSettings() {
           ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs.',
             `<div class="unit-in" style="width:92px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct != null ? Math.round(a.margin_pct * 100) : ''}" placeholder="auto"><span>%</span></div>`)}
           <button type="button" class="btn btn-s" data-gopage="costs">Open the cost check</button></div>
+        <div class="dc-block" id="fx-${esc(a.act_id)}"><h4>Fixed expenses</h4><p class="tiny" style="margin:0 0 8px">Monthly costs that do not move with sales: software, salaries, rent, the agency fee. Each is spread evenly over its month’s days and taken off contribution margin to give <b>Net profit</b> on P&amp;L and in the margin drill-down. Contribution margin itself, the briefs and the reports do not change.</p>
+          <div class="fx-box" data-fixed="${esc(a.act_id)}"><span class="tiny">Loading…</span></div></div>
         <div class="dc-block"><h4>Fix it</h4><p class="tiny" style="margin:0 0 8px">Only when a check above says so. One brand at a time.</p>
           ${metaActOf(a, m) ? field('Meta', 'Pull this brand’s Meta numbers now instead of waiting for the hourly sync.', `<div class="brow-static"><button class="btn btn-s" data-k="sync">Sync now</button> <span class="tiny" data-k="syncmsg"></span></div>`) : ''}
           ${field('Triple Whale history', 'Re-pulls this brand’s full history (430 days).', `<div class="brow-static"><button class="btn btn-s" data-k="backfill">Re-pull 430 days</button> <span class="tiny" data-k="bfmsg"></span></div>`)}
@@ -10757,6 +10786,46 @@ async function renderSettings() {
   /* Goals box (2026-10-04, ONE PLACE FOR GOALS): goal CPA and ROAS are saved on the
      account (client-settings / Meta accounts), the test settings in the brand's rules
      doc. One Save writes all three. */
+  /* FIXED EXPENSES (2026-10-09, Triple Whale's "Edit expenses"): one row per cost, labelled columns, one Save that
+     replaces the brand's list (PUT /api/fixed-costs, worker/src/fixed.js). Feeds Net profit only. */
+  async function loadFixed(box, a) {
+    box.dataset.loaded = '1';
+    let d;
+    try { d = await api(`/api/fixed-costs?act=${encodeURIComponent(a.act_id)}`); }
+    catch (e) { box.innerHTML = `<span class="tiny" style="color:var(--bad)">${esc(e.message)}</span>`; return; }
+    const cats = d.categories || ['Software', 'Salaries', 'Agency fee', 'Rent', 'Insurance', 'Other'];
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    let items = (d.items || []).map(x => ({ name: x.name, category: x.category || '', monthly: x.monthly, start_month: x.start_month, end_month: x.end_month || '' }));
+    /* One card per expense, labelled fields on two lines, so it fits the settings pane without a sideways scroll. */
+    const row = (x, i) => `<div class="fx-row" data-i="${i}">
+        <label class="fx-f fx-name"><span>Expense</span><input type="text" data-f="name" value="${esc(x.name)}" placeholder="e.g. Klaviyo"></label>
+        <label class="fx-f"><span>Each month</span><span class="unit-in"><span>${esc(sym(a.currency))}</span><input type="text" inputmode="decimal" data-f="monthly" value="${x.monthly ?? ''}" placeholder="0"></span></label>
+        <button type="button" class="ds-iconbtn fx-del" data-fx-del="${i}" aria-label="Remove ${esc(x.name || 'this expense')}" title="Remove">×</button>
+        <label class="fx-f"><span>Kind</span><select data-f="category"><option value="">Pick one</option>${cats.map(c => `<option ${c === x.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+        <label class="fx-f"><span>From</span><input type="month" data-f="start_month" value="${esc(x.start_month || thisMonth)}"></label>
+        <label class="fx-f"><span>Until (blank = still running)</span><input type="month" data-f="end_month" value="${esc(x.end_month || '')}"></label></div>`;
+    const live = () => items.filter(x => (x.start_month || thisMonth) <= thisMonth && (!x.end_month || x.end_month >= thisMonth)).reduce((s, x) => s + (+String(x.monthly).replace(/[^0-9.]/g, '') || 0), 0);
+    const liveTxt = () => (items.length ? `${fmtMoney(live(), a.currency)} a month running now` : '');
+    const paint = (msg = '') => {
+      box.innerHTML = `${items.length ? `<div class="fx-list">${items.map(row).join('')}</div>`
+        : '<p class="tiny" style="margin:0 0 8px">None yet. Net profit equals contribution margin until you add one.</p>'}
+        <div class="row" style="gap:8px;margin:8px 0 0;flex-wrap:wrap;align-items:center"><button type="button" class="btn btn-s" data-fx="add">+ Add an expense</button><button type="button" class="btn btn-s primary" data-fx="save">Save expenses</button>
+        <span class="tiny" data-fx="live">${liveTxt()}</span><span class="tiny" data-fx="msg">${esc(msg)}</span></div>`;
+      box.querySelectorAll('[data-f]').forEach(el => el.oninput = el.onchange = () => { const i = +el.closest('.fx-row').dataset.i; items[i][el.dataset.f] = el.value; box.querySelector('[data-fx="live"]').textContent = liveTxt(); });
+      box.querySelectorAll('[data-fx-del]').forEach(b => b.onclick = () => { items.splice(+b.dataset.fxDel, 1); paint('Removed. Save to keep the change.'); });
+      box.querySelector('[data-fx="add"]').onclick = () => { items.push({ name: '', category: '', monthly: '', start_month: thisMonth, end_month: '' }); paint(); const ins = box.querySelectorAll('[data-f="name"]'); if (ins.length) ins[ins.length - 1].focus(); };
+      box.querySelector('[data-fx="save"]').onclick = async () => {
+        const msgEl = box.querySelector('[data-fx="msg"]'), btn = box.querySelector('[data-fx="save"]');
+        const clean = items.filter(x => String(x.name).trim() || String(x.monthly).trim());
+        btn.disabled = true; msgEl.textContent = 'Saving…';
+        try {
+          await api('/api/fixed-costs', { method: 'PUT', body: JSON.stringify({ act: a.act_id, items: clean.map(x => ({ ...x, monthly: +String(x.monthly).replace(/[^0-9.]/g, '') || 0, end_month: x.end_month || null })) }) });
+          items = clean; paint('Saved. P&L and the margin drill-down show net profit now.');
+        } catch (e) { btn.disabled = false; msgEl.textContent = e.message; msgEl.style.color = 'var(--bad)'; }
+      };
+    };
+    paint();
+  }
   async function loadGoals(box, a) {
     box.dataset.loaded = '1';
     let g;
@@ -10881,6 +10950,12 @@ async function renderSettings() {
     });
     list.querySelectorAll('.brow').forEach(row => {
       const a = S.accounts.find(x => x.act_id === row.dataset.act); if (!a) return;
+      const fBox = row.querySelector('.fx-box');
+      if (fBox) {
+        if (row.open) loadFixed(fBox, a);
+        row.addEventListener('toggle', () => { if (row.open && !fBox.dataset.loaded) loadFixed(fBox, a); });
+        if (window.__openFixed) { window.__openFixed = 0; setTimeout(() => fBox.scrollIntoView({ block: 'center' }), 120); }
+      }
       const gBox = row.querySelector('.goals');
       if (gBox) {
         if (row.open) loadGoals(gBox, a);
