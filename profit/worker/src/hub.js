@@ -248,7 +248,10 @@ async function yesterdayMany(env, ctx, accts, all) {
       flags: L.flags, links, x, norm,
       changes: (CH[a.act_id] || []).slice(0, 6).map(c => ({ at: c.event_time, category: c.category, summary: c.summary, reason: c.reason || null })),
       email_sent: hasCamp ? num(P.totalKlaviyoPlacedOrderTotalPriceCampaigns[L.date]) > 0 : null };
-    out.push({ act_id: a.act_id, name: a.name, currency: a.currency, cells: js.map(j => ({ date: j.date, verdict: j.verdict, ...(j.x.pending ? { attr_pending: true } : {}) })), last: detail });
+    out.push({ act_id: a.act_id, name: a.name, currency: a.currency, cells: js.map(j => { const rs = statOf(j.base, 'rev'), ms = statOf(j.base, 'mer');
+      /* Every square explains itself (2026-10-09, Cole clicked old days and nothing told him why): what moved, and revenue and MER against that brand's normal. */
+      return { date: j.date, verdict: j.verdict, ...(j.x.pending ? { attr_pending: true } : {}),
+        moved: (j.flags || []).map(f => ({ label: f.label, change: f.change, bad: f.bad })), rev: j.x.has ? j.x.rev : null, rev_norm: rs ? rs.m : null, mer: j.x.has ? j.x.mer : null, mer_norm: ms ? ms.m : null }; }), last: detail });
     if (L.x.msp >= 50) mk.push({ name: a.name, x: L.x, norm });
   }
   /* The market: when CPM jumped on half or more of the brands spending on Meta, it is Meta's auction, not one account. */
