@@ -2228,3 +2228,29 @@ Cole: "ideally this would replace Motion". Backend in account-health `creative.j
 - **No separate 8am post (2026-10-09, Cole: "we already have a daily report").** moved.js `movedTick` returns early. On a
   bad or very bad Meta day the Daily Brief v2 says so in one sentence (account-health `metaDayFor`, cached
   `metaday:<date>`, passed to `writeBriefNarrativeV2` as META THAT DAY). The agency "What moved" switch is gone.
+
+## 2026-10-09: Ads and Home pass (every tile has its line, menus, skeletons, Google jobs)
+
+- **Every headline tile carries its day line** (v2.js `tspark`, compare period dashed, hover reads each day). Home = 8
+  tiles (`.v2tiles.home8`): revenue, orders + AOV, ad spend, MER, aMER, new customers, cost per new customer, CM;
+  `/api/overview` series now carry `new_orders`, `new_rev`, `cm`. Meta, Google, TikTok and All channels share
+  `paidTiles` (spend, purchases, revenue, ROAS, CPA, CPM, CTR) and `paidChart` (spend vs revenue, compare dashed).
+  hub.js returns the day series everywhere: `metaMany` (one grouped query), twPlatform rows carry impressions /
+  clicks, `channelRows` has `series` / `prev_series` (store revenue, blended spend, paid purchases, impressions,
+  clicks) and `paid` / `prev_paid`.
+- **Today on the hub screens**: Meta's account totals come from `daily_insights` (ad rows land overnight); a today
+  with no Triple Whale attribution rows is `attr_pending` and reads "–" with "credits land overnight", never 0.
+- **Period change** (`periodChanged` in index.html): dims the page and runs the top bar at once; hub screens
+  (`HUB_TABS`) repaint straight away while `/api/overview` refreshes behind; Home / P&L / Customers wait for it.
+  It used to await boot() with nothing on screen and then render twice.
+- **One menu helper**: index.html `PillMenu` (`pillMenu` / `pillMenuInner` / `wirePillMenu`) draws the attribution
+  switch and Creative's Sort by / Show / Tag; every menu closes through `closePops`.
+- **Ads order**: Today's calls (page id `today`), All channels, Meta, Google, TikTok, Tests and angles. All channels
+  says which platform tabs are hidden for the brand and why.
+- **Google jobs** (`GOOGLE_JOBS`, only with a `google_ads` connection): Overview (`google`) and Campaigns
+  (`gcampaigns`, account-health `/api/google/ads`, Google's own conversions named as Google's). No Creative or
+  Changes job: that route returns no ads and no change history (google.js would need ad_group_ad / change_event).
+- **Skeletons** (`skPage`, `skTiles`, `skCard`, `skGal`) on every v2 first load. Email paints first and loads the
+  Klaviyo cards on their own (`klaviyoCards`, not awaited, error + Try again). account-health klaviyo.js serves an
+  expired copy at once and refreshes behind (`waitUntil`), keeps the last good copy when a refresh fails, and keeps
+  reads 10 minutes in memory.

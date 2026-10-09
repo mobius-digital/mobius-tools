@@ -52,7 +52,10 @@ export async function handleHub(ctx) {
     let pf = null, pt = null;
     if (cmp === 'prev') { pt = ctx.addDays(from, -1); pf = ctx.addDays(pt, -(span - 1)); }
     else if (cmp === 'yoy') { pf = `${+from.slice(0, 4) - 1}${from.slice(4)}`; pt = `${+to.slice(0, 4) - 1}${to.slice(4)}`; }
-    return { from, to, pf, pt, span };
+    /* `today` (2026-10-09): the Today preset is the one window that holds the brand's own today. Meta's ad rows and
+       Triple Whale's attribution land overnight, so the readers below take Meta's account totals for today from
+       `daily_insights` (synced through the day) and mark the credited numbers `attr_pending` instead of a false 0. */
+    return { from, to, pf, pt, span, today: ctx.localDate(a.tz) };
   };
   const base = { model, model_label: MODEL_LABEL[model], cmp };
   try {
@@ -64,7 +67,7 @@ export async function handleHub(ctx) {
     if (path === '/api/hub/paid') {
       const platform = ['meta', 'google', 'tiktok', 'all'].includes(url.searchParams.get('platform')) ? url.searchParams.get('platform') : 'meta';
       let out;
-      if (platform === 'meta') out = accts.length === 1 ? [await metaBrand(env, accts[0], w0, model, true)] : await metaMany(env, accts, w0, model);
+      if (platform === 'meta') out = accts.length === 1 ? [await metaBrand(env, accts[0], w0, model, true)] : await metaMany(env, accts, w0, model, ctx);
       else if (platform === 'all') out = await allChannelsMany(env, ctx, accts, w0, model);
       else out = await twPlatformMany(env, ctx, accts, w0, model, platform);
       return json({ ...base, platform, window: w0, brands: out });
@@ -459,9 +462,13 @@ function metaMetrics(r, attr) {
 async function metaBrand(env, a, w, model, detail) {
   const act = a.act_id;
   const tot = async (from, to) => {
-    const r = await env.DB.prepare(`SELECT ${META_COLS} FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3`).bind(act, from, to).first();
-    const at = model === 'platform' ? null : await env.DB.prepare(`SELECT SUM(revenue) rev, SUM(orders) ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL)`).bind(act, model, from, to).first();
-    return metaMetrics(r || {}, at ? { rev: num(at.rev), ord: num(at.ord) } : null);
+    let r = await env.DB.prepare(`SELECT ${META_COLS} FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3`).bind(act, from, to).first();
+    const live = from === to && to === w.today;
+    if (live && !num(r?.spend)) r = (await env.DB.prepare(`SELECT SUM(spend) spend, SUM(impressions) impr, SUM(reach) reach, SUM(link_clicks) clicks, SUM(clicks) clicks_all, SUM(purchases) p_ord, SUM(revenue) p_rev FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date = ?2`).bind(act, to).first().catch(() => null)) || r;
+    const at = model === 'platform' ? null : await env.DB.prepare(`SELECT SUM(revenue) rev, SUM(orders) ord, COUNT(*) n FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL)`).bind(act, model, from, to).first();
+    const m = metaMetrics(r || {}, at ? { rev: num(at.rev), ord: num(at.ord) } : null);
+    if (live && at && !num(at.n)) Object.assign(m, { purchases: null, revenue: null, roas: null, cpa: null, purchase_rate: null, attr_pending: true });
+    return m;
   };
   const cur = await tot(w.from, w.to);
   const prev = w.pf ? await tot(w.pf, w.pt) : null;
@@ -473,7 +480,7 @@ async function metaBrand(env, a, w, model, detail) {
   const { results: daily } = await env.DB.prepare(`SELECT d.date, COALESCE(x.campaign_id, '?') campaign_id, ${META_COLS} FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id
     WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date, campaign_id ORDER BY d.date`).bind(act, w.from, w.to).all();
   const { byAd, byDate } = await attrByAd(env, act, w.from, w.to, model, 'meta');
-  const { results: prevDaily } = w.pf ? await env.DB.prepare(`SELECT d.date, SUM(d.spend) spend, SUM(d.purchases) p_ord, SUM(d.revenue) p_rev FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date ORDER BY d.date`).bind(act, w.pf, w.pt).all() : { results: [] };
+  const { results: prevDaily } = w.pf ? await env.DB.prepare(`SELECT d.date, SUM(d.spend) spend, SUM(d.purchases) p_ord, SUM(d.revenue) p_rev, SUM(d.impressions) impr, SUM(d.link_clicks) clicks FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.date ORDER BY d.date`).bind(act, w.pf, w.pt).all() : { results: [] };
   const prevAttr = w.pf ? (await attrByAd(env, act, w.pf, w.pt, model, 'meta')).byDate : {};
 
   /* Campaign > ad set > ad, with names. */
@@ -513,9 +520,9 @@ async function metaBrand(env, a, w, model, detail) {
   for (const r of daily || []) { const d = byDay[r.date] ||= { date: r.date, spend: 0, p_ord: 0, p_rev: 0, impr: 0, clicks: 0, atc: 0, camps: {} }; d.spend += num(r.spend); d.p_ord += num(r.p_ord); d.p_rev += num(r.p_rev); d.impr += num(r.impr); d.clicks += num(r.clicks); d.atc += num(r.atc); d.camps[r.campaign_id] = (d.camps[r.campaign_id] || 0) + num(r.spend); }
   out.series = Object.values(byDay).sort((x, y) => (x.date < y.date ? -1 : 1)).map(d => {
     const at = byDate[d.date]; const ord = model === 'platform' ? d.p_ord : (at ? at.ord : 0), rev = model === 'platform' ? d.p_rev : (at ? at.rev : 0);
-    return { date: d.date, spend: d.spend, purchases: ord, revenue: rev, platform_revenue: d.p_rev, cpa: div(d.spend, ord), roas: div(rev, d.spend), ctr: div(d.clicks, d.impr), camps: d.camps };
+    return { date: d.date, spend: d.spend, purchases: ord, revenue: rev, platform_revenue: d.p_rev, cpa: div(d.spend, ord), roas: div(rev, d.spend), ctr: div(d.clicks, d.impr), cpm: div(d.spend * 1000, d.impr), impressions: d.impr, clicks: d.clicks, camps: d.camps };
   });
-  out.prev_series = (prevDaily || []).map(d => { const at = prevAttr[d.date]; const ord = model === 'platform' ? num(d.p_ord) : (at ? at.ord : 0), rev = model === 'platform' ? num(d.p_rev) : (at ? at.rev : 0); return { date: d.date, spend: num(d.spend), purchases: ord, revenue: rev, cpa: div(num(d.spend), ord) }; });
+  out.prev_series = (prevDaily || []).map(d => { const at = prevAttr[d.date]; const ord = model === 'platform' ? num(d.p_ord) : (at ? at.ord : 0), rev = model === 'platform' ? num(d.p_rev) : (at ? at.rev : 0); return { date: d.date, spend: num(d.spend), purchases: ord, revenue: rev, cpa: div(num(d.spend), ord), roas: div(rev, num(d.spend)), ctr: div(num(d.clicks), num(d.impr)), cpm: div(num(d.spend) * 1000, num(d.impr)) }; });
 
   /* The account's own changes in the window (budget, launches, pauses), for chart markers. */
   const { results: changes } = await env.DB.prepare(`SELECT substr(event_time,1,10) date, category, summary, actor, object_name FROM activities WHERE act_id IN ${metaOf(1)} AND substr(event_time,1,10) BETWEEN ?2 AND ?3
@@ -525,7 +532,7 @@ async function metaBrand(env, a, w, model, detail) {
 }
 
 /** Meta totals for many brands: 2 queries per window, whatever the brand count. */
-async function metaMany(env, accts, w, model) {
+async function metaMany(env, accts, w, model, ctx) {
   const acts = accts.map(a => a.act_id);
   const lo = w.pf && w.pf < w.from ? w.pf : w.from;
   const { results } = await env.DB.prepare(`SELECT c.brand_id act_id, CASE WHEN d.date >= ?1 THEN 'cur' ELSE 'prev' END win, ${META_COLS} FROM ad_daily d
@@ -534,11 +541,33 @@ async function metaMany(env, accts, w, model) {
     .bind(w.from, w.to, w.pf || '9999', w.pt || '0000', ...acts).all();
   const at = await attrMany(env, acts, lo, w.to, model, 'meta');
   const raw = {}; for (const r of results || []) (raw[r.act_id] ??= {})[r.win] = r;
+  /* The day series per brand (2026-10-09, every tile carries its line): ONE grouped query for every brand and both
+     windows; attribution per day comes from the attrMany read above. */
+  const { results: dayRows } = await env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.link_clicks) clicks, SUM(d.purchases) p_ord, SUM(d.revenue) p_rev FROM ad_daily d
+    JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id
+    WHERE c.brand_id IN (${inList(acts.length, 5)}) AND ((d.date BETWEEN ?1 AND ?2) OR (d.date BETWEEN ?3 AND ?4)) GROUP BY c.brand_id, d.date`)
+    .bind(w.from, w.to, w.pf || '9999', w.pt || '0000', ...acts).all().catch(() => ({ results: [] }));
+  const byDay = {}; for (const r of dayRows || []) (byDay[r.act_id] ??= {})[r.date] = r;
+  /* Today: Meta's account totals so far from daily_insights (ad rows land overnight), attribution pending. */
+  const live = w.from === w.to && w.to === w.today;
+  if (live) {
+    const { results: di } = await env.DB.prepare(`SELECT c.brand_id act_id, SUM(i.spend) spend, SUM(i.impressions) impr, SUM(i.reach) reach, SUM(i.link_clicks) clicks, SUM(i.clicks) clicks_all, SUM(i.purchases) p_ord, SUM(i.revenue) p_rev FROM daily_insights i
+      JOIN connections c ON c.kind = 'meta' AND c.external_id = i.act_id WHERE c.brand_id IN (${inList(acts.length, 2)}) AND i.date = ?1 GROUP BY c.brand_id`).bind(w.to, ...acts).all().catch(() => ({ results: [] }));
+    for (const r of di || []) if (!num(raw[r.act_id]?.cur?.spend)) (raw[r.act_id] ??= {}).cur = r;
+  }
+  const add = ctx ? ctx.addDays : null;
+  const seriesOf = (act, from, to) => !add ? [] : dates(from, to, add).map(d => { const r = byDay[act]?.[d] || {}; const a2 = at[act]?.[d];
+    const spend = num(r.spend), impr = num(r.impr), clicks = num(r.clicks);
+    const ord = model === 'platform' ? num(r.p_ord) : (a2 ? a2.ord : 0), rev = model === 'platform' ? num(r.p_rev) : (a2 ? a2.rev : 0);
+    return { date: d, spend, impressions: impr, clicks, purchases: ord, revenue: rev, roas: div(rev, spend), cpa: div(spend, ord), cpm: div(spend * 1000, impr), ctr: div(clicks, impr) }; });
   return accts.map(a => {
     const cA = model === 'platform' ? null : sumAttr(at[a.act_id], w.from, w.to);
     const pA = model === 'platform' || !w.pf ? null : sumAttr(at[a.act_id], w.pf, w.pt);
+    const cur = metaMetrics(raw[a.act_id]?.cur || {}, cA);
+    if (live && model !== 'platform' && !at[a.act_id]?.[w.to]) Object.assign(cur, { purchases: null, revenue: null, roas: null, cpa: null, purchase_rate: null, attr_pending: true });
     return { act_id: a.act_id, name: a.name, currency: a.currency, goals: { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null },
-      cur: metaMetrics(raw[a.act_id]?.cur || {}, cA), prev: w.pf ? metaMetrics(raw[a.act_id]?.prev || {}, pA) : null };
+      cur, prev: w.pf ? metaMetrics(raw[a.act_id]?.prev || {}, pA) : null,
+      series: seriesOf(a.act_id, w.from, w.to), prev_series: w.pf ? seriesOf(a.act_id, w.pf, w.pt) : [] };
   });
 }
 async function twPlatformMany(env, ctx, accts, w, model, platform) {
@@ -553,7 +582,7 @@ async function twPlatformMany(env, ctx, accts, w, model, platform) {
 async function allChannelsMany(env, ctx, accts, w, model) {
   const acts = accts.map(a => a.act_id);
   const lo = w.pf && w.pf < w.from ? w.pf : w.from;
-  const meta = await metaMany(env, accts, w, model);
+  const meta = await metaMany(env, accts, w, model, ctx);
   const ids = [...new Set([...Object.values(TW_PLAT.google).flat(), ...Object.values(TW_PLAT.tiktok).flat(), 'pinterestSpend', 'pinterestAdsSpend', 'pi_adCost', 'amazonAds', 'amazonAdsConversionValue', 'klaviyoPlacedOrderSales', 'totalKlaviyoPlacedOrderTotalPriceCampaigns', 'totalKlaviyoPlacedOrderTotalPriceFlows', 'blendedAds', 'netSales', 'totalNetTaxes', 'newCustomersOrders', 'fb_ads_spend'])];
   const pivs = await twPivotMany(env, acts, lo, w.to, ids);
   const m = model === 'platform' ? 'lastPlatformClick' : model;
@@ -604,14 +633,18 @@ function twPlatformFrom(ctx, a, w, model, P, piv, byDate) {
     const t = ds.reduce((s, x) => { for (const k of ['spend', 'impressions', 'clicks', 'tw_revenue', 'tw_purchases']) s[k] += x[k] || 0; if (x.platform_revenue != null) { s.pr += x.platform_revenue; s.prAny = true; } if (x.platform_purchases != null) { s.po += x.platform_purchases; s.poAny = true; } return s; },
       { spend: 0, impressions: 0, clicks: 0, tw_revenue: 0, tw_purchases: 0, pr: 0, po: 0, prAny: false, poAny: false });
     const usePlat = model === 'platform';
-    const rev = usePlat ? (t.prAny ? t.pr : null) : t.tw_revenue, ord = usePlat ? (t.poAny ? t.po : null) : t.tw_purchases;
+    /* Today: Triple Whale's attribution lands overnight, so an unsynced today is "pending", never a 0. */
+    const pending = !usePlat && from === to && to === w.today && !byDate[to];
+    const rev = usePlat ? (t.prAny ? t.pr : null) : pending ? null : t.tw_revenue, ord = usePlat ? (t.poAny ? t.po : null) : pending ? null : t.tw_purchases;
     return { series: ds, m: { spend: t.spend, impressions: t.impressions, clicks: t.clicks, revenue: rev, purchases: ord, platform_revenue: t.prAny ? t.pr : null, platform_purchases: t.poAny ? t.po : null,
-      roas: div(rev ?? 0, t.spend), cpa: ord ? div(t.spend, ord) : null, cpm: div(t.spend * 1000, t.impressions), ctr: div(t.clicks, t.impressions), cpc: div(t.spend, t.clicks) } };
+      roas: rev == null ? null : div(rev, t.spend), cpa: ord ? div(t.spend, ord) : null, cpm: div(t.spend * 1000, t.impressions), ctr: div(t.clicks, t.impressions), cpc: div(t.spend, t.clicks), ...(pending ? { attr_pending: true } : {}) } };
   };
   const cur = roll(w.from, w.to), prev = w.pf ? roll(w.pf, w.pt) : null;
+  const pt = x => { const rev = model === 'platform' ? x.platform_revenue : x.tw_revenue, ord = model === 'platform' ? x.platform_purchases : x.tw_purchases;
+    return { date: x.date, spend: x.spend, revenue: rev, purchases: ord, platform_revenue: x.platform_revenue, impressions: x.impressions, clicks: x.clicks,
+      roas: rev == null ? null : div(rev, x.spend), cpa: ord ? div(x.spend, ord) : null, cpm: div(x.spend * 1000, x.impressions), ctr: div(x.clicks, x.impressions) }; };
   return { act_id: a.act_id, name: a.name, currency: a.currency, goals: { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null }, cur: cur.m, prev: prev ? prev.m : null,
-    series: cur.series.map(x => ({ date: x.date, spend: x.spend, revenue: model === 'platform' ? x.platform_revenue : x.tw_revenue, purchases: model === 'platform' ? x.platform_purchases : x.tw_purchases, platform_revenue: x.platform_revenue })),
-    prev_series: prev ? prev.series.map(x => ({ date: x.date, spend: x.spend, revenue: model === 'platform' ? x.platform_revenue : x.tw_revenue })) : [], source: 'via Triple Whale' };
+    series: cur.series.map(pt), prev_series: prev ? prev.series.map(pt) : [], source: 'via Triple Whale' };
 }
 
 /* ---------- Paid > All channels ---------- */
@@ -636,8 +669,19 @@ function channelRows(ctx, a, w, meta, g, t, piv, ncBy) {
   /* Daily spend per platform, for the stacked chart (Meta's own spend as Triple Whale carries it). */
   const mBy = piv.fb_ads_spend || {};
   const gBy = Object.fromEntries(g.series.map(x => [x.date, x.spend])), tBy = Object.fromEntries(t.series.map(x => [x.date, x.spend]));
-  const series = dates(w.from, w.to, ctx.addDays).map(d => ({ date: d, meta: num(mBy[d]), google: num(gBy[d]), tiktok: num(tBy[d]) }));
-  return { act_id: a.act_id, name: a.name, currency: a.currency, revenue: cr.revenue, blended_spend: cr.blended, prev_revenue: pr ? pr.revenue : null, prev_blended: pr ? pr.blended : null, new_orders: cr.nc, rows, series };
+  /* Per day, the blended view (2026-10-09, All channels draws the same tiles and chart as Home): store revenue and
+     blended spend from Triple Whale, and the paid platforms' credited purchases, spend, impressions and clicks
+     (Meta's own delivery rows, Google and TikTok as Triple Whale carries them). */
+  const day = (piv2, d) => { const s = piv2.netSales?.[d]; return s == null ? null : s - num(piv2.totalNetTaxes?.[d]); };
+  const at = (list) => Object.fromEntries((list || []).map(x => [x.date, x]));
+  const mS = at(meta.series), gS = at(g.series), tS = at(t.series), mP = at(meta.prev_series), gP = at(g.prev_series), tP = at(t.prev_series);
+  const paidOf = (d, A, B, C) => { const x = [A[d], B[d], C[d]].filter(Boolean); const s = k => x.reduce((y, r) => y + num(r[k]), 0); return { purchases: s('purchases'), paid_spend: s('spend'), impressions: s('impressions'), clicks: s('clicks') }; };
+  const series = dates(w.from, w.to, ctx.addDays).map(d => ({ date: d, meta: num(mBy[d]), google: num(gBy[d]), tiktok: num(tBy[d]), revenue: day(piv, d), spend: piv.blendedAds?.[d] ?? null, ...paidOf(d, mS, gS, tS) }));
+  const prev_series = w.pf ? dates(w.pf, w.pt, ctx.addDays).map(d => ({ date: d, revenue: day(piv, d), spend: piv.blendedAds?.[d] ?? null, ...paidOf(d, mP, gP, tP) })) : [];
+  const paid = (m, gg, tt) => { const x = [m, gg, tt].filter(Boolean); const s = k => x.reduce((y, r) => y + num(r[k]), 0); const pend = x.some(r => r.attr_pending);
+    return { spend: s('spend'), purchases: pend ? null : s('purchases'), impressions: s('impressions'), clicks: s('clicks'), attr_pending: pend || undefined }; };
+  return { act_id: a.act_id, name: a.name, currency: a.currency, revenue: cr.revenue, blended_spend: cr.blended, prev_revenue: pr ? pr.revenue : null, prev_blended: pr ? pr.blended : null, new_orders: cr.nc, rows, series, prev_series,
+    paid: paid(meta.cur, g.cur, t.cur), prev_paid: w.pf ? paid(meta.prev, g.prev, t.prev) : null };
 }
 
 /* ---------- Creative ---------- */

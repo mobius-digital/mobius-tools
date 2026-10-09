@@ -91,15 +91,44 @@ const ago = iso => iso ? Math.round((Date.now() - Date.parse(iso)) / 864e5) : nu
 /* Reporting endpoints allow 225 calls a day per account, so every report is cached per brand
    (Locus v2, 2026-10-07): 6 hours in `settings` as `klv:<act>:<what>`. */
 const KLV_TTL = 6 * 3600e3;
-async function cached(env, key, fn) {
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
-  if (row?.value) { try { const v = JSON.parse(row.value); if (v.at && Date.now() - Date.parse(v.at) < KLV_TTL) return { ...v.data, cached_at: v.at }; } catch {} }
-  const data = await fn();
-  if (!data?.error && !/could not be read/i.test(data?.results_note || '')) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: new Date().toISOString(), data })).run().catch(() => {});
-  return data;
+/* WHY THE EMAIL SCREEN WAS SLOW AND SOMETIMES BLANK (measured 2026-10-09 on the dev worker): once the 6-hour copy
+   expired, the next open read Klaviyo live: overview 8 to 10 s (profile counts are one call a second), campaigns
+   15 to 28 s (three pages plus a values report). Klaviyo's reporting endpoints allow about 2 calls a minute, so the
+   Email board (every brand x 3 reads at once) tripped the limit; a failed report was never stored, so every open
+   retried it, slowly, and failed again. Now:
+   - STALE WHILE REFRESHING: an expired copy (up to 3 days old) is answered at once and refreshed in the
+     background (`waitUntil`), so only a brand's very first read ever waits on Klaviyo.
+   - A refresh that fails keeps the last good copy (marked `stale`, with the reason) instead of replacing it.
+   - 10 MINUTES IN MEMORY: the same read in the same isolate within 10 minutes is answered from memory and two
+     callers asking at once share one Klaviyo read. A failed or partial answer is never kept there, so Retry works. */
+const KLV_STALE_MAX = 3 * 24 * 3600e3, MEM_TTL = 10 * 60e3;
+const MEM = new Map();
+const badData = d => !d || d.error || /could not be read/i.test(d.results_note || '');
+async function cached(env, key, fn, bg) {
+  const m = MEM.get(key); if (m && Date.now() - m.at < MEM_TTL) return m.p;
+  const p = (async () => {
+    const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+    let v = null; if (row?.value) { try { v = JSON.parse(row.value); } catch {} }
+    const age = v?.at ? Date.now() - Date.parse(v.at) : Infinity;
+    if (v && age < KLV_TTL) return { ...v.data, cached_at: v.at };
+    const refresh = async () => {
+      const data = await fn();
+      if (!badData(data)) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: new Date().toISOString(), data })).run().catch(() => {});
+      return data;
+    };
+    const old = v && age < KLV_STALE_MAX ? v : null;
+    if (old && bg) { bg(refresh().then(() => MEM.delete(key)).catch(() => {})); return { ...old.data, cached_at: old.at, stale: true }; }
+    let data; try { data = await refresh(); } catch (e) { if (old) return { ...old.data, cached_at: old.at, stale: true, refresh_error: e.message }; throw e; }
+    if (badData(data) && old && !data?.error) return { ...old.data, cached_at: old.at, stale: true, refresh_error: data.results_note };
+    return data;
+  })();
+  MEM.set(key, { at: Date.now(), p });
+  p.then(d => { if (badData(d)) MEM.delete(key); }, () => MEM.delete(key));
+  return p;
 }
-export async function klaviyoView(env, act, what = 'overview') {
-  if (what === 'campaigns' || what === 'flows_report' || what === 'overview') return cached(env, `klv:${act}:${what}`, () => klaviyoViewRaw(env, act, what));
+/** `bg` (optional) is the request's waitUntil: with it an expired copy is answered at once and refreshed behind. */
+export async function klaviyoView(env, act, what = 'overview', bg) {
+  if (what === 'campaigns' || what === 'flows_report' || what === 'overview') return cached(env, `klv:${act}:${what}`, () => klaviyoViewRaw(env, act, what), bg);
   return klaviyoViewRaw(env, act, what);
 }
 async function klaviyoViewRaw(env, act, what = 'overview') {

@@ -2103,8 +2103,9 @@ export default {
                points; a longer custom window is still summarised correctly by `window`. */
             prev: prevRows.length ? totals(prevRows) : null,
             prev_window: pFrom ? { from: pFrom, to: pTo, kind: cmp } : null,
-            series: wantSeries ? rows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null })) : undefined,
-            prev_series: wantSeries && prevRows.length ? prevRows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null })) : undefined,
+            /* new_orders / new_rev / cm ride along (2026-10-09) so every Home tile carries its own day-by-day line. */
+            series: wantSeries ? rows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null, new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null })) : undefined,
+            prev_series: wantSeries && prevRows.length ? prevRows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null, new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null })) : undefined,
             channels: channels || undefined,
             goals: g.sales != null || g.spend != null ? g : null,
             plan, live_as_of: live ? live.as_of : null,

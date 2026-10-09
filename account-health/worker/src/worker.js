@@ -7815,7 +7815,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/klaviyo' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const act = url.searchParams.get('act') || '';
-      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview')); }
+      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p))); }
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */

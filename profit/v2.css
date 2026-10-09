@@ -777,3 +777,39 @@ svg.li.ni{width:18px;height:18px;margin-top:1px}
 @media (max-width:900px){[data-ui="v2"] .v2tiles.home{grid-template-columns:repeat(2,minmax(0,1fr))}[data-ui="v2"] .v2tiles.home .hero{grid-column:1/-1}}
 @media (max-width:420px){[data-ui="v2"] .v2tiles{gap:10px}[data-ui="v2"] .v2tile{padding:14px}}
 @media (max-width:720px){[data-ui="v2"] .topbar{flex-wrap:wrap;row-gap:8px}[data-ui="v2"] .v2ask{flex:1 1 calc(100% - 50px);max-width:none;margin-right:0}[data-ui="v2"] .hd-right{width:100%;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}}
+
+/* ===== 2026-10-09 Ads + Home pass (tiles with lines, skeletons, menus, creative cards). Kept minimal and last. ===== */
+/* eight headline tiles, four a row: every tile the same size, each with its line */
+.v2tiles.home8{grid-template-columns:repeat(4,minmax(0,1fr))}
+.v2tiles.home8 .v2tile.hero .v{font-size:30px}
+@media (max-width:900px){.v2tiles.home8{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* skeletons: the page's shape in shimmer on a first load */
+.v2sk i{display:block;border-radius:6px;background:linear-gradient(90deg,var(--surface-2) 0%,color-mix(in srgb,var(--surface-2) 55%,var(--surface)) 50%,var(--surface-2) 100%);background-size:200% 100%;animation:v2shim 1.3s linear infinite}
+@keyframes v2shim{from{background-position:100% 0}to{background-position:-100% 0}}
+.v2tiles.v2sk .v2tile{min-height:118px}
+.v2tiles.v2sk i.a{height:10px;width:45%}.v2tiles.v2sk i.b{height:22px;width:60%;margin-top:4px}.v2tiles.v2sk i.c{height:30px;width:100%;margin-top:auto}
+.v2card.v2sk i.h,.v2sk > i.h{height:13px;width:28%;margin-bottom:14px}
+.v2card.v2sk i.r,.v2sk > i.r{height:11px;width:100%;margin:10px 0}
+.v2card.v2sk i.r:nth-child(odd){width:86%}
+.v2card.v2sk i.ch{height:200px;width:100%}
+.v2say.v2sk i.r{height:13px;width:62%}
+.v2gal.v2sk .g{border:1px solid var(--line);border-radius:10px;padding-bottom:10px}
+.v2gal.v2sk i.th{aspect-ratio:4/5;border-radius:0;margin-bottom:10px}
+.v2gal.v2sk i.r{height:10px;margin:6px 12px}.v2gal.v2sk i.r.s{width:50%}
+@media (prefers-reduced-motion:reduce){.v2sk i{animation:none}}
+/* one menu style on the page (index.html PillMenu): the menus open from the pill's left edge */
+.v2menus{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
+.hd-period.pm .hd-per-menu{left:0;right:auto;max-height:min(420px,70vh);overflow:auto}
+.hd-period.pm.on .hd-per-btn{border-color:var(--brand)}
+.hd-period.pm .hd-per-l{color:var(--muted);font-weight:550}
+/* creative cards: the whole ad on the same 4:5 frame, video or static, never stretched */
+[data-ui="v2"] .v2gal .th{aspect-ratio:4/5;background-color:var(--surface-2);background-size:contain!important;background-position:center!important;background-repeat:no-repeat!important}
+/* picked to compare: ONE ring, the card's own border turned brand; the tick is a single round mark, no box in a box */
+[data-ui="v2"] .v2gal .g.picked,[data-ui="v2"] .v2gal .g.picked:hover{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.v2gal .th .v2pick{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-strong);background:var(--surface);opacity:.9}
+.v2gal .th .v2pick input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.v2gal .th .v2pick svg{width:14px;height:14px;fill:none;stroke:transparent;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.v2gal .th .v2pick:has(input:checked){background:var(--brand);border-color:var(--brand)}
+.v2gal .th .v2pick:has(input:checked) svg{stroke:var(--on-brand)}
+.v2gal .th .v2pick:has(input:focus-visible){outline:2px solid var(--brand);outline-offset:2px}
+.v2hidden{margin:-4px 0 12px}
