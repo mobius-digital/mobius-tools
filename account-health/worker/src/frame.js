@@ -289,6 +289,18 @@ export async function handleFrame(request, env, url, path, json, isAdmin) {
       const r = await F(`${API}/accounts/${ws[0].account_id}/audit_logs?page_size=${Math.min(100, Number(url.searchParams.get('n')) || 100)}${url.searchParams.get('after') ? `&after=${encodeURIComponent(url.searchParams.get('after'))}` : ''}`, { headers: { Authorization: `Bearer ${tok}`, 'api-version': 'experimental', Accept: 'application/json' } });
       return json({ ok: r.ok, status: r.status, ...safeJson(await r.text(), {}) });
     }
+    /* Put finished Studio ads into a Frame folder (2026-10-09). Frame fetches each file itself from its
+       public Studio address (remote upload), so nothing passes through this Worker. Studio addresses only. */
+    if (path === '/api/frame/upload' && request.method === 'POST') {
+      const out = [];
+      for (const f of (Array.isArray(b.files) ? b.files : []).slice(0, 30)) {
+        const src = String(f.url || '');
+        if (!/^https:\/\/mobius-profit\.mobius-digital\.workers\.dev\/api\/studio\/img\/[a-f0-9]{24}\/(full|story)$/.test(src)) { out.push({ name: f.name, error: 'not a Studio image' }); continue; }
+        const r = await frameApi(env, 'POST', `/accounts/${A}/folders/${b.folder_id}/files/remote_upload`, { data: { name: String(f.name || 'ad.png').slice(0, 120), source_url: src } }).catch(e => ({ error: e.message }));
+        out.push(r.error ? { name: f.name, error: r.error } : { name: f.name, id: r.data?.id });
+      }
+      return json({ ok: true, files: out });
+    }
     /* One folder's children (the caller walks the tree; one request per folder keeps under the subrequest cap). */
     if (path === '/api/frame/children' && request.method === 'POST') {
       const items = await all(env, `/accounts/${A}/folders/${b.folder_id}/children?page_size=100`);
