@@ -1277,7 +1277,11 @@ checks; OpenAI, Anthropic, Shopify, Slack and Frame mocked).
   share / Frame link in the note into a button ("Open the dashboard" for `?open=dash`); Locus links them in the card.
 - **Costs per use:** image $0.25 (1:1) to $0.42 (9:16) from OpenAI's usage, plus the model looking at it (~1.5k tokens);
   PDF ~$0.003 of Haiku tokens (container time is inside the free 1,550 hours a month); analysis ~$0.05 to $0.40.
-- **Live check status:** see the line added after the deploy below.
+- **Verified live 2026-10-09:** `/r/<token>` page and `/r/<token>.pdf` on a test row: Files API upload, the sandbox run
+  (Haiku 4.5 + `code_execution_20260521`), the reportlab render and the download back all worked, 13 s, a clean 2-page PDF
+  (test row and file removed after). **NOT tested live (mocks only):** make_image through this worker (needs a real ask;
+  Studio's own key), run_analysis on Opus (same sandbox code as the PDF, so the plumbing is proven; the analysis is not),
+  Slack uploads of images / PDFs from the queue, every Frame call (list, share body, folder, move).
 
 ## 2026-10-09: the same Meta writes from a Locus screen, and Google campaign writes
 
