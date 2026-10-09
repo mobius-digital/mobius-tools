@@ -49,6 +49,7 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
+import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts } from './google.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
@@ -7867,10 +7868,24 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json(await movedPreview(env, hubDeps()));
     }
     /* Klaviyo, read live by the brand's own key, for the Email and SMS screen. */
-    if (path === '/api/klaviyo' && request.method === 'GET') {
+    /* 2026-10-09: + what=daily|flow|templates|audiences|attentive (from/to/id), and POST /api/klaviyo/write
+       (klaviyowrite.js: flow status, draft, schedule, unschedule, cancel, duplicate; logged with who did it). */
+    if (path === '/api/klaviyo' || path === '/api/klaviyo/write') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const email = await sessionEmail(env, request).catch(() => null);
+      const only = await brandsFor(env, email).catch(() => null);
+      if (path === '/api/klaviyo/write' && request.method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        if (only && !only.has(String(body.act || ''))) return json({ error: 'You do not have access to this brand.' }, 403);
+        try { const r = await klaviyoWriteRoute(env, body, email || 'admin token'); return json(r.body, r.status); }
+        catch (e) { return json({ error: e.message }, 502); }
+      }
+      if (request.method !== 'GET') return json({ error: 'GET' }, 405);
       const act = url.searchParams.get('act') || '';
-      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p))); }
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const q = k => url.searchParams.get(k) || undefined;
+      if (url.searchParams.get('what') === 'can') return json(await klaviyoCan(env, act).catch(e => ({ error: e.message })));
+      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p), { id: q('id'), from: q('from'), to: q('to') })); }
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
