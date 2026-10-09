@@ -3651,24 +3651,17 @@ async function adPreviewLinks(env, adIds) {
   if (!env.META_TOKEN || !adIds.length) return {};
   const out = {};
   const ids = adIds.slice(0, 12);
+  /* One ad at a time: the `?ids=` batch this used to try first is dead in Graph v26+
+     (see "?ids= IS DEAD" in CLAUDE.md), so it failed every time and cost a wasted call. */
   for (const fmt of PREVIEW_FORMATS) {
     const missing = ids.filter(id => !out[id]);
     if (!missing.length) break;
-    try {
-      const body = await meta(env, '', { ids: missing.join(','), fields: `previews.ad_format(${fmt}){body}` });
-      for (const [id, v] of Object.entries(body || {})) {
-        const src = previewSrcFrom(v);
+    for (const id of missing) {
+      try {
+        const r = await meta(env, `${id}/previews`, { ad_format: fmt });
+        const src = previewSrcFrom(r);
         if (src) out[id] = src;
-      }
-    } catch {
-      // A single deleted ad fails the whole batch, so ask one at a time.
-      for (const id of missing) {
-        try {
-          const r = await meta(env, `${id}/previews`, { ad_format: fmt });
-          const src = previewSrcFrom(r);
-          if (src) out[id] = src;
-        } catch { /* not previewable in this format - the next one may work */ }
-      }
+      } catch { /* not previewable in this format - the next one may work */ }
     }
   }
   return out;
@@ -7345,6 +7338,20 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       ).bind(adId).first().catch(() => null);
       const previewFresh = cachedPrev?.fetched_at
         && Date.now() - Date.parse(cachedPrev.fetched_at) < AD_PREVIEW_TTL_DAYS * 86400e3;
+      /* `?mode=preview` (Locus Creative, 2026-10-09): Cole wants Meta's own preview on Play,
+         not the mp4 (the file is slow to start). One cached D1 read, else one Meta call per
+         format; falls through to the file only when Meta has no preview. */
+      if (url.searchParams.get('mode') === 'preview') {
+        if (cachedPrev?.url && previewFresh) return json({ src: null, preview: cachedPrev.url, partnership: !!cachedPrev.partnership, cached: true });
+        const pv = (await adPreviewLinks(env, [adId]).catch(() => ({})))[adId] || null;
+        if (pv) {
+          await env.DB.prepare(
+            `INSERT INTO ad_preview (ad_id, url, partnership, page_id, fetched_at) VALUES (?1, ?2, ?3, NULL, ?4)
+             ON CONFLICT(ad_id) DO UPDATE SET url = excluded.url, fetched_at = excluded.fetched_at`,
+          ).bind(adId, pv, cachedPrev?.partnership ? 1 : 0, new Date().toISOString()).run().catch(() => {});
+          return json({ src: null, preview: pv, partnership: !!cachedPrev?.partnership });
+        }
+      }
       if (cachedPrev?.partnership && cachedPrev.url && previewFresh) {
         return json({ src: null, preview: cachedPrev.url, partnership: true, cached: true,
           reason: PARTNERSHIP_REASON });
