@@ -95,7 +95,7 @@
     const t = H.RUN(), title = 'Day check';
     if (first) $('#main').innerHTML = shell('yesterday', title, U().card('', '', '<p class="v2hint">Loading…</p>'));
     let m; try { m = await getAH('/api/metaday?days=30'); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('yesterday', title, U().card('Could not load', '', `<p class="v2hint">${esc(e.message)}</p>`)); return; }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('yesterday', title, U().card('Could not load', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
     const days = m.days || [];
     if (!days.length) { $('#main').innerHTML = shell('yesterday', title, U().card('Nothing yet', '', '<p class="v2hint">Not enough Meta data yet.</p>')); return; }
@@ -146,7 +146,7 @@
     if (first) $('#main').innerHTML = shell('today', title, U().card('', '', '<p class="v2hint">Loading…</p>'));
     let d, tests = null;
     try { [d, tests] = await Promise.all([get(`/api/hub/today?act=${encodeURIComponent(H.S.act)}`), get('/api/brand/tests-overview').catch(() => null)]); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('today', title, U().card('Could not load', '', `<p class="v2hint">${esc(e.message)}</p>`)); return; }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('today', title, U().card('Could not load', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
     const todayKey = ymdL(new Date());
     const done = store('pf_today_done'), snooze = store('pf_today_snooze');
@@ -213,7 +213,7 @@
     const title = `${esc(label)}: war room`;
     if (first) $('#main').innerHTML = shell('war', title, U().card('', '', '<p class="v2hint">Loading…</p>'));
     let d; try { d = await H.api(`/api/season?act=${encodeURIComponent(H.S.act)}`); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('war', title, U().card('Could not load the season', '', `<p class="v2hint">${esc(e.message)}</p>`)); return; }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('war', title, U().card('Could not load the season', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
     const td = d.today || ymdL(new Date());
     const accts = (d.accounts || []).filter(a => (a.phases || []).some(p => p.status !== 'skip'));

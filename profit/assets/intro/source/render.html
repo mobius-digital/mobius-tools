@@ -1,0 +1,304 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mobius intro render</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from '/node_modules/three/examples/jsm/environments/RoomEnvironment.js';
+
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 1920), H = +(Q.get('h') || 1080);
+const SS = +(Q.get('ss') || 2);            // supersample factor
+const MSAA = +(Q.get('msaa') || 4);
+const MODE = Q.get('mode') || 'intro';      // intro | emoji
+
+/* ---------------- the logo, exact (SVG path coordinates, y down) ---------------- */
+const R = 83.89;
+const P1 = { a: [255.787, 635.194], b: [515.213, 375.847] };
+const P2 = { a: [514.569, 648.153], b: [768.213, 394.586] };
+const B3 = { cx: 769.515, cy: 649.0, xl: 685.62, yl: 630.573, xr: 853.411, yr: 461.748 };
+const CX = 512.65, CY = 512.4, K = 1 / 300;           // logo px -> world units
+const toW = (x, y) => [(x - CX) * K, -(y - CY) * K];
+
+/* gradient fitted to brand/mobius-app-icon-512.png: 27 degrees, three stops */
+const GA = 27 * Math.PI / 180, GD = [Math.cos(GA), -Math.sin(GA)];
+const STOPS = [[0xC6, 0xE4, 0xD6], [0x62, 0xBD, 0xEA], [0xDC, 0xC9, 0xA8]].map(c => c.map(v => v / 255));
+let PMIN = 1e9, PMAX = -1e9;
+
+/* Each final piece: arrays of sections {L:[x,y], R:[x,y], u:0..1 along the piece} in logo px */
+function pill(P, n1, n2) {
+  const dx = P.b[0] - P.a[0], dy = P.b[1] - P.a[1], len = Math.hypot(dx, dy);
+  const d = [dx / len, dy / len];
+  /* perpendicular chosen so that, in world (y up), R is CCW of the direction */
+  const p = [d[1], -d[0]];
+  const out = [], tot = len + 2 * R;
+  const push = (t, hw) => {
+    const c = [P.a[0] + d[0] * t, P.a[1] + d[1] * t];
+    out.push({ L: [c[0] - p[0] * hw, c[1] - p[1] * hw], R: [c[0] + p[0] * hw, c[1] + p[1] * hw], u: (t + R) / tot, perp: p });
+  };
+  for (let i = 0; i < n1; i++) { const th = i / n1 * Math.PI / 2; push(-R * Math.cos(th), R * Math.sin(th)); }
+  for (let i = 0; i <= n2; i++) push(i / n2 * len, R);
+  for (let i = 1; i <= n1; i++) { const th = Math.PI / 2 + i / n1 * Math.PI / 2; push(len - R * Math.cos(th), R * Math.sin(th)); }
+  out[0].L = out[0].R = [P.a[0] - d[0] * R, P.a[1] - d[1] * R];
+  out[out.length - 1].L = out[out.length - 1].R = [P.b[0] + d[0] * R, P.b[1] + d[1] * R];
+  return { secs: out, len: tot };
+}
+function band3(n2, n1) {
+  const out = [], ytop = (B3.yl + B3.yr) / 2, ybot = B3.cy + R, tot = ybot - ytop;
+  for (let i = 0; i <= n2; i++) {
+    const q = i / n2, yl = B3.yl + (B3.cy - B3.yl) * q, yr = B3.yr + (B3.cy - B3.yr) * q;
+    out.push({ L: [B3.xl, yl], R: [B3.xr, yr], u: ((yl + yr) / 2 - ytop) / tot, perp: [1, 0] });
+  }
+  for (let i = 1; i <= n1; i++) {
+    const th = Math.PI / 2 - i / n1 * Math.PI / 2, hw = R * Math.sin(th), y = B3.cy + R * Math.cos(th);
+    out.push({ L: [B3.cx - hw, y], R: [B3.cx + hw, y], u: (y - ytop) / tot, perp: [1, 0] });
+  }
+  out[out.length - 1].L = out[out.length - 1].R = [B3.cx, ybot];
+  return { secs: out, len: tot };
+}
+const pieces = [pill(P1, 26, 70), pill(P2, 26, 70), band3(34, 26)];
+const TOTAL = pieces.reduce((s, p) => s + p.len, 0);
+{ let acc = 0; for (const p of pieces) { p.u0 = acc / TOTAL; p.u1 = (acc + p.len) / TOTAL; acc += p.len; } }
+for (const p of pieces) for (const s of p.secs) for (const pt of [s.L, s.R]) { const pr = pt[0] * GD[0] + pt[1] * GD[1]; PMIN = Math.min(PMIN, pr); PMAX = Math.max(PMAX, pr); }
+
+/* ---------------- helpers ---------------- */
+const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const sst = (a, b, x) => { const t = cl((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const smt = (a, b, x) => { const t = cl((x - a) / (b - a)); return t * t * t * (t * (t * 6 - 15) + 10); };
+const eoc = (a, b, x) => { const t = cl((x - a) / (b - a)); return 1 - Math.pow(1 - t, 3); };
+const lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+function grad(t) { t = cl(t); const i = t < 0.5 ? 0 : 1, f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5; return [0, 1, 2].map(k => STOPS[i][k] + (STOPS[i + 1][k] - STOPS[i][k]) * f); }
+/* colour flowing along the ribbon: mint, blue, sand, back to blue, periodic */
+function ribbonCol(u) {
+  u = ((u % 1) + 1) % 1;
+  const keys = [[0, 0.0], [0.42, 0.5], [0.8, 1.0], [0.93, 0.62], [1.0, 0.0]];
+  for (let i = 0; i < keys.length - 1; i++) if (u <= keys[i + 1][0]) { const f = (u - keys[i][0]) / (keys[i + 1][0] - keys[i][0]); const s = f * f * (3 - 2 * f); return grad(keys[i][1] + (keys[i + 1][1] - keys[i][1]) * s); }
+  return grad(0);
+}
+
+/* ---------------- renderer ---------------- */
+const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H; document.body.appendChild(canvas);
+const gl = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, premultipliedAlpha: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+gl.setPixelRatio(1); gl.setSize(W, H, false); gl.setClearColor(0x000000, 0);
+gl.shadowMap.enabled = true; gl.shadowMap.type = THREE.PCFSoftShadowMap;
+const info = gl.getContext().getExtension('WEBGL_debug_renderer_info');
+window.GPU = info ? gl.getContext().getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown';
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(gl);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.03).texture;
+scene.environmentIntensity = +(Q.get('env') || 0.6);
+
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(-3.5, 5, 6); scene.add(key);
+key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 6; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+Object.assign(key.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 1, far: 20 });
+const rim = new THREE.DirectionalLight(0xdff1ff, 1.4); rim.position.set(4, 3, -5); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xfff3e2, 0.35); fill.position.set(3, -3, 4); scene.add(fill);
+
+const U = { uFlat: { value: 0 }, uSweep: { value: -9 }, uSweepAmp: { value: 0 }, uExpo: { value: +(Q.get('expo') || 0.85) }, uPM: { value: new THREE.Vector2(PMIN, PMAX) } };
+const mat = new THREE.MeshPhysicalMaterial({
+  vertexColors: true, side: THREE.DoubleSide, roughness: 0.34, metalness: 0.0,
+  clearcoat: 1.0, clearcoatRoughness: 0.16, sheen: +(Q.get('sheen') || 0.15), sheenRoughness: 0.45, sheenColor: new THREE.Color(0xffffff),
+  specularIntensity: 0.6,
+});
+mat.onBeforeCompile = sh => {
+  Object.assign(sh.uniforms, U);
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 logo;\nvarying vec2 vLogo;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLogo = logo;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec2 vLogo; uniform float uFlat, uSweep, uSweepAmp, uExpo; uniform vec2 uPM;
+vec3 acesF(vec3 color){
+  const mat3 i = mat3(0.59719,0.07600,0.02840, 0.35458,0.90834,0.13383, 0.04823,0.01566,0.83777);
+  const mat3 o = mat3(1.60475,-0.10208,-0.00327, -0.53108,1.10813,-0.07276, -0.07367,-0.00605,1.07602);
+  color *= uExpo/0.6; color = i*color; vec3 a = color*(color+0.0245786)-0.000090537; vec3 b = color*(0.983729*color+0.4329510)+0.238081; color = a/b; color = o*color; return clamp(color,0.,1.);
+}
+vec3 toS(vec3 c){ return mix(c*12.92, 1.055*pow(c, vec3(1./2.4))-0.055, step(0.0031308, c)); }
+vec3 logoGrad(vec2 p){
+  float pr = p.x*${GD[0].toFixed(6)} + p.y*${GD[1].toFixed(6)};
+  float t = clamp(((pr-uPM.x)/(uPM.y-uPM.x) - 0.01)/1.01, 0., 1.);
+  vec3 s0 = vec3(${STOPS[0].map(v => v.toFixed(6)).join(',')}), s1 = vec3(${STOPS[1].map(v => v.toFixed(6)).join(',')}), s2 = vec3(${STOPS[2].map(v => v.toFixed(6)).join(',')});
+  return t < 0.5 ? mix(s0, s1, t/0.5) : mix(s1, s2, (t-0.5)/0.5);
+}`).replace('#include <dithering_fragment>', `#include <dithering_fragment>
+  vec3 lit = toS(acesF(gl_FragColor.rgb));
+  vec3 col = mix(lit, logoGrad(vLogo), uFlat);
+  float sw = (vLogo.x*0.8 - vLogo.y*0.6);
+  float band = exp(-pow((sw - uSweep)/42.0, 2.0));
+  col = col + uSweepAmp*band*(vec3(1.0)-col)*0.9;
+  gl_FragColor = vec4(col, 1.0);`);
+};
+
+const meshes = [];
+const NV = 28, NE = 7;                                  // across samples, edge samples per side
+const PROF = [];                                        // [vx, ex, ez]: pos = c + a*(w*vx + h*ex) + n*(h*ez)
+for (let i = 0; i <= NV; i++) PROF.push([-1 + 2 * i / NV, 0, 1]);
+for (let i = 1; i < NE; i++) { const ps = i / NE * Math.PI; PROF.push([1, Math.sin(ps), Math.cos(ps)]); }
+for (let i = 0; i <= NV; i++) PROF.push([1 - 2 * i / NV, 0, -1]);
+for (let i = 1; i < NE; i++) { const ps = i / NE * Math.PI; PROF.push([-1, -Math.sin(ps), -Math.cos(ps)]); }
+const NPF = PROF.length;
+for (const p of pieces) {
+  const ns = p.secs.length, g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ns * NPF * 3), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(ns * NPF * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(ns * NPF * 3), 3));
+  const lg = new Float32Array(ns * NPF * 2);
+  const idx = [];
+  for (let i = 0; i < ns - 1; i++) for (let j = 0; j < NPF; j++) {
+    const a = i * NPF + j, b = i * NPF + (j + 1) % NPF, c = (i + 1) * NPF + j, d = (i + 1) * NPF + (j + 1) % NPF;
+    idx.push(a, c, b, b, c, d);
+  }
+  for (let i = 0; i < ns; i++) { const s = p.secs[i]; for (let j = 0; j < NPF; j++) { const f = (PROF[j][0] + 1) / 2; lg[(i * NPF + j) * 2] = s.L[0] + (s.R[0] - s.L[0]) * f; lg[(i * NPF + j) * 2 + 1] = s.L[1] + (s.R[1] - s.L[1]) * f; } }
+  g.setAttribute('logo', new THREE.BufferAttribute(lg, 2));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; m.frustumCulled = false;
+  scene.add(m); meshes.push(m); p.mesh = m;
+}
+
+const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 100);
+const FOV = 22, D = 2.27 / (0.5 * 2 * Math.tan(FOV / 2 * Math.PI / 180)) * (H / W > 1 ? 1 : 1);
+/* mark width = half the frame HEIGHT (square crop = half its width) */
+const DIST = (681.5 * K) / (0.5 * 2 * Math.tan(FOV / 2 * Math.PI / 180));
+window.FINAL = { DIST, K, CX, CY, FOV };
+
+/* ---------------- the motion ---------------- */
+const T_END = +(Q.get('dur') || 3.2);
+const LOOP_R = 0.84, LOOP_W = 0.29, FIN_W = R * K, H0 = 0.024;
+const L_LOOP = 2 * Math.PI * LOOP_R, L_FIN = TOTAL * K;
+const v3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const tmpM = new THREE.Matrix4();
+
+function state(t, emo) {
+  // emo: emoji loop parameters {phase}
+  let spin, tilt, yaw, kc, tw, len, flow;
+  if (emo != null) {
+    spin = emo * Math.PI * 2; tilt = 1.05; yaw = 0.0; kc = 1; tw = 1; len = L_LOOP; flow = 0;
+  } else {
+    spin = -0.78 * Math.PI * (1 - eoc(0, 1.65, t)) ;
+    tilt = 0.98 * (1 - smt(0.35, 1.6, t));
+    yaw = 0.32 * (1 - smt(0.2, 1.75, t));
+    kc = 1 - 0.6 * smt(0.7, 1.75, t);
+    tw = 1 - smt(0.6, 1.5, t);
+    len = L_LOOP + (L_FIN - L_LOOP) * sst(0.8, 1.9, t);
+    flow = 0.55 * (1 - eoc(0, 1.6, t));
+  }
+  const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(-tilt, yaw, spin, 'XYZ'));
+  return { rot, kc, tw, len, flow };
+}
+/* section on the unrolling ribbon at global u: centre, frame (T, a, n), local coords before recentre */
+function ribbonSec(u, S) {
+  const s = (u - 0.5) * S.len, kap = 2 * Math.PI * S.kc / S.len;
+  let c, T, N;
+  if (kap < 1e-5) { c = v3(s, 0, 0); T = v3(1, 0, 0); N = v3(0, 1, 0); }
+  else { c = v3(Math.sin(kap * s) / kap, -(1 - Math.cos(kap * s)) / kap, 0); T = v3(Math.cos(kap * s), -Math.sin(kap * s), 0); N = v3(Math.sin(kap * s), Math.cos(kap * s), 0); }
+  const tau = Math.PI * (u - 0.5) * S.tw;
+  const a = N.clone().multiplyScalar(Math.cos(tau)).add(v3(0, 0, Math.sin(tau)));
+  return { c, T, a };
+}
+const centroidCache = {};
+function centroid(S) {
+  const n = 200; const m = v3();
+  for (let i = 0; i <= n; i++) m.add(ribbonSec(i / n, S).c);
+  return m.multiplyScalar(1 / (n + 1));
+}
+const qFrom = (T, a, n) => new THREE.Quaternion().setFromRotationMatrix(tmpM.makeBasis(T, a, n));
+
+const SAT = +(Q.get('sat') || 1.6), DARK = +(Q.get('dark') || 0.92);
+const PIECE_T = [1.0, 1.12, 1.04], GLIDE = 0.95, STAG = 0.12;
+function build(t, emo) {
+  const S = state(t, emo), cen = centroid(S);
+  const hT = emo != null ? H0 * 1.4 : H0 * (1 - sst(1.95, 2.4, t));
+  const colMix = emo != null ? 0 : sst(1.15, 2.15, t);
+  const lift = 0.42;
+  pieces.forEach((p, pi) => {
+    const pos = p.mesh.geometry.attributes.position.array, col = p.mesh.geometry.attributes.color.array;
+    const ns = p.secs.length;
+    const ew = emo != null ? 0 : sst(0.95, 1.75, t);
+    for (let i = 0; i < ns; i++) {
+      const sec = p.secs[i], u = p.u0 + (p.u1 - p.u0) * sec.u;
+      const rs = ribbonSec(u, S);
+      const c0 = rs.c.clone().sub(cen).applyQuaternion(S.rot), T0 = rs.T.clone().applyQuaternion(S.rot), a0 = rs.a.clone().applyQuaternion(S.rot);
+      const n0 = new THREE.Vector3().crossVectors(T0, a0).normalize();
+      /* final section */
+      const L = toW(sec.L[0], sec.L[1]), Rr = toW(sec.R[0], sec.R[1]);
+      const cF = v3((L[0] + Rr[0]) / 2, (L[1] + Rr[1]) / 2, 0);
+      let aF = v3(Rr[0] - L[0], Rr[1] - L[1], 0); const wF = aF.length() / 2;
+      if (wF < 1e-6) aF = v3(sec.perp[0], -sec.perp[1], 0);   // perp is in logo coords (y down)
+      aF.normalize();
+      const nF = v3(0, 0, 1), TF = new THREE.Vector3().crossVectors(aF, nF);
+      /* blend */
+      const e = emo != null ? 0 : smt(PIECE_T[pi] + sec.u * STAG, PIECE_T[pi] + sec.u * STAG + GLIDE, t);
+      const wLoop = LOOP_W + (FIN_W - LOOP_W) * sst(0.9, 1.6, t);
+      const w0 = wLoop * (1 - ew) + wF * ew;
+      const c = c0.clone().lerp(cF, e).add(v3(0, 0, lift * Math.sin(Math.PI * e) * (0.6 + 0.4 * pi / 2)));
+      const q = qFrom(T0, a0, n0).slerp(qFrom(TF, aF, nF), e);
+      const a = v3(0, 1, 0).applyQuaternion(q), n = v3(0, 0, 1).applyQuaternion(q);
+      const w = w0 + (wF - w0) * e;
+      const rc = ribbonCol(u + S.flow);
+      const lc = grad(((sec.L[0] + sec.R[0]) / 2 * GD[0] + (sec.L[1] + sec.R[1]) / 2 * GD[1] - PMIN) / (PMAX - PMIN));
+      /* richer in 3D (lighting and ACES wash pastel colours out), exact logo colours once flat */
+      const sat = SAT * (1 - colMix) + 1 * colMix, rcm = rc.map((v, k) => v + (lc[k] - v) * colMix), avg = (rcm[0] + rcm[1] + rcm[2]) / 3;
+      const cc = rcm.map(v => lin(cl(avg + (v - avg) * sat) * DARK));
+      for (let j = 0; j < NPF; j++) {
+        const pf = PROF[j], o = (i * NPF + j) * 3;
+        const ax = w * pf[0] + hT * pf[1], nz = hT * pf[2];
+        pos[o] = c.x + a.x * ax + n.x * nz; pos[o + 1] = c.y + a.y * ax + n.y * nz; pos[o + 2] = c.z + a.z * ax + n.z * nz;
+        col[o] = cc[0]; col[o + 1] = cc[1]; col[o + 2] = cc[2];
+      }
+    }
+    p.mesh.geometry.attributes.position.needsUpdate = true; p.mesh.geometry.attributes.color.needsUpdate = true;
+    p.mesh.geometry.computeVertexNormals();
+  });
+  /* camera */
+  if (emo != null) { cam.position.set(0, 0, DIST * 0.62); cam.lookAt(0, 0, 0); }
+  else {
+    const k = smt(0, 2.25, t);
+    const p0 = v3(0.8, 0.9, DIST * +(Q.get('cz') || 0.52)), p1 = v3(0, 0, DIST);
+    cam.position.copy(p0.lerp(p1, k)); cam.up.set(0, 1, 0); cam.lookAt(0, 0.12 * (1 - k), 0);
+  }
+  U.uFlat.value = emo != null ? 0 : sst(2.12, 2.5, t);
+  const swp = (t - 2.42) / 0.62;
+  U.uSweepAmp.value = emo != null ? 0 : (swp > 0 && swp < 1 ? Math.sin(Math.PI * swp) * 0.42 : 0);
+  U.uSweep.value = -420 + swp * 1350 + 0;
+}
+
+/* ---------------- accumulation ---------------- */
+const RW = W * SS, RH = H * SS;
+const rtMS = new THREE.WebGLRenderTarget(RW, RH, { type: THREE.HalfFloatType, samples: MSAA, depthBuffer: true });
+const rtAcc = new THREE.WebGLRenderTarget(RW, RH, { type: THREE.FloatType, depthBuffer: false });
+const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const qGeo = new THREE.PlaneGeometry(2, 2);
+const addMat = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: rtMS.texture }, k: { value: 1 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy,0.,1.); }',
+  fragmentShader: 'uniform sampler2D tex; uniform float k; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tex, vUv)*k; }',
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+  blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor, depthTest: false, depthWrite: false, transparent: true,
+});
+const outMat = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: rtAcc.texture }, px: { value: new THREE.Vector2(1 / RW, 1 / RH) }, ss: { value: SS } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy,0.,1.); }',
+  fragmentShader: `uniform sampler2D tex; uniform vec2 px; uniform float ss; varying vec2 vUv;
+    void main(){ vec4 s = vec4(0.); vec2 base = floor(gl_FragCoord.xy)*ss; for(int i=0;i<4;i++) for(int j=0;j<4;j++){ if(float(i)<ss && float(j)<ss) s += texture2D(tex, (base + vec2(float(i),float(j)) + 0.5)*px); }
+      s /= ss*ss; gl_FragColor = s; }`,
+  depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+});
+const addScene = new THREE.Scene(); addScene.add(new THREE.Mesh(qGeo, addMat));
+const outScene = new THREE.Scene(); outScene.add(new THREE.Mesh(qGeo, outMat));
+rtAcc.texture.minFilter = rtAcc.texture.magFilter = THREE.NearestFilter;
+
+window.renderAt = (t, sub = 8, shutter = 0.5, fps = 60, emo = null) => {
+  gl.setRenderTarget(rtAcc); gl.setClearColor(0, 0); gl.clear();
+  addMat.uniforms.k.value = 1 / sub;
+  for (let i = 0; i < sub; i++) {
+    const dt = sub > 1 ? (i / (sub - 1) - 0.5) * shutter / fps : 0;
+    if (emo != null) build(0, emo + (sub > 1 ? (i / (sub - 1) - 0.5) * shutter / fps / 2.4 : 0));
+    else build(Math.min(T_END, Math.max(0, t + dt)), null);
+    gl.setRenderTarget(rtMS); gl.setClearColor(0, 0); gl.clear(); gl.render(scene, cam);
+    gl.setRenderTarget(rtAcc); gl.autoClear = false; gl.render(addScene, quadCam); gl.autoClear = true;
+  }
+  gl.setRenderTarget(null); gl.setClearColor(0, 0); gl.clear(); gl.render(outScene, quadCam);
+  return canvas.toDataURL('image/png');
+};
+window.READY = true;
+</script>
+</body></html>

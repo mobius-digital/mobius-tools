@@ -1174,3 +1174,48 @@ medium, reads Slack live, shared memory as short skill files). Tests: `node test
   under the answer. Progress rows are `settings askRun:<id>`; a step write never clears a Stop.
 - Verified live 2026-10-09 in Locus: "what did Fela ask on the creator link, is it done" found the client thread (8 asks),
   read the public page and the route, answered per item; $0.61, 53 s.
+
+## 2026-10-09: THE STRATEGIST CAN CHANGE THINGS (`src/metawrite.js`). Read before adding a write action.
+
+Cole: "Viktor is connected directly with Meta, he can do anything with any ad account. Why can't the AI make changes
+himself too? If he suggests doing something we approve it or change it up." Every write is an Apply card (engine
+ACTIONS: propose describes, never writes; apply runs on the tap). Registered in strategist.js as
+`tools: [...stratTools(d), ...writeTools(d)]` and `actions: [..., ...writeActions(d)]`; PLAYBOOK section "ACTING IN
+META, ASANA AND DRIVE". Tests: `node test-metawrite.mjs` (14 offline checks, Graph API / Asana / Drive mocked).
+- **Reads (tools):** `meta_read` (live campaigns > ad sets > ads: status, budget in dollars, bid strategy, optimisation,
+  min / cap, targeting summary, creative ids; `status` live|all, `campaign`, `adset`, `ads`), `drive_list` (the brand's
+  folder from `connections` kind drive, else `p_br_doc` profile.drive, else `p_newclient.drive_url`; or any folder; or a
+  name search).
+- **Meta actions:** `meta_pause`, `meta_resume`, `meta_budget` (daily or lifetime, whichever it runs on; card = dollars and
+  % change; over 50% refused unless `big: true`; an ad set inside a campaign budget is refused and pointed at the
+  campaign), `meta_min_spend` (`daily_min_spend_target` / `daily_spend_cap`, 0 clears, CBO ad sets only), `meta_rename`,
+  `meta_duplicate_adset` (`/copies` deep_copy, PAUSED, then renamed and optionally its own daily budget),
+  `meta_create_ad` (image URL fetched by the worker -> `adimages` bytes -> `adcreatives` object_story_spec with the
+  page + Instagram account read from the ads already in that set, else the account's only promote_page -> `ads`;
+  PAUSED unless `live: true`; or an existing `video_id` with its `picture` as the thumbnail), `meta_undo` (write id or
+  "last" per brand, 24 hours: puts back the before-state, or ARCHIVES what a write created).
+- **The rules every Meta write keeps:** look the object up first (`findObject`: numeric id, or name via the edge
+  `filtering [{field: '<level>.name', operator: 'CONTAIN'}]`, exact match wins, several = refused with the list);
+  the object's `account_id` must be one of the brand's Meta connections; `metaCan(env, act, d)` reads the token's
+  `user_tasks` (MANAGE or ADVERTISE) + `me/permissions` (ads_management), cached in `settings metaCan:<act>` an hour
+  for a yes, five minutes for a no; a no refuses the card with the fix ("Give the Mobius Tools system user Manage
+  campaigns on <account> in Business settings > Ad accounts > Assign partners (Business ID 695359915477596)"). Apply
+  RE-READS the fields it changes and refuses if anything moved since the card. Every write: one `p_meta_write` row
+  (before/after JSON, by = the approver; table also in schema.sql, created on first use) and one manual `activities`
+  row (event_type `strategist_write`, actor "the Strategist, approved by <who>", category budget / campaign_paused /
+  ad_paused / new_adset / new_creative / name, reason = the card's why). Meta's own activity sync will ALSO bring in
+  its row for the same change: two lines, on purpose.
+- **Who approved:** worker.js passes `who` in the apply ctx: the Slack tapper's handle, or the Locus session email.
+- **Asana:** `asana_task` (section by name, assignee by first name, `due_on`), `asana_comment` (stories), `asana_complete`;
+  a task by gid, Asana link, brief number or words in its name (the brand's project from `p_br_doc` 'asana').
+- **Drive** (as Cole through GOOGLE_SA_KEY delegation): `drive_copy_to` (files only; brand folder, a subfolder by name, or
+  any folder), `drive_share` (reader / commenter / writer, no Google email unless `notify`; the card says "outside
+  Mobius" for any non go-mobius-digital.com address). Writes need the full `https://www.googleapis.com/auth/drive` scope
+  on the delegation; without it the Apply says exactly that.
+- **NOT tested against the real APIs (only mocks):** every Graph write (status, budgets, min/cap clearing with "0",
+  `/copies` deep copy limits on sets with many ads, adimages bytes upload, the creative spec, the `<level>.name`
+  CONTAIN filter), the Drive full scope, Asana stories. The first live card of each kind is the test; the card or the
+  Apply says what Meta answered.
+- **What Cole grants per ad account** before any Meta card can be applied: in Business settings > Ad accounts, the
+  Mobius Tools system user with Manage campaigns. The token also needs ads_management (if the Monday "Do it" button
+  shows on a brand, both are already in place there).

@@ -966,7 +966,13 @@ export function createAssistant(config) {
     let work = null, lastUpd = 0, stepsSeen = [];
     const stopBtn = { type: 'actions', elements: [{ type: 'button', action_id: 'ask_stop', text: { type: 'plain_text', text: 'Stop' }, value: JSON.stringify({ run: runId, app: C.slackApp || P }) }] };
     const workBlocks = lines => [{ type: 'context', elements: [{ type: 'mrkdwn', text: lines.slice(-4).map((l, i, a) => (i === a.length - 1 ? '› ' : '✓ ') + l).join('\n').slice(0, 2900) || '_On it..._' }] }, stopBtn];
-    if (C.liveSteps) {
+    /* Slack's own AI-app working state (the spinner + Stop chip above the reply box, what Viktor shows), when the
+       app has Slack's "Agents & AI Apps" feature and assistant:write. Refused = the "On it" message below instead. */
+    const status = async (text, steps) => h.slack(env, 'assistant.threads.setStatus', { channel_id: channel, thread_ts: thread, status: text,
+      ...(steps?.length ? { loading_messages: steps.slice(-3) } : {}) }, true).catch(() => null);
+    let native = false;
+    if (C.liveSteps && thread) native = !!(await status('is thinking...', [choice.ack || 'Reading the thread']))?.ok;
+    if (C.liveSteps && !native) {
       work = await say(choice.ack || 'On it...', workBlocks([choice.ack || 'On it...'])).catch(() => null);
       if (C.progress) await C.progress.set(env, runId, { steps: [], stop: false, at: Date.now() }).catch(() => {});
     }
@@ -981,6 +987,7 @@ export function createAssistant(config) {
         const line = s.label || s.note; if (!line) return;
         stepsSeen.push(line);
         if (C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }).catch(() => {});
+        if (native && Date.now() - lastUpd > 1200) { lastUpd = Date.now(); await status('is working...', stepsSeen).catch(() => {}); }
         if (work?.ts && Date.now() - lastUpd > 1200) { lastUpd = Date.now(); await update(line, workBlocks(stepsSeen)).catch(() => {}); }
       },
       shouldStop: async () => !!(C.progress && (await C.progress.get(env, runId))?.stop) };
@@ -1014,6 +1021,7 @@ export function createAssistant(config) {
       r = { error: String(e.message || e), flags: {} };
     } finally {
       await unreact();
+      if (native) await status('').catch(() => {});
       if (C.progress) await C.progress.clear?.(env, runId).catch(() => {});
       if (C.onRun) await C.onRun(env, { surface: 'slack', who: ev.user, screen: extra.screen, question, model: choice.model, effort: choice.effort, ...r, ms: Date.now() - t0 }).catch(() => {});
     }

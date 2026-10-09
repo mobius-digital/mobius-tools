@@ -509,3 +509,12 @@ button.ds-chip:hover,a.ds-chip:hover{border-color:var(--ink-2);color:var(--ink)}
 .ds-composer-row{display:flex;align-items:center;gap:6px}
 .ds-composer-row .sp{flex:1}
 @media (prefers-reduced-motion:reduce){.ds-sk,.ds-pulse{animation:none}}
+/* Toast (2026-10-09): one look for every "Saved" / "Copied" line. A dot says how it went. */
+.lx-toast{position:fixed;left:50%;bottom:28px;z-index:400;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:min(520px,calc(100vw - 32px));padding:10px 14px 10px 12px;border-radius:12px;background:var(--ink,#111114);color:var(--bg,#F7F7F8);font:500 13px/1.4 var(--sans,'Inter',system-ui,sans-serif);box-shadow:0 12px 32px -10px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.12);animation:lx-toast 260ms cubic-bezier(.23,1,.32,1) both}
+.lx-toast::before{content:'';flex:none;width:8px;height:8px;border-radius:50%;background:var(--good,#16794A)}
+.lx-toast.bad::before{background:var(--bad,#B4362A)}
+.lx-toast[hidden]{display:none}
+.lx-toast button{background:none;border:0;color:inherit;font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:0 0 0 4px}
+@keyframes lx-toast{from{opacity:0;transform:translate(-50%,10px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}
+@media (max-width:720px){.lx-toast{bottom:calc(76px + env(safe-area-inset-bottom))}}
+@media (prefers-reduced-motion:reduce){.lx-toast{animation:none}}

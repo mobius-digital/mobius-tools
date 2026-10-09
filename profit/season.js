@@ -388,8 +388,8 @@ function panelModal(title, bodyHtml) {
 function toast(msg, bad) {
   const t = document.createElement('div');
   t.textContent = msg;
-  t.style.cssText = `position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:${bad ? 'var(--bad)' : 'var(--ink)'};color:var(--bg);padding:9px 16px;border-radius:99px;font:600 13px var(--sans);z-index:90;box-shadow:0 6px 20px rgba(0,0,0,.25)`;
-  document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
+  t.className = 'lx-toast' + (bad ? ' bad' : ''); t.setAttribute('role', 'status');
+  document.body.appendChild(t); setTimeout(() => t.remove(), bad ? 4200 : 2600);
 }
 
 /* ---------- data ---------- */

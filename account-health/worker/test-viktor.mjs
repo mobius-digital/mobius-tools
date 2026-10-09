@@ -32,6 +32,7 @@ const env = { DB, SLACK_BOT_TOKEN: 'x', ANTHROPIC_API_KEY: 'k' };
 
 /* Slack mock: history pages, replies, users, uploads. */
 const slackCalls = [];
+let NATIVE = false;
 const HIST = { C_LUCKY_INT: [{ ts: '1790000000.000100', user: 'U1', text: 'We agreed the free shipping threshold is $195', reply_count: 1 }, { ts: '1790000100.000200', user: 'U2', text: 'Polo restock lands Nov 2' }] };
 const slackApi = async (env, method, p) => {
   slackCalls.push({ method, p });
@@ -40,6 +41,7 @@ const slackApi = async (env, method, p) => {
   if (method === 'conversations.replies') return { ok: true, messages: [{ ts: p.ts, user: 'U1', text: 'thread head' }, { ts: '1790000050.000300', thread_ts: p.ts, user: 'U2', text: 'confirmed with Nick' }] };
   if (method === 'files.getUploadURLExternal') return { ok: true, upload_url: 'https://upload.test/x', file_id: 'F1' };
   if (method === 'files.completeUploadExternal') return { ok: true };
+  if (method === 'assistant.threads.setStatus') return NATIVE ? { ok: true } : { ok: false, error: 'missing_scope' };
   if (method === 'chat.postMessage') return { ok: true, ts: '1790009999.000001' };
   if (method === 'chat.update') return { ok: true };
   if (method === 'reactions.add') return p.name === 'mobius' ? { ok: false, error: 'invalid_name' } : { ok: true };
@@ -225,6 +227,15 @@ await check('Slack answer: falls back to eyes when :mobius: is not added, posts 
   const upd = slackCalls.filter(c => c.method === 'chat.update').pop();
   assert.match(upd.p.text, /line is off/);
   assert.ok(upd.p.blocks.some(b => b.type === 'context' && /\$0\.\d+ · Opus 5\.5/.test(b.elements[0].text)));
+});
+await check('Slack answer with the AI-app feature on: Slack own spinner (setStatus with steps), cleared at the end, no "On it" message', async () => {
+  calls = 0; slackCalls.length = 0; NATIVE = true;
+  await engine.answerSlack(env, { channel: 'C_ICE_INT', ts: '1790003000.000100', user: 'U1', text: '<@B> anything new?' }, h(), { screen: { act_id: 'brand_ice' } });
+  NATIVE = false;
+  const st = slackCalls.filter(c => c.method === 'assistant.threads.setStatus');
+  assert.ok(st.length >= 2); assert.equal(st[0].p.thread_ts, '1790003000.000100'); assert.equal(st[st.length - 1].p.status, '');
+  assert.equal(slackCalls.filter(c => c.method === 'chat.update').length, 0);
+  assert.equal(slackCalls.filter(c => c.method === 'chat.postMessage').length, 1, 'only the answer');
 });
 globalThis.fetch = realFetch;
 

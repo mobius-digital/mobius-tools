@@ -163,25 +163,37 @@ inherit the look without a markup change.
 `<mobius-loader>` (profit/mobius-loader.js, a custom element, no build step):
 
 ```html
-<script src="mobius-loader.js?v=1" defer></script>
-<mobius-loader mode="load"></mobius-loader>              <!-- full screen, first paint -->
+<script src="mobius-loader.js?v=2"></script>
+<mobius-loader mode="load"></mobius-loader>              <!-- the intro film, first paint -->
 <mobius-loader mode="working" size="20"></mobius-loader> <!-- inline, the Strategist thinking -->
 ```
 
-- Three.js r128 from cdnjs (`https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js`), loaded
-  once on first use. A true parametric Mobius band (u around, v across, half twist), a soft gradient
-  in the Mobius colours (mint to the Locus blue to sand), standard material with two soft lights,
-  slow rotation.
-- `mode="load"`: full screen over the app. The strip spins, settles and then the static Mobius mark
-  (`brand/mobius-mark.webp` shape) fades in over it while the strip fades out, then the whole layer
-  fades away. Hard cap 1.5s; the app renders underneath the whole time and never waits on it.
+- `mode="load"` is a **pre-rendered 3D film** in `profit/assets/intro/` (2026-10-09; Cole rejected the
+  live spin-then-swap: "it doesn't really animate into the logo"). 3.2s at 60fps: a glossy Mobius strip
+  turns in perspective, the loop opens into an arch, the ribbon pinches into three rounded bands that
+  glide into the exact places of the logo while the camera settles straight on, then a soft light sweep.
+  The last frame IS the logo (silhouette IoU 0.994 against `brand/mobius-mark.webp`; colours are the
+  logo gradient, fitted to `brand/mobius-app-icon-512.png`: 27 degrees, #C6E4D6 / #62BDEA / #DCC9A8).
+- Files: `mobius-intro-square.webm` (VP9 with alpha, 1080x1080, what the app plays), `mobius-intro-square.mp4`
+  and `-square-dark.mp4` (H.264 baked on #F7F7F8 / #111113, for Safari, which cannot draw VP9 alpha),
+  `mobius-intro.webm` / `.mp4` (1920x1080, the same film for decks and the site), `mobius-intro-poster.jpg`.
+  Only one square file (about 420 to 840KB) loads per visit.
+- Behaviour: full screen on `--bg`, video centred at `min(86vmin, 600px)` (the mark is half the video).
+  Once per browser session (`sessionStorage.locus_intro_seen`). The app renders underneath and never
+  waits. The layer fades as the video ends, hard cap 3.5s; a tap, click or Escape skips it.
+  `prefers-reduced-motion`, a video error, a blocked autoplay or no film after 1.2s = the static mark
+  (inline SVG placed with `FINAL_VB`, so it sits exactly where the film ends) for a moment, then the fade.
   Remove early with `loader.done()`.
-- `mode="working"`: small (default 20px), rotating and gently pulsing. Usage in the chat:
+- **Regenerate**: `profit/assets/intro/source/` holds the renderer (Three.js 0.169 in headless Chrome:
+  2x supersampling, 4x MSAA, 10 motion-blur sub-frames, RoomEnvironment + key/rim/fill, ACES, physical
+  material with clearcoat; deterministic time per frame) and the ffmpeg encode script. Setup is in the top
+  comment of `render.mjs`; run it from a scratch folder, never inside the repo. The geometry is the SVG
+  path's own numbers (pill cap centres, radius 83.89), so the logo cannot drift.
+- `mode="working"`: small (default 20px), the live Three.js r128 strip (cdnjs, loaded once on first use),
+  rotating and gently pulsing. Usage in the chat:
   `el.innerHTML = '<mobius-loader mode="working" size="18"></mobius-loader> Thinking'`.
-- Fallbacks: `prefers-reduced-motion`, no WebGL, or the CDN failing = the static mark (an inline SVG of
-  the logo), no animation. Never blocks the app.
-- `window.MobiusLoader.frames(n, size)` renders n frames of one full turn to data URLs (used to make the
-  Slack emoji GIF).
+  Fallbacks: `prefers-reduced-motion`, no WebGL, or the CDN failing = the static mark, no animation.
+- `window.MobiusLoader.frames(n, size)` still renders frames of the live strip (quick looks only).
 
 ## 8. The Slack emoji
 
@@ -189,11 +201,11 @@ inherit the look without a markup change.
 Add it once: Slack > workspace menu > Tools and settings > Customize workspace > Emoji > Add custom emoji,
 name it `mobius`. The Strategist can then react with `:mobius:` while it works.
 
-To regenerate it: serve the repo root and open `profit/assets/emoji-render.html?n=40&size=128`; it renders
-40 transparent frames of one full turn with `MobiusLoader.frames()` (click a frame to save it, or pass
-`&post=http://127.0.0.1:<port>/frames` to send them all to a local script). Then build the GIF at 20 fps
-(50ms a frame) with ffmpeg (the line is in the page's top comment) or Pillow, 60 colours, 1-bit
-transparency. Slack's custom emoji limit is 128KB; the shipped file is about 110KB.
+Since 2026-10-09 it comes from the same renderer as the intro (same material and lighting): one full turn
+of the strip, 40 frames at 20fps, rendered at 4x and downsampled, then
+`node render.mjs --out emo --emoji 40 --w 128 --h 128 --ss 4 --sub 6` and ffmpeg palettegen/paletteuse
+(96 colours, reserve_transparent, alpha_threshold 110, bayer dither). Slack's custom emoji limit is 128KB;
+the shipped file is about 90KB. (`profit/assets/emoji-render.html` still works for the old live strip.)
 
 ## 9. Checklist for a new screen
 
@@ -202,3 +214,59 @@ transparency. Slack's custom emoji limit is 128KB; the shipped file is about 110
 - A one-sentence answer under each card title; small-caps labels for groups.
 - Empty, loading (skeleton) and error states drawn.
 - Checked at 1440 and 375 wide, light and dark, no console errors.
+
+## 10. Polish pass two (2026-10-09): the small details
+
+Two files: the "POLISH PASS TWO" block at the end of `profit/v2.css`, and `profit/polish.js` (loaded once, `defer`,
+after askextra.js). polish.js is presentation only: it watches `#main`, `#v2panel`, `#v2seg` and the rail, never
+routes or fetches, and the app renders the same without it. Toasts (`.lx-toast`) live in `/mobius.css` so share pages
+get them too.
+
+- **Motion tokens.** `--ease-out: cubic-bezier(.23,1,.32,1)` for anything entering or pressed, `--ease-drawer`
+  `(.32,.72,0,1)` for the ask panel and the side panel, `--t-press` 140ms. Never `transition: all`, never `ease-in`.
+  `prefers-reduced-motion` turns every duration to 0 (and polish.js skips the count-up and the slides).
+- **Press and hover.** Every button, chip and pill scales to .97 on `:active`; rail rows and page tabs to .985.
+  Cards that open something (`.v2tile`, `.v2go`, `.cn-card`, `.v2mult .m`, `.v2moved .mv`, `.v2gal .g`,
+  `.v2orow`) lift 1px with `--sh-lift` on hover (pointer devices only) and press to .993.
+- **Focus.** `:focus-visible` is a 2px accent ring at 75%, offset 2px (inset -2px on rail rows and page tabs so the
+  scroll area never clips it). Fields keep their own soft ring and draw no outline.
+- **Sliding indicators.** polish.js puts one `<i class="lx-ink">` in each control and moves it to the `.on` button
+  (transform + width, 240ms `--ease-out`): the page tabs' underline (`.v2tabs`, `.line`), the Meta/Studio job pills
+  (`.v2jobs`), the rail pill (`nav.tabs .grp-btns`), the theme switch and any `.ds-seg`. `#v2seg` is rebuilt on every
+  `show()`, so the last position is remembered per control and the new ink starts there. The `.on` button itself then
+  draws no background.
+- **Top bar.** Sticky over 720px with `color-mix(--bg 84%)` and a 14px backdrop blur; `html.lx-scrolled` (scrollY > 4)
+  adds the hairline and a soft shadow. polish.js writes its height into `--lx-top`.
+- **Page head.** No rule under it any more (the page tabs already draw one). `.ph` is 20px under the tabs, crumb
+  12/500 6px above a 24/650 title, actions are 28px pills (quiet text on a phone, still 44px targets). Empty
+  children of `.v2` are `display:none`, so an empty slot (`#v2moved`, `#v2cal`) never adds a 16px gap.
+- **Type.** Tabular figures on every number (tiles, tables, deltas, funnels); -.028em on titles and big numbers.
+  Floor: badges and captions 11px (`--fs-cap`), the source badge (`.v2src`) 10px caps; everything you read is 12px+.
+  Secondary text is `--muted`, one colour.
+- **Tiles.** min-height 116px so a row lines up; the number scales with the tile (`clamp(20px, 13cqi, 26px)`, a
+  container query) so the delta pill stays on its line; the source badge sits in the top-right corner so a long label
+  wraps as text. **Count-up**: the first time a tile label is seen in a session its number counts up (650ms, quartic
+  out); re-renders and period changes never replay it.
+- **Delta pills.** One style: 20px tall pill, 12px/600, tabular.
+- **Tooltips** (`#v2gtip`, `.v2tip`) match the menus: surface, hairline, `--sh-pop`, 10px radius.
+- **Tables.** A `.v2tbl` that fits its card gets `lx-fits` (overflow visible) and a sticky header under the top bar;
+  one that scrolls sideways fades at the right edge until scrolled to the end (`lx-more`). Every row has a quiet hover;
+  link rows a stronger one. Column-header icons are added when 60%+ of a table's headers match the map in polish.js
+  (`TH_ICON`: spend, revenue, orders, ROAS/MER/share, CPA/CAC, CTR, CPM/open, hook, brand, campaigns, flows, AOV,
+  customers, sessions, frequency); a half-iconed header row reads as unfinished, so below that, none.
+- **Skeletons.** Any `.hint` / `.v2hint` / `.tiny` that says "Loading..." / "Pulling..." becomes a skeleton: a lone
+  page-level card turns into tiles + chart + table blocks (`.lx-sk-page`), a lone card into three shimmer lines, an
+  inline hint into one bar. Plan cells waiting on a number (`td[data-pl]`, or any `td.lx-wait`) shimmer. The chat's
+  working line and the home Ask card draw shimmer lines under their text (CSS only). Shimmer colours are `--sk-a` /
+  `--sk-b` (ink at 6.5% and 2.5% over the surface), visible in both themes. New code can call
+  `window.lxPolish.skPage()` / `skTable(n)` / `skLines(n)` for the markup.
+- **Empty and error, one pattern.** A card holding only a hint (`.v2card > .v2hint:only-child`, or title + hint)
+  draws as the empty state: a 40px circle with the inbox icon, one line. A lone `.v2bad` in a card becomes the error
+  state (polish.js): red alert circle, the card's title (or "This did not load"), a plain sentence for 401/403 and
+  network failures with the raw message small under it, and **Try again** (re-runs `show()` for the open page). Any
+  other `p.v2bad` gets an alert icon in front. The Home read's "could not run" line becomes one quiet info line.
+- **Popups.** Modals fade in with a scale from .97 (220ms), the scrim fades; menus scale from their trigger corner
+  (period: top right, client picker: top left, profile: from the bottom). The ask panel slides on the drawer curve.
+- **Toasts.** `.lx-toast` (add `.bad` for a failure): ink pill, a green or red dot, slides up 10px; calc.js, season.js
+  and calendar.js all use it. Never inline-style a toast again.
+- **Scrollbars** thin (10px track, 4px thumb at 16% ink), selection at 22% accent.

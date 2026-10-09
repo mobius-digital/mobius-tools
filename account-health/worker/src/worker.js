@@ -34,6 +34,7 @@ import { buildStrategist } from './strategist.js';
 import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
+import { accessReport, grantSelf } from './metaaccess.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
@@ -6032,7 +6033,7 @@ async function handleSlackInteract(request, env, ctx) {
     if (tap) {
       const val = safeJson(tap.value, {});
       const { engine, h } = strategist();
-      const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx) }).catch(e => ({ error: String(e.message || e) }));
+      const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null) } }).catch(e => ({ error: String(e.message || e) }));
       if (payload.response_url) ctx.waitUntil(xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` }) }).catch(() => {}));
       return ACK();
@@ -7309,6 +7310,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ skills: await skillsList(env, { all: true }) });
       }
       if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));
+      /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */
+      if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {
         if (request.method === 'POST') return json(await backfillTick(env, idxDeps()));
         return json(await indexStatus(env));
@@ -7330,7 +7333,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       if (path === '/api/ask/brief' && request.method === 'PUT') { await putSetting(env, engine.keys.brief, String(body.text || '').slice(0, 4000)); return json({ ok: true }); }
       if (path === '/api/ask/playbook' && request.method === 'PUT') { await putSetting(env, engine.keys.playbook, String(body.text || '').slice(0, 8000)); return json({ ok: true }); }
-      if (path === '/api/ask/apply' && request.method === 'POST') return json(await engine.applyProposal(env, String(body.id || ''), h(), { cancel: !!body.cancel, ctx: askCaller(env, request.headers.get('Authorization') || '', ctx) }));
+      if (path === '/api/ask/apply' && request.method === 'POST') return json(await engine.applyProposal(env, String(body.id || ''), h(), { cancel: !!body.cancel, ctx: { ...askCaller(env, request.headers.get('Authorization') || '', ctx), who: await sessionEmail(env, request).catch(() => null) } }));
       if (path === '/api/ask/channel' && request.method === 'PUT') { await putSetting(env, 'strategistChannel', String(body.channel || '').trim()); return json({ ok: true }); }
       if (path === '/api/ask/run' && request.method === 'POST') return json(await strategistNightly(env));
       if (path === '/api/ask/briefing' && request.method === 'POST') return json({ text: await strategistBriefing(env, true) });
