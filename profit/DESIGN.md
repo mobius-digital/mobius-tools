@@ -163,25 +163,37 @@ inherit the look without a markup change.
 `<mobius-loader>` (profit/mobius-loader.js, a custom element, no build step):
 
 ```html
-<script src="mobius-loader.js?v=1" defer></script>
-<mobius-loader mode="load"></mobius-loader>              <!-- full screen, first paint -->
+<script src="mobius-loader.js?v=2"></script>
+<mobius-loader mode="load"></mobius-loader>              <!-- the intro film, first paint -->
 <mobius-loader mode="working" size="20"></mobius-loader> <!-- inline, the Strategist thinking -->
 ```
 
-- Three.js r128 from cdnjs (`https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js`), loaded
-  once on first use. A true parametric Mobius band (u around, v across, half twist), a soft gradient
-  in the Mobius colours (mint to the Locus blue to sand), standard material with two soft lights,
-  slow rotation.
-- `mode="load"`: full screen over the app. The strip spins, settles and then the static Mobius mark
-  (`brand/mobius-mark.webp` shape) fades in over it while the strip fades out, then the whole layer
-  fades away. Hard cap 1.5s; the app renders underneath the whole time and never waits on it.
+- `mode="load"` is a **pre-rendered 3D film** in `profit/assets/intro/` (2026-10-09; Cole rejected the
+  live spin-then-swap: "it doesn't really animate into the logo"). 3.2s at 60fps: a glossy Mobius strip
+  turns in perspective, the loop opens into an arch, the ribbon pinches into three rounded bands that
+  glide into the exact places of the logo while the camera settles straight on, then a soft light sweep.
+  The last frame IS the logo (silhouette IoU 0.994 against `brand/mobius-mark.webp`; colours are the
+  logo gradient, fitted to `brand/mobius-app-icon-512.png`: 27 degrees, #C6E4D6 / #62BDEA / #DCC9A8).
+- Files: `mobius-intro-square.webm` (VP9 with alpha, 1080x1080, what the app plays), `mobius-intro-square.mp4`
+  and `-square-dark.mp4` (H.264 baked on #F7F7F8 / #111113, for Safari, which cannot draw VP9 alpha),
+  `mobius-intro.webm` / `.mp4` (1920x1080, the same film for decks and the site), `mobius-intro-poster.jpg`.
+  Only one square file (about 420 to 840KB) loads per visit.
+- Behaviour: full screen on `--bg`, video centred at `min(86vmin, 600px)` (the mark is half the video).
+  Once per browser session (`sessionStorage.locus_intro_seen`). The app renders underneath and never
+  waits. The layer fades as the video ends, hard cap 3.5s; a tap, click or Escape skips it.
+  `prefers-reduced-motion`, a video error, a blocked autoplay or no film after 1.2s = the static mark
+  (inline SVG placed with `FINAL_VB`, so it sits exactly where the film ends) for a moment, then the fade.
   Remove early with `loader.done()`.
-- `mode="working"`: small (default 20px), rotating and gently pulsing. Usage in the chat:
+- **Regenerate**: `profit/assets/intro/source/` holds the renderer (Three.js 0.169 in headless Chrome:
+  2x supersampling, 4x MSAA, 10 motion-blur sub-frames, RoomEnvironment + key/rim/fill, ACES, physical
+  material with clearcoat; deterministic time per frame) and the ffmpeg encode script. Setup is in the top
+  comment of `render.mjs`; run it from a scratch folder, never inside the repo. The geometry is the SVG
+  path's own numbers (pill cap centres, radius 83.89), so the logo cannot drift.
+- `mode="working"`: small (default 20px), the live Three.js r128 strip (cdnjs, loaded once on first use),
+  rotating and gently pulsing. Usage in the chat:
   `el.innerHTML = '<mobius-loader mode="working" size="18"></mobius-loader> Thinking'`.
-- Fallbacks: `prefers-reduced-motion`, no WebGL, or the CDN failing = the static mark (an inline SVG of
-  the logo), no animation. Never blocks the app.
-- `window.MobiusLoader.frames(n, size)` renders n frames of one full turn to data URLs (used to make the
-  Slack emoji GIF).
+  Fallbacks: `prefers-reduced-motion`, no WebGL, or the CDN failing = the static mark, no animation.
+- `window.MobiusLoader.frames(n, size)` still renders frames of the live strip (quick looks only).
 
 ## 8. The Slack emoji
 
@@ -189,11 +201,11 @@ inherit the look without a markup change.
 Add it once: Slack > workspace menu > Tools and settings > Customize workspace > Emoji > Add custom emoji,
 name it `mobius`. The Strategist can then react with `:mobius:` while it works.
 
-To regenerate it: serve the repo root and open `profit/assets/emoji-render.html?n=40&size=128`; it renders
-40 transparent frames of one full turn with `MobiusLoader.frames()` (click a frame to save it, or pass
-`&post=http://127.0.0.1:<port>/frames` to send them all to a local script). Then build the GIF at 20 fps
-(50ms a frame) with ffmpeg (the line is in the page's top comment) or Pillow, 60 colours, 1-bit
-transparency. Slack's custom emoji limit is 128KB; the shipped file is about 110KB.
+Since 2026-10-09 it comes from the same renderer as the intro (same material and lighting): one full turn
+of the strip, 40 frames at 20fps, rendered at 4x and downsampled, then
+`node render.mjs --out emo --emoji 40 --w 128 --h 128 --ss 4 --sub 6` and ffmpeg palettegen/paletteuse
+(96 colours, reserve_transparent, alpha_threshold 110, bayer dither). Slack's custom emoji limit is 128KB;
+the shipped file is about 90KB. (`profit/assets/emoji-render.html` still works for the old live strip.)
 
 ## 9. Checklist for a new screen
 

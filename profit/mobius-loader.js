@@ -1,18 +1,26 @@
 /* <mobius-loader>: the Mobius strip (profit/DESIGN.md section 7).
-     <mobius-loader mode="load"></mobius-loader>              full screen on first paint, max 1.5s, then gone
+     <mobius-loader mode="load"></mobius-loader>              the intro: a pre-rendered 3D film (assets/intro/) of the
+                                                              strip forming the logo, once per browser session
      <mobius-loader mode="working" size="20"></mobius-loader> small, turning and breathing (the Strategist working)
-   A true 3D Mobius band (Three.js r128 from cdnjs, loaded once on first use), drawn by ONE shared WebGL
+   load: a full-screen layer on the theme canvas colour with the video centred. The app renders underneath and never
+   waits on it: the layer fades as the video ends (hard cap 3.5s), and a tap, click or Escape skips it.
+   prefers-reduced-motion or any video problem = the static mark for a moment, then the fade.
+   working: a true 3D Mobius band (Three.js r128 from cdnjs, loaded once on first use), drawn by ONE shared WebGL
    renderer and copied into each element's 2D canvas, so any number of loaders cost one GPU context.
-   No WebGL, the CDN failing, or prefers-reduced-motion = the static Mobius mark. Never blocks the app:
-   the load overlay ignores the pointer and removes itself on a hard 1.5s timer whatever happens. */
+   No WebGL, the CDN failing, or prefers-reduced-motion = the static Mobius mark. */
 (function () {
   if (window.customElements && customElements.get('mobius-loader')) return;
   const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
   const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+  const BASE = (() => { try { return new URL('assets/intro/', document.currentScript.src).href; } catch { return 'assets/intro/'; } })();
+  const SEEN = 'locus_intro_seen', CAP = 3500;
 
-  /* The Mobius mark (icons/locus.svg path), in the brand gradient: mint, Mobius blue, sand. */
+  /* The Mobius mark (icons/locus.svg path) in the logo gradient: mint, Mobius blue, sand at 27 degrees, fitted to
+     brand/mobius-app-icon-512.png. FINAL_VB puts it exactly where the intro's last frame has it (mark = half the
+     square video, centred), so the still and the film agree to the pixel. */
+  const FINAL_VB = '-168.85 -169.1 1363 1363';
   let gid = 0;
-  const mark = () => { const id = 'mlg' + (++gid); return `<svg class="ml-mark" viewBox="150 270 720 480" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#C6E4D6"/><stop offset=".5" stop-color="#62BDEA"/><stop offset="1" stop-color="#DCC9A8"/></linearGradient></defs><path fill="url(#${id})" d="M196.464 694.499C163.840 661.886 163.840 608.516 196.464 575.890L455.891 316.543C488.515 283.929 541.900 283.929 574.536 316.543C607.160 349.157 607.160 402.527 574.536 435.152L315.110 694.499C282.486 727.113 229.100 727.113 196.464 694.499M844.953 471.289L685.620 630.573L685.620 649.000C685.620 695.132 723.369 732.869 769.515 732.869C815.662 732.869 853.411 695.132 853.411 649.000L853.411 461.748C850.806 465.044 847.999 468.244 844.953 471.289M573.891 707.457L827.536 453.890C860.160 421.276 860.160 367.906 827.536 335.281C794.912 302.667 741.526 302.667 708.890 335.281L455.246 588.848C422.622 621.461 422.622 674.831 455.246 707.457C487.870 740.071 541.255 740.071 573.891 707.457Z"/></svg>`; };
+  const mark = (vb = '150 270 720 480') => { const id = 'mlg' + (++gid); return `<svg class="ml-mark" viewBox="${vb}" aria-hidden="true"><defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="-122.08" y1="62.20" x2="538.08" y2="-274.17"><stop offset="0" stop-color="#C6E4D6"/><stop offset=".5" stop-color="#62BDEA"/><stop offset="1" stop-color="#DCC9A8"/></linearGradient></defs><path fill="url(#${id})" d="M196.464 694.499C163.840 661.886 163.840 608.516 196.464 575.890L455.891 316.543C488.515 283.929 541.900 283.929 574.536 316.543C607.160 349.157 607.160 402.527 574.536 435.152L315.110 694.499C282.486 727.113 229.100 727.113 196.464 694.499M844.953 471.289L685.620 630.573L685.620 649.000C685.620 695.132 723.369 732.869 769.515 732.869C815.662 732.869 853.411 695.132 853.411 649.000L853.411 461.748C850.806 465.044 847.999 468.244 844.953 471.289M573.891 707.457L827.536 453.890C860.160 421.276 860.160 367.906 827.536 335.281C794.912 302.667 741.526 302.667 708.890 335.281L455.246 588.848C422.622 621.461 422.622 674.831 455.246 707.457C487.870 740.071 541.255 740.071 573.891 707.457Z"/></svg>`; };
 
   let threeP = null;
   const loadThree = () => threeP || (threeP = new Promise((res, rej) => {
@@ -22,7 +30,7 @@
     s.onerror = () => rej(new Error('three failed')); document.head.appendChild(s);
   }));
 
-  /* ---------- the shared scene ---------- */
+  /* ---------- the shared scene (working mode) ---------- */
   let R = null;
   function scene(THREE) {
     if (R) return R;
@@ -76,74 +84,98 @@
   const CSS = `mobius-loader{display:inline-block;position:relative;vertical-align:middle;line-height:0}
     mobius-loader .ml-box{position:relative;display:block}
     mobius-loader canvas,mobius-loader .ml-mark{position:absolute;inset:0;width:100%;height:100%;display:block}
-    mobius-loader .ml-mark{transition:opacity .35s cubic-bezier(.2,.8,.2,1),transform .45s cubic-bezier(.2,.8,.2,1)}
     mobius-loader canvas{transition:opacity .3s ease}
-    mobius-loader[mode="load"]{position:fixed;inset:0;z-index:300;display:grid;place-items:center;background:var(--bg,#F7F7F8);pointer-events:none;transition:opacity .3s cubic-bezier(.2,.8,.2,1)}
-    mobius-loader[mode="load"].gone{opacity:0}
-    mobius-loader[mode="load"] .ml-box{width:132px;height:132px}
-    mobius-loader[mode="load"] .ml-mark{inset:30px;width:auto;height:auto}
-    mobius-loader[mode="load"]:not(.resolved) .ml-mark.after{opacity:0;transform:scale(.86)}
-    mobius-loader[mode="load"].resolved canvas{opacity:0}
+    mobius-loader[mode="load"]{position:fixed;inset:0;z-index:300;display:grid;place-items:center;background:var(--bg,#F7F7F8);cursor:pointer;transition:opacity .4s cubic-bezier(.2,.8,.2,1)}
+    mobius-loader[mode="load"].gone{opacity:0;pointer-events:none}
+    mobius-loader[mode="load"] .ml-box{width:min(86vmin,600px);height:min(86vmin,600px)}
+    mobius-loader[mode="load"] video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain;background:transparent}
+    mobius-loader[mode="load"] .ml-mark{opacity:0}
+    mobius-loader[mode="load"].still .ml-mark{opacity:1}
+    mobius-loader[mode="load"].still video{opacity:0}
     mobius-loader[mode="working"] .ml-mark{animation:ml-breathe 1.6s ease-in-out infinite}
     @keyframes ml-breathe{0%,100%{transform:scale(.88);opacity:.75}50%{transform:scale(1);opacity:1}}
     @media (prefers-reduced-motion:reduce){mobius-loader .ml-mark{animation:none!important;transition:none!important}}`;
   const style = () => { if (document.getElementById('mlcss')) return; const s = document.createElement('style'); s.id = 'mlcss'; s.textContent = CSS; document.head.appendChild(s); };
 
+  /* Which file: VP9 with alpha everywhere it is supported; Safari does not draw VP9 alpha, so it gets the H.264 copy
+     baked on the light or dark canvas colour. */
+  function introSrc() {
+    const ua = navigator.userAgent || '';
+    const safari = /safari/i.test(ua) && !/chrome|chromium|crios|edg|android|fxios|firefox/i.test(ua);
+    const v = document.createElement('video');
+    if (!safari && v.canPlayType && v.canPlayType('video/webm; codecs="vp9"')) return BASE + 'mobius-intro-square.webm';
+    const dark = document.documentElement.dataset.theme === 'dark';
+    return BASE + (dark ? 'mobius-intro-square-dark.mp4' : 'mobius-intro-square.mp4');
+  }
+
   class MobiusLoader extends HTMLElement {
     connectedCallback() {
       style();
       const mode = this.getAttribute('mode') || 'working';
-      const size = mode === 'load' ? 132 : +(this.getAttribute('size') || 20);
-      this.setAttribute('role', 'img'); this.setAttribute('aria-label', mode === 'load' ? 'Locus is loading' : 'Working');
+      this._mode = mode;
+      if (mode === 'load') return this._intro();
+      const size = +(this.getAttribute('size') || 20);
+      this.setAttribute('role', 'img'); this.setAttribute('aria-label', 'Working');
       const box = document.createElement('span'); box.className = 'ml-box';
-      if (mode !== 'load') { box.style.width = size + 'px'; box.style.height = size + 'px'; }
-      this.appendChild(box); this._box = box; this._size = size; this._mode = mode; this._t0 = performance.now();
-      const showMark = cls => { if (!box.querySelector('.ml-mark')) box.insertAdjacentHTML('beforeend', mark()); if (cls) box.querySelector('.ml-mark').classList.add(cls); };
-      if (mode === 'load') {
-        this._kill = setTimeout(() => this.done(), 1500);                    // hard cap, whatever happens
-        if (reduced()) { showMark(); setTimeout(() => this.done(), 500); return; }
-        showMark('after');
-        this._fallback = setTimeout(() => { this.classList.add('resolved'); setTimeout(() => this.done(), 350); }, 650); // no strip yet: show the mark and go
-      } else if (reduced()) { showMark(); return; }
+      box.style.width = size + 'px'; box.style.height = size + 'px';
+      this.appendChild(box); this._box = box; this._size = size; this._t0 = performance.now();
+      const showMark = () => { if (!box.querySelector('.ml-mark')) box.insertAdjacentHTML('beforeend', mark()); };
+      if (reduced()) { showMark(); return; }
       loadThree().then(THREE => {
         if (!this.isConnected) return;
         if (!scene(THREE)) throw new Error('no webgl');
         const cv = document.createElement('canvas'); const px = Math.round(this._size * Math.min(2, window.devicePixelRatio || 1));
         cv.width = cv.height = px; box.insertBefore(cv, box.firstChild); this._cv = cv; this._px = px;
-        if (mode === 'load') {
-          clearTimeout(this._fallback);
-          const left = Math.max(0, 1500 - (performance.now() - this._t0));
-          const spin = Math.min(820, Math.max(250, left - 600));          // spin, then resolve into the mark, then fade
-          this._spinUntil = performance.now() + spin;
-          setTimeout(() => this.classList.add('resolved'), spin);
-          setTimeout(() => this.done(), Math.min(left, spin + 520));
-        }
         start(this);
-      }).catch(() => { if (!this.isConnected) return; if (mode === 'load') { clearTimeout(this._fallback); this.classList.add('resolved'); setTimeout(() => this.done(), 300); } else showMark(); });
+      }).catch(() => { if (this.isConnected) showMark(); });
+    }
+    /* The intro: once per browser session, never in the app's way. */
+    _intro() {
+      let seen = false;
+      try { seen = sessionStorage.getItem(SEEN) === '1'; sessionStorage.setItem(SEEN, '1'); } catch {}
+      if (seen) { this._gone = true; this.remove(); return; }
+      this.setAttribute('role', 'img'); this.setAttribute('aria-label', 'Locus');
+      const box = document.createElement('span'); box.className = 'ml-box';
+      box.insertAdjacentHTML('beforeend', mark(FINAL_VB));
+      this.appendChild(box); this._box = box;
+      const still = ms => { this.classList.add('still'); clearTimeout(this._kill); this._kill = setTimeout(() => this.done(), ms); };
+      this._skip = e => { if (e.type === 'keydown' && e.key !== 'Escape') return; this.done(); };
+      this.addEventListener('click', this._skip); document.addEventListener('keydown', this._skip);
+      this._kill = setTimeout(() => this.done(), CAP);                          // hard cap, whatever happens
+      if (reduced()) { still(700); return; }
+      const v = document.createElement('video');
+      v.muted = true; v.defaultMuted = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true'); v.disablePictureInPicture = true;
+      v.src = introSrc();
+      let started = false;
+      v.addEventListener('playing', () => { started = true; });
+      v.addEventListener('error', () => still(600));
+      v.addEventListener('ended', () => this.done());
+      v.addEventListener('timeupdate', () => { if (v.duration && v.currentTime >= v.duration - 0.12) this.done(); });
+      box.insertBefore(v, box.firstChild);
+      const p = v.play(); if (p && p.catch) p.catch(() => still(600));
+      /* slow network: no film after 1.2s means the still and a short goodbye, not a blank screen */
+      setTimeout(() => { if (!started && !this._gone) still(500); }, 1200);
     }
     _frame(t) {
       if (!this._cv) return;
       const e = (t - this._t0) / 1000;
-      if (this._mode === 'load') {
-        /* fast, then easing to rest at the angle that reads most like the mark */
-        const p = Math.min(1, (t - this._t0) / Math.max(1, this._spinUntil - this._t0)), ease = 1 - Math.pow(1 - p, 3);
-        draw(this._cv, this._px, ease * Math.PI * 2.2, 1 - ease);
-      } else {
-        draw(this._cv, this._px, e * 1.9, 1);
-        const k = 0.92 + 0.08 * Math.sin(e * 3.6); this._box.style.transform = `scale(${k.toFixed(3)})`;
-      }
+      draw(this._cv, this._px, e * 1.9, 1);
+      const k = 0.92 + 0.08 * Math.sin(e * 3.6); this._box.style.transform = `scale(${k.toFixed(3)})`;
     }
-    disconnectedCallback() { stop(this); clearTimeout(this._kill); clearTimeout(this._fallback); }
+    disconnectedCallback() { stop(this); clearTimeout(this._kill); if (this._skip) document.removeEventListener('keydown', this._skip); }
     /** Fade out and remove (load mode); a working loader just stops. */
     done() {
       if (this._gone) return; this._gone = true; stop(this); clearTimeout(this._kill);
       if (this._mode !== 'load') { this.remove(); return; }
-      this.classList.add('gone'); setTimeout(() => this.remove(), 320);
+      if (this._skip) document.removeEventListener('keydown', this._skip);
+      this.classList.add('gone'); setTimeout(() => this.remove(), 420);
     }
   }
   customElements.define('mobius-loader', MobiusLoader);
 
-  /* Frames of one full turn as PNG data URLs (transparent): used to make the Slack emoji GIF. */
+  /* Frames of one full turn of the live strip as PNG data URLs (transparent). The Slack emoji is now rendered
+     offline with the intro (assets/intro/source), but this stays for quick looks. */
   window.MobiusLoader = {
     load: loadThree,
     async frames(n = 40, size = 128) {
