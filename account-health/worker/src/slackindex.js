@@ -21,7 +21,7 @@
 
 const DAY = 86400;
 const KEEP_DAYS = 365;            // how far back the first backfill walks
-const PAGES_PER_TICK = 40;        // Slack calls a tick may spend on the backfill
+const PAGES_PER_TICK = 120;       // Slack calls a tick may spend on the backfill (Workers Paid: 10,000 subrequests)
 let chanCache = { at: 0, map: new Map() };
 
 export async function ensureSlackIndex(env) {
@@ -143,8 +143,14 @@ export async function backfillTick(env, deps) {
   const names = await userNames(env, deps).catch(() => ({}));
   const now = Date.now() / 1000;
   const floor = String(now - KEEP_DAYS * DAY);
-  let pages = 0; const done = [];
-  for (const [channel, info] of map) {
+  /* Slack rate limits (Tier 3, about 50 reads a minute): on "ratelimited" the tick stops quietly and the
+     next hour carries on from the same place. It is not an error. */
+  let pages = 0, limited = false; const done = [];
+  /* Least recently read first, so a rate limit one hour never starves the same channels the next. */
+  const { results: seen } = await env.DB.prepare(`SELECT channel, last_run FROM slack_chan`).all();
+  const lastRun = Object.fromEntries((seen || []).map(r => [r.channel, r.last_run || '']));
+  const order = [...map].sort((a, b) => String(lastRun[a[0]] || '').localeCompare(String(lastRun[b[0]] || '')));
+  for (const [channel, info] of order) {
     if (pages >= PAGES_PER_TICK || (deps.canAfford && !deps.canAfford(8))) break;
     let st = await env.DB.prepare(`SELECT * FROM slack_chan WHERE channel = ?1`).bind(channel).first();
     if (!st) {
@@ -154,26 +160,33 @@ export async function backfillTick(env, deps) {
       await env.DB.prepare(`UPDATE slack_chan SET brand = ?2, side = ?3 WHERE channel = ?1`).bind(channel, info.brand, info.side).run();
     }
     let via = st.via || null, err = null, added = 0, oldest = st.oldest_ts, latest = st.latest_ts;
+    if (limited) break;
     /* Forward: anything newer than what we hold (the events normally cover this). */
     if (latest) {
       const { r, via: v } = await readAs(env, deps, 'conversations.history', { channel, oldest: latest, limit: 200 }, via); pages++; via = v;
       if (r?.ok) { added += await writeMsgs(env, channel, info, names, r.messages || []); latest = maxTs(latest, r.messages); }
+      else if (r?.error === 'ratelimited') limited = true;
       else err = r?.error || 'failed';
     }
     /* Backward: page from the oldest we hold until a year is in. */
-    while (!st.back_done && !err && pages < PAGES_PER_TICK) {
+    while (!st.back_done && !err && !limited && pages < PAGES_PER_TICK) {
       const params = { channel, limit: 200, oldest: floor, ...(oldest ? { latest: oldest } : {}) };
       const { r, via: v } = await readAs(env, deps, 'conversations.history', params, via); pages++; via = v;
+      if (r?.error === 'ratelimited') { limited = true; break; }
       if (!r?.ok) { err = r?.error || 'failed'; break; }
       const msgs = r.messages || [];
       added += await writeMsgs(env, channel, info, names, msgs);
       latest = maxTs(latest, msgs);
-      /* Threads with replies: read each (a page each, so they share the budget). */
+      /* Threads with replies: read each (a page each, so they share the budget). A page whose threads were
+         not all read is read again next time (writes are upserts), so a rate limit never loses replies. */
+      let whole = true;
       for (const m of msgs.filter(x => (x.reply_count || 0) > 0)) {
-        if (pages >= PAGES_PER_TICK) break;
+        if (pages >= PAGES_PER_TICK) { whole = false; break; }
         const t = await readAs(env, deps, 'conversations.replies', { channel, ts: m.ts, limit: 200 }, via); pages++;
+        if (t.r?.error === 'ratelimited') { limited = true; whole = false; break; }
         if (t.r?.ok) added += await writeMsgs(env, channel, info, names, (t.r.messages || []).filter(x => x.ts !== m.ts));
       }
+      if (!whole) break;
       if (msgs.length) oldest = msgs.reduce((a, m) => (!a || Number(m.ts) < Number(a) ? m.ts : a), oldest);
       if (!r.has_more || !msgs.length) { st.back_done = 1; break; }
     }
@@ -181,7 +194,7 @@ export async function backfillTick(env, deps) {
       .bind(channel, oldest || null, latest || null, st.back_done ? 1 : 0, via, new Date().toISOString(), err, added).run();
     done.push({ channel, side: info.side, brand: info.brand, added, via, error: err });
   }
-  return { pages, channels: done };
+  return { pages, limited, channels: done };
 }
 const maxTs = (cur, msgs) => (msgs || []).reduce((a, m) => (!a || Number(m.ts) > Number(a) ? m.ts : a), cur || null);
 async function writeMsgs(env, channel, info, names, msgs) {
