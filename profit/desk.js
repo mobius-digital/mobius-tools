@@ -97,7 +97,7 @@
        viewer must not see is how our OTHER clients did, so "Our other brands" only shows to people who see several brands. */
     const agency = (H.S.accounts || []).length > 1;
     if (!agency) mk.meta_brands = 0;
-    const intro = `<div class="dk-strip"><span>Every brand is compared with <b>itself</b>: yesterday against its own normal for that weekday (its last 8 of them). Then outside checks say whether Meta was rough for everyone that day.</span></div>`;
+    const intro = `<div class="dk-strip"><span>Every brand is compared with <b>itself</b>: yesterday against its own last 28 days. Then outside checks say whether Meta was rough for everyone that day.</span></div>`;
     /* the grid: rows = brands, squares = days, every square opens its day */
     const cols = `grid-template-columns:130px repeat(${days.length},minmax(20px,1fr))`;
     const cellTip = (b, c) => { const m = (c.moved || []).map(f => `${f.label} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%`).join(', ');
@@ -110,7 +110,7 @@
     let detail = '';
     if (g && cell) {
       const moved = (cell.moved || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">${cell.moved.map(f => `<span class="v2pill ${f.bad ? 'bad' : 'good'}">${esc(f.label)} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%</span>`).join('')}</div>` : '<p class="v2say">Nothing was far enough from normal to call.</p>';
-      const money = `<p class="v2hint" style="margin:0 0 10px">Revenue ${U().kmoney(cell.rev, cur)} against a normal ${wdl(cell.date)} of ${U().kmoney(cell.rev_norm, cur)}; MER ${U().x2(cell.mer)} against ${U().x2(cell.mer_norm)}.</p>`;
+      const money = `<p class="v2hint" style="margin:0 0 10px">Revenue ${U().kmoney(cell.rev, cur)} against its normal of ${U().kmoney(cell.rev_norm, cur)} a day; MER ${U().x2(cell.mer)} against ${U().x2(cell.mer_norm)}.</p>`;
       let more = '';
       if (y) {
         const fmt = { cpm: v => U().money2(v, cur), ctr: v => U().pct(v, 2), cvr: v => U().pct(v, 1), aov: v => U().money2(v, cur), sp: v => U().kmoney(v, cur) };
@@ -130,7 +130,7 @@
       ${mk.meta_brands >= 3 ? `<div class="${mk.cpm_up * 2 >= mk.meta_brands ? 'red' : mk.cpm_up * 3 >= mk.meta_brands ? 'amber' : 'green'}"><span class="l">Our other brands</span><b>${mk.cpm_up} of ${mk.meta_brands} paid more for Meta</b><span class="v2hint" style="margin:0">Costs up 20% or more against their own normal.</span></div>` : ''}
       <div class="grey"><span class="l">Other advertisers</span><b>Checking…</b></div><div class="grey"><span class="l">Meta's own status page</span><b>Checking…</b></div><div class="grey"><span class="l">Talk on X and Reddit</span><b>Checking…</b></div></div>`);
     $('#main').innerHTML = shell('yesterday', title, `${intro}<div id="dkVerdict">${U().card('The verdict', '', '<p class="v2hint">Reading every signal for the day…</p>')}</div>${outside}
-      ${U().card('Each brand, day by day', 'One row per brand, one square per day, each judged against that brand\'s own normal.', grid)}${detail}
+      ${U().card('Each brand, day by day', 'One row per brand, one square per day, each judged against that brand\'s own last 28 days.', grid)}${detail}
       ${U().foot('A number is called when it is 25% or more off that brand\'s normal and unusual for it. Bad = one number worse (revenue, MER, cost per new customer, Meta or Google cost per purchase, or email revenue); very bad = two, or one far out. Spend alone never makes a bad day. Revenue from Shopify through Triple Whale (paid orders only); cost per purchase on Triple Whale attribution; delivery from Meta.')}`);
     const root = $('#main');
     root.querySelectorAll('.dk-cell[data-b]').forEach(el => el.onclick = () => { YSEL = el.dataset.b; YDAY = +el.dataset.i; yesterday(false); });

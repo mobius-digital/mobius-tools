@@ -42,8 +42,9 @@ export function movesFor(a, P, d, addDays) {
   const day = dt => { const g = k => num(P[k] && P[k][dt]); const rev = g('totalSales') - g('totalNetTaxes'), sp = g('blendedAds'), o = g('totalOrders'), n = g('newCustomersOrders');
     return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? rev / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
   const x = day(d); if (!x.has) return { flags: [], weeks: 0, nodata: true };
-  const base = [7, 14, 21, 28, 35, 42, 49, 56].map(k => day(addDays(d, -k))).filter(r => r.has);
-  if (base.length < 4) return { flags: [], weeks: base.length };
+  /* Normal = the brand's own last 28 days (2026-10-09, tested: beats the same weekday over 8 weeks; keep hub.js yesterdayMany in step). */
+  const base = Array.from({ length: 28 }, (_, i) => day(addDays(d, -1 - i))).filter(r => r.has);
+  if (base.length < 20) return { flags: [], weeks: base.length };
   const mean = k => { const v = base.map(r => r[k]).filter(v => v != null && isFinite(v)); return v.length >= 4 ? v.reduce((s, y) => s + y, 0) / v.length : null; };
   const sd = k => { const m = mean(k); const v = base.map(r => r[k]).filter(v => v != null && isFinite(v)); return m == null ? null : Math.sqrt(v.reduce((s, y) => s + (y - m) ** 2, 0) / v.length); };
   const flags = [];
@@ -122,7 +123,7 @@ export function movedBlocks(r, market = null, onCal = []) {
   const text = `${head} at ${a.name}: ${(r.bad || flags).map(f => f.label.toLowerCase()).join(', ')}`;
   const blocks = [
     { type: 'header', text: { type: 'plain_text', text: `${head}: ${a.name}`.slice(0, 150) } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice} against the last ${weeks} ${wd}s. Store numbers from Triple Whale.` }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice} against ${a.name}'s own last 28 days. Store numbers from Triple Whale, paid orders only.` }] },
     ...(market ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: market.slice(0, 2900) }] }] : []),
     /* The calendar (2026-10-09): a sale starting or ending, or a drop, explains a day before any ad change does. */
     ...(onCal.length ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: `On the calendar that day: ${onCal.map(e => `${e.name}${e.start === date ? ' (first day)' : ''}`).join(', ')}.`.slice(0, 2900) }] }] : []),

@@ -1061,7 +1061,7 @@ Rules: cite ONLY numbers in the JSON (rounded is fine; say "about"). Never inven
  * outages, what advertisers said online) and gets one verdict. Cached per date and facts; Sonnet tier, about a cent.
  * `client_line` is safe to repeat to a client: it talks about the platform, never about other brands or how many. */
 const DAYCHECK_SYSTEM = `You write the Day check for Mobius Digital, an ad agency: was yesterday a bad day for our brands, and was it the market or us.
-You get JSON: each brand's verdict for the day against ITS OWN normal for that weekday (good, normal, bad, very bad), the numbers that moved and which link on Meta moved (auction cost, click rate, site conversion, average order, spend); how many of our brands saw Meta costs jump the same day; Breezeway's Meta score across about 50 outside brands (a hint); platform outages from our status monitor; and what advertisers said online that day.
+You get JSON: each brand's verdict for the day against ITS OWN last 28 days (good, normal, bad, very bad), the numbers that moved and which link on Meta moved (auction cost, click rate, site conversion, average order, spend); how many of our brands saw Meta costs jump the same day; Breezeway's Meta score across about 50 outside brands (a hint); platform outages from our status monitor; and what advertisers said online that day.
 Reply with JSON only:
 {"headline": one short sentence verdict, e.g. "A rough day on Meta for everyone, not just us." or "A bad day for Grunk Dolfer only." or "A normal day.",
  "scope": "market" | "some" | "none",

@@ -125,8 +125,8 @@ async function movedMany(env, ctx, accts) {
     const day = dt => { const g = k => num(P[k] && P[k][dt]); const rev = g('totalSales') - g('totalNetTaxes'), sp = g('blendedAds'), o = g('totalOrders'), n = g('newCustomersOrders');
       return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? rev / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
     const x = day(d); if (!x.has) continue;
-    const base = [7, 14, 21, 28, 35, 42, 49, 56].map(k => day(ctx.addDays(d, -k))).filter(r => r.has);
-    if (base.length < 4) continue;
+    const base = Array.from({ length: 28 }, (_, i) => day(ctx.addDays(d, -1 - i))).filter(r => r.has);
+    if (base.length < 20) continue;
     const mean = k => { const v = base.map(r => r[k]).filter(v => v != null && isFinite(v)); return v.length >= 4 ? v.reduce((s, y) => s + y, 0) / v.length : null; };
     const sd = k => { const m = mean(k); const v = base.map(r => r[k]).filter(v => v != null && isFinite(v)); return m == null ? null : Math.sqrt(v.reduce((s, y) => s + (y - m) ** 2, 0) / v.length); };
     const flags = [];
@@ -216,8 +216,11 @@ async function yesterdayMany(env, ctx, accts, all) {
     };
     const judge = dt => {
       const x = day(dt);
-      const base = [7, 14, 21, 28, 35, 42, 49, 56].map(k => day(ctx.addDays(dt, -k))).filter(r => r.has);
-      if (!x.has || base.length < 4) return { date: dt, verdict: 'none', x, base, flags: [] };
+      /* NORMAL = THE BRAND'S OWN LAST 28 DAYS (2026-10-09). Tested on Mar to Oct 2026, six brands: the same weekday over 8 weeks
+         missed a normal day's revenue by 39% on average, the last 28 days by 30% (MER 31% vs 28%); weekday patterns are weak for
+         these brands and 8 weeks lags a trend. Bad days fell from up to 6 a month per brand to about 1 to 3. Keep moved.js in step. */
+      const base = Array.from({ length: 28 }, (_, i) => day(ctx.addDays(dt, -1 - i))).filter(r => r.has);
+      if (!x.has || base.length < 20) return { date: dt, verdict: 'none', x, base, flags: [] };
       const flags = [];
       for (const [k, label, lower, floorKey] of YD_TESTS) {
         if ((k === 'mcpa' || k === 'gcpa') && x.pending) continue;

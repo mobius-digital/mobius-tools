@@ -2197,3 +2197,8 @@ Audit, goal and the approved mock: `docs/handoffs/lineup-audit.md`, `docs/locus-
   drop or sale on the revenue chart (`V2UI.addBands(id, rows, bands)`, same geometry as `lineChart`; bands come from
   `CalendarTab.bandsFor(act, from, to)`, a `lite=1` read of exactly the chart's range).
 
+- **Day check normal = the brand's own LAST 28 DAYS (2026-10-09, tested).** On Mar to Oct 2026 across six brands the
+  same-weekday-over-8-weeks normal missed a day's revenue by 39% on average, the last 28 days by 30% (MER 31% vs 28%);
+  bad days fell from up to ~6 a month per brand (Bonk, Grunk) to ~1 to 3. hub.js `yesterdayMany` and account-health
+  moved.js `movesFor` both use it (min 20 days of data). The page is client-ready: a single-brand viewer never sees the
+  "Our other brands" box; no "team only" label (Cole: Locus is for clients too).
