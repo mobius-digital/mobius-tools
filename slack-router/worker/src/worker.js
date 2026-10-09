@@ -73,7 +73,8 @@ function ownerOf(payload) {
   /* An Apply tap on an assistant's proposal card: the value says which app. */
   for (const x of acts) {
     const v = safeJson(x.value, null);
-    if (v && v.askp !== undefined) return v.app === 'locus' ? 'locus' : v.app === 'supply' ? 'pulse' : 'ledger';
+    /* askp = Apply / No thanks; run = the Stop button on a working answer (2026-10-09). */
+    if (v && (v.askp !== undefined || v.run !== undefined)) return v.app === 'locus' ? 'locus' : v.app === 'supply' ? 'pulse' : 'ledger';
   }
   const ledger = acts.some(x => {
     if (/^led_/.test(x.action_id || '')) return true;

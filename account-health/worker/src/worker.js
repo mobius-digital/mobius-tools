@@ -31,6 +31,9 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
  */
 
 import { buildStrategist } from './strategist.js';
+import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
+import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
+import { PRESETS as STRAT_PRESETS } from './strattools.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
@@ -5586,7 +5589,7 @@ async function slackApi(env, method, body) {
   /* READ methods refuse a JSON body (Slack answers ok:false). conversations.replies sent as JSON is
      why the Strategist answered a thread reply with no memory of the thread (found 2026-10-05):
      the engine swallowed the error and sent the bare question. Reads go form-encoded. */
-  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info)$/.test(method);
+  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info|files\.(getUploadURLExternal|completeUploadExternal))$/.test(method);
   const init = read
     ? { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(Object.entries(body || {}).filter(([, v]) => v != null).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)])).toString() }
@@ -6016,6 +6019,14 @@ async function handleSlackInteract(request, env, ctx) {
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
       return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
+    /* Stop on a Strategist answer that is still working: the loop checks the flag before its next round. */
+    const stopTap = payload.type === 'block_actions' ? (payload.actions || []).find(a => a.action_id === 'ask_stop') : null;
+    if (stopTap) {
+      const run = String(safeJson(stopTap.value, {}).run || '');
+      const cur = safeJson(await getSetting(env, `askRun:${run}`), null);
+      if (run && cur) await putSetting(env, `askRun:${run}`, JSON.stringify({ ...cur, stop: true }));
+      return ACK();
+    }
     /* An Apply / No thanks tap on one of the Strategist's proposal cards. */
     const tap = payload.type === 'block_actions' ? (payload.actions || []).find(a => a.action_id === 'ask_apply' || a.action_id === 'ask_cancel') : null;
     if (tap) {
@@ -6627,8 +6638,15 @@ function strategist() {
     /* draft_from_thread (2026-10-07): the Strategist hands a media thread to the ideas pipeline,
        and from then on plain replies in it are the team's, as when the router picks ideas. */
     closeThread: (env, channel, ts) => closeStrategistThread(env, channel, ts),
+    /* The Viktor-grade pass (2026-10-09, strattools.js): Slack index, Locus routes as Cole, files. */
+    xfetch, mintSession, idx: idxDeps(),
+    ahFetch: (req, env) => AH_APP.fetch(req, env, { waitUntil() {} }),
   });
   return _strat;
+}
+/* What the Slack index (slackindex.js) needs from here. */
+function idxDeps() {
+  return { slackApi, getSetting, putSetting, safeJson, xfetch, canAfford: n => subCanAfford(n) };
 }
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 function hubDeps() {
@@ -6648,7 +6666,7 @@ async function strategistSay(env, channel, text) {
  * worker's own front door: as the caller from Locus, as the admin from a
  * Slack tap (the card only ever reaches the team's own channel). */
 function askCaller(env, auth, execCtx) {
-  return { call: async (method, path, body) => {
+  return { auth, call: async (method, path, body) => {
     const res = await AH_APP.fetch(new Request('https://ah.internal' + path, { method,
       headers: { 'Authorization': auth, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }), env, execCtx || { waitUntil() {} });
     const j = await res.json().catch(() => ({}));
@@ -6683,6 +6701,10 @@ async function handleSlackEvent(request, env, ctx) {
   const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw, request.headers.get('x-slack-signature'));
   if (!ok) return new Response('bad signature', { status: 401 });
   const ev = body?.event;
+  /* The Slack index (slackindex.js, 2026-10-09): every message in a brand's internal or client channel is
+     written down as it arrives, before any routing, so the Strategist knows what was said. Reading only:
+     nothing below ever answers in a client channel. */
+  if (body?.type === 'event_callback' && ev?.type === 'message') ctx.waitUntil(indexEvent(env, idxDeps(), ev).catch(e => console.log('slack index: ' + e.message)));
   /* Someone joined a new client's channel: welcome them a few seconds later (newclient.js). */
   if (body?.type === 'event_callback' && ev?.type === 'member_joined_channel') {
     /* One minute later (Cole), on the queue: waitUntil would be cut off long before that. */
@@ -6898,6 +6920,8 @@ async function nightly(env) {
   // The Strategist looks the book over last, once the syncs have written.
   // Its checks are a handful of SELECTs; the Monday briefing is one model call.
   out.strategist = await strategistNightly(env).catch(e => ({ error: e.message }));
+  /* Its memory: the day's brand channels read once, facts kept or corrected by topic (stratmem.js). */
+  out.strategistMemory = await consolidate(env, { xfetch, getSetting, putSetting, canAfford: n => subCanAfford(n) }).catch(e => ({ error: e.message }));
   if (new Date().getUTCDay() === 1) out.strategistBriefing = await strategistBriefing(env).then(t => !!t).catch(e => ({ error: e.message }));
 
   await recordRun(env, 'lastRun', out);
@@ -6993,6 +7017,8 @@ const AH_APP = {
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
+        ran.slackIndex = await backfillTick(env, idxDeps()).then(r => ({ pages: r.pages, added: r.channels.reduce((s, c) => s + (c.added || 0), 0), errors: r.channels.filter(c => c.error).length })).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -7066,8 +7092,12 @@ const AH_APP = {
     if (path === '/slack/owns') {
       const ch = url.searchParams.get('channel') || '';
       /* A new client's channel counts too while its welcome is still owed, so the join event reaches us. */
+      /* 2026-10-09: a brand's CLIENT channel and the Strategist channel too, so their messages reach the
+         Slack index. Reading only: handleSlackEvent answers only in a brand's internal channel. */
       const row = /^[A-Z0-9]{5,20}$/.test(ch) ? (await brandByChannel(env, ch).catch(() => null)
         || await env.DB.prepare(`SELECT 1 AS x FROM brand_accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
+        || await env.DB.prepare(`SELECT 1 AS x FROM brands WHERE status IN ('active', 'demo') AND client_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
+        || (ch === await getSetting(env, 'strategistChannel').catch(() => null) ? { x: 1 } : null)
         || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)) : null;
       return json({ owns: !!row });
     }
@@ -7234,12 +7264,54 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const only = await brandsFor(env, await sessionEmail(env, request)).catch(() => null);
         let q = body.question;
         if (only) { const { results: nm } = await env.DB.prepare(`SELECT act_id, name FROM brand_accounts`).all(); const names = (nm || []).filter(x => only.has(x.act_id)).map(x => x.name); q = `[ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] ${q}`; }
-        const r = await engine.answerWeb(env, q, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null });
+        /* runId: the chat polls /api/ask/progress with it for the live steps and can Stop the answer.
+           auth + who: locus_get / locus_write act as this person, and the usage log says who asked. */
+        const r = await engine.answerWeb(env, q, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null,
+          runId: /^[a-z0-9]{6,16}$/.test(String(body.runId || '')) ? body.runId : null,
+          auth: request.headers.get('Authorization') || '', who: await sessionEmail(env, request).catch(() => null) || 'admin' });
         const auth = request.headers.get('Authorization') || '';
         const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
         const sess = tok && !(env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) ? await verifySession(env, tok) : null;
         const owner = (env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) || String(sess?.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
         return json({ ...r, isOwner: owner });
+      }
+      /* ---- the Viktor-grade pass (2026-10-09): live steps, Stop, and the Strategist settings screen ---- */
+      if (path === '/api/ask/progress') {
+        const id = String(url.searchParams.get('id') || '');
+        return json(safeJson(await getSetting(env, `askRun:${id}`), null) || { steps: [], done: true });
+      }
+      if (path === '/api/ask/stop' && request.method === 'POST') {
+        const id = String(body.id || '');
+        const cur = safeJson(await getSetting(env, `askRun:${id}`), null);
+        if (cur) await putSetting(env, `askRun:${id}`, JSON.stringify({ ...cur, stop: true }));
+        return json({ ok: !!cur });
+      }
+      if (path === '/api/ask/settings') {
+        if (request.method === 'PUT') {
+          if (body.model !== undefined) { if (!STRAT_PRESETS[body.model]) return json({ error: 'model is smart, quick or deep' }, 400); await putSetting(env, 'strategistModel', body.model); }
+          if (body.instructions !== undefined) await putSetting(env, 'strategistInstructions', String(body.instructions || '').slice(0, 4000));
+          if (body.indexChannels !== undefined) { await putSetting(env, 'strategistIndexChannels', String(body.indexChannels || '').slice(0, 2000)); forgetChannelCache(); }
+        }
+        return json({ model: (await getSetting(env, 'strategistModel')) || 'smart', presets: STRAT_PRESETS,
+          instructions: (await getSetting(env, 'strategistInstructions')) || '', indexChannels: (await getSetting(env, 'strategistIndexChannels')) || '',
+          channel: await getSetting(env, 'strategistChannel') });
+      }
+      if (path === '/api/ask/memory') {
+        if (request.method === 'POST') return json(await stratRemember(env, { scope: String(body.scope || 'agency'), topic: body.topic, text: body.text, until: body.until || null, source: 'added in Locus', by: await sessionEmail(env, request).catch(() => null) }));
+        if (request.method === 'PUT') return json(await editFact(env, String(body.id || ''), { text: body.text, topic: body.topic, until: body.until }));
+        if (request.method === 'DELETE') return json(await stratForget(env, { id: String(url.searchParams.get('id') || '') }));
+        const { results: brands } = await env.DB.prepare(`SELECT id, name FROM brands WHERE status IN ('active', 'demo') ORDER BY name`).all();
+        return json({ facts: await factsList(env, url.searchParams.get('scope') || null), brands: brands || [] });
+      }
+      if (path === '/api/ask/skills') {
+        if (request.method === 'PUT') return json(await saveSkill(env, { name: body.name, description: body.description, body: body.body, by: await sessionEmail(env, request).catch(() => null) }));
+        if (request.method === 'DELETE') return json(await deleteSkill(env, String(url.searchParams.get('id') || '')));
+        return json({ skills: await skillsList(env, { all: true }) });
+      }
+      if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));
+      if (path === '/api/ask/index') {
+        if (request.method === 'POST') return json(await backfillTick(env, idxDeps()));
+        return json(await indexStatus(env));
       }
       if (path === '/api/ask/reports') return json({ reports: await engine.reportsList(env, h()) });
       if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),

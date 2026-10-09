@@ -456,8 +456,15 @@ export function createAssistant(config) {
   }));
   const extraSlack = C.slackTools || [];   // [{ def, run(env, input, ctx) -> {text, is_error?, ...flags} }]
   const extraWeb = C.webTools || [];
-  const slackToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraSlack.map(t => t.def), ...actionDefs, ...memoryDefs];
-  const webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraWeb.map(t => t.def), ...actionDefs, ...memoryDefs];
+  /* Tools that work on both surfaces (the Strategist's Slack search, memory, skills, Locus API...), and the
+     built-ins an app replaces with its own (C.dropTools, e.g. 'remember' when the app keeps a better memory). */
+  const extraBoth = C.tools || [];
+  const drop = new Set(C.dropTools || []);
+  const memDefs = memoryDefs.filter(t => !drop.has(t.name));
+  /* Anthropic-hosted tools (web search / web fetch): declared, run on Anthropic's side, no loop work here. */
+  const serverDefs = C.serverTools || [];
+  const slackToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraSlack.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
+  const webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraWeb.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
 
   /* ---------------- the model ---------------- */
 
@@ -473,18 +480,31 @@ export function createAssistant(config) {
     return (C.strongWhen && C.strongWhen.test(s)) ? C.strongModel : C.model;
   };
 
-  async function callClaude(env, system, messages, tools, model = C.model, final = false) {
+  async function callClaude(env, system, messages, tools, model = C.model, final = false, effort = null) {
     /* Only Haiku answers in 1200 tokens: Sonnet and Opus spend thinking inside max_tokens, so an app whose
        base model is one of them (the Strategist, 2026-10-09) needs the big budget on every round. */
-    const strong = model !== C.model || !/haiku/i.test(model);
+    const haiku = /haiku-4/i.test(model);
+    const strong = model !== C.model || !haiku;
     const deep = !!C.deepModel && model === C.deepModel;
+    /* Current models (2026): adaptive thinking, depth set by effort (Opus 5.5 defaults to medium, so say it).
+       "updates" returns the model's short notes between tool calls, which become the live working line.
+       Refusals on Opus 5.5 / Sonnet 5.5 fall back server-side instead of ending the answer empty. */
+    const modern = !haiku;
+    const betas = [...(C.betas || [])];
+    const extra = {};
+    if (modern) {
+      extra.thinking = { type: 'adaptive', ...(C.progressNotes ? { display: 'updates' } : {}) };
+      if (C.progressNotes) betas.push('thinking-display-updates-2026-08-18');
+      if (effort) extra.output_config = { effort };
+      if (C.fallbacks && /opus-5-5|sonnet-5-5|opus-5$|fable-5-1/.test(model)) { extra.fallbacks = C.fallbacks; betas.push('server-side-fallback-2026-07-01'); }
+    }
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json', ...(betas.length ? { 'anthropic-beta': [...new Set(betas)].join(',') } : {}) },
       /* Top-level cache_control caches the conversation so far: every round of
        * the tool loop re-sends it, and each round now reads it back at a tenth
        * of the price instead of paying for it again. */
-      body: JSON.stringify({ model, max_tokens: deep ? 20000 : strong ? 14000 : 1200, system, messages, ...(tools ? { tools } : {}), ...(tools && final ? { tool_choice: { type: 'none' } } : {}), cache_control: { type: 'ephemeral' } }),
+      body: JSON.stringify({ model, max_tokens: deep ? 20000 : strong ? 16000 : 1200, system, messages, ...(tools ? { tools } : {}), ...(tools && final ? { tool_choice: { type: 'none' } } : {}), cache_control: { type: 'ephemeral' }, ...extra }),
     });
     const body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
     let j; try { j = JSON.parse(body); } catch { j = {}; }
@@ -747,6 +767,15 @@ export function createAssistant(config) {
     if (playbook) blocks.push({ type: 'text', text: '## How you think (your playbook)\n' + playbook });
     blocks.push({ type: 'text', text: '## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.' });
     if (ACTIONS.length) blocks.push({ type: 'text', text: '## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.' });
+    /* The app's own context, in the order it gives: stable blocks first (marked cache, e.g. the brand brain),
+       then the ones that move (memory, skills, the last two weeks of Slack). */
+    if (C.extraSystem) {
+      const more = await C.extraSystem(env, h, extra).catch(e => { console.log(`${C.name} extraSystem: ${e.message}`); return []; });
+      for (const b of more || []) {
+        const text = typeof b === 'string' ? b : b?.text;
+        if (text) blocks.push({ type: 'text', text, ...(b?.cache ? { cache_control: { type: 'ephemeral' } } : {}) });
+      }
+    }
     const mem = await memoryBlock(env, h).catch(() => '');
     if (mem) blocks.push({ type: 'text', text: mem });
     if (extra.findings?.length) blocks.push({ type: 'text', text: '## What you have already flagged this week\n' +
@@ -761,25 +790,56 @@ export function createAssistant(config) {
 
   /* ---------------- the loop ---------------- */
 
-  async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null) {
-    let inTok = 0, outTok = 0, answer = '', sql = [], flags = {};
+  /* Dollars per million tokens: [input, output]. Cache reads are a tenth of input (Opus/Sonnet 5.5: $0.20),
+     cache writes 1.25x. Used for the cost line under every answer and the usage log. */
+  const PRICE = { 'claude-opus-5-5': [4, 20, 0.2], 'claude-sonnet-5-5': [2, 10, 0.2], 'claude-sonnet-5': [2, 10, 0.2], 'claude-opus-5': [5, 25, 0.5],
+    'claude-fable-5-1': [10, 50, 0.25], 'claude-haiku-4-5-20251001': [1, 5, 0.1], 'claude-haiku-4-5': [1, 5, 0.1], 'claude-haiku-5-5': [0.1, 0.5, 0.01] };
+  const costOf = (model, u) => { const p = PRICE[model] || [4, 20, 0.4]; return ((u.input_tokens || 0) * p[0] + (u.cache_creation_input_tokens || 0) * p[0] * 1.25 + (u.cache_read_input_tokens || 0) * p[2] + (u.output_tokens || 0) * p[1]) / 1e6; };
+  /* What a step looks like to the person watching ("Searching Slack for 'folder'"). An app can name its own. */
+  const stepLabel = (name, input) => {
+    const own = C.stepLabel && C.stepLabel(name, input || {});
+    if (own) return own;
+    if (name === C.sqlTool) return 'Reading the numbers';
+    if (name === 'read_app') return `Opening ${String(input?.view || 'the app').replace(/_/g, ' ')}`;
+    if (name === 'make_report') return `Building "${String(input?.title || 'the report').slice(0, 50)}"`;
+    if (name === 'remember') return 'Saving that to memory';
+    if (actionByName[name]) return `Preparing a change: ${name.replace(/_/g, ' ')}`;
+    return name.replace(/_/g, ' ');
+  };
+
+  async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null, effort = null) {
+    let inTok = 0, outTok = 0, answer = '', sql = [], flags = {}, cost = 0, cacheRead = 0, cacheWrite = 0, steps = 0, stopped = false;
+    const t0 = Date.now();
+    const step = async (s) => { steps++; if (ctx?.onStep) await ctx.onStep(s).catch(() => {}); };
     try {
       /* A cross-channel question reads several views; the strong and deep tiers get more rounds. The last
          round keeps the tool list (the history holds tool calls, and the API refuses that history without
          it) but turns tool use off, so it must answer. Dropping the list made such questions end empty. */
-      const maxR = model === C.deepModel ? (C.maxRoundsDeep || 10) : model !== C.model ? (C.maxRoundsStrong || 8) : C.maxRounds;
+      const maxR = C.maxRoundsFor ? C.maxRoundsFor(model, effort) : model === C.deepModel ? (C.maxRoundsDeep || 10) : model !== C.model ? (C.maxRoundsStrong || 8) : C.maxRounds;
       for (let round = 0; round <= maxR; round++) {
-        const reply = await callClaude(env, system, messages, toolDefs, model, round === maxR);
-        inTok += (reply.usage?.input_tokens || 0) + (reply.usage?.cache_read_input_tokens || 0);
-        outTok += reply.usage?.output_tokens || 0;
-        const calls = reply.content.filter(c => c.type === 'tool_use');
+        /* Stop pressed (Slack button or the Locus Stop): end now, keep what was done. */
+        if (round && ctx?.shouldStop && await ctx.shouldStop().catch(() => false)) { stopped = true; answer = answer || 'Stopped.'; break; }
+        const reply = await callClaude(env, system, messages, toolDefs, model, round === maxR, effort);
+        const u = reply.usage || {};
+        inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+        cacheRead += u.cache_read_input_tokens || 0; cacheWrite += u.cache_creation_input_tokens || 0;
+        outTok += u.output_tokens || 0;
+        cost += costOf(reply.model || model, u);
+        /* The model's own progress notes between tool calls ("Checking the Dartee thread next"): the live line. */
+        for (const c of reply.content || []) if (c.type === 'thinking' && String(c.thinking || '').trim()) await step({ note: String(c.thinking).trim().slice(0, 160) });
+        for (const c of reply.content || []) if (c.type === 'server_tool_use') await step({ label: c.name === 'web_search' ? `Searching the web for "${String(c.input?.query || '').slice(0, 60)}"` : `Reading ${String(c.input?.url || 'a page').slice(0, 70)}` });
+        const calls = (reply.content || []).filter(c => c.type === 'tool_use');
+        /* A long server-tool turn can pause; send it back as is and it carries on. */
+        if (!calls.length && reply.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: reply.content }); continue; }
         if (!calls.length) {
-          answer = reply.content.filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
+          answer = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
+          if (!answer && reply.stop_reason === 'refusal') answer = 'I cannot help with that one.';
           break;
         }
         messages.push({ role: 'assistant', content: reply.content });
         const results = [];
         for (const c of calls) {
+          await step({ label: stepLabel(c.name, c.input), tool: c.name });
           let out;
           if (c.name === C.sqlTool) {
             sql.push(String(c.input?.sql || '').slice(0, 600));
@@ -799,11 +859,18 @@ export function createAssistant(config) {
             out = await runAction(env, c.name, c.input, h, ctx);
             if (out.flags?.proposals) flags.proposals = [...(flags.proposals || []), ...out.flags.proposals];
           } else {
-            const r = await runExtra(c.name, c.input);
-            if (r) { out = r; Object.assign(flags, r.flags || {}); }
+            const both = extraBoth.find(x => x.def.name === c.name);
+            let r = null;
+            try { r = both ? await both.run(env, c.input || {}, ctx || { env, h }) : await runExtra(c.name, c.input); }
+            catch (e) { r = { is_error: true, text: `That tool failed: ${String(e.message || e).slice(0, 300)}` }; }
+            if (r) {
+              out = r;
+              /* Flags from a tool add up (two files, two reports), they do not overwrite each other. */
+              for (const [k, v] of Object.entries(r.flags || {})) flags[k] = Array.isArray(v) ? [...(flags[k] || []), ...v] : v;
+            }
             else out = { is_error: true, text: 'Not available here. Answer from the data instead.' };
           }
-          results.push({ type: 'tool_result', tool_use_id: c.id, content: out.text, ...(out.is_error ? { is_error: true } : {}) });
+          results.push({ type: 'tool_result', tool_use_id: c.id, content: String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
         }
         messages.push({ role: 'user', content: results });
       }
@@ -813,7 +880,7 @@ export function createAssistant(config) {
       usage.outTok = (usage.outTok || 0) + outTok;
       await h.putSetting(env, K.usage, JSON.stringify(usage));
     }
-    return { answer, sql, inTok, outTok, flags };
+    return { answer, sql, inTok, outTok, cacheRead, cacheWrite, cost, steps, stopped, ms: Date.now() - t0, flags };
   }
 
   async function usageToday(env, h) {
@@ -882,30 +949,74 @@ export function createAssistant(config) {
     const usage = await usageToday(env, h);
     if (usage.count >= C.dailyCap) { await say(`That is ${C.dailyCap} questions today, which is the daily cap. It resets at midnight.`); return { skipped: 'daily cap' }; }
 
-    await h.slack(env, 'reactions.add', { channel, timestamp: ev.ts, name: 'eyes' }, true).catch(() => {});
-    const unreact = () => h.slack(env, 'reactions.remove', { channel, timestamp: ev.ts, name: 'eyes' }, true).catch(() => {});
+    /* The working signal: the app's own emoji when the workspace has it (Mobius: an animated strip), else eyes. */
+    let emoji = null;
+    for (const name of [...(C.workingEmoji || []), 'eyes']) {
+      const rr = await h.slack(env, 'reactions.add', { channel, timestamp: ev.ts, name }, true).catch(() => null);
+      if (rr?.ok || /already_reacted/.test(String(rr?.error || ''))) { emoji = name; break; }
+      if (!/invalid_name/.test(String(rr?.error || ''))) break;
+    }
+    const unreact = () => emoji ? h.slack(env, 'reactions.remove', { channel, timestamp: ev.ts, name: emoji }, true).catch(() => {}) : null;
+
+    const choice = C.choose ? await C.choose(question, env, h, extra).catch(() => ({ model: pickModel(question) })) : { model: pickModel(question) };
+    const q = choice.question || question;
+    const runId = Math.random().toString(36).slice(2, 10);
+    /* A live working message (C.liveSteps): "On it", then each step as it happens, a Stop button, and at the
+       end the answer replaces it in place. Viktor's "Used Slack, ran a command", in Slack's terms. */
+    let work = null, lastUpd = 0, stepsSeen = [];
+    const stopBtn = { type: 'actions', elements: [{ type: 'button', action_id: 'ask_stop', text: { type: 'plain_text', text: 'Stop' }, value: JSON.stringify({ run: runId, app: C.slackApp || P }) }] };
+    const workBlocks = lines => [{ type: 'context', elements: [{ type: 'mrkdwn', text: lines.slice(-4).map((l, i, a) => (i === a.length - 1 ? '› ' : '✓ ') + l).join('\n').slice(0, 2900) || '_On it..._' }] }, stopBtn];
+    if (C.liveSteps) {
+      work = await say(choice.ack || 'On it...', workBlocks([choice.ack || 'On it...'])).catch(() => null);
+      if (C.progress) await C.progress.set(env, runId, { steps: [], stop: false, at: Date.now() }).catch(() => {});
+    }
+    const update = async (text, blocks) => work?.ts ? h.slack(env, 'chat.update', { channel, ts: work.ts, text, blocks: blocks || [{ type: 'section', text: { type: 'mrkdwn', text: String(text).slice(0, 2900) } }] }, true) : null;
 
     const system = [...(await systemBlocks(env, h, extra)),
       { type: 'text', text: 'You are answering in Slack. Slack mrkdwn, NOT markdown: *bold* with single asterisks, _italic_, `code`. Bullets are "• ". Never use headings (#) or tables.' }];
     const prior = await threadTranscript(env, h, ev);
-    const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + question : question }];
-    const ctx = { env, h, ev, say, channel, thread };
+    const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q }];
+    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId,
+      onStep: async s => {
+        const line = s.label || s.note; if (!line) return;
+        stepsSeen.push(line);
+        if (C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }).catch(() => {});
+        if (work?.ts && Date.now() - lastUpd > 1200) { lastUpd = Date.now(); await update(line, workBlocks(stepsSeen)).catch(() => {}); }
+      },
+      shouldStop: async () => !!(C.progress && (await C.progress.get(env, runId))?.stop) };
     let r;
+    const t0 = Date.now();
     try {
       r = await loop(env, h, system, messages, slackToolDefs, async (name, input) => {
         const t = extraSlack.find(x => x.def.name === name);
         return t ? await t.run(env, input, ctx) : null;
-      }, usage, pickModel(question), ctx);
+      }, usage, choice.model, ctx, choice.effort || null);
+      const text = toSlackText(r.answer);
+      const foot = C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : '';
+      /* Long answers split into sections Slack will take (3000 characters each). */
+      const chunks = []; let rest = text;
+      while (rest.length) { let cut = rest.length <= 2900 ? rest.length : rest.lastIndexOf('\n', 2900); if (cut < 1000) cut = 2900; chunks.push(rest.slice(0, cut)); rest = rest.slice(cut).replace(/^\n+/, ''); }
+      const ansBlocks = [...chunks.slice(0, 45).map(c => ({ type: 'section', text: { type: 'mrkdwn', text: c } })), ...(foot ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: foot }] }] : [])];
+      if (text) {
+        const u = work?.ts ? await update(text.slice(0, 3000), ansBlocks).catch(() => null) : null;
+        if (!u?.ok) await say(text, ansBlocks);
+        r.answered = true;
+      } else if (work?.ts) {
+        await update(r.stopped ? 'Stopped.' : 'Done.', [{ type: 'context', elements: [{ type: 'mrkdwn', text: (r.stopped ? '_Stopped._ ' : '') + foot }] }]).catch(() => {});
+      } else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
       for (const p of r.flags.proposals || []) await say(p.summary, proposalBlocks(p));
       for (const rep of r.flags.reports || []) await say(reportText(rep));
       if (ev.channel_type === 'im') for (const hd of r.flags.handoffs || []) await say(`*${hd.title}* needs a code change. Paste this into Claude Code:\n\`\`\`\n${hd.prompt}\n\`\`\``);
-      const text = toSlackText(r.answer);
-      if (text) { await say(text); r.answered = true; }
-      else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
     } catch (e) {
-      await say('That one broke: ' + String(e.message || e));
+      const msg = 'That one broke: ' + String(e.message || e);
+      const u = work?.ts ? await update(msg).catch(() => null) : null;
+      if (!u?.ok) await say(msg);
       r = { error: String(e.message || e), flags: {} };
-    } finally { await unreact(); }
+    } finally {
+      await unreact();
+      if (C.progress) await C.progress.clear?.(env, runId).catch(() => {});
+      if (C.onRun) await C.onRun(env, { surface: 'slack', who: ev.user, screen: extra.screen, question, model: choice.model, effort: choice.effort, ...r, ms: Date.now() - t0 }).catch(() => {});
+    }
     const { flags, ...rest } = r;
     return { asked: question.slice(0, 120), ...rest, ...flags, answered: !!r.answered };
   }
@@ -928,20 +1039,38 @@ When the answer compares several things (brands, campaigns, ads, channels, month
 \`\`\`
 type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (several columns: series become columns). unit is "$", "x", "%" (values as percents, 12.5 = 12.5%) or "". goal is optional (a target line). Only numbers you actually read, at most 15 labels and 3 series. No visual for a single number.` }];
     const messages = [];
-    for (const m of (history || []).slice(-8)) {
-      const text = String(m.text || '').slice(0, 2000);
-      if (text) messages.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: text });
+    for (const m of (history || []).slice(-(C.webHistory || 8))) {
+      const text = String(m.text || '').slice(0, C.webHistoryChars || 2000);
+      if (!text) continue;
+      const role = m.role === 'assistant' ? 'assistant' : 'user';
+      /* Two turns from the same side in a row (a proposal card, a stopped answer) merge: the API wants them alternating. */
+      if (messages.length && messages[messages.length - 1].role === role) messages[messages.length - 1].content += '\n\n' + text;
+      else messages.push({ role, content: text });
     }
-    messages.push({ role: 'user', content: q });
+    if (messages.length && messages[0].role === 'assistant') messages.shift();
+    const choice = extra.model ? { model: extra.model } : C.choose ? await C.choose(q, env, h, extra).catch(() => ({ model: pickModel(q) })) : { model: pickModel(q) };
+    if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + (choice.question || q);
+    else messages.push({ role: 'user', content: choice.question || q });
+    const runId = extra.runId || null;
+    const stepsSeen = [];
+    const t0 = Date.now();
+    let r = null;
     try {
-      const model = extra.model || pickModel(q);
-      const r = await loop(env, h, system, messages, webToolDefs, async (name, input) => {
+      r = await loop(env, h, system, messages, webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
-        return t ? await t.run(env, input, { env, h }) : null;
-      }, usage, model, { env, h, screen: extra.screen });
-      return { answer: r.answer || 'I could not work that one out. Try naming the period.', sql: r.sql, inTok: r.inTok, outTok: r.outTok, model, ...r.flags };
+        return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web' }) : null;
+      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, runId,
+        onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },
+        shouldStop: async () => !!(runId && C.progress && (await C.progress.get(env, runId))?.stop) }, choice.effort || null);
+      return { answer: r.answer || (r.stopped ? 'Stopped.' : 'I could not work that one out. Try naming the period.'), sql: r.sql, inTok: r.inTok, outTok: r.outTok,
+        model: choice.model, effort: choice.effort || null, modelLabel: choice.label || null, cost: r.cost, steps: stepsSeen, stopped: r.stopped, ms: r.ms,
+        costLine: C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : null, ...r.flags };
     } catch (e) {
+      r = { error: String(e.message || e) };
       return { error: String(e.message || e) };
+    } finally {
+      if (runId && C.progress) await C.progress.clear?.(env, runId).catch(() => {});
+      if (C.onRun && !extra.noLog) await C.onRun(env, { surface: 'web', who: extra.who, screen: extra.screen, question: q, model: choice.model, effort: choice.effort, ...(r || {}), ms: Date.now() - t0 }).catch(() => {});
     }
   }
 

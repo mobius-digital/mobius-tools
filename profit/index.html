@@ -26,7 +26,7 @@
      anything Locus still defines locally deliberately wins over it. -->
 <link rel="stylesheet" href="/mobius.css">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem("pf_theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-<link rel="stylesheet" href="/ask/ask.css?v=11">
+<link rel="stylesheet" href="/ask/ask.css?v=12">
 <style>
   /* ============================================================
      Direction C, adopted app-wide 2026-09-02.
@@ -2176,7 +2176,8 @@
 <link rel="stylesheet" href="v2.css?v=17">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
-<script src="/ask/ask-ui.js?v=9"></script>
+<script src="/ask/ask-ui.js?v=10"></script>
+<script src="strategist.js?v=1"></script>
 <body>
 <!-- Icon sprite. One <symbol> per tab, 16x16, stroked at a single weight so the
      column reads as one set rather than ten borrowed glyphs. Referenced with
@@ -11306,7 +11307,8 @@ AskUI.init({
   screen: () => {
     try {
       const a = S.act === 'all' ? null : S.accounts.find(x => x.act_id === S.act);
-      const ctx = { screen: SCREEN_NAMES[S.tab] || S.tab, screen_id: S.tab, brand_selected: a ? a.name : 'All clients', range: S.range?.preset || S.days };
+      /* act_id: the Strategist loads this brand's brain, memory and last two weeks of Slack (2026-10-09). */
+      const ctx = { screen: SCREEN_NAMES[S.tab] || S.tab, screen_id: S.tab, brand_selected: a ? a.name : 'All clients', act_id: a ? a.act_id : null, range: S.range?.preset || S.days };
       return ctx;
     } catch (e) { return null; }
   },
@@ -11344,6 +11346,8 @@ renderSettings = async function(){
     acs.disabled = false;
   };
   AskUI.afterSettings();
+  /* Model, instructions, memory, skills, Slack index, usage (strategist.js, 2026-10-09). */
+  if (window.StratSettings) window.StratSettings.mount(slot);
   /* Scheduled questions (Strategist section) and the What moved switch (Briefs and Slack): askextra.js. */
   /* The 8am "What moved" post is gone (2026-10-09): a bad day on Meta is one line in the Daily Brief. Scheduled questions are on Reports > Dashboards. */
   try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}

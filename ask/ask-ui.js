@@ -208,12 +208,38 @@ window.AskUI = (() => {
     let q = ''; for (let i = mi - 1; i >= 0; i--) { const x = A.chat[i]; if (x.role === 'user' && !x.proposal && !x.report && !x.handoff) { q = String(x.text || '').replace(/^📎[^·]*·\s*/, ''); break; } }
     A.onPin({ spec, question: q, title: spec.title || '' });
   }
+  /* A file the assistant made (CSV, Markdown): a download button, kept in the chat. */
+  const fileHTML = f => `<div class="m ai file"><b>${esc(f.title || f.name)}</b><div class="pa"><button class="btn primary" onclick="AskUI.download('${esc(f.name)}')">Download ${esc(f.name)}</button></div></div>`;
+  function download(name) {
+    const f = A.chat.map(m => m.file).find(x => x && x.name === name);
+    if (!f) return;
+    const type = /\.csv$/i.test(name) ? 'text/csv' : /\.md$/i.test(name) ? 'text/markdown' : 'text/plain';
+    const url = URL.createObjectURL(new Blob([f.content], { type }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  /* While it works: what it is doing right now, the steps done, a Stop button (Viktor's working line).
+     The Mobius strip (<mobius-loader mode="working">) shows when the page has defined it. */
+  function workingHTML() {
+    const steps = A.steps || [];
+    const icon = window.customElements && customElements.get('mobius-loader') ? '<mobius-loader mode="working" size="22"></mobius-loader>' : '<span class="ask-pulse"></span>';
+    const secs = A.t0 ? Math.round((Date.now() - A.t0) / 1000) : 0;
+    return `<div class="m ai think working">${icon}<div class="wk"><b>${esc(steps.length ? steps[steps.length - 1] : 'Reading the question…')}</b>`
+      + (steps.length > 1 ? `<div class="wk-done">${steps.slice(-5, -1).map(s => `<span>✓ ${esc(s)}</span>`).join('')}</div>` : '')
+      + `<span class="wk-t">${secs}s</span></div><button class="btn wk-stop" type="button" onclick="AskUI.stop()">Stop</button></div>`;
+  }
   function render(intro) {
     const log = $('#askLog');
     log.innerHTML = (intro ? `<div class="m ai intro">${esc(intro).replace(/\n/g, '<br>')}</div>` : '')
-      + A.chat.map((m, mi) => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : richText(m.text, mi)}</div>`).join('')
-      + (A.busy ? '<div class="m ai think">Looking…</div>' : '');
+      + A.chat.map((m, mi) => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : m.file ? fileHTML(m.file)
+        : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : richText(m.text, mi)}${m.cost ? `<div class="m-cost">${esc(m.cost)}</div>` : ''}</div>`).join('')
+      + (A.busy ? workingHTML() : '');
     log.scrollTop = log.scrollHeight;
+  }
+  async function stop() {
+    if (!A.runId) return;
+    A.steps = [...(A.steps || []), 'Stopping after this step…']; render();
+    try { await A.api(A.base + '/stop', { method: 'POST', body: JSON.stringify({ id: A.runId }) }); } catch (e) {}
   }
   async function applyProposal(id, cancel = false) {
     const m = A.chat.find(x => x.proposal && x.proposal.id === id);
@@ -233,19 +259,30 @@ window.AskUI = (() => {
     el.value = ''; if (el._grow) el._grow();
     A.chat.push({ role: 'user', text: (file ? `📎 ${file.name}${q ? ' · ' : ''}` : '') + q });
     A.file = null; drop();
-    A.busy = true; render();
+    A.busy = true; A.steps = []; A.t0 = Date.now();
+    A.runId = Math.random().toString(36).slice(2, 12);
+    render();
+    /* Poll what it is doing (the engine writes each step); redraw the working line every second. */
+    const runId = A.runId;
+    const poll = setInterval(async () => {
+      if (!A.busy || A.runId !== runId) return;
+      try { const p = await A.api(A.base + '/progress?id=' + runId); if (A.runId === runId && Array.isArray(p.steps) && p.steps.length) A.steps = p.steps; } catch (e) {}
+      if (A.busy && A.runId === runId) render();
+    }, 1000);
     try {
-      const history = A.chat.slice(0, -1).filter(m => !m.proposal && !m.report && !m.handoff);
-      const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, screen: A.screen ? A.screen() : null, ...(file ? { file } : {}) }) });
+      const history = A.chat.slice(0, -1).filter(m => !m.proposal && !m.report && !m.handoff && !m.file);
+      const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, runId, screen: A.screen ? A.screen() : null, ...(file ? { file } : {}) }) });
       if (r.isOwner !== undefined) A.isOwner = !!r.isOwner;
+      A.chat.push({ role: 'assistant', text: r.error || r.answer, cost: r.costLine || null });
       for (const p of r.proposals || []) A.chat.push({ role: 'assistant', proposal: p, text: 'Proposed: ' + p.summary });
       for (const rep of r.reports || []) { A.reports = [rep, ...(A.reports || []).filter(x => x.id !== rep.id)]; A.chat.push({ role: 'assistant', report: rep, text: 'Report: ' + rep.title }); }
       for (const hd of r.handoffs || []) A.chat.push({ role: 'assistant', handoff: hd, text: 'Feature: ' + hd.title });
-      A.chat.push({ role: 'assistant', text: r.error || r.answer });
+      for (const f of r.files || []) A.chat.push({ role: 'assistant', file: f, text: 'File: ' + f.name });
       if ((r.reports || []).length) openReport(r.reports[0].id);
       if (A.onAnswer) A.onAnswer(r);
     } catch (err) { A.chat.push({ role: 'assistant', text: 'That one broke: ' + err.message }); }
-    A.busy = false; render();
+    clearInterval(poll);
+    A.busy = false; A.runId = null; render();
     save();
   }
   /* Conversations, kept apart: a question about one thing and a question
@@ -397,5 +434,5 @@ window.AskUI = (() => {
   }
 
   function ask(q) { open(); const el = $('#askIn'); if (!el || !q) return; el.value = q; send(); }
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask, pin, chartHTML };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask, pin, chartHTML, stop, download };
 })();
