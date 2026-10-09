@@ -3,7 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor } from './brandguard.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
-import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
+import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
 import { marketFor, useFetch as marketFetch } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
@@ -6955,7 +6955,7 @@ const AH_APP = {
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
         ran.assets = await assetsTick(env, () => subCanAfford(60)).catch(e => ({ error: e.message }));
         /* Ad covers in R2, one-creative keys and AI tags for every ad that spent lately (creative.js). */
-        ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80)).catch(e => ({ error: e.message }));
+        ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta }).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
@@ -8254,7 +8254,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/creative-tick' && request.method === 'POST') {
         const b = await request.json().catch(() => ({}));
         if (b.tags_only) return json(await tagTick(env, Math.min(+b.limit || 40, 200), () => true, b.act || null));
-        return json(await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => true, { perBrand: Math.min(+b.per_brand || 60, 300), tags: Math.min(+b.tags || 60, 200) }));
+        if (b.keys_only) return json(await keyTick(env, meta, () => true, Math.min(+b.limit || 600, 3000)));
+        return json(await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => true, { perBrand: Math.min(+b.per_brand || 60, 300), tags: Math.min(+b.tags || 60, 200), meta }));
       }
       if (path === '/api/ad-creatives') {
         const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 40);

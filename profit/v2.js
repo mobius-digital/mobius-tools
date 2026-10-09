@@ -343,14 +343,15 @@
     };
   }
 
-  /* WHERE PEOPLE STOP WATCHING (Motion's retention curve), as a share of the people who watched 3 seconds.
+  /* WHERE PEOPLE STOP WATCHING (Motion's retention curve), as a share of the people who started watching.
      Dashed: the brand's average judged video in the same window. */
   function curveHtml(c, avg) {
-    const rel = c.map(v => (v || 0) / c[0]), top = Math.max(1, ...rel, ...(avg || [])), w = 340, h = 132, pl = 38, pr = 10, pt = 10, pb = 24;
+    /* Short videos pass 25% before 3 seconds, so the curve is a share of its own peak, not of the 3-second count. */
+    const peak = Math.max(...c.map(v => v || 0)) || 1, rel = c.map(v => (v || 0) / peak), top = 1, w = 340, h = 132, pl = 38, pr = 10, pt = 10, pb = 24;
     const X = i => pl + i * (w - pl - pr) / 4, Y = v => pt + (1 - v / top) * (h - pt - pb), L = ['3 sec', '25%', '50%', '75%', 'End'];
     const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
     const end = rel[4], drop = [1, 2, 3, 4].map(i => [i, rel[i - 1] - rel[i]]).sort((p, q) => q[1] - p[1])[0];
-    const say = `Of the people who watched 3 seconds, <b>${pct(end, 0)}</b> reached the end${avg ? ` (the brand's average video: ${pct(avg[4], 0)})` : ''}. The biggest drop is between ${L[drop[0] - 1]} and ${L[drop[0]]}.`;
+    const say = `Of the people who started watching, <b>${pct(end, 0)}</b> reached the end${avg ? ` (the brand's average video: ${pct(avg[4], 0)})` : ''}. The biggest drop is between ${L[drop[0] - 1]} and ${L[drop[0]]}.`;
     return `<div class="v2curve"><h4>Where people stop watching</h4><p class="v2hint">${say}</p><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Watch drop-off">
       ${[0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(top * f)}" y2="${Y(top * f)}" stroke="var(--v2-grid)"/><text x="${pl - 6}" y="${Y(top * f) + 4}" font-size="11" text-anchor="end" fill="var(--muted)">${Math.round(top * f * 100)}%</text>`).join('')}
       ${L.map((l, i) => `<text x="${X(i)}" y="${h - 6}" font-size="11" text-anchor="middle" fill="var(--muted)">${l}</text>`).join('')}
@@ -361,7 +362,7 @@
   function breakdownHtml(r, cur) {
     if (r.error && !(r.placements || []).length) return `<p class="v2bad">${esc(r.error)}</p>`;
     const tbl = (rows, label) => { if (!rows || !rows.length) return ''; const tot = rows.reduce((x, b) => x + b.spend, 0) || 1, mx = Math.max(...rows.map(b => b.spend), 1);
-      return `<h4>${label}</h4><div class="v2tbl"><table><thead><tr><th></th><th>Spend</th><th>CTR</th><th>CPM</th><th>Hook</th><th${tipAttr("Meta's own purchase count: Triple Whale cannot split by placement or age, so this column is only for comparing rows")}>Purchases*</th></tr></thead><tbody>${rows.slice(0, 8).map(b => `<tr><td><b>${esc(b.key)}</b></td><td>${ib(b.spend, mx, null, `${kmoney(b.spend, cur)} · ${pct(b.spend / tot, 0)}`)}</td><td>${pct(b.impressions ? b.clicks / b.impressions : null, 2)}</td><td>${money2(b.impressions ? b.spend * 1000 / b.impressions : null, cur)}</td><td>${b.v3 && b.impressions ? pct(b.v3 / b.impressions, 0) : ' - '}</td><td>${int(b.meta_purchases)}</td></tr>`).join('')}</tbody></table></div>`; };
+      return `<h4>${label}</h4><div class="v2tbl"><table><thead><tr><th></th><th>Spend</th><th>CTR</th><th>CPM</th><th>Hook</th><th${tipAttr("Meta's own purchase count: Triple Whale cannot split by placement or age, so this column is only for comparing rows")}>Purchases*</th></tr></thead><tbody>${rows.filter(b => b.spend >= Math.max(1, tot * 0.01)).slice(0, 8).map(b => `<tr><td><b>${esc(b.key)}</b></td><td>${ib(b.spend, mx, null, `${kmoney(b.spend, cur)} · ${pct(b.spend / tot, 0)}`)}</td><td>${pct(b.impressions ? b.clicks / b.impressions : null, 2)}</td><td>${money2(b.impressions ? b.spend * 1000 / b.impressions : null, cur)}</td><td>${b.v3 && b.impressions ? pct(b.v3 / b.impressions, 0) : ' - '}</td><td>${int(b.meta_purchases)}</td></tr>`).join('')}</tbody></table></div>`; };
     return `${tbl(r.placements, 'By placement')}${tbl(r.people, 'By age and gender')}<p class="v2hint">*Purchases here are Meta's own count, the only source that splits by placement and age. Use them to compare rows, not as the ad's result.</p>`;
   }
   function compareAds(list, cur, goal, open) {
@@ -806,7 +807,7 @@
     const sorted = () => sortAds(base(), CR_SORT, bar);
     CR_WIN = d.window || null; CR_PICK.clear(); CR_TAG = null;
     /* The brand's average drop-off, for the dashed line in the preview: mean of each judged video's curve, relative to 3-second viewers. */
-    CR_MEDC = (() => { const cs = ads.filter(r => r.curve && r.curve[0] && r.spend >= bar).map(r => r.curve.map(v => v / r.curve[0])); return cs.length >= 3 ? [0, 1, 2, 3, 4].map(i => cs.reduce((x, c) => x + c[i], 0) / cs.length) : null; })();
+    CR_MEDC = (() => { const cs = ads.filter(r => r.curve && r.curve[0] && r.spend >= bar).map(r => { const pk = Math.max(...r.curve.map(v => v || 0)) || 1; return r.curve.map(v => (v || 0) / pk); }); return cs.length >= 3 ? [0, 1, 2, 3, 4].map(i => cs.reduce((x, c) => x + c[i], 0) / cs.length) : null; })();
     const galItem = r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><label class="v2pick"${tipAttr('Pick up to 4 to compare')}><input type="checkbox" data-pick="${esc(r.id)}"${CR_PICK.has(r.id) ? ' checked' : ''} aria-label="Pick to compare"></label><span class="v2pill ${VL[v][1]}"${v === 'nogoal' ? tipAttr('No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.') : whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
       ${r.n_ads > 1 || r.tags ? `<div class="v2tags">${r.n_ads > 1 ? `<span class="n"${tipAttr(`The same ${r.media_type === 'video' ? 'video' : 'image'} runs in ${r.n_ads} ads; their numbers are added up here.`)}>In ${r.n_ads} ads</span>` : ''}${r.tags ? [r.tags.format, r.tags.hook].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('') : ''}</div>` : ''}
       ${role(r) !== 'solo' || funnelRole(r) || valTag(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${valTag(r) ? `<span class="${valTag(r) === 'more' ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>${valTag(r) === 'more' ? 'Customers come back' : 'Customers don’t come back'}</span>` : ''}</div>` : ''}

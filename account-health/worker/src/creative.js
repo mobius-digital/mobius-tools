@@ -106,8 +106,9 @@ async function tagOne(env, row) {
  * The hourly pass. `thumbs(ids)` is the worker's adThumbnails with live limits (it writes ad_creative,
  * the cover to R2 and ads.asset_key). `canAfford()` is the subrequest guard.
  */
-export async function creativeTick(env, thumbs, canAfford = () => true, { perBrand = 30, tags = 40 } = {}) {
+export async function creativeTick(env, thumbs, canAfford = () => true, { perBrand = 30, tags = 40, meta = null } = {}) {
   await ensureCreative(env);
+  const keyed = meta ? await keyTick(env, meta, canAfford).catch(e => ({ error: e.message })) : null;
   const since = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
   const stale = new Date(Date.now() - 13 * 864e5).toISOString().slice(0, 19).replace('T', ' ');
   /* Ads that spent lately and have no fresh card (no row, an old row, a row with no cover or a Meta link
@@ -115,7 +116,8 @@ export async function creativeTick(env, thumbs, canAfford = () => true, { perBra
   const { results: need } = await env.DB.prepare(`SELECT d.ad_id, x.act_id, SUM(d.spend) s FROM ad_daily d JOIN ads x ON x.ad_id = d.ad_id
       LEFT JOIN ad_creative c ON c.ad_id = d.ad_id
     WHERE d.date >= ?1 AND d.spend > 0 AND (c.ad_id IS NULL OR c.fetched_at < ?2
-      OR ((instr(c.json, '"thumb":"https://mobius') = 0 OR x.asset_key IS NULL) AND c.fetched_at < ?3))
+      OR (instr(c.json, '"thumb":"data:') > 0 OR instr(c.json, '"thumb":"https://scontent') > 0 OR instr(c.json, '"thumb":"https://external') > 0)
+      OR (instr(c.json, '"thumb":null') > 0 AND c.fetched_at < ?3))
     GROUP BY d.ad_id ORDER BY s DESC LIMIT 300`).bind(since, stale, new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ')).all().catch(() => ({ results: [] }));
   const byAct = {};
   for (const r of need || []) (byAct[r.act_id] ||= []).push(r.ad_id);
@@ -128,7 +130,30 @@ export async function creativeTick(env, thumbs, canAfford = () => true, { perBra
     }
   }
   const tagged = await tagTick(env, tags, canAfford).catch(e => ({ error: e.message }));
-  return { covered, waiting: (need || []).length, tagged };
+  return { keyed, covered, waiting: (need || []).length, tagged };
+}
+
+/** One-creative keys for every ad that spent in the last 60 days and has none: the account's ads edge,
+ *  25 ads a call (asset_feed_spec is big; Meta refuses large pages of it). */
+export async function keyTick(env, meta, canAfford = () => true, cap = 600) {
+  await ensureCreative(env);
+  const since = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
+  const { results } = await env.DB.prepare(`SELECT x.act_id, x.ad_id FROM ads x WHERE x.asset_key IS NULL
+    AND x.ad_id IN (SELECT ad_id FROM ad_daily WHERE date >= ?1 AND spend > 0) LIMIT ?2`).bind(since, cap).all().catch(() => ({ results: [] }));
+  const byAct = {}; for (const r of results || []) (byAct[r.act_id] ||= []).push(r.ad_id);
+  let wrote = 0, err = null;
+  for (const [act, ids] of Object.entries(byAct)) {
+    for (let i = 0; i < ids.length; i += 25) {
+      if (!canAfford()) return { wrote, stopped: 'budget' };
+      const chunk = ids.slice(i, i + 25);
+      try {
+        const r = await meta(env, `${act}/ads`, { fields: 'id,creative{id,object_type,video_id,image_hash,object_story_spec,asset_feed_spec}', filtering: [{ field: 'ad.id', operator: 'IN', value: chunk }], limit: 25 });
+        const st = (r?.data || []).map(ad => [ad.id, assetKeyOf(ad.creative)]).filter(x => x[1]).map(([id, k]) => env.DB.prepare(`UPDATE ads SET asset_key = ?2 WHERE ad_id = ?1`).bind(id, k));
+        if (st.length) { await env.DB.batch(st); wrote += st.length; }
+      } catch (e) { err = err || String(e.message || e).slice(0, 200); }
+    }
+  }
+  return { wrote, waiting: (results || []).length, error: err };
 }
 
 /** Tag creatives (by asset key) that spent in the last 30 days and have no tags. */

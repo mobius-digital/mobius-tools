@@ -661,7 +661,7 @@ async function creativeBrand(env, a, w, model) {
   const angleOf = Object.fromEntries((batches || []).map(b => [String(b.num).replace(/^\D+/, ''), b.angle]));
   const today = w.to;
   /* AI tags per creative (account-health creative.js fills ad_tag hourly). */
-  const { results: tagRows } = await env.DB.prepare(`SELECT asset_key, tags_json FROM ad_tag WHERE act_id = ?1 AND tags_json IS NOT NULL`).bind(act).all().catch(() => ({ results: [] }));
+  const { results: tagRows } = await env.DB.prepare(`SELECT asset_key, tags_json FROM ad_tag WHERE act_id IN ${metaOf(1)} AND tags_json IS NOT NULL`).bind(act).all().catch(() => ({ results: [] }));
   const tagOf = Object.fromEntries((tagRows || []).map(t => { try { return [t.asset_key, JSON.parse(t.tags_json)]; } catch { return [t.asset_key, null]; } }));
   const rows = (ads || []).map(r => {
     const m = metaMetrics(r, model === 'platform' ? null : (byAd[r.ad_id] || { rev: 0, ord: 0 }));
