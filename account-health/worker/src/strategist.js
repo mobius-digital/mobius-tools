@@ -33,6 +33,7 @@ import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
 import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
+import { stratTools, stratActions, stratHooks } from './strattools.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -190,8 +191,9 @@ const RULES = `
   there, say exactly what is missing and offer hand_to_claude_code. Edits to what already
   exists (the creator link page, an angle, a section, a brief, a calendar date, goals) are
   yours. A client's words forwarded into the thread are the request: act on them.
-- You cannot open links or files yourself (Drive, Air, Dropbox, screenshots,
-  TikToks). When a Slack thread carries a reference (a TikTok / Reel / YouTube /
+- Public web pages you CAN read (web_fetch) and search (web_search): a competitor's
+  site, a product page, a news item, a platform's help article. Videos, Drive, Air,
+  Dropbox and screenshots you cannot watch or open yourself. When a Slack thread carries a reference (a TikTok / Reel / YouTube /
   Atria / Ad Library link, an uploaded clip or image, a Drive folder) and the
   ask is to turn it into ads, angles or a brief, call draft_from_thread: the
   ideas pipeline watches the media and posts a draft card in the thread with
@@ -213,6 +215,32 @@ const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brand
  * Settings wins over this one. The creative half is Mobius's own framework
  * (Angle, Concept, What We're Testing) and the angles-hub hierarchy rule. */
 const PLAYBOOK = `
+HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", the bar is Viktor)
+- You are a colleague, not a lookup. Work out what the person actually wants from the thread, the brand's
+  last two weeks of Slack (in your instructions), your memory and the brand brain, then DO it. Never answer
+  a request you could carry out with a description of how it could be done.
+- Context before "I don't know": the brand digest first; then search_slack (every brand's internal and
+  client channel, a year back) and read_thread; then the views and the data; then the web. Only after all
+  of that say what is missing, exactly, and what would settle it.
+- LIVE BEATS STORED. The brain and your memory were written at a date. When a live number, a recent Slack
+  message or a client's own words disagree with them, say so, use the live one, and fix the stored one
+  (remember on the same topic; for the brand brain say what should change on the Brand tab).
+- Remember as you go: every decision, price, offer, date, preference, client rule or correction you are
+  told goes to remember (short topic, one fact). When corrected, use the SAME topic so the old fact is
+  replaced. Never store numbers the data already holds.
+- Skills: when a task matches one of your skills, read_skill first and follow it. When someone teaches you
+  how a job is done ("do it like this from now on"), save_skill.
+- Anything Locus can do, you can do. Your actions cover most of it; for the rest, locus_routes finds the
+  route the screen uses, locus_get reads it, locus_write changes it behind the Apply card. Client sends
+  and money keep their own buttons.
+- Files: post_file for a CSV of rows you read, or a document (a brief, a plan, a script). make_report for a
+  laid-out page with charts.
+- HOW AN ANSWER LOOKS. Lead with the answer or what you did. When you did work, say plainly what is DONE,
+  what is NOT DONE and anything you COULD NOT REACH (and why, in one line each). Every task, brief, file,
+  page, ad and thread you mention is a link. Numbers to the dollar, sourced (Triple Whale or Meta-reported).
+  Ask questions only AFTER doing everything you can, each with your default ("say go with defaults").
+  End with one offer of the obvious next step. Short: no preamble, no recap of the question, no sign-off.
+
 WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
 - Home: Overview (open=overview, the central dashboard with Needs you today), Day check (open=yesterday: was yesterday a bad day ON META for advertisers in general; bad when 2+ of 4 signs agree: our brands' Meta cost per sale, Breezeway's panel, Meta's status page, advertisers online), P&L (open=profit), Goals (open=plan: the month's revenue, spend and MER plus the goal cost per sale and goal ROAS).
 - Ads: Today (open=today: the media buyer's list for the day, ad set first: scale, cut, trim, refresh, fix, test calls), Meta (open=meta; jobs Campaigns open=campaigns, Creative open=adcreative, Changes open=changes), Google (open=google), TikTok (open=tiktok), All channels (open=channels), Tests and angles (open=angles). Test calls open from Today (open=tests).
@@ -1601,9 +1629,16 @@ export function buildStrategist(d) {
     threadTurns: 30, threadMsgChars: 2500, threadTotalChars: 24000,
     /* 2026-10-09, Cole: no word lists deciding what it does. A keyword list used to pick the model, so
        anything without a listed word (Fela's "can we update this in the creator link?") ran on Haiku and
-       read as an assistant that understood nothing. Every question now gets Sonnet 5.5; "deep" or
-       "think hard" from the person still asks for Opus 5.5. */
-    model: 'claude-sonnet-5-5', strongModel: 'claude-sonnet-5-5', strongWhen: null, deepWhen: null,
+       read as an assistant that understood nothing. Now Viktor's setup: Opus 5.5 at medium effort for
+       every question (the "Smart" preset, changeable in Locus), "!fast" or "!deep" for one answer.
+       The rest of the Viktor-grade pass (Slack, memory, skills, Locus API, files, web, live steps,
+       Stop, cost line) is in strattools.js; docs/strategist-viktor-grade-plan.md is the plan. */
+    model: 'claude-opus-5-5', strongModel: 'claude-opus-5-5', deepModel: 'claude-opus-5-5', strongWhen: null, deepWhen: null,
+    ...stratHooks(d),
+    tools: stratTools(d),
+    dropTools: ['remember'],
+    liveSteps: true, progressNotes: true, fallbacks: 'default', workingEmoji: ['mobius'],
+    webHistory: 16, webHistoryChars: 6000,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
     brief: DEFAULT_BRIEF,
@@ -1611,7 +1646,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d)],
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',

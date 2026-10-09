@@ -40,6 +40,12 @@ database_id = "e8bd83a8-100e-44ed-a639-2c3415f90e41"
 binding = "SUPPLY"
 service = "mobius-supply"
 
+# The Strategist's locus_api tool calls Locus's own routes on the profit worker as the person
+# (or as Cole from Slack). Worker-to-worker calls over workers.dev are refused; a binding is not.
+[[services]]
+binding = "PROFIT"
+service = "mobius-profit"
+
 [[queues.producers]]
 binding = "IDEA_Q"
 queue = "mobius-ideas"
