@@ -75,6 +75,21 @@ Countdown offsets used: drop = assets -14, briefs -12, built -5, email -3, loade
 locked -21, briefs -14, built -5, email -3, loaded -2, live 0. On the lanes, a brand's Black Friday week
 phases merge into one bar (the detail lives on the Black Friday page); one-day drops are labelled pins.
 
+### Mock v2 (2026-10-09, after Cole's questions)
+
+- Everything opens (bars, pins, email dots, work rows, Coming up cards, tiles, brand names); 295 clicks tested.
+  Lanes use the Season gantt look (outlined bar, label inside or beside it). Panels are fixed to the screen.
+- **How a sale ends**: every sale asks for an end date; an open-ended one shows "no end date" and gets a
+  "still running?" line in the Monday post with "It ended today"; the same button sits on every live sale.
+  Later the end comes from the Shopify discount when the Mobius app is on the store.
+- **No client link** (Cole: clients will sign in to Locus). Screen 6 = Locus as a client sees it: their brand,
+  Calendar only, "What we need from you", add/move their own dates. Until client logins exist, Nick and
+  Dartee keep using the old Lineup (same table). Which pages a client sees belongs to the structure audit.
+- **Work due this week is computed from the countdown** (not hand-picked) and grouped: on Oct 9 it shows 4
+  November offers not locked (Lucky Early Bird, Ice & Gold, Yak, Party Patch) and 5 brands' November ads due
+  for briefs today (Black Friday plan rule: briefs 23 days before Nov 1).
+- Burgundy's tiers are an offer change inside Burgundy (no countdown of their own), flagged for no end date.
+
 ## Four facts that change the brief
 
 1. **The clients use Lineup, we do not.** 16 events in the live D1, ever.
