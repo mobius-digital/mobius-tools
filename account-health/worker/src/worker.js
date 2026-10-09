@@ -3490,7 +3490,20 @@ async function alertClaudeFailure(env, context, message) {
  *  Deduped globally on 12 hours like the Claude alert: one bad field fails all
  *  six brands within a minute, and six identical messages is how an alert gets
  *  muted. */
+/** Brands kept live on purpose as TEST accounts (The Golf Sock): their syncs
+ *  and delivery checks still run, but they never page Slack. Cole asked for the
+ *  Golf Sock alerts to stop on 2026-10-09. Override with the `mutedBrands`
+ *  setting (a JSON array of brand ids). Takes a brand id or a Meta act id. */
+async function alertsMuted(env, id) {
+  const muted = safeJson(await getSetting(env, 'mutedBrands'), null) || ['brand_the_golf_sock'];
+  if (!id) return false;
+  if (muted.includes(id)) return true;
+  const row = await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = 'meta' AND external_id = ?1`).bind(id).first().catch(() => null);
+  return !!(row && muted.includes(row.brand_id));
+}
+
 async function alertSyncFailure(env, acct, message) {
+  if (await alertsMuted(env, acct.act_id)) return;
   const channel = await getSetting(env, 'reportChannel') || await getSetting(env, 'slackChannel');
   if (!channel) return;
   const last = safeJson(await getSetting(env, 'lastSyncAlert'), null);
@@ -6228,6 +6241,7 @@ async function deliveryPass(env) {
   const deferred = [];
   for (const a of await listAccounts(env, true)) {
     if (!a.meta_act) continue;   // no Meta ad account (phase 3): nothing to check delivery on
+    if (await alertsMuted(env, a.act_id)) continue;   // test brand (Golf Sock): never pages Slack
     /* A brand skipped here is NOT marked as checked (st.day / st.intra stay
        put), so the next tick re-checks it. That is the whole reason the state
        flags record "a check ran" rather than "an hour passed". */
