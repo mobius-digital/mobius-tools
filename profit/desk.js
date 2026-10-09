@@ -128,7 +128,7 @@
       <div class="grey"><span class="l">Other advertisers</span><b>Checking…</b></div><div class="grey"><span class="l">Meta's own status page</span><b>Checking…</b></div><div class="grey"><span class="l">Talk on X and Reddit</span><b>Checking…</b></div></div>`);
     $('#main').innerHTML = shell('yesterday', title, `${intro}<div id="dkVerdict">${U().card('The verdict', '', '<p class="v2hint">Reading every signal for the day…</p>')}</div>${outside}
       ${U().card('Each brand, day by day', 'One row per brand, one square per day, each judged against that brand\'s own normal.', grid)}${detail}
-      ${U().foot('A number is called when it is 25% or more off that brand\'s normal and unusual for it. Bad = one money number worse (revenue, MER or cost per new customer); very bad = two, or one far out. Spend alone never makes a bad day. Revenue from Shopify through Triple Whale (paid orders only); cost per purchase on Triple Whale attribution; delivery from Meta.')}`);
+      ${U().foot('A number is called when it is 25% or more off that brand\'s normal and unusual for it. Bad = one number worse (revenue, MER, cost per new customer, Meta or Google cost per purchase, or email revenue); very bad = two, or one far out. Spend alone never makes a bad day. Revenue from Shopify through Triple Whale (paid orders only); cost per purchase on Triple Whale attribution; delivery from Meta.')}`);
     const root = $('#main');
     root.querySelectorAll('.dk-cell[data-b]').forEach(el => el.onclick = () => { YSEL = el.dataset.b; YDAY = +el.dataset.i; yesterday(false); });
     root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
