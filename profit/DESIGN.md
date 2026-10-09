@@ -202,3 +202,59 @@ transparency. Slack's custom emoji limit is 128KB; the shipped file is about 110
 - A one-sentence answer under each card title; small-caps labels for groups.
 - Empty, loading (skeleton) and error states drawn.
 - Checked at 1440 and 375 wide, light and dark, no console errors.
+
+## 10. Polish pass two (2026-10-09): the small details
+
+Two files: the "POLISH PASS TWO" block at the end of `profit/v2.css`, and `profit/polish.js` (loaded once, `defer`,
+after askextra.js). polish.js is presentation only: it watches `#main`, `#v2panel`, `#v2seg` and the rail, never
+routes or fetches, and the app renders the same without it. Toasts (`.lx-toast`) live in `/mobius.css` so share pages
+get them too.
+
+- **Motion tokens.** `--ease-out: cubic-bezier(.23,1,.32,1)` for anything entering or pressed, `--ease-drawer`
+  `(.32,.72,0,1)` for the ask panel and the side panel, `--t-press` 140ms. Never `transition: all`, never `ease-in`.
+  `prefers-reduced-motion` turns every duration to 0 (and polish.js skips the count-up and the slides).
+- **Press and hover.** Every button, chip and pill scales to .97 on `:active`; rail rows and page tabs to .985.
+  Cards that open something (`.v2tile`, `.v2go`, `.cn-card`, `.v2mult .m`, `.v2moved .mv`, `.v2gal .g`,
+  `.v2orow`) lift 1px with `--sh-lift` on hover (pointer devices only) and press to .993.
+- **Focus.** `:focus-visible` is a 2px accent ring at 75%, offset 2px (inset -2px on rail rows and page tabs so the
+  scroll area never clips it). Fields keep their own soft ring and draw no outline.
+- **Sliding indicators.** polish.js puts one `<i class="lx-ink">` in each control and moves it to the `.on` button
+  (transform + width, 240ms `--ease-out`): the page tabs' underline (`.v2tabs`, `.line`), the Meta/Studio job pills
+  (`.v2jobs`), the rail pill (`nav.tabs .grp-btns`), the theme switch and any `.ds-seg`. `#v2seg` is rebuilt on every
+  `show()`, so the last position is remembered per control and the new ink starts there. The `.on` button itself then
+  draws no background.
+- **Top bar.** Sticky over 720px with `color-mix(--bg 84%)` and a 14px backdrop blur; `html.lx-scrolled` (scrollY > 4)
+  adds the hairline and a soft shadow. polish.js writes its height into `--lx-top`.
+- **Page head.** No rule under it any more (the page tabs already draw one). `.ph` is 20px under the tabs, crumb
+  12/500 6px above a 24/650 title, actions are 28px pills (quiet text on a phone, still 44px targets). Empty
+  children of `.v2` are `display:none`, so an empty slot (`#v2moved`, `#v2cal`) never adds a 16px gap.
+- **Type.** Tabular figures on every number (tiles, tables, deltas, funnels); -.028em on titles and big numbers.
+  Floor: badges and captions 11px (`--fs-cap`), the source badge (`.v2src`) 10px caps; everything you read is 12px+.
+  Secondary text is `--muted`, one colour.
+- **Tiles.** min-height 116px so a row lines up; the number scales with the tile (`clamp(20px, 13cqi, 26px)`, a
+  container query) so the delta pill stays on its line; the source badge sits in the top-right corner so a long label
+  wraps as text. **Count-up**: the first time a tile label is seen in a session its number counts up (650ms, quartic
+  out); re-renders and period changes never replay it.
+- **Delta pills.** One style: 20px tall pill, 12px/600, tabular.
+- **Tooltips** (`#v2gtip`, `.v2tip`) match the menus: surface, hairline, `--sh-pop`, 10px radius.
+- **Tables.** A `.v2tbl` that fits its card gets `lx-fits` (overflow visible) and a sticky header under the top bar;
+  one that scrolls sideways fades at the right edge until scrolled to the end (`lx-more`). Every row has a quiet hover;
+  link rows a stronger one. Column-header icons are added when 60%+ of a table's headers match the map in polish.js
+  (`TH_ICON`: spend, revenue, orders, ROAS/MER/share, CPA/CAC, CTR, CPM/open, hook, brand, campaigns, flows, AOV,
+  customers, sessions, frequency); a half-iconed header row reads as unfinished, so below that, none.
+- **Skeletons.** Any `.hint` / `.v2hint` / `.tiny` that says "Loading..." / "Pulling..." becomes a skeleton: a lone
+  page-level card turns into tiles + chart + table blocks (`.lx-sk-page`), a lone card into three shimmer lines, an
+  inline hint into one bar. Plan cells waiting on a number (`td[data-pl]`, or any `td.lx-wait`) shimmer. The chat's
+  working line and the home Ask card draw shimmer lines under their text (CSS only). Shimmer colours are `--sk-a` /
+  `--sk-b` (ink at 6.5% and 2.5% over the surface), visible in both themes. New code can call
+  `window.lxPolish.skPage()` / `skTable(n)` / `skLines(n)` for the markup.
+- **Empty and error, one pattern.** A card holding only a hint (`.v2card > .v2hint:only-child`, or title + hint)
+  draws as the empty state: a 40px circle with the inbox icon, one line. A lone `.v2bad` in a card becomes the error
+  state (polish.js): red alert circle, the card's title (or "This did not load"), a plain sentence for 401/403 and
+  network failures with the raw message small under it, and **Try again** (re-runs `show()` for the open page). Any
+  other `p.v2bad` gets an alert icon in front. The Home read's "could not run" line becomes one quiet info line.
+- **Popups.** Modals fade in with a scale from .97 (220ms), the scrim fades; menus scale from their trigger corner
+  (period: top right, client picker: top left, profile: from the bottom). The ask panel slides on the drawer curve.
+- **Toasts.** `.lx-toast` (add `.bad` for a failure): ink pill, a green or red dot, slides up 10px; calc.js, season.js
+  and calendar.js all use it. Never inline-style a toast again.
+- **Scrollbars** thin (10px track, 4px thumb at 16% ink), selection at 22% accent.

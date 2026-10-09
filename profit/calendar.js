@@ -376,11 +376,11 @@
   const pickAct = id => { H.S.act = id; try { localStorage.setItem('pf_act', id); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = id; ST.mon = null; H.show('calendar'); };
   function toast(msg, undo) {
     let el = document.getElementById('calToast');
-    if (!el) { el = document.createElement('div'); el.id = 'calToast'; el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:9px;font-weight:600;z-index:400;display:flex;gap:12px;align-items:center;font-size:13px'; document.body.appendChild(el); }
-    el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button" style="background:none;border:0;color:inherit;text-decoration:underline;font:inherit;cursor:pointer">Undo</button>' : ''}`;
-    el.style.display = 'flex';
-    if (undo) el.querySelector('button').onclick = () => { el.style.display = 'none'; undo(); };
-    clearTimeout(el._t); el._t = setTimeout(() => { el.style.display = 'none'; }, undo ? 6000 : 2600);
+    if (!el) { el = document.createElement('div'); el.id = 'calToast'; el.className = 'lx-toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
+    el.hidden = true; void el.offsetWidth; el.hidden = false;
+    if (undo) el.querySelector('button').onclick = () => { el.hidden = true; undo(); };
+    clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, undo ? 6000 : 2600);
   }
   async function call(path, body, method = 'POST') {
     const r = await H.apiAH(path, { method, body: body ? JSON.stringify(body) : undefined });

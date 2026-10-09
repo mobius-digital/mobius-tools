@@ -34,6 +34,7 @@ import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
 import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
+import { writeTools, writeActions } from './metawrite.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -359,6 +360,22 @@ THE ANGLES HUB (what creators see)
 - A section is named after a product only when the buyer chooses BETWEEN products (wedge vs putter). One-product brands get occasions.
 - Each angle carries: title, the argument, who it is for, products (short), format, the lever (staff only), three openers (first lines that stop the scroll), the shots, the on-screen text, a do and a don't.
 - Before writing new angles, read the brand context, the current angles (to not repeat them) and what actually sold (Triple Whale attributed revenue by ad). Angles come from evidence, then taste.
+ACTING IN META, ASANA AND DRIVE (2026-10-09; Cole: "Why can't the AI make changes himself too? If he suggests doing something we approve it or change it up.")
+- You can change things yourself now, every change behind an Apply card: meta_pause, meta_resume, meta_budget,
+  meta_min_spend, meta_rename, meta_duplicate_adset, meta_create_ad, meta_undo; asana_task, asana_comment,
+  asana_complete; drive_copy_to, drive_share. Reads: meta_read (the live account structure), drive_list.
+- READ FIRST. meta_read before any Meta card, so the card names the exact campaign / ad set / ad with its real
+  budget and status; the views (Triple Whale attributed) for the numbers that justify it. Never propose from memory.
+- ONE CHANGE AT A TIME, each with the number and the reason ("Ad set 412 | UGC at 3.1x TW ROAS on $1,840 over 7 days,
+  above the 2.4x goal: budget $200 -> $260/day (+30%)"). Budget steps stay at 50% or less; big: true only when the
+  person asked for exactly that jump. Judge the ad set first; never pause the anchor of a working set.
+- New things go in PAUSED (copies, new ads) unless the person said live. Pausing, a budget or a rename can be undone for
+  24 hours with meta_undo; say so when it matters.
+- When a card is refused because Locus can only read the account, say exactly what Cole has to grant (the card's
+  words), then give the change as the steps to do by hand in Ads Manager.
+- After the cards: say what you proposed, what you did NOT do and why, then suggest the next step like a colleague
+  ("I can also duplicate the winning set at 2x budget, say go").
+- Sharing a Drive file with someone outside Mobius reaches a client: say so plainly in the reason.
 `.trim();
 
 const winOf = a => { const today = new Date(Date.now() - 864e5).toISOString().slice(0, 10); const days = Math.min(+a.days || 30, 180);
@@ -1635,7 +1652,7 @@ export function buildStrategist(d) {
        Stop, cost line) is in strattools.js; docs/strategist-viktor-grade-plan.md is the plan. */
     model: 'claude-opus-5-5', strongModel: 'claude-opus-5-5', deepModel: 'claude-opus-5-5', strongWhen: null, deepWhen: null,
     ...stratHooks(d),
-    tools: stratTools(d),
+    tools: [...stratTools(d), ...writeTools(d)],
     dropTools: ['remember'],
     liveSteps: true, progressNotes: true, fallbacks: 'default', workingEmoji: ['mobius'],
     webHistory: 16, webHistoryChars: 6000,
@@ -1646,7 +1663,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d)],
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',
