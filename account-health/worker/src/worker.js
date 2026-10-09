@@ -4033,6 +4033,10 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       .map(([id, v]) => env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(id, v.media_type));
     if (st.length) await env.DB.batch(st);
   } catch { /* the cards do not depend on this */ }
+  /* PRUNE (2026-10-09): rows past 30 days were never deleted, only overwritten when the ad was
+     looked at again, so ads nobody opens any more sat in D1 for good (393 rows, 55MB of a 265MB
+     database). A live call clears them; one query. */
+  if (allowUrl) await env.DB.prepare(`DELETE FROM ad_creative WHERE fetched_at < datetime('now','-30 days')`).run().catch(() => {});
   // Cache what we just fetched, one row at a time so a single oversized
   // creative cannot fail the whole batch and lose the others.
   for (const id of missing) {
