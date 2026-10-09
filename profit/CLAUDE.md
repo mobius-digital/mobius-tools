@@ -2447,3 +2447,36 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+
+## 2026-10-09: THE COMMAND CENTER (Home for All clients) and clients see everything by default
+
+- **Client access defaults flipped.** brandguard `CLIENT_SWITCHES` = all ON (P&L, change history, Strategist, creator
+  link) for every brand and every client, existing ones included (nothing was stored on prod). `settings.clientAccess`
+  now holds ONLY overrides (`setAccess` stores a key only when it differs from the default; back to on = the row goes).
+  The client Strategist keeps its 20 questions / $0.50 a day cap. clients.js: the card and the invite say "Clients see
+  everything about their own business" with a folded "Turn something off for this client" (all four switches, on = they
+  see it, "N off: ..." beside the fold). Welcome card and profile say what is on / off. test-clients.mjs 19 checks
+  (defaults on, overrides stored alone, client refused on both command routes, command routes answer the team).
+- **Command center** (`profit/command.js`, `window.CommandCenter.render(host, H, all)`, called from v2.js home() when the
+  team is on All clients; it replaces the "Each brand" table and the Overview read there). Cards: **Focus first** (AI read,
+  account-health `POST /api/read` screen `command` = `COMMAND_SYSTEM`, returns `order` [{brand, why, do}] + lines + focus,
+  Sonnet, cached an hour per facts), **Every brand, what needs you first** (one row per brand: name + status dot, trend,
+  MTD % of plan; pills revenue / spend / MER / CPA vs goal with deltas; revenue sparkline; the reasons, 4 shown + "N more",
+  every reason a button to the brand page that shows it or the Asana task), paused brands on one unflagged line, and
+  **Setting up** (new client runs with steps left: moved here from the New client modal; Open its setup =
+  `NewClient.status`). Rows sort by severity score (bad 10, warn 4, info 1), then revenue.
+- **Reasons**: profit `GET /api/hub/command` (hub.js `commandMany`, fixed windows ending yesterday): goal (blended CPA =
+  spend / paid orders vs rulesFor target_cpa, else MER vs month plan / target_roas; rolling 3 days, 10% wrong side;
+  3+ days warn, 7+ bad), cadence (days since the last Meta `ads.created_time`, $100+ Meta spend in 7 days; 10+ warn,
+  21+ bad), fatigue (CTR, hook, frequency last 7 vs the 14 before from daily_insights; 2 of 3 moved 15%+ on $300+),
+  Day check (yesterdayMany: bad yesterday, or 3+ bad in 7), setup gaps (Triple Whale, Meta, goals, Asana). account-health
+  `GET /api/command/work` (src/command.js): Asana per brand live (open tasks of the linked project, cached 30 min as
+  `cmdasana2:<brand>`; overdue = due in the last 60 days outside parked / done / Analyze Results sections; stuck = untouched
+  10+ days in a working section; note Locus's own sync bumps modified_at, so stuck undercounts), pending new clients, alerts
+  fired in 48 hours. Month vs plan is judged in the browser from `S.accounts` (10% behind warn, 20% bad).
+- **New client modal**: "Already started" list removed; team chips use the selected style (brand-soft fill, accent ring,
+  check icon), readable in both themes (it was `--ink` on `--on-ink`, light on light in dark). Same style on the invite's
+  brand chips.
+- Local check recipe for parallel sessions: run your own ports (static 8761, `wrangler dev --remote` profit 8762 and
+  account-health 8763 from the worktree with the .dev.vars copied in) and drive headless Chrome over CDP (Node's global
+  WebSocket); the shared Browser pane is taken over by other sessions.

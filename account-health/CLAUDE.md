@@ -1437,3 +1437,9 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   as in production, sign-in, other brand / "all" / writes / settings / Strategist internals / drafts / P&L / ads /
   calendar refused, the dev-key forgery refused, invites owner-only and approval-gated).
 
+
+## 2026-10-09: client switches ON by default; the command center's work feed (`src/command.js`)
+- brandguard `CLIENT_SWITCHES` are all true; `clientAccess` stores overrides only (see profit/CLAUDE.md, same date).
+- `GET /api/command/work` (team; brandsFor-limited): Asana overdue / stuck per brand, new clients with steps left
+  (`STEPS` now exported from newclient.js), alerts fired in 48h. `POST /api/read` with `screen: 'command'` uses
+  `COMMAND_SYSTEM` and returns `order`.

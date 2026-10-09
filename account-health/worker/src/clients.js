@@ -5,7 +5,7 @@
  *
  *   settings.clientUsers  = { email: { brands: [brand_x], name, invited_at, invited_by, last_invite,
  *                                       last_sign_in, last_seen, welcomed_at } }
- *   settings.clientAccess = { brand_x: { pl, strategist, changes, creators } }   (all off by default)
+ *   settings.clientAccess = { brand_x: { pl, strategist, changes, creators } }   (only overrides; all ON by default since 2026-10-09)
  *
  * Routes (mounted in worker.js before the admin gate; each checks its own caller):
  *   GET  /api/clients?act=            team: the client logins (a limited teammate sees only their brands' rows)
@@ -87,9 +87,12 @@ async function upsertClient(env, email, brands, by, name) {
 
 async function setAccess(env, act, sw) {
   const all = (await getJson(env, 'clientAccess', {})) || {};
+  /* Only the overrides are stored (2026-10-09: everything is ON by default), so a switch nobody touched follows
+     the default if it ever changes, and a brand with nothing turned off has no row at all. */
   const cur = { ...CLIENT_SWITCHES, ...(all[act] || {}) };
   for (const k of Object.keys(CLIENT_SWITCHES)) if (typeof sw[k] === 'boolean') cur[k] = sw[k];
-  all[act] = cur;
+  const over = Object.fromEntries(Object.keys(CLIENT_SWITCHES).filter(k => cur[k] !== CLIENT_SWITCHES[k]).map(k => [k, cur[k]]));
+  if (Object.keys(over).length) all[act] = over; else delete all[act];
   await putJson(env, 'clientAccess', all);
   return cur;
 }
@@ -229,7 +232,7 @@ export async function handleClients(request, env, path, json, { isAdmin, session
 }
 
 /* ---------------- the client-safe Strategist ----------------
- * Off unless Cole switched it on for the brand (brandguard refuses /api/ask otherwise). It is NOT the team's
+ * ON by default (2026-10-09); off where Cole turned it off for the brand (brandguard refuses /api/ask then). It is NOT the team's
  * Strategist with a rule line on top: no SQL over the shared database, no internal memory or skills in the
  * prompt, no Slack, no actions, no memory writes. One read-only tool, `read_page`, reads a fixed list of the
  * client's own pages THROUGH THE CLIENT'S OWN LOGIN (so brandguard scrubs every answer exactly as it does for
