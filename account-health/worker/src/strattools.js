@@ -278,6 +278,13 @@ export function stratHooks(d) {
       ask_ledger: 'Asking the Ledger',
       create_alert: 'Preparing an alert',
       schedule_task: 'Preparing a schedule',
+      make_image: input.redo_of ? 'Redoing the image' : `Making the image: ${clip(input.title || input.brief, 50)}`,
+      run_analysis: `Running the analysis: ${clip(input.ask, 50)}`,
+      frame_list: `Opening Frame${input.folder ? ': ' + clip(input.folder, 40) : ''}`,
+      frame_share: `Making a Frame review link for ${clip(input.target, 40)}`,
+      frame_folder: `Preparing a Frame folder: ${clip(input.name, 40)}`,
+      frame_move: `Preparing a Frame move: ${clip(input.item, 40)}`,
+      make_report: `Building "${clip(input.title, 50)}" (with a share link and a PDF)`,
     })[name] || null,
     serverTools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5 }],
   };

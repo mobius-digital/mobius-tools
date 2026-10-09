@@ -156,14 +156,14 @@ window.AskUI = (() => {
   const proposalHTML = p => `<div class="m ai prop" data-id="${esc(p.id)}">
       <b>${esc(p.summary)}</b>${p.detail ? `<div class="pd">${esc(p.detail).replace(/\n/g, '<br>')}</div>` : ''}
       ${p.preview ? `<div class="pv">${esc(p.preview).replace(/\n/g, '<br>')}</div>` : ''}
-      ${p.done ? `<div class="pr ${p.done === 'applied' ? 'ok' : ''}">${esc(p.result || (p.done === 'applied' ? 'Applied.' : 'Left as it was.'))}</div>`
+      ${p.done ? `<div class="pr ${p.done === 'applied' ? 'ok' : ''}">${linkify(p.result || (p.done === 'applied' ? 'Applied.' : 'Left as it was.'))}</div>`
         : `<div class="pa"><button class="btn primary" onclick="AskUI.applyProposal('${esc(p.id)}')">Apply</button><button class="btn" onclick="AskUI.applyProposal('${esc(p.id)}', true)">No thanks</button></div>`}
     </div>`;
   /* A report the assistant built: a card in the chat, the page on Open. */
   const reportCardHTML = r => `<div class="m ai rep" data-id="${esc(r.id)}">
       <b>${esc(r.title)}</b>${r.subtitle ? `<div class="pd">${esc(r.subtitle)}</div>` : ''}
       <div class="pd">${(r.blocks || []).length} block${(r.blocks || []).length === 1 ? '' : 's'}: ${(r.blocks || []).map(b => b.type).join(', ')}</div>
-      <div class="pa"><button class="btn primary" onclick="AskUI.openReport('${esc(r.id)}')">Open</button><button class="btn" onclick="AskUI.openReport('${esc(r.id)}', true)">Print / PDF</button></div>
+      <div class="pa"><button class="btn primary" onclick="AskUI.openReport('${esc(r.id)}')">Open</button><button class="btn" onclick="AskUI.openReport('${esc(r.id)}', true)">Print</button>${r.pdf ? `<a class="btn" href="${esc(r.pdf)}" target="_blank" rel="noopener" title="Made on first click, about 30 seconds">PDF file</a>` : ''}${r.share ? `<button class="btn" type="button" onclick="navigator.clipboard.writeText('${esc(r.share)}').then(()=>{this.textContent='Link copied'})" title="${esc(r.share)}">Copy share link</button>` : ''}</div>
     </div>`;
   /* A feature that needs code: the owner gets the prompt for Claude Code. */
   const handoffHTML = h => `<div class="m ai hand">
@@ -208,6 +208,22 @@ window.AskUI = (() => {
     let q = ''; for (let i = mi - 1; i >= 0; i--) { const x = A.chat[i]; if (x.role === 'user' && !x.proposal && !x.report && !x.handoff) { q = String(x.text || '').replace(/^📎[^·]*·\s*/, ''); break; } }
     A.onPin({ spec, question: q, title: spec.title || '' });
   }
+  /* Links in a result line are clickable (a saved dashboard, a share link). */
+  const linkify = t => esc(t).replace(/https?:\/\/[^\s<)]+/g, u => { const c = u.replace(/[.,;]+$/, ''); return `<a href="${c}" target="_blank" rel="noopener">${c}</a>${u.slice(c.length)}`; });
+  /* An image or file the assistant made and stored (it has a URL): shown inline, Download, and the item's own
+     actions (the Strategist: "Open in Studio"), each a POST the host's api() sends. */
+  const mediaHTML = (f, mi) => `<div class="m ai file media">${f.kind === 'image' ? `<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.title || '')}" loading="lazy" style="display:block;max-width:100%;max-height:420px;border-radius:10px;margin:0 0 8px"></a>` : ''}
+      <b>${esc(f.title || f.name)}</b>${f.note ? `<div class="pd">${esc(f.note)}</div>` : ''}
+      <div class="pa"><a class="btn primary" href="${esc(f.url)}${String(f.url).includes('?') ? '&' : '?'}dl=1" download="${esc(f.name)}">Download${f.kind === 'image' ? '' : ' ' + esc(f.name)}</a>${(f.actions || []).map((a, k) => `<button class="btn" type="button" onclick="AskUI.mediaAction(${mi},${k},this)">${esc(a.label)}</button>`).join('')}</div>
+      ${f.result ? `<div class="pr ok">${linkify(f.result)}</div>` : ''}</div>`;
+  async function mediaAction(mi, k, btn) {
+    const m = A.chat[mi], a = m && m.media && (m.media.actions || [])[k];
+    if (!a) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Working…'; }
+    try { const r = await A.api(a.path, { method: 'POST', body: JSON.stringify(a.body || {}) }); m.media.result = r.error ? 'Could not: ' + r.error : (r.note || 'Done.'); }
+    catch (e) { m.media.result = 'Could not: ' + e.message; }
+    render(); save();
+  }
   /* A file the assistant made (CSV, Markdown): a download button, kept in the chat. */
   const fileHTML = f => `<div class="m ai file"><b>${esc(f.title || f.name)}</b><div class="pa"><button class="btn primary" onclick="AskUI.download('${esc(f.name)}')">Download ${esc(f.name)}</button></div></div>`;
   function download(name) {
@@ -231,7 +247,7 @@ window.AskUI = (() => {
   function render(intro) {
     const log = $('#askLog');
     log.innerHTML = (intro ? `<div class="m ai intro">${esc(intro).replace(/\n/g, '<br>')}</div>` : '')
-      + A.chat.map((m, mi) => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : m.file ? fileHTML(m.file)
+      + A.chat.map((m, mi) => m.proposal ? proposalHTML(m.proposal) : m.report ? reportCardHTML(m.report) : m.handoff ? (A.isOwner ? handoffHTML(m.handoff) : '') : m.file ? fileHTML(m.file) : m.media ? mediaHTML(m.media, mi)
         : `<div class="m ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : richText(m.text, mi)}${m.cost ? `<div class="m-cost">${esc(m.cost)}</div>` : ''}</div>`).join('')
       + (A.busy ? workingHTML() : '');
     log.scrollTop = log.scrollHeight;
@@ -270,7 +286,7 @@ window.AskUI = (() => {
       if (A.busy && A.runId === runId) render();
     }, 1000);
     try {
-      const history = A.chat.slice(0, -1).filter(m => !m.proposal && !m.report && !m.handoff && !m.file);
+      const history = A.chat.slice(0, -1).filter(m => !m.proposal && !m.report && !m.handoff && !m.file && !m.media);
       const r = await A.api(A.base, { method: 'POST', body: JSON.stringify({ question: q, history, runId, screen: A.screen ? A.screen() : null, ...(file ? { file } : {}) }) });
       if (r.isOwner !== undefined) A.isOwner = !!r.isOwner;
       A.chat.push({ role: 'assistant', text: r.error || r.answer, cost: r.costLine || null });
@@ -278,6 +294,9 @@ window.AskUI = (() => {
       for (const rep of r.reports || []) { A.reports = [rep, ...(A.reports || []).filter(x => x.id !== rep.id)]; A.chat.push({ role: 'assistant', report: rep, text: 'Report: ' + rep.title }); }
       for (const hd of r.handoffs || []) A.chat.push({ role: 'assistant', handoff: hd, text: 'Feature: ' + hd.title });
       for (const f of r.files || []) A.chat.push({ role: 'assistant', file: f, text: 'File: ' + f.name });
+      /* Images and files the assistant made (stored, with a link). A redone image replaces the one it redid. */
+      const replaced = new Set((r.media || []).map(x => x.replaces).filter(Boolean));
+      for (const f of r.media || []) if (!replaced.has(f.id)) A.chat.push({ role: 'assistant', media: f, text: (f.kind === 'image' ? 'Image: ' : 'File: ') + (f.title || f.name) });
       if ((r.reports || []).length) openReport(r.reports[0].id);
       if (A.onAnswer) A.onAnswer(r);
     } catch (err) { A.chat.push({ role: 'assistant', text: 'That one broke: ' + err.message }); }
@@ -354,7 +373,7 @@ window.AskUI = (() => {
       return '';
     }).join('');
     return `<div class="rp-head"><div><h1>${esc(r.title)}</h1>${r.subtitle ? `<div class="sub">${esc(r.subtitle)}</div>` : ''}<div class="meta">Built by the ${esc(r.by || A.name)} · ${esc(new Date(r.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</div></div>
-      <div class="rp-actions no-print"><button class="btn" onclick="window.print()">Print / PDF</button><button class="btn" onclick="AskUI.closeReport()">Close</button></div></div>${blocks}`;
+      <div class="rp-actions no-print"><button class="btn" onclick="window.print()">Print / PDF</button>${r.pdf ? `<a class="btn" href="${esc(r.pdf)}" target="_blank" rel="noopener">PDF file</a>` : ''}${r.share ? `<a class="btn" href="${esc(r.share)}" target="_blank" rel="noopener">Share page</a>` : ''}<button class="btn" onclick="AskUI.closeReport()">Close</button></div></div>${blocks}`;
   }
   function openReport(id, print = false) {
     const r = (A.reports || []).find(x => x.id === id) || A.chat.map(m => m.report).find(x => x && x.id === id);
@@ -434,5 +453,5 @@ window.AskUI = (() => {
   }
 
   function ask(q) { open(); const el = $('#askIn'); if (!el || !q) return; el.value = q; send(); }
-  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask, pin, chartHTML, stop, download };
+  return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask, pin, chartHTML, stop, download, mediaAction };
 })();

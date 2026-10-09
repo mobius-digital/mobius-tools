@@ -35,6 +35,7 @@ import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
+import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
@@ -1652,8 +1653,8 @@ export function buildStrategist(d) {
        The rest of the Viktor-grade pass (Slack, memory, skills, Locus API, files, web, live steps,
        Stop, cost line) is in strattools.js; docs/strategist-viktor-grade-plan.md is the plan. */
     model: 'claude-opus-5-5', strongModel: 'claude-opus-5-5', deepModel: 'claude-opus-5-5', strongWhen: null, deepWhen: null,
-    ...stratHooks(d),
-    tools: [...stratTools(d), ...writeTools(d), ...autoTools(d)],
+    ...stratHooks(d), ...makeHooks(d),
+    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d)],
     dropTools: ['remember'],
     liveSteps: true, progressNotes: true, fallbacks: 'default', workingEmoji: ['mobius'],
     webHistory: 16, webHistoryChars: 6000,
@@ -1664,7 +1665,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...autoActions(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...makeActions(d), ...autoActions(d)],
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',

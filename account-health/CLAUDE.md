@@ -1277,3 +1277,50 @@ Strategist's tools and cards, scheduled task / check / dashboard / report, route
   service binding with a minted Cole session and returns the answer; Ledger proposals are not applied from here.
 - NOT tested live at build time: TW hourly charts for past days (the curve), the 28-day Meta hourly backfill size, the web
   search prompt, posting an alert to a U id, a DM end to end, the Ledger binding answering.
+
+## 2026-10-09: THE STRATEGIST MAKES THINGS (`src/stratmake.js`): images, PDF reports, a code sandbox, Frame
+
+Cole: "can it build a nice PDF report? build images right then and there with Studio, analyze it, produce it in the
+chat? build dashboards and link them? Viktor can do literally all of that." Registered in strategist.js with one import
+and three spreads (`...makeHooks(d)`, `makeTools(d)`, `makeActions(d)`). Tests: `node test-stratmake.mjs` (18 offline
+checks; OpenAI, Anthropic, Shopify, Slack and Frame mocked).
+- **Engine hooks (ask/engine.js, generic):** a tool result may return `content` (an array of blocks, e.g. text + an image)
+  and `cost` (dollars spent outside the model, added to the answer's cost line); `onReport(env, report, ctx)` merges
+  fields into every make_report; `afterSlack(env, r, ctx)` runs after the answer and the report text are posted. A report
+  with `share` gets "Open the report" / "PDF" link buttons (one actions block each, action_id `noop_open`, the only link
+  id the router acks).
+- **make_image:** Studio's path (OpenAI GPT Image, key `p_studio_cfg.openai_key`, newest non-mini `gpt-image*` from
+  /v1/models). A named product = its Shopify photos (brand_accounts.tw_shop products.json, up to 3) + up to 2 photo
+  library shots (`p_asset.products` LIKE, thumb from R2) + its fingerprint (`dna:<brand>:<handle>`, else the storage
+  prefix). Brain excerpt (1,500 chars) for tone only. Formats 1:1 / 4:5 / 9:16 with Studio's layout rules. Stored at R2
+  `strat/<24 hex>.png`, row in `strat_media`, served by `GET /strat/<id>.<ext>` (public by id; `?dl=1` = attachment).
+  The model gets the image back (768px JPEG via the Images binding) and may redo ONCE (`redo_of` + `fix`). Caps: 4 per
+  answer, 60 a day (`settings.stratImgDay`). Slack: uploaded into the thread after the answer, never the one that was
+  redone. Locus: inline with Download and "Open in Studio" (`POST /api/strat/studio {id}`: copies the PNG to
+  `studio/ref/<id>.png` and makes a one-line DRAFT batch with it as inspiration; the team picks the product and Makes).
+- **Reports:** every make_report gets a token in `strat_report` (32 hex): `GET /r/<token>` = the light, printable page with
+  the Locus header (public, noindex), `GET /api/report-public?t=` = the spec, `GET /r/<token>.pdf` = the PDF. **PDF path:
+  Anthropic's code sandbox, not Browser Rendering.** This worker has no `browser` binding and no package.json; adding
+  @cloudflare/puppeteer would make every other deploy of it need npm install. The sandbox has reportlab + matplotlib, so
+  `scripts/render_report.py` (bundled into `src/reportpy.js` by `node scripts/build_reportpy.mjs`; check it locally with
+  `python scripts/render_report.py spec.json out.pdf`) is uploaded with the spec through the Files API and Haiku 4.5 runs
+  one fixed command that writes `$OUTPUT_DIR/report.pdf`. Kept in R2 `strat/rep-<token>.pdf`. Slack renders it while the
+  answer is written and uploads it after the report text; Locus renders on the first click of "PDF file".
+- **run_analysis:** its OWN Messages request (Opus 5.5, effort medium, `code_execution_20260521`, falls back to
+  `_20250825`), never beside web_search/web_fetch (those bundle their own code execution). The rows the Strategist already
+  fetched go up as `container_upload`; files the sandbox leaves in `$OUTPUT_DIR` come back by `file_id`
+  (`outputFileIds`), go to R2 + `strat_media`, then the Slack thread or Locus downloads; the Files API copies are deleted.
+  Caps: 3 per answer, 170 s, 2 MB of data, 6 files; pause_turn continues on the same container.
+- **Frame (V4):** tools `frame_list` (project = input, else the brand's `connections` kind frame link, else the project
+  named like the brand; folders by a path of names or an id) and `frame_share` (POST `/projects/<p>/shares`, type asset,
+  public by default, downloads off, returns `short_url`); Apply cards `frame_folder` (refuses a twin name) and
+  `frame_move` (PATCH `/files|folders/<id>/move`). **NO DELETE, no archive, nothing that removes**: a test checks it.
+- **Dashboards:** save_dashboard already builds from words, so no new tool. The Slack Apply reply now turns any Locus /
+  share / Frame link in the note into a button ("Open the dashboard" for `?open=dash`); Locus links them in the card.
+- **Costs per use:** image $0.25 (1:1) to $0.42 (9:16) from OpenAI's usage, plus the model looking at it (~1.5k tokens);
+  PDF ~$0.003 of Haiku tokens (container time is inside the free 1,550 hours a month); analysis ~$0.05 to $0.40.
+- **Verified live 2026-10-09:** `/r/<token>` page and `/r/<token>.pdf` on a test row: Files API upload, the sandbox run
+  (Haiku 4.5 + `code_execution_20260521`), the reportlab render and the download back all worked, 13 s, a clean 2-page PDF
+  (test row and file removed after). **NOT tested live (mocks only):** make_image through this worker (needs a real ask;
+  Studio's own key), run_analysis on Opus (same sandbox code as the PDF, so the plumbing is proven; the analysis is not),
+  Slack uploads of images / PDFs from the queue, every Frame call (list, share body, folder, move).
