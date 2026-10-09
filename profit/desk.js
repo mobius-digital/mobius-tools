@@ -69,7 +69,7 @@
       .dk .dk-day{height:34px;border-radius:6px;border:1px solid var(--line);background:var(--surface-2);cursor:pointer;padding:0;display:flex;align-items:flex-end;justify-content:center}
       .dk .dk-day i{font-style:normal;font-size:9.5px;color:var(--muted);padding-bottom:2px}
       .dk .dk-day.green{background:var(--good-bg);border-color:transparent}.dk .dk-day.amber{background:var(--warn-bg);border-color:var(--warn)}.dk .dk-day.red{background:var(--bad);border-color:var(--bad)}.dk .dk-day.red i{color:#fff}
-      .dk .dk-day.sel{outline:2px solid var(--brand);outline-offset:1px}
+      .dk .dk-day.sel{outline:0;border-color:var(--brand);box-shadow:inset 0 0 0 1.5px var(--brand),inset 0 0 0 3px var(--surface)}.dk .dk-day.sel i{color:var(--ink);font-weight:650}.dk .dk-day.red.sel i{color:#fff}.dk .dk-day:focus-visible{outline:2px solid var(--brand);outline-offset:2px}.dk .dk-day:hover:not(.sel){border-color:var(--line-strong)}
       .dk-dot.mixed{background:var(--warn-bg);border-color:var(--warn)}
       .dk .dk-pl{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
       .dk .dk-pl>div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
@@ -104,7 +104,7 @@
     const agency = (H.S.accounts || []).length > 1;
     const [vt, tone] = MDV[sel.verdict] || MDV.normal;
     const answer = `<div class="dk-answer ${tone}"><span class="d">${wdl(sel.date)} ${md(sel.date)}</span><b>${vt}</b><span class="n">${sel.hits} of 4 signs</span></div>`;
-    const strip = `<div class="dk-days">${days.map(d => `<button type="button" class="dk-day ${(MDV[d.verdict] || MDV.normal)[1]}${d.date === MDSEL ? ' sel' : ''}" data-d="${d.date}"${U().tipAttr(`<b>${wd(d.date)} ${md(d.date)}: ${(MDV[d.verdict] || MDV.normal)[0]}</b><br>${d.hits} of 4 signs`)}><i>${md(d.date).split(' ')[1]}</i></button>`).join('')}</div>
+    const strip = `<div class="dk-days">${days.map(d => `<button type="button" class="dk-day ${(MDV[d.verdict] || MDV.normal)[1]}${d.date === MDSEL ? ' sel' : ''}" data-d="${d.date}"${U().tipAttr(`<b>${wdl(d.date)}, ${md(d.date)}</b><br>${(MDV[d.verdict] || MDV.normal)[0]} · ${d.hits ? `${d.hits} of 4 signs` : 'no signs'}`)}><i>${md(d.date).split(' ')[1]}</i></button>`).join('')}</div>
       <div class="dk-key"><span><i class="dk-dot good"></i>Normal</span><span><i class="dk-dot mixed"></i>Mixed: one sign</span><span><i class="dk-dot vbad"></i>Bad: two or more signs</span><span class="faint">Click a day to see its signs.</span></div>`;
     const s = sel.signs || {};
     const sign = (on, label, big, small, tip) => `<div class="${on == null ? 'grey' : on ? 'red' : 'green'}"><span class="l">${label}</span><b>${big}</b><span class="v2hint" style="margin:0"${tip ? U().tipAttr(tip) : ''}>${small || ''}</span></div>`;

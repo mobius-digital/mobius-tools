@@ -1235,3 +1235,22 @@ META, ASANA AND DRIVE". Tests: `node test-metawrite.mjs` (14 offline checks, Gra
   2026-10-09 on Lucky 6859198499 and Bonk 2589863833: nothing refused (change_event, search_term_view, asset_group
   metrics and the Demand Gen ad fields all answered).
 - The Strategist reaches them through `locus_get` (routes.js rebuilt). strategist.js has no view for them on purpose.
+
+## 2026-10-09: the same Meta writes from a Locus screen, and Google campaign writes
+
+- `metawrite.js` section C: `locusWrite(env, d, {act, kind: pause|resume|budget|min_spend|rename|duplicate, level,
+  object, amount|min|cap|name|daily_budget, dry, expect}, {who})` runs the SAME action's propose + apply as the
+  Strategist (one code path: brand check, metaCan, before/after, p_meta_write, Change Log). `dry` returns summary,
+  detail, before; the write proposes again from a fresh read and refuses (`stale`) when `expect` no longer matches.
+  Budget from a screen passes `big: true` (the person typed the number; the modal warns over 50%). Logged with
+  `ctx.via = 'locus'`: event_type `locus_write`, actor "<email> in Locus". `locusUndo` (24h, same brand only) and
+  `metaLive(env, d, brand)` (live status, budgets, min/cap per object + `can` / fix per ad account, ~3 to 9 Graph reads).
+- Routes (worker.js, one block before Send to Slack): `GET /api/meta/live`, `POST /api/meta/write`, `POST /api/meta/undo`,
+  `POST /api/google/write`; admin + brandsFor. After a Meta write the synced row in meta_campaigns / meta_adsets takes the
+  new status / budget / name / min at once.
+- google.js `adsCampaignWrite(env, act, {kind: pause|resume|budget, object, amount, dry, validate, expect})`: reads the
+  campaign and its budget fresh, refuses shared and total budgets, `campaigns:mutate` (status) or
+  `campaignBudgets:mutate` (amount_micros), drops the `gads2:` cache. `adsReport` now carries `budget`, `budget_total`,
+  `budget_shared` per campaign (cache key `gads2:`).
+- Tests: test-metawrite.mjs has a Locus check (dry, stale, write logged as the person, undo, another brand refused,
+  read-only refused, metaLive). 15/15.

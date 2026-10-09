@@ -49,7 +49,8 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts } from './google.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
+import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7250,6 +7251,46 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (r) return r;
     }
 
+    /* ---- Edit in place on Ads > Meta / Google > Campaigns (2026-10-09) ----
+       Cole: "How do I actually make changes from within the dashboard?" GET /api/meta/live?act= = live status, budgets
+       and whether the token may write; POST /api/meta/write {act, kind, level, object, amount|min|cap|name, dry, expect}
+       runs metawrite.js's own propose + apply (one code path with the Strategist: brand check, Manage check, p_meta_write
+       for undo, the Change Log line as the person); POST /api/meta/undo {act, write} within 24h. POST /api/google/write
+       {act, kind: pause|resume|budget, object, amount, dry, expect} on google.js. Admin, and brandsFor limits. After a
+       Meta write the synced row (meta_campaigns / meta_adsets) takes the new value at once, so the screen agrees. */
+    if (path === '/api/meta/live' || path === '/api/meta/write' || path === '/api/meta/undo' || path === '/api/google/write') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const email = await sessionEmail(env, request).catch(() => null);
+      const only = await brandsFor(env, email).catch(() => null);
+      const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      const act = await resolveBrandId(env, String((request.method === 'POST' ? body.act : url.searchParams.get('act')) || '')).catch(() => '');
+      if (!/^[\w-]{3,80}$/.test(act)) return json({ error: 'Pick a brand first.' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const md = { xfetch, listAccounts, getSetting, putSetting };
+      const who = email || 'someone in Locus';
+      try {
+        if (path === '/api/meta/live') return json(await metaLive(env, md, act));
+        if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+        if (path === '/api/google/write') return json(await adsCampaignWrite(env, act, body));
+        if (path === '/api/meta/undo') {
+          const r = await metaLocusUndo(env, md, { act, write: body.write }, { who });
+          if (r.ok && r.before && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.before);
+          if (r.ok && r.after?.created) await env.DB.prepare(`UPDATE meta_adsets SET status = 'ARCHIVED' WHERE adset_id = ?1`).bind(String(r.after.created)).run().catch(() => {});
+          return json(r);
+        }
+        const r = await metaLocusWrite(env, md, { ...body, act }, { who });
+        if (r.ok && !r.dry && r.after && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.after);
+        return json(r);
+      } catch (e) { return json({ error: e.message }, 502); }
+      async function syncedRow(level, id, vals) {
+        const t = level === 'campaign' ? 'meta_campaigns' : 'meta_adsets', k = level === 'campaign' ? 'campaign_id' : 'adset_id';
+        const map = { status: ['status', v => v], name: ['name', v => v], daily_budget: ['daily_budget', v => (+v > 0 ? +v / 100 : null)], lifetime_budget: ['lifetime_budget', v => (+v > 0 ? +v / 100 : null)], daily_min_spend_target: ['min_spend', v => (+v > 0 ? +v / 100 : null)] };
+        for (const [f, v] of Object.entries(vals || {})) {
+          const m = map[f]; if (!m || (level === 'adset' && f === 'lifetime_budget')) continue;
+          await env.DB.prepare(`UPDATE ${t} SET ${m[0]} = ?2 WHERE ${k} = ?1`).bind(String(id), m[1](v)).run().catch(() => {});
+        }
+      }
+    }
     /* ---- Export > Send to Slack (Locus share.js, 2026-10-09) ----
        A picture of one Locus card into the brand's OWN internal (slack_channel) or client (brief_channel) channel.
        The channel is looked up here from the brand; the browser never names one. Admin, and a person limited to

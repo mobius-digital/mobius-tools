@@ -2298,3 +2298,33 @@ Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-se
   picture (the line does); everything else matched.
 - Files: share.js (new), index.html (`pillMenuInner` icon option, `shareHost`, boot + show hooks), v2.js (ad / campaign
   hooks), v2.css (block at the end), icons.js (`share`, `printer`), account-health worker.js (`/api/share/slack`).
+
+## 2026-10-09: Ads screens, Cole's pass (sort, columns, edit in place, export frame, Day check, parallel jobs)
+
+- **Tables you can sort and shape** (v2.js `TBL`): click any header to sort, again to flip (arrow on the column; CPA,
+  CPM, CPC and cost columns sort low first); the **Columns** menu (top-bar menu style, `.v2cols`) ticks columns on or off
+  and moves them up/down; "Back to the default". Saved per table in localStorage `pf_tbl_<id>` (`meta-camps`,
+  `google-camps`). Meta columns = everything `metaMetrics` returns (spend, purchases, Meta says, revenue, Meta revenue,
+  ROAS, CPA, CPM, CTR, CPC, frequency, impressions, reach, link clicks, hook, hold, add to cart, cost per ATC, click to
+  cart, cart to purchase) plus Status and Budget; the same columns and sort apply to ad set and ad rows (sorted inside
+  their parent). polish.js skips header icons on sortable tables (`th.v2srt`).
+- **Edit in place on Ads > Meta > Campaigns** (only the Campaigns job; Overview's table stays read only): a status
+  switch per campaign / ad set / ad, the budget (daily or lifetime, wherever Meta holds it), an ad set inside a campaign
+  budget shows its min / cap (click to set), and the row's ⋯ menu = Rename, Copy this ad set (paused), Open in Ads
+  Manager. Every edit opens one in-app modal (`editMeta`) with before -> after in dollars and %, a warning over 50%, then
+  writes, updates the row in place and shows a toast with Undo; the last change also sits in the table bar with Undo for
+  24h (`pf_mw_last`). Live status and budgets come from account-health `GET /api/meta/live?act=` on load (Meta's own
+  values; D1 can be 6h old); a read-only account says why on every control (the metaCan fix text).
+- **Google > Campaigns**: same table, plus a status switch and daily budget edit (`gEdit`, account-health
+  `POST /api/google/write`). Shared and total budgets are refused with the reason. Google ACCEPTS our mutates (checked
+  2026-10-09 with `validateOnly` on Lucky: pause and budget both validated). Undo = the toast writes the old value back.
+- **Jobs are parallel**: Meta = Overview, Campaigns, Ads (the creative gallery, page id still `adcreative`), Changes;
+  Google = Overview, Campaigns, Ads, Search terms, Changes. TAB_TITLE: Meta campaigns / Meta ads / Meta changes.
+- **Export frame** (share.js `frame`): the mark is drawn at its own shape (20 x 13; it is 2000 x 1294, it used to be
+  squeezed into 18 x 18), a 4px line in the mark's colours on top, the page as a small label over the brand, dates on
+  the right, a hairline footer with the mark, "Locus by Mobius Digital" and the attribution. The table bar and row ⋯
+  buttons are dropped from the picture. `LocusShare.picture(el)` returns the PNG blob (to check the frame by eye).
+- **Day check strip**: the chosen day is an inset ring at the square's own radius (was an offset outline cut by the
+  scrolling strip); tooltip = "Monday, Oct 5 / Mixed signals · 1 of 4 signs".
+- Not tested live: an actual Meta or Google write from the screen (all dry / validate only, so no client account was
+  touched); the write path is the Strategist's tested `metawrite.js` code (`node test-metawrite.mjs`).
