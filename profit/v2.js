@@ -299,7 +299,7 @@
     const m = body.querySelector('.v2pv-m');
     /* PLAY = META'S OWN PREVIEW (Cole, 2026-10-09: the mp4 was slow to start). The preview link is
        asked for the moment the panel opens, so Play is usually instant. The iframe is Meta's fixed
-       340x620 phone layout, scaled to fit the panel. The mp4 is only the fallback. */
+       340x620 phone layout, shown at that size (.pvf). The mp4 is only the fallback. */
     const pv = PREVIEWS.get(a.id) || H.apiAH(`/api/ad-video?ad=${encodeURIComponent(a.id)}&mode=preview`).catch(e => ({ error: e.message }));
     PREVIEWS.set(a.id, pv);
     body.querySelector('.v2play').onclick = async () => {
@@ -310,8 +310,6 @@
         if (link) {
           m.classList.add('pvf'); m.style.backgroundImage = 'none';
           m.innerHTML = `<iframe src="${esc(link)}" scrolling="no" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>`;
-          const fit = () => { const w = m.clientWidth, s = Math.min(1, w / 340); m.style.height = `${Math.round(620 * s)}px`; const f = m.querySelector('iframe'); if (f) { f.style.transform = `scale(${s})`; f.style.left = `${Math.round((w - 340 * s) / 2)}px`; } };
-          fit(); new ResizeObserver(fit).observe(m);
         } else m.innerHTML = `<video src="${esc(src)}" controls autoplay playsinline></video>`;
       } catch (e) { m.innerHTML = ''; m.classList.add('still'); if (THUMBS.has(a.id)) m.style.backgroundImage = `url("${THUMBS.get(a.id)}")`; m.insertAdjacentHTML('beforeend', `<span class="v2pill">${esc(e.message)}</span>`); }
     };
