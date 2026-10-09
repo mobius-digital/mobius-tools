@@ -1282,3 +1282,137 @@ tr.kl-sub > td{background:var(--surface-2);padding:8px 10px 12px 28px!important;
 .lx-links .lx-lt tr.dead td{color:var(--muted)}
 .lx-st{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:var(--r-pill);background:var(--surface-2);color:var(--muted)}
 .lx-st.on{background:var(--good-bg);color:var(--good)}
+
+/* =====================================================================================================
+   DASHBOARDS: ASK FIRST, AND THE HAND EDITOR AS A SHEET (2026-10-09). The composer at the top of
+   Dashboards sends words to the Strategist; "Build by hand" opens .de-sheet (editor left, live preview
+   right). Blocks reorder by .de-grip (pointer drag or arrow keys). Tokens only.
+   ===================================================================================================== */
+.de-ask{margin:0 0 var(--sp-3)}
+.de-askh{display:flex;align-items:flex-start;gap:var(--sp-3);padding:2px 4px 4px}
+.de-askh b{display:block;font-size:15px;font-weight:600;color:var(--ink)}
+.de-askh em{display:block;font-style:normal;font-size:13px;color:var(--muted);margin-top:2px;max-width:80ch}
+.de-bi{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:var(--r-sm);background:var(--brand-soft);color:var(--brand);flex:none}
+.de-bi svg{width:16px;height:16px}
+.de-ask textarea{min-height:68px}
+.de-ex{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);margin:0 0 var(--sp-6)}
+.de-ex .ds-label{margin:0 var(--sp-1) 0 0}
+.de-ex .ds-chip{height:auto;min-height:26px;padding:4px 11px;white-space:normal;text-align:left;line-height:1.35}
+.de-listl{margin:0 0 var(--sp-2)}
+html.de-open{overflow:hidden}
+.de-scrim{position:fixed;inset:0;z-index:300;background:color-mix(in srgb,var(--ink) 32%,transparent);display:flex;justify-content:center;align-items:flex-start;padding:var(--sp-6);animation:de-in 200ms var(--ease-out,ease)}
+@keyframes de-in{from{opacity:0}to{opacity:1}}
+.de-sheet{width:min(1240px,100%);height:calc(100vh - 48px);display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-sheet);overflow:hidden;animation:de-up 200ms var(--ease-out,ease)}
+@keyframes de-up{from{transform:translateY(8px) scale(.99);opacity:0}to{transform:none;opacity:1}}
+.de-top{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);background:var(--surface);border-bottom:1px solid var(--line);flex:none}
+.de-top h3{margin:0;font-size:18px;font-weight:650;letter-spacing:-.01em;color:var(--ink)}
+.de-top p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.de-acts{display:flex;align-items:center;gap:var(--sp-2);flex:none}
+.de-msg{font-size:12.5px;color:var(--bad);max-width:260px}
+.de-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(380px,460px) minmax(0,1fr)}
+.de-ed{overflow:auto;padding:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-4);border-right:1px solid var(--line);background:var(--bg)}
+.de-pv{overflow:auto;padding:var(--sp-5);background:var(--bg)}
+.de-pvh{display:flex;align-items:baseline;gap:var(--sp-3);margin:0 0 var(--sp-3)}
+.de-pvh .ds-label{margin:0}
+.de-pvs{font-size:12.5px;color:var(--muted)}
+.de-pvt{margin:0 0 var(--sp-4);font-size:20px;font-weight:650;letter-spacing:-.02em}
+.de-pvin .ds-blk,.de-pvin .v2card,.de-pvin .card{margin:0 0 var(--sp-4)}
+.de-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--sp-5)}
+.de-card > .ds-label{margin:0 0 var(--sp-3)}
+.de-grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin:0 0 var(--sp-3)}
+.de-f{display:flex;flex-direction:column;gap:6px;margin:0;min-width:0}
+.de-f > span{font-size:12.5px;font-weight:550;color:var(--ink-2)}
+.de-f input[type=text],.de-f select,.de-f textarea{width:100%;box-sizing:border-box;margin:0;height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px}
+.de-f textarea{height:auto;padding:8px 10px;resize:vertical;line-height:1.45}
+.de-f input:focus,.de-f select:focus,.de-f textarea:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.de-f .ds-seg{align-self:flex-start;flex-wrap:wrap}
+.de-help{margin:6px 0 0;font-size:12px;color:var(--muted);line-height:1.45}
+.de-bh{display:flex;flex-direction:column;gap:2px;margin:0 0 var(--sp-3)}
+.de-bh .ds-label,.de-bh .de-help{margin:0}
+.de-blocks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-2)}
+.de-blk{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);transition:transform 180ms var(--ease-out,ease),box-shadow 150ms,border-color 150ms;position:relative}
+.de-blk.de-drag{transition:none;z-index:2;box-shadow:var(--sh-pop);border-color:var(--brand)}
+.de-blk.open{border-color:var(--line-strong)}
+.de-blkh{display:flex;align-items:center;gap:var(--sp-1);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-1)}
+.de-grip{display:inline-grid;place-items:center;width:28px;height:36px;border:0;border-radius:var(--r-xs);background:transparent;color:var(--faint);cursor:grab;touch-action:none;flex:none}
+.de-grip svg{width:16px;height:16px;fill:currentColor;stroke:none}
+.de-grip:hover{color:var(--ink-2);background:var(--surface-2)}
+.de-drag .de-grip{cursor:grabbing;color:var(--brand)}
+.de-blkt{flex:1;min-width:0;display:flex;align-items:center;gap:var(--sp-3);border:0;background:transparent;padding:2px 4px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;border-radius:var(--r-sm)}
+.de-blkt > svg.ic{width:16px;height:16px;color:var(--muted);flex:none;transition:transform 150ms}
+.de-blk.open .de-blkt > svg.ic{transform:rotate(180deg)}
+.de-bt{flex:1;min-width:0;display:flex;flex-direction:column}
+.de-bt b{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.de-bt em{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.de-blkb{padding:var(--sp-3) var(--sp-4) var(--sp-4) calc(var(--sp-4) + 20px);display:flex;flex-direction:column;gap:var(--sp-3);border-top:1px solid var(--line)}
+.de-blkb .de-help{margin:0}
+.de-chips{display:flex;flex-wrap:wrap;gap:6px}
+.de-chips .ds-chip svg{width:12px;height:12px;color:var(--muted)}
+.de-chips .ds-chip:disabled{opacity:.45;cursor:not-allowed}
+.de-n{display:inline-grid;place-items:center;min-width:16px;height:16px;border-radius:var(--r-pill);background:var(--brand);color:var(--on-brand);font-size:10.5px;font-weight:700;padding:0 4px}
+.de-row3{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
+.de-tog{flex-direction:row;align-items:center;justify-content:space-between;grid-column:1/-1}
+.de-addl{margin:var(--sp-5) 0 var(--sp-2)}
+.de-add{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}
+.de-addb{display:flex;align-items:flex-start;gap:var(--sp-3);text-align:left;padding:var(--sp-3);border:1px dashed var(--line-strong);border-radius:var(--r-md);background:transparent;font:inherit;color:var(--ink);cursor:pointer;transition:border-color 150ms,background 150ms}
+.de-addb:hover:not(:disabled){border-color:var(--brand);border-style:solid;background:var(--surface)}
+.de-addb:disabled{opacity:.45;cursor:not-allowed}
+.de-addb .de-bi{width:28px;height:28px}
+.de-addb .de-bt b{font-size:13px;white-space:normal}
+.de-addb .de-bt em{white-space:normal;line-height:1.35}
+html.de-nosel,html.de-nosel *{user-select:none;-webkit-user-select:none}
+.de-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);margin:0}
+@media (max-width:900px){
+  .de-scrim{padding:0}
+  .de-sheet{height:100vh;border-radius:0;border:0}
+  .de-body{grid-template-columns:1fr;overflow:auto}
+  .de-ed{overflow:visible;border-right:0;border-bottom:1px solid var(--line);padding:var(--sp-4)}
+  .de-pv{overflow:visible;padding:var(--sp-4)}
+  .de-top{flex-wrap:wrap;padding:var(--sp-3) var(--sp-4)}
+  .de-top p{display:none}
+}
+@media (max-width:560px){.de-grid2,.de-add,.de-row3{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.de-scrim,.de-sheet{animation:none}.de-blk,.de-blkt > svg.ic{transition:none}}
+/* A checkbox drawn as the app switch (same look as .toggle, which is a div). Scenarios' cost switches and the
+   dashboard editor use it, so a real checkbox keeps its keyboard and form behaviour. */
+input.lx-sw{appearance:none;-webkit-appearance:none;width:34px;height:20px;border-radius:var(--r-pill);background:var(--line-strong);position:relative;cursor:pointer;flex:none;margin:0;border:0;transition:background 150ms var(--ease-out,ease)}
+input.lx-sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform 150ms var(--ease-out,ease)}
+input.lx-sw:checked{background:var(--brand)}
+input.lx-sw:checked::after{transform:translateX(14px)}
+input.lx-sw:focus-visible{outline:2px solid color-mix(in srgb,var(--brand) 75%,transparent);outline-offset:2px}
+.de-ask textarea::placeholder{color:var(--faint)}
+
+/* =====================================================================================================
+   SPACING PASS (2026-10-09, Cole: "the red Archive brand box has no padding from the white card around
+   it"). Every card pads 20px (16px under 720), inner boxes pad 16px 20px and sit 12px apart, and nothing
+   inner touches its card's edge. Brand settings drew its groups as cards with 2px top/bottom padding
+   (.brow-grp was a strip inside the old accordion) and kept the accordion's 14px 16px body inset, so the
+   cards sat 16px right of their section title and inner boxes touched the card's top and bottom.
+   ===================================================================================================== */
+[data-ui="v2"] .setpane.bmode .brow .brow-body{padding:0;border:0}
+[data-ui="v2"] .setpane.bmode .brow-grp{padding:4px 20px 20px;margin:0 0 16px;border-radius:var(--r-lg)}
+[data-ui="v2"] .setpane.bmode .brow-grp > .dc-block:first-of-type{margin-top:16px}
+[data-ui="v2"] .setpane.bmode .brow-grp > :last-child{margin-bottom:0}
+[data-ui="v2"] .setpane.bmode .brow-grp > .brow-f:last-child{border-bottom:0;padding-bottom:0}
+[data-ui="v2"] .dc-block{padding:16px 20px;margin:0 0 12px;border-radius:var(--r-md)}
+[data-ui="v2"] .dc-block > :last-child{margin-bottom:0}
+[data-ui="v2"] .brow-danger2{margin:20px 0 0;padding:16px 20px;border:1px solid color-mix(in srgb,var(--bad) 40%,var(--line));border-radius:var(--r-md);background:var(--bad-bg);gap:16px}
+[data-ui="v2"] .brow-danger2 > span{flex:1 1 320px;min-width:0;line-height:1.5}
+[data-ui="v2"] .brow-danger2 .tiny{display:inline-block;margin-top:4px;color:var(--ink-2)}
+[data-ui="v2"] .brow-danger2 .btn{flex:none;background:var(--surface);border-color:color-mix(in srgb,var(--bad) 45%,var(--line-strong));color:var(--bad)}
+/* Slack and sending: the automatic-post table wrapped its notes onto one line and ran 110px past the card. */
+[data-ui="v2"] .posts-tbl{table-layout:auto;margin-top:16px}
+[data-ui="v2"] .posts-tbl td,[data-ui="v2"] .posts-tbl th{white-space:normal;padding:10px 8px;vertical-align:top}
+[data-ui="v2"] .posts-tbl td:first-child,[data-ui="v2"] .posts-tbl th:first-child{padding-left:0}
+[data-ui="v2"] .posts-tbl td:last-child{color:var(--muted);font-size:12.5px;min-width:120px}
+/* Shared links table: 7px past its card at 1440. */
+[data-ui="v2"] .lx-links{overflow-x:auto}
+[data-ui="v2"] .lx-links .lx-lt{width:100%}
+[data-ui="v2"] .setpane.bmode .dc-block > .brow-f:last-child{border-bottom:0;padding-bottom:0}
+[data-ui="v2"] .g-sec{padding:20px;border-radius:var(--r-lg)}
+[data-ui="v2"] .g-sec .btn{white-space:nowrap}
+/* Settings sections: cards are 16px apart (two Integrations cards touched, others sat 14px or 40px apart). */
+[data-ui="v2"] .setpane section > .set-card{margin:0 0 16px}
+[data-ui="v2"] .setpane section > .set-card:last-child{margin-bottom:0}
+/* Brand > Client answers, At a glance: the 2nd and 3rd facts carried a phone-layout rule and sat 14px lower. */
+[data-ui="v2"] .br .br-glance > .gl-i{border-top:0;padding-top:0;margin-top:0}

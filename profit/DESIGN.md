@@ -278,3 +278,20 @@ get them too.
   muted line. The page head carries the same button for the whole page. Never add a separate Copy link button.
 - The exported picture is always light, on `--bg`, with the brand, the card, the dates and "Locus by Mobius Digital".
 - A `#card=` link rings the card once in `--brand` (2.4s); reduced motion = a static ring.
+
+## 12. Spacing rules and the shared editor pieces (2026-10-09)
+
+- **Nothing inner touches its card.** A card pads 20px (16px under 720). A box inside a card (a danger box, a check
+  block, a sub-card) pads 16px 20px, sits 12px from its siblings and at least 16px from the card's edges. A table
+  inside a card wraps its text or scrolls inside the card; it never runs past it.
+- **Cards align with their section title.** A settings section's cards start at the title's left edge; no extra inset.
+- **Danger zone**: `.brow-danger2` = `--bad-bg` tint, a 40% `--bad` hairline, `--r-md`, the button on the surface in
+  `--bad` text. One per page, at the bottom.
+- **Switch for a real checkbox**: `input.lx-sw` (34x20, the same look as `.toggle`, which is a div). Use it when the
+  control must stay a form element (keyboard, `change`).
+- **Reorder = a grip**, never arrows: `.de-grip` (Lucide grip-vertical drawn inline), pointer drag with the other rows
+  sliding, and focus + arrow keys with a polite live announcement.
+- **Editor sheet**: `.de-sheet` = the sheet spec (min(1240px), inset 24px, `--r-xl`, `--sh-sheet`), header with title,
+  one line, Cancel, one primary, close; body = the editor (left, 380 to 460px) and the live result (right).
+- **The loading line** at the top runs only for a page you asked for; it is cleared through `loadBar` (index.html), with
+  a 15s cap. Background repaints never show it.

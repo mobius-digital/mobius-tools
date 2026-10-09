@@ -2177,7 +2177,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=25">
+<link rel="stylesheet" href="v2.css?v=26">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=11"></script>
@@ -2297,9 +2297,9 @@
 <script src="clients.js?v=1"></script>
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=17"></script>
-<script src="calc.js?v=10"></script>
+<script src="calc.js?v=11"></script>
 <script src="v2.js?v=36"></script>
-<script src="desk.js?v=11"></script>
+<script src="desk.js?v=12"></script>
 <script src="calendar.js?v=8"></script>
 <script src="supply.js?v=2"></script>
 <script src="askextra.js?v=2"></script>
@@ -5009,13 +5009,29 @@ function renderPeriodBar(tab) {
 const HUB_TABS = new Set(['meta', 'campaigns', 'adcreative', 'google', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'tiktok', 'channels', 'store', 'email', 'website', 'search']);
 async function periodChanged() {
   const m = $('#main'); if (m && m.firstElementChild) m.classList.add('busy');
-  document.body.classList.add('pf-loading');
+  const bar = loadBar.start();
   const tab = S.tab, run0 = RUN;
   const snap = refreshAccounts();
-  if (!HUB_TABS.has(tab)) await snap;
-  if (RUN !== run0 || S.tab !== tab) return;   // the reader moved on while the snapshot loaded
-  inPlace(() => show(tab));
+  if (!HUB_TABS.has(tab)) await snap.catch(() => {});
+  if (RUN !== run0 || S.tab !== tab) { loadBar.end(bar); return; }   // the reader moved on while the snapshot loaded
+  inPlace(() => show(tab, { bar }));
 }
+/* THE TOP LOADING BAR (body.pf-loading), fixed 2026-10-09 after Cole: "I always see the line at the very top
+   pulsating". It used to clear only when `run === RUN` at the end of show(), but most renderers take their own
+   ticket (`const run = ++RUN`), so RUN had always moved on by then and the bar never cleared. Now the bar has
+   its own ticket: start() returns one, end(t) clears only the latest, a 15s safety timer clears it whatever
+   happens (a renderer that never resolves), and background re-renders (show() of the page already open, from a
+   callback rather than a click) never start it. */
+const loadBar = (() => {
+  let seq = 0, timer = 0;
+  const off = () => { clearTimeout(timer); document.body.classList.remove('pf-loading'); const m = document.getElementById('main'); if (m) m.classList.remove('busy'); };
+  return {
+    start() { const t = ++seq; document.body.classList.add('pf-loading'); clearTimeout(timer); timer = setTimeout(() => { if (t === seq) off(); }, 15000); return t; },
+    end(t) { if (t === seq) off(); },
+    clear() { seq++; off(); },
+  };
+})();
+window.loadBar = loadBar;
 
 /* ONE PLACE FOR GOALS (Cole, 2026-10-04). Every goal link in Locus lands here:
    Settings, with this brand's row open on its Goals box. */
@@ -5033,7 +5049,8 @@ window.openGoals = openGoals;
 
 window.showTab = tab => show(tab);
 const SHOWABLE = new Set(["gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
-function show(tab) {
+function show(tab, opt) {
+  const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
   /* Old ids that moved (2026-10-09): the Creative browser is Creative; 'brand' opens the brand view last used. */
   if (tab === 'mbrowser') tab = 'adcreative';
@@ -5129,10 +5146,13 @@ function show(tab) {
   }
   const m = $('#main');
   const first = !m.firstElementChild;
-  if (!first) m.classList.add('busy');
-  /* A thin bar runs across the top while a page loads, so a slow page reads as loading, not as a dead click. */
-  document.body.classList.add('pf-loading');
-  const done = () => { m.classList.remove('busy'); if (run === RUN) document.body.classList.remove('pf-loading'); };
+  /* A thin bar runs across the top while a page loads, so a slow page reads as loading, not as a dead click.
+     A background repaint (the same page, called from a callback, not a click or key) dims nothing and runs no bar. */
+  const ev = window.event, byHand = !!(ev && /^(click|keydown|keyup|pointerup|mouseup|change|input|submit|popstate|hashchange|touchend)$/.test(ev.type));
+  const quiet = !first && !(opt && opt.bar) && tab === prevTab && !byHand;
+  const bar = opt && opt.bar ? opt.bar : quiet ? 0 : loadBar.start();
+  if (!first && !quiet) m.classList.add('busy');
+  const done = () => { if (bar) loadBar.end(bar); };
   /* A RENDERER THAT THROWS MUST NOT LEAVE THE PREVIOUS TAB ON SCREEN.
      Without this, an unexpected payload - a field the API stopped sending, a
      shape that drifted - aborts the paint and #main keeps the OUTGOING tab's
@@ -6554,58 +6574,207 @@ function dashBlockHtml(b, all, spec, cur) {
   if (b.type === 'ads') return `<section class="v2card" data-adsblk="${esc(JSON.stringify(b))}" data-q="${esc(dashQuery(spec))}"><div class="v2h"><h3>${esc(b.title || 'Ads')}</h3></div><p class="v2hint">Loading the ads&hellip;</p></section>`;
   return '';
 }
-/* Build or edit a dashboard by hand (Locus v2): name, scope, range, compare, and the blocks
-   in order. Same spec the Strategist writes (DASH vocabulary), saved through PUT /api/dashboard. */
+/* BUILD OR EDIT A DASHBOARD BY HAND (rebuilt 2026-10-09 after Cole: "really badly formatted, barely any options,
+   uses arrows to reorder"). The front door is now "Ask the Strategist" at the top of Dashboards; this is the hand
+   editor behind it: a full sheet, the settings and the blocks on the left, the dashboard drawn LIVE on the right.
+   Blocks reorder by their grip (pointer drag, or focus the grip and press the arrow keys). Every option the spec
+   allows is here: name, for, brand, range, compare, block titles, up to 8 metrics per tile row and 8 columns per
+   brand table (in the order picked), note text, and a saved ads view's sort, size and grouping. The spec has ONE
+   range for the whole dashboard (cleanSpec in worker/src/dashboard.js), so there is no per-block date range.
+   Same spec the Strategist writes, saved through PUT /api/dashboard. */
 const DASH_BLOCK_L = { tiles: 'Number tiles', brands: 'One row per brand', channels: 'Where the money came from', daily: 'Revenue and spend by day', email: 'Email and SMS', note: 'A note' };
+const DASH_BLOCK_HELP = { tiles: 'Up to 8 headline numbers, each against the compare period.', brands: 'A table, one row per brand, up to 8 columns.', channels: 'Revenue and spend split by platform.', daily: 'Revenue against ad spend, day by day.', email: 'Email and SMS revenue and its share of the store.', note: 'A sentence or two the reader should know.', chart: 'A Strategist answer pinned from the chat.', ads: 'A saved view of one brand’s ads.' };
+const DASH_BLOCK_IC = { tiles: 'layout-grid', brands: 'users', channels: 'chart-column', daily: 'chart-line', email: 'mail', note: 'file-text', chart: 'sparkles', ads: 'image' };
+const DASH_ADS_SORT = { spend: 'Spend', purchases: 'Purchases', roas: 'ROAS', cpa: 'CPA', hook: 'Hook rate', hold: 'Hold rate', ctr: 'CTR', ltv: 'Customer value', newest: 'Newest' };
+const DASH_GRIP = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="5" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="9" cy="19" r="1.3"/><circle cx="15" cy="5" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="15" cy="19" r="1.3"/></svg>';
+const DASH_PREVIEW = new Map();   // query -> Promise of /api/overview, for the live preview
+const svgUse = n => `<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
 function dashEditor(d) {
   const spec = JSON.parse(JSON.stringify(d?.spec || { scope: S.act, range: '7', compare: 'prev', blocks: [{ type: 'tiles', title: 'The numbers', metrics: ['revenue', 'spend', 'mer', 'cac'] }] }));
-  const state = { name: d?.name || '', for_who: d?.for_who || '', spec };
-  const wrap = document.createElement('div'); wrap.className = 'modal-wrap';
-  const draw = () => {
-    const blocks = state.spec.blocks;
-    wrap.innerHTML = `<div class="modal" style="max-width:640px;width:100%"><h3>${d ? 'Edit the dashboard' : 'Build a dashboard'}</h3>
-      <p class="hint">Pick what goes on it, in the order you want to read it. It draws live every time it opens.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <label class="hint" style="margin:0">Name<input type="text" id="deName" value="${esc(state.name)}" placeholder="Ahsan every morning"></label>
-        <label class="hint" style="margin:0">For<input type="text" id="deFor" value="${esc(state.for_who)}" placeholder="Ahsan"></label>
-        <label class="hint" style="margin:0">Brand<select id="deScope"><option value="all">All brands</option>${S.accounts.map(a => `<option value="${a.act_id}" ${state.spec.scope === a.act_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
-        <label class="hint" style="margin:0">Range<select id="deRange">${Object.entries(DASH_RANGE_L).map(([k, l]) => `<option value="${k}" ${String(state.spec.range) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="hint" style="margin:0">Compare with<select id="deCmp">${[['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<option value="${k}" ${(state.spec.compare || 'prev') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      </div>
-      <div class="v2ed">${blocks.map((b, i) => `<div class="row"><span class="ty">${esc(DASH_BLOCK_L[b.type] || (b.type === 'chart' ? 'Pinned answer' : b.type === 'ads' ? 'Saved ads view' : b.type))}</span>
-          <div><input type="text" data-bt="${i}" value="${esc(b.title || '')}" placeholder="Title (optional)" style="width:100%">
-            ${b.type === 'tiles' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_TILES).map(([k, v]) => `<label><input type="checkbox" data-bm="${i}" value="${k}" ${(b.metrics || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
-            ${b.type === 'brands' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_COLS).map(([k, v]) => `<label><input type="checkbox" data-bc="${i}" value="${k}" ${(b.columns || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
-            ${b.type === 'note' ? `<textarea data-bn="${i}" placeholder="What the reader should know" style="margin-top:6px">${esc(b.text || '')}</textarea>` : ''}</div>
-          <span class="acts"><button type="button" data-up="${i}" title="Move up">↑</button><button type="button" data-dn="${i}" title="Move down">↓</button><button type="button" data-rm="${i}" title="Remove">✕</button></span></div>`).join('')}
-        <div class="row" style="grid-template-columns:auto 1fr auto"><span class="ty">Add</span><select id="deAdd">${Object.entries(DASH_BLOCK_L).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button type="button" class="btn" id="deAddB">Add block</button></div></div>
-      <p class="tiny" id="deMsg" style="min-height:16px;margin:10px 0 0"></p>
-      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn" type="button" id="deCancel">Cancel</button><button class="btn primary" type="button" id="deSave">Save</button></div></div>`;
-    const sync = () => {
-      state.name = wrap.querySelector('#deName').value; state.for_who = wrap.querySelector('#deFor').value;
-      state.spec.scope = wrap.querySelector('#deScope').value; state.spec.range = wrap.querySelector('#deRange').value; state.spec.compare = wrap.querySelector('#deCmp').value;
-      wrap.querySelectorAll('[data-bt]').forEach(el => { state.spec.blocks[+el.dataset.bt].title = el.value; });
-      wrap.querySelectorAll('[data-bn]').forEach(el => { state.spec.blocks[+el.dataset.bn].text = el.value; });
-      state.spec.blocks.forEach((b, i) => { if (b.type === 'tiles') b.metrics = [...wrap.querySelectorAll(`[data-bm="${i}"]:checked`)].map(x => x.value); if (b.type === 'brands') b.columns = [...wrap.querySelectorAll(`[data-bc="${i}"]:checked`)].map(x => x.value); });
-    };
-    const move = (i, j) => { sync(); const a = state.spec.blocks; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; draw(); };
-    wrap.querySelectorAll('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, +b.dataset.up - 1));
-    wrap.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => move(+b.dataset.dn, +b.dataset.dn + 1));
-    wrap.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { sync(); state.spec.blocks.splice(+b.dataset.rm, 1); draw(); });
-    wrap.querySelector('#deAddB').onclick = () => { sync(); const t = wrap.querySelector('#deAdd').value; state.spec.blocks.push(t === 'tiles' ? { type: t, title: '', metrics: ['revenue', 'spend'] } : t === 'brands' ? { type: t, title: '', columns: ['revenue', 'spend', 'mer', 'mtd_vs_plan'] } : { type: t, title: '' }); draw(); };
-    wrap.querySelector('#deCancel').onclick = () => wrap.remove();
-    wrap.querySelector('#deSave').onclick = async () => {
-      sync(); const msg = wrap.querySelector('#deMsg');
-      if (!state.name.trim()) { msg.textContent = 'Give it a name.'; return; }
-      if (!state.spec.blocks.length) { msg.textContent = 'Add at least one block.'; return; }
-      msg.textContent = 'Saving…';
-      try { const r = await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d?.id, name: state.name, for_who: state.for_who, act: state.spec.scope, spec: state.spec, schedule: d?.schedule || '', channel: d?.channel || '', pinned: true }) });
-        wrap.remove(); DS.id = r.id; try { localStorage.setItem('pf_dash', r.id); } catch {} show('dash'); }
-      catch (e) { msg.textContent = e.message; }
-    };
+  spec.scope = spec.scope || 'all'; spec.range = String(spec.range || '30'); spec.compare = spec.compare || 'prev'; spec.blocks = spec.blocks || [];
+  let uid = 0; spec.blocks.forEach(b => { b.__k = ++uid; });
+  const state = { name: d?.name || '', for_who: d?.for_who || '', spec, open: new Set(spec.blocks.slice(0, 1).map(b => b.__k)) };
+  const icon = svgUse;
+  const wrap = document.createElement('div'); wrap.className = 'de-scrim';
+  wrap.innerHTML = `<div class="de-sheet" role="dialog" aria-modal="true" aria-labelledby="deTitle">
+    <header class="de-top"><div><h3 id="deTitle">${d ? 'Edit the dashboard' : 'Build a dashboard'}</h3><p>Pick what goes on it, in the order you want to read it. The right side is the dashboard, live.</p></div>
+      <span class="de-acts"><span class="de-msg" id="deMsg" role="status"></span><button class="ds-btn" type="button" id="deCancel">Cancel</button><button class="ds-btn primary" type="button" id="deSave">${icon('check')}Save dashboard</button><button class="ds-iconbtn" type="button" id="deX" aria-label="Close">${icon('x')}</button></span></header>
+    <div class="de-body"><div class="de-ed" id="deEd"></div><div class="de-pv"><div class="de-pvh"><span class="ds-label">Live preview</span><span class="de-pvs" id="dePvS"></span></div><div class="v2 lx de-pvin" id="dePv"></div></div></div></div>`;
+  const ed = wrap.querySelector('#deEd'), pv = wrap.querySelector('#dePv');
+  const onKey = e => { if (e.key === 'Escape' && !wrap.querySelector('.de-drag')) close(); };
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); document.documentElement.classList.remove('de-open'); };
+  document.addEventListener('keydown', onKey);
+  const chips = (i, list, vocab, attr) => {
+    const picked = (list || []).filter(k => vocab[k]);
+    const ordered = picked.concat(Object.keys(vocab).filter(k => !picked.includes(k)));
+    return `<div class="de-chips" role="group">${ordered.map(k => { const on = picked.includes(k); return `<button type="button" class="ds-chip${on ? ' on' : ''}" ${attr}="${i}" data-v="${k}" aria-pressed="${on}"${!on && picked.length >= 8 ? ' disabled' : ''}>${on ? `<b class="de-n">${picked.indexOf(k) + 1}</b>` : icon('plus')}${esc(vocab[k][0])}</button>`; }).join('')}</div><p class="de-help">${picked.length} of 8 picked, shown in this order. Click to add or take one out.</p>`;
   };
-  draw(); document.body.appendChild(wrap);
-  wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
+  const blockBody = (b, i) => {
+    let x = `<label class="de-f"><span>Title</span><input type="text" data-bt="${i}" value="${esc(b.title || '')}" placeholder="${esc(b.type === 'daily' ? 'Day by day' : b.type === 'channels' ? 'Where the money came from' : 'No title')}" maxlength="80"></label>`;
+    if (b.type === 'tiles') x += `<div class="de-f"><span>Numbers</span>${chips(i, b.metrics, DASH_TILES, 'data-bm')}</div>`;
+    if (b.type === 'brands') x += `<div class="de-f"><span>Columns</span>${chips(i, b.columns, DASH_COLS, 'data-bc')}</div>`;
+    if (b.type === 'note') x += `<label class="de-f"><span>Text</span><textarea data-bn="${i}" rows="3" maxlength="600" placeholder="What the reader should know">${esc(b.text || '')}</textarea></label>`;
+    if (b.type === 'ads') x += `<div class="de-row3"><label class="de-f"><span>Sort by</span><select data-bs="${i}">${Object.entries(DASH_ADS_SORT).map(([k, l]) => `<option value="${k}"${(b.sort || 'spend') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="de-f"><span>How many</span><select data-bnn="${i}">${[4, 6, 8, 12, 16].map(n => `<option${(+b.n || 8) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="de-f de-tog"><span>One card per creative</span><input type="checkbox" class="lx-sw" data-bg="${i}"${b.group ? ' checked' : ''}></label></div>`;
+    if (b.type === 'chart') x += `<p class="de-help">Pinned from the chat${b.question ? `: "${esc(b.question)}"` : ''}. Ask the Strategist again to change what it shows.</p>`;
+    return x;
+  };
+  const blockName = b => DASH_BLOCK_L[b.type] || (b.type === 'chart' ? 'Pinned answer' : b.type === 'ads' ? 'Saved ads view' : b.type);
+  const drawEd = () => {
+    const sp = state.spec;
+    ed.innerHTML = `<section class="de-card"><div class="ds-label">The dashboard</div>
+      <div class="de-grid2">
+        <label class="de-f"><span>Name</span><input type="text" id="deName" value="${esc(state.name)}" placeholder="Ahsan every morning" maxlength="80"></label>
+        <label class="de-f"><span>For</span><input type="text" id="deFor" value="${esc(state.for_who)}" placeholder="Who reads it, e.g. Ahsan" maxlength="60"></label>
+        <label class="de-f"><span>Brand</span><select id="deScope"><option value="all">All brands</option>${S.accounts.map(a => `<option value="${a.act_id}" ${sp.scope === a.act_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+        <label class="de-f"><span>Dates</span><select id="deRange">${Object.entries(DASH_RANGE_L).map(([k, l]) => `<option value="${k}" ${sp.range === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      </div>
+      <div class="de-f"><span>Compare with</span><div class="ds-seg" role="radiogroup" aria-label="Compare with">${[['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<button type="button" role="radio" data-cmp="${k}" class="${sp.compare === k ? 'on' : ''}" aria-checked="${sp.compare === k}">${l}</button>`).join('')}</div></div>
+      <p class="de-help">One date range for the whole dashboard. It never follows the date picker at the top.</p></section>
+      <section class="de-card"><div class="de-bh"><div class="ds-label">Blocks, top to bottom</div><span class="de-help">${sp.blocks.length} of 10. Drag a grip to reorder, or focus it and press the arrow keys.</span></div>
+      ${sp.blocks.length ? `<ol class="de-blocks" id="deBlocks">${sp.blocks.map((b, i) => { const op = state.open.has(b.__k); return `<li class="de-blk${op ? ' open' : ''}" data-i="${i}">
+        <div class="de-blkh"><button type="button" class="de-grip" data-grip="${i}" aria-label="Move the ${esc(blockName(b))} block, position ${i + 1} of ${sp.blocks.length}. Use the up and down arrow keys" title="Drag to reorder">${DASH_GRIP}</button>
+          <button type="button" class="de-blkt" data-tog="${i}" aria-expanded="${op}"><span class="de-bi">${icon(DASH_BLOCK_IC[b.type] || 'layers')}</span><span class="de-bt"><b>${esc(b.title || blockName(b))}</b><em>${esc(b.title ? blockName(b) : (DASH_BLOCK_HELP[b.type] || ''))}${b.type === 'tiles' ? ` · ${(b.metrics || []).length} numbers` : b.type === 'brands' ? ` · ${(b.columns || []).length || 5} columns` : ''}</em></span>${icon('chevron-down')}</button>
+          <button type="button" class="ds-iconbtn" data-rm="${i}" aria-label="Remove the ${esc(blockName(b))} block" title="Remove">${icon('x')}</button></div>
+        ${op ? `<div class="de-blkb">${blockBody(b, i)}</div>` : ''}</li>`; }).join('')}</ol>`
+      : `<div class="ds-empty"><i>${icon('layers')}</i><p>No blocks yet. Add one below.</p></div>`}
+      <div class="ds-label de-addl">Add a block</div>
+      <div class="de-add">${Object.entries(DASH_BLOCK_L).map(([k, l]) => `<button type="button" class="de-addb" data-add="${k}"${sp.blocks.length >= 10 ? ' disabled' : ''}><span class="de-bi">${icon(DASH_BLOCK_IC[k])}</span><span class="de-bt"><b>${l}</b><em>${DASH_BLOCK_HELP[k]}</em></span></button>`).join('')}</div></section>
+      <p class="de-live" aria-live="polite" id="deLive"></p>`;
+    wire();
+  };
+  const val = sel => { const el = ed.querySelector(sel); return el ? el.value : ''; };
+  const sync = () => {
+    state.name = val('#deName'); state.for_who = val('#deFor');
+    state.spec.scope = val('#deScope') || 'all'; state.spec.range = val('#deRange') || '30';
+    ed.querySelectorAll('[data-bt]').forEach(el => { state.spec.blocks[+el.dataset.bt].title = el.value; });
+    ed.querySelectorAll('[data-bn]').forEach(el => { state.spec.blocks[+el.dataset.bn].text = el.value; });
+    ed.querySelectorAll('[data-bs]').forEach(el => { state.spec.blocks[+el.dataset.bs].sort = el.value; });
+    ed.querySelectorAll('[data-bnn]').forEach(el => { state.spec.blocks[+el.dataset.bnn].n = +el.value; });
+    ed.querySelectorAll('[data-bg]').forEach(el => { state.spec.blocks[+el.dataset.bg].group = el.checked; });
+  };
+  let pvT = 0;
+  const preview = () => { clearTimeout(pvT); pvT = setTimeout(drawPv, 220); };
+  const drawPv = async () => {
+    const sp = state.spec, q = dashQuery(sp);
+    if (!DASH_PREVIEW.has(q)) { const pr = api('/api/overview?' + q); DASH_PREVIEW.set(q, pr); pr.catch(() => DASH_PREVIEW.delete(q)); }
+    const st = wrap.querySelector('#dePvS'); if (st) st.textContent = `${sp.scope === 'all' ? 'All brands' : (S.accounts.find(a => a.act_id === sp.scope) || {}).name || 'One brand'} · ${DASH_RANGE_L[sp.range] || ''}${sp.compare !== 'none' ? ' · vs ' + CMP_LABEL[sp.compare] : ''}`;
+    if (!pv.firstElementChild) pv.innerHTML = '<div class="ds-sk" style="height:116px;border-radius:14px"></div><div class="ds-sk" style="height:240px;border-radius:14px;margin-top:16px"></div>';
+    let ov; try { ov = await DASH_PREVIEW.get(q); } catch (e) { pv.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    if (!wrap.isConnected || dashQuery(state.spec) !== q) return;
+    const all = sp.scope !== 'all' ? (ov.accounts || []).filter(a => a.act_id === sp.scope) : (ov.accounts || []);
+    const curs = [...new Set(all.map(a => a.currency))], cur = curs.length === 1 ? curs[0] : null;
+    const html = sp.blocks.map(b => dashBlockHtml(b, all, sp, cur)).join('');
+    pv.innerHTML = html ? (state.name ? `<h2 class="de-pvt">${esc(state.name)}</h2>` : '') + html : `<div class="ds-empty"><i>${icon('layout-grid')}</i><p>Add a block on the left and it shows here.</p></div>`;
+    pv.querySelectorAll('[data-adsblk]').forEach(el => { if (window.V2 && V2.adsBlock) { let bb = {}; try { bb = JSON.parse(el.dataset.adsblk); } catch {} V2.adsBlock(el, bb, el.dataset.q, v2Host()); } });
+    pv.querySelectorAll('tr[data-id]').forEach(r => { r.removeAttribute('role'); r.removeAttribute('tabindex'); r.classList.remove('link'); });
+  };
+  const live = t => { const el = ed.querySelector('#deLive'); if (el) el.textContent = t; };
+  const moveBlock = (from, to, focus) => {
+    sync(); const a = state.spec.blocks; if (to < 0 || to >= a.length || from === to) return;
+    const [x] = a.splice(from, 1); a.splice(to, 0, x); drawEd(); preview();
+    live(`${blockName(x)} moved to position ${to + 1} of ${a.length}.`);
+    if (focus) { const g = ed.querySelector(`[data-grip="${to}"]`); if (g) g.focus(); }
+  };
+  /* Drag by the grip: pointer events; the block follows the pointer and the others slide to make room. */
+  const startDrag = (e, i) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const list = ed.querySelector('#deBlocks'), items = [...list.children], li = items[i];
+    const r0 = li.getBoundingClientRect(), y0 = e.clientY;
+    const mids = items.map(x => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; });
+    const h = r0.height + 8; let to = i;
+    li.classList.add('de-drag'); list.classList.add('de-dragging'); document.documentElement.classList.add('de-nosel'); try { getSelection().removeAllRanges(); } catch {}
+    const grip = e.currentTarget; try { grip.setPointerCapture(e.pointerId); } catch {}
+    const move = ev => {
+      const dy = ev.clientY - y0; li.style.transform = `translateY(${dy}px)`;
+      const cy = r0.top + r0.height / 2 + dy; to = i;
+      mids.forEach((m, k) => { if (k < i && cy < m) to = Math.min(to, k); if (k > i && cy > m) to = Math.max(to, k); });
+      items.forEach((x, k) => { if (k === i) return; x.style.transform = k >= to && k < i ? `translateY(${h}px)` : k <= to && k > i ? `translateY(${-h}px)` : ''; });
+    };
+    const up = () => {
+      grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up);
+      items.forEach(x => { x.style.transform = ''; }); li.classList.remove('de-drag'); list.classList.remove('de-dragging'); document.documentElement.classList.remove('de-nosel');
+      if (to !== i) moveBlock(i, to, true);
+    };
+    grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+  };
+  const wire = () => {
+    ed.querySelectorAll('input[type=text],textarea').forEach(el => el.addEventListener('input', () => {
+      sync(); preview();
+      if (el.dataset.bt != null) { const t = el.closest('.de-blk').querySelector('.de-bt b'); if (t) t.textContent = el.value || blockName(state.spec.blocks[+el.dataset.bt]); }
+    }));
+    ed.querySelectorAll('select,input[type=checkbox]').forEach(el => el.addEventListener('change', () => { sync(); preview(); }));
+    ed.querySelectorAll('[data-cmp]').forEach(b => b.onclick = () => { sync(); state.spec.compare = b.dataset.cmp; drawEd(); preview(); const a = ed.querySelector(`[data-cmp="${b.dataset.cmp}"]`); if (a) a.focus(); });
+    const toggleIn = (attr, key) => ed.querySelectorAll(`[${attr}]`).forEach(c => c.onclick = () => {
+      sync(); const bi = c.getAttribute(attr), blk = state.spec.blocks[+bi], list = blk[key] = (blk[key] || []).slice(), v = c.dataset.v, at = list.indexOf(v);
+      if (at >= 0) { if (blk.type === 'tiles' && list.length === 1) { live('A row of tiles needs at least one number.'); return; } list.splice(at, 1); }
+      else if (list.length < 8) list.push(v);
+      drawEd(); preview(); const again = ed.querySelector(`[${attr}="${bi}"][data-v="${v}"]`); if (again) again.focus();
+    });
+    toggleIn('data-bm', 'metrics'); toggleIn('data-bc', 'columns');
+    ed.querySelectorAll('[data-tog]').forEach(b => b.onclick = () => { sync(); const k = state.spec.blocks[+b.dataset.tog].__k; if (state.open.has(k)) state.open.delete(k); else state.open.add(k); drawEd(); const t = ed.querySelector(`[data-tog="${b.dataset.tog}"]`); if (t) t.focus(); });
+    ed.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { sync(); const [x] = state.spec.blocks.splice(+b.dataset.rm, 1); drawEd(); preview(); live(`${blockName(x)} removed.`); });
+    ed.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+      sync(); const t = b.dataset.add;
+      const nb = t === 'tiles' ? { type: t, title: '', metrics: ['revenue', 'spend', 'mer'] } : t === 'brands' ? { type: t, title: '', columns: ['revenue', 'mtd_vs_plan', 'spend', 'mer'] } : t === 'note' ? { type: t, title: '', text: '' } : { type: t, title: '' };
+      nb.__k = ++uid; state.spec.blocks.push(nb); state.open.add(nb.__k); drawEd(); preview();
+      const last = ed.querySelector('.de-blk:last-child'); if (last) { last.scrollIntoView({ block: 'nearest' }); const f = last.querySelector('input,textarea'); if (f) f.focus({ preventScroll: true }); }
+    });
+    ed.querySelectorAll('[data-grip]').forEach(g => {
+      const i = +g.dataset.grip;
+      g.addEventListener('pointerdown', e => startDrag(e, i)); g.addEventListener('mousedown', e => e.preventDefault());
+      g.addEventListener('keydown', e => { if (e.key === 'ArrowUp') { e.preventDefault(); moveBlock(i, i - 1, true); } else if (e.key === 'ArrowDown') { e.preventDefault(); moveBlock(i, i + 1, true); } });
+    });
+  };
+  wrap.querySelector('#deCancel').onclick = close; wrap.querySelector('#deX').onclick = close;
+  wrap.addEventListener('mousedown', e => { if (e.target === wrap) close(); });
+  wrap.querySelector('#deSave').onclick = async () => {
+    sync(); const msg = wrap.querySelector('#deMsg');
+    if (!state.name.trim()) { msg.textContent = 'Give it a name.'; const n = ed.querySelector('#deName'); if (n) n.focus(); return; }
+    const blocks = state.spec.blocks.filter(b => b.type !== 'note' || (b.text || '').trim()).map(b => { const c = { ...b }; delete c.__k; return c; });
+    if (!blocks.length) { msg.textContent = 'Add at least one block.'; return; }
+    msg.textContent = 'Saving…';
+    try { const r = await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d?.id, name: state.name.trim(), for_who: state.for_who.trim(), act: state.spec.scope, spec: { ...state.spec, blocks }, schedule: d?.schedule || '', channel: d?.channel || '', pinned: true }) });
+      close(); DS.id = r.id; try { localStorage.setItem('pf_dash', r.id); } catch {} show('dash'); }
+    catch (e) { msg.textContent = e.message; }
+  };
+  drawEd(); document.body.appendChild(wrap); document.documentElement.classList.add('de-open'); preview();
+  setTimeout(() => { const n = ed.querySelector('#deName'); if (n && !n.value) n.focus(); }, 60);
+}
+
+/* "Ask the Strategist to build it" (2026-10-09): the front door of Dashboards. The words go to the Strategist,
+   which answers with a save_dashboard action; Apply in the chat saves it and it lands on this page. */
+const DASH_EXAMPLES = [
+  'Spend, revenue and MER per brand against last week, posted to our channel every morning',
+  'One page for {b}: revenue, MER, cost per new customer and email share, last 30 days against last year',
+  'Monday check for Ahsan: Meta and Google spend for every brand, month to date against plan',
+  'Email and SMS revenue and its share of the store for every brand, last 7 days',
+];
+function dashAsk(text, change) {
+  const t = String(text || '').trim(); if (!t) return;
+  const one = S.act !== 'all' ? (S.accounts.find(a => a.act_id === S.act) || {}).name : '';
+  const q = change ? `Change the dashboard "${change}" and save it with save_dashboard (same name): ${t}`
+    : `Build a dashboard and save it with save_dashboard${one ? ` (for ${one} unless I name another brand)` : ' (all brands unless I name one)'}: ${t}`;
+  if (window.AskUI && AskUI.ask) AskUI.ask(q); else if (window.AskUI) AskUI.open(q);
+}
+function dashComposer() {
+  const one = S.act !== 'all' ? (S.accounts.find(a => a.act_id === S.act) || {}).name : '';
+  const ex = DASH_EXAMPLES.map(e => e.replace('{b}', one || 'Lucky Golf'));
+  return `<section class="ds-composer de-ask" aria-label="Ask the Strategist to build a dashboard">
+    <div class="de-askh"><span class="de-bi">${svgUse('sparkles')}</span><span><b>Ask the Strategist to build it</b><em>Say what you look at, who it is for and when it should post. It builds the dashboard; press Apply in the chat and it lands here.</em></span></div>
+    <label class="sr-only" for="dsAskIn">Describe the dashboard</label><textarea id="dsAskIn" rows="3" placeholder="e.g. ${esc(ex[0])}"></textarea>
+    <div class="ds-composer-row"><span class="ds-chip">${svgUse('layers')}${esc(one || 'All brands')}</span><span class="sp"></span><button class="ds-btn ghost" type="button" id="dsMake">${svgUse('sliders')}Build by hand</button><button class="ds-btn primary" type="button" id="dsAskGo">${svgUse('send')}Build it</button></div>
+  </section>
+  <div class="de-ex"><span class="ds-label">Try</span>${ex.map(e => `<button type="button" class="ds-chip" data-ex="${esc(e)}">${esc(e)}</button>`).join('')}</div>`;
+}
+function wireDashComposer() {
+  const inp = $('#dsAskIn'), go = $('#dsAskGo');
+  if (go) go.onclick = () => { if (!inp.value.trim()) { inp.focus(); return; } dashAsk(inp.value); inp.value = ''; };
+  if (inp) inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go.click(); } };
+  $('#main').querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { inp.value = b.dataset.ex; inp.focus(); });
+  const mk = $('#dsMake'); if (mk) mk.onclick = () => dashEditor(null);
 }
 
 async function renderDash(first) {
@@ -6623,17 +6792,15 @@ async function renderDash(first) {
         <span class="ds-meta">${d.act ? esc(nameOf(d.act)) : 'All brands'} &middot; ${DASH_RANGE_L[d.spec?.range] || 'Last 30 days'}${d.for_who ? ` &middot; for ${esc(d.for_who)}` : ''}</span>
         <span class="ds-meta">${(d.spec?.blocks || []).length} block${(d.spec?.blocks || []).length === 1 ? '' : 's'}${d.schedule ? ` &middot; posts ${DASH_SCHED_L[d.schedule].toLowerCase()}${d.channel ? '' : ' (no channel yet)'}` : ''}</span>
       </button>`;
-    $('#main').innerHTML = shell(`${LX.say(mine.length ? `<b>${mine.length} dashboard${mine.length === 1 ? '' : 's'}</b>${S.act === 'all' ? '' : ' for this brand and the agency'}. Each draws live when it opens${mine.some(x => x.schedule) ? `, and ${mine.filter(x => x.schedule).length} post${mine.filter(x => x.schedule).length === 1 ? 's' : ''} itself to Slack` : ''}.` : 'No dashboards yet. Ask the Strategist for one in words, or build one by hand.')}
-      <div class="card hm-soon"><div class="hm-soon-h"><h3>Ask for a dashboard in words</h3></div>
-        <p class="hint">Tell the Strategist what you look at every day and who it is for. It builds the dashboard, you press Apply, and it lands here. Say "post it to our channel every morning" and it will.</p>
-        <div class="row" style="margin:10px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="dsNew">Ask the Strategist for one</button><button class="btn" type="button" id="dsMake">Build one by hand</button><span class="tiny">Try: "Build Ahsan a dashboard: spend, revenue and MER per brand against last week, plus Meta and Google side by side, every morning in #mobius-internal."</span></div></div>
-      ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="card"><p class="hint">No dashboards yet${S.act === 'all' ? '' : ' for this brand'}.</p></div>`}
+    $('#main').innerHTML = shell(`${LX.say(mine.length ? `<b>${mine.length} dashboard${mine.length === 1 ? '' : 's'}</b>${S.act === 'all' ? '' : ' for this brand and the agency'}. Each draws live when it opens${mine.some(x => x.schedule) ? `, and ${mine.filter(x => x.schedule).length} post${mine.filter(x => x.schedule).length === 1 ? 's' : ''} itself to Slack` : ''}.` : 'No dashboards yet. Say what you want to see and the Strategist builds it.')}
+      ${dashComposer()}
+      <div class="ds-label de-listl">Saved dashboards</div>
+      ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="v2card"><div class="ds-empty"><i>${svgUse('layout-grid')}</i><p>No dashboards yet${S.act === 'all' ? '' : ' for this brand'}. Ask for one above.</p></div></div>`}
       <div id="dsAlerts"></div><div id="dsSched"></div>`);
     /* Scheduled questions sit here since 2026-10-09 (were Settings > The Strategist): like a dashboard, they post themselves to Slack. */
     if (window.AskX && AskX.schedules) AskX.schedules($('#dsSched'));
     if (window.AskX && AskX.alerts) AskX.alerts($("#dsAlerts"));
-    $('#dsNew').onclick = () => AskUI.open(`Build ${S.act === 'all' ? 'us' : (S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand'} a dashboard that shows `);
-    const mk = $('#dsMake'); if (mk) mk.onclick = () => dashEditor(null);
+    wireDashComposer();
     $('#main').querySelectorAll('[data-open]').forEach(b => b.onclick = () => { DS.id = b.dataset.open; try { localStorage.setItem('pf_dash', DS.id); } catch {} show('dash'); });
     return;
   }
@@ -6661,7 +6828,8 @@ async function renderDash(first) {
       <span class="ds-ctl"><label>Posts to Slack <select id="dsSched">${Object.entries(DASH_SCHED_L).map(([k, l]) => `<option value="${k}" ${k === (d.schedule || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label>Channel <select id="dsChan">${chanOpts.map(([v, l]) => `<option value="${esc(v)}" ${v === (d.channel || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <button class="btn" type="button" id="dsPost">Post to Slack now</button>
-        <button class="btn" type="button" id="dsEdit">Edit</button>
+        <button class="btn" type="button" id="dsAskCh">Change it with the Strategist</button>
+        <button class="btn" type="button" id="dsEdit">Edit by hand</button>
         <button class="btn" type="button" id="dsDel" style="color:var(--bad)">Delete</button></span>
     </div>
     <p class="lx-msg" id="dsMsg" style="min-height:16px;margin:-6px 0 0">${d.last_posted ? `Last posted ${esc(String(d.last_posted).slice(0, 16).replace('T', ' '))} UTC.` : ''}</p>
@@ -6674,6 +6842,7 @@ async function renderDash(first) {
   $('#dsSched').onchange = save; $('#dsChan').onchange = save;
   $('#dsPost').onclick = async () => { const b = $('#dsPost'); b.disabled = true; msg('Posting…'); try { const r = await apiAH('/api/dashboard-post', { method: 'POST', body: JSON.stringify({ id: d.id, channel: $('#dsChan').value }) }); msg(r.error || `Posted to Slack (${r.brands} brand${r.brands === 1 ? '' : 's'}).`); } catch (e) { msg(e.message); } b.disabled = false; };
   $('#dsEdit').onclick = () => dashEditor(d);
+  $('#dsAskCh').onclick = () => { if (window.AskUI) AskUI.open('Change the dashboard "' + d.name + '" and save it with save_dashboard (same name): '); };
   $('#dsDel').onclick = async () => { if (!(await confirmModal('Delete this dashboard?', 'It disappears from Locus and stops posting to Slack. The Strategist can build it again from the same words.', 'Delete'))) return; try { await api(`/api/dashboard?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }); DS.id = ''; localStorage.setItem('pf_dash', ''); show('dash'); } catch (e) { msg(e.message); } };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
 }

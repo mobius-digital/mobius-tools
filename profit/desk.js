@@ -320,25 +320,120 @@
   }
 
   /* =========================================================================================
-   * TOOLS > PLATFORM STATUS (Pulse)
+   * TOOLS > PLATFORM STATUS (Pulse). v2 pass 2026-10-09 (Cole: "looks bland, not updated for the new UI"):
+   * the answer first, four tiles, every platform as a card with its logo and a status chip (problems first),
+   * the last 14 days as bars you can hover, and the change log as a table you can filter by platform, with how
+   * long each problem lasted. Same public Pulse feed, read every time the page opens or "Check again" is pressed.
    * ======================================================================================= */
+  const PULSE_LOGO = { meta: 'meta', 'google-ads': 'google-ads', shopify: 'shopify', openai: 'openai', anthropic: 'anthropic', 'tiktok-ads': 'tiktok' };
+  const PULSE_ST = { operational: ['good', 'Working'], degraded: ['warn', 'Degraded'], partial: ['warn', 'Partial outage'], outage: ['bad', 'Outage'], major: ['bad', 'Major outage'], maintenance: ['warn', 'Maintenance'] };
+  let PULSE_F = '';
   async function pulse(first) {
-    css();
+    css(); pulseCss();
     const t = H.RUN();
-    if (first) $('#main').innerHTML = shell('pulse', 'Platform status', U().card('', '', '<p class="v2hint">Loading…</p>'));
-    let d; try { const r = await fetch(PULSE, { cache: 'no-store' }); d = await r.json(); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('pulse', 'Platform status', U().card('Pulse did not answer', '', `<p class="v2hint">${esc(e.message)}</p>`)); return; }
+    const chrono = iso => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+    if (first) $('#main').innerHTML = shell('pulse', 'Platform status', `<div class="pu-sk"><i></i><span><i></i><i></i><i></i><i></i></span><i style="height:260px"></i></div>`);
+    let d; try { const r = await fetch(PULSE, { cache: 'no-store' }); if (!r.ok) throw new Error('Pulse answered ' + r.status); d = await r.json(); }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('pulse', 'Platform status', U().card('Pulse did not answer', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
-    const pill = s => s === 'operational' ? '<span class="v2pill good">Working</span>' : s === 'degraded' || s === 'partial' ? '<span class="v2pill warn">Degraded</span>' : s ? `<span class="v2pill bad">${esc(s)}</span>` : '<span class="v2pill">No feed</span>';
-    const plats = (d.platforms || []).map(p => { const st = p.state || null, bad = st ? Object.values(st.services || {}).filter(x => x.state !== 'operational') : [];
-      return `<div><span style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${esc(p.name)}</b>${pill(st ? st.worst : null)}</span>
-        <span class="v2hint" style="margin:0">${st ? (bad.length ? bad.slice(0, 3).map(x => esc(`${x.name}: ${x.note || x.state}`)).join('<br>') : 'No known issues') : 'No public feed: check its status page.'}</span>
-        ${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener" class="v2hint" style="margin:0">Status page</a>` : ''}</div>`; }).join('');
-    const inc = (d.incidents || []).slice(0, 20).map(i => `<tr><td class="faint" style="white-space:nowrap">${new Date(i.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })}</td><td><b>${esc(i.platform)}</b></td><td>${esc(i.service || '')}</td><td>${i.kind === 'resolved' ? '<span class="v2pill good">Fixed</span>' : '<span class="v2pill warn">Started</span>'} <span class="faint">${esc(i.note || '')}</span></td></tr>`).join('');
-    $('#main').innerHTML = shell('pulse', 'Platform status', `<p class="v2say lead">Is Meta, Google or Shopify having a problem right now? Checked every 5 minutes by Pulse${d.lastRun ? `, last at ${new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central` : ''}. An outage also shows on Home &gt; Yesterday.</p>
-      ${U().card('Right now', '', `<div class="dk-pl">${plats}</div>`)}
-      ${U().card('Recent changes', 'Times in Central.', inc ? `<div class="v2tbl"><table><tbody>${inc}</tbody></table></div>` : '<p class="v2hint">Nothing recorded.</p>')}
-      ${U().foot('Pulse reads the public status feeds of Meta, Google Ads, Shopify, Pinterest, OpenAI and Anthropic. TikTok, Microsoft, LinkedIn, Snap, X, Amazon and Apple publish no machine feed, so they show their status page link. Slack alerts and client fan-out stay on the Pulse page.')}`);
+    const plats = d.platforms || [], incs = d.incidents || [];
+    const stOf = s => PULSE_ST[s] || (s ? ['bad', s.charAt(0).toUpperCase() + s.slice(1)] : ['', 'No feed']);
+    const fed = plats.filter(p => p.state), dark = plats.filter(p => !p.state);
+    const down = fed.filter(p => p.state.worst && p.state.worst !== 'operational');
+    const week = Date.now() - 7 * 864e5, inWeek = incs.filter(i => i.kind !== 'resolved' && Date.parse(i.ts) >= week);
+    /* How long each problem lasted: a "resolved" row closes the latest earlier "incident" on the same service. */
+    const open = new Map(), lasted = new Map();
+    incs.slice().sort((a, b) => a.ts.localeCompare(b.ts)).forEach((i, k) => { const key = i.platformId + '|' + i.service; if (i.kind === 'resolved') { const st = open.get(key); if (st) { lasted.set(i.ts + key, Date.parse(i.ts) - Date.parse(st)); open.delete(key); } } else open.set(key, i.ts); });
+    const dur = ms => ms < 36e5 ? `${Math.max(1, Math.round(ms / 6e4))} min` : ms < 864e5 ? `${(ms / 36e5).toFixed(ms < 36e6 ? 1 : 0)} h` : `${(ms / 864e5).toFixed(1)} days`;
+    const say = down.length
+      ? `<b class="bad">${down.length === 1 ? esc(down[0].name) + ' has a problem' : down.length + ' platforms have a problem'}</b> right now${down.length > 1 ? ': ' + down.map(p => esc(p.name)).join(', ') : ''}. ${down.some(p => ['meta', 'google-ads', 'shopify'].includes(p.id)) ? 'Hold changes on that platform until it clears.' : 'None of them is an ad platform or the store, so the ads are not affected.'}`
+      : `<b class="good">Meta, Google Ads and Shopify are all working.</b> Nothing posted a problem.`;
+    const tiles = [
+      U().tile({ label: 'Problems right now', value: String(down.length), sub: down.length ? down.map(p => esc(p.name)).join(', ') : 'Every feed reads working' }),
+      U().tile({ label: 'Working', value: `${fed.length - down.length}<span class="pu-of"> of ${fed.length}</span>`, sub: 'Platforms with a status feed' }),
+      U().tile({ label: 'Problems started, 7 days', value: String(inWeek.length), sub: inWeek.length ? `Most on ${esc(Object.entries(inWeek.reduce((m, i) => (m[i.platform] = (m[i.platform] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1])[0][0])}` : 'A quiet week' }),
+      U().tile({ label: 'Last checked', value: d.lastRun ? new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : '–', sub: 'Central. Pulse reads every 5 minutes' }),
+    ].join('');
+    const card = p => {
+      const st = p.state, [tone, word] = stOf(st && st.worst);
+      const svc = Object.values(st.services || {}), bad = svc.filter(x => x.state !== 'operational');
+      return `<div class="pu-p${tone && tone !== 'good' ? ' pu-' + tone : ''}">
+        <div class="pu-ph">${window.logo ? window.logo(PULSE_LOGO[p.id] || '', 32, p.name) : ''}<span class="pu-pn"><b>${esc(p.name)}</b><em>${svc.length} service${svc.length === 1 ? '' : 's'} checked</em></span><span class="ds-chip ${tone}"><span class="ds-dot ${tone}"></span>${esc(word)}</span></div>
+        ${bad.length ? `<ul class="pu-bad">${bad.slice(0, 4).map(x => `<li><b>${esc(x.name)}</b> ${esc(x.note || x.state)}</li>`).join('')}${bad.length > 4 ? `<li class="faint">and ${bad.length - 4} more</li>` : ''}</ul>` : '<p class="pu-ok">No known issues</p>'}
+        ${p.link ? `<a class="pu-link" href="${esc(p.link)}" target="_blank" rel="noopener">Status page<svg class="ic" aria-hidden="true"><use href="#i-external-link"/></svg></a>` : ''}</div>`;
+    };
+    const fedSorted = fed.slice().sort((a, b) => (a.state.worst === 'operational') - (b.state.worst === 'operational'));
+    /* The last 14 days: problems started per day, hover for which. */
+    const days = Array.from({ length: 14 }, (_, k) => { const x = new Date(); x.setDate(x.getDate() - 13 + k); return x.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); });
+    const per = days.map(dd => incs.filter(i => i.kind !== 'resolved' && new Date(i.ts).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) === dd));
+    const mx = Math.max(1, ...per.map(a => a.length));
+    const bars = `<div class="pu-bars" role="img" aria-label="Problems started per day, last 14 days">${per.map((a, k) => {
+      const by = a.reduce((m, i) => (m[i.platform] = (m[i.platform] || 0) + 1, m), {});
+      const tip = `<b>${esc(new Date(days[k] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</b><br>${a.length ? Object.entries(by).map(([n, c]) => `${esc(n)}: ${c}`).join('<br>') : 'No problems'}`;
+      return `<div class="pu-bar"${U().tipAttr(tip)}><i style="height:${a.length ? Math.max(6, a.length / mx * 100) : 0}%"></i><span>${k % 2 === 1 || k === 13 ? esc(new Date(days[k] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) : ''}</span></div>`;
+    }).join('')}</div><div class="pu-axis"><span>${mx}</span><span>0</span></div>`;
+    const withInc = [...new Set(incs.map(i => i.platform))];
+    if (PULSE_F && !withInc.includes(PULSE_F)) PULSE_F = '';
+    const rows = incs.filter(i => !PULSE_F || i.platform === PULSE_F).slice(0, 25).map(i => {
+      const L = i.kind === 'resolved' ? lasted.get(i.ts + i.platformId + '|' + i.service) : null;
+      return `<tr><td class="pu-when">${chrono(i.ts)}</td><td><span class="pu-pl">${window.logo ? window.logo(PULSE_LOGO[i.platformId] || '', 20, i.platform) : ''}<b>${esc(i.platform)}</b></span></td><td>${esc(i.service || '')}</td>
+        <td>${i.kind === 'resolved' ? '<span class="ds-chip good">Fixed</span>' : `<span class="ds-chip ${i.to === 'outage' || i.to === 'major' ? 'bad' : 'warn'}">Started</span>`}</td><td class="pu-note">${esc(i.note || '')}</td><td class="pu-dur">${L ? 'lasted ' + dur(L) : ''}</td></tr>`;
+    }).join('');
+    $('#main').innerHTML = shell('pulse', 'Platform status', `<p class="v2say lead">${say}</p>
+      <div class="v2tiles pu-tiles">${tiles}</div>
+      ${U().card('Right now', 'Problems first. Times in Central.', `<div class="pu-grid">${fedSorted.map(card).join('')}</div>
+        ${dark.length ? `<div class="pu-dark"><span class="ds-label">No public feed: check their page</span><div>${dark.map(p => `<a class="ds-chip" href="${esc(p.link || '#')}" target="_blank" rel="noopener">${window.logo ? window.logo(PULSE_LOGO[p.id] || '', 14, p.name) : ''}${esc(p.name)}<svg class="ic" aria-hidden="true"><use href="#i-external-link"/></svg></a>`).join('')}</div></div>` : ''}`, `<button type="button" class="ds-btn" id="puAgain"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Check again</button>`)}
+      ${U().card('The last 14 days', `${per.reduce((s, a) => s + a.length, 0)} problems started. Hover a day for which platform.`, bars)}
+      ${U().card('Recent changes', 'Every change a feed posted, newest first.', `${withInc.length > 1 ? `<div class="ds-seg pu-f" role="radiogroup" aria-label="Show changes for">${['', ...withInc].map(n => `<button type="button" role="radio" data-pf="${esc(n)}" class="${n === PULSE_F ? 'on' : ''}" aria-checked="${n === PULSE_F}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}
+        ${rows ? `<div class="v2tbl pu-t"><table><thead><tr><th>When</th><th>Platform</th><th>Service</th><th>What</th><th>Detail</th><th>How long</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">Nothing recorded.</p>'}`)}
+      ${U().foot('Pulse reads the public status feeds of Meta, Google Ads, Shopify, Pinterest, OpenAI and Anthropic. TikTok, Microsoft, LinkedIn, Snap, X, Amazon and Apple publish no machine feed, so they show their status page link. An outage also shows on Home &gt; Day check. Slack alerts and client fan-out stay on the Pulse page.')}`);
+    const again = $('#puAgain'); if (again) again.onclick = () => H.show('pulse');
+    document.querySelectorAll('#main [data-pf]').forEach(b => b.onclick = () => { PULSE_F = b.dataset.pf; pulse(false); });
+  }
+  function pulseCss() {
+    if (document.getElementById('pucss')) return;
+    const st = document.createElement('style'); st.id = 'pucss';
+    st.textContent = `
+      .dk .pu-tiles{margin:0 0 16px}
+      .dk .pu-of{font-size:15px;font-weight:500;color:var(--muted);letter-spacing:0}
+      .dk .pu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+      .dk .pu-p{border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0;background:var(--surface)}
+      .dk .pu-p.pu-warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+      .dk .pu-p.pu-bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+      .dk .pu-t th,.dk .pu-t td{text-align:left}.dk .pu-t th:last-child,.dk .pu-t td:last-child{text-align:right}
+      .dk .pu-ph{display:flex;align-items:center;gap:10px}
+      .dk .pu-pn{flex:1;min-width:0;display:flex;flex-direction:column}
+      .dk .pu-pn b{font-weight:600;color:var(--ink);line-height:1.3}
+      .dk .pu-pn em{font-style:normal;font-size:12px;color:var(--muted)}
+      .dk .pu-ph .ds-chip{flex:none}
+      .dk .pu-ok{margin:0;font-size:13px;color:var(--muted)}
+      .dk .pu-bad{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink-2)}
+      .dk .pu-bad b{font-weight:600;color:var(--ink)}
+      .dk .pu-link{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:550;color:var(--brand);text-decoration:none;margin-top:auto}
+      .dk .pu-link:hover{text-decoration:underline}
+      .dk .pu-link svg,.dk .pu-dark .ds-chip svg.ic{width:12px;height:12px}
+      .dk .pu-dark{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+      .dk .pu-dark > div{display:flex;flex-wrap:wrap;gap:8px}
+      .dk .pu-dark .ds-logo{border:0;background:transparent}
+      .dk .pu-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:6px;height:150px;align-items:end;padding:0 0 22px;position:relative;background-image:linear-gradient(var(--line) 1px,transparent 1px);background-size:100% 25%;background-position:0 0}
+      .dk .pu-bar{height:100%;display:flex;flex-direction:column;justify-content:flex-end;position:relative;cursor:default;border-radius:var(--r-xs)}
+      .dk .pu-bar:hover{background:var(--surface-2)}
+      .dk .pu-bar i{display:block;background:var(--warn);border-radius:4px 4px 0 0;opacity:.85}
+      .dk .pu-bar span{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+      .dk .pu-axis{display:none}
+      .dk .pu-f{margin:0 0 12px;flex-wrap:wrap}
+      .dk .pu-when{white-space:nowrap;color:var(--muted)}
+      .dk .pu-pl{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+      .dk .pu-note{color:var(--muted)}
+      .dk .pu-dur{white-space:nowrap;color:var(--ink-2);text-align:right}
+      .dk .pu-sk{display:grid;gap:16px}.dk .pu-sk>span{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+      .dk .pu-sk i{display:block;height:116px;border-radius:var(--r-lg);background:var(--surface-2);animation:pu-sk 1.4s ease-in-out infinite}
+      .dk .pu-sk>i:first-child{height:22px;width:60%;border-radius:6px}
+      @keyframes pu-sk{50%{opacity:.55}}
+      @media (max-width:720px){.dk .pu-sk>span{grid-template-columns:repeat(2,minmax(0,1fr))}.dk .pu-bar span{display:none}}
+      @media (prefers-reduced-motion:reduce){.dk .pu-sk i{animation:none}}
+    `;
+    document.head.appendChild(st);
   }
 
   /* =========================================================================================

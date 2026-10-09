@@ -2420,3 +2420,46 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+
+## 2026-10-09: the top loading bar, Scenarios and Platform status on v2, Dashboards ask-first, spacing pass
+
+- **The top loading bar (`body.pf-loading`) has its own ticket: `loadBar` in index.html** (`start()` returns a ticket,
+  `end(t)` clears only the latest, `clear()`, 15s safety timer). Cole saw the line "always pulsating": `show()` cleared it
+  only when `run === RUN`, but most renderers take their own ticket (`const run = ++RUN`), so RUN had moved on and the bar
+  never cleared (Dashboards, Settings, P&L, every `++RUN` renderer). `show(tab, {bar})` adopts a ticket (periodChanged
+  passes its own); a repaint of the page already open that was not caused by a click or key (`window.event`) is QUIET:
+  no bar, no dimming. Never add `pf-loading` by hand again; call `loadBar.start()` / `loadBar.end(t)`.
+  Checked headless: 30 page switches, 30s idle, a period change: bar always clears, longest on 1.5s.
+- **Scenarios (calc.js?v=11)** on the v2 spec without touching the math: cards 20px / `--r-lg`, tiles 26/650 with the
+  label 12.5/500, card header = title then the answer sentence on its own line, the mode picker is a segmented control,
+  cost switches are `input.lx-sw` (a checkbox drawn as the app switch, defined in v2.css), tooltips are surface + hairline
+  like the menus, charts drawn at 1120 wide so the axis text is not blown up, dotted grid, dashed hover guide, skeleton
+  while loading. share.html loads only /mobius.css, so every value in calc's CSS keeps a fallback.
+- **Platform status (desk.js `pulse`, desk.js?v=12)**: the answer sentence, four tiles (problems now, working of N, problems
+  started in 7 days, last checked), every platform with a feed as a card (logo, services checked, status chip, the
+  services with a problem, status page link), problems first, feedless platforms as link chips, "The last 14 days" bars
+  (hover = which platforms), "Recent changes" as a table with a platform filter (`ds-seg`) and "lasted N" on each fix
+  (a resolved row closes the latest earlier incident on the same service). "Check again" re-reads Pulse. CSS `#pucss`.
+  Never give a card the class `bad` / `warn` / `good` (global text colours): use `pu-bad` / `pu-warn`.
+- **Dashboards: ask first.** The list opens with a composer (`dashComposer`, `.ds-composer.de-ask`): words + example chips,
+  Build it = `AskUI.ask("Build a dashboard and save it with save_dashboard (...): <words>")`; Apply in the chat saves it.
+  An open dashboard has "Change it with the Strategist" (prefills the chat) and "Edit by hand".
+- **The hand editor is a sheet** (`dashEditor`, `.de-scrim` > `.de-sheet`, CSS at the end of v2.css): left = name, for,
+  brand, dates, compare (`ds-seg`), then the blocks as collapsible rows; right = the dashboard drawn LIVE with the real
+  `dashBlockHtml` (overview reads cached per query in `DASH_PREVIEW`, 220ms debounce). Blocks reorder by the grip
+  (`.de-grip`): pointer drag (pointer capture, the others slide, `html.de-nosel` stops text selection) or focus + arrow
+  keys (announced in `#deLive`). Every option the spec allows: block titles, up to 8 metrics / 8 columns as numbered chips
+  in pick order, note text, a saved ads view's sort / how many / one card per creative; chart blocks are kept read-only.
+  **The spec has ONE range per dashboard** (`cleanSpec` drops anything else), so there is no per-block date range; adding
+  one needs dashboard.js, strategist.js `save_dashboard` and the Slack tick changed together. Escape or Cancel closes.
+- **Spacing pass** (block "SPACING PASS" at the end of v2.css): brand settings groups (`.setpane.bmode .brow-grp`) were
+  cards with 2px top/bottom padding inside the old accordion body's 14px 16px inset, so the cards sat 16px right of their
+  section title and inner boxes touched the card edges (Cole's Archive box). Now: body inset 0, group 4px 20px 20px,
+  inner boxes (`.dc-block`, `.brow-danger2`) 16px 20px, 12px apart, the archive box tinted. The Slack and sending post
+  table wraps instead of running 110px past its card; settings cards are 16px apart (`section > .set-card`); Ads rules
+  cards pad 20px; Shared links table scrolls inside its card; Brand > At a glance facts line up. Probe used to find these
+  (a boxed child within 8px of its boxed parent's edge, tables wider than their card) found nothing else on Settings,
+  Integrations, Calendar, Reports, Dashboards, Brand, Creators, Library, Inspiration or Studio at 1440.
+- **Local check recipe used:** a python static server on its own port from the worktree, `profit-worker-dev` (:8799) and
+  `ah-worker-dev` (:8798) with the dev token, headless Chrome over CDP (Node 24 has WebSocket built in). The scratchpad is
+  shared with other jobs: keep scripts in your own subfolder.
