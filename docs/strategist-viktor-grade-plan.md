@@ -212,3 +212,76 @@ usage, chat-working-state). What makes Viktor read as "a real professional app",
   tables, the composer pinned at the bottom with the model chip.
 Build this as its own step (7) after the Strategist steps, or in parallel in a second session: it touches
 profit/index.html + mobius.css + ask-ui.js only.
+
+## 10. Parity audit: what Viktor has, what we have, what is a gap (Cole: "nothing going unnoticed, no capping ourselves")
+
+| Viktor | Us today | Plan step | Note |
+|---|---|---|---|
+| Opus 5.5 medium default, person overrides | Sonnet 5.5 (was Haiku) | 1 | Opus 5.5 default |
+| Reads every channel it is in, searches Slack | one thread | 2 | search_slack, read_thread, 14-day digest, full index |
+| Shared workspace memory, corrections written back | none saved, ever | 3 | per-brand upsert memory + nightly consolidation + Locus screen |
+| Skills (teach once, matched by description; screen-record to skill) | playbook only | 6 | skills table, taught in chat; screen recording later (Gemini watches the recording) |
+| Private Linux sandbox, writes and runs code | none | 5 | Workers sandbox / Anthropic code execution for one-off scripts |
+| 3,200 integrations | Meta, TW, Asana, Klaviyo, Drive SA, Canva, Atria, Frame status, Supply, Shopify (Supply) | 4-5 | build each one we actually use; the long tail is irrelevant to Mobius |
+| Approval card on irreversible actions, "Always approve" | approval card exists | 4 | add Always-approve per action kind, Cole only |
+| Files in: images, PDFs, docs, videos, Drive | images, Drive, docs (ideas path); no PDF | 4 | PDF/docx to text in the worker |
+| Files out: docs, PDFs, xlsx, PNG, hosted Pages, Spaces | reports + dashboards with share links; PNG contact sheets in ideas | 4 | PDF via Browser Rendering, xlsx, files.upload; Pages = our share links; Spaces = Locus itself |
+| Scheduled tasks and crons | scheduled questions | 6 | schedule any action |
+| Web chat + Slack + Teams + API | Locus chat + Slack | - | API = the worker /api/ask already; Teams not needed |
+| Slack DMs with the bot | DMs route to the Ledger | 2 | DMs to the app go to the Strategist; Ledger keeps money by its own tool map, or merge later |
+| Slack Connect (client) channels, drafts for approval | silent in client channels by design | 5 | optional: draft-for-approval in client channels, never auto-post |
+| Web search / browse | market.js only (Haiku web search for the Day check) | 4 | web_search + read_url tools for the Strategist |
+| Voice (web mic), phone | none | 7 (UI) | mic in the Locus composer via SpeechRecognition |
+| Email (its own inbox) | none | later | not needed; Gmail reads via the service account if ever |
+| Usage dashboard by person/model/task | inTok/outTok per day only | 8 | cost rows per answer, Usage page |
+| Permissions (who can use, guests, DMs) | approvers list | 8 | Strategist settings page |
+| Live working state, Stop button | eyes emoji | 1 + 7 | step line edits in Slack, streamed steps + Stop in Locus |
+| Asks after doing the work, defaults attached | asks first sometimes | 1 | playbook rule |
+
+Where we are BETTER already and must not lose it: the brand brain (research, personas, VOC, tests, TW
+attribution) is far deeper than anything Viktor reads live; the Locus screens and their math; the ideas
+pipeline (Gemini watches video for cents); creator links; the Daily Brief and report engines; paid-orders truth.
+
+## 11. The 90 days question, and "nothing is thrown away"
+
+- "90 days" was only the FAST LOCAL INDEX (a copy of Slack in D1 for one-call search). It was a default,
+  not a limit. Storage is trivial (a year of this workspace's Slack text is tens of MB), so: KEEP FOREVER.
+  The index grows; a question only ever pulls 10 hits from it.
+- Slack keeps everything anyway, and search_slack falls back to Slack's own search (as Cole) for anything
+  the index lacks. Nothing is forgotten.
+- "Nothing is thrown away to keep things small" meant: we never shrink the STORE to protect the model. We
+  shrink only what goes into one prompt, per question. The store can be any size.
+- Memory facts are the one place with a cap (40 per brand), because they go into every prompt. Old facts
+  do not vanish: a replaced fact goes to a history table (who said it, when, what it replaced) so the
+  Memory screen can show the change.
+
+## 12. Design language for Locus (Viktor, Trendtrack; not a copy of either)
+
+Reference: docs/viktor-reference/ and docs/trendtrack-reference/ (home, explorer table, the shop popup:
+top, cards). What the two share, which is what "clean and modern" means here. Write it down as a design
+system (profit/DESIGN.md + tokens in mobius.css) and apply it screen by screen:
+1. One icon set, outlined, 1.5px stroke, 16/20px, never emoji as UI. Real brand logos where a brand is
+   named (platforms, apps, shops), as small rounded squares.
+2. Surfaces: white cards on a very light grey canvas (#F7F7F8), hairline borders (1px, 6-8% black),
+   radius 12-16px on cards, 999px on chips, soft shadow only on popups. No dark panels, no heavy borders.
+3. Type: one geometric sans (Inter / Geist), 13-15px body, 600 weight for names, grey-500 secondary,
+   small-caps labels (11px, letter-spaced) for section headers like ACTIVITY, BOARDS, ADVERTISING.
+4. Density by chips: facts as pill chips with an icon (6 yr, Fashion, 3.7 stars, 304K, $1.9M), stat
+   triplets in a row, a sparkline beside the number. Tables with an icon per column header, logos in
+   rows, tiny thumbnails, green/red trend lines in the last column.
+5. Popups are full sheets, not small modals: a wide sheet over the page (Trendtrack's shop view) with its
+   own left sub-nav (Overview, Similar, Meta, Google, TikTok, Emails, Boards), a header row (logo, name,
+   status chip; on the right Copy link, one primary green button, expand, close), two chart cards side by
+   side with range pickers, then horizontal card carousels with arrows. This is the model for every Locus
+   detail view (an ad, a brand, a test, a calendar date, a product).
+6. Charts: smooth area lines with a soft gradient fill, one accent per series, dotted hairline grid,
+   values labelled at peaks, period picker as a chip (Last 6M, Weekly).
+7. Composer / front door: big rounded input with +, mic, send; suggestion chips below; recent items list.
+8. Motion: 150-200ms fades and slides, skeleton loaders, a pulsing dot for "working". The working animation
+   can be ANYTHING in Locus (SVG, Lottie, step lines, a progress bar); in Slack it is limited to text
+   edits, emoji and status.
+9. Empty states: one line, one icon, one button.
+10. Navigation: thin icon rail (Trendtrack) or icon + label rail (Viktor); Locus keeps its rail, tightens
+    it to icon + label, 40px rows, active state as a soft pill.
+Order: tokens + icon set + card/chip/table/sheet primitives first (one CSS), then Home, Integrations, the ad
+popup, the brand popup, Settings. Every new screen uses only the primitives.
