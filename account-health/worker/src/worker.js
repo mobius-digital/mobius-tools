@@ -47,6 +47,7 @@ import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
+import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts } from './google.js';
@@ -6034,8 +6035,12 @@ async function handleSlackInteract(request, env, ctx) {
       const val = safeJson(tap.value, {});
       const { engine, h } = strategist();
       const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null) } }).catch(e => ({ error: String(e.message || e) }));
+      /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
+      const done = res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
+      const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
       if (payload.response_url) ctx.waitUntil(xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replace_original: true, text: res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}` }) }).catch(() => {}));
+        body: JSON.stringify({ replace_original: true, text: done, ...(link ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
+          { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] } : {}) }) }).catch(() => {}));
       return ACK();
     }
     if (payload.type === 'block_actions') return await slackBlockAction(env, ctx, payload);
@@ -7112,6 +7117,12 @@ const AH_APP = {
     }
     if (path.startsWith('/studio-ref/')) {
       const r = await serveRef(request, env, path);
+      if (r) return r;
+    }
+    /* ---- What the Strategist makes (stratmake.js): images and files at /strat/<id>.<ext>, report pages at /r/<token>
+       and /r/<token>.pdf, /api/report-public (all public by unguessable id); /api/strat/* is admin inside. ---- */
+    if (path.startsWith('/strat/') || path.startsWith('/r/') || path === '/api/report-public' || path.startsWith('/api/strat/')) {
+      const r = await handleMake(request, env, url, path, json, isAdmin, { xfetch, slack: slackApi, getSetting, putSetting, safeJson, listAccounts });
       if (r) return r;
     }
     /* ---- Frame.io V4 (Adobe sign-in): Connect / status / tree are admin, the callback is public; frame.js ---- */

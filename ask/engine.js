@@ -851,6 +851,8 @@ export function createAssistant(config) {
             out = { text: await runMemoryTool(env, c.name, c.input, h) };
           } else if (c.name === 'make_report') {
             out = runReport(env, c.input, h);
+            /* The app may give every report more (the Strategist: a public share link and a PDF). */
+            if (out.report && C.onReport) { const more = await C.onReport(env, out.report, ctx).catch(e => { console.log(`${C.name} onReport: ${e.message}`); return null; }); if (more) Object.assign(out.report, more); }
             if (out.report) { await keepReport(env, h, out.report).catch(() => {}); flags.reports = [...(flags.reports || []), out.report]; }
           } else if (c.name === 'hand_to_claude_code') {
             out = runHandoff(c.input, ctx);
@@ -870,7 +872,10 @@ export function createAssistant(config) {
             }
             else out = { is_error: true, text: 'Not available here. Answer from the data instead.' };
           }
-          results.push({ type: 'tool_result', tool_use_id: c.id, content: String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
+          /* A tool may hand back content blocks (text + an image it made, so the model can look at it), and what it
+             spent outside the model (an image, a sandbox run), which joins the answer's cost line. */
+          if (typeof out?.cost === 'number' && isFinite(out.cost)) cost += out.cost;
+          results.push({ type: 'tool_result', tool_use_id: c.id, content: Array.isArray(out.content) && out.content.length ? out.content : String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
         }
         messages.push({ role: 'user', content: results });
       }
@@ -1012,7 +1017,15 @@ export function createAssistant(config) {
         await update(r.stopped ? 'Stopped.' : 'Done.', [{ type: 'context', elements: [{ type: 'mrkdwn', text: (r.stopped ? '_Stopped._ ' : '') + foot }] }]).catch(() => {});
       } else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
       for (const p of r.flags.proposals || []) await say(p.summary, proposalBlocks(p));
-      for (const rep of r.flags.reports || []) await say(reportText(rep));
+      for (const rep of r.flags.reports || []) {
+        await say(reportText(rep));
+        /* A report with a share link (and a PDF) gets buttons. Link buttons still send Slack a tap, which the router
+           acks only for the action id noop_open, and an id must be unique inside a block: one block per button. */
+        if (rep.share) await say(`Open or share "${rep.title}"`, [rep.share, rep.pdf].filter(Boolean).map((url, i) => ({ type: 'actions', elements: [
+          { type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: i ? 'PDF' : 'Open the report' }, url, ...(i ? {} : { style: 'primary' }) }] }))).catch(() => {});
+      }
+      /* What the app posts after the answer (the Strategist: images it made, report PDFs). */
+      if (C.afterSlack) await C.afterSlack(env, r, ctx).catch(e => console.log(`${C.name} afterSlack: ${e.message}`));
       if (ev.channel_type === 'im') for (const hd of r.flags.handoffs || []) await say(`*${hd.title}* needs a code change. Paste this into Claude Code:\n\`\`\`\n${hd.prompt}\n\`\`\``);
     } catch (e) {
       const msg = 'That one broke: ' + String(e.message || e);
