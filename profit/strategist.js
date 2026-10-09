@@ -58,7 +58,7 @@ window.StratSettings = (() => {
       el.innerHTML = `<div class="seg" style="display:flex;gap:8px;flex-wrap:wrap">${['smart', 'quick', 'deep'].map(k => `
           <button class="btn ${s.model === k ? 'primary' : ''}" data-mp="${k}" style="text-align:left;flex:1;min-width:180px;padding:10px 12px">
             <b style="display:block">${k === 'smart' ? 'Smart' : k === 'quick' ? 'Quick' : 'Deep'}</b>
-            <span class="tiny" style="display:block;opacity:.8">${E(WHAT[k])}</span><span class="tiny" style="display:block;opacity:.6">${E(COST[k])}</span></button>`).join('')}</div>
+            <span class="tiny" style="display:block;opacity:.85;color:inherit">${E(WHAT[k])}</span><span class="tiny" style="display:block;opacity:.7;color:inherit">${E(COST[k])}</span></button>`).join('')}</div>
         <label class="tiny" style="display:block;margin:16px 0 5px;font-weight:600">Standing instructions for every answer</label>
         <textarea id="ssInstr" rows="4" maxlength="4000" placeholder="e.g. Always answer the client-facing part first. Never suggest discounts over 25% for Lucky." style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px;font:inherit;font-size:13.5px;line-height:1.5">${E(s.instructions || '')}</textarea>
         <div class="row" style="margin:8px 0 0;gap:8px"><button class="btn" id="ssInstrSave">Save instructions</button><span class="tiny" id="ssInstrMsg"></span></div>`;
