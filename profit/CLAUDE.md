@@ -2420,3 +2420,38 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+## 2026-10-09: THE WAR ROOM (Triple Whale's BFCM Command Center, done in Locus). Read before touching desk.js war*.
+
+Cole: "the war room should be like Triple Whale's war room, full on plans and everything, the actual war room", and the
+title had "war" in lower case. Reference: docs/triplewhale-reference/. Page names in the season item are Title Case now
+(War Room, The Plan; TAB_TITLE / TAB_CRUMB / NAV.season in index.html). Other page names were left as they are.
+- **Server** (worker/src/season.js, "THE WAR ROOM" block): `GET /api/season/war?act=all|<brand>[&live=1]`, `PUT /api/season/war
+  {act, patch}`. The plan lives in `p_season_answer` key `war` (JSON: goals [{metric,target}] up to 5, budget {total, channels
+  [{id meta|google|tiktok|other, unit $|%, value, metric roas|cpa, target}]}, sale {start,end}, baseline {from,to}, baseline_ok,
+  thresholds, alerts [{kind,id}], stock_ok); the PUT merges known keys server side. The ladder stays in key `goals` (one place).
+  `saleOf` = saved dates, else the access/bf/planb/cm phases, else Nov 26 to 30. `baselineWindow` = the same days around last
+  year's BF (`LY_BF` 2025-11-28), one day either side. `warBaseline` = seriesFor rows (P&L line, paid orders) + channelsFor +
+  top products from tw_orders (add-ons like package protection dropped). `dayPlan` splits the revenue goal and the budget by
+  last year's shape of the same days. `warSteps` = the 7 steps (baseline, goals, ladder, budget, offers = bf phase locked,
+  alerts, stock). `warLive` = the `live` dep (twDay hours with orders and Meta / Google spend, plus liveRow) against the day's
+  plan; the hourly plan curve is checknow's `cnshape:<brand>` from settings; outside the sale it is a dry run against a normal
+  day (last 28 days). `warAll` = every brand in season, steps before the sale, pace during it, riskiest first.
+  worker.js passes `channels`, `titles`, `client` (clientScope) into handleSeason. `AH_DEV_URL` (dev only, a var in a local
+  config) lets twDay call a local account-health.
+- **Page** (desk.js `war`, `warGrid`, CSS `.wr-*` at the end of v2.css): Plan = sticky step list + sections (baseline with a
+  window picker and "Use this baseline", goals + ladder, budget with "$X not allocated" and "Split like last year", offers
+  timeline from phases + Calendar pins, alert thresholds, stock on the heroes from the Supply worker). Live = six big tiles (pace
+  vs plan by now, heading for, orders + AOV floor, MER, spend vs the day budget, last 3 hours), the hour-by-hour chart
+  (cumulative vs plan, hover per hour), the desk (8am / 4pm / midnight check-ins with the ladder), spend by channel vs budget,
+  alerts fired today, stock, the Strategist's "What to do now" (account-health /api/read; a 15-minute slot in the facts,
+  Refresh adds a nonce) and the Day check's Right now card. TV mode = no chrome, bigger numbers, refresh every 5 minutes.
+- **Alerts are real p_alert rules** (account-health alerts.js): overspend (`spend` above the biggest sale day's budget x %, plus
+  `meta_spend` when Meta has a budget), MER floor, AOV floor (new metric `aov`), stock cover (new metric `stock_cover`: days on
+  the 5 best sellers via stock.js). New columns `starts` / `ends` (Central dates; `isDue` skips outside them) and `source`.
+- **Clients** see their brand's War Room read only (CLIENT_TABS 'war', brandguard rule GET /api/season/war): no edits, no ladder,
+  no alerts, stock or AI read. Live numbers for a client need account-health to accept the client token on /api/tw-day (it does
+  not today), so the live card says the team reads them.
+- Checked on a local pair (account-health `wrangler dev --remote` + the profit worker local with remote D1) with real data for
+  Lucky, Bonk and all brands: dark, light, TV mode, 390px with no sideways scroll; alert create / test / delete with the new
+  metrics ran against the real tables and were removed. Stock showed "needs the Google sign-in" locally (dev token).
+

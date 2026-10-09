@@ -2177,7 +2177,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=25">
+<link rel="stylesheet" href="v2.css?v=26">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=11"></script>
@@ -2223,7 +2223,7 @@
           <button data-t="research" data-grp="brand" title="Client answers, Research, Voice"><svg class="ic"><use href="#i-bookmark"/></svg><span>Brand</span></button>
           <button data-t="calendar" data-grp="calendar" title="Drops, sales and emails for every client, and what is due for each"><svg class="ic"><use href="#i-cal"/></svg><span>Calendar</span></button>
           <button data-t="brief" data-grp="reports" title="Daily Brief, Weekly and monthly, Dashboards"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
-          <button data-t="war" data-grp="season" id="railSeason" hidden title="The war room and the season plan"><svg class="ic"><use href="#i-flame"/></svg><span id="railSeasonLbl">Black Friday</span></button></div></div>
+          <button data-t="war" data-grp="season" id="railSeason" hidden title="The War Room and the season plan"><svg class="ic"><use href="#i-flame"/></svg><span id="railSeasonLbl">Black Friday</span></button></div></div>
       <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
     </nav>
     </div>
@@ -2299,7 +2299,7 @@
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=10"></script>
 <script src="v2.js?v=36"></script>
-<script src="desk.js?v=11"></script>
+<script src="desk.js?v=12"></script>
 <script src="calendar.js?v=8"></script>
 <script src="supply.js?v=2"></script>
 <script src="askextra.js?v=2"></script>
@@ -3386,7 +3386,7 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
   calendar: ['Calendar', 'Calendar'],
-  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
+  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'The Plan'], war: ['Season', 'War Room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], gads: ['Ads', 'Google &nbsp;/&nbsp; Ads'], gterms: ['Ads', 'Google &nbsp;/&nbsp; Search terms'], gchanges: ['Ads', 'Google &nbsp;/&nbsp; Changes'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Ads'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
@@ -4725,7 +4725,7 @@ const NAV = {
   /* The calendar (2026-10-09, Lineup moved in; calendar.js): one page, lanes for all clients, the month for one. */
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
-  season: { label: 'Black Friday', tabs: [['war', 'War room'], ['season', 'The plan']] },
+  season: { label: 'Black Friday', tabs: [['war', 'War Room'], ['season', 'The Plan']] },
   tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status']] },
 };
 const META_KIDS = ['meta', 'campaigns', 'adcreative', 'tests', 'changes', 'mtoday', 'mbrowser'];
@@ -4755,7 +4755,7 @@ function seasonOn() {
 }
 function seasonRail() {
   const el = document.getElementById('railSeason'); if (!el) return;
-  el.hidden = !S.tok || !seasonOn() || isClient();
+  el.hidden = !S.tok || !seasonOn();   // a client sees its own War Room, read only (2026-10-09)
   const lb = document.getElementById('railSeasonLbl'); if (lb) lb.textContent = SEASON.label || 'Black Friday';
   NAV.season.label = SEASON.label || 'Black Friday';
   if (S.tok && !isClient() && !window.__seasonLoaded) { window.__seasonLoaded = 1; loadSeasonTab(); }
@@ -4781,7 +4781,7 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
    Email and SMS, Store, Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
    when on), and Settings = their own profile. Everything here only DRAWS that; the server refuses the rest. */
 const isClient = () => S.role === 'client';
-const CLIENT_TABS = new Set(['overview', 'profit', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings']);
+const CLIENT_TABS = new Set(['overview', 'profit', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
 function clientCan(k, act = S.act) { const b = ((S.client && S.client.brands) || []).find(x => x.id === act); return !!(b && b.access && b.access[k]); }
 function clientTabOk(t) {
   if (!CLIENT_TABS.has(t)) return false;
@@ -4809,7 +4809,7 @@ function applyClientMode() {
    the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5550,7 +5550,7 @@ const GUIDE = [
       ['Meta, Changes', 'Add the reason next to anything you changed in Ads Manager.', 'changes'],
     ]],
     ['In season', [
-      ['The war room', 'Sales today against the plan and the offer running now, for every brand in the season.', 'war'],
+      ['The War Room', 'Plan the sale step by step, then watch today against the plan hour by hour, for every brand in the season.', 'war'],
     ]],
     ['Every Monday, and the 1st of the month', [
       ['Reports', 'The weekly or monthly report is drafted for you. Read it, fix the wording, press Send to client.', 'reports'],

@@ -552,8 +552,14 @@ async function channelsFor(env, acct, rows, piv, from, to) {
 /** One local day from Triple Whale, live, with its hourly shape. See the
  *  account-health worker's /api/tw-day for the two facts this rests on. */
 async function twDay(env, request, acct, date) {
-  if (!env.AUTH) throw new Error('AUTH binding missing');
   const auth = request.headers.get('Authorization') || '';
+  /* Local checks only: AH_DEV_URL (a .dev.vars line, never set in production) points at a local account-health. */
+  if (env.AH_DEV_URL) {
+    const d = await fetch(`${env.AH_DEV_URL}/api/tw-day?act=${encodeURIComponent(acct.act_id)}&date=${date}`, { headers: { Authorization: auth } });
+    if (!d.ok) throw new Error(`tw-day: HTTP ${d.status}`);
+    return d.json();
+  }
+  if (!env.AUTH) throw new Error('AUTH binding missing');
   const r = await env.AUTH.fetch(new Request(`${AUTH_WORKER}/api/tw-day?act=${encodeURIComponent(acct.act_id)}&date=${date}`, { headers: { Authorization: auth } }));
   if (!r.ok) throw new Error(`tw-day: HTTP ${r.status}`);
   return r.json();
@@ -2749,7 +2755,13 @@ export default {
           path, request, env, accountsFor, email: await sessionEmail(env, request),
           series: (acct, from, to) => seriesFor(env, acct, from, to),
           /* Today's hourly shape from Triple Whale, the same call the Profit Today preset makes. */
-          live: async (acct) => { const date = localDate(acct.tz); const day = await twDay(env, request, acct, date); return { date, hours: hoursOf(day), as_of: day.as_of }; },
+          live: async (acct) => { const date = localDate(acct.tz); const day = await twDay(env, request, acct, date);
+            /* The War Room (2026-10-09) also reads orders and Meta / Google spend by the hour, and the day as one row. */
+            const h = day.hours || {}, hrs = hoursOf(day).map((x, i) => ({ ...x, orders: (h.orders || [])[i] || 0, meta: (h.fb_ads_spend || [])[i] || 0, google: (h.ga_adCost || [])[i] || 0 }));
+            return { date, hours: hrs, as_of: day.as_of, row: liveRow(acct, day) }; },
+          channels: (acct, rows, piv, from, to) => channelsFor(env, acct, rows, piv, from, to),
+          titles: (acct, ids) => productTitles(env, acct, ids),
+          client: clientScope(request),
         });
         if (sr) return sr;
       }
