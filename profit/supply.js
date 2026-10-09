@@ -250,7 +250,7 @@
   function panel(title, html) {
     let p = document.getElementById('sppanel');
     if (!p) {
-      document.body.insertAdjacentHTML('beforeend', `<div id="spscrim"></div><aside id="sppanel" aria-label="Detail"><div class="ph"><b></b><button type="button" aria-label="Close">✕</button></div><div class="pb"></div></aside>`);
+      document.body.insertAdjacentHTML('beforeend', `<div id="spscrim"></div><aside id="sppanel" aria-label="Detail"><div class="ph"><b></b><button type="button" aria-label="Close"><svg class="li" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></button></div><div class="pb"></div></aside>`);
       p = document.getElementById('sppanel');
       const close = () => { p.classList.remove('on'); document.getElementById('spscrim').classList.remove('on'); };
       p.querySelector('.ph button').onclick = close; document.getElementById('spscrim').onclick = close;

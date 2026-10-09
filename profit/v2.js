@@ -114,7 +114,7 @@
     const all = v.concat(ghost || []).filter(x => x != null); const mx = Math.max(...all), mn = Math.min(...all), r = mx - mn || 1;
     const pt = a => a.map((y, i) => y == null ? null : `${(i / Math.max(1, a.length - 1) * (w - 6) + 3).toFixed(1)},${(h - 4 - (y - mn) / r * (h - 10)).toFixed(1)}`).filter(Boolean).join(' ');
     const last = v[v.length - 1] ?? 0;
-    return `<svg class="v2spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"${tips && tips.length === v.length ? ` data-spk="${esc(JSON.stringify(tips))}"` : ''}>${ghost && ghost.length > 1 ? `<polyline points="${pt(ghost)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}<polyline points="${pt(v)}" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle cx="${w - 3}" cy="${(h - 4 - (last - mn) / r * (h - 10)).toFixed(1)}" r="2.6" fill="var(--brand)"/></svg>`;
+    return `<svg class="v2spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"${tips && tips.length === v.length ? ` data-spk="${esc(JSON.stringify(tips))}"` : ''}>${ghost && ghost.length > 1 ? `<polyline points="${pt(ghost)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}${(() => { const p = pt(v).split(' '); return p.length > 1 ? `<path d="M${p[0]} L${p.slice(1).join(' L')} L${p[p.length - 1].split(',')[0]},${h} L${p[0].split(',')[0]},${h}Z" fill="url(#lx-area)" stroke="none"/>` : ''; })()}<polyline points="${pt(v)}" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="${w - 3}" cy="${(h - 4 - (last - mn) / r * (h - 10)).toFixed(1)}" r="2.6" fill="var(--brand)"/></svg>`;
   }
   /** Goal bullet: actual bar, target tick. `lower` = lower is better (CPA). */
   function bullet(actual, target, lower, label) {
@@ -141,17 +141,30 @@
     const X = i => pl + i / (n - 1) * (w - pl - pr), Y = v => pt + (1 - v / mx) * (h - pt - pb);
     const line = (a, k) => a.slice(0, n).map((r, i) => r[k] == null ? null : `${X(i).toFixed(1)},${Y(r[k]).toFixed(1)}`).filter(Boolean).join(' ');
     const fmt = opts.fmt || (v => kmoney(v, cur));
-    const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f).toFixed(1)}" y2="${Y(mx * f).toFixed(1)}" stroke="var(--v2-grid)"/><text x="${pl - 6}" y="${(Y(mx * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--muted)">${fmt(mx * f)}</text>`).join('');
+    const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f).toFixed(1)}" y2="${Y(mx * f).toFixed(1)}" stroke="var(--v2-grid)" stroke-dasharray="2 4"/><text x="${pl - 8}" y="${(Y(mx * f) + 4).toFixed(1)}" font-size="10.5" text-anchor="end" fill="var(--faint)">${fmt(mx * f)}</text>`).join('');
+    /* Smooth curves (monotone-ish Catmull-Rom). The straight polylines stay in the svg, invisible, because the
+       hover dots (markDots) read their points. */
+    const smooth = (a, k) => { const p = a.slice(0, n).map((r, i) => r[k] == null ? null : [X(i), Y(r[k])]).filter(Boolean); if (p.length < 2) return '';
+      let d = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`;
+      for (let i = 0; i < p.length - 1; i++) { const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2, t = 0.16;
+        const lo = Math.min(p1[1], p2[1]), hi = Math.max(p1[1], p2[1]), cl = y => Math.max(lo, Math.min(hi, y));
+        d += ` C${(p1[0] + (p2[0] - p0[0]) * t).toFixed(1)},${cl(p1[1] + (p2[1] - p0[1]) * t).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) * t).toFixed(1)},${cl(p2[1] - (p3[1] - p1[1]) * t).toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`; }
+      return d; };
+    const mainD = smooth(rows, key), base = (h - pb).toFixed(1);
+    const area = mainD ? `<path d="${mainD} L${X(n - 1).toFixed(1)},${base} L${X(0).toFixed(1)},${base}Z" fill="url(#lx-area)" stroke="none"/>` : '';
+    const peakI = rows.reduce((b, r, i) => (r[key] != null && (b < 0 || r[key] > rows[b][key]) ? i : b), -1);
+    const peak = peakI >= 0 && peakI !== n - 1 ? `<text x="${Math.min(w - pr - 30, Math.max(pl + 30, X(peakI))).toFixed(1)}" y="${(Y(rows[peakI][key]) - 9).toFixed(1)}" font-size="10.5" font-weight="600" text-anchor="middle" fill="var(--ink-2)">${fmt(rows[peakI][key])}</text>` : '';
     const idx = n <= 10 ? rows.map((_, i) => i) : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)))];
     const ticks = idx.map(i => `<text x="${X(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
     const marks = (opts.changes || []).map(c => { const i = rows.findIndex(r => r.date === c.date); if (i < 0) return ''; return `<g class="v2mk"><line x1="${X(i).toFixed(1)}" x2="${X(i).toFixed(1)}" y1="${pt}" y2="${h - pb}" stroke="var(--faint)" stroke-dasharray="2 3"/><polygon points="${(X(i) - 5).toFixed(1)},${h - pb + 2} ${(X(i) + 5).toFixed(1)},${h - pb + 2} ${X(i).toFixed(1)},${h - pb - 6}" fill="var(--muted)"><title>${esc(day(c.date) + ' · ' + c.text)}</title></polygon></g>`; }).join('');
     const lastV = rows[n - 1][key];
     return `<div class="v2chart" data-chart="${id}"><svg id="${id}" viewBox="0 0 ${w} ${h}">${grid}${ticks}
       ${opts.plan ? `<line x1="${pl}" x2="${w - pr}" y1="${Y(opts.plan).toFixed(1)}" y2="${Y(opts.plan).toFixed(1)}" stroke="var(--warn)" stroke-width="1.2" stroke-dasharray="2 4"/>` : ''}
-      ${prev.length > 1 ? `<polyline points="${line(prev, key)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.5" stroke-dasharray="4 4"/>` : ''}
-      ${opts.key2 ? `<polyline points="${line(rows, opts.key2)}" fill="none" stroke="var(--c-google)" stroke-width="1.6" stroke-linejoin="round"/>` : ''}
-      <polyline points="${line(rows, key)}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
-      ${lastV != null ? `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(lastV).toFixed(1)}" r="3.5" fill="var(--brand)"/>` : ''}
+      ${area}
+      ${prev.length > 1 ? `<path d="${smooth(prev, key)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round"/><polyline points="${line(prev, key)}" fill="none" stroke="var(--v2-cmp)" stroke-opacity="0"/>` : ''}
+      ${opts.key2 ? `<path d="${smooth(rows, opts.key2)}" fill="none" stroke="var(--c-google)" stroke-width="1.6" stroke-linecap="round"/><polyline points="${line(rows, opts.key2)}" fill="none" stroke="var(--c-google)" stroke-opacity="0"/>` : ''}
+      <path d="${mainD}" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="${line(rows, key)}" fill="none" stroke="var(--brand)" stroke-opacity="0"/>
+      ${lastV != null ? `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(lastV).toFixed(1)}" r="4" fill="var(--surface)" stroke="var(--brand)" stroke-width="2"/>` : ''}${peak}
       ${marks}<line class="gl" x1="0" x2="0" y1="${pt}" y2="${h - pb}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 3" opacity="0"/><g class="gdots"></g></svg><div class="v2tip"></div></div>`;
   }
   /** Shaded date ranges on a lineChart already drawn (calendar dates: a sale or drop as a band). Same geometry as lineChart. */
@@ -223,15 +236,29 @@
   const foot = t => `<p class="v2foot">${t}</p>`;
 
   /* ---------- side panel (drill) ---------- */
+  /* Detail views (DESIGN.md "Sheet"). panel(title, html) is a floating drawer on the right; with
+     panel.sheet = {lead, chip, actions} set before the call it is a FULL SHEET: header (lead art, name,
+     status chip, actions, expand, close) and a left sub-nav built from the body's [data-sec] blocks. */
   function panel(title, html) {
     let p = document.getElementById('v2panel');
-    if (!p) { document.body.insertAdjacentHTML('beforeend', `<div id="v2scrim"></div><aside id="v2panel" aria-label="Detail"><div class="ph"><b></b><button type="button" aria-label="Close">✕</button></div><div class="pb"></div></aside>`); p = document.getElementById('v2panel');
+    const ic = (n, l) => window.icon ? window.icon(n, { size: 16, label: l }) : '';
+    if (!p) { document.body.insertAdjacentHTML('beforeend', `<div id="v2scrim"></div><aside id="v2panel" aria-label="Detail" role="dialog"><div class="ph"><span class="plead"></span><div class="pt"><b></b><span class="pchip"></span></div><span class="sp"></span><span class="pacts"></span><button type="button" class="ds-iconbtn pexp" aria-label="Expand">${ic('maximize', 'Expand')}</button><button type="button" class="ds-iconbtn pclose" aria-label="Close">${ic('x', 'Close')}</button></div><div class="sbody"><nav class="snav" aria-label="Sections"></nav><div class="pb"></div></div></aside>`); p = document.getElementById('v2panel');
       const close = () => { p.classList.remove('on'); document.getElementById('v2scrim').classList.remove('on'); };
-      p.querySelector('button').onclick = close; document.getElementById('v2scrim').onclick = close; document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }); }
+      p.querySelector('.pclose').onclick = close; document.getElementById('v2scrim').onclick = close; document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+      p.querySelector('.pexp').onclick = () => p.classList.toggle('full'); }
+    const sh = panel.sheet || null; panel.sheet = null;
     p.classList.toggle('wide', !!panel.wide); panel.wide = false;
-    p.querySelector('.ph b').textContent = title; p.querySelector('.pb').innerHTML = html;
+    p.classList.toggle('sheet', !!sh); if (!sh) p.classList.remove('full');
+    p.querySelector('.ph b').textContent = title;
+    p.querySelector('.plead').innerHTML = (sh && sh.lead) || ''; p.querySelector('.pchip').innerHTML = (sh && sh.chip) || ''; p.querySelector('.pacts').innerHTML = (sh && sh.actions) || '';
+    const pb = p.querySelector('.pb'); pb.innerHTML = html; pb.scrollTop = 0;
+    const nav = p.querySelector('.snav'), secs = sh ? [...pb.querySelectorAll('[data-sec]')] : [];
+    nav.innerHTML = secs.length > 1 ? `<span class="ds-label">${esc(sh.navLabel || 'On this page')}</span>` + secs.map((x, i) => `<button type="button" data-sec-i="${i}" class="${i ? '' : 'on'}">${x.dataset.ic ? ic(x.dataset.ic) : ''}<span>${esc(x.dataset.sec)}</span></button>`).join('') : '';
+    nav.hidden = secs.length < 2;
+    nav.onclick = e => { const b = e.target.closest('[data-sec-i]'); if (!b) return; const t = secs[+b.dataset.secI]; pb.scrollTo({ top: t.offsetTop - 8, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
+    pb.onscroll = secs.length > 1 ? () => { let k = 0; secs.forEach((x, i) => { if (x.offsetTop - 48 <= pb.scrollTop) k = i; }); nav.querySelectorAll('[data-sec-i]').forEach((b, i) => b.classList.toggle('on', i === k)); } : null;
     p.classList.add('on'); document.getElementById('v2scrim').classList.add('on');
-    return p.querySelector('.pb');
+    return pb;
   }
   async function drillOrders(label, q) {
     const body = panel(label, '<p class="v2hint">Reading the orders…</p>');
@@ -301,20 +328,25 @@
       <div class="v2kv"><span>Set spend</span><b>${kmoney(sc.spend, cur)}</b><span>Set cost per purchase</span><b class="${!g.cpa || sc.cpa == null ? '' : sc.cpa <= g.cpa ? 'good' : 'bad'}">${money(sc.cpa, cur)}</b><span>Set ROAS</span><b>${x2(sc.roas)}</b><span>This ad's share</span><b>${pct(a.set_share, 0)} · #${a.set_rank} of ${sc.ads}</b></div>
       <div class="v2bar2"${tipAttr(`This ad: ${pct(a.set_share, 0)} of the set's spend`)}><i style="width:${Math.min(100, (a.set_share || 0) * 100).toFixed(1)}%"></i></div></div>` : '';
     const callLine = cx && cx.call ? `<div class="v2call"><span class="v2pill ${cx.call[1]}">${esc(cx.call[0])}</span>${cx.fr ? `<span class="v2pill"${tipAttr(esc(cx.fr[1]))}>${esc(cx.fr[0])}</span>` : ''}${cx.why ? `<p>${esc(cx.why)}</p>` : ''}</div>` : '';
-    const body = panel(a.name || 'Ad', `<div class="v2pv"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">▶ Play</button></div>
-      <div class="v2pstat"><div><b>${kmoney(a.spend, cur)}</b><span>spend</span></div><div><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><span>cost per purchase${g.cpa ? ` · goal ${money(g.cpa, cur)}` : ''}</span></div><div><b>${x2(a.roas)}</b><span>ROAS</span></div></div>
+    /* A full sheet (DESIGN.md): cover and Play on the left, the sections on the right, a sub-nav to jump. */
+    const ICN = (n, s = 16) => window.icon ? window.icon(n, { size: s }) : '';
+    panel.sheet = { navLabel: 'This ad',
+      lead: `<span class="plead-th" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}></span>`,
+      chip: `${cx && cx.call ? `<span class="ds-chip ${cx.call[1]}">${esc(cx.call[0])}</span>` : ''}<span class="ds-chip">${ICN(a.media_type === 'video' ? 'play-circle' : 'image', 14)}${a.media_type === 'video' ? 'Video' : a.media_type === 'carousel' ? 'Carousel' : 'Static'}</span>${a.age != null ? `<span class="ds-chip">${ICN('clock', 14)}${a.age} days</span>` : ''}` };
+    const body = panel(a.name || 'Ad', `<div class="v2pv sheet-2"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">${ICN('play', 14)} Play</button></div></div>
+      <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat"><div><b>${kmoney(a.spend, cur)}</b><span>spend</span></div><div><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><span>cost per purchase${g.cpa ? ` · goal ${money(g.cpa, cur)}` : ''}</span></div><div><b>${x2(a.roas)}</b><span>ROAS</span></div></div>
       <div class="v2kv"><span>Purchases</span><b><button type="button" class="v2cell" data-orders="1">${int(a.purchases)}</button></b><span>Revenue</span><b>${kmoney(a.revenue, cur)}</b><span>Hook · hold</span><b>${pct(a.hook, 0)} · ${pct(a.hold, 0)}</b><span>CTR · CPM</span><b>${pct(a.ctr, 2)} · ${money2(a.cpm, cur)}</b>${a.frequency ? `<span>Frequency</span><b>${a.frequency.toFixed(2)}</b>` : ''}${a.age != null ? `<span>Running</span><b>${a.age} days</b>` : ''}${a.angle ? `<span>Angle</span><b>${esc(a.angle)}</b>` : ''}${a.ltv_n >= 5 ? `<span>90-day value</span><b>${money(a.ltv90, cur)} · ${x2(a.ltv_x)} first order · ${int(a.ltv_n)} customers</b>` : ''}</div>
-      ${callLine}${setCard}
-      ${gradeHtml(a, MED)}
+      ${callLine || setCard ? `<div data-sec="The call" data-ic="target" class="v2pv-sec">${callLine}${setCard}</div>` : ''}
+      <div data-sec="Funnel" data-ic="activity" class="v2pv-sec">${gradeHtml(a, MED)}</div>
       ${a.n_ads > 1 ? `<p class="v2hint">The same ${a.media_type === 'video' ? 'video' : 'image'} runs in <b>${a.n_ads} ads</b>; the numbers above are all of them added up. Play, the breakdown and the Studio button use the one that spent most.</p>` : ''}
       ${a.tags ? `<div class="v2tags big">${TAG_DIMS.map(([k, l]) => a.tags[k] ? `<span${tipAttr(l)}>${esc(a.tags[k])}</span>` : '').join('')}${a.tags.message ? `<span class="msg"${tipAttr('The message, in a few words')}>“${esc(a.tags.message)}”</span>` : ''}</div>${a.tags.notes ? `<p class="v2hint">${esc(a.tags.notes)}</p>` : ''}` : ''}
-      ${a.curve && a.curve[0] ? curveHtml(a.curve, CR_MEDC) : ''}
-      <div class="v2brk" id="v2brk"><button type="button" class="v2link" data-brk="1">Where it ran and who saw it ›</button></div>
-      ${x.headline || x.body ? `<div class="v2copy">${x.headline ? `<b>${esc(x.headline)}</b>` : ''}${x.body ? `<p>${esc(x.body)}</p>` : ''}</div>` : ''}
-      <div class="v2gos">${a.media_type !== 'video' && window.StudioTab && window.StudioTab.fromAd ? `<button type="button" class="v2go" data-studio="1"><b>Make iterations in Studio</b><span>This ad's image goes on a line of a Studio batch, so Studio makes new versions from it.</span><i>›</i></button>` : ''}<button type="button" class="v2go" data-more="1"><b>Make more like this</b><span>The Strategist drafts an Asana brief for three iterations of this ad.</span><i>›</i></button></div>
-      <p class="v2hint">${esc(MODEL_SHORT[H.S.model] || '')} for purchases and revenue; delivery is Meta's.</p></div>`);
+      ${a.curve && a.curve[0] ? `<div data-sec="Watch time" data-ic="play-circle">${curveHtml(a.curve, CR_MEDC)}</div>` : ''}
+      <div class="v2brk" id="v2brk" data-sec="Where it ran" data-ic="globe"><button type="button" class="v2link" data-brk="1">Where it ran and who saw it ›</button></div>
+      ${x.headline || x.body ? `<div class="v2copy" data-sec="Ad copy" data-ic="file-text">${x.headline ? `<b>${esc(x.headline)}</b>` : ''}${x.body ? `<p>${esc(x.body)}</p>` : ''}</div>` : ''}
+      <div class="v2gos" data-sec="Next steps" data-ic="sparkles">${a.media_type !== 'video' && window.StudioTab && window.StudioTab.fromAd ? `<button type="button" class="v2go" data-studio="1"><b>Make iterations in Studio</b><span>This ad's image goes on a line of a Studio batch, so Studio makes new versions from it.</span><i>${ICN('chevron-right')}</i></button>` : ''}<button type="button" class="v2go" data-more="1"><b>Make more like this</b><span>The Strategist drafts an Asana brief for three iterations of this ad.</span><i>${ICN('chevron-right')}</i></button></div>
+      <p class="v2hint">${esc(MODEL_SHORT[H.S.model] || '')} for purchases and revenue; delivery is Meta's.</p></div></div>`);
     body.querySelector('[data-more]').onclick = () => { const brand = (H.S.accounts.find(z => z.act_id === H.S.act) || {}).name || 'this brand'; H.AskUI.ask(`For ${brand}: draft an Asana brief for three iterations of the ad "${a.name}" (ad id ${a.id}). It spent ${kmoney(a.spend, cur)} at ${money(a.cpa, cur)} per purchase${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}. Keep what works, change one thing per iteration, and say which test it is.`); };
-    loadThumbs(body, [a.id]).then(() => { const y = ASSETS.get(a.id) || {}; const cp = body.querySelector('.v2copy'); if (!cp && (y.headline || y.body)) body.querySelector('.v2kv').insertAdjacentHTML('afterend', `<div class="v2copy">${y.headline ? `<b>${esc(y.headline)}</b>` : ''}${y.body ? `<p>${esc(y.body)}</p>` : ''}</div>`); });
+    loadThumbs(body, [a.id]).then(() => { const y = ASSETS.get(a.id) || {}; const lt = document.querySelector('#v2panel .plead-th'); if (lt && THUMBS.has(a.id)) lt.style.backgroundImage = `url('${THUMBS.get(a.id)}')`; const cp = body.querySelector('.v2copy'); if (!cp && (y.headline || y.body)) body.querySelector('.v2kv').insertAdjacentHTML('afterend', `<div class="v2copy">${y.headline ? `<b>${esc(y.headline)}</b>` : ''}${y.body ? `<p>${esc(y.body)}</p>` : ''}</div>`); });
     body.querySelector('[data-orders]').onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`);
     const stu = body.querySelector('[data-studio]');
     if (stu) stu.onclick = async () => { const sp = stu.querySelector('span'), was = sp.textContent; sp.textContent = 'Bringing the image into Studio…'; stu.disabled = true;
@@ -807,7 +839,7 @@
     CR_WIN = d.window || null; CR_PICK.clear(); CR_TAG = null;
     /* The brand's average drop-off, for the dashed line in the preview: mean of each judged video's curve, relative to 3-second viewers. */
     CR_MEDC = (() => { const cs = ads.filter(r => r.curve && r.curve[0] && r.spend >= bar).map(r => { const pk = Math.max(...r.curve.map(v => v || 0)) || 1; return r.curve.map(v => (v || 0) / pk); }); return cs.length >= 3 ? [0, 1, 2, 3, 4].map(i => cs.reduce((x, c) => x + c[i], 0) / cs.length) : null; })();
-    const galItem = r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><label class="v2pick"${tipAttr('Pick up to 4 to compare')}><input type="checkbox" data-pick="${esc(r.id)}"${CR_PICK.has(r.id) ? ' checked' : ''} aria-label="Pick to compare"></label><span class="v2pill ${VL[v][1]}"${v === 'nogoal' ? tipAttr('No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.') : whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
+    const galItem = r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">${window.icon ? window.icon('play', { size: 16 }) : ''}</span><label class="v2pick"${tipAttr('Pick up to 4 to compare')}><input type="checkbox" data-pick="${esc(r.id)}"${CR_PICK.has(r.id) ? ' checked' : ''} aria-label="Pick to compare"></label><span class="v2pill ${VL[v][1]}"${v === 'nogoal' ? tipAttr('No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.') : whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
       ${r.n_ads > 1 || r.tags ? `<div class="v2tags">${r.n_ads > 1 ? `<span class="n"${tipAttr(`The same ${r.media_type === 'video' ? 'video' : 'image'} runs in ${r.n_ads} ads; their numbers are added up here.`)}>In ${r.n_ads} ads</span>` : ''}${r.tags ? [r.tags.format, r.tags.hook].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('') : ''}</div>` : ''}
       ${role(r) !== 'solo' || funnelRole(r) || valTag(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${valTag(r) ? `<span class="${valTag(r) === 'more' ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>${valTag(r) === 'more' ? 'Customers come back' : 'Customers don’t come back'}</span>` : ''}</div>` : ''}
       <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${r.cpa == null ? (r.spend > 0 && goal && r.spend >= bar ? 'bad' : '') : !goal ? '' : r.cpa <= goal ? 'good' : 'bad'}">${r.cpa == null && r.spend > 0 ? 'no sales' : money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; };
@@ -817,7 +849,7 @@
     const sortRow = () => `<div class="v2sort" role="group" aria-label="Sort the ads by"><span>Sort by</span>${SORTS.map(([k, l]) => `<button type="button" data-sort="${k}" class="${k === CR_SORT ? 'on' : ''}" aria-pressed="${k === CR_SORT}">${l}</button>`).join('')}</div>`;
     const tagName = k => (TAG_DIMS.find(x => x[0] === k) || [, k])[1];
     const toolsRow = () => `<div class="v2sort v2tools"><span>Show</span><button type="button" data-grp="0" class="${CR_GROUP ? '' : 'on'}">Each ad</button><button type="button" data-grp="1" class="${CR_GROUP ? 'on' : ''}"${tipAttr('Ads that run the same video or image become one card, their numbers added up.')}>One card per creative</button>
-      ${CR_TAG ? `<button type="button" class="on" data-untag="1"${tipAttr('Showing only ads with this tag. Press to show all.')}>${esc(tagName(CR_TAG.k))}: ${esc(CR_TAG.v)} ✕</button>` : ''}
+      ${CR_TAG ? `<button type="button" class="on" data-untag="1"${tipAttr('Showing only ads with this tag. Press to show all.')}>${esc(tagName(CR_TAG.k))}: ${esc(CR_TAG.v)} ${window.icon ? window.icon('x', { size: 12 }) : ''}</button>` : ''}
       <span class="sp"></span><button type="button" class="v2link" data-cmp="1"${CR_PICK.size < 2 ? ' disabled' : ''}>${CR_PICK.size ? `Compare the ${CR_PICK.size} picked` : 'Tick 2 to 4 ads to compare'}</button><button type="button" class="v2link" data-save="1">Save this view to a dashboard</button></div>`;
     /* WHAT'S WORKING, BY TAG (Motion's core report): spend, CPA, ROAS and hook per tag value. A row filters the gallery. */
     const tagsCard = (() => {

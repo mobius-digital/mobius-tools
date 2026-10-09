@@ -452,7 +452,7 @@ async function renderChangeLog() {
     <div class="mt-bar" id="clFilt">
       <input class="mt-in" id="clQ" type="search" placeholder="Search changes" aria-label="Search changes" value="${esc(CL.q)}">
       <select class="mt-in" id="clType" aria-label="Filter by type"><option value="">All types</option></select>
-      <button type="button" class="mt-b on" id="clNeedOff" hidden>Only changes without a why ✕</button>
+      <button type="button" class="mt-b on" id="clNeedOff" hidden>Only changes without a why <svg class="li" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></button>
     </div>
     <div id="clFeed" class="mt-stack"><section class="v2card"><p class="v2hint">Loading changes…</p></section></div>
     ${U().foot('Changes come from Meta’s activity log with every sync, plus anything added by hand. CPA is Meta spend over Triple Whale purchases (last platform click); a day Triple Whale has not synced is left out, never counted as zero.')}`);

@@ -91,7 +91,7 @@ async function open() {
 
   const frameRow = opts.frame
     ? ''
-    : `<div class="notice warn" style="margin:0 0 14px">⚠️<div><b>Frame is not connected</b>, so new clients get no Frame project until it is. <a href="#" id="ncFrame">Connect Frame</a> (one time: an Adobe Developer Console app).</div></div>`;
+    : `<div class="notice warn" style="margin:0 0 14px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>Frame is not connected</b>, so new clients get no Frame project until it is. <a href="#" id="ncFrame">Connect Frame</a> (one time: an Adobe Developer Console app).</div></div>`;
   const w = shell(`<h3>New client</h3>
     <p class="hint" style="margin-bottom:14px">Fill this in once. Locus then makes their Asana project, onboarding link, Drive folder, Slack channels and Frame project. The client gets nothing until you press Send on the welcome email. You see every step as it happens.</p>
     ${frameRow}
@@ -160,12 +160,12 @@ async function status(id, autorun) {
   let closed = false;
   const close = () => { closed = true; w.remove(); };
 
-  const icon = st => st?.status === 'done' ? '✅' : st?.status === 'failed' ? '⚠️' : '○';
+  const icon = st => st?.status === 'done' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg>' : st?.status === 'failed' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor"/></svg>';
   const row = key => {
     const st = run.steps[key];
     const running = busy === key;
     const link = st?.url ? ` <a href="${esc(st.url)}" target="_blank" rel="noopener">Open</a>` : '';
-    return `<div class="nc-step"><span class="nc-ic">${running ? '⏳' : icon(st)}</span>
+    return `<div class="nc-step"><span class="nc-ic">${running ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hourglass"/></svg>' : icon(st)}</span>
       <div><b>${LABEL[key]}</b>${link}
         <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}">${running ? 'Working…' : esc(st?.text || WHAT[key])}</span>
         ${(st?.notes || []).map(n => `<span class="tiny nc-bad">${esc(n)}</span>`).join('')}</div>
@@ -180,18 +180,18 @@ async function status(id, autorun) {
   const contractBlock = () => {
     const c = contract || {}; const st = run.steps.contract;
     if (!cv) cv = { ...(c.defaults || {}), ...(c.vars || {}) };
-    if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px">✅ Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span>${amendBlock(c)}</div>`;
+    if (c.status === 'signed') return `<div style="margin-top:16px"><b style="font-size:14px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg> Agreement signed</b><span class="tiny" style="display:block">Signed by ${esc(c.signed_by || '')} on ${esc((c.signed_at || '').slice(0, 10))}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signed copy</a></span>${amendBlock(c)}</div>`;
     const history = (c.history || []).length ? `<span class="tiny" style="display:block;margin-top:4px">Earlier versions, withdrawn: ${c.history.map(h => `v${esc(h.version)} sent ${esc((h.sent_at || '').slice(0, 10))}${h.custom ? ' (custom text)' : ''}`).join(' · ')}</span>` : '';
-    if (c.status === 'sent' && !editSent) return `<div style="margin-top:16px"><b style="font-size:14px">📨 Agreement sent, waiting for their signature${c.version > 1 ? ` <span class="tiny">(version ${esc(c.version)})</span>` : ''}</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a> · <a href="#" id="ncCvChange">Change it before they sign</a></span>
+    if (c.status === 'sent' && !editSent) return `<div style="margin-top:16px"><b style="font-size:14px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-send"/></svg> Agreement sent, waiting for their signature${c.version > 1 ? ` <span class="tiny">(version ${esc(c.version)})</span>` : ''}</b><span class="tiny" style="display:block">Sent ${esc((c.sent_at || '').slice(0, 10))} to ${esc(run.contact_email || '')}. <a href="${esc(c.url)}" target="_blank" rel="noopener">Open the signing page</a> · <a href="#" id="ncCvChange">Change it before they sign</a></span>
       <span class="tiny" style="display:block;margin-top:4px">They asked for a change? Change it here while it is unsigned: they get a new email and the old version is withdrawn. Once they sign, changes become an amendment instead.</span>${history}</div>`;
     const f = (k, label, help, ta) => `<div class="ab-f" style="margin-top:8px"><label style="font-size:13px">${label}</label><p class="hint" style="margin:0 0 4px">${help}</p>${ta ? `<textarea id="cv_${k}" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit">${esc(cv[k] || '')}</textarea>` : `<input type="text" id="cv_${k}" value="${esc(cv[k] || '')}" style="width:100%">`}</div>`;
     const changing = c.status === 'sent' && editSent;
-    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '⏳' : changing ? '✎' : '3.'} ${changing ? `Change the agreement (version ${esc((c.version || 1) + 1)})` : 'Agreement'}</b>
+    return `<div style="margin-top:16px"><b style="font-size:14px">${busy === 'contract' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hourglass"/></svg>' : changing ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg>' : '3.'} ${changing ? `Change the agreement (version ${esc((c.version || 1) + 1)})` : 'Agreement'}</b>
       <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'contract' ? 'Sending…' : esc(st?.status === 'failed' ? st.text : changing ? `This starts from the text sent on ${(c.sent_at || '').slice(0, 10)}. Say what changes in plain words below, preview, then send: ${run.contact_email || 'the client'} gets a new email and the earlier version is withdrawn.` : 'Your standard services agreement with the blanks filled in. Check them, preview, then send. The client signs on a page inside their onboarding, no DocuSign.')}</span>
       ${changing ? '<p class="tiny" style="margin:4px 0 0"><a href="#" id="ncCvCancel">Cancel, keep what was sent</a></p>' : ''}
       ${f('client_name', 'Who signs for the client', 'Their full name, as it appears on the agreement.')}
       <div class="nc-two">${f('start_date', 'Start date', 'YYYY-MM-DD.')}${f('term', 'Term', 'How long the agreement runs before it renews.')}</div>
-      ${cv.html ? `<p class="tiny" style="margin-top:8px">✎ This agreement has custom text from your edits. The fields above no longer apply to it. <a href="#" id="ncCvReset">Back to the standard text</a></p>` : f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
+      ${cv.html ? `<p class="tiny" style="margin-top:8px"><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> This agreement has custom text from your edits. The fields above no longer apply to it. <a href="#" id="ncCvReset">Back to the standard text</a></p>` : f('payment', 'Payment terms', 'The one paragraph that changes per client.', true)}
       <div class="ab-f" style="margin-top:10px"><label style="font-size:13px">Anything different for this client?</label><p class="hint" style="margin:0 0 4px">Say it in plain words and the AI rewrites the agreement, changing only that. About a cent each time. For example: retainer is $3,000 plus 10% of ad spend, six-month term, add a clause that we can pause for non-payment.</p>
         <textarea id="ncCvAsk" rows="2" placeholder="What should be different?" oninput="this.dataset.v=this.value" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
         <div class="row" style="gap:8px;margin-top:6px"><button class="btn" id="ncCvAi">Apply with AI</button><span class="tiny" id="ncCvAiMsg"></span></div></div>
@@ -216,7 +216,7 @@ async function status(id, autorun) {
      plain words, previewed, then signed the same way. The signed original never changes. */
   let am = { ask: '', html: '', n: 0 };
   const amendBlock = c => {
-    const list = (c.amendments || []).map(a => `<span class="tiny" style="display:block">${a.status === 'signed' ? '✅' : '📨'} Amendment No. ${esc(a.n)}: ${a.status === 'signed' ? `signed by ${esc(a.signed_by || '')} on ${esc((a.signed_at || '').slice(0, 10))}` : `sent ${esc((a.sent_at || '').slice(0, 10))}, waiting for their signature`}. <a href="${esc(a.url)}" target="_blank" rel="noopener">Open</a></span>`).join('');
+    const list = (c.amendments || []).map(a => `<span class="tiny" style="display:block">${a.status === 'signed' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-send"/></svg>'} Amendment No. ${esc(a.n)}: ${a.status === 'signed' ? `signed by ${esc(a.signed_by || '')} on ${esc((a.signed_at || '').slice(0, 10))}` : `sent ${esc((a.sent_at || '').slice(0, 10))}, waiting for their signature`}. <a href="${esc(a.url)}" target="_blank" rel="noopener">Open</a></span>`).join('');
     return `${list}<div class="ab-f" style="margin-top:10px"><label style="font-size:13px">Something changed? Amend the agreement</label><p class="hint" style="margin:0 0 4px">Say what is changing in plain words, for example: add Google Ads management from November 1 for $1,000 a month. The AI writes the amendment and asks if it needs more. About a cent.</p>
       <textarea id="ncAmAsk" rows="2" style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:transparent;color:inherit"></textarea>
       <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap"><button class="btn" id="ncAmDraft">${am.html ? 'Revise with AI' : 'Draft the amendment'}</button>${am.html ? '<button class="btn" id="ncAmPrev">Preview</button><button class="btn primary" id="ncAmSend">Send for signature</button>' : ''}<span class="tiny" id="ncAmMsg"></span></div></div>`;
@@ -244,9 +244,9 @@ async function status(id, autorun) {
   /* Meta: Locus connects it on its own when the ad account name matches the client. When it does not
      ("Hockeyak" for Yak Sports), pick it here. */
   let metaList = null;
-  const callLine = () => { const c = contract?.call; return c?.when && !c.canceled ? `<div class="nc-step"><span class="nc-ic">📅</span><div><b>Strategy call</b><span class="tiny">Booked for ${esc(c.when)}.</span></div><span></span></div>` : `<div class="nc-step"><span class="nc-ic">○</span><div><b>Strategy call</b><span class="tiny">${c?.canceled ? 'They cancelled it. ' : ''}Shows here the moment they book it in Calendly.</span></div><span></span></div>`; };
+  const callLine = () => { const c = contract?.call; return c?.when && !c.canceled ? `<div class="nc-step"><span class="nc-ic"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg></span><div><b>Strategy call</b><span class="tiny">Booked for ${esc(c.when)}.</span></div><span></span></div>` : `<div class="nc-step"><span class="nc-ic">○</span><div><b>Strategy call</b><span class="tiny">${c?.canceled ? 'They cancelled it. ' : ''}Shows here the moment they book it in Calendly.</span></div><span></span></div>`; };
   const metaBlock = () => {
-    if (run.act_id) return `<div class="nc-step" style="border-top:1px solid var(--line)"><span class="nc-ic">✅</span><div><b>Meta ad account</b><span class="tiny">Connected. History is syncing; the brief, reports and their Your ads page fill in from it.</span></div><span></span></div>`;
+    if (run.act_id) return `<div class="nc-step" style="border-top:1px solid var(--line)"><span class="nc-ic"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg></span><div><b>Meta ad account</b><span class="tiny">Connected. History is syncing; the brief, reports and their Your ads page fill in from it.</span></div><span></span></div>`;
     const opts = (metaList || []).map(a => `<option value="${esc(a.act_id)}">${esc(a.name)}</option>`).join('');
     return `<div class="nc-step" style="border-top:1px solid var(--line)"><span class="nc-ic">○</span><div><b>Meta ad account</b>
       <span class="tiny">Connects itself within the hour after they share, when the account name matches. If it does not, pick it:</span>
@@ -271,7 +271,7 @@ async function status(id, autorun) {
     const amt = run.retainer ? `$${Number(run.retainer).toLocaleString('en-US')} a month` : '';
     if (!run.retainer) return `<div style="margin-top:16px"><b style="font-size:14px">○ First invoice</b><span class="tiny" style="display:block">Skipped: no retainer was entered. Send it from Stripe if you need one.</span></div>`;
     const sent = st?.status === 'done';
-    return `<div style="margin-top:16px"><b style="font-size:14px">${sent ? (st.paid ? '✅' : '📨') : busy === 'stripe' ? '⏳' : '2.'} First invoice, ${amt}</b>
+    return `<div style="margin-top:16px"><b style="font-size:14px">${sent ? (st.paid ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-send"/></svg>') : busy === 'stripe' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hourglass"/></svg>' : '2.'} First invoice, ${amt}</b>
       <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'stripe' ? 'Sending…' : esc(st?.text || `Stripe emails ${run.contact_email} the first invoice. When they pay it, their card is saved and the retainer bills itself every month from then on.`)}${st?.url ? ` <a href="${esc(st.url)}" target="_blank" rel="noopener">Open the invoice</a>` : ''}</span>
       ${sent || busy ? (sent && !st.paid ? `<button class="btn" data-go="stripe" style="margin-top:6px">Check if paid</button>` : '') : `<button class="btn primary" id="ncInvoice" style="margin-top:6px">${st?.status === 'failed' ? 'Try again' : 'Send the invoice'}</button>`}</div>`;
   };
@@ -287,7 +287,7 @@ async function status(id, autorun) {
       ${metaBlock()}
       ${callLine()}
       <div class="nc-mail" style="margin-top:16px">
-        <b style="font-size:14px">${m?.status === 'done' ? '✅ ' : '1. '}Welcome email to ${esc(run.contact_email || '')}</b>
+        <b style="font-size:14px">${m?.status === 'done' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg> ' : '1. '}Welcome email to ${esc(run.contact_email || '')}</b>
         <p class="tiny${m?.status === 'failed' ? ' nc-bad' : ''}" style="margin:2px 0 8px">${m ? esc(m.text) : 'Send this first: it explains everything else they are about to get. Pressing Send also invites them to Asana and their Drive folders. It goes from your Gmail with your signature.'}</p>
         ${m?.status === 'done' ? '' : `<input type="text" id="ncSub" style="margin-bottom:6px">
         <textarea id="ncMsg" rows="12"></textarea>

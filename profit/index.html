@@ -18,14 +18,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Locus">
-<meta name="theme-color" content="#0C161D">
+<meta name="theme-color" content="#F7F7F8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet">
 <!-- The shared Mobius design system. Loaded BEFORE this page's own <style>, so
      anything Locus still defines locally deliberately wins over it. -->
-<link rel="stylesheet" href="/mobius.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("pf_theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
+<link rel="stylesheet" href="/mobius.css?v=2">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("pf_theme")||"light"}catch(e){document.documentElement.dataset.theme="light"}</script>
 <link rel="stylesheet" href="/ask/ask.css?v=11">
 <style>
   /* ============================================================
@@ -2173,62 +2173,15 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=17">
+<link rel="stylesheet" href="v2.css?v=18">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=9"></script>
 <body>
-<!-- Icon sprite. One <symbol> per tab, 16x16, stroked at a single weight so the
-     column reads as one set rather than ten borrowed glyphs. Referenced with
-     <use>, which keeps the nav markup to one line per tab. -->
+<!-- Brand marks (#b-*). The UI icons (#i-*) are one Lucide set injected by icons.js (DESIGN.md section 3). -->
+<script src="icons.js?v=1"></script>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
-  <symbol id="i-overview" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
-  <symbol id="i-profit" viewBox="0 0 16 16"><path d="M2 12.5 6 8l3 2.5L14 4"/><path d="M10.5 4H14v3.5"/></symbol>
-  <symbol id="i-meta" viewBox="0 0 16 16"><path d="M2 11c1.6-5 3.2-6.4 4.6-6.4C9 4.6 10 11 12.4 11c1 0 1.6-1 1.6-2.4C14 6 12.8 4.6 11.4 4.6 9 4.6 8 11 5.6 11 4.6 11 4 10 4 8.6"/></symbol>
-  <symbol id="i-brief" viewBox="0 0 16 16"><path d="M3 3.5h10v9H3z"/><path d="M5.5 6.5h5M5.5 9.5h3"/></symbol>
-  <symbol id="i-reports" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/><path d="M6.5 9.5v2M8 8v3.5M9.5 10v1.5"/></symbol>
-  <symbol id="i-calc" viewBox="0 0 16 16"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5.5 5h5M5.5 8h2M8.5 8h2M5.5 11h2M8.5 11h2"/></symbol>
-  <symbol id="i-plan" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></symbol>
-  <symbol id="i-customers" viewBox="0 0 16 16"><circle cx="6" cy="6" r="2.4"/><path d="M2 13c0-2.2 1.8-3.6 4-3.6S10 10.8 10 13"/><path d="M10.6 4.2a2.4 2.4 0 0 1 0 4.3M11.5 9.7c1.6.4 2.5 1.6 2.5 3.3"/></symbol>
-  <symbol id="i-health" viewBox="0 0 16 16"><path d="M8 13.5S2.5 10.4 2.5 6.6A3.1 3.1 0 0 1 8 4.8a3.1 3.1 0 0 1 5.5 1.8c0 3.8-5.5 6.9-5.5 6.9Z"/></symbol>
-  <symbol id="i-costs" viewBox="0 0 16 16"><path d="M4 2.5h8v11l-2-1.2-2 1.2-2-1.2-2 1.2z"/><path d="M6.5 6h3M6.5 9h3"/></symbol>
-  <symbol id="i-settings" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.1"/><path d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1M12.4 12.4l-1.1-1.1M4.7 4.7 3.6 3.6"/></symbol>
-  <symbol id="i-brand" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></symbol>
-  <symbol id="i-studio" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
-  <symbol id="i-amb" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
-  <symbol id="i-tests" viewBox="0 0 24 24"><path d="M10 2v7.5a2 2 0 0 1-.2.9L4.7 20.5a1 1 0 0 0 .9 1.5h12.8a1 1 0 0 0 .9-1.5l-5.1-10.1a2 2 0 0 1-.2-.9V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
-  <symbol id="i-angles" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></symbol>
-  <symbol id="i-more" viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></symbol>
-  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/><path d="M5 6.5h6M5 8.5h4"/></symbol>
-  <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.6"/></symbol>
-  <symbol id="i-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.8 5.8v4.4L10.3 8z"/></symbol>
-  <symbol id="i-season" viewBox="0 0 16 16"><path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z"/><circle cx="5.6" cy="5.6" r="1"/></symbol>
-  <symbol id="i-google" viewBox="0 0 16 16"><path d="M13.5 8H8"/><path d="M13.2 6.2A5.6 5.6 0 1 0 13.5 8"/></symbol>
-  <symbol id="i-tiktok" viewBox="0 0 16 16"><path d="M9.5 2.5v8a2.6 2.6 0 1 1-2.6-2.6"/><path d="M9.5 2.5c.4 2 1.9 3.2 3.8 3.3"/></symbol>
-  <symbol id="i-email" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="m2.5 4.5 5.5 4.3 5.5-4.3"/></symbol>
-  <symbol id="i-store" viewBox="0 0 16 16"><path d="M3 5.5h10l-.8 8H3.8z"/><path d="M5.5 5.5V4.5a2.5 2.5 0 0 1 5 0v1"/></symbol>
-  <symbol id="i-products" viewBox="0 0 16 16"><path d="M8 1.8 14 5v6L8 14.2 2 11V5z"/><path d="M2 5l6 3.2L14 5M8 8.2v6"/></symbol>
-  <!-- 2026-10-09 restructure: one icon per item, never repeated (24 grid). -->
-  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
-  <symbol id="i-mega" viewBox="0 0 24 24"><path d="M3 10v4h3l7 4V6L6 10H3z"/><path d="M17 9a4 4 0 0 1 0 6"/></symbol>
-  <symbol id="i-brush" viewBox="0 0 24 24"><path d="M14 4l6 6-8 8-6-6 8-8z"/><path d="M6 12c-2 1-3 3-3 6 3 0 5-1 6-3"/></symbol>
-  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4V3z"/></symbol>
-  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
-  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 3 3 5 1-2 1-5 1-9z"/></symbol>
-  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14 6a4 4 0 0 0 5 5l-9 9a2 2 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/></symbol>
-  <symbol id="i-idcard" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c1-2 5-2 6 0M14 10h4M14 13h4"/></symbol>
-  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8z"/><path d="M12 17v4"/></symbol>
-  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
-  <symbol id="i-plane" viewBox="0 0 24 24"><path d="M21 3L3 11l7 3 3 7 8-18z"/><path d="M10 14l4-4"/></symbol>
-  <symbol id="i-factory" viewBox="0 0 24 24"><path d="M3 21V10l5 3V10l5 3V6h4l1 15H3z"/></symbol>
-  <symbol id="i-steth" viewBox="0 0 24 24"><path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M10 13v3a4 4 0 0 0 8 0v-2"/><circle cx="18" cy="12" r="2"/></symbol>
-  <symbol id="i-building" viewBox="0 0 24 24"><path d="M5 21V4h10v17M15 9h4v12"/><path d="M8 8h4M8 12h4M8 16h4"/></symbol>
-  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><path d="M3 20c0-3 2-6 5-6"/><circle cx="16" cy="15" r="2"/><path d="M17.5 16.5L21 20M19 18l1-1"/></symbol>
-  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7a8 8 0 0 0-14-2L4 7M4 17a8 8 0 0 0 14 2l2-2"/><path d="M4 3v4h4M20 21v-4h-4"/></symbol>
-  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M10 12h4"/></symbol>
-  <symbol id="i-chev" viewBox="0 0 16 16"><path d="m5 6 3 3 3-3"/></symbol>
-  <symbol id="b-meta" viewBox="0 0 24 24"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></symbol><symbol id="b-google" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></symbol><symbol id="b-tiktok" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></symbol><symbol id="b-shopify" viewBox="0 0 24 24"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></symbol><symbol id="b-ga" viewBox="0 0 24 24"><rect x="15.5" y="2" width="6" height="20" rx="3"/><rect x="8.5" y="9" width="6" height="13" rx="3"/><circle cx="4.5" cy="18.5" r="3"/></symbol><symbol id="b-klaviyo" viewBox="0 0 24 24"><path d="M2 4.5h20l-5.2 7.5L22 19.5H2z"/></symbol><symbol id="i-ads" viewBox="0 0 16 16"><path d="M2.5 6.3v3.4h2.2l5.3 3.1V3.2L4.7 6.3z"/><path d="M11.8 5.8a2.8 2.8 0 0 1 0 4.4"/><path d="M5 9.7l.8 3.3"/></symbol>
+  <symbol id="b-meta" viewBox="0 0 24 24"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></symbol><symbol id="b-google" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></symbol><symbol id="b-tiktok" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></symbol><symbol id="b-shopify" viewBox="0 0 24 24"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></symbol><symbol id="b-ga" viewBox="0 0 24 24"><rect x="15.5" y="2" width="6" height="20" rx="3"/><rect x="8.5" y="9" width="6" height="13" rx="3"/><circle cx="4.5" cy="18.5" r="3"/></symbol><symbol id="b-klaviyo" viewBox="0 0 24 24"><path d="M2 4.5h20l-5.2 7.5L22 19.5H2z"/></symbol>
 </defs></svg>
 
 <div class="app">
@@ -2292,7 +2245,7 @@
          and no tabs, so this row is the only chrome they get, and several
          renderers write straight into these two selectors. -->
     <div class="topbar">
-      <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="side" aria-expanded="false">☰</button>
+      <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="side" aria-expanded="false"><svg class="li ni" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg></button>
       <div class="hd-title" id="hdTitle"></div>
       <div class="v2ask" id="v2ask" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg><input id="v2askIn" type="text" autocomplete="off" spellcheck="false" aria-label="Ask the Strategist, or jump to a page or a brand" placeholder="Ask anything, or jump to a page or brand"><kbd>Ctrl K</kbd><div class="v2ask-pop" id="v2askPop" hidden></div></div>
       <div class="hd-right">
@@ -2335,7 +2288,7 @@
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=30"></script>
+<script src="v2.js?v=31"></script>
 <script src="desk.js?v=7"></script>
 <script src="calendar.js?v=5"></script>
 <script src="supply.js?v=2"></script>
@@ -4190,7 +4143,7 @@ async function renderCreativeBrowser(host, act, range, opts) {
     ${d.attr_missing ? '' : `<p class="cb-legend">${goal
       ? `Each ad is marked <b>Scale</b>, <b>Watch</b> or <b>Cut</b> against the <a href="#" class="cb-goal" data-goals="${esc(act)}">${fmtMoney(goal, cur)} goal CPA</a>.`
       : `<a href="#" class="cb-goal" data-goals="${esc(act)}">Set a goal CPA</a> to mark each ad Scale, Watch or Cut.`}</p>`}
-    ${d.attr_missing ? `<div class="notice bad" style="margin:0 0 12px">⚠️<div>
+    ${d.attr_missing ? `<div class="notice bad" style="margin:0 0 12px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div>
         <b>No ${esc(attrLabel(d.attr_requested))} data for ${esc(d.account.name)} over this window.</b>
         Nothing is being shown rather than a wall of zeros, and <b>nothing has been silently swapped to Meta</b> - 
         if this is unexpected, the attribution sync is the thing that is wrong.
@@ -5669,7 +5622,7 @@ function fulfilSection(s, cur, actId, windowSales, days, marginPct) {
 
   return `<div class="card"><h3 style="margin-bottom:2px">Fulfilment ${shipPill(s)}</h3>
     <p class="hint" style="margin-bottom:12px">Product costs are not the only variable cost that can go missing, and delivery fails more quietly.${ovr}</p>
-    <div class="notice bad" style="margin:0 0 14px">⚠️ <div><b>Customers were charged ${fmtMoney(s.rev, cur)} for delivery and no cost is recorded against any of it.</b> That income is already inside revenue and cannot be netted back out, so contribution margin is overstated by whatever delivery actually costs. Add this brand's fulfilment rates in Triple Whale and the figure corrects itself.</div></div>
+    <div class="notice bad" style="margin:0 0 14px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>Customers were charged ${fmtMoney(s.rev, cur)} for delivery and no cost is recorded against any of it.</b> That income is already inside revenue and cannot be netted back out, so contribution margin is overstated by whatever delivery actually costs. Add this brand's fulfilment rates in Triple Whale and the figure corrects itself.</div></div>
     ${stats}
     ${bench ? `<p class="tiny">${benchNote} ${expLine}</p>` : `<p class="tiny">No other client has a real delivery rate configured either, so there is nothing to size this against yet.</p>`}
     <p class="tiny" style="margin-top:8px"><b>The fix is at source:</b> Triple Whale → Settings → Costs → shipping, either a flat rate per order or the real carrier rates. Nothing on this dashboard adjusts for it in the meantime - a silent correction would be indistinguishable from a measurement.</p></div>`;
@@ -6940,13 +6893,13 @@ function rhythmCard(rh, cur, showCm) {
   const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
 
   const verdict = rh.reliable
-    ? `<div class="notice">✓ <div><b>This client has a real weekly rhythm.</b>
+    ? `<div class="notice"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div><b>This client has a real weekly rhythm.</b>
         ${strong.length ? `<b>${esc(list(strong))}</b> came in above an average day in <i>every</i> month looked at${soft.length ? ', while ' : '.'}` : ''}
         ${soft.length ? `<b>${esc(list(soft))}</b> came in below an average day every month.` : ''}
         The other days moved around too much to call.${rh.mer_best || rh.mer_worst ? `<br><b>On efficiency:</b> ${rh.mer_best ? `<b>${esc(rh.mer_best.name)}</b> returned the most per ad dollar (${fmtX(rh.mer_best.mer)})` : ''}${rh.mer_best && rh.mer_worst ? ', while ' : ''}${rh.mer_worst ? `<b>${esc(rh.mer_worst.name)}</b> returned the least (${fmtX(rh.mer_worst.mer)})` : ''} in every month. ${rh.cm_best && rh.mer_best && rh.cm_best.dow !== rh.mer_best.dow
         ? ` <b>But efficiency is not the same as value:</b> <b>${esc(rh.cm_best.name)}</b> actually contributes the most money (${fmtMoney(rh.cm_best.cm_per_day, cur)} a day against ${esc(rh.mer_best.name)}'s ${fmtMoney(rh.mer_best.cm_per_day, cur)}), even though its ratio is lower. A cheaper ratio on a bigger day is usually still the better day - follow the contribution margin, not the MER.`
         : ` A lower ratio does not make a day bad: a bigger day can contribute more money at a weaker MER, so read the CM column before cutting anything.`}` : ''}</div></div>`
-    : `<div class="notice warn">ℹ️ <div><b>No reliable weekly rhythm.</b> This client's weekdays swing about as much from month to month as they do from each other, so the shares below are close to chance - a month only contains four of each weekday. Read this as "every day is much the same", and do not build a story around it for the client.</div></div>`;
+    : `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div><b>No reliable weekly rhythm.</b> This client's weekdays swing about as much from month to month as they do from each other, so the shares below are close to chance - a month only contains four of each weekday. Read this as "every day is much the same", and do not build a story around it for the client.</div></div>`;
 
   return `<div class="card"><h3 style="margin-bottom:2px">How a week actually runs <span class="info-i" title="Share of revenue by weekday across the last complete months. The index range is that weekday compared with an average day, one figure per month - a day is only called consistent when every month agreed. This is history for context, NOT the plan: the monthly plan is split evenly across the days on purpose, because a day-of-week curve was measured to predict worse than an even split.">i</span></h3>
     <p class="hint" style="margin-bottom:10px">Based on ${esc(monthsLbl)} - the last ${rh.months.length} <b>complete</b> months, which roll forward on their own (in September this reads June–August). Three months rather than one because a single month holds only four of each weekday, which is far too few to tell a real pattern from chance - and with one month there is nothing to check it against. <b>This is what happened, not a target.</b> Your plan is still measured evenly across the month.</p>
@@ -7415,11 +7368,11 @@ async function renderCosts(first) {
     : '<p class="v2hint">No cost data to chart.</p>';
   $('#main').innerHTML = `<div class="v2 lx">${backToSettings()}${LX.head('costs', `Costs: ${esc(d.account.name)}`)}
     <div class="lx-bar">${healthPill(h)}${shipPill(d.shipping, true)}<span class="lx-msg">Last 60 days of daily margin, which is what shows whether the cost data holds up.</span></div>
-    ${h.verdict === 'broken' ? `<div class="notice bad">⚠️ <div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> - the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost - not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
-      : h.verdict === 'noisy' ? `<div class="notice warn">ℹ️ <div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
-      : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}">✓ <div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) - the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} - clear the override below to use it.`}</div></div>`
-      : h.verdict === 'none' ? `<div class="notice warn">ℹ️ <div><b>No cost data at all.</b> Triple Whale has no COGS for this client, so no profit figure can be calculated. Add costs in Triple Whale, or set a flat margin below.</div></div>`
-      : `<div class="notice">✓ <div><b>Cost data looks solid</b> - margin is stable day to day across ${h.days} days. Profit figures for this client are trustworthy.</div></div>`}
+    ${h.verdict === 'broken' ? `<div class="notice bad"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>Cost data can't be trusted, so profit figures are suppressed.</b> ${esc(h.reason)}.${r ? ` On the <b>${r.clean_days} of ${r.total_days} days</b> where cost and revenue line up, this client runs a <b>${fmtPct(r.margin)} margin</b> - the other ${r.flagged_days} days carry <b>${fmtMoney(r.unexplained_cost, cur)}</b> of product cost the store's own revenue can't explain. That is the signature of wholesale orders paid outside Shopify, or inventory deliveries booked as a single day's cost - not of a broken product catalog.` : ''} Use the estimate below, or fix it at source in <b>Triple Whale → Settings → Costs</b>.</div></div>`
+      : h.verdict === 'noisy' ? `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div><b>Cost data is noisy.</b> ${esc(h.reason)}. Profit figures still show, but treat them as directional.</div></div>`
+      : h.verdict === 'override' ? `<div class="notice${u.verdict === 'broken' ? ' warn' : ''}"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div><b>Using a flat ${Math.round(d.margin_pct*100)}% margin.</b> Per-product costs are ignored for this client, so profit figures are stable everywhere including the Daily Brief. ${u.verdict === 'broken' ? `<b>The underlying Triple Whale data is still broken</b> (${esc(u.reason)}) - the override masks it, which is fine as a stopgap, but you lose per-product profitability until it's fixed. Everything below describes the real data, not the override.` : `The real data reads <b>${u.verdict}</b>${u.blended!=null?` at ${fmtPct(u.blended)} margin`:''} - clear the override below to use it.`}</div></div>`
+      : h.verdict === 'none' ? `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div><b>No cost data at all.</b> Triple Whale has no COGS for this client, so no profit figure can be calculated. Add costs in Triple Whale, or set a flat margin below.</div></div>`
+      : `<div class="notice"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div><b>Cost data looks solid</b> - margin is stable day to day across ${h.days} days. Profit figures for this client are trustworthy.</div></div>`}
     <div class="v2tiles">
       ${LX.tile({ compact: true, label: 'Trailing margin', value: u.blended != null ? fmtPct(u.blended) : '–', sub: `real cost data, 60 days${d.margin_pct != null ? ' (not the override)' : ''}`, info: 'Gross profit as a share of net sales across the whole window, before ad spend. Stable, believable numbers usually land between 30% and 85% depending on the product.' })}
       ${LX.tile({ compact: true, label: 'Daily range', value: u.p10 != null ? `${Math.round(u.p10 * 100)}% to ${Math.round(u.p90 * 100)}%` : '–', sub: '10th to 90th percentile', info: 'How much daily margin moves. Real cost data barely moves. A wide range means the product mix is being costed inconsistently: some products have costs, others do not.' })}
@@ -7437,7 +7390,7 @@ async function renderCosts(first) {
         <button class="btn" id="mClear">Clear override</button>
         <span class="tiny" id="mMsg"></span>
       </div>
-      ${r && (u.verdict === 'broken' || u.verdict === 'noisy' || u.verdict === 'none') ? `<div class="notice" style="margin:12px 0 0">✨ <div><b>Suggested: ${fmtPct(r.margin)}</b> - measured from the ${r.clean_days} of ${r.total_days} days where recorded cost and store revenue agree, so wholesale and inventory-receipt days can't drag it. <button class="btn primary" id="mSuggest" style="margin-left:8px">Use ${fmtPct(r.margin)}</button></div></div>`
+      ${r && (u.verdict === 'broken' || u.verdict === 'noisy' || u.verdict === 'none') ? `<div class="notice" style="margin:12px 0 0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sparkles"/></svg><div><b>Suggested: ${fmtPct(r.margin)}</b> - measured from the ${r.clean_days} of ${r.total_days} days where recorded cost and store revenue agree, so wholesale and inventory-receipt days can't drag it. <button class="btn primary" id="mSuggest" style="margin-left:8px">Use ${fmtPct(r.margin)}</button></div></div>`
         : r ? `<p class="tiny" style="margin-top:10px">This client's cost data reads <b>${esc(u.verdict)}</b>, so there is nothing to override. For reference, the days where cost and revenue agree imply a <b>${fmtPct(r.margin)}</b> margin.</p>` : ''}
       ${u.blended!=null && u.verdict!=='broken' ? `<p class="tiny" style="margin-top:8px">For reference, this client's measured trailing margin across every day is <b>${fmtPct(u.blended)}</b>.</p>` : ''}</div>
     ${r && r.flagged_days ? (() => {
@@ -7659,7 +7612,7 @@ async function renderBrief(first) {
      is a quiet secondary. */
   const bfActs = `<div class="bf-acts lx-bar">
         <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
-        ${bfDraft ? '<button class="btn quiet" id="bfEditBtn">✎ Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn quiet" id="bfCancel" style="display:none">Cancel</button>' : ''}
+        ${bfDraft ? '<button class="btn quiet" id="bfEditBtn"><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn quiet" id="bfCancel" style="display:none">Cancel</button>' : ''}
         ${bfSent ? '' : `<button class="btn ${bfDraft ? 'quiet' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log. Takes about 20 seconds.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(dayLbl)}</button>`}
         <button class="btn quiet" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
         <span class="lx-msg" id="bfMsg"></span>
@@ -8100,7 +8053,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     return out.join('');
   };
   const sumHtml = summary ? `<div class="card rp-sumcard">
-      <div class="lx-bar" style="margin-bottom:8px"><h3 style="margin:0">Summary</h3><span class="sp"></span>${opts.editable ? '<button class="btn quiet" id="rpEditSum" style="font-size:12px;padding:5px 9px">✎ Edit</button>' : ''}</div>
+      <div class="lx-bar" style="margin-bottom:8px"><h3 style="margin:0">Summary</h3><span class="sp"></span>${opts.editable ? '<button class="btn quiet" id="rpEditSum" style="font-size:12px;padding:5px 9px"><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Edit</button>' : ''}</div>
       <div id="rpSumBox" class="rp-sum">${sumFmt(summary)}</div></div>`
     : opts.editable ? `<div class="card rp-sumcard" style="border-left-color:var(--warn)"><h3 style="margin-bottom:4px">Summary</h3>
       <p class="hint">No narrative was written (the Claude call failed at generation time). Press <b>Rewrite with AI</b> at the top to retry.</p></div>` : '';
@@ -8322,7 +8275,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     // snapshot, so it says which it is. Internal only - a client has no
     // Regenerate button and the report they were sent is the one they get.
     const stale = opts.internal && !A.top.some(a => a.ad_id)
-      ? `<div class="notice warn" style="margin:12px 0">⚠️ <div><b>This report predates the creative upgrade.</b> It was generated before cover art, inline playback and ad copy existed, so the cards below show numbers only. Press <b>Rewrite with AI</b> at the top to rebuild it - the ads, the money and the summary all refresh together.</div></div>`
+      ? `<div class="notice warn" style="margin:12px 0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>This report predates the creative upgrade.</b> It was generated before cover art, inline playback and ad copy existed, so the cards below show numbers only. Press <b>Rewrite with AI</b> at the top to rebuild it - the ads, the money and the summary all refresh together.</div></div>`
       : '';
     return `<h4 style="font-size:13.5px;font-weight:700;margin:18px 0 2px">Where the budget went <span class="info-i" title="${esc(metricInfo)}">i</span></h4>
       ${stale}
@@ -8835,7 +8788,7 @@ function attachPlay(m) {
             : link ? `<iframe class="ad-embed" src="${esc(link)}" loading="lazy" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="${esc(note || 'Meta’s preview of this ad')}"></iframe>
                      <div class="ad-embed-note" title="${esc(note || '')}"><span>${esc(shortNote)}</span> ${openOut}</div>`
             : `<div class="msg"><div>${esc(err || note || 'This video can’t be played here.')}<br>${openOut}</div></div>`}
-      <button class="ad-close" type="button" title="Back to the image">✕</button></div>`);
+      <button class="ad-close" type="button" title="Back to the image" aria-label="Back to the image"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></button></div>`);
     /* Meta renders its preview at a FIXED size (a mobile feed unit, ~340x620).
        Dropped into a 4:5 card it was cropped to a letterbox of itself, which is
        the "formatting is weird" Cole saw. Scale the whole unit to fit and
@@ -9067,10 +9020,10 @@ async function renderReports(first) {
   const d = rep?.data;
   let warn = '';
   if (d) {
-    if (d.missing_days > 0) warn += `<div class="notice warn">⚠️ <div>Triple Whale data was missing for <b>${d.missing_days}</b> day(s) of this period when it was generated, so the totals understate it. Refresh the data (Daily Brief tab → Refresh Triple Whale data), then press Rewrite with AI.</div></div>`;
-    if (!d.cm_ok) warn += `<div class="notice warn">ℹ️ <div><b>Contribution margin is left out of this report</b> - ${esc(d.cogs_quality?.reason || 'no trustworthy cost data')}. Every other number still works. Fix COGS in Triple Whale or set a flat margin on the Costs tab, then press Rewrite with AI.</div></div>`;
+    if (d.missing_days > 0) warn += `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div>Triple Whale data was missing for <b>${d.missing_days}</b> day(s) of this period when it was generated, so the totals understate it. Refresh the data (Daily Brief tab → Refresh Triple Whale data), then press Rewrite with AI.</div></div>`;
+    if (!d.cm_ok) warn += `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div><b>Contribution margin is left out of this report</b> - ${esc(d.cogs_quality?.reason || 'no trustworthy cost data')}. Every other number still works. Fix COGS in Triple Whale or set a flat margin on the Costs tab, then press Rewrite with AI.</div></div>`;
     const unplanned = Object.entries(d.forecast?.months || {}).filter(([, m]) => !m.planned && m.has_goals).map(([ym]) => monthLabel(ym));
-    if (unplanned.length && rep.status !== 'sent') warn += `<div class="notice warn">⚠️ <div><b>No plan was actually set for ${esc(unplanned.join(', '))}</b> - every "vs plan" figure is inherited from an earlier month. Set the real plan on the Plan tab and press Rewrite with AI before sending, or the client is being measured against a number nobody agreed.</div></div>`;
+    if (unplanned.length && rep.status !== 'sent') warn += `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>No plan was actually set for ${esc(unplanned.join(', '))}</b> - every "vs plan" figure is inherited from an earlier month. Set the real plan on the Plan tab and press Rewrite with AI before sending, or the client is being measured against a number nobody agreed.</div></div>`;
   }
 
   const sent = rep?.status === 'sent';
@@ -9084,7 +9037,7 @@ async function renderReports(first) {
      report still offers no Rewrite or Edit, and an internal-only brand still
      has no Send. */
   const regenBtn = '<button class="btn quiet" id="rpRegen" title="Claude writes the summary again. You can give it a one-line direction first, or leave that empty for a straight rewrite.">↻ Rewrite with AI</button>';
-  const editTop = rep?.summary ? '<button class="btn quiet" id="rpEditTop" title="Change the wording of the summary before it goes out.">✎ Edit summary</button>' : '';
+  const editTop = rep?.summary ? '<button class="btn quiet" id="rpEditTop" title="Change the wording of the summary before it goes out."><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Edit summary</button>' : '';
   const linkBtnHtml = '<button class="btn quiet" id="rpLink" title="One stable link per brand. It opens their archive of sent reports; drafts never show on it.">Copy client link</button>';
   const rpSt = !rep ? null
     : sent ? { tone: 'ok', pill: ['good', 'Sent' + (rep.sent_at ? ' ' + fmtAgo(rep.sent_at) : '')], d: 'Frozen: it cannot be rewritten or edited, so the numbers on the client\'s link never change.', a: linkBtnHtml }
@@ -9374,7 +9327,7 @@ function retroCard(p, cur, saved) {
         ${g.amer != null ? row('aMER', g.amer, a.amer, fmtX) : `<tr><td>aMER</td><td class="num tiny"> - </td><td class="num"><b>${fmtX(a.amer)}</b></td><td class="num tiny">no target set</td></tr>`}
         <tr><td>Contribution margin</td><td class="num tiny"> - </td><td class="num"><b style="color:${a.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${money(a.cm)}</b></td><td class="num tiny">${a.sales ? fmtPct(a.cm / a.sales) : ' - '} of revenue</td></tr>
       </tbody></table></div>
-    ${spendEffect != null && merEffect != null ? `<div class="notice ${Math.abs(gap) / (g.sales || 1) < 0.05 ? '' : gap >= 0 ? '' : 'warn'}" style="margin-top:12px">${gap >= 0 ? '✓' : '→'} <div>
+    ${spendEffect != null && merEffect != null ? `<div class="notice ${Math.abs(gap) / (g.sales || 1) < 0.05 ? '' : gap >= 0 ? '' : 'warn'}" style="margin-top:12px">${gap >= 0 ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-right"/></svg>'}<div>
       <b>${gap >= 0 ? 'Beat the plan' : 'Missed the plan'} by ${money(Math.abs(gap))}</b> (${fmtSigned(gap / g.sales)}). That splits into two parts, and they add up exactly:
       <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin-top:8px;align-items:baseline">
         <span class="tiny" style="color:var(--muted)">Spending differently</span><span class="tiny"><b>${spendEffect >= 0 ? '+' : '−'}${money(Math.abs(spendEffect))}</b> - ${a.spend >= g.spend ? 'spent' : 'underspent by'} ${money(Math.abs(a.spend - g.spend))} ${a.spend >= g.spend ? 'more than agreed' : 'against the agreed budget'}, worth this much revenue at the planned ${fmtX(plannedMer)}</span>
@@ -9566,7 +9519,7 @@ async function renderPlan(first) {
     const off = now / was - 1;
     if (Math.abs(off) < 0.02) return '';
     const saved = p.plan.updated_at ? String(p.plan.updated_at).slice(0, 10) : null;
-    return `<div class="notice warn">&#9888;&#65039; <div><b>This plan was built on a number that has since changed.</b>
+    return `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>This plan was built on a number that has since changed.</b>
       It was saved${saved ? ' on ' + esc(saved) : ''} against a basis of <b>${fmtMoney(was, cur)}</b>, but
       ${p.basis.month ? esc(monthLabel(p.basis.month)) : 'that month'} is now measured at <b>${fmtMoney(now, cur)}</b>,
       <b>${fmtSigned(off)}</b>. The saved target still reflects the old figure, so everything reporting
@@ -10196,15 +10149,15 @@ async function renderPlanAll() {
     const names = k => missing[k].map(x => esc(x)).join(', ');
     const count = k => `${missing[k].length} brand${missing[k].length === 1 ? ' has' : 's have'}`;
     if (missing.now.length) {
-      el.innerHTML = `<div class="notice warn">⚠️ <div><b>${esc(monthLabel(now))} is in progress and ${count('now')} no plan for it:</b> ${names('now')}.
+      el.innerHTML = `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>${esc(monthLabel(now))} is in progress and ${count('now')} no plan for it:</b> ${names('now')}.
         Until one is saved, the Daily Brief measures each day against the last plan on file. Set these first.${missing.next.length ? ` ${esc(monthLabel(next))} is still open for ${count('next').replace(/ ha(s|ve)$/, '')} too.` : ''}</div></div>`;
       return;
     }
     if (!missing.next.length) {
-      el.innerHTML = `<div class="notice">✓ <div>Every brand has a plan for <b>${esc(monthLabel(now))}</b> and <b>${esc(monthLabel(next))}</b>.</div></div>`;
+      el.innerHTML = `<div class="notice"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>Every brand has a plan for <b>${esc(monthLabel(now))}</b> and <b>${esc(monthLabel(next))}</b>.</div></div>`;
       return;
     }
-    el.innerHTML = `<div class="notice ${daysToGo <= 10 ? 'warn' : ''}">${daysToGo <= 10 ? '⚠️' : 'ℹ️'} <div>
+    el.innerHTML = `<div class="notice ${daysToGo <= 10 ? 'warn' : ''}">${daysToGo <= 10 ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg>'}<div>
       <b>${esc(monthLabel(next))} starts in ${daysToGo} day${daysToGo === 1 ? '' : 's'} and ${count('next')} no plan for it:</b> ${names('next')}.
       A month nobody plans quietly reuses the last plan on file, and the Daily Brief measures against that.</div></div>`;
   };
@@ -10741,7 +10694,7 @@ async function renderSettings() {
       <div id="brAccess"></div>
       <p class="tiny set-count">${rows.length} brand${rows.length === 1 ? '' : 's'}${rows.length ? ' · click a brand to open its settings' : ''}</p>
       ${rows.map(brandRow).join('') || '<div class="card"><span class="hint">No brands yet - press <b>+ Add a brand</b>.</span></div>'}
-      ${AGENCY && conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px">⚠️<div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
+      ${AGENCY && conns?.unmatched?.length ? `<div class="notice warn" style="margin-top:12px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>${conns.unmatched.length} connected Shopify ${conns.unmatched.length === 1 ? 'store is' : 'stores are'} not matched to a brand.</b>
         The data is being held but nothing reports on it until you point it at one.
         <div style="margin-top:8px">${conns.unmatched.map(u => `<div class="row" style="margin:4px 0;gap:8px"><code style="font-size:12px">${esc(u.shop)}</code>
           <select data-map="${esc(u.shop)}" style="max-width:200px"><option value=""> - pick a brand - </option>${rows.map(b => `<option value="${esc(b.act_id)}">${esc(b.name)}</option>`).join('')}</select>
@@ -10914,7 +10867,7 @@ async function renderSettings() {
       try {
         const d = await mApi('/api/meta-access');
         const ok = d.businesses.length > 0 && !d.needsBusinessId;
-        box.innerHTML = `<div class="notice ${ok ? '' : 'warn'}" style="margin:0 0 12px">${ok ? '✓' : '⚠️'}<div>
+        box.innerHTML = `<div class="notice ${ok ? '' : 'warn'}" style="margin:0 0 12px">${ok ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg>'}<div>
           <b>${esc(d.verdict)}</b>
           <p class="tiny" style="margin:8px 0 0">Token: ${esc(d.token?.type || 'unknown')}${d.token?.never_expires ? ', never expires' : ''} ·
           Permissions: ${d.scopes.length ? esc(d.scopes.join(', ')) : 'none reported'} ·
@@ -10939,7 +10892,7 @@ async function renderSettings() {
             msg2.textContent = `${r.name}: ${metaAccts.length} ad accounts now visible`;
           } catch (err) { sv.disabled = false; msg2.textContent = err.message; }
         };
-      } catch (err) { box.innerHTML = `<div class="notice warn" style="margin:0 0 12px">⚠️<div>Couldn’t check: ${esc(err.message)}</div></div>`; }
+      } catch (err) { box.innerHTML = `<div class="notice warn" style="margin:0 0 12px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div>Couldn’t check: ${esc(err.message)}</div></div>`; }
     };
 
     const nc = $('#ncOpen');
@@ -11043,11 +10996,11 @@ async function renderSettings() {
     try {
       const r = await mApi('/api/slack-identity');
       host.innerHTML = !r.configured
-        ? `<div class="notice warn" style="margin:0">⚠️<div><b>No Slack user token is set</b>, so client sends will fail rather than quietly going out as the bot. Add <code>SLACK_USER_TOKEN</code> in Cloudflare.</div></div>`
+        ? `<div class="notice warn" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>No Slack user token is set</b>, so client sends will fail rather than quietly going out as the bot. Add <code>SLACK_USER_TOKEN</code> in Cloudflare.</div></div>`
         : r.ok
-        ? `<div class="notice" style="margin:0">✓<div>Client briefs and reports post as <b>${esc(r.user || 'you')}</b>${r.team ? ` in ${esc(r.team)}` : ''}. They will look like you typed them - no app badge.
+        ? `<div class="notice" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>Client briefs and reports post as <b>${esc(r.user || 'you')}</b>${r.team ? ` in ${esc(r.team)}` : ''}. They will look like you typed them - no app badge.
             <p class="tiny" style="margin:6px 0 0">You must be a member of the client's channel; a personal token cannot post where you are not. If a send fails with “not in channel”, join it in Slack and press send again.</p></div></div>`
-        : `<div class="notice bad" style="margin:0">⚠️<div><b>The Slack user token is not working:</b> ${esc(r.error || 'unknown error')}. Client sends will fail until it is fixed - deliberately, rather than falling back to the bot.</div></div>`;
+        : `<div class="notice bad" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>The Slack user token is not working:</b> ${esc(r.error || 'unknown error')}. Client sends will fail until it is fixed - deliberately, rather than falling back to the bot.</div></div>`;
     } catch (e) { host.innerHTML = `<span class="hint">Couldn't check: ${esc(e.message)}</span>`; }
   })();
 
@@ -11063,8 +11016,8 @@ async function renderSettings() {
       const who = st.slackSendWho === 'anyone' ? 'anyone' : 'owner';
       host.innerHTML = `
         ${st.slackInteractive
-          ? `<div class="notice" style="margin:0 0 10px">✓<div>The buttons are wired up. Slack sends every press to Locus signed, and an unsigned one is refused.</div></div>`
-          : `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>The buttons will not work yet.</b> Add <code>SLACK_SIGNING_SECRET</code> in Cloudflare and point the Slack app's <b>Interactivity &amp; Shortcuts</b> Request URL at <code>https://mobius-account-health.mobius-digital.workers.dev/slack/actions</code>. Until then a press does nothing.</div></div>`}
+          ? `<div class="notice" style="margin:0 0 10px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>The buttons are wired up. Slack sends every press to Locus signed, and an unsigned one is refused.</div></div>`
+          : `<div class="notice warn" style="margin:0 0 10px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>The buttons will not work yet.</b> Add <code>SLACK_SIGNING_SECRET</code> in Cloudflare and point the Slack app's <b>Interactivity &amp; Shortcuts</b> Request URL at <code>https://mobius-account-health.mobius-digital.workers.dev/slack/actions</code>. Until then a press does nothing.</div></div>`}
         <label class="set-lbl" for="sendWho" style="margin:0 0 6px">Who can send to clients from Slack?</label>
         <select id="sendWho" style="max-width:300px">
           <option value="owner"${who === 'owner' ? ' selected' : ''}>Only me</option>
@@ -11096,7 +11049,7 @@ async function renderSettings() {
   (async () => {
     const host = $('#connPage'); if (!host || !mApi) return;
     let rep;
-    try { rep = await mApi('/api/integrations'); } catch (e) { host.innerHTML = `<div class="card"><div class="notice bad">⚠️<div>Could not read the integrations: ${esc(e.message)}</div></div></div>`; return; }
+    try { rep = await mApi('/api/integrations'); } catch (e) { host.innerHTML = `<div class="card"><div class="notice bad"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div>Could not read the integrations: ${esc(e.message)}</div></div></div>`; return; }
     if (run !== RUN || !rep?.agency) return;
     const PILL = { ok: ['good', 'Connected'], part: ['warn', 'Partly'], warn: ['warn', 'Check'], bad: ['bad', 'Broken'], off: ['', 'Not set up'] };
     const pill = st => { const [cls, word] = PILL[st] || PILL.off; return `<span class="pill ${cls}"${cls ? '' : ' style="background:var(--line);color:var(--ink-2)"'}>${word}</span>`; };
@@ -11105,7 +11058,9 @@ async function renderSettings() {
       google: ['google', '#4285F4'], drive: ['googledrive', '#4285F4'], ga4: ['googleanalytics', '#E37400'], gsc: ['googlesearchconsole', '#458CF5'], frame: ['/brand/logos/frameio.svg'], klaviyo: ['klaviyo', '#1E1E1E'], attentive: [null, 'A', '#1A1A1A'],
       atria: ['/brand/logos/atria.svg'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], anthropic: ['anthropic', '#C15F3C'] };
     const logoKey = it => it.key === 'email' ? (it.tool === 'attentive' ? 'attentive' : 'klaviyo') : it.key;
-    const logo = k => { const [slug, letter, color] = ICON[k] || [null, k.slice(0, 2).toUpperCase(), '#647684'];
+    /* Real marks from profit/logos (icons.js logo()); the old CDN lookup stays as the fallback for a key with no file. */
+    const logo = k => window.logoSrc && window.logoSrc(k) ? window.logo(k, 36) : logoCdn(k);
+    const logoCdn = k => { const [slug, letter, color] = ICON[k] || [null, k.slice(0, 2).toUpperCase(), '#647684'];
       if (!slug) return `<span class="cn-logo" style="background:${color};color:#fff"><b>${esc(letter)}</b></span>`;
       const src = slug.startsWith('/') ? slug : `https://cdn.simpleicons.org/${slug}/${String(letter || '#647684').replace('#', '')}`;
       return `<span class="cn-logo"><img src="${src}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc(k.slice(0, 2).toUpperCase())}'}))"></span>`; };
@@ -11117,7 +11072,7 @@ async function renderSettings() {
     const byGroup = (items, order, draw) => { const seen = new Set(); const out = order.map(g => { const its = items.filter(x => x.group === g); its.forEach(x => seen.add(x.key)); return its.length ? `<div class="cn-kind">${esc(g)}</div><div class="set-body cn-cards">${its.map(draw).join('')}</div>` : ''; }).join('');
       const rest = items.filter(x => !seen.has(x.key)); return out + (rest.length ? `<div class="cn-kind">Other</div><div class="set-body cn-cards">${rest.map(draw).join('')}</div>` : ''); };
     const card = (it, scope, act) => `<button type="button" class="cn-card ${it.state}" data-scope="${scope}" data-act="${esc(act || '')}" data-k="${esc(it.key)}" title="${esc(it.note || '')}">
-        ${logo(logoKey(it))}<span class="cn-cbody"><span class="cn-cname">${esc(it.name)}</span><span class="cn-cnote tiny">${esc(it.gets || (it.used_by ? 'Used by ' + it.used_by : it.note) || '')}</span></span>${pill(it.state)}</button>`;
+        ${logo(logoKey(it))}<span class="cn-cbody"><span class="cn-cname">${esc(it.name)}<i class="ds-dot ${({ ok: 'good', part: 'warn', warn: 'warn', bad: 'bad' })[it.state] || ''}" title="${esc((PILL[it.state] || PILL.off)[1])}"></i></span><span class="cn-cstate">${esc((PILL[it.state] || PILL.off)[1])}</span><span class="cn-cnote tiny">${esc(it.gets || (it.used_by ? 'Used by ' + it.used_by : it.note) || '')}</span></span>${pill(it.state)}</button>`;
     /* Every brand in one grid (agency side): a gap anywhere shows in one look; a row opens that brand's Integrations. */
     const GRID = [['meta', 'Meta'], ['google_ads', 'Google Ads'], ['tiktok', 'TikTok'], ['tw', 'Triple Whale'], ['shopify', 'Shopify'], ['ga4', 'GA4'], ['gsc', 'Search'], ['email', 'Email'], ['asana', 'Asana'], ['drive', 'Drive'], ['frame', 'Frame']];
     const cellTxt = it => !it ? '–' : it.state === 'ok' ? '✓' : it.state === 'part' ? 'part' : it.state === 'off' ? '–' : it.state === 'bad' ? 'broken' : 'check';
@@ -11128,7 +11083,7 @@ async function renderSettings() {
         </tbody></table></div></div>`; };
     host.innerHTML = `
       <div class="card set-card">
-        ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0">⚠️<div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0">✓<div>Nothing is broken${AGENCY ? ' across the agency' : ` for ${esc(one ? one.name : 'this brand')}`}.</div></div>`}
+        ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>Nothing is broken${AGENCY ? ' across the agency' : ` for ${esc(one ? one.name : 'this brand')}`}.</div></div>`}
       </div>
       ${AGENCY ? `<div class="card set-card"><h3>Mobius's own</h3><p class="hint set-why">Made once, shared by every brand: a key on the worker, or Cole signing in from Locus. Click one for what it does and how to fix it.</p>
         ${byGroup(agency, AGROUPS, a => card(a, 'agency'))}</div>${gridHtml()}` : ''}
@@ -11216,10 +11171,10 @@ async function renderSettings() {
         return esc(r.name) + ' <span class="tiny">' + when + '</span>';
       }).join(' · ');
       host.innerHTML = `
-        ${stale.length ? `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>${stale.length} brand${stale.length > 1 ? 's have' : ' has'} no Meta data for ${esc(yday)}:</b> ${staleNames}.
+        ${stale.length ? `<div class="notice warn" style="margin:0 0 10px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>${stale.length} brand${stale.length > 1 ? 's have' : ' has'} no Meta data for ${esc(yday)}:</b> ${staleNames}.
           <p class="tiny" style="margin:6px 0 0">The sync refreshes the stalest brand first on every hourly tick, so this usually clears itself. If it is still here tomorrow, something is actually wrong.</p></div></div>`
-          : `<div class="notice good" style="margin:0 0 10px">✓<div>Every brand has Meta data through <b>${esc(yday)}</b>.</div></div>`}
-        ${faults.length ? `<div class="notice warn" style="margin:0 0 10px">⚠️<div><b>Last run had trouble:</b> ${esc(faults.join(' · '))}.
+          : `<div class="notice good" style="margin:0 0 10px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>Every brand has Meta data through <b>${esc(yday)}</b>.</div></div>`}
+        ${faults.length ? `<div class="notice warn" style="margin:0 0 10px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>Last run had trouble:</b> ${esc(faults.join(' · '))}.
           <p class="tiny" style="margin:6px 0 0">Deferred work is normal and picks itself up on the next tick. Errors are not - open the detail below.</p></div></div>` : ''}
         <div class="row" style="gap:22px;flex-wrap:wrap;margin-bottom:4px">
           <div><div class="tiny">Last hourly tick</div><div style="font-weight:700">${esc(ago(h.hourly?.at))}</div></div>

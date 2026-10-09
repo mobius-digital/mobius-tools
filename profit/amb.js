@@ -948,7 +948,7 @@ function paintEditor(keep) {
       <div><b>${isNew ? 'New idea' : esc(a.title || 'Untitled idea')}</b><span>${sub}</span></div>
       ${!isNew ? `<a class="btn am-sm" href="${esc(PUBLIC_BASE + d.brand.slug + '#a=' + a.id)}" target="_blank" rel="noopener">${ic('eye', 14)} ${d.brand.live ? 'See it on the link' : 'Preview it on the link'}</a>` : ''}
       ${!isNew ? `<button type="button" class="btn am-sm" id="amDelAng" style="color:var(--bad)">${ic('trash', 14)} Delete</button>` : ''}
-      <button type="button" class="am-x" id="amBack" aria-label="Close the editor">✕</button>
+      <button type="button" class="am-x" id="amBack" aria-label="Close the editor"><svg class="li" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></button>
     </div>
     <div class="v2jobs" role="navigation" aria-label="Jump to">${[['edIdea', 'The idea'], ['edFilm', 'How to film it'], ['edWatch', 'Watch first'], ['edWhy', 'Why it works']].map(([id, l]) => `<button type="button" data-jump="${id}">${l}</button>`).join('')}</div>
   </div>
