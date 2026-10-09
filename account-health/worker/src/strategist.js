@@ -35,6 +35,8 @@ import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
+import { makeTools, makeActions, makeHooks } from './stratmake.js';
+import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
@@ -245,7 +247,7 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
 
 WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
 - Home: Overview (open=overview, the central dashboard with Needs you today), Day check (open=yesterday: was yesterday a bad day ON META for advertisers in general; bad when 2+ of 4 signs agree: our brands' Meta cost per sale, Breezeway's panel, Meta's status page, advertisers online), P&L (open=profit), Goals (open=plan: the month's revenue, spend and MER plus the goal cost per sale and goal ROAS).
-- Ads: Today (open=today: the media buyer's list for the day, ad set first: scale, cut, trim, refresh, fix, test calls), Meta (open=meta; jobs Campaigns open=campaigns, Creative open=adcreative, Changes open=changes), Google (open=google), TikTok (open=tiktok), All channels (open=channels), Tests and angles (open=angles). Test calls open from Today (open=tests).
+- Ads: Today (open=today: the media buyer's list for the day, ad set first: scale, cut, trim, refresh, fix, test calls), Meta (open=meta; jobs Campaigns open=campaigns where people also pause, change budgets, rename and copy ad sets by hand, Ads open=adcreative = the creative gallery, Changes open=changes), Google (open=google; jobs Campaigns open=gcampaigns with pause and budget by hand, Ads open=gads, Search terms open=gterms, Changes open=gchanges), TikTok (open=tiktok), All channels (open=channels), Tests and angles (open=angles). Test calls open from Today (open=tests).
 - Email and SMS (open=email; the tab is named Klaviyo or Attentive per brand). Store: Sales (open=store), Customers, Website, Search. Products: Stock, Buying, Drops (brands with a stock feed).
 - Creative, grouped by where ads come from: AI ads (open=studio, the Studio; its Words mode, open=copy, is the old Copy desk), Creators (open=amb, the creator link), Library, Inspiration. Templates come later.
 - Brand (what rarely changes): Client answers (open=answers), Research (open=research), Voice (open=voice).
@@ -1652,8 +1654,8 @@ export function buildStrategist(d) {
        The rest of the Viktor-grade pass (Slack, memory, skills, Locus API, files, web, live steps,
        Stop, cost line) is in strattools.js; docs/strategist-viktor-grade-plan.md is the plan. */
     model: 'claude-opus-5-5', strongModel: 'claude-opus-5-5', deepModel: 'claude-opus-5-5', strongWhen: null, deepWhen: null,
-    ...stratHooks(d),
-    tools: [...stratTools(d), ...writeTools(d), ...klaviyoTools(d)],
+    ...stratHooks(d), ...makeHooks(d),
+    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d)],
     dropTools: ['remember'],
     liveSteps: true, progressNotes: true, fallbacks: 'default', workingEmoji: ['mobius'],
     webHistory: 16, webHistoryChars: 6000,
@@ -1664,7 +1666,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...klaviyoActions(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d)],
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',

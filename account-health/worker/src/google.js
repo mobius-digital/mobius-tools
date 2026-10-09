@@ -174,13 +174,14 @@ export async function searchReport(env, act, from, to, pfrom, pto, brandWords = 
 export async function adsReport(env, act, from, to) {
   const link = await linkFor(env, act);
   if (!link.ads) return { error: 'not_linked', what: 'ads' };
-  return cached(env, `gads:${act}:${link.ads}:${from}:${to}`, 3600e3, async () => {
+  return cached(env, `gads2:${act}:${link.ads}:${from}:${to}`, 3600e3, async () => {
     const cid = String(link.ads).replace(/\D/g, '');
     const search = query => gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${cid}/googleAds:search`, { body: { query }, headers: adsHeaders(env) });
-    const camps = await search(`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC`);
+    const camps = await search(`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign.campaign_budget, campaign_budget.amount_micros, campaign_budget.total_amount_micros, campaign_budget.explicitly_shared, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC`);
     const days = await search(`SELECT segments.date, metrics.cost_micros, metrics.clicks, metrics.conversions, metrics.conversions_value FROM customer WHERE segments.date BETWEEN '${from}' AND '${to}'`);
     return { customer: cid,
-      campaigns: (camps.results || []).map(r => ({ id: r.campaign.id, name: r.campaign.name, status: r.campaign.status, type: r.campaign.advertisingChannelType, spend: (+r.metrics.costMicros || 0) / 1e6, impressions: +r.metrics.impressions || 0, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })),
+      campaigns: (camps.results || []).map(r => ({ id: r.campaign.id, name: r.campaign.name, status: r.campaign.status, type: r.campaign.advertisingChannelType,
+        budget: r.campaignBudget?.amountMicros ? +r.campaignBudget.amountMicros / 1e6 : null, budget_total: r.campaignBudget?.totalAmountMicros ? +r.campaignBudget.totalAmountMicros / 1e6 : null, budget_shared: !!r.campaignBudget?.explicitlyShared, spend: (+r.metrics.costMicros || 0) / 1e6, impressions: +r.metrics.impressions || 0, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })),
       days: (days.results || []).map(r => ({ date: r.segments.date, spend: (+r.metrics.costMicros || 0) / 1e6, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })) };
   });
 }
@@ -329,4 +330,54 @@ export async function adsChanges(env, act, from, to) {
     return { changes, from: f, to: t, truncated: changes.length >= 200 };
   });
   return out.error ? out : { ...out, clamped: !!from && f !== from, floor };
+}
+
+/* ---------- Google Ads writes from Locus (2026-10-09) ----------
+   Ads > Google > Campaigns: pause / turn on a campaign and change its daily budget, the same confirm-then-write
+   flow as Meta. Reads the campaign fresh first (status, budget, shared or not), refuses a shared budget (it moves
+   every campaign on it) and a total (lifetime) budget, and drops the hourly report cache so the screen shows the
+   change. Google keeps its own change history (the Changes job reads it), so nothing else is logged here; undo is
+   the same write back to the before value. `validate: true` asks Google to check the write without making it. A refusal (access level, permission) comes back as { error } in
+   Google's words, never thrown. */
+export async function adsCampaignWrite(env, act, b) {
+  const link = await linkFor(env, act);
+  if (!link.ads) return { error: 'This brand has no Google Ads customer ID.' };
+  const cid = String(link.ads).replace(/\D/g, ''), id = String(b.object || '').replace(/\D/g, '');
+  if (!id) return { error: 'Which campaign?' };
+  let row;
+  try {
+    const j = await adsSearch(env, cid, `SELECT campaign.id, campaign.name, campaign.status, campaign.campaign_budget, campaign_budget.amount_micros, campaign_budget.total_amount_micros, campaign_budget.explicitly_shared FROM campaign WHERE campaign.id = ${id}`);
+    row = (j.results || [])[0];
+  } catch (e) { return { error: `Google Ads did not answer: ${gaqlErr(e)}` }; }
+  if (!row) return { error: 'No such campaign in this brand\u2019s Google Ads account.' };
+  const name = row.campaign.name, money$ = v => `$${(+v).toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  let op, url, summary, before, after;
+  if (b.kind === 'pause' || b.kind === 'resume') {
+    const to = b.kind === 'pause' ? 'PAUSED' : 'ENABLED';
+    if (row.campaign.status === to) return { error: `"${name}" is already ${lc(to)}.` };
+    before = { status: row.campaign.status }; after = { status: to };
+    summary = `${b.kind === 'pause' ? 'Pause' : 'Turn on'} Google campaign "${name}": ${lc(row.campaign.status)} \u2192 ${lc(to)}`;
+    url = `customers/${cid}/campaigns:mutate`;
+    op = { update: { resourceName: `customers/${cid}/campaigns/${id}`, status: to }, updateMask: 'status' };
+  } else if (b.kind === 'budget') {
+    const bud = row.campaignBudget || {};
+    if (bud.totalAmountMicros && !bud.amountMicros) return { error: `"${name}" runs on a total budget; change it in Google Ads.` };
+    if (bud.explicitlyShared) return { error: `"${name}" uses a shared budget, which would move every campaign on it. Change it in Google Ads > Shared library.` };
+    const from = +bud.amountMicros / 1e6, to = Math.round(+b.amount * 100) / 100;
+    if (!(to > 0)) return { error: 'The new budget must be more than zero.' };
+    if (Math.abs(to - from) < 0.005) return { error: `The budget is already ${money$(from)}.` };
+    before = { budget: from }; after = { budget: to };
+    const pc = from ? Math.round((to - from) / from * 100) : null;
+    summary = `Google campaign "${name}" daily budget ${money$(from)} \u2192 ${money$(to)}${pc != null ? ` (${pc >= 0 ? '+' : ''}${pc}%)` : ''}`;
+    url = `customers/${cid}/campaignBudgets:mutate`;
+    op = { update: { resourceName: row.campaign.campaignBudget, amountMicros: String(Math.round(to * 1e6)) }, updateMask: 'amount_micros' };
+  } else return { error: 'Unknown change.' };
+  if (b.expect && Object.entries(b.expect).some(([k, v]) => k in before && String(before[k]) !== String(v))) return { error: `"${name}" changed since you opened this. Nothing was written; look again.`, stale: true };
+  if (b.dry) return { ok: true, dry: true, summary, name, before, after };
+  try {
+    await gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/${url}`, { body: { operations: [op], ...(b.validate ? { validateOnly: true } : {}) }, headers: adsHeaders(env) });
+  } catch (e) { const msg = gaqlErr(e); return { error: `Google Ads refused the change: ${msg}`, refused: true }; }
+  if (b.validate) return { ok: true, validated: true, summary, name, before, after };
+  await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(`gads2:${act}:%`).run().catch(() => {});
+  return { ok: true, summary, name, before, after };
 }
