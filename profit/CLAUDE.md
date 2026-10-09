@@ -2420,3 +2420,53 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+
+
+## 2026-10-09: Ads > Meta > Ads (the gallery), Cole's pass, and Make iterations
+
+Cole: only the picture opened an ad, "super laggy", after closing an ad nothing was clickable, the sheet's left nav stopped
+on The call, "Make iterations in Studio" was a pop-up in a pop-up with no workflow, the tag report, scatters, fatigue and
+cadence cards were hard to read, and Overview vs Campaigns looked the same. All in v2.js `creative()` / `previewAd` /
+`panel()` / `campTable`, studio.js, and the "Ads > Meta > Ads, Cole's pass" block at the end of v2.css.
+- **The closed sheet ate every click.** `#v2panel.sheet` without `.on` sat centred over the page at opacity 0. v2.css now
+  gives a closed panel `pointer-events:none; visibility:hidden` (visibility flips after the fade), and `close()` removes
+  any playing iframe / video (Meta's preview kept playing invisibly). `panel.close()` is exposed. Checked 20 open/close
+  cycles (Escape and scrim): 0 stuck (was 20 of 20).
+- **The whole card is one button** (`.g[data-prev]`, role button, Enter/Space). Only the Compare tick keeps its own
+  click. One delegated click / keydown / change listener on `#v2galw` serves every card (it survives repaints). The
+  card's purchases number no longer drills to orders (the sheet's Purchases does).
+- **Lag:** pages of 24 cards, "Show N more" appends (never a full redraw; auto-append on scroll was itself jank, so it is
+  a click); covers load through an IntersectionObserver (1200px margin, batched 60ms); no backdrop blur on the play mark,
+  no filter / lift / shadow on card hover, `contain: layout paint` per card; the global hover tip (`tipAt`) only
+  rewrites and re-measures when its text changes. Measured headless Chrome, 4x CPU throttle, Party Patch 30 days, same
+  data, before (HEAD copy) vs after: hover + scroll sweep main-thread work ~9.0s -> ~5.4s, long tasks in the sweep 52 / 23
+  -> 0 / 1, layout in the sweep ~310ms -> ~65ms; page load long-task time ~5.2s -> ~3.4s; hover-only paint 911ms -> ~450ms.
+  `content-visibility:auto` on cards was tried and dropped (it moved the work into scrolling).
+- **Sheet scroll-spy** (`panel()`): positions from getBoundingClientRect against `.pb`, rAF-throttled, the last row wins at
+  the end, a `.v2spy-end` spacer lets the last section reach the top (`panel.refit()` after late content: copy, breakdown),
+  a click lights its row at once and holds 900ms. The Ad copy section always exists (filled when Meta answers).
+- **Make iterations** (preview "Next steps", every ad; video = a frame): the sheet becomes ONE step (`iterateStep`, no
+  modal): what Locus learned (call + why, results, weakest funnel step from `weakOf`, AI tags, the copy, the grade),
+  "What the three will test" (picked from the weakest step: hook -> headlines / hooks, hold -> looks, click or purchase
+  -> offer; changeable), an optional "What should change?", one button. `StudioTab.iterate()` (studio.js) sends a written
+  brief to account-health `/api/studio-ai/brief` (the same reader + brand brain the ideas pipeline uses; no worker change),
+  fetches `/api/ad-original` as the base photo of every line, saves the batch with `setup.from_ad` {id, name, change, at},
+  then Locus opens Studio, which opens that batch and plans it (`S.openId`, `S.autoPlan`). A from-ad batch with no ads
+  is ONE card ("Ready to make": base image, angle, why, testing, the three lines, one primary Make button) with the brief,
+  product and plan folded under it. Measured live (Party Patch, ah-worker-dev): 17s to write, 45s to planned. Test batch
+  archived after. "Brief it in Asana instead" keeps the Strategist route. `StudioTab.fromAd` still exists, unused by v2.
+- **What is working, by tag**: one ranked table per tag group (share of the group's spend as a bar, CPA and ROAS each
+  against the account, best / worst marked only when 10% better / 15% worse or no sales, among values past the judging
+  bar); the card's first line names the best and the worst across groups (both clickable). A row filters the gallery and
+  scrolls to it; a "Showing only" line clears it.
+- **Scatters** (`scatter()` / `wireScatter()`): labelled axes, gridlines, goal line, a "no purchases yet" band on the CPA
+  chart, every dot a focusable button (hover or focus = name + numbers + call, click / Enter = the preview). The hover tip
+  is mouse-only on hover devices, so a tap opens the ad at once. One legend line explains colour and size.
+- **When ads tire / Are we launching enough?** use `ccard()` (the conclusion is its own line under the title, never beside
+  it) and SVG charts: CPA by days live with the goal line in the right margin; ads launched per week as bars (left axis)
+  with spend on ads under 14 days old as a line (right axis). When every age runs over goal the line says it is not fatigue.
+- **Meta Overview = "Top campaigns"** (the 5 that spent most, total row "All N campaigns", "See all N campaigns" opens the
+  Campaigns job); Campaigns keeps the full editable tree.
+- Local check recipe used (no shared browser pane): own static server + `wrangler dev --remote` profit / account-health on
+  spare ports, headless Chrome driven over CDP from node (scratch scripts), light, dark and 375 wide. The tag tables also
+  fixed a page that was 486-525px wide on a phone.

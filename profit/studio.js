@@ -124,6 +124,18 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
 .st-lw{display:grid;gap:2px}
 .st-lw .btn{justify-self:start;padding:3px 10px;font-size:12px;margin:0 0 4px 10px}
 /* the stepper: five steps in words, a line that fills as the batch moves */
+.st-fa{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:640px){.st-fa{grid-template-columns:1fr}}
+.st-fa-img{position:relative;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface-2);cursor:zoom-in;display:block;width:100%}
+.st-fa-img img{display:block;width:100%;aspect-ratio:4/5;object-fit:contain}
+.st-fa-img span{position:absolute;left:8px;bottom:8px;font-size:11px;font-weight:600;background:var(--surface);color:var(--ink-2);padding:2px 8px;border-radius:99px}
+.st-fa-a{margin:0;font-size:15px;font-weight:600;color:var(--ink);line-height:1.4}
+.st-fa-l{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+.st-fa-l li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;font-size:13.5px;color:var(--ink-2);line-height:1.45}
+.st-fa-l .k{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--surface-2);color:var(--muted)}
+.st-fromad .v2h{flex-wrap:wrap}
+.st-fromad .v2h .cap{gap:10px}
+.st-fromad .v2h .find{order:3;flex-basis:100%;margin-top:2px}
 .st-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;list-style:none;margin:0;padding:0;font-size:12px;font-weight:550;color:var(--muted)}
 .st-steps li{position:relative;display:grid;justify-items:start;gap:6px;padding-right:8px;min-width:0}
 .st-steps li::before{content:'';position:absolute;left:28px;right:4px;top:10px;height:2px;border-radius:1px;background:var(--line)}
@@ -310,6 +322,11 @@ async function render({ tok, url, act, accounts, pick }) {
   main.innerHTML = `<div class="st"><div class="v2card"><span class="st-busy"><span class="st-spin"></span>Loading the batches…</span></div></div>`;
   if (S.lastAct !== act) { S.cur = null; S.products = null; S.lastAct = act; }
   await reload();
+  /* Arriving from "Make iterations" on an ad: open that batch and plan it, so the only thing left is Make. */
+  if (S.openId) {
+    const b = S.d.batches.find(x => x.id === S.openId); S.openId = null;
+    if (b) { S.cur = b; S.err = ''; S.setupOpen = false; paint(); window.scrollTo(0, 0); if (!b.plan && S.autoPlan === b.id) { S.autoPlan = null; planAds(); } }
+  }
 }
 async function reload() {
   const [d, at, v] = await Promise.all([api(`/api/studio?act=${encodeURIComponent(S.act)}`), atriaCall('/api/atria/status').catch(() => null), loadVids()]);
@@ -652,6 +669,26 @@ function batchView(b) {
       ${ads.length ? `<button class="btn quiet" id="bDl" ${S.making ? 'disabled' : ''}>Download all</button><button class="btn ${now === 5 ? 'primary' : ''}" id="bCanva" ${S.making ? 'disabled' : ''}>${ok ? `Send ${ok} approved to Canva` : `Send all ${ads.length} to Canva`}</button>` : ''}`, { n: ads.length ? 4 : 3 });
 
   const setup = brief + product + planC;
+  /* A BATCH MADE FROM A RUNNING AD (2026-10-09, Cole: "shouldn't it do the research and set up Studio for me,
+     and I just press go?"). Ads > Meta > Ads > Make iterations wrote the brief with the brand brain and saved it;
+     Studio plans it on arrival. Until ads exist the page is one card: what Locus wrote, the base image, and ONE
+     primary Make button. The brief, product and plan fold underneath, still editable. */
+  if (su.from_ad && !ads.length) {
+    const fa = su.from_ad, busy = S.busy === 'plan';
+    const linesHtml = (plan?.ads?.length ? plan.ads.map(a => [a.headline, a.subline].filter(Boolean).join(' · ') || a.note || '') : lines.map(l => l.text)).map((t, i) => `<li><span class="k">${i + 1}</span><span>${esc(t || '')}</span></li>`).join('');
+    const base = lines.find(l => l.photo)?.photo;
+    const testName = (TESTING.find(t => t[0] === br.testing) || [, br.testing || ''])[1];
+    const go = V2card('Ready to make', `Made from the ad <b>${esc(fa.name || '')}</b>. Locus read what it learned about the ad and the brand, and wrote this batch.`, `
+      <div class="st-fa">${base ? `<button class="st-fa-img" data-zu="${esc(base)}" title="The original ad: the base of every line"><img src="${esc(base)}" alt=""><span>The base</span></button>` : ''}
+        <div class="st-fa-b"><p class="st-lbl">The angle</p><p class="st-fa-a">${esc(br.angle || '')}</p>${br.why ? `<p class="hint" style="margin:4px 0 0">${esc(br.why)}</p>` : ''}
+          <p class="st-lbl" style="margin-top:14px">Testing: ${esc(testName)}${fa.change ? ` · you asked: “${esc(fa.change)}”` : ''}</p>
+          <ol class="st-fa-l">${linesHtml}</ol></div></div>
+      <p class="st-msg bad" style="margin:10px 0 0">${esc(S.err || '')}</p>`,
+      `${busy ? '<span class="st-busy"><span class="st-spin"></span>Planning the ads. About a minute.</span>' : S.making ? `<span class="st-busy"><span class="st-spin"></span>${esc(S.making)}</span>` : ''}
+       ${plan ? `<button class="btn primary" id="bMake" ${S.making || S.busy ? 'disabled' : ''}>Make ${n} ad${n === 1 ? '' : 's'} · about $${(n * PER_AD).toFixed(2)}</button>` : busy ? '' : '<button class="btn primary" id="bPlan2">Plan the ads</button>'}`, { cls: 'st-fromad' });
+    return `${go}
+      <details class="st-fold" id="stSetup" ${S.setupOpen ? 'open' : ''}><summary>The brief, product and plan<span>All filled in. Open to change anything before you make them.</span></summary><div class="st">${setup}</div></details>`;
+  }
   /* Once ads exist the reader came to review them: the review comes first and the brief, product and
      plan fold underneath (still all there, still editable, the same buttons). */
   if (ads.length) return `${top}${review}
@@ -919,6 +956,7 @@ function wireBatch() {
   const ex = $('#bExact'); if (ex) ex.onchange = async () => { su.exact = ex.checked; if (b.plan) b.plan = null; await saveCur(); paint(); if (su.exact && !(su.cutouts || []).length) cutAll(); };
   const rc = $('#bRecut'); if (rc) rc.onclick = () => cutAll();
   $('#bPlan').onclick = planAds;
+  const p2 = $('#bPlan2'); if (p2) p2.onclick = planAds;
   document.querySelectorAll('[data-pf]').forEach(el => { const h = () => {
     const [i, k] = el.dataset.pf.split(':'); const a = b.plan.ads[+i];
     a[k] = k === 'callouts' ? el.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 4) : k === 'photo' ? +el.value : el.value;
@@ -1589,8 +1627,39 @@ function looseView(ads) {
     ads.length ? `<span class="tiny">${ok} of ${ads.length} approved</span>` : '');
 }
 
+/* MAKE ITERATIONS FROM A RUNNING AD (2026-10-09). Ads > Meta > Ads hands over what Locus learned about the ad as
+   a written brief; the account-health brief reader (studio-ai.js, with the brand brain, the same one the Slack
+   ideas pipeline uses) lays it out as one batch, the ad's own image (/api/ad-original) becomes the photo of every
+   line, and the batch is saved with setup.from_ad. render() then opens it and plans it on arrival. */
+async function iterate(o) {
+  boot(o);
+  const say = o.onStatus || (() => {});
+  const img = (async () => {
+    const res = await fetch(`${AH_URL}/api/ad-original?ad=${encodeURIComponent(o.ad)}`, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not open that ad.'); }
+    let blob = await shrinkImage(await res.blob());
+    if (!/^image\/(png|jpeg|webp)$/.test(blob.type)) blob = await asJpeg(blob);
+    const url = await putRef(blob); refChecked.add(url); return url;
+  })();
+  say('Reading the brand brain and the ad');
+  const r = await streamCall(AH_URL, '/api/studio-ai/brief', { text: o.text }, x => { if (x.type === 'status') say(x.text); });
+  const bt = (r.batches || [])[0];
+  if (!bt || !(bt.lines || []).length) throw new Error('The brief came back empty. Try again.');
+  say('Bringing the ad’s image into Studio');
+  const base = await img;
+  const n = Math.max(1, Math.min(6, o.n || 3));
+  const lines = bt.lines.slice(0, n).map(l => ({ text: l.text || '', inspo: [], photo: base }));
+  const name = `Iterations: ${String(o.name || 'ad').replace(/\s+/g, ' ').slice(0, 60)}`;
+  const saved = (await post('/api/studio/batch/save', { batch: { name, num: '', br_batch_id: null,
+    brief: { angle: bt.angle || '', why: bt.why || '', concept: bt.concept || '', post_copy: bt.post_copy || '', testing: o.testing || bt.testing || 'headlines', lines },
+    setup: { products: [], images: [], swipe: [], from_ad: { id: o.ad, name: o.name || '', change: o.change || '', at: new Date().toISOString() } }, status: 'draft' } })).batch;
+  S.openId = saved.id; S.autoPlan = saved.id; S.lastAct = S.act;
+  return saved;
+}
+
 window.StudioTab = {
   render,
+  iterate,
   /* Creative > Library: "Dress with a product" on a person photo, and "Use as the ad" on a look. Both resolve when the window closes. */
   dress: o => { boot(o); return dress({ base: o.base || null }); },
   useAsAd: o => { boot(o); return useAsAd(o.image); },
