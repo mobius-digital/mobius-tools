@@ -220,3 +220,68 @@ export async function marketLine(env, date, memo) {
   memo?.set(date, line);
   return line;
 }
+
+/* ---------------- WAS IT A BAD DAY ON META? (2026-10-09, Cole: "the goal is Breezeway's: was it a bad day on Meta,
+ * open to everybody", not a report card per brand). One answer per day from FOUR independent signs:
+ *   ours       our own brands' Meta cost per purchase against each brand's last 28 days, averaged across brands
+ *              (Breezeway's method on our accounts). Meta's own purchase count on purpose: this measures Meta's
+ *              auction that day, and Triple Whale's credit lands a day late. "High" = in our top 15% of days.
+ *   breezeway  their public panel says BAD or VERY BAD (bigger panel, but it called 28 of 125 days bad).
+ *   outage     Meta posted an ads-related problem on its status page (Pulse).
+ *   chatter    advertisers on X / Reddit reported problems (latest days only; Claude web search, cached).
+ * Calibrated on Feb to Oct 2026: ours and Breezeway agreed on only ~1 in 4 of their bad days, so one sign alone is
+ * "mixed", TWO OR MORE = a bad day on Meta (about once a month), three or more, or ours in its top 1%, = very bad.
+ * GET /api/metaday?days=30. Objects carry act_id = brand id, so brandguard shows a client only their own brand. */
+const META_SKIP = /golf sock|harborline|galway|instyler|gum of gods|judy ?p|le ?pickle|popby/i;
+const lstat = a => { const m = a.reduce((s, x) => s + x, 0) / a.length; return { m, s: Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length) || 1e-9 }; };
+export async function metaDay(env, { days = 30 } = {}) {
+  const today = centralToday(), last = addDays(today, -1), first = addDays(last, -(days - 1)), from = addDays(last, -240);
+  const { results: conns } = await env.DB.prepare(`SELECT c.brand_id, c.external_id, b.name FROM connections c JOIN brands b ON b.id = c.brand_id
+    WHERE c.kind = 'meta' AND c.status != 'backup' AND b.status = 'active'`).all();
+  const brandOf = {}, nameOf = {};
+  for (const c of conns || []) { if (META_SKIP.test(c.name || '')) continue; brandOf[c.external_id] = c.brand_id; nameOf[c.brand_id] = c.name; }
+  const acts = Object.keys(brandOf);
+  const B = {};
+  if (acts.length) {
+    const { results } = await env.DB.prepare(`SELECT act_id, date, spend, impressions, link_clicks, purchases FROM daily_insights WHERE date BETWEEN ?1 AND ?2 AND act_id IN (${acts.map((_, i) => `?${i + 3}`).join(',')})`).bind(from, last, ...acts).all();
+    for (const r of results || []) { const b = brandOf[r.act_id]; const o = ((B[b] ??= {})[r.date] ??= { s: 0, i: 0, c: 0, p: 0 }); o.s += r.spend || 0; o.i += r.impressions || 0; o.c += r.link_clicks || 0; o.p += r.purchases || 0; }
+  }
+  const lcpa = x => Math.log(x.s / (x.p + 0.5)), lcpm = x => x.i ? Math.log(x.s / x.i * 1000) : null;
+  const zOf = (days2, d, f) => { const x = days2[d]; if (!x || x.s < 50) return null; const v = f(x); if (v == null) return null;
+    const base = Array.from({ length: 28 }, (_, i) => days2[addDays(d, -1 - i)]).filter(y => y && y.s >= 50).map(f).filter(y => y != null);
+    if (base.length < 15) return null; const { m, s } = lstat(base); return { z: (v - m) / s, change: Math.exp(v - m) - 1 }; };
+  const panel = d => { const zs = [], cpm = []; for (const days2 of Object.values(B)) { const a = zOf(days2, d, lcpa); if (a) zs.push(a.z); const c = zOf(days2, d, lcpm); if (c) cpm.push(c.change); }
+    return zs.length >= 3 ? { score: zs.reduce((s, x) => s + x, 0) / zs.length, n: zs.length, worse: zs.filter(z => z >= 1).length, cpm: cpm.length ? cpm.reduce((s, x) => s + x, 0) / cpm.length : null } : null; };
+  /* thresholds from our own history (fallbacks measured 2026-10-09: p85 0.6, p99 1.23) */
+  const hist = []; for (let d = addDays(last, -180); d <= last; d = addDays(d, 1)) { const p = panel(d); if (p) hist.push(p.score); }
+  hist.sort((a, b) => a - b);
+  const q = p => hist[Math.floor(p * (hist.length - 1))];
+  const hi = hist.length >= 60 ? q(0.85) : 0.6, top = hist.length >= 60 ? q(0.99) : 1.23;
+  let bw = []; try { bw = (await breezewayRows(env, last)).rows; } catch {}
+  const BW = Object.fromEntries(bw.map(x => [x.date, x.hyb_status]));
+  let ints = []; try { ints = pulseIntervals((await pulseJson()).incidents).filter(x => x.platform_id === 'meta' && adsRelated(x)); } catch {}
+  const out = [];
+  for (let d = first; d <= last; d = addDays(d, 1)) {
+    const p = panel(d), s = centralStart(d), e = centralStart(addDays(d, 1));
+    const outage = ints.filter(x => (x.start ? Date.parse(x.start) : -Infinity) < e && (x.end ? Date.parse(x.end) : Infinity) > s);
+    const ch = safeJson(await getS(env, `chatter:${d}`), null);
+    const chat = ch?.status === 'ok' ? ch.data : null;
+    const signs = {
+      ours: p ? { high: p.score >= hi, score: Math.round(p.score * 100) / 100, brands: p.n, worse: p.worse, cpm_change: p.cpm } : null,
+      breezeway: BW[d] || null,
+      outage: outage.length ? outage.map(x => `${x.service}: ${x.state === 'outage' ? 'outage' : x.note || x.state}`) : [],
+      chatter: chat ? { issues: chat.meta === 'issues', summary: chat.summary, sources: chat.sources || [] } : null,
+    };
+    const hits = [signs.ours?.high, signs.breezeway && signs.breezeway !== 'NORMAL', signs.outage.length > 0, signs.chatter?.issues].filter(Boolean).length;
+    const verdict = hits >= 3 || (hits >= 2 && p && p.score >= top) ? 'vbad' : hits >= 2 ? 'bad' : hits === 1 ? 'mixed' : 'normal';
+    out.push({ date: d, verdict, hits, signs });
+  }
+  /* the latest day, brand by brand (Meta's numbers, so a brand can see whether it followed the market) */
+  const brands = Object.entries(B).map(([b, days2]) => { const x = days2[last], a = zOf(days2, last, lcpa);
+    const base = Array.from({ length: 28 }, (_, i) => days2[addDays(last, -1 - i)]).filter(y => y && y.s >= 50);
+    const cpaN = base.length ? base.reduce((t, y) => t + y.s, 0) / Math.max(1, base.reduce((t, y) => t + y.p, 0)) : null;
+    return x && x.s >= 50 ? { act_id: b, name: nameOf[b], spend: Math.round(x.s), cpa: x.p ? Math.round(x.s / x.p) : null, cpa_normal: cpaN ? Math.round(cpaN) : null, change: a ? Math.round(a.change * 100) / 100 : null, unusual: !!a && a.z >= 1 } : null; }).filter(Boolean)
+    .sort((x, y) => (y.change ?? -9) - (x.change ?? -9));
+  return { as_of: new Date().toISOString(), days: out, latest: out[out.length - 1] || null, brands, thresholds: { high: Math.round(hi * 100) / 100, top: Math.round(top * 100) / 100, history_days: hist.length },
+    how: 'A bad day on Meta when two or more of four signs agree: our brands paying more per sale than usual (top 15% of days), other advertisers (Breezeway) calling it bad, Meta posting a problem, and advertisers reporting problems online. One sign = mixed.' };
+}

@@ -3,7 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor } from './brandguard.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
-import { marketFor, useFetch as marketFetch } from './market.js';
+import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 /**
@@ -1060,15 +1060,15 @@ Rules: cite ONLY numbers in the JSON (rounded is fine; say "about"). Never inven
  * check screen (each brand against its own normal, our brands moving together, Breezeway's outside panel, Pulse
  * outages, what advertisers said online) and gets one verdict. Cached per date and facts; Sonnet tier, about a cent.
  * `client_line` is safe to repeat to a client: it talks about the platform, never about other brands or how many. */
-const DAYCHECK_SYSTEM = `You write the Day check for Mobius Digital, an ad agency: was yesterday a bad day for our brands, and was it the market or us.
-You get JSON: each brand's verdict for the day against ITS OWN last 28 days (good, normal, bad, very bad), the numbers that moved and which link on Meta moved (auction cost, click rate, site conversion, average order, spend); how many of our brands saw Meta costs jump the same day; Breezeway's Meta score across about 50 outside brands (a hint); platform outages from our status monitor; and what advertisers said online that day.
+const DAYCHECK_SYSTEM = `You write the Day check for Mobius Digital: was yesterday a bad day ON META, for advertisers in general.
+You get JSON: the day's verdict (normal, mixed, bad, very bad) from four independent signs (our brands paying more per sale than usual, other advertisers' panel, Meta posting a problem on its status page, advertisers reporting problems online), which signs agreed, the last 14 days of verdicts, and how each of our brands' Meta cost per sale compared with its own normal.
 Reply with JSON only:
-{"headline": one short sentence verdict, e.g. "A rough day on Meta for everyone, not just us." or "A bad day for Grunk Dolfer only." or "A normal day.",
- "scope": "market" | "some" | "none",
- "why": one or two sentences, the likely cause, citing which signals agree,
- "todo": one sentence, what to do today: hold and change nothing, or what to look at or change and where,
- "client_line": one sentence safe to tell a client who asks, about the platform and their own result only; never mention other brands, how many brands we compare, or Breezeway}
-Rules: cite only the facts given; when the signals disagree say so; never invent a cause. Plain words, no em dashes.`;
+{"headline": one short sentence, e.g. "A bad day on Meta: costs jumped for advertisers across the board." or "A normal day on Meta." or "Mixed signals: other advertisers struggled, our accounts did not.",
+ "scope": "market" (a bad day on Meta) | "some" (mixed) | "none" (normal),
+ "why": one or two sentences: which signs agree and what moved (costs, clicks, delivery),
+ "todo": one sentence: what to do today (hold changes and wait it out, or carry on as normal, or look at a named brand that moved on its own),
+ "client_line": one sentence safe to tell a client about Meta that day; never mention other brands, how many we manage, or Breezeway}
+Rules: cite only the facts given; when signs disagree say so; plain words, no em dashes.`;
 async function dayCheckVerdict(env, b) {
   const date = String(b.date || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date looks like 2026-10-08' };
@@ -7674,6 +7674,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* The market on a day (market.js): Pulse outages, Breezeway's Meta score, what advertisers said
        online (Claude + web search, once per date, cached). Same gate as /api/read: any signed-in member.
        ?date=YYYY-MM-DD, default yesterday Central. */
+    /* Was it a bad day on Meta? (market.js metaDay): the Day check screen. Asks the online chatter for yesterday once. */
+    if (path === '/api/metaday' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      await chatterFor(env, addDays(centralDate(), -1)).catch(() => null);
+      return json(await metaDay(env, { days: Math.min(60, Math.max(1, +url.searchParams.get('days') || 30)) }));
+    }
     if (path === '/api/market' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const date = url.searchParams.get('date') || '';

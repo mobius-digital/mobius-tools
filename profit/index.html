@@ -2335,8 +2335,8 @@
 <script src="studio.js?v=27"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=25"></script>
-<script src="desk.js?v=6"></script>
+<script src="v2.js?v=26"></script>
+<script src="desk.js?v=7"></script>
 <script src="calendar.js?v=5"></script>
 <script src="supply.js?v=2"></script>
 <script src="askextra.js?v=1"></script>
@@ -2945,7 +2945,7 @@ document.addEventListener('click', e => {
    want to know how the format-tag coverage threshold works. */
 const PAGE_BRIEF = {
   calendar: { answers: 'What customers will see and when (drops, sales, emails, the Black Friday plan) for every client, and what has to be ready for each date: photos, ads briefed and built, the email scheduled, the ads loaded.', when: 'Monday for the week ahead; whenever a client gives us a date.', todo: 'Work down “Work due this week”, late first. Make the Asana tasks for a new date; the countdown ticks itself from Asana, Klaviyo and Meta.' },
-  yesterday: { answers: 'Was yesterday a bad day, for every brand, and why: which link broke (auction, creative, site, basket, spend), what changed on the account, and whether it was the whole market.', when: 'Every morning, before touching an ad account.', todo: 'Red squares first. Read the reason and the market box: if Meta was rough for everyone, change nothing; if it was one brand, open its Today list.' },
+  yesterday: { answers: 'Was yesterday a bad day on Meta, for advertisers in general: a bad day when two or more of four signs agree (our brands paying more per sale than usual, other advertisers, Meta posting a problem, advertisers complaining online).', when: 'Every morning, before touching an ad account.', todo: 'Red: hold big changes on Meta and wait it out. Normal or mixed: carry on.' },
   today: { answers: 'What to change today: ad sets to scale or cut, ads to switch off or refresh, things to fix, tests to call. Ad set first, ranked by money at stake.', when: 'Every morning, after Yesterday.', todo: 'Work down the list. Make the change in Ads Manager, then press Done so it lands in the Change Log and tomorrow\u2019s brief.' },
   war: { answers: 'During the season: sales today against the plan, the offer running now and what changes next, for every brand.', when: 'Every day of list week and the Black Friday weekend.', todo: 'Check the live column at each desk slot; open The plan for the full offer and timeline.' },
   pulse: { answers: 'Is Meta, Google or Shopify having a problem right now, and what changed recently.', when: 'When numbers look strange across several brands at once.', todo: 'If a platform shows a problem, hold changes on that platform until it clears.' },
@@ -3298,7 +3298,7 @@ function addBrandModal(untracked, chList, onDiscover, total) {
    Keep them ONE sentence. The detail already has three other homes. */
 const TAB_PURPOSE = {
   calendar:  'What customers see and when, for every client, and what has to be ready for each date. The countdown ticks itself from Asana, Klaviyo and Meta.',
-  yesterday: 'Was yesterday a bad day, for every brand, and why. Each brand against its own last 28 days, the link that broke, what changed, and whether it was the market.',
+  yesterday: 'Was yesterday a bad day on Meta? One answer a day from four signs; red when two or more agree. The last 30 days as squares, and how our brands did that day.',
   today:     'The media buyer\u2019s list for today: scale, cut, trim, refresh, fix and test calls, ad set first, each with its reason. Done goes to the Change Log.',
   war:       'The season\u2019s live board: sales today, the offer running now and the next change for every brand in the season.',
   pulse:     'Is an ad platform or Shopify having a problem right now. From Pulse, checked every 5 minutes.',
@@ -5223,7 +5223,7 @@ function renderModelMenu(tab) {
    are on, type to jump to any page or brand, Enter to ask the Strategist. Ctrl/Cmd+K focuses it. */
 const ASK_SUGGEST = {
   calendar: ['What goes live for {b} in the next two weeks?', 'What is late for Black Friday?', 'Which clients have nothing planned next month?', 'Did {b}’s last sale work?'],
-  yesterday: ['Why was yesterday a bad day for {b}?', 'Was yesterday the market or us?', 'Which brand had the worst day this week?', 'What changed before {b}\u2019s bad day?'],
+  yesterday: ['Was yesterday a bad day on Meta?', 'How many bad Meta days this month?', 'Did our brands follow the market yesterday?', 'Should we hold changes today?'],
   today: ['What should I change first on {b} today?', 'Which ad set is wasting the most money?', 'Which ad set can take more budget?', 'Which ads are tiring?'],
   war: ['How is {b} doing against today\u2019s goal?', 'Should we scale or pull back right now?', 'What offer is live for each brand?', 'What changes next?'],
   pulse: ['Is Meta having problems right now?', 'Was there an outage yesterday?', 'Did Google Ads have issues this week?', 'Is Shopify checkout working?'],
