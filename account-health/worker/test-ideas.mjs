@@ -320,25 +320,6 @@ await check('money never reaches the public link', () => {
   assert.equal(ideas.noMoney('We spent $12k on it.'), '');
 });
 
-/* ---------------- idea or Strategist ---------------- */
-await check('routing: numbers question stays with the Strategist; links, clips, idea words and bare tags go to ideas', async () => {
-  const ev = (text, thread_ts, extra = {}) => ({ type: 'app_mention', channel: CH, ts: '999.1', thread_ts, text, ...extra });
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> why is CPA up?', undefined)), false);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> why is CPA up?', '300.1')), false);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT>', '100.1')), true);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> what do you think', '100.1')), true);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> strategist, how is pacing?', '100.1')), false);
-  assert.equal(await ideas.ideaWanted(env, ev(`<@U_BOT> <${TT}>`, undefined)), true);
-  /* 2026-10-07: a text-only brief ask is the Strategist's (it fills or creates the Asana task);
-     the same words with a reference in the thread still go to ideas. */
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> brief this', undefined)), false);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> make an asana brief from this, use brief 397', undefined)), false);
-  assert.equal(await ideas.ideaWanted(env, ev(`<@U_BOT> brief this <${TT}>`, undefined)), true);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> ideate some ads for this', undefined)), true);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> roas on this?', undefined, { files: [{ mimetype: 'image/png' }] })), false);
-  assert.equal(await ideas.ideaWanted(env, { ...ev('<@U_BOT>', undefined), channel_type: 'im' }), false);
-});
-
 /* ---------------- a full run ---------------- */
 await check('first tag: watches the TikTok once, reads the image, one Claude call, card with buttons, cost logged', async () => {
   calls.length = 0;
@@ -787,11 +768,6 @@ await check('focused brain: personas, quotes, market and tests narrowed to the l
   assert.equal((await brandBrain(env, PP, { creator: false, lines: ['ln_night'] })).md, f.md, 'deterministic, so the cache hits');
   assert.equal((await brandBrain(env, PP, { creator: false, lines: ['nope'] })).md, full.md, 'an unknown line = the full brain');
 });
-await check('routing: "compare" in a thread is the ideas bot, "compare CPA" is still the Strategist', async () => {
-  const ev = text => ({ type: 'app_mention', channel: CH, ts: '990.2', thread_ts: '990.1', text });
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> compare')), true);
-  assert.equal(await ideas.ideaWanted(env, ev('<@U_BOT> compare CPA to last week')), false);
-});
 await check('line picker: one small Sonnet call first, brain focused on its pick, cached on the thread; naming another line re-picks; a bad pick = full brain', async () => {
   const id = `${PP_CH}:800.1`;
   threads[id] = [{ ts: '800.1', user: 'U_AHSAN', text: 'Idea: a woman in her 30s says it did not used to hit like this <@U_BOT>' }];
@@ -1101,27 +1077,17 @@ if (worker) {
     await Promise.allSettled(waits);
     return res;
   };
-  await check('Slack door: unsigned event refused; signed idea tag acked with eyes and queued', async () => {
-    const raw = JSON.stringify({ type: 'event_callback', event_id: 'Ev1', authorizations: [{ user_id: 'U_BOT' }], event: { type: 'app_mention', channel: CH, ts: '700.2', thread_ts: '100.1', user: 'U_AHSAN', text: '<@U_BOT>' } });
+  await check('Slack door: unsigned event refused; every tag (even one with a TikTok) goes to the Strategist, once', async () => {
+    const raw = JSON.stringify({ type: 'event_callback', event_id: 'Ev1', authorizations: [{ user_id: 'U_BOT' }], event: { type: 'app_mention', channel: CH, ts: '700.2', thread_ts: '100.1', user: 'U_AHSAN', text: `<@U_BOT> make ads like this <${TT}>` } });
     assert.equal((await post('/slack/events', raw, { 'x-slack-request-timestamp': '1', 'x-slack-signature': 'v0=bad' })).status, 401);
-    calls.length = 0;
     assert.equal((await post('/slack/events', raw, sign(raw))).status, 200);
     assert.equal(wenv.sent.length, 1);
-    assert.equal(wenv.sent[0].root, '100.1'); assert.equal(wenv.sent[0].bot, 'U_BOT');
-    assert.equal(bodyOf(slackCalls('reactions.add')[0]).name, 'eyes');
+    assert.equal(wenv.sent[0].kind, 'strategist', 'no word list routes around the Strategist (2026-10-09)');
     assert.equal((await post('/slack/events', raw, sign(raw))).status, 200);
     assert.equal(wenv.sent.length, 1, 'a Slack retry must not queue the job twice');
   });
-  await check('Slack door: a numbers question goes to the Strategist, not the ideas queue', async () => {
-    const raw = JSON.stringify({ type: 'event_callback', event: { type: 'app_mention', channel: CH, ts: '800.1', user: 'U_AHSAN', text: 'Why is CPA up this week? <@U_BOT>' } });
-    await post('/slack/events', raw, sign(raw));
-    assert.equal(wenv.sent.length, 1);
-  });
-  await check('kill switch IDEAS_BOT=off: tags go to the Strategist, idea buttons do nothing', async () => {
+  await check('kill switch IDEAS_BOT=off: idea buttons do nothing', async () => {
     wenv.IDEAS_BOT = 'off';
-    const raw = JSON.stringify({ type: 'event_callback', event: { type: 'app_mention', channel: CH, ts: '810.1', user: 'U_AHSAN', text: `<@U_BOT> <${TT}>` } });
-    await post('/slack/events', raw, sign(raw));
-    assert.equal(wenv.sent.length, 1);
     calls.length = 0;
     const b = 'payload=' + encodeURIComponent(JSON.stringify({ type: 'block_actions', user: { id: 'U_COLE' }, container: { channel_id: CH }, actions: [{ action_id: 'idea_studio', value: JSON.stringify({ i: `${CH}:200.1` }) }] }));
     assert.equal((await post('/slack/actions', b, sign(b), 'application/x-www-form-urlencoded')).status, 200);

@@ -367,58 +367,13 @@ export function brandOverride(text, accounts) {
 }
 
 /* ---------------- is this mention an idea, or a question for the Strategist? ---------------- */
-/* Narrow on purpose (2026-10-04): a bare "brief" or "draft" is usually about the Daily Brief or a
-   report, which is the Strategist's. Only words that clearly mean "turn this into an ad idea". */
-/* 2026-10-06: Ahsan's "here is an inspo ad ... can you ideate some ads for it" went to the
-   Strategist (which cannot open links) because neither "inspo" nor "ideate" was an idea word. */
-/* 2026-10-07: "brief this", "make a brief", "draft it" are NOT idea words on their own any more. A
-   text-only brief ask (Ahsan: "make an asana brief from this, use brief 397") is the Strategist's,
-   which can now fill or create the Asana task itself (strategist.js fill_brief / create_brief). With
-   media in the thread the brief ask still comes here (the media checks below), and the Strategist
-   hands a media thread over with draft_from_thread. */
-const IDEA_WORDS = /\b(ideas?|ideate|inspo|inspiration|recreate|mock-?ups?|teardown|tear (?:it|this) down|break (?:it|this) down|creator link|studio|(?:make|create|design|build|come up with) (?:me )?(?:some |a few |a couple of |\d+ )?(?:ads?|statics?|concepts?|creatives?|visuals?)|ads? (?:for|like) (?:it|this|that|these|the|our))\b/i;
-/* Links the bot cannot open (they need a login and have no door we hold a key to): a tag with one is
-   still an idea, and the card says to upload the files instead. Google Drive files, folders and Docs
-   DO open, as Cole or Ahsan through the service account (expandDrive, readDoc). */
+/* Links the bot cannot open (they need a login and have no door we hold a key to): the card says to
+   upload the files instead. Google Drive files, folders and Docs DO open, as Cole or Ahsan through the
+   service account (expandDrive, readDoc). */
 export const UNOPENABLE = /app\.air\.inc\/|dropbox\.com\/|wetransfer\.com\/|we\.tl\//i;
-const hasRef = text => linksOf(text).some(u => classifyLink(u) || UNOPENABLE.test(u));
-/* 2026-10-09: "Fela said ... can we update this in the creator link?" matched "creator link" and went here,
-   where it died as "No draft yet". Changing what is already on the page (or in a brief) is the Strategist's
-   (edit_creator_page, edit_angle, edit_section); only a NEW idea is this bot's. */
-const EDIT_WORDS = /\b(update|edit|change|remove|delete|take (?:it |this |that )?(?:off|out|down)|reword|rewrite|fix|swap|replace|drop)\b/i;
-const NUMBER_WORDS =/\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|cvr|aov|mer|traffic|sessions?|numbers?|conversions?|conversion rate|orders)\b/i;
-/**
- * A mention in a brand's internal channel is the idea bot's when:
- *   - it says "strategist": never (that is how to reach the Strategist in an idea thread);
- *   - the thread already has an idea draft (a re-tag revises it);
- *   - the mention uses an idea word (idea, brief this, draft it, teardown, creator link, studio...)
- *     and is not about the numbers;
- *   - the thread carries a TikTok / Instagram / YouTube link or an uploaded video;
- *   - the thread carries an image and the mention is not about the numbers.
- * Everything else is the Strategist's. A BARE tag in a thread with no media used to count as an idea;
- * it was how a follow-up in a Daily Brief thread ("Lucky Golf" then a bare tag) got answered with
- * "Questions before I draft the Lucky Golf idea" (2026-10-04). A bare tag now goes to the Strategist.
- */
-export async function ideaWanted(env, ev) {
-  if (!ev || ev.type !== 'app_mention' || ev.channel_type === 'im') return false;
-  const said = stripTags(ev.text);
-  if (/\bstrategist\b/i.test(said)) return false;
-  await ensureIdeaTables(env);
-  const root = ev.thread_ts || ev.ts;
-  if (await env.DB.prepare(`SELECT 1 AS x FROM idea_thread WHERE id = ?1`).bind(`${ev.channel}:${root}`).first()) return true;
-  const own = { social: hasRef(ev.text), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
-  if (EDIT_WORDS.test(said) && !/\bideas?\b/i.test(said) && !own.social && !own.video) return false;
-  if (IDEA_WORDS.test(said) && !NUMBER_WORDS.test(said)) return true;
-  /* "compare" (the blind model test) inside a thread, unless it is about the numbers. */
-  if (ev.thread_ts && /\bcompare\b/i.test(said) && !NUMBER_WORDS.test(said)) return true;
-  if (own.social || own.video) return true;
-  if (own.image && !NUMBER_WORDS.test(said)) return true;
-  if (!ev.thread_ts) return false;
-  const r = await slack(env, 'conversations.replies', { channel: ev.channel, ts: root, limit: 100 }, true);
-  const msgs = (r.messages || []).filter(m => !m.bot_id);
-  if (msgs.some(m => hasRef(m.text) || (m.files || []).some(isVideoFile))) return true;
-  return msgs.some(m => (m.files || []).some(isImageFile)) && !NUMBER_WORDS.test(said);
-}
+/* 2026-10-09: the word router (ideaWanted, IDEA_WORDS, NUMBER_WORDS) is gone. Cole: "stop having a list
+   of words that make it do X or Y". Every tag goes to the Strategist, which reads the thread and calls
+   draft_from_thread (strategist.js) when the job is drafting from a reference. */
 
 /** The ack (eyes on the message), then the work goes on the queue. */
 export async function ideaStart(env, ev, body) {

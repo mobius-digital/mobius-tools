@@ -36,7 +36,7 @@ import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch } from './asana-brand.js';
-import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
+import { ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
@@ -6708,13 +6708,15 @@ async function handleSlackEvent(request, env, ctx) {
   const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
     note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''}` } : null;
   ctx.waitUntil((async () => {
-    /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
-       or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
-    if (!dm && mentioned && env.IDEAS_BOT !== 'off' && await ideaWanted(env, { ...ev, type: 'app_mention' }).catch(e => { console.log('ideas route: ' + e.message); return false; })) {
-      /* An idea thread belongs to the ideas bot from here: plain replies in it are the team's
-         (and the bot's cost gate is the tag), so the Strategist stops answering them. */
-      await closeStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
-      return ideaStart(env, ev, body);
+    /* 2026-10-09, Cole: "stop having a list of words that make it do X or Y, it should judge from the
+       context". EVERY tag goes to the Strategist. It reads the thread and decides; when the job is
+       watching a reference and drafting from it, it calls draft_from_thread (the ideas pipeline is
+       now a tool, never a second front door). The word router (ideas.js ideaWanted) sent Fela's
+       "update this in the creator link" to the ideas bot, which died as "No draft yet". */
+    if (!dm && screen) {
+      const root = ev.thread_ts || ev.ts;
+      const idea = await env.DB.prepare(`SELECT status FROM idea_thread WHERE id = ?1`).bind(`${ev.channel}:${root}`).first().catch(() => null);
+      if (idea) screen.note += ` This thread already has an Ideas draft card (status ${idea.status || 'drafted'}). If the person wants that draft changed or redone, call draft_from_thread with their change as steer: it revises the card. Anything else, do it yourself.`;
     }
     /* From here on the thread is a conversation with the Strategist: replies need no tag. */
     if (!dm) await openStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
