@@ -1740,21 +1740,43 @@ function twDailySeries(raw, start, end) {
  * orders AND as new customers: Grunk and Party Patch were ~35% free orders Sep 1 to Oct 8, which made orders too high,
  * average order too low and cost per new customer look better than it was. So at the door, for EVERY reader (Locus,
  * the Daily Brief, reports, the Strategist, Day check): `totalOrders` = TW's `totalOrdersWithAmount` (orders with money
- * on them), and `newCustomersOrders` = TW's new-customer orders less the free orders (seeding goes to new people; an
- * approximation, floored at 0). The raw counts stay as `totalOrdersAll` / `newCustomersOrdersAll`. Revenue is untouched
+ * on them), and `newCustomersOrders` = new PAYING customers (newPaid below). The raw counts stay as `totalOrdersAll` / `newCustomersOrdersAll`. Revenue is untouched
  * ($0 adds nothing) and costs come from TW's own cost metrics, so a seeded product still costs money in profit.
  * History was converted once on 2026-10-09 (scripts/paid-orders-migrate.mjs); never convert a row twice. */
-function paidOrdersOnly(daily) {
+/* NEW PAYING CUSTOMERS. Measured on Sep 1 to Oct 8: "take every free order off the new-customer count" over-corrects
+ * (Grunk 126 against 271 first paid orders seen order by order: creators seeded twice are repeat customers, not new).
+ * So a day's new-customer orders = the SMALLER of Triple Whale's new-customer count (knows the whole Shopify history,
+ * but counts seeding) and the first PAID orders we see order by order in tw_orders (paid only, but only ~13 months of
+ * history). Until tw_orders has the day (it lands with the nightly attribution sync), the fallback is the raw count
+ * less the free orders; the hourly sync rewrites the last 10 days, so recent days correct themselves.
+ * `seen` = { date: { n: paid orders in tw_orders, firsts: customers whose first paid order is that day } }.
+ * KEEP IN STEP with scripts/paid-orders-migrate.mjs (newPaid). */
+export function newPaid(rawNew, all, paid, seen) {
+  if (rawNew == null) return null;
+  const free = Math.max(0, (all ?? 0) - (paid ?? 0));
+  if (seen && paid > 0 && seen.n >= 0.8 * paid) return Math.min(rawNew, seen.firsts);
+  return Math.max(0, rawNew - free);
+}
+function paidOrdersOnly(daily, seen = {}) {
   const all = daily.totalOrders, paid = daily.totalOrdersWithAmount, nco = daily.newCustomersOrders;
   if (!all || !paid) return;
   daily.totalOrdersAll = { ...all };
   if (nco) daily.newCustomersOrdersAll = { ...nco };
   for (const d of Object.keys(all)) {
     if (paid[d] == null) continue;
-    const free = Math.max(0, all[d] - paid[d]);
+    const raw = all[d];
     daily.totalOrders[d] = paid[d];
-    if (nco && nco[d] != null) daily.newCustomersOrders[d] = Math.max(0, nco[d] - free);
+    if (nco && nco[d] != null) daily.newCustomersOrders[d] = newPaid(nco[d], raw, paid[d], seen[d]);
   }
+}
+/** First paid orders per day from tw_orders (one query): { date: { n, firsts } }. Empty on any failure. */
+async function firstPaidByDay(env, act, from, to) {
+  try {
+    const { results } = await env.DB.prepare(`WITH f AS (SELECT customer_id, MIN(date) first FROM tw_orders WHERE act_id = ?1 AND customer_id IS NOT NULL AND customer_id != '' AND total > 0 GROUP BY customer_id)
+      SELECT o.date, COUNT(*) n, SUM(CASE WHEN f.first = o.date THEN 1 ELSE 0 END) firsts FROM tw_orders o LEFT JOIN f ON f.customer_id = o.customer_id
+      WHERE o.act_id = ?1 AND o.total > 0 AND o.date BETWEEN ?2 AND ?3 GROUP BY o.date`).bind(act, from, to).all();
+    return Object.fromEntries((results || []).map(r => [r.date, { n: r.n || 0, firsts: r.firsts || 0 }]));
+  } catch { return {}; }
 }
 
 /** Pull the last `days` days of per-day TW metrics into tw_daily (one API call). */
@@ -1767,7 +1789,7 @@ async function syncTwDaily(env, acct, days = 10) {
   const start = addDays(today, -Math.min(days, 430));
   const res = await twSummary(env, acct.tw_shop, start, today);
   const daily = twDailySeries(res.raw, start, today);
-  paidOrdersOnly(daily);
+  paidOrdersOnly(daily, await firstPaidByDay(env, acct.act_id, start, today));
   const stmts = [];
   for (const [id, byDate] of Object.entries(daily))
     for (const [date, v] of Object.entries(byDate))

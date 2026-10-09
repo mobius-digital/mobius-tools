@@ -1072,9 +1072,12 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
 
 ## 2026-10-09: paid orders only, the Day check, integrations rebuilt
 - **`paidOrdersOnly(daily)`** runs inside `syncTwDaily` before the insert: `totalOrders` = TW `totalOrdersWithAmount`,
-  `newCustomersOrders` = raw new-customer orders minus the free orders (floored at 0; seeding goes to new people), raw kept
-  as `totalOrdersAll` / `newCustomersOrdersAll`. Free orders were ~35% of Grunk's and Party Patch's orders Sep 1 to Oct 8.
-  `scripts/paid-orders-migrate.mjs` converted the history once (idempotent; dry run without `--go`).
+  `newCustomersOrders` = new PAYING customers via `newPaid()`: the smaller of TW's raw new-customer count and the first
+  paid orders seen in tw_orders (when tw_orders has >= 80% of the day's paid orders), else raw minus free orders. Raw kept as
+  `totalOrdersAll` / `newCustomersOrdersAll`. Free orders were ~35% of Grunk's and Party Patch's orders Sep 1 to Oct 8;
+  "all free orders were new people" over-corrected (Grunk 126 vs 271 first paid orders: creators seeded twice). History:
+  `scripts/paid-orders-migrate.mjs` then `scripts/paid-newcust-recompute.mjs` (both idempotent, dry run without `--go`).
+  Restore bookmark before: 00000d91-0000001c-000050ff-1617ad2734d47a64ba61cf6c4c94f38f.
 - **moved.js is the Day check post**: only on a bad day, button `?open=yesterday`. `market.js` + `GET /api/market` (Pulse,
   Breezeway's public file, a once-per-date Haiku web search; `marketHandles` setting = X handles to read first).
   `POST /api/daycheck` = the verdict for the Day check screen (see profit/CLAUDE.md).
