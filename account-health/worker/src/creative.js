@@ -12,7 +12,7 @@
  * 3. AI TAGS PER CREATIVE (`ad_tag`, one row per asset key): Claude Haiku looks at the cover and reads the
  *    copy once, about a fifth of a cent. Format, hook, who is on screen, product shown, message, offer.
  * 4. BREAKDOWNS on demand (`/api/ad-breakdown`): placement and age x gender for one ad, cached a day.
- * The hourly `creativeTick` keeps keys, covers and tags filled for every ad that spent in the last 14 days,
+ * The hourly `creativeTick` keeps keys, covers and tags filled for every ad that spent in the last 30 days,
  * so the Creative page never waits on Meta.
  */
 let F = fetch;
@@ -109,7 +109,7 @@ async function tagOne(env, row) {
 export async function creativeTick(env, thumbs, canAfford = () => true, { perBrand = 30, tags = 40, meta = null } = {}) {
   await ensureCreative(env);
   const keyed = meta ? await keyTick(env, meta, canAfford).catch(e => ({ error: e.message })) : null;
-  const since = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
+  const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const stale = new Date(Date.now() - 13 * 864e5).toISOString().slice(0, 19).replace('T', ' ');
   /* Ads that spent lately and have no fresh card (no row, an old row, a row with no cover or a Meta link
      instead of our own copy, or no asset key yet), biggest spenders first. */
@@ -118,7 +118,7 @@ export async function creativeTick(env, thumbs, canAfford = () => true, { perBra
     WHERE d.date >= ?1 AND d.spend > 0 AND (c.ad_id IS NULL OR c.fetched_at < ?2
       OR (instr(c.json, '"thumb":"data:') > 0 OR instr(c.json, '"thumb":"https://scontent') > 0 OR instr(c.json, '"thumb":"https://external') > 0)
       OR (instr(c.json, '"thumb":null') > 0 AND c.fetched_at < ?3))
-    GROUP BY d.ad_id ORDER BY s DESC LIMIT 300`).bind(since, stale, new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ')).all().catch(() => ({ results: [] }));
+    GROUP BY d.ad_id ORDER BY s DESC LIMIT 600`).bind(since, stale, new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ')).all().catch(() => ({ results: [] }));
   const byAct = {};
   for (const r of need || []) (byAct[r.act_id] ||= []).push(r.ad_id);
   let covered = 0;
