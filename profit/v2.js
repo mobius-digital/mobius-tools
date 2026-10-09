@@ -269,7 +269,7 @@
     let p = document.getElementById('v2panel');
     const ic = (n, l) => window.icon ? window.icon(n, { size: 16, label: l }) : '';
     if (!p) { document.body.insertAdjacentHTML('beforeend', `<div id="v2scrim"></div><aside id="v2panel" aria-label="Detail" role="dialog"><div class="ph"><span class="plead"></span><div class="pt"><b></b><span class="pchip"></span></div><span class="sp"></span><span class="pacts"></span><button type="button" class="ds-iconbtn pexp" aria-label="Expand">${ic('maximize', 'Expand')}</button><button type="button" class="ds-iconbtn pclose" aria-label="Close">${ic('x', 'Close')}</button></div><div class="sbody"><nav class="snav" aria-label="Sections"></nav><div class="pb"></div></div></aside>`); p = document.getElementById('v2panel');
-      const close = () => { p.classList.remove('on'); document.getElementById('v2scrim').classList.remove('on'); };
+      const close = () => { if (!p.classList.contains('on')) return; p.classList.remove('on'); document.getElementById('v2scrim').classList.remove('on'); if (window.LocusShare) window.LocusShare.setExtra({ ad: null }); };
       p.querySelector('.pclose').onclick = close; document.getElementById('v2scrim').onclick = close; document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
       p.querySelector('.pexp').onclick = () => p.classList.toggle('full'); }
     const sh = panel.sheet || null; panel.sheet = null;
@@ -371,6 +371,7 @@
       ${x.headline || x.body ? `<div class="v2copy" data-sec="Ad copy" data-ic="file-text">${x.headline ? `<b>${esc(x.headline)}</b>` : ''}${x.body ? `<p>${esc(x.body)}</p>` : ''}</div>` : ''}
       <div class="v2gos" data-sec="Next steps" data-ic="sparkles">${a.media_type !== 'video' && window.StudioTab && window.StudioTab.fromAd ? `<button type="button" class="v2go" data-studio="1"><b>Make iterations in Studio</b><span>This ad's image goes on a line of a Studio batch, so Studio makes new versions from it.</span><i>${ICN('chevron-right')}</i></button>` : ''}<button type="button" class="v2go" data-more="1"><b>Make more like this</b><span>The Strategist drafts an Asana brief for three iterations of this ad.</span><i>${ICN('chevron-right')}</i></button></div>
       <p class="v2hint">${esc(MODEL_SHORT[H.S.model] || '')} for purchases and revenue; delivery is Meta's.</p></div></div>`);
+    if (window.LocusShare) window.LocusShare.setExtra({ ad: a.id });   // the open ad is part of the address (share.js)
     body.querySelector('[data-more]').onclick = () => { const brand = (H.S.accounts.find(z => z.act_id === H.S.act) || {}).name || 'this brand'; H.AskUI.ask(`For ${brand}: draft an Asana brief for three iterations of the ad "${a.name}" (ad id ${a.id}). It spent ${kmoney(a.spend, cur)} at ${money(a.cpa, cur)} per purchase${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}. Keep what works, change one thing per iteration, and say which test it is.`); };
     loadThumbs(body, [a.id]).then(() => { const y = ASSETS.get(a.id) || {}; const lt = document.querySelector('#v2panel .plead-th'); if (lt && THUMBS.has(a.id)) lt.style.backgroundImage = `url('${THUMBS.get(a.id)}')`; const cp = body.querySelector('.v2copy'); if (!cp && (y.headline || y.body)) body.querySelector('.v2kv').insertAdjacentHTML('afterend', `<div class="v2copy">${y.headline ? `<b>${esc(y.headline)}</b>` : ''}${y.body ? `<p>${esc(y.body)}</p>` : ''}</div>`); });
     body.querySelector('[data-orders]').onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`);
@@ -668,7 +669,7 @@
     if (!one) return metaAll(d, title);
     const b = d.brands[0], c = b.cur, p = b.prev || {}, cur = b.currency, g = b.goals || {};
     const sz = b.series || [];
-    const pend = window.V2PENDING; if (pend && pend.campaign) { CAMP_OPEN.add(pend.campaign); window.V2PENDING = null; setTimeout(() => { const tr = document.querySelector(`#v2camptbl tr[data-campaign="${CSS.escape(pend.campaign)}"]`); if (tr) { tr.scrollIntoView({ block: 'center' }); tr.classList.add('v2flash'); } }, 50); }
+    const pend = window.V2PENDING; if (pend && pend.campaign) { CAMP_OPEN.add(pend.campaign); window.V2PENDING = pend.ad ? { ad: pend.ad } : null; if (window.LocusShare) window.LocusShare.setExtra({ camp: pend.campaign }); setTimeout(() => { const tr = document.querySelector(`#v2camptbl tr[data-campaign="${CSS.escape(pend.campaign)}"]`); if (tr) { tr.scrollIntoView({ block: 'center' }); tr.classList.add('v2flash'); } }, 50); }
     const pace = c.spend && d.window ? c.spend / (sz.length || 1) : null;
     const verdict = [`${kmoney(c.spend, cur)} spent${pace && sz.length > 1 ? `, ${kmoney(pace, cur)} a day` : ''}.`, c.attr_pending ? `Purchases and revenue come from Triple Whale overnight; Meta reports ${int(c.platform_purchases)} purchase${c.platform_purchases === 1 ? '' : 's'} so far today.` : `${int(c.purchases)} purchases at ${money(c.cpa, cur)}${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}; ROAS ${x2(c.roas)}${g.roas ? ` against ${x2(g.roas)}` : ''}.`].join(' ');
     const psz = b.prev_series || [];
@@ -717,10 +718,12 @@
     MED = medians([...adsById.values()], (b.goals || {}).cpa || 50);
     root.querySelectorAll('#v2camptbl [data-prev]').forEach(el => el.onclick = e => { e.stopPropagation(); const a = adsById.get(el.dataset.prev); if (a) previewAd(a, cur, b.goals); });
     loadThumbs(root, [...root.querySelectorAll('#v2camptbl [data-thumb]')].map(x => x.dataset.thumb));
-    root.querySelectorAll('[data-tog]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const id = btn.dataset.tog; CAMP_OPEN.has(id) ? CAMP_OPEN.delete(id) : CAMP_OPEN.add(id); const tb = root.querySelector('#v2camptbl'); if (!tb) return; const host = tb.closest('.v2card'); host.outerHTML = campTable(b, cur, H.S.tab === 'campaigns'); wireCamp(root, b, cur); });
+    root.querySelectorAll('[data-tog]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const id = btn.dataset.tog; CAMP_OPEN.has(id) ? CAMP_OPEN.delete(id) : CAMP_OPEN.add(id); if (window.LocusShare && btn.closest('tr[data-campaign]')) window.LocusShare.setExtra({ camp: CAMP_OPEN.has(id) ? id : null }); const tb = root.querySelector('#v2camptbl'); if (!tb) return; const host = tb.closest('.v2card'); host.outerHTML = campTable(b, cur, H.S.tab === 'campaigns'); wireCamp(root, b, cur); });
     root.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const [k, id] = btn.dataset.drill.split(':'); const name = btn.closest('tr').querySelector('.nm')?.textContent || ''; drillOrders(name, `${k === 'campaign' ? 'campaign' : k === 'adset' ? 'adset' : 'ad'}=${encodeURIComponent(id)}`); });
     /* Stock on the ad set and the ad (supply.js): "Stock runs out Nov 27", "Stock OK to scale". */
     if (window.SupplyStock && H.S.act !== 'all') window.SupplyStock.decorate(root, H.S.act);
+    /* A link that names an ad (?ad=, share.js) opens its preview here too, not only on Creative. */
+    const pa = window.V2PENDING; if (pa && pa.ad && !pa.campaign) { window.V2PENDING = null; const a = adsById.get(pa.ad); if (a) previewAd(a, cur, b.goals); }
   }
   function metaAll(d, title) {
     const bs = d.brands.filter(b => b.cur.spend > 0); const cur = oneCur(bs);

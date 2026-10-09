@@ -7250,6 +7250,58 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (r) return r;
     }
 
+    /* ---- Export > Send to Slack (Locus share.js, 2026-10-09) ----
+       A picture of one Locus card into the brand's OWN internal (slack_channel) or client (brief_channel) channel.
+       The channel is looked up here from the brand; the browser never names one. Admin, and a person limited to
+       some brands can only post for those. GET = which channels exist (names from Slack); POST = send. */
+    if (path === '/api/share/slack') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const email = await sessionEmail(env, request).catch(() => null);
+      const only = await brandsFor(env, email).catch(() => null);
+      const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      const act = String((request.method === 'POST' ? body.act : url.searchParams.get('act')) || '');
+      if (!/^[\w-]{3,80}$/.test(act)) return json({ error: 'Pick a brand first.' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const a = await env.DB.prepare(`SELECT act_id, name, slack_channel, brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
+      if (!a) return json({ error: 'No such brand.' }, 404);
+      const chans = { internal: a.slack_channel || null, client: a.brief_channel && a.brief_channel !== a.slack_channel ? a.brief_channel : null };
+      if (request.method === 'GET') {
+        const out = { brand: a.name };
+        for (const k of ['internal', 'client']) {
+          const id = chans[k]; if (!id) { out[k] = null; continue; }
+          const i = await slackApi(env, 'conversations.info', { channel: id }).catch(() => null);
+          out[k] = i?.channel?.is_archived ? null : { id, name: i?.ok ? i.channel?.name || null : null };
+        }
+        return json(out);
+      }
+      if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+      const to = body.to === 'client' ? 'client' : 'internal';
+      const channel = chans[to];
+      if (!channel) return json({ error: `${a.name} has no ${to} channel set. Set it in Brand settings, Slack and sending.` }, 400);
+      const b64 = String(body.png || '');
+      if (!b64 || b64.length > 14e6) return json({ error: 'The picture is missing or too big.' }, 400);
+      let bytes;
+      try { const bin = atob(b64); bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); }
+      catch { return json({ error: 'The picture could not be read.' }, 400); }
+      if (bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4E || bytes[3] !== 0x47) return json({ error: 'That is not a PNG.' }, 400);
+      /* Slack text: escape &, <, > so a typed line can never become a mention or a link; no em dashes. */
+      const sl = (s, n) => String(s || '').replace(/[\u2014\u2013]/g, ', ').replace(/[\r\n]+/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').trim().slice(0, n);
+      const title = sl(body.title, 140) || 'Locus';
+      const filename = (String(body.filename || '').toLowerCase().replace(/[^a-z0-9.-]+/g, '-').replace(/^-+/, '').slice(0, 140) || 'locus') .replace(/(\.png)?$/, '.png');
+      const link = /^https:\/\/tools\.go-mobius-digital\.com\/profit\/[^\s<>|]*$/.test(String(body.link || '')) ? String(body.link) : '';
+      const by = email ? email.split('@')[0].replace(/^./, c => c.toUpperCase()) : null;
+      const comment = [sl(body.text, 500), `*${title}*${body.page ? ` · ${sl(body.page, 60)}` : ''} · ${sl(a.name, 80)}${body.dates ? ` · ${sl(body.dates, 120)}` : ''}`,
+        to === 'internal' && link ? `<${link}|Open it in Locus>${by ? ` · shared by ${sl(by, 40)}` : ''}` : (by && to === 'internal' ? `Shared by ${sl(by, 40)}` : '')].filter(Boolean).join('\n');
+      const up = await slackApi(env, 'files.getUploadURLExternal', { filename, length: bytes.length });
+      if (!up?.ok) return json({ error: `Slack would not take the picture: ${up?.error || 'no answer'}` }, 502);
+      const put = await xfetch(up.upload_url, { method: 'POST', body: bytes });
+      if (!put.ok) return json({ error: `The upload to Slack failed (HTTP ${put.status}).` }, 502);
+      const done = await slackApi(env, 'files.completeUploadExternal', { files: [{ id: up.file_id, title }], channel_id: channel, initial_comment: comment });
+      if (!done?.ok) return json({ error: `Slack did not post it: ${done?.error || 'no answer'}${done?.error === 'not_in_channel' ? '. Add the Mobius Digital app to that channel.' : ''}` }, 502);
+      const info = await slackApi(env, 'conversations.info', { channel }).catch(() => null);
+      return json({ ok: true, to, name: info?.ok ? info.channel?.name || null : null });
+    }
+
     /* ---- the Strategist, in Locus ---- */
     if (path.startsWith('/api/ask')) {
       /* Scheduled questions (askschedule.js): admin-checked inside. */

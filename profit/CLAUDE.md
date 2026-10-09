@@ -2254,3 +2254,43 @@ Cole: "ideally this would replace Motion". Backend in account-health `creative.j
   Klaviyo cards on their own (`klaviyoCards`, not awaited, error + Try again). account-health klaviyo.js serves an
   expired copy at once and refreshes behind (`waitUntil`), keeps the last good copy when a refresh fails, and keeps
   reads 10 minutes in memory.
+
+## 2026-10-09: Export and share (share.js). Show a client a view without "go to this tab, then that tab".
+
+Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-section Export menu, Hyros's print view).
+- **The address is the view.** `profit/share.js` (`window.LocusShare`) writes `?page=&brand=&period=` (or `from=&to=` for
+  Custom) `&cmp=&model=&camp=&ad=` with `history.replaceState` at the end of every `show()` (`LocusShare.sync(tab)`), and
+  v2.js calls `setExtra({ad})` in `previewAd` (cleared when the panel closes) and `setExtra({camp})` when a campaign row
+  opens. `boot()` calls `LocusShare.init(shareHost()); readURL(qs)` before anything loads: a link or a refresh restores
+  the page, brand, dates, compare, attribution, the open campaign and the open ad (through `window.V2PENDING`; Campaigns
+  now opens a pending ad too). Defaults are left out of the link, so on a view link a missing cmp / model / brand means
+  prev / last platform click / All clients, never what that browser last picked. Brand limits still apply (renderPicker
+  drops a brand the person cannot see). `?open=&act=` links keep working.
+- **One Export menu per card** (`PillMenu` with the new `o.icon` option: an icon trigger, items with an icon as the 5th
+  element, no picked state). share.js decorates every `.v2card` / `.card` in `#main` that has a title (`.v2h h3`,
+  `.bf-top h3`, or a first-child h3) on `SHARE_TABS` (v2 screens, Brief, Reports, P&L, Customers, Dashboards, Day check,
+  Today) through a MutationObserver, so no renderer changed. Stable card id = the title as a slug, digits dropped, `-2`
+  for repeats (`data-card`). Items: **Copy as image** (2x PNG to the clipboard; the promise goes straight into the
+  ClipboardItem for Safari; falls back to a download), **Download PNG** (`brand-card-from-to-to.png`), **Send to Slack**,
+  **Copy link to this section** (the view URL + `#card=<id>`: on load the page waits for that card, scrolls to it under the
+  top bar and rings it for 2s). The page head gets an "Export this page" menu: copy link to the page, the headline tiles
+  as an image or to Slack, Print or save as PDF.
+- **The picture**: modern-screenshot 4.6.8 (jsdelivr UMD, loaded on first use). The card is CLONED into an off-screen frame
+  that carries the LIGHT theme's tokens (read from the page's own `[data-theme="light"]` rules), so it is light even in
+  dark mode; ids in the clone are renamed so chart gradients point at the copy; wide tables are drawn full width. Frame:
+  brand, page and card title, the dates and the compare window (only on pages that read the period picker), the
+  attribution model where it applies, "Locus by Mobius Digital" with the mark. Checked: a chart card, the Campaigns table
+  (captured from dark mode, came out light) and the Home tiles.
+- **Send to Slack**: in-app modal with the picture, the brand's Internal channel (default) or Client channel (amber, "The
+  client will see this", button reads "Send to the client"), an optional line. Account-health `GET /api/share/slack?act=`
+  (channel names) and `POST /api/share/slack {act, to, text, title, page, dates, link, filename, png}` (admin, brandsFor
+  limits, PNG checked, files.getUploadURLExternal + completeUploadExternal, text escaped so a typed line can never mention
+  or link; the Locus link only goes to the internal channel). Channels come from `brand_accounts` server side; the browser
+  never names one. A client channel equal to the internal one counts as none.
+- **Print or save as PDF**: `beforeprint` switches to the light theme and puts the page title, brand, dates and compare at
+  the top of `#main` (`.lx-print-h`); `afterprint` puts it back. v2.css print rules hide the rail, top bar, page tabs,
+  menus, panels and toasts and keep cards, tiles and table rows whole.
+- NOT built (Cole decides): public no-login snapshot links. The chart's area gradient does not come through in the
+  picture (the line does); everything else matched.
+- Files: share.js (new), index.html (`pillMenuInner` icon option, `shareHost`, boot + show hooks), v2.js (ad / campaign
+  hooks), v2.css (block at the end), icons.js (`share`, `printer`), account-health worker.js (`/api/share/slack`).

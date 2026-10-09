@@ -270,3 +270,11 @@ get them too.
 - **Toasts.** `.lx-toast` (add `.bad` for a failure): ink pill, a green or red dot, slides up 10px; calc.js, season.js
   and calendar.js all use it. Never inline-style a toast again.
 - **Scrollbars** thin (10px track, 4px thumb at 16% ink), selection at 22% accent.
+
+## 11. Export (2026-10-09, share.js)
+
+- Every titled card on a shareable page gets ONE Export icon button (Lucide `share`) in its top-right corner, drawn by
+  `PillMenu` with `{icon}`: quiet (no border) until hover or open, menu items with a 16px icon, a bold label and one
+  muted line. The page head carries the same button for the whole page. Never add a separate Copy link button.
+- The exported picture is always light, on `--bg`, with the brand, the card, the dates and "Locus by Mobius Digital".
+- A `#card=` link rings the card once in `--brand` (2.4s); reduced motion = a static ring.

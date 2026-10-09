@@ -1013,3 +1013,88 @@ svg.li.ni{width:18px;height:18px;margin-top:1px}
 .v2gal .th .v2pick:has(input:checked) svg{stroke:var(--on-brand)}
 .v2gal .th .v2pick:has(input:focus-visible){outline:2px solid var(--brand);outline-offset:2px}
 .v2hidden{margin:-4px 0 12px}
+
+/* ==========================================================================
+   2026-10-09: EXPORT AND SHARE (share.js). One Export menu per card and per page
+   (the shared PillMenu, drawn as an icon button), the picture frame, the Slack
+   modal, the card ring on a #card= link, and the print stylesheet.
+   ========================================================================== */
+[data-card]{scroll-margin-top:calc(var(--lx-top,0px) + 16px)}
+#main .v2card[data-card],#main .card[data-card]{position:relative}
+#main .lx-hx{padding-right:38px}
+.hd-period.lx-exp{position:absolute;top:14px;right:14px;z-index:3}
+.ph-r .hd-period.lx-exp{position:relative;top:auto;right:auto;z-index:auto}
+[data-ui="v2"] .hd-period.lx-exp .hd-per-btn.pm-ib{width:28px;height:28px;padding:0;justify-content:center;border-radius:var(--r-sm);border-color:transparent;background:transparent;box-shadow:none;color:var(--muted)}
+[data-ui="v2"] .hd-period.lx-exp .hd-per-btn.pm-ib:hover,[data-ui="v2"] .hd-period.lx-exp.open .hd-per-btn.pm-ib{background:var(--surface-2);border-color:var(--line-strong);color:var(--ink)}
+[data-ui="v2"] .ph-r .hd-period.lx-exp .hd-per-btn.pm-ib{border-color:var(--line-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-2)}
+.hd-period.lx-exp .hd-per-btn.pm-ib svg{color:currentColor;width:16px;height:16px}
+.hd-period.pm.lx-exp .hd-per-menu{left:auto;right:0;min-width:300px;max-width:340px}
+.md-menu button.pm-it{display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:10px;align-items:start}
+.md-menu button.pm-it .pm-ic{grid-row:span 2;display:grid;place-items:center;height:18px;color:var(--muted)}
+.md-menu button.pm-it .pm-ic img{width:16px;height:16px;display:block}
+.md-menu button.pm-it b,.md-menu button.pm-it small{grid-column:2}
+@media (max-width:720px){.hd-period.lx-exp{top:10px;right:10px}.hd-period.pm.lx-exp .hd-per-menu{min-width:0;width:min(300px,calc(100vw - 48px))}}
+
+/* a #card= link: the card it names rings once */
+@keyframes lx-ring{0%{box-shadow:0 0 0 0 rgba(var(--brand-rgb),0)}15%{box-shadow:0 0 0 3px rgba(var(--brand-rgb),.55)}100%{box-shadow:0 0 0 3px rgba(var(--brand-rgb),0)}}
+[data-card].lx-flash{animation:lx-ring 2.4s var(--ease-out,ease) both;border-color:var(--brand)!important}
+@media (prefers-reduced-motion:reduce){[data-card].lx-flash{animation:none;box-shadow:0 0 0 2px var(--brand)}}
+
+/* the picture: drawn off screen in the light theme, then captured at 2x */
+.lx-shot-host{position:fixed;left:-20000px;top:0;pointer-events:none;z-index:-1}
+.lx-shot{background:var(--bg);color:var(--ink);font-family:var(--sans);padding:24px 32px 18px;box-sizing:border-box}
+.lx-shot-h{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin:0 0 14px}
+.lx-shot-h .l b{display:block;font-size:20px;font-weight:650;letter-spacing:-.02em;color:var(--ink)}
+.lx-shot-h .l span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.lx-shot-h .r{text-align:right}
+.lx-shot-h .r b{display:block;font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.lx-shot-h .r span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.lx-shot-b > *{margin:0!important;box-shadow:none!important;animation:none!important}
+.lx-shot-b .v2tbl{overflow:visible!important}
+.lx-shot-b .lx-hx{padding-right:0!important}
+.lx-shot-f{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:14px;font-size:11.5px;color:var(--muted)}
+.lx-shot-f .l{display:inline-flex;align-items:center;gap:7px}
+.lx-shot-f .l b{color:var(--ink-2);font-weight:650}
+.lx-shot-f img{border-radius:4px}
+
+/* Send to Slack */
+.modal.lx-sl{width:min(560px,calc(100vw - 32px));max-width:none;box-sizing:border-box}
+.lx-sl-prev{margin:12px 0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2);max-height:260px;overflow:auto;display:grid;place-items:center;min-height:90px}
+.lx-sl-prev img{display:block;width:100%;height:auto}
+.lx-sl-ch{display:grid;gap:8px;margin:0 0 10px}
+.lx-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line-strong);border-radius:var(--r-md);cursor:pointer;background:var(--surface)}
+.lx-opt input,.modal .lx-opt input[type=radio]{flex:none;width:auto;height:auto;margin:3px 0 0;padding:0;accent-color:var(--brand)}
+.lx-opt > span{flex:1;min-width:0;text-align:left}
+.lx-opt b{display:block;font-size:13.5px;font-weight:600;color:var(--ink)}
+.lx-opt small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.lx-opt:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
+.lx-opt.cl:has(input:checked){border-color:var(--warn);background:var(--warn-bg)}
+.lx-opt.cl small{color:var(--warn)}
+.lx-opt.off{cursor:default;opacity:.75;border-style:dashed}
+.lx-sl-warn{margin:0 0 10px;padding:9px 12px;border-radius:var(--r-sm);background:var(--warn-bg);color:var(--warn);font-size:13px;font-weight:550}
+.lx-sl-t{display:grid;gap:5px;font-size:12.5px;color:var(--ink-2);font-weight:550}
+.lx-sl-t input{width:100%;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:9px 11px;font:14px var(--sans);background:var(--surface);color:var(--ink)}
+.lx-sl-a{justify-content:flex-end;gap:8px;margin:14px 0 0!important;align-items:center}
+.lx-sl-a .lx-sl-msg{margin-right:auto;font-size:12.5px}
+[data-ui="v2"] .lx-sl .btn.primary.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+
+/* print or save as PDF (share.js swaps to the light theme on beforeprint and adds the page title, brand and dates) */
+.lx-print-h{display:none}
+@media print{
+  @page{margin:12mm}
+  html,body,[data-ui="v2"] body,[data-ui="v2"] .content{background:#fff!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .side,.topbar,.tabbar,.nav-scrim,#v2seg,.pbar,#foot,.ph-r,.lx-exp,#v2panel,#v2scrim,#v2gtip,#v2spkx,#v2spkd,.lx-toast,#ask,#askScrim,#askReport,mobius-loader,.v2gos,.nav-toggle,.lx-shot-host,.modal-wrap{display:none!important}
+  .app,.content{display:block!important}
+  main,#main{max-width:none!important;width:auto!important;padding:0!important;margin:0!important;animation:none!important;transform:none!important}
+  #main.busy{opacity:1!important}
+  .v2card,.card,.v2tile,.v2tiles,.st-line,.v2read,.v2say,.ph,.lx-print-h,tr,img,svg{break-inside:avoid;page-break-inside:avoid}
+  .v2card,.card{box-shadow:none!important}
+  .v2tbl,.tbl-wrap{overflow:visible!important}
+  [data-card].lx-flash{animation:none!important;box-shadow:none!important}
+  .lx-print-h{display:flex!important;justify-content:space-between;align-items:flex-end;gap:24px;padding:0 0 10px;margin:0 0 14px;border-bottom:1px solid var(--line-strong)}
+  .lx-print-h b{display:block;font-size:20px;font-weight:650;color:var(--ink)}
+  .lx-print-h span{display:block;font-size:12px;color:var(--muted)}
+  .lx-print-h .r{text-align:right}
+  .lx-print-h .r b{font-size:13px}
+}
