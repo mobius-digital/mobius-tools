@@ -1235,3 +1235,45 @@ META, ASANA AND DRIVE". Tests: `node test-metawrite.mjs` (14 offline checks, Gra
   2026-10-09 on Lucky 6859198499 and Bonk 2589863833: nothing refused (change_event, search_term_view, asset_group
   metrics and the Demand Gen ad fields all answered).
 - The Strategist reaches them through `locus_get` (routes.js rebuilt). strategist.js has no view for them on purpose.
+
+## 2026-10-09: LIVE CHECKS, ALERTS, SCHEDULED TASKS, DMs (`src/checknow.js`, `src/alerts.js`). Read before touching them.
+
+Cole: Viktor "can set automations and checks". Tests: `node test-alerts.mjs` (19 offline checks: curve math, today vs
+normal, signs, cache, market, rules, the three windows, goal / fixed, isDue, the tick firing once, routes, the
+Strategist's tools and cards, scheduled task / check / dashboard / report, router DMs).
+- **Right now** (`checknow.js`, `GET /api/daycheck/now?act=&fresh=1&web=1`, Strategist tool `check_now`, the Day check
+  "Right now" card in profit/desk.js): today so far vs a NORMAL DAY BY THIS HOUR = the brand's last 28 days (tw_daily;
+  Meta from hourly_insights) x the share of a day done by now from the brand's own hourly curve (TW hourly charts for the
+  last 5 days, fetched once a local day, `cnshape:<brand>`; else Meta's spend curve; else a straight line, and it says
+  which). Today = the TW live summary (same call as /api/tw-day): revenue = total sales less tax, PAID orders, new
+  customers less free orders, blended spend; Meta live by the hour (spend and CPM only, never Meta purchases). Meta hourly
+  history is backfilled 28 days once when under 14 days (`cnbf:<meta act>`). Signs with stated thresholds (revenue under
+  50% / 75%, no orders in 3 finished hours when about 3+ are normal, Meta spend under 50%, CPM up 35%+, MER under 60%);
+  nothing before 8% of the day. Market: Pulse now + today, Breezeway's latest day; the Haiku web search of the last few
+  hours ONLY on demand (`web`, about 3c, `checknow:web`). All cached 10 minutes in settings (`checknow:<brand>`, `checknow:market`).
+- **Alerts** (`p_alert`, created on first use; `"window"` is quoted on purpose). Metrics revenue, orders, new_customers,
+  spend, mer, cpa (blended spend / paid orders), roas (Meta on TW lastPlatformClick, finished days only: refused for
+  today), meta_cpm. Window today | yesterday | last7; baseline normal (today: by this hour; finished: the 28 days before) |
+  goal (goalsFor pro-rated / target_cpa / target_roas; none = says set it on Home > Goals) | fixed (threshold = the
+  number). Threshold is a PERCENT for normal / goal. `alertTick` (hourly, after scheduleTick, `subCanAfford(40)` per rule):
+  a rule with an hour is checked once a Central day at or up to 2 hours after it; no hour = every hour 9am to 9pm (today)
+  or from 8am (finished days); an unsynced day WAITS (not marked checked); fires at most once per Central day
+  (`last_fired`). Message: tag, the number, the normal, the rule in words, Open in Locus (`?open=yesterday&act=`).
+  Channels: internal (askschedule `allowedChannels`) or a full member's DM (U id; guests refused). Routes (admin):
+  `GET/PUT/DELETE /api/alerts`, `POST /api/alerts/pause`, `POST /api/alerts/test {id|rule, post}`.
+  Locus: Reports > Dashboards > Alerts (askextra.js `alerts`: add / edit / pause / delete / test now / post the test).
+- **Strategist** (strategist.js: one import + `...autoTools(d)` / `...autoActions(d)`; deps arrive as `d.auto` =
+  worker.js `autoDeps()`): tools `check_now`, `list_alerts`, `ask_ledger`; Apply cards `create_alert` (its description
+  carries Cole's example; "tell me if..." is judged from meaning, no word list), `pause_alert`, `delete_alert`, `schedule_task`.
+- **Scheduled tasks** (askschedule.js, columns `kind` + `ref` by guarded ALTERs; cadence `weekdays` added): question (as
+  before) | task (the Strategist runs the instruction; each proposal is posted as an Apply card in the thread under the
+  answer, never applied) | report (make_report text posted) | check (checkNow posted, no model) | dashboard
+  (`postDashboard` to the schedule's channel, no model). Only question / task / report count toward the 10 a day.
+- **DMs go to the Strategist** (slack-router: `dm || locusOwns`). `handleSlackEvent` DM path: `dmGate` = Slack users.info,
+  full members only (no guests, strangers, bots), a Mobius email (`emailAllowed`) or a userBrands person (ACCESS RULE in
+  the note); the brand comes from the words. The Ledger lost nothing: it only answered TEXT asks in DMs (a DM with a file
+  was ignored there) and reads receipts from #receipts by its own poll. **`ask_ledger`** (Cole only: Slack user
+  U06C37MDWD7 or his email; Locus = Cole's session or the admin key) POSTs to the Ledger's `/api/ask` over the new `LEDGER`
+  service binding with a minted Cole session and returns the answer; Ledger proposals are not applied from here.
+- NOT tested live at build time: TW hourly charts for past days (the curve), the 28-day Meta hourly backfill size, the web
+  search prompt, posting an alert to a U id, a DM end to end, the Ledger binding answering.

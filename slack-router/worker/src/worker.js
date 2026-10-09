@@ -98,10 +98,15 @@ const TARGETS = {
    Events API, and two brains listen on it now: the Controller (Ledger) and the
    Strategist (Locus). The channel decides. A brand's internal team channel is
    registered on its account in Locus, so a mention there is the Strategist's;
-   everything else - the finance channel, the receipts channel, a DM - keeps
-   going to the Ledger exactly as before. Locus is asked which channels are
-   its (a boolean, no auth needed, channel ids are not secret) and the answer
-   is cached for an hour. */
+   everything else - the finance channel, the receipts channel - keeps going
+   to the Ledger exactly as before. Locus is asked which channels are its (a
+   boolean, no auth needed, channel ids are not secret) and the answer is
+   cached for an hour.
+   DMs go to the Strategist since 2026-10-09 (Cole: one DM door, Viktor-style).
+   The Ledger is still reachable from a DM: the Strategist's ask_ledger tool
+   passes a money question to the Ledger's /api/ask (Cole only). The Ledger
+   loses nothing: it only ever answered TEXT asks in a DM (a DM with a file was
+   ignored there), and receipts are read from #receipts by its own poll. */
 const owned = new Map();
 async function locusOwns(env, channel) {
   if (!channel || !env.AUTH) return false;
@@ -152,7 +157,7 @@ export default {
       if (body?.type === 'url_verification') return Response.json({ challenge: body.challenge });
       const ev = body?.event || {};
       const dm = ev.channel_type === 'im';
-      const who = !dm && await locusOwns(env, ev.channel) ? 'locus' : 'ledger';
+      const who = dm || await locusOwns(env, ev.channel) ? 'locus' : 'ledger';
       const [bindingName, target] = EVENT_TARGETS[who];
       const binding = env[bindingName];
       if (!binding) return new Response('', { status: 200 });

@@ -273,6 +273,11 @@ export function stratHooks(d) {
       meta_budget: `Preparing a budget change: ${clip(input.target, 50)}`,
       meta_create_ad: `Preparing a new ad in ${clip(input.adset, 50)}`,
       meta_duplicate_adset: `Preparing a copy of ${clip(input.target, 50)}`,
+      check_now: `Checking ${input.brand ? clip(input.brand, 30) : 'the brands'} right now${input.web ? ' and what advertisers are saying' : ''}`,
+      list_alerts: 'Reading the alerts',
+      ask_ledger: 'Asking the Ledger',
+      create_alert: 'Preparing an alert',
+      schedule_task: 'Preparing a schedule',
     })[name] || null,
     serverTools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5 }],
   };

@@ -118,11 +118,72 @@
     </div>`;
     const brands = isLatest && (m.brands || []).length ? U().card(agency ? 'Our brands that day' : 'Your brand that day', 'Meta cost per sale against each brand\'s own last 28 days (Meta\'s count).',
       `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Meta spend</th><th>Cost per sale</th><th>Its normal</th><th></th></tr></thead><tbody>${m.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${U().money(b.spend)}</td><td>${b.cpa != null ? U().money(b.cpa) : 'no sale'}</td><td>${b.cpa_normal != null ? U().money(b.cpa_normal) : '–'}</td><td>${b.change == null ? '' : `<span class="v2pill ${b.change >= 0.15 ? 'bad' : b.change <= -0.15 ? 'good' : ''}">${b.change >= 0 ? '+' : ''}${Math.round(b.change * 100)}%</span>`}</td></tr>`).join('')}</tbody></table></div>`) : '';
-    $('#main').innerHTML = shell('yesterday', title, `<p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? A bad day when two or more of four signs agree.</p>
+    $('#main').innerHTML = shell('yesterday', title, `<div id="dkNow"></div><p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? A bad day when two or more of four signs agree.</p>
       ${answer}${isLatest ? `<div id="dkVerdict"></div>` : ''}${U().card('The last 30 days', '', strip)}${U().card(`The four signs, ${wdl(sel.date)} ${md(sel.date)}`, '', signs)}${brands}`);
     const root = $('#main');
     root.querySelectorAll('.dk-day').forEach(el => el.onclick = () => { MDSEL = el.dataset.d; yesterday(false); });
     if (isLatest) fillVerdict(m, t, agency);
+    fillNow(t);
+  }
+
+  /* RIGHT NOW (2026-10-09, account-health checknow.js): today so far against a normal day by this hour, the signs,
+   * the market now. Cached 10 minutes on the server; Refresh skips that, "What are advertisers saying?" adds a
+   * web search (a few cents). Kept in the page so clicking a day below does not ask again. */
+  let NOWC = null;
+  async function fillNow(t, opt = {}) {
+    const el = document.getElementById('dkNow'); if (!el) return;
+    const act = H.S.act || 'all', key = act;
+    const draw = (body, sub) => { const e2 = document.getElementById('dkNow'); if (e2 && t === H.RUN()) e2.innerHTML = U().card('Right now', `<span class="dk-acts"><button type="button" class="v2btn ghost" id="dkNowRef">Refresh</button><button type="button" class="v2btn ghost" id="dkNowWeb">What are advertisers saying?</button></span>`, `${sub ? `<p class="v2hint" style="margin:0 0 10px">${sub}</p>` : ''}${body}`); wireNow(t); };
+    if (!opt.fresh && !opt.web && NOWC && NOWC.key === key && Date.now() - NOWC.at < 5 * 60e3) { draw(nowBody(NOWC.data), nowSub(NOWC.data)); return; }
+    if (!NOWC || NOWC.key !== key) draw('<p class="v2hint" style="margin:0">Checking today so far against a normal day&hellip;</p>');
+    let r; try { r = await H.apiAH(`/api/daycheck/now?act=${encodeURIComponent(act)}${opt.fresh ? '&fresh=1' : ''}${opt.web ? '&web=1' : ''}`); }
+    catch (e) { draw(`<p class="v2bad" style="margin:0">Could not check: ${esc(e.message)}</p>`); return; }
+    if (opt.web === false && NOWC?.data?.chatter && !r.chatter) r.chatter = NOWC.data.chatter;
+    NOWC = { key, at: Date.now(), data: r };
+    draw(nowBody(r), nowSub(r));
+  }
+  function wireNow(t) {
+    const a = document.getElementById('dkNowRef'), b = document.getElementById('dkNowWeb');
+    if (a) a.onclick = () => { a.disabled = true; a.textContent = 'Checking…'; fillNow(t, { fresh: true }); };
+    if (b) b.onclick = () => { b.disabled = true; b.textContent = 'Searching…'; fillNow(t, { web: true }); };
+  }
+  const nowSub = r => `${esc(r.how || '')} As of ${new Date(r.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central.`;
+  function nowBody(r) {
+    const u = U(), list = r.brands || [], one = list.length === 1;
+    const vsPill = v => v == null ? '' : `<span class="v2pill ${v < 0.75 ? 'bad' : v > 1.25 ? 'good' : ''}">${Math.round(v * 100)}% of normal</span>`;
+    const tone = r.weird ? 'red' : 'green';
+    let out = `<div class="dk-answer ${tone}" style="margin:0 0 12px"><b style="font-size:17px">${esc(r.headline || '')}</b></div>`;
+    if (one) {
+      const b = list[0], cur = b.currency, t = b.today_so_far || {}, n = b.normal_by_now || {}, v = b.vs || {};
+      const row = (label, a, nb, vv, f, lower) => `<div class="${vv == null ? 'grey' : (lower ? vv > 1.25 : vv < 0.75) ? 'red' : (lower ? vv < 0.9 : vv > 1.1) ? 'green' : 'grey'}"><span class="l">${label}</span><b>${f(a)}</b><span class="v2hint" style="margin:0">normal by now ${f(nb)} ${vv == null ? '' : `(${Math.round(vv * 100)}%)`}</span></div>`;
+      out += `<div class="dk-mk">${[
+        row('Revenue so far', t.revenue, n.revenue, v.revenue, x => u.money(x, cur)),
+        row('Paid orders', t.orders, n.orders, v.orders, u.int),
+        row('New customers', t.new_customers, n.new_customers, v.new_customers, u.int),
+        row('Ad spend (all)', t.spend, n.spend, v.spend, x => u.money(x, cur)),
+        row('MER', t.mer, n.mer, v.mer, u.x2),
+        row('Meta spend', t.meta_spend, n.meta_spend, v.meta_spend, x => u.money(x, cur)),
+        row('Meta price per 1,000 views', t.meta_cpm, n.meta_cpm, v.meta_cpm, x => u.money2(x, cur), true),
+      ].join('')}</div>`;
+      if (b.last3h) out += `<p class="v2hint" style="margin:10px 0 0">Orders in the last 3 finished hours: <b>${b.last3h.orders}</b> (a normal day has about ${Math.round(b.last3h.normal)}).</p>`;
+      if ((b.notes || []).length) out += `<p class="v2hint" style="margin:6px 0 0">${b.notes.map(esc).join(' ')}</p>`;
+      if (b.curve) out += `<p class="v2hint" style="margin:6px 0 0">Normal by now uses ${esc(b.curve)}.</p>`;
+    } else if (list.length) {
+      out += `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Revenue so far</th><th>vs normal</th><th>Paid orders</th><th>Meta spend</th><th>What looks off</th></tr></thead><tbody>${list.map(b => {
+        const t = b.today_so_far || {}, v = b.vs || {}, bad = (b.signs || []).filter(s => s.level !== 'good');
+        return `<tr><td><b>${esc(b.name)}</b></td><td>${u.money(t.revenue, b.currency)}</td><td>${vsPill(v.revenue)}</td><td>${u.int(t.orders)} ${vsPill(v.orders)}</td><td>${u.money(t.meta_spend, b.currency)} ${vsPill(v.meta_spend)}</td><td class="tiny">${bad.length ? bad.map(s => esc(s.text)).join('<br>') : esc((b.notes || [])[0] || (b.error ? 'Could not check: ' + b.error : 'Nothing unusual'))}</td></tr>`;
+      }).join('')}</tbody></table></div>`;
+    }
+    if (one && (list[0].signs || []).length) out += `<ul style="margin:10px 0 0;padding-left:18px">${list[0].signs.map(s => `<li class="${s.level === 'high' ? 'v2bad' : ''}">${esc(s.text)}</li>`).join('')}</ul>`;
+    const m = r.market || {}, mk = [];
+    mk.push((m.platforms_now || []).length ? `<b>Not fully up now:</b> ${m.platforms_now.map(p => `${esc(p.platform)} (${esc(p.state)}${(p.services || []).length ? ': ' + esc(p.services.slice(0, 2).join(', ')) : ''})`).join(', ')}` : 'Meta and Google show no problem on their status pages right now.');
+    if ((m.incidents_today || []).length) mk.push(`Earlier today: ${m.incidents_today.slice(0, 3).map(x => esc(x.title)).join('; ')}`);
+    if (m.breezeway?.status) mk.push(`Breezeway's latest day (${esc(m.breezeway.date || '')}): ${esc(m.breezeway.status.toLowerCase())}, a hint, not a verdict.`);
+    const ch = r.chatter;
+    if (ch) mk.push(ch.status === 'ok' ? `<b>Advertisers online, last few hours:</b> ${esc(ch.summary || (ch.meta === 'issues' ? 'people are reporting Meta problems' : 'nothing unusual'))}${(ch.sources || []).length ? ' ' + ch.sources.slice(0, 3).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title || x.url).slice(0, 50))}</a>`).join(' · ') : ''}` : `Could not search what advertisers are saying: ${esc(ch.error || '')}`);
+    out += `<div class="dk-key" style="display:block;margin-top:12px">${mk.map(x => `<p class="v2say" style="margin:0 0 4px">${x}</p>`).join('')}</div>`;
+    out += `<p class="v2hint" style="margin:8px 0 0">Want a ping when this happens? Ask the Strategist: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.</p>`;
+    return out;
   }
   const AHC = new Map();
   const getAH = path => { const hit = AHC.get(path); if (hit && Date.now() - hit.at < 5 * 60e3) return hit.p; const p = H.apiAH(path); AHC.set(path, { at: Date.now(), p }); p.catch(() => AHC.delete(path)); return p; };
