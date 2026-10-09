@@ -268,3 +268,9 @@ SELECT b.id AS act_id, b.id AS brand_id, b.name, b.currency, b.tz,
   b.tw_attr_cursor, b.tw_attr_done, (SELECT external_id FROM connections WHERE brand_id = b.id AND kind = 'meta' ORDER BY is_primary DESC, added_at LIMIT 1) AS meta_act, b.storage_prefix, b.slug,
   b.internal_channel, b.client_channel
 FROM brands b LEFT JOIN accounts m ON m.act_id = (SELECT external_id FROM connections WHERE brand_id = b.id AND kind = 'meta' ORDER BY is_primary DESC, added_at LIMIT 1);
+
+-- The Strategist's Meta writes (src/metawrite.js, 2026-10-09): the before-state of every write, for meta_undo (24h).
+-- Also created on first use by the worker.
+CREATE TABLE IF NOT EXISTS p_meta_write (id TEXT PRIMARY KEY, act TEXT NOT NULL, brand TEXT, level TEXT, object TEXT NOT NULL,
+  name TEXT, action TEXT NOT NULL, field TEXT, before TEXT, after TEXT, summary TEXT, by TEXT, at TEXT NOT NULL DEFAULT (datetime('now')), undone TEXT);
+CREATE INDEX IF NOT EXISTS p_meta_write_brand ON p_meta_write (brand, at);

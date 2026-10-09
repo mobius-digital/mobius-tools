@@ -266,6 +266,13 @@ export function stratHooks(d) {
       query_locus: 'Reading the numbers',
       read_app: `Opening ${String(input.view || 'the app').replace(/_/g, ' ')}`,
       draft_from_thread: 'Handing the references to the ideas pipeline',
+      meta_read: 'Reading the Meta account live',
+      drive_list: 'Looking in Google Drive',
+      meta_pause: `Preparing a pause: ${clip(input.target, 50)}`,
+      meta_resume: `Preparing to turn on: ${clip(input.target, 50)}`,
+      meta_budget: `Preparing a budget change: ${clip(input.target, 50)}`,
+      meta_create_ad: `Preparing a new ad in ${clip(input.adset, 50)}`,
+      meta_duplicate_adset: `Preparing a copy of ${clip(input.target, 50)}`,
     })[name] || null,
     serverTools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5 }],
   };
