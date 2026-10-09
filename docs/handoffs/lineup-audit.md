@@ -59,6 +59,22 @@ agency first, then what one brand needs on top, with category research.
 8. **The Strategist**: a calendar view plus add / move / confirm and "make the Asana tasks".
 9. **Retire Lineup** after a week of use; `/b/<slug>` forwards to the client link.
 
+## Step 2: mock v1 (2026-10-09)
+
+Cole signed off the goal and cuts ("build the strategy ... build the mockups and I'll approve").
+Mock: `docs/locus-hub/mocks-calendar.html`, artifact https://claude.ai/artifact/Umoq9q2cYe1n889Sdo7RLV .
+Eight screens on real data: All clients (lanes + work due this week), One brand (Grunk month + Coming up),
+a date before (Burgundy countdown), a date after (Dartee Warehouse Sale impact from Triple Whale), Add a
+date (modal with the countdown it creates), the client link (Nick), Slack (client ping, week out, day
+before, Monday line), Home card + chart band.
+
+Found while mocking: nobody has ever ticked a Season task (2 stored rows, both open). So the countdown
+must tick ITSELF: assets = a link on the date, briefs/built = Asana tasks, email = a Klaviyo send near the
+date, ads loaded = new ads in Meta, live = the date passed. Season should get the same automatic ticks later.
+Countdown offsets used: drop = assets -14, briefs -12, built -5, email -3, loaded -2, live 0; sale = offer
+locked -21, briefs -14, built -5, email -3, loaded -2, live 0. On the lanes, a brand's Black Friday week
+phases merge into one bar (the detail lives on the Black Friday page); one-day drops are labelled pins.
+
 ## Four facts that change the brief
 
 1. **The clients use Lineup, we do not.** 16 events in the live D1, ever.
