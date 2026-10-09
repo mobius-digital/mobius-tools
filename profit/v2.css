@@ -264,7 +264,8 @@ td.good,td.bad,td.warn{font-weight:600}
 /* creative gallery */
 .v2gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .v2gal .g{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
-.v2gal .th{aspect-ratio:4/5;max-width:100%;background:var(--surface-2) center/cover no-repeat;position:relative}
+/* contain, not cover: ads come square, 4:5 and 9:16, and cover cut their edges off (Cole, 2026-10-09). */
+.v2gal .th{aspect-ratio:4/5;max-width:100%;background:var(--surface-2) center/contain no-repeat;position:relative}
 .v2gal .th .v2pill{position:absolute;left:8px;top:8px}
 .v2gal .th em{position:absolute;right:8px;bottom:8px;font-style:normal;font-size:11px;color:var(--ink-2);background:var(--surface);padding:1px 7px;border-radius:99px}
 .v2gal .b{padding:10px 12px;display:grid;gap:6px}
