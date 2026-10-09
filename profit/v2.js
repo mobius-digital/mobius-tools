@@ -154,6 +154,22 @@
       ${lastV != null ? `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(lastV).toFixed(1)}" r="3.5" fill="var(--brand)"/>` : ''}
       ${marks}<line class="gl" x1="0" x2="0" y1="${pt}" y2="${h - pb}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 3" opacity="0"/><g class="gdots"></g></svg><div class="v2tip"></div></div>`;
   }
+  /** Shaded date ranges on a lineChart already drawn (calendar dates: a sale or drop as a band). Same geometry as lineChart. */
+  function addBands(id, rows, bands, opts = {}) {
+    const svg = document.getElementById(id); if (!svg || !bands || !bands.length || rows.length < 2) return;
+    const w = 760, h = opts.h || 240, pl = 48, pr = 16, pt = 14, pb = 26, n = rows.length, step = (w - pl - pr) / (n - 1);
+    const X = i => pl + i * step, first = rows[0].date, last = rows[n - 1].date;
+    svg.querySelectorAll('.v2band').forEach(g => g.remove());
+    const anchor = svg.querySelector('polyline');
+    bands.slice(0, 6).forEach((b, k) => {
+      if (b.to < first || b.from > last) return;
+      const i0 = Math.max(0, rows.findIndex(r => r.date >= b.from)), i1r = rows.map(r => r.date <= b.to).lastIndexOf(true), i1 = i1r < 0 ? n - 1 : i1r;
+      const x0 = Math.max(pl, X(i0) - step / 2), x1 = Math.min(w - pr, X(i1) + step / 2), col = b.kind === 'drop' ? 'var(--c-meta)' : 'var(--c-email)';
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'v2band');
+      g.innerHTML = `<rect x="${x0.toFixed(1)}" y="${pt}" width="${Math.max(3, x1 - x0).toFixed(1)}" height="${h - pt - pb}" fill="${col}" opacity=".13"${tipAttr(`<b>${esc(b.label)}</b><br>${esc(b.from)}${b.to !== b.from ? ' to ' + esc(b.to) : ''}<br><span class=\"faint\">From the calendar</span>`)}/><text x="${(x0 + 4).toFixed(1)}" y="${pt + 11 + (k % 2) * 12}" font-size="10" font-weight="600" fill="${col}">${esc(String(b.label).slice(0, 28))}</text>`;
+      svg.insertBefore(g, anchor);
+    });
+  }
   /** A dot where each drawn line crosses the hovered x (viewBox units), for every line chart in Locus. */
   function markDots(svg, x, tol) {
     let g = svg.querySelector('.gdots'); if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'gdots'); svg.appendChild(g); }
@@ -440,13 +456,18 @@
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
-    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div><div id="v2needs"></div>${readSlot('v2read')}${tiles}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div><div id="v2needs"></div><div id="v2cal"></div>${readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
     if (window.DeskTab && window.DeskTab.needs) window.DeskTab.needs(document.getElementById('v2needs'), H, all);
+    /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
+    if (window.CalendarTab) {
+      window.CalendarTab.homeCard(document.getElementById('v2cal'), H);
+      if (rows.length > 1) window.CalendarTab.bandsFor(H.S.act || 'all', rows[0].date, rows[rows.length - 1].date, H).then(b => addBands('v2rev', rows, b)).catch(() => {});
+    }
     if (rows.length > 1) wireLine('v2rev', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · revenue ${kmoney(r.sales, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · MER ${x2(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)} on ${day(prev[i].date)}</span>` : ''}` });
     if (false && chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
     if (cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
@@ -614,6 +635,7 @@
     const VL = { scale: ['Scale', 'good'], keep: ['Keep: carries the set', 'good'], watch: ['Watch', 'warn'], trim: ['Trim', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''], nogoal: ['No goal CPA', ''] };
     const FR = { opener: ['Opener', 'Triple Whale credits it far more on first click: it starts journeys (top of funnel).'], closer: ['Closer', 'Triple Whale credits it more on the last click: it closes people already warmed up.'] };
     MED = medians(ads, goal || 50);
+    const bar = (goal || 50) * K.jx;   // the judging bar; RULE below and the sort row both use it
     const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
     const top = ads.slice(0, 60);
     /* Quadrant: spend (x, log) against CPA (y), bubble = purchases, goal line. */
@@ -651,14 +673,13 @@
     /* SORT THE GALLERY BY ANY NUMBER (Cole, 2026-10-09: "it only shows by spend"). A ratio sort only
        ranks ads that have spent the judging bar (the same bar the calls use), or one lucky sale on $12
        tops every list; hook and hold rank video ads only. */
-    const bar = (goal || 50) * K.jx;
     /* SAY WHERE THE BAR COMES FROM (Cole, 2026-10-09: "it just auto goes to $50, why?"). It is the goal
        CPA x "judge after" from Settings > Goals (the one place goals live); with no goal it is the
        account's average CPA, and with no sales either it is a $50 placeholder. */
-    const basis = g.cpa ? `${K.jx}x the ${money(g.cpa, cur)} goal CPA`
-      : goal ? `${K.jx}x this account's ${money(goal, cur)} average CPA, because no goal CPA is set`
-      : `a $50 placeholder, because no goal CPA is set and nothing has sold yet`;
-    const barLine = `<p class="v2sortbar">An ad is judged, and ranked on ROAS, CPA, hook, hold and CTR, once it has spent <b>${money(bar, cur)}</b>: ${basis}. <button type="button" class="v2link" data-goals="1">${g.cpa ? 'Change it' : 'Set the goal CPA'} ›</button></p>`;
+    const basis = g.cpa ? `: ${K.jx}x the ${money(g.cpa, cur)} goal CPA.`
+      : goal ? `: ${K.jx}x this account's ${money(goal, cur)} average CPA, because no goal CPA is set.`
+      : `. That is a placeholder: no goal CPA is set and nothing has sold yet.`;
+    const barLine = `<p class="v2sortbar">An ad is judged, and ranked on ROAS, CPA, hook, hold and CTR, once it has spent <b>${money(bar, cur)}</b>${basis} <button type="button" class="v2link" data-goals="1">${g.cpa ? 'Change it' : 'Set the goal CPA'} ›</button></p>`;
     const SORTS = [
       ['spend', 'Spend', r => r.spend, -1], ['purchases', 'Purchases', r => r.purchases || 0, -1],
       ['roas', 'ROAS', r => r.roas, -1, 1], ['cpa', 'CPA', r => r.cpa, 1, 1],
@@ -670,7 +691,7 @@
       return { s, list: pool.sort((p, q) => (s[2](p) - s[2](q)) * s[3] || q.spend - p.spend), left: ads.length - pool.length }; };
     const galItem = r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><span class="v2pill ${VL[v][1]}"${v === 'nogoal' ? tipAttr('No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.') : whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
       ${role(r) !== 'solo' || funnelRole(r) || valTag(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${valTag(r) ? `<span class="${valTag(r) === 'more' ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>${valTag(r) === 'more' ? 'Customers come back' : 'Customers don’t come back'}</span>` : ''}</div>` : ''}
-      <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${!goal || r.cpa == null ? '' : r.cpa <= goal ? 'good' : 'bad'}">${money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; };
+      <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${r.cpa == null ? (r.spend > 0 && goal && r.spend >= bar ? 'bad' : '') : !goal ? '' : r.cpa <= goal ? 'good' : 'bad'}">${r.cpa == null && r.spend > 0 ? 'no sales' : money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; };
     const galleryInner = () => { const { s, list, left } = sorted();
       const note = left && CR_SORT !== 'spend' ? `<p class="v2hint">${left} ad${left === 1 ? '' : 's'} left out: ${s[4] ? `under the ${money(bar, cur)} judging bar${CR_SORT === 'hook' || CR_SORT === 'hold' ? ', or not video' : ''}` : CR_SORT === 'ltv' ? 'too few known customers yet' : 'no number for this sort'}.</p>` : '';
       return list.length ? `<div class="v2gal">${list.slice(0, 24).map(galItem).join('')}</div>${note}` : `<p class="v2hint">No ads have a ${esc(s[1].toLowerCase())} number to rank in this window${s[4] ? ` at ${money(bar, cur)} of spend or more` : ''}.</p>`; };
@@ -1160,7 +1181,7 @@
      None of these read the host state; `chip(cur, prev, lower)` is the delta pill without the
      compare-period switch (lower = true when lower is better, 'n' = neutral). */
   const chip = (cur, prev, lower, label) => { if (cur == null || prev == null || !isFinite(cur) || !isFinite(prev) || !prev) return ''; const d = cur / prev - 1; if (!isFinite(d)) return ''; const tone = Math.abs(d) < 0.015 || lower === 'n' ? 'flat' : ((d > 0) !== !!lower) ? 'up' : 'down'; return `<span class="v2d ${tone}"${label ? tipAttr(label) : ''}>${d >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(d * 100))}%</span>`; };
-  window.V2UI = { markDots, clearDots, tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
+  window.V2UI = { addBands, markDots, clearDots, tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
     setHost: h => { if (!H) H = h; } };
 
   window.V2 = {

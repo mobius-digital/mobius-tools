@@ -27,6 +27,7 @@
  * ('off' stops it; on by default), editable in Locus Settings > Briefs and Slack.
  * Preview without posting: GET /api/moved-preview (admin), with each brand's verdict. */
 import { marketLine } from './market.js';
+import { liveOn } from './calendar.js';
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
@@ -106,7 +107,7 @@ const fmtOf = (k, v, cur) => k === 'mer' ? `${v.toFixed(2)}x` : k === 'o' ? Math
 
 /** The Slack message for one brand's bad day: a header, the date against its normal, the market line
  *  (when there is one), one line per move (the bad ones first), the button. */
-export function movedBlocks(r, market = null) {
+export function movedBlocks(r, market = null, onCal = []) {
   const { a, date, weeks } = r;
   const wd = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   const nice = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -123,6 +124,8 @@ export function movedBlocks(r, market = null) {
     { type: 'header', text: { type: 'plain_text', text: `${head}: ${a.name}`.slice(0, 150) } },
     { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice} against the last ${weeks} ${wd}s. Store numbers from Triple Whale.` }] },
     ...(market ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: market.slice(0, 2900) }] }] : []),
+    /* The calendar (2026-10-09): a sale starting or ending, or a drop, explains a day before any ad change does. */
+    ...(onCal.length ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: `On the calendar that day: ${onCal.map(e => `${e.name}${e.start === date ? ' (first day)' : ''}`).join(', ')}.`.slice(0, 2900) }] }] : []),
     { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n').slice(0, 2900) } },
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open Day check in Locus' }, url: `${LOCUS}?open=yesterday&act=${encodeURIComponent(a.act_id)}`, action_id: 'noop_open' }] },
   ];
@@ -149,7 +152,8 @@ export async function movedTick(env, d) {
     /* Only a bad day posts. A good or quiet day is done for today. */
     if (!isBad(r)) { out.quiet.push(r.a.name); done.add(r.a.act_id); continue; }
     if (!d.subCanAfford(memo.has(r.date) ? 4 : 8)) { out.deferred = true; break; }
-    const m = movedBlocks(r, await marketSafe(env, r.date, memo));
+    if (!memo.has('cal:' + r.date)) memo.set('cal:' + r.date, await liveOn(env, r.date).catch(() => ({})));
+    const m = movedBlocks(r, await marketSafe(env, r.date, memo), (memo.get('cal:' + r.date) || {})[r.a.act_id] || []);
     try { await d.slackPost(env, r.a.slack_channel, m.text, m.blocks, { username: 'Locus' }); out.posted.push(r.a.name); }
     catch (e) { out.errors.push(`${r.a.name}: ${e.message}`); }
     /* Recorded after each brand, posted or failed, so a kill later in the tick never re-posts it. */

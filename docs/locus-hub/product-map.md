@@ -8,6 +8,7 @@
 | Ads > Today | buyer | scale / cut / trim / refresh / fix / test calls, ad set first, ranked by money at stake; Done logs to the Change Log | LIVE |
 | Season > War room | owner, buyer | per brand in season: offer live now, next change, today so far live | LIVE (shell) |
 | Tools > Platform status | everyone | Pulse: platforms now, recent changes | LIVE |
+| Calendar (rail item, 2026-10-09) | everyone; clients later | all clients: lanes (13 weeks, Black Friday week one bar), tiles, work due this week from every countdown; one brand: month, warnings, Coming up; any date: panel with the countdown (ticks from Asana, Klaviyo, Meta), Make the Asana tasks, move, end, edit, history; Home card + chart bands; Slack pings; Strategist view + actions | LIVE (Lineup moved in) |
 
 One page that says where everything lives, who opens it, what question it answers and how the data is framed for
 that reader. Every new feature gets a row here before it is built. Research behind it: research-v3.md (navigation,

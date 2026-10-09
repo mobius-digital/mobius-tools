@@ -2175,3 +2175,25 @@ https://claude.ai/artifact/HGz5WWWAuBZFkSMiWhvJb1); mocks `docs/locus-hub/mocks-
   `paidOrdersOnly` at sync, history converted by `account-health/worker/scripts/paid-orders-migrate.mjs`); the raw counts
   are `totalOrdersAll` / `newCustomersOrdersAll`. Every reader (AOV, CAC, orders, Day check, briefs, reports, the
   Strategist) uses paid orders without a code change. Costs come from TW's cost metrics, so seeding still costs money.
+
+## 2026-10-09: THE CALENDAR (Lineup moved into Locus). Read before touching calendar.js.
+
+Audit, goal and the approved mock: `docs/handoffs/lineup-audit.md`, `docs/locus-hub/mocks-calendar.html`
+(https://claude.ai/artifact/Umoq9q2cYe1n889Sdo7RLV). The goal: the dates customers see drive the work that must be ready.
+- **Rail item Calendar** (`NAV.calendar`, one page id `calendar`, icon `#i-cal`), between Brand and Reports. `CALR(first)` in
+  index.html hands the host helpers to `window.CalendarTab.render`; `?open=calendar&act=<brand>&ev=<date id>` opens a date
+  (`window.CAL_OPEN`). PAGE_BRIEF / TAB_PURPOSE / TAB_CRUMB / TAB_WHO / TAB_TITLE / ASK_SUGGEST have `calendar` rows.
+- **calendar.js** (own closure, CSS injected as `#calcss`, tokens only). All clients: head line, four tiles, lanes (13 weeks
+  from this Monday, nav +-4 weeks, layer switches saved in `cal_lay`; a brand's Black Friday plan phases within BF+-3 days
+  merge into ONE bar; one-day dates are labelled pins; a sale with no end draws 4 weeks fading; a date with a teaser gets a
+  striped lead-in that opens the same date; Klaviyo sends are dots), and "Work due this week" = every countdown step due in
+  7 days plus anything late, grouped by day and step. One brand: the month (week rows with spanning chips, 3 lanes then
+  "+N", drag a typed date to move it, click an empty day to add), warnings (no end date, no offer, a drop just before Black
+  Friday, two offers at once), Coming up. The side panel uses `V2UI.panel`; modals are `.modal-wrap.cal-m`. Klaviyo names
+  lose their filing prefix (`mailName`). Do not use the class `.vd` (global verdict pill; it uppercased the panel once).
+- **Data** = account-health `GET /api/calendar` (see account-health/CLAUDE.md "THE CALENDAR"); writes go to the same worker.
+  Cached 2 minutes per scope in the page (`ST.data`), dropped on every write.
+- **Home**: v2.js home() draws `<div id="v2cal">` (Live now + Coming up 14 days, `CalendarTab.homeCard`) and shades each
+  drop or sale on the revenue chart (`V2UI.addBands(id, rows, bands)`, same geometry as `lineChart`; bands come from
+  `CalendarTab.bandsFor(act, from, to)`, a `lite=1` read of exactly the chart's range).
+
