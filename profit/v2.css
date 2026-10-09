@@ -757,11 +757,7 @@ svg.li.ni{width:18px;height:18px;margin-top:1px}
 [data-ui="v2"] .v2ins.sk i,[data-ui="v2"] .v2ins.sk b,[data-ui="v2"] .v2ins.sk span,[data-ui="v2"] .v2say.sk span{background:linear-gradient(90deg,var(--surface-2),color-mix(in srgb,var(--surface-2) 50%,var(--surface)),var(--surface-2));background-size:200% 100%;animation:ds-sk 1.4s ease-in-out infinite}
 [data-ui="v2"] #main.busy{opacity:.6;transition:opacity var(--t) var(--ease)}
 
-/* ---------- the strip on first paint ---------- */
-mobius-loader{display:inline-block;vertical-align:middle}
-mobius-loader[mode="load"]{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:var(--bg,#F7F7F8);transition:opacity .35s var(--ease)}
-mobius-loader.gone{opacity:0;pointer-events:none}
-
+/* the strip (<mobius-loader>) styles itself: profit/mobius-loader.js */
 /* ---------- phone ---------- */
 @media (max-width:720px){
   [data-ui="v2"] main{padding:8px 16px 72px}
@@ -778,3 +774,6 @@ mobius-loader.gone{opacity:0;pointer-events:none}
 [data-ui="v2"] .v2curve svg{max-width:560px}
 [data-ui="v2"] .cn-card.warn .cn-cname,[data-ui="v2"] .cn-card.part .cn-cname,[data-ui="v2"] .cn-card.bad .cn-cname{color:var(--ink)}
 [data-ui="v2"] .cn-card.warn,[data-ui="v2"] .cn-card.part{border-color:var(--line);background:var(--surface)}
+@media (max-width:900px){[data-ui="v2"] .v2tiles.home{grid-template-columns:repeat(2,minmax(0,1fr))}[data-ui="v2"] .v2tiles.home .hero{grid-column:1/-1}}
+@media (max-width:420px){[data-ui="v2"] .v2tiles{gap:10px}[data-ui="v2"] .v2tile{padding:14px}}
+@media (max-width:720px){[data-ui="v2"] .topbar{flex-wrap:wrap;row-gap:8px}[data-ui="v2"] .v2ask{flex:1 1 calc(100% - 50px);max-width:none;margin-right:0}[data-ui="v2"] .hd-right{width:100%;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}}

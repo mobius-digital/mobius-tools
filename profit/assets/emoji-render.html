@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobius strip frames</title>
+<!-- Renders the strip as frames for the Slack emoji (profit/DESIGN.md section 8).
+     Open /profit/assets/emoji-render.html?n=40&size=128 from a local server at the repo root.
+     The page shows the strip large, a frame strip, and offers every frame as PNG files in one
+     zip-free list (right click, save) or, with ?post=<url>, POSTs them as JSON to that local URL.
+     Then build the GIF, for example with ffmpeg:
+       ffmpeg -framerate 20 -i f%02d.png -filter_complex "[0]split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128" -loop 0 mobius-emoji.gif -->
+<style>
+  body{margin:0;font:14px/1.5 Inter,system-ui,sans-serif;background:#F7F7F8;color:#111114;padding:32px}
+  .row{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+  .frames{display:flex;flex-wrap:wrap;gap:6px;margin-top:20px}
+  .frames img{width:64px;height:64px;background:#fff;border:1px solid rgba(15,15,20,.08);border-radius:8px}
+  #st{color:#71717A}
+</style>
+</head>
+<body>
+<div class="row"><mobius-loader mode="working" size="220"></mobius-loader><mobius-loader mode="working" size="40"></mobius-loader><span id="st">Rendering frames...</span></div>
+<div class="frames" id="fr"></div>
+<script src="../mobius-loader.js?v=1"></script>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search), n = +(q.get('n') || 40), size = +(q.get('size') || 128);
+  try {
+    const frames = await window.MobiusLoader.frames(n, size);
+    document.getElementById('fr').innerHTML = frames.map((f, i) => `<a href="${f}" download="f${String(i).padStart(2, '0')}.png"><img src="${f}" alt="frame ${i}"></a>`).join('');
+    window.FRAMES = frames;
+    const post = q.get('post');
+    if (post && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(post)) { await fetch(post, { method: 'POST', body: JSON.stringify({ frames }) }); document.getElementById('st').textContent = `${n} frames sent.`; }
+    else document.getElementById('st').textContent = `${n} frames at ${size}px. Save them, then build the GIF (see the comment in this file).`;
+  } catch (e) { document.getElementById('st').textContent = 'Could not render: ' + e.message; }
+})();
+</script>
+</body>
+</html>

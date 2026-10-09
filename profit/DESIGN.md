@@ -189,9 +189,11 @@ inherit the look without a markup change.
 Add it once: Slack > workspace menu > Tools and settings > Customize workspace > Emoji > Add custom emoji,
 name it `mobius`. The Strategist can then react with `:mobius:` while it works.
 
-To regenerate it: open `profit/assets/emoji-render.html` (served from the repo root) in Chrome with
-`?n=40&size=128`; it renders the frames with `MobiusLoader.frames()` and a script turns them into a GIF
-(see the comment at the top of that file for the ffmpeg line).
+To regenerate it: serve the repo root and open `profit/assets/emoji-render.html?n=40&size=128`; it renders
+40 transparent frames of one full turn with `MobiusLoader.frames()` (click a frame to save it, or pass
+`&post=http://127.0.0.1:<port>/frames` to send them all to a local script). Then build the GIF at 20 fps
+(50ms a frame) with ffmpeg (the line is in the page's top comment) or Pillow, 60 colours, 1-bit
+transparency. Slack's custom emoji limit is 128KB; the shipped file is about 110KB.
 
 ## 9. Checklist for a new screen
 
