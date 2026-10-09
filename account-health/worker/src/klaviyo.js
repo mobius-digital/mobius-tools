@@ -143,7 +143,59 @@ export async function klaviyoView(env, act, what = 'overview', bg, opts = {}) {
   if (what === 'attentive') return attentiveView(env, act, opts);
   if (CACHED.has(what)) return cached(env, ckey(act, what), () => klaviyoViewRaw(env, act, what, opts), bg);
   if (what === 'flow') return cached(env, `klv:${act}:flow:${opts.id}`, () => klaviyoViewRaw(env, act, what, { ...opts, env, act }), bg);
+  if (what === 'message') return messageView(env, act, opts);
   return klaviyoViewRaw(env, act, what, opts);
+}
+
+/* ---------------- what the email actually looked like (2026-10-09, Cole: "am I supposed to see what these
+   campaigns and flows look like?") ----------------
+   what=message&kind=campaign|flow&id=<campaign-message or flow-message id>: the subject, preview text, sender and the
+   template's HTML (or the SMS text). A sent message never changes, so it is kept 30 days in settings
+   (`klvmsg:<act>:<kind>:<id>`); HTML over 900K characters is answered but not kept (D1 row limit). Template tags
+   ({{ first_name }}) are filled by Klaviyo's own template-render when it answers, else shown as written. A campaign's
+   message key in the day-by-day read is sometimes the CAMPAIGN id, so kind=campaign with a campaign id is resolved to
+   its first message. */
+const MSG_TTL = 30 * 24 * 3600e3;
+async function messageView(env, act, opts = {}) {
+  const kind = opts.kind === 'flow' ? 'flow' : 'campaign', id = String(opts.id || '').trim();
+  if (!/^[\w-]{2,60}$/.test(id)) return { error: 'Which message? Give its id.' };
+  const key = `klvmsg:${act}:${kind}:${id}`;
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+  const old = safeJson(row?.value, null);
+  if (old?.at && Date.now() - Date.parse(old.at) < MSG_TTL && !opts.fresh) return { ...old.data, cached_at: old.at };
+  const doc = await keyFor(env, act);
+  if (!doc?.key) return { error: 'Klaviyo is not connected for this brand.' };
+  const data = await readMessage(doc.key, kind, id);
+  if (!data.error && JSON.stringify(data).length < 900e3) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ at: new Date().toISOString(), data })).run().catch(() => {});
+  return data;
+}
+export async function readMessage(k, kind, id) {
+  const base = kind === 'flow' ? 'flow-messages' : 'campaign-messages';
+  let mid = id, r;
+  try { r = await klaviyo(k, `/api/${base}/${encodeURIComponent(mid)}/`); }
+  catch (e) {
+    if (kind !== 'campaign' || e.status !== 404) throw e;
+    /* a campaign id: its first message */
+    const c = await klaviyo(k, `/api/campaigns/${encodeURIComponent(id)}/?include=campaign-messages`);
+    mid = c.data?.relationships?.['campaign-messages']?.data?.[0]?.id; if (!mid) return { error: 'That campaign has no message.' };
+    r = await klaviyo(k, `/api/${base}/${encodeURIComponent(mid)}/`);
+  }
+  const at = r.data?.attributes || {}, def = at.definition || {};
+  const content = def.content || at.content || {};
+  const channel = String(def.channel || at.channel || (content.body != null && content.subject == null ? 'sms' : 'email')).toLowerCase();
+  const out = { kind, id: mid, channel, name: at.name || at.label || def.label || null, subject: content.subject || null, preview: content.preview_text || null,
+    from_email: content.from_email || null, from_label: content.from_label || null, reply_to: content.reply_to_email || null };
+  if (channel === 'sms' || channel === 'mobile_push') { out.text = content.body || content.text || null; out.media_url = content.media_url || null; return out; }
+  try {
+    const t = await klaviyo(k, `/api/${base}/${encodeURIComponent(mid)}/template/`);
+    const ta = t.data?.attributes || {}; out.template = { id: t.data?.id || null, name: ta.name || null, editor: ta.editor_type || null };
+    out.html = ta.html || null; out.text = ta.text || null;
+    if (out.html && /\{\{|\{%/.test(out.html) && t.data?.id) {
+      try { const rr = await klaviyo(k, '/api/template-render/', { method: 'POST', body: { data: { type: 'template', attributes: { id: t.data.id, context: { first_name: 'there', person: { first_name: 'there' } } } } } });
+        const h = rr.data?.attributes?.html; if (h) { out.html = h; out.rendered = true; } } catch { /* shown with its tags */ }
+    }
+  } catch (e) { out.html = null; out.html_error = e.status === 404 ? 'This message has no template Klaviyo can return (it may be a text-only or a deleted template).' : e.message; }
+  return out;
 }
 /** After a write, the copies that show the old state are dropped (settings row and the in-memory copy). */
 export async function bust(env, act, whats = ['campaigns', 'flows_report', 'overview']) {

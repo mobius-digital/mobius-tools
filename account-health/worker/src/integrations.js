@@ -137,6 +137,15 @@ export async function integrationsReport(env, { brand = null } = {}) {
     q(`SELECT c.kind, c.external_id, c.brand_id, b.name FROM connections c LEFT JOIN brand_accounts b ON b.act_id = c.brand_id WHERE c.kind IN ('google_ads', 'ga4', 'gsc', 'tiktok')`).then(rows => { const o = {}; for (const r of rows) o[`${r.kind}:${r.external_id}`] = r.name || r.brand_id; return o; }),
   ]);
   const usedBy = (kind, v) => used[`${kind}:${v}`] || null;
+  /* Microsoft Clarity (clarity.js, 2026-10-09): the project API token per brand. Only presence, project and date leave here. */
+  const clDocs = await q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'clarity' AND act_id IN (${IN})`, ...ids)
+    .then(rows => Object.fromEntries(rows.map(r => { const d = safeJson(r.data_json, {}) || {}; return [r.act_id, { has: !!d.token, project: d.project || null, verified_at: d.verified_at }]; })));
+  const CLARITY_STEPS = [
+    { t: 'In the brand\'s Clarity project (Clarity must already be on the store: Shopify > Apps > Microsoft Clarity, or the tag in the theme), open Settings > Data Export > Generate new API token. Only a project admin sees it. Name it:', u: 'https://clarity.microsoft.com/projects', c: 'Locus-Mobius' },
+    { t: 'Copy the token (Clarity shows it once) and paste it here. Locus checks it with one real read before saving and never shows it again.' },
+    { t: 'Optional, for the "Open recordings" and heatmap links: on Store > Website > Behaviour, paste the project ID (the part after /projects/view/ in Clarity\'s address bar).' },
+    { t: 'Clarity lets the API read only the last 3 days, 10 times a day per project, so Locus reads it at most every 8 hours and keeps a daily history itself. Recordings and heatmap pictures stay in Clarity.' },
+  ];
   const dashed = id => String(id).replace(/\D/g, '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
   /* What Locus can already SEE, as pick lists (2026-10-09): the page offers these instead of a paste box. */
   const mcc = String(env.GOOGLE_ADS_MCC || '5566468199').replace(/\D/g, '');
@@ -290,6 +299,9 @@ export async function integrationsReport(env, { brand = null } = {}) {
         'The client adds Cole as a Viewer, then pick the property here.', { gets: GETS.ga4, steps: STEPS.ga4, input: { key: 'ga4', label: 'GA4 property ID', placeholder: '312345678' }, options: OPT.ga4 }),
       C('gsc', 'Google Search Console', gd.gsc ? (gp.gsc?.ok ? 'ok' : 'warn') : 'off', gd.gsc ? `${gd.gsc}${gp.gsc?.ok ? '' : ' (Locus cannot read Search Console yet: see Google on the agency side)'}.` : 'No Search Console site linked: Store > Search stays empty.',
         'The client adds Cole as a Full user, then pick the site here.', { gets: GETS.gsc, steps: STEPS.gsc, input: { key: 'gsc', label: 'Search Console property', placeholder: 'sc-domain:brand.com' }, options: OPT.gsc }),
+      C('clarity', 'Microsoft Clarity', clDocs[id]?.has ? 'ok' : 'off', clDocs[id]?.has ? `Connected${clDocs[id].project ? `, project ${clDocs[id].project}` : ' (no project ID yet, so the recording links open the project list)'} (checked ${String(clDocs[id].verified_at || '').slice(0, 10)}).` : 'Not connected: the Behaviour card on Store > Website (rage clicks, dead clicks, scroll depth, quick backs per page) stays empty.',
+        'Paste the project\'s Data Export API token.', { group: 'Website', gets: 'Rage clicks, dead clicks, quick backs and scroll depth per page (last 3 days, kept daily), with links to the recordings and heatmaps in Clarity.', steps: CLARITY_STEPS,
+          input: clDocs[id]?.has ? null : { key: 'clarity_token', label: 'Clarity API token', placeholder: 'eyJhbGciOi...', secret: true } }),
       /* ---- Email and SMS ---- */
       email,
       /* ---- Work ---- */

@@ -44,7 +44,7 @@ const DRIVE_TEMPLATE = '1rPYv4HRCpDEny66Ux-gIFmkOqSuurgYF';   // "# Client Templ
 const OWNER = 'cole@go-mobius-digital.com';
 const ONBOARD_FORM = 'https://tools.go-mobius-digital.com/onboard/?t=';
 const CALENDLY = 'https://calendly.com/mobius-digital/strategy-session';
-const STEPS = ['asana', 'onboard', 'drive', 'slack', 'frame', 'stripe', 'contract', 'email', 'summary'];
+export const STEPS = ['asana', 'onboard', 'drive', 'slack', 'frame', 'stripe', 'contract', 'email', 'summary'];
 const NEWBIZ = 'C0BV9L8NV33';   // #mobius-newbiz (private), 2026-09-05
 const ROLE_LABEL = { strategist: 'creative strategist', buyer: 'media buyer', editor: 'video editor', designer: 'graphic designer' };
 /* A role can hold several people: "a@x, b@y". */
@@ -667,7 +667,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       const email = String(b.contact_email || '').trim().toLowerCase();
       if (email && !emailOk(email)) return json({ error: 'That client email does not look right.' }, 400);
       const dupe = await env.DB.prepare(`SELECT id FROM p_newclient WHERE lower(name) = lower(?1)`).bind(name).first();
-      if (dupe) return json({ error: `${name} was already started. Open it from the list instead.`, id: dupe.id }, 409);
+      if (dupe) return json({ error: `${name} was already started. Open its setup from Home (All clients), under Setting up.`, id: dupe.id }, 409);
       const id = rid();
       const t = b.team || {};
       const team = Object.fromEntries(['strategist', 'buyer', 'editor', 'designer'].map(k => [k, roleList(Array.isArray(t[k]) ? t[k].join(',') : t[k]).join(',')]));

@@ -118,30 +118,72 @@ const num = v => v == null ? null : +v;
 const ga4 = (env, prop, body) => gfetch(env, SCOPES.ga, `https://analyticsdata.googleapis.com/v1beta/properties/${prop}:runReport`, { body });
 const rowsOf = (j, dims, mets) => (j.rows || []).map(r => Object.fromEntries([...dims.map((d, i) => [d, r.dimensionValues[i].value]), ...mets.map((m, i) => [m, num(r.metricValues[i].value)])]));
 
-/** GA4 for one brand and window: totals against the window before, by day, channel groups,
- *  landing pages, devices, and the shopping funnel. */
+/** GA4 for one brand and window: totals against the window before, by day (both windows), channel groups and landing
+ *  pages (with their funnel steps and the window before, for sorting and deltas), devices, new against returning,
+ *  source / medium, and the shopping funnel. 2026-10-09: more per row for the sortable tables and drill-downs; the
+ *  cache key moved to g4v3: so an old copy is never served as the new shape. */
+const G4M = ['sessions', 'totalUsers', 'newUsers', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'ecommercePurchases', 'purchaseRevenue', 'addToCarts', 'checkouts'];
+const G4ROW = ['sessions', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'addToCarts', 'checkouts', 'ecommercePurchases', 'purchaseRevenue'];
+const G4DAY = ['sessions', 'engagedSessions', 'totalUsers', 'newUsers', 'addToCarts', 'checkouts', 'ecommercePurchases', 'purchaseRevenue', 'averageSessionDuration'];
+const ymd = s => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}`;
+/** A breakdown over the window and (when given) the window before: rows carry `prev` {..} from the same request. */
+async function g4By(env, P, dim, from, to, pfrom, pto, limit, filter) {
+  const ranges = [{ startDate: from, endDate: to, name: 'cur' }, ...(pfrom ? [{ startDate: pfrom, endDate: pto, name: 'prev' }] : [])];
+  const j = await ga4(env, P, { dateRanges: ranges, dimensions: [{ name: dim }], metrics: G4ROW.map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: limit * (pfrom ? 3 : 1), ...(filter ? { dimensionFilter: filter } : {}) });
+  const dims = ranges.length > 1 ? ['k', 'range'] : ['k'];
+  const rows = rowsOf(j, dims, G4ROW);
+  const cur = rows.filter(r => !r.range || r.range === 'cur'), prev = new Map(rows.filter(r => r.range === 'prev').map(r => [r.k, r]));
+  return cur.slice(0, limit).map(r => { const p = prev.get(r.k); delete r.range; if (p) { const q = { ...p }; delete q.k; delete q.range; r.prev = q; } return r; });
+}
 export async function websiteReport(env, act, from, to, pfrom, pto) {
   const link = await linkFor(env, act);
   if (!link.ga4) return { error: 'not_linked', what: 'ga4' };
-  return cached(env, `g4:${act}:${link.ga4}:${from}:${to}:${pfrom || ""}`, 3600e3, async () => {
+  return cached(env, `g4v3:${act}:${link.ga4}:${from}:${to}:${pfrom || ''}`, 3600e3, async () => {
     const P = link.ga4; const range = [{ startDate: from, endDate: to }];
-    const M = ['sessions', 'totalUsers', 'newUsers', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'ecommercePurchases', 'purchaseRevenue', 'addToCarts', 'checkouts'];
-    const [tot, prev, byDay, chan, land, dev, src] = await Promise.all([
-      ga4(env, P, { dateRanges: range, metrics: M.map(name => ({ name })) }),
-      pfrom ? ga4(env, P, { dateRanges: [{ startDate: pfrom, endDate: pto }], metrics: M.map(name => ({ name })) }).catch(() => null) : null,
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'date' }], metrics: ['sessions', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ dimension: { dimensionName: 'date' } }] }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'sessionDefaultChannelGroup' }], metrics: ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 12 }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'landingPagePlusQueryString' }], metrics: ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 15 }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'deviceCategory' }], metrics: ['sessions', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })) }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'sessionSourceMedium' }], metrics: ['sessions', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 15 }),
+    const day = (f, t) => ga4(env, P, { dateRanges: [{ startDate: f, endDate: t }], dimensions: [{ name: 'date' }], metrics: G4DAY.map(name => ({ name })), orderBys: [{ dimension: { dimensionName: 'date' } }] });
+    const [tot, prev, byDay, prevDay, chan, land, dev, nvr, src] = await Promise.all([
+      ga4(env, P, { dateRanges: range, metrics: G4M.map(name => ({ name })) }),
+      pfrom ? ga4(env, P, { dateRanges: [{ startDate: pfrom, endDate: pto }], metrics: G4M.map(name => ({ name })) }).catch(() => null) : null,
+      day(from, to),
+      pfrom ? day(pfrom, pto).catch(() => null) : null,
+      g4By(env, P, 'sessionDefaultChannelGroup', from, to, pfrom, pto, 15),
+      g4By(env, P, 'landingPage', from, to, pfrom, pto, 40),
+      g4By(env, P, 'deviceCategory', from, to, pfrom, pto, 5),
+      g4By(env, P, 'newVsReturning', from, to, pfrom, pto, 3).catch(() => []),
+      g4By(env, P, 'sessionSourceMedium', from, to, pfrom, pto, 25),
     ]);
-    const one = j => { const r = rowsOf(j, [], M)[0] || {}; return r; };
-    const days = rowsOf(byDay, ['date'], ['sessions', 'ecommercePurchases', 'purchaseRevenue']).map(r => ({ date: `${r.date.slice(0, 4)}-${r.date.slice(4, 6)}-${r.date.slice(6)}`, sessions: r.sessions, purchases: r.ecommercePurchases, revenue: r.purchaseRevenue }));
-    return { property: P, cur: one(tot), prev: prev ? one(prev) : null, days,
-      channels: rowsOf(chan, ['group'], ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue']),
-      landing: rowsOf(land, ['page'], ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue']),
-      devices: rowsOf(dev, ['device'], ['sessions', 'ecommercePurchases', 'purchaseRevenue']),
-      sources: rowsOf(src, ['source'], ['sessions', 'ecommercePurchases', 'purchaseRevenue']) };
+    const one = j => rowsOf(j, [], G4M)[0] || {};
+    const days = j => j ? rowsOf(j, ['date'], G4DAY).map(r => ({ ...r, date: ymd(r.date), purchases: r.ecommercePurchases, revenue: r.purchaseRevenue })) : [];
+    const ren = (rows, k) => rows.map(r => { const o = { [k]: r.k, ...r }; delete o.k; return o; });
+    return { property: P, cur: one(tot), prev: prev ? one(prev) : null, days: days(byDay), prev_days: days(prevDay),
+      channels: ren(chan, 'group'), landing: ren(land, 'page'), devices: ren(dev, 'device'), nvr: ren(nvr.filter(r => r.k && r.k !== '(not set)'), 'kind'), sources: ren(src, 'source') };
+  });
+}
+/** One slice of the website, drilled: its days (and the window before), its funnel, and the other side of it (a source's
+ *  landing pages, a page's channels and sources), plus devices. kind = channel | source | page | device | nvr. */
+const DRILL_DIM = { channel: 'sessionDefaultChannelGroup', source: 'sessionSourceMedium', page: 'landingPage', device: 'deviceCategory', nvr: 'newVsReturning' };
+export async function websiteDrill(env, act, from, to, pfrom, pto, kind, value) {
+  const dim = DRILL_DIM[kind]; if (!dim) return { error: 'kind is channel, source, page, device or nvr' };
+  const link = await linkFor(env, act);
+  if (!link.ga4) return { error: 'not_linked', what: 'ga4' };
+  return cached(env, `g4d2:${act}:${link.ga4}:${kind}:${String(value).slice(0, 200)}:${from}:${to}:${pfrom || ''}`, 3600e3, async () => {
+    const P = link.ga4; const f = { filter: { fieldName: dim, stringFilter: { matchType: 'EXACT', value: String(value) } } };
+    const day = (a, b) => ga4(env, P, { dateRanges: [{ startDate: a, endDate: b }], dimensions: [{ name: 'date' }], metrics: G4DAY.map(name => ({ name })), orderBys: [{ dimension: { dimensionName: 'date' } }], dimensionFilter: f });
+    const sideDims = kind === 'page' ? [['channels', 'sessionDefaultChannelGroup', 10], ['sources', 'sessionSourceMedium', 10]]
+      : kind === 'channel' ? [['landing', 'landingPage', 12], ['sources', 'sessionSourceMedium', 10]]
+      : kind === 'source' ? [['landing', 'landingPage', 12]]
+      : [['channels', 'sessionDefaultChannelGroup', 10], ['landing', 'landingPage', 10]];
+    const [tot, ptot, d1, d0, dev, ...sides] = await Promise.all([
+      ga4(env, P, { dateRanges: [{ startDate: from, endDate: to }], metrics: G4M.map(name => ({ name })), dimensionFilter: f }),
+      pfrom ? ga4(env, P, { dateRanges: [{ startDate: pfrom, endDate: pto }], metrics: G4M.map(name => ({ name })), dimensionFilter: f }).catch(() => null) : null,
+      day(from, to), pfrom ? day(pfrom, pto).catch(() => null) : null,
+      kind === 'device' ? [] : g4By(env, P, 'deviceCategory', from, to, null, null, 5, f),
+      ...sideDims.map(([, d, n]) => g4By(env, P, d, from, to, pfrom, pto, n, f)),
+    ]);
+    const days = j => j ? rowsOf(j, ['date'], G4DAY).map(r => ({ ...r, date: ymd(r.date), purchases: r.ecommercePurchases, revenue: r.purchaseRevenue })) : [];
+    const out = { kind, value, cur: rowsOf(tot, [], G4M)[0] || {}, prev: ptot ? rowsOf(ptot, [], G4M)[0] || {} : null, days: days(d1), prev_days: days(d0), devices: dev.map(r => ({ device: r.k, ...r })) };
+    sideDims.forEach(([name], i) => { out[name] = sides[i].map(r => ({ name: r.k, ...r })); });
+    return out;
   });
 }
 

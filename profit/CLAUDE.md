@@ -2120,6 +2120,33 @@ Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log a
 - **Drops on screen:** a group with 52+ weeks of stock shows "Hold new <group>", 0 new to make and no next-order line
   (Hats: 253 weeks on Oct 8). Closures shown are the drop's own factories only. Asana cards started outside a drop
   show under "Started in Asana, not in a drop" with Make it a design.
+- **2026-10-09 REDESIGN to the v2 system (Cole: "how long the stock lasts looks super weird", "text overlapping", "I
+  can't hover over anything", "Kind of product doesn't fill in", Buying "not sure it's updated", Drops "clunky; a weird
+  refresh thing; brown vs grey bars").** Pages are `.v2 .spx` built from `window.V2UI` (tile + spark, ib, panel as a
+  SHEET), `ds-btn` / `ds-seg` / `ds-chip`, `v2tbl` with `th.v2srt` sort buttons, skeletons, `ds-empty`. Every page has
+  an "is it current" line (`updated()`: when Shopify was read, Central) and a **Refresh** that POSTs
+  `/api/shopify/snapshot` then redraws.
+  - **Stock** = lead, 4 tiles (ad spend on low stock; Ease off / Safe to scale / Push to clear with a 12-week units-sold
+    sparkline; clicking one filters the table), ONE sortable table (On hand, Sold per day, Days left with a bar, Runs out
+    on with "<size> first" when other sizes still hold stock, Restock landing with days short, Ads 30 days, Ad call chip),
+    filter seg + "Only products with ads", then "What the words mean" (every term once; clients may read this page).
+    Sort / filter in localStorage `sp_ss` / `sp_sf` / `sp_sa`. The old lanes and the runway chart are gone.
+  - **Product sheet** (`openProduct`, V2UI.panel with `panel.sheet`): verdict, 5 stats, ONE chart `stockChart()` =
+    units on the shelf for 180 days projected SIZE BY SIZE (`project()`: a size that runs out does not borrow from the
+    others; orders on the way land as steps), short period shaded from the brain's run-out (first core size) to the next
+    landing, marker names in a flag row ABOVE the plot (stacked rows, so no label touches a line), hover per day = units,
+    core sizes in stock, events. By size table (core pill, "runs out first"), Kind of product as a 4-way `ds-seg`,
+    Try an order (buyers) draws a dashed line only once a number is typed.
+  - **Buying** = 4 tiles, one card per factory order (why-now sentence, facts strip, rows with reason, top size chips
+    from `suggestedLines`, qty, In/Out seg), On the way = `steps()` stepper per order (Placed, In production, Ships,
+    Lands; each step owns a grid column) + progress bar, Drafts, landed folded, Coming up table.
+  - **Drops** = drop picker (PillMenu), Edit / New drop, 4 tiles, the drop's dates as a stepper, designs table +
+    Coming due, Asana cards, then **Keep or cut** per group: the rule in one sentence, keep / your call / cut / new
+    counts, a table with one-colour bars (units sold 90 days) and a dashed cut line, "Rule says" chip beside "Your call"
+    Keep / Cut seg and a "Use the rule" button (replaced the ↺). Size mix = single-colour bars.
+  - Order builder, order and design sheets use the same pieces (`spx-form`, `spx-in`). Brand settings > Stock and
+    factories and the Meta ad chips keep their `sp-` classes. Local check: a harness page with the Oct 8 state.json
+    and stubbed fetch, headless Chrome at 1440 and 375, light and dark.
 - Old app `supply/index.html` carries a "moved to Locus" banner and forwards `?slot=`; retire it to a redirect after
   Lucky has used Locus for a week (plan step 5). The worker, engine and D1 stay.
 
@@ -2420,6 +2447,7 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+<<<<<<< HEAD
 
 ## 2026-10-09: the top loading bar, Scenarios and Platform status on v2, Dashboards ask-first, spacing pass
 
@@ -2463,3 +2491,172 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
 - **Local check recipe used:** a python static server on its own port from the worktree, `profit-worker-dev` (:8799) and
   `ah-worker-dev` (:8798) with the dev token, headless Chrome over CDP (Node 24 has WebSocket built in). The scratchpad is
   shared with other jobs: keep scripts in your own subfolder.
+=======
+## 2026-10-09: THE WAR ROOM (Triple Whale's BFCM Command Center, done in Locus). Read before touching desk.js war*.
+
+Cole: "the war room should be like Triple Whale's war room, full on plans and everything, the actual war room", and the
+title had "war" in lower case. Reference: docs/triplewhale-reference/. Page names in the season item are Title Case now
+(War Room, The Plan; TAB_TITLE / TAB_CRUMB / NAV.season in index.html). Other page names were left as they are.
+- **Server** (worker/src/season.js, "THE WAR ROOM" block): `GET /api/season/war?act=all|<brand>[&live=1]`, `PUT /api/season/war
+  {act, patch}`. The plan lives in `p_season_answer` key `war` (JSON: goals [{metric,target}] up to 5, budget {total, channels
+  [{id meta|google|tiktok|other, unit $|%, value, metric roas|cpa, target}]}, sale {start,end}, baseline {from,to}, baseline_ok,
+  thresholds, alerts [{kind,id}], stock_ok); the PUT merges known keys server side. The ladder stays in key `goals` (one place).
+  `saleOf` = saved dates, else the access/bf/planb/cm phases, else Nov 26 to 30. `baselineWindow` = the same days around last
+  year's BF (`LY_BF` 2025-11-28), one day either side. `warBaseline` = seriesFor rows (P&L line, paid orders) + channelsFor +
+  top products from tw_orders (add-ons like package protection dropped). `dayPlan` splits the revenue goal and the budget by
+  last year's shape of the same days. `warSteps` = the 7 steps (baseline, goals, ladder, budget, offers = bf phase locked,
+  alerts, stock). `warLive` = the `live` dep (twDay hours with orders and Meta / Google spend, plus liveRow) against the day's
+  plan; the hourly plan curve is checknow's `cnshape:<brand>` from settings; outside the sale it is a dry run against a normal
+  day (last 28 days). `warAll` = every brand in season, steps before the sale, pace during it, riskiest first.
+  worker.js passes `channels`, `titles`, `client` (clientScope) into handleSeason. `AH_DEV_URL` (dev only, a var in a local
+  config) lets twDay call a local account-health.
+- **Page** (desk.js `war`, `warGrid`, CSS `.wr-*` at the end of v2.css): Plan = sticky step list + sections (baseline with a
+  window picker and "Use this baseline", goals + ladder, budget with "$X not allocated" and "Split like last year", offers
+  timeline from phases + Calendar pins, alert thresholds, stock on the heroes from the Supply worker). Live = six big tiles (pace
+  vs plan by now, heading for, orders + AOV floor, MER, spend vs the day budget, last 3 hours), the hour-by-hour chart
+  (cumulative vs plan, hover per hour), the desk (8am / 4pm / midnight check-ins with the ladder), spend by channel vs budget,
+  alerts fired today, stock, the Strategist's "What to do now" (account-health /api/read; a 15-minute slot in the facts,
+  Refresh adds a nonce) and the Day check's Right now card. TV mode = no chrome, bigger numbers, refresh every 5 minutes.
+- **Alerts are real p_alert rules** (account-health alerts.js): overspend (`spend` above the biggest sale day's budget x %, plus
+  `meta_spend` when Meta has a budget), MER floor, AOV floor (new metric `aov`), stock cover (new metric `stock_cover`: days on
+  the 5 best sellers via stock.js). New columns `starts` / `ends` (Central dates; `isDue` skips outside them) and `source`.
+- **Clients** see their brand's War Room read only (CLIENT_TABS 'war', brandguard rule GET /api/season/war): no edits, no ladder,
+  no alerts, stock or AI read. Live numbers for a client need account-health to accept the client token on /api/tw-day (it does
+  not today), so the live card says the team reads them.
+- Checked on a local pair (account-health `wrangler dev --remote` + the profit worker local with remote D1) with real data for
+  Lucky, Bonk and all brands: dark, light, TV mode, 390px with no sideways scroll; alert create / test / delete with the new
+  metrics ran against the real tables and were removed. Stock showed "needs the Google sign-in" locally (dev token).
+
+
+## 2026-10-09: THE COMMAND CENTER (Home for All clients) and clients see everything by default
+
+- **Client access defaults flipped.** brandguard `CLIENT_SWITCHES` = all ON (P&L, change history, Strategist, creator
+  link) for every brand and every client, existing ones included (nothing was stored on prod). `settings.clientAccess`
+  now holds ONLY overrides (`setAccess` stores a key only when it differs from the default; back to on = the row goes).
+  The client Strategist keeps its 20 questions / $0.50 a day cap. clients.js: the card and the invite say "Clients see
+  everything about their own business" with a folded "Turn something off for this client" (all four switches, on = they
+  see it, "N off: ..." beside the fold). Welcome card and profile say what is on / off. test-clients.mjs 19 checks
+  (defaults on, overrides stored alone, client refused on both command routes, command routes answer the team).
+- **Command center** (`profit/command.js`, `window.CommandCenter.render(host, H, all)`, called from v2.js home() when the
+  team is on All clients; it replaces the "Each brand" table and the Overview read there). Cards: **Focus first** (AI read,
+  account-health `POST /api/read` screen `command` = `COMMAND_SYSTEM`, returns `order` [{brand, why, do}] + lines + focus,
+  Sonnet, cached an hour per facts), **Every brand, what needs you first** (one row per brand: name + status dot, trend,
+  MTD % of plan; pills revenue / spend / MER / CPA vs goal with deltas; revenue sparkline; the reasons, 4 shown + "N more",
+  every reason a button to the brand page that shows it or the Asana task), paused brands on one unflagged line, and
+  **Setting up** (new client runs with steps left: moved here from the New client modal; Open its setup =
+  `NewClient.status`). Rows sort by severity score (bad 10, warn 4, info 1), then revenue.
+- **Reasons**: profit `GET /api/hub/command` (hub.js `commandMany`, fixed windows ending yesterday): goal (blended CPA =
+  spend / paid orders vs rulesFor target_cpa, else MER vs month plan / target_roas; rolling 3 days, 10% wrong side;
+  3+ days warn, 7+ bad), cadence (days since the last Meta `ads.created_time`, $100+ Meta spend in 7 days; 10+ warn,
+  21+ bad), fatigue (CTR, hook, frequency last 7 vs the 14 before from daily_insights; 2 of 3 moved 15%+ on $300+),
+  Day check (yesterdayMany: bad yesterday, or 3+ bad in 7), setup gaps (Triple Whale, Meta, goals, Asana). account-health
+  `GET /api/command/work` (src/command.js): Asana per brand live (open tasks of the linked project, cached 30 min as
+  `cmdasana2:<brand>`; overdue = due in the last 60 days outside parked / done / Analyze Results sections; stuck = untouched
+  10+ days in a working section; note Locus's own sync bumps modified_at, so stuck undercounts), pending new clients, alerts
+  fired in 48 hours. Month vs plan is judged in the browser from `S.accounts` (10% behind warn, 20% bad).
+- **New client modal**: "Already started" list removed; team chips use the selected style (brand-soft fill, accent ring,
+  check icon), readable in both themes (it was `--ink` on `--on-ink`, light on light in dark). Same style on the invite's
+  brand chips.
+- Local check recipe for parallel sessions: run your own ports (static 8761, `wrangler dev --remote` profit 8762 and
+  account-health 8763 from the worktree with the .dev.vars copied in) and drive headless Chrome over CDP (Node's global
+  WebSocket); the shared Browser pane is taken over by other sessions.
+
+## 2026-10-09: THE DATA BEHIND A TILE (drill-downs) + fixed expenses and Net profit
+
+Cole: the tile popup explained what a metric MEANS; he wants Triple Whale's answer, the DATA behind the number ("ad spend
+should break down Google, Meta, what was each; contribution margin should break down every part").
+- **Click a headline tile** on Home (Overview), P&L, Store > Sales, Email and SMS, Ads > All channels / Meta / Google / TikTok
+  (`DRILL_TABS` in v2.js) = the number large with its delta, the day line (blended screens draw it from the drill data with the
+  compare period dashed; ad spend is a stacked bar by platform; on one platform's screen the tile's own line), a BREAKDOWN, then
+  ONE "What it is" sentence (`WHAT`, fallback the glossary's `one`). The long glossary text lives only under Metrics now.
+  Labels map to metrics in `METRIC_OF`; any other tile (Discounts, CPM, CTR...) or any other page keeps the simple panel.
+  A tile that linked to a page (Home's `go`) now opens its drill-down and offers "Open <page> ›" at the bottom; the click
+  listener runs in the CAPTURE phase so the tile's own data-go never fires first. CSS is injected by v2.js (`#v2dcss`).
+- **Breakdowns** (`drillBody`): revenue = by channel (credited, share, change) + new vs returning + top products (one brand);
+  ad spend = by platform with share of blended and each platform's change; MER / ROAS = per-platform ROAS under the whole-store
+  MER; aMER = how it is made + first orders by source; orders / AOV = new vs returning (orders, revenue, AOV) + the last 14 days;
+  new customers / CAC = first orders and cost each by source; paid purchases / CPA = per platform; email = flows vs campaigns;
+  contribution margin / net profit = the waterfall (`drillFall`, reuses `.pnl-fall`): revenue, product cost, shipping and
+  fulfilment, handling, payment fees, gross profit, ad spend, CM, then fixed expenses (each line) and net profit; every line
+  with % of revenue and its change. A margin override shows one "product and delivery at X%" line. All brands sums one currency
+  only and leaves out brands whose cost check is broken (named), like the Home CM tile.
+- **Amazon ads sit OUTSIDE the blended total.** Measured on Bonk: Meta + Google = TW `blendedAds` to the dollar; Amazon ads
+  ($2.7K) are on top. When the numbers say so the spend table marks Amazon "not in the total" with a note, instead of shares
+  adding to 115%.
+- **Data** = `GET /api/hub/drill?act=&model=&cmp=&days|from&to` (hub.js `drillMany`, one call for every metric, cached in the
+  page): the host's own `dayEconomics` + `totals` over a grouped tw_daily pivot and grouped `daily_insights` (so the panel
+  matches the tile to the dollar), `allChannelsMany` for platforms, `storeMany` for products (one brand), `p_cost_health`,
+  fixed.js. Costs, CM and fixed ride under `profit` so **clients** get the same drill-downs and brandguard scrubs `profit` while
+  their P&L switch is off (`/api/hub/drill` is on CLIENT_RULES, `fixed` and `cost_verdict` added to PL_OUT; both brandguard
+  copies identical, test-clients 17/17). Today's window has no stored days: the panel says the breakdown lands overnight.
+- **Fixed expenses** (Triple Whale's "Edit expenses"): Brand settings > Data and costs > Fixed expenses (`loadFixed` in
+  index.html): one card per expense (name, kind, each month, from, until), Save replaces the list. Table `p_fixed_cost`
+  (`migrations/fixed-001.sql`, also created on first use by `src/fixed.js`), `GET/PUT /api/fixed-costs` (not on CLIENT_RULES).
+  `fixedFor(env, acts, from, to)` spreads each monthly amount over its month's days. **They feed ONE line: Net profit = CM minus
+  fixed**, on P&L (a Net profit tile; Orders now carries AOV so the row stays eight; waterfall lines Fixed expenses, each item,
+  Net profit; "Add them ›" when none, `openFixedCosts(act)`) and in the CM drill-down. Contribution margin, briefs, reports and
+  the Strategist are unchanged. `/api/client` returns `fixed {total, items}`.
+- Checked locally 2026-10-09 against real data (worktree statics + own dev workers on 8811/8813, headless Chrome): Bonk Home
+  tiles all eight drills match their tiles; Meta tab (spend, purchases, revenue, ROAS, CPA), Store, Email, P&L; all brands CM
+  ($69.7K, Bonk's fixed listed). Two test expenses on Bonk ($1,200 from Aug, $3,000 from Sep) gave $4,164 over Sep 9 to Oct 8,
+  checked by hand, then removed. index.html loads v2.js?v=38.
+
+
+## 2026-10-09: Email and SMS, Website and Search, Cole's pass (see the email, the funnel, sortable drill-downs, Clarity)
+
+Cole: "Am I supposed to see what these campaigns and flows look like?", the Status pill "looks really off", the little
+bars under Placed order and after send were "not good visualizations", the subject-line summary sat jammed beside its
+title, "no space between sections", the Website funnel was unreadable past add to cart, the tables could not be sorted
+or opened, a tile click only said "go to the Metrics tab", and he expected heatmaps and recordings (Microsoft Clarity).
+All in v2.js `email()` / `klaviyoCards()` / `subjectsCard()` / `website()` / `search()` and the block at the end of
+v2.css ("EMAIL AND SMS, STORE > WEBSITE AND SEARCH"). index.html: v2.css?v=27, v2.js?v=39.
+- **See the message** (`klPreview`, `pvStats`): a sent campaign row (or a subject in Subject lines) and a flow MESSAGE
+  row (inside an opened flow) open a sheet: the inbox line (from, subject, preview), the email itself in an
+  `<iframe sandbox="allow-popups allow-popups-to-escape-sandbox">` (no scripts, no same-origin, links open in a new tab
+  via an injected `<base target="_blank">`), Desktop / Phone width (`.ds-seg`), and the results beside it with each
+  rate coloured against Klaviyo's average; campaigns add "How fast the money came in". SMS shows the text in a phone
+  bubble. Data: account-health `GET /api/klaviyo?what=message&kind=campaign|flow&id=` (kept 30 days in `settings`
+  `klvmsg:*`; the template's HTML, filled by Klaviyo's template-render with sample values when it has tags). Cached in
+  the page per session (`MSG`).
+- **Status = the design-system chip** (`stChip`: `.ds-chip.lx-chip` + `.ds-dot`; `FLOW_ST`), a button when the key can
+  write, opening `statusMenu` (three choices with what each means; then the usual `klWrite` before/after modal).
+  Drafts and scheduled (`campChip`), the flags ("Fix" / "Check") and the rate cards' "Better / Worse than average"
+  use the same chip. NOTE: `.lx-st` is the snapshot links' class (share.js), so the chip is `.lx-chip`.
+- **No goal bullets on the Klaviyo tiles**: revenue per email and placed order rate say the benchmark in words
+  (`vsAvg`: "59% under the Klaviyo average ($0.10)", amber / green); share of store revenue says "In / Under the
+  healthy range (25 to 35%)". The campaign table's Open / Click / Placed order / Unsub / Spam / Bounce are coloured
+  against the average with the average in the tooltip (`rateCell`), replacing the "better than avg" pills.
+- **Money after send** (`afterSeries` / `afterSend`): the RUNNING TOTAL over the 14 days after the send as one sparkline
+  plus "80% by day N"; hover reads "Day N: $X, $Y so far of $Z". A send under 3 days old says "$X so far, just sent".
+  Reason: the question is how fast the money came in; the amount is already in the Revenue column.
+- **Layout**: `cardL(title, lead, body, cap)` puts a card's conclusion on its own line UNDER the title (`.lx-lead`); used
+  by every Email, Website and Search card. The Klaviyo part (`#v2kl`, `#v2klall`) is `.lx-stack` (16px gap; it used to
+  be a plain div so its cards touched), opened by a small-caps "From Klaviyo, read with <brand>'s own key" label.
+  Subject lines is one grid (`.lx-subj`) with a plain-English conclusion.
+- **Website funnel** (`webFunnel`): a row per step (count + change, % of the step before + pt change, % of sessions, a
+  LOG-SCALED bar with the compare period as a grey bar), the drop between steps as its own line ("91.6% left before
+  adding to cart (29,053), better than before (93.1%)"), the biggest drop highlighted, and the step that slipped most
+  named under it. GA4 counts add-to-cart and checkout as events (said on screen).
+- **Sortable tables with drill-downs** (`webTable` / `wireWebTable` on the Ads `TBL` helper, saved as `pf_tbl_web-ch`,
+  `web-lp`, `web-src`, `clarity-pages`): sessions (+ change), share, engaged, avg time, add to cart, conversion
+  (green / red against the site on real traffic), purchases, revenue, per session. A row opens `webDrill`: a sheet with
+  Summary, Day by day (compare dashed, missing GA4 days filled with zero so the lines align), Funnel, Top landing pages
+  (for a channel or source), Channels and Sources (for a page), Devices. Landing pages now use GA4 `landingPage`
+  (query strings folded; fbclid made every Meta click its own row). **Who visits** card: device and new against
+  returning, each row drills.
+- **Tiles drill properly**: Website and Search tiles open `webMetric` / the search drill (the number, its change, what it
+  means, the line large with the compare period, best and weakest day, and the same number by channel / device / new
+  vs returning, or the queries and pages behind it). The listener sits on the tile row and stops the click before the
+  app-wide glossary panel (which is someone else's code; left untouched). Rates are drawn in percent units because
+  `lineChart` floors its scale at 1.
+- **Behaviour (Microsoft Clarity)** (`clarityCard`, `#v2clar` on Website, shown even when GA4 is not linked): not
+  connected = what it adds + the steps + a token box (and optional project ID) that PUTs account-health `/api/clarity`;
+  connected = a conclusion line, four minis (rage clicks, dead clicks, quick backs, scroll depth, each % of sessions,
+  with a daily line once history builds), a sortable per-page table (red = well above the site's own rate) with a
+  Heatmap link per page (`/projects/view/<id>/heatmaps?url=`; the `url` parameter is unverified against Clarity) and
+  Open recordings. Clarity's API gives the last 3 days only and 10 reads a project a day; Locus reads at most every 8
+  hours and keeps a daily history. Brand settings > Integrations has a "Microsoft Clarity" row (group Website).
+- Checked on the local trio (worktree statics :8821, account-health dev :8822, profit dev :8823) with Lucky (email,
+  website, search), Party Patch and all brands; 375 wide has no sideways scroll. The Clarity connected state was checked
+  with a stubbed answer only (no brand has a token yet).
+>>>>>>> origin/main

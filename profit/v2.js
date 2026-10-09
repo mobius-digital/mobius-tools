@@ -93,19 +93,233 @@
   /* EVERY TILE OPENS (2026-10-08, Cole: "I'm able to click on the cards I'm supposed to"). A tile that links to a
      page keeps its data-go; any other tile opens a side panel: the number, its change, the day-by-day line drawn
      large (same hover marker), and what the number means from the Metrics glossary. Nothing per screen to wire. */
+  /* THE DATA BEHIND THE NUMBER (2026-10-09, Cole: "what Triple Whale does"). On Home, Ads, Store, Email and P&L a
+     headline tile opens a drill-down instead: the number large with its delta, the day line, then a BREAKDOWN for that
+     metric (spend by platform, revenue by channel, new against returning, top products, CM as a waterfall down to net
+     profit, email campaigns against flows), and one "What it is" line at the bottom. Data: /api/hub/drill (hub.js
+     drillMany), one call for every metric, cached in the page. A tile that linked to a page now opens its drill-down and
+     offers the page at the bottom. Other tiles (and other pages) keep the simple panel. Capture phase, so a tile's own
+     data-go click never fires first. */
   if (!window.__v2tiledrill) { window.__v2tiledrill = 1;
     document.addEventListener('click', e => {
-      const t = e.target.closest && e.target.closest('.v2tile'); if (!t || t.dataset.go || e.target.closest('a,button,input,select,[data-go]')) return;
+      const t = e.target.closest && e.target.closest('.v2tile'); if (!t || !H || t.closest('.v2sk,#v2panel') || e.target.closest('a,button,input,select')) return;
       const label = (t.querySelector('.l span') || t.querySelector('.l') || t).childNodes[0]?.textContent?.trim() || 'This number';
-      const sp = t.querySelector('svg.v2spark,svg[data-spk]');
-      const big = sp ? sp.outerHTML.replace('class="v2spark"', 'class="v2spark v2spark-big"').replace(/viewBox="0 0 (\d+) (\d+)"/, (m, w, h) => `viewBox="0 0 ${w} ${h}"`) : '';
-      const L = label.toLowerCase(), GL = window.GLOSSARY || [], ALIAS = { spend: 'ad spend', 'blended ad spend': 'ad spend', 'cost per purchase': 'cpa', 'cost per new customer': 'cac', purchases: 'orders', 'average order': 'aov', 'first orders': 'new customers' };
-      const want = ALIAS[L] || L; const g = GL.find(x => x.k.toLowerCase() === want) || GL.find(x => x.k.toLowerCase().includes(want) || want.includes(x.k.toLowerCase()));
-      const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul');
-      panel(label, `<div class="v2drill"><div class="dv">${v ? v.innerHTML : ''}</div>${sub ? `<p class="v2hint">${sub.innerHTML}</p>` : ''}${bul ? bul.outerHTML : ''}
-        ${big ? `<h4>Day by day</h4><p class="v2hint">Hover the line to read each day. The dashed line is the compare period.</p>${big}` : ''}
-        ${g ? `<h4>What it means</h4><p>${g.one}</p><h4>How it is worked out</h4><p>${g.f}</p><h4>What good looks like</h4><p>${g.good}</p>${g.moves ? `<h4>When it moves</h4><p>${g.moves}</p>` : ''}` : `<p class="v2hint">Open <b>Metrics</b> at the top of the page for every number's meaning.</p>`}</div>`);
-    });
+      const m = DRILL_TABS.has(H.S.tab) ? METRIC_OF[label.toLowerCase()] || null : null;
+      if (!m && t.dataset.go) return;
+      e.stopPropagation(); e.preventDefault();
+      openDrill(t, label, m);
+    }, true);
+  }
+  const DRILL_TABS = new Set(['overview', 'profit', 'store', 'channels', 'meta', 'campaigns', 'google', 'tiktok', 'email']);
+  const METRIC_OF = { revenue: 'revenue', 'returning revenue': 'revenue', orders: 'orders', 'average order': 'aov', 'ad spend': 'spend', spend: 'spend', mer: 'mer', amer: 'amer', roas: 'roas',
+    'new customers': 'newcust', 'first orders': 'newcust', 'cost per new customer': 'cac', 'contribution margin': 'cm', 'net profit': 'net', 'email and sms': 'email', 'email and sms revenue': 'email',
+    campaigns: 'email', flows: 'email', purchases: 'purchases', 'paid purchases': 'purchases', 'cost per purchase': 'cpa' };
+  const PLAT_OF = { meta: 'meta', campaigns: 'meta', google: 'google', tiktok: 'tiktok' };
+  /* One sentence each: what the number IS. The long glossary stays under Metrics in the top bar. */
+  const WHAT = {
+    revenue: 'Everything the store sold from every source, paid, organic, email and direct: Shopify total sales minus sales tax.',
+    spend: 'Every ad platform’s spend added together, as Triple Whale carries it. Spend is a choice, so it has no good or bad colour.',
+    mer: 'Revenue divided by all ad spend: how much the whole store took for every advertising dollar.',
+    amer: 'Revenue from first-time buyers divided by all ad spend: what the ads brought in new, so repeat buyers and email cannot flatter it.',
+    roas: 'Revenue credited to the ads divided by their spend, under the attribution model picked in the top bar.',
+    orders: 'Paid orders from every channel, and the average order: revenue divided by orders.',
+    aov: 'Revenue divided by paid orders, store-wide.',
+    newcust: 'Paid orders from people buying for the first time.',
+    cac: 'All ad spend divided by first orders: what one new customer cost.',
+    cm: 'What is left after every variable cost (product, delivery, handling, payment fees and ad spend). Fixed costs like rent and salaries are not in it.',
+    net: 'Contribution margin minus the fixed expenses set in Brand settings > Data and costs, spread evenly over each month’s days.',
+    email: 'Orders Klaviyo credits to an email or text, split into one-off campaigns and automated flows.',
+    purchases: 'Orders the ad platforms are credited with under the attribution model in the top bar. Two platforms can claim one order.',
+    cpa: 'Paid spend divided by the purchases credited to it.',
+  };
+  const PAGE_NAME = { store: 'Sales', channels: 'All channels', customers: 'Customers', profit: 'P&L', email: 'Email and SMS', meta: 'Meta', google: 'Google' };
+  if (!document.getElementById('v2dcss')) document.head.appendChild(Object.assign(document.createElement('style'), { id: 'v2dcss', textContent: `
+    .v2drill .v2dsec{margin-top:6px}
+    .v2drill .v2dtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+    .v2drill .v2dtbl th{text-align:right;font-weight:500;color:var(--muted);font-size:11px;padding:4px 6px;border-bottom:1px solid var(--line)}
+    .v2drill .v2dtbl th:first-child,.v2drill .v2dtbl td:first-child{text-align:left}
+    .v2drill .v2dtbl td{text-align:right;padding:6px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--ink)}
+    .v2drill .v2dtbl td:first-child{white-space:normal}
+    .v2drill .v2dtbl tr.me td{font-weight:650}
+    .v2drill .v2dtbl tr.tot td{font-weight:650;border-top:1px solid var(--line-strong,var(--line))}
+    .v2drill .v2dtbl td .v2ib{min-width:120px}
+    .v2drill .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0}
+    .v2drill .pnl-fall .r{grid-template-columns:minmax(110px,1fr) minmax(48px,.7fr) 158px;gap:10px}
+    .v2drill .pnl-fall .n em .v2d{margin-left:4px}
+    .v2drill .pnl-fall .r.sub .l{padding-left:14px;font-size:12px}
+    .v2drill .pnl-fall .r.sub .n{font-weight:500;font-size:12px}
+    .v2drill .pnl-fall .r.sub{padding:2px 0}
+    .v2drill .v2what{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2)}
+    .v2drill .v2dgo{margin-top:4px}
+    .v2drill .v2dnote{font-size:12px;color:var(--muted);margin:6px 0 0}` }));
+  const glossOne = label => { const L = label.toLowerCase(), GL = window.GLOSSARY || []; const g = GL.find(x => x.k.toLowerCase() === L) || GL.find(x => x.k.toLowerCase().includes(L)); return g ? g.one : ''; };
+  /** Sum many brands' drill payloads into one (one currency only). Day rows are merged by date. */
+  function drillSum(bs) {
+    const add = (list, keys) => { if (!list.some(Boolean)) return null; const o = {}; for (const k of keys) { let s = 0, any = false; for (const x of list) if (x && x[k] != null && isFinite(x[k])) { s += +x[k]; any = true; } o[k] = any ? s : null; } return o; };
+    const HK = ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'ret_rev', 'email_rev', 'campaigns', 'flows'];
+    const derive = o => o && Object.assign(o, { aov: o.orders ? o.sales / o.orders : null, new_aov: o.new_orders ? (o.new_rev || 0) / o.new_orders : null, cac: o.new_orders ? o.spend / o.new_orders : null, mer: o.spend ? o.sales / o.spend : null, amer: o.spend && o.new_rev != null ? o.new_rev / o.spend : null });
+    const ch = {}; for (const b of bs) for (const r of b.channels || []) { const o = ch[r.id] ||= { id: r.id, label: r.label, spend: null, prev_spend: null, revenue: null, prev_revenue: null, purchases: null, nc: 0 }; for (const k of ['spend', 'prev_spend', 'revenue', 'prev_revenue', 'purchases']) if (r[k] != null) o[k] = (o[k] || 0) + r[k]; o.nc += r.nc || 0; }
+    const PK = ['sales', 'net_sales', 'ship_rev', 'tax', 'cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'spend', 'cm', 'fixed', 'net'];
+    const costed = bs.filter(b => b.profit && b.cost_verdict !== 'broken');
+    const profit = bs.some(b => b.profit) ? { cur: add(costed.map(b => b.profit.cur), PK), prev: add(costed.map(b => b.profit.prev), PK),
+      fixed_items: bs.length === 1 ? (bs[0].profit?.fixed_items || []) : costed.filter(b => b.profit.cur?.fixed).map(b => ({ name: b.name, amount: b.profit.cur.fixed })),
+      series: mergeDays(costed.map(b => b.profit.series), ['cm', 'fixed']), prev_series: mergeDays(costed.map(b => b.profit.prev_series), ['cm']),
+      left_out: bs.filter(b => b.profit && b.cost_verdict === 'broken').map(b => b.name), margin_pct: bs.length === 1 ? bs[0].margin_pct : null } : null;
+    return { cur: derive(add(bs.map(b => b.cur), HK)), prev: derive(add(bs.map(b => b.prev), HK)), channels: Object.values(ch),
+      series: mergeDays(bs.map(b => b.series), ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'email_rev', 'campaigns', 'flows', 'meta', 'google', 'tiktok']),
+      prev_series: mergeDays(bs.map(b => b.prev_series), ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'email_rev', 'campaigns', 'flows']),
+      products: bs.length === 1 ? bs[0].products || [] : [], profit };
+  }
+  async function openDrill(t, label, m) {
+    const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul'), go = t.dataset.go;
+    const sp = t.querySelector('svg.v2spark,svg[data-spk]');
+    const big = sp ? sp.outerHTML.replace('class="v2spark"', 'class="v2spark v2spark-big"') : '';
+    const what = WHAT[m] || glossOne(label);
+    const plat = PLAT_OF[H.S.tab] || null;
+    const goBtn = go && !go.startsWith('act:') && go !== H.S.tab ? `<button type="button" class="v2link v2dgo" data-dgo="${esc(go)}">Open ${esc(PAGE_NAME[go] || 'its page')} ›</button>` : '';
+    const head = `<div class="dv">${v ? v.innerHTML : ''}</div>${sub ? `<p class="v2hint">${sub.innerHTML}</p>` : ''}${bul ? bul.outerHTML : ''}`;
+    const tail = `${goBtn}${what ? `<p class="v2what"><b>What it is.</b> ${what}</p>` : ''}`;
+    const wireTail = body => { body.querySelectorAll('[data-dgo]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); H.show(b.dataset.dgo); });
+      body.querySelectorAll('[data-dfix]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); if (window.openFixedCosts) window.openFixedCosts(H.S.act); }); };
+    const simple = (extra = '') => { const body = panel(label, `<div class="v2drill">${head}${big ? `<h4>Day by day</h4>${big}` : ''}${extra}${tail}</div>`); wireTail(body); return body; };
+    if (!m) return simple();
+    const body = panel(label, `<div class="v2drill">${head}${skCard(4, true)}${tail}</div>`); wireTail(body);
+    let d;
+    try { d = await get(`/api/hub/drill?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); }
+    catch (err) { body.querySelector('.v2drill').innerHTML = `${head}<p class="v2bad">${esc(err.message)}</p>${tail}`; wireTail(body); return; }
+    if (document.querySelector('#v2panel .ph b')?.textContent !== label) return;
+    const bs = (d.brands || []).filter(b => b.cur || b.channels?.length);
+    const curs = [...new Set(bs.map(b => b.currency || 'USD'))];
+    if (!bs.length || curs.length > 1) { const el = simple(`<p class="v2dnote">${curs.length > 1 ? 'These brands report in different currencies, so there is no combined breakdown. Pick one brand.' : 'No stored days in this window yet. Today is live on the tile; its breakdown lands overnight.'}</p>`); return el; }
+    const D = drillSum(bs), cur = curs[0];
+    const html = drillBody(m, D, cur, plat, label, big);
+    body.querySelector('.v2drill').innerHTML = `${head}${html}${tail}`; wireTail(body);
+    const ch = body.querySelector('[data-dchart]'); if (ch) { const k = ch.dataset.dchart; const rows = DRILL_ROWS[k]; if (rows) (rows.stack ? wireStack('v2dchart', rows.rows, rows.stack, cur) : wireLine('v2dchart', rows.rows, { tip: rows.tip })); }
+  }
+  const DRILL_ROWS = {};
+  /** The chart and the breakdown for one metric. */
+  function drillBody(m, D, cur, plat, label, big) {
+    const c = D.cur || {}, p = D.prev || {}, km = v => kmoney(v, cur), mo = v => money(v, cur), cmpOn = H.S.cmp !== 'none';
+    const rr = (a, b) => (b ? a / b : null);
+    /* the day line, from the drill data (blended screens) or the tile's own line (one platform) */
+    const KEY = { revenue: [r => r.sales, km], spend: [r => r.spend, km], mer: [r => rr(r.sales, r.spend), x2], amer: [r => rr(r.new_rev, r.spend), x2], orders: [r => r.orders, int], aov: [r => rr(r.sales, r.orders), v => money2(v, cur)],
+      newcust: [r => r.new_orders, int], cac: [r => rr(r.spend, r.new_orders), mo],
+      email: [/^campaigns$/i.test(label) ? r => r.campaigns : /^flows$/i.test(label) ? r => r.flows : r => r.email_rev, km] };
+    let chart = '';
+    const mkLine = (rows, prev, f, fmt) => { const R = rows.map(r => ({ date: r.date, v: f(r) })), P = cmpOn ? prev.map(r => ({ date: r.date, v: f(r) })) : [];
+      DRILL_ROWS.line = { rows: R, tip: (r, i) => `<b>${day(r.date)}</b> · ${esc(label)} ${r.v == null ? '–' : fmt(r.v)}${P[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${P[i].v == null ? '–' : fmt(P[i].v)}</span>` : ''}` };
+      return `<h4>Day by day</h4>${legend([{ color: '--brand', label: 'This period' }, ...(P.length > 1 ? [{ dash: true, label: cmpLabel() }] : [])])}<div data-dchart="line">${lineChart('v2dchart', R, { key: 'v', prev: P, cur, fmt, h: 190 })}</div>`; };
+    const platMode = plat && ['spend', 'revenue', 'roas', 'purchases', 'cpa'].includes(m);
+    if (platMode) chart = big ? `<h4>Day by day</h4>${big}` : '';
+    else if (m === 'spend' && D.series.some(r => r.meta || r.google || r.tiktok)) {
+      const ser = [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }].filter(s => D.series.some(r => r[s.key]));
+      DRILL_ROWS.stack = { rows: D.series, stack: ser };
+      chart = `<h4>Day by day, by platform</h4>${legend(ser)}<div data-dchart="stack">${stackChart('v2dchart', D.series, ser, { cur, h: 170 })}</div>`;
+    } else if (m === 'cm' || m === 'net') {
+      const pr = D.profit; if (pr && pr.series.length > 1) chart = mkLine(pr.series, pr.prev_series || [], m === 'cm' ? r => r.cm : r => r.cm == null ? null : r.cm - (r.fixed || 0), km);
+    } else if (KEY[m]) chart = mkLine(D.series, D.prev_series, KEY[m][0], KEY[m][1]);
+    if (!platMode && D.series.length < 2) chart = big ? `<h4>Day by day</h4>${big}` : '';
+
+    const sw = id => `<span class="sw" style="background:var(${CH[id] || '--c-else'})"></span>`;
+    const tbl = (heads, rows) => `<div class="v2tbl"><table class="v2dtbl"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+    const sec = (title, find, inner, note) => `<div class="v2dsec"><h4>${title}</h4>${find ? `<p class="v2hint">${find}</p>` : ''}${inner}${note ? `<p class="v2dnote">${note}</p>` : ''}</div>`;
+    const paid = D.channels.filter(r => (r.spend || 0) > 0);
+    const blended = c.spend || 0, platSum = paid.reduce((s, r) => s + (r.spend || 0), 0);
+    const modelNote = isPlat() ? 'Revenue on the platforms’ own numbers.' : `Credited under ${esc(MODEL_SHORT[H.S.model] || '')}; two platforms can claim one order.`;
+    const out = [];
+
+    /* ad spend by platform: share of all spend, and each platform's change */
+    /* Triple Whale's blended spend (the tile) leaves Amazon ads out on the brands measured 2026-10-09 (Bonk: Meta + Google
+       = blended to the dollar, Amazon on top). When that is what the numbers say, Amazon is shown OUTSIDE the total. */
+    const amz = paid.find(r => r.id === 'amazon');
+    const amzOut = !!amz && blended > 0 && Math.abs(platSum - amz.spend - blended) < Math.abs(platSum - blended);
+    const spendTable = me => { const mx = Math.max(...paid.map(r => r.spend), 1); const rest = blended - platSum + (amzOut ? amz.spend : 0);
+      const rows = paid.slice().sort((a, b) => b.spend - a.spend).map(r => { const out = amzOut && r.id === 'amazon';
+        return `<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}${out ? '<br><span class="faint">not in the total</span>' : ''}</td><td>${ib(r.spend, mx, CH[r.id] || '--c-else', km(r.spend))}</td><td>${out ? '–' : blended ? pct(r.spend / blended, 0) : '–'}</td><td>${cmpOn && r.prev_spend ? delta(r.spend, r.prev_spend, 'n') + `<br><span class="faint">${km(r.prev_spend)}</span>` : ''}</td></tr>`; });
+      if (blended && rest > blended * 0.01) rows.push(`<tr><td>${sw('rest')}Not split by platform</td><td>${ib(rest, mx, '--c-else', km(rest))}</td><td>${pct(rest / blended, 0)}</td><td></td></tr>`);
+      rows.push(`<tr class="tot"><td>All ad spend</td><td>${km(blended)}</td><td>100%</td><td>${cmpOn ? delta(c.spend, p.spend, 'n') : ''}</td></tr>`);
+      return tbl(['Platform', 'Spend', 'Share', cmpOn ? 'vs before' : ''], rows) + (amzOut ? `<p class="v2dnote">Amazon ads (${km(amz.spend)}) are not in Triple Whale’s blended ad spend, so the tile, MER and contribution margin leave them out.</p>` : ''); };
+    /* ROAS per platform (and the blended MER on top) */
+    const roasTable = me => { const rows = [`<tr class="tot"><td>Whole store (MER)</td><td>${km(c.sales)}</td><td>${km(c.spend)}</td><td>${x2(c.mer)}</td><td>${cmpOn ? delta(c.mer, p.mer) : ''}</td></tr>`];
+      for (const r of paid.slice().sort((a, b) => b.spend - a.spend)) rows.push(`<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}</td><td>${r.revenue == null ? '–' : km(r.revenue)}</td><td>${km(r.spend)}</td><td>${r.revenue == null ? '–' : x2(r.revenue / r.spend)}</td><td>${cmpOn && r.prev_spend && r.prev_revenue != null ? delta(r.revenue / r.spend, r.prev_revenue / r.prev_spend) : ''}</td></tr>`);
+      return tbl(['', 'Revenue', 'Spend', 'ROAS', cmpOn ? 'vs before' : ''], rows); };
+    const ncTable = () => { const rows = D.channels.filter(r => r.nc > 0 || (r.spend || 0) > 0).sort((a, b) => b.nc - a.nc); const mx = Math.max(...rows.map(r => r.nc), 1);
+      return tbl(['Where the first order came from', 'First orders', 'Spend', 'Cost each'], rows.map(r => `<tr><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.nc, mx, CH[r.id] || '--c-else', int(r.nc))}</td><td>${r.spend ? km(r.spend) : '–'}</td><td>${r.spend && r.nc ? mo(r.spend / r.nc) : '–'}</td></tr>`)); };
+    const newRet = () => { const ret = c.orders != null && c.new_orders != null ? c.orders - c.new_orders : null, pret = p.orders != null && p.new_orders != null ? p.orders - p.new_orders : null;
+      const row = (l, col, o, po, rev, prev) => `<tr><td><span class="sw" style="background:var(${col})"></span>${l}</td><td>${int(o)}${cmpOn ? ' ' + delta(o, po) : ''}</td><td>${km(rev)}${cmpOn ? ' ' + delta(rev, prev) : ''}</td><td>${o ? money2(rev / o, cur) : '–'}</td><td>${c.sales && rev != null ? pct(rev / c.sales, 0) : '–'}</td></tr>`;
+      return `<div class="v2stackbar"><i style="flex:${Math.max(0, c.new_rev || 0)};background:var(--brand)"></i><i style="flex:${Math.max(0, c.ret_rev || 0)};background:var(--c-email)"></i></div>`
+        + tbl(['', 'Orders', 'Revenue', 'AOV', 'Share'], [row('New customers', '--brand', c.new_orders, p.new_orders, c.new_rev, p.new_rev), row('Returning', '--c-email', ret, pret, c.ret_rev, p.ret_rev),
+          `<tr class="tot"><td>All</td><td>${int(c.orders)}</td><td>${km(c.sales)}</td><td>${money2(c.aov, cur)}</td><td>100%</td></tr>`]); };
+
+    if (platMode) {
+      const me = plat, row = D.channels.find(r => r.id === me);
+      const lead = row && blended ? `${esc(row.label)} is ${pct((row.spend || 0) / blended, 0)} of all ad spend${row.revenue != null && c.sales ? ` and is credited with ${pct(row.revenue / c.sales, 0)} of store revenue` : ''}.` : '';
+      if (m === 'spend') out.push(sec('Against every platform', lead, spendTable(me)));
+      else if (m === 'revenue' || m === 'roas') out.push(sec('Against every platform', `${lead} ${modelNote}`, roasTable(me)));
+      else { const rows = paid.filter(r => r.purchases != null).sort((a, b) => b.spend - a.spend); const mx = Math.max(...rows.map(r => r.purchases || 0), 1);
+        out.push(sec('Against every platform', `${lead} ${modelNote}`, tbl(['Platform', 'Purchases', 'Spend', 'Cost each'], rows.map(r => `<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.purchases || 0, mx, CH[r.id] || '--c-else', int(r.purchases))}</td><td>${km(r.spend)}</td><td>${r.purchases ? mo(r.spend / r.purchases) : '–'}</td></tr>`)))); }
+    } else if (m === 'revenue') {
+      const chs = D.channels.filter(r => (r.revenue || 0) > 0).sort((a, b) => (b.revenue || 0) - (a.revenue || 0)); const mx = Math.max(...chs.map(r => r.revenue), 1);
+      out.push(sec('By channel', modelNote, tbl(['Channel', 'Revenue', 'Share', cmpOn ? 'vs before' : ''], chs.map(r => `<tr><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.revenue, mx, CH[r.id] || '--c-else', km(r.revenue))}</td><td>${c.sales ? pct(r.revenue / c.sales, 0) : '–'}</td><td>${cmpOn && r.prev_revenue ? delta(r.revenue, r.prev_revenue) : ''}</td></tr>`)), 'Everything else = organic, direct and referral: store revenue no platform or email was credited with.'));
+      out.push(sec('New against returning', `${pct(c.sales ? (c.new_rev || 0) / c.sales : null, 0)} of revenue came from first orders.`, newRet()));
+      if (D.products.length) { const mx = Math.max(...D.products.map(x => x.orders), 1); out.push(sec('Top products', 'Orders with the product in the cart, and the order value shared across what was in it.', tbl(['Product', 'Orders', 'Order value'], D.products.map(x => `<tr><td>${esc(x.title)}</td><td>${ib(x.orders, mx, null, int(x.orders))}</td><td>${km(x.revenue)}</td></tr>`)))); }
+    } else if (m === 'spend') {
+      out.push(sec('By platform', `${paid.length ? `${esc(paid.slice().sort((a, b) => b.spend - a.spend)[0].label)} takes the most.` : ''} Each platform’s spend is its own number.`, spendTable(null)));
+    } else if (m === 'mer' || m === 'roas') {
+      out.push(sec('By platform', `MER is the whole store on all spend; each platform’s ROAS is its credited revenue on its own spend. ${modelNote}`, roasTable(null)));
+    } else if (m === 'amer') {
+      out.push(sec('How it is made', '', tbl(['', 'This period', cmpOn ? 'Before' : ''], [`<tr><td>Revenue from first orders</td><td>${km(c.new_rev)}</td><td>${cmpOn ? km(p.new_rev) : ''}</td></tr>`, `<tr><td>All ad spend</td><td>${km(c.spend)}</td><td>${cmpOn ? km(p.spend) : ''}</td></tr>`, `<tr class="tot"><td>aMER</td><td>${x2(c.amer)}</td><td>${cmpOn ? x2(p.amer) : ''}</td></tr>`, `<tr><td>MER, for comparison</td><td>${x2(c.mer)}</td><td>${cmpOn ? x2(p.mer) : ''}</td></tr>`])));
+      out.push(sec('Where the first orders came from', 'By the source Triple Whale gives each order.', ncTable()));
+    } else if (m === 'orders' || m === 'aov') {
+      out.push(sec('New against returning', `First orders average ${money2(c.new_aov, cur)}; repeat orders ${c.orders && c.new_orders != null && c.orders > c.new_orders ? money2((c.ret_rev || 0) / (c.orders - c.new_orders), cur) : '–'}.`, newRet()));
+      const days = D.series.slice(-14).reverse(), mx = Math.max(...days.map(r => r.orders || 0), 1);
+      if (days.length > 1) out.push(sec('By day', days.length < D.series.length ? 'The last 14 days of the window.' : '', tbl(['Day', 'Orders', 'AOV', 'First orders'], days.map(r => `<tr><td>${day(r.date)}</td><td>${ib(r.orders || 0, mx, null, int(r.orders))}</td><td>${r.orders ? money2(r.sales / r.orders, cur) : '–'}</td><td>${int(r.new_orders)}</td></tr>`))));
+    } else if (m === 'newcust' || m === 'cac') {
+      out.push(sec('By platform', m === 'cac' ? 'Each platform’s spend divided by the first orders that came through it. Orders with no platform cost nothing to that line.' : 'By the source Triple Whale gives each first order.', ncTable(), 'Counted from stored orders, so the platforms can add up to slightly less than the headline.'));
+      out.push(sec('New against returning', '', newRet()));
+    } else if (m === 'email') {
+      const tot = (c.campaigns || 0) + (c.flows || 0), ptot = (p.campaigns || 0) + (p.flows || 0);
+      const row = (l, col, v, pv) => `<tr><td><span class="sw" style="background:var(${col})"></span>${l}</td><td>${ib(v || 0, Math.max(c.campaigns || 0, c.flows || 0, 1), col, km(v))}</td><td>${tot ? pct((v || 0) / tot, 0) : '–'}</td><td>${cmpOn && pv ? delta(v, pv) : ''}</td></tr>`;
+      out.push(sec('Campaigns against flows', `Email and SMS was ${c.sales && c.email_rev != null ? pct(c.email_rev / c.sales, 0) : '–'} of store revenue.`, tbl(['', 'Revenue', 'Share', cmpOn ? 'vs before' : ''], [row('Flows (automated)', '--c-email', c.flows, p.flows), row('Campaigns (one-off sends)', '--c-meta', c.campaigns, p.campaigns), `<tr class="tot"><td>Email and SMS</td><td>${km(c.email_rev ?? tot)}</td><td>100%</td><td>${cmpOn ? delta(c.email_rev ?? tot, p.email_rev ?? ptot) : ''}</td></tr>`])));
+    } else if (m === 'cm' || m === 'net') {
+      out.push(drillFall(D.profit, cur, m));
+    } else if (m === 'purchases' || m === 'cpa') {
+      const rows = paid.filter(r => r.purchases != null).sort((a, b) => b.spend - a.spend), mx = Math.max(...rows.map(r => r.purchases || 0), 1);
+      out.push(sec('By platform', modelNote, tbl(['Platform', 'Purchases', 'Spend', 'Cost each'], rows.map(r => `<tr><td>${sw(r.id)}${esc(r.label)}</td><td>${ib(r.purchases || 0, mx, CH[r.id] || '--c-else', int(r.purchases))}</td><td>${km(r.spend)}</td><td>${r.purchases ? mo(r.spend / r.purchases) : '–'}</td></tr>`))));
+    }
+    return chart + out.join('');
+  }
+  /** Contribution margin as a waterfall, then fixed expenses down to net profit. Each line: amount, % of revenue, change. */
+  function drillFall(pr, cur, m) {
+    if (!pr || !pr.cur) return `<div class="v2dsec"><p class="v2dnote">${H.S.role === 'client' ? 'Costs and margin are shown on the P&L only.' : 'No cost data for this window.'}</p></div>`;
+    const t = pr.cur, p = pr.prev || {}, cmpOn = H.S.cmp !== 'none', M = v => money(v, cur);
+    const top = Math.max(t.sales || 0, 1), P = x => Math.max(0, Math.min(100, x / top * 100)).toFixed(2);
+    const bar = (from, to, cls) => `<div class="t"><i class="${cls}" style="left:${P(Math.min(from, to))}%;width:${P(Math.abs(to - from))}%"></i></div>`;
+    const of = x => (t.sales ? `${pct(x / t.sales, 0)} of revenue` : '');
+    const chg = (k, lower) => (cmpOn && p[k] != null && t[k] != null ? ' ' + delta(t[k], p[k], lower) : '');
+    let at = t.sales || 0; const lines = [];
+    const leave = (label, note, x, k) => { if (!x) return; lines.push(`<div class="r"${tipAttr(note)}><span class="l">${label}</span>${bar(at - x, at, 'out')}<span class="n neg">−${M(x)}<em>${of(x)}${chg(k, true)}</em></span></div>`); at -= x; };
+    const tot = (label, note, val, cls, k) => `<div class="r tot"${tipAttr(note)}><span class="l">${label}</span>${bar(0, Math.abs(val || 0), cls)}<span class="n">${M(val)}<em>${of(val || 0)}${chg(k)}</em></span></div>`;
+    lines.push(tot('Revenue', 'Shopify total sales minus sales tax.', t.sales, 'in', 'sales'));
+    if (pr.margin_pct != null) leave(`Product and delivery, at the ${Math.round(pr.margin_pct * 100)}% margin override`, 'A flat margin replaces the whole cost chain for this brand.', (t.sales || 0) - (t.gross_profit || 0), 'gross_profit');
+    else {
+      leave('Product cost', 'Cost of goods sold, from Triple Whale.', t.cogs, 'cogs');
+      leave('Shipping and fulfilment', 'What delivery actually cost.', t.ship_cost, 'ship_cost');
+      leave('Handling', 'Pick, pack and handling fees.', t.handling, 'handling');
+      leave('Payment fees', 'Gateway and processing.', t.fees, 'fees');
+    }
+    lines.push(tot('Gross profit', 'Revenue less every variable cost, before marketing.', t.gross_profit, 'in', 'gross_profit'));
+    at = t.gross_profit || 0; leave('Ad spend', 'Every ad platform combined.', t.spend, 'spend');
+    lines.push(tot('Contribution margin', 'What the marketing made on the margin. Fixed costs are not in it.', t.cm, (t.cm || 0) >= 0 ? 'keep' : 'lose', 'cm'));
+    const items = pr.fixed_items || [];
+    if (t.fixed) {
+      at = t.cm || 0; leave('Fixed expenses', 'Set per brand in Brand settings > Data and costs, spread over each month’s days.', t.fixed, 'fixed');
+      for (const it of items) lines.push(`<div class="r sub"><span class="l">${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`);
+      lines.push(tot('Net profit', 'Contribution margin minus fixed expenses.', t.net, (t.net || 0) >= 0 ? 'keep' : 'lose', 'net'));
+    }
+    const note = [pr.left_out && pr.left_out.length ? `Left out because their cost data is unreliable: ${esc(pr.left_out.join(', '))}.` : '',
+      !t.fixed ? (H.S.role === 'client' ? '' : `No fixed expenses set${H.S.act === 'all' ? ' for these brands' : ''}, so there is no net profit line. ${H.S.act === 'all' ? 'Add them per brand in Brand settings > Data and costs.' : '<button type="button" class="v2link" data-dfix="1">Add software, salaries, rent or the agency fee ›</button>'}`) : ''].filter(Boolean).join(' ');
+    return `<div class="v2dsec"><h4>${m === 'net' ? 'From revenue to net profit' : 'Where the money went'}</h4><div class="pnl-fall">${lines.join('')}</div>${note ? `<p class="v2dnote">${note}</p>` : ''}</div>`;
   }
 
   /* ---------- small graphics ---------- */
@@ -603,18 +817,22 @@
     const sparkRow = a => { const sr = a.series || []; if (sr.length < 2) return ''; const mx = Math.max(...sr.map(r => r.sales || 0), 1);
       const pts = sr.map((r, i) => `${(i / (sr.length - 1) * 90).toFixed(1)},${(22 - (r.sales || 0) / mx * 20).toFixed(1)}`).join(' ');
       return `<svg viewBox="0 0 90 24" width="90" height="24" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(sr.map(r => `<b>${day(r.date)}</b> ${kmoney(r.sales, a.currency)}`)))}"><polyline points="${pts}" fill="none" stroke="var(--brand)" stroke-width="1.5"/></svg>`; };
-    const brandTable = !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>By day</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
+    /* THE COMMAND CENTER (2026-10-09, command.js): for the team on All clients, one row per brand sorted by what needs
+       attention, with the reasons and one AI read across brands. It replaces the brand table and the screen read here. */
+    const cmdOn = !one && all.length > 1 && H.S.role !== 'client' && !!window.CommandCenter;
+    const brandTable = !cmdOn && !one && all.length > 1 ? card('Each brand', '', `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>By day</th><th>Revenue</th><th>MTD vs plan</th><th>Ad spend</th><th>MER</th><th>New %</th><th>CAC</th><th>Contribution</th></tr></thead><tbody>
         ${all.slice().sort((x, y) => (y.window?.sales || 0) - (x.window?.sales || 0)).map(a => { const w = a.window || {}; const off = a.plan?.sales && a.mtd?.sales != null ? a.mtd.sales / a.plan.sales - 1 : null;
           return `<tr data-act="${esc(a.act_id)}" tabindex="0" class="link"><td><b>${esc(a.name)}</b></td><td>${sparkRow(a)}</td><td>${kmoney(w.sales, a.currency)} ${a.prev ? delta(w.sales, a.prev.sales) : ''}</td><td>${off == null ? '<span class="faint">no plan</span>' : `<span class="v2pill ${off >= 0 ? 'good' : off > -0.08 ? 'warn' : 'bad'}">${off >= 0 ? '+' : ''}${Math.round(off * 100)}%</span>`}</td>
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
-    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div><div id="v2needs"></div><div id="v2cal"></div>${readSlot('v2read')}${tiles}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
     movedCard(scope);
+    if (cmdOn) window.CommandCenter.render(document.getElementById('v2cmd'), H, all);
     if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
     /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
     if (window.CalendarTab) {
@@ -623,7 +841,7 @@
     }
     if (rows.length > 1) wireLine('v2rev', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · revenue ${kmoney(r.sales, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · MER ${x2(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)} on ${day(prev[i].date)}</span>` : ''}` });
     if (false && chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
-    if (cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
+    if (!cmdOn && cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
       month_to_date: mtd.plan ? { revenue: mtd.sales, planned_by_now: mtd.plan } : null, site: fun.ses ? { sessions: fun.ses, carts: fun.cart, orders: fun.ord, sessions_before: fun.pses, orders_before: fun.pord } : null,
       channels: chRows.map(r => ({ channel: r.label, spend: r.spend, revenue: r.revenue, platform_says: r.hasP ? r.platform_revenue : null, revenue_before: r.hasPrev ? r.prev_revenue : null })),
       brands: one ? undefined : all.map(a => ({ name: a.name, revenue: a.window?.sales, revenue_before: a.prev?.sales, mer: a.window?.mer, mtd_vs_plan: a.plan?.sales && a.mtd?.sales != null ? Math.round((a.mtd.sales / a.plan.sales - 1) * 100) + '%' : null })) });
@@ -1821,14 +2039,19 @@
     const bestW = byWd.filter(x => x.n >= 2).sort((p, q) => (q.open || 0) - (p.open || 0))[0], bestS = bySlot.filter(x => x.n >= 2).sort((p, q) => (q.open || 0) - (p.open || 0))[0];
     const top = rows.slice().sort((p, q) => q.open_rate - p.open_rate).slice(0, 5), topR = rows.slice().sort((p, q) => ((q.conversion_value || 0) / q.recipients) - ((p.conversion_value || 0) / p.recipients)).slice(0, 5);
     const subj = x => `<span class="nm" title="${esc(sub(x))}">${esc(sub(x))}</span>`;
-    return card('Subject lines and send times', `${rows.length} campaigns, average open ${pct(base, 1)}.${bestW ? ` ${esc(bestW.w)} opens best (${pct(bestW.open, 1)})` : ''}${bestS ? `, and ${esc(bestS.l.toLowerCase())} beats the rest (${pct(bestS.open, 1)}).` : '.'}`,
-      `<div class="v2three">
-        <div><h4 class="v2sub">By day sent</h4><div class="v2tbl"><table><tbody>${byWd.filter(x => x.n).map(x => `<tr><td>${x.w}</td><td>${bar(x.open, mxW, pct(x.open, 1), `${x.n} campaigns · ${money2(x.rpr, cur)} per recipient`)}</td></tr>`).join('')}</tbody></table></div></div>
-        <div><h4 class="v2sub">By time of day</h4><div class="v2tbl"><table><tbody>${bySlot.filter(x => x.n).map(x => `<tr><td>${x.l}</td><td>${bar(x.open, mxS, pct(x.open, 1), `${x.n} campaigns · ${money2(x.rpr, cur)} per recipient`)}</td></tr>`).join('')}</tbody></table></div></div>
-        <div><h4 class="v2sub">What the subject does</h4><div class="v2tbl"><table><tbody>${feats.map(f => `<tr><td>${esc(f.l)}</td><td class="${f.with > f.without ? 'good' : 'bad'}"${tipAttr(`${f.n} campaigns with it open at ${pct(f.with, 1)}; the rest at ${pct(f.without, 1)}`)}>${f.with > f.without ? '+' : ''}${((f.with - f.without) * 100).toFixed(1)} pt</td></tr>`).join('') || '<tr><td class="faint">Not enough variety yet.</td></tr>'}</tbody></table></div></div>
-      </div>
-      <div class="v2two" style="margin-top:12px"><div><h4 class="v2sub">Best opened</h4><div class="v2tbl"><table><tbody>${top.map(x => `<tr><td>${subj(x)}</td><td>${pct(x.open_rate, 1)}</td></tr>`).join('')}</tbody></table></div></div>
-        <div><h4 class="v2sub">Most money per recipient</h4><div class="v2tbl"><table><tbody>${topR.map(x => `<tr><td>${subj(x)}</td><td>${money2((x.conversion_value || 0) / x.recipients, cur)}</td></tr>`).join('')}</tbody></table></div></div></div>`,
+    /* 2026-10-09: the conclusion is its own line under the title (it used to sit jammed beside it), the five blocks sit
+       on one grid with the same gaps, and a subject opens the email itself. */
+    const subjRow = (x, v) => `<tr class="link" data-klmsg="${esc(x.id)}" tabindex="0"><td>${subj(x)}</td><td>${v}</td></tr>`;
+    const bestFeat = feats.slice().sort((p, q) => Math.abs(q.with - q.without) - Math.abs(p.with - p.without))[0];
+    const lead = `${rows.length} emailed campaigns opened at ${pct(base, 1)} on average.${bestW ? ` <b>${esc(bestW.w)}</b> opens best (${pct(bestW.open, 1)})` : ''}${bestS ? `${bestW ? ', and' : ''} <b>${esc(bestS.l.toLowerCase())}</b> sends beat the rest (${pct(bestS.open, 1)})` : ''}${bestW || bestS ? '.' : ''}${bestFeat ? ` Subjects that ${({ 'Asks a question': 'ask a question', 'Has a number': 'carry a number', 'Has an emoji': 'carry an emoji', 'Short (under 35 characters)': 'run under 35 characters', 'Uses their name': 'use their name', 'Names a discount': 'name a discount' })[bestFeat.l] || esc(bestFeat.l.toLowerCase())} open ${Math.abs((bestFeat.with - bestFeat.without) * 100).toFixed(1)} pt ${bestFeat.with > bestFeat.without ? 'higher' : 'lower'}.` : ''}`;
+    return cardL('Subject lines and send times', lead,
+      `<div class="lx-subj">
+        <div><p class="ds-label">By day sent</p><div class="v2tbl"><table><tbody>${byWd.filter(x => x.n).map(x => `<tr><td>${x.w}</td><td>${bar(x.open, mxW, pct(x.open, 1), `${x.n} campaigns · ${money2(x.rpr, cur)} per recipient`)}</td></tr>`).join('')}</tbody></table></div></div>
+        <div><p class="ds-label">By time of day</p><div class="v2tbl"><table><tbody>${bySlot.filter(x => x.n).map(x => `<tr><td>${x.l}</td><td>${bar(x.open, mxS, pct(x.open, 1), `${x.n} campaigns · ${money2(x.rpr, cur)} per recipient`)}</td></tr>`).join('')}</tbody></table></div></div>
+        <div><p class="ds-label">What the subject does</p><div class="v2tbl"><table><tbody>${feats.map(f => `<tr><td>${esc(f.l)}</td><td class="${f.with > f.without ? 'good' : 'bad'}"${tipAttr(`${f.n} campaigns with it open at ${pct(f.with, 1)}; the rest at ${pct(f.without, 1)}`)}>${f.with > f.without ? '+' : ''}${((f.with - f.without) * 100).toFixed(1)} pt</td></tr>`).join('') || '<tr><td class="faint">Not enough variety yet.</td></tr>'}</tbody></table></div></div>
+        <div class="w2"><p class="ds-label">Best opened</p><div class="v2tbl"><table><tbody>${top.map(x => subjRow(x, pct(x.open_rate, 1))).join('')}</tbody></table></div></div>
+        <div class="w2"><p class="ds-label">Most money per recipient</p><div class="v2tbl"><table><tbody>${topR.map(x => subjRow(x, money2((x.conversion_value || 0) / x.recipients, cur))).join('')}</tbody></table></div></div>
+      </div>`,
       `send times in the brand’s own time zone`);
   }
 
@@ -1908,9 +2131,83 @@
     if (ov && !ov.error && miss.length) f.push(['warn', `No live flow named for: ${miss.join(', ')}.`]);
     return f;
   }
-  const flagHtml = list => list.length ? `<ul class="kl-flags">${list.map(([t, x]) => `<li><span class="v2pill ${t}">${t === 'bad' ? 'fix' : 'check'}</span>${esc(x)}</li>`).join('')}</ul>` : '<p class="v2hint"><span class="v2pill good">ok</span> Nothing off: spam, bounces and unsubscribes are inside Klaviyo\'s healthy ranges.</p>';
-  const benchPill = (v, b, lower) => v == null ? '' : `<span class="v2pill ${(lower ? v <= b : v >= b) ? 'good' : 'warn'}"${tipAttr(`Klaviyo average ${pct(b, b < 0.001 ? 3 : b < 0.02 ? 2 : 1)}`)}>${(lower ? v <= b : v >= b) ? 'better than avg' : 'worse than avg'}</span>`;
+  /* 2026-10-09: the same status chip as the flows (dot + label), not the old pills. */
+  const flagHtml = list => list.length ? `<ul class="kl-flags">${list.map(([t, x]) => `<li><span class="ds-chip lx-chip"><i class="ds-dot ${t}"></i>${t === 'bad' ? 'Fix' : 'Check'}</span><span>${esc(x)}</span></li>`).join('')}</ul>` : '<p class="v2hint"><span class="ds-chip lx-chip"><i class="ds-dot good"></i>OK</span> Nothing off: spam, bounces and unsubscribes are inside Klaviyo\'s healthy ranges.</p>';
+  const benchPill = (v, b, lower) => v == null ? '' : `<span class="ds-chip lx-chip"${tipAttr(`Klaviyo average ${pct(b, b < 0.001 ? 3 : b < 0.02 ? 2 : 1)}`)}><i class="ds-dot ${(lower ? v <= b : v >= b) ? 'good' : 'warn'}"></i>${(lower ? v <= b : v >= b) ? 'Better than average' : 'Worse than average'}</span>`;
   const isAttentive = a => a && a.email_tool === 'attentive';
+  /* 2026-10-09 (Cole's pass on Email and SMS, Website and Search): a card whose conclusion sits UNDER the title as its
+     own line (the v2 `card()` put it beside the title, where long sentences jammed against it). Used by these screens. */
+  const cardL = (title, lead, body, cap, cls = '') => `<section class="v2card lx-cl${cls ? ' ' + cls : ''}"><div class="v2h"><h3>${esc(title)}</h3>${cap ? `<span class="cap">${cap}</span>` : ''}</div>${lead ? `<p class="lx-lead">${lead}</p>` : ''}${body}</section>`;
+  /* Against Klaviyo's average in words, coloured by the sign (replaces the goal bullets under the email tiles). */
+  const vsAvg = (v, b, lower, fmt) => { if (v == null || !b) return ''; const ok = lower ? v <= b : v >= b, r = v / b;
+    const txt = r >= 1.1 ? `${r.toFixed(r >= 10 ? 0 : 1)}x the Klaviyo average (${fmt(b)})` : r <= 0.9 ? `${Math.round((1 - r) * 100)}% under the Klaviyo average (${fmt(b)})` : `about the Klaviyo average (${fmt(b)})`;
+    return `<span class="lx-vs ${ok ? 'good' : 'warn'}">${txt}</span>`; };
+  /* A rate coloured against Klaviyo's average, the average in the tooltip (replaces the "better / worse than avg" pills). */
+  const rateCell = (v, b, lower, dp) => v == null ? '–' : `<span class="lx-rt ${(lower ? v <= b : v >= b) ? 'good' : 'warn'}"${tipAttr(`Klaviyo average ${pct(b, dp)}. ${(lower ? v <= b : v >= b) ? 'Better' : 'Worse'} than average.`)}>${pct(v, dp)}</span>`;
+  /* THE STATUS CHIP (DESIGN.md: dot + label, one size). A flow's chip is a button when the key can write. */
+  const FLOW_ST = { live: ['good', 'Live', 'Sending to everyone who triggers it'], manual: ['warn', 'Manual', 'Built but switched off: nobody new enters'], draft: ['off', 'Draft', 'Unfinished and off'] };
+  const stChip = (s, btnFor) => { const [t, l] = FLOW_ST[s] || ['off', String(s || '–').replace(/^./, c => c.toUpperCase())];
+    return btnFor ? `<button type="button" class="ds-chip lx-chip" data-flst="${esc(btnFor)}" aria-haspopup="menu" aria-label="Status: ${esc(l)}. Change it"><i class="ds-dot ${t}"></i>${esc(l)}<svg viewBox="0 0 10 6" width="9" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>`
+      : `<span class="ds-chip lx-chip"><i class="ds-dot ${t}"></i>${esc(l)}</span>`; };
+  const campChip = s => { const k = String(s || '').toLowerCase(); const t = /schedul|queued|sending|adding|preparing/.test(k) ? 'good' : /cancel/.test(k) ? 'bad' : 'off';
+    return `<span class="ds-chip lx-chip"><i class="ds-dot ${t}"></i>${esc(k ? k.replace(/^./, c => c.toUpperCase()) : '–')}</span>`; };
+  /** The small status menu under a flow's chip: three choices, each with what it means. */
+  function statusMenu(btn, cur, onPick) {
+    document.querySelectorAll('.lx-stmenu').forEach(m => m.remove());
+    const r = btn.getBoundingClientRect(), m = document.createElement('div');
+    m.className = 'lx-stmenu'; m.setAttribute('role', 'menu');
+    m.innerHTML = Object.entries(FLOW_ST).map(([k, [t, l, d]]) => `<button type="button" role="menuitemradio" aria-checked="${k === cur}" data-v="${k}" class="${k === cur ? 'on' : ''}"><i class="ds-dot ${t}"></i><span><b>${l}</b><small>${d}</small></span></button>`).join('');
+    document.body.appendChild(m);
+    const left = Math.min(innerWidth - m.offsetWidth - 8, r.left), top = r.bottom + 6 + m.offsetHeight > innerHeight ? r.top - m.offsetHeight - 6 : r.bottom + 6;
+    m.style.left = Math.max(8, left) + 'px'; m.style.top = top + 'px';
+    const close = () => { m.remove(); document.removeEventListener('pointerdown', out, true); document.removeEventListener('keydown', esc1); };
+    const out = e => { if (!m.contains(e.target) && e.target !== btn) close(); };
+    const esc1 = e => { if (e.key === 'Escape') { close(); btn.focus(); } };
+    setTimeout(() => { document.addEventListener('pointerdown', out, true); document.addEventListener('keydown', esc1); }, 0);
+    m.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { close(); if (b.dataset.v !== cur) onPick(b.dataset.v); });
+    m.querySelector('.on, button')?.focus();
+  }
+
+  /* ---------- WHAT THE MESSAGE LOOKED LIKE (2026-10-09, Cole: "am I supposed to see what these campaigns and flows look
+     like?"). Click a sent campaign or a flow message: a sheet with the email itself (Klaviyo's template HTML, rendered,
+     in a sandboxed frame with no scripts and no access to Locus; desktop or phone width) or the SMS text, the inbox
+     line above it, and its results beside it. Account-health GET /api/klaviyo?what=message (kept 30 days). ---------- */
+  const MSG = new Map();
+  async function klPreview(a, cur, o) {
+    const sms = o.channel === 'sms';
+    const ic = n => window.icon ? window.icon(n, { size: 20 }) : '';
+    panel.sheet = { lead: `<span class="lx-pv-lead">${ic(sms ? 'message' : 'mail')}</span>`, chip: `<span class="ds-chip">${sms ? 'SMS' : 'Email'}${o.kind === 'flow' ? ' · flow' : ' · campaign'}</span>`,
+      actions: o.link ? `<a class="ds-btn" href="${esc(o.link)}" target="_blank" rel="noopener">Open in Klaviyo ${window.icon ? window.icon('external-link', { size: 14 }) : ''}</a>` : '' };
+    panel.wide = true;
+    const pb = panel(o.name || 'Message', `<div class="lx-pv"><div class="lx-pv-main"><div class="v2sk lx-pv-sk"><i class="r"></i><i class="r"></i><i class="ch"></i></div></div><aside class="lx-pv-side">${o.stats || ''}</aside></div>`);
+    const key = `${a.act_id}:${o.kind}:${o.id}`;
+    let m = MSG.get(key);
+    if (!m) { try { m = await klGet(a.act_id, 'message', `&kind=${o.kind}&id=${encodeURIComponent(o.id)}`); if (!m.error) MSG.set(key, m); } catch (e) { m = { error: e.message }; } }
+    const main = pb.querySelector('.lx-pv-main'); if (!main || !document.getElementById('v2panel')?.classList.contains('on')) return;
+    if (m.error) { main.innerHTML = `<p class="v2bad">${esc(m.error)}</p>`; return; }
+    if (m.channel === 'sms' || (!m.html && m.text && !m.subject)) {
+      main.innerHTML = `<div class="lx-sms"><div class="lx-sms-ph"><p class="lx-sms-from">${esc(a.name)}</p><div class="lx-sms-b">${esc(m.text || 'No text came back for this message.').replace(/(https?:\/\/[^\s<]+)/g, '<u>$1</u>')}</div>${m.media_url ? `<img src="${esc(m.media_url)}" alt="" class="lx-sms-img">` : ''}</div></div><p class="v2hint">The text exactly as Klaviyo holds it. Links are shown, not opened.</p>`;
+      return;
+    }
+    const env = `<dl class="lx-env"><dt>From</dt><dd>${esc(m.from_label || '–')}${m.from_email ? ` <span class="faint">&lt;${esc(m.from_email)}&gt;</span>` : ''}</dd><dt>Subject</dt><dd><b>${esc(m.subject || o.subject || '–')}</b></dd>${m.preview ? `<dt>Preview</dt><dd class="faint">${esc(m.preview)}</dd>` : ''}</dl>`;
+    if (!m.html) { main.innerHTML = `${env}<p class="v2hint">${esc(m.html_error || 'Klaviyo returned no design for this message.')}</p>${m.text ? `<pre class="lx-pv-txt">${esc(m.text)}</pre>` : ''}`; return; }
+    /* Links open in a new tab; nothing in the frame can run (sandbox without scripts or same-origin). */
+    const doc = m.html.replace(/<head([^>]*)>/i, '<head$1><base target="_blank">');
+    main.innerHTML = `${env}<div class="lx-pv-bar"><div class="ds-seg" role="group" aria-label="Width"><button type="button" class="on" data-pvw="d">Desktop</button><button type="button" data-pvw="m">Phone</button></div><span class="faint">${m.rendered ? 'Personal fields filled with sample values.' : 'Shown as designed.'}${m.template?.name ? ` Template: ${esc(m.template.name)}.` : ''}</span></div>
+      <div class="lx-pv-stage"><iframe title="The email as sent" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" loading="lazy"></iframe></div>`;
+    const fr = main.querySelector('iframe'); fr.srcdoc = doc;
+    main.querySelectorAll('[data-pvw]').forEach(b => b.onclick = () => { main.querySelectorAll('[data-pvw]').forEach(x => x.classList.toggle('on', x === b)); main.querySelector('.lx-pv-stage').classList.toggle('m', b.dataset.pvw === 'm'); });
+  }
+  /** The results column beside the preview: each number with Klaviyo's average where one exists. */
+  function pvStats(x, cur, extra = '') {
+    const row = (l, v, sub) => `<div class="lx-kv"><span>${l}</span><b>${v}</b>${sub ? `<em>${sub}</em>` : ''}</div>`;
+    const sms = x.channel === 'sms', rec = x.recipients, rev = x.conversion_value ?? x.revenue, rpr = x.revenue_per_recipient ?? (rec ? (rev || 0) / rec : null);
+    return `<p class="ds-label">Results${x.sent ? `, sent ${esc(day(x.sent))}` : ', last 90 days'}</p>
+      ${row('Recipients', int(rec))}${sms ? '' : row('Open', rateCell(x.open_rate, BENCH.open, false, 1))}${row('Click', sms ? pct(x.click_rate, 2) : rateCell(x.click_rate, BENCH.click, false, 2))}
+      ${row('Placed order', sms ? pct(x.conversion_rate, 2) : rateCell(x.conversion_rate, BENCH.por, false, 2))}${row('Revenue', kmoney(rev, cur), 'Klaviyo attribution')}${row('Per recipient', sms ? money2(rpr, cur) : `<span class="lx-rt ${rpr >= BENCH.rpr ? 'good' : 'warn'}">${money2(rpr, cur)}</span>`)}
+      ${row('Unsubscribe', sms ? pct(x.unsubscribe_rate, 2) : rateCell(x.unsubscribe_rate, BENCH.unsub, true, 2))}${!sms && x.spam_complaint_rate != null ? row('Spam', rateCell(x.spam_complaint_rate, BENCH.spam, true, 3)) : ''}${!sms && x.bounce_rate != null ? row('Bounce', rateCell(x.bounce_rate, BENCH.bounce, true, 2)) : ''}
+      ${extra}${sms ? '' : '<p class="v2hint lx-pv-note">Green beats Klaviyo\'s published average; amber is under it. Opens include Apple Mail\'s automatic opens.</p>'}`;
+  }
 
   /** A rate line with Klaviyo's average as a dashed amber rule and the compare period ghosted. Hover reads each point. */
   function rateSpark(rows, prev, f, bench, fmt, label) {
@@ -1977,15 +2274,23 @@
     };
     el.onpointerleave = () => { tip.style.display = 'none'; hov.setAttribute('opacity', '0'); };
   }
-  /** A campaign's revenue on each of the 14 days after it went out (day 0 = send day), as small bars. */
-  function afterSend(x, D) {
-    const series = D && (D.by_message[x.message_id] || D.by_message[x.id]); if (!series || !x.sent) return '<span class="faint">–</span>';
-    const i0 = Math.round((Date.parse(x.sent) - Date.parse(D.attr_from)) / 864e5); if (i0 < 0) return '<span class="faint">older</span>';
-    const v = series.slice(i0, i0 + 14); if (!v.length) return '<span class="faint">–</span>';
-    const tot = v.reduce((s, y) => s + y, 0); if (!tot) return '<span class="faint">none</span>';
-    const mx = Math.max(...v), w = 84, h = 22, bw = w / 14;
-    let c = 0, d2 = null; v.forEach((y, i) => { c += y; if (d2 == null && c >= tot * 0.8) d2 = i; });
-    return `<svg class="kl-after" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${tipAttr(`<b>Revenue by day after send</b><br>${v.map((y, i) => `day ${i}: ${kmoney(y)}`).join(' · ')}<br>80% of it by day ${d2}. Klaviyo attribution, by order date.`)}>${v.map((y, i) => `<rect x="${(i * bw + 0.5).toFixed(1)}" y="${(h - Math.max(1, y / mx * (h - 2))).toFixed(1)}" width="${(bw - 1.2).toFixed(1)}" height="${Math.max(1, y / mx * (h - 2)).toFixed(1)}" rx="1" fill="var(${i === 0 ? '--brand' : '--c-email'})"/>`).join('')}</svg>`;
+  /* REVENUE AFTER SEND (2026-10-09, Cole: the 14 tiny bars were "not good visualizations"). What a strategist reads
+     here is HOW FAST the money came in, so the cell is the running total over the 14 days after the send (day 0 = send
+     day) as one sparkline, plus the day by which 80% had landed. Hover reads day N: that day's revenue and the total
+     so far. The money itself is in the Revenue column; this is its shape. */
+  function afterSeries(x, D) {
+    const series = D && (D.by_message[x.message_id] || D.by_message[x.id]); if (!series || !x.sent) return '–';
+    const i0 = Math.round((Date.parse(x.sent) - Date.parse(D.attr_from)) / 864e5); if (i0 < 0) return 'older';
+    const v = series.slice(i0, i0 + 14); if (!v.length) return '–';
+    const tot = v.reduce((s, y) => s + y, 0); if (!tot) return 'none';
+    let c = 0, d80 = null; const cum = v.map((y, i) => { c += y; if (d80 == null && c >= tot * 0.8) d80 = i; return c; });
+    return { v, cum, tot, d80 };
+  }
+  function afterSend(x, D, w = 88, h = 22) {
+    const s = afterSeries(x, D); if (typeof s === 'string') return `<span class="faint">${s}</span>`;
+    const tips = s.v.map((y, i) => `<b>Day ${i}${i === 0 ? ', the send day' : ''}</b> · ${kmoney(y)}<br><span class="faint">${kmoney(s.cum[i])} so far of ${kmoney(s.tot)}</span>`);
+    if (s.v.length < 3) return `<span class="faint"${tipAttr(tips.join('<br>'))}>${kmoney(s.tot)} so far, just sent</span>`;
+    return `<span class="lx-aft">${spark(s.cum, null, w, h, tips)}<em>80% by day ${s.d80}</em></span>`;
   }
   /** A flow's revenue per day over the window (Klaviyo attribution). */
   function flowSpark(id, D, from, to) {
@@ -2077,7 +2382,7 @@
   /* ---------- all brands: the board ---------- */
   async function emailBoard(bs, t) {
     const host = document.getElementById('v2klall'); if (!host) return;
-    host.innerHTML = card('Klaviyo across every brand', '<span class="v2hint">Reading each brand’s Klaviyo…</span>', skCard(6).replace('<section class="v2card v2sk"><i class="h"></i>', '<div class="v2sk">').replace(/<\/section>$/, '</div>'));
+    host.innerHTML = cardL('Klaviyo across every brand', '<span class="v2hint">Reading each brand’s Klaviyo…</span>', skCard(6).replace('<section class="v2card v2sk"><i class="h"></i>', '<div class="v2sk">').replace(/<\/section>$/, '</div>'));
     const W = win();
     const CORE = { welcome: /welcome/i, 'abandoned cart': /cart/i, checkout: /checkout/i, browse: /browse/i, 'post purchase': /post.?purchase|thank/i, winback: /win.?back/i };
     const acct = id => H.S.accounts.find(x => x.act_id === id) || {};
@@ -2096,7 +2401,7 @@
     const mx = Math.max(...on.map(r => r.cur ? r.cur.rev : 0), 1);
     const gaps = on.filter(r => r.missing.length), bad = on.filter(r => r.flags.some(f => f[0] === 'bad'));
     const cell = (v, b, lower, d) => { if (v == null) return '<td class="faint">–</td>'; const ok = lower ? v <= b : v >= b; return `<td class="${ok ? 'good' : 'warn'}"${tipAttr(`Klaviyo average ${pct(b, d)}`)}>${pct(v, d)}</td>`; };
-    host.innerHTML = card('Klaviyo across every brand', `${on.length} brand${on.length === 1 ? '' : 's'} connected.${bad.length ? ` ${bad.map(r => esc(r.b.name)).join(', ')} need${bad.length === 1 ? 's' : ''} a sending fix.` : ''}${gaps.length ? ` ${gaps.length} ${gaps.length === 1 ? 'is' : 'are'} missing a core flow.` : ' Every connected brand runs its core flows.'}`,
+    host.innerHTML = cardL('Klaviyo across every brand', `${on.length} brand${on.length === 1 ? '' : 's'} connected.${bad.length ? ` ${bad.map(r => esc(r.b.name)).join(', ')} need${bad.length === 1 ? 's' : ''} a sending fix.` : ''}${gaps.length ? ` ${gaps.length} ${gaps.length === 1 ? 'is' : 'are'} missing a core flow.` : ' Every connected brand runs its core flows.'}`,
       `<div class="v2tbl wide"><table class="kl-board"><thead><tr><th>Brand</th><th>Klaviyo revenue</th><th>Flows</th><th>Campaigns</th><th>SMS share</th><th>Per recipient</th><th>Placed order</th><th>Open</th><th>Click</th><th>Unsub</th><th>Spam</th><th>Bounce</th><th>List growth</th><th>Live flows</th><th>Missing core flows</th><th>Needs a look</th></tr></thead><tbody>
       ${on.sort((x, y) => ((y.cur || {}).rev || 0) - ((x.cur || {}).rev || 0)).map(r => { const c = r.cur || {}, p = r.prev || {}, cu = r.b.currency; return `<tr data-act="${esc(r.b.act_id)}" tabindex="0" class="link"><td><b>${esc(r.b.name)}</b>${r.top && r.top.revenue ? `<span class="sub" title="${esc(r.top.name)}">best flow: ${esc(String(r.top.name).slice(0, 28))}</span>` : ''}</td>
         <td>${r.cur ? `${ib(c.rev, mx, '--c-email', kmoney(c.rev, cu), `Email ${kmoney(c.rev_email, cu)} · SMS ${kmoney(c.rev_sms, cu)}`)} ${delta(c.rev, p.rev)}` : `<span class="faint"${tipAttr(esc(r.dlErr || ''))}>not read</span>`}</td><td>${kmoney(c.flow, cu)}</td><td>${kmoney(c.camp, cu)}</td><td>${pct(c.sms_share, 0)}</td>
@@ -2126,19 +2431,19 @@
       const tot = k => live.reduce((s, b) => s + (b.cur[k] || 0), 0), ptot = k => live.reduce((s, b) => s + ((b.prev || {})[k] || 0), 0);
       const days = cur ? mergeDays(bs.map(b => b.series), ['email', 'campaigns', 'flows']) : [];
       const body = `${cur ? `<div class="v2tiles">${[tile({ compact: true, label: 'Email and SMS revenue', src: 'KLAVIYO', value: kmoney(tot('email'), cur), delta: delta(tot('email'), ptot('email')), spark: tspark(days, null, 'email', v => kmoney(v, cur), 'email and SMS') }), tile({ compact: true, label: 'Campaigns', value: kmoney(tot('campaigns'), cur), delta: delta(tot('campaigns'), ptot('campaigns')), spark: tspark(days, null, 'campaigns', v => kmoney(v, cur), 'campaigns') }), tile({ compact: true, label: 'Flows', value: kmoney(tot('flows'), cur), delta: delta(tot('flows'), ptot('flows')), spark: tspark(days, null, 'flows', v => kmoney(v, cur), 'flows') }), tile({ compact: true, label: 'Brands with email revenue', value: `${live.length} of ${bs.length}` })].join('')}</div>` : ''}
-        ${card('Each brand', `Brands with no Klaviyo revenue in Triple Whale: ${esc(bs.filter(b => !b.cur.email).map(b => b.name).join(', ') || 'none')}.`, `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Email revenue</th><th>Line</th><th>Share of revenue</th><th>Campaigns</th><th>Flows</th><th>Flows share</th></tr></thead><tbody>${live.sort((x, y) => y.cur.email - x.cur.email).map(b => { const x = b.cur, p = b.prev || {}; return `<tr data-act="${esc(b.act_id)}" tabindex="0" class="link"><td><b>${esc(b.name)}</b></td><td>${ib(x.email, mx, '--c-email', kmoney(x.email, b.currency))} ${delta(x.email, p.email)}</td><td class="kl-linecell">${spark((b.series || []).map(r => r.email), null, 120, 24)}</td><td>${pct(x.share, 0)}</td><td>${kmoney(x.campaigns, b.currency)}</td><td>${kmoney(x.flows, b.currency)}</td><td>${x.email ? pct(x.flows / x.email, 0) : '–'}</td></tr>`; }).join('')}</tbody></table></div>`, 'Triple Whale carries Klaviyo’s attributed revenue')}`;
-      $('#main').innerHTML = shell('email', title, body + '<div id="v2klall"></div>'); wireRows($('#main'), 'email');
+        ${cardL('Each brand', `Brands with no Klaviyo revenue in Triple Whale: ${esc(bs.filter(b => !b.cur.email).map(b => b.name).join(', ') || 'none')}.`, `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Email revenue</th><th>Line</th><th>Share of revenue</th><th>Campaigns</th><th>Flows</th><th>Flows share</th></tr></thead><tbody>${live.sort((x, y) => y.cur.email - x.cur.email).map(b => { const x = b.cur, p = b.prev || {}; return `<tr data-act="${esc(b.act_id)}" tabindex="0" class="link"><td><b>${esc(b.name)}</b></td><td>${ib(x.email, mx, '--c-email', kmoney(x.email, b.currency))} ${delta(x.email, p.email)}</td><td class="kl-linecell">${spark((b.series || []).map(r => r.email), null, 120, 24)}</td><td>${pct(x.share, 0)}</td><td>${kmoney(x.campaigns, b.currency)}</td><td>${kmoney(x.flows, b.currency)}</td><td>${x.email ? pct(x.flows / x.email, 0) : '–'}</td></tr>`; }).join('')}</tbody></table></div>`, 'Triple Whale carries Klaviyo’s attributed revenue')}`;
+      $('#main').innerHTML = shell('email', title, body + '<div id="v2klall" class="lx-stack"></div>'); wireRows($('#main'), 'email');
       emailBoard(bs, t); return;
     }
     const b = bs[0], c = b.cur, p = b.prev || {}, rows = b.series || [], prows = (dp && dp.brands && dp.brands[0] && dp.brands[0].series) || null;
     const SER = [{ key: 'flows', label: 'Flows', color: '--c-email' }, { key: 'campaigns', label: 'Campaigns', color: '--brand' }];
     const body0 = `<div class="v2tiles">${[
         tile({ compact: true, label: 'Email and SMS revenue', src: 'KLAVIYO', value: kmoney(c.email, cur), delta: delta(c.email, p.email), spark: tspark(rows, prows, 'email', v => kmoney(v, cur), 'email and SMS') }),
-        tile({ compact: true, label: 'Share of store revenue', value: pct(c.share, 0), delta: delta(c.share, p.share, false, true), bullet: bullet(c.share, 0.3, false, 'healthy store: about 30%') }),
+        tile({ compact: true, label: 'Share of store revenue', value: pct(c.share, 0), delta: delta(c.share, p.share, false, true), sub: c.share == null ? '' : `<span class="lx-vs ${c.share >= 0.25 ? 'good' : 'warn'}">${c.share >= 0.25 ? 'In' : 'Under'} the healthy range (25 to 35%)</span>` }),
         tile({ compact: true, label: 'Campaigns', value: kmoney(c.campaigns, cur), delta: delta(c.campaigns, p.campaigns), sub: c.email ? `${pct(c.campaigns / c.email, 0)} of email` : '', spark: tspark(rows, prows, 'campaigns', v => kmoney(v, cur), 'campaigns') }),
         tile({ compact: true, label: 'Flows', value: kmoney(c.flows, cur), delta: delta(c.flows, p.flows), sub: c.email ? `${pct(c.flows / c.email, 0)} of email` : '', spark: tspark(rows, prows, 'flows', v => kmoney(v, cur), 'flows') })].join('')}</div>
-      ${rows.length > 1 ? card('Email and SMS revenue by day', `${kmoney(c.email, cur)} in this window${p.email ? `, ${c.email >= p.email ? 'up' : 'down'} from ${kmoney(p.email, cur)}` : ''}. Flows are the base; campaigns are the spikes.`, legend([{ color: '--c-email', label: 'Flows' }, { color: '--brand', label: 'Campaigns' }, ...(H.S.cmp !== 'none' && prows ? [{ dash: true, label: `Total, ${cmpLabel()}` }] : [])]) + emStack('v2em', rows, prows, SER, cur), 'Triple Whale') : ''}
-      <div id="v2kl"></div>`;
+      ${rows.length > 1 ? cardL('Email and SMS revenue by day', `${kmoney(c.email, cur)} in this window${p.email ? `, ${c.email >= p.email ? 'up' : 'down'} from ${kmoney(p.email, cur)}` : ''}. Flows are the base; campaigns are the spikes.`, legend([{ color: '--c-email', label: 'Flows' }, { color: '--brand', label: 'Campaigns' }, ...(H.S.cmp !== 'none' && prows ? [{ dash: true, label: `Total, ${cmpLabel()}` }] : [])]) + emStack('v2em', rows, prows, SER, cur), 'Triple Whale') : ''}
+      <div id="v2kl" class="lx-stack"></div>`;
     $('#main').innerHTML = shell('email', title, body0 + foot(isAttentive(a) ? 'Revenue above is Klaviyo’s as Triple Whale carries it; this brand sends with Attentive, read below through Triple Whale.' : 'Headline revenue is Klaviyo’s placed-order attribution as Triple Whale carries it. Everything below is read from Klaviyo itself with the brand’s own key: day-by-day lines by event date (kept 6 hours), campaign and flow results for the last 90 days. Benchmarks are Klaviyo’s published averages.'));
     if (rows.length > 1) wireEmStack('v2em', rows, prows, SER, cur);
     /* THE KLAVIYO PART LOADS ON ITS OWN (2026-10-09, Cole: "Klaviyo felt slow and sometimes did not load"). The rest of
@@ -2189,18 +2494,20 @@
     const rprF = r => r.received >= 200 ? (r.rev_email || 0) / r.received : null, porF = r => r.received >= 200 ? (r.orders_email || 0) / r.received : null;
     const tiles = D ? `<div class="v2tiles">${[
       tile({ compact: true, label: 'SMS share of email and SMS', src: 'KLAVIYO', value: pct(K.sms_share, 0), delta: KP ? delta(K.sms_share, KP.sms_share, 'n', true) : '', sub: `SMS ${kmoney(K.rev_sms, cur)} · email ${kmoney(K.rev_email, cur)}`, spark: tspark(kb, kpb, r => (r.rev_email || 0) + (r.rev_sms || 0) ? (r.rev_sms || 0) / ((r.rev_email || 0) + (r.rev_sms || 0)) : null, v => pct(v, 0), 'SMS share') }),
-      tile({ compact: true, label: 'Revenue per email', src: 'KLAVIYO', value: money2(K.rpr, cur), delta: KP ? delta(K.rpr, KP.rpr) : '', bullet: bullet(K.rpr, BENCH.rpr, false, 'Klaviyo campaign average $0.10'), spark: tspark(kb, kpb, rprF, v => money2(v, cur), 'per email') }),
-      tile({ compact: true, label: 'Placed order rate', src: 'KLAVIYO', value: pct(K.por, 2), delta: KP ? delta(K.por, KP.por) : '', bullet: bullet(K.por, BENCH.por, false, 'Klaviyo campaign average 0.08%'), spark: tspark(kb, kpb, porF, v => pct(v, 3), 'placed order rate') }),
+      /* No goal bullets here (2026-10-09, Cole: "not good visualizations"): the benchmark is a number in words, coloured
+         by which side of it the brand sits, and the tile's line shows the trend. */
+      tile({ compact: true, label: 'Revenue per email', src: 'KLAVIYO', value: money2(K.rpr, cur), delta: KP ? delta(K.rpr, KP.rpr) : '', sub: vsAvg(K.rpr, BENCH.rpr, false, v => money2(v, cur)), spark: tspark(kb, kpb, rprF, v => money2(v, cur), 'per email') }),
+      tile({ compact: true, label: 'Placed order rate', src: 'KLAVIYO', value: pct(K.por, 2), delta: KP ? delta(K.por, KP.por) : '', sub: vsAvg(K.por, BENCH.por, false, v => pct(v, 2)), spark: tspark(kb, kpb, porF, v => pct(v, 3), 'placed order rate') }),
       tile({ compact: true, label: 'List growth', src: 'KLAVIYO', value: `${K.net >= 0 ? '+' : ''}${int(K.net)}`, delta: KP ? delta(K.gained, KP.gained) : '', sub: `${int(K.gained)} joined · ${int(K.lost)} left`, spark: tspark(kb, kpb, r => (r.gained || 0) - (r.lost || 0), v => `${v >= 0 ? '+' : ''}${int(v)}`, 'net') })].join('')}</div>` : `<div class="v2card"><p class="v2hint">The day-by-day Klaviyo read failed: ${esc(dly?.error || 'no answer')}. Campaign and flow tables below still work.</p></div>`;
     /* engagement and deliverability */
     const RATES = [['Open', 'opened', BENCH.open, false, 1], ['Click', 'clicked', BENCH.click, false, 2], ['Placed order', 'orders_email', BENCH.por, false, 3], ['Unsubscribe', 'unsub', BENCH.unsub, true, 2], ['Spam complaints', 'spam', BENCH.spam, true, 3], ['Bounce', 'bounced', BENCH.bounce, true, 2]];
     const rateKey = { opened: 'open', clicked: 'click', orders_email: 'por', unsub: 'unsub', spam: 'spam', bounced: 'bounce' };
-    const rates = D ? card('Engagement and deliverability', `Per email received, ${weekly ? 'week by week' : 'day by day'}. The amber dashed line is Klaviyo’s average.${(D.metrics_missing || []).length ? ` Not in this account: ${esc(D.metrics_missing.join(', ').replace(/_/g, ' '))}.` : ''}`,
+    const rates = D ? cardL('Engagement and deliverability', `Per email received, ${weekly ? 'week by week' : 'day by day'}. The amber dashed line is Klaviyo’s average.${(D.metrics_missing || []).length ? ` Not in this account: ${esc(D.metrics_missing.join(', ').replace(/_/g, ' '))}.` : ''}`,
       `${flagHtml(flags)}<div class="kl-rates">${RATES.map(([l, key, bn, lower, dp]) => { const v = K[rateKey[key]], pv = KP && KP[rateKey[key]]; const f = r => r.received >= 200 ? (r[key] || 0) / r.received : null;
         return `<div class="kl-r"><div class="kl-rh"><span>${l}</span>${benchPill(v, bn, lower)}</div><div class="kl-rv">${pct(v, dp)} ${pv != null ? delta(v, pv, lower) : ''}</div>${rateSpark(kb, kpb, f, bn, x => pct(x, dp), l.toLowerCase())}</div>`; }).join('')}</div>`, 'Klaviyo · opens include Apple’s automatic opens') : '';
     /* list growth + email vs SMS */
-    const growth = D ? card('List growth', `${int(K.gained)} joined and ${int(K.lost)} left ${weekly ? 'by week' : 'by day'} (${esc(String(D.metrics_used?.gained || 'subscribed'))} vs ${esc(String(D.metrics_used?.lost || 'unsubscribed'))}).`, growthChart('v2klg', kb) || '<p class="v2hint">Not enough days.</p>', 'Klaviyo') : '';
-    const split = D ? card('Email vs SMS', K.rev ? `SMS is ${pct(K.sms_share, 0)} of Klaviyo-attributed revenue in this window.` : 'No Klaviyo-attributed revenue in this window.',
+    const growth = D ? cardL('List growth', `${int(K.gained)} joined and ${int(K.lost)} left ${weekly ? 'by week' : 'by day'} (${esc(String(D.metrics_used?.gained || 'subscribed'))} vs ${esc(String(D.metrics_used?.lost || 'unsubscribed'))}).`, growthChart('v2klg', kb) || '<p class="v2hint">Not enough days.</p>', 'Klaviyo') : '';
+    const split = D ? cardL('Email vs SMS', K.rev ? `SMS is ${pct(K.sms_share, 0)} of Klaviyo-attributed revenue in this window.` : 'No Klaviyo-attributed revenue in this window.',
       `<div class="kl-split"><i style="width:${K.rev ? (K.rev_email / K.rev * 100).toFixed(1) : 0}%;background:var(--c-email)"></i><i style="width:${K.rev ? (K.rev_sms / K.rev * 100).toFixed(1) : 0}%;background:var(--brand)"></i></div>
       <div class="v2tbl"><table><thead><tr><th>Channel</th><th>Revenue</th><th>Orders</th><th>Sends</th></tr></thead><tbody>
         <tr><td><span class="sw" style="background:var(--c-email)"></span>Email</td><td>${kmoney(K.rev_email, cur)} ${KP ? delta(K.rev_email, KP.rev_email) : ''}</td><td>${int(K.orders_email)}</td><td>${int(K.received)}<span class="sub">${money2(K.rpr, cur)} each</span></td></tr>
@@ -2210,9 +2517,9 @@
     const CORE = /welcome|abandon|cart|checkout|browse|post.?purchase|thank|win.?back|sunset/i;
     const STATUS = [['live', 'Live', 'Sending to everyone who triggers it'], ['manual', 'Manual', 'Built but switched off: nobody new enters'], ['draft', 'Draft', 'Unfinished and off']];
     const flowRow = x => `<tr data-flow="${esc(x.id)}"><td>${x.messages && x.messages.length ? `<button type="button" class="v2ex${FLOW_OPEN.has(x.id) ? ' open' : ''}" data-ftog="${esc(x.id)}" aria-label="Show its messages">›</button>` : '<span class="v2ex-sp"></span>'}${CORE.test(x.name) ? '<span class="v2pill good">core</span> ' : ''}<span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.trigger ? `<span class="sub">${esc(x.trigger)}${(x.channels || []).length ? ` · ${esc(x.channels.map(c => c === 'sms' ? 'SMS' : 'email').join(' + '))}` : ''}</span>` : ''}</td>
-      <td>${writeOK.flows ? `<span class="kl-st">${PM().html('klst-' + x.id, 'Status', STATUS, x.status, { cls: 'kl-stm st-' + esc(x.status || '') })}</span>` : `<span class="v2pill ${x.status === 'live' ? 'good' : ''}">${esc(x.status || '–')}</span>`}</td>
+      <td>${stChip(x.status, writeOK.flows ? x.id : null)}</td>
       <td>${ib(x.revenue || 0, fmx, '--c-email', kmoney(x.revenue, cur))}</td><td class="kl-linecell">${flowSpark(x.id, D, W.from, W.to)}</td><td>${int(x.recipients)}</td><td>${(x.channels || []).length === 1 && x.channels[0] === 'sms' ? '–' : pct(x.open_rate, 1)}</td><td>${pct(x.click_rate, 1)}</td><td>${pct(x.conversion_rate, 2)}</td><td>${money2(x.revenue_per_recipient, cur)}</td><td>${pct(x.unsubscribe_rate, 2)}</td></tr>`;
-    const flowsCard = card('Flows', flowRows.length ? `${flowRows.filter(x => x.status === 'live').length} live of ${flowRows.length}. Results are the last 90 days; the line is ${esc(day(W.from))} to ${esc(day(W.to))}. Open a flow for each message.` : esc(flows?.results_note || 'No flow results came back.'),
+    const flowsCard = cardL('Flows', flowRows.length ? `${flowRows.filter(x => x.status === 'live').length} live of ${flowRows.length}. Results are the last 90 days; the line is ${esc(day(W.from))} to ${esc(day(W.to))}. Open a flow for its messages, then click a message to see it.` : esc(flows?.results_note || 'No flow results came back.'),
       `${writeOK.flows ? '' : lock('flows')}${flowRows.length ? `<div class="v2tbl wide"><table id="v2klflows"><thead><tr><th>Flow</th><th>Status</th><th>Revenue, 90 days</th><th>Line</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${flowRows.map(x => flowRow(x) + (FLOW_OPEN.has(x.id) ? `<tr class="kl-sub" data-fsub="${esc(x.id)}"><td colspan="10"><p class="v2hint">Reading the messages…</p></td></tr>` : '')).join('')}</tbody></table></div>` : ''}`, 'Klaviyo');
     /* campaigns */
     const sentAll = (camps?.campaigns || []).filter(x => x.recipients != null);
@@ -2224,43 +2531,56 @@
       { k: 'sent', l: 'Sent', v: x => x.send_time ? Date.parse(x.send_time) : null, cell: x => x.sent ? day(x.sent) : '–' },
       { k: 'channel', l: 'Channel', txt: 1, v: x => x.channel, cell: x => `<span class="v2pill">${sms(x) ? 'SMS' : 'Email'}</span>` },
       { k: 'recipients', l: 'Recipients', v: x => x.recipients, cell: x => int(x.recipients) },
-      { k: 'open', l: 'Open', v: x => sms(x) ? null : x.open_rate, cell: x => sms(x) ? '–' : `${pct(x.open_rate, 1)} ${benchPill(x.open_rate, BENCH.open)}`, tip: 'Includes Apple Mail’s automatic opens' },
-      { k: 'click', l: 'Click', v: x => x.click_rate, cell: x => `${pct(x.click_rate, 2)}${sms(x) ? '' : ` ${benchPill(x.click_rate, BENCH.click)}`}` },
-      { k: 'por', l: 'Placed order', v: x => x.conversion_rate, cell: x => pct(x.conversion_rate, 2), tip: 'Recipients who placed an order, Klaviyo attribution' },
+      { k: 'open', l: 'Open', v: x => sms(x) ? null : x.open_rate, cell: x => sms(x) ? '–' : rateCell(x.open_rate, BENCH.open, false, 1), tip: 'Green beats Klaviyo’s 38% average. Includes Apple Mail’s automatic opens' },
+      { k: 'click', l: 'Click', v: x => x.click_rate, cell: x => sms(x) ? pct(x.click_rate, 2) : rateCell(x.click_rate, BENCH.click, false, 2), tip: 'Green beats Klaviyo’s 1.2% average' },
+      { k: 'por', l: 'Placed order', v: x => x.conversion_rate, cell: x => sms(x) ? pct(x.conversion_rate, 2) : rateCell(x.conversion_rate, BENCH.por, false, 2), tip: 'Recipients who placed an order, Klaviyo attribution. Green beats Klaviyo’s 0.08% average' },
       { k: 'rev', l: 'Revenue', v: x => x.conversion_value || 0, cell: x => ib(x.conversion_value || 0, cmx, '--brand', kmoney(x.conversion_value, cur)) },
       { k: 'rpr', l: 'Per recipient', v: x => x.recipients ? (x.conversion_value || 0) / x.recipients : null, cell: x => money2(x.recipients ? (x.conversion_value || 0) / x.recipients : null, cur) },
-      { k: 'unsub', l: 'Unsub', lo: 1, v: x => x.unsubscribe_rate, cell: x => `${pct(x.unsubscribe_rate, 2)}${sms(x) ? '' : ` ${benchPill(x.unsubscribe_rate, BENCH.unsub, true)}`}` },
-      { k: 'spam', l: 'Spam', lo: 1, v: x => sms(x) ? null : x.spam_complaint_rate, cell: x => sms(x) ? '–' : pct(x.spam_complaint_rate, 3) },
-      { k: 'bounce', l: 'Bounce', lo: 1, v: x => sms(x) ? null : x.bounce_rate, cell: x => sms(x) ? '–' : pct(x.bounce_rate, 2) },
-      { k: 'after', l: 'After send', v: afterTot, cell: x => afterSend(x, D), tip: 'Revenue on each of the 14 days after the send; sorts by their total' },
+      { k: 'unsub', l: 'Unsub', lo: 1, v: x => x.unsubscribe_rate, cell: x => sms(x) ? pct(x.unsubscribe_rate, 2) : rateCell(x.unsubscribe_rate, BENCH.unsub, true, 2), tip: 'Green is under Klaviyo’s 0.3% average' },
+      { k: 'spam', l: 'Spam', lo: 1, v: x => sms(x) ? null : x.spam_complaint_rate, cell: x => sms(x) ? '–' : rateCell(x.spam_complaint_rate, BENCH.spam, true, 3) },
+      { k: 'bounce', l: 'Bounce', lo: 1, v: x => sms(x) ? null : x.bounce_rate, cell: x => sms(x) ? '–' : rateCell(x.bounce_rate, BENCH.bounce, true, 2) },
+      { k: 'after', l: 'Money after send', v: afterTot, cell: x => afterSend(x, D), tip: 'How fast the money came in: the running total over the 14 days after the send. Hover a day to read it; sorts by the 14-day total' },
     ];
     const st = TBL.load('kl-camps', defs, KL_DEFAULT);
     const table = () => { const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs);
       const list = by ? sentAll.slice().sort(by) : sentAll.slice().sort((x, y) => String(y.send_time || '').localeCompare(String(x.send_time || '')));
       const shown = KLS.all ? list : list.slice(0, 20);
-      return `<table id="v2klcamps"><thead><tr>${TBL.th(st, '_name', 'Campaign')}${cols.map(d => TBL.th(st, d.k, d.l)).join('')}<th></th></tr></thead><tbody>${shown.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.subject ? `<span class="sub" title="${esc(x.subject)}">${esc(x.subject)}</span>` : ''}</td>${cols.map(d => `<td>${d.cell(x)}</td>`).join('')}<td class="kl-acts">${actBtns(x, 'sent')}</td></tr>`).join('')}</tbody></table>${list.length > 20 ? `<button type="button" class="v2link" data-klall="1" style="margin-top:8px">${KLS.all ? 'Show the first 20' : `Show all ${list.length}`} ›</button>` : ''}`; };
+      return `<table id="v2klcamps"><thead><tr>${TBL.th(st, '_name', 'Campaign')}${cols.map(d => TBL.th(st, d.k, d.l)).join('')}<th></th></tr></thead><tbody>${shown.map(x => `<tr class="link" data-klmsg="${esc(x.id)}" tabindex="0"><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.subject ? `<span class="sub" title="${esc(x.subject)}">${esc(x.subject)}</span>` : ''}</td>${cols.map(d => `<td>${d.cell(x)}</td>`).join('')}<td class="kl-acts">${actBtns(x, 'sent')}</td></tr>`).join('')}</tbody></table>${list.length > 20 ? `<button type="button" class="v2link" data-klall="1" style="margin-top:8px">${KLS.all ? 'Show the first 20' : `Show all ${list.length}`} ›</button>` : ''}`; };
     const actBtns = (x, kind) => !writeOK.campaigns ? '' : kind === 'up'
       ? `${/^draft$/i.test(x.status) ? `<button type="button" class="kl-act" data-kact="schedule" data-cid="${esc(x.id)}">Schedule</button>` : ''}${/schedul|queued|adding|preparing/i.test(x.status) ? `<button type="button" class="kl-act" data-kact="unschedule" data-cid="${esc(x.id)}">Unschedule</button><button type="button" class="kl-act warn" data-kact="cancel" data-cid="${esc(x.id)}">Cancel</button>` : ''}<button type="button" class="kl-act" data-kact="duplicate" data-cid="${esc(x.id)}">Duplicate</button>`
       : `<button type="button" class="kl-act" data-kact="duplicate" data-cid="${esc(x.id)}"${tipAttr('Copy it as a new draft: same audience, content and sender')}>Duplicate</button>`;
-    const upCard = card('Drafts and scheduled', up.length ? `${up.length} not sent yet. Schedule a draft, move or stop a scheduled send, or copy one.` : 'Nothing drafted or scheduled in Klaviyo right now.',
-      `${writeOK.campaigns ? '' : lock('campaigns')}${up.length ? `<div class="v2tbl"><table><thead><tr><th>Campaign</th><th>Channel</th><th>Status</th><th>Sends</th><th></th></tr></thead><tbody>${up.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.subject ? `<span class="sub">${esc(x.subject)}</span>` : ''}</td><td><span class="v2pill">${x.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td><span class="v2pill ${/schedul/i.test(x.status) ? 'good' : ''}">${esc(String(x.status || '').toLowerCase())}</span></td><td>${x.send_at && !/^draft$/i.test(x.status) ? esc(new Date(x.send_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : '–'}</td><td class="kl-acts">${actBtns(x, 'up')}<a class="kl-act" href="https://www.klaviyo.com/campaign/${esc(x.id)}/wizard" target="_blank" rel="noopener">Open in Klaviyo</a></td></tr>`).join('')}</tbody></table></div>` : ''}
+    const upCard = cardL('Drafts and scheduled', up.length ? `${up.length} not sent yet. Schedule a draft, move or stop a scheduled send, or copy one.` : 'Nothing drafted or scheduled in Klaviyo right now.',
+      `${writeOK.campaigns ? '' : lock('campaigns')}${up.length ? `<div class="v2tbl"><table><thead><tr><th>Campaign</th><th>Channel</th><th>Status</th><th>Sends</th><th></th></tr></thead><tbody>${up.map(x => `<tr><td><span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.subject ? `<span class="sub">${esc(x.subject)}</span>` : ''}</td><td><span class="v2pill">${x.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td>${campChip(x.status)}</td><td>${x.send_at && !/^draft$/i.test(x.status) ? esc(new Date(x.send_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : '–'}</td><td class="kl-acts">${actBtns(x, 'up')}<a class="kl-act" href="https://www.klaviyo.com/campaign/${esc(x.id)}/wizard" target="_blank" rel="noopener">Open in Klaviyo</a></td></tr>`).join('')}</tbody></table></div>` : ''}
       ${writeOK.campaigns ? '<button type="button" class="v2btn" data-klnew="1">New draft campaign</button>' : ''}`, 'Klaviyo');
-    const sentCard = card('Campaigns sent', sentAll.length ? `${sentAll.length} sent in 90 days, Klaviyo’s own results. Click a heading to sort; the last column is the money in the 14 days after the send.` : esc(camps?.results_note || 'No campaign results came back.'),
+    const sentCard = cardL('Campaigns sent', sentAll.length ? `${sentAll.length} sent in 90 days, Klaviyo’s own results. Click a campaign to see the email and its results; click a heading to sort. The last column shows how fast its money came in.` : esc(camps?.results_note || 'No campaign results came back.'),
       sentAll.length ? `<div class="v2tbar"><span class="v2tbar-l faint">Click a column to sort.</span><div class="hd-period pm v2cols" data-tbl="${st.id}">${TBL.menu(st, defs)}</div></div><div class="v2tbl wide" id="v2klcwrap">${table()}</div>` : '', 'Klaviyo');
-    host.innerHTML = `${tiles}${rates}<div class="v2two">${growth}${split}</div>${flowsCard}${upCard}${sentCard}
-      <div class="v2two">${subjectsCard(sentAll.filter(x => x.channel !== 'sms'), cur, a.tz) || '<div></div>'}
-        ${card('What Klaviyo is running', `${int(ov.flows_live)} live flows of ${int(ov.flows_total)} · ${int(ov.lists)} lists · ${int(ov.segments)} segments.`, `<div class="v2tbl"><table><tbody>${(ov.biggest_lists || []).slice(0, 4).map(l => `<tr><td>${esc(l.name)} <span class="faint">list</span></td><td>${int(l.profiles)}</td></tr>`).join('')}${(ov.biggest_segments || []).slice(0, 5).map(l => `<tr><td>${esc(l.name)} <span class="faint">segment</span></td><td>${int(l.profiles)}</td></tr>`).join('')}</tbody></table></div>`)}</div>`;
+    /* One column with the page's own 16px rhythm (2026-10-09, Cole: "no space between sections"): the Klaviyo part used to
+       sit in a plain div, so its cards touched. A small-caps label marks where Triple Whale ends and Klaviyo begins. */
+    host.classList.add('lx-stack');
+    host.innerHTML = `<p class="ds-label lx-sec">From Klaviyo, read with ${esc(a.name)}’s own key${D?.cached_at ? ` · as of ${esc(new Date(D.cached_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}` : ''}</p>${tiles}${rates}<div class="v2two eq">${growth}${split}</div>${flowsCard}${upCard}${sentCard}
+      ${subjectsCard(sentAll.filter(x => x.channel !== 'sms'), cur, a.tz)}
+        ${cardL('What Klaviyo is running', `${int(ov.flows_live)} live flows of ${int(ov.flows_total)} · ${int(ov.lists)} lists · ${int(ov.segments)} segments.`, `<div class="v2tbl"><table><tbody>${(ov.biggest_lists || []).slice(0, 4).map(l => `<tr><td>${esc(l.name)} <span class="faint">list</span></td><td>${int(l.profiles)}</td></tr>`).join('')}${(ov.biggest_segments || []).slice(0, 5).map(l => `<tr><td>${esc(l.name)} <span class="faint">segment</span></td><td>${int(l.profiles)}</td></tr>`).join('')}</tbody></table></div>`)}`;
     if (D) wireGrowth('v2klg', kb);
     wireGo(host);
     const again = () => klaviyoCards(a, cur, H.RUN());
     /* flows: status menus and the per-message rows */
-    host.querySelectorAll('.kl-stm').forEach(box => { const id = box.id.replace(/^klst-/, ''); const x = flowRows.find(f => f.id === id); PM().wire(box, v => { if (v !== x.status) klWrite(a, 'flow_status', { flow: id, status: v }, again); }); });
+    host.querySelectorAll('[data-flst]').forEach(btn => btn.onclick = e => { e.stopPropagation(); const id = btn.dataset.flst; const x = flowRows.find(f => f.id === id); statusMenu(btn, x.status, v => klWrite(a, 'flow_status', { flow: id, status: v }, again)); });
+    /* a sent campaign (table row or a subject line) opens the email itself */
+    const openCamp = id => { const x = sentAll.find(c => c.id === id); if (!x) return;
+      klPreview(a, cur, { kind: 'campaign', id: x.message_id || x.id, channel: x.channel, name: x.name, subject: x.subject, link: `https://www.klaviyo.com/campaign/${encodeURIComponent(x.id)}/reports`,
+        stats: pvStats(x, cur, D && typeof afterSeries(x, D) === 'object' ? `<p class="ds-label" style="margin-top:14px">How fast the money came in</p><div class="lx-pv-aft">${afterSend(x, D, 280, 56)}</div><p class="v2hint">Running total over the 14 days after the send, Klaviyo attribution by order date. Hover to read each day.</p>` : '') }); };
+    const wireMsgRows = root => root.querySelectorAll('tr[data-klmsg]').forEach(tr => { tr.onclick = e => { if (e.target.closest('button,a,input')) return; openCamp(tr.dataset.klmsg); }; tr.onkeydown = e => { if (e.key === 'Enter' && e.target === tr) openCamp(tr.dataset.klmsg); }; });
+    wireMsgRows(host);
     const fill = async id => {
       const row = host.querySelector(`[data-fsub="${CSS.escape(id)}"] td`); if (!row) return;
       try {
         const r = await klGet(a.act_id, 'flow', `&id=${encodeURIComponent(id)}`);
         const ms = r.messages || [];
-        row.innerHTML = ms.length ? `<table class="kl-msgs"><thead><tr><th>Message</th><th>Channel</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${ms.map((m, i) => `<tr><td><b>${i + 1}.</b> ${esc(m.name || m.id || 'Message')}${m.subject ? `<span class="sub">${esc(m.subject)}</span>` : ''}</td><td><span class="v2pill">${m.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td>${int(m.recipients)}</td><td>${m.channel === 'sms' ? '–' : pct(m.open_rate, 1)}</td><td>${pct(m.click_rate, 2)}</td><td>${pct(m.conversion_rate, 2)}</td><td>${kmoney(m.revenue, cur)}</td><td>${money2(m.revenue_per_recipient, cur)}</td><td>${pct(m.unsubscribe_rate, 2)}</td></tr>`).join('')}</tbody></table>` : '<p class="v2hint">No message sent in 90 days.</p>';
+        row.innerHTML = ms.length ? `<table class="kl-msgs"><thead><tr><th>Message</th><th>Channel</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${ms.map((m, i) => `<tr class="link" data-fmsg="${esc(m.id || '')}" data-fi="${i}" tabindex="0"${tipAttr('Click to see this message and its results')}><td><b>${i + 1}.</b> ${esc(m.name || m.id || 'Message')}${m.subject ? `<span class="sub">${esc(m.subject)}</span>` : ''}</td><td><span class="ds-chip lx-chip">${m.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td>${int(m.recipients)}</td><td>${m.channel === 'sms' ? '–' : rateCell(m.open_rate, BENCH.open, false, 1)}</td><td>${m.channel === 'sms' ? pct(m.click_rate, 2) : rateCell(m.click_rate, BENCH.click, false, 2)}</td><td>${pct(m.conversion_rate, 2)}</td><td>${kmoney(m.revenue, cur)}</td><td>${money2(m.revenue_per_recipient, cur)}</td><td>${pct(m.unsubscribe_rate, 2)}</td></tr>`).join('')}</tbody></table>` : '<p class="v2hint">No message sent in 90 days.</p>';
+        const fname = flowRows.find(f => f.id === id)?.name || 'Flow';
+        row.querySelectorAll('tr[data-fmsg]').forEach(tr => { const m = ms[+tr.dataset.fi]; if (!m || !m.id) return;
+          const open = () => klPreview(a, cur, { kind: 'flow', id: m.id, channel: m.channel, name: `${fname}: ${m.name || 'message ' + (+tr.dataset.fi + 1)}`, subject: m.subject, link: `https://www.klaviyo.com/flow/${encodeURIComponent(id)}/edit`, stats: pvStats(m, cur) });
+          tr.onclick = open; tr.onkeydown = e => { if (e.key === 'Enter') open(); }; });
       } catch (e) { row.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
     };
     host.querySelectorAll('[data-ftog]').forEach(btn => btn.onclick = () => { const id = btn.dataset.ftog; FLOW_OPEN.has(id) ? FLOW_OPEN.delete(id) : FLOW_OPEN.add(id); const tr = btn.closest('tr'); const sub = host.querySelector(`[data-fsub="${CSS.escape(id)}"]`);
@@ -2276,7 +2596,7 @@
     const cwrap = host.querySelector('#v2klcwrap');
     if (cwrap) {
       const redraw = () => { cwrap.innerHTML = table(); hookC(); };
-      const hookC = () => { TBL.wire(cwrap, st, defs, redraw); wireActs(cwrap); const ab = cwrap.querySelector('[data-klall]'); if (ab) ab.onclick = () => { KLS.all = !KLS.all; redraw(); }; };
+      const hookC = () => { TBL.wire(cwrap, st, defs, redraw); wireActs(cwrap); wireMsgRows(cwrap); const ab = cwrap.querySelector('[data-klall]'); if (ab) ab.onclick = () => { KLS.all = !KLS.all; redraw(); }; };
       hookC(); TBL.wire(cwrap.closest('.v2card').querySelector('.v2tbar'), st, defs, redraw);
     }
     const upEl = [...host.querySelectorAll('.v2card')].find(c => c.querySelector('[data-klnew]') || /Drafts and scheduled/.test(c.querySelector('h3')?.textContent || '')); if (upEl) wireActs(upEl);
@@ -2306,6 +2626,181 @@
     return card(`Connect ${what} for ${esc(brand)}`, '', `<p class="v2hint">${gives}</p>${err && err !== 'not_linked' ? `<p class="v2hint" style="margin-top:8px">Google answered: ${esc(err)}</p>` : ''}
       <ol class="v2steps">${GSTEPS[kind].map(x => `<li>${esc(x)}</li>`).join('')}</ol><button type="button" class="v2btn" data-go="settings">Open Integrations</button>`);
   }
+  /* ---------- STORE > WEBSITE, Cole's pass (2026-10-09) ----------
+     "The funnel is unreadable past add to cart", "make the tables sortable and let me click into a row", "the card click
+     only says go to the Metrics tab", "where do heatmaps and recordings go?". So: a real funnel (count, % of the step
+     before, % of sessions, the drop between steps with the biggest one called out, log-scaled bars so the small steps
+     show, the compare period on every number); sortable channel / source / landing page tables whose rows open a
+     drill-down (that slice's days, funnel, devices and the other side of it); every tile opens its own drill-down;
+     who visits (device, new against returning); and Behaviour from Microsoft Clarity. Data: account-health
+     /api/google/website (+ /website-drill) and /api/clarity. */
+  const webCvr = x => x && x.sessions ? (x.ecommercePurchases || 0) / x.sessions : null;
+  const secs = s => s == null || !isFinite(s) ? '–' : s >= 60 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, '0')}s` : `${Math.round(s)}s`;
+  const ptDelta = (cur, prev, lower) => { if (cur == null || prev == null || H.S.cmp === 'none') return ''; const d = (cur - prev) * 100; if (Math.abs(d) < 0.05) return '<span class="v2d flat">same</span>'; const good = (d > 0) !== !!lower; return `<span class="v2d ${good ? 'up' : 'down'}"${tipAttr(`Against ${cmpLabel()}: ${pct(prev, 1)}`)}>${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(1)} pt</span>`; };
+  const FSTEPS = [['Sessions', 'sessions'], ['Added to cart', 'addToCarts'], ['Started checkout', 'checkouts'], ['Purchased', 'ecommercePurchases']];
+  const DROP_WORD = ['', 'left before adding to cart', 'of carts never reached checkout', 'of checkouts did not buy'];
+  /** The funnel: one row per step, the drop between steps under it, bars on a log scale (so 246 purchases is still a
+   *  visible bar beside 31,729 sessions); exact numbers beside every bar. */
+  function webFunnel(c, p) {
+    const top = c.sessions || 0; if (!top) return '<p class="v2hint">No sessions in this window.</p>';
+    const L = v => v > 0 ? Math.max(1.5, Math.log10(v + 1) / Math.log10(top + 1) * 100) : 0;
+    const st = FSTEPS.map(([l, k], i) => { const v = c[k] || 0, pv = p ? p[k] : null, b = i ? c[FSTEPS[i - 1][1]] || 0 : null, pb = i && p ? p[FSTEPS[i - 1][1]] || 0 : null;
+      return { l, k, v, pv, of: i && b ? v / b : null, pof: i && pb ? (pv || 0) / pb : null, top: v / top, ptop: p && p.sessions ? (pv || 0) / p.sessions : null }; });
+    const drops = st.slice(1).map((s, i) => ({ i: i + 1, lost: st[i].v - s.v, rate: s.of == null ? null : 1 - s.of, prate: s.pof == null ? null : 1 - s.pof }));
+    const worst = drops.filter(d => d.rate != null).sort((x, y) => y.rate - x.rate)[0];
+    const moved = drops.filter(d => d.rate != null && d.prate != null && H.S.cmp !== 'none').sort((x, y) => (y.rate - y.prate) - (x.rate - x.prate))[0];
+    const row = s => `<div class="lx-fn-r"><span class="l">${s.l}</span><span class="n"><b>${int(s.v)}</b>${chip(s.v, s.pv, false, `${cmpLabel()}: ${int(s.pv)}`)}</span><span class="p">${s.of == null ? '<span class="faint">–</span>' : `${pct(s.of, 1)}${ptDelta(s.of, s.pof)}`}</span><span class="p">${pct(s.top, s.top < 0.1 ? 2 : 1)}</span><span class="bar"${tipAttr(`<b>${s.l}</b> · ${int(s.v)}${s.pv != null ? `<br><span class="faint">${esc(cmpLabel())}: ${int(s.pv)}</span>` : ''}`)}>${s.pv != null && H.S.cmp !== 'none' ? `<i class="g" style="width:${L(s.pv).toFixed(1)}%"></i>` : ''}<i style="width:${L(s.v).toFixed(1)}%"></i></span></div>`;
+    const drop = d => `<div class="lx-fn-d${worst && d.i === worst.i ? ' worst' : ''}"><span class="arr" aria-hidden="true">↓</span><span><b>${pct(d.rate, 1)}</b> ${DROP_WORD[d.i]} <span class="faint">(${int(d.lost)})</span>${d.prate != null && H.S.cmp !== 'none' ? ` <span class="${d.rate <= d.prate ? 'good' : 'bad'}">${d.rate <= d.prate ? 'better' : 'worse'} than before (${pct(d.prate, 1)})</span>` : ''}</span>${worst && d.i === worst.i ? '<span class="ds-chip warn">Biggest drop</span>' : ''}</div>`;
+    return `<div class="lx-fn"><div class="lx-fn-h"><span>Step</span><span>Count</span><span>Of the step before</span><span>Of sessions</span><span>Log scale</span></div>${st.map((s, i) => (i ? drop(drops[i - 1]) : '') + row(s)).join('')}</div>
+      <p class="v2hint lx-fn-note">Bars use a log scale so the small steps stay visible; the numbers are exact.${p && H.S.cmp !== 'none' ? ' The grey bar is ' + esc(cmpLabel()) + '.' : ''}${moved && moved.rate - moved.prate > 0.005 ? ` The step that slipped most: ${['', 'sessions leaving before adding to cart', 'carts not reaching checkout', 'checkouts not buying'][moved.i]}, up ${((moved.rate - moved.prate) * 100).toFixed(1)} pt.` : ''} GA4 counts add-to-cart and checkout as events, so one shopper adding twice counts twice.</p>`;
+  }
+  /* The sortable columns every traffic table shares. `tot` = the site's sessions; `site` = the site's conversion rate. */
+  const webDefs = (tot, site, cur) => [
+    { k: 'sessions', l: 'Sessions', v: r => r.sessions, cell: r => `${int(r.sessions)} ${chip(r.sessions, r.prev?.sessions, false, `${cmpLabel()}: ${int(r.prev?.sessions)}`)}` },
+    { k: 'share', l: 'Share', v: r => tot ? r.sessions / tot : null, cell: r => ib(r.sessions, tot, null, pct(tot ? r.sessions / tot : null, 0)), tip: 'Share of all sessions' },
+    { k: 'eng', l: 'Engaged', v: r => r.engagementRate, cell: r => pct(r.engagementRate, 0), tip: '10 seconds or more, 2+ pages, or a conversion' },
+    { k: 'time', l: 'Avg time', v: r => r.averageSessionDuration, cell: r => secs(r.averageSessionDuration) },
+    { k: 'atc', l: 'Add to cart', v: r => r.sessions ? (r.addToCarts || 0) / r.sessions : null, cell: r => pct(r.sessions ? (r.addToCarts || 0) / r.sessions : null, 1), tip: 'Add-to-cart events per session' },
+    { k: 'cvr', l: 'Conversion', v: webCvr, cell: r => { const v = webCvr(r), big = r.sessions > tot * 0.03 && site; return `<span class="${big ? (v >= site ? 'good' : 'bad') : ''}"${big ? tipAttr(`Site average ${pct(site, 2)}`) : ''}>${pct(v, 2)}</span>`; }, tip: 'Purchases per session; green beats the site average on real traffic' },
+    { k: 'purch', l: 'Purchases', v: r => r.ecommercePurchases, cell: r => int(r.ecommercePurchases) },
+    { k: 'rev', l: 'Revenue', v: r => r.purchaseRevenue, cell: r => kmoney(r.purchaseRevenue, cur), tip: 'What GA4 sees; Shopify is the truth' },
+    { k: 'rps', l: 'Per session', v: r => r.sessions ? (r.purchaseRevenue || 0) / r.sessions : null, cell: r => money2(r.sessions ? (r.purchaseRevenue || 0) / r.sessions : null, cur), tip: 'Revenue per session' },
+  ];
+  const WEBX = {};   // 'show all' per table
+  /** A sortable traffic table (the Ads tables' TBL helper). Rows open `drill(kind, name)`. */
+  function webTable(id, rows, defs, def, nameLbl, kind, nameCell, cap = 15) {
+    const st = TBL.load(id, defs, def);
+    const html = () => { const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs); const list = by ? rows.slice().sort(by) : rows; const shown = WEBX[id] ? list : list.slice(0, cap);
+      return `<table><thead><tr>${TBL.th(st, '_name', nameLbl)}${cols.map(d => TBL.th(st, d.k, d.l)).join('')}</tr></thead><tbody>${shown.map(r => `<tr class="link" data-wd="${kind}" data-wv="${esc(r.name)}" tabindex="0">${nameCell(r)}${cols.map(d => `<td>${d.cell(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>${list.length > cap ? `<button type="button" class="v2link" data-wx="${id}" style="margin-top:8px">${WEBX[id] ? `Show the first ${cap}` : `Show all ${list.length}`} ›</button>` : ''}`; };
+    return { st, html, block: `<div class="v2tbar"><span class="v2tbar-l faint">Click a heading to sort, a row to drill in.</span><div class="hd-period pm v2cols" data-tbl="${st.id}">${TBL.menu(st, defs)}</div></div><div class="v2tbl wide" data-wt="${id}">${html()}</div>` };
+  }
+  function wireWebTable(root, id, t, defs, onRow) {
+    const wrap = root.querySelector(`[data-wt="${id}"]`); if (!wrap) return;
+    const redraw = () => { wrap.innerHTML = t.html(); hook(); };
+    const hook = () => { TBL.wire(wrap, t.st, defs, redraw); const x = wrap.querySelector('[data-wx]'); if (x) x.onclick = () => { WEBX[id] = !WEBX[id]; redraw(); };
+      wrap.querySelectorAll('tr[data-wd]').forEach(tr => { tr.onclick = e => { if (!e.target.closest('button,a')) onRow(tr.dataset.wd, tr.dataset.wv); }; tr.onkeydown = e => { if (e.key === 'Enter') onRow(tr.dataset.wd, tr.dataset.wv); }; }); };
+    hook(); const bar = wrap.closest('.v2card')?.querySelector('.v2tbar'); if (bar) TBL.wire(bar, t.st, defs, redraw);
+  }
+  const pagePath = s => String(s || '').replace(/^https?:\/\/[^/]+/, '') || '/';
+  const WD_LABEL = { channel: 'Channel', source: 'Source / medium', page: 'Landing page', device: 'Device', nvr: 'Visitors' };
+  /** A slice of the website, drilled (row click). */
+  async function webDrill(a, w, kind, value, site) {
+    const cur = a.currency;
+    const sheet = () => { panel.sheet = { lead: `<span class="lx-pv-lead">${window.icon ? window.icon(kind === 'page' ? 'file-text' : kind === 'device' ? 'layout-grid' : kind === 'nvr' ? 'users' : 'globe', { size: 20 }) : ''}</span>`, chip: `<span class="ds-chip">${esc(WD_LABEL[kind] || kind)}</span>`, navLabel: 'In this drill-down' }; panel.wide = true; };
+    const name = kind === 'page' ? pagePath(value) : kind === 'nvr' ? (value === 'new' ? 'New visitors' : 'Returning visitors') : value;
+    const tok = (webDrill.n = (webDrill.n || 0) + 1);
+    sheet(); let pb = panel(name, `<div class="v2sk"><i class="r"></i><i class="ch"></i><i class="r"></i><i class="r"></i></div>`);
+    let d; try { d = await H.apiAH(`/api/google/website-drill?act=${encodeURIComponent(a.act_id)}&${w.q}&kind=${kind}&value=${encodeURIComponent(value)}`); } catch (e) { d = { error: e.message }; }
+    if (tok !== webDrill.n || !document.getElementById('v2panel')?.classList.contains('on')) return;
+    if (d.error) { pb.innerHTML = `<p class="v2bad">${esc(d.error)}</p>`; return; }
+    /* GA4 leaves out days with no sessions; fill them so the compare line lines up day for day. */
+    const fill = (rows, from, to) => { if (!from) return []; const m = new Map((rows || []).map(r => [r.date, r])), out = [];
+      for (let t0 = Date.parse(from + 'T12:00:00Z'); t0 <= Date.parse(to + 'T12:00:00Z'); t0 += 864e5) { const k = new Date(t0).toISOString().slice(0, 10); out.push(m.get(k) || { date: k, sessions: 0, purchases: 0, ecommercePurchases: 0, purchaseRevenue: 0 }); } return out; };
+    const c = d.cur || {}, p = d.prev || null, days = fill(d.days, w.from, w.to), pd = w.pf ? fill(d.prev_days, w.pf, w.pt) : [];
+    const id = 'v2wd' + Math.random().toString(36).slice(2, 7);
+    const side = (title, rows, lbl, k2) => rows && rows.length ? `<section data-sec="${title}" data-ic="${k2 === 'page' ? 'file-text' : 'globe'}" class="lx-dsec"><h4>${title}</h4><div class="v2tbl"><table><thead><tr><th>${lbl}</th><th>Sessions</th><th>Engaged</th><th>Conversion</th><th>Revenue</th></tr></thead><tbody>${rows.map(r => `<tr><td><span class="nm" title="${esc(r.name)}">${esc(k2 === 'page' ? pagePath(r.name) : r.name)}</span></td><td>${int(r.sessions)} ${chip(r.sessions, r.prev?.sessions)}</td><td>${pct(r.engagementRate, 0)}</td><td>${pct(webCvr(r), 2)}</td><td>${kmoney(r.purchaseRevenue, cur)}</td></tr>`).join('')}</tbody></table></div></section>` : '';
+    const dv = (d.devices || []), dT = dv.reduce((s, x) => s + x.sessions, 0) || 1;
+    sheet(); pb = panel(name, `<section data-sec="Summary" data-ic="activity" class="lx-dsec"><div class="v2pstat"><div><b>${int(c.sessions)}</b><span>sessions ${chip(c.sessions, p?.sessions)}</span></div><div><b>${pct(c.engagementRate, 0)}</b><span>engaged</span></div><div><b>${pct(webCvr(c), 2)}</b><span>bought${site ? `, site ${pct(site, 2)}` : ''}</span></div><div><b>${kmoney(c.purchaseRevenue, cur)}</b><span>revenue GA4 sees ${chip(c.purchaseRevenue, p?.purchaseRevenue)}</span></div></div>
+        <p class="v2hint">${pct(c.totalUsers ? c.newUsers / c.totalUsers : null, 0)} of the people were new; average session ${secs(c.averageSessionDuration)}.</p></section>
+      <section data-sec="Day by day" data-ic="chart-line" class="lx-dsec"><h4>Sessions by day</h4>${legend([{ color: '--brand', label: 'Sessions' }, ...(pd.length > 1 && H.S.cmp !== 'none' ? [{ dash: true, label: cmpLabel() }] : [])])}${lineChart(id, days.map(r => ({ ...r, v: r.sessions })), { key: 'v', prev: H.S.cmp !== 'none' ? pd.map(r => ({ ...r, v: r.sessions })) : [], fmt: v => int(v), h: 200 })}</section>
+      <section data-sec="Funnel" data-ic="filter" class="lx-dsec"><h4>From visit to purchase</h4>${webFunnel(c, p)}</section>
+      ${side('Top landing pages', d.landing, 'Page', 'page')}${side('Channels', d.channels, 'Channel')}${side('Sources', d.sources, 'Source / medium')}
+      ${dv.length ? `<section data-sec="Devices" data-ic="layout-grid" class="lx-dsec"><h4>Devices</h4><div class="v2tbl"><table><tbody>${dv.map(x => `<tr><td>${esc(x.device)}</td><td>${pct(x.sessions / dT, 0)} of sessions</td><td>${pct(webCvr(x), 2)} convert</td><td>${kmoney(x.purchaseRevenue, cur)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
+      <p class="v2foot">Google Analytics 4, ${esc(w.from)} to ${esc(w.to)}${p ? `, against ${esc(w.pf)} to ${esc(w.pt)}` : ''}.</p>`);
+    if (days.length > 1) wireLine(id, days, { tip: (r, i) => `<b>${day(r.date)}</b> · ${int(r.sessions)} sessions · ${int(r.purchases)} purchases${pd[i] && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${int(pd[i].sessions)} sessions</span>` : ''}` });
+  }
+  /** A headline number, drilled (tile click): its line large with the compare period, best and worst day, and the same
+   *  number by channel, device and new against returning. Replaces the glossary-only panel on this screen. */
+  function webMetric(a, d, w, key) {
+    const cur = a.currency;
+    const M = {
+      sessions: { l: 'Sessions', f: r => r.sessions, fmt: v => int(v), sum: true, means: 'Visits to the site. One person can make several.' },
+      engaged: { l: 'Engaged sessions', f: r => r.sessions ? (r.engagedSessions || 0) / r.sessions : null, fmt: v => pct(v, 0), means: 'Sessions that lasted 10 seconds or more, saw 2+ pages, or converted. A low share means people land and leave.' },
+      cvr: { l: 'Conversion rate', f: r => r.sessions ? (r.ecommercePurchases || 0) / r.sessions : null, fmt: v => pct(v, 2), means: 'Purchases GA4 saw per session. GA4 misses some orders (consent, ad blockers), so read the trend, not the level.' },
+      revenue: { l: 'Revenue GA4 sees', f: r => r.purchaseRevenue, fmt: v => kmoney(v, cur), sum: true, means: 'Purchase revenue GA4 recorded. Store revenue (Shopify) is on Sales and is the truth; this is for comparing channels and pages.' },
+    }[key]; if (!M) return;
+    const days = d.days || [], pd = d.prev_days || [], c = d.cur || {}, p = d.prev || null;
+    const vals = days.map(M.f).filter(v => v != null);
+    /* lineChart floors its scale at 1, so rates are drawn in percent units (0.78 not 0.0078). */
+    const CV = r => { const v = M.f(r); return v == null ? null : M.sum ? v : v * 100; }, CF = M.sum ? M.fmt : v => v.toFixed(key === 'cvr' ? 2 : 0) + '%';
+    const best = days.slice().filter(r => M.f(r) != null).sort((x, y) => M.f(y) - M.f(x)), id = 'v2wm' + Math.random().toString(36).slice(2, 7);
+    const by = (rows, lbl, nm) => rows && rows.length ? `<section data-sec="${lbl}" data-ic="layout-grid" class="lx-dsec"><h4>${lbl}</h4><div class="v2tbl"><table><thead><tr><th>${lbl.replace(/^By /, '')}</th><th>${esc(M.l)}</th><th>Before</th><th>Sessions</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(nm(r))}</td><td><b>${M.fmt(M.f(r))}</b></td><td class="faint">${r.prev ? M.fmt(M.f(r.prev)) : '–'}</td><td>${int(r.sessions)}</td></tr>`).join('')}</tbody></table></div></section>` : '';
+    panel.sheet = { lead: `<span class="lx-pv-lead">${window.icon ? window.icon('chart-line', { size: 20 }) : ''}</span>`, chip: '<span class="ds-chip">GA4</span>', navLabel: 'In this drill-down' };
+    panel.wide = true;
+    const pb = panel(M.l, `<section data-sec="The number" data-ic="activity" class="lx-dsec"><div class="lx-dv"><b>${M.fmt(M.f(c))}</b>${p ? `${M.sum ? chip(M.f(c), M.f(p)) : ptDelta(M.f(c), M.f(p))}<span class="faint">${esc(cmpLabel())}: ${M.fmt(M.f(p))}</span>` : ''}</div><p>${esc(M.means)}</p>
+        ${best.length > 1 ? `<p class="v2hint">Best day ${esc(day(best[0].date))} (${M.fmt(M.f(best[0]))}); weakest ${esc(day(best[best.length - 1].date))} (${M.fmt(M.f(best[best.length - 1]))}).</p>` : ''}</section>
+      <section data-sec="Day by day" data-ic="chart-line" class="lx-dsec"><h4>Day by day</h4>${vals.length > 1 ? legend([{ color: '--brand', label: M.l }, ...(pd.length > 1 && H.S.cmp !== 'none' ? [{ dash: true, label: cmpLabel() }] : [])]) + lineChart(id, days.map(r => ({ ...r, v: CV(r) })), { key: 'v', prev: H.S.cmp !== 'none' ? pd.map(r => ({ ...r, v: CV(r) })) : [], fmt: CF, h: 220 }) : '<p class="v2hint">Pick a longer window to see the line.</p>'}</section>
+      ${by((d.channels || []).map(r => ({ ...r, name: r.group })), 'By channel', r => r.name)}${by(d.devices, 'By device', r => r.device)}${by(d.nvr, 'New against returning', r => r.kind === 'new' ? 'New visitors' : 'Returning visitors')}`);
+    if (vals.length > 1) wireLine(id, days.map(r => ({ ...r, v: M.f(r) })), { tip: (r, i) => `<b>${day(r.date)}</b> · ${esc(M.l)} ${M.fmt(M.f(r))}${pd[i] && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${M.fmt(M.f(pd[i]))}</span>` : ''}` });
+    return pb;
+  }
+  /** Device and new against returning, side by side: a share bar and rows; a row opens the drill-down. */
+  function whoVisits(d, cur) {
+    const DC = { mobile: '--c-meta', desktop: '--c-email', tablet: '--c-google' }, NC = { new: '--brand', returning: '--c-email' };
+    const block = (rows, nm, col, kind, title) => { const T = rows.reduce((s, x) => s + x.sessions, 0) || 1;
+      return `<div><p class="ds-label">${title}</p><div class="v2stackbar">${rows.map(x => `<i style="flex:${x.sessions};background:var(${col(x)})"${tipAttr(`<b>${esc(nm(x))}</b> · ${pct(x.sessions / T, 0)} of sessions · converts ${pct(webCvr(x), 2)}`)}></i>`).join('')}</div>
+        <div class="v2tbl" style="margin-top:10px"><table><thead><tr><th></th><th>Share</th><th>Engaged</th><th>Conversion</th><th>Revenue</th></tr></thead><tbody>${rows.map(x => `<tr class="link" data-wd="${kind}" data-wv="${esc(kind === 'nvr' ? x.kind : x.device)}" tabindex="0"><td><span class="sw" style="background:var(${col(x)})"></span>${esc(nm(x))}</td><td>${pct(x.sessions / T, 0)} ${chip(x.sessions, x.prev?.sessions)}</td><td>${pct(x.engagementRate, 0)}</td><td>${pct(webCvr(x), 2)}</td><td>${kmoney(x.purchaseRevenue, cur)}</td></tr>`).join('')}</tbody></table></div></div>`; };
+    const dv = d.devices || [], nv = d.nvr || [];
+    if (!dv.length && !nv.length) return '';
+    const ret = nv.find(x => x.kind === 'returning'), nw = nv.find(x => x.kind === 'new'), mob = dv.find(x => x.device === 'mobile'), desk = dv.find(x => x.device === 'desktop');
+    const lead = [mob && desk && webCvr(desk) ? `Phones bring ${pct(mob.sessions / (dv.reduce((s, x) => s + x.sessions, 0) || 1), 0)} of sessions and convert ${Math.abs(webCvr(mob) / webCvr(desk) - 1) < 0.05 ? 'about as well as' : `at ${(webCvr(mob) / webCvr(desk)).toFixed(1)}x the rate of`} desktop.` : '', ret && nw && webCvr(nw) ? `Returning visitors buy at ${(webCvr(ret) / webCvr(nw)).toFixed(1)}x the rate of new ones.` : ''].filter(Boolean).join(' ');
+    return cardL('Who visits', lead, `<div class="lx-who">${dv.length ? block(dv, x => x.device, x => DC[x.device] || '--c-else', 'device', 'Device') : ''}${nv.length ? block(nv, x => x.kind === 'new' ? 'New visitors' : 'Returning visitors', x => NC[x.kind] || '--c-else', 'nvr', 'New against returning') : ''}</div>`);
+  }
+  /* ---------- Behaviour, from Microsoft Clarity (account-health clarity.js) ----------
+     Clarity's API gives the last 3 days only, 10 reads a project a day, so Locus reads it at most every 8 hours and keeps
+     a daily history itself. Recordings and heatmap pictures stay in Clarity: rows link out. */
+  const CLAR_COLS = [['rage', 'Rage clicks', 'Sessions with 3+ fast clicks on one spot: something looked clickable and was not, or was slow'], ['dead', 'Dead clicks', 'Sessions with a click that did nothing'], ['quickback', 'Quick backs', 'Sessions that opened a page and went straight back'], ['scroll', 'Scroll depth', 'How far down the page people got, on average'], ['script_error', 'Script errors', 'Sessions with a JavaScript error']];
+  async function clarityCard(a, t) {
+    const host = document.getElementById('v2clar'); if (!host) return;
+    host.innerHTML = skCard(5);
+    let r; try { r = await H.apiAH(`/api/clarity?act=${encodeURIComponent(a.act_id)}`); } catch (e) { r = { error: e.message }; }
+    if (t !== H.RUN() || !document.getElementById('v2clar')) return;
+    const again = () => clarityCard(a, H.RUN());
+    if (r.error === 'not_linked') {
+      host.innerHTML = cardL('Behaviour: where people get stuck', 'Connect Microsoft Clarity and this card shows, per page, how many sessions hit a rage click, a dead click or a quick back, and how far people scroll, with a link to that page\'s recordings and heatmap.',
+        `<div class="lx-clc"><ol class="v2steps"><li>Clarity has to be on the store already (Shopify > Apps > Microsoft Clarity, free).</li><li>In Clarity: Settings > Data Export > <b>Generate new API token</b> (project admins only). Name it Locus-Mobius.</li><li>Paste the token here. The project ID is optional: it makes the recording and heatmap links open the right project (it is the part after /projects/view/ in Clarity's address bar).</li></ol>
+        <div class="lx-clf"><label class="kl-f"><b>Clarity API token</b><input type="password" name="tok" autocomplete="off" placeholder="eyJhbGciOi..."></label><label class="kl-f"><b>Project ID <span class="faint">(optional)</span></b><input name="pid" placeholder="abc123xyz"></label><button type="button" class="ds-btn primary" data-clgo>Connect Clarity</button></div><p class="kl-msg" hidden></p>
+        <p class="v2hint">What Clarity's API cannot give: the recordings and heatmap pictures themselves (they open in Clarity), and anything older than 3 days (Locus keeps a daily line from the day you connect). It allows 10 reads a day per project; Locus uses at most 4.</p></div>`, 'Microsoft Clarity');
+      const b = host.querySelector('[data-clgo]'), msg = host.querySelector('.kl-msg');
+      b.onclick = async () => { const tok = host.querySelector('[name="tok"]').value.trim(), pid = host.querySelector('[name="pid"]').value.trim();
+        if (!tok) { msg.hidden = false; msg.className = 'kl-msg bad'; msg.textContent = 'Paste the token first.'; return; }
+        b.disabled = true; msg.hidden = false; msg.className = 'kl-msg'; msg.textContent = 'Checking the token with one read…';
+        try { await H.apiAH('/api/clarity', { method: 'PUT', body: JSON.stringify({ act: a.act_id, token: tok, project: pid }) }); again(); }
+        catch (e) { msg.className = 'kl-msg bad'; msg.textContent = e.message; b.disabled = false; } };
+      return;
+    }
+    if (r.error) { host.innerHTML = cardL('Behaviour, from Microsoft Clarity', '', `<p class="v2bad">${esc(r.error)}</p>`); return; }
+    const pages = (r.pages || []).filter(x => x.sessions), T = pages.reduce((s, x) => s + x.sessions, 0);
+    const wavg = k => { const g = pages.filter(x => x[k] != null); const n = g.reduce((s, x) => s + x.sessions, 0); return n ? g.reduce((s, x) => s + x[k] * x.sessions, 0) / n : null; };
+    const big = pages.filter(x => x.sessions >= Math.max(20, T * 0.02));
+    const worst = k => big.filter(x => x[k] != null).sort((p1, p2) => p2[k] - p1[k])[0];
+    const wr = worst('rage'), wd = worst('dead'), wq = worst('quickback');
+    const pc = v => v == null ? '–' : `${(+v).toFixed(1)}%`;
+    const proj = r.project, heat = u => proj ? `https://clarity.microsoft.com/projects/view/${encodeURIComponent(proj)}/heatmaps?url=${encodeURIComponent(u)}` : 'https://clarity.microsoft.com/projects', recs = proj ? `https://clarity.microsoft.com/projects/view/${encodeURIComponent(proj)}/impressions` : 'https://clarity.microsoft.com/projects';
+    const hist = (r.history || []).filter(h => h.sessions);
+    const mini = (k, l, tip) => { const v = k === 'scroll' ? wavg('scroll') : wavg(k); const hs = hist.filter(h => h[k] != null);
+      return `<div class="lx-mini"${tipAttr(tip)}><span>${l}</span><b>${pc(v)}</b>${hs.length > 1 ? spark(hs.map(h => h[k]), null, 120, 22, hs.map(h => `<b>${day(h.date)}</b> · ${l.toLowerCase()} ${pc(h[k])}`)) : '<em>a line builds daily</em>'}</div>`; };
+    const lead = T ? `${int(T)} sessions on ${pages.length} pages in the last 3 days. ${pc(wavg('rage'))} of sessions hit a rage click, ${pc(wavg('dead'))} a dead click, ${pc(wavg('quickback'))} went straight back.${wr && wr.rage > 0 ? ` Most rage clicks: <b>${esc(pagePath(wr.url))}</b> (${pc(wr.rage)}).` : ''}${wq && wq.quickback > 0 && (!wr || wq.url !== wr.url) ? ` Most quick backs: <b>${esc(pagePath(wq.url))}</b> (${pc(wq.quickback)}).` : ''}` : 'Clarity has no sessions for the last 3 days.';
+    const defs = CLAR_COLS.map(([k, l, tip]) => ({ k, l, tip, lo: k !== 'scroll' ? 1 : 0, v: x => x[k], cell: x => { const v = x[k]; if (v == null) return '–'; const avg = wavg(k); const bad = avg != null && x.sessions >= 20 && (k === 'scroll' ? v < avg * 0.75 : v > Math.max(avg * 1.5, avg + 1)); return `<span class="${bad ? 'bad' : ''}"${tipAttr(`${l}: ${pc(v)} of this page's sessions${x[k + '_n'] != null ? ` (${int(x[k + '_n'])} times)` : ''}<br><span class="faint">All pages: ${pc(avg)}</span>`)}>${pc(v)}</span>`; } }))
+      .concat([{ k: 'time', l: 'Active time', v: x => x.active_time, cell: x => secs(x.active_time) }]);
+    defs.unshift({ k: 'sessions', l: 'Sessions', v: x => x.sessions, cell: x => int(x.sessions) });
+    const rows = pages.map(x => ({ ...x, name: x.url }));
+    const st = TBL.load('clarity-pages', defs, ['sessions', 'rage', 'dead', 'quickback', 'scroll']);
+    const tbl = () => { const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs); const list = by ? rows.slice().sort(by) : rows; const shown = WEBX.clar ? list : list.slice(0, 15);
+      return `<table><thead><tr>${TBL.th(st, '_name', 'Page')}${cols.map(d2 => TBL.th(st, d2.k, d2.l)).join('')}<th></th></tr></thead><tbody>${shown.map(x => `<tr><td><span class="nm" title="${esc(x.url)}">${esc(pagePath(x.url))}</span></td>${cols.map(d2 => `<td>${d2.cell(x)}</td>`).join('')}<td class="kl-acts"><a class="kl-act" href="${esc(heat(x.url))}" target="_blank" rel="noopener">Heatmap</a></td></tr>`).join('')}</tbody></table>${list.length > 15 ? `<button type="button" class="v2link" data-wx="clar" style="margin-top:8px">${WEBX.clar ? 'Show the first 15' : `Show all ${list.length}`} ›</button>` : ''}`; };
+    host.innerHTML = cardL('Behaviour: where people get stuck', lead,
+      `<div class="lx-minis">${mini('rage', 'Rage clicks', CLAR_COLS[0][2])}${mini('dead', 'Dead clicks', CLAR_COLS[1][2])}${mini('quickback', 'Quick backs', CLAR_COLS[2][2])}${mini('scroll', 'Scroll depth', CLAR_COLS[3][2])}</div>
+      <div class="v2tbar"><span class="v2tbar-l faint">Red = well above the site's own rate. Heatmap opens Clarity on that page.</span><a class="ds-btn" href="${esc(recs)}" target="_blank" rel="noopener">Open recordings ${window.icon ? window.icon('external-link', { size: 14 }) : ''}</a><div class="hd-period pm v2cols" data-tbl="${st.id}">${TBL.menu(st, defs)}</div></div>
+      <div class="v2tbl wide" id="v2clt">${tbl()}</div>
+      <p class="v2foot">Microsoft Clarity, ${esc(r.window || 'the last 3 days')}; read ${esc(new Date(r.as_of).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}. Clarity allows 10 reads a day per project; ${int(r.calls_today)} used today.${r.refresh_error ? ` Last refresh: ${esc(r.refresh_error)}` : ''}${proj ? '' : ' <button type="button" class="v2link" data-clpid>Add the project ID for direct links</button>'}</p>`, 'Microsoft Clarity');
+    const wrap = host.querySelector('#v2clt');
+    const redraw = () => { wrap.innerHTML = tbl(); hook(); };
+    const hook = () => { TBL.wire(wrap, st, defs, redraw); const x = wrap.querySelector('[data-wx]'); if (x) x.onclick = () => { WEBX.clar = !WEBX.clar; redraw(); }; };
+    hook(); TBL.wire(host.querySelector('.v2tbar'), st, defs, redraw);
+    const pb = host.querySelector('[data-clpid]'); if (pb) pb.onclick = () => klModal('Clarity project ID', '<div class="kl-form"><label class="kl-f"><b>Project ID</b><span>Open the project in Clarity and copy the part after /projects/view/ in the address bar, or paste the whole address.</span><input name="pid"></label></div>', 'Save', async ({ w: el, close, msg }) => {
+      const v = el.querySelector('[name="pid"]').value.trim(); if (!v) { msg('Paste the ID or the address.', true); return; }
+      await H.apiAH('/api/clarity', { method: 'PUT', body: JSON.stringify({ act: a.act_id, project: v }) }); close(); again(); });
+  }
   async function website(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
     const title = a ? `Website: ${esc(a.name)}` : 'Website';
@@ -2314,32 +2809,42 @@
     const w = win(); let d;
     try { d = await H.apiAH(`/api/google/website?act=${encodeURIComponent(a.act_id)}&${w.q}`); } catch (e) { d = { error: e.message }; }
     if (t !== H.RUN()) return;
-    if (d.error) { $('#main').innerHTML = shell('website', title, notLinked('ga4', a.name, d.error)); wireGo($('#main')); return; }
-    const c = d.cur || {}, p = d.prev || {}, cur = a.currency;
-    const cvr = x => x && x.sessions ? (x.ecommercePurchases || 0) / x.sessions : null;
-    const fun = [['Sessions', c.sessions, p.sessions], ['Added to cart', c.addToCarts, p.addToCarts], ['Checkout', c.checkouts, p.checkouts], ['Purchased', c.ecommercePurchases, p.ecommercePurchases]];
-    const top = Math.max(c.sessions || 1, 1);
-    const chMx = Math.max(...(d.channels || []).map(x => x.sessions), 1);
-    const leak = (d.landing || []).filter(x => x.sessions > (c.sessions || 0) * 0.03).map(x => ({ ...x, cvr: x.sessions ? x.ecommercePurchases / x.sessions : 0 })).sort((x, y) => x.cvr - y.cvr)[0];
-    const devT = (d.devices || []).reduce((s, x) => s + x.sessions, 0) || 1;
-    const DC = { mobile: '--c-meta', desktop: '--c-email', tablet: '--c-google' };
-    const rows = d.days || [];
-    const body = `<p class="v2say lead">${int(c.sessions)} sessions${chip(c.sessions, p.sessions)}, ${pct(c.engagementRate, 0)} engaged, ${pct(cvr(c), 2)} bought${p.sessions ? ` (against ${pct(cvr(p), 2)} before)` : ''}.${leak ? ` The weakest big landing page is <b>${esc(leak.page)}</b> at ${pct(leak.cvr, 2)}.` : ''}</p>
-      <div class="v2tiles">${[
-        tile({ compact: true, label: 'Sessions', src: 'GA4', value: int(c.sessions), delta: chip(c.sessions, p.sessions), sub: `${int(c.totalUsers)} people · ${pct(c.totalUsers ? c.newUsers / c.totalUsers : null, 0)} new`, spark: spark(rows.map(r => r.sessions), null, 300, 34, rows.map(r => `<b>${day(r.date)}</b> · ${int(r.sessions)} sessions`)) }),
-        tile({ compact: true, label: 'Engaged sessions', src: 'GA4', hint: '10s+, 2+ pages or a conversion', value: pct(c.engagementRate, 0), sub: `avg ${c.averageSessionDuration ? Math.round(c.averageSessionDuration) + 's' : '–'} a session` }),
-        tile({ compact: true, label: 'Conversion rate', src: 'GA4', value: pct(cvr(c), 2), delta: chip(cvr(c), cvr(p)), sub: `${int(c.ecommercePurchases)} purchases` }),
-        tile({ compact: true, label: 'Revenue GA4 sees', src: 'GA4', hint: 'GA4 misses orders; Shopify is the truth', value: kmoney(c.purchaseRevenue, cur), delta: chip(c.purchaseRevenue, p.purchaseRevenue), sub: 'Store revenue is on Sales' })].join('')}</div>
-      <div class="v2two">${rows.length > 1 ? card('Sessions by day', '', lineChart('v2web', rows.map(r => ({ ...r, v: r.sessions })), { key: 'v', fmt: v => int(v), h: 220 })) : ''}
-        ${card('From visit to purchase', `${pct(c.sessions ? c.addToCarts / c.sessions : null, 1)} add to cart, ${pct(c.addToCarts ? c.ecommercePurchases / c.addToCarts : null, 1)} of carts buy.`, `<div class="v2fun four">${fun.map(([l, v, pv]) => `<div class="fs"><div class="l">${l}</div><div class="v">${int(v)}${chip(v, pv)}</div><div class="r">${pct(v / top, 1)} of sessions</div><div class="bar"${tipAttr(`${l}: ${int(v)} now${pv ? `, ${int(pv)} before` : ''}`)}><i style="width:${((v || 0) / top * 100).toFixed(1)}%"></i></div></div>`).join('')}</div>`)}</div>
-      ${card('Where visitors come from', 'Google’s default channel groups. Conversion is purchases per session; green beats the site average.', `<div class="v2tbl"><table><thead><tr><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Conversion</th><th>Purchases</th><th>Revenue</th></tr></thead><tbody>${(d.channels || []).map(x => `<tr><td><b>${esc(x.group)}</b></td><td>${ib(x.sessions, chMx, null, int(x.sessions), `${pct(x.sessions / (c.sessions || 1), 0)} of sessions`)}</td><td>${pct(x.engagementRate, 0)}</td><td class="${cvr(c) && x.sessions > 50 ? (x.ecommercePurchases / x.sessions >= cvr(c) ? 'good' : 'bad') : ''}">${pct(x.sessions ? x.ecommercePurchases / x.sessions : null, 2)}</td><td>${int(x.ecommercePurchases)}</td><td>${kmoney(x.purchaseRevenue, cur)}</td></tr>`).join('')}</tbody></table></div>`)}
-      <div class="v2two">${card('Landing pages', 'Where sessions start. Red is below the site average on real traffic: a page to fix.', `<div class="v2tbl wide"><table><thead><tr><th>Page</th><th>Sessions</th><th>Engaged</th><th>Conversion</th><th>Revenue</th></tr></thead><tbody>${(d.landing || []).map(x => { const r = x.sessions ? x.ecommercePurchases / x.sessions : 0; return `<tr><td><span class="nm" title="${esc(x.page)}">${esc(x.page)}</span></td><td>${int(x.sessions)}</td><td>${pct(x.engagementRate, 0)}</td><td class="${x.sessions > (c.sessions || 0) * 0.03 && cvr(c) ? (r >= cvr(c) ? 'good' : 'bad') : ''}">${pct(r, 2)}</td><td>${kmoney(x.purchaseRevenue, cur)}</td></tr>`; }).join('')}</tbody></table></div>`)}
-        ${card('Devices', '', `<div class="v2stackbar">${(d.devices || []).map(x => `<i style="flex:${x.sessions};background:var(${DC[x.device] || '--c-else'})"${tipAttr(`<b>${esc(x.device)}</b> · ${pct(x.sessions / devT, 0)} of sessions · converts ${pct(x.sessions ? x.ecommercePurchases / x.sessions : null, 2)}`)}></i>`).join('')}</div>
-          <div class="v2tbl" style="margin-top:10px"><table><tbody>${(d.devices || []).map(x => `<tr><td><span class="sw" style="background:var(${DC[x.device] || '--c-else'})"></span>${esc(x.device)}</td><td>${pct(x.sessions / devT, 0)}</td><td>${pct(x.sessions ? x.ecommercePurchases / x.sessions : null, 2)} convert</td><td>${kmoney(x.purchaseRevenue, cur)}</td></tr>`).join('')}</tbody></table></div>`)}</div>
-      ${card('Source and medium', 'The raw tags, for checking UTMs.', `<div class="v2tbl"><table><thead><tr><th>Source / medium</th><th>Sessions</th><th>Purchases</th><th>Revenue</th></tr></thead><tbody>${(d.sources || []).map(x => `<tr><td>${esc(x.source)}</td><td>${int(x.sessions)}</td><td>${int(x.ecommercePurchases)}</td><td>${kmoney(x.purchaseRevenue, cur)}</td></tr>`).join('')}</tbody></table></div>`)}
-      ${foot(`Google Analytics 4, property ${esc(d.property)}, ${esc(w.from)} to ${esc(w.to)}. GA4 undercounts purchases (consent, ad blockers); store revenue and orders stay Shopify’s on Sales. Refreshed hourly.`)}`;
+    if (d.error) { $('#main').innerHTML = shell('website', title, notLinked('ga4', a.name, d.error) + '<div id="v2clar"></div>'); wireGo($('#main')); clarityCard(a, t); return; }
+    const c = d.cur || {}, p = d.prev || null, cur = a.currency;
+    const site = webCvr(c), rows = d.days || [], prows = d.prev_days || [];
+    const big = (d.landing || []).filter(x => x.sessions > (c.sessions || 0) * 0.03);
+    const leak = big.map(x => ({ ...x, r: webCvr(x) })).sort((x, y) => x.r - y.r)[0];
+    const defs = webDefs(c.sessions || 0, site, cur);
+    const tCh = webTable('web-ch', (d.channels || []).map(x => ({ ...x, name: x.group })), defs, ['sessions', 'share', 'eng', 'cvr', 'purch', 'rev'], 'Channel', 'channel', r => `<td><b>${esc(r.name)}</b></td>`, 15);
+    const tSrc = webTable('web-src', (d.sources || []).map(x => ({ ...x, name: x.source })), defs, ['sessions', 'eng', 'cvr', 'purch', 'rev'], 'Source / medium', 'source', r => `<td><span class="nm" title="${esc(r.name)}">${esc(r.name)}</span></td>`, 10);
+    const tLp = webTable('web-lp', (d.landing || []).map(x => ({ ...x, name: x.page })), defs, ['sessions', 'eng', 'atc', 'cvr', 'rev'], 'Landing page', 'page', r => `<td><span class="nm" title="${esc(r.name)}">${esc(pagePath(r.name))}</span></td>`, 15);
+    const sp = (k, fmt, lbl) => tspark(rows, prows, k, fmt, lbl);
+    const body = `<p class="v2say lead">${int(c.sessions)} sessions${chip(c.sessions, p?.sessions)}, ${pct(c.engagementRate, 0)} engaged, ${pct(site, 2)} bought${p ? ` (against ${pct(webCvr(p), 2)} before)` : ''}.${leak ? ` The weakest big landing page is <b>${esc(pagePath(leak.page))}</b> at ${pct(leak.r, 2)}.` : ''}</p>
+      <div class="v2tiles" id="v2wtiles">${[
+        tile({ compact: true, label: 'Sessions', src: 'GA4', value: int(c.sessions), delta: chip(c.sessions, p?.sessions), sub: `${int(c.totalUsers)} people · ${pct(c.totalUsers ? c.newUsers / c.totalUsers : null, 0)} new`, spark: sp('sessions', int, 'sessions') }),
+        tile({ compact: true, label: 'Engaged sessions', src: 'GA4', hint: '10s+, 2+ pages or a conversion', value: pct(c.engagementRate, 0), delta: p ? ptDelta(c.engagementRate, p.engagementRate) : '', sub: `avg ${secs(c.averageSessionDuration)} a session`, spark: sp(r => r.sessions ? r.engagedSessions / r.sessions : null, v => pct(v, 0), 'engaged') }),
+        tile({ compact: true, label: 'Conversion rate', src: 'GA4', value: pct(site, 2), delta: p ? ptDelta(site, webCvr(p)) : '', sub: `${int(c.ecommercePurchases)} purchases`, spark: sp(r => r.sessions ? r.ecommercePurchases / r.sessions : null, v => pct(v, 2), 'conversion') }),
+        tile({ compact: true, label: 'Revenue GA4 sees', src: 'GA4', hint: 'GA4 misses orders; Shopify is the truth', value: kmoney(c.purchaseRevenue, cur), delta: chip(c.purchaseRevenue, p?.purchaseRevenue), sub: 'Store revenue is on Sales', spark: sp('purchaseRevenue', v => kmoney(v, cur), 'revenue') })].join('')}</div>
+      ${cardL('From visit to purchase', `${pct(c.sessions ? c.addToCarts / c.sessions : null, 1)} of sessions add to cart, ${pct(c.addToCarts ? c.checkouts / c.addToCarts : null, 0)} of carts reach checkout, ${pct(c.checkouts ? c.ecommercePurchases / c.checkouts : null, 0)} of checkouts buy.`, webFunnel(c, p), 'click a row in the tables below to see any slice’s own funnel')}
+      ${rows.length > 1 ? cardL('Sessions by day', '', legend([{ color: '--brand', label: 'Sessions' }, ...(prows.length > 1 && H.S.cmp !== 'none' ? [{ dash: true, label: cmpLabel() }] : [])]) + lineChart('v2web', rows.map(r => ({ ...r, v: r.sessions })), { key: 'v', prev: H.S.cmp !== 'none' ? prows.map(r => ({ ...r, v: r.sessions })) : [], fmt: v => int(v), h: 220 })) : ''}
+      ${cardL('Where visitors come from', 'Google’s default channel groups. Conversion is purchases per session; green beats the site average on real traffic.', tCh.block)}
+      ${cardL('Landing pages', 'Where sessions start (query strings folded together). Red converts below the site average on real traffic: a page to fix.', tLp.block)}
+      ${whoVisits(d, cur)}
+      <div id="v2clar"></div>
+      ${cardL('Source and medium', 'The raw tags, for checking UTMs.', tSrc.block)}
+      ${foot(`Google Analytics 4, property ${esc(d.property)}, ${esc(w.from)} to ${esc(w.to)}${p ? `, against ${esc(w.pf)} to ${esc(w.pt)}` : ''}. GA4 undercounts purchases (consent, ad blockers); store revenue and orders stay Shopify’s on Sales. Refreshed hourly.`)}`;
     $('#main').innerHTML = shell('website', title, body); const root = $('#main'); wireGo(root);
-    if (rows.length > 1) wireLine('v2web', rows.map(r => ({ ...r, v: r.sessions })), { tip: r => `<b>${day(r.date)}</b> · ${int(r.sessions)} sessions · ${int(r.purchases)} purchases` });
+    if (rows.length > 1) wireLine('v2web', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · ${int(r.sessions)} sessions · ${int(r.purchases)} purchases${prows[i] && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${int(prows[i].sessions)} sessions</span>` : ''}` });
+    const drill = (kind, v) => webDrill(a, w, kind, v, site);
+    wireWebTable(root, 'web-ch', tCh, defs, drill); wireWebTable(root, 'web-src', tSrc, defs, drill); wireWebTable(root, 'web-lp', tLp, defs, drill);
+    root.querySelectorAll('.lx-who tr[data-wd]').forEach(tr => { tr.onclick = () => drill(tr.dataset.wd, tr.dataset.wv); tr.onkeydown = e => { if (e.key === 'Enter') drill(tr.dataset.wd, tr.dataset.wv); }; });
+    /* Tiles open their own drill-down. The listener sits on the tile row (replaced every render) and stops the click
+       before the app-wide tile handler, whose glossary panel only said "see Metrics" for these numbers. */
+    const tl = root.querySelector('#v2wtiles'); const keys = ['sessions', 'engaged', 'cvr', 'revenue'];
+    tl.querySelectorAll('.v2tile').forEach((el, i) => { el.dataset.wm = keys[i]; el.dataset.go = 'website'; el.setAttribute('role', 'button'); el.tabIndex = 0; });
+    tl.addEventListener('click', e => { const el = e.target.closest('.v2tile[data-wm]'); if (!el) return; e.stopPropagation(); webMetric(a, d, w, el.dataset.wm); });
+    tl.addEventListener('keydown', e => { const el = e.target.closest('.v2tile[data-wm]'); if (el && e.key === 'Enter') webMetric(a, d, w, el.dataset.wm); });
+    clarityCard(a, t);
   }
   async function search(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
@@ -2353,21 +2858,36 @@
     const c = d.cur || {}, p = d.prev || {}, sp = d.split || { brand: {}, other: {} };
     const tot = (sp.brand.clicks || 0) + (sp.other.clicks || 0) || 1;
     const opp = (d.queries || []).filter(q => !q.brand && q.position >= 4 && q.position <= 15 && q.impressions >= 100).sort((x, y) => y.impressions - x.impressions).slice(0, 8);
-    const qMx = Math.max(...(d.queries || []).map(q => q.clicks), 1); const rows = d.days || [];
+    const qMx = Math.max(...(d.queries || []).map(q => q.clicks), 1); const rows = (d.days || []).map(r => ({ ...r, ctr: r.impressions ? r.clicks / r.impressions : null }));
     const body = `<p class="v2say lead">${int(c.clicks)} clicks from Google search${chip(c.clicks, p.clicks)}, ${pct((sp.brand.clicks || 0) / tot, 0)} of them from people already searching the brand.${opp.length ? ` ${opp.length} non-brand queries sit just off the top of page one.` : ''}</p>
-      <div class="v2tiles">${[
-        tile({ compact: true, label: 'Clicks', src: 'GSC', value: int(c.clicks), delta: chip(c.clicks, p.clicks), spark: spark(rows.map(r => r.clicks), null, 300, 34, rows.map(r => `<b>${day(r.date)}</b> · ${int(r.clicks)} clicks`)) }),
-        tile({ compact: true, label: 'Impressions', src: 'GSC', value: int(c.impressions), delta: chip(c.impressions, p.impressions) }),
-        tile({ compact: true, label: 'Click rate', value: pct(c.ctr, 1), delta: chip(c.ctr, p.ctr) }),
-        tile({ compact: true, label: 'Average position', hint: 'lower is better', value: c.position ? c.position.toFixed(1) : '–', delta: chip(c.position, p.position, true) })].join('')}</div>
-      <div class="v2two">${rows.length > 1 ? card('Clicks by day', '', lineChart('v2gsc', rows.map(r => ({ ...r, v: r.clicks })), { key: 'v', fmt: v => int(v), h: 220 })) : ''}
-        ${card('Brand against everything else', 'Brand clicks are people who already know the brand; the rest is search finding new people.', `<div class="v2stackbar"><i style="flex:${sp.brand.clicks || 0};background:var(--brand)"${tipAttr(`Brand: ${int(sp.brand.clicks)} clicks`)}></i><i style="flex:${sp.other.clicks || 0};background:var(--c-tiktok)"${tipAttr(`Non-brand: ${int(sp.other.clicks)} clicks`)}></i></div><div class="v2stacklab"><span><i style="background:var(--brand)"></i>Brand ${int(sp.brand.clicks)} clicks</span><span><i style="background:var(--c-tiktok)"></i>Non-brand ${int(sp.other.clicks)} clicks</span></div>
-          ${opp.length ? `<h4 class="v2sub">Worth a page or a push</h4><div class="v2tbl"><table><thead><tr><th>Query</th><th>Impressions</th><th>Position</th></tr></thead><tbody>${opp.map(q => `<tr><td>${esc(q.query)}</td><td>${int(q.impressions)}</td><td>${q.position.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>` : ''}`)}</div>
-      <div class="v2two">${card('Top queries', 'The words people typed. Brand queries are marked.', `<div class="v2tbl"><table><thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>Click rate</th><th>Position</th></tr></thead><tbody>${(d.queries || []).slice(0, 25).map(q => `<tr><td>${q.brand ? '<span class="v2pill">brand</span> ' : ''}${esc(q.query)}</td><td>${ib(q.clicks, qMx, q.brand ? '--brand' : '--c-tiktok', int(q.clicks))}</td><td>${int(q.impressions)}</td><td>${pct(q.ctr, 1)}</td><td>${q.position.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>`)}
-        ${card('Top pages', '', `<div class="v2tbl wide"><table><thead><tr><th>Page</th><th>Clicks</th><th>Position</th></tr></thead><tbody>${(d.pages || []).map(x => `<tr><td><span class="nm" title="${esc(x.page)}">${esc(x.page.replace(/^https?:\/\/[^/]+/, '') || '/')}</span></td><td>${int(x.clicks)}</td><td>${x.position.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>`)}</div>
+      <div class="v2tiles" id="v2stiles">${[
+        tile({ compact: true, label: 'Clicks', src: 'GSC', value: int(c.clicks), delta: chip(c.clicks, p.clicks), spark: tspark(rows, null, 'clicks', int, 'clicks') }),
+        tile({ compact: true, label: 'Impressions', src: 'GSC', value: int(c.impressions), delta: chip(c.impressions, p.impressions), spark: tspark(rows, null, 'impressions', int, 'impressions') }),
+        tile({ compact: true, label: 'Click rate', value: pct(c.ctr, 1), delta: chip(c.ctr, p.ctr), spark: tspark(rows, null, 'ctr', v => pct(v, 1), 'click rate') }),
+        tile({ compact: true, label: 'Average position', hint: 'lower is better', value: c.position ? c.position.toFixed(1) : '–', delta: chip(c.position, p.position, true), spark: tspark(rows, null, 'position', v => v.toFixed(1), 'position') })].join('')}</div>
+      <div class="v2two">${rows.length > 1 ? cardL('Clicks by day', '', lineChart('v2gsc', rows.map(r => ({ ...r, v: r.clicks })), { key: 'v', fmt: v => int(v), h: 220 })) : ''}
+        ${cardL('Brand against everything else', 'Brand clicks are people who already know the brand; the rest is search finding new people.', `<div class="v2stackbar"><i style="flex:${sp.brand.clicks || 0};background:var(--brand)"${tipAttr(`Brand: ${int(sp.brand.clicks)} clicks`)}></i><i style="flex:${sp.other.clicks || 0};background:var(--c-tiktok)"${tipAttr(`Non-brand: ${int(sp.other.clicks)} clicks`)}></i></div><div class="v2stacklab"><span><i style="background:var(--brand)"></i>Brand ${int(sp.brand.clicks)} clicks</span><span><i style="background:var(--c-tiktok)"></i>Non-brand ${int(sp.other.clicks)} clicks</span></div>
+          ${opp.length ? `<p class="ds-label" style="margin-top:16px">Worth a page or a push</p><div class="v2tbl"><table><thead><tr><th>Query</th><th>Impressions</th><th>Position</th></tr></thead><tbody>${opp.map(q => `<tr><td>${esc(q.query)}</td><td>${int(q.impressions)}</td><td>${q.position.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>` : ''}`)}</div>
+      <div class="v2two">${cardL('Top queries', 'The words people typed. Brand queries are marked.', `<div class="v2tbl"><table><thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>Click rate</th><th>Position</th></tr></thead><tbody>${(d.queries || []).slice(0, 25).map(q => `<tr><td>${q.brand ? '<span class="ds-chip lx-chip">brand</span> ' : ''}${esc(q.query)}</td><td>${ib(q.clicks, qMx, q.brand ? '--brand' : '--c-tiktok', int(q.clicks))}</td><td>${int(q.impressions)}</td><td>${pct(q.ctr, 1)}</td><td>${q.position.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>`)}
+        ${cardL('Top pages', '', `<div class="v2tbl wide"><table><thead><tr><th>Page</th><th>Clicks</th><th>Position</th></tr></thead><tbody>${(d.pages || []).map(x => `<tr><td><span class="nm" title="${esc(x.page)}">${esc(pagePath(x.page))}</span></td><td>${int(x.clicks)}</td><td>${x.position.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>`)}</div>
       ${foot(`Google Search Console, ${esc(d.site)}, ${esc(w.from)} to ${esc(w.to)}. Search Console lags about two days. Refreshed hourly.`)}`;
     $('#main').innerHTML = shell('search', title, body); const root = $('#main'); wireGo(root);
     if (rows.length > 1) wireLine('v2gsc', rows.map(r => ({ ...r, v: r.clicks })), { tip: r => `<b>${day(r.date)}</b> · ${int(r.clicks)} clicks · ${int(r.impressions)} impressions · position ${r.position ? r.position.toFixed(1) : '–'}` });
+    /* Tiles open their own drill-down (the line large + the queries and pages behind the number), not the glossary. */
+    const SM = { clicks: ['Clicks', 'clicks', int, false, 'Clicks from Google search results to the site.'], impressions: ['Impressions', 'impressions', int, false, 'Times the site showed in a Google search result.'], ctr: ['Click rate', 'ctr', v => pct(v, 1), false, 'Clicks per impression.'], position: ['Average position', 'position', v => v.toFixed(1), true, 'Where the site sat in results on average; 1 is the top. Lower is better.'] };
+    const keys = ['clicks', 'impressions', 'ctr', 'position'], tl = root.querySelector('#v2stiles');
+    const open = k => { const [l, f, fmt, lower, means] = SM[k]; const id = 'v2sm' + Math.random().toString(36).slice(2, 7);
+      const qs = (d.queries || []).filter(q => q[f] != null).slice().sort((x, y) => lower ? x[f] - y[f] : y[f] - x[f]).filter(q => k === 'position' || k === 'ctr' ? q.impressions >= 50 : true).slice(0, 12);
+      const pg = (d.pages || []).filter(x => x[f] != null).slice().sort((x, y) => lower ? x[f] - y[f] : y[f] - x[f]).slice(0, 10);
+      panel.sheet = { lead: `<span class="lx-pv-lead">${window.icon ? window.icon('search', { size: 20 }) : ''}</span>`, chip: '<span class="ds-chip">Search Console</span>', navLabel: 'In this drill-down' }; panel.wide = true;
+      panel(l, `<section data-sec="The number" data-ic="activity" class="lx-dsec"><div class="lx-dv"><b>${c[f] == null ? '–' : fmt(c[f])}</b>${chip(c[f], p[f], lower)}${p[f] != null ? `<span class="faint">before: ${fmt(p[f])}</span>` : ''}</div><p>${esc(means)}</p></section>
+        <section data-sec="Day by day" data-ic="chart-line" class="lx-dsec"><h4>Day by day</h4>${rows.length > 1 ? lineChart(id, rows.map(r => ({ ...r, v: r[f] == null ? null : f === 'ctr' ? r[f] * 100 : r[f] })), { key: 'v', fmt: f === 'ctr' ? v => v.toFixed(1) + '%' : fmt, h: 220 }) : '<p class="v2hint">Pick a longer window.</p>'}</section>
+        <section data-sec="Queries" data-ic="search" class="lx-dsec"><h4>${k === 'position' ? 'Best placed queries (50+ impressions)' : k === 'ctr' ? 'Best clicked queries (50+ impressions)' : `Queries by ${l.toLowerCase()}`}</h4><div class="v2tbl"><table><thead><tr><th>Query</th><th>${esc(l)}</th><th>Clicks</th><th>Impressions</th></tr></thead><tbody>${qs.map(q => `<tr><td>${q.brand ? '<span class="ds-chip lx-chip">brand</span> ' : ''}${esc(q.query)}</td><td><b>${fmt(q[f])}</b></td><td>${int(q.clicks)}</td><td>${int(q.impressions)}</td></tr>`).join('')}</tbody></table></div></section>
+        ${pg.length ? `<section data-sec="Pages" data-ic="file-text" class="lx-dsec"><h4>Pages by ${l.toLowerCase()}</h4><div class="v2tbl"><table><tbody>${pg.map(x => `<tr><td><span class="nm" title="${esc(x.page)}">${esc(pagePath(x.page))}</span></td><td><b>${fmt(x[f])}</b></td></tr>`).join('')}</tbody></table></div></section>` : ''}`);
+      if (rows.length > 1) wireLine(id, rows.map(r => ({ ...r, v: r[f] })), { tip: r => `<b>${day(r.date)}</b> · ${esc(l)} ${r[f] == null ? '–' : fmt(r[f])}` }); };
+    tl.querySelectorAll('.v2tile').forEach((el, i) => { el.dataset.wm = keys[i]; el.dataset.go = 'search'; el.setAttribute('role', 'button'); el.tabIndex = 0; });
+    tl.addEventListener('click', e => { const el = e.target.closest('.v2tile[data-wm]'); if (!el) return; e.stopPropagation(); open(el.dataset.wm); });
+    tl.addEventListener('keydown', e => { const el = e.target.closest('.v2tile[data-wm]'); if (el && e.key === 'Enter') open(el.dataset.wm); });
   }
 
   /* =========================================================================================
