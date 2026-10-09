@@ -1437,3 +1437,28 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   as in production, sign-in, other brand / "all" / writes / settings / Strategist internals / drafts / P&L / ads /
   calendar refused, the dev-key forgery refused, invites owner-only and approval-gated).
 
+
+## 2026-10-09: the message itself, GA4 drill-downs, Microsoft Clarity
+
+- **`GET /api/klaviyo?what=message&kind=campaign|flow&id=`** (klaviyo.js `messageView` / `readMessage`): subject,
+  preview, sender and the template HTML of a campaign-message or flow-message (`/api/<campaign|flow>-messages/{id}/`
+  then `/template/`), filled by `POST /api/template-render/` when it has tags (sample `first_name`), or the SMS body.
+  A campaign id (the day-by-day read's message key is sometimes the campaign) resolves to its first message. Kept 30
+  days in `settings` `klvmsg:<act>:<kind>:<id>`; HTML over 900K characters is answered but not kept. Verified live on
+  Lucky (campaign email 37K chars, SMS campaign) and Party Patch (flow email).
+- **google.js**: `websiteReport` (cache `g4v3:`) now returns `prev_days`, more per day, channel / landing / source /
+  device / new-vs-returning rows WITH the window before (`g4By`: two named date ranges in one request) and funnel
+  steps per row; landing pages are `landingPage` (no query string). `websiteDrill` = `GET /api/google/website-drill
+  ?kind=channel|source|page|device|nvr&value=` (cache `g4d2:`): one slice's totals, days (both windows), devices and
+  its other side (a page's channels and sources; a source's landing pages).
+- **clarity.js** (`/api/clarity`, admin + brandsFor; one route block above /api/brand-links, and `clarity_token` on
+  /api/brand-links for the Integrations paste box): Clarity Data Export API
+  (`https://www.clarity.ms/export-data/api/v1/project-live-insights`, Bearer project token, numOfDays 1 to 3, up to 3
+  dimensions, 10 calls a project a day). Token + project id in `p_br_doc` key `clarity` (never returned). The per-page
+  read (numOfDays=3, dimension1=URL) is cached 8 hours in `clarity:<act>:pages`; once a UTC day a whole-site read is
+  appended to `clarity:<act>:hist` (90 kept); calls counted per brand per UTC day in `clarityCalls:<act>` and refused
+  at 9. `shapeInsights` joins Traffic, ScrollDepth, EngagementTime and the click metrics (`sessionsWithMetricPercentage`
+  = % of the page's sessions, `subTotal` = times) per URL. PUT {act, token, project?} checks the token with one real
+  read; PUT {act, project} sets the id for links; DELETE forgets. integrations.js has a per-brand "Microsoft Clarity"
+  item (group Website). Tests: `node test-clarity.mjs` (8 offline checks, Clarity and Klaviyo mocked). NOT tested live:
+  any Clarity call (no brand has a token yet), so the response field names come from Microsoft's docs and sample.

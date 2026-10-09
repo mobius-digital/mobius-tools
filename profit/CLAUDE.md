@@ -2420,3 +2420,61 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
   Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
 
+
+## 2026-10-09: Email and SMS, Website and Search, Cole's pass (see the email, the funnel, sortable drill-downs, Clarity)
+
+Cole: "Am I supposed to see what these campaigns and flows look like?", the Status pill "looks really off", the little
+bars under Placed order and after send were "not good visualizations", the subject-line summary sat jammed beside its
+title, "no space between sections", the Website funnel was unreadable past add to cart, the tables could not be sorted
+or opened, a tile click only said "go to the Metrics tab", and he expected heatmaps and recordings (Microsoft Clarity).
+All in v2.js `email()` / `klaviyoCards()` / `subjectsCard()` / `website()` / `search()` and the block at the end of
+v2.css ("EMAIL AND SMS, STORE > WEBSITE AND SEARCH"). index.html: v2.css?v=26, v2.js?v=37.
+- **See the message** (`klPreview`, `pvStats`): a sent campaign row (or a subject in Subject lines) and a flow MESSAGE
+  row (inside an opened flow) open a sheet: the inbox line (from, subject, preview), the email itself in an
+  `<iframe sandbox="allow-popups allow-popups-to-escape-sandbox">` (no scripts, no same-origin, links open in a new tab
+  via an injected `<base target="_blank">`), Desktop / Phone width (`.ds-seg`), and the results beside it with each
+  rate coloured against Klaviyo's average; campaigns add "How fast the money came in". SMS shows the text in a phone
+  bubble. Data: account-health `GET /api/klaviyo?what=message&kind=campaign|flow&id=` (kept 30 days in `settings`
+  `klvmsg:*`; the template's HTML, filled by Klaviyo's template-render with sample values when it has tags). Cached in
+  the page per session (`MSG`).
+- **Status = the design-system chip** (`stChip`: `.ds-chip.lx-chip` + `.ds-dot`; `FLOW_ST`), a button when the key can
+  write, opening `statusMenu` (three choices with what each means; then the usual `klWrite` before/after modal).
+  Drafts and scheduled (`campChip`), the flags ("Fix" / "Check") and the rate cards' "Better / Worse than average"
+  use the same chip. NOTE: `.lx-st` is the snapshot links' class (share.js), so the chip is `.lx-chip`.
+- **No goal bullets on the Klaviyo tiles**: revenue per email and placed order rate say the benchmark in words
+  (`vsAvg`: "59% under the Klaviyo average ($0.10)", amber / green); share of store revenue says "In / Under the
+  healthy range (25 to 35%)". The campaign table's Open / Click / Placed order / Unsub / Spam / Bounce are coloured
+  against the average with the average in the tooltip (`rateCell`), replacing the "better than avg" pills.
+- **Money after send** (`afterSeries` / `afterSend`): the RUNNING TOTAL over the 14 days after the send as one sparkline
+  plus "80% by day N"; hover reads "Day N: $X, $Y so far of $Z". A send under 3 days old says "$X so far, just sent".
+  Reason: the question is how fast the money came in; the amount is already in the Revenue column.
+- **Layout**: `cardL(title, lead, body, cap)` puts a card's conclusion on its own line UNDER the title (`.lx-lead`); used
+  by every Email, Website and Search card. The Klaviyo part (`#v2kl`, `#v2klall`) is `.lx-stack` (16px gap; it used to
+  be a plain div so its cards touched), opened by a small-caps "From Klaviyo, read with <brand>'s own key" label.
+  Subject lines is one grid (`.lx-subj`) with a plain-English conclusion.
+- **Website funnel** (`webFunnel`): a row per step (count + change, % of the step before + pt change, % of sessions, a
+  LOG-SCALED bar with the compare period as a grey bar), the drop between steps as its own line ("91.6% left before
+  adding to cart (29,053), better than before (93.1%)"), the biggest drop highlighted, and the step that slipped most
+  named under it. GA4 counts add-to-cart and checkout as events (said on screen).
+- **Sortable tables with drill-downs** (`webTable` / `wireWebTable` on the Ads `TBL` helper, saved as `pf_tbl_web-ch`,
+  `web-lp`, `web-src`, `clarity-pages`): sessions (+ change), share, engaged, avg time, add to cart, conversion
+  (green / red against the site on real traffic), purchases, revenue, per session. A row opens `webDrill`: a sheet with
+  Summary, Day by day (compare dashed, missing GA4 days filled with zero so the lines align), Funnel, Top landing pages
+  (for a channel or source), Channels and Sources (for a page), Devices. Landing pages now use GA4 `landingPage`
+  (query strings folded; fbclid made every Meta click its own row). **Who visits** card: device and new against
+  returning, each row drills.
+- **Tiles drill properly**: Website and Search tiles open `webMetric` / the search drill (the number, its change, what it
+  means, the line large with the compare period, best and weakest day, and the same number by channel / device / new
+  vs returning, or the queries and pages behind it). The listener sits on the tile row and stops the click before the
+  app-wide glossary panel (which is someone else's code; left untouched). Rates are drawn in percent units because
+  `lineChart` floors its scale at 1.
+- **Behaviour (Microsoft Clarity)** (`clarityCard`, `#v2clar` on Website, shown even when GA4 is not linked): not
+  connected = what it adds + the steps + a token box (and optional project ID) that PUTs account-health `/api/clarity`;
+  connected = a conclusion line, four minis (rage clicks, dead clicks, quick backs, scroll depth, each % of sessions,
+  with a daily line once history builds), a sortable per-page table (red = well above the site's own rate) with a
+  Heatmap link per page (`/projects/view/<id>/heatmaps?url=`; the `url` parameter is unverified against Clarity) and
+  Open recordings. Clarity's API gives the last 3 days only and 10 reads a project a day; Locus reads at most every 8
+  hours and keeps a daily history. Brand settings > Integrations has a "Microsoft Clarity" row (group Website).
+- Checked on the local trio (worktree statics :8821, account-health dev :8822, profit dev :8823) with Lucky (email,
+  website, search), Party Patch and all brands; 375 wide has no sideways scroll. The Clarity connected state was checked
+  with a stubbed answer only (no brand has a token yet).

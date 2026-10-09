@@ -51,9 +51,10 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
+import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProject, forgetClarity } from './clarity.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
@@ -209,6 +210,7 @@ frameFetch(xfetch);
 klaviyoFetch(xfetch);
 calendarFetch(xfetch);
 googleFetch(xfetch);
+clarityFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
 marketFetch(xfetch);
@@ -8001,7 +8003,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const q = k => url.searchParams.get(k) || undefined;
       if (url.searchParams.get('what') === 'can') return json(await klaviyoCan(env, act).catch(e => ({ error: e.message })));
-      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p), { id: q('id'), from: q('from'), to: q('to') })); }
+      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p), { id: q('id'), from: q('from'), to: q('to'), kind: q('kind') })); }
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
@@ -8048,6 +8050,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, await resolveBrandId(env, String(b.act || '')), b)); }
         if (path === '/api/google/link') return json(await googleLink(env, act));
         if (path === '/api/google/website') return json(await websiteReport(env, act, q('from'), q('to'), q('pfrom'), q('pto')));
+        /* One channel, source, landing page, device or new/returning, drilled (Store > Website rows). */
+        if (path === '/api/google/website-drill') return json(await websiteDrill(env, act, q('from'), q('to'), q('pfrom'), q('pto'), q('kind'), q('value')));
         if (path === '/api/google/search') {
           const a = await env.DB.prepare(`SELECT name, tw_shop FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
           const words = [a?.name, (a?.tw_shop || '').split('.')[0]].filter(Boolean).flatMap(x => [x, ...String(x).split(/[\s-]+/)]).filter(w => w.length > 3 && !/golf|club|the/i.test(w) || w === a?.name);
@@ -8062,6 +8066,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (path === '/api/google/ads-changes') return json(await adsChanges(env, act, q('from'), q('to')));
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown google route' }, 404);
+    }
+    /* Microsoft Clarity (clarity.js): the Behaviour card on Store > Website. GET = the report (cached; Clarity allows
+       10 reads a project a day), PUT {act, token?, project?} = connect / set the project id for links, DELETE = forget. */
+    if (path === '/api/clarity') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const only = await brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
+      const b = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
+      const act = String(url.searchParams.get('act') || b.act || '');
+      if (!act) return json({ error: 'act is required' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      try {
+        if (request.method === 'GET') return json(await clarityReport(env, act, { fresh: url.searchParams.get('fresh') === '1' }));
+        if (request.method === 'PUT') return json(b.token ? await storeClarity(env, act, b.token, b.project) : await setClarityProject(env, act, b.project));
+        if (request.method === 'DELETE') { await forgetClarity(env, act); return json({ ok: true }); }
+      } catch (e) { return json({ error: e.message }, e.status === 429 ? 429 : 400); }
+      return json({ error: 'GET, PUT or DELETE' }, 405);
     }
     /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
     if (path === '/api/brand-links' && request.method === 'PUT') {
@@ -8090,6 +8110,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.klaviyo_key !== undefined) {
         if (!String(b.klaviyo_key || '').trim()) await klaviyoForget(env, acct.act_id);
         else { try { klaviyo = await klaviyoStore(env, acct.act_id, b.klaviyo_key); } catch (e) { return json({ error: e.message }, 400); } }
+      }
+      /* Microsoft Clarity's project API token (clarity.js), checked by one real read before it is kept. */
+      if (b.clarity_token !== undefined) {
+        if (!String(b.clarity_token || '').trim()) await forgetClarity(env, acct.act_id);
+        else { try { await storeClarity(env, acct.act_id, b.clarity_token); } catch (e) { return json({ error: e.message }, 400); } }
       }
       /* The Triple Whale shop domain, the same column Settings > Brands writes. */
       if (b.tw_shop !== undefined) {
