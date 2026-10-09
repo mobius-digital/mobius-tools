@@ -322,7 +322,7 @@ export async function handleCalendar(request, env, url, path, json, isAdmin, ses
       const today = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : centralToday();
       const data = await calendarData(env, { act: 'all', from: add(today, -60), to: add(today, 30), today });
       return json({ date: today, on: (await env.DB.prepare(`SELECT value FROM settings WHERE key = 'calendarClient'`).first().catch(() => null))?.value === 'on',
-        brands: data.brands.map(b => ({ brand: b.name, client_channel: b.client_channel, posts: b.client_channel ? clientMessages(data, b, today) : [], note: b.client_channel ? null : 'no client channel: nothing posts' })) });
+        brands: data.brands.map(b => ({ brand: b.name, channel: b.client_channel || b.channel, posts: (b.client_channel || b.channel) ? clientMessages(data, b, today) : [], note: b.client_channel ? null : b.channel ? 'one channel: the client posts go to its internal channel' : 'no channel: nothing posts' })) });
     }
     if (path === '/api/calendar/history' && request.method === 'GET') {
       const { results } = await env.CAL.prepare(`SELECT change_summary s, changed_by b, created_at t FROM changelog WHERE event_id = ?1 ORDER BY created_at DESC LIMIT 20`).bind(url.searchParams.get('id') || '').all();
@@ -459,9 +459,10 @@ export async function calendarTick(env, d) {
   if ((await d.getSetting(env, 'calendarClient').catch(() => null)) === 'on') {
     out.client = [];
     for (const b of data.brands) {
-      if (!b.client_channel) continue;
+      /* A brand with ONE channel (Lucky Golf: our own brand, its channel is the client's) gets the client posts there. */
+      const ch = b.client_channel || b.channel; if (!ch) continue;
       for (const m of clientMessages(data, b, today)) {
-        try { await d.slackPost(env, b.client_channel, m.text, [{ type: 'section', text: { type: 'mrkdwn', text: m.text.slice(0, 2900) } }], { username: 'Mobius Digital' }); out.client.push(`${b.name}:${m.kind}`); } catch (e) { out.error = e.message; }
+        try { await d.slackPost(env, ch, m.text, [{ type: 'section', text: { type: 'mrkdwn', text: m.text.slice(0, 2900) } }], { username: 'Mobius Digital' }); out.client.push(`${b.name}:${m.kind}`); } catch (e) { out.error = e.message; }
       }
     }
   }
