@@ -390,7 +390,7 @@ textarea.inp{min-height:62px;resize:vertical}
     <main class="main hide" id="s-home">
       <div class="head">
         <div class="eyebrow">Home &middot; Overview, two new pieces</div>
-        <h1>The calendar shows up where people already look: a Coming up card on Home, and the dates on every chart.</h1>
+        <h1>The calendar shows up where people already look: what is live and coming up on Home, the dates on every chart, and the reason when a number moves.</h1>
       </div>
       <div class="grid2">
         <div class="card chart">
@@ -400,14 +400,25 @@ textarea.inp{min-height:62px;resize:vertical}
         </div>
         <div style="display:grid;gap:12px;align-content:start">
           <div class="card">
-            <div class="ch"><h2>Coming up, 14 days</h2><span class="r"><span class="btn sm q" data-go="all">Calendar</span></span></div>
+            <div class="ch"><h2>Live now</h2><span class="cap">what customers see today</span><span class="r"><span class="btn sm q" data-go="all">Calendar</span></span></div>
             <div class="mini">
-              <div data-ev="dt-give"><b>Today &middot; Dartee giveaway starts</b><span>live</span></div>
+              <div data-ev="dt-give"><b>Dartee &middot; October giveaway</b><span>started today, to Nov 16</span></div>
+            </div>
+            <div class="ch" style="margin:14px 0 6px"><h2>Coming up, 14 days</h2></div>
+            <div class="mini">
               <div data-ev="gr-burg"><b>Tue Oct 13 &middot; Grunk Burgundy drop</b><span>ready</span></div>
               <div data-ev="lk-give"><b>Wed Oct 14 &middot; Lucky giveaway</b><span>ads load Sat</span></div>
-              <div data-ev="gr-racing-t"><b>Thu Oct 15 &middot; Grunk Racing teaser</b><span>ads load Tue</span></div>
+              <div data-ev="gr-racing-t"><b>Thu Oct 15 &middot; Grunk Racing teaser</b><span>ads built Sat</span></div>
+              <div data-ev="gr-tiers"><b>Tue Oct 20 &middot; Burgundy tiers start</b><span class="late">no end date</span></div>
               <div data-ev="gr-splat"><b>Fri Oct 23 &middot; Grunk Splatter drop</b><span class="late">no briefs</span></div>
             </div>
+          </div>
+          <div class="card">
+            <div class="ch"><h2>What moved yesterday (Wed Oct 14, one line added)</h2></div>
+            <div class="mini">
+              <div data-ev="gr-burg"><b>Grunk revenue up 38% vs a normal Wednesday</b><span>day 2 of Burgundy</span></div>
+            </div>
+            <p style="margin:8px 0 0;font-size:12px;color:var(--muted)">When a number moves on a day with a calendar date, the date is named as the likely reason, here and in the 8am Slack post. Example numbers.</p>
           </div>
           <div class="card">
             <div class="ch"><h2>Daily Brief, Tue Oct 13 (one line added)</h2></div>
