@@ -1114,3 +1114,23 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   "We need from you": photos, an offer to decide, a sale with no end) and a daily "Tomorrow: X goes live". Never tasks,
   owners or lateness. Off until `settings.calendarClient` = 'on'; `GET /api/calendar/client-preview?date=` shows what would
   post. Internal pings now fire only when something is still open.
+
+## 2026-10-09: creative analytics, the Motion layer (`src/creative.js`)
+
+- **Covers live in R2, not D1.** `adThumbnails` stores each cover once at `cov/<ad_id>.webp` in mobius-amb-media,
+  shrunk to 600px WebP by the Images binding (`[images] binding = "IMAGES"`, ~40KB; the original if the binding
+  fails), and returns `/cover/<ad_id>.<sig>.webp?v=` (public route, HMAC of the ad id with SESSION_SECRET, one-year
+  immutable cache). Every card surface uses it, reports included (old frozen reports keep their base64). Old base64
+  or Meta-link rows in `ad_creative` are redone on first view; rows older than 30 days are pruned by live calls.
+  Covers are never deleted from R2 (reports point at them).
+- **`ads.asset_key`** = `v:<video id>` | `i:<image hash>` | `c:<creative id>` (carousels). Filled by `keyTick`
+  (the account ads edge, `ad.id IN` 25 at a time) and by `adThumbnails`. Locus "One card per creative" groups on it.
+- **`ad_tag`** (PK asset_key; `act_id` is the META act id, so read it with `metaOf`): Claude Haiku 4.5 tags each
+  creative once from the cover BYTES out of R2 (Anthropic could not download our cover URLs) plus the copy: format,
+  hook, person, product, text_on_image, offer, message, notes. ~$0.0015 each. Failed rows retry after a day.
+- **Hourly `creativeTick`** (after assetsTick): keys, then covers for ads that spent in 14 days, then 40 tags.
+  `POST /api/creative-tick` {keys_only|tags_only, limit} runs it now (admin).
+- **`/api/ad-breakdown?ad&from&to`** (admin): placement and age x gender from Meta insights, cached a day in
+  `ad_breakdown`. Purchases there are Meta's count, labelled as such in the UI (TW cannot split by placement).
+- **`/api/ad-original?ad=`** (admin): the ad's full image (or a video's biggest frame) at 1568px for Studio, not stored.
+- Dashboard Slack posts show an `ads` block as its title plus "the cards are in Locus".

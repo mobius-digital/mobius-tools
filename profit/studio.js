@@ -1594,5 +1594,16 @@ window.StudioTab = {
   /* Creative > Library: "Dress with a product" on a person photo, and "Use as the ad" on a look. Both resolve when the window closes. */
   dress: o => { boot(o); return dress({ base: o.base || null }); },
   useAsAd: o => { boot(o); return useAsAd(o.image); },
+  /* Ads > Creative, "Make iterations in Studio" (2026-10-09): the winning ad's own image (account-health
+     /api/ad-original, full size) becomes a Studio reference, then goes on a batch line like any photo. */
+  fromAd: async o => {
+    boot(o);
+    const res = await fetch(`${AH_URL}/api/ad-original?ad=${encodeURIComponent(o.ad)}`, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not open that ad.'); }
+    let blob = await shrinkImage(await res.blob());
+    if (!/^image\/(png|jpeg|webp)$/.test(blob.type)) blob = await asJpeg(blob);
+    const url = await putRef(blob); refChecked.add(url);
+    return useAsAd(url);
+  },
 };
 })();

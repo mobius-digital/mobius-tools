@@ -2210,3 +2210,18 @@ Audit, goal and the approved mock: `docs/handoffs/lineup-audit.md`, `docs/locus-
   month. Page: the answer, 30-day squares, the four signs, our brands that day (desk.js). 8am Slack: ONE post to the
   agency channel (strategistChannel, else slackChannel) only on a bad/very bad Meta day (moved.js `movedTick`); the
   per-brand bad-day posts are gone. `/api/hub/yesterday` (per-brand verdicts) stays for the Strategist but no page uses it.
+
+## 2026-10-09: Ads > Creative does what Motion does
+
+Cole: "ideally this would replace Motion". Backend in account-health `creative.js` (read its CLAUDE.md section).
+- Gallery: Sort by (spend, purchases, ROAS, CPA, hook, hold, CTR, 90-day value, newest; ratio sorts only rank ads
+  past the judging bar, stated under the row with a link to Goals), "Each ad / One card per creative" (`groupAds`,
+  on `asset_key`), tick 2 to 4 cards to Compare (wide side panel, best per row in green), "Save this view to a
+  dashboard" (an `ads` block: act, sort, group, tag, ids, n; drawn by `V2.adsBlock` with the dashboard's dates).
+- "What is working, by tag": AI tags per creative, spend / CPA / ROAS / hook per tag value; a row filters the gallery.
+- Preview: tags, "Where people stop watching" (3s / 25 / 50 / 75 / end as a share of the curve's own peak, because
+  short videos pass 25% before 3 seconds; dashed = the brand's average judged video), "Where it ran and who saw it"
+  (placement, age x gender), Play = Meta's preview at 340x620, and "Make iterations in Studio" on statics
+  (`StudioTab.fromAd` -> /api/ad-original -> Studio ref -> the Use as the ad batch picker).
+- Cards show the whole ad (`background-size: contain`); "No goal CPA" instead of "Not enough spend" when a brand
+  has no goal; "no sales" on a spent ad with no purchases.

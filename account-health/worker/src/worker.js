@@ -3,6 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor } from './brandguard.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
+import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
@@ -35,7 +36,7 @@ import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch } from './asana-brand.js';
-import { ideaWanted, ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
+import { ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
@@ -202,6 +203,7 @@ googleFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
 marketFetch(xfetch);
+creativeFetch(xfetch);
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers (bucketing is always in the account's own timezone)   */
@@ -1216,6 +1218,10 @@ function dashBlocks(row, d) {
       /* A Strategist answer pinned from the chat (2026-10-08): the picture lives in Locus. */
       blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || b.spec?.title || 'A pinned chart').slice(0, 150)}*
 _A chart pinned from the Strategist${b.pinned_at ? ` on ${String(b.pinned_at).slice(0, 10)}` : ''}; open in Locus to see it._` } });
+    } else if (b.type === 'ads') {
+      /* A view saved from Ads > Creative (2026-10-09): the ad cards live in Locus. */
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || 'Ads').slice(0, 150)}*
+_The ad cards (sorted by ${b.sort || 'spend'}${b.group ? ', one per creative' : ''}) are on the dashboard in Locus._` } });
     }
   }
   blocks.push({ type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: DASH_URL + row.id, action_id: 'noop_open' }] });
@@ -3842,6 +3848,9 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       const v = safeJson(r.json, null);
       // A row saved WITHOUT a cover is retried after a day, not trusted for 14.
       if (v && (!v.thumb || v.thumb_link) && String(r.fetched_at) < dayAgo) continue;
+      // 2026-10-09: covers moved to R2 (creative.js). An old base64 or Meta-link row is redone once.
+      if (v && env.MEDIA && v.thumb && !/^https:\/\/mobius/.test(v.thumb)) continue;
+      if (v && env.MEDIA && v.thumb && !v.asset_key) continue;
       if (v) { out[r.ad_id] = v; fresh.add(r.ad_id); }
     }
     missing = want.filter(id => !fresh.has(id));
@@ -3885,7 +3894,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
   for (const id of adIds.slice(0, 10)) {
     try {
       const r = await meta(env, `${id}/adcreatives`, {
-        fields: 'thumbnail_url,image_url,object_type,video_id,object_story_spec,asset_feed_spec,body,title',
+        fields: 'id,thumbnail_url,image_url,image_hash,object_type,video_id,object_story_spec,asset_feed_spec,body,title',
         thumbnail_width: 1080, thumbnail_height: 1080, limit: 1,
       });
       const c = r?.data?.[0];
@@ -3941,6 +3950,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       const vidId = c?.video_id || c?.object_story_spec?.video_data?.video_id
         || c?.asset_feed_spec?.videos?.[0]?.video_id || null;
       out[id].video_id = vidId;
+      out[id].asset_key = assetKeyOf(c);
       out[id].page_id = c?.object_story_spec?.page_id || null;
       let coverUrls = [];
       if (isVideo && vidId) {
@@ -4005,6 +4015,12 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
           const img = await xfetch(src);
           if (!img.ok) { why.push(`HTTP ${img.status}`); continue; }
           const buf = await img.arrayBuffer();
+          /* R2 (2026-10-09): the cover is shrunk and stored once, the card gets a cacheable URL.
+             Any size is fine here because the Images binding shrinks it. */
+          if (env.MEDIA && buf.byteLength < 12_000_000) {
+            const u = await putCover(env, id, buf, img.headers.get('content-type')).catch(() => null);
+            if (u) { picked = { url: u }; break; }
+          }
           if (buf.byteLength > maxBytes || buf.byteLength * 1.34 > budget) { why.push(`${Math.round(buf.byteLength / 1000)}KB`); continue; }   // too big: fall through to a smaller source
           // Chunked: spreading a 250k array into String.fromCharCode blows the stack.
           const bytes = new Uint8Array(buf);
@@ -4019,6 +4035,7 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
          expires, so a row holding a link is refetched after a day. Reports never take this path. */
       if (!picked && allowUrl) { const big = sources.find(u => /^https:/.test(u)); if (big) { out[id].thumb = big; out[id].thumb_link = true; continue; } }
       if (!picked) { out[id].thumb = null; out[id].thumb_why = sources.length ? why.join(', ') : `no image on the creative (${c?.object_type || 'no type'})`; continue; }
+      if (picked.url) { out[id].thumb = picked.url; continue; }
       budget -= picked.b64.length;
       // Assign the field, never the object - the ad's copy and metadata are
       // already on it, and replacing it here silently dropped all of them.
@@ -4029,8 +4046,9 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
      future filter, and means an ad only has to be LOOKED at once for its type
      to be known. Best-effort - a failure here must never break the cards. */
   try {
+    await ensureCreative(env).catch(() => {});
     const st = Object.entries(out).filter(([, v]) => v.media_type)
-      .map(([id, v]) => env.DB.prepare(`UPDATE ads SET media_type = ?2 WHERE ad_id = ?1`).bind(id, v.media_type));
+      .map(([id, v]) => env.DB.prepare(`UPDATE ads SET media_type = ?2, asset_key = COALESCE(?3, asset_key) WHERE ad_id = ?1`).bind(id, v.media_type, v.asset_key || null));
     if (st.length) await env.DB.batch(st);
   } catch { /* the cards do not depend on this */ }
   /* PRUNE (2026-10-09): rows past 30 days were never deleted, only overwritten when the ad was
@@ -6690,13 +6708,15 @@ async function handleSlackEvent(request, env, ctx) {
   const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
     note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''}` } : null;
   ctx.waitUntil((async () => {
-    /* THE IDEAS BOT (ideas.js): a tag on an idea thread (a reference link, a clip, an image,
-       or "idea"/"brief" in the tag) drafts a brief instead. Everything else is the Strategist's. */
-    if (!dm && mentioned && env.IDEAS_BOT !== 'off' && await ideaWanted(env, { ...ev, type: 'app_mention' }).catch(e => { console.log('ideas route: ' + e.message); return false; })) {
-      /* An idea thread belongs to the ideas bot from here: plain replies in it are the team's
-         (and the bot's cost gate is the tag), so the Strategist stops answering them. */
-      await closeStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
-      return ideaStart(env, ev, body);
+    /* 2026-10-09, Cole: "stop having a list of words that make it do X or Y, it should judge from the
+       context". EVERY tag goes to the Strategist. It reads the thread and decides; when the job is
+       watching a reference and drafting from it, it calls draft_from_thread (the ideas pipeline is
+       now a tool, never a second front door). The word router (ideas.js ideaWanted) sent Fela's
+       "update this in the creator link" to the ideas bot, which died as "No draft yet". */
+    if (!dm && screen) {
+      const root = ev.thread_ts || ev.ts;
+      const idea = await env.DB.prepare(`SELECT status FROM idea_thread WHERE id = ?1`).bind(`${ev.channel}:${root}`).first().catch(() => null);
+      if (idea) screen.note += ` This thread already has an Ideas draft card (status ${idea.status || 'drafted'}). If the person wants that draft changed or redone, call draft_from_thread with their change as steer: it revises the card. Anything else, do it yourself.`;
     }
     /* From here on the thread is a conversation with the Strategist: replies need no tag. */
     if (!dm) await openStrategistThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
@@ -6936,6 +6956,8 @@ const AH_APP = {
         ran.monday = await mondayTick(env).catch(e => ({ error: e.message }));
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
         ran.assets = await assetsTick(env, () => subCanAfford(60)).catch(e => ({ error: e.message }));
+        /* Ad covers in R2, one-creative keys and AI tags for every ad that spent lately (creative.js). */
+        ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta }).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
@@ -7050,6 +7072,8 @@ const AH_APP = {
       try { const r = await tiktokCallback(env, url); return new Response(`<p style="font:16px system-ui;padding:40px">TikTok is connected: ${r.advertisers.length} ad account${r.advertisers.length === 1 ? '' : 's'}. You can close this tab and go back to Locus.</p>`, { headers: { 'Content-Type': 'text/html' } }); }
       catch (e) { return new Response(`<p style="font:16px system-ui;padding:40px">TikTok did not connect: ${String(e.message).replace(/</g, '&lt;')}</p>`, { status: 400, headers: { 'Content-Type': 'text/html' } }); }
     }
+    /* Ad covers (creative.js): public by a signed ad id, cached by the browser for a year. */
+    if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);
     /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
     if (path.startsWith('/assets-img/') && request.method === 'GET') {
       /* A brand id (or an old act_ id in a link made before phase 3); the files stay under the brand's storage_prefix. */
@@ -8224,6 +8248,23 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Creative assets for a named set of ads, fetched AFTER the cards paint.
          Splitting this out is what makes sorting and filtering feel instant:
          the numbers are one D1 query, and the images arrive when they arrive. */
+      /* Creative analytics (creative.js): placement / age x gender for one ad, and run the pass now. */
+      if (path === '/api/ad-breakdown') {
+        const ad = url.searchParams.get('ad'), from = url.searchParams.get('from'), to = url.searchParams.get('to');
+        if (!/^\d{6,25}$/.test(ad || '') || !/^\d{4}-\d\d-\d\d$/.test(from || '') || !/^\d{4}-\d\d-\d\d$/.test(to || '')) return json({ error: 'ad, from and to are required' }, 400);
+        return json(await adSplit(env, meta, ad, from, to));
+      }
+      if (path === '/api/ad-original') {
+        const ad = url.searchParams.get('ad');
+        if (!/^\d{6,25}$/.test(ad || '')) return json({ error: 'ad is required' }, 400);
+        return adOriginal(env, meta, ad);
+      }
+      if (path === '/api/creative-tick' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (b.tags_only) return json(await tagTick(env, Math.min(+b.limit || 40, 200), () => true, b.act || null));
+        if (b.keys_only) return json(await keyTick(env, meta, () => true, Math.min(+b.limit || 600, 3000)));
+        return json(await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => true, { perBrand: Math.min(+b.per_brand || 60, 300), tags: Math.min(+b.tags || 60, 200), meta }));
+      }
       if (path === '/api/ad-creatives') {
         const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 40);
         if (!ids.length) return json({ assets: {} });

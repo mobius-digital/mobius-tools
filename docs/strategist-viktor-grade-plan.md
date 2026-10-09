@@ -1,0 +1,141 @@
+# The Strategist, Viktor-grade: the plan (2026-10-09)
+
+Cole's goal, in his words: "I want this thing to basically be Viktor grade in every single sense of
+the word... it should be able to do literally everything that we need it to." The Strategist is the
+one assistant for Locus and for Slack. No word lists deciding what it does or which model runs
+(memory: judge-from-context). This file is the whole plan so an Opus session can build it without
+re-researching. Read account-health/CLAUDE.md and profit/CLAUDE.md first; ask/engine.js is the engine.
+
+## 1. What Viktor is (researched 2026-10-09, Cole's own account at app.viktor.com)
+
+- Product: viktor.com, an "AI employee" in Slack. Ex-Meta founders, $75M Series A (Accel).
+- Model, Cole's setting: preset "Smart" = **Claude Opus 5.5, medium reasoning**. Presets: Ultra = Opus 5.5
+  high, Balanced = Opus 5.5 low, Cheap = GPT-6 Luna. `!fast` in a Slack message = Balanced (Opus 5.5 low);
+  `!deep` = the default. Model choice is per workspace, by the person, never by keywords.
+- Cole's 30-day usage: 103,933 credits = ~$260 (at $2.50/1K). 3,464 credits/day. 99% threads, <1% scheduled
+  tasks. Opus 5.5 did 89% of the work, Opus 5 10%. Cole 97k credits, Ahsan 6.7k, Radhesh 119. Viktor's own
+  quote for a big job (122-static review + 17 Asana tasks): "$2-5 in credits". +105% vs the previous period.
+- Behavior page: workspace instructions EMPTY (0/4000). Skills page: ZERO skills. So everything Viktor
+  "knows" about Mobius comes from what it reads live, not from taught rules.
+- Integrations connected (21): Google Ads, Drive x3, GitHub RO, Stripe, Triple Whale, Meta Ads, Asana, Canva,
+  Figma, Fireflies, Frame.io, Gmail x3, GA, Calendar, Docs x3, Search Console, Sheets x3, Gorgias,
+  Instagram x2, Klaviyo x2, Shopify x2.
+- How it works (viktor.com/product, ai.engineer/orgs/viktor, reviews): a private Linux sandbox per task where
+  it writes and runs code; shared workspace memory kept as short markdown "skills" (one job each, loaded
+  only when the ask matches its description; "lazy loading" keeps integration docs out of the prompt until
+  needed); it reads the Slack channels it is in; irreversible actions pause for an approval card ("Always
+  approve" toggle); outputs are files in the thread or hosted "Viktor Pages" (mobius-digital-da69b5.viktor.page)
+  and "Spaces" (small apps); scheduled tasks; screen-record a job once -> a skill.
+- What it did well in Cole's Slack: recalled Ahsan's 9/20 and 9/21 folder links unasked; "the Performer link is
+  the one from #bonk (9/22)"; "the Dartee brand kit says no customer numbers"; cross-checked Meta activity
+  logs across two ad accounts against the Slack roster; audits with hosted PDF + mockups; deleted 18 Bonk
+  creatives in Dartee behind approval cards; exported 51 Canva PNGs to Drive + 13 Asana tasks and read them
+  back. Asks questions AFTER doing the work, with a default beside each ("say go with defaults").
+- What it did badly: Frame V2 unsupported, Shopify/Meta reconnect loops ("Try again" x6), duplicate Asana
+  tasks on timeouts (Ahsan: "creating some confusion"), missing Frame links in tasks.
+
+## 2. Where our Strategist is today (and why it felt dumb)
+
+- Model: Haiku 4.5 unless a keyword matched (fixed 2026-10-09: Sonnet 5.5 always; "deep" = Opus 5.5).
+- Routing: a word list sent tags to the ideas bot (deleted 2026-10-09; every tag -> Strategist).
+- Context per question: the one Slack thread (24k chars), the brand brain (<=60k chars, cached), the
+  playbook, live views on demand. It cannot see any other thread or channel.
+- Memory: the `remember` tool exists; `settings.strategistNotes` DOES NOT EXIST. It has never saved a fact.
+  Memory is one global list (25 shown), not per brand.
+- Capability: ~35 hand-built actions (goals, angles, briefs, calendar, stock, dashboards, scenarios...).
+  No Slack search, no file output except reports/dashboards, no Meta writes, no Canva/Frame/Drive writes.
+- Reply: eyes emoji, then one message. No ack line, no done/not-done split, no links on everything, no offer.
+
+## 3. The design (answers to Cole's worries)
+
+### 3a. Model: Opus 5.5 medium by default, the person overrides
+Same as Viktor. `model: claude-opus-5-5` for every question (effort medium); `quick` in the message =
+Sonnet 5.5; `deep` / `think hard` = Opus 5.5 high. Never keyword-picked otherwise.
+Cost (our shape: 20-30k cached input, 1-3k out, 1-6 tool rounds): simple lookup ~$0.10-0.20, a judgement
+answer ~$0.30-0.60, a multi-step build (report + Asana + memory) ~$1-2. At today's 8-10 questions/day:
+**$60-150/month**, under Viktor's $260 because the brain is prompt-cached and there is no sandbox cost.
+Show the cost in the thread footer like the ideas bot does ($0.xx this run).
+
+### 3b. Context: a big store, a SMALL prompt (this is how Viktor avoids "overload")
+Rule: the database can be as big as it likes; what reaches the model per question is capped and chosen.
+Three layers:
+1. ALWAYS ON (cached, deterministic, hard caps): playbook (~8k), the brand brain (60k cap, already
+   deterministic), the brand's memory file (cap 40 facts, see 3c), the last 14 days of the brand's internal
+   + client channel as a compact digest (cap 6k chars: one line per message, newest last; built by the
+   hourly cron, not per question). Total ~25-30k tokens, cache-read at a tenth of the price.
+2. ON DEMAND (the model asks, only when the question needs it): `search_slack` (as Cole, SLACK_USER_TOKEN,
+   search.messages across every channel Cole is in incl. client channels and DMs; returns the 10 best hits
+   with permalinks), `read_thread` (any thread by permalink), the existing views (tests, customers, brief,
+   knowledge topics, stock, calendar...), `read_file` (a Slack/Drive file by link: images to the model,
+   PDFs/docs to text, videos to the ideas pipeline).
+3. NEVER IN THE PROMPT: raw tables, full channel history, old reports. Reached only through a tool.
+Index for speed: an hourly job copies new messages from every channel the bot is in (and Cole's channels
+via the user token) into D1 `slack_msg` (channel, ts, user, text, permalink, files), 90 days rolling.
+`search_slack` queries D1 first (LIKE / FTS), Slack's API second. This is what lets it answer "what did
+Ahsan say about the Bonk folder" in one call.
+
+### 3c. Memory that stays concise and current (Cole: "I don't want a huge database that confuses it")
+Viktor's trick is short files loaded only when relevant, plus corrections written back. Ours:
+- Per-brand memory + one agency memory, each a list of facts `{id, text, at, source, topic}`. Caps: 40
+  per brand, 40 agency. The model sees them as a dated bullet list.
+- `remember` becomes an UPSERT: it carries `topic` (free text like "free shipping threshold") and REPLACES
+  an existing fact on the same topic instead of appending. A changed fact is never kept beside the old one.
+- A `forget` tool; and facts carry `until` for anything with a date (a sale, a launch) so they expire.
+- Playbook rule: save every fact, decision, correction and preference you are told; when corrected, fix the
+  fact, do not add a second one. Say "noted" in one line.
+- Nightly consolidation (in the existing nightly pass, Sonnet): read the day's threads the bot was in,
+  propose facts worth keeping, merge duplicates, drop expired ones, keep each brand under its cap. Writes
+  go through the same upsert. Cost ~$0.05/night.
+- Visible and editable: Locus > Settings > The Strategist > Memory (per brand): list, edit, delete. Cole
+  can see exactly what it knows, which is the real answer to "is it updated properly".
+- Nothing else is "learned" silently. Rules live in the playbook (code) and the brain (Brand tab), both of
+  which Cole already controls.
+
+### 3d. Capability: everything Locus can do, then the outside tools
+- ONE generic `locus_api` tool: GET any route the Locus screens call (read), and POST/PUT/DELETE behind
+  the existing proposal card (Apply = the same request the screen would send, as the caller). The route
+  list and what each does is generated from the worker's fetch switch + profit worker, lazy-loaded (the
+  model asks for the route list for an area first). This replaces building an action per button.
+  Keep the hand-built actions that add judgement (create_angles, fill_brief, build_scenario).
+- Files out: PDF (a report rendered by the profit worker's print view -> PDF via Cloudflare Browser
+  Rendering), xlsx/csv (SheetJS in the worker), PNG contact sheets (Images binding). Uploaded to the
+  thread with files.upload and kept in R2. Hosted pages = the existing report/dashboard share links.
+- Files in: Slack uploads and Drive links (expandDrive exists), PDFs and docs to text.
+- Outside writes, each behind the approval card, in this order: Asana (exists), Google Drive/Docs/Sheets
+  (service account exists), Meta Ads pause/budget/delete (the Meta MCP shape; activity-log every write),
+  Klaviyo (read exists; writes later), Canva export (p_studio_cfg canva_*), Frame (V2 API).
+- A sandbox for "anything else": Cloudflare Workers Sandbox (containers) or Anthropic's code execution tool
+  for one-off scripts (CSV maths, chart images). Phase 5; not needed for the first four.
+- Scheduled questions exist (askschedule.js); add "schedule this" for any action, not only questions.
+
+### 3e. Reply shape (= what the Slack answer looks like)
+- First message within 3 seconds: one line saying what it is doing ("On it, reading the Dartee thread and
+  the brand kit") in place of only the eyes emoji.
+- The answer: short headers in bold, every file/task/page/ad as a link, numbers to the dollar.
+- Three explicit lists when it did work: DONE / NOT DONE / COULD NOT REACH (and why, e.g. "Frame link is
+  view-only").
+- Questions only after the work, each with a default ("say go with defaults").
+- Always end with one offer of the obvious next step.
+- Cost footer like the ideas bot.
+
+## 4. Build order (each a deployable step; test files alongside)
+
+1. Model + reply shape: Opus 5.5 default, quick/deep overrides, ack line, DONE/NOT DONE/COULD NOT REACH,
+   cost footer. (strategist.js config + PLAYBOOK, engine answerSlack). Half a day.
+2. Slack context: `slack_msg` index (hourly, 90 days), `search_slack` + `read_thread` tools, the 14-day
+   brand digest block. Needs `search:read` on the user token (check; if missing, Cole re-authorises the
+   app). One day.
+3. Memory: per-brand facts with topic upsert, forget, expiry, caps; nightly consolidation; Locus Settings
+   > The Strategist > Memory screen. One day.
+4. `locus_api` generic tool with the lazy route list + approval cards; files out (PDF, xlsx, PNG) with
+   files.upload; files in. Two days.
+5. Outside writes: Meta (pause/budget/delete), Drive/Docs/Sheets, Canva export, Frame V2; then the sandbox.
+   Two to three days.
+6. Scheduled actions; "teach it a skill" = a `skills` table of short how-to files the playbook loads by
+   description match (the Viktor skill model), editable in Locus.
+
+## 5. What Cole decides / owes
+- Opus 5.5 as the default (money): yes/no.
+- Re-authorise the Slack app with `search:read` if the user token lacks it.
+- Meta write access: the system user needs ads_management for pause/budget/delete.
+- Viktor: keep for now; switch off once 1-4 are live and judged. ($260/month.)

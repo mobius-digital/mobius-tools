@@ -2173,7 +2173,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=15">
+<link rel="stylesheet" href="v2.css?v=17">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=9"></script>
@@ -2332,10 +2332,10 @@
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
 <script src="newclient.js?v=14"></script>
-<script src="studio.js?v=27"></script>
+<script src="studio.js?v=28"></script>
 <script src="season.js?v=16"></script>
 <script src="calc.js?v=9"></script>
-<script src="v2.js?v=26"></script>
+<script src="v2.js?v=30"></script>
 <script src="desk.js?v=7"></script>
 <script src="calendar.js?v=5"></script>
 <script src="supply.js?v=2"></script>
@@ -5123,9 +5123,11 @@ async function renderMeta(first) {
    v2.js renders Home, Paid (Meta Overview / Campaigns / Creative, Google, TikTok, All channels),
    Store > Sales and Email in the v2 system. It gets the host's helpers here rather than reading
    globals, because most of them are `const` and never reach `window`. */
+/* The helpers v2.js draws with; also handed to V2.adsBlock on a dashboard. */
+function v2Host() { return { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }; }
 function V2R(tab, first) {
   if (!window.V2) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">The v2 screens did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
-  return window.V2.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
+  return window.V2.render(tab, v2Host(), first);
 }
 /* HOME > GOALS (2026-10-09; first Brand > Goals, moved to Home the same day): Plan is Goals, and the two targets every ad is judged by (goal cost per sale,
    goal ROAS) moved here from Settings > Goals and rules, so every number the client agreed sits on one page. Same saves
@@ -6461,6 +6463,8 @@ function dashBlockHtml(b, all, spec, cur) {
   if (b.type === 'note') return `<section class="v2card ds-note">${h ? `<div class="v2h">${h}</div>` : ''}<p class="v2say">${esc(b.text || '')}</p></section>`;
   /* A Strategist answer pinned from the chat (askextra.js): frozen as of its date, with Refresh. */
   if (b.type === 'chart') return window.AskX ? AskX.chartBlock(b) : '';
+  /* A view saved from Ads > Creative (2026-10-09): drawn after paint by v2.js (V2.adsBlock). */
+  if (b.type === 'ads') return `<section class="v2card" data-adsblk="${esc(JSON.stringify(b))}" data-q="${esc(dashQuery(spec))}"><div class="v2h"><h3>${esc(b.title || 'Ads')}</h3></div><p class="v2hint">Loading the ads&hellip;</p></section>`;
   return '';
 }
 /* Build or edit a dashboard by hand (Locus v2): name, scope, range, compare, and the blocks
@@ -6481,7 +6485,7 @@ function dashEditor(d) {
         <label class="hint" style="margin:0">Range<select id="deRange">${Object.entries(DASH_RANGE_L).map(([k, l]) => `<option value="${k}" ${String(state.spec.range) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="hint" style="margin:0">Compare with<select id="deCmp">${[['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<option value="${k}" ${(state.spec.compare || 'prev') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       </div>
-      <div class="v2ed">${blocks.map((b, i) => `<div class="row"><span class="ty">${esc(DASH_BLOCK_L[b.type] || (b.type === 'chart' ? 'Pinned answer' : b.type))}</span>
+      <div class="v2ed">${blocks.map((b, i) => `<div class="row"><span class="ty">${esc(DASH_BLOCK_L[b.type] || (b.type === 'chart' ? 'Pinned answer' : b.type === 'ads' ? 'Saved ads view' : b.type))}</span>
           <div><input type="text" data-bt="${i}" value="${esc(b.title || '')}" placeholder="Title (optional)" style="width:100%">
             ${b.type === 'tiles' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_TILES).map(([k, v]) => `<label><input type="checkbox" data-bm="${i}" value="${k}" ${(b.metrics || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
             ${b.type === 'brands' ? `<div class="pick" style="margin-top:6px">${Object.entries(DASH_COLS).map(([k, v]) => `<label><input type="checkbox" data-bc="${i}" value="${k}" ${(b.columns || []).includes(k) ? 'checked' : ''}>${v[0]}</label>`).join('')}</div>` : ''}
@@ -6576,6 +6580,7 @@ async function renderDash(first) {
     ${blocks || '<div class="card"><p class="hint">This dashboard has no blocks Locus can draw.</p></div>'}
     <details class="footnote"><summary>How this dashboard is drawn</summary><div class="fn-body">Every number is read live from the same source as Home when the page opens: Triple Whale store-level money, platform spend, Triple Whale last platform click per platform, Klaviyo placed orders for email. The range and compare period belong to this dashboard, not to the date picker. The Slack post carries the tiles, the brand table, email and notes; charts and the channel split live here.</div></details></div>`;
   const msg = t => { const el = $('#dsMsg'); if (el) el.textContent = t; };
+  $('#main').querySelectorAll('[data-adsblk]').forEach(el => { if (window.V2 && V2.adsBlock) { let b = {}; try { b = JSON.parse(el.dataset.adsblk); } catch {} V2.adsBlock(el, b, el.dataset.q, v2Host()); } });
   $('#dsBack').onclick = () => { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} show('dash'); };
   const save = async () => { try { await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d.id, name: d.name, act: d.act || 'all', spec, schedule: $('#dsSched').value, channel: $('#dsChan').value, for_who: d.for_who, pinned: d.pinned }) }); msg($('#dsSched').value ? `Saved. Posts ${DASH_SCHED_L[$('#dsSched').value].toLowerCase()} at 8am Central${$('#dsChan').value ? '.' : ', once a channel is set.'}` : 'Saved. It will not post itself.'); } catch (e) { msg(e.message); } };
   $('#dsSched').onchange = save; $('#dsChan').onchange = save;

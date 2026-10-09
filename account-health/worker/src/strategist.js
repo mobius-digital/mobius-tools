@@ -184,6 +184,12 @@ const RULES = `
   a screenshot of an error, "why did it skip"): read the problems view FIRST,
   then explain in plain words what happened, what they can do right now, and
   whether Cole has to fix it. Never guess at a cause the view does not show.
+- EVERY tag in Slack comes to you; there is no other bot in front of you. Read the whole
+  thread and work out what the person actually wants, then do it with your actions. Never
+  say you cannot do something until you have checked your actions list; if it truly is not
+  there, say exactly what is missing and offer hand_to_claude_code. Edits to what already
+  exists (the creator link page, an angle, a section, a brief, a calendar date, goals) are
+  yours. A client's words forwarded into the thread are the request: act on them.
 - You cannot open links or files yourself (Drive, Air, Dropbox, screenshots,
   TikToks). When a Slack thread carries a reference (a TikTok / Reel / YouTube /
   Atria / Ad Library link, an uploaded clip or image, a Drive folder) and the
@@ -1593,12 +1599,11 @@ export function buildStrategist(d) {
        lands on what was said. The engine default (12 turns, 600 chars each) lost the Monday
        message and the brief card the thread hangs off. Same as the Controller's. */
     threadTurns: 30, threadMsgChars: 2500, threadTotalChars: 24000,
-    /* Money questions a strategist asks get the stronger model too, not only "draft" and "plan". */
-    strongWhen: /\b(draft|write|compose|create|make|generate|build|plan|forecast|project|research|angles?|hooks?|rewrite|brief|analy[sz]e|compare|strategy|recommend|should (we|i)|what if|why|aov|ltv|cac|payback|cohort|retention|repeat|journey|scale|cut|pause)\b/i,
-    /* Judgement goes to Opus 5.5 (engine pickModel): reviewing a brief or a batch, an audit, a
-       strategy, a recommendation, gaps, a diagnosis, a custom report or dashboard. Lookups stay
-       on Haiku, drafting on Sonnet. About $0.10 to $0.30 a deep answer. */
-    deepWhen: /\b(review|audit|critique|grade|judge|strateg(y|ic)|recommend(ation)?s?|gaps?|diagnos(e|is)|what should (we|i)|what would you|is this (good|right|strong)|custom (report|dashboard)|dashboard|retention plan|why (is|are|did|does)|root cause|scenario)\b/i,
+    /* 2026-10-09, Cole: no word lists deciding what it does. A keyword list used to pick the model, so
+       anything without a listed word (Fela's "can we update this in the creator link?") ran on Haiku and
+       read as an assistant that understood nothing. Every question now gets Sonnet 5.5; "deep" or
+       "think hard" from the person still asks for Opus 5.5. */
+    model: 'claude-sonnet-5-5', strongModel: 'claude-sonnet-5-5', strongWhen: null, deepWhen: null,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
     brief: DEFAULT_BRIEF,

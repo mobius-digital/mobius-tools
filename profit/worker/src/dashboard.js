@@ -27,7 +27,7 @@ export const COLUMNS = ['revenue', 'mtd_vs_plan', 'spend', 'mer', 'amer', 'new_s
 const RANGES = new Set(['yesterday', '7', '30', '90', 'mtd', 'lastmonth']);
 const COMPARES = new Set(['prev', 'yoy', 'none']);
 const SCHEDULES = new Set(['', 'daily', 'monday', 'first']);
-const BLOCKS = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'note', 'chart']);
+const BLOCKS = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'note', 'chart', 'ads']);
 const CHART_MAX = 20000;
 /** A pinned chart's spec, cleaned to what AskUI.chartHTML draws: bar | line | table, 15 labels, 3 series. */
 function cleanChart(c) {
@@ -67,6 +67,14 @@ export function cleanSpec(sp, scope) {
     if (b.type === 'tiles') { out.metrics = (Array.isArray(b.metrics) ? b.metrics : []).filter(m => METRICS.includes(m)).slice(0, 8); if (!out.metrics.length) return null; }
     if (b.type === 'brands') out.columns = (Array.isArray(b.columns) ? b.columns : []).filter(c => COLUMNS.includes(c)).slice(0, 8);
     if (b.type === 'note') { out.text = clip(b.text, 600); if (!out.text) return null; }
+    /* A saved Creative view (2026-10-09): one brand's ads, sorted, optionally one card per creative. */
+    if (b.type === 'ads') {
+      out.act = clip(b.act, 64); if (!out.act || out.act === 'all') return null;
+      out.sort = ['spend', 'purchases', 'roas', 'cpa', 'hook', 'hold', 'ctr', 'ltv', 'newest'].includes(b.sort) ? b.sort : 'spend';
+      out.group = !!b.group; out.n = Math.min(Math.max(+b.n || 8, 4), 16);
+      out.tag = b.tag && typeof b.tag === 'object' ? { k: clip(b.tag.k, 30), v: clip(b.tag.v, 80) } : null;
+      out.ids = Array.isArray(b.ids) ? b.ids.map(x => clip(x, 30)).filter(x => /^\d{6,25}$/.test(x)).slice(0, 8) : [];
+    }
     if (b.type === 'chart') {
       out.spec = cleanChart(b.spec); if (!out.spec) return null;
       out.question = clip(b.question, 600);

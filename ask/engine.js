@@ -474,7 +474,9 @@ export function createAssistant(config) {
   };
 
   async function callClaude(env, system, messages, tools, model = C.model, final = false) {
-    const strong = model !== C.model;
+    /* Only Haiku answers in 1200 tokens: Sonnet and Opus spend thinking inside max_tokens, so an app whose
+       base model is one of them (the Strategist, 2026-10-09) needs the big budget on every round. */
+    const strong = model !== C.model || !/haiku/i.test(model);
     const deep = !!C.deepModel && model === C.deepModel;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -843,7 +845,8 @@ export function createAssistant(config) {
     const fmt = m => {
       const who = m.bot_id || m.subtype === 'bot_message' ? C.name : m.user === ev.user ? (C.owner || 'the asker') : 'someone else';
       const body = plainText(m.text).slice(0, C.threadMsgChars);
-      const extra = (m.files || []).length ? ' [a file was posted]' : '';
+      /* What was posted, not just that something was: the assistant decides what to do with it. */
+      const extra = (m.files || []).length ? ` [posted: ${(m.files || []).map(f => `${String(f.mimetype || f.filetype || 'file').split('/')[0]} "${String(f.name || f.title || '').slice(0, 60)}"`).join(', ')}]` : '';
       return body || extra ? `[${who}] ${body}${extra}` : '';
     };
     const head = msgs[0] && msgs[0].ts === ev.thread_ts ? fmt(msgs[0]) : '';
@@ -872,7 +875,8 @@ export function createAssistant(config) {
       if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || ''))) return h.slack(env, 'chat.postMessage', params, true);
       return r;
     };
-    const question = plainText(ev.text);
+    const posted = (ev.files || []).map(f => `${String(f.mimetype || f.filetype || 'file').split('/')[0]} "${String(f.name || f.title || '').slice(0, 60)}"`);
+    const question = plainText(ev.text) + (posted.length ? ` [with this message they posted: ${posted.join(', ')}]` : '');
     if (!question) return { skipped: 'empty question' };
     if (!env.ANTHROPIC_API_KEY) { await say('Ask needs the ANTHROPIC_API_KEY secret set on this worker.'); return { skipped: 'no key' }; }
     const usage = await usageToday(env, h);
