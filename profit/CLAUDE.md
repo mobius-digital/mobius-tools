@@ -2120,6 +2120,33 @@ Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log a
 - **Drops on screen:** a group with 52+ weeks of stock shows "Hold new <group>", 0 new to make and no next-order line
   (Hats: 253 weeks on Oct 8). Closures shown are the drop's own factories only. Asana cards started outside a drop
   show under "Started in Asana, not in a drop" with Make it a design.
+- **2026-10-09 REDESIGN to the v2 system (Cole: "how long the stock lasts looks super weird", "text overlapping", "I
+  can't hover over anything", "Kind of product doesn't fill in", Buying "not sure it's updated", Drops "clunky; a weird
+  refresh thing; brown vs grey bars").** Pages are `.v2 .spx` built from `window.V2UI` (tile + spark, ib, panel as a
+  SHEET), `ds-btn` / `ds-seg` / `ds-chip`, `v2tbl` with `th.v2srt` sort buttons, skeletons, `ds-empty`. Every page has
+  an "is it current" line (`updated()`: when Shopify was read, Central) and a **Refresh** that POSTs
+  `/api/shopify/snapshot` then redraws.
+  - **Stock** = lead, 4 tiles (ad spend on low stock; Ease off / Safe to scale / Push to clear with a 12-week units-sold
+    sparkline; clicking one filters the table), ONE sortable table (On hand, Sold per day, Days left with a bar, Runs out
+    on with "<size> first" when other sizes still hold stock, Restock landing with days short, Ads 30 days, Ad call chip),
+    filter seg + "Only products with ads", then "What the words mean" (every term once; clients may read this page).
+    Sort / filter in localStorage `sp_ss` / `sp_sf` / `sp_sa`. The old lanes and the runway chart are gone.
+  - **Product sheet** (`openProduct`, V2UI.panel with `panel.sheet`): verdict, 5 stats, ONE chart `stockChart()` =
+    units on the shelf for 180 days projected SIZE BY SIZE (`project()`: a size that runs out does not borrow from the
+    others; orders on the way land as steps), short period shaded from the brain's run-out (first core size) to the next
+    landing, marker names in a flag row ABOVE the plot (stacked rows, so no label touches a line), hover per day = units,
+    core sizes in stock, events. By size table (core pill, "runs out first"), Kind of product as a 4-way `ds-seg`,
+    Try an order (buyers) draws a dashed line only once a number is typed.
+  - **Buying** = 4 tiles, one card per factory order (why-now sentence, facts strip, rows with reason, top size chips
+    from `suggestedLines`, qty, In/Out seg), On the way = `steps()` stepper per order (Placed, In production, Ships,
+    Lands; each step owns a grid column) + progress bar, Drafts, landed folded, Coming up table.
+  - **Drops** = drop picker (PillMenu), Edit / New drop, 4 tiles, the drop's dates as a stepper, designs table +
+    Coming due, Asana cards, then **Keep or cut** per group: the rule in one sentence, keep / your call / cut / new
+    counts, a table with one-colour bars (units sold 90 days) and a dashed cut line, "Rule says" chip beside "Your call"
+    Keep / Cut seg and a "Use the rule" button (replaced the ↺). Size mix = single-colour bars.
+  - Order builder, order and design sheets use the same pieces (`spx-form`, `spx-in`). Brand settings > Stock and
+    factories and the Meta ad chips keep their `sp-` classes. Local check: a harness page with the Oct 8 state.json
+    and stubbed fetch, headless Chrome at 1440 and 375, light and dark.
 - Old app `supply/index.html` carries a "moved to Locus" banner and forwards `?slot=`; retire it to a redirect after
   Lucky has used Locus for a week (plan step 5). The worker, engine and D1 stay.
 
