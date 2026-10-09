@@ -1,8 +1,63 @@
 # Lineup into Locus: step 1, the audit (2026-10-09)
 
-Status: waiting for Cole's sign-off. Nothing designed or built yet.
+Status: revised after Cole's question ("is the goal still right?"); waiting for sign-off. Nothing designed or built yet.
 Brief: `docs/handoffs/lineup-into-locus.md`. Method copied from `supply-audit.md`: judged on NEED,
 agency first, then what one brand needs on top, with category research.
+
+## Verdict (Cole asked: is it useful, what is the goal, what is fat)
+
+**The idea is right; the app is mostly fat; how we think about it has to change.**
+
+- **Why it is not useful today.** Lineup is an inbox nobody on our side reads. Clients put dates in;
+  nothing turns a date into work, nobody on the team opens it, the Slack pings never reached us, and
+  one date is already wrong. A date that sits in a box dies, the same way the Q4 Playbook and the old
+  Supply app died.
+- **The goal, in one line: the dates customers see drive the work that has to be ready for them.**
+  Every drop or sale starts a countdown (briefs due, assets in, ads built, emails scheduled, ads
+  live), the countdown lands in Asana, the team is pinged, and the date shows up on the day and in
+  the numbers afterwards. Season already does exactly this for Black Friday (tasks derived from the
+  date: briefs -23 days, built -9, loaded -4). The calendar is that same engine, for every brand, all
+  year.
+- **What it is NOT.** Not a social post scheduler (a different, bigger tool, out of scope). Not a
+  second production tracker (Asana is). Not a place anyone has to keep tidy by hand.
+- **The fat.** About 40 features and 27,000 lines today. Roughly 10 survive: the month and lane
+  views, add by clicking a day, drag to move, the date range, the offer, channels, the assets link,
+  the client door, Slack pings. The rest (stage board, 5 statuses, editable types / stages /
+  channels, owner picker, the Producer AI, changelog page, Clients screen, logos, passwords, tour,
+  install, its own sign-in and cron) is cut. Full table below.
+- **If we will not build the countdown and the Asana link, do not build the page.** A calendar
+  without them is clutter. The fallback would be no Calendar item at all: dates as markers on the
+  charts and a "Coming up" line on Home.
+
+## How it would be used, week to week
+
+| Who | When | What they do |
+|---|---|---|
+| Client (Nick, Dartee) | When they plan a drop or sale | Add it on their client link (or say it in Slack). We get pinged in the brand's internal channel |
+| Strategist (Ahsan, Noma) | Monday | Calendar, next 6 weeks: each event shows its countdown and what is late ("Briefs due Oct 23, not in Asana yet"). One click makes the Asana tasks |
+| Ravo | When briefs land | Sees "assets due" on the event and the client's assets link |
+| Media buyer | Daily | Ads > Today (structure audit) says "Sale starts tomorrow: load the sale ads, raise the budget"; the week-out and day-before pings say it in Slack |
+| Cole | Weekly | Lanes for every client: what is coming, what clashes, who has nothing planned next month |
+| Everyone, the Brief, the Strategist | After the date | The marker on every chart and one line: "During the drop: revenue +38% vs the week before" |
+
+## What we need to build (step 3, in order)
+
+1. **One event list per brand**, on the same D1 rows, keyed on the Locus brand id. Fields: name, type
+   (Drop or launch, Sale, Ad push, Site change, Other), dates (teaser, launch, end), the offer, channels,
+   assets link, Pencilled or Confirmed.
+2. **The countdown**: Season's derived-task rule generalised to any event (per type: a sale needs
+   briefs, ads, emails; a drop also needs assets and stock). Shown on the event; "Make the Asana
+   tasks" pushes it to the brand's Asana project with the dates. Asana stays where work is typed.
+3. **The Calendar page**: lanes (all clients), month (one brand), Coming up (the list). Season phases,
+   Drops on-site dates and Klaviyo sends draw on it automatically.
+4. **Slack**: a ping when a client adds or moves a date, a week-out and a day-before reminder, all to
+   the brand's internal channel (no mapping screen).
+5. **The client link**: one brand, add or move their own dates, nothing internal.
+6. **Markers and impact** on Home, Sales and the Brief's chart; the Brief names the event on the day.
+7. **Warnings**: overlapping sales, a sale within 6 weeks of the last, a promo on a product running
+   out, 4+ emails in a week, an event under 14 days out still Pencilled.
+8. **The Strategist**: a calendar view plus add / move / confirm and "make the Asana tasks".
+9. **Retire Lineup** after a week of use; `/b/<slug>` forwards to the client link.
 
 ## Four facts that change the brief
 
@@ -88,7 +143,7 @@ type what Locus cannot know: a client's own drop or sale date, a site change, a 
 | **Editable event types, channels, stages per board** | No, colours must mean the same for every brand | CUT. One fixed list: Drop or launch, Sale, Email or SMS (auto), Ad push, Site change, Other |
 | **Changelog page** | No as a page | CUT the page; keep a short History on each event ("date moved Oct 7 to Oct 13 by Nick"). Locus "Change Log" stays the ads log, no name clash |
 | **Slack on every edit (15-min batch) + per-channel mapping** | Partly | CUT the mapping. One post to the brand's internal channel when a CLIENT adds or moves a date (the thing the team must hear). Launches in the next 14 days join the Monday post |
-| **Slack reminders a week out and the day before** | Yes, light | KEEP the week-out line inside the Monday post and the Daily Brief ("Burgundy drops today") instead of separate pings |
+| **Slack reminders a week out and the day before** | Yes (Cole: notifications matter) | KEEP as their own pings to the brand's internal channel, plus launches in the next 14 days in the Monday post |
 | **The Producer (AI chat + nightly checks)** | No as a second assistant | CUT. The Strategist gets a calendar view and actions (add, move, confirm). The nightly checks become the warnings above |
 | **Clients screen, logos, cropper, colours, per-brand passwords, memberships** | No | CUT. Locus has the brand list, logos and access |
 | **Google sign-in, name prompt, tour, PWA install, offline page** | No | CUT. Locus has its own sign-in, tour and Help |
