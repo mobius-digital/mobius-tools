@@ -2177,7 +2177,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=24">
+<link rel="stylesheet" href="v2.css?v=25">
 <link rel="stylesheet" href="supply.css?v=1">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=11"></script>
@@ -2296,11 +2296,11 @@
 <script src="studio.js?v=28"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=10"></script>
-<script src="v2.js?v=34"></script>
-<script src="desk.js?v=10"></script>
+<script src="v2.js?v=35"></script>
+<script src="desk.js?v=11"></script>
 <script src="calendar.js?v=6"></script>
 <script src="supply.js?v=2"></script>
-<script src="askextra.js?v=1"></script>
+<script src="askextra.js?v=2"></script>
 <script src="share.js?v=3"></script>
 <script src="polish.js?v=2" defer></script>
 <script>
@@ -6589,9 +6589,10 @@ async function renderDash(first) {
         <p class="hint">Tell the Strategist what you look at every day and who it is for. It builds the dashboard, you press Apply, and it lands here. Say "post it to our channel every morning" and it will.</p>
         <div class="row" style="margin:10px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="dsNew">Ask the Strategist for one</button><button class="btn" type="button" id="dsMake">Build one by hand</button><span class="tiny">Try: "Build Ahsan a dashboard: spend, revenue and MER per brand against last week, plus Meta and Google side by side, every morning in #mobius-internal."</span></div></div>
       ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="card"><p class="hint">No dashboards yet${S.act === 'all' ? '' : ' for this brand'}.</p></div>`}
-      <div id="dsSched"></div>`);
+      <div id="dsAlerts"></div><div id="dsSched"></div>`);
     /* Scheduled questions sit here since 2026-10-09 (were Settings > The Strategist): like a dashboard, they post themselves to Slack. */
     if (window.AskX && AskX.schedules) AskX.schedules($('#dsSched'));
+    if (window.AskX && AskX.alerts) AskX.alerts($("#dsAlerts"));
     $('#dsNew').onclick = () => AskUI.open(`Build ${S.act === 'all' ? 'us' : (S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand'} a dashboard that shows `);
     const mk = $('#dsMake'); if (mk) mk.onclick = () => dashEditor(null);
     $('#main').querySelectorAll('[data-open]').forEach(b => b.onclick = () => { DS.id = b.dataset.open; try { localStorage.setItem('pf_dash', DS.id); } catch {} show('dash'); });

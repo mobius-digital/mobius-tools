@@ -2329,6 +2329,42 @@ Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-se
 - Not tested live: an actual Meta or Google write from the screen (all dry / validate only, so no client account was
   touched); the write path is the Strategist's tested `metawrite.js` code (`node test-metawrite.mjs`).
 
+## 2026-10-09: EMAIL AND SMS, AS STRONG AS ADS (charts, flows, campaigns, and changing Klaviyo from Locus)
+
+Cole: "Should I be able to edit email stuff the same way I can edit ads? Am I missing stats or charts? Should campaigns
+and flows have charts the way revenue does?" References read: Klaviyo's own dashboards (business performance,
+deliverability hub, list growth), Triple Whale's email/SMS view, Polar's Klaviyo connector, Lifetimely, Hyros. Kept
+what a strategist acts on. Backend: account-health/CLAUDE.md, same date. v2.js email block (`klGet` to `klaviyoCards`).
+- **One brand, top to bottom:** Triple Whale tiles (each with its line and the compare period) and "Email and SMS
+  revenue by day" (`emStack`: flows and campaigns stacked, the compare window's total as a dashed line, hover
+  reads both); then from Klaviyo itself (`klaviyoCards`, loads on its own): four tiles (SMS share, revenue per email
+  with Klaviyo's $0.10, placed order rate with 0.08%, list growth), **Engagement and deliverability** (flags in plain
+  words first, `klFlags`: spam over 0.1% / 0.03%, bounces over 2% / 1%, unsubscribes over 0.5%, opens down 15%, list
+  shrinking, a flow that is off but earned, missing core flows; then six rate lines, open / click / placed order /
+  unsubscribe / spam / bounce, each with Klaviyo's average as a dashed amber rule, `rateSpark`), **List growth**
+  (`growthChart`: joined up, left down, net line), **Email vs SMS**, **Flows** (status menu per flow, revenue 90
+  days, the flow's line over the window from `by_flow`, rates; the chevron opens each message with its own rates and
+  subject), **Drafts and scheduled** (Schedule / Unschedule / Cancel / Duplicate / Open in Klaviyo, New draft
+  campaign), **Campaigns sent** (the Ads tables' `TBL` helper: sort on a header, Columns menu, saved as
+  `pf_tbl_kl-camps`; After send = revenue on each of the 14 days after the send, `afterSend`; Duplicate per row),
+  then Subject lines and send times and What Klaviyo is running. Days need 200+ emails received to draw a rate; over
+  45 days the lines go weekly (`klBucket`).
+- **All brands:** the TW table gains a line per brand; the board (`emailBoard`) reads overview + flows_report + daily
+  per brand and shows Klaviyo revenue (flows, campaigns), SMS share, per recipient, placed order, open, click, unsub,
+  spam, bounce (each coloured against Klaviyo's average), list growth, live flows, missing core flows and "Needs a
+  look" (the flags as a tooltip). Attentive brands get one line from Triple Whale. The Golf Sock is never flagged.
+- **Attentive brand (Ice & Gold):** the TW part, then "Attentive, as Triple Whale sees it" (what=attentive) and a
+  plain "not connected directly" note.
+- **Edits** (`klWrite`): preview from POST /api/klaviyo/write, an in-app modal (`klModal`) with a Now -> After table
+  and what happens, confirm sends `expect` = the summary shown, a Done modal with the Klaviyo link, then the cards
+  reload. `klNewDraft` = the labelled form (name, send to, leave out, subject, preview, sender, template; searchable
+  lists). `klSchedule` = a datetime in the viewer's zone, 15+ minutes ahead. A key without the scope shows a "read
+  only" note with the exact scope and hides the controls. **Real finding on the first local run: Lucky's "Welcome
+  (NEW) - Email [BHM]" flow is DRAFT and earned $11.8K in 90 days** (the flag catches it).
+- CSS at the end of v2.css (`kl-*`). A checkbox inside `.modal` needs `width:auto` (the modal stretches inputs).
+  index.html: v2.css?v=24, v2.js?v=35. Screens were checked on the local pair (worktree statics + `ah-worker-dev` +
+  `profit-worker-dev`) for Lucky, Party Patch, Ice & Gold and all brands; no write was applied live.
+
 ## 2026-10-09: Public snapshot links ("Share a public link" in every Export menu)
 
 Cole approved section 15 step 3 of docs/strategist-viktor-grade-plan.md: one card or a whole page, frozen, no login.
