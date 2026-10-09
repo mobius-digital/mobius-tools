@@ -2,7 +2,7 @@
  * Four screens in their own closure, drawn with the v2 building blocks (window.V2UI):
  *   Home > Yesterday   "was yesterday a bad day, for every brand, and why"   GET /api/hub/yesterday + account-health /api/market
  *   Ads > Today        the media buyer's list (ad set first)                 GET /api/hub/today + /api/brand/tests-overview
- *   Season > War room  the live board for the season (shell)                 GET /api/season (+ /api/season/live per live brand)
+ *   Season > War Room  plan (7 steps) before the sale, live during it       GET /api/season/war (2026-10-09 rebuild)
  *   Tools > Platform status   Pulse, the ad-platform outage monitor          mobius-ad-status worker /api/status (public)
  * The host (index.html) passes the same helpers it gives v2.js: window.DeskTab.render(tab, host, first).
  * Nothing here changes an ad account: "Done" writes a manual line to the Change Log (which the Daily Brief's
@@ -266,49 +266,558 @@
   }
 
   /* =========================================================================================
-   * SEASON > WAR ROOM (shell)
+   * SEASON > WAR ROOM (rebuilt 2026-10-09: Triple Whale's BFCM Command Center, done in Locus).
+   * Cole: "the war room should be like Triple Whale's war room, full on plans and everything, the actual war room."
+   * One brand: PLAN (seven steps with progress) before the sale, LIVE (today against the plan, hour by hour) during it.
+   * All clients: every brand in the season, riskiest first. Data: GET /api/season/war (profit worker season.js).
+   * Writes: PUT /api/season/war (the plan, merged server side), PUT /api/season/answer key goals (the ladder, one place),
+   * account-health /api/alerts (thresholds as real Slack alerts, source 'war', only inside the sale dates),
+   * PUT /api/season/checkin (the desk). Stock from the Supply worker; the read from account-health /api/read.
+   * A client login sees its own brand read only (no edits, no stock, no alerts, no read).
    * ======================================================================================= */
+  const SUP = 'https://mobius-supply.mobius-digital.workers.dev';
+  const WR = { mode: {}, tv: false, timer: null, data: null, stock: {}, supBrands: null, goals: null, bud: null, alerts: null };
+  const ANCHOR = { baseline: 'wrBase', goals: 'wrGoals', ladder: 'wrGoals', budget: 'wrBudget', offers: 'wrOffers', alerts: 'wrAlerts', stock: 'wrStock' };
+  const isCl = () => H.S.role === 'client';
+  const seasonLabel = () => (window.SEASON_TAB && window.SEASON_TAB().label) || 'Black Friday';
+  const warTitle = () => `${esc(seasonLabel())}: War Room`;
+  const wcur = () => (WR.data && WR.data.currency) || 'USD';
+  const Mo = n => U().money(n, wcur()), Ko = n => U().kmoney(n, wcur()), Xo = n => U().x2(n), In = n => U().int(n);
+  const addD = (s, n) => { const x = new Date(s + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  const dBetween = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
+  const numIn = v => { const n = parseFloat(String(v ?? '').replace(/[$,%x\s]/gi, '')); return Number.isFinite(n) ? n : null; };
+  const fmtG = (metric, v) => v == null ? '–' : metric === 'mer' ? Xo(v) : metric === 'aov' ? Mo(v) : metric === 'orders' || metric === 'new_customers' ? In(v) : Ko(v);
+  const lyOf = (d, metric) => { const t = d.baseline && d.baseline.totals; if (!t) return null; return { revenue: t.sales, orders: t.orders, aov: t.aov, mer: t.mer, new_customers: t.new_orders, spend: t.spend }[metric] ?? null; };
+  const hourWord = h => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
+  const centralHour = () => +new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hourCycle: 'h23' }).format(new Date());
+  const STAT = { locked: 'Locked', draft: 'Draft', proposed: 'Proposed', missing: 'Missing', skip: 'Skipped' };
+  const toast = (msg, bad) => { let el = document.getElementById('wrToast'); if (!el) { el = document.createElement('div'); el.id = 'wrToast'; el.className = 'wr-toast'; document.body.appendChild(el); } el.textContent = msg; el.className = `wr-toast on${bad ? ' bad' : ''}`; clearTimeout(toast.t); toast.t = setTimeout(() => { el.className = 'wr-toast'; }, bad ? 5000 : 2400); };
+  /* The scaling ladder (copy of season.js ladderOf: keep in step). Grades the last 3 hours of blended MER. */
+  function ladderOf(g, mer, spent) {
+    if (!g || g.be == null || g.target == null) return { text: 'No ladder set', cls: '' };
+    if (mer == null) return { text: 'No spend yet', cls: '' };
+    const floor = Math.max(100, ((g.start) || 0) * 3 / 24 * 0.5);
+    if (spent != null && spent < floor) return { text: `Too early to grade: ${Mo(spent)} spent in 3 hours`, cls: '' };
+    if (g.s100 != null && mer >= g.s100) return { text: 'Scale by 100%', cls: 'good', ok: 1 };
+    if (g.s50 != null && mer >= g.s50) return { text: 'Scale by 50%', cls: 'good', ok: 1 };
+    if (mer >= g.target) return { text: 'Hold', cls: '', ok: 1 };
+    if (mer >= g.be) return { text: 'Pull back', cls: 'warn', ok: 1 };
+    return { text: 'Rework the offer, consider turning ads off', cls: 'bad', ok: 1 };
+  }
+  const kpi = (label, value, sub, tone, tip) => `<div class="wr-k${tone ? ' ' + tone : ''}"${tip ? U().tipAttr(tip) : ''}><span class="l">${label}</span><b>${value}</b>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  const sec = (id, n, done, title, sub, body, cap) => `<section class="v2card wr-sec" id="${id}"><div class="v2h"><h3><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span>${esc(title)}</h3>${cap ? `<span class="cap">${cap}</span>` : ''}</div>${sub ? `<p class="v2hint wr-sub">${sub}</p>` : ''}${body}</section>`;
+
+  function warStop() { if (WR.timer && !WR.tv) { clearInterval(WR.timer); WR.timer = null; } }
   async function war(first) {
-    css();
-    const t = H.RUN(), label = (window.SEASON_TAB && window.SEASON_TAB().label) || 'Black Friday';
-    const title = `${esc(label)}: war room`;
-    if (first) $('#main').innerHTML = shell('war', title, U().card('', '', '<p class="v2hint">Loading…</p>'));
-    let d; try { d = await H.api(`/api/season?act=${encodeURIComponent(H.S.act)}`); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('war', title, U().card('Could not load the season', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
+    css(); warStop();
+    const t = H.RUN(), act = H.S.act || 'all';
+    if (first || !WR.data || (WR.data.act_id || 'all') !== act) $('#main').innerHTML = shell('war', warTitle(), U().card('', '', '<p class="v2hint">Loading the war room&hellip;</p>'));
+    if (act === 'all') return warGrid(t);
+    const mode = WR.mode[act] || null;
+    let d; try { d = await H.api(`/api/season/war?act=${encodeURIComponent(act)}${mode === 'live' ? '&live=1' : ''}`); }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('war', warTitle(), U().card('Could not load the war room', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
-    const td = d.today || ymdL(new Date());
-    const accts = (d.accounts || []).filter(a => (a.phases || []).some(p => p.status !== 'skip'));
-    const live = a => (a.phases || []).filter(p => p.status !== 'skip' && p.start && p.start <= td && (p.end || p.start) >= td);
-    const next = a => (a.phases || []).filter(p => p.status !== 'skip' && p.start && p.start > td).sort((x, y) => x.start.localeCompare(y.start))[0];
-    const lit = accts.some(a => live(a).length) || td >= `${td.slice(0, 4)}-11-17` && td <= `${td.slice(0, 4)}-12-02`;
-    const rows = accts.map(a => { const L = live(a), N = next(a);
-      return `<tr data-act="${esc(a.act_id)}"><td><b>${esc(a.name)}</b></td>
-        <td>${L.length ? L.map(p => `<span class="v2pill good">${esc(p.name)}</span> <span class="faint">${esc((p.offer || '').slice(0, 90))}</span>`).join('<br>') : '<span class="faint">No phase live</span>'}</td>
-        <td>${N ? `${esc(N.name)} <span class="faint">${md(N.start)}${N.offer ? `: ${esc(N.offer.slice(0, 60))}` : ''}</span>` : '<span class="faint">Nothing scheduled</span>'}</td>
-        <td class="dk-live" data-live="${esc(a.act_id)}">${L.length ? '<span class="faint">…</span>' : '<span class="faint">From the first live phase</span>'}</td>
-        <td><button type="button" class="v2link" data-go="act:${esc(a.act_id)}:season">The plan</button></td></tr>`; }).join('');
-    $('#main').innerHTML = shell('war', title, `
-      <div class="dk-strip"><b>${lit ? 'Live' : 'Getting ready'}</b><span>${lit ? 'Sales today against the plan, the offer running now, and what changes next, for every brand in the season.' : `Lights up from list week (Nov 17) to Dec 2. Until then it shows what is coming per brand; the plan itself is on <b>The plan</b>.`}</span>
-        <button type="button" class="v2btn ghost" id="dkSeasonCfg" style="margin-left:auto">Name and when it shows</button></div>
-      ${U().card('Every brand in the season', 'One row per brand. Today so far is live from Triple Whale for brands with a phase running.', accts.length ? `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Running now</th><th>Next change</th><th>Today so far</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">No brand has a season plan yet. Start one on The plan.</p>')}
-      ${U().card('Coming to this room', '', `<ul class="v2list" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
-        <li>Sales by the hour against the day's goal, and profit by the hour.</li><li>Last 3 hours' MER against each brand's ladder: scale, hold or pull back (today's Desk).</li>
-        <li>Stock that runs out before Cyber Monday (Products).</li><li>Email and SMS sends today and what they made.</li><li>Ad spend pace per platform, platform outages, and a Do next list like Ads &gt; Today.</li></ul>`)}`);
-    const root = $('#main');
-    root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
-    root.querySelector('#dkSeasonCfg').onclick = seasonCfg;
-    for (const a of accts.filter(a => live(a).length)) {
-      H.api(`/api/season/live?act=${encodeURIComponent(a.act_id)}`).then(r => { const c = root.querySelector(`[data-live="${CSS.escape(a.act_id)}"]`); if (!c || t !== H.RUN()) return;
-        c.innerHTML = `${U().money(r.today?.sales, a.currency)} sales · MER ${U().x2(r.today?.mer)}<br><span class="faint">last 3 hours MER ${U().x2(r.last3?.mer)}</span>`; })
-        .catch(e => { const c = root.querySelector(`[data-live="${CSS.escape(a.act_id)}"]`); if (c) c.innerHTML = `<span class="faint">${esc(e.message)}</span>`; });
-    }
+    if (!WR.data || WR.data.act_id !== d.act_id) { WR.goals = null; WR.bud = null; }
+    WR.data = d;
+    paintWar(t, d, mode || (d.mode === 'live' ? 'live' : 'plan'));
+  }
+  function paintWar(t, d, m) {
+    const done = d.steps.filter(s => s.done).length;
+    $('#main').innerHTML = shell('war', warTitle(), `<div class="wr${WR.tv ? ' tv' : ''}" id="wrRoot">${warStrip(d, m, done)}${m === 'live' ? liveBody(d) : planBody(d, done)}</div>`);
+    const root = $('#wrRoot');
+    root.querySelectorAll('[data-wrm]').forEach(b => b.onclick = () => { WR.mode[d.act_id] = b.dataset.wrm; if (b.dataset.wrm === 'plan' && WR.tv) tvMode(false); war(false); });
+    const cfg = root.querySelector('#dkSeasonCfg'); if (cfg) cfg.onclick = seasonCfg;
+    const rf = root.querySelector('#wrRefresh'); if (rf) rf.onclick = () => war(false);
+    const tv = root.querySelector('#wrTv'); if (tv) tv.onclick = () => tvMode(!WR.tv);
+    if (m === 'live') wireLive(t, d); else wirePlan(t, d);
+  }
+  function warStrip(d, m, done) {
+    const days = d.sale_days_to;
+    const when = d.mode === 'live' ? '<b class="wr-dot">Live now</b>' : d.mode === 'after' ? 'The sale is over' : days === 1 ? 'Starts tomorrow' : `<b>${days}</b> days to go`;
+    const nxt = d.steps.find(s => !s.done);
+    return `<div class="wr-strip">
+      <div class="wr-seg" role="tablist" aria-label="Plan or live"><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}">Plan</button><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}">Live</button></div>
+      <div class="wr-prog"${U().tipAttr(nxt ? `Next: ${esc(nxt.label)}. ${esc(nxt.why || '')}` : 'Every step is done.')}><span><b>${done} of 7</b> steps</span><i><em style="width:${(done / 7 * 100).toFixed(0)}%"></em></i></div>
+      <div class="wr-when"><b>${esc(d.name)}</b><span>${when} · sale ${wd(d.sale.start)} ${md(d.sale.start)} to ${wd(d.sale.end)} ${md(d.sale.end)}</span></div>
+      <div class="wr-acts">${m === 'live' ? `<span class="faint" id="wrAsOf">${d.live && d.live.as_of ? `as of ${new Date(d.live.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central` : ''}</span><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button><button type="button" class="v2btn ghost" id="wrTv">${WR.tv ? 'Leave TV mode' : 'TV mode'}</button>` : ''}${!isCl() && !WR.tv ? '<button type="button" class="v2btn ghost" id="dkSeasonCfg">Name and when it shows</button>' : ''}</div>
+    </div>`;
+  }
+
+  /* ---------------- PLAN ---------------- */
+  function planBody(d, done) {
+    const st = d.steps.map((s, i) => `<button type="button" class="wr-st${s.done ? ' done' : ''}" data-jump="${ANCHOR[s.key]}"${s.why ? U().tipAttr(esc(s.why)) : ''}><i>${s.done ? '✓' : i + 1}</i><span>${esc(s.label)}</span></button>`).join('');
+    const nxt = d.steps.find(s => !s.done);
+    return `<div class="wr-plan"><nav class="wr-steps" aria-label="Plan steps"><div class="h">Build the ${esc(seasonLabel())} plan</div>${st}
+        <p class="v2hint">${done === 7 ? 'Every step is done. Live takes over on the first sale day.' : `Next: ${esc(nxt.label)}. ${esc(nxt.why || '')}`}</p></nav>
+      <div class="wr-body">${baseSec(d)}${goalsSec(d)}${budgetSec(d)}${offersSec(d)}${alertsSec(d)}${stockSec(d)}</div></div>`;
+  }
+  const stepDone = (d, k) => !!(d.steps.find(s => s.key === k) || {}).done;
+
+  function baseSec(d) {
+    const b = d.baseline || {}, T = b.totals, ro = isCl();
+    const tiles = T ? `<div class="wr-ks">${kpi('Revenue', Ko(T.sales), `${T.days} days`)}${kpi('Orders', In(T.orders))}${kpi('AOV', Mo(T.aov))}${kpi('Ad spend', Ko(T.spend))}${kpi('MER', Xo(T.mer), 'revenue over ad spend')}${kpi('New customers', In(T.new_orders))}</div>`
+      : `<p class="v2hint">No Triple Whale days are stored for ${md(b.from)} to ${md(b.to)}, ${String(b.from || '').slice(0, 4)}. Pick other dates, or set the goals by hand.</p>`;
+    const mx = Math.max(1, ...(b.days || []).map(x => x.sales || 0));
+    const days = (b.days || []).map(x => `<tr${x.date === d.ly_bf ? ' class="bf"' : ''}><td>${wd(x.date)} ${md(x.date)}${x.date === d.ly_bf ? ' <span class="v2pill good">Black Friday</span>' : ''}</td>
+      <td class="num wr-bc"><span class="wr-bar"><i style="width:${((x.sales || 0) / mx * 100).toFixed(1)}%"></i></span>${Ko(x.sales)}</td><td class="num">${In(x.orders)}</td><td class="num">${Mo(x.aov)}</td><td class="num">${Ko(x.spend)}</td><td class="num">${Xo(x.mer)}</td></tr>`).join('');
+    const chs = (b.channels || []).filter(c => (c.revenue || 0) > 0 || (c.spend || 0) > 0);
+    const cmx = Math.max(1, ...chs.map(c => c.revenue || 0));
+    const chans = chs.map(c => `<div class="wr-ch"${U().tipAttr(`<b>${esc(c.label)}</b><br>${esc(c.attributed || '')}`)}><span class="n"><i style="background:var(--c-${['meta', 'google', 'tiktok', 'email'].includes(c.id) ? c.id : 'else'})"></i>${esc(c.label)}</span><span class="wr-bar"><i style="width:${((c.revenue || 0) / cmx * 100).toFixed(1)}%"></i></span><b>${Ko(c.revenue)}</b><span class="faint">${c.spend ? `${Ko(c.spend)} spent${c.roas ? `, ${Xo(c.roas)}` : ''}` : ''}</span></div>`).join('');
+    const prods = (b.products || []).slice(0, 6).map(p => `<li><span>${esc(p.title)}</span><b>${Ko(p.revenue)}</b><span class="faint">${In(p.orders)} orders</span></li>`).join('');
+    const ok = d.war && d.war.baseline_ok;
+    const ctl = ro ? '' : `<div class="wr-win"><label>From<input type="date" id="wrBFrom" value="${esc(b.from)}"></label><label>Through<input type="date" id="wrBTo" value="${esc(b.to)}"></label><button type="button" class="v2btn ghost" id="wrBLoad">Load these days</button>
+      ${ok ? '<span class="v2pill good">Using this baseline</span> <button type="button" class="v2link" id="wrBUndo">Not right</button>' : '<button type="button" class="v2btn dk-p" id="wrBOk">Use this baseline</button>'}</div>`;
+    return sec('wrBase', 1, stepDone(d, 'baseline'), 'Last year\'s Black Friday', `The same days around last year's Black Friday (${wdl(d.ly_bf)}, ${md(d.ly_bf)} ${d.ly_bf.slice(0, 4)}). Revenue is the P&amp;L line (sales less tax), orders are paid orders, channels are Triple Whale last platform click, products are the orders that carried them.`,
+      `${ctl}${tiles}<h4>Revenue by day</h4><div class="v2tbl"><table class="wr-tbl"><thead><tr><th>Day</th><th>Revenue</th><th>Orders</th><th>AOV</th><th>Ad spend</th><th>MER</th></tr></thead><tbody>${days || '<tr><td colspan="6" class="faint">No days stored.</td></tr>'}</tbody></table></div>
+        <div class="wr-2 wr-mt"><div><h4>Revenue by channel</h4>${chans || '<p class="v2hint">No channel rows for those days.</p>'}</div><div><h4>What sold</h4>${prods ? `<ol class="wr-prods">${prods}</ol>` : '<p class="v2hint">No stored orders for those days.</p>'}</div></div>`);
+  }
+
+  function goalsSec(d) {
+    const ro = isCl();
+    if (!WR.goals || WR.goals.act !== d.act_id) WR.goals = { act: d.act_id, list: d.goals_list.map(g => ({ ...g })) };
+    const list = WR.goals.list;
+    const opts = sel => Object.entries(d.metrics).map(([k, l]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    const rows = list.map((g, i) => { const ly = lyOf(d, g.metric), ch = ly && g.target ? g.target / ly - 1 : null;
+      return `<div class="wr-goal" data-gi="${i}">${ro ? `<b>${esc(d.metrics[g.metric])}</b>` : `<select data-gm aria-label="Metric">${opts(g.metric)}</select>`}
+        ${ro ? `<b class="v">${fmtG(g.metric, g.target)}</b>` : `<input type="text" inputmode="decimal" data-gt value="${g.target ?? ''}" placeholder="Target for the sale" aria-label="Target">`}
+        <span class="faint">Last year ${fmtG(g.metric, ly)}${ch != null ? ` · <b class="${ch >= 0 ? 'wr-up' : 'wr-dn'}">${ch >= 0 ? '+' : ''}${Math.round(ch * 100)}%</b>` : ''}</span>
+        ${ro ? '' : `<button type="button" class="v2link" data-gx="${i}">Remove</button>`}</div>`; }).join('');
+    const L = d.ladder || {};
+    const lad = ro ? '' : `<div class="wr-lad"><h4>The scaling ladder</h4><p class="v2hint">The desk grades the last 3 hours of blended MER against these lines at 8am, 4pm and midnight. Same lines as The plan's Goals.</p>
+      <div class="wr-lrow">${[['be', 'Breakeven', 'Under it: rework the offer'], ['target', 'Target', 'Between: hold'], ['s50', 'Scale 50% at', ''], ['s100', 'Scale 100% at', '']].map(([k, l, s]) => `<label>${l}<input type="text" inputmode="decimal" data-lad="${k}" value="${L[k] ?? ''}" placeholder="MER, e.g. 2.0"><small>${s}</small></label>`).join('')}</div></div>`;
+    return sec('wrGoals', 2, stepDone(d, 'goals') && stepDone(d, 'ladder'), 'Goals and the ladder', `Up to five numbers to beat over the whole sale, ${md(d.sale.start)} to ${md(d.sale.end)}. Live tracks every one of them.${d.goals_saved ? '' : ' Filled from the season goals until you save.'}`,
+      `<div class="wr-goals">${rows || '<p class="v2hint">No goals yet.</p>'}</div>${ro ? '' : `<div class="wr-row"><button type="button" class="v2link" id="wrGAdd"${list.length >= 5 ? ' disabled' : ''}>+ Add a goal</button><span class="faint">${list.length} of 5</span></div>`}${lad}
+      ${ro ? '' : '<div class="wr-row"><button type="button" class="v2btn dk-p" id="wrGSave">Save goals and ladder</button><span class="v2hint" id="wrGMsg"></span></div>'}`);
+  }
+
+  function budDraft(d) {
+    if (!WR.bud || WR.bud.act !== d.act_id) { const b = d.budget || {}; WR.bud = { act: d.act_id, total: b.total || null, channels: (b.channels || []).map(c => ({ id: c.id, unit: c.unit, value: c.value, metric: c.metric, target: c.target })) }; }
+    return WR.bud;
+  }
+  const amountOf = (B, c) => c.unit === '%' ? (B.total || 0) * (c.value || 0) / 100 : (c.value || 0);
+  /** The day split, from the server's shares of last year's same days (recomputed here so edits show at once). */
+  function dayPlanC(d) {
+    const rev = (WR.goals && WR.goals.act === d.act_id ? WR.goals.list : d.goals_list).find(g => g.metric === 'revenue');
+    const goal = rev && rev.target ? rev.target : (d.ladder && d.ladder.bf) || null, B = budDraft(d);
+    return (d.plan || []).map(x => ({ ...x, revenue: goal ? goal * x.share : null, spend: B.total ? B.total * x.spend_share : null }));
+  }
+  function budgetSec(d) {
+    const ro = isCl(), B = budDraft(d), ch = d.channel_names || {};
+    const alloc = B.channels.reduce((s, c) => s + amountOf(B, c), 0), left = (B.total || 0) - alloc;
+    const warn = !B.total ? '<div class="wr-warn amber"><b>No budget yet</b><span>Set the paid budget for the whole sale to start splitting it.</span></div>'
+      : Math.abs(left) < 1 ? `<div class="wr-warn green"><b>${Ko(B.total)} fully allocated</b><span>Every dollar has a channel.</span></div>`
+      : `<div class="wr-warn amber"><b>${Ko(Math.abs(left))} ${left > 0 ? 'not allocated' : 'over the total'}</b><span>${Ko(alloc)} of ${Ko(B.total)} is split across channels.</span></div>`;
+    const rows = B.channels.map((c, i) => ro ? `<tr><td><b>${esc(ch[c.id] || c.id)}</b></td><td class="num">${Ko(amountOf(B, c))}</td><td>${c.metric ? `${c.metric.toUpperCase()} ${c.metric === 'cpa' ? Mo(c.target) : Xo(c.target)}` : ''}</td></tr>`
+      : `<tr data-ci="${i}"><td><select data-cid aria-label="Channel">${Object.entries(ch).map(([k, l]) => `<option value="${k}"${k === c.id ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
+        <td><span class="wr-unit"><button type="button" data-cu="$" class="${c.unit !== '%' ? 'on' : ''}">$</button><button type="button" data-cu="%" class="${c.unit === '%' ? 'on' : ''}">%</button></span><input type="text" inputmode="decimal" data-cv value="${c.value ?? ''}" placeholder="0" aria-label="Amount"></td>
+        <td class="num">${Ko(amountOf(B, c))}</td>
+        <td><select data-cm aria-label="Key metric"><option value="">No key metric</option><option value="roas"${c.metric === 'roas' ? ' selected' : ''}>ROAS</option><option value="cpa"${c.metric === 'cpa' ? ' selected' : ''}>CPA</option></select><input type="text" inputmode="decimal" data-ct value="${c.target ?? ''}" placeholder="target" aria-label="Target" class="sm"></td>
+        <td><button type="button" class="v2link" data-cx="${i}">Remove</button></td></tr>`).join('');
+    const lyS = d.baseline && d.baseline.totals ? d.baseline.totals.spend : null;
+    const dp = dayPlanC(d);
+    const split = dp.length ? `<h4>Day by day</h4><div class="v2tbl"><table class="wr-tbl"><thead><tr><th>Day</th><th>Revenue goal</th><th>Budget</th><th>Last year that day</th></tr></thead><tbody>${dp.map(x => `<tr${x.date === d.bf ? ' class="bf"' : ''}><td>${wd(x.date)} ${md(x.date)}</td><td class="num">${Ko(x.revenue)}</td><td class="num">${Ko(x.spend)}</td><td class="num faint">${Ko(x.ly_sales)} (${wd(x.ly)} ${md(x.ly)})</td></tr>`).join('')}</tbody></table></div><p class="v2hint">Split by last year's shape of the same days${(d.plan || []).some(x => x.ly_sales) ? '' : ' (no history, so evenly)'}. Live paces each day against its row.</p>` : '';
+    return sec('wrBudget', 4, stepDone(d, 'budget'), 'Paid budget by channel', `The paid budget for ${md(d.sale.start)} to ${md(d.sale.end)}, split by channel in dollars or percent.${lyS ? ` Last year's same days spent ${Ko(lyS)}.` : ''}`,
+      `${ro ? '' : `<div class="wr-row"><label class="wr-tot">Paid budget for the sale<input type="text" inputmode="decimal" id="wrBTotal" value="${B.total ?? ''}" placeholder="$"></label>${lyS ? `<button type="button" class="v2link" id="wrBLike">Split like last year</button>` : ''}</div>`}
+      ${warn}<div class="v2tbl"><table class="wr-tbl wr-btbl"><thead><tr><th>Channel</th><th>Budget</th><th>Dollars</th><th>Key metric</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>${rows || `<tr><td colspan="5" class="faint">No channels yet.</td></tr>`}</tbody></table></div>
+      ${ro ? '' : '<div class="wr-row"><button type="button" class="v2link" id="wrCAdd">+ Add a channel</button><button type="button" class="v2btn dk-p" id="wrBSave">Save the budget</button><span class="v2hint" id="wrBMsg"></span></div>'}${split}`);
+  }
+
+  function offersSec(d) {
+    const from = addD(d.bf, -26), to = addD(d.bf, 10), span = dBetween(from, to) + 1;
+    const pos = s => Math.max(0, Math.min(100, dBetween(from, s) / span * 100));
+    const ph = (d.phases || []).filter(p => p.start && p.start <= to && (p.end || p.start) >= from);
+    const ticks = []; for (let x = from; x <= to; x = addD(x, 1)) if (new Date(x + 'T12:00:00Z').getUTCDay() === 1) ticks.push(`<span class="tk" style="left:${pos(x)}%">${md(x)}</span>`);
+    const mark = (s, l, c) => s >= from && s <= to ? `<i class="wr-mk ${c}" style="left:${(pos(s) + 50 / span).toFixed(2)}%"><b>${l}</b></i>` : '';
+    const rows = ph.map(p => { const a = p.start < from ? from : p.start, b = (p.end || p.start) > to ? to : (p.end || p.start);
+      return `<div class="wr-tlr"><span class="l" title="${esc(p.name)}">${esc(p.name)}</span><div class="tr"><i class="wr-tlb ${p.status}" style="left:${pos(a).toFixed(2)}%;width:${Math.max(1.6, (dBetween(a, b) + 1) / span * 100).toFixed(2)}%"${U().tipAttr(`<b>${esc(p.name)}</b> · ${md(p.start)}${p.end && p.end !== p.start ? ` to ${md(p.end)}` : ''}<br>${esc(p.offer || 'No offer written yet')}<br>${STAT[p.status] || ''}${p.who ? ` · ${esc(p.who)}` : ''}`)}><span>${esc((p.offer || STAT[p.status] || '').slice(0, 70))}</span></i></div></div>`; }).join('');
+    const bfp = (d.phases || []).find(p => p.key === 'bf');
+    const line = !bfp ? '<span class="v2pill bad">No Black Friday phase</span>' : `<span class="v2pill ${bfp.status === 'locked' ? 'good' : bfp.status === 'draft' || bfp.status === 'proposed' ? 'warn' : 'bad'}">Black Friday offer: ${STAT[bfp.status]}</span> <span>${esc(bfp.offer || 'Nothing written yet.')}</span>`;
+    return sec('wrOffers', 5, stepDone(d, 'offers'), 'Offers and key dates', 'What runs when, from The plan, and every other date around the sale from the Calendar (drops, launches, emails). Hover a bar for the deal.',
+      `<div class="wr-offer">${line}${isCl() ? '' : ' <button type="button" class="v2link" data-go="season">Edit on The plan</button>'}</div>
+      <div class="wr-tl"><div class="wr-tlh"><span class="l"></span><div class="tr">${ticks.join('')}${mark(d.today, 'Today', 'today')}${mark(d.bf, 'Black Friday', 'bf')}</div></div>${rows || '<p class="v2hint">No phases in these weeks.</p>'}<div id="wrCal"><p class="v2hint">Reading the Calendar&hellip;</p></div></div>`);
+  }
+  async function fillCal(t, d) {
+    const el = document.getElementById('wrCal'); if (!el) return;
+    const from = addD(d.bf, -26), to = addD(d.bf, 10), span = dBetween(from, to) + 1;
+    const pos = s => Math.max(0, Math.min(100, dBetween(from, s) / span * 100));
+    let r; try { r = await H.apiAH(`/api/calendar?act=${encodeURIComponent(d.act_id)}&from=${from}&to=${to}&lite=1`); }
+    catch (e) { if (t === H.RUN() && el.isConnected) el.innerHTML = `<p class="v2hint">The Calendar did not answer: ${esc(e.message)}</p>`; return; }
+    if (t !== H.RUN() || !el.isConnected) return;
+    const items = (r.items || []).filter(e => e.src !== 'season' && e.start && e.start <= to && (e.end || e.start) >= from && (!e.act || e.act === d.act_id));
+    if (!items.length) { el.innerHTML = '<p class="v2hint">Nothing else on the Calendar in these weeks.</p>'; return; }
+    const pins = items.map(e => `<i class="wr-pin ${esc(e.kind || '')}" style="left:${pos(e.start).toFixed(2)}%"${U().tipAttr(`<b>${esc(e.name)}</b><br>${md(e.start)}${e.end && e.end !== e.start ? ` to ${md(e.end)}` : ''} · ${esc(e.kind || e.src || '')}`)}></i>`).join('');
+    el.innerHTML = `<div class="wr-tlr"><span class="l">Calendar</span><div class="tr pins">${pins}</div></div>
+      <ul class="wr-evs">${items.sort((a, b) => a.start.localeCompare(b.start)).slice(0, 12).map(e => `<li><b>${wd(e.start)} ${md(e.start)}</b><span>${esc(e.name)}</span><span class="faint">${esc(e.kind || e.src || '')}</span></li>`).join('')}</ul>`;
+  }
+
+  /* Thresholds become real p_alert rules (account-health alerts.js fires them in Slack, the brand's internal channel),
+     only between the sale's first and last day. */
+  const THRESH = [
+    ['overspend', 'Ad spend over budget', 'Alert when today\'s ad spend passes', '% of the day\'s budget', 'Checked every hour from 9am to 9pm Central. Uses the biggest sale day\'s budget, so it fires on real overspend only.'],
+    ['mer', 'MER floor', 'Alert when today\'s MER is under', 'x', 'Checked once a day at the hour below.'],
+    ['aov', 'AOV floor', 'Alert when today\'s AOV is under', '$', 'Checked once a day at the hour below. Catches a discount stacking too deep.'],
+    ['stock', 'Stock cover', 'Alert when a best seller has under', 'days of stock', 'Checked at 9am. Needs a stock feed (Products).'],
+  ];
+  function thDefaults(d) {
+    const th = (d.war && d.war.thresholds) || {}, T = d.baseline && d.baseline.totals;
+    return { overspend: th.overspend ?? 120, mer: th.mer ?? (d.ladder && d.ladder.be) ?? null, aov: th.aov ?? (T && T.aov ? Math.round(T.aov * 0.85) : null), stock: th.stock ?? 14, hour: th.hour ?? 14 };
+  }
+  function alertsSec(d) {
+    if (isCl()) return sec('wrAlerts', 6, stepDone(d, 'alerts'), 'Alerts', '', '<p class="v2hint">The Mobius team gets a Slack alert when spend runs over budget, MER or AOV drops under the floor, or a best seller runs low during the sale.</p>');
+    const v = thDefaults(d);
+    const rows = THRESH.map(([k, l, pre, post, note]) => `<div class="wr-th"><b>${l}</b><span>${pre}</span>${k === 'aov' ? '<span>$</span>' : ''}<input type="text" inputmode="decimal" data-th="${k}" value="${v[k] ?? ''}" placeholder="off" aria-label="${l}"><span>${post === '$' ? '' : post}</span><small>${note}</small></div>`).join('');
+    const hours = Array.from({ length: 13 }, (_, i) => i + 9).map(h => `<option value="${h}"${h === v.hour ? ' selected' : ''}>${hourWord(h)}</option>`).join('');
+    return sec('wrAlerts', 6, stepDone(d, 'alerts'), 'Alerts in Slack', `Real alerts: they post to ${esc(d.name)}'s internal Slack channel, at most once a day each, and only from ${md(d.sale.start)} to ${md(d.sale.end)}. Leave a box empty to turn that one off.`,
+      `<div class="wr-ths">${rows}<div class="wr-th"><b>Check MER and AOV at</b><select id="wrTHour">${hours}</select><span>Central</span><small>2pm matches the Plan B call.</small></div></div>
+      <div class="wr-row"><button type="button" class="v2btn dk-p" id="wrASave">${(d.war.alerts || []).length ? 'Update the Slack alerts' : 'Turn on the Slack alerts'}</button><span class="v2hint" id="wrAMsg"></span></div>
+      <div id="wrAList"></div>`);
+  }
+  async function fillAlerts(t, d) {
+    const el = document.getElementById('wrAList'); if (!el || isCl()) return;
+    const ids = (d.war.alerts || []).map(a => a.id);
+    if (!ids.length) { el.innerHTML = '<p class="v2hint">No alerts saved yet.</p>'; return; }
+    let r; try { r = await H.apiAH('/api/alerts'); WR.alerts = r.alerts || []; } catch (e) { el.innerHTML = `<p class="v2hint">Could not read the alerts: ${esc(e.message)}</p>`; return; }
+    if (t !== H.RUN() || !el.isConnected) return;
+    const mine = (r.alerts || []).filter(a => ids.includes(a.id));
+    el.innerHTML = `<h4>Saved</h4><ul class="wr-al">${mine.map(a => `<li><span>${esc(a.rule)}</span><span class="faint">${a.last_status ? esc(a.last_status) : 'Not checked yet'}${a.last_fired ? ` · last fired ${new Date(a.last_fired).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</span><button type="button" class="v2link" data-atest="${esc(a.id)}">Check now</button></li>`).join('') || '<li class="faint">The saved alerts were deleted elsewhere. Save again.</li>'}</ul><div id="wrATest"></div>`;
+    el.querySelectorAll('[data-atest]').forEach(b => b.onclick = async () => {
+      const out = el.querySelector('#wrATest'); out.innerHTML = '<p class="v2hint">Checking&hellip;</p>';
+      try { const x = await H.apiAH('/api/alerts/test', { method: 'POST', body: JSON.stringify({ id: b.dataset.atest }) });
+        out.innerHTML = `<p class="v2hint">${x.fires ? `<b>It would fire now:</b> ${esc(x.fired.map(f => f.text).join(' '))}` : x.checked ? 'Checked: it would not fire right now.' : esc([...(x.skipped || []), ...(x.waiting || [])][0] || 'Nothing to check yet.')} Nothing was posted.</p>`; }
+      catch (e) { out.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
+    });
+  }
+  async function saveAlerts(d, root) {
+    const msg = root.querySelector('#wrAMsg'); msg.textContent = 'Saving…';
+    const th = {}; root.querySelectorAll('[data-th]').forEach(i => { th[i.dataset.th] = numIn(i.value); });
+    th.hour = +root.querySelector('#wrTHour').value;
+    const dp = dayPlanC(d), maxDay = Math.max(0, ...dp.map(x => x.spend || 0));
+    const B = budDraft(d), meta = B.channels.find(c => c.id === 'meta'), maxShare = Math.max(0, ...dp.map(x => x.spend_share || 0));
+    const rules = [];
+    if (th.overspend && maxDay > 0) rules.push({ kind: 'overspend', metric: 'spend', comparison: 'above', threshold: Math.round(maxDay * th.overspend / 100), at_hour_central: null });
+    if (th.overspend && meta && amountOf(B, meta) > 0 && maxShare > 0) rules.push({ kind: 'overspend_meta', metric: 'meta_spend', comparison: 'above', threshold: Math.round(amountOf(B, meta) * maxShare * th.overspend / 100), at_hour_central: null });
+    if (th.mer) rules.push({ kind: 'mer', metric: 'mer', comparison: 'below', threshold: th.mer, at_hour_central: th.hour });
+    if (th.aov) rules.push({ kind: 'aov', metric: 'aov', comparison: 'below', threshold: th.aov, at_hour_central: th.hour });
+    const sv = WR.stock[d.act_id] && WR.stock[d.act_id].v;
+    if (th.stock && sv && sv.connected) rules.push({ kind: 'stock', metric: 'stock_cover', comparison: 'below', threshold: th.stock, at_hour_central: 9 });
+    const notes = [];
+    if (th.overspend && !(maxDay > 0)) notes.push('Overspend needs a budget first (step 4).');
+    if (th.stock && !(sv && sv.connected)) notes.push('Stock cover needs a stock feed.');
+    const old = (d.war && d.war.alerts) || [], out = [];
+    try {
+      for (const r of rules) {
+        const prev = old.find(a => a.kind === r.kind);
+        const res = await H.apiAH('/api/alerts', { method: 'PUT', body: JSON.stringify({ id: prev && prev.id, act: d.act_id, metric: r.metric, comparison: r.comparison, threshold: r.threshold, window: 'today', baseline: 'fixed', at_hour_central: r.at_hour_central, starts: d.sale.start, ends: d.sale.end, source: 'war' }) });
+        out.push({ kind: r.kind, id: res.alert.id });
+      }
+      for (const a of old) if (!out.some(o => o.kind === a.kind)) await H.apiAH(`/api/alerts?id=${encodeURIComponent(a.id)}`, { method: 'DELETE' }).catch(() => {});
+      const w = await H.api('/api/season/war', { method: 'PUT', body: JSON.stringify({ act: d.act_id, patch: { thresholds: th, alerts: out } }) });
+      d.war = w.war; toast(`${out.length} Slack alert${out.length === 1 ? '' : 's'} on for the sale.${notes.length ? ' ' + notes.join(' ') : ''}`); war(false);
+    } catch (e) { msg.textContent = e.message; }
+  }
+
+  function stockSec(d) {
+    const ok = d.war && d.war.stock_ok;
+    return sec('wrStock', 7, stepDone(d, 'stock'), 'Stock on the heroes', `Days of stock on last year's best sellers and this year's, against the sale's last day (${md(d.sale.end)}). From Products (Supply's own dates).`,
+      `<div id="wrStockBody">${isCl() ? '<p class="v2hint">The Mobius team checks stock on your best sellers before the sale.</p>' : '<p class="v2hint">Reading stock&hellip;</p>'}</div>
+      ${isCl() ? '' : `<div class="wr-row">${ok ? '<span class="v2pill good">Stock checked</span> <button type="button" class="v2link" id="wrSUndo">Undo</button>' : '<button type="button" class="v2btn dk-p" id="wrSOk">Stock checked</button>'}</div>`}`);
+  }
+  const supTok = () => { try { const t = localStorage.getItem('mobius_session'), e = +localStorage.getItem('mobius_session_exp') || 0; return t && (e === 0 || e > Date.now()) ? t : H.S.tok; } catch { return H.S.tok; } };
+  async function sup(path, brand) {
+    const r = await fetch(`${SUP}${path}?brand=${encodeURIComponent(brand)}`, { headers: { Authorization: `Bearer ${supTok()}` } });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error('Stock needs the Google sign-in.');
+    if (!r.ok) throw new Error(j.error || `Stock answered ${r.status}`);
+    return j;
+  }
+  async function stockFor(act) {
+    const hit = WR.stock[act]; if (hit && Date.now() - hit.at < 120e3) return hit.v;
+    let v;
+    try {
+      if (!WR.supBrands) WR.supBrands = sup('/api/brands', 'lucky').catch(e => { WR.supBrands = null; throw e; });
+      const bl = await WR.supBrands;
+      const res = id => { try { return (window.resolveAct && window.resolveAct(id, H.S.accounts)) || id; } catch { return id; } };
+      const b = (bl.brands || []).find(x => x.active && x.act_id && (x.act_id === act || res(x.act_id) === act));
+      if (!b) v = { connected: false };
+      else { const st = await sup('/api/state', b.id); v = { connected: true, products: st.products || [], today: st.today }; }
+    } catch (e) { v = { error: e.message }; }
+    WR.stock[act] = { at: Date.now(), v };
+    return v;
+  }
+  function heroRows(d, v, n = 6) {
+    if (!v) return { html: '<p class="v2hint">Reading stock&hellip;</p>', low: [] };
+    if (v.error) return { html: `<p class="v2hint">Stock did not load: ${esc(v.error)}</p>`, low: [] };
+    if (!v.connected) return { html: '<p class="v2hint">No stock feed for this brand. Stock reads from Shopify once the brand installs the Mobius Digital app (Lucky Golf is connected). Check the best sellers by hand, then press Stock checked.</p>', low: [] };
+    const ids = (d.baseline.products || []).map(p => String(p.id));
+    let list = ids.map(id => v.products.find(p => String(p.id) === id)).filter(p => p && p.status !== 'off').slice(0, n);
+    if (list.length < n) list = list.concat(v.products.filter(p => !list.includes(p) && p.status !== 'off' && (p.sold90 || 0) > 0).sort((a, b) => (b.sold90 || 0) - (a.sold90 || 0)).slice(0, n - list.length));
+    const verdict = p => p.status === 'out' ? ['bad', 'Out now'] : p.runOutDate && p.runOutDate <= d.sale.end ? ['bad', `Runs out ${md(p.runOutDate)}, before the sale ends`] : p.weeksOfCover != null && p.weeksOfCover * 7 < 30 ? ['warn', 'Under 30 days left'] : ['good', 'Covers the sale'];
+    const low = list.filter(p => verdict(p)[0] === 'bad');
+    const html = list.length ? `<div class="v2tbl"><table class="wr-tbl"><thead><tr><th>Product</th><th>On hand</th><th>A week</th><th>Days left</th><th></th></tr></thead><tbody>${list.map(p => { const [c, txt] = verdict(p);
+      return `<tr><td>${esc(p.title)}${ids.includes(String(p.id)) ? ' <span class="faint">sold last BFCM</span>' : ''}</td><td class="num">${In(p.onHand)}</td><td class="num">${p.perWeek != null ? (Math.round(p.perWeek * 10) / 10) : '–'}</td><td class="num">${p.weeksOfCover != null ? In(p.weeksOfCover * 7) : '–'}</td><td><span class="v2pill ${c}">${esc(txt)}</span></td></tr>`; }).join('')}</tbody></table></div>` : '<p class="v2hint">No product with sales to judge.</p>';
+    return { html, low };
+  }
+  async function fillStock(t, d, id) {
+    const el = document.getElementById(id); if (!el || isCl()) return;
+    const v = await stockFor(d.act_id);
+    if (t !== H.RUN() || !el.isConnected) return;
+    el.innerHTML = heroRows(d, v).html;
+  }
+
+  function wirePlan(t, d) {
+    const root = $('#wrRoot');
+    root.querySelectorAll('[data-jump]').forEach(b => b.onclick = () => { const s = document.getElementById(b.dataset.jump); if (s) { s.scrollIntoView({ behavior: 'smooth', block: 'start' }); s.classList.add('wr-ring'); setTimeout(() => s.classList.remove('wr-ring'), 1600); } });
+    root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go));
+    fillCal(t, d); fillAlerts(t, d); fillStock(t, d, 'wrStockBody');
+    if (isCl()) return;
+    const patch = (p, okMsg) => warPatch(d, p, okMsg);
+    /* 1. baseline */
+    const bl = root.querySelector('#wrBLoad'); if (bl) bl.onclick = async () => { const f = root.querySelector('#wrBFrom').value, to = root.querySelector('#wrBTo').value; if (!f || !to || to < f) return toast('Pick a from and a through date.', true); try { await patch({ baseline: { from: f, to }, baseline_ok: false }); war(false); } catch (e) { toast(e.message, true); } };
+    const bo = root.querySelector('#wrBOk'); if (bo) bo.onclick = async () => { try { await patch({ baseline_ok: true }, 'Baseline set.'); war(false); } catch (e) { toast(e.message, true); } };
+    const bu = root.querySelector('#wrBUndo'); if (bu) bu.onclick = async () => { try { await patch({ baseline_ok: false }); war(false); } catch (e) { toast(e.message, true); } };
+    wireGoals(t, d);
+    wireBudget(t, d);
+    /* 6. alerts, 7. stock */
+    const as = root.querySelector('#wrASave'); if (as) as.onclick = () => saveAlerts(d, root);
+    const so = root.querySelector('#wrSOk'); if (so) so.onclick = async () => { try { await patch({ stock_ok: true }, 'Stock checked.'); war(false); } catch (e) { toast(e.message, true); } };
+    const su = root.querySelector('#wrSUndo'); if (su) su.onclick = async () => { try { await patch({ stock_ok: false }); war(false); } catch (e) { toast(e.message, true); } };
+  }
+  async function warPatch(d, p, okMsg) { const w = await H.api('/api/season/war', { method: 'PUT', body: JSON.stringify({ act: d.act_id, patch: p }) }); d.war = w.war; if (okMsg) toast(okMsg); return w; }
+  function repaintSec(t, d, id, fn) {
+    const el = document.getElementById(id); if (!el) return;
+    const y = window.scrollY; el.outerHTML = fn(d); window.scrollTo(0, y);
+    if (id === 'wrBudget') wireBudget(t, d); else wireGoals(t, d);
+  }
+  function wireGoals(t, d) {
+    const sec = document.getElementById('wrGoals'), G = WR.goals; if (!sec || isCl() || !G) return;
+    sec.querySelectorAll('.wr-goal').forEach(r => { const i = +r.dataset.gi;
+      const m = r.querySelector('[data-gm]'); if (m) m.onchange = () => { G.list[i].metric = m.value; repaintSec(t, d, 'wrGoals', goalsSec); };
+      const v = r.querySelector('[data-gt]'); if (v) v.onchange = () => { G.list[i].target = numIn(v.value); repaintSec(t, d, 'wrGoals', goalsSec); repaintSec(t, d, 'wrBudget', budgetSec); }; });
+    sec.querySelectorAll('[data-gx]').forEach(b => b.onclick = () => { G.list.splice(+b.dataset.gx, 1); repaintSec(t, d, 'wrGoals', goalsSec); });
+    const ga = sec.querySelector('#wrGAdd'); if (ga) ga.onclick = () => { if (G.list.length >= 5) return; const used = new Set(G.list.map(g => g.metric)); G.list.push({ metric: Object.keys(d.metrics).find(k => !used.has(k)) || 'revenue', target: null }); repaintSec(t, d, 'wrGoals', goalsSec); };
+    const gs = sec.querySelector('#wrGSave'); if (gs) gs.onclick = async () => {
+      const msg = sec.querySelector('#wrGMsg'); msg.textContent = 'Saving…';
+      sec.querySelectorAll('.wr-goal').forEach(r => { const i = +r.dataset.gi, inp = r.querySelector('[data-gt]'); if (inp) G.list[i].target = numIn(inp.value); });
+      const lad = { ...(d.ladder || {}) }; sec.querySelectorAll('[data-lad]').forEach(i => { lad[i.dataset.lad] = numIn(i.value); });
+      const rev = G.list.find(g => g.metric === 'revenue'); if (rev && rev.target) lad.bf = rev.target;
+      try {
+        await warPatch(d, { goals: G.list.filter(g => g.metric) });
+        const keep = Object.fromEntries(Object.entries(lad).filter(([, v]) => v != null && v !== ''));
+        await H.api('/api/season/answer', { method: 'PUT', body: JSON.stringify({ act: d.act_id, key: 'goals', value: keep }) });
+        toast('Goals and ladder saved.'); WR.goals = null; war(false);
+      } catch (e) { msg.textContent = e.message; }
+    };
+  }
+  function wireBudget(t, d) {
+    const root = $('#wrRoot'), sec = root && root.querySelector('#wrBudget'); if (!sec || isCl()) return;
+    const B = budDraft(d), re = () => repaintSec(t, d, 'wrBudget', budgetSec);
+    const tot = sec.querySelector('#wrBTotal'); if (tot) tot.onchange = () => { B.total = numIn(tot.value); re(); };
+    sec.querySelectorAll('tr[data-ci]').forEach(r => { const c = B.channels[+r.dataset.ci];
+      r.querySelector('[data-cid]').onchange = e => { c.id = e.target.value; re(); };
+      r.querySelectorAll('[data-cu]').forEach(b => b.onclick = () => { c.unit = b.dataset.cu; re(); });
+      r.querySelector('[data-cv]').onchange = e => { c.value = numIn(e.target.value); re(); };
+      r.querySelector('[data-cm]').onchange = e => { c.metric = e.target.value || null; };
+      r.querySelector('[data-ct]').onchange = e => { c.target = numIn(e.target.value); }; });
+    sec.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { B.channels.splice(+b.dataset.cx, 1); re(); });
+    const add = sec.querySelector('#wrCAdd'); if (add) add.onclick = () => { const used = new Set(B.channels.map(c => c.id)); B.channels.push({ id: Object.keys(d.channel_names).find(k => !used.has(k)) || 'other', unit: '$', value: null, metric: null, target: null }); re(); };
+    const like = sec.querySelector('#wrBLike'); if (like) like.onclick = () => {
+      const chs = (d.baseline.channels || []).filter(c => ['meta', 'google', 'tiktok', 'pinterest'].includes(c.id) && c.spend > 0), tot2 = chs.reduce((s, c) => s + c.spend, 0);
+      if (!tot2) return toast('Last year has no channel spend to copy.', true);
+      B.channels = chs.map(c => ({ id: c.id === 'pinterest' ? 'other' : c.id, unit: '%', value: Math.round(c.spend / tot2 * 100), metric: 'roas', target: c.roas ? Math.round(c.roas * 100) / 100 : null }));
+      const sum = B.channels.reduce((s, c) => s + c.value, 0); if (B.channels.length) B.channels[0].value += 100 - sum;
+      if (!B.total) B.total = Math.round(d.baseline.totals.spend);
+      re();
+    };
+    const sv = sec.querySelector('#wrBSave'); if (sv) sv.onclick = async () => {
+      const msg = sec.querySelector('#wrBMsg'); msg.textContent = 'Saving…';
+      try { const w = await H.api('/api/season/war', { method: 'PUT', body: JSON.stringify({ act: d.act_id, patch: { budget: { total: B.total, channels: B.channels } } }) }); d.war = w.war; WR.bud = null; toast('Budget saved.'); war(false); }
+      catch (e) { msg.textContent = e.message; }
+    };
+  }
+
+  /* ---------------- LIVE ---------------- */
+  function liveBody(d) {
+    const L = d.live;
+    if (!L) return U().card('Live', '', '<p class="v2hint">Reading Triple Whale&hellip;</p>');
+    if (L.error) return U().card('Live numbers did not load', '', `<p class="v2bad">${esc(L.error)}</p><p class="v2hint">${isCl() ? 'Live numbers are read by the Mobius team during the sale. Your plan is on the Plan tab.' : 'Triple Whale answers the live call. Try Refresh in a minute.'}</p>`);
+    const T = L.today || {}, D = L.day || {}, g = d.ladder || {};
+    const th = thDefaults(d);
+    const pace = D.pace, ptone = pace == null ? '' : pace >= 1 ? 'good' : pace >= 0.85 ? 'warn' : 'bad';
+    const lad = ladderOf(g, L.last3 && L.last3.mer, L.last3 && L.last3.spend);
+    const merTone = T.mer == null ? '' : th.mer && T.mer < th.mer ? 'bad' : g.target && T.mer >= g.target ? 'good' : g.be && T.mer < g.be ? 'warn' : '';
+    const aovTone = T.aov == null || !th.aov ? '' : T.aov < th.aov ? 'bad' : 'good';
+    const sp = D.spend_budget, spTone = sp && T.spend != null ? (T.spend > sp * 1.15 ? 'bad' : '') : '';
+    const goals = (d.goals_list || []);
+    const saleGoal = (goals.find(x => x.metric === 'revenue') || {}).target || (d.ladder && d.ladder.bf) || null;
+    const SS = L.sale_so_far;
+    const dry = !L.in_sale ? `<div class="wr-dry"><b>Dry run.</b> Today is not a sale day, so the plan for today is a normal day (the brand's own last 28 days). On ${md(d.sale.start)} it switches to the sale plan.</div>` : '';
+    const hero = `<div class="wr-hero">
+      ${kpi('Revenue today', Ko(T.sales), D.plan_now != null ? `<b>${pace != null ? Math.round(pace * 100) + '%' : '–'}</b> of plan by now (${Ko(D.plan_now)})` : 'No plan for today', ptone, `Plan by now = the day's goal x the share of a normal day done by this hour (${esc(L.curve || '')}).`)}
+      ${kpi('Heading for', Ko(D.projected), D.goal ? `day goal ${Ko(D.goal)}` : '', D.projected != null && D.goal ? (D.projected >= D.goal ? 'good' : D.projected >= D.goal * 0.85 ? 'warn' : 'bad') : '', 'Today so far, scaled by how much of a normal day is done.')}
+      ${kpi('Orders', In(T.orders), T.aov != null ? `AOV ${Mo(T.aov)}${th.aov ? ` · floor ${Mo(th.aov)}` : ''}` : '', aovTone)}
+      ${kpi('MER today', Xo(T.mer), `${g.target ? `target ${Xo(g.target)}` : ''}${th.mer ? ` · floor ${Xo(th.mer)}` : ''}`, merTone, 'Revenue over all ad spend, today so far (Triple Whale).')}
+      ${kpi('Ad spend', Ko(T.spend), sp ? `of ${Ko(sp)} for the day` : '', spTone)}
+      ${kpi('Last 3 hours', Xo(L.last3 && L.last3.mer), esc(lad.text), lad.cls, 'The ladder grades the blended MER of the last three hours that have data.')}
+    </div>`;
+    const sale = SS && saleGoal ? `<div class="wr-sale"${U().tipAttr('Finished sale days from the P&amp;L line, plus today so far.')}><span><b>The sale so far</b> ${Ko(SS.sales)} of ${Ko(saleGoal)} · ${In(SS.orders)} orders · MER ${Xo(SS.spend ? SS.sales / SS.spend : null)}</span><i><em style="width:${Math.min(100, SS.sales / saleGoal * 100).toFixed(1)}%"></em></i></div>` : '';
+    return `${dry}${hero}${sale}
+      <div class="wr-lg"><section class="v2card wr-pace"><div class="v2h"><h3>Today, hour by hour</h3><span class="find">Revenue so far against the plan for today. Bars are each hour's revenue. Times are ${esc(d.tz || 'the store\'s')}.</span></div>${paceChart(L)}</section>
+        <section class="v2card" id="wrDesk">${deskBox(d)}</section></div>
+      <div class="wr-l3"><section class="v2card"><div class="v2h"><h3>Spend by channel</h3><span class="find">Against the day's budget for each channel, and where it should be by now.</span></div>${chanBox(L)}</section>
+        <section class="v2card"><div class="v2h"><h3>Alerts today</h3></div><div id="wrFired">${isCl() ? '<p class="v2hint">The Mobius team gets these in Slack.</p>' : '<p class="v2hint">Reading&hellip;</p>'}</div></section>
+        <section class="v2card"><div class="v2h"><h3>Stock on the heroes</h3></div><div id="wrStock2">${isCl() ? '<p class="v2hint">The Mobius team watches stock during the sale.</p>' : '<p class="v2hint">Reading stock&hellip;</p>'}</div></section></div>
+      ${isCl() ? '' : '<div class="wr-l2"><div id="wrRead"></div><div id="dkNow"></div></div>'}`;
+  }
+  function paceChart(L) {
+    const hrs = L.hours || [], plan = L.plan_curve || null;
+    const w = 760, h = 270, pl = 52, pr = 14, pt = 14, pb = 26;
+    const mx = Math.max(1, ...(plan || [0]), ...hrs.map(x => x.cum_sales || 0)) * 1.08;
+    const hmx = Math.max(1, ...hrs.map(x => x.sales || 0));
+    const X = i => pl + (i + 0.5) / 24 * (w - pl - pr), Y = v => pt + (1 - v / mx) * (h - pt - pb), bw = (w - pl - pr) / 24;
+    const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f).toFixed(1)}" y2="${Y(mx * f).toFixed(1)}" stroke="var(--v2-grid)" stroke-dasharray="2 4"/><text x="${pl - 6}" y="${(Y(mx * f) + 3).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--muted)">${Ko(mx * f)}</text>`).join('');
+    const bars = hrs.map((x, i) => { const bh = (x.sales || 0) / hmx * (h - pt - pb) * 0.32; return `<rect x="${(X(i) - bw * 0.32).toFixed(1)}" y="${(h - pb - bh).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="var(--brand)" opacity=".22"/>`; }).join('');
+    const pline = plan ? `<polyline points="${plan.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="5 4"/>` : '';
+    const apts = hrs.map((x, i) => `${X(i).toFixed(1)},${Y(x.cum_sales || 0).toFixed(1)}`).join(' ');
+    const area = hrs.length > 1 ? `<polygon points="${X(0).toFixed(1)},${h - pb} ${apts} ${X(hrs.length - 1).toFixed(1)},${h - pb}" fill="var(--brand)" opacity=".10"/>` : '';
+    const last = hrs[hrs.length - 1];
+    const dot = last ? `<circle cx="${X(hrs.length - 1).toFixed(1)}" cy="${Y(last.cum_sales || 0).toFixed(1)}" r="4.5" fill="var(--surface)" stroke="var(--brand)" stroke-width="2.2"/>` : '';
+    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 23].map(i => `<text x="${X(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${hourWord(i)}</text>`).join('');
+    const hot = Array.from({ length: 24 }, (_, i) => { const x = hrs[i], p = plan ? plan[i] : null;
+      const tip = `<b>${hourWord(i)} to ${hourWord((i + 1) % 24)}</b><br>${x ? `So far ${Ko(x.cum_sales)}${p ? ` · plan ${Ko(p)} (${Math.round(x.cum_sales / p * 100)}%)` : ''}<br>This hour ${Ko(x.sales)} · ${In(x.orders)} orders · ${Ko(x.spend)} spent` : p ? `Plan by then ${Ko(p)}` : 'No data yet'}`;
+      return `<rect x="${(X(i) - bw / 2).toFixed(1)}" y="${pt}" width="${bw.toFixed(1)}" height="${h - pt - pb}" fill="transparent"${U().tipAttr(tip)}/>`; }).join('');
+    return `<div class="wr-chart"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Revenue so far against the plan, by hour">${grid}${bars}${pline}${area}<polyline points="${apts}" fill="none" stroke="var(--brand)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dot}${ticks}${hot}</svg>
+      <div class="wr-key"><span><i class="ln"></i>Revenue so far</span>${plan ? '<span><i class="ln plan"></i>Plan for today</span>' : ''}<span><i class="bx"></i>Each hour</span><span class="faint">Plan curve: ${esc(L.curve || '')}</span></div></div>`;
+  }
+  const SLOTS = [['8am', '8:00 AM'], ['4pm', '4:00 PM'], ['12am', 'Midnight']];
+  function deskBox(d) {
+    const L = d.live || {}, date = L.date || d.today, g = d.ladder || {};
+    const lad = ladderOf(g, L.last3 && L.last3.mer, L.last3 && L.last3.spend);
+    const ch = centralHour(), now = ch < 12 ? '8am' : ch < 20 ? '4pm' : '12am';
+    const lines = g.be != null ? `Breakeven ${Xo(g.be)} · target ${Xo(g.target)} · scale 50% at ${Xo(g.s50)} · scale 100% at ${Xo(g.s100)}` : 'No ladder set on the Plan tab.';
+    const slots = SLOTS.map(([k, l]) => { const c = (d.checkins || []).find(x => x.date === date && x.slot === k);
+      return `<div class="wr-slot${k === now ? ' now' : ''}" data-slot="${k}"><span class="s">${l}${k === now ? ' <em>now</em>' : ''}</span>${c && c.action ? `<div class="did">${esc(c.action)}<small>${c.verdict ? `ladder said ${esc(c.verdict)} · ` : ''}${esc(c.by || '')}</small></div>${isCl() ? '' : '<button type="button" class="v2link" data-redo="1">Change</button>'}`
+        : isCl() ? '<span class="faint">No check-in yet</span>' : '<input type="text" placeholder="What you did, one line" aria-label="What you did"><button type="button" class="v2btn dk-p" data-save="1">Save</button>'}</div>`; }).join('');
+    return `<div class="v2h"><h3>The desk</h3><span class="find">Three check-ins a day, Central. Whoever acts writes one line.</span></div>
+      ${isCl() ? '' : `<div class="wr-call ${lad.cls}"${U().tipAttr(esc(lines))}><span>The ladder says</span><b>${esc(lad.text)}</b><small>last 3 hours ${Xo(L.last3 && L.last3.mer)} on ${Ko(L.last3 && L.last3.spend)}</small></div>`}
+      <div class="wr-slots">${slots}</div>`;
+  }
+  function wireDesk(t, d) {
+    const box = document.getElementById('wrDesk'); if (!box || isCl()) return;
+    const L = d.live || {}, date = L.date || d.today;
+    box.querySelectorAll('[data-save]').forEach(b => b.onclick = async () => {
+      const row = b.closest('.wr-slot'), inp = row.querySelector('input'), text = inp.value.trim(); if (!text) return toast('Write what you did first.', true);
+      const lad = ladderOf(d.ladder, L.last3 && L.last3.mer, L.last3 && L.last3.spend);
+      b.disabled = true;
+      try { const r = await H.api('/api/season/checkin', { method: 'PUT', body: JSON.stringify({ act: d.act_id, date, slot: row.dataset.slot, action: text, roas: L.last3 ? L.last3.mer : null, mer_day: L.today ? L.today.mer : null, revenue: L.today ? L.today.sales : null, spend: L.today ? L.today.spend : null, verdict: lad.ok ? lad.text : null }) });
+        d.checkins = (d.checkins || []).filter(c => !(c.date === date && c.slot === row.dataset.slot)).concat([{ date, slot: row.dataset.slot, action: text, verdict: lad.ok ? lad.text : null, by: r.by, at: r.at }]);
+        box.innerHTML = deskBox(d); wireDesk(t, d); toast('Check-in saved.'); }
+      catch (e) { b.disabled = false; toast(e.message, true); }
+    });
+    box.querySelectorAll('input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') i.closest('.wr-slot').querySelector('[data-save]').click(); });
+    box.querySelectorAll('[data-redo]').forEach(b => b.onclick = () => { const row = b.closest('.wr-slot'), c = (d.checkins || []).find(x => x.date === date && x.slot === row.dataset.slot);
+      row.innerHTML = `<span class="s">${SLOTS.find(s => s[0] === row.dataset.slot)[1]}</span><input type="text" value="${esc(c ? c.action : '')}"><button type="button" class="v2btn dk-p" data-save="1">Save</button>`; wireDesk(t, d); });
+  }
+  function chanBox(L) {
+    const ch = (L.channels || []);
+    if (!ch.length) return '<p class="v2hint">No paid spend today yet.</p>';
+    return ch.map(c => { const b = c.budget, now = c.budget_now, ratio = now ? c.spend / now : null;
+      const tone = ratio == null ? '' : ratio > 1.2 ? 'bad' : ratio < 0.7 ? 'warn' : 'good';
+      const word = ratio == null ? (b ? '' : 'no budget set') : ratio > 1.2 ? 'running hot' : ratio < 0.7 ? 'running behind' : 'on pace';
+      return `<div class="wr-cb"${U().tipAttr(`<b>${esc(c.label)}</b><br>Spent ${Ko(c.spend)}${b ? `<br>Day budget ${Ko(b)}, by now about ${Ko(now)}` : ''}`)}><span class="n"><i style="background:var(--c-${['meta', 'google', 'tiktok', 'email'].includes(c.id) ? c.id : 'else'})"></i>${esc(c.label)}</span>
+        <span class="wr-bar wide">${b ? `<i class="${tone}" style="width:${Math.min(100, (c.spend || 0) / b * 100).toFixed(1)}%"></i><u style="left:${Math.min(100, (now || 0) / b * 100).toFixed(1)}%"></u>` : `<i style="width:100%;opacity:.25"></i>`}</span>
+        <b>${Ko(c.spend)}</b><span class="faint">${b ? `of ${Ko(b)}` : ''} <span class="${tone ? 'wr-' + tone : ''}">${word}</span></span></div>`; }).join('') + '<p class="v2hint">The tick is where spend should be by now on the brand\'s hourly curve.</p>';
+  }
+  async function fillFired(t, d) {
+    const el = document.getElementById('wrFired'); if (!el || isCl()) return;
+    let r; try { r = await H.apiAH('/api/alerts'); } catch (e) { el.innerHTML = `<p class="v2hint">${esc(e.message)}</p>`; return; }
+    if (t !== H.RUN() || !el.isConnected) return;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+    const cDay = s => s ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date(s)) : null;
+    const mine = (r.alerts || []).filter(a => a.act === d.act_id || a.act === 'all');
+    const fired = mine.filter(a => cDay(a.last_fired) === today);
+    WR.firedToday = fired.map(a => a.rule);
+    const ours = mine.filter(a => ((d.war && d.war.alerts) || []).some(x => x.id === a.id));
+    el.innerHTML = `${fired.length ? `<ul class="wr-al fired">${fired.map(a => `<li><b>${new Date(a.last_fired).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })}</b><span>${esc(a.rule)}</span>${a.last_value != null ? `<span class="faint">at ${esc(String(Math.round(a.last_value * 100) / 100))}</span>` : ''}</li>`).join('')}</ul>` : '<p class="v2hint">Nothing has fired today.</p>'}
+      <p class="v2hint">${ours.length ? `${ours.length} sale alert${ours.length === 1 ? '' : 's'} watching.` : 'No sale alerts saved. Turn them on in the Plan, step 6.'}</p>`;
+    warRead(t, d);
+  }
+  async function fillStockLive(t, d) {
+    const el = document.getElementById('wrStock2'); if (!el || isCl()) return;
+    const v = await stockFor(d.act_id); if (t !== H.RUN() || !el.isConnected) return;
+    const r = heroRows(d, v, 5); WR.lowStock = r.low.map(p => p.title);
+    el.innerHTML = r.html;
+  }
+  /* The Strategist's read: what to do now. account-health /api/read (Sonnet), cached there per facts; the 15-minute
+     slot in the facts makes it a fresh read at most every 15 minutes, and Refresh adds a nonce to force one. */
+  async function warRead(t, d, fresh) {
+    const el = document.getElementById('wrRead'); if (!el || isCl()) return;
+    const L = d.live || {}, lad = ladderOf(d.ladder, L.last3 && L.last3.mer, L.last3 && L.last3.spend);
+    const facts = { brand: d.name, what: 'Black Friday war room, live', date: L.date, in_sale: !!L.in_sale, sale: d.sale, today_so_far: L.today, plan_today: L.day, plan_source: L.plan_src,
+      last_3_hours: L.last3, ladder: d.ladder ? { breakeven: d.ladder.be, target: d.ladder.target, scale_50: d.ladder.s50, scale_100: d.ladder.s100, says: lad.text } : null,
+      channels: (L.channels || []).map(c => ({ channel: c.label, spent: c.spend, day_budget: c.budget, by_now: c.budget_now })), sale_so_far: L.sale_so_far || null,
+      goals: d.goals_list, alerts_fired_today: WR.firedToday || [], stock_running_out: WR.lowStock || [], slot: Math.floor(Date.now() / 9e5), ...(fresh ? { nonce: Date.now() } : {}) };
+    el.innerHTML = `<section class="v2card wr-read"><div class="v2h"><h3>What to do now</h3><span class="cap"><button type="button" class="v2btn ghost" id="wrReadRef">Refresh</button></span></div><p class="v2hint">The Strategist is reading the numbers&hellip;</p></section>`;
+    try {
+      const r = await H.apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen: 'war room', scope: d.name, range: `Today, ${L.date}`, compare: 'the plan for today', facts }) });
+      if (t !== H.RUN() || !el.isConnected) return;
+      el.innerHTML = `<section class="v2card wr-read"><div class="v2h"><h3>What to do now</h3><span class="cap"><span class="faint">${r.at ? `read at ${new Date(r.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })}` : ''}</span><button type="button" class="v2btn ghost" id="wrReadRef">Refresh</button></span></div>
+        ${r.error ? `<p class="v2hint">${esc(r.error)}</p>` : `${r.focus ? `<p class="wr-focus">${esc(r.focus)}</p>` : ''}<p class="v2say">${esc((r.lines || []).join(' '))}</p>${(r.leaks || []).length ? `<ul class="wr-leaks">${r.leaks.map(l => `<li><b>${esc(l.where || '')}</b> ${esc(l.what)}</li>`).join('')}</ul>` : ''}<button type="button" class="v2link" id="wrAsk">Ask about this ›</button>`}</section>`;
+    } catch (e) { if (el.isConnected) el.innerHTML = `<section class="v2card wr-read"><div class="v2h"><h3>What to do now</h3><span class="cap"><button type="button" class="v2btn ghost" id="wrReadRef">Refresh</button></span></div><p class="v2hint">The read could not run: ${esc(e.message)}</p></section>`; }
+    const rb = el.querySelector('#wrReadRef'); if (rb) rb.onclick = () => warRead(t, d, true);
+    const ab = el.querySelector('#wrAsk'); if (ab && H.AskUI) ab.onclick = () => H.AskUI.open(`About ${d.name}'s war room right now: `);
+  }
+  function wireLive(t, d) {
+    wireDesk(t, d);
+    if (isCl()) return;
+    fillStockLive(t, d).then(() => fillFired(t, d));
+    fillNow(t);
+  }
+  function tvMode(on) {
+    WR.tv = on;
+    document.documentElement.classList.toggle('wr-tvmode', on);
+    try { if (on && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch {}
+    if (WR.timer) { clearInterval(WR.timer); WR.timer = null; }
+    if (on) WR.timer = setInterval(() => { if (H.S.tab !== 'war') { tvMode(false); return; } NOWC = null; war(false); }, 5 * 60e3);
+    war(false);
+  }
+  if (!window.__wrFs) { window.__wrFs = 1; document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && WR.tv) tvMode(false); }); }
+
+  /* ---------------- ALL CLIENTS ---------------- */
+  async function warGrid(t) {
+    let d; try { d = await H.api('/api/season/war?act=all'); }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('war', warTitle(), U().card('Could not load the war room', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
+    if (t !== H.RUN()) return;
+    WR.data = { act_id: 'all' };
+    const B = d.brands || [];
+    const live = B.filter(b => b.mode === 'live'), steps = B.reduce((s, b) => s + b.done, 0);
+    const bfIn = Math.max(0, dBetween(d.today, d.bf));
+    const card = b => {
+      const miss = b.steps.filter(s => !s.done);
+      const L = b.live, pace = L && L.day ? L.day.pace : null, tone = pace == null ? '' : pace >= 1 ? 'good' : pace >= 0.85 ? 'warn' : 'bad';
+      const body = b.mode === 'live' ? (L && !L.error ? `<div class="wr-gp ${tone}"><b>${pace != null ? Math.round(pace * 100) + '%' : '–'}</b><span>of today's plan by now</span></div><div class="wr-gl">${U().kmoney(L.today && L.today.sales, b.currency)} today · plan by now ${U().kmoney(L.day && L.day.plan_now, b.currency)} · MER ${U().x2(L.today && L.today.mer)}</div>`
+        : `<p class="v2hint">${esc((L && L.error) || 'No live numbers yet.')}</p>`)
+        : `<div class="wr-prog sm"><span><b>${b.done} of 7</b> steps</span><i><em style="width:${(b.done / 7 * 100).toFixed(0)}%"></em></i></div>
+          <div class="wr-miss">${miss.length ? `Still to do: ${miss.slice(0, 3).map(s => esc(s.label.charAt(0).toLowerCase() + s.label.slice(1))).join(', ')}${miss.length > 3 ? ` and ${miss.length - 3} more` : ''}` : 'Ready for the sale.'}</div>`;
+      return `<button type="button" class="wr-bcard${b.mode === 'live' ? ' live' : ''}" data-act="${esc(b.act_id)}">
+        <div class="h"><b>${esc(b.name)}</b>${b.mode === 'live' ? '<span class="v2pill good">Live</span>' : b.mode === 'after' ? '<span class="v2pill">Over</span>' : `<span class="faint">${b.days_to} days</span>`}</div>
+        ${body}<div class="wr-off">${b.bf_offer ? esc(b.bf_offer.slice(0, 110)) : '<span class="faint">No Black Friday offer written</span>'}</div>
+        <div class="f"><span>Goal ${b.goal ? U().kmoney(b.goal, b.currency) : 'not set'}</span><span>${md(b.sale.start)} to ${md(b.sale.end)}</span></div></button>`;
+    };
+    $('#main').innerHTML = shell('war', warTitle(), `<div class="wr" id="wrRoot">
+      <div class="wr-strip"><div class="wr-when"><b>Every brand in the season</b><span>${live.length ? `<b class="wr-dot">${live.length} live now</b> · ` : ''}${bfIn ? `${bfIn} days to Black Friday` : 'Black Friday is today'} · ${steps} of ${B.length * 7} plan steps done · riskiest first</span></div>
+        <div class="wr-acts"><button type="button" class="v2btn ghost" id="dkSeasonCfg">Name and when it shows</button></div></div>
+      ${B.length ? `<div class="wr-grid">${B.map(card).join('')}</div>` : U().card('No brand is in the season', '', '<p class="v2hint">Start one on The plan.</p>')}
+      ${U().foot('Before the sale a card shows how much of the seven-step plan is done; during it, today against the plan by this hour. Click a brand for its war room.')}</div>`);
+    const root = $('#wrRoot');
+    root.querySelectorAll('[data-act]').forEach(el => el.onclick = () => pickAct(el.dataset.act, 'war'));
+    const cfg = root.querySelector('#dkSeasonCfg'); if (cfg) cfg.onclick = seasonCfg;
   }
   function seasonCfg() {
     const cur = (window.SEASON_TAB && window.SEASON_TAB()) || { label: 'Black Friday', mode: 'auto' };
     const opt = (v, l, s) => `<label class="opt"><input type="radio" name="dkMode" value="${v}"${cur.mode === v ? ' checked' : ''}><span>${l}<small>${s}</small></span></label>`;
     const pb = U().panel('The season tab', `<div class="dk-form">
       <label>Name in the menu<input type="text" id="dkSLabel" maxlength="40" value="${esc(cur.label || 'Black Friday')}" placeholder="Black Friday"></label>
-      <p class="v2hint" style="margin:0">Rename it as the season moves: BFCM war room, then Q5 war room after Cyber Monday.</p>
+      <p class="v2hint" style="margin:0">Rename it as the season moves: BFCM War Room, then Q5 War Room after Cyber Monday.</p>
       <div><b>When it shows</b>${opt('auto', 'Automatically', 'From six weeks before the first phase of the season plan to a week after the last.')}${opt('on', 'Always', 'Stays in the menu until you hide it.')}${opt('off', 'Hidden', 'Gone from the menu. The plan still opens from links.')}</div>
       <div><button type="button" class="v2btn dk-p" id="dkSSave">Save</button> <span class="v2hint" id="dkSMsg"></span></div></div>`);
     pb.querySelector('#dkSSave').onclick = async () => {
@@ -320,25 +829,120 @@
   }
 
   /* =========================================================================================
-   * TOOLS > PLATFORM STATUS (Pulse)
+   * TOOLS > PLATFORM STATUS (Pulse). v2 pass 2026-10-09 (Cole: "looks bland, not updated for the new UI"):
+   * the answer first, four tiles, every platform as a card with its logo and a status chip (problems first),
+   * the last 14 days as bars you can hover, and the change log as a table you can filter by platform, with how
+   * long each problem lasted. Same public Pulse feed, read every time the page opens or "Check again" is pressed.
    * ======================================================================================= */
+  const PULSE_LOGO = { meta: 'meta', 'google-ads': 'google-ads', shopify: 'shopify', openai: 'openai', anthropic: 'anthropic', 'tiktok-ads': 'tiktok' };
+  const PULSE_ST = { operational: ['good', 'Working'], degraded: ['warn', 'Degraded'], partial: ['warn', 'Partial outage'], outage: ['bad', 'Outage'], major: ['bad', 'Major outage'], maintenance: ['warn', 'Maintenance'] };
+  let PULSE_F = '';
   async function pulse(first) {
-    css();
+    css(); pulseCss();
     const t = H.RUN();
-    if (first) $('#main').innerHTML = shell('pulse', 'Platform status', U().card('', '', '<p class="v2hint">Loading…</p>'));
-    let d; try { const r = await fetch(PULSE, { cache: 'no-store' }); d = await r.json(); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('pulse', 'Platform status', U().card('Pulse did not answer', '', `<p class="v2hint">${esc(e.message)}</p>`)); return; }
+    const chrono = iso => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+    if (first) $('#main').innerHTML = shell('pulse', 'Platform status', `<div class="pu-sk"><i></i><span><i></i><i></i><i></i><i></i></span><i style="height:260px"></i></div>`);
+    let d; try { const r = await fetch(PULSE, { cache: 'no-store' }); if (!r.ok) throw new Error('Pulse answered ' + r.status); d = await r.json(); }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('pulse', 'Platform status', U().card('Pulse did not answer', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
-    const pill = s => s === 'operational' ? '<span class="v2pill good">Working</span>' : s === 'degraded' || s === 'partial' ? '<span class="v2pill warn">Degraded</span>' : s ? `<span class="v2pill bad">${esc(s)}</span>` : '<span class="v2pill">No feed</span>';
-    const plats = (d.platforms || []).map(p => { const st = p.state || null, bad = st ? Object.values(st.services || {}).filter(x => x.state !== 'operational') : [];
-      return `<div><span style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${esc(p.name)}</b>${pill(st ? st.worst : null)}</span>
-        <span class="v2hint" style="margin:0">${st ? (bad.length ? bad.slice(0, 3).map(x => esc(`${x.name}: ${x.note || x.state}`)).join('<br>') : 'No known issues') : 'No public feed: check its status page.'}</span>
-        ${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener" class="v2hint" style="margin:0">Status page</a>` : ''}</div>`; }).join('');
-    const inc = (d.incidents || []).slice(0, 20).map(i => `<tr><td class="faint" style="white-space:nowrap">${new Date(i.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })}</td><td><b>${esc(i.platform)}</b></td><td>${esc(i.service || '')}</td><td>${i.kind === 'resolved' ? '<span class="v2pill good">Fixed</span>' : '<span class="v2pill warn">Started</span>'} <span class="faint">${esc(i.note || '')}</span></td></tr>`).join('');
-    $('#main').innerHTML = shell('pulse', 'Platform status', `<p class="v2say lead">Is Meta, Google or Shopify having a problem right now? Checked every 5 minutes by Pulse${d.lastRun ? `, last at ${new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central` : ''}. An outage also shows on Home &gt; Yesterday.</p>
-      ${U().card('Right now', '', `<div class="dk-pl">${plats}</div>`)}
-      ${U().card('Recent changes', 'Times in Central.', inc ? `<div class="v2tbl"><table><tbody>${inc}</tbody></table></div>` : '<p class="v2hint">Nothing recorded.</p>')}
-      ${U().foot('Pulse reads the public status feeds of Meta, Google Ads, Shopify, Pinterest, OpenAI and Anthropic. TikTok, Microsoft, LinkedIn, Snap, X, Amazon and Apple publish no machine feed, so they show their status page link. Slack alerts and client fan-out stay on the Pulse page.')}`);
+    const plats = d.platforms || [], incs = d.incidents || [];
+    const stOf = s => PULSE_ST[s] || (s ? ['bad', s.charAt(0).toUpperCase() + s.slice(1)] : ['', 'No feed']);
+    const fed = plats.filter(p => p.state), dark = plats.filter(p => !p.state);
+    const down = fed.filter(p => p.state.worst && p.state.worst !== 'operational');
+    const week = Date.now() - 7 * 864e5, inWeek = incs.filter(i => i.kind !== 'resolved' && Date.parse(i.ts) >= week);
+    /* How long each problem lasted: a "resolved" row closes the latest earlier "incident" on the same service. */
+    const open = new Map(), lasted = new Map();
+    incs.slice().sort((a, b) => a.ts.localeCompare(b.ts)).forEach((i, k) => { const key = i.platformId + '|' + i.service; if (i.kind === 'resolved') { const st = open.get(key); if (st) { lasted.set(i.ts + key, Date.parse(i.ts) - Date.parse(st)); open.delete(key); } } else open.set(key, i.ts); });
+    const dur = ms => ms < 36e5 ? `${Math.max(1, Math.round(ms / 6e4))} min` : ms < 864e5 ? `${(ms / 36e5).toFixed(ms < 36e6 ? 1 : 0)} h` : `${(ms / 864e5).toFixed(1)} days`;
+    const say = down.length
+      ? `<b class="bad">${down.length === 1 ? esc(down[0].name) + ' has a problem' : down.length + ' platforms have a problem'}</b> right now${down.length > 1 ? ': ' + down.map(p => esc(p.name)).join(', ') : ''}. ${down.some(p => ['meta', 'google-ads', 'shopify'].includes(p.id)) ? 'Hold changes on that platform until it clears.' : 'None of them is an ad platform or the store, so the ads are not affected.'}`
+      : `<b class="good">Meta, Google Ads and Shopify are all working.</b> Nothing posted a problem.`;
+    const tiles = [
+      U().tile({ label: 'Problems right now', value: String(down.length), sub: down.length ? down.map(p => esc(p.name)).join(', ') : 'Every feed reads working' }),
+      U().tile({ label: 'Working', value: `${fed.length - down.length}<span class="pu-of"> of ${fed.length}</span>`, sub: 'Platforms with a status feed' }),
+      U().tile({ label: 'Problems started, 7 days', value: String(inWeek.length), sub: inWeek.length ? `Most on ${esc(Object.entries(inWeek.reduce((m, i) => (m[i.platform] = (m[i.platform] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1])[0][0])}` : 'A quiet week' }),
+      U().tile({ label: 'Last checked', value: d.lastRun ? new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : '–', sub: 'Central. Pulse reads every 5 minutes' }),
+    ].join('');
+    const card = p => {
+      const st = p.state, [tone, word] = stOf(st && st.worst);
+      const svc = Object.values(st.services || {}), bad = svc.filter(x => x.state !== 'operational');
+      return `<div class="pu-p${tone && tone !== 'good' ? ' pu-' + tone : ''}">
+        <div class="pu-ph">${window.logo ? window.logo(PULSE_LOGO[p.id] || '', 32, p.name) : ''}<span class="pu-pn"><b>${esc(p.name)}</b><em>${svc.length} service${svc.length === 1 ? '' : 's'} checked</em></span><span class="ds-chip ${tone}"><span class="ds-dot ${tone}"></span>${esc(word)}</span></div>
+        ${bad.length ? `<ul class="pu-issues">${bad.slice(0, 4).map(x => `<li><b>${esc(x.name)}</b> ${esc(x.note || x.state)}</li>`).join('')}${bad.length > 4 ? `<li class="faint">and ${bad.length - 4} more</li>` : ''}</ul>` : '<p class="pu-ok">No known issues</p>'}
+        ${p.link ? `<a class="pu-link" href="${esc(p.link)}" target="_blank" rel="noopener">Status page<svg class="ic" aria-hidden="true"><use href="#i-external-link"/></svg></a>` : ''}</div>`;
+    };
+    const fedSorted = fed.slice().sort((a, b) => (a.state.worst === 'operational') - (b.state.worst === 'operational'));
+    /* The last 14 days: problems started per day, hover for which. */
+    const days = Array.from({ length: 14 }, (_, k) => { const x = new Date(); x.setDate(x.getDate() - 13 + k); return x.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); });
+    const per = days.map(dd => incs.filter(i => i.kind !== 'resolved' && new Date(i.ts).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) === dd));
+    const mx = Math.max(1, ...per.map(a => a.length));
+    const bars = `<div class="pu-bars" role="img" aria-label="Problems started per day, last 14 days">${per.map((a, k) => {
+      const by = a.reduce((m, i) => (m[i.platform] = (m[i.platform] || 0) + 1, m), {});
+      const tip = `<b>${esc(new Date(days[k] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</b><br>${a.length ? Object.entries(by).map(([n, c]) => `${esc(n)}: ${c}`).join('<br>') : 'No problems'}`;
+      return `<div class="pu-bar"${U().tipAttr(tip)}><i style="height:${a.length ? Math.max(6, a.length / mx * 100) : 0}%"></i><span>${k % 2 === 1 || k === 13 ? esc(new Date(days[k] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) : ''}</span></div>`;
+    }).join('')}</div><div class="pu-axis"><span>${mx}</span><span>0</span></div>`;
+    const withInc = [...new Set(incs.map(i => i.platform))];
+    if (PULSE_F && !withInc.includes(PULSE_F)) PULSE_F = '';
+    const rows = incs.filter(i => !PULSE_F || i.platform === PULSE_F).slice(0, 25).map(i => {
+      const L = i.kind === 'resolved' ? lasted.get(i.ts + i.platformId + '|' + i.service) : null;
+      return `<tr><td class="pu-when">${chrono(i.ts)}</td><td><span class="pu-pl">${window.logo ? window.logo(PULSE_LOGO[i.platformId] || '', 20, i.platform) : ''}<b>${esc(i.platform)}</b></span></td><td>${esc(i.service || '')}</td>
+        <td>${i.kind === 'resolved' ? '<span class="ds-chip good">Fixed</span>' : `<span class="ds-chip ${i.to === 'outage' || i.to === 'major' ? 'bad' : 'warn'}">Started</span>`}</td><td class="pu-note">${esc(i.note || '')}</td><td class="pu-dur">${L ? 'lasted ' + dur(L) : ''}</td></tr>`;
+    }).join('');
+    $('#main').innerHTML = shell('pulse', 'Platform status', `<p class="v2say lead">${say}</p>
+      <div class="v2tiles pu-tiles">${tiles}</div>
+      ${U().card('Right now', 'Problems first. Times in Central.', `<div class="pu-grid">${fedSorted.map(card).join('')}</div>
+        ${dark.length ? `<div class="pu-dark"><span class="ds-label">No public feed: check their page</span><div>${dark.map(p => `<a class="ds-chip" href="${esc(p.link || '#')}" target="_blank" rel="noopener">${window.logo ? window.logo(PULSE_LOGO[p.id] || '', 14, p.name) : ''}${esc(p.name)}<svg class="ic" aria-hidden="true"><use href="#i-external-link"/></svg></a>`).join('')}</div></div>` : ''}`, `<button type="button" class="ds-btn" id="puAgain"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Check again</button>`)}
+      ${U().card('The last 14 days', `${per.reduce((s, a) => s + a.length, 0)} problems started. Hover a day for which platform.`, bars)}
+      ${U().card('Recent changes', 'Every change a feed posted, newest first.', `${withInc.length > 1 ? `<div class="ds-seg pu-f" role="radiogroup" aria-label="Show changes for">${['', ...withInc].map(n => `<button type="button" role="radio" data-pf="${esc(n)}" class="${n === PULSE_F ? 'on' : ''}" aria-checked="${n === PULSE_F}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}
+        ${rows ? `<div class="v2tbl pu-t"><table><thead><tr><th>When</th><th>Platform</th><th>Service</th><th>What</th><th>Detail</th><th>How long</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">Nothing recorded.</p>'}`)}
+      ${U().foot('Pulse reads the public status feeds of Meta, Google Ads, Shopify, Pinterest, OpenAI and Anthropic. TikTok, Microsoft, LinkedIn, Snap, X, Amazon and Apple publish no machine feed, so they show their status page link. An outage also shows on Home &gt; Day check. Slack alerts and client fan-out stay on the Pulse page.')}`);
+    const again = $('#puAgain'); if (again) again.onclick = () => H.show('pulse');
+    document.querySelectorAll('#main [data-pf]').forEach(b => b.onclick = () => { PULSE_F = b.dataset.pf; pulse(false); });
+  }
+  function pulseCss() {
+    if (document.getElementById('pucss')) return;
+    const st = document.createElement('style'); st.id = 'pucss';
+    st.textContent = `
+      .dk .pu-tiles{margin:0 0 16px}
+      .dk .pu-of{font-size:15px;font-weight:500;color:var(--muted);letter-spacing:0}
+      .dk .pu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+      .dk .pu-p{border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0;background:var(--surface)}
+      .dk .pu-p.pu-warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+      .dk .pu-p.pu-bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+      .dk .pu-t th,.dk .pu-t td{text-align:left}.dk .pu-t th:last-child,.dk .pu-t td:last-child{text-align:right}
+      .dk .pu-ph{display:flex;align-items:center;gap:10px}
+      .dk .pu-pn{flex:1;min-width:0;display:flex;flex-direction:column}
+      .dk .pu-pn b{font-weight:600;color:var(--ink);line-height:1.3}
+      .dk .pu-pn em{font-style:normal;font-size:12px;color:var(--muted)}
+      .dk .pu-ph .ds-chip{flex:none}
+      .dk .pu-ok{margin:0;font-size:13px;color:var(--muted)}
+      .dk .pu-issues{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink-2)}
+      .dk .pu-issues b{font-weight:600;color:var(--ink)}
+      .dk .pu-link{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:550;color:var(--brand);text-decoration:none;margin-top:auto}
+      .dk .pu-link:hover{text-decoration:underline}
+      .dk .pu-link svg,.dk .pu-dark .ds-chip svg.ic{width:12px;height:12px}
+      .dk .pu-dark{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+      .dk .pu-dark > div{display:flex;flex-wrap:wrap;gap:8px}
+      .dk .pu-dark .ds-logo{border:0;background:transparent}
+      .dk .pu-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:6px;height:150px;align-items:end;padding:0 0 22px;position:relative;background-image:linear-gradient(var(--line) 1px,transparent 1px);background-size:100% 25%;background-position:0 0}
+      .dk .pu-bar{height:100%;display:flex;flex-direction:column;justify-content:flex-end;position:relative;cursor:default;border-radius:var(--r-xs)}
+      .dk .pu-bar:hover{background:var(--surface-2)}
+      .dk .pu-bar i{display:block;background:var(--warn);border-radius:4px 4px 0 0;opacity:.85}
+      .dk .pu-bar span{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--faint);white-space:nowrap}
+      .dk .pu-axis{display:none}
+      .dk .pu-f{margin:0 0 12px;flex-wrap:wrap}
+      .dk .pu-when{white-space:nowrap;color:var(--muted)}
+      .dk .pu-pl{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+      .dk .pu-note{color:var(--muted)}
+      .dk .pu-dur{white-space:nowrap;color:var(--ink-2);text-align:right}
+      .dk .pu-sk{display:grid;gap:16px}.dk .pu-sk>span{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+      .dk .pu-sk i{display:block;height:116px;border-radius:var(--r-lg);background:var(--surface-2);animation:pu-sk 1.4s ease-in-out infinite}
+      .dk .pu-sk>i:first-child{height:22px;width:60%;border-radius:6px}
+      @keyframes pu-sk{50%{opacity:.55}}
+      @media (max-width:720px){.dk .pu-sk>span{grid-template-columns:repeat(2,minmax(0,1fr))}.dk .pu-bar span{display:none}}
+      @media (prefers-reduced-motion:reduce){.dk .pu-sk i{animation:none}}
+    `;
+    document.head.appendChild(st);
   }
 
   /* =========================================================================================

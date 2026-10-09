@@ -1,6 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
+import { handleCommand } from './command.js';
 import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -51,9 +52,10 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
+import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProject, forgetClarity } from './clarity.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
-import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
+import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
@@ -209,6 +211,7 @@ frameFetch(xfetch);
 klaviyoFetch(xfetch);
 calendarFetch(xfetch);
 googleFetch(xfetch);
+clarityFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
 marketFetch(xfetch);
@@ -1066,6 +1069,15 @@ const READ_SYSTEM = `You are the Strategist at Mobius Digital reading one screen
 - "leaks": up to three, each {"what": a number and a cause in one short sentence, "where": the brand or channel}. Only leaks the numbers show. Empty list if nothing leaks.
 - "focus": one short sentence, the single most useful thing to do today.
 Rules: cite ONLY numbers in the JSON (rounded is fine; say "about"). Never invent a cause the numbers do not show; say "the numbers do not say why" when so. Compare against the compare period or the plan when they are in the JSON, else against nothing. Attribution is Triple Whale's. No jargon, no exclamation marks, no em dashes, no headers. Money in the brand's currency as given. Return ONLY a JSON object {lines, leaks, focus}.`;
+/* THE COMMAND CENTER READ (2026-10-09): Locus Home for All clients (profit/command.js) posts every brand's numbers
+ * and its attention reasons; the read says what to look at first ACROSS brands and connects the signals on one brand
+ * into a likely cause. Same route, cache and model as the screen read; `order` is the extra field. */
+const COMMAND_SYSTEM = `You are the Strategist at Mobius Digital reading the agency command center in Locus: every client brand with its numbers for the period on screen and the reasons it may need attention (results against goal and for how many days, days since a new Meta ad launched, creative fatigue signs, overdue or stuck Asana tasks, setup gaps, bad days on the Day check, alerts that fired). Decide what the team should focus on first across ALL brands. Write JSON:
+- "order": up to 4 items, most urgent first, each {"brand": the brand name exactly as in the JSON, "why": one sentence that connects that brand's signals into a likely cause, citing the numbers (for example "CPA has been over goal 8 days, no new ad in 12 days and CTR is down 18%: likely creative fatigue"), "do": one short concrete action for today}.
+- "lines": exactly two short sentences: how the agency looks overall, and what can wait.
+- "leaks": an empty list.
+- "focus": one sentence, the single first thing to do today.
+Rules: connect signals only on the same brand and only when the numbers support it; say "likely" for a cause, never certain; money off goal and many days off goal outrank a setup gap; a setup gap or an overdue task alone is low unless it blocks results; never list a paused brand; cite ONLY numbers in the JSON (rounded is fine). Plain English, no jargon, no exclamation marks, no em dashes, no headers. Return ONLY the JSON object {order, lines, leaks, focus}.`;
 /* THE DAY CHECK VERDICT (2026-10-09, Cole: "combine all that into a comprehensive analysis: was it bad, is it
  * across the board, why, and is there anything we can do or is it just waiting"). Locus posts the facts on the Day
  * check screen (each brand against its own normal, our brands moving together, Breezeway's outside panel, Pulse
@@ -1111,7 +1123,8 @@ async function screenRead(env, b) {
   const user = `SCREEN: ${screen}\nSCOPE: ${scope}\nRANGE: ${String(b.range || '').slice(0, 120)}\nCOMPARE: ${String(b.compare || 'none').slice(0, 60)}\n\nFACTS (everything on the screen):\n${JSON.stringify(facts).slice(0, 24000)}`;
   let text;
   /* The model thinks inside max_tokens; 700 cut the JSON mid-sentence on the first live run. */
-  try { text = await claude(env, { system: READ_SYSTEM, user, maxTokens: 3000, model: READ_MODEL }); }
+  const cmd = screen === 'command';
+  try { text = await claude(env, { system: cmd ? COMMAND_SYSTEM : READ_SYSTEM, user, maxTokens: cmd ? 4000 : 3000, model: READ_MODEL }); }
   catch (e) { return { error: 'The read could not run: ' + e.message }; }
   const m = String(text || '').match(/\{[\s\S]*\}/);
   let out; try { out = JSON.parse(m ? m[0] : '{}'); } catch { return { error: 'The read did not come back clean.', raw: String(text || '').slice(0, 600) }; }
@@ -1120,6 +1133,7 @@ async function screenRead(env, b) {
     lines: (Array.isArray(out.lines) ? out.lines : []).slice(0, 3).map(clean).filter(Boolean),
     leaks: (Array.isArray(out.leaks) ? out.leaks : []).slice(0, 3).map(l => ({ what: clean(l?.what), where: clean(l?.where) })).filter(l => l.what),
     focus: clean(out.focus), at: new Date().toISOString(), screen, scope,
+    ...(cmd ? { order: (Array.isArray(out.order) ? out.order : []).slice(0, 4).map(o => ({ brand: clean(o?.brand), why: clean(o?.why), do: clean(o?.do) })).filter(o => o.brand && o.why) } : {}),
   };
   if (!res.lines.length) return { error: 'The read came back empty.', raw: String(text || '').slice(0, 400) };
   await putSetting(env, key, JSON.stringify(res)).catch(() => {});
@@ -7935,6 +7949,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleAlerts(request, env, path, json, autoDeps());
       if (r) return r;
     }
+    /* The agency command center (command.js): Asana overdue / stuck per brand, new clients being set up, alerts fired. */
+    if (path === '/api/command/work') {
+      const r = await handleCommand(request, env, path, json, isAdmin, async rq => brandsFor(env, await sessionEmail(env, rq).catch(() => null)));
+      if (r) return r;
+    }
     if (path === '/api/daycheck' && request.method === 'POST') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       return json(await dayCheckVerdict(env, await request.json().catch(() => ({}))));
@@ -8001,7 +8020,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const q = k => url.searchParams.get(k) || undefined;
       if (url.searchParams.get('what') === 'can') return json(await klaviyoCan(env, act).catch(e => ({ error: e.message })));
-      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p), { id: q('id'), from: q('from'), to: q('to') })); }
+      try { return json(await klaviyoView(env, act, url.searchParams.get('what') || 'overview', p => ctx.waitUntil(p), { id: q('id'), from: q('from'), to: q('to'), kind: q('kind') })); }
       catch (e) { return json({ error: e.message }, 502); }
     }
     /* Google read directly (google.js): GA4 website analytics, Search Console, Google Ads. */
@@ -8048,6 +8067,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (path === '/api/google/link' && request.method === 'PUT') { const b = await request.json().catch(() => ({})); return json(await googleSetLink(env, await resolveBrandId(env, String(b.act || '')), b)); }
         if (path === '/api/google/link') return json(await googleLink(env, act));
         if (path === '/api/google/website') return json(await websiteReport(env, act, q('from'), q('to'), q('pfrom'), q('pto')));
+        /* One channel, source, landing page, device or new/returning, drilled (Store > Website rows). */
+        if (path === '/api/google/website-drill') return json(await websiteDrill(env, act, q('from'), q('to'), q('pfrom'), q('pto'), q('kind'), q('value')));
         if (path === '/api/google/search') {
           const a = await env.DB.prepare(`SELECT name, tw_shop FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
           const words = [a?.name, (a?.tw_shop || '').split('.')[0]].filter(Boolean).flatMap(x => [x, ...String(x).split(/[\s-]+/)]).filter(w => w.length > 3 && !/golf|club|the/i.test(w) || w === a?.name);
@@ -8062,6 +8083,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (path === '/api/google/ads-changes') return json(await adsChanges(env, act, q('from'), q('to')));
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown google route' }, 404);
+    }
+    /* Microsoft Clarity (clarity.js): the Behaviour card on Store > Website. GET = the report (cached; Clarity allows
+       10 reads a project a day), PUT {act, token?, project?} = connect / set the project id for links, DELETE = forget. */
+    if (path === '/api/clarity') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const only = await brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
+      const b = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
+      const act = String(url.searchParams.get('act') || b.act || '');
+      if (!act) return json({ error: 'act is required' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      try {
+        if (request.method === 'GET') return json(await clarityReport(env, act, { fresh: url.searchParams.get('fresh') === '1' }));
+        if (request.method === 'PUT') return json(b.token ? await storeClarity(env, act, b.token, b.project) : await setClarityProject(env, act, b.project));
+        if (request.method === 'DELETE') { await forgetClarity(env, act); return json({ ok: true }); }
+      } catch (e) { return json({ error: e.message }, e.status === 429 ? 429 : 400); }
+      return json({ error: 'GET, PUT or DELETE' }, 405);
     }
     /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
     if (path === '/api/brand-links' && request.method === 'PUT') {
@@ -8090,6 +8127,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.klaviyo_key !== undefined) {
         if (!String(b.klaviyo_key || '').trim()) await klaviyoForget(env, acct.act_id);
         else { try { klaviyo = await klaviyoStore(env, acct.act_id, b.klaviyo_key); } catch (e) { return json({ error: e.message }, 400); } }
+      }
+      /* Microsoft Clarity's project API token (clarity.js), checked by one real read before it is kept. */
+      if (b.clarity_token !== undefined) {
+        if (!String(b.clarity_token || '').trim()) await forgetClarity(env, acct.act_id);
+        else { try { await storeClarity(env, acct.act_id, b.clarity_token); } catch (e) { return json({ error: e.message }, 400); } }
       }
       /* The Triple Whale shop domain, the same column Settings > Brands writes. */
       if (b.tw_shop !== undefined) {
