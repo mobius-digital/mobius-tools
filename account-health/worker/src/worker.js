@@ -3809,7 +3809,7 @@ const PARTNERSHIP_REASON = 'This is a partnership ad - the video file lives on t
    single D1 row and must stay small, whereas this is a JSON response that is
    thrown away after paint. `budget` is effectively uncapped - it exists so a
    pathological account cannot build an unbounded response, not to ration. */
-const LIVE_THUMBS = { maxBytes: 280_000, budget: 24_000_000 };
+const LIVE_THUMBS = { maxBytes: 280_000, budget: 24_000_000, allowUrl: true };
 
 /* `maxBytes` / `budget` are the REPORT's constraints, and they were being
    applied to the live creative browser too, which does not share them.
@@ -3821,7 +3821,7 @@ const LIVE_THUMBS = { maxBytes: 280_000, budget: 24_000_000 };
    over 190KB, and thrown away. Measured 2026-09-03: 13 of 20 cached creatives
    had `thumb: null`, and the card falls back to a glyph placeholder - which is
    what "the creative won't load" was. */
-async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000 } = {}) {
+async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000, allowUrl = false } = {}) {
   const out = {};
   if (!env.META_TOKEN || !adIds.length) return out;
   const want = [...new Set(adIds)];
@@ -3831,10 +3831,12 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
     const { results } = await env.DB.prepare(
       `SELECT ad_id, json, fetched_at FROM ad_creative WHERE ad_id IN (${q})`).bind(...want).all();
     const cutoff = new Date(Date.now() - AD_CREATIVE_TTL_DAYS * 86400e3).toISOString().slice(0, 19).replace('T', ' ');
-    const fresh = new Set();
+    const fresh = new Set(), dayAgo = new Date(Date.now() - 86400e3).toISOString().slice(0, 19).replace('T', ' ');
     for (const r of results || []) {
       if (String(r.fetched_at) < cutoff) continue;          // stale: refetch
       const v = safeJson(r.json, null);
+      // A row saved WITHOUT a cover is retried after a day, not trusted for 14.
+      if (v && (!v.thumb || v.thumb_link) && String(r.fetched_at) < dayAgo) continue;
       if (v) { out[r.ad_id] = v; fresh.add(r.ad_id); }
     }
     missing = want.filter(id => !fresh.has(id));
@@ -3992,21 +3994,26 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       // fallback. Video ads have no image_url at all (see the note below).
       const sources = [...coverUrls, c?.image_url, c?.thumbnail_url].filter(Boolean);
       let picked = null;
+      const why = [];
       for (const src of sources) {
         try {
           const img = await xfetch(src);
-          if (!img.ok) continue;
+          if (!img.ok) { why.push(`HTTP ${img.status}`); continue; }
           const buf = await img.arrayBuffer();
-          if (buf.byteLength > maxBytes || buf.byteLength * 1.34 > budget) continue;   // too big: fall through to a smaller source
+          if (buf.byteLength > maxBytes || buf.byteLength * 1.34 > budget) { why.push(`${Math.round(buf.byteLength / 1000)}KB`); continue; }   // too big: fall through to a smaller source
           // Chunked: spreading a 250k array into String.fromCharCode blows the stack.
           const bytes = new Uint8Array(buf);
           let bin = '';
           for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
           picked = { b64: btoa(bin), type: img.headers.get('content-type') || 'image/jpeg' };
           break;
-        } catch { /* try the next source */ }
+        } catch (e) { why.push(String(e.message || e).slice(0, 60)); }
       }
-      if (!picked) { out[id].thumb = null; continue; }
+      /* LIVE ONLY: a static whose only image is a big original (a 1.1MB PNG on VetriPaws, 2026-10-09)
+         used to get no cover at all. The live screen can show Meta's own link; it is signed and
+         expires, so a row holding a link is refetched after a day. Reports never take this path. */
+      if (!picked && allowUrl) { const big = sources.find(u => /^https:/.test(u)); if (big) { out[id].thumb = big; out[id].thumb_link = true; continue; } }
+      if (!picked) { out[id].thumb = null; out[id].thumb_why = sources.length ? why.join(', ') : `no image on the creative (${c?.object_type || 'no type'})`; continue; }
       budget -= picked.b64.length;
       // Assign the field, never the object - the ad's copy and metadata are
       // already on it, and replacing it here silently dropped all of them.

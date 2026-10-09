@@ -614,7 +614,7 @@
     const VL = { scale: ['Scale', 'good'], keep: ['Keep: carries the set', 'good'], watch: ['Watch', 'warn'], trim: ['Trim', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''] };
     const FR = { opener: ['Opener', 'Triple Whale credits it far more on first click: it starts journeys (top of funnel).'], closer: ['Closer', 'Triple Whale credits it more on the last click: it closes people already warmed up.'] };
     MED = medians(ads, goal || 50);
-    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(goal * K.jx, cur)}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
+    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
     const top = ads.slice(0, 60);
     /* Quadrant: spend (x, log) against CPA (y), bubble = purchases, goal line. */
     const quad = (() => {
@@ -652,6 +652,13 @@
        ranks ads that have spent the judging bar (the same bar the calls use), or one lucky sale on $12
        tops every list; hook and hold rank video ads only. */
     const bar = (goal || 50) * K.jx;
+    /* SAY WHERE THE BAR COMES FROM (Cole, 2026-10-09: "it just auto goes to $50, why?"). It is the goal
+       CPA x "judge after" from Settings > Goals (the one place goals live); with no goal it is the
+       account's average CPA, and with no sales either it is a $50 placeholder. */
+    const basis = g.cpa ? `${K.jx}x the ${money(g.cpa, cur)} goal CPA`
+      : goal ? `${K.jx}x this account's ${money(goal, cur)} average CPA, because no goal CPA is set`
+      : `a $50 placeholder, because no goal CPA is set and nothing has sold yet`;
+    const barLine = `<p class="v2sortbar">An ad is judged, and ranked on ROAS, CPA, hook, hold and CTR, once it has spent <b>${money(bar, cur)}</b>: ${basis}. <button type="button" class="v2link" data-goals="1">${g.cpa ? 'Change it' : 'Set the goal CPA'} ›</button></p>`;
     const SORTS = [
       ['spend', 'Spend', r => r.spend, -1], ['purchases', 'Purchases', r => r.purchases || 0, -1],
       ['roas', 'ROAS', r => r.roas, -1, 1], ['cpa', 'CPA', r => r.cpa, 1, 1],
@@ -668,9 +675,9 @@
       const note = left && CR_SORT !== 'spend' ? `<p class="v2hint">${left} ad${left === 1 ? '' : 's'} left out: ${s[4] ? `under the ${money(bar, cur)} judging bar${CR_SORT === 'hook' || CR_SORT === 'hold' ? ', or not video' : ''}` : CR_SORT === 'ltv' ? 'too few known customers yet' : 'no number for this sort'}.</p>` : '';
       return list.length ? `<div class="v2gal">${list.slice(0, 24).map(galItem).join('')}</div>${note}` : `<p class="v2hint">No ads have a ${esc(s[1].toLowerCase())} number to rank in this window${s[4] ? ` at ${money(bar, cur)} of spend or more` : ''}.</p>`; };
     const sortRow = () => `<div class="v2sort" role="group" aria-label="Sort the ads by"><span>Sort by</span>${SORTS.map(([k, l]) => `<button type="button" data-sort="${k}" class="${k === CR_SORT ? 'on' : ''}" aria-pressed="${k === CR_SORT}">${l}</button>`).join('')}</div>`;
-    const gallery = `${sortRow()}<div id="v2galw">${galleryInner()}</div>`;
+    const gallery = `${sortRow()}${barLine}<div id="v2galw">${galleryInner()}</div>`;
     const counts = ads.reduce((s, r) => { s[verdict(r)] = (s[verdict(r)] || 0) + 1; return s; }, {});
-    const body = `<p class="v2say lead">${ads.length} ads spent in this window. <b class="good">${counts.scale || 0} to scale</b>${counts.keep ? `, <b>${counts.keep} carrying a working set</b>` : ''}, <b class="warn">${counts.watch || 0} to watch</b>${counts.trim ? `, <b class="warn">${counts.trim} to trim</b>` : ''}, <b class="bad">${counts.cut || 0} to cut</b>${counts.thin || counts.new ? `, ${(counts.thin || 0) + (counts.new || 0)} not judged yet` : ''}, against the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
+    const body = `<p class="v2say lead">${ads.length} ads spent in this window. <b class="good">${counts.scale || 0} to scale</b>${counts.keep ? `, <b>${counts.keep} carrying a working set</b>` : ''}, <b class="warn">${counts.watch || 0} to watch</b>${counts.trim ? `, <b class="warn">${counts.trim} to trim</b>` : ''}, <b class="bad">${counts.cut || 0} to cut</b>${counts.thin || counts.new ? `, ${(counts.thin || 0) + (counts.new || 0)} not judged yet` : ''}, ${goal ? `against the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}` : 'with no goal CPA set and no sales yet, so nothing can be called'}.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
       <div class="v2note v2rule"><span class="v2pill">How the calls work</span><span>${RULE}</span></div>
       ${card('The ads', 'Click an ad to see it play, its copy and its numbers.', gallery, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`)}
       <div class="v2two eq">${card('Where every ad sits', 'Right and low is where you want to be: big spend, cheap purchases. Bubble size is purchases. Click one to see it.', legend([{ color: '--good', label: 'Scale' }, { color: '--c-meta', label: 'Keep' }, { color: '--warn', label: 'Watch or trim' }, { color: '--bad', label: 'Cut' }, { color: '--v2-cmp', label: 'Not judged yet' }]) + quad)}
@@ -698,6 +705,7 @@
       loadThumbs(gw, [...gw.querySelectorAll('[data-thumb]')].map(x => x.dataset.thumb));
     };
     wireGal();
+    root.querySelectorAll('[data-goals]').forEach(b => b.onclick = () => window.openGoals && window.openGoals(a.act_id));
     // A sort repaints only the gallery, so the page never jumps.
     root.querySelectorAll('.v2sort [data-sort]').forEach(b => b.onclick = () => {
       CR_SORT = b.dataset.sort; try { localStorage.setItem('pf_cr_sort', CR_SORT); } catch {}
