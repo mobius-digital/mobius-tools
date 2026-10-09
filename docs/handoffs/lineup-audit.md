@@ -121,15 +121,17 @@ Clients are the ones who type today. Options:
 
 Recommend A, with C as a bonus once the Strategist has the action.
 
-## Where it lives (depends on the structure audit)
+## Where it lives (matches the structure audit)
 
-The parallel structure audit (`locus-structure-audit.md`) has not committed a structure yet, so this
-is a proposal for that chat to accept or move:
+The structure audit (`locus-structure-audit-step1.md`, committed 2026-10-09, waiting for Cole) moves
+Plan to Brand > Goals, makes Black Friday a seasonal rail item (War room, The plan), and leaves room
+for one item, **Calendar**, between Brand and Reports. This audit takes that slot:
 
-- **A rail item "Plan"**: Calendar (first), Season or War room, Plan (targets). Cole already said
-  Plan and Season do not belong on Home; a calendar is the same kind of thing (what is coming and
-  what we aim for), so they sit together.
-- **On Home**: a small "Coming up" card (next 14 days, every brand in the agency view).
+- **Rail item "Calendar"**, always on, ONE page (no tabs). All clients = lanes (one row per brand);
+  one brand = month. A "Coming up" list beside it (phones get the list first).
+- **Season phases draw on it** all year; Black Friday > The plan stays where the offers are edited.
+- **On Home**: promo and drop days feed the structure audit's "Yesterday" ("what changed"), plus a
+  small "Coming up" card (next 14 days).
 - **On every chart**: the markers.
 - Not under Products: Drops is how a product gets made; the calendar is what a customer sees.
 
@@ -146,8 +148,8 @@ is a proposal for that chat to accept or move:
 1. Sign-off on the keeps and cuts above (the big cuts: Board and stages, the Producer, editable
    types, per-channel Slack, the Clients screen).
 2. The client's door: A (client link that can add their own dates), B or C?
-3. Placement: a "Plan" rail item holding Calendar, Season and Plan, plus a Home card, if the
-   structure chat agrees?
+3. Placement: Calendar as its own rail item (the slot the structure audit left), one page, plus a
+   Home card?
 4. The Brief: it does not use the calendar today. Recommend NOT re-adding fixed multipliers (x2.2 on
    a launch day was a guess). Instead: the Brief names the event ("Burgundy drops today") and its
    chart shows the marker; after one season, learn each brand's real lift from its own past events.
