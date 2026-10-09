@@ -382,7 +382,11 @@ const IDEA_WORDS = /\b(ideas?|ideate|inspo|inspiration|recreate|mock-?ups?|teard
    DO open, as Cole or Ahsan through the service account (expandDrive, readDoc). */
 export const UNOPENABLE = /app\.air\.inc\/|dropbox\.com\/|wetransfer\.com\/|we\.tl\//i;
 const hasRef = text => linksOf(text).some(u => classifyLink(u) || UNOPENABLE.test(u));
-const NUMBER_WORDS = /\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|cvr|aov|mer|traffic|sessions?|numbers?|conversions?|conversion rate|orders)\b/i;
+/* 2026-10-09: "Fela said ... can we update this in the creator link?" matched "creator link" and went here,
+   where it died as "No draft yet". Changing what is already on the page (or in a brief) is the Strategist's
+   (edit_creator_page, edit_angle, edit_section); only a NEW idea is this bot's. */
+const EDIT_WORDS = /\b(update|edit|change|remove|delete|take (?:it |this |that )?(?:off|out|down)|reword|rewrite|fix|swap|replace|drop)\b/i;
+const NUMBER_WORDS =/\b(roas|cpa|mer|spend|spent|pacing|revenue|sales|budget|ctr|cpm|cvr|aov|mer|traffic|sessions?|numbers?|conversions?|conversion rate|orders)\b/i;
 /**
  * A mention in a brand's internal channel is the idea bot's when:
  *   - it says "strategist": never (that is how to reach the Strategist in an idea thread);
@@ -402,10 +406,11 @@ export async function ideaWanted(env, ev) {
   await ensureIdeaTables(env);
   const root = ev.thread_ts || ev.ts;
   if (await env.DB.prepare(`SELECT 1 AS x FROM idea_thread WHERE id = ?1`).bind(`${ev.channel}:${root}`).first()) return true;
+  const own = { social: hasRef(ev.text), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
+  if (EDIT_WORDS.test(said) && !/\bideas?\b/i.test(said) && !own.social && !own.video) return false;
   if (IDEA_WORDS.test(said) && !NUMBER_WORDS.test(said)) return true;
   /* "compare" (the blind model test) inside a thread, unless it is about the numbers. */
   if (ev.thread_ts && /\bcompare\b/i.test(said) && !NUMBER_WORDS.test(said)) return true;
-  const own = { social: hasRef(ev.text), video: (ev.files || []).some(isVideoFile), image: (ev.files || []).some(isImageFile) };
   if (own.social || own.video) return true;
   if (own.image && !NUMBER_WORDS.test(said)) return true;
   if (!ev.thread_ts) return false;
