@@ -9,8 +9,10 @@
  *      PNG, Send to Slack (the brand's own internal or client channel, looked up on the account-health worker, never
  *      typed), Copy link to this section.
  *   3. PRINT OR SAVE AS PDF from the page menu: light theme, no rail or top bar, cards kept whole (v2.css, end).
- * Presentation only: nothing here fetches data for a screen or changes a number. Public snapshot links are NOT
- * built (left for Cole to decide). */
+ *   4. SHARE A PUBLIC LINK (2026-10-09, Cole approved): the card or page is FROZEN (its markup with every number baked
+ *      in, plus only the CSS rules it uses, light theme), stored by the profit worker (snapshot.js, p_snapshot) and
+ *      opened without a login at profit/s.html?t=<token>. One brand per link. Managed in Agency settings, Shared links.
+ * Presentation only: nothing here fetches data for a screen or changes a number. */
 (() => {
   let H = null;                                          // host helpers (index.html shareHost())
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -123,12 +125,14 @@
     ['png', 'Download PNG', 'The same picture, as a file', '', ICN('download')],
     ['slack', 'Send to Slack', 'Into this brand’s internal or client channel', '', slackImg()],
     ['link', 'Copy link to this section', 'This page, these dates, scrolled to this card', '', ICN('link')],
+    ['public', 'Share a public link', 'These numbers frozen as they are now; opens without a login', '', ICN('globe')],
   ];
   const PAGE_ITEMS = tiles => [
     ['page-link', 'Copy link to this page', 'This page with this brand, these dates, compare and attribution', '', ICN('link')],
     ...(tiles ? [['tiles-copy', 'Copy the headline numbers as image', 'The row of tiles at the top, as a picture', '', ICN('copy')],
       ['tiles-slack', 'Send the headline numbers to Slack', 'Into this brand’s internal or client channel', '', slackImg()]] : []),
     ['print', 'Print or save as PDF', 'The whole page on paper: light, no menus, cards kept whole', '', ICN('printer')],
+    ['page-public', 'Share a public link to this page', 'The whole page frozen as it is now; opens without a login', '', ICN('globe')],
   ];
   function menu(label, items) {
     const box = document.createElement('div');
@@ -142,6 +146,7 @@
   function decorate() {
     if (!H || !H.S.tok || !H.PillMenu) return;
     const main = document.getElementById('main'); if (!main) return;
+    const sl = main.querySelector('#snapList:not([data-on])'); if (sl) { sl.dataset.on = '1'; links(sl); }
     const on = SHARE_TABS.has(H.S.tab);
     const seen = new Map();
     main.querySelectorAll('.v2card, .card').forEach(card => {
@@ -173,11 +178,13 @@
     try {
       if (v === 'link' || v === 'page-link') return copyText(linkTo(v === 'link' && el ? el.dataset.card : null), 'Link copied');
       if (v === 'print') return printNow();
+      if (v === 'page-public') return publicModal(document.getElementById('main'), 'page');
       if (!el) return toast('There is nothing to export here yet.', true);
       const meta = metaOf(el);
       if (v === 'copy' || v === 'tiles-copy') return copyImage(el, meta);
       if (v === 'png') { const blob = await render(el, meta); download(blob, fileName(meta)); return toast('Downloaded'); }
       if (v === 'slack' || v === 'tiles-slack') return slackModal(el, meta);
+      if (v === 'public') return publicModal(el, 'card');
     } catch (e) { console.error('[Locus share]', e); toast(e && e.message ? e.message : 'That did not work.', true); }
   }
 
@@ -383,11 +390,152 @@
   addEventListener('afterprint', () => { if (THEME) document.documentElement.dataset.theme = THEME; THEME = null; document.querySelectorAll('.lx-print-h').forEach(x => x.remove()); });
   function printNow() { document.querySelectorAll('.hd-period.open').forEach(p => p.classList.remove('open')); setTimeout(() => window.print(), 60); }
 
+  /* ---------- 4. public snapshot links ---------- */
+  /* What never goes on a public link: menus, controls, skeletons, scripts and anything that plays or takes input. */
+  const DROP = '.lx-exp, .v2tip, .v2pick, .v2tbar, .v2rm, .v2cols, .ph-r, .v2sk, .lx-print-h, #snapList, script, noscript, template, iframe, object, embed, input, select, textarea, form, audio';
+  const splitSel = s => { const out = []; let d = 0, cur = ''; for (const ch of s) { if (ch === '(' || ch === '[') d++; else if (ch === ')' || ch === ']') d--; if (ch === ',' && !d) { out.push(cur); cur = ''; } else cur += ch; } if (cur.trim()) out.push(cur); return out.map(x => x.trim()); };
+  const PSEUDO = /::?(before|after|placeholder|marker|selection|first-line|first-letter|backdrop|file-selector-button|-webkit-[\w-]+|-moz-[\w-]+)(\([^)]*\))?|:(hover|focus-visible|focus-within|focus|active|visited|link|target)\b/gi;
+  /* The public page draws the snapshot inside a shadow root, where html, body and :root do not exist: they become the
+     two wrapper divs the snapshot carries (.lxs-html holds data-ui / data-theme, .lxs-body the body's classes). */
+  const reroot = sel => sel.replace(/:root\b/g, '.lxs-html').replace(/(^|[\s,>+~(])html(?=[\s.#[:>+~,)]|$)/g, '$1.lxs-html').replace(/(^|[\s,>+~(])body(?=[\s.#[:>+~,)]|$)/g, '$1.lxs-body');
+  /** Only the CSS rules this element (or anything above it) uses, read while the page is switched to the light theme. */
+  function usedCss(el) {
+    const anc = []; for (let p = el.parentElement; p; p = p.parentElement) anc.push(p);
+    const hit = sel => { if (!sel) return false; try { return el.matches(sel) || !!el.querySelector(sel) || anc.some(a => a.matches(sel)); } catch { return false; } };
+    const keep = part => hit(part) || hit(part.replace(PSEUDO, '').trim() || '*');
+    const walk = (rules, into) => {
+      for (const r of rules) {
+        if (r.type === 1) {
+          const parts = splitSel(r.selectorText || ''); if (!parts.some(keep)) continue;
+          const txt = r.cssText, st = r.selectorText;
+          into.push(txt.startsWith(st) ? reroot(parts.join(', ')) + txt.slice(st.length) : txt);
+        } else if (r.type === 4 || r.type === 12) {                       // @media, @supports: keep the rules inside that apply
+          const inner = []; walk(r.cssRules, inner);
+          if (inner.length) into.push(`@${r.type === 4 ? 'media' : 'supports'} ${r.type === 4 ? r.media.mediaText : r.conditionText}{${inner.join('\n')}}`);
+        } else if (r.type === 5 || r.type === 7) into.push(r.cssText);    // @font-face, @keyframes
+      }
+    };
+    const out = [];
+    for (const sh of document.styleSheets) { let rules = null; try { rules = sh.cssRules; } catch { /* another origin (fonts) */ } if (rules) walk(rules, out); }
+    return out.join('\n');
+  }
+  /** The card or page frozen: markup with every number in it, the CSS it uses, the icons it points at. */
+  function freeze(el) {
+    const d = document.documentElement;
+    const chain = []; for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) chain.unshift({ t: /^[a-z][a-z0-9]*$/.test(p.tagName.toLowerCase()) ? p.tagName.toLowerCase() : 'div', id: p.id || '', c: typeof p.className === 'string' ? p.className : '' });
+    const c = el.cloneNode(true);
+    const lc = [...el.querySelectorAll('canvas')];
+    [...c.querySelectorAll('canvas')].forEach((x, i) => { try { const img = document.createElement('img'); img.src = lc[i].toDataURL('image/png'); img.style.cssText = `width:${lc[i].clientWidth}px;max-width:100%;height:auto`; x.replaceWith(img); } catch { x.remove(); } });
+    c.querySelectorAll('video').forEach(v => { if (v.poster) { const img = document.createElement('img'); img.src = v.poster; img.className = v.className; v.replaceWith(img); } else v.remove(); });
+    c.querySelectorAll(DROP).forEach(x => x.remove());
+    c.classList.remove('lx-flash', 'busy', 'lx-more');
+    [c, ...c.querySelectorAll('*')].forEach(x => {
+      for (const a of [...x.attributes]) {
+        const n = a.name.toLowerCase(), v = a.value;
+        if (/^on/.test(n) || n === 'contenteditable' || n === 'tabindex' || n === 'draggable' || n === 'srcdoc') x.removeAttribute(a.name);
+        else if (n === 'href' && x.tagName === 'A') x.removeAttribute(a.name);       // nothing on the public page links back into Locus
+        else if (['src', 'href', 'xlink:href', 'poster'].includes(n) && v && !v.startsWith('#') && !v.startsWith('data:image/')) {
+          if (/^(blob:|javascript:|data:)/i.test(v)) x.removeAttribute(a.name); else { try { x.setAttribute(a.name, new URL(v, location.href).href); } catch { x.removeAttribute(a.name); } }
+        }
+      }
+    });
+    const need = new Set();
+    c.querySelectorAll('use').forEach(u => { const h = u.getAttribute('href') || u.getAttribute('xlink:href') || ''; if (h.startsWith('#')) need.add(h.slice(1)); });
+    const defs = [...need].map(id => { const s = document.getElementById(id); return s && !c.querySelector(`#${CSS.escape(id)}`) ? s.outerHTML : ''; }).join('');
+    const prev = d.dataset.theme; d.dataset.theme = 'light';
+    let css; try { css = usedCss(el); } finally { d.dataset.theme = prev; }
+    const open = chain.map(w => `<${w.t}${w.id ? ` id="${esc(w.id)}"` : ''} class="${esc(w.c)} lxs-w">`).join('');
+    const close = chain.slice().reverse().map(w => `</${w.t}>`).join('');
+    const body = (document.body.className || '').replace(/\b(nav-open|modal-open)\b/g, '').trim();
+    const html = `<div class="lxs-html" data-ui="${esc(d.dataset.ui || '')}" data-app="${esc(d.dataset.app || '')}" data-theme="light"><div class="lxs-body ${esc(body)}">`
+      + (defs ? `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${defs}</defs></svg>` : '')
+      + open + c.outerHTML + close + '</div></div>';
+    return { html, css, root: { ui: d.dataset.ui || '', app: d.dataset.app || '', body } };
+  }
+  const shareUrl = t => new URL(`s.html?t=${t}`, location.href).href;
+  const whenWords = iso => { if (!iso) return 'Never expires'; const dt = new Date(String(iso).replace(' ', 'T') + 'Z'); return `Expires ${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`; };
+
+  function publicModal(el, kind) {
+    const S = H.S;
+    if (!el) { toast('There is nothing to share here yet.', true); return; }
+    const w = document.createElement('div'); w.className = 'modal-wrap';
+    const closeW = () => { w.remove(); document.removeEventListener('keydown', key); };
+    const key = e => { if (e.key === 'Escape') closeW(); };
+    document.addEventListener('keydown', key);
+    w.addEventListener('mousedown', e => { if (e.target === w) closeW(); });
+    if (S.act === 'all') {
+      w.innerHTML = `<div class="modal lx-sl"><h3>Share a public link</h3><p class="hint">A public link shows one brand only. Pick the brand at the top first (this view is All clients).</p><div class="row lx-sl-a"><button class="btn primary" data-m="no">OK</button></div></div>`;
+      document.body.appendChild(w); w.querySelector('[data-m="no"]').onclick = closeW; return;
+    }
+    const meta = metaOf(el); if (kind === 'page') meta.title = meta.page || meta.title;
+    w.innerHTML = `<div class="modal lx-sl" role="dialog" aria-label="Share a public link"><h3>Share a public link</h3>
+      <p class="hint">Freezes <b>${esc(meta.title)}</b> for <b>${esc(meta.brand)}</b> exactly as it is on screen now${meta.dates ? `, ${esc(meta.dates)}` : ''}. The link opens without signing in to Locus and never updates.</p>
+      <div class="lx-sl-ch" role="radiogroup" aria-label="How long the link works">
+        <label class="lx-opt"><input type="radio" name="lxexp" value="7"><span><b>7 days</b><small>For a quick look</small></span></label>
+        <label class="lx-opt"><input type="radio" name="lxexp" value="30" checked><span><b>30 days</b><small>The usual</small></span></label>
+        <label class="lx-opt"><input type="radio" name="lxexp" value="0"><span><b>Never expires</b><small>Until you turn it off in Agency settings, Shared links</small></span></label>
+      </div>
+      <p class="lx-sl-warn">Anyone with this link can see these numbers as they are now.</p>
+      <div class="row lx-sl-a"><span class="lx-sl-msg hint"></span><button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Make the link</button></div></div>`;
+    document.body.appendChild(w);
+    const q = s => w.querySelector(s), go = q('[data-m="yes"]'), msg = q('.lx-sl-msg');
+    q('[data-m="no"]').onclick = closeW;
+    go.onclick = async () => {
+      go.disabled = true; msg.textContent = 'Freezing the numbers…';
+      try {
+        const f = freeze(el);
+        const r = await H.api('/api/snapshot', { method: 'POST', body: JSON.stringify({
+          act: S.act, kind, title: meta.title, page: meta.page, dates: meta.dates, cmp: meta.cmp, attr: meta.attr,
+          days: +((w.querySelector('input[name="lxexp"]:checked') || {}).value || 30), html: f.html, css: f.css, root: f.root }) });
+        const url = shareUrl(r.token);
+        q('.modal').innerHTML = `<h3>Your public link</h3>
+          <p class="hint"><b>${esc(meta.title)}</b> for <b>${esc(r.brand || meta.brand)}</b>, frozen now. ${esc(whenWords(r.expires_at))}.</p>
+          <div class="lx-pl"><input type="text" readonly value="${esc(url)}" aria-label="The public link"><button class="btn primary" data-m="copy">Copy</button></div>
+          <p class="lx-sl-warn">Anyone with this link can see these numbers as they are now.</p>
+          <p class="hint">See who opened it, or turn it off, in Agency settings, Shared links.</p>
+          <div class="row lx-sl-a"><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Open it</a><button class="btn primary" data-m="no">Done</button></div>`;
+        q('[data-m="no"]').onclick = closeW;
+        const inp = q('.lx-pl input'); inp.onfocus = () => inp.select();
+        q('[data-m="copy"]').onclick = () => copyText(url, 'Link copied');
+        copyText(url, 'Link made and copied');
+      } catch (e) { msg.textContent = e.message || 'That did not work.'; go.disabled = false; }
+    };
+  }
+
+  /** Agency settings > Shared links: every public link, who made it, views, expiry, Copy and Turn off. */
+  async function links(host) {
+    host.innerHTML = '<div class="card"><span class="hint">Loading the shared links…</span></div>';
+    let d; try { d = await H.api('/api/snapshots', { fresh: true }); } catch (e) { host.innerHTML = `<div class="card"><p class="v2bad">${esc(e.message)}</p></div>`; return; }
+    const rows = d.links || [];
+    const dt = iso => iso ? new Date(String(iso).replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    const state = r => r.revoked ? '<span class="lx-st off">Turned off</span>' : !r.live ? '<span class="lx-st off">Expired</span>' : `<span class="lx-st on">Live</span><small>${esc(whenWords(r.expires_at))}</small>`;
+    host.innerHTML = `<div class="card set-card lx-links"><h3>Shared links</h3>
+      <p class="hint set-why">Every public link made from an Export menu. Each one shows one brand's numbers frozen on the day it was made, and opens without a login. Turn one off and it stops working at once.</p>
+      ${rows.length ? `<div class="tbl-wrap"><table class="lx-lt"><thead><tr><th>What</th><th>Brand</th><th>Made by</th><th>Made</th><th class="n">Views</th><th>State</th><th></th></tr></thead><tbody>
+      ${rows.map(r => `<tr data-t="${esc(r.token)}"${r.live ? '' : ' class="dead"'}><td><b>${esc(r.title)}</b><small>${esc(r.kind === 'page' ? 'Whole page' : r.page ? `Card on ${r.page}` : 'Card')}</small></td><td>${esc(r.brand || '')}</td><td>${esc(String(r.created_by || '').split('@')[0])}</td><td>${esc(dt(r.created_at))}</td>
+        <td class="n">${r.views || 0}${r.last_view ? `<small>last ${esc(dt(r.last_view))}</small>` : ''}</td><td>${state(r)}</td>
+        <td class="a">${r.live ? `<button class="btn sm" data-a="copy">Copy</button><a class="btn sm" href="${esc(shareUrl(r.token))}" target="_blank" rel="noopener">Open</a><button class="btn sm" data-a="off">Turn off</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="hint">No public links yet. Make one from the Export menu on any card or page: Share a public link.</p>'}</div>`;
+    host.querySelectorAll('tr[data-t]').forEach(tr => {
+      const t = tr.dataset.t;
+      const cp = tr.querySelector('[data-a="copy"]'); if (cp) cp.onclick = () => copyText(shareUrl(t), 'Link copied');
+      const off = tr.querySelector('[data-a="off"]');
+      if (off) off.onclick = async () => {
+        if (!(await H.confirmModal('Turn off this link?', 'Anyone who opens it from now on sees "This link has expired or was turned off". This cannot be undone; make a new link to share it again.', 'Turn it off'))) return;
+        try { await H.api('/api/snapshot/revoke', { method: 'POST', body: JSON.stringify({ token: t }) }); toast('Turned off'); links(host); }
+        catch (e) { toast(e.message, true); }
+      };
+    });
+  }
+
   window.LocusShare = {
     init(h) { H = h; },
     readURL, sync, setExtra, decorate,
     link: id => (H ? linkTo(id) : location.href),
     /* the picture of one card as a PNG blob (used to check the frame by eye) */
     picture: el => render(el, metaOf(el)),
+    /* the frozen payload a public link would carry (to check it by eye) */
+    freeze: el => freeze(el || document.getElementById('main')),
+    links,
   };
 })();

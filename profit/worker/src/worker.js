@@ -26,6 +26,7 @@ const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
+import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { handleHub } from './hub.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -1974,6 +1975,13 @@ export default {
       return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
 
+    /* Public snapshot links (2026-10-09, snapshot.js): one frozen card or page, the token is the auth.
+       404 when revoked or expired; rate limited per IP. */
+    {
+      const r = await snapshotPublic(request, env, path);
+      if (r) return r;
+    }
+
     /* The client's read-only SEASON page (?season=<token>): offers and dates for one
        brand, nothing internal. The token is the auth, like the plan link. */
     let sq;
@@ -2703,6 +2711,11 @@ export default {
       if (path === '/api/dashboards' || path === '/api/dashboard') {
         const dr = await handleDashboard({ path, request, env, email: await sessionEmail(env, request) });
         if (dr) return dr;
+      }
+      /* Public snapshot links: create, list, revoke (snapshot.js). */
+      if (path === '/api/snapshot' || path === '/api/snapshots' || path === '/api/snapshot/revoke') {
+        const r = await handleSnapshot({ path, request, env, email: await sessionEmail(env, request) });
+        if (r) return r;
       }
       /* Season (2026-10-05): the BFCM plan per brand. Routes live in season.js. */
       if (path.startsWith('/api/season')) {
