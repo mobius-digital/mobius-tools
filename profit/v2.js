@@ -256,14 +256,21 @@
      Covers come from account-health /api/ad-creatives (cached there 14 days, here for the
      session). The preview plays the real video when Meta gives a file, else shows Meta's own
      preview (partnership ads), else the cover large. */
-  const THUMBS = new Map(), ASSETS = new Map();
+  const THUMBS = new Map(), ASSETS = new Map(), PREVIEWS = new Map();
   async function loadThumbs(root, ids) {
     const want = [...new Set(ids.filter(id => id && !THUMBS.has(id)))].slice(0, 40);
     const paint = () => root.querySelectorAll('[data-thumb]').forEach(el => { const u = THUMBS.get(el.dataset.thumb); if (u) el.style.backgroundImage = `url("${u}")`; });
     paint(); if (!want.length) return;
     const act = H.S.act; const t = H.RUN();
-    try { const r = await H.apiAH(`/api/ad-creatives?act=${encodeURIComponent(act)}&ads=${want.join(',')}`); for (const [id, x] of Object.entries(r.assets || {})) { ASSETS.set(id, x); const u = x.thumb || x.image || x.cover; if (u) THUMBS.set(id, u); } } catch {}
-    if (t === H.RUN()) paint();
+    /* ASK IN EIGHTS. The worker resolves at most 10 UNCACHED ads per call (its Meta subrequest
+       budget), so one call for 24 left 14 cards blank for good: that was "no previews". Three
+       small calls run side by side and each paints as it lands. */
+    const chunks = []; for (let i = 0; i < want.length; i += 8) chunks.push(want.slice(i, i + 8));
+    const one = async ids => {
+      try { const r = await H.apiAH(`/api/ad-creatives?act=${encodeURIComponent(act)}&ads=${ids.join(',')}`); for (const [id, x] of Object.entries(r.assets || {})) { ASSETS.set(id, x); const u = x.thumb || x.image || x.cover; if (u) THUMBS.set(id, u); } } catch {}
+      if (t === H.RUN()) paint();
+    };
+    let next = 0; await Promise.all([0, 1, 2].map(async () => { while (next < chunks.length) await one(chunks[next++]); }));
   }
   /* Funnel grade (2026-10-08, Atria/Superads idea): each step against the brand's own median ad in
      this window. A = 25%+ better, B = 5%+, C = about the same, D = 10%+ worse, F = 25%+ worse.
@@ -306,14 +313,21 @@
     body.querySelector('[data-orders]').onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`);
     if (window.SupplyStock && H.S.act !== 'all') window.SupplyStock.previewLine(body, H.S.act, a.id);
     const m = body.querySelector('.v2pv-m');
+    /* PLAY = META'S OWN PREVIEW (Cole, 2026-10-09: the mp4 was slow to start). The preview link is
+       asked for the moment the panel opens, so Play is usually instant. The iframe is Meta's fixed
+       340x620 phone layout, shown at that size (.pvf). The mp4 is only the fallback. */
+    const pv = PREVIEWS.get(a.id) || H.apiAH(`/api/ad-video?ad=${encodeURIComponent(a.id)}&mode=preview`).catch(e => ({ error: e.message }));
+    PREVIEWS.set(a.id, pv);
     body.querySelector('.v2play').onclick = async () => {
       m.innerHTML = '<span class="v2hint" style="padding:14px">Loading the ad…</span>';
       try {
-        const u = await H.adVideoUrl(a.id); const src = typeof u === 'string' ? u : u && u.src, link = u && u.preview;
-        if (src) m.innerHTML = `<video src="${esc(src)}" controls autoplay playsinline></video>`;
-        else if (link) m.innerHTML = `<iframe src="${esc(link)}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>`;
-        else { m.innerHTML = ''; m.classList.add('still'); if (THUMBS.has(a.id)) m.style.backgroundImage = `url("${THUMBS.get(a.id)}")`; m.insertAdjacentHTML('beforeend', `<span class="v2pill">${esc((u && u.reason) || 'A still image: this is the ad')}</span>`); }
-      } catch (e) { m.innerHTML = `<p class="v2bad" style="padding:14px">${esc(e.message)}</p>`; }
+        const u = await pv; let link = u && u.preview, src = u && u.src;
+        if (!link && !src) { const f = await H.adVideoUrl(a.id); src = typeof f === 'string' ? f : f && f.src; link = f && f.preview; if (!src && !link) throw new Error((f && f.reason) || (u && u.error) || 'Meta has no preview for this ad.'); }
+        if (link) {
+          m.classList.add('pvf'); m.style.backgroundImage = 'none';
+          m.innerHTML = `<iframe src="${esc(link)}" scrolling="no" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>`;
+        } else m.innerHTML = `<video src="${esc(src)}" controls autoplay playsinline></video>`;
+      } catch (e) { m.innerHTML = ''; m.classList.add('still'); if (THUMBS.has(a.id)) m.style.backgroundImage = `url("${THUMBS.get(a.id)}")`; m.insertAdjacentHTML('beforeend', `<span class="v2pill">${esc(e.message)}</span>`); }
     };
   }
 
@@ -559,6 +573,7 @@
   /* =========================================================================================
    * PAID > CREATIVE: what is working, by component, and when it tires
    * ======================================================================================= */
+  let CR_SORT = (() => { try { return localStorage.getItem('pf_cr_sort') || 'spend'; } catch { return 'spend'; } })();
   async function creative(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
     if (!a) { $('#main').innerHTML = shell('adcreative', 'Creative', `<div class="v2card"><p class="v2hint">Pick one brand in the menu to see its creative.</p></div>`); return; }
@@ -594,7 +609,7 @@
     const valNote = r => { const t = valTag(r); if (!t) return ''; return t === 'more'
       ? `People this ad brought in spent ${money(r.ltv90, cur)} each in their first 90 days, ${x2(r.ltv_x)} their first order. The brand's average ad gets ${x2(brandX)}. They come back more, so this ad can afford a higher cost per purchase than the goal. The call above does not include this; it is your judgment.`
       : `People this ad brought in spent ${money(r.ltv90, cur)} each in their first 90 days, ${x2(r.ltv_x)} their first order, against ${x2(brandX)} for the brand's average ad. They come back less than usual.`; };
-    const own = r => { const G = goal; if (!goal) return 'thin'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < goal * K.jx) return 'thin';
+    const own = r => { const G = goal; if (!goal) return 'nogoal'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < goal * K.jx) return 'thin';
       if (r.purchases >= K.buys && r.cpa <= G) return 'scale';
       if ((!r.purchases && r.spend >= G * K.zx) || (r.purchases && r.spend >= G * K.sx && r.cpa > G * K.cx)) return 'cut';
       return 'watch'; };
@@ -602,7 +617,7 @@
       if ((!x.purchases && x.spend >= G * K.zx) || (x.purchases && x.spend >= G * K.sx && x.cpa > G * K.cx)) return 'cut'; return 'watch'; };
     const role = r => !r.adset || r.adset.ads <= 1 ? 'solo' : (r.set_share >= K.anchor || (r.set_rank === 1 && r.set_share >= K.anchor - 0.1)) ? 'anchor' : 'support';
     const funnelRole = r => r.fc_rev == null || r.lc_rev == null || (r.fc_rev + r.lc_rev) < (goal || 50) ? null : r.fc_rev >= r.lc_rev * 1.3 ? 'opener' : r.lc_rev >= r.fc_rev * 1.3 ? 'closer' : null;
-    const verdict = r => { const o = own(r); if (o === 'new' || o === 'thin') return o; const sc = setCall(r.adset), ro = role(r);
+    const verdict = r => { const o = own(r); if (o === 'new' || o === 'thin' || o === 'nogoal') return o; const sc = setCall(r.adset), ro = role(r);
       if (ro === 'solo' || !sc || sc === 'thin') return o;
       if (sc === 'cut') return 'cut';
       if (ro === 'anchor') return o === 'scale' ? 'scale' : sc === 'watch' && o === 'cut' ? 'watch' : 'keep';
@@ -617,10 +632,11 @@
       if (v === 'trim') return `Takes only ${pct(r.set_share, 0)} of the set and is over the cut line on its own; ${setTxt}. Low risk to switch off.`;
       if (ro === 'support' && v === 'scale') return `Beats the goal on ${pct(r.set_share, 0)} of the set's spend. Worth its own ad set to see if it holds at more budget.`;
       return x && ro !== 'solo' ? `${ro === 'anchor' ? 'Carries' : 'Takes'} ${pct(r.set_share, 0)} of the set; ${setTxt}.` : ''; };
-    const VL = { scale: ['Scale', 'good'], keep: ['Keep: carries the set', 'good'], watch: ['Watch', 'warn'], trim: ['Trim', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''] };
+    const VL = { scale: ['Scale', 'good'], keep: ['Keep: carries the set', 'good'], watch: ['Watch', 'warn'], trim: ['Trim', 'warn'], cut: ['Cut', 'bad'], thin: ['Not enough spend', ''], new: ['Too new', ''], nogoal: ['No goal CPA', ''] };
     const FR = { opener: ['Opener', 'Triple Whale credits it far more on first click: it starts journeys (top of funnel).'], closer: ['Closer', 'Triple Whale credits it more on the last click: it closes people already warmed up.'] };
     MED = medians(ads, goal || 50);
-    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(goal * K.jx, cur)}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
+    const bar = (goal || 50) * K.jx;   // the judging bar; RULE below and the sort row both use it
+    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
     const top = ads.slice(0, 60);
     /* Quadrant: spend (x, log) against CPA (y), bubble = purchases, goal line. */
     const quad = (() => {
@@ -629,7 +645,7 @@
       const sx = Math.log10(Math.max(...pts.map(r => r.spend))), sx0 = Math.log10(Math.max(1, Math.min(...pts.map(r => r.spend))));
       const cpas = pts.map(r => r.cpa ?? (goal ? goal * 3 : 0)); const ymx = Math.min(Math.max(...cpas, goal || 0) * 1.1, (goal || Math.max(...cpas)) * 4);
       const X = v => pl + (Math.log10(Math.max(1, v)) - sx0) / Math.max(0.3, sx - sx0) * (w - pl - pr), Y = v => pt + (1 - Math.min(v, ymx) / ymx) * (h - pt - pb);
-      const col = r => ({ scale: '--good', keep: '--c-meta', watch: '--warn', trim: '--warn', cut: '--bad', thin: '--v2-cmp', new: '--v2-cmp' })[verdict(r)];
+      const col = r => ({ scale: '--good', keep: '--c-meta', watch: '--warn', trim: '--warn', cut: '--bad', thin: '--v2-cmp', new: '--v2-cmp', nogoal: '--v2-cmp' })[verdict(r)];
       const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(ymx * f)}" y2="${Y(ymx * f)}" stroke="var(--v2-grid)"/><text x="${pl - 7}" y="${Y(ymx * f) + 4}" font-size="12.5" text-anchor="end" fill="var(--muted)">${money(ymx * f, cur)}</text>`).join('');
       const xt = [10, 100, 1000, 10000, 100000].filter(v => Math.log10(v) >= sx0 && Math.log10(v) <= sx + 0.1).map(v => `<text x="${X(v)}" y="${h - 20}" font-size="12.5" text-anchor="middle" fill="var(--muted)">${kmoney(v, cur)}</text>`).join('');
       const dots = pts.map((r, i) => `<circle data-i="${i}" cx="${X(r.spend).toFixed(1)}" cy="${Y(r.cpa ?? ymx).toFixed(1)}" r="${(5 + Math.sqrt(r.purchases || 0) * 2.4).toFixed(1)}" style="cursor:pointer" fill="var(${col(r)})" fill-opacity=".55" stroke="var(${col(r)})" stroke-width="1.2"/>`).join('');
@@ -654,13 +670,37 @@
     const wk = d.weeks || []; const wmx = Math.max(...wk.map(x => x.launched), 1);
     const cadence = `<div class="v2bars cad">${wk.map(x => `<div class="b"${tipAttr(`<b>Week of ${day(x.week)}</b> · ${x.launched} new ads · ${pct(x.fresh_share, 0)} of spend on ads under 14 days old`)}><div class="col"><i style="height:${(x.launched / wmx * 100).toFixed(1)}%;background:var(--brand)"></i></div><span class="v">${x.launched}</span><span class="l">${day(x.week)}</span><span class="s">${pct(x.fresh_share, 0)} fresh</span></div>`).join('')}</div>`;
     const roll = (list, label) => { const mx = Math.max(...list.map(x => x.spend), 1); return `<div class="v2tbl"><table><thead><tr><th>${label}</th><th>Ads</th><th>Spend</th><th>ROAS</th><th>CPA</th><th>CTR</th><th>Hook</th></tr></thead><tbody>${list.slice(0, 10).map(x => `<tr><td><b>${esc(x.key)}</b></td><td>${x.ads}</td><td>${ib(x.spend, mx, null, kmoney(x.spend, cur))}</td><td>${x2(x.roas)}</td><td class="${!goal || x.cpa == null ? '' : x.cpa <= goal ? 'good' : x.cpa <= goal * 1.3 ? 'warn' : 'bad'}">${money(x.cpa, cur)}</td><td>${pct(x.ctr, 2)}</td><td>${pct(x.hook, 0)}</td></tr>`).join('')}</tbody></table></div>`; };
-    const gallery = `<div class="v2gal">${ads.slice(0, 24).map(r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><span class="v2pill ${VL[v][1]}"${whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
+    /* SORT THE GALLERY BY ANY NUMBER (Cole, 2026-10-09: "it only shows by spend"). A ratio sort only
+       ranks ads that have spent the judging bar (the same bar the calls use), or one lucky sale on $12
+       tops every list; hook and hold rank video ads only. */
+    /* SAY WHERE THE BAR COMES FROM (Cole, 2026-10-09: "it just auto goes to $50, why?"). It is the goal
+       CPA x "judge after" from Settings > Goals (the one place goals live); with no goal it is the
+       account's average CPA, and with no sales either it is a $50 placeholder. */
+    const basis = g.cpa ? `${K.jx}x the ${money(g.cpa, cur)} goal CPA`
+      : goal ? `${K.jx}x this account's ${money(goal, cur)} average CPA, because no goal CPA is set`
+      : `a $50 placeholder, because no goal CPA is set and nothing has sold yet`;
+    const barLine = `<p class="v2sortbar">An ad is judged, and ranked on ROAS, CPA, hook, hold and CTR, once it has spent <b>${money(bar, cur)}</b>: ${basis}. <button type="button" class="v2link" data-goals="1">${g.cpa ? 'Change it' : 'Set the goal CPA'} ›</button></p>`;
+    const SORTS = [
+      ['spend', 'Spend', r => r.spend, -1], ['purchases', 'Purchases', r => r.purchases || 0, -1],
+      ['roas', 'ROAS', r => r.roas, -1, 1], ['cpa', 'CPA', r => r.cpa, 1, 1],
+      ['hook', 'Hook rate', r => r.hook, -1, 1], ['hold', 'Hold rate', r => r.hold, -1, 1],
+      ['ctr', 'CTR', r => r.ctr, -1, 1], ['ltv', '90-day value', r => r.ltv_n >= 5 ? r.ltv_x : null, -1],
+      ['newest', 'Newest', r => r.age, 1]];
+    if (!SORTS.some(s => s[0] === CR_SORT)) CR_SORT = 'spend';
+    const sorted = () => { const s = SORTS.find(x => x[0] === CR_SORT); const pool = ads.filter(r => s[2](r) != null && isFinite(s[2](r)) && (!s[4] || r.spend >= bar));
+      return { s, list: pool.sort((p, q) => (s[2](p) - s[2](q)) * s[3] || q.spend - p.spend), left: ads.length - pool.length }; };
+    const galItem = r => { const v = verdict(r); return `<div class="g" data-ad="${esc(r.id)}"><div class="th" data-thumb="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Preview ${esc(r.name)}"><span class="v2play-s">▶</span><span class="v2pill ${VL[v][1]}"${v === 'nogoal' ? tipAttr('No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.') : whyOf(r) ? tipAttr(esc(whyOf(r))) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
       ${role(r) !== 'solo' || funnelRole(r) || valTag(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${valTag(r) ? `<span class="${valTag(r) === 'more' ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>${valTag(r) === 'more' ? 'Customers come back' : 'Customers don’t come back'}</span>` : ''}</div>` : ''}
-      <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${!goal || r.cpa == null ? '' : r.cpa <= goal ? 'good' : 'bad'}">${money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; }).join('')}</div>`;
+      <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${!goal || r.cpa == null ? '' : r.cpa <= goal ? 'good' : 'bad'}">${money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b><button type="button" class="v2cell" data-drill="ad:${esc(r.id)}">${int(r.purchases)}</button></b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; };
+    const galleryInner = () => { const { s, list, left } = sorted();
+      const note = left && CR_SORT !== 'spend' ? `<p class="v2hint">${left} ad${left === 1 ? '' : 's'} left out: ${s[4] ? `under the ${money(bar, cur)} judging bar${CR_SORT === 'hook' || CR_SORT === 'hold' ? ', or not video' : ''}` : CR_SORT === 'ltv' ? 'too few known customers yet' : 'no number for this sort'}.</p>` : '';
+      return list.length ? `<div class="v2gal">${list.slice(0, 24).map(galItem).join('')}</div>${note}` : `<p class="v2hint">No ads have a ${esc(s[1].toLowerCase())} number to rank in this window${s[4] ? ` at ${money(bar, cur)} of spend or more` : ''}.</p>`; };
+    const sortRow = () => `<div class="v2sort" role="group" aria-label="Sort the ads by"><span>Sort by</span>${SORTS.map(([k, l]) => `<button type="button" data-sort="${k}" class="${k === CR_SORT ? 'on' : ''}" aria-pressed="${k === CR_SORT}">${l}</button>`).join('')}</div>`;
+    const gallery = `${sortRow()}${barLine}<div id="v2galw">${galleryInner()}</div>`;
     const counts = ads.reduce((s, r) => { s[verdict(r)] = (s[verdict(r)] || 0) + 1; return s; }, {});
-    const body = `<p class="v2say lead">${ads.length} ads spent in this window. <b class="good">${counts.scale || 0} to scale</b>${counts.keep ? `, <b>${counts.keep} carrying a working set</b>` : ''}, <b class="warn">${counts.watch || 0} to watch</b>${counts.trim ? `, <b class="warn">${counts.trim} to trim</b>` : ''}, <b class="bad">${counts.cut || 0} to cut</b>${counts.thin || counts.new ? `, ${(counts.thin || 0) + (counts.new || 0)} not judged yet` : ''}, against the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
+    const body = `<p class="v2say lead">${ads.length} ads spent in this window. <b class="good">${counts.scale || 0} to scale</b>${counts.keep ? `, <b>${counts.keep} carrying a working set</b>` : ''}, <b class="warn">${counts.watch || 0} to watch</b>${counts.trim ? `, <b class="warn">${counts.trim} to trim</b>` : ''}, <b class="bad">${counts.cut || 0} to cut</b>${counts.thin || counts.new || counts.nogoal ? `, ${(counts.thin || 0) + (counts.new || 0) + (counts.nogoal || 0)} not judged yet` : ''}, ${goal ? `against the ${money(goal, cur)} ${g.cpa ? 'goal' : 'account average'}` : 'with no goal CPA set and no sales yet, so nothing can be called'}.${firstFat ? ` Ads start costing more from <b>${esc(firstFat.label.toLowerCase())}</b>.` : ''}</p>
       <div class="v2note v2rule"><span class="v2pill">How the calls work</span><span>${RULE}</span></div>
-      ${card('The ads, by spend', 'Click an ad to see it play, its copy and its numbers.', gallery, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`)}
+      ${card('The ads', 'Click an ad to see it play, its copy and its numbers.', gallery, `Attribution: <b>${esc(MODEL_SHORT[H.S.model])}</b>`)}
       <div class="v2two eq">${card('Where every ad sits', 'Right and low is where you want to be: big spend, cheap purchases. Bubble size is purchases. Click one to see it.', legend([{ color: '--good', label: 'Scale' }, { color: '--c-meta', label: 'Keep' }, { color: '--warn', label: 'Watch or trim' }, { color: '--bad', label: 'Cut' }, { color: '--v2-cmp', label: 'Not judged yet' }]) + quad)}
         ${card('Hook against hold', 'Top right stops the scroll and keeps people watching. Dashed lines are this account’s averages. Bubble size is spend.', hookhold)}</div>
       <div class="v2two">${card('When ads tire', firstFat ? `Cost per purchase rises past the goal from ${esc(firstFat.label.toLowerCase())}.` : 'No age bucket runs more than 20% over the goal.', fatigue, 'cost per purchase by days since an ad first spent; tick = goal')}
@@ -675,13 +715,24 @@
     const tipFor = (svgId, list, fn) => { const s = document.getElementById(svgId); if (!s) return; const tip = s.parentNode.querySelector('.v2tip'); s.querySelectorAll('circle[data-i]').forEach(cEl => { cEl.onpointerenter = cEl.onpointerdown = e => { const r = list[+cEl.dataset.i]; const box = s.getBoundingClientRect(); tip.style.display = 'block'; tip.innerHTML = fn(r); let left = e.clientX - box.left + 12; if (left + tip.offsetWidth > box.width) left = e.clientX - box.left - tip.offsetWidth - 12; tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - box.top - 40) + 'px'; }; cEl.onpointerleave = () => tip.style.display = 'none'; cEl.onclick = () => previewAd(r, cur, g, { call: VL[verdict(r)], why: whyOf(r), role: role(r), fr: funnelRole(r) && FR[funnelRole(r)], set: r.adset, setCall: setCall(r.adset) }); }); };
     tipFor('v2quad', top.filter(r => r.spend > 0), r => `<b>${esc(r.name)}</b><br>${kmoney(r.spend, cur)} spend · ${int(r.purchases)} purchases · CPA ${money(r.cpa, cur)} · ROAS ${x2(r.roas)}`);
     tipFor('v2hh', top.filter(r => r.hook != null && r.hold != null && r.spend > 20), r => `<b>${esc(r.name)}</b><br>hook ${pct(r.hook, 0)} · hold ${pct(r.hold, 0)} · ${kmoney(r.spend, cur)} · CPA ${money(r.cpa, cur)}`);
-    root.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); drillOrders(btn.closest('.g')?.querySelector('b')?.textContent || 'Orders', `ad=${encodeURIComponent(btn.dataset.drill.split(':')[1])}`); });
     /* Covers after the paint; any card opens the preview. */
     const byId = new Map(ads.map(r => [r.id, r]));
     const ctxOf = r => ({ call: VL[verdict(r)], why: whyOf(r), role: role(r), fr: funnelRole(r) && FR[funnelRole(r)], set: r.adset, setCall: setCall(r.adset) });
     root.querySelectorAll('tr[data-prev]').forEach(el => { el.onclick = () => { const r = byId.get(el.dataset.prev); if (r) previewAd(r, cur, g, ctxOf(r)); }; });
-    root.querySelectorAll('.v2gal [data-prev]').forEach(el => { const go = () => previewAd(byId.get(el.dataset.prev), cur, g, ctxOf(byId.get(el.dataset.prev))); el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
-    loadThumbs(root, ads.slice(0, 24).map(r => r.id));
+    const gw = root.querySelector('#v2galw');
+    const wireGal = () => {
+      gw.querySelectorAll('[data-drill]').forEach(btn => btn.onclick = e => { e.stopPropagation(); drillOrders(btn.closest('.g')?.querySelector('b')?.textContent || 'Orders', `ad=${encodeURIComponent(btn.dataset.drill.split(':')[1])}`); });
+      gw.querySelectorAll('.v2gal [data-prev]').forEach(el => { const go = () => previewAd(byId.get(el.dataset.prev), cur, g, ctxOf(byId.get(el.dataset.prev))); el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+      loadThumbs(gw, [...gw.querySelectorAll('[data-thumb]')].map(x => x.dataset.thumb));
+    };
+    wireGal();
+    root.querySelectorAll('[data-goals]').forEach(b => b.onclick = () => window.openGoals && window.openGoals(a.act_id));
+    // A sort repaints only the gallery, so the page never jumps.
+    root.querySelectorAll('.v2sort [data-sort]').forEach(b => b.onclick = () => {
+      CR_SORT = b.dataset.sort; try { localStorage.setItem('pf_cr_sort', CR_SORT); } catch {}
+      root.querySelectorAll('.v2sort [data-sort]').forEach(x => { const on = x.dataset.sort === CR_SORT; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+      gw.innerHTML = galleryInner(); wireGal();
+    });
     const pend = window.V2PENDING; if (pend && pend.ad) { window.V2PENDING = null; const r = byId.get(pend.ad); if (r) previewAd(r, cur, g, ctxOf(r)); else panel('Not in this window', `<p class="v2hint">That ad did not spend in ${esc(H.rangeLabel())}. Widen the dates at the top to see it.</p>`); }
   }
 

@@ -58,6 +58,10 @@
       .dk .dk-mk{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
       .dk .dk-mk>div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
       .dk .dk-mk .l{font-size:11.5px;color:var(--muted)}
+      .dk .dk-mk>div{border-left-width:4px}.dk .dk-mk>.green{border-left-color:var(--good)}.dk .dk-mk>.amber{border-left-color:var(--warn)}.dk .dk-mk>.red{border-left-color:var(--bad)}.dk .dk-mk>.grey{border-left-color:var(--line-strong)}
+      .dk .dk-verdict{border-left:4px solid var(--line-strong);padding-left:12px}.dk .dk-verdict.green{border-left-color:var(--good)}.dk .dk-verdict.amber{border-left-color:var(--warn)}.dk .dk-verdict.red{border-left-color:var(--bad)}
+      .dk .dk-key{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:12px;color:var(--ink-2)}.dk .dk-key span{display:inline-flex;gap:6px;align-items:center}
+      .dk .dk-cell:disabled{cursor:default}
       .dk .dk-pl{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
       .dk .dk-pl>div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
       .dk-needs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px}.dk-needs .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-right:4px}
@@ -70,9 +74,12 @@
   }
 
   /* =========================================================================================
-   * HOME > YESTERDAY
+   * HOME > DAY CHECK (page id `yesterday`). Rebuilt 2026-10-09 after Cole: "clicking old days tries to load something",
+   * "is the normal Lucky's or everybody's", "don't say about 52 brands not ours", "colour code it", "is this shown to
+   * the client". Order: who sees it and how it works in one line, the verdict, "was Meta rough for everyone?" as four
+   * coloured checks, then each brand day by day where EVERY square opens its own day below the grid.
    * ======================================================================================= */
-  let YSEL = null;
+  let YSEL = null, YDAY = null;
   async function yesterday(first) {
     css();
     const t = H.RUN(), title = H.S.act === 'all' ? 'Day check' : `Day check: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}`;
@@ -82,67 +89,80 @@
     if (t !== H.RUN()) return;
     const bs = (d.brands || []).filter(b => (b.cells || []).some(c => c.verdict !== 'none')), days = d.days || [], last = days[days.length - 1];
     if (!bs.length) { $('#main').innerHTML = shell('yesterday', title, U().card('Nothing to judge yet', '', '<p class="v2hint">No brand has eight weeks of store data yet.</p>')); return; }
-    const bad = bs.filter(b => b.last && /bad/.test(b.last.verdict));
     const rank = { vbad: 0, bad: 1, good: 2, normal: 3, none: 4 };
     if (!YSEL || !bs.some(b => b.act_id === YSEL)) YSEL = bs.slice().sort((x, y) => rank[x.last?.verdict || 'none'] - rank[y.last?.verdict || 'none'])[0].act_id;
+    if (YDAY == null || YDAY >= days.length) YDAY = days.length - 1;
     const mk = d.market || {};
-    const strip = `<div class="dk-strip"><b>${last ? `${wdl(last)} ${md(last)}` : ''}</b>
-      <span>${bad.length ? `${bad.length} bad day${bad.length > 1 ? 's' : ''}: ${bad.map(b => esc(b.name)).join(', ')}.` : 'No bad days.'}</span>
-      ${mk.meta_brands >= 3 ? `<span class="v2pill ${mk.verdict === 'market' ? 'warn' : ''}"${U().tipAttr('How many of our own brands saw Meta cost per 1,000 views rise 20% or more against their normal for that weekday. When half or more move together, it is the auction, not one account.')}>Meta ad costs up 20%+ at ${mk.cpm_up} of ${mk.meta_brands} brands${mk.verdict === 'market' ? ': looks like the market' : ''}</span>` : ''}
-      <span id="dkMkPill"></span></div>`;
-    const cols = `grid-template-columns:130px repeat(${days.length},minmax(20px,1fr)) minmax(140px,1.4fr)`;
-    const grid = `<div class="v2tbl" style="overflow-x:auto"><div class="dk-grid" style="${cols}"><span></span>${days.map(x => `<span class="h">${wd(x).slice(0, 2)}<br>${md(x).split(' ')[1]}</span>`).join('')}<span class="h" style="text-align:left">${last ? md(last) : ''}</span>
-      ${bs.map(b => `<span class="nm${b.act_id === YSEL ? ' on' : ''}" data-b="${esc(b.act_id)}">${esc(b.name)}</span>${(b.cells || []).map((c, i) => `<button type="button" class="dk-cell ${c.verdict}${b.act_id === YSEL && i === days.length - 1 ? ' sel' : ''}" data-b="${esc(b.act_id)}" data-i="${i}"${U().tipAttr(`${esc(b.name)}, ${wd(c.date)} ${md(c.date)}: ${VNAME[c.verdict] || c.verdict}`)} aria-label="${esc(b.name)} ${md(c.date)} ${VNAME[c.verdict] || ''}"></button>`).join('')}
-        <span class="v2hint" style="margin:0">${b.last ? `${VNAME[b.last.verdict]}${(b.last.flags || []).filter(f => f.bad).length ? ': ' + esc(b.last.flags.filter(f => f.bad).map(f => f.label).join(', ')) : ''}` : ''}</span>`).join('')}
-    </div></div>`;
-    const g = bs.find(b => b.act_id === YSEL), y = g && g.last;
-    const cur = g ? g.currency : 'USD';
-    const fmt = { cpm: v => U().money2(v, cur), ctr: v => U().pct(v, 2), cvr: v => U().pct(v, 1), aov: v => U().money2(v, cur), sp: v => U().kmoney(v, cur) };
-    const LN = { cpm: ['Auction', 'Meta cost per 1,000 views'], ctr: ['Creative', 'Click rate'], cvr: ['Site', 'Clicks that bought (Triple Whale)'], aov: ['Basket', 'Average order'], sp: ['Volume', 'Ad spend, every platform'] };
-    const lk = y && (y.links || []).length ? `<div class="dk-links">${['cpm', 'ctr', 'cvr', 'aov', 'sp'].map(k => { const l = (y.links || []).find(z => z.k === k); if (!l) return ''; const big = l.change != null && Math.abs(l.change) >= 0.15;
-        const cls = big && l.worse === true ? 'worse' : big && l.worse === false ? 'better' : '';
-        return `<div class="dk-lk ${cls}"><span class="l">${LN[k][0]} · ${LN[k][1]}</span><span class="v">${l.value == null ? '–' : fmt[k](l.value)} ${l.change == null ? '' : `<span class="v2hint" style="margin:0;display:inline">${l.change >= 0 ? '+' : ''}${Math.round(l.change * 100)}% vs a normal ${wd(y.date)}${l.normal != null ? ` (${fmt[k](l.normal)})` : ''}</span>`}</span></div>`; }).join('')}</div>` : '<p class="v2hint">No Meta delivery that day.</p>';
-    const ch = y && (y.changes || []).length ? `<div class="v2tbl"><table><tbody>${y.changes.map(a => `<tr><td class="faint" style="white-space:nowrap">${md(String(a.at).slice(0, 10))} ${String(a.at).slice(11, 16)}</td><td><span class="v2pill">${esc(String(a.category || '').replace(/_/g, ' '))}</span></td><td>${esc(a.summary || '')}</td><td class="faint">${a.reason ? esc(a.reason) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="v2hint">No account changes in the three days before.</p>';
-    const detail = y ? U().card(`${g.name}, ${wdl(y.date)} ${md(y.date)}: ${VNAME[y.verdict]}`, `Against the same weekday over the last 8 weeks.${y.attr_pending ? ' Triple Whale has not credited that day\'s ad orders yet, so the cost per purchase checks wait for it.' : ''}`,
-      `${(y.flags || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">${y.flags.map(f => `<span class="v2pill ${f.bad ? 'bad' : 'good'}">${esc(f.label)} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%</span>`).join('')}</div>` : '<p class="v2say">Nothing was far enough from normal to call. What moved anyway is below.</p>'}
-       <h4 style="margin:6px 0 8px">On Meta, which link moved</h4>${lk}
-       <h4 style="margin:16px 0 8px">What changed on the account</h4>${ch}
-       <p class="v2hint" style="margin-top:10px">${y.email_sent === true ? 'An email campaign sent that day.' : y.email_sent === false ? 'No email campaign sent that day.' : ''}</p>
-       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="v2btn ghost" data-go="act:${esc(g.act_id)}:today">Open this brand's Today list</button><button type="button" class="v2btn ghost" data-go="act:${esc(g.act_id)}:changes">Change Log</button></div>`) : '';
-    const market = U().card('Is it us or the market?', 'Four checks, so a bad day on Meta itself is not read as a bad day for one brand.', `<div class="dk-mk" id="dkMk">
-      <div><span class="l">Our own brands</span><b>${mk.meta_brands >= 3 ? `${mk.cpm_up} of ${mk.meta_brands} had Meta costs up 20%+` : 'Too few brands on Meta that day'}</b><span class="v2hint" style="margin:0">${mk.verdict === 'market' ? 'Moving together: looks like the auction.' : 'Not moving together.'}</span></div>
-      <div><span class="l">Platform outages (Pulse)</span><b>Checking…</b></div><div><span class="l">Breezeway's Meta score</span><b>Checking…</b></div><div><span class="l">What advertisers said (X, Reddit)</span><b>Checking…</b></div></div>`);
-    $('#main').innerHTML = shell('yesterday', title, `${strip}<div id="dkVerdict">${U().card('The verdict', '', '<p class="v2hint">Reading every signal for the day…</p>')}</div>${U().card('The last 14 days', 'Each square is one day against that brand\'s normal for the same weekday. Green good, red bad, solid red very bad. Click a brand to read its last day.', grid)}${detail}${market}
-      ${U().foot('Money from Shopify through Triple Whale; ad costs per purchase on Triple Whale last platform click; delivery from Meta. A number is called when it is 25% or more off normal and unusual for that brand (1.5 standard deviations); very bad = two calls, or one far out. Ad spend alone never makes a bad day.')}`);
+    const intro = `<div class="dk-strip"><span class="v2pill">Team only: clients never see this page</span>
+      <span>Every brand is compared with <b>itself</b>: yesterday against its own normal for that weekday (its last 8 of them). Then four outside checks say whether Meta was rough for everyone.</span></div>`;
+    /* the grid: rows = brands, squares = days, every square opens its day */
+    const cols = `grid-template-columns:130px repeat(${days.length},minmax(20px,1fr))`;
+    const cellTip = (b, c) => { const m = (c.moved || []).map(f => `${f.label} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%`).join(', ');
+      return `<b>${esc(b.name)}, ${wd(c.date)} ${md(c.date)}: ${VNAME[c.verdict] || ''}</b>${c.rev != null ? `<br>Revenue ${U().kmoney(c.rev, b.currency)} (normal ${U().kmoney(c.rev_norm, b.currency)})` : ''}${m ? `<br>${esc(m)}` : ''}<br><span class="faint">Click to read this day</span>`; };
+    const grid = `<div class="v2tbl" style="overflow-x:auto"><div class="dk-grid" style="${cols}"><span></span>${days.map(x => `<span class="h">${wd(x).slice(0, 2)}<br>${md(x).split(' ')[1]}</span>`).join('')}
+      ${bs.map(b => `<span class="nm${b.act_id === YSEL ? ' on' : ''}">${esc(b.name)}</span>${(b.cells || []).map((c, i) => `<button type="button" class="dk-cell ${c.verdict}${b.act_id === YSEL && i === YDAY ? ' sel' : ''}" data-b="${esc(b.act_id)}" data-i="${i}"${c.verdict === 'none' ? ' disabled' : ''}${U().tipAttr(cellTip(b, c))} aria-label="${esc(b.name)} ${md(c.date)} ${VNAME[c.verdict] || ''}"></button>`).join('')}`).join('')}
+    </div></div><div class="dk-key"><span><i class="dk-dot good"></i>Better than normal</span><span><i class="dk-dot normal"></i>Normal</span><span><i class="dk-dot bad"></i>Bad</span><span><i class="dk-dot vbad"></i>Very bad</span><span class="faint">Hover a square for the numbers; click it to read the day.</span></div>`;
+    /* the day you clicked */
+    const g = bs.find(b => b.act_id === YSEL), cell = g ? (g.cells || [])[YDAY] : null, isLast = YDAY === days.length - 1, y = isLast ? g?.last : null, cur = g ? g.currency : 'USD';
+    let detail = '';
+    if (g && cell) {
+      const moved = (cell.moved || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">${cell.moved.map(f => `<span class="v2pill ${f.bad ? 'bad' : 'good'}">${esc(f.label)} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%</span>`).join('')}</div>` : '<p class="v2say">Nothing was far enough from normal to call.</p>';
+      const money = `<p class="v2hint" style="margin:0 0 10px">Revenue ${U().kmoney(cell.rev, cur)} against a normal ${wdl(cell.date)} of ${U().kmoney(cell.rev_norm, cur)}; MER ${U().x2(cell.mer)} against ${U().x2(cell.mer_norm)}.</p>`;
+      let more = '';
+      if (y) {
+        const fmt = { cpm: v => U().money2(v, cur), ctr: v => U().pct(v, 2), cvr: v => U().pct(v, 1), aov: v => U().money2(v, cur), sp: v => U().kmoney(v, cur) };
+        const LN = { cpm: 'What Meta charged (per 1,000 views)', ctr: 'How many clicked', cvr: 'How many clicks bought', aov: 'Average order', sp: 'Ad spend, every platform' };
+        const lk = (y.links || []).length ? `<div class="dk-links">${['cpm', 'ctr', 'cvr', 'aov', 'sp'].map(k => { const l = (y.links || []).find(z => z.k === k); if (!l) return ''; const big = l.change != null && Math.abs(l.change) >= 0.15;
+            const cls = big && l.worse === true ? 'worse' : big && l.worse === false ? 'better' : '';
+            return `<div class="dk-lk ${cls}"><span class="l">${LN[k]}</span><span class="v">${l.value == null ? '–' : fmt[k](l.value)} ${l.change == null ? '' : `<span class="v2hint" style="margin:0;display:inline">${l.change >= 0 ? '+' : ''}${Math.round(l.change * 100)}% vs normal</span>`}</span></div>`; }).join('')}</div>` : '<p class="v2hint">No Meta delivery that day.</p>';
+        const ch = (y.changes || []).length ? `<div class="v2tbl"><table><tbody>${y.changes.map(a => `<tr><td class="faint" style="white-space:nowrap">${md(String(a.at).slice(0, 10))} ${String(a.at).slice(11, 16)}</td><td>${esc(a.summary || '')}</td><td class="faint">${a.reason ? esc(a.reason) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="v2hint">Nobody changed anything on the ad account in the three days before.</p>';
+        more = `<h4 style="margin:6px 0 8px">On Meta: what moved</h4>${lk}<h4 style="margin:16px 0 8px">What we changed on the account before it</h4>${ch}
+          ${y.email_sent != null ? `<p class="v2hint" style="margin-top:10px">${y.email_sent ? 'An email campaign went out that day.' : 'No email campaign went out that day.'}</p>` : ''}
+          ${y.attr_pending ? '<p class="v2hint" style="margin-top:6px">Triple Whale has not credited that day\'s ad orders yet, so cost per purchase is checked once it lands.</p>' : ''}`;
+      } else more = '<p class="v2hint">The full breakdown (Meta, account changes, email) is kept for the latest day. Older days show what moved and the money.</p>';
+      detail = U().card(`${g.name}, ${wdl(cell.date)} ${md(cell.date)}: ${VNAME[cell.verdict]}`, '', `${moved}${money}${more}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button type="button" class="v2btn ghost" data-go="act:${esc(g.act_id)}:today">${esc(g.name)}'s Today list</button><button type="button" class="v2btn ghost" data-go="act:${esc(g.act_id)}:changes">Change Log</button></div>`);
+    }
+    const outside = U().card('Was Meta rough for everyone?', 'Four outside checks for the latest day. Green: normal. Amber: some signs. Red: a rough day.', `<div class="dk-mk" id="dkMk">
+      ${mk.meta_brands >= 3 ? `<div class="${mk.cpm_up * 2 >= mk.meta_brands ? 'red' : mk.cpm_up * 3 >= mk.meta_brands ? 'amber' : 'green'}"><span class="l">Our other brands</span><b>${mk.cpm_up} of ${mk.meta_brands} paid more for Meta</b><span class="v2hint" style="margin:0">Costs up 20% or more against their own normal.</span></div>` : ''}
+      <div class="grey"><span class="l">Other advertisers</span><b>Checking…</b></div><div class="grey"><span class="l">Meta's own status page</span><b>Checking…</b></div><div class="grey"><span class="l">Talk on X and Reddit</span><b>Checking…</b></div></div>`);
+    $('#main').innerHTML = shell('yesterday', title, `${intro}<div id="dkVerdict">${U().card('The verdict', '', '<p class="v2hint">Reading every signal for the day…</p>')}</div>${outside}
+      ${U().card('Each brand, day by day', 'One row per brand, one square per day, each judged against that brand\'s own normal.', grid)}${detail}
+      ${U().foot('A number is called when it is 25% or more off that brand\'s normal and unusual for it. Bad = one number worse (revenue, MER, cost per new customer, Meta or Google cost per purchase, or email revenue); very bad = two, or one far out. Spend alone never makes a bad day. Revenue from Shopify through Triple Whale (paid orders only); cost per purchase on Triple Whale attribution; delivery from Meta.')}`);
     const root = $('#main');
-    root.querySelectorAll('[data-b]').forEach(el => el.onclick = () => { YSEL = el.dataset.b; yesterday(false); });
+    root.querySelectorAll('.dk-cell[data-b]').forEach(el => el.onclick = () => { YSEL = el.dataset.b; YDAY = +el.dataset.i; yesterday(false); });
     root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
     if (last) fillMarket(last, t, bs, mk);
   }
   async function fillMarket(date, t, bs, mk) {
     let m = null; try { m = await H.apiAH(`/api/market?date=${date}`); } catch {}
     const host = document.getElementById('dkMk'); if (t !== H.RUN() || !host) return;
-    const box = host.children;
+    const off = mk && mk.meta_brands >= 3 ? 1 : 0, box = [...host.children];
     const pl = m?.pulse, bwR = m?.breezeway, bw = bwR ? { ...(bwR.entry || {}), hyb_status: bwR.status || bwR.entry?.hyb_status } : null, ch = m?.chatter;
     const inc = (pl?.incidents || []).filter(i => /meta|google|shopify|tiktok/i.test(i.platform || ''));
-    box[1].innerHTML = `<span class="l">Platform outages (Pulse)</span><b>${!pl ? 'Could not check' : inc.length ? `${inc.length} on ${md(date)}` : 'None recorded'}</b><span class="v2hint" style="margin:0">${inc.slice(0, 3).map(i => esc(`${i.platform}: ${i.service || i.title || ''} ${i.note || ''}`.trim())).join('<br>')}</span>`;
-    box[2].innerHTML = `<span class="l">Breezeway's Meta score</span><b>${!bw || !bw.hyb_status ? 'No reading for that day' : esc(String(bw.hyb_status || bw.status || '').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</b><span class="v2hint" style="margin:0"${U().tipAttr('Meta cost per purchase across about 50 of Breezeway\'s own customers, one score for the whole panel. A public file, unofficial: a hint, never the verdict.')}>${bw ? `About ${bw.n_biz || 50} brands, not ours. ${bw.incident_description ? esc(bw.incident_description) : ''}` : ''}</span>`;
-    box[3].innerHTML = `<span class="l">What advertisers said (X, Reddit)</span><b>${!ch ? 'Not checked' : ch.error ? 'Search failed' : (ch.meta === 'issues' || ch.google === 'issues') ? 'People reported problems' : 'Nothing unusual'}</b><span class="v2hint" style="margin:0">${ch && ch.summary ? esc(ch.summary) : ''}${ch && (ch.sources || []).length ? '<br>' + ch.sources.slice(0, 3).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc((s.title || s.url).slice(0, 60))}</a>`).join('<br>') : ''}</span>`;
-    const pill = document.getElementById('dkMkPill');
-    if (pill && (inc.length || /BAD/.test(bw?.hyb_status || '') || ch?.meta === 'issues')) pill.innerHTML = `<span class="v2pill warn">Outside signs of a rough day on Meta</span>`;
+    const set = (el, tone, label, big, small, tip) => { el.className = tone; el.innerHTML = `<span class="l">${label}</span><b>${big}</b><span class="v2hint" style="margin:0"${tip ? U().tipAttr(tip) : ''}>${small || ''}</span>`; };
+    const bwS = String(bw?.hyb_status || '').toUpperCase();
+    set(box[off], !bwS ? 'grey' : bwS === 'VERY BAD' ? 'red' : bwS === 'BAD' ? 'amber' : 'green', 'Other advertisers', !bwS ? 'No reading' : bwS === 'VERY BAD' ? 'A very bad Meta day' : bwS === 'BAD' ? 'A bad Meta day' : 'A normal Meta day',
+      'Meta cost per sale across other brands that run Meta.', 'From Breezeway\'s public panel of other advertisers. A hint, never the verdict on its own.');
+    set(box[off + 1], !pl ? 'grey' : inc.length ? 'red' : 'green', 'Meta\'s own status page', !pl ? 'Could not check' : inc.length ? `${inc.length} problem${inc.length === 1 ? '' : 's'} posted` : 'No outage posted',
+      inc.length ? inc.slice(0, 2).map(i => esc(`${i.platform}: ${i.service || i.title || ''}`)).join('<br>') : 'Meta only posts real outages here, never an expensive or slow day.', 'Read every 5 minutes by Pulse from Meta, Google and Shopify status pages. Meta posts outages (Ads Manager down, delivery stopped) there, not performance swings, so X can be full of complaints while this stays green.');
+    const talk = ch && !ch.error && (ch.meta === 'issues' || ch.google === 'issues');
+    set(box[off + 2], !ch || ch.error || ch.status === 'off' ? 'grey' : talk ? 'red' : 'green', 'Talk on X and Reddit', !ch || ch.status === 'off' ? 'Not checked' : ch.error ? 'Search failed' : talk ? 'People reported problems' : 'Nothing unusual',
+      `${ch && ch.summary ? esc(ch.summary) : ''}${ch && (ch.sources || []).length ? '<br>' + ch.sources.slice(0, 3).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc((s.title || s.url).slice(0, 60))}</a>`).join('<br>') : ''}`, 'A daily web search of X and Reddit, reading the media buyers Cole follows first.');
     /* THE VERDICT: every signal above, read together into one call (account-health /api/daycheck, cached per day). */
     const facts = {
       brands: (bs || []).map(b => ({ name: b.name, verdict: b.last?.verdict, moved: (b.last?.flags || []).map(f => `${f.label} ${f.change >= 0 ? '+' : ''}${Math.round(f.change * 100)}%${f.bad ? ' (bad)' : ''}`),
         meta_links: (b.last?.links || []).filter(l => l.change != null && Math.abs(l.change) >= 0.15).map(l => `${l.label} ${l.change >= 0 ? '+' : ''}${Math.round(l.change * 100)}%`), changes: (b.last?.changes || []).slice(0, 3).map(c => c.summary), attribution_pending: !!b.last?.attr_pending })),
       our_brands: mk ? { on_meta: mk.meta_brands, meta_costs_up_20pct: mk.cpm_up, click_rate_down: mk.ctr_down, conversion_down: mk.cvr_down } : null,
-      breezeway: bw && bw.hyb_status ? { status: bw.hyb_status, outside_brands: bw.n_biz || null, incident: bw.incident_description || null } : null,
-      outages: inc.map(i => `${i.platform}: ${i.service || i.title || ''} ${i.state || i.note || ''}`.trim()),
+      other_advertisers_breezeway: bwS ? { status: bwS } : null,
+      meta_status_page_outages: inc.map(i => `${i.platform}: ${i.service || i.title || ''} ${i.state || i.note || ''}`.trim()),
       advertisers_online: ch && ch.summary ? { meta: ch.meta, google: ch.google, said: ch.summary } : null,
     };
     let v = null; try { v = await H.apiAH('/api/daycheck', { method: 'POST', body: JSON.stringify({ date, facts }) }); } catch (e) { v = { error: e.message }; }
     const vh = document.getElementById('dkVerdict'); if (t !== H.RUN() || !vh) return;
-    vh.innerHTML = v && v.headline ? U().card('The verdict', 'Every signal on this page read together: each brand against its own normal, our brands side by side, Breezeway, outages and what advertisers said online.',
-      `<p class="v2say lead" style="margin:0 0 8px"><b>${esc(v.headline)}</b></p>${v.why ? `<p class="v2say" style="margin:0 0 6px">${esc(v.why)}</p>` : ''}${v.todo ? `<p class="v2say" style="margin:0 0 6px"><b>Today:</b> ${esc(v.todo)}</p>` : ''}${v.client_line ? `<p class="v2hint" style="margin:8px 0 0"${U().tipAttr('Safe to repeat to a client: it talks about the platform and their own result, never about other brands.')}><b>If a client asks:</b> ${esc(v.client_line)}</p>` : ''}`)
+    const tone = v && v.scope === 'market' ? 'red' : v && v.scope === 'some' ? 'amber' : 'green';
+    vh.innerHTML = v && v.headline ? U().card(`The verdict for ${wdl(date)} ${md(date)}`, 'Every check on this page read together.',
+      `<div class="dk-verdict ${tone}"><p class="v2say lead" style="margin:0 0 8px"><b>${esc(v.headline)}</b></p>${v.why ? `<p class="v2say" style="margin:0 0 6px">${esc(v.why)}</p>` : ''}${v.todo ? `<p class="v2say" style="margin:0 0 6px"><b>Today:</b> ${esc(v.todo)}</p>` : ''}${v.client_line ? `<p class="v2hint" style="margin:8px 0 0"${U().tipAttr('Safe to repeat to a client: it talks about the platform and their own result, never about other brands.')}><b>If a client asks:</b> ${esc(v.client_line)}</p>` : ''}</div>`)
       : U().card('The verdict', '', `<p class="v2hint">${esc((v && v.error) || 'No verdict yet.')}</p>`);
   }
 
