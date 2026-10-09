@@ -2252,7 +2252,7 @@
            are a switcher at the top of the screen (#v2seg), never sub-tabs in the rail.
            Settings lives in the foot. Every tab selector stays scoped to `button[data-t]`. -->
       <div class="grp v2nav" data-g="main"><div class="grp-btns">
-          <button data-t="overview" data-grp="home" title="Overview, Yesterday, P&amp;L"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
+          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
           <button data-t="today" data-grp="ads" title="Today, Meta, Google, TikTok, All channels, Tests and angles"><svg class="ic"><use href="#i-mega"/></svg><span>Ads</span></button>
           <button data-t="email" data-grp="email" title="Klaviyo or Attentive: campaigns and flows"><svg class="ic"><use href="#i-email"/></svg><span>Email and SMS</span></button>
           <button data-t="store" data-grp="store" title="Sales, Customers, Website, Search"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
@@ -3330,7 +3330,7 @@ const SET_SECS = [
   ['brands', 'Clients', 'Every brand Locus reports on. Add a new client here; open a brand to change its own settings. The season tab is named here too.'],
   ['connections', 'Integrations', 'What Mobius connects once for every brand, then every brand in one grid so a gap anywhere shows. Click a card for what it does and the exact steps.'],
   ['team', 'Team and access', 'Who can sign in to Locus, whether they can change things or only look, and which brands each person sees.'],
-  ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack, and the Yesterday post. Each brand’s own posts are in its brand settings.'],
+  ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack, and the Day check post. Each brand’s own posts are in its brand settings.'],
   ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['system', 'Data and jobs', 'Whether the automatic syncs and sends are running, which brand’s data is stale, and one-off data fixes.'],
 ];
@@ -3375,7 +3375,7 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  overview: ['Home', 'Overview'], yesterday: ['Home', 'Yesterday'], profit: ['Home', 'P&amp;L'], plan: ['Brand', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
+  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Brand', 'Goals'], season: ['Season', 'The plan'], war: ['Season', 'War room'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   today: ['Ads', 'Today'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Creative'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
@@ -4700,7 +4700,7 @@ const NAV = {
      settings.seasonTab); Scenarios and Pulse are Tools in the rail foot; Ads opens on Today (the buyer's list);
      Tests and angles moved to Ads; Creative is Studio (with Words, the old Copy desk), Library, Inspiration;
      Brand holds what we know about the client. Every old page id still routes. */
-  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Yesterday'], ['profit', 'P&L']] },
+  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L']] },
   ads: { label: 'Ads', tabs: [['today', 'Today'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['channels', 'All channels'], ['angles', 'Tests and angles']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
   store: { label: 'Store', tabs: [['store', 'Sales', 'b-shopify'], ['customers', 'Customers'], ['website', 'Website', 'b-ga'], ['search', 'Search', 'b-google']] },
@@ -4759,7 +4759,7 @@ function navGo(g) { const last = NAV_LAST[g]; show(last && NAV_OF(last) === g ? 
 /* Test calls left the Meta jobs (2026-10-09): a call is a buying decision, so it is a row on Ads > Today; the page still opens from there. */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Creative'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { yesterday: 'Yesterday', today: 'Today', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { yesterday: 'Day check', today: 'Today', war: 'War room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Campaigns', adcreative: 'Creative', changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creator link', brand: 'Brand', copy: 'Copy desk', studio: 'Studio', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5432,7 +5432,7 @@ const GUIDE = [
   /* Rewritten for the 2026-10-09 restructure: the buyer's morning is Yesterday, then Ads > Today. */
   { role: 'buyer', name: 'Media buyer', sub: 'Run the accounts and keep the client updated.', parts: [
     ['Every morning', [
-      ['Home, Yesterday', 'Was yesterday a bad day for any brand, and why. If the whole market was rough, change nothing.', 'yesterday'],
+      ['Home, Day check', 'Was yesterday a bad day for any brand, and why. If the whole market was rough, change nothing.', 'yesterday'],
       ['Ads, Today', 'Your list: what to scale, cut, switch off, refresh or fix, ad set first. Make the change in Ads Manager, then press Done.', 'today'],
       ['Test calls', 'Opened from the Call rows on Today. Set Result in Asana and move the task to Completed.', 'tests'],
       ['Daily Brief', 'Read each brand\u2019s brief; What we did fills from what you marked Done. Press Send.', 'brief'],
@@ -5462,7 +5462,7 @@ const GUIDE = [
   ] },
   { role: 'owner', name: 'Cole', sub: 'Is each brand making money, and is it set up right.', parts: [
     ['Every week', [
-      ['Home', 'Overview, Yesterday and P&L: is the book making money and where is it leaking.', 'overview'],
+      ['Home', 'Overview, Day check and P&L: is the book making money and where is it leaking.', 'overview'],
       ['Customers (under Store)', 'What a customer is worth over time against what we paid, and what they buy first and next.', 'customers'],
       ['Reports', 'What went to each client, and your dashboards.', 'reports'],
     ]],
@@ -10616,7 +10616,7 @@ async function renderSettings() {
         <table class="posts-tbl"><thead><tr><th>Every automatic post for ${esc(a.name)}</th><th>Where</th><th>When</th><th></th></tr></thead><tbody>
           <tr><td>Daily Brief</td><td>${a.brief_channel ? (a.review_first ? 'client, after you review' : 'client') : 'handled automatically'}</td><td>each morning</td><td><span class="tiny">${a.brief_enabled ? 'on' : 'off'} (switch above)</span></td></tr>
           <tr><td>Weekly and monthly reports</td><td>${a.brief_channel ? 'client, after you review' : 'handled automatically'}</td><td>Mondays and the 1st</td><td><span class="tiny">on Reports</span></td></tr>
-          <tr><td>Yesterday: a bad day</td><td>internal</td><td>8am Central, only on a bad day</td><td><span class="tiny">for every brand: Agency settings, Slack and sending</span></td></tr>
+          <tr><td>Day check: a bad day</td><td>internal</td><td>8am Central, only on a bad day</td><td><span class="tiny">for every brand: Agency settings, Slack and sending</span></td></tr>
           <tr><td>Monday test calls</td><td>internal</td><td>Mondays 8am</td><td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle" data-mon="${esc(a.act_id)}"></div><span class="tiny" data-monlbl="${esc(a.act_id)}">…</span></div></td></tr>
           <tr><td>Stock</td><td>internal</td><td>Mondays, and when something new runs out</td><td><span class="tiny">brands with a stock feed: Stock and factories</span></td></tr>
         </tbody></table>`)}

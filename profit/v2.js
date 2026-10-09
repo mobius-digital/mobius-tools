@@ -333,7 +333,7 @@
     const dot = v => `<i class="v2ydot ${v || 'none'}"></i>`;
     host.innerHTML = `<div class="v2note v2yline"><b>${esc(nice)}</b><span class="v2ydots">${bs.map(b => `<span${tipAttr(`${esc(b.name)}: ${({ good: 'good', normal: 'normal', bad: 'bad', vbad: 'very bad', none: 'no data' })[b.last?.verdict || 'none']}`)}>${dot(b.last?.verdict)}</span>`).join('')}</span>
       <span>${bad.length ? `${bad.length} bad day${bad.length > 1 ? 's' : ''}: ${bad.map(b => esc(b.name)).join(', ')}.` : 'No bad days.'}${mk.verdict === 'market' ? ` Meta ad costs rose 20%+ at ${mk.cpm_up} of ${mk.meta_brands} brands: looks like the market.` : ''}</span>
-      <button type="button" class="v2link" data-go="yesterday" style="margin-left:auto">Open Yesterday ›</button></div>`;
+      <button type="button" class="v2link" data-go="yesterday" style="margin-left:auto">Open Day check ›</button></div>`;
     if (!document.getElementById('v2ycss')) { const st = document.createElement('style'); st.id = 'v2ycss'; st.textContent = '.v2yline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.v2ydots{display:inline-flex;gap:4px}.v2ydot{width:11px;height:11px;border-radius:3px;display:inline-block;background:var(--surface-2);border:1px solid var(--line)}.v2ydot.good{background:var(--good-bg);border-color:var(--good)}.v2ydot.bad{background:var(--bad-bg);border-color:var(--bad)}.v2ydot.vbad{background:var(--bad);border-color:var(--bad)}.v2ydot.none{background:transparent;border-style:dashed}'; document.head.appendChild(st); }
     wireGo(host);
   }

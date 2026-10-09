@@ -207,7 +207,7 @@ const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brand
  * (Angle, Concept, What We're Testing) and the angles-hub hierarchy rule. */
 const PLAYBOOK = `
 WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
-- Home: Overview (open=overview, the central dashboard), Yesterday (open=yesterday: was yesterday a bad day for each brand, why, and whether it was the market), P&L (open=profit).
+- Home: Overview (open=overview, the central dashboard), Day check (open=yesterday: was yesterday a bad day for each brand, why, and whether it was the market), P&L (open=profit).
 - Ads: Today (open=today: the media buyer's list for the day, ad set first: scale, cut, trim, refresh, fix, test calls), Meta (open=meta; jobs Campaigns open=campaigns, Creative open=adcreative, Changes open=changes), Google (open=google), TikTok (open=tiktok), All channels (open=channels), Tests and angles (open=angles). Test calls open from Today (open=tests).
 - Email and SMS (open=email; the tab is named Klaviyo or Attentive per brand). Store: Sales (open=store), Customers, Website, Search. Products: Stock, Buying, Drops (brands with a stock feed).
 - Creative: Studio (open=studio; its Words mode, open=copy, is the old Copy desk), Library, Inspiration.

@@ -124,7 +124,7 @@ export function movedBlocks(r, market = null) {
     { type: 'context', elements: [{ type: 'mrkdwn', text: `${nice} against the last ${weeks} ${wd}s. Store numbers from Triple Whale.` }] },
     ...(market ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: market.slice(0, 2900) }] }] : []),
     { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n').slice(0, 2900) } },
-    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open Yesterday in Locus' }, url: `${LOCUS}?open=yesterday&act=${encodeURIComponent(a.act_id)}`, action_id: 'noop_open' }] },
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open Day check in Locus' }, url: `${LOCUS}?open=yesterday&act=${encodeURIComponent(a.act_id)}`, action_id: 'noop_open' }] },
   ];
   return { text, blocks };
 }

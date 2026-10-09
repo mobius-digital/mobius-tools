@@ -72,7 +72,7 @@
   let YSEL = null;
   async function yesterday(first) {
     css();
-    const t = H.RUN(), title = H.S.act === 'all' ? 'Yesterday' : `Yesterday: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}`;
+    const t = H.RUN(), title = H.S.act === 'all' ? 'Day check' : `Day check: ${esc((H.S.accounts.find(a => a.act_id === H.S.act) || {}).name || '')}`;
     if (first) $('#main').innerHTML = shell('yesterday', title, U().card('', '', '<p class="v2hint">Loading…</p>'));
     let d; try { d = await get(`/api/hub/yesterday?act=${encodeURIComponent(H.S.act)}`); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('yesterday', title, U().card('Could not load', '', `<p class="v2hint">${esc(e.message)}</p>`)); return; }
