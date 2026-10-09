@@ -31,6 +31,7 @@ import { marketFor } from './market.js';
 import { klaviyoView } from './klaviyo.js';
 import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
+import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
@@ -212,6 +213,7 @@ WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhe
 - Email and SMS (open=email; the tab is named Klaviyo or Attentive per brand). Store: Sales (open=store), Customers, Website, Search. Products: Stock, Buying, Drops (brands with a stock feed).
 - Creative, grouped by where ads come from: AI ads (open=studio, the Studio; its Words mode, open=copy, is the old Copy desk), Creators (open=amb, the creator link), Library, Inspiration. Templates come later.
 - Brand (what rarely changes): Client answers (open=answers), Research (open=research), Voice (open=voice).
+- Calendar (open=calendar; open=calendar&ev=<date id> opens one date): what customers see and when for every client (drops, sales, the Black Friday plan, Klaviyo sends) and the countdown of work for each date. Clients still add dates in the old Lineup until they sign in to Locus.
 - Reports: Daily Brief, Weekly and monthly, Dashboards (scheduled questions are listed there too).
 - The season item (named by Cole, e.g. Black Friday or Q5 war room; shown in season): War room (open=war), The plan (open=season).
 - Tools (rail foot): Scenarios (open=calc), Platform status (open=pulse, Pulse's outage monitor).
@@ -219,7 +221,7 @@ WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhe
 - Never say Settings > Connections, Creative > Brand, Copy desk or Yesterday (it is Day check): those names are gone. Orders are PAID orders: $0 orders (product seeding) are not counted (raw counts: totalOrdersAll, newCustomersOrdersAll).
 
 THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of every platform and how they work together")
-- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
+- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
@@ -311,6 +313,12 @@ STOCK (view stock; knowledge topic stock):
 - Never recommend reordering a limited drop. On brands we buy for, name the order-by date and the suggested quantity, and the factory minimum when the suggestion is under it ("the 500 minimum is 5.6 years of sales" means skip it or call it a one-off).
 - Ad spend per product comes from Triple Whale orders (last platform click), never from ad names; about 80% of Lucky's spend ties to a product.
 
+CALENDAR (view calendar; knowledge topic calendar):
+- Before recommending a promotion, a launch, a budget step or a send, read the calendar for that brand: what is live, what is coming in six weeks, and what overlaps. A day that moved is explained by the calendar (a sale starting or ending, a drop, a send) before any ad change.
+- Space big sales six weeks apart; never two discounts at once; every sale has an end date (propose one when missing); every promotion has one job.
+- When someone asks what is late or due, list the countdown steps with their owner and date, late first, and offer "make the Asana tasks" for a date that has none.
+- Add, move or end a date with the actions add_date, move_date, end_date; make its Asana tasks with make_asana_tasks. Black Friday phases are edited on the season page, never added as calendar dates.
+
 THE ANGLES HUB (what creators see)
 - Two levels, never nested. A SECTION answers one question: why would a creator film this today. Three legal kinds, all at the same level: Hot right now (pinned), a dated window (Halloween, Black Friday, the Masters; it retires itself), and a durable lane (a product line, or a standing theme). Five or six sections per brand, max.
 - Everything describing the video itself is a CHIP on the card: format first, then product. "Split screen" is a chip. "Black Friday" is a section.
@@ -324,6 +332,7 @@ const winOf = a => { const today = new Date(Date.now() - 864e5).toISOString().sl
   const n = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1; const pto = new Date(Date.parse(from) - 864e5).toISOString().slice(0, 10); const pfrom = new Date(Date.parse(pto) - (n - 1) * 864e5).toISOString().slice(0, 10);
   return { from, to, pfrom, pto }; };
 const VIEW_BLURBS = {
+  calendar: 'the marketing calendar (Locus Calendar): for every client or one `brand`, what is live now, every drop, sale, ad push and Black Friday phase in the next six weeks with its offer and its countdown (photos in, ads briefed, built, email scheduled, ads loaded: done, due or LATE, with the owner), Klaviyo sends in the next 14 days, and the brands with nothing planned. Read it before any promotion, launch or budget advice, and to explain a day that moved.',
   stock: 'the brand\'s stock, read live from Shopify through Supply (only brands with the Mobius Digital Shopify app; Lucky today). Pass `brand` and `what` = summary (ease off / safe to scale / push to clear for the ads, with ad spend per product from Triple Whale orders, plus to order and on the way on brands we buy for), products (every product), orders (factory orders and factories) or drops (new designs, keep or cut). THE view for "what is at risk for Black Friday", "can we scale X", "what should we order". Not connected = say so; never guess stock from sales.',
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
@@ -582,6 +591,10 @@ function buildViews(d) {
       return { dashboards: (results || []).map(r => ({ id: r.id, name: r.name, brand: r.brand || 'agency-wide', for_who: r.for_who, spec: d.safeJson(r.spec_json, {}), schedule: r.schedule || 'none', channel: r.channel || '', pinned: !!r.pinned, by: r.created_by, updated_at: r.updated_at, last_posted: r.last_posted, open: `${LOCUS_URL}?open=dash&id=${r.id}` })), how_to_read: VIEW_BLURBS.dashboards };
     },
     /* Google read directly (google.js): Google Ads campaigns, GA4 website, Search Console. */
+    calendar: async (env, a) => {
+      const acct = a.brand ? await need(env, a) : null;
+      return { ...(await calendarView(env, acct ? acct.act_id : 'all')), how_to_read: VIEW_BLURBS.calendar };
+    },
     stock: async (env, a) => {
       const acct = await need(env, a);
       const r = await stockView(env, acct, String(a.what || 'summary').toLowerCase());
@@ -1069,6 +1082,14 @@ const BUTTONS = (d) => {
     const id = await resolveBrandId(env, String(want || '').trim());
     return accounts.find(a => a.act_id === id || a.meta_act === want) || accounts.find(a => a.name.toLowerCase() === w) || accounts.find(a => a.name.toLowerCase().includes(w)) || null;
   };
+  /* A typed calendar date by name (calendar.js data; Black Friday phases and drops are not editable here). */
+  const calFind = async (env, a, name) => {
+    const d = await calendarData(env, { act: a.act_id });
+    const q = String(name || '').toLowerCase().trim(), mine = d.items.filter(e => e.src === 'cal');
+    const e = mine.find(x => x.name.toLowerCase() === q) || mine.find(x => x.name.toLowerCase().includes(q)) || mine.find(x => q.includes(x.name.toLowerCase()));
+    if (!e) throw new Error(`No typed date called "${name}" on ${a.name}'s calendar. Dates: ${mine.map(x => x.name).join(', ') || 'none'}. Black Friday phases are edited on the season page.`);
+    return e;
+  };
   const brandOr = async (env, b) => { const a = await resolve(env, b); if (!a) throw new Error(`No brand called "${b}". The accounts view lists them.`); return a; };
   const safe = fn => async (env, i, h, ctx) => { try { return await fn(env, i, h, ctx); } catch (e) { return { error: e.message }; } };
   return [
@@ -1212,6 +1233,45 @@ const BUTTONS = (d) => {
         const have = st.slots.filter(x => x.collection_id === c.id && x.line_id === l.id).length;
         return { summary: `Add ${n} ${l.name.toLowerCase()} to ${c.name}`, detail: `On the site ${c.drop_at}. Each gets an Asana card.`, request: { method: 'POST', path: `/api/supply/slots?brand=${b.id}`, body: { line_id: l.id, collection_id: c.id, name: `${c.name} · ${l.name.replace(/s$/, '')} ${have + 1}`, status: 'needs_brief', _count: n } } };
       }), done: () => 'Added. They show on Products, Drops.' }),
+    /* The calendar (2026-10-09, calendar.js): proposals a person applies, through the calendar routes on this worker. */
+    routeAction({ name: 'add_date',
+      description: 'Put a date on a brand\'s Locus calendar: a drop or launch, a sale or offer, an ad push, a site change or other (teaser, list build, contest). Its countdown (photos, briefs, build, email, ads loaded) is worked out from the go-live date.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' }, kind: { type: 'string', enum: ['drop', 'sale', 'adpush', 'site', 'other'] },
+        start: { type: 'string', description: 'YYYY-MM-DD, the day customers see it' }, end: { type: 'string', description: 'YYYY-MM-DD; leave out for a one-day drop; a sale should have one' },
+        teaser: { type: 'string', description: 'YYYY-MM-DD the teaser starts, optional' }, offer: { type: 'string', description: 'What the customer sees, in their words' },
+        status: { type: 'string', enum: ['pencilled', 'confirmed'] }, channels: { type: 'array', items: { type: 'string', enum: ['paid', 'email', 'sms', 'organic'] } }, assets: { type: 'string', description: 'Photos link (https)' } },
+        required: ['brand', 'name', 'kind', 'start'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(i.start || '')) return { error: 'The go-live date must be YYYY-MM-DD.' };
+        const body = { act: a.act_id, name: String(i.name).slice(0, 120), kind: i.kind, start: i.start, end: i.end || (i.kind === 'sale' ? null : i.start), teaser: i.teaser || null, offer: i.offer || '', status: i.status === 'confirmed' ? 'conf' : 'pen', channels: i.channels && i.channels.length ? i.channels : ['paid', 'email'], assets: i.assets || null };
+        return { summary: `${a.name}: ${body.name}, ${i.kind} on ${i.start}${body.end && body.end !== i.start ? ` to ${body.end}` : i.kind === 'sale' ? ' (no end date)' : ''}`, detail: `${i.offer || 'No offer text yet.'}\n${body.status === 'conf' ? 'Confirmed' : 'Pencilled'} · ${body.channels.join(', ')}`,
+          request: { method: 'POST', path: '/api/calendar/event', body } };
+      }), done: () => 'Added. It is on the Locus calendar with its countdown.' }),
+    routeAction({ name: 'move_date',
+      description: 'Move a typed date on a brand\'s calendar to a new go-live day; its end, teaser and photos date move by the same number of days. Not for Black Friday phases (edit those on the season page).',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string', description: 'The date\'s name as on the calendar' }, start: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['brand', 'name', 'start'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(i.start || '')) return { error: 'The new date must be YYYY-MM-DD.' };
+        return { summary: `${a.name}: move ${e.name} from ${e.start} to ${i.start}`, detail: 'Every date on it moves by the same number of days.', request: { method: 'POST', path: '/api/calendar/move', body: { id: e.id, start: i.start } } };
+      }), done: () => 'Moved. The calendar and its countdown follow.' }),
+    routeAction({ name: 'end_date',
+      description: 'Set the end of a sale or offer on a brand\'s calendar (also "it ended today").',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['brand', 'name', 'date'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        return { summary: `${a.name}: ${e.name} ends ${i.date}`, detail: `Live since ${e.start}.`, request: { method: 'POST', path: '/api/calendar/end', body: { id: e.id, date: i.date } } };
+      }), done: () => 'Saved. The calendar shows the end.' }),
+    routeAction({ name: 'make_asana_tasks',
+      description: 'Make the Asana tasks for a typed date: one task per countdown step (briefed, built, email, loaded) in the brand\'s Asana project, due on the step\'s date. Completing them ticks the calendar.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' } }, required: ['brand', 'name'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        const steps = (e.steps || []).filter(s => ['briefs', 'built', 'email', 'loaded'].includes(s.key) && !s.asana);
+        if (!steps.length) return { error: `${e.name} already has its Asana tasks, or has no work steps left.` };
+        return { summary: `${a.name}: Asana tasks for ${e.name}`, detail: steps.map(s => `${e.name}: ${s.label.toLowerCase()}, due ${s.due}`).join('\n'), request: { method: 'POST', path: '/api/calendar/asana', body: { id: e.id } } };
+      }), done: r => `Made ${r && r.made != null ? r.made : 'the'} Asana tasks.` }),
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },

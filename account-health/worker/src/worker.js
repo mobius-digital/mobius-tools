@@ -2656,6 +2656,7 @@ function buildBriefTextV2(data, dates, narrative) {
     : list.map(prettyDate).slice(0, -1).join(', ') + ' and ' + prettyDate(list[list.length - 1]);
   const L = [`Hey Team :wave: Here's the Daily Update for ${span} →`];
   if (headline) L.push(`*${headline}*`);
+  if (data.calendar_today && data.calendar_today.length) L.push(`*Today:* ${data.calendar_today.join(' and ')} ${data.calendar_today.length > 1 ? 'go' : 'goes'} live.`);
 
   const rowFor = (label, aV, fV, fmtV) => {
     if (aV == null && fV == null) return;
@@ -2858,6 +2859,8 @@ async function makeBrief(env, acct, date, { steer, format } = {}) {
   data.covering = dates;
   let narrative = null, narrative_error = null;
   if (fmt === 'v2') data.buyer_note = await briefNoteFor(env, acct.act_id, date);
+  /* The calendar (2026-10-09): what goes live on the day the brief is read, one line under the headline. */
+  if (fmt === 'v2') { const nextDay = addDays(date, 1); data.calendar_today = (((await calendarLiveOn(env, nextDay).catch(() => ({})))[acct.act_id]) || []).filter(e => e.start === nextDay && ['drop', 'sale'].includes(e.kind)).map(e => e.name); }
   try { narrative = fmt === 'v2' ? await writeBriefNarrativeV2(env, acct, data, date, steer) : await writeBriefNarrative(env, acct, data, date, steer); } catch (e) { narrative_error = e.message; }
   /* Only the days this brief actually reports on can block it. A bad day
      earlier in the month is the Data Health tab's problem, not this send's. */
