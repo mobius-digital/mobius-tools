@@ -3337,7 +3337,7 @@ const SET_SECS = [
   ['brands', 'Clients', 'Every brand Locus reports on. Add a new client here; open a brand to change its own settings. The season tab is named here too.'],
   ['connections', 'Integrations', 'What Mobius connects once for every brand, then every brand in one grid so a gap anywhere shows. Click a card for what it does and the exact steps.'],
   ['team', 'Team and access', 'Who can sign in to Locus, whether they can change things or only look, and which brands each person sees.'],
-  ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack, and the Day check post. Each brand’s own posts are in its brand settings.'],
+  ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack. Each brand’s own posts are in its brand settings.'],
   ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['system', 'Data and jobs', 'Whether the automatic syncs and sends are running, which brand’s data is stale, and one-off data fixes.'],
 ];
@@ -10642,7 +10642,7 @@ async function renderSettings() {
         <table class="posts-tbl"><thead><tr><th>Every automatic post for ${esc(a.name)}</th><th>Where</th><th>When</th><th></th></tr></thead><tbody>
           <tr><td>Daily Brief</td><td>${a.brief_channel ? (a.review_first ? 'client, after you review' : 'client') : 'handled automatically'}</td><td>each morning</td><td><span class="tiny">${a.brief_enabled ? 'on' : 'off'} (switch above)</span></td></tr>
           <tr><td>Weekly and monthly reports</td><td>${a.brief_channel ? 'client, after you review' : 'handled automatically'}</td><td>Mondays and the 1st</td><td><span class="tiny">on Reports</span></td></tr>
-          <tr><td>Day check: a bad day</td><td>internal</td><td>8am Central, only on a bad day</td><td><span class="tiny">for every brand: Agency settings, Slack and sending</span></td></tr>
+          <tr><td>Bad day on Meta</td><td>inside the Daily Brief</td><td>only when Meta had a bad day</td><td><span class="tiny">no separate post</span></td></tr>
           <tr><td>Monday test calls</td><td>internal</td><td>Mondays 8am</td><td><div class="row tgl" style="margin:0;gap:8px"><div class="toggle" data-mon="${esc(a.act_id)}"></div><span class="tiny" data-monlbl="${esc(a.act_id)}">…</span></div></td></tr>
           <tr><td>Stock</td><td>internal</td><td>Mondays, and when something new runs out</td><td><span class="tiny">brands with a stock feed: Stock and factories</span></td></tr>
         </tbody></table>`)}
@@ -11345,7 +11345,7 @@ renderSettings = async function(){
   };
   AskUI.afterSettings();
   /* Scheduled questions (Strategist section) and the What moved switch (Briefs and Slack): askextra.js. */
-  if (window.AskX) { AskX.movedSetting(); }   // scheduled questions moved to Reports > Dashboards (2026-10-09)
+  /* The 8am "What moved" post is gone (2026-10-09): a bad day on Meta is one line in the Daily Brief. Scheduled questions are on Reports > Dashboards. */
   try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}
 };
 boot();

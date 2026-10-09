@@ -2786,6 +2786,9 @@ async function writeBriefNarrativeV2(env, acct, data, date, steer) {
       (cmBad ? `CONTRIBUTION MARGIN IS UNAVAILABLE for this client (cost data unreliable). Never mention margin or profit; use the *Sales:* lead-in.\n` : '') +
       `\nLast ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth to date: ${JSON.stringify(data.mtd)}\n\n` +
       (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} to ${data.week.to}): ${JSON.stringify(data.week)}\n\n` : '') +
+      (data.meta_day && (data.meta_day.verdict === 'bad' || data.meta_day.verdict === 'vbad') ? `META THAT DAY: it was a ${data.meta_day.verdict === 'vbad' ? 'very bad' : 'bad'} day on Meta for advertisers in general (${data.meta_day.signs.join('; ')}). Say so in one plain sentence in What it means, so the client knows part of the day was the platform, not their brand. Never name other brands or where this comes from.
+
+` : '') +
       `THE BUYER'S NOTE (what the media buyer actually did or plans, in their words):\n${data.buyer_note ? `<<<${data.buyer_note}>>>` : '(none)'}\n\n` +
       `Changes we made in the last 2 days (from the Change Log):\n${evLines.length ? evLines.join('\n') : '- (none logged)'}` +
       (recentBlock.length ? `\n\nWHAT WE ALREADY TOLD THIS CLIENT recently. Do not reuse these sentences or retell the same story:\n${recentBlock.join('\n\n')}` : '') +
@@ -2841,6 +2844,24 @@ async function coverageDates(env, acct, date, data) {
   return out.length ? out : [date];
 }
 
+/** The Day check verdict for one date, for the Daily Brief: { verdict, hits, signs: [plain words] } or null.
+ *  Only yesterday (Central) is judged live; cached in settings `metaday:<date>` for three hours so ten briefs share it. */
+async function metaDayFor(env, date) {
+  if (date !== addDays(centralDate(), -1)) return null;
+  const key = `metaday:${date}`, c = safeJson(await getSetting(env, key).catch(() => null), null);
+  if (c && Date.now() - Date.parse(c.at) < 3 * 3600e3) return c.v;
+  await chatterFor(env, date).catch(() => null);
+  const L = (await metaDay(env, { days: 1 })).latest; if (!L) return null;
+  const s = L.signs, signs = [];
+  if (s.ours?.high) signs.push('advertisers paid more per sale than usual');
+  if (s.breezeway && s.breezeway !== 'NORMAL') signs.push('other advertisers had a bad Meta day');
+  if (s.outage?.length) signs.push(`Meta reported a problem (${s.outage.slice(0, 2).join('; ')})`);
+  if (s.chatter?.issues) signs.push('advertisers reported problems online');
+  const v = { verdict: L.verdict, hits: L.hits, signs };
+  await putSetting(env, key, JSON.stringify({ at: new Date().toISOString(), v })).catch(() => {});
+  return v;
+}
+
 async function makeBrief(env, acct, date, { steer, format } = {}) {
   /* FORMAT SWITCH (2026-10-04). v2 is the skimmable rebuild (headline, month so
      far, fixed lead-in bullets, actions only from what the buyer actually did).
@@ -2865,6 +2886,9 @@ async function makeBrief(env, acct, date, { steer, format } = {}) {
   data.covering = dates;
   let narrative = null, narrative_error = null;
   if (fmt === 'v2') data.buyer_note = await briefNoteFor(env, acct.act_id, date);
+  /* WAS IT A BAD DAY ON META? (2026-10-09, Cole: "a bad day should just go into the daily report"). The Day check verdict
+     for the brief's day rides into the brief; no separate Slack post any more. Cached per date in settings. */
+  if (fmt === 'v2') data.meta_day = await metaDayFor(env, date).catch(() => null);
   /* The calendar (2026-10-09): what goes live on the day the brief is read, one line under the headline. */
   if (fmt === 'v2') { const nextDay = addDays(date, 1); data.calendar_today = (((await calendarLiveOn(env, nextDay).catch(() => ({})))[acct.act_id]) || []).filter(e => e.start === nextDay && ['drop', 'sale'].includes(e.kind)).map(e => e.name); }
   try { narrative = fmt === 'v2' ? await writeBriefNarrativeV2(env, acct, data, date, steer) : await writeBriefNarrative(env, acct, data, date, steer); } catch (e) { narrative_error = e.message; }

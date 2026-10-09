@@ -155,6 +155,9 @@ export function metaDayBlocks(m) {
   ] };
 }
 export async function movedTick(env, d) {
+  /* NO SEPARATE 8AM POST (2026-10-09, Cole: "we already have a daily report; a bad day should just go in it"). The Meta
+     day verdict rides inside the Daily Brief (worker.js metaDayFor). This tick does nothing; kept so the cron wiring stays. */
+  return { skipped: 'the Meta day is in the Daily Brief now' };
   const hour = d.centralHour();
   if (hour < MOVED_HOUR) return { skipped: 'before 8am Central' };
   if (hour > MOVED_LAST_HOUR) return { skipped: 'after 1pm Central' };
