@@ -1673,6 +1673,9 @@ export function buildStrategist(d) {
        The rest of the Viktor-grade pass (Slack, memory, skills, Locus API, files, web, live steps,
        Stop, cost line) is in strattools.js; docs/strategist-viktor-grade-plan.md is the plan. */
     model: 'claude-opus-5-5', strongModel: 'claude-opus-5-5', deepModel: 'claude-opus-5-5', strongWhen: null, deepWhen: null,
+    /* Applied at once when the person plainly asks for exactly that (engine: asked_directly). Internal Locus settings only,
+       all easy to change back. Money, ads, Asana, Frame, Klaviyo, the creator link and anything a client sees keep the Apply card. */
+    directActions: ['set_account', 'set_brief_time', 'set_writing_style', 'set_report_sections', 'set_goals', 'set_brand_context', 'save_dashboard', 'schedule_question', 'log_change', 'add_date', 'move_date', 'end_date', 'create_alert', 'pause_alert'],
     ...stratHooks(d), ...makeHooks(d),
     tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d)],
     dropTools: ['remember'],
