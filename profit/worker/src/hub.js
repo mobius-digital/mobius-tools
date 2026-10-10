@@ -907,7 +907,8 @@ async function stockAds(env, ctx, a) {
      - spend, credited revenue, purchases and first orders per platform from `allChannelsMany` (All channels);
      - Klaviyo campaigns vs flows from the same tw_daily pivot;
      - top products (one brand) from `storeMany`;
-     - fixed expenses (fixed.js) for the Net profit line. Contribution margin itself is unchanged.
+     - custom expenses (expenses.js, 2026-10-10): the ones marked "counts as ad spend" join each day's spend before the
+       totals (so spend, MER, CAC and CM match /api/overview); the rest are the Net profit line under CM.
    A client sees the same answer through brandguard: `profit` (costs, CM, fixed) is scrubbed unless P&L is on.
    Today is served live elsewhere (twDay); tw_daily never holds it, so a Today window has no breakdown here. */
 const ECON_IDS = ['netSales', 'totalSales', 'totalNetTaxes', 'totalShippingPrice', 'totalShippingCosts', 'totalHandlingFees', 'ga_adCost', 'blendedAds',
@@ -915,29 +916,30 @@ const ECON_IDS = ['netSales', 'totalSales', 'totalNetTaxes', 'totalShippingPrice
   'totalKlaviyoPlacedOrderTotalPriceCampaigns', 'totalKlaviyoPlacedOrderTotalPriceFlows'];
 async function drillMany(env, ctx, accts, w, model) {
   const acts = accts.map(a => a.act_id), lo = w.pf && w.pf < w.from ? w.pf : w.from;
-  const [chs, sts, pivs, metaRows, health, fxC, fxP] = await Promise.all([
+  const [chs, sts, pivs, metaRows, health, exps] = await Promise.all([
     allChannelsMany(env, ctx, accts, w, model).catch(() => accts.map(() => null)),
     accts.length === 1 ? storeMany(env, ctx, accts, w).catch(() => [null]) : Promise.resolve([]),
     twPivotMany(env, acts, lo, w.to, ECON_IDS),
     env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend FROM daily_insights d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id
       WHERE c.brand_id IN (${inList(acts.length, 3)}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(lo, w.to, ...acts).all().then(r => r.results || []).catch(() => []),
     env.DB.prepare(`SELECT act_id, verdict FROM p_cost_health WHERE act_id IN (${inList(acts.length)})`).bind(...acts).all().then(r => r.results || []).catch(() => []),
-    ctx.fixedFor(env, acts, w.from, w.to).catch(() => ({})),
-    w.pf ? ctx.fixedFor(env, acts, w.pf, w.pt).catch(() => ({})) : Promise.resolve({}),
+    ctx.loadExpenses(env, acts).catch(() => ({})),
   ]);
   const metaBy = {}; for (const r of metaRows) (metaBy[r.act_id] ??= {})[r.date] = { spend: r.spend };
   const verdict = Object.fromEntries(health.map(r => [r.act_id, r.verdict]));
   const MONEY = ['sales', 'net_sales', 'ship_rev', 'tax', 'cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'spend', 'cm'];
   return accts.map((a, i) => {
     const piv = pivs[a.act_id] || {}, meta = metaBy[a.act_id] || {}, mp = ctx.marginOverride(a, ctx.monthOf(w.to));
-    const rowsOf = (f, t) => (f ? dates(f, t, ctx.addDays).map(d => ctx.econ(piv, meta, d, mp)).filter(Boolean) : []);
-    const rows = rowsOf(w.from, w.to), prows = rowsOf(w.pf, w.pt);
+    const exp = exps[a.act_id] || [];
+    /* each window's day rows with its "counts as ad spend" expenses already inside spend, and the spread itself */
+    const rowsOf = (f, t) => { if (!f) return [[], ctx.spread([], f, t, [])]; const r = dates(f, t, ctx.addDays).map(d => ctx.econ(piv, meta, d, mp)).filter(Boolean);
+      const sp = ctx.spread(exp, f, t, r); ctx.applyAdSpend(r, sp.adByDate); return [r, sp]; };
+    const [rows, fc] = rowsOf(w.from, w.to), [prows, fp] = rowsOf(w.pf, w.pt);
     const T = ctx.totals(rows), P = prows.length ? ctx.totals(prows) : null;
     const em = (f, t) => ({ campaigns: sumM(piv, 'totalKlaviyoPlacedOrderTotalPriceCampaigns', f, t), flows: sumM(piv, 'totalKlaviyoPlacedOrderTotalPriceFlows', f, t) });
     const head = (x, f, t) => x && { sales: x.sales, spend: x.spend, orders: x.orders, new_orders: x.new_orders, new_rev: x.new_rev, ret_rev: x.ret_rev, aov: x.aov, new_aov: x.new_aov,
-      cac: x.cac, mer: x.mer, amer: x.amer, email_rev: x.email_rev, ...em(f, t) };
-    const fc = fxC[a.act_id] || { total: 0, items: [], byDate: {} }, fp = fxP[a.act_id] || { total: 0 };
-    const money = (x, fx) => { if (!x) return null; const o = Object.fromEntries(MONEY.map(k => [k, x[k] ?? null])); o.fixed = fx; o.net = x.cm != null ? x.cm - fx : null; return o; };
+      cac: x.cac, mer: x.mer, amer: x.amer, email_rev: x.email_rev, ad_expense: x.ad_expense, ...em(f, t) };
+    const money = (x, fx) => { if (!x) return null; const o = Object.fromEntries(MONEY.map(k => [k, x[k] ?? null])); o.ad_expense = x.ad_expense ?? null; o.fixed = fx; o.net = x.cm != null ? x.cm - fx : null; return o; };
     const ch = chs[i] || null, st = sts[0] || null;
     const day = r => ({ date: r.date, sales: r.sales, spend: r.spend, orders: r.orders, new_orders: r.new_orders, new_rev: r.new_rev, email_rev: r.email_rev,
       campaigns: piv.totalKlaviyoPlacedOrderTotalPriceCampaigns?.[r.date] ?? null, flows: piv.totalKlaviyoPlacedOrderTotalPriceFlows?.[r.date] ?? null });
@@ -950,7 +952,8 @@ async function drillMany(env, ctx, accts, w, model) {
       channels: ch ? ch.rows.map(r => ({ id: r.id, label: r.label, spend: r.spend, prev_spend: r.prev_spend, revenue: r.revenue, prev_revenue: r.prev_revenue, purchases: r.purchases, nc: r.nc })) : [],
       paid: ch?.paid || null, prev_paid: ch?.prev_paid || null,
       products: st && st.products ? st.products.slice(0, 8) : [],
-      profit: { cur: money(T, fc.total), prev: money(P, fp.total), fixed_items: fc.items,
+      ad_items: fc.ad_items,
+      profit: { cur: money(T, fc.total), prev: money(P, fp.total), fixed_items: fc.items, ad_items: fc.ad_items,
         series: rows.map(r => ({ date: r.date, cm: r.cm, fixed: fc.byDate[r.date] || 0 })), prev_series: prows.map(r => ({ date: r.date, cm: r.cm })) },
     };
   });

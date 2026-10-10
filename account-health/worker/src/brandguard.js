@@ -20,8 +20,8 @@
  *   - ad ids in the query must belong to the client's brands (looked up in `ads`);
  *   - the answer is filtered like a team member's, and then scrubbed: internal keys (Slack channels,
  *     report config) always go, costs and margins go unless P&L is on, change logs unless Changes is on.
- * Only the calendar routes, the Requests routes, the Strategist question (when switched on) and the client's own
- * profile take a non-GET. A request that passed is remembered (clientScope) so the worker's own isAdmin lets it through
+ * Only the calendar routes, the Requests routes, the brand's own custom expenses (P&L on), the Strategist question
+ * (when switched on) and the client's own profile take a non-GET. A request that passed is remembered (clientScope) so the worker's own isAdmin lets it through
  * and a handler can check ownership of a record it loads by id (the calendar does).
  * `sessionEmail(env, request)` is passed in because each worker verifies its own session. */
 const OWNER = 'cole@go-mobius-digital.com';
@@ -131,6 +131,10 @@ export const CLIENT_RULES = [
   { m: 'GET', p: '/api/hub/live', act: 'opt' },
   { m: 'GET', p: '/api/client', act: 'need', opt: 'pl' },
   { m: 'GET', p: '/api/forecast', act: 'need', opt: 'pl' },
+  // Costs (expenses.js, 2026-10-10, Triple Whale's Cost Settings): the brand sees where each cost comes from and adds,
+  // edits and removes its own custom expenses. Their brand only, P&L switched on; the handler checks the brand again.
+  { m: 'GET', p: '/api/expenses', act: 'need', opt: 'pl' },
+  { m: 'PUT', p: '/api/expenses', act: 'need', opt: 'pl' },
   // Ads: All channels, Meta, Google (overview + campaigns), the orders behind a number.
   { m: 'GET', p: '/api/hub/paid', act: 'need' },
   // The data behind a tile (2026-10-09). Costs, CM and fixed expenses ride under `profit`, scrubbed while P&L is off.
@@ -177,7 +181,7 @@ export const CLIENT_RULES = [
 
 /* Keys a client never sees, and the ones that wait for a switch. */
 const ALWAYS_OUT = new Set(['slack_channel', 'brief_channel', 'client_channel', 'internal_channel', 'report_config', 'review_first', 'brief_enabled', 'slack_ts', 'sent_channel', 'steer', 'lastRun', 'team', 'storage_prefix', 'tw_shop', 'shopify_token', 'notes_internal']);
-const PL_OUT = new Set(['cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'cm', 'cm_pct', 'cmPct', 'margin', 'margin_pct', 'cost_health', 'shipping', 'cm_ok', 'cogs_quality', 'contribution', 'profit', 'net_profit', 'piv', 'fixed', 'cost_verdict']);
+const PL_OUT = new Set(['cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'cm', 'cm_pct', 'cmPct', 'margin', 'margin_pct', 'cost_health', 'shipping', 'cm_ok', 'cogs_quality', 'contribution', 'profit', 'net_profit', 'piv', 'fixed', 'cost_verdict', 'ad_items', 'ad_expense', 'expenses']);
 const CHANGES_OUT = new Set(['changes', 'change_log', 'changelog', 'activities']);
 export function scrub(v, offFor, ctx = null) {
   if (Array.isArray(v)) return v.map(x => scrub(x, offFor, ctx));
