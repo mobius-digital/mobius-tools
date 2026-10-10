@@ -1,9 +1,9 @@
 /* <mobius-loader>: the Mobius strip (profit/DESIGN.md section 7).
      <mobius-loader mode="load"></mobius-loader>              the intro: a pre-rendered 3D film (assets/intro/) of the
-                                                              strip forming the logo, once per browser session
+                                                              strip forming the logo, on a fresh page load at most once per 10 minutes (?intro=1 forces it)
      <mobius-loader mode="working" size="20"></mobius-loader> small, turning and breathing (the Strategist working)
    load: a full-screen layer on the theme canvas colour with the video centred. The app renders underneath and never
-   waits on it: the layer fades as the video ends (hard cap 3.5s), and a tap, click or Escape skips it.
+   waits on it: the layer fades as the video ends (hard cap 3.6s), and a tap, click or Escape skips it.
    prefers-reduced-motion or any video problem = the static mark for a moment, then the fade.
    working: a true 3D Mobius band (Three.js r128 from cdnjs, loaded once on first use), drawn by ONE shared WebGL
    renderer and copied into each element's 2D canvas, so any number of loaders cost one GPU context.
@@ -13,7 +13,7 @@
   const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
   const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
   const BASE = (() => { try { return new URL('assets/intro/', document.currentScript.src).href; } catch { return 'assets/intro/'; } })();
-  const SEEN = 'locus_intro_seen', CAP = 3500;
+  const SEEN = 'locus_intro_at', GAP = 10 * 60 * 1000, CAP = 3600, FILM = '?v=3';
 
   /* The Mobius mark (icons/locus.svg path) in the logo gradient: mint, Mobius blue, sand at 27 degrees, fitted to
      brand/mobius-app-icon-512.png. FINAL_VB puts it exactly where the intro's last frame has it (mark = half the
@@ -103,9 +103,9 @@
     const ua = navigator.userAgent || '';
     const safari = /safari/i.test(ua) && !/chrome|chromium|crios|edg|android|fxios|firefox/i.test(ua);
     const v = document.createElement('video');
-    if (!safari && v.canPlayType && v.canPlayType('video/webm; codecs="vp9"')) return BASE + 'mobius-intro-square.webm';
+    if (!safari && v.canPlayType && v.canPlayType('video/webm; codecs="vp9"')) return BASE + 'mobius-intro-square.webm' + FILM;
     const dark = document.documentElement.dataset.theme === 'dark';
-    return BASE + (dark ? 'mobius-intro-square-dark.mp4' : 'mobius-intro-square.mp4');
+    return BASE + (dark ? 'mobius-intro-square-dark.mp4' : 'mobius-intro-square.mp4') + FILM;
   }
 
   class MobiusLoader extends HTMLElement {
@@ -129,11 +129,18 @@
         start(this);
       }).catch(() => { if (this.isConnected) showMark(); });
     }
-    /* The intro: once per browser session, never in the app's way. */
+    /* The intro: never in the app's way. */
     _intro() {
-      let seen = false;
-      try { seen = sessionStorage.getItem(SEEN) === '1'; sessionStorage.setItem(SEEN, '1'); } catch {}
-      if (seen) { this._gone = true; this.remove(); return; }
+      /* Every fresh page load, at most once per 10 minutes (localStorage time stamp). In-app navigation never
+         reloads the page, so it never replays there. ?intro=1 forces it. */
+      let force = false, recent = false;
+      try { force = new URLSearchParams(location.search).get('intro') === '1'; } catch {}
+      try {
+        const last = +(localStorage.getItem(SEEN) || 0), now = Date.now();
+        recent = last > 0 && now - last >= 0 && now - last < GAP;
+        if (force || !recent) localStorage.setItem(SEEN, String(now));
+      } catch {}
+      if (recent && !force) { this._gone = true; this.remove(); return; }
       this.setAttribute('role', 'img'); this.setAttribute('aria-label', 'Locus');
       const box = document.createElement('span'); box.className = 'ml-box';
       box.insertAdjacentHTML('beforeend', mark(FINAL_VB));

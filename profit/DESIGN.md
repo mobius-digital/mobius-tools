@@ -177,18 +177,35 @@ inherit the look without a markup change.
 - Files: `mobius-intro-square.webm` (VP9 with alpha, 1080x1080, what the app plays), `mobius-intro-square.mp4`
   and `-square-dark.mp4` (H.264 baked on #F7F7F8 / #111113, for Safari, which cannot draw VP9 alpha),
   `mobius-intro.webm` / `.mp4` (1920x1080, the same film for decks and the site), `mobius-intro-poster.jpg`.
-  Only one square file (about 420 to 840KB) loads per visit.
+  Only one square file loads per visit: the VP9 alpha webm is about 1.0MB, the Safari mp4s about 0.6MB.
 - Behaviour: full screen on `--bg`, video centred at `min(86vmin, 600px)` (the mark is half the video).
-  Once per browser session (`sessionStorage.locus_intro_seen`). The app renders underneath and never
-  waits. The layer fades as the video ends, hard cap 3.5s; a tap, click or Escape skips it.
+  Every fresh page load (a reload counts), at most once per 10 minutes (`localStorage.locus_intro_at`, a
+  time stamp); in-app navigation never reloads the page, so it never replays there; `?intro=1` forces it.
+  The app renders underneath and never waits. The layer fades as the video ends, hard cap 3.6s; a tap,
+  click or Escape skips it. The video URLs carry `?v=3` so a new film is never served from cache.
   `prefers-reduced-motion`, a video error, a blocked autoplay or no film after 1.2s = the static mark
   (inline SVG placed with `FINAL_VB`, so it sits exactly where the film ends) for a moment, then the fade.
   Remove early with `loader.done()`.
-- **Regenerate**: `profit/assets/intro/source/` holds the renderer (Three.js 0.169 in headless Chrome:
-  2x supersampling, 4x MSAA, 10 motion-blur sub-frames, RoomEnvironment + key/rim/fill, ACES, physical
-  material with clearcoat; deterministic time per frame) and the ffmpeg encode script. Setup is in the top
-  comment of `render.mjs`; run it from a scratch folder, never inside the repo. The geometry is the SVG
-  path's own numbers (pill cap centres, radius 83.89), so the logo cannot drift.
+- **v2 (2026-10-09, after Cole: "more polished, more realistic, the reflections and the lighting")** is
+  PATH TRACED: three-gpu-pathtracer 0.0.24 on three 0.183.2 in headless Chrome (`render2.html`,
+  `render2.mjs`). A generated studio HDRI (overhead soft box, key and rim strip lights, front fill; no
+  download), global illumination, a satin base under a thin clearcoat with gentle iridescence, a rounded
+  edge so the thickness reads, depth of field while it is 3D (gone by the time it is the logo), real motion
+  blur (6 sub-frames, 120 samples a frame), a soft contact shadow on an unseen card (shadow-catcher ratio
+  of two half-res passes lit by one overhead area light, so it stays local and fades out before the logo),
+  pieces glide in with a small overshoot and a damped settle, and a real strip light slides past the
+  camera for the final sweep before the flat logo crossfades in. The last frame is the flat raster of the
+  same SVG geometry, so it still matches the logo exactly.
+- **Render gotchas (measured):** use `--use-angle=vulkan` (D3D11 was 10x slower and hit the GPU watchdog);
+  sync after every sample or Windows resets the GPU; REBUILD the BVH every sub-frame (the library only
+  refits, and a refit of a shape that unrolls this much made tracing 3 to 6x slower); colour attributes
+  must be RGBA on every mesh or the merge sometimes drops them (the ribbon renders black). A full render is
+  about 1.5 hours on the RTX 3050 laptop.
+- **Regenerate**: `profit/assets/intro/source/` holds v2 (`render2.*`, `encode2.ps1`, `emoji2.mjs`, `sheet.mjs` for contact sheets, `checkpage.mjs` for the replay check) and
+  the v1 raster renderer (`render.*`, `encode.ps1`). Setup is in the top comment of `render2.mjs`; run it
+  from a scratch folder, never inside the repo. Frames are 1080x1080 (the film never leaves the centre
+  square); the 1920x1080 copies are padded. The geometry is the SVG path's own numbers (pill cap centres,
+  radius 83.89), so the logo cannot drift.
 - `mode="working"`: small (default 20px), the live Three.js r128 strip (cdnjs, loaded once on first use),
   rotating and gently pulsing. Usage in the chat:
   `el.innerHTML = '<mobius-loader mode="working" size="18"></mobius-loader> Thinking'`.
@@ -201,11 +218,13 @@ inherit the look without a markup change.
 Add it once: Slack > workspace menu > Tools and settings > Customize workspace > Emoji > Add custom emoji,
 name it `mobius`. The Strategist can then react with `:mobius:` while it works.
 
-Since 2026-10-09 it comes from the same renderer as the intro (same material and lighting): one full turn
-of the strip, 40 frames at 20fps, rendered at 4x and downsampled, then
-`node render.mjs --out emo --emoji 40 --w 128 --h 128 --ss 4 --sub 6` and ffmpeg palettegen/paletteuse
-(96 colours, reserve_transparent, alpha_threshold 110, bayer dither). Slack's custom emoji limit is 128KB;
-the shipped file is about 90KB. (`profit/assets/emoji-render.html` still works for the old live strip.)
+Since the v2 intro (2026-10-09) it is PATH TRACED with the intro (same studio, material and glints): one
+full turn, 40 frames at 20fps, rendered at 512 and area-downscaled with premultiplied alpha, then ffmpeg
+palettegen (255 colours, full stats) + paletteuse `sierra2_4a`: `node render2.mjs --out emo --emoji 40
+--w 512 --h 512 --sub 4 --spp 32`, then `node emoji2.mjs`. gifski was compared: just as clean, but 146KB at
+quality 92 (over Slack's 128KB limit) and no better at 125KB, so the ffmpeg file ships (about 107KB).
+`profit/assets/mobius-emoji.png` is a 128x128 still of the same strip for anywhere a GIF is unwanted.
+(`profit/assets/emoji-render.html` still works for the old live strip.)
 
 ## 9. Checklist for a new screen
 

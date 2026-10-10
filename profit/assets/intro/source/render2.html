@@ -1,0 +1,474 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mobius intro v2 render</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+<script type="importmap">{"imports":{
+  "three":"/node_modules/three/build/three.module.js",
+  "three/webgpu":"/node_modules/three/build/three.webgpu.js",
+  "three/tsl":"/node_modules/three/build/three.tsl.js",
+  "three/":"/node_modules/three/",
+  "three-mesh-bvh":"/node_modules/three-mesh-bvh/src/index.js",
+  "three-gpu-pathtracer":"/node_modules/three-gpu-pathtracer/src/index.js"
+}}</script>
+</head><body>
+<script type="module">
+/* Locus intro v2: path traced (three-gpu-pathtracer) offline renderer. See render2.mjs for how to run it. */
+import * as THREE from 'three';
+import { WebGLPathTracer, PhysicalCamera } from 'three-gpu-pathtracer';
+import { MeshBVH, SAH } from 'three-mesh-bvh';
+
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 1920), H = +(Q.get('h') || 1080);
+const P = k => +(Q.get(k));
+const has = k => Q.has(k);
+
+/* ---------------- the logo, exact (SVG path coordinates, y down) ---------------- */
+const R = 83.89;
+const P1 = { a: [255.787, 635.194], b: [515.213, 375.847] };
+const P2 = { a: [514.569, 648.153], b: [768.213, 394.586] };
+const B3 = { cx: 769.515, cy: 649.0, xl: 685.62, yl: 630.573, xr: 853.411, yr: 461.748 };
+const CX = 512.65, CY = 512.4, K = 1 / 300;
+const toW = (x, y) => [(x - CX) * K, -(y - CY) * K];
+
+const GA = 27 * Math.PI / 180, GD = [Math.cos(GA), -Math.sin(GA)];
+const STOPS = [[0xC6, 0xE4, 0xD6], [0x62, 0xBD, 0xEA], [0xDC, 0xC9, 0xA8]].map(c => c.map(v => v / 255));
+let PMIN = 1e9, PMAX = -1e9;
+
+function pill(Pp, n1, n2) {
+  const dx = Pp.b[0] - Pp.a[0], dy = Pp.b[1] - Pp.a[1], len = Math.hypot(dx, dy);
+  const d = [dx / len, dy / len], p = [d[1], -d[0]];
+  const out = [], tot = len + 2 * R;
+  const push = (t, hw) => { const c = [Pp.a[0] + d[0] * t, Pp.a[1] + d[1] * t]; out.push({ L: [c[0] - p[0] * hw, c[1] - p[1] * hw], R: [c[0] + p[0] * hw, c[1] + p[1] * hw], u: (t + R) / tot, perp: p }); };
+  for (let i = 0; i < n1; i++) { const th = i / n1 * Math.PI / 2; push(-R * Math.cos(th), R * Math.sin(th)); }
+  for (let i = 0; i <= n2; i++) push(i / n2 * len, R);
+  for (let i = 1; i <= n1; i++) { const th = Math.PI / 2 + i / n1 * Math.PI / 2; push(len - R * Math.cos(th), R * Math.sin(th)); }
+  out[0].L = out[0].R = [Pp.a[0] - d[0] * R, Pp.a[1] - d[1] * R];
+  out[out.length - 1].L = out[out.length - 1].R = [Pp.b[0] + d[0] * R, Pp.b[1] + d[1] * R];
+  return { secs: out, len: tot };
+}
+function band3(n2, n1) {
+  const out = [], ytop = (B3.yl + B3.yr) / 2, ybot = B3.cy + R, tot = ybot - ytop;
+  for (let i = 0; i <= n2; i++) { const q = i / n2, yl = B3.yl + (B3.cy - B3.yl) * q, yr = B3.yr + (B3.cy - B3.yr) * q; out.push({ L: [B3.xl, yl], R: [B3.xr, yr], u: ((yl + yr) / 2 - ytop) / tot, perp: [1, 0] }); }
+  for (let i = 1; i <= n1; i++) { const th = Math.PI / 2 - i / n1 * Math.PI / 2, hw = R * Math.sin(th), y = B3.cy + R * Math.cos(th); out.push({ L: [B3.cx - hw, y], R: [B3.cx + hw, y], u: (y - ytop) / tot, perp: [1, 0] }); }
+  out[out.length - 1].L = out[out.length - 1].R = [B3.cx, ybot];
+  return { secs: out, len: tot };
+}
+const pieces = [pill(P1, 30, 80), pill(P2, 30, 80), band3(40, 30)];
+const TOTAL = pieces.reduce((s, p) => s + p.len, 0);
+{ let acc = 0; for (const p of pieces) { p.u0 = acc / TOTAL; p.u1 = (acc + p.len) / TOTAL; acc += p.len; } }
+for (const p of pieces) for (const s of p.secs) for (const pt of [s.L, s.R]) { const pr = pt[0] * GD[0] + pt[1] * GD[1]; PMIN = Math.min(PMIN, pr); PMAX = Math.max(PMAX, pr); }
+
+/* ---------------- helpers ---------------- */
+const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const sst = (a, b, x) => { const t = cl((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const smt = (a, b, x) => { const t = cl((x - a) / (b - a)); return t * t * t * (t * (t * 6 - 15) + 10); };
+const eoc = (a, b, x) => { const t = cl((x - a) / (b - a)); return 1 - Math.pow(1 - t, 3); };
+const eob = (a, b, x, s) => { const t = cl((x - a) / (b - a)); const c3 = s + 1; return 1 + c3 * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2); };
+const lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+function grad(t) { t = cl(t); const i = t < 0.5 ? 0 : 1, f = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5; return [0, 1, 2].map(k => STOPS[i][k] + (STOPS[i + 1][k] - STOPS[i][k]) * f); }
+function ribbonCol(u) {
+  u = ((u % 1) + 1) % 1;
+  const keys = [[0, 0.0], [0.42, 0.5], [0.8, 1.0], [0.93, 0.62], [1.0, 0.0]];
+  for (let i = 0; i < keys.length - 1; i++) if (u <= keys[i + 1][0]) { const f = (u - keys[i][0]) / (keys[i + 1][0] - keys[i][0]); const s = f * f * (3 - 2 * f); return grad(keys[i][1] + (keys[i + 1][1] - keys[i][1]) * s); }
+  return grad(0);
+}
+
+/* ---------------- renderer ---------------- */
+const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H; document.body.appendChild(canvas);
+const gl = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, premultipliedAlpha: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+gl.setPixelRatio(1); gl.setSize(W, H, false); gl.setClearColor(0x000000, 0);
+const info = gl.getContext().getExtension('WEBGL_debug_renderer_info');
+window.GPU = info ? gl.getContext().getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown';
+
+/* ---------------- a studio, generated: soft boxes in an equirect HDR ---------------- */
+function studioEnv() {
+  const EW = 1024, EH = 512, data = new Float32Array(EW * EH * 4);
+  const nrm = v => { const l = Math.hypot(...v); return v.map(x => x / l); };
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const box = (c, hw, hh, soft, I, col, roll = 0) => {
+    c = nrm(c); let up = [0, 1, 0]; if (Math.abs(c[1]) > 0.9) up = [0, 0, -1];
+    let r = nrm(cross(up, c)); let u = cross(c, r);
+    if (roll) { const cr = Math.cos(roll), sr = Math.sin(roll); const r2 = r.map((v, i) => v * cr + u[i] * sr), u2 = u.map((v, i) => v * cr - r[i] * sr); r = r2; u = u2; }
+    return { c, r, u, hw, hh, soft, I, col };
+  };
+  const SC = +(Q.get('envs') || 1.6);
+  const boxes = [
+    box([0.0, 1, 0.22], 0.62, 0.36, 0.16, 3.2 * SC, [1, 1, 1]),                       // big overhead
+    box([-0.78, 0.32, 0.55], (has('kw') ? P('kw') : 0.025), 0.62, (has('kw') ? P('kw') * 0.4 : 0.01), (has('key') ? P('key') : 110) * SC, [1, 0.975, 0.94]),             // key strip, left front
+    box([0.82, 0.28, -0.5], (has('kw') ? P('kw') : 0.025), 0.58, (has('kw') ? P('kw') * 0.4 : 0.01), (has('rim') ? P('rim') : 90) * SC, [0.9, 0.96, 1]),                // rim strip, right back
+    box([0.22, 0.05, 1], 0.75, 0.42, 0.3, (has('fill') ? P('fill') : 1.1) * SC, [1, 1, 1]), // broad front fill
+    box([-0.3, 0.55, -0.75], 0.3, 0.2, 0.12, 1.4 * SC, [0.95, 0.98, 1]),                // back top kicker
+  ];
+  for (let j = 0; j < EH; j++) for (let i = 0; i < EW; i++) {
+    const u = (i + 0.5) / EW, v = (j + 0.5) / EH;
+    const phi = (u - 0.5) * 2 * Math.PI, lat = (v - 0.5) * Math.PI;
+    const d = [Math.cos(phi) * Math.cos(lat), Math.sin(lat), Math.sin(phi) * Math.cos(lat)];
+    // studio walls: soft gradient, slightly warm floor bounce
+    const y = d[1];
+    const BA = has('base') ? P('base') : 0.08;
+    let c = y > 0 ? [BA * (1 + 0.35 * y), BA * (1.01 + 0.36 * y), BA * (1.03 + 0.42 * y)] : [BA * (0.9 - 0.25 * y), BA * (0.88 - 0.25 * y), BA * (0.84 - 0.25 * y)];
+    const hz = Math.exp(-Math.pow(y / 0.08, 2)) * BA * 0.3; c = c.map(x => x + hz);
+    for (const b of boxes) {
+      const z = dot(d, b.c); if (z <= 0) continue;
+      const ax = Math.atan2(dot(d, b.r), z), ay = Math.atan2(dot(d, b.u), z);
+      const mx = 1 - sst(b.hw - b.soft, b.hw + b.soft, Math.abs(ax)), my = 1 - sst(b.hh - b.soft, b.hh + b.soft, Math.abs(ay));
+      const m = mx * my; if (m <= 0) continue;
+      const core = 0.8 + 0.2 * Math.cos(Math.min(1, Math.abs(ax) / (b.hw + b.soft)) * Math.PI / 2);
+      c = c.map((x, k) => x + b.I * m * core * b.col[k]);
+    }
+    const o = (j * EW + i) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1;
+  }
+  const tex = new THREE.DataTexture(data, EW, EH, THREE.RGBAFormat, THREE.FloatType);
+  tex.mapping = THREE.EquirectangularReflectionMapping; tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  return tex;
+}
+const ENV = studioEnv(); { let mx = 0, n = 0; const d = ENV.image.data; for (let i = 0; i < d.length; i += 4) { mx = Math.max(mx, d[i]); if (d[i] > 1) n++; } console.log('ENV max', mx, 'bright texels', n); }
+const ENV_I = +(Q.get('env') || 1.0);
+
+/* ---------------- geometry ---------------- */
+const NV = 30, NE = 9;
+const PROF = [];                                        // [vx, ex, ez]
+for (let i = 0; i <= NV; i++) PROF.push([-1 + 2 * i / NV, 0, 1]);
+for (let i = 1; i < NE; i++) { const ps = i / NE * Math.PI; PROF.push([1, Math.sin(ps), Math.cos(ps)]); }
+for (let i = 0; i <= NV; i++) PROF.push([1 - 2 * i / NV, 0, -1]);
+for (let i = 1; i < NE; i++) { const ps = i / NE * Math.PI; PROF.push([-1, -Math.sin(ps), -Math.cos(ps)]); }
+const NPF = PROF.length;
+
+const matRibbon = new THREE.MeshPhysicalMaterial({
+  vertexColors: true, side: THREE.DoubleSide,
+  roughness: +(Q.get('rough') || 0.26), metalness: 0.0,
+  clearcoat: has('cc') ? P('cc') : 1.0, clearcoatRoughness: +(Q.get('ccr') || 0.025),
+  iridescence: has('irid') ? P('irid') : 0.35, iridescenceIOR: 1.3, iridescenceThicknessRange: [180, 420],
+  specularIntensity: 1.0, ior: 1.5,
+});
+const matShadowCaster = new THREE.MeshPhysicalMaterial({ color: 0xffffff, side: THREE.DoubleSide }); matShadowCaster.matte = true;
+const matFlat = new THREE.ShaderMaterial({
+  side: THREE.DoubleSide,
+  uniforms: { uPM: { value: new THREE.Vector2(0, 1) } },
+  vertexShader: 'attribute vec2 logo; varying vec2 vLogo; void main(){ vLogo = logo; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+  fragmentShader: `varying vec2 vLogo; uniform vec2 uPM;
+    void main(){
+      float pr = vLogo.x*${GD[0].toFixed(6)} + vLogo.y*${GD[1].toFixed(6)};
+      float t = clamp(((pr-uPM.x)/(uPM.y-uPM.x) - 0.01)/1.01, 0., 1.);
+      vec3 s0 = vec3(${STOPS[0].map(v => v.toFixed(6)).join(',')}), s1 = vec3(${STOPS[1].map(v => v.toFixed(6)).join(',')}), s2 = vec3(${STOPS[2].map(v => v.toFixed(6)).join(',')});
+      gl_FragColor = vec4(t < 0.5 ? mix(s0, s1, t/0.5) : mix(s1, s2, (t-0.5)/0.5), 1.0);
+    }`,
+});
+matFlat.uniforms.uPM.value.set(PMIN, PMAX);
+
+const sceneM = new THREE.Scene(), sceneS = new THREE.Scene(), sceneB = new THREE.Scene(), sceneF = new THREE.Scene();
+sceneM.environment = ENV; sceneM.background = null; sceneM.environmentIntensity = ENV_I;
+/* the shadow passes see ONE soft overhead area light and no studio, so the card is untouched (ratio exactly 1)
+   everywhere the ribbon does not block that light: the shadow stays local, never a grey box */
+for (const s of [sceneS, sceneB]) { s.environment = null; s.background = null; const L = new THREE.RectAreaLight(0xffffff, 10, +(Q.get('shl') || 2.2), +(Q.get('shl') || 2.2)); L.position.set(0.3, 3.2, 3.6); L.lookAt(0, 0, 0); s.add(L); }
+
+for (const p of pieces) {
+  const ns = p.secs.length, NCAP = NPF + 1, nv = ns * NPF + 2 * NCAP, g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 4).fill(1), 4));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(nv * 2), 2));
+  const lg = new Float32Array(nv * 2), idx = [];
+  for (let i = 0; i < ns - 1; i++) for (let j = 0; j < NPF; j++) {
+    const a = i * NPF + j, b = i * NPF + (j + 1) % NPF, c = (i + 1) * NPF + j, d = (i + 1) * NPF + (j + 1) % NPF;
+    idx.push(a, c, b, b, c, d);
+  }
+  /* end caps (own vertices so their normals stay crisp) */
+  const capBase = [ns * NPF, ns * NPF + NCAP];
+  for (let e = 0; e < 2; e++) { const b0 = capBase[e]; for (let j = 0; j < NPF; j++) { const a = b0 + j, b = b0 + (j + 1) % NPF, c = b0 + NPF; if (e === 0) idx.push(c, b, a); else idx.push(c, a, b); } }
+  for (let i = 0; i < ns; i++) { const s = p.secs[i]; for (let j = 0; j < NPF; j++) { const f = (PROF[j][0] + 1) / 2; lg[(i * NPF + j) * 2] = s.L[0] + (s.R[0] - s.L[0]) * f; lg[(i * NPF + j) * 2 + 1] = s.L[1] + (s.R[1] - s.L[1]) * f; } }
+  for (let e = 0; e < 2; e++) { const si = e ? ns - 1 : 0; for (let j = 0; j <= NPF; j++) { const s = p.secs[si]; lg[(capBase[e] + j) * 2] = (s.L[0] + s.R[0]) / 2; lg[(capBase[e] + j) * 2 + 1] = (s.L[1] + s.R[1]) / 2; } }
+  g.setAttribute('logo', new THREE.BufferAttribute(lg, 2));
+  g.setIndex(idx);
+  p.geo = g; p.capBase = capBase; p.ns = ns;
+  const mM = new THREE.Mesh(g, matRibbon), mS = new THREE.Mesh(g, matShadowCaster), mF = new THREE.Mesh(g, matFlat);
+  for (const m of [mM, mS, mF]) m.frustumCulled = false;
+  sceneM.add(mM); sceneS.add(mS); sceneF.add(mF);
+}
+/* the backdrop: in the main pass it is matte (never seen directly, still bounces light); in the shadow
+   passes it is a white card, rendered with and without the ribbon, and the ratio is the shadow */
+const wallGeo = new THREE.PlaneGeometry(40, 40); wallGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(4 * 4).fill(1), 4));
+const matWallM = new THREE.MeshStandardMaterial({ color: 0x9a9a9c, roughness: 0.95 }); matWallM.matte = true;
+const matWallS = new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 1.0 });
+const wallM = new THREE.Mesh(wallGeo, matWallM), wallS = new THREE.Mesh(wallGeo, matWallS), wallB = new THREE.Mesh(wallGeo, matWallS);
+if (has('wall')) sceneM.add(wallM); if (has('probe')) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.9, 96, 64), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0.02 })); sp.position.set(0, 0, 0.6); sceneM.add(sp); } sceneS.add(wallS); sceneB.add(wallB);
+
+/* the light sweep: a thin strip light near the camera, sliding across, seen only in reflections */
+const sweep = new THREE.RectAreaLight(0xffffff, 0, 7.0, +(Q.get('sww') || 0.6));
+sceneM.add(sweep);
+
+const FOV = 22;
+const cam = new PhysicalCamera(FOV, W / H, 0.1, 200);
+cam.apertureBlades = 0;
+const DIST = (681.5 * K) / (0.5 * 2 * Math.tan(FOV / 2 * Math.PI / 180));
+window.FINAL = { DIST, K, CX, CY, FOV };
+
+/* ---------------- the motion ---------------- */
+const T_END = +(Q.get('dur') || 3.2);
+const LOOP_R = 0.84, LOOP_W = 0.29, FIN_W = R * K, H0 = +(Q.get('h0') || 0.03);
+const L_LOOP = 2 * Math.PI * LOOP_R, L_FIN = TOTAL * K;
+const v3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const tmpM = new THREE.Matrix4();
+
+/* the unwind: eases in (no hard start), carries momentum, eases out into the arch */
+const unwind = t => 0.55 * eoc(0, 1.8, t) + 0.45 * smt(0, 1.8, t);
+function state(t, emo) {
+  let spin, tilt, yaw, kc, tw, len, flow;
+  if (emo != null) { spin = emo * Math.PI * 2; tilt = 1.05; yaw = 0.0; kc = 1; tw = 1; len = L_LOOP; flow = 0; }
+  else {
+    const u = unwind(t);
+    spin = -0.95 * Math.PI * (1 - u);
+    tilt = 0.98 * (1 - smt(0.3, 1.65, t));
+    yaw = 0.34 * (1 - smt(0.15, 1.8, t));
+    kc = 1 - 0.6 * smt(0.7, 1.75, t);
+    tw = 1 - smt(0.6, 1.5, t);
+    len = L_LOOP + (L_FIN - L_LOOP) * sst(0.8, 1.9, t);
+    flow = 0.55 * (1 - u);
+  }
+  const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(-tilt, yaw, spin, 'XYZ'));
+  return { rot, kc, tw, len, flow };
+}
+function ribbonSec(u, S) {
+  const s = (u - 0.5) * S.len, kap = 2 * Math.PI * S.kc / S.len;
+  let c, T, N;
+  if (kap < 1e-5) { c = v3(s, 0, 0); T = v3(1, 0, 0); N = v3(0, 1, 0); }
+  else { c = v3(Math.sin(kap * s) / kap, -(1 - Math.cos(kap * s)) / kap, 0); T = v3(Math.cos(kap * s), -Math.sin(kap * s), 0); N = v3(Math.sin(kap * s), Math.cos(kap * s), 0); }
+  const tau = Math.PI * (u - 0.5) * S.tw;
+  const a = N.clone().multiplyScalar(Math.cos(tau)).add(v3(0, 0, Math.sin(tau)));
+  return { c, T, a };
+}
+function centroid(S) { const n = 200; const m = v3(); for (let i = 0; i <= n; i++) m.add(ribbonSec(i / n, S).c); return m.multiplyScalar(1 / (n + 1)); }
+const qFrom = (T, a, n) => new THREE.Quaternion().setFromRotationMatrix(tmpM.makeBasis(T, a, n));
+
+const SAT = +(Q.get('sat') || 1.25), DARK = +(Q.get('dark') || 1.0);
+const PIECE_T = [0.98, 1.1, 1.02], GLIDE = 0.98, STAG = 0.12;
+const OVR = has('ovr') ? P('ovr') : 0.05;             // in-plane overshoot, then settle
+const SETTLE = +(Q.get('settle') || 0.045);            // depth of the soft landing
+const look = { flat: 0, shadow: 0, fade: 1, wallZ: -1.15, focus: DIST, bokeh: 0 };
+function build(t, emo) {
+  const S = state(t, emo), cen = centroid(S);
+  const hT = emo != null ? H0 * 1.25 : H0 * (1 - sst(2.55, 2.95, t));
+  const colMix = emo != null ? 0 : sst(1.15, 2.15, t);
+  const lift = 0.42;
+  const ew = emo != null ? 0 : sst(0.95, 1.75, t);
+  const wLoop = LOOP_W + (FIN_W - LOOP_W) * sst(0.9, 1.6, t);
+  pieces.forEach((p, pi) => {
+    const pos = p.geo.attributes.position.array, col = p.geo.attributes.color.array;
+    const ns = p.ns;
+    const cen3 = [];
+    for (let i = 0; i < ns; i++) {
+      const sec = p.secs[i], u = p.u0 + (p.u1 - p.u0) * sec.u;
+      const rs = ribbonSec(u, S);
+      const c0 = rs.c.clone().sub(cen).applyQuaternion(S.rot), T0 = rs.T.clone().applyQuaternion(S.rot), a0 = rs.a.clone().applyQuaternion(S.rot);
+      const n0 = new THREE.Vector3().crossVectors(T0, a0).normalize();
+      const L = toW(sec.L[0], sec.L[1]), Rr = toW(sec.R[0], sec.R[1]);
+      const cF = v3((L[0] + Rr[0]) / 2, (L[1] + Rr[1]) / 2, 0);
+      let aF = v3(Rr[0] - L[0], Rr[1] - L[1], 0); const wF = aF.length() / 2;
+      if (wF < 1e-6) aF = v3(sec.perp[0], -sec.perp[1], 0);
+      aF.normalize();
+      const nF = v3(0, 0, 1), TF = new THREE.Vector3().crossVectors(aF, nF);
+      const t0 = PIECE_T[pi] + sec.u * STAG, t1 = t0 + GLIDE;
+      const e = emo != null ? 0 : smt(t0, t1, t);
+      const xg = cl((t - t0) / GLIDE); const eb = emo != null ? 0 : e + OVR * Math.pow(Math.sin(Math.PI * xg), 3) * xg * xg;
+      const w0 = wLoop * (1 - ew) + wF * ew;
+      /* soft landing: the glide arcs toward the camera, touches down, dips a little and settles */
+      const tau = t - t1;
+      const settle = (emo == null && tau > 0) ? -SETTLE * Math.exp(-tau / 0.13) * Math.sin(tau * Math.PI * 2 / 0.42) * (0.7 + 0.3 * pi / 2) : 0;
+      const c = c0.clone().lerp(cF, eb).add(v3(0, 0, lift * Math.sin(Math.PI * e) * (0.6 + 0.4 * pi / 2) + settle));
+      const q = qFrom(T0, a0, n0).slerp(qFrom(TF, aF, nF), e);
+      const a = v3(0, 1, 0).applyQuaternion(q), n = v3(0, 0, 1).applyQuaternion(q);
+      const w = w0 + (wF - w0) * e;
+      const rc = ribbonCol(u + S.flow);
+      const lc = grad(((sec.L[0] + sec.R[0]) / 2 * GD[0] + (sec.L[1] + sec.R[1]) / 2 * GD[1] - PMIN) / (PMAX - PMIN));
+      const sat = SAT * (1 - colMix) + (+(Q.get('satf') || 1.75)) * colMix, rcm = rc.map((v, k) => v + (lc[k] - v) * colMix), avg = (rcm[0] + rcm[1] + rcm[2]) / 3;
+      const cc = rcm.map(v => lin(cl(avg + (v - avg) * sat) * DARK));
+      /* keep the plan silhouette exactly the ribbon width: the rounded edge sits inside it */
+      const hl = Math.min(hT, w * 0.98);
+      const wi = Math.max(w - hl, 0);
+      for (let j = 0; j < NPF; j++) {
+        const pf = PROF[j], o = (i * NPF + j) * 3;
+        const ax = wi * pf[0] + hl * pf[1], nz = hl * pf[2];
+        pos[o] = c.x + a.x * ax + n.x * nz; pos[o + 1] = c.y + a.y * ax + n.y * nz; pos[o + 2] = c.z + a.z * ax + n.z * nz;
+        { const o4 = (i * NPF + j) * 4; col[o4] = cc[0]; col[o4 + 1] = cc[1]; col[o4 + 2] = cc[2]; }
+      }
+      if (i === 0 || i === ns - 1) cen3.push([c.x, c.y, c.z, cc]);
+    }
+    /* caps: copy the end rings, plus a centre vertex */
+    for (let e = 0; e < 2; e++) {
+      const si = e ? ns - 1 : 0, b0 = p.capBase[e], cc = cen3[e][3];
+      for (let j = 0; j < NPF; j++) { for (let k = 0; k < 3; k++) { pos[(b0 + j) * 3 + k] = pos[(si * NPF + j) * 3 + k]; col[(b0 + j) * 4 + k] = cc[k]; } }
+      pos[(b0 + NPF) * 3] = cen3[e][0]; pos[(b0 + NPF) * 3 + 1] = cen3[e][1]; pos[(b0 + NPF) * 3 + 2] = cen3[e][2];
+      for (let k = 0; k < 3; k++) col[(b0 + NPF) * 4 + k] = cc[k];
+    }
+    p.geo.attributes.position.needsUpdate = true; p.geo.attributes.color.needsUpdate = true;
+    p.geo.computeVertexNormals();
+    p.geo.computeBoundingBox(); p.geo.computeBoundingSphere();
+  });
+  /* camera: a slow dolly back with a gentle arc, settling square on */
+  let k;
+  if (emo != null) { cam.position.set(0, 0, DIST * 0.62); cam.up.set(0, 1, 0); cam.lookAt(0, 0, 0); k = 1; }
+  else {
+    k = smt(0, 2.3, t);
+    const p0 = v3(0.85, 0.95, DIST * +(Q.get('cz') || 0.52)), p1 = v3(0, 0, DIST);
+    const pc = p0.clone().lerp(p1, k).add(v3(0.35 * Math.sin(Math.PI * k) * (1 - k), 0, 0));
+    cam.position.copy(pc); cam.up.set(0, 1, 0); cam.lookAt(0, 0.12 * (1 - k), 0);
+  }
+  cam.aspect = W / H; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  look.focus = cam.position.length();
+  /* depth of field while it is a 3D object, pin sharp once the logo forms */
+  look.bokeh = emo != null ? 0.001 : Math.max(0.001, +(Q.get('bokeh') || 55) * (1 - sst(1.3, 2.15, t)));
+  cam.focusDistance = look.focus; cam.bokehSize = look.bokeh;
+  /* the sweep */
+  const swp = emo != null ? -1 : (t - 2.08) / 0.62;
+  const sdir = v3(0.8, 0.6, 0).normalize();
+  const sd = -1.9 + 3.8 * smt(0, 1, cl(swp));
+  sweep.position.copy(sdir.clone().multiplyScalar(2 * sd)).add(v3(0, 0, cam.position.z * 0.93));
+  sweep.lookAt(sdir.clone().multiplyScalar(sd));
+  sweep.rotateZ(Math.atan2(sdir.y, sdir.x) + Math.PI / 2);
+  sweep.intensity = (swp > 0 && swp < 1) ? +(Q.get('swi') || 26) * Math.sin(Math.PI * swp) : 0;
+  sweep.updateMatrixWorld();
+  look.flat = emo != null ? 0 : sst(2.58, 2.95, t);
+  look.shadow = emo != null ? 0 : +(Q.get('shad') || 0.24) * (1 - sst(2.2, 2.75, t));
+  look.fade = emo != null ? 1 : sst(0, 0.22, t);
+  look.wallZ = -1.15 + 0.8 * sst(1.3, 2.3, t);
+  for (const w of [wallM, wallS, wallB]) { w.position.set(0, 0, look.wallZ); w.updateMatrixWorld(); }
+}
+
+/* ---------------- path tracers ---------------- */
+function mkPT() {
+  const pt = new WebGLPathTracer(gl);
+  pt.renderToCanvas = false; pt.rasterizeScene = false; pt.synchronizeRenderSize = false;
+  pt.bounces = +(Q.get('bounces') || 6); pt.filterGlossyFactor = +(Q.get('fgf') || 0.35);
+  pt.multipleImportanceSampling = true;
+  pt._pathTracer.tiles.set(+(Q.get('tiles') || 1), +(Q.get('tiles') || 1));
+  pt._pathTracer.alpha = true;
+  /* the ribbon changes shape completely over the film: rebuild the BVH every time, never refit */
+  const gen = pt._generator, orig = gen.generate.bind(gen);
+  gen.generate = (...a) => {
+    const r = orig(...a);
+    if (r.bvhChanged && r.bvh && !r.bvh._fresh) { r.bvh = gen.bvh = new MeshBVH(r.geometry, { strategy: SAH, maxLeafTris: 1, indirect: true }); }
+    if (r.bvh) r.bvh._fresh = false;
+    return r;
+  };
+  return pt;
+}
+const ptM = mkPT(), ptS = mkPT(), ptB = mkPT();
+const SH = +(Q.get('shs') || 0.25);
+ptM._pathTracer.setSize(W, H);
+ptS._pathTracer.setSize(Math.round(W * SH), Math.round(H * SH));
+ptB._pathTracer.setSize(Math.round(W * SH), Math.round(H * SH));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+window.TT = {}; const tick = (k, t0) => { window.TT[k] = (window.TT[k] || 0) + performance.now() - t0; };
+async function trace(pt, scene, n) {
+  let q0 = performance.now(); pt.setScene(scene, cam); tick('setScene', q0); q0 = performance.now();
+  const r = pt._pathTracer; r.reset();
+  let guard = 0;
+  const px = new Float32Array(4); let nc = 0; while (r.samples < n) { r.update(); if (++nc % (+(Q.get('syncn') || 1)) === 0) gl.readRenderTargetPixels(r.target, 0, 0, 1, 1, px); if (r.isCompiling) { await r._compilePromise; await sleep(5); if (++guard > 2000) throw new Error('compile stuck'); } }
+  tick('trace', q0);
+  return r.target.texture;
+}
+
+/* ---------------- accumulation and compositing ---------------- */
+const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), qGeo = new THREE.PlaneGeometry(2, 2);
+const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy,0.,1.); }';
+const rtAcc = new THREE.WebGLRenderTarget(W, H, { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+const rtShadow = new THREE.WebGLRenderTarget(Math.round(W * SH), Math.round(H * SH), { type: THREE.FloatType, depthBuffer: false });
+const rtFlat = new THREE.WebGLRenderTarget(W * 2, H * 2, { type: THREE.HalfFloatType, samples: 4 });
+const addMat = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: null }, k: { value: 1 } }, vertexShader: VS,
+  fragmentShader: 'uniform sampler2D tex; uniform float k; varying vec2 vUv; void main(){ vec4 c = texture2D(tex, vUv); gl_FragColor = vec4(c.rgb*c.a, c.a)*k; }',
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+  blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor, depthTest: false, depthWrite: false, transparent: true,
+});
+/* shadow = 1 - (card with ribbon) / (card alone), only where the card is seen, softened */
+const shMat = new THREE.ShaderMaterial({
+  uniforms: { S: { value: null }, B: { value: null }, px: { value: new THREE.Vector2() } }, vertexShader: VS,
+  fragmentShader: `uniform sampler2D S, B; uniform vec2 px; varying vec2 vUv;
+    float lum(vec3 c){ return dot(c, vec3(.2126,.7152,.0722)); }
+    void main(){
+      float acc = 0., wsum = 0.;
+      for (int i=-3;i<=3;i++) for (int j=-3;j<=3;j++){
+        vec2 o = vec2(float(i),float(j))*px*1.7; float g = exp(-float(i*i+j*j)/6.0);
+        vec4 s = texture2D(S, vUv+o), b = texture2D(B, vUv+o);
+        float w = g*s.a; if (w <= 0.) continue;
+        float r = lum(s.rgb)/max(lum(b.rgb),1e-4);
+        acc += smoothstep(0.12, 1.0, 1.-r)*w; wsum += w;
+      }
+      gl_FragColor = vec4(wsum>0. ? acc/wsum : 0., 0., 0., 1.);
+    }`,
+  depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+});
+const outMat = new THREE.ShaderMaterial({
+  uniforms: {
+    acc: { value: rtAcc.texture }, sh: { value: rtShadow.texture }, flatT: { value: rtFlat.texture },
+    uFlat: { value: 0 }, uShadow: { value: 0 }, uFade: { value: 1 }, uExpo: { value: +(Q.get('expo') || 0.75) },
+    res: { value: new THREE.Vector2(W, H) }, seed: { value: 0 }, uSquare: { value: 1 },
+  }, vertexShader: VS,
+  fragmentShader: `uniform sampler2D acc, sh, flatT; uniform float uFlat, uShadow, uFade, uExpo, seed, uSquare; uniform vec2 res; varying vec2 vUv;
+    vec3 acesF(vec3 color){
+      const mat3 i = mat3(0.59719,0.07600,0.02840, 0.35458,0.90834,0.13383, 0.04823,0.01566,0.83777);
+      const mat3 o = mat3(1.60475,-0.10208,-0.00327, -0.53108,1.10813,-0.07276, -0.07367,-0.00605,1.07602);
+      color *= uExpo; color = i*color; vec3 a = color*(color+0.0245786)-0.000090537; vec3 b = color*(0.983729*color+0.4329510)+0.238081; color = a/b; color = o*color; return clamp(color,0.,1.);
+    }
+    vec3 toS(vec3 c){ return mix(c*12.92, 1.055*pow(c, vec3(1./2.4))-0.055, step(0.0031308, c)); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + seed) * 43758.5453); }
+    void main(){
+      vec4 m = texture2D(acc, vUv);
+      float a = clamp(m.a, 0., 1.);
+      vec3 straight = a > 1e-5 ? m.rgb / m.a : vec3(0.);
+      vec3 col = toS(acesF(straight)) * a;
+      /* shadow, kept well inside the square crop so the film never shows a box */
+      vec2 q = (vUv - 0.5) * vec2(res.x/res.y, 1.0);
+      float mask = (1.0 - smoothstep(0.30, 0.47, abs(q.x))) * (1.0 - smoothstep(0.30, 0.47, abs(q.y)));
+      float s = texture2D(sh, vUv).r * uShadow * mask;
+      vec4 o = vec4(col, a + (1.0 - a) * s);
+      /* the flat logo (supersampled 2x, averaged by the bilinear tap at the 2x2 centre) */
+      vec4 f = texture2D(flatT, vUv);
+      o = mix(o, f, uFlat);
+      o *= uFade;
+      /* dither to 8 bits */
+      float d = (hash(gl_FragCoord.xy) + hash(gl_FragCoord.yx + 3.1) - 1.0) / 255.0;
+      o = clamp(o + vec4(d, d, d, d) * step(0.002, o.a), 0., 1.);
+      o.rgb = min(o.rgb, vec3(o.a));
+      gl_FragColor = o;
+    }`,
+  depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+});
+rtFlat.texture.minFilter = rtFlat.texture.magFilter = THREE.LinearFilter;
+const addScene = new THREE.Scene(); const addQuad = new THREE.Mesh(qGeo, addMat); addScene.add(addQuad);
+const shScene = new THREE.Scene(); shScene.add(new THREE.Mesh(qGeo, shMat));
+const outScene = new THREE.Scene(); outScene.add(new THREE.Mesh(qGeo, outMat));
+
+let frameNo = 0;
+window.renderAt = async (t, sub = 8, spp = 24, shutter = 0.5, fps = 60, emo = null, sspp = 16) => {
+  const t0 = performance.now();
+  gl.setRenderTarget(rtAcc); gl.setClearColor(0, 0); gl.clear();
+  for (let i = 0; i < sub; i++) {
+    const dt = sub > 1 ? ((i + 0.5) / sub - 0.5) * shutter / fps : 0;
+    if (emo != null) build(0, emo + (sub > 1 ? ((i + 0.5) / sub - 0.5) * shutter / fps / 2.0 : 0));
+    else build(Math.min(T_END, Math.max(0, t + dt)), null);
+    const tex = await trace(ptM, sceneM, spp);
+    addMat.uniforms.tex.value = tex; addMat.uniforms.k.value = 1 / sub;
+    gl.setRenderTarget(rtAcc); gl.autoClear = false; gl.render(addScene, quadCam); gl.autoClear = true;
+  }
+  if (emo != null) build(0, emo); else build(Math.min(T_END, t), null);
+  /* shadow */
+  if (look.shadow > 0.001 && emo == null) {
+    const tS = await trace(ptS, sceneS, sspp);
+    const tB = await trace(ptB, sceneB, Math.max(8, sspp >> 1));
+    shMat.uniforms.S.value = tS; shMat.uniforms.B.value = tB; shMat.uniforms.px.value.set(1 / (W * SH), 1 / (H * SH));
+    gl.setRenderTarget(rtShadow); gl.render(shScene, quadCam);
+  } else { gl.setRenderTarget(rtShadow); gl.setClearColor(0, 1); gl.clear(); gl.setClearColor(0, 0); }
+  /* flat logo */
+  if (look.flat > 0.001) { gl.setRenderTarget(rtFlat); gl.setClearColor(0, 0); gl.clear(); gl.render(sceneF, cam); }
+  else { gl.setRenderTarget(rtFlat); gl.setClearColor(0, 0); gl.clear(); }
+  const U = outMat.uniforms;
+  U.uFlat.value = look.flat; U.uShadow.value = look.shadow; U.uFade.value = look.fade; U.seed.value = (frameNo++ % 97) * 1.37;
+  gl.setRenderTarget(null); gl.setClearColor(0, 0); gl.clear(); gl.render(outScene, quadCam);
+  const url = canvas.toDataURL('image/png');
+  window.LAST_MS = performance.now() - t0;
+  return url;
+};
+window.READY = true;
+</script>
+</body></html>
