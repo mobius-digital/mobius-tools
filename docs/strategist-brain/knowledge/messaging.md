@@ -36,6 +36,23 @@ The one idea behind this file: **brands sell the solution to the external proble
 
 **The rest of Miller's script (SB7), for context:** the customer is the hero, never the brand. The brand is the GUIDE: empathy ("we get it") plus authority (proof, reviews, numbers). The guide gives a PLAN (three or four steps to buy or use, plus promises that remove fear: guarantee, free returns), a CALL TO ACTION (one direct, one softer), the STAKES (what it costs them to do nothing) and SUCCESS (what life looks like after). Underneath it all is the IDENTITY shift, from who they are to who they want to be ("from passive dog owner to every dog's hero").
 
+## 2b. What good sounds like (Cole, 2026-10-10: the first drafts read like generic AI copy)
+
+The layers are the customer's own thoughts, not ad lines. Say them the way the person would in their head, one short sentence each: "I have a pimple." "I'm embarrassed, I want to hide it." "You shouldn't have to hide your face." If a layer sounds like it belongs on a billboard, it is copy, not a layer.
+
+- **Internal = one moment, one feeling.** "Valentine's dinner in an hour, and I've got a green wrist and an itchy neck" beats "the frustration of jewelry that fails you". Take it from the quotes.
+- **Philosophical = a norm everyone puts up with that is wrong.** The Starface line works because the whole category told people to hide pimples. Find the "everyone says / everyone accepts" and reject it: "Brands sell you plated jewelry, then blame your care routine when it turns green." "Golf says mark your ball, then gives you nowhere to keep the marker." Test: would the customer say "yeah, that's BS"?
+- **A tagline is not a philosophical layer.** Slogan shapes to kill on sight: "your X should work as hard as your Y", "X shouldn't cost Y money", "you deserve better", "elevate your game". They sound like a point and say nothing.
+- **"None" is a good answer.** Plenty of products (a koozie, a polo, add-on markers) cannot back up a stance. Write "None" and lead with the feeling. A forced layer three is worse than none.
+
+Bad then good, from our own first drafts:
+| Bad (slogan) | Good (a belief the customer already has) |
+|---|---|
+| Your belt should work as hard as the rest of your bag. | Golf says mark your ball. It gives you nowhere to keep the marker. |
+| Jewelry that lasts shouldn't cost solid-gold money. | Brands sell you plated jewelry, then blame your care routine when it turns green. |
+| A weekend golfer shouldn't need a tour pro's practice time to trust a chip. | Everyone says your short game is your hands. Sometimes it's the 15-year-old wedge. |
+| One fun night shouldn't cost you the whole next day. | Getting older shouldn't mean giving up nights out. |
+
 ## 3. Layers and awareness: which one to lead with
 
 The layer decides what the ad is about. Awareness (Schwartz) decides how it opens. They work together; this mapping is our synthesis, not Miller's or Schwartz's:
@@ -86,10 +103,7 @@ For any ad, brief, email, page or script, answer in one line each:
 5. If there is a philosophical line, can this product carry it?
 6. Is a deeper layer an untested angle for this brand? If so, that is a gap worth naming (Gaps are findings).
 
-Golf illustrations (check against each brand's brain before using):
-- A wedge: external "I chunk chips"; internal "I dread the greenside chip with my group watching"; philosophical "a weekend golfer shouldn't need a tour pro's practice time to trust their short game".
-- A magnetic belt with ball marker: external "my marker and tees are buried in my pocket"; internal "I feel flustered and slow on the green while everyone waits"; philosophical "you shouldn't have to dig for your gear to play like you belong".
-- Bold golf apparel (Bad Birdie is the public example: villain "boring golf polos"): external "I need a polo"; internal "I don't want to look like every other guy at the club"; philosophical "golf shouldn't have to be stiff to be respected".
+Real examples for every active brand live in each brand's Brand > Research, The problem (approved by Cole). Read those, not made-up ones.
 
 ## Sources
 - Miller, Building a StoryBrand (2017; 2.0, 2025); notes: nateliason.com/notes/building-a-story-brand-donald-miller, grahammann.net/book-notes/building-a-storybrand-donald-miller, shortform.com/blog/types-of-problems
