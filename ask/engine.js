@@ -822,6 +822,7 @@ export function createAssistant(config) {
 
   async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null, effort = null) {
     let inTok = 0, outTok = 0, answer = '', sql = [], flags = {}, cost = 0, cacheRead = 0, cacheWrite = 0, steps = 0, stopped = false;
+    const lead = [];
     const t0 = Date.now();
     const step = async (s) => { steps++; if (ctx?.onStep) await ctx.onStep(s).catch(() => {}); };
     try {
@@ -847,7 +848,14 @@ export function createAssistant(config) {
         if (!calls.length) {
           answer = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
           if (!answer && reply.stop_reason === 'refusal') answer = 'I cannot help with that one.';
+          /* Text written in the same turn as proposals is the read those cards belong to; the last turn is often
+             only "the cards are below" (Monday review preview, 2026-10-10). Keep it in front of the answer. */
+          if (lead.length) answer = [...lead, answer].filter(Boolean).join('\n\n');
           break;
+        }
+        if (calls.every(c => actionByName[c.name])) {
+          const said = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
+          if (said.length > 80) lead.push(said);
         }
         messages.push({ role: 'assistant', content: reply.content });
         const results = [];
