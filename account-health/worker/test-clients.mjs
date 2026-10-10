@@ -229,6 +229,17 @@ await check('War Room live: a client may read its own brand Triple Whale day (ne
   assert.equal(Object.keys(rule.post(day(), { pl: false, changes: false }).map).length, 6, 'P&L on: the whole map');
 });
 
+await check('survey: a client reads its own brand\'s post-purchase survey card, never another brand\'s, and cannot change or forget it', async () => {
+  const own = await ah(CLIENT, 'GET', '/api/survey?act=brand_alpha');
+  assert.equal(own.status, 200, 'own brand'); assert.equal(own.j.error, 'not_linked');
+  assert.equal((await ah(CLIENT, 'GET', '/api/survey?act=brand_beta')).status, 403, 'another brand');
+  assert.equal((await ah(CLIENT, 'GET', '/api/survey?act=all')).status, 403, 'all');
+  assert.equal((await ah(CLIENT, 'PUT', '/api/survey', { act: 'brand_alpha', question_id: '1' })).status, 403, 'pin');
+  assert.equal((await ah(CLIENT, 'DELETE', '/api/survey?act=brand_alpha')).status, 403, 'forget');
+  assert.equal((await ah(CLIENT, 'PUT', '/api/brand-links', { act: 'brand_alpha', survey_key: 'x'.repeat(30) })).status, 403, 'paste a key');
+  assert.equal((await ah(OWNER, 'GET', '/api/survey?act=brand_beta')).status, 200, 'the owner reads any brand');
+});
+
 await check('ads: a client may open its own ad, never another brand\'s', async () => {
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-video?ad=9002&mode=preview')).status, 403);
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-breakdown?ad=9002&from=2026-09-01&to=2026-09-30')).status, 403);

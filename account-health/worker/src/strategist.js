@@ -1,4 +1,5 @@
 import { tiktokReport } from './tiktok.js';
+import { surveyReport } from './survey.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
 /**
@@ -259,10 +260,11 @@ WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhe
 - Never say Settings > Connections, Creative > Brand, Copy desk or Yesterday (it is Day check): those names are gone. Orders are PAID orders: $0 orders (product seeding) are not counted (raw counts: totalOrdersAll, newCustomersOrdersAll).
 
 THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of every platform and how they work together")
-- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
+- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, post-purchase-survey, cross-channel). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
+- Before cutting a channel that clicks under-credit (upper-funnel video, TikTok, YouTube, creators, podcasts), check the survey view when the brand has a post-purchase survey: what customers SAY is a reality check on Triple Whale, never a replacement for it (knowledge topic post-purchase-survey).
 
 READING AN ACCOUNT
 - Is the brand making money: blended (Triple Whale) first, MER and aMER against the plan. Then are the ads working: Meta-reported delivery (spend, CPM, CTR, hook, hold). Say which lens you are using.
@@ -389,6 +391,7 @@ const VIEW_BLURBS = {
   calendar: 'the marketing calendar (Locus Calendar): for every client or one `brand`, what is live now, every drop, sale, ad push and Black Friday phase in the next six weeks with its offer and its countdown (photos in, ads briefed, built, email scheduled, ads loaded: done, due or LATE, with the owner), Klaviyo sends in the next 14 days, and the brands with nothing planned. Read it before any promotion, launch or budget advice, and to explain a day that moved.',
   stock: 'the brand\'s stock, read live from Shopify through Supply (only brands with the Mobius Digital Shopify app; Lucky today). Pass `brand` and `what` = summary (ease off / safe to scale / push to clear for the ads, with ad spend per product from Triple Whale orders, plus to order and on the way on brands we buy for), products (every product), orders (factory orders and factories) or drops (new designs, keep or cut). THE view for "what is at risk for Black Friday", "can we scale X", "what should we order". Not connected = say so; never guess stock from sales.',
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
+  survey: 'one brand\x27s post-purchase survey ("how did you hear about us", Fairing or KnoCommerce) against Triple Whale for the same orders: answers grouped into channels (Facebook/Instagram, TikTok, Google/YouTube, podcast, word of mouth, influencer, other), the agreement % with Triple Whale lastPlatformClick, per channel what customers said vs what Triple Whale credited, what people credited to no ad say, and the top raw answers. Pass `brand`, optionally `days` or `from`/`to`. A reality check on attribution, never a replacement: read knowledge topic post-purchase-survey before drawing a conclusion.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -664,6 +667,11 @@ function buildViews(d) {
       const acct = await need(env, a); const w = winOf(a);
       const r = await tiktokReport(env, acct.act_id, w.from, w.to);
       return { brand: acct.name, from: w.from, to: w.to, ...r, how_to_read: r.error ? 'TikTok is not read directly for this brand yet (not connected or not linked); use the channels view (Triple Whale totals) and say so.' : 'TikTok\x27s own numbers: spend, impressions, clicks, CTR, CPM exact; purchases and ROAS are TikTok\x27s (include view-through), quote Triple Whale for results.' };
+    },
+    survey: async (env, a) => {
+      const acct = await need(env, a); const w = winOf(a);
+      const r = await surveyReport(env, acct.act_id, { from: w.from, to: w.to });
+      return { brand: acct.name, ...r, how_to_read: r.error === 'not_linked' ? 'No post-purchase survey is connected for this brand (Brand settings > Integrations > Post-purchase survey). Say so, and suggest Fairing if the brand runs upper-funnel video, podcasts or creators.' : `${r.how_to_read} ${VIEW_BLURBS.survey}` };
     },
     google_ads: async (env, a) => {
       const acct = await need(env, a); const w = winOf(a);

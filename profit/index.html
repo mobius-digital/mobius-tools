@@ -2314,6 +2314,7 @@
 <script src="supply.js?v=3"></script>
 <script src="askextra.js?v=2"></script>
 <script src="share.js?v=3"></script>
+<script src="survey.js?v=1"></script>
 <script src="polish.js?v=2" defer></script>
 <script>
 'use strict';
@@ -10712,9 +10713,13 @@ async function renderCustomers(first) {
     <div class="lx-t3">${tiles}</div>
     ${have ? `${ltvCurve(j, cur)}${cohortTable(j, cur)}<div class="v2two eq">${journeyCard(j, cur)}${sourcesCard(j)}</div>`
     : `<div class="card"><h3 style="margin-bottom:4px">What they spend over time, and what they buy</h3><p class="hint" style="margin:0">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'} Until then this page shows the first-order numbers only.</p></div>`}
+    <div id="cuSurvey"></div>
     <details class="footnote"><summary>Where these numbers come from, and what is approximate</summary>
       <div class="fn-body">The cost to get a customer and the first-order figures are Triple Whale store totals for the selected window. Spend over time, who orders again, how fast, and what they buy follow real customers through Triple Whale’s order history${have ? ` (${j.history.days} days on record, ${fmtN(j.customers)} customers; ${fmtN(j.guest_orders)} guest orders cannot be followed)` : ''}. People first seen in the first 60 days of that history may have bought before it starts, so they are left out of the averages. Products are what the shopper put in the cart, not the receipt. Connect Shopify (Settings) for exact order lines.</div></details>`);
   if (have) LX.wireChart('cuCurve');
+  /* Post-purchase survey vs Triple Whale (survey.js, 2026-10-10): loads on its own, never holds up the page. */
+  if (window.SurveyCard) { const rr = resolveRange(); window.SurveyCard.mount($('#cuSurvey'), { act: S.act, from: rr.from, to: rr.to, api: apiAH, esc, client: isClient(),
+    onConnect: () => { try { localStorage.setItem('pf_set_bsec', 'conn'); } catch {} SETMODE.set('brand'); show('settings'); } }); }
 }
 
 /* ---------- Settings ---------- */
@@ -11510,7 +11515,7 @@ async function renderSettings() {
       const save = drawer.querySelector('#cnSave');
       if (save) save.onclick = async () => {
         const v = drawer.querySelector('#cnLink').value.trim();
-        save.disabled = true; msg(inp.secret ? 'Checking with Klaviyo…' : 'Saving…');
+        save.disabled = true; msg(inp.secret ? `Checking with ${it.key === 'email' ? 'Klaviyo' : it.key === 'survey' ? (v.includes(':') ? 'KnoCommerce' : 'Fairing') : it.key === 'clarity' ? 'Clarity' : 'the service'}…` : 'Saving…');
         try {
           if (inp.key === 'tw_shop' && !it.input) { const vv = v.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); await mApi(`/api/accounts/${b.act_id}`, { method: 'PUT', body: JSON.stringify({ tw_shop: vv }) }); }
           else await saveLink(b, { [inp.key]: v });

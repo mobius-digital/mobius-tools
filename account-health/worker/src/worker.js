@@ -54,6 +54,7 @@ import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
 import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProject, forgetClarity } from './clarity.js';
+import { useFetch as surveyFetch, surveyReport, storeFairing, storeKno, forgetSurvey, setSurveyQuestion } from './survey.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
@@ -215,6 +216,7 @@ klaviyoFetch(xfetch);
 calendarFetch(xfetch);
 googleFetch(xfetch);
 clarityFetch(xfetch);
+surveyFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
 marketFetch(xfetch);
@@ -8114,6 +8116,23 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       } catch (e) { return json({ error: e.message }, e.status === 429 ? 429 : 400); }
       return json({ error: 'GET, PUT or DELETE' }, 405);
     }
+    /* Post-purchase survey (survey.js, 2026-10-10): Fairing or KnoCommerce answers vs Triple Whale for the same orders,
+       the "How customers say they found you" card on Store > Customers. GET = the report (syncs at most every 6 hours;
+       clients may read their own brand, CLIENT_RULES), PUT {act, question_id} = pin the question, DELETE ?provider= = forget. */
+    if (path === '/api/survey') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const only = await brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
+      const b = request.method === 'GET' || request.method === 'DELETE' ? {} : await request.json().catch(() => ({}));
+      const acct = await acctOf(env, String(url.searchParams.get('act') || b.act || ''));
+      if (!acct) return json({ error: 'act is required' }, 400);
+      if (only && !only.has(acct.act_id)) return json({ error: 'You do not have access to this brand.' }, 403);
+      try {
+        if (request.method === 'GET') return json(await surveyReport(env, acct.act_id, { from: url.searchParams.get('from'), to: url.searchParams.get('to'), fresh: url.searchParams.get('fresh') === '1' }));
+        if (request.method === 'PUT') return json(await setSurveyQuestion(env, acct.act_id, b.question_id));
+        if (request.method === 'DELETE') { await forgetSurvey(env, acct.act_id, ['fairing', 'knocommerce'].includes(url.searchParams.get('provider')) ? url.searchParams.get('provider') : null); return json({ ok: true }); }
+      } catch (e) { return json({ error: e.message }, 400); }
+      return json({ error: 'GET, PUT or DELETE' }, 405);
+    }
     /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
     if (path === '/api/brand-links' && request.method === 'PUT') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -8146,6 +8165,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.clarity_token !== undefined) {
         if (!String(b.clarity_token || '').trim()) await forgetClarity(env, acct.act_id);
         else { try { await storeClarity(env, acct.act_id, b.clarity_token); } catch (e) { return json({ error: e.message }, 400); } }
+      }
+      /* Post-purchase survey keys (survey.js): Fairing's secret token, KnoCommerce's client_id:client_secret; each checked by one real call, never echoed.
+         `survey_key` (the Integrations box) is either: a colon between two parts = KnoCommerce, else Fairing. */
+      if (b.survey_key !== undefined) { const v = String(b.survey_key || '').trim(); if (/^[^:\s]+:[^:\s]+$/.test(v)) b.kno_key = v; else b.fairing_key = v; }
+      for (const [k, store, prov] of [['fairing_key', storeFairing, 'fairing'], ['kno_key', storeKno, 'knocommerce']]) {
+        if (b[k] === undefined) continue;
+        if (!String(b[k] || '').trim()) await forgetSurvey(env, acct.act_id, prov);
+        else { try { await store(env, acct.act_id, b[k]); } catch (e) { return json({ error: e.message }, 400); } }
       }
       /* The Triple Whale shop domain, the same column Settings > Brands writes. */
       if (b.tw_shop !== undefined) {

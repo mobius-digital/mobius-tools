@@ -2721,3 +2721,14 @@ cadence cards were hard to read, and Overview vs Campaigns looked the same. All 
 - Server and rules: account-health/CLAUDE.md "2026-10-10: Launch to Meta". Creator assets: `open({act, asset: {image_url |
   video_id, handle, num}})` works, but no screen calls it yet. NOT tested live (the window was checked only against a
   mocked API in a local page).
+## 2026-10-10: post-purchase survey card on Store > Customers
+
+- `profit/survey.js` (`window.SurveyCard.mount(host, {act, from, to, api, esc, client, onConnect})`), loaded by a script
+  tag; `renderCustomers` (single brand) adds `<div id="cuSurvey">` above the footnote and mounts it after the page draws,
+  so it never holds the page up. Reads account-health `GET /api/survey` (see account-health/CLAUDE.md, same date).
+- Card "How customers say they found you": the agreement line (same channel on X% of orders both know, and on orders
+  Triple Whale credits to an ad), the biggest gap in words when 30+ orders match, paired bars (customer said vs Triple
+  Whale credited), a table (said, credited, both agree, all answers, plus Triple Whale-only rows such as no ad click),
+  the raw answers, a question picker (team only, when the survey asks more than one). Under 30 matched orders = warning.
+- Empty state: team gets "Connect Fairing or KnoCommerce" (opens Brand settings > Integrations); a client gets a plain
+  "ask your Mobius team". The Integrations save message now names the service it checks with (was always "Klaviyo").
