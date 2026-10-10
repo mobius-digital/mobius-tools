@@ -1467,3 +1467,28 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   read; PUT {act, project} sets the id for links; DELETE forgets. integrations.js has a per-brand "Microsoft Clarity"
   item (group Website). Tests: `node test-clarity.mjs` (8 offline checks, Clarity and Klaviyo mocked). NOT tested live:
   any Clarity call (no brand has a token yet), so the response field names come from Microsoft's docs and sample.
+
+## 2026-10-10: Launch to Meta (`src/launch.js`)
+
+- Closes the creative loop: an approved Studio ad (or a creator asset: image link or Meta video id + @handle) becomes a
+  Meta ad, PAUSED, in the right ad set, tied to its test. The ad is made by metawrite.js `meta_create_ad` (propose, then
+  apply, ctx.via 'locus'): one Meta write path with the Strategist and Ads > Meta (brand check, metaCan, adimages upload,
+  p_meta_write for undo, Change Log line as the person). `live` is never passed, so every launch is born PAUSED.
+- Naming: `<test> <letter> | <Format>` ("415 B | Still"), creator `<test> <letter> | @handle`. Letter = Studio line
+  (0 = A), moved to the next free letter when an ad with that number already uses it (Meta names + p_launch). No test
+  number = `<headline> | Still` with a warning. Preview/create refuse a name that does not start with the test number.
+- Ad set: the test's own ad set (numOf of the name = test number), else the newest live ad set in a campaign named
+  like "test", else the newest live one; the person can pick any non-archived set. Fields: primary text from the
+  Studio brief's post_copy, else the copy the set already runs; link = the set's landing page origin + /products/<handle>.
+- Routes (one block in worker.js, admin + brandsFor, team only): `POST /api/launch/prep | preview | create`,
+  `GET /api/launch/list?act=&refresh=1` (no act = every brand the person sees, for the test library chips).
+  Table `p_launch` (created on first use). create also writes `p_br_adtag` (ad -> p_br_batch). A second launch of the
+  same Studio ad into the same set is refused.
+- Judged -> learning filed: on every list, a launch whose test (p_br_batch) has verdict winner / loser / cancelled gets
+  the verdict + learning copied, and the angle's `note` gets one line `#415 Winner: <learning>` (once per test).
+  Launches made before the test reached the library link up by number on the next list.
+- metawrite.js: only exports added (`gget`, `gall`, `metaActs`), and `meta_create_ad` apply now also returns
+  `write`, `created`, `creative` (like duplicate does).
+- Tests: `node test-launch.mjs` (13 offline checks, Graph API mocked). NOT tested live: a real ad creation (the
+  adimages upload from the profit worker's Studio image URL, the creative spec, PAUSED status), the `ad.id IN` status
+  read, the ad set filter by effective_status. The first real launch is the test; it is paused, and undo archives it.
