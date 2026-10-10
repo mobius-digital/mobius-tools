@@ -1673,7 +1673,7 @@ export default {
      first (normalizeBrandIds), so the guard and every handler below see brand ids only. */
   async fetch(request, env, ctx) {
     const req = await normalizeBrandIds(request, env).catch(() => request);
-    return guardBrands(req, env, sessionEmail, () => this.handle(req, env, ctx), CORS);
+    return guardBrands(req, env, sessionEmail, r => this.handle(r || req, env, ctx), CORS);
   },
 
   async handle(request, env, ctx) {

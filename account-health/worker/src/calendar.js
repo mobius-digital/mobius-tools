@@ -342,11 +342,17 @@ export async function handleCalendar(request, env, url, path, json, isAdmin, ses
       return json({ history: results || [] });
     }
     const body = request.method === 'DELETE' ? {} : await request.json().catch(() => ({}));
+    /* The brand edition (2026-10-10): a client also removes and puts back its own brand's dates. Ticking the team's
+       work steps and making Asana tasks (Mobius's Asana) stay the team's. */
     if (cs) {
-      const allowed = ['/api/calendar/event', '/api/calendar/move', '/api/calendar/end', '/api/calendar/comment'];
-      if (request.method !== 'POST' || !allowed.includes(path)) return json({ error: 'Your login can add dates and notes, not this.' }, 403);
-      if (path === '/api/calendar/event' && (!body.act || !cs.ids.has(body.act))) return notYours();
-      if ((path !== '/api/calendar/event' || body.id) && !(await mine(body.id))) return notYours();
+      if (path === '/api/calendar/event' && request.method === 'DELETE') {
+        if (!(await mine(url.searchParams.get('id') || ''))) return notYours();
+      } else {
+        const allowed = ['/api/calendar/event', '/api/calendar/move', '/api/calendar/end', '/api/calendar/comment', '/api/calendar/restore'];
+        if (request.method !== 'POST' || !allowed.includes(path)) return json({ error: 'Ticking work steps and Asana tasks are for the Mobius team.' }, 403);
+        if (path === '/api/calendar/event' && (!body.act || !cs.ids.has(body.act))) return notYours();
+        if ((path !== '/api/calendar/event' || body.id) && !(await mine(body.id))) return notYours();
+      }
     }
     /* A note on a date (clients and the team): one changelog line, shown in the date's history. */
     if (path === '/api/calendar/comment' && request.method === 'POST') {

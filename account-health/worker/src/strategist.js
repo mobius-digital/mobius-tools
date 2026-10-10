@@ -1646,6 +1646,9 @@ export function buildStrategist(d) {
        and 4 on the hour). The brand brain stays on 5 minutes (one brand is rarely asked twice in an hour). */
     sameTools: true, toolSearch: true, cacheTtl: '1h',
     alwaysLoaded: ['read_app', 'make_report', 'locus_get', 'locus_routes', 'search_slack', 'read_thread', 'remember', 'recall', 'read_skill', 'meta_read', 'check_now'],
+    /* The brand edition (2026-10-10): a client's question runs here too, with only these tools (each reads Locus through
+       the client's own sign-in, so brandguard's allowlist and scrub apply) and the web. clients.js clientAsk. */
+    clientTools: ['locus_routes', 'locus_get', 'make_report', 'post_file'], clientServerTools: true,
     liveSteps: true, progressNotes: true, fallbacks: 'default', workingEmoji: ['mobius'],
     /* 12 turns x 4000 chars (was 16 x 6000 = up to 96k chars a question); the history comes AFTER the moving
        system blocks, so a new Slack message in the digest rewrites all of it on the next question. */

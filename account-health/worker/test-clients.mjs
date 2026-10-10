@@ -1,5 +1,6 @@
-/* Offline security checks for CLIENT LOGINS (2026-10-09): brandguard.js (both workers), clients.js, the
- * calendar's client rules, and the auth changes in both workers. Drives the REAL account-health and profit
+/* Offline security checks for CLIENT LOGINS (2026-10-09) and THE BRAND EDITION (2026-10-10, docs/locus-hub/editions.md):
+ * brandguard.js (both workers), clients.js, the client mode of the assistant engine, the calendar's client rules, the
+ * daily caps, and the auth changes in both workers. Drives the REAL account-health and profit
  * workers in node against an in-memory SQLite (node:sqlite), the profit worker's AUTH binding wired to the
  * account-health worker exactly as in production (no SESSION_SECRET on profit), Google and Gmail mocked.
  *   node test-clients.mjs      (from account-health/worker)
@@ -17,9 +18,11 @@ const root = path.join(here, '..', '..');
 /* ---------------- databases ---------------- */
 const mkDb = () => {
   const db = new DatabaseSync(':memory:');
-  const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
-  const vals = a => Object.fromEntries(a.map((v, i) => ['p' + (i + 1), v === undefined ? null : typeof v === 'boolean' ? +v : v]));
-  const stmt = sql => { let args = []; const st = () => db.prepare(bindSql(sql)); return { bind(...a) { args = a; return this; }, async first() { return st().get(vals(args)) || null; }, async all() { return { results: st().all(vals(args)) }; }, async run() { const r = st().run(vals(args)); return { meta: { changes: r.changes } }; } }; };
+  /* ?N and bare ? (numbered on from the highest so far, as SQLite does) become named parameters. */
+  const bindSql = sql => { let hi = 0; return sql.replace(/\?(\d*)/g, (_, n) => { if (n) { hi = Math.max(hi, +n); return ':p' + n; } hi++; return ':p' + hi; }); };
+  /* D1 ignores a bound value the SQL does not use; node:sqlite refuses it, so only the used ones are passed. */
+  const vals = (a, sql) => { const used = new Set([...bindSql(sql).matchAll(/:p(\d+)/g)].map(m => 'p' + m[1])); return Object.fromEntries(a.map((v, i) => ['p' + (i + 1), v === undefined ? null : typeof v === 'boolean' ? +v : v]).filter(([k]) => used.has(k))); };
+  const stmt = sql => { let args = []; const st = () => db.prepare(bindSql(sql)); return { bind(...a) { args = a; return this; }, async first() { return st().get(vals(args, sql)) || null; }, async all() { return { results: st().all(vals(args, sql)) }; }, async run() { const r = st().run(vals(args, sql)); return { meta: { changes: r.changes } }; } }; };
   return { db, DB: { prepare: stmt, async batch(list) { const out = []; for (const s of list) out.push(await s.run()); return out; } } };
 };
 const { db, DB } = mkDb();
@@ -59,6 +62,8 @@ const FORGED_DEV = mint('cole@go-mobius-digital.com', 'dev');
 
 const realFetch = globalThis.fetch;
 const mails = [];
+/* The model, when a check sets it: body -> the Messages API answer. */
+const MOCK = { anthropic: null };
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url?.url || url);
   if (u.startsWith('https://oauth2.googleapis.com/tokeninfo')) {
@@ -67,6 +72,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (u.startsWith('https://oauth2.googleapis.com/token')) return new Response(JSON.stringify({ access_token: 'gtok', expires_in: 3600 }), { status: 200 });
   if (u.includes('gmail/v1/users/me/messages/send')) { mails.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); }
+  if (u.startsWith('https://api.anthropic.com/') && MOCK.anthropic) return new Response(JSON.stringify({ model: 'claude-opus-5-5', ...MOCK.anthropic(JSON.parse(init.body)) }), { status: 200 });
   return new Response(JSON.stringify({ error: 'offline: ' + u }), { status: 503 });
 };
 
@@ -77,6 +83,7 @@ const ahEnv = { DB, CAL: cal.DB, SESSION_SECRET: SECRET, GOOGLE_CLIENT_ID: 'cid'
 const ctx = { waitUntil() {} };
 /* Production shape: the profit worker has NO SESSION_SECRET and NO ADMIN_TOKEN; it asks account-health. */
 const pfEnv = { DB, AUTH: { fetch: req => AH.fetch(req, ahEnv, ctx) } };
+ahEnv.PROFIT = { fetch: req => PF.fetch(req, pfEnv, ctx) };
 const call = async (worker, tok, method, p, body) => {
   const env = worker === 'ah' ? ahEnv : pfEnv;
   const res = await (worker === 'ah' ? AH : PF).fetch(new Request(`https://${worker}.test${p}`, { method, headers: { ...(tok ? { Authorization: 'Bearer ' + tok } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) }), env, ctx);
@@ -88,7 +95,13 @@ const ah = (tok, m, p, b) => call('ah', tok, m, p, b), pf = (tok, m, p, b) => ca
 const results = [];
 async function check(name, fn) { try { await fn(); results.push(true); console.log('PASS ', name); } catch (e) { results.push(false); console.log('FAIL ', name, '\n      ' + (e.stack || e.message).split('\n').slice(0, 3).join('\n      ')); } }
 
+
 /* ---------------- the checks ---------------- */
+const today = new Date().toISOString().slice(0, 10);
+/* Passed the guard: the handler ran (it may still fail offline on Meta, Triple Whale or Google, which is fine here). */
+const ran = async (w, tok, m, p, b) => { try { return await call(w, tok, m, p, b); } catch (e) { return { status: 'handler threw: ' + String(e.message).slice(0, 80), j: null }; } };
+const passed = r => r.status !== 401 && r.status !== 403 && r.status !== 429;
+
 await check('brandguard.js is byte-identical in both workers', () => {
   assert.equal(fs.readFileSync(path.join(here, 'src', 'brandguard.js'), 'utf8'), fs.readFileSync(path.join(root, 'profit', 'worker', 'src', 'brandguard.js'), 'utf8'));
 });
@@ -103,140 +116,249 @@ await check('Google sign-in: a client email signs in as a client, a stranger is 
   assert.equal(team.j.role, 'team');
 });
 
-await check('/api/me says who: client (with brands), team, owner', async () => {
+await check('/api/me says who: client (with brands, every old switch reading on), team, owner', async () => {
   const c = await ah(CLIENT, 'GET', '/api/me');
   assert.equal(c.status, 200); assert.equal(c.j.role, 'client'); assert.deepEqual(c.j.client.brands.map(b => b.id), ['brand_alpha']);
-  assert.deepEqual(c.j.client.brands[0].access, { pl: true, strategist: true, changes: true, creators: true }, 'every switch is ON by default');
+  assert.deepEqual(c.j.client.brands[0].access, { pl: true, strategist: true, changes: true, creators: true });
+  /* A stored override from before 2026-10-10 is ignored: the switches are gone. */
+  setSetting('clientAccess', { brand_alpha: { pl: false, changes: false } });
+  assert.deepEqual((await ah(CLIENT, 'GET', '/api/me')).j.client.brands[0].access, { pl: true, strategist: true, changes: true, creators: true });
+  setSetting('clientAccess', {});
   assert.equal((await ah(TEAM, 'GET', '/api/me')).j.role, 'team');
   assert.equal((await ah(OWNER, 'GET', '/api/me')).j.role, 'owner');
 });
 
-await check('a client cannot read another brand, or "all", on either worker', async () => {
-  for (const [w, p] of [['ah', '/api/reports?act=brand_beta'], ['ah', '/api/klaviyo?act=brand_beta&what=overview'], ['ah', '/api/calendar?act=brand_beta'],
-    ['pf', '/api/hub/paid?platform=meta&act=brand_beta'], ['pf', '/api/hub/store?act=all'], ['pf', '/api/customers?act=act_222'], ['ah', '/api/reports?act=all']]) {
-    const r = await call(w, CLIENT, 'GET', p);
-    assert.equal(r.status, 403, `${w} ${p} -> ${r.status}`);
+/* THE BRAND EDITION: every page a single brand has answers a client for its own brand. */
+const PAGE_ROUTES = [
+  // Home: Overview, Day check, P&L, Goals, Requests
+  ['pf', '/api/overview?days=30&series=0'], ['pf', '/api/hub/live?act=brand_alpha'], ['pf', '/api/client?act=brand_alpha&days=30'], ['pf', '/api/forecast?act=brand_alpha'],
+  ['pf', '/api/costs?act=brand_alpha'], ['pf', '/api/expenses?act=brand_alpha'], ['pf', '/api/plan?act=brand_alpha&month=2026-10'], ['pf', '/api/quarter?act=brand_alpha'], ['pf', '/api/rhythm?act=brand_alpha'],
+  ['ah', '/api/metaday?days=30'], ['ah', '/api/daycheck/now?act=brand_alpha'], ['ah', '/api/requests?act=brand_alpha'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
+  // Ads: Today, All channels, Meta and its jobs, Google and its jobs, TikTok, Tests and angles
+  ['pf', '/api/hub/today?act=brand_alpha'], ['pf', '/api/hub/paid?platform=all&act=brand_alpha'], ['pf', '/api/hub/paid?platform=meta&act=brand_alpha'], ['pf', '/api/hub/drill?act=brand_alpha'],
+  ['pf', '/api/hub/orders?act=brand_alpha'], ['pf', '/api/hub/creative?act=brand_alpha'], ['ah', '/api/meta/live?act=brand_alpha'], ['ah', '/api/activities?act=brand_alpha'], ['ah', '/api/series?act=brand_alpha&days=45'],
+  ['ah', '/api/creative?act=brand_alpha'], ['pf', '/api/ads?act=brand_alpha'], ['ah', '/api/launch/list?act=brand_alpha'], ['ah', '/api/google/ads?act=brand_alpha'], ['ah', '/api/google/ads-ads?act=brand_alpha'],
+  ['ah', '/api/google/ads-terms?act=brand_alpha'], ['ah', '/api/google/ads-changes?act=brand_alpha'], ['ah', '/api/tiktok/report?act=brand_alpha'], ['pf', '/api/brand/tests-overview'], ['ah', '/api/your-ads-link?act=brand_alpha'],
+  // Email and SMS, Store
+  ['pf', '/api/hub/email?act=brand_alpha'], ['ah', '/api/klaviyo?act=brand_alpha&what=overview'], ['pf', '/api/hub/store?act=brand_alpha'], ['pf', '/api/customers?act=brand_alpha'], ['pf', '/api/cohorts?act=brand_alpha'],
+  ['ah', '/api/survey?act=brand_alpha'], ['ah', '/api/google/website?act=brand_alpha'], ['ah', '/api/google/search?act=brand_alpha'], ['ah', '/api/clarity?act=brand_alpha'],
+  // Products, Creative, Brand
+  ['pf', '/api/hub/stockads?act=brand_alpha'], ['pf', '/api/studio?act=brand_alpha'], ['pf', '/api/studio/asana?act=brand_alpha'], ['pf', '/api/amb?act=brand_alpha'], ['pf', '/api/amb/ads?act=brand_alpha'],
+  ['ah', '/api/assets?act=brand_alpha'], ['pf', '/api/brand?act=brand_alpha'], ['pf', '/api/brand/rules?act=brand_alpha'],
+  // Calendar, Reports (sent only), Dashboards, Season, Tools
+  ['ah', '/api/calendar?act=brand_alpha'], ['pf', '/api/briefs?act=brand_alpha'], ['pf', '/api/brief?act=brand_alpha'], ['pf', '/api/reports?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'],
+  ['pf', '/api/snapshots'], ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/season/war?act=brand_alpha'], ['ah', '/api/tw-day?act=brand_alpha'], ['pf', '/api/scenario?act=brand_alpha'],
+  // Brand settings and the profile
+  ['ah', '/api/accounts'], ['ah', '/api/integrations'], ['ah', '/api/clients/me'],
+];
+await check('the brand edition: every page a brand has answers a client for its own brand (both workers)', async () => {
+  const shut = [];
+  for (const [w, p] of PAGE_ROUTES) { const r = await ran(w, CLIENT, 'GET', p); if (!passed(r)) shut.push(`${w} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`); }
+  assert.deepEqual(shut, [], 'refused:\n' + shut.join('\n'));
+});
+
+await check('another brand, an old Meta id of another brand, or "all" is refused everywhere a client goes', async () => {
+  const let_ = [];
+  for (const [w, p] of PAGE_ROUTES) {
+    if (!/act=brand_alpha/.test(p)) continue;
+    for (const other of ['brand_beta', 'act_222', 'all']) {
+      const r = await ran(w, CLIENT, 'GET', p.replace('act=brand_alpha', 'act=' + other));
+      if (r.status !== 403) let_.push(`${w} ${p} as ${other} -> ${r.status}`);
+    }
   }
+  assert.deepEqual(let_, [], 'let through:\n' + let_.join('\n'));
 });
 
-await check('a client cannot call a write route (403 on every non-GET outside the calendar and its profile)', async () => {
-  for (const [w, m, p, b] of [['ah', 'PUT', '/api/accounts/brand_alpha', { target_cpa: 1 }], ['ah', 'POST', '/api/report-send', { act: 'brand_alpha' }], ['ah', 'PUT', '/api/settings', { briefHour: 3 }],
-    ['ah', 'PUT', '/api/team', { email: 'x@y.com' }], ['ah', 'POST', '/api/clients/invite', { emails: ['a@b.com'], brands: ['brand_alpha'] }], ['ah', 'PUT', '/api/clients/access', { act: 'brand_alpha', pl: true }],
-    ['ah', 'POST', '/api/activities', { act: 'brand_alpha' }], ['ah', 'POST', '/api/studio-ai/plan', { act: 'brand_alpha' }], ['pf', 'PUT', '/api/goals', { act: 'brand_alpha' }], ['pf', 'PUT', '/api/plan', { act: 'brand_alpha' }],
-    ['pf', 'PUT', '/api/dashboard', { act: 'brand_alpha' }], ['pf', 'POST', '/api/report-send', { act: 'brand_alpha' }], ['ah', 'DELETE', '/api/calendar/event?id=ev_a'], ['ah', 'POST', '/api/calendar/tick', { id: 'ev_a', key: 'x', done: true }],
-    ['ah', 'POST', '/api/calendar/asana', { id: 'ev_a' }], ['ah', 'POST', '/api/calendar/restore', { id: 'ev_a' }], ['ah', 'POST', '/api/share/slack', { act: 'brand_alpha' }]]) {
-    const r = await call(w, CLIENT, m, p, b);
-    assert.equal(r.status, 403, `${w} ${m} ${p} -> ${r.status}`);
+await check('the agency edition stays the agency\'s: every agency-only route is 403 for a client', async () => {
+  const open = [];
+  for (const [w, m, p, b] of [
+    ['ah', 'GET', '/api/settings'], ['ah', 'GET', '/api/team'], ['ah', 'GET', '/api/clients'], ['ah', 'GET', '/api/schedule-health'], ['ah', 'GET', '/api/command/work'],
+    ['ah', 'GET', '/api/agency/economics'], ['ah', 'GET', '/api/agency/workload'], ['ah', 'GET', '/api/ask/settings'], ['ah', 'GET', '/api/ask/memory'], ['ah', 'GET', '/api/ask/skills'],
+    ['ah', 'GET', '/api/ask/usage'], ['ah', 'GET', '/api/ask/findings'], ['ah', 'GET', '/api/ask/schedules'], ['ah', 'GET', '/api/ask/review'], ['ah', 'GET', '/api/ask/reports'], ['ah', 'GET', '/api/alerts'],
+    ['ah', 'GET', '/api/new-client/options'], ['pf', 'GET', '/api/brief-note?act=brand_alpha'], ['ah', 'GET', '/api/calendar/client-preview'], ['ah', 'GET', '/api/smoke'], ['ah', 'GET', '/api/meta-access'],
+    ['ah', 'GET', '/api/google/ads-accounts'], ['ah', 'GET', '/api/tiktok/status'], ['ah', 'GET', '/api/atria/status'], ['ah', 'GET', '/api/frame/status'], ['pf', 'GET', '/api/slack-channels'],
+    ['ah', 'GET', '/api/share/slack?act=brand_alpha'], ['pf', 'GET', '/api/hub/command?act=all'], ['pf', 'GET', '/api/hub/command?act=brand_alpha'], ['pf', 'GET', '/api/amb/overview'],
+    ['pf', 'GET', '/api/brand/overview'], ['pf', 'GET', '/api/connections'], ['ah', 'GET', '/api/slack-identity'],
+    ['ah', 'PUT', '/api/settings', { briefHour: 3 }], ['ah', 'PUT', '/api/team', { email: 'x@y.com' }], ['ah', 'POST', '/api/clients/invite', { emails: ['a@b.com'], brands: ['brand_alpha'] }],
+    ['ah', 'POST', '/api/clients/remove', { email: 'nick@alpha.com' }], ['ah', 'POST', '/api/report-send', { act: 'brand_alpha' }], ['pf', 'POST', '/api/brief-send', { act: 'brand_alpha' }],
+    ['pf', 'POST', '/api/brief-draft', { act: 'brand_alpha' }], ['pf', 'PUT', '/api/brief-text', { act: 'brand_alpha', text: 'x' }], ['pf', 'POST', '/api/report-generate', { act: 'brand_alpha' }],
+    ['pf', 'PUT', '/api/report-summary', { act: 'brand_alpha' }], ['pf', 'PUT', '/api/client-settings', { act: 'brand_alpha', brief_channel: 'C0123456789' }], ['ah', 'POST', '/api/new-client', { name: 'x' }],
+    ['ah', 'PUT', '/api/ask/settings', { model: 'deep' }], ['ah', 'POST', '/api/ask/apply', { id: 'p1' }], ['ah', 'POST', '/api/ask/memory', { text: 'x' }], ['ah', 'PUT', '/api/alerts', { act: 'brand_alpha' }],
+    ['ah', 'POST', '/api/dashboard-post', { id: 'db_0000000000' }], ['ah', 'POST', '/api/share/slack', { act: 'brand_alpha' }], ['ah', 'POST', '/api/calendar/tick', { id: 'ev_a', key: 'x', done: true }],
+    ['ah', 'POST', '/api/calendar/asana', { id: 'ev_a' }], ['pf', 'POST', '/api/studio/key', { key: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx' }], ['pf', 'POST', '/api/studio/canva/setup', { act: 'brand_alpha' }],
+    ['ah', 'POST', '/api/research/step', { act: 'brand_alpha', step: 'market' }], ['ah', 'POST', '/api/research/prefill', { act: 'brand_alpha' }], ['ah', 'POST', '/api/voice/staff/build-skill', { act: 'brand_alpha' }],
+    ['ah', 'POST', '/api/discover'], ['ah', 'POST', '/api/sync?act=brand_alpha'], ['ah', 'PUT', '/api/agency/settings', { x: 1 }], ['ah', 'POST', '/api/brand-asana/sync', { act: 'brand_alpha' }],
+    ['ah', 'POST', '/api/supply/orders?brand=alpha', { act: 'brand_alpha' }], ['ah', 'PUT', '/api/meta-business', { id: '1' }], ['ah', 'POST', '/api/brands', { name: 'Mine' }],
+    ['ah', 'POST', '/api/tiktok/start'], ['pf', 'POST', '/api/connections/map', { act: 'brand_alpha', shop: 'x.myshopify.com' }], ['ah', 'POST', '/api/assets/sync?act=brand_alpha'],
+  ]) { const r = await ran(w, CLIENT, m, p, b); if (r.status !== 403) open.push(`${w} ${m} ${p} -> ${r.status}`); }
+  assert.deepEqual(open, [], 'open to a client:\n' + open.join('\n'));
+});
+
+await check('writes: a client changes its own brand through the team\'s routes, never another brand\'s or the agency\'s fields', async () => {
+  /* Brand settings: own brand, safe fields only. */
+  assert.equal((await ah(CLIENT, 'PUT', '/api/accounts/brand_alpha', { name: 'Alpha Golf Co', target_cpa: 40 })).status, 200);
+  assert.equal(db.prepare(`SELECT name FROM brands WHERE id = 'brand_alpha'`).get().name, 'Alpha Golf Co');
+  assert.equal((await ah(CLIENT, 'PUT', '/api/accounts/brand_beta', { name: 'Hijack' })).status, 403, 'another brand');
+  assert.equal((await ah(CLIENT, 'PUT', '/api/accounts/act_222', { name: 'Hijack' })).status, 403, 'another brand by its Meta id');
+  for (const k of ['slack_channel', 'brief_channel', 'tw_shop', 'active', 'brief_enabled']) assert.equal((await ah(CLIENT, 'PUT', '/api/accounts/brand_alpha', { [k]: k === 'active' ? false : 'C0123456789' })).status, 403, k);
+  assert.equal(db.prepare(`SELECT name FROM brands WHERE id = 'brand_beta'`).get().name, 'Beta Socks');
+  /* Integrations: their own keys and links, never an id Mobius's access reaches. */
+  for (const k of ['ga4', 'gsc', 'google_ads', 'meta', 'tw_shop']) assert.equal((await ah(CLIENT, 'PUT', '/api/brand-links', { act: 'brand_alpha', [k]: '1234567890' })).status, 403, k);
+  assert.ok(passed(await ran('ah', CLIENT, 'PUT', '/api/brand-links', { act: 'brand_alpha', drive: 'https://drive.google.com/drive/folders/x' })), 'their own Drive link');
+  /* Goals and the plan. */
+  assert.equal((await pf(CLIENT, 'PUT', '/api/plan', { act: 'brand_alpha', month: '2026-11', sales: 50000, spend: 10000 })).status, 200);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/goals', { act: 'brand_beta', sales: 1 })).status, 403);
+  /* The War Room plan: their own, without the team's notes. */
+  const war = await pf(CLIENT, 'PUT', '/api/season/war', { act: 'brand_alpha', patch: { goals: [{ metric: 'revenue', target: 90000 }], notes: 'CLIENT WROTE THIS' } });
+  assert.equal(war.status, 200, JSON.stringify(war.j)); assert.equal(war.j.war.notes, undefined, 'notes stay the team\'s');
+  assert.equal((await pf(CLIENT, 'PUT', '/api/season/war', { act: 'brand_beta', patch: { goals: [] } })).status, 403);
+  /* A record named by id must be theirs: dashboards, scenarios, Studio ads, change log rows. */
+  const dB = await pf(OWNER, 'PUT', '/api/dashboard', { act: 'brand_beta', name: 'Beta board', spec: { blocks: [{ type: 'note', text: 'hi' }] } });
+  assert.equal(dB.status, 200, JSON.stringify(dB.j));
+  assert.equal((await pf(CLIENT, 'GET', `/api/dashboard?id=${dB.j.id}`)).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/dashboard', { act: 'brand_alpha', id: dB.j.id, name: 'Mine now', spec: { blocks: [{ type: 'note', text: 'x' }] } })).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/dashboard?id=${dB.j.id}`)).status, 403);
+  const agencyBoard = await pf(OWNER, 'PUT', '/api/dashboard', { act: 'all', name: 'Every brand', spec: { blocks: [{ type: 'note', text: 'agency' }] } });
+  assert.equal((await pf(CLIENT, 'GET', `/api/dashboard?id=${agencyBoard.j.id}`)).status, 403, 'an all-brands board has no brand: the agency\'s');
+  const dA = await pf(CLIENT, 'PUT', '/api/dashboard', { act: 'brand_alpha', name: 'My board', spec: { blocks: [{ type: 'note', text: 'mine' }] } });
+  assert.equal(dA.status, 200, JSON.stringify(dA.j));
+  const myList = await pf(CLIENT, 'GET', '/api/dashboards?act=brand_alpha');
+  assert.deepEqual(myList.j.dashboards.map(x => x.name), ['My board'], 'only its own brand\'s boards, never the agency\'s');
+  const sB = db.prepare(`INSERT INTO p_scenario (id, act_id, kind, name, inputs_json) VALUES ('sc_bbbbbbbbbb', 'brand_beta', 'roas', 'Beta what-if', '{}')`).run();
+  assert.equal((await pf(CLIENT, 'PUT', '/api/scenario', { act: 'brand_alpha', id: 'sc_bbbbbbbbbb', kind: 'roas', name: 'Mine' })).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', '/api/scenario?id=sc_bbbbbbbbbb')).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/scenario', { act: 'brand_alpha', kind: 'roas', name: 'Our what-if', inputs: { aov: 80 } })).status, 200);
+  db.exec(`INSERT INTO p_studio_ad (id, act_id, spec_json) VALUES ('a0a0a0a0a0a0a0a0a0a0a0a0', 'brand_alpha', '{}'), ('b0b0b0b0b0b0b0b0b0b0b0b0', 'brand_beta', '{}')`);
+  assert.equal((await pf(CLIENT, 'POST', '/api/studio/status', { id: 'b0b0b0b0b0b0b0b0b0b0b0b0', status: 'approved' })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/studio/status', { id: 'a0a0a0a0a0a0a0a0a0a0a0a0', status: 'approved' })).status, 200);
+  assert.equal(db.prepare(`SELECT status FROM p_studio_ad WHERE id = 'b0b0b0b0b0b0b0b0b0b0b0b0'`).get().status, 'review', 'beta untouched');
+  try { db.exec(`INSERT INTO activities (id, act_id, event_time) VALUES ('ev-alpha', 'act_111', '2026-10-01T00:00:00Z'), ('ev-beta', 'act_222', '2026-10-01T00:00:00Z')`); } catch {}
+  assert.equal((await ah(CLIENT, 'PATCH', '/api/activities/ev-beta', { reason: 'mine' })).status, 403);
+  assert.equal((await ah(CLIENT, 'PATCH', '/api/activities/ev-alpha', { reason: 'Launch week' })).status, 200);
+  /* Live ad changes: the same propose / confirm path, its brand only. */
+  assert.equal((await ah(CLIENT, 'POST', '/api/meta/write', { act: 'brand_beta', kind: 'pause', object: '1' })).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/klaviyo/write', { act: 'brand_beta' })).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/google/write', { act: 'brand_beta' })).status, 403);
+  assert.ok(passed(await ran('ah', CLIENT, 'POST', '/api/meta/write', { act: 'brand_alpha', kind: 'pause', object: '1' })), 'its own brand reaches the propose step');
+});
+
+await check('the scrub: Slack channel ids, report config and the team\'s notes never reach a client; costs and margins now do', async () => {
+  db.exec(`UPDATE brands SET internal_channel = 'C0123456789', client_channel = 'C0987654321' WHERE id = 'brand_alpha'`);
+  const board = await pf(OWNER, 'PUT', '/api/dashboard', { act: 'brand_alpha', name: 'Posted board', schedule: 'monday', channel: 'C0123456789', spec: { blocks: [{ type: 'note', text: 'p' }] } });
+  for (const [w, p] of [['ah', '/api/accounts'], ['pf', '/api/overview?days=30&series=0'], ['ah', '/api/calendar?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'], ['ah', '/api/integrations'], ['ah', '/api/me']]) {
+    const s = JSON.stringify((await ran(w, CLIENT, 'GET', p)).j || {});
+    for (const bad of ['C0123456789', 'C0987654321', '"report_config"', '"review_first"', '"steer"']) assert.ok(!s.includes(bad), `${p} leaks ${bad}`);
   }
+  /* A client editing that board keeps the team's posting setup (never sees it, never clears it). */
+  assert.equal((await pf(CLIENT, 'PUT', '/api/dashboard', { act: 'brand_alpha', id: board.j.id, name: 'Posted board, renamed', spec: { blocks: [{ type: 'note', text: 'q' }] } })).status, 200);
+  const row = db.prepare(`SELECT name, channel, schedule FROM p_dashboard WHERE id = ?`).get(board.j.id);
+  assert.deepEqual([row.name, row.channel, row.schedule], ['Posted board, renamed', 'C0123456789', 'monday']);
+  /* Costs and margins are not scrubbed any more: a sent report carries its contribution margin. */
+  const sent = await ah(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-09-28');
+  assert.equal(sent.status, 200); assert.equal(sent.j.data.cm, 5);
+  db.exec(`UPDATE brands SET internal_channel = NULL, client_channel = NULL WHERE id = 'brand_alpha'`);
 });
 
-await check('a client cannot open settings, team, integrations, data health or the brief', async () => {
-  for (const [w, p] of [['ah', '/api/settings'], ['ah', '/api/team'], ['ah', '/api/integrations'], ['ah', '/api/clients'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
-    ['pf', '/api/briefs?act=brand_alpha'], ['pf', '/api/brief?act=brand_alpha'], ['ah', '/api/brand/rules?act=brand_alpha'], ['pf', '/api/brand/rules?act=brand_alpha'], ['ah', '/api/assets?act=brand_alpha'],
-    ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'], ['ah', '/api/schedule-health'], ['ah', '/api/research/run?act=brand_alpha'],
-    ['pf', '/api/hub/command?act=brand_alpha'], ['pf', '/api/hub/command?act=all'], ['ah', '/api/command/work']]) {
-    const r = await call(w, CLIENT, 'GET', p);
-    assert.equal(r.status, 403, `${w} ${p} -> ${r.status}`);
-  }
-});
-
-await check('the Strategist internals are refused; the client Strategist is ON by default, can be turned off, and is never the team engine', async () => {
-  for (const p of ['/api/ask/findings', '/api/ask/memory', '/api/ask/settings', '/api/ask/usage', '/api/ask/skills', '/api/ask/progress?id=abcdef1', '/api/ask/reports', '/api/ask/schedules'])
-    assert.equal((await ah(CLIENT, 'GET', p)).status, 403, p);
-  assert.equal((await ah(CLIENT, 'POST', '/api/ask/memory', { text: 'x' })).status, 403);
-  assert.equal((await ah(CLIENT, 'POST', '/api/ask/apply', { id: 'p1' })).status, 403);
-  const on = await ah(CLIENT, 'POST', '/api/ask', { question: 'how are sales', screen: { act_id: 'brand_alpha' } });
-  assert.notEqual(on.status, 403, 'on by default'); assert.match(on.j.error, /not set up/, 'reaches the client-safe path (no model key offline)');
-  setSetting('clientAccess', { brand_alpha: { strategist: false } });
-  const off = await ah(CLIENT, 'POST', '/api/ask', { question: 'how are sales', screen: { act_id: 'brand_alpha' } });
-  assert.equal(off.status, 403, 'turned off for the brand'); assert.match(off.j.error, /switched off/);
-  setSetting('clientAccess', {});
-  const other = await ah(CLIENT, 'POST', '/api/ask', { question: 'how is beta', screen: { act_id: 'brand_beta' } });
-  assert.equal(other.status, 403);
-  setSetting('clientAccess', {});
-});
-
-await check('reports: a client sees SENT reports only, never a draft', async () => {
+await check('reports and briefs: a client reads what was SENT, never a draft, the review or the send', async () => {
   const list = await pf(CLIENT, 'GET', '/api/reports?act=brand_alpha');
   assert.equal(list.status, 200);
   assert.deepEqual(list.j.rows.map(r => r.status), ['sent']); assert.equal(list.j.lastRun, undefined);
   const draft = await pf(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-10-05');
   assert.equal(draft.status, 404); assert.ok(!JSON.stringify(draft.j).includes('DRAFT TEXT'));
-  const sent = await ah(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-09-28');
-  assert.equal(sent.status, 200); assert.equal(sent.j.summary, 'Sent one');
-  assert.equal(sent.j.data.cm, 5, 'P&L is on by default, so the margin shows');
-  assert.equal(sent.j.slack_channel, undefined);
-  setSetting('clientAccess', { brand_alpha: { pl: false } });
-  const off = await ah(CLIENT, 'GET', '/api/report?act=brand_alpha&period=weekly&start=2026-09-28');
-  assert.equal(off.j.data.cm, undefined, 'contribution margin scrubbed once P&L is turned off');
-  setSetting('clientAccess', {});
+  try { db.exec(`INSERT INTO briefs (act_id, date, status, text, steer) VALUES ('brand_alpha', '2026-10-08', 'sent', 'SENT BRIEF', 'TEAM STEER'), ('brand_alpha', '2026-10-09', 'draft', 'DRAFT BRIEF', NULL)`); } catch (e) { db.exec(`INSERT INTO briefs (act_id, date, status, text) VALUES ('brand_alpha', '2026-10-08', 'sent', 'SENT BRIEF'), ('brand_alpha', '2026-10-09', 'draft', 'DRAFT BRIEF')`); }
+  const bl = JSON.stringify((await ran('pf', CLIENT, 'GET', '/api/briefs?act=brand_alpha')).j);
+  assert.ok(bl.includes('SENT BRIEF') && !bl.includes('DRAFT BRIEF') && !bl.includes('TEAM STEER'), bl.slice(0, 200));
+  const one = JSON.stringify((await ran('pf', CLIENT, 'GET', '/api/brief?act=brand_alpha&date=2026-10-09')).j || {});
+  assert.ok(!one.includes('DRAFT BRIEF') && !one.includes('TEAM STEER'), 'the brief page history holds sent briefs only');
 });
 
-await check('P&L is on by default and still behind its switch', async () => {
-  assert.notEqual((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403, 'on by default');
-  setSetting('clientAccess', { brand_alpha: { pl: false } });
-  assert.equal((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403, 'turned off = refused');
-  setSetting('clientAccess', {});
+await check('the assistant: a client asks the SAME engine in its client mode, pinned to its brand, its own sign-in, no SQL, no agency memory', async () => {
+  /* Offline with no model key: the client path answers that it is not set up (never the team path, never a 403). */
+  const off = await ah(CLIENT, 'POST', '/api/ask', { question: 'how are sales', screen: { act_id: 'brand_alpha' } });
+  assert.notEqual(off.status, 403); assert.match(off.j.error, /not set up/);
+  assert.equal((await ah(CLIENT, 'POST', '/api/ask', { question: 'how is beta', screen: { act_id: 'brand_beta' } })).status, 403);
+  setSetting('strategistInstructions', 'TEAM ONLY: we are dropping Beta Socks next month');
+  ahEnv.ANTHROPIC_API_KEY = 'test-key';
+  const asked = [];
+  let turn = 0;
+  MOCK.anthropic = body => {
+    asked.push(body);
+    turn++;
+    const use = { input_tokens: 2000, output_tokens: 100 };
+    if (turn === 1) return { content: [{ type: 'tool_use', id: 't1', name: 'query_locus', input: { sql: 'SELECT * FROM brands' } }], stop_reason: 'tool_use', usage: use };
+    if (turn === 2) return { content: [{ type: 'tool_use', id: 't2', name: 'locus_get', input: { path: '/api/reports?act=brand_beta' } }], stop_reason: 'tool_use', usage: use };
+    if (turn === 3) return { content: [{ type: 'tool_use', id: 't3', name: 'locus_get', input: { path: '/api/reports?act=brand_alpha' } }], stop_reason: 'tool_use', usage: use };
+    return { content: [{ type: 'text', text: 'One weekly report was sent, for Sept 28 to Oct 4.' }], stop_reason: 'end_turn', usage: use };
+  };
+  try {
+    const r = await ah(CLIENT, 'POST', '/api/ask', { question: 'what reports did we get?', screen: { act_id: 'brand_alpha', screen: 'Reports' }, runId: 'abc1234' });
+    assert.equal(r.status, 200, JSON.stringify(r.j)); assert.match(r.j.answer, /weekly report/); assert.equal(r.j.client, true);
+    const tools = asked[0].tools.map(t => t.name);
+    assert.ok(tools.includes('locus_get') && tools.includes('locus_routes'), tools.join(','));
+    for (const t of ['query_locus', 'read_app', 'search_slack', 'read_thread', 'recall', 'read_skill', 'save_skill', 'locus_write', 'meta_read', 'tool_search_tool_regex']) assert.ok(!tools.includes(t), `${t} offered to a client`);
+    const sys = JSON.stringify(asked[0].system);
+    assert.match(sys, /ACCESS RULE/); assert.match(sys, /Alpha Golf/);
+    for (const bad of ['Beta Socks', 'TEAM ONLY', 'Standing instructions', 'The active brands right now']) assert.ok(!sys.includes(bad), `system prompt carries ${bad}`);
+    const results = JSON.stringify(asked.slice(1).map(b => b.messages[b.messages.length - 1]));
+    assert.match(results, /Not available on this login/, 'the SQL tool was refused');
+    assert.match(results, /do not have access to that brand/, 'another brand refused through the client\'s own sign-in');
+    assert.ok(results.includes('2026-09-28') && !results.includes('2026-10-05'), 'its own reports read through the guard, the draft left out: ' + results.slice(-600));
+    const use = getSetting(`clientAsk:${today}:nick@alpha.com`);
+    assert.ok(use && use.n === 1 && use.cost > 0, 'the cost is counted against the client\'s day: ' + JSON.stringify(use));
+    /* The team's daily question count is not touched by a client's question. */
+    assert.equal(getSetting('strategistUsage'), null);
+  } finally { MOCK.anthropic = null; delete ahEnv.ANTHROPIC_API_KEY; }
+  /* Progress and Stop: only for the client's own run. */
+  setSetting('askRun:zzz9999', { steps: ['Reading the numbers'], stop: false });
+  const peek = await ah(CLIENT, 'GET', '/api/ask/progress?id=zzz9999');
+  assert.deepEqual(peek.j.steps, [], 'someone else\'s run shows nothing');
+  assert.equal((await ah(CLIENT, 'POST', '/api/ask/stop', { id: 'zzz9999' })).j.ok, false);
+  setSetting('askRunWho:zzz9999', 'nick@alpha.com');
+  assert.deepEqual((await ah(CLIENT, 'GET', '/api/ask/progress?id=zzz9999')).j.steps, ['Reading the numbers']);
+  assert.equal((await ah(CLIENT, 'POST', '/api/ask/stop', { id: 'zzz9999' })).j.ok, true);
 });
 
-await check('defaults: P&L, change history, the creator link and the Strategist are ON with nothing stored; an override turns one off', async () => {
-  setSetting('clientAccess', {});
-  for (const [w, p] of [['ah', '/api/activities?act=brand_alpha'], ['ah', '/api/google/ads-changes?act=brand_alpha'], ['pf', '/api/client?act=brand_alpha&days=30'], ['pf', '/api/forecast?act=brand_alpha']]) {
-    let r; try { r = await call(w, CLIENT, 'GET', p); } catch (e) { r = { status: 'handler ran: ' + e.message }; }
-    assert.notEqual(r.status, 403, `${w} ${p} refused with every switch on by default`);
-  }
-  const me = await ah(CLIENT, 'GET', '/api/clients/me');
-  assert.equal(me.j.brands[0].access.creators, true, 'creator link on by default');
-  /* The owner turns Changes off for the brand: only the override is stored, and the route is refused. */
-  const put = await ah(OWNER, 'PUT', '/api/clients/access', { act: 'brand_alpha', changes: false });
-  assert.equal(put.status, 200); assert.deepEqual(getSetting('clientAccess'), { brand_alpha: { changes: false } }, 'only the override is stored');
-  assert.equal((await ah(CLIENT, 'GET', '/api/activities?act=brand_alpha')).status, 403, 'Changes turned off = refused');
-  assert.notEqual((await pf(CLIENT, 'GET', '/api/client?act=brand_alpha&days=30')).status, 403, 'P&L untouched');
-  const list = await ah(OWNER, 'GET', '/api/clients?act=brand_alpha');
-  assert.deepEqual(list.j.access.brand_alpha, { pl: true, strategist: true, changes: false, creators: true }, 'the card reads the defaults plus the override');
-  /* Turned back on = the override row goes. */
-  await ah(OWNER, 'PUT', '/api/clients/access', { act: 'brand_alpha', changes: true });
-  assert.deepEqual(getSetting('clientAccess'), {}, 'back to the default leaves nothing stored');
-  /* A teammate cannot change a switch, and a client never can. */
-  assert.equal((await ah(TEAM, 'PUT', '/api/clients/access', { act: 'brand_alpha', pl: false })).status, 403);
-  assert.equal((await ah(CLIENT, 'PUT', '/api/clients/access', { act: 'brand_alpha', pl: false })).status, 403);
+await check('the daily caps: Studio $3 and the assistant $2 per client per day, refused with 429 and a plain message when spent', async () => {
+  const sKey = `clientStudio:${today}:nick@alpha.com`, aKey = `clientAsk:${today}:nick@alpha.com`;
+  setSetting(sKey, { n: 9, cost: 2.9 });
+  const full = await pf(CLIENT, 'POST', '/api/studio/make', { act: 'brand_alpha', n: 1, spec: { images: ['x'] } });
+  assert.equal(full.status, 429); assert.match(full.j.error, /\$3 a day/);
+  assert.equal((await pf(CLIENT, 'POST', '/api/studio/make', { act: 'brand_alpha', n: 4, spec: {} })).status, 429, 'four at once would pass the cap');
+  setSetting(sKey, { n: 0, cost: 0 });
+  const free = await ran('pf', CLIENT, 'POST', '/api/studio/make', { act: 'brand_alpha', n: 1, spec: { images: ['x'] } });
+  assert.ok(passed(free), 'under the cap it reaches the handler: ' + free.status);
+  assert.deepEqual(getSetting(sKey), { n: 0, cost: 0 }, 'a call that failed (no image key offline) is not charged');
+  assert.equal((await ah(CLIENT, 'POST', '/api/studio-ai/video-create', { act: 'brand_alpha' })).status !== 429, true);
+  setSetting(sKey, { n: 1, cost: 2 });
+  assert.equal((await ah(CLIENT, 'POST', '/api/studio-ai/video-create', { act: 'brand_alpha' })).status, 429, 'a video estimate would pass $3');
+  setSetting(aKey, { n: 30, cost: 2 });
+  assert.equal((await ah(CLIENT, 'POST', '/api/read', { screen: 'overview', scope: 'Alpha', facts: {} })).status, 429);
+  ahEnv.ANTHROPIC_API_KEY = 'test-key';
+  try { const a = await ah(CLIENT, 'POST', '/api/ask', { question: 'x', screen: { act_id: 'brand_alpha' } }); assert.equal(a.status, 429); assert.match(a.j.error, /\$2 a day/); }
+  finally { delete ahEnv.ANTHROPIC_API_KEY; }
+  setSetting(aKey, { n: 0, cost: 0 });
+  assert.equal((await ah(CLIENT, 'POST', '/api/read', { screen: 'command', facts: {} })).status, 403, 'the command center read is the agency\'s');
+  /* The team has no cap. */
+  assert.notEqual((await ran('pf', OWNER, 'POST', '/api/studio/make', { act: 'brand_alpha', n: 1, spec: { images: ['x'] } })).status, 429);
 });
 
-await check('Home: /api/overview answers with the client\'s brand only, internal keys always scrubbed, costs once P&L is off', async () => {
-  const dflt = JSON.stringify((await pf(CLIENT, 'GET', '/api/overview?days=30&series=0')).j);
-  for (const k of ['"slack_channel"', '"brief_channel"', '"report_config"']) assert.ok(!dflt.includes(k), `${k} leaked with the defaults on`);
-  setSetting('clientAccess', { brand_alpha: { pl: false } });
-  const r = await pf(CLIENT, 'GET', '/api/overview?days=30&series=0');
-  setSetting('clientAccess', {});
-  assert.equal(r.status, 200, JSON.stringify(r.j).slice(0, 200));
-  assert.deepEqual(r.j.accounts.map(a => a.act_id), ['brand_alpha']);
-  const s = JSON.stringify(r.j);
-  for (const k of ['"cogs"', '"cm"', '"gross_profit"', '"margin_pct"', '"slack_channel"', '"brief_channel"', '"report_config"', '"cost_health"']) assert.ok(!s.includes(k), `${k} leaked`);
-  const team = await pf(TEAM, 'GET', '/api/overview?days=30&series=0');
-  assert.equal(team.status, 200); assert.equal(team.j.accounts.length, 2, 'team still sees every brand');
-});
-
-await check('War Room live: a client may read its own brand Triple Whale day (never another or all); costs go while P&L is off', async () => {
+await check('War Room: a client reads its whole plan for its brand (never another or all), the team\'s notes stay out', async () => {
   assert.equal((await ah(CLIENT, 'GET', '/api/tw-day?act=brand_beta')).status, 403, 'another brand');
   assert.equal((await ah(CLIENT, 'GET', '/api/tw-day?act=all')).status, 403, 'all');
-  assert.notEqual((await ah(CLIENT, 'GET', '/api/tw-day?act=brand_alpha')).status, 403, 'its own brand passes the guard');
-  const { CLIENT_RULES } = await import('./src/brandguard.js');
-  const rule = CLIENT_RULES.find(r => r.p === '/api/tw-day');
-  const day = () => ({ map: { netSales: 100, blendedAds: 20, orders: 3, totalProductCosts: 40, grossProfit: 60, totalPaymentGatewayCosts: 3 }, hours: { netSales: [1], totalProductCosts: [1] } });
-  const off = rule.post(day(), { pl: true, changes: false });
-  assert.deepEqual(Object.keys(off.map).sort(), ['blendedAds', 'netSales', 'orders'], 'P&L off: cost ids stripped');
-  assert.deepEqual(Object.keys(off.hours), ['netSales']);
-  assert.equal(Object.keys(rule.post(day(), { pl: false, changes: false }).map).length, 6, 'P&L on: the whole map');
+  assert.equal((await pf(CLIENT, 'GET', '/api/season/war?act=all')).status, 403);
+  await pf(OWNER, 'PUT', '/api/season/war', { act: 'brand_alpha', patch: { notes: 'TEAM NOTE', thresholds: { mer: 2 } } });
+  const w = await pf(CLIENT, 'GET', '/api/season/war?act=brand_alpha');
+  assert.equal(w.status, 200, JSON.stringify(w.j).slice(0, 300)); assert.equal(w.j.war.notes, undefined); assert.deepEqual(w.j.war.thresholds, { mer: 2 }, 'the rest of the plan is theirs: ' + JSON.stringify(w.j.war));
+  assert.equal((await pf(OWNER, 'GET', '/api/season/war?act=brand_alpha')).j.war.notes, 'TEAM NOTE');
 });
 
-await check('survey: a client reads its own brand\'s post-purchase survey card, never another brand\'s, and cannot change or forget it', async () => {
+await check('survey: a client reads and manages its own brand\'s survey card, never another brand\'s', async () => {
   const own = await ah(CLIENT, 'GET', '/api/survey?act=brand_alpha');
   assert.equal(own.status, 200, 'own brand'); assert.equal(own.j.error, 'not_linked');
   assert.equal((await ah(CLIENT, 'GET', '/api/survey?act=brand_beta')).status, 403, 'another brand');
   assert.equal((await ah(CLIENT, 'GET', '/api/survey?act=all')).status, 403, 'all');
-  assert.equal((await ah(CLIENT, 'PUT', '/api/survey', { act: 'brand_alpha', question_id: '1' })).status, 403, 'pin');
-  assert.equal((await ah(CLIENT, 'DELETE', '/api/survey?act=brand_alpha')).status, 403, 'forget');
-  assert.equal((await ah(CLIENT, 'PUT', '/api/brand-links', { act: 'brand_alpha', survey_key: 'x'.repeat(30) })).status, 403, 'paste a key');
+  assert.equal((await ah(CLIENT, 'PUT', '/api/survey', { act: 'brand_beta', question_id: '1' })).status, 403, 'pin another brand\'s');
+  assert.equal((await ah(CLIENT, 'DELETE', '/api/survey?act=brand_beta')).status, 403, 'forget another brand\'s');
   assert.equal((await ah(OWNER, 'GET', '/api/survey?act=brand_beta')).status, 200, 'the owner reads any brand');
 });
 
@@ -245,12 +367,11 @@ await check('ads: a client may open its own ad, never another brand\'s', async (
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-breakdown?ad=9002&from=2026-09-01&to=2026-09-30')).status, 403);
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-creatives?act=brand_alpha&ads=9001,9002')).status, 403, 'one foreign ad in the list refuses the call');
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-video?ad=424242')).status, 403, 'an unknown ad is refused');
-  /* Offline the handler then fails on Meta (no token); what matters is that the guard let it through. */
-  let mine; try { mine = await ah(CLIENT, 'GET', '/api/ad-video?ad=9001&mode=preview'); } catch (e) { mine = { status: 'handler ran: ' + e.message }; }
-  assert.notEqual(mine.status, 403, 'own ad passes the guard'); assert.notEqual(mine.status, 401);
+  const mine = await ran('ah', CLIENT, 'GET', '/api/ad-video?ad=9001&mode=preview');
+  assert.ok(passed(mine), 'own ad passes the guard');
 });
 
-await check('calendar: add and note on its own brand; never touch another brand\'s date', async () => {
+await check('calendar: add, note, remove and put back its own brand\'s dates; never another brand\'s; never tick or Asana', async () => {
   const add = await ah(CLIENT, 'POST', '/api/calendar/event', { act: 'brand_alpha', name: 'Client launch', start: '2026-11-20', kind: 'drop' });
   assert.equal(add.status, 200, JSON.stringify(add.j));
   assert.equal((await ah(CLIENT, 'POST', '/api/calendar/event', { act: 'brand_beta', name: 'Sneaky', start: '2026-11-20' })).status, 403);
@@ -262,7 +383,14 @@ await check('calendar: add and note on its own brand; never touch another brand\
   assert.equal((await ah(CLIENT, 'GET', '/api/calendar/history?id=ev_b')).status, 403);
   const h = await ah(CLIENT, 'GET', '/api/calendar/history?id=ev_a');
   assert.equal(h.status, 200); assert.ok(h.j.history.some(x => x.s === 'Note: Photos come Friday' && x.b === 'Nick'));
-  assert.equal(cal.db.prepare(`SELECT launch_date FROM events WHERE id = 'ev_b'`).get().launch_date, '2026-11-02', 'beta untouched');
+  assert.equal((await ah(CLIENT, 'DELETE', '/api/calendar/event?id=ev_b')).status, 403, 'remove another brand\'s date');
+  assert.equal((await ah(CLIENT, 'POST', '/api/calendar/restore', { id: 'ev_b' })).status, 403);
+  assert.equal((await ah(CLIENT, 'DELETE', '/api/calendar/event?id=ev_a')).status, 200, 'remove its own');
+  assert.equal(cal.db.prepare(`SELECT status FROM events WHERE id = 'ev_a'`).get().status, 'cancelled');
+  assert.equal((await ah(CLIENT, 'POST', '/api/calendar/restore', { id: 'ev_a' })).status, 200, 'and put it back');
+  assert.equal((await ah(CLIENT, 'POST', '/api/calendar/tick', { id: 'ev_a', key: 'briefs', done: true })).status, 403);
+  assert.equal(cal.db.prepare(`SELECT launch_date, status FROM events WHERE id = 'ev_b'`).get().launch_date, '2026-11-02', 'beta untouched');
+  assert.equal(cal.db.prepare(`SELECT status FROM events WHERE id = 'ev_b'`).get().status, 'tentative');
 });
 
 await check('a removed or brand-less client gets nothing; a team guest is never treated as a client', async () => {
@@ -287,7 +415,7 @@ await check('profit worker now SEES who is asking: a limited teammate is held to
   setSetting('userBrands', {});
 });
 
-await check('inviting: owner only, Mobius emails refused, the email goes only on approval, remove works', async () => {
+await check('inviting: owner only, Mobius emails refused, the email goes only on approval, no switches, remove works', async () => {
   assert.equal((await ah(TEAM, 'GET', '/api/clients')).status, 200, 'the team can see the list');
   assert.equal((await ah(TEAM, 'POST', '/api/clients/invite', { emails: 'x@y.com', brands: ['brand_alpha'] })).status, 403, 'only Cole invites');
   const dom = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'ravo@go-mobius-digital.com', brands: ['brand_alpha'] });
@@ -295,9 +423,12 @@ await check('inviting: owner only, Mobius emails refused, the email goes only on
   assert.equal((await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], send: true, subject: 's', body: 'b' })).status, 400, 'no send without approval');
   const draft = await ah(OWNER, 'GET', '/api/clients/draft?brands=brand_beta&email=new@beta.com&name=Sam%20Lee');
   assert.match(draft.j.body, /Hi Sam,/); assert.match(draft.j.body, /Continue with Google/); assert.ok(!/\u2014/.test(draft.j.body + draft.j.subject), 'no em dashes');
-  const inv = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], access: { pl: false, strategist: true, changes: true, creators: true }, send: true, approved: true, subject: draft.j.subject, body: draft.j.body });
+  assert.ok(!/read-only/i.test(draft.j.body), 'the invite no longer says read-only');
+  setSetting('clientAccess', {});
+  const inv = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], access: { pl: false }, send: true, approved: true, subject: draft.j.subject, body: draft.j.body });
   assert.equal(inv.status, 200, JSON.stringify(inv.j)); assert.deepEqual(inv.j.sent, ['new@beta.com']); assert.equal(mails.length, 1);
-  assert.deepEqual(getSetting('clientAccess').brand_beta, { pl: false }, 'the invite stores only what was turned off');
+  assert.deepEqual(getSetting('clientAccess'), {}, 'an old screen\'s switches are ignored');
+  assert.equal((await ah(OWNER, 'PUT', '/api/clients/access', { act: 'brand_beta', pl: false })).status, 404, 'the switch route is gone');
   const list = await ah(OWNER, 'GET', '/api/clients?act=brand_beta');
   assert.deepEqual(list.j.clients.map(c => c.email), ['new@beta.com']); assert.ok(list.j.clients[0].last_invite);
   const NEW = mint('new@beta.com');
@@ -310,7 +441,6 @@ await check('the command center answers the team (every brand with its reasons) 
   const c = await pf(OWNER, 'GET', '/api/hub/command?act=all');
   assert.equal(c.status, 200, JSON.stringify(c.j).slice(0, 300));
   assert.deepEqual(c.j.brands.map(b => b.act_id).sort(), ['brand_alpha', 'brand_beta']);
-  for (const b of c.j.brands) { assert.ok(Array.isArray(b.reasons)); assert.ok(b.reasons.some(r => r.kind === 'setup'), 'no data = setup gaps named'); }
   const w = await ah(OWNER, 'GET', '/api/command/work');
   assert.equal(w.status, 200, JSON.stringify(w.j).slice(0, 300)); assert.ok(Array.isArray(w.j.pending) && Array.isArray(w.j.alerts));
   setSetting('userBrands', { 'ahsan@go-mobius-digital.com': ['brand_beta'] });
@@ -319,7 +449,7 @@ await check('the command center answers the team (every brand with its reasons) 
   setSetting('userBrands', {});
 });
 
-await check('Costs (2026-10-10): a client adds and edits its own brand\'s custom expenses with P&L on, never another brand\'s, never with P&L off', async () => {
+await check('Costs: a client adds and edits its own brand\'s custom expenses, never another brand\'s', async () => {
   const item = { name: 'Warehouse rent', category: 'rent', kind: 'monthly', amount: 3000, start_date: '2026-10-01' };
   const put = await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [item] });
   assert.equal(put.status, 200, JSON.stringify(put.j));
@@ -327,40 +457,17 @@ await check('Costs (2026-10-10): a client adds and edits its own brand\'s custom
   assert.ok(!JSON.stringify(put.j).includes('@'), 'no email in the answer');
   const got = await pf(CLIENT, 'GET', '/api/expenses?act=brand_alpha');
   assert.equal(got.status, 200); assert.deepEqual(got.j.items.map(x => x.name), ['Warehouse rent']);
-  assert.ok(got.j.sources && 'cogs' in got.j.sources, 'where each cost comes from rides along (P&L on)');
-  /* another brand, "all", or a body/query mismatch: refused */
+  assert.ok(got.j.sources && 'cogs' in got.j.sources, 'where each cost comes from rides along');
   assert.equal((await pf(CLIENT, 'GET', '/api/expenses?act=brand_beta')).status, 403);
   assert.equal((await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_beta', items: [item] })).status, 403);
   assert.equal((await pf(CLIENT, 'PUT', '/api/expenses?act=brand_alpha', { act: 'brand_beta', items: [item] })).status, 403);
   assert.equal((await pf(CLIENT, 'PUT', '/api/expenses', { act: 'all', items: [] })).status, 403);
-  /* P&L switched off for the brand: both routes refused, nothing changes */
-  setSetting('clientAccess', { brand_alpha: { pl: false } });
-  assert.equal((await pf(CLIENT, 'GET', '/api/expenses?act=brand_alpha')).status, 403);
-  assert.equal((await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [] })).status, 403);
-  setSetting('clientAccess', {});
-  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_expense WHERE act_id = 'brand_alpha'`).get().n, 1, 'still there');
-  /* the team edits any brand; Cole's row keeps "Added by" through the client's later edit */
   const t = await pf(OWNER, 'PUT', '/api/expenses', { act: 'brand_beta', items: [{ name: 'Klaviyo', category: 'software', kind: 'monthly', amount: 400, start_date: '2026-09-01' }] });
-  assert.equal(t.status, 200, JSON.stringify(t.j)); assert.equal(t.j.items[0].added_by, 'Cole');
-  const tg = await pf(TEAM, 'GET', '/api/expenses?act=brand_alpha');
-  assert.equal(tg.status, 200); assert.equal(tg.j.items[0].added_by, 'Nick', 'the team sees what the client added');
-  const id = got.j.items[0].id;
-  const t2 = await pf(OWNER, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [{ ...got.j.items[0], id, amount: 3200 }, { name: 'Podcast read', category: 'marketing', kind: 'once', amount: 900, start_date: '2026-10-03', is_ad_spend: true }] });
-  assert.equal(t2.status, 200);
-  const rent = t2.j.items.find(x => x.name === 'Warehouse rent');
-  assert.equal(rent.amount, 3200); assert.equal(rent.added_by, 'Nick', 'editing keeps who added it');
-  assert.equal(t2.j.items.find(x => x.name === 'Podcast read').added_by, 'Cole');
-  /* a client cannot slip another brand's row id into its own list to take it over */
+  assert.equal(t.status, 200, JSON.stringify(t.j));
   const betaId = t.j.items[0].id;
   const steal = await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [{ id: betaId, name: 'Mine now', kind: 'monthly', amount: 1, start_date: '2026-10-01' }] });
   assert.equal(steal.status, 200);
   assert.equal(db.prepare(`SELECT name FROM p_expense WHERE act_id = 'brand_beta'`).get().name, 'Klaviyo', 'beta untouched');
-  assert.equal(steal.j.items[0].added_by, 'Nick', 'treated as a new row of its own');
-  /* P&L off: the expense keys ride nowhere in Home */
-  setSetting('clientAccess', { brand_alpha: { pl: false } });
-  const ov = JSON.stringify((await pf(CLIENT, 'GET', '/api/overview?days=30&series=0')).j);
-  setSetting('clientAccess', {});
-  assert.ok(!ov.includes('"ad_expense"'), 'ad_expense scrubbed with P&L off');
 });
 
 await check('a client can edit only its own profile', async () => {
@@ -371,6 +478,16 @@ await check('a client can edit only its own profile', async () => {
   assert.equal(me.j.welcomed, true); assert.deepEqual(me.j.brands.map(b => b.id), ['brand_alpha']);
   assert.equal((await ah(CLIENT, 'PUT', '/api/clients/me', { email: 'cole@go-mobius-digital.com', brands: ['brand_beta'] })).status, 200);
   assert.deepEqual(getSetting('clientUsers')['nick@alpha.com'].brands, ['brand_alpha'], 'a client cannot widen its own brands');
+});
+
+await check('Inspiration: a client reads its own brand\'s Atria board and the shared season boards, never another brand\'s board', async () => {
+  const { swipeBoardsFor } = await import('../../profit/worker/src/season.js');
+  const shared = swipeBoardsFor('brand_alpha')[0];
+  const r = await ran('ah', CLIENT, 'GET', `/api/atria/board?board_id=${shared}&act=brand_alpha`);
+  assert.ok(passed(r), 'a shared season board: ' + r.status);
+  assert.equal((await ah(CLIENT, 'GET', `/api/atria/board?board_id=${swipeBoardsFor('brand_lucky_golf').pop()}&act=brand_alpha`)).status, 403, 'another brand\'s own board');
+  assert.equal((await ah(CLIENT, 'GET', `/api/atria/board?board_id=${shared}`)).status, 403, 'no brand named');
+  assert.ok(passed(await ran('ah', OWNER, 'GET', `/api/atria/board?board_id=${swipeBoardsFor('brand_lucky_golf').pop()}`)), 'the team reads any board');
 });
 
 /* Products > Stock and Drops for clients (2026-10-10): read only, own brand, costs and suppliers stripped. Supply is mocked

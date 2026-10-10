@@ -66,6 +66,11 @@ const SWIPE_BRAND = {
   brand_ice_and_gold: { id: '6f02d605-7d5d-46ad-a8bc-d233483cdcf9', name: 'BFCM / Brands / Ice & Gold' },
   brand_the_golf_sock: { id: '7e7bd0be-7ca4-49be-8be4-9d66b5ad94ff', name: 'BFCM / Brands / The Golf Sock' },
 };
+/** The Atria boards a brand's pages show (its own board and the shared season boards). A client login may read only these
+    (account-health atria.js, 2026-10-10). */
+export function swipeBoardsFor(brandId) {
+  return [...new Set([...Object.values(SWIPE).map(b => b.id), ...(SWIPE_BRAND[brandId] ? [SWIPE_BRAND[brandId].id] : [])])];
+}
 export function templatePhases(shape) {
   const e = EARLY[shape] || EARLY.standard;
   return TPL.map((p, i) => ({ ...(p.key === 'early' ? { ...e } : {}), ...p, status: p.status || 'missing', sort: i * 10, tpl: 1 }))
@@ -386,10 +391,11 @@ async function warBrand(env, a, today, deps, { withLive, client }) {
   const mode = today >= sale.start && today <= sale.end ? 'live' : today > sale.end ? 'after' : 'plan';
   const out = {
     act_id: a.act_id, name: a.name, currency: a.currency || 'USD', tz: a.tz || null, today, bf: BF, ly_bf: LY_BF, mode, sale, sale_days_to: between(today, sale.start),
-    war: client ? { goals: war.goals || null, budget: war.budget || null } : war, goals_list: goals.list, goals_saved: goals.saved, ladder: client ? null : a.goals,
+    /* The brand edition (2026-10-10): a client sees the whole plan, its ladder and every check-in; only the team's notes stay out. */
+    war: client ? Object.fromEntries(Object.entries(war).filter(([k]) => k !== 'notes')) : war, goals_list: goals.list, goals_saved: goals.saved, ladder: a.goals,
     budget: bud, baseline: base, plan, steps: warSteps(a, war),
     phases: (a.phases || []).filter(p => p.status !== 'skip').map(p => ({ key: p.key, name: p.name, start: p.start, end: p.end, grp: p.grp, offer: p.offer, status: p.status, who: p.who })),
-    checkins: (a.checkins || []).map(c => client ? { date: c.date, slot: c.slot, action: c.action, by: c.by } : c),
+    checkins: a.checkins || [],
     metrics: WAR_METRICS, channel_names: WAR_CHANNELS,
   };
   if (withLive && deps.live) out.live = await warLive(env, a, deps, plan, today, sale, bud).catch(e => ({ error: e.message }));
@@ -475,7 +481,8 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
     const row = await env.DB.prepare(`SELECT value FROM p_season_answer WHERE act_id = ?1 AND season = ?2 AND key = 'war'`).bind(b.act, SEASON).first();
     const cur = safeJson(row?.value, {}) || {};
     const p = b.patch && typeof b.patch === 'object' ? b.patch : {};
-    const KEYS = ['goals', 'budget', 'sale', 'baseline', 'baseline_ok', 'thresholds', 'alerts', 'stock_ok', 'heroes', 'notes'];
+    /* A client edits its own plan; the team's notes and the Slack alert setup stay the team's (2026-10-10). */
+    const KEYS = ['goals', 'budget', 'sale', 'baseline', 'baseline_ok', 'thresholds', 'alerts', 'stock_ok', 'heroes', 'notes'].filter(k => !client || (k !== 'notes' && k !== 'alerts'));
     for (const k of KEYS) if (k in p) { if (p[k] === null) delete cur[k]; else cur[k] = p[k]; }
     if (cur.sale && (!isoOk(cur.sale.start) || !isoOk(cur.sale.end))) return json({ error: 'sale dates must be YYYY-MM-DD' }, 400);
     if (Array.isArray(cur.goals)) cur.goals = cur.goals.filter(g => g && WAR_METRICS[g.metric]).slice(0, 5).map(g => ({ metric: g.metric, target: num(g.target) }));

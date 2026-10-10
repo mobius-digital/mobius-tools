@@ -2433,32 +2433,35 @@ Cole approved section 15 step 3 of docs/strategist-viktor-grade-plan.md: one car
   scroll, the modal and the list. Not checked with a real signed-in session (no prod sign-in here).
 - `LocusShare.freeze(el)` returns the payload a link would carry, to check by eye.
 
-## 2026-10-09: CLIENT LOGINS. Clients sign in to Locus. Read before touching the rail, show() or Settings.
+## 2026-10-09: CLIENT LOGINS = THE BRAND EDITION (2026-10-10). Clients sign in to Locus. Read before touching the rail, show() or Settings.
 
-The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandguard.js`); this page only draws them.
-- **How a client gets in.** Cole: Agency settings > Clients > "Client logins" card (or Brand settings > Client access,
-  or the New client setup screen's "4. Their Locus login") > Invite a client: emails, first name, brands, P&L and
-  Strategist switches > Next: the email (editable text, Copy, "Give access, no email", Send invite = Cole's Gmail
-  after a confirm). The client opens tools.go-mobius-digital.com/profit, Continue with Google (any email; a non-Gmail
-  address can be a Google account via "Use my current email address instead"), HQ sends a client straight back to
-  /profit/ (`mobius_session_role`). No password option: the old shared password is an admin key.
-- **What a client sees** (index.html `CLIENT_TABS` / `clientTabOk` / `applyClientMode`, `isClient()` = `S.role === 'client'`
-  from /api/me in `boot()`): Home (Overview; P&L only with the switch), Ads (All channels, Meta Overview + Campaigns,
-  Google Overview + Campaigns; Changes only with the switch), Email and SMS, Store (Sales, Customers, Website, Search),
-  Calendar (add a date, edit / move its own, leave a note; no Remove, ticks or Asana), Reports (`ClientsTab.reports`:
-  sent only, the client archive layout), Creative > Creators only with the switch (`ClientsTab.creators`: the public
-  link). Settings = `ClientsTab.profile` (name, brands, sign out). Profile menu = Your profile, Sign out. No All
-  clients, no picker with one brand, no Products / Brand / Season / Tools, no ask bar unless the Strategist switch
-  is on (then AskUI only ever calls POST /api/ask). First sign-in: a welcome card on Home until "Got it"
-  (`/api/clients/me` welcomed). `body.is-client` CSS (in clients.js) hides the team's buttons; `[hidden]` is forced.
-- **Role checks elsewhere (kept minimal):** v2.js (no AI read, no Day check line, no Needs you today, no CM tile when
-  P&L is off), calendar.js (client panel actions, note box, no team line), share.js (no Send to Slack for a client).
-- **profit/clients.js** (`window.ClientsTab`): card, invite, welcome, profile, reports, creators.
+The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandguard.js`); the editions and the per-page
+table are `docs/locus-hub/editions.md`. Cole, 2026-10-10: "Locus is literally everything now. A client should have access
+to absolutely everything." A client gets the same screens the team sees for its own brand; there are no client-only
+layouts any more (`ClientsTab.reports` and `ClientsTab.creators` are gone; Reports and Creators are the normal pages).
+- **How a client gets in.** Cole: Agency settings > Clients > "Client logins" card (or Brand settings > Client access, or
+  New client "4. Their Locus login") > Invite a client: emails, first name, brands > Next: the email (editable, Copy, "Give
+  access, no email", Send invite = Cole's Gmail after a confirm). No switches: everything is on. The client opens
+  tools.go-mobius-digital.com/profit and continues with Google.
+- **What a client sees** (index.html `isClient()`, `AGENCY_TABS`, `clientTabOk`, `applyClientMode`): every page except
+  `AGENCY_TABS` (Agency economics, Team workload). Products follows `SupplyTab.tabOk` (Stock, Drops; Buying is the team's,
+  the Supply worker knows no client). No All clients in the picker, no picker with one brand, no role filter. The ask bar
+  is on (the same engine, $2 a day; `AskUI.state.intro` names only their brands). `CLIENT_TABS` and `clientCan()` remain as
+  always-true shims for older callers.
+- **Settings for a client** = Brand settings of its own brand (`BSECS`: About without Archive, Integrations (its brand only,
+  agency part empty, paste boxes take its own keys), Ads rules, Data and costs without the data repairs, Client access read
+  only) plus **Your profile** (`ClientsTab.profile(host)`: name, brands, sign out, the daily limits). Slack and sending and
+  Stock and factories are not shown; Agency settings never opens (`SETMODE` forced to brand).
+- **The review is the agency's**: the Daily Brief page shows sent briefs ("Sent to you" or "No brief sent for this day"),
+  Reports shows sent reports with Copy client link; Send, Rewrite, Edit, Don't send, What we did and the report sections
+  are hidden by `body.is-client` CSS in clients.js (the server refuses them anyway).
+- **Role checks elsewhere (kept minimal):** calendar.js (no ticks or Asana; Remove, season and drop links are on),
+  share.js (no Send to Slack), desk.js War Room (edits its plan; the season item's name, alerts and the stock check stay
+  the team's), requests.js (the client's side of the same list), supply.js (Stock and Drops read only).
+- **profit/clients.js** (`window.ClientsTab`): card (read only for a client), invite, welcome, profile, `AGENCY_ONLY` text.
 - **Local check (2026-10-09):** both dev workers from the worktree with SESSION_SECRET = the dev ADMIN_TOKEN in the
-  gitignored .dev.vars, a temporary `clientUsers` row (removed after), headless Chrome over CDP: client rail = Home, Ads,
-  Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
-  Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
-
+  gitignored .dev.vars, a temporary `clientUsers` row (removed after), headless Chrome over CDP. Not repeated for the
+  2026-10-10 brand edition (not tested live).
 
 ## 2026-10-09: the top loading bar, Scenarios and Platform status on v2, Dashboards ask-first, spacing pass
 
@@ -2549,7 +2552,7 @@ title had "war" in lower case. Reference: docs/triplewhale-reference/. Page name
 
 ## 2026-10-09: THE COMMAND CENTER (Home for All clients) and clients see everything by default
 
-- **Client access defaults flipped.** brandguard `CLIENT_SWITCHES` = all ON (P&L, change history, Strategist, creator
+- (Superseded 2026-10-10 by the brand edition: the switches below are gone, see CLIENT LOGINS.) **Client access defaults flipped.** brandguard `CLIENT_SWITCHES` = all ON (P&L, change history, Strategist, creator
   link) for every brand and every client, existing ones included (nothing was stored on prod). `settings.clientAccess`
   now holds ONLY overrides (`setAccess` stores a key only when it differs from the default; back to on = the row goes).
   The client Strategist keeps its 20 questions / $0.50 a day cap. clients.js: the card and the invite say "Clients see

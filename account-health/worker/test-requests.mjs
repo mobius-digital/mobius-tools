@@ -73,7 +73,7 @@ await check('brandguard.js is byte-identical in both workers and pins every Requ
   const a = fs.readFileSync(path.join(here, 'src', 'brandguard.js'), 'utf8');
   assert.equal(a, fs.readFileSync(path.join(root, 'profit', 'worker', 'src', 'brandguard.js'), 'utf8'));
   const { CLIENT_RULES } = await import('./src/brandguard.js');
-  const mine = CLIENT_RULES.filter(r => r.p.startsWith('/api/requests'));
+  const mine = CLIENT_RULES.filter(r => r.p && r.p.startsWith('/api/requests'));
   assert.deepEqual(mine.map(r => `${r.m} ${r.p} ${r.act}`).sort(), ['GET /api/requests need', 'POST /api/requests need', 'POST /api/requests/decide need', 'POST /api/requests/reply need']);
 });
 
