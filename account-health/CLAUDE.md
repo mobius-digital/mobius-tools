@@ -1599,3 +1599,34 @@ limits a teammate to their brands). Tests: `node test-agency.mjs` (10 offline ch
   (Mon to Sun) or overdue (before Monday, up to 60 days, NOT_DUE sections left out), grouped by assignee
   ("Not assigned" last), a task in two projects counted once.
 - NOT tested live: the Ledger binding's /api/report answer, real Asana paging on big projects, real payer names.
+## 2026-10-10: daily smoke check (`src/smoke.js`)
+- **What:** once a Central morning (hourly tick, settings `smokeHour`, default 6, after briefs and reports in the tick
+  order) it reads every Locus page's data routes for All clients and each ACTIVE brand (paused and demo are not
+  active), as Cole (minted owner session): profit routes through the PROFIT binding, this worker's routes in-process
+  (`AH_APP.fetch`), Stock through SUPPLY. The table is `SMOKE_ROUTES` (page, ?open= tab, worker, path, scope
+  all/brand/both, needs). A route that needs a connection (Google Ads direct, GA4, Search Console, Clarity, TikTok
+  direct, Klaviyo key, Supply, Meta, TW) runs only for brands that have it. Read-only GETs only. Adding a page = add
+  its row; `node test-smoke.mjs` checks every row against `src/routes.js`.
+- **Also checks:** `integrationsReport` (a failure = a core agency key off, a brand item `bad`, or anything that was
+  `ok` last run and is not now; `smokeLast.conn_state` is that memory, so never-connected things are not noise), live
+  Meta (`/me`, token in a header), Asana (`/users/me`) and Slack (`auth.test`) tokens, freshness (daily_insights and
+  tw_daily reached each brand's yesterday, Meta synced in 12h, TW in 26h, `lastHourly` under 3h, `lastRun` under 30h).
+- **Posting:** ONE message of failures to `strategistChannel` (none set = no post; the card says so). `smokeQuiet` =
+  'off' also posts "all N checks passed". `smokeCheck` = 'off' stops it. Each line: brand, page, error, Open link
+  (`/profit/?open=<tab>&act=<brand>`).
+- **Budget:** a run is spread over ticks: each tick spends at most `TICK_CAP` (1500), leaves `TICK_KEEP` (1500) for
+  the jobs after it, runs at most 120 reads and stops starting new ones after 4 minutes; progress in settings
+  `smokeRun`. Cost is about 1 per profit read (the binding call) plus the measured D1/fetch count of each in-process
+  read (seed 25, the highest seen is used for the next estimate) plus about 40 for the connections pass. Roughly
+  1,500 to 2,500 a run at 9 brands, over 2 to 3 ticks.
+- **The meter trap:** `handle()` calls `subReset()`, so an in-process route zeroes SUB_USED and COST_SEEN for the
+  whole tick. smoke.js runs the reads inside `smokeDeps().meter.hold()` (saves both, restores saved + its own count),
+  and runs in-process reads one at a time, each measured from `zero()`. Do not call `AH_APP.fetch` from a scheduled
+  job without the same hold, or every job after it in the tick believes it has the whole budget.
+- **Routes (admin):** `GET /api/smoke` (last run, switches, progress), `POST /api/smoke/run {dry (default true),
+  brand?}` (Run now, inside the request; stores `smokeLast` with `manual` and `dry`), `PUT /api/smoke {check, quiet}`.
+- **Locus:** Tools > Platform status, card "Locus itself" (profit/desk.js `smokeCard`): the answer, the failures with
+  Open buttons, the switches, Run now (dry unless "Post this run's failures to Slack" is ticked).
+- **Tests:** `node test-smoke.mjs` (113 offline checks; bindings, routes, Meta, Asana and Slack mocked). NOT tested
+  live: any real route, how Cloudflare counts a service-binding call (counted as 1 here), CPU time of about 100
+  in-process reads in one tick, Run now's wall time from the browser.
