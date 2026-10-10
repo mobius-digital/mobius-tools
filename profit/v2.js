@@ -121,7 +121,7 @@
   /* One sentence each: what the number IS. The long glossary stays under Metrics in the top bar. */
   const WHAT = {
     revenue: 'Everything the store sold from every source, paid, organic, email and direct: Shopify total sales minus sales tax.',
-    spend: 'Every ad platform’s spend added together, as Triple Whale carries it. Spend is a choice, so it has no good or bad colour.',
+    spend: 'Every ad platform’s spend added together, as Triple Whale carries it, plus custom expenses marked “counts as ad spend” on Costs. Spend is a choice, so it has no good or bad colour.',
     mer: 'Revenue divided by all ad spend: how much the whole store took for every advertising dollar.',
     amer: 'Revenue from first-time buyers divided by all ad spend: what the ads brought in new, so repeat buyers and email cannot flatter it.',
     roas: 'Revenue credited to the ads divided by their spend, under the attribution model picked in the top bar.',
@@ -130,7 +130,7 @@
     newcust: 'Paid orders from people buying for the first time.',
     cac: 'All ad spend divided by first orders: what one new customer cost.',
     cm: 'What is left after every variable cost (product, delivery, handling, payment fees and ad spend). Fixed costs like rent and salaries are not in it.',
-    net: 'Contribution margin minus the fixed expenses set in Brand settings > Data and costs, spread evenly over each month’s days.',
+    net: 'Contribution margin minus the custom expenses on Costs: monthly ones spread over each month’s days, one-time ones on their date, % and per-order ones from each day’s numbers.',
     email: 'Orders Klaviyo credits to an email or text, split into one-off campaigns and automated flows.',
     purchases: 'Orders the ad platforms are credited with under the attribution model in the top bar. Two platforms can claim one order.',
     cpa: 'Paid spend divided by the purchases credited to it.',
@@ -159,19 +159,21 @@
   /** Sum many brands' drill payloads into one (one currency only). Day rows are merged by date. */
   function drillSum(bs) {
     const add = (list, keys) => { if (!list.some(Boolean)) return null; const o = {}; for (const k of keys) { let s = 0, any = false; for (const x of list) if (x && x[k] != null && isFinite(x[k])) { s += +x[k]; any = true; } o[k] = any ? s : null; } return o; };
-    const HK = ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'ret_rev', 'email_rev', 'campaigns', 'flows'];
+    const HK = ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'ret_rev', 'email_rev', 'campaigns', 'flows', 'ad_expense'];
     const derive = o => o && Object.assign(o, { aov: o.orders ? o.sales / o.orders : null, new_aov: o.new_orders ? (o.new_rev || 0) / o.new_orders : null, cac: o.new_orders ? o.spend / o.new_orders : null, mer: o.spend ? o.sales / o.spend : null, amer: o.spend && o.new_rev != null ? o.new_rev / o.spend : null });
     const ch = {}; for (const b of bs) for (const r of b.channels || []) { const o = ch[r.id] ||= { id: r.id, label: r.label, spend: null, prev_spend: null, revenue: null, prev_revenue: null, purchases: null, nc: 0 }; for (const k of ['spend', 'prev_spend', 'revenue', 'prev_revenue', 'purchases']) if (r[k] != null) o[k] = (o[k] || 0) + r[k]; o.nc += r.nc || 0; }
-    const PK = ['sales', 'net_sales', 'ship_rev', 'tax', 'cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'spend', 'cm', 'fixed', 'net'];
+    const PK = ['sales', 'net_sales', 'ship_rev', 'tax', 'cogs', 'ship_cost', 'handling', 'fees', 'gross_profit', 'spend', 'ad_expense', 'cm', 'fixed', 'net'];
     const costed = bs.filter(b => b.profit && b.cost_verdict !== 'broken');
     const profit = bs.some(b => b.profit) ? { cur: add(costed.map(b => b.profit.cur), PK), prev: add(costed.map(b => b.profit.prev), PK),
       fixed_items: bs.length === 1 ? (bs[0].profit?.fixed_items || []) : costed.filter(b => b.profit.cur?.fixed).map(b => ({ name: b.name, amount: b.profit.cur.fixed })),
+      ad_items: bs.length === 1 ? (bs[0].profit?.ad_items || []) : costed.filter(b => b.profit.cur?.ad_expense).map(b => ({ name: b.name, amount: b.profit.cur.ad_expense })),
       series: mergeDays(costed.map(b => b.profit.series), ['cm', 'fixed']), prev_series: mergeDays(costed.map(b => b.profit.prev_series), ['cm']),
       left_out: bs.filter(b => b.profit && b.cost_verdict === 'broken').map(b => b.name), margin_pct: bs.length === 1 ? bs[0].margin_pct : null } : null;
     return { cur: derive(add(bs.map(b => b.cur), HK)), prev: derive(add(bs.map(b => b.prev), HK)), channels: Object.values(ch),
       series: mergeDays(bs.map(b => b.series), ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'email_rev', 'campaigns', 'flows', 'meta', 'google', 'tiktok']),
       prev_series: mergeDays(bs.map(b => b.prev_series), ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'email_rev', 'campaigns', 'flows']),
-      products: bs.length === 1 ? bs[0].products || [] : [], profit };
+      products: bs.length === 1 ? bs[0].products || [] : [], profit,
+      ad_items: bs.length === 1 ? bs[0].ad_items || [] : bs.filter(b => b.cur?.ad_expense).map(b => ({ name: b.name, amount: b.cur.ad_expense })) };
   }
   async function openDrill(t, label, m) {
     const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul'), go = t.dataset.go;
@@ -236,9 +238,13 @@
        = blended to the dollar, Amazon on top). When that is what the numbers say, Amazon is shown OUTSIDE the total. */
     const amz = paid.find(r => r.id === 'amazon');
     const amzOut = !!amz && blended > 0 && Math.abs(platSum - amz.spend - blended) < Math.abs(platSum - blended);
-    const spendTable = me => { const mx = Math.max(...paid.map(r => r.spend), 1); const rest = blended - platSum + (amzOut ? amz.spend : 0);
+    /* custom expenses marked "counts as ad spend" (Costs, 2026-10-10) are inside the blended total: their own rows */
+    const adx = c.ad_expense || 0;
+    const spendTable = me => { const mx = Math.max(...paid.map(r => r.spend), adx, 1); const rest = blended - platSum - adx + (amzOut ? amz.spend : 0);
       const rows = paid.slice().sort((a, b) => b.spend - a.spend).map(r => { const out = amzOut && r.id === 'amazon';
         return `<tr class="${r.id === me ? 'me' : ''}"><td>${sw(r.id)}${esc(r.label)}${out ? '<br><span class="faint">not in the total</span>' : ''}</td><td>${ib(r.spend, mx, CH[r.id] || '--c-else', km(r.spend))}</td><td>${out ? '–' : blended ? pct(r.spend / blended, 0) : '–'}</td><td>${cmpOn && r.prev_spend ? delta(r.spend, r.prev_spend, 'n') + `<br><span class="faint">${km(r.prev_spend)}</span>` : ''}</td></tr>`; });
+      if (adx) { const its = D.ad_items && D.ad_items.length ? D.ad_items : [{ name: 'Other marketing', amount: adx }];
+        for (const it of its) rows.push(`<tr><td>${sw('rest')}${esc(it.name)}<br><span class="faint">custom expense, counts as ad spend</span></td><td>${ib(it.amount, mx, '--c-else', km(it.amount))}</td><td>${blended ? pct(it.amount / blended, 0) : '–'}</td><td></td></tr>`); }
       if (blended && rest > blended * 0.01) rows.push(`<tr><td>${sw('rest')}Not split by platform</td><td>${ib(rest, mx, '--c-else', km(rest))}</td><td>${pct(rest / blended, 0)}</td><td></td></tr>`);
       rows.push(`<tr class="tot"><td>All ad spend</td><td>${km(blended)}</td><td>100%</td><td>${cmpOn ? delta(c.spend, p.spend, 'n') : ''}</td></tr>`);
       return tbl(['Platform', 'Spend', 'Share', cmpOn ? 'vs before' : ''], rows) + (amzOut ? `<p class="v2dnote">Amazon ads (${km(amz.spend)}) are not in Triple Whale’s blended ad spend, so the tile, MER and contribution margin leave them out.</p>` : ''); };
@@ -312,16 +318,18 @@
       leave('Payment fees', 'Gateway and processing.', t.fees, 'fees');
     }
     lines.push(tot('Gross profit', 'Revenue less every variable cost, before marketing.', t.gross_profit, 'in', 'gross_profit'));
-    at = t.gross_profit || 0; leave('Ad spend', 'Every ad platform combined.', t.spend, 'spend');
+    at = t.gross_profit || 0; leave('Ad spend', t.ad_expense ? 'Every ad platform combined, plus the custom expenses that count as ad spend.' : 'Every ad platform combined.', t.spend, 'spend');
+    if (t.ad_expense) { lines.push(`<div class="r sub"><span class="l">Ad platforms</span><span></span><span class="n">−${M((t.spend || 0) - t.ad_expense)}</span></div>`);
+      for (const it of pr.ad_items || []) lines.push(`<div class="r sub"><span class="l">${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`); }
     lines.push(tot('Contribution margin', 'What the marketing made on the margin. Fixed costs are not in it.', t.cm, (t.cm || 0) >= 0 ? 'keep' : 'lose', 'cm'));
     const items = pr.fixed_items || [];
     if (t.fixed) {
-      at = t.cm || 0; leave('Fixed expenses', 'Set per brand in Brand settings > Data and costs, spread over each month’s days.', t.fixed, 'fixed');
+      at = t.cm || 0; leave('Custom expenses', 'Set per brand on Costs (P&L, or Brand settings > Data and costs).', t.fixed, 'fixed');
       for (const it of items) lines.push(`<div class="r sub"><span class="l">${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`);
-      lines.push(tot('Net profit', 'Contribution margin minus fixed expenses.', t.net, (t.net || 0) >= 0 ? 'keep' : 'lose', 'net'));
+      lines.push(tot('Net profit', 'Contribution margin minus custom expenses.', t.net, (t.net || 0) >= 0 ? 'keep' : 'lose', 'net'));
     }
     const note = [pr.left_out && pr.left_out.length ? `Left out because their cost data is unreliable: ${esc(pr.left_out.join(', '))}.` : '',
-      !t.fixed ? (H.S.role === 'client' ? '' : `No fixed expenses set${H.S.act === 'all' ? ' for these brands' : ''}, so there is no net profit line. ${H.S.act === 'all' ? 'Add them per brand in Brand settings > Data and costs.' : '<button type="button" class="v2link" data-dfix="1">Add software, salaries, rent or the agency fee ›</button>'}`) : ''].filter(Boolean).join(' ');
+      !t.fixed ? `No custom expenses set${H.S.act === 'all' ? ' for these brands' : ''}, so there is no net profit line. ${H.S.act === 'all' ? 'Add them per brand on Costs.' : '<button type="button" class="v2link" data-dfix="1">Add the team, software, rent or agency fees ›</button>'}` : ''].filter(Boolean).join(' ');
     return `<div class="v2dsec"><h4>${m === 'net' ? 'From revenue to net profit' : 'Where the money went'}</h4><div class="pnl-fall">${lines.join('')}</div>${note ? `<p class="v2dnote">${note}</p>` : ''}</div>`;
   }
 

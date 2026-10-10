@@ -28,7 +28,7 @@ import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { handleHub } from './hub.js';
-import { handleFixed, fixedFor } from './fixed.js';
+import { handleExpenses, loadExpenses, spread, applyAdSpend } from './expenses.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -508,7 +508,11 @@ async function seriesFor(env, acct, from, to) {
     const row = dayEconomics(piv, meta, d, marginPct);
     if (row) rows.push(row);
   }
-  return { rows, margin_pct: marginPct, shipping: ship, piv };
+  /* Custom expenses marked "counts as ad spend" (expenses.js, 2026-10-10) join blended spend here, so MER, aMER,
+     CAC and CM include them on every screen that reads this series. `exp` rides along for the live row and Net profit. */
+  const exp = (await loadExpenses(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
+  if (exp.some(e => +e.is_ad_spend)) applyAdSpend(rows, spread(exp, from, to, rows).adByDate);
+  return { rows, margin_pct: marginPct, shipping: ship, piv, exp };
 }
 
 /* ---------- Channels (Home, 2026-10-07) ----------
@@ -661,6 +665,17 @@ async function seriesRaw(env, acct, from, to) {
   return rows;
 }
 
+/** Where each per-order cost comes from (Costs page, 2026-10-10): the last 30 whole days of Triple Whale's own
+ *  figures (the override ignored, like the cost check), the margin override if one is set, and the cost check's
+ *  verdict. Flags only what is MISSING (hard rule), never what is surprising. */
+async function costSources(env, acct) {
+  const to = addDays(localDate(acct.tz), -1), from = addDays(to, -29);
+  const t = totals(await seriesRaw(env, acct, from, to));
+  const h = await env.DB.prepare(`SELECT verdict, reason, days, checked_at FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
+  return { from, to, sales: t.sales, orders: t.orders, cogs: t.cogs, ship_cost: t.ship_cost, ship_rev: t.ship_rev, handling: t.handling, fees: t.fees,
+    margin_pct: marginOverride(acct, monthOf(to)), verdict: h?.verdict || null, reason: h?.reason || null, checked_at: h?.checked_at || null };
+}
+
 const sum = (rows, get) => {
   let s = 0, any = false;
   for (const r of rows) { const v = get(r); if (v != null) { s += v; any = true; } }
@@ -682,6 +697,8 @@ function totals(rows) {
     total_sales: sum(rows, r => r.total_sales), tax: sum(rows, r => r.tax),
     net_sales: sum(rows, r => r.net_sales), ship_rev: sum(rows, r => r.ship_rev),
     cogs: sum(rows, r => r.cogs), ship_cost: sum(rows, r => r.ship_cost),
+    /* the part of spend that is custom expenses marked "counts as ad spend" (expenses.js), and the platforms alone */
+    ad_expense: sum(rows, r => r.ad_expense), base_spend: sum(rows, r => r.base_spend ?? r.spend),
     handling: sum(rows, r => r.handling), fees: sum(rows, r => r.fees), gross_profit: gp,
     meta_spend: sum(rows, r => r.meta_spend), google_spend: sum(rows, r => r.google_spend),
     mer: spend ? sales / spend : null,
@@ -2110,7 +2127,7 @@ export default {
           if (cmp === 'prev') { pTo = addDays(from, -1); pFrom = addDays(pTo, -(span - 1)); }
           else if (cmp === 'yoy') { pFrom = `${+from.slice(0, 4) - 1}${from.slice(4)}`; pTo = `${+to.slice(0, 4) - 1}${to.slice(4)}`; }
           const fetchFrom = [from, monthStart, cmp === 'prev' ? pFrom : from].sort()[0];
-          const { rows: allRows, margin_pct, shipping, piv } = await seriesFor(env, a, fetchFrom, to);
+          const { rows: allRows, margin_pct, shipping, piv, exp } = await seriesFor(env, a, fetchFrom, to);
           const rows = allRows.filter(r => r.date >= from && r.date <= to);
           let prevRows = [];
           if (cmp === 'prev') prevRows = allRows.filter(r => r.date >= pFrom && r.date <= pTo);
@@ -2127,7 +2144,7 @@ export default {
           let live = null;
           if (to === today) {
             const day = await twDay(env, request, a, today).catch(() => null);
-            if (day) { const row = liveRow(a, day); if (row) { rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
+            if (day) { const row = liveRow(a, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
           }
           out.push({
             ...pubAccount(a),
@@ -2173,7 +2190,7 @@ export default {
         const { today, from, to } = windowFor(acct);
         const ym = monthOf(today);
         const monthStart = `${ym}-01`;
-        const { rows: allRows, margin_pct, shipping } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
+        const { rows: allRows, margin_pct, shipping, exp } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
         const rows = allRows.filter(r => r.date >= from && r.date <= to);
         // planFor spreads the month goal over the days ELAPSED, so it must see the
         // month-to-date rows - the whole window here once pro-rated a plan past 100%.
@@ -2187,14 +2204,15 @@ export default {
           const day = await twDay(env, request, acct, to).catch(() => null);
           if (day) {
             if (from === to) hours = hoursOf(day);
-            if (to === today) { const row = liveRow(acct, day); if (row) { rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
+            if (to === today) { const row = liveRow(acct, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
           }
         }
-        /* Fixed expenses over the window (2026-10-09): only for the Net profit line; CM is untouched. */
-        const fx = (await fixedFor(env, [acct.act_id], from, to).catch(() => ({})))[acct.act_id] || { total: 0, items: [] };
+        /* Custom expenses over the window (expenses.js, 2026-10-10). `total`/`items` = the ones under contribution margin
+           (Net profit = CM minus total); `ad_total`/`ad_items` = the ones already inside ad spend (and so inside CM). */
+        const fx = spread(exp, from, to, rows);
         return json({
           account: pubAccount(acct), days, from, to, margin_pct, rows, shipping,
-          fixed: { total: fx.total, items: fx.items },
+          fixed: { total: fx.total, items: fx.items, ad_total: fx.ad_total, ad_items: fx.ad_items },
           totals: totals(rows), mtd: totals(mtdRows),
           goals: goalsFor(acct, ym), plan,
           live_as_of: liveAsOf, hours,
@@ -2742,12 +2760,14 @@ export default {
         const hr = await handleHub({ path, url, request, env, json, accountsFor: () => accountsFor(), windowFor, addDays, localDate,
           twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids),
           /* The tile drill-downs (2026-10-09) price contribution margin exactly like /api/overview. */
-          econ: dayEconomics, totals, marginOverride, monthOf, fixedFor });
+          econ: dayEconomics, totals, marginOverride, monthOf, loadExpenses, spread, applyAdSpend });
         if (hr) return hr;
       }
-      /* Fixed expenses per brand (2026-10-09): Brand settings > Data and costs. fixed.js. */
-      if (path === '/api/fixed-costs') {
-        const fr = await handleFixed({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request) });
+      /* Costs per brand (2026-10-10, Triple Whale's Cost Settings): custom expenses + where each per-order cost comes
+         from. Brand settings > Data and costs > Costs, and P&L's Costs button (clients too, P&L on). expenses.js. */
+      if (path === '/api/expenses') {
+        const fr = await handleExpenses({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
+          client: clientScope(request), sources: acct => costSources(env, acct) });
         if (fr) return fr;
       }
       /* Saved dashboards (the hub, 2026-10-07). Routes live in dashboard.js. */
