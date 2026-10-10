@@ -168,6 +168,7 @@ await check('suggest: the test\'s own ad set first, else the newest live set in 
     { id: 'b', name: '414 | Still', num: '414', status: 'ACTIVE', campaign: '[MD] CBO', created: '2026-09-29' }];
   assert.equal(L.suggest(lucky, '421').id, 'b', 'Studio static: the highest-numbered live test set, never the creator campaign');
   assert.equal(L.suggest(lucky, '421', 'creator').id, 'c', 'creator asset: the creator campaign');
+  assert.equal(L.suggest(lucky, '421', 'studio', new Set(['414'])).id, 'a', 'a test called a loser is never the home for a new ad');
 });
 
 await check('prep: an approved Studio ad gets its test, the own ad set suggested, the name, and fields from the brief and the set', async () => {

@@ -113,7 +113,7 @@ async function adsetsOf(env, d, act) {
  *  outside creator / partnership campaigns (the account's own test structure), a creator asset to the newest live set in
  *  a creator campaign. Then a campaign named "test", then the newest live set. */
 const CREATOR = /creator|partnership|trybe|ambassador|influencer|ugc creator/i;
-export function suggest(sets, num, kind = 'studio') {
+export function suggest(sets, num, kind = 'studio', losers = new Set()) {
   const newest = (a, b) => String(b.created).localeCompare(String(a.created));
   const own = num ? sets.filter(s => s.num === String(num)).sort((a, b) => (a.status === 'ACTIVE' ? -1 : 0) - (b.status === 'ACTIVE' ? -1 : 0) || newest(a, b)) : [];
   if (own.length) return { id: own[0].id, why: `This test's own ad set (its name starts with ${num}).` };
@@ -124,7 +124,8 @@ export function suggest(sets, num, kind = 'studio') {
     const cr = live.filter(isCreator).sort(newest);
     if (cr.length) return { id: cr[0].id, why: `The newest live ad set in the creator campaign "${cr[0].campaign}".${num ? ` No ad set starts with ${num} yet.` : ''}` };
   } else {
-    const tests = live.filter(s => s.num && !isCreator(s)).sort((a, b) => (+b.num || 0) - (+a.num || 0) || newest(a, b));
+    /* A test the buyer (or Asana) already called a loser is being wound down: never the home for a new ad. */
+    const tests = live.filter(s => s.num && !isCreator(s) && !losers.has(String(s.num))).sort((a, b) => (+b.num || 0) - (+a.num || 0) || newest(a, b));
     if (tests.length) return { id: tests[0].id, why: `The newest live test ad set ("${tests[0].name}" in "${tests[0].campaign}").${copyTip}` };
   }
   const testing = live.filter(s => /test/i.test(s.campaign) && (kind === 'creator' || !isCreator(s))).sort(newest);
@@ -166,7 +167,9 @@ export async function launchPrep(env, d, act, b) {
   const { metas, sets } = await adsetsOf(env, d, act);
   if (!metas.length) return { error: 'This brand has no Meta ad account connected in Locus.' };
   const can = await metaCan(env, metas[0].act, d, metas[0].name);
-  const sug = suggest(sets, src.num, src.kind === 'creator' ? 'creator' : 'studio');
+  const losers = new Set(((await env.DB.prepare(`SELECT num FROM p_br_batch WHERE act_id = ?1 AND (lower(COALESCE(verdict, '')) = 'loser' OR lower(COALESCE(asana_result, '')) LIKE '%loser%')`).bind(act).all()
+    .catch(() => env.DB.prepare(`SELECT num FROM p_br_batch WHERE act_id = ?1 AND lower(COALESCE(verdict, '')) = 'loser'`).bind(act).all()).catch(() => ({ results: [] }))).results || []).map(r => String(r.num)));
+  const sug = suggest(sets, src.num, src.kind === 'creator' ? 'creator' : 'studio', losers);
   const pick = sets.find(s => s.id === sug.id) || null;
   const copy = pick ? await setCopy(env, d, pick.id) : { link: null, primary_text: null, names: [], count: 0 };
   const taken = pick ? await takenFor(env, d, pick.meta_act, src.num) : new Set();
