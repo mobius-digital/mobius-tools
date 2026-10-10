@@ -1,7 +1,7 @@
 /* <mobius-loader>: the Mobius strip (profit/DESIGN.md section 7).
      <mobius-loader mode="load"></mobius-loader>              the intro: a pre-rendered 3D film (assets/intro/) of the
                                                               strip forming the logo, on a fresh page load at most once per 10 minutes (?intro=1 forces it)
-     <mobius-loader mode="working" size="20"></mobius-loader> small, turning and breathing (the Strategist working)
+     <mobius-loader mode="working" size="20"></mobius-loader> small, turning and breathing (Locus working)
    load: a full-screen layer on the theme canvas colour with the video centred. The app renders underneath and never
    waits on it: the layer fades as the video ends (hard cap 3.6s), and a tap, click or Escape skips it.
    prefers-reduced-motion or any video problem = the static mark for a moment, then the fade.
