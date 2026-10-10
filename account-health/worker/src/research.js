@@ -352,7 +352,8 @@ async function stepSynthesis(env, c, emit, meter) {
   await env.DB.batch([
     upsertDoc(env, A, L, 'market', { ...market, mass_desire: out.mass_desire, awareness: out.awareness, awareness_why: out.awareness_why, stage: out.stage || market.stage, stage_why: out.stage_why || market.stage_why }, 'draft'),
     upsertDoc(env, A, L, 'mechanism', out.mechanism || {}, 'draft'),
-    upsertDoc(env, A, L, 'problem', out.problem || {}, 'draft'),
+    /* A problem doc Cole approved is never overwritten by a re-run (2026-10-10); only drafts are replaced. */
+    ...(c.docs.some(x => (x.line_id || '') === L && x.key === 'problem' && x.status === 'approved') ? [] : [upsertDoc(env, A, L, 'problem', out.problem || {}, 'draft')]),
     env.DB.prepare(`DELETE FROM p_br_persona WHERE act_id = ?1 AND line_id = ?2 AND status = 'draft' AND source = 'ai'`).bind(A, L),
     ...personaRows.map(p => env.DB.prepare(`INSERT INTO p_br_persona (id, act_id, line_id, name, data_json, status, source, sort) VALUES (?1, ?2, ?3, ?4, ?5, 'draft', 'ai', ?6)`)
       .bind(p.id, A, L, p.name, JSON.stringify(p.data), 100 + p.i)),

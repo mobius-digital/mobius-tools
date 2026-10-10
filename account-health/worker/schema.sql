@@ -107,6 +107,8 @@ CREATE TABLE IF NOT EXISTS ad_daily (
   video_p75        INTEGER NOT NULL DEFAULT 0,
   video_avg_watch  REAL    NOT NULL DEFAULT 0,    -- average seconds watched (an AVERAGE - never summed)
   video_plays      INTEGER NOT NULL DEFAULT 0,    -- video plays: the denominator for the retention curve
+  add_to_cart      REAL    NOT NULL DEFAULT 0,    -- adds to cart (2026-09-24; was only ever added on prod by hand)
+  leads            REAL    NOT NULL DEFAULT 0,    -- lead results (2026-10-10, giveaways; also ALTERed on first use by the sync)
   PRIMARY KEY (act_id, ad_id, date)
 );
 

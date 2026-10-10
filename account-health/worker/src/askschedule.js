@@ -119,14 +119,14 @@ export async function runSchedule(env, row, d, { dry = false } = {}) {
   ];
   const fallback = `${row.question.slice(0, 120)}: ${text.slice(0, 200)}`;
   if (dry) return { ok: true, dry: true, channel: row.channel, channel_name: allowed.get(row.channel), text, blocks, proposals: proposals.map(p => p.summary), model: r.model, inTok: r.inTok, outTok: r.outTok };
-  const res = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false, username: 'Strategist' });
+  const res = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false, username: 'Locus' });
   let posted = res;
   if (res && res.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(res.error || ''))) posted = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false });
   if (!posted || posted.ok === false) { await note('error: Slack said ' + (posted?.error || 'nothing')); return { error: `Slack: ${posted?.error || 'no answer'}` }; }
   /* A task's suggested changes: one Apply card each in the thread under the answer. Never applied here. */
   let cards = 0;
   for (const p of proposals) {
-    const c = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, thread_ts: posted.ts, text: p.summary, blocks: engine.proposalBlocks(p), unfurl_links: false, username: 'Strategist' }).catch(() => null);
+    const c = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, thread_ts: posted.ts, text: p.summary, blocks: engine.proposalBlocks(p), unfurl_links: false, username: 'Locus' }).catch(() => null);
     if (c?.ok) cards++;
   }
   await note(proposals.length ? `ok, ${cards} Apply card${cards === 1 ? '' : 's'}` : 'ok');
@@ -164,7 +164,7 @@ async function runReader(env, row, d, { dry, brand, rowAct, allowed, note, kind 
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=yesterday${brand ? `&act=${encodeURIComponent(brand.act_id)}` : ''}`, action_id: 'noop_open' }] },
   ];
   if (dry) return { ok: true, dry: true, channel: row.channel, channel_name: allowed.get(row.channel), text, blocks };
-  const posted = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: title, blocks, unfurl_links: false, username: 'Strategist' });
+  const posted = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: title, blocks, unfurl_links: false, username: 'Locus' });
   if (!posted || posted.ok === false) { await note('error: Slack said ' + (posted?.error || 'nothing')); return { error: `Slack: ${posted?.error || 'no answer'}` }; }
   await note('ok');
   return { ok: true, ts: posted.ts, channel: row.channel };

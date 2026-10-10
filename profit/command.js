@@ -124,12 +124,15 @@ function pills(a, c) {
   const cpaNow = w.orders ? w.spend / w.orders : null, cpaPrev = p.orders ? p.spend / p.orders : null;
   const g = c && c.goal;
   const pill = (label, value, extra = '', tone = '', g2 = '') => `<span class="cmd-pill${tone ? ' ' + tone : ''}"><span class="l">${label}</span><span class="v">${value}${extra}</span>${g2 ? `<span class="g">${g2}</span>` : ''}</span>`;
-  const merTone = g && g.kind === 'mer' && merNow != null ? (merNow >= g.target ? 'good' : merNow < g.target * 0.9 ? 'bad' : '') : '';
+  /* A brand with giveaway spend is judged on SALES MER (giveaway spend left out, 2026-10-10): the tone follows the 7-day
+     Sales MER from the server, and the goal line says so. */
+  const merJ = g && g.sales ? g.value7 : merNow;
+  const merTone = g && g.kind === 'mer' && merJ != null ? (merJ >= g.target ? 'good' : merJ < g.target * 0.9 ? 'bad' : '') : '';
   const cpaTone = g && g.kind === 'cpa' && cpaNow != null ? (cpaNow <= g.target ? 'good' : cpaNow > g.target * 1.1 ? 'bad' : '') : '';
   return `<div class="cmd-pills">
     ${pill('Revenue', u.kmoney(w.sales, cur), u.chip(w.sales, p.sales, false, 'Against the compare period'))}
     ${pill('Ad spend', u.kmoney(w.spend, cur), u.chip(w.spend, p.spend, 'n', 'Against the compare period'))}
-    ${pill('MER', u.x2(merNow), u.chip(merNow, merPrev, false, 'Against the compare period'), merTone, g && g.kind === 'mer' ? `goal ${u.x2(g.target)}` : '')}
+    ${pill('MER', u.x2(merNow), u.chip(merNow, merPrev, false, 'Against the compare period'), merTone, g && g.kind === 'mer' ? (g.sales ? `sales MER ${u.x2(g.value7)} (7 days), goal ${u.x2(g.target)}` : `goal ${u.x2(g.target)}`) : '')}
     ${pill('CPA', cpaNow == null ? '–' : u.money(cpaNow, cur), u.chip(cpaNow, cpaPrev, true, 'Ad spend per paid order, against the compare period'), cpaTone, g && g.kind === 'cpa' ? `goal ${u.money(g.target, cur)}` : 'no goal CPA')}
   </div>`;
 }
@@ -185,7 +188,7 @@ async function render(host, h, all) {
       <span class="cmd-bar"><i style="width:${Math.round(p.done / p.of * 100)}%"></i></span></div>`).join('')}
       ${agencyAlerts.map(al => `<div class="cmd-run"><b>Alert fired</b><button type="button" class="btn" data-go2="yesterday">Open Day check</button><small>${esc(al.text)}</small></div>`).join('')}</div></section>` : '';
   host.innerHTML = `<div class="cmd">
-    <section class="v2card cmd-read" id="cmdRead"><div class="v2h"><h3>Focus first</h3><span class="cap">The Strategist, across every brand</span></div><p class="v2hint">Reading every brand…</p></section>
+    <section class="v2card cmd-read" id="cmdRead"><div class="v2h"><h3>Focus first</h3><span class="cap">Locus, across every brand</span></div><p class="v2hint">Reading every brand…</p></section>
     <section class="v2card"><div class="v2h"><h3>Every brand, what needs you first</h3><span class="find">${sub}</span></div>
       ${cmd ? `<div class="cmd-sum">${n('bad') ? `<span class="v2pill bad">${n('bad')} act now</span>` : ''}${n('warn') ? `<span class="v2pill warn">${n('warn')} look today</span>` : ''}${n('info') ? `<span class="v2pill">${n('info')} setup only</span>` : ''}${n('good') ? `<span class="v2pill good">${n('good')} on track</span>` : ''}</div>` : ''}
       <div class="cmd-rows">${rows.map(rowHtml).join('')}</div>
@@ -214,7 +217,8 @@ async function readAll(rows, pending, agencyAlerts) {
       const w = a.window || {}, p = a.prev || {};
       return { name: a.name, currency: a.currency, revenue: Math.round(w.sales || 0), revenue_before: p.sales != null ? Math.round(p.sales) : null, ad_spend: Math.round(w.spend || 0),
         mer: r2(w.spend ? w.sales / w.spend : null), cpa: r2(w.orders ? w.spend / w.orders : null),
-        goal: c && c.goal ? { kind: c.goal.kind, target: r2(c.goal.target), last_7_days: r2(c.goal.value7), days_off_goal: c.goal.off_days } : null,
+        goal: c && c.goal ? { kind: c.goal.kind, target: r2(c.goal.target), last_7_days: r2(c.goal.value7), days_off_goal: c.goal.off_days, ...(c.goal.sales ? { judged_on: 'sales spend (giveaway spend left out)' } : {}) } : null,
+        giveaway: c && c.giveaway ? c.giveaway : null,
         days_since_new_ad: c && c.cadence ? c.cadence.days_since : null,
         meta_ctr_change: c && c.fatigue && c.fatigue.ctr_change != null ? Math.round(c.fatigue.ctr_change * 100) + '%' : null,
         meta_frequency_change: c && c.fatigue && c.fatigue.freq_change != null ? Math.round(c.fatigue.freq_change * 100) + '%' : null,
@@ -234,7 +238,7 @@ async function readAll(rows, pending, agencyAlerts) {
   if (r.error) { el.innerHTML = `<div class="v2h"><h3>Focus first</h3></div><p class="v2say quiet">The read could not run: ${esc(r.error)}</p>`; return; }
   const byName = Object.fromEntries(rows.map(x => [x.a.name.toLowerCase(), x.a.act_id]));
   const order = (r.order || []).slice(0, 4);
-  el.innerHTML = `<div class="v2h"><h3>Focus first</h3>${r.focus ? `<span class="find"><b>${esc(r.focus)}</b></span>` : ''}<span class="cap">The Strategist, across every brand</span></div>
+  el.innerHTML = `<div class="v2h"><h3>Focus first</h3>${r.focus ? `<span class="find"><b>${esc(r.focus)}</b></span>` : ''}<span class="cap">Locus, across every brand</span></div>
     ${order.length ? `<ol>${order.map(o => { const act = byName[String(o.brand || '').toLowerCase()];
       return `<li><span class="w">${act ? `<button type="button" class="cmd-bn" data-cmd="${esc(act)}:overview">${esc(o.brand)}</button>` : `<b>${esc(o.brand)}</b>`}: ${esc(o.why)}</span>${o.do ? `<span class="d">${esc(o.do)}</span>` : ''}</li>`; }).join('')}</ol>` : ''}
     ${(r.lines || []).length ? `<p class="lines">${esc(r.lines.join(' '))} <button type="button" class="v2link" data-ask="1">Ask about this ›</button></p>` : ''}`;

@@ -12,7 +12,7 @@
 const SW = [
   ['pl', 'P&L', 'Costs, margins and contribution margin. Off: they see sales, spend and results, never what is left after costs.'],
   ['changes', 'Change history', 'The Meta and Google change logs: budgets, launches and pauses, with who made them.'],
-  ['strategist', 'Ask the Strategist', 'A client-safe Strategist that answers questions about their own numbers only. No internal notes, no Slack, no changes. Up to 20 questions a day.'],
+  ['strategist', 'Ask Locus', 'A client-safe Locus that answers questions about their own numbers only. No internal notes, no Slack, no changes. Up to 20 questions a day.'],
   ['creators', 'Creator link', 'Their creator link page under Creative.'],
 ];
 const DEFAULT_ON = { pl: true, changes: true, strategist: true, creators: true };
@@ -20,7 +20,7 @@ const accOf = a => ({ ...DEFAULT_ON, ...(a || {}) });
 /* The one line, then the overrides folded away. `on` = {key: bool}, `editable` = the toggles answer clicks. */
 const everythingBlock = (on, brandName, editable, applies) => {
   const off = SW.filter(([k]) => on[k] === false);
-  return `<div class="cl-all"><p class="cl-all-h"><b>Clients see everything about their own business.</b> Sales, ads, email and SMS, the store, the calendar, P&L, change history, their creator link and a Strategist that answers about their own numbers. Never another brand, a draft, settings or the team's notes.</p>
+  return `<div class="cl-all"><p class="cl-all-h"><b>Clients see everything about their own business.</b> Sales, ads, email and SMS, the store, the calendar, P&L, change history, their creator link, and Locus to answer questions about their own numbers. Never another brand, a draft, settings or the team's notes.</p>
     <details class="cl-off"${off.length ? ' open' : ''}><summary>Turn something off for this client${off.length ? ` <span class="cl-offn">${off.length} off: ${esc(off.map(x => x[1]).join(', '))}</span>` : ''}</summary>
       <p class="hint" style="margin:6px 0 2px">${esc(applies || `Applies to every client login on ${brandName || 'this brand'}.`)} On means they see it.</p>
       <div class="cl-sw">${SW.map(([k, l, h]) => `<label>${toggle(k, on[k] !== false, editable ? '' : ' aria-disabled="true"')}<b>${l}</b><small>${h}</small></label>`).join('')}</div></details></div>`;
@@ -95,7 +95,7 @@ async function card(host, opts = {}) {
       <td>${c.last_invite ? `emailed ${ago(c.last_invite)}` : c.invited_at ? `added ${ago(c.invited_at)}` : ''}</td>
       <td style="white-space:nowrap">${d.can_edit ? `<button class="btn" data-k="resend">Resend invite</button> <button class="btn" data-k="remove" style="color:var(--bad)">Remove</button>` : ''}</td></tr>`).join('');
   host.innerHTML = `<div class="card set-card"><h3>${act ? `Client logins for ${esc(one?.name || '')}` : 'Client logins'}</h3>
-    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>tools.go-mobius-digital.com/profit</b>. They see everything about their own brand and change nothing except the Calendar (they can add a date and leave a note, and the team hears about it in Slack). Never drafts, settings, research, Studio, the Library, other brands or the team's Strategist.</p>
+    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>tools.go-mobius-digital.com/profit</b>. They see everything about their own brand and change nothing except the Calendar (they can add a date and leave a note, and the team hears about it in Slack). Never drafts, settings, research, Studio, the Library, other brands or the team's Locus.</p>
     <div class="tbl-wrap"><table class="cl-tbl"><thead><tr><th>Person</th><th>Brands</th><th>Last sign-in</th><th>Invite</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="tiny">No client logins${act ? ' for this brand' : ''} yet.</td></tr>`}</tbody></table></div>
     ${d.can_edit ? `<div class="row" style="margin:12px 0 0;gap:8px"><button class="btn primary" data-k="invite">Invite a client</button></div>` : '<p class="tiny" style="margin-top:10px">Only Cole invites or removes clients.</p>'}
@@ -231,7 +231,7 @@ function welcome(main) {
       <li><b>Requests</b> (under Home): approve the ads, offers and dates we send you, and ask us for anything.</li>
       <li><b>Reports</b>: every weekly and monthly report we sent you.</li>
       ${A.creators ? '<li><b>Creative</b>: your creator link, the page your creators film from.</li>' : ''}
-      ${A.strategist ? '<li><b>Ask</b>: type a question about your numbers in the bar at the top and the Strategist answers from your own data.</li>' : ''}</ul>
+      ${A.strategist ? '<li><b>Ask</b>: type a question about your numbers in the bar at the top and Locus answers from your own data.</li>' : ''}</ul>
     <p class="hint" style="margin:0 0 12px">Change the dates and what they compare to in the top bar. Everything is read-only except the calendar and Requests, so there is nothing you can break.</p>
     <button class="btn primary" type="button">Got it</button>`;
   const head = main.querySelector('.ph'); if (head && head.parentElement) head.parentElement.insertBefore(el, head.nextSibling); else main.prepend(el);

@@ -1653,3 +1653,27 @@ block and tool group; ~2.5 characters a token, calibrated on strat_run; set ANTH
 - Expected: a simple brand question inside the hour ~$0.20 (was ~$0.47 cold), a no-brand one ~$0.05; the first
   question of an hour ~$0.43 (the 1-hour write is 2x). The remaining big cost is the brand brain (~25k tokens,
   written once per brand per 5 minutes).
+
+## 2026-10-10: giveaway spend vs sales MER
+
+Design and screens: profit/CLAUDE.md, same title. The math lives in `profit/worker/src/giveaway.js`, imported here.
+- **Daily Brief (v1 and v2)**: `briefData` -> `briefGiveaway` adds `giveaway_spend`, `sales_spend`, `sales_mer` to each day the
+  giveaway spent and to mtd, and `data.giveaway` (the since-start read). On those days the MER row becomes
+  "Sales MER: *3.29x* (2.50x including giveaway spend)" (`merRowOrSales`), month so far gets the same, and ONE line
+  "Giveaway: N entries at $X each, building the Black Friday list." (`briefGiveawayLine`, only when a covered date is inside
+  the giveaway). The narrative gets `gwPrompt` (judge on Sales MER, mention the giveaway once in client words, never quote the
+  most to pay, buy rate or floor). A brand without a giveaway: nothing changes.
+- **Weekly/monthly reports**: `reportData` adds `giveaway` only when one ran in the period (spend or entries);
+  `reportHeadline` adds "Sales MER" and "Giveaway" bullets; the narrative gets the same instruction. Frozen reports untouched.
+- **Strategist**: `storePeriod` (the store view) carries sales_spend, giveaway_spend, sales_mer and a `giveaway` block when one
+  ran; PLAYBOOK "GIVEAWAYS AND THE MER FLOOR"; the Monday review prompt (review.js step 2) says the floor is on sales spend
+  and the giveaway is judged on cost per entry. `settings.strategistInstructions` was not touched.
+- **Meta leads**: `ad_daily.leads` (schema.sql; ALTERed on first use by `ensureLeadsCol` in `syncAdSlice`), from actions
+  `lead`, `onsite_conversion.lead_grouped`, `offsite_conversion.fb_pixel_lead`, `complete_registration`, the pixel registration
+  (first found wins). **ADS_METRICS_VERSION 4 -> 5**, so every account re-walks 90 days of ad insights once (2 slices a sync),
+  the same way add_to_cart filled in. schema.sql now also lists `add_to_cart`, which prod has had since 2026-09-24.
+- Klaviyo list counts go through `xfetch` here (one call per brand per hour at most, cached in settings).
+- `_giveawayTest` export (buildBriefText, buildBriefTextV2, reportHeadline, briefData, reportData, storePeriod) is for tests only.
+- Tests: `node test-giveaway.mjs` (16: max cost per entry, matching, split math, seeds, Klaviyo and Meta entries, status and
+  pace, the real profit routes, command center, briefData, brief v1/v2 lines, report headline and data, store view,
+  brandguard). routes.js rebuilt.

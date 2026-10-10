@@ -182,7 +182,7 @@
     const ch = r.chatter;
     if (ch) mk.push(ch.status === 'ok' ? `<b>Advertisers online, last few hours:</b> ${esc(ch.summary || (ch.meta === 'issues' ? 'people are reporting Meta problems' : 'nothing unusual'))}${(ch.sources || []).length ? ' ' + ch.sources.slice(0, 3).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title || x.url).slice(0, 50))}</a>`).join(' · ') : ''}` : `Could not search what advertisers are saying: ${esc(ch.error || '')}`);
     out += `<div class="dk-key" style="display:block;margin-top:12px">${mk.map(x => `<p class="v2say" style="margin:0 0 4px">${x}</p>`).join('')}</div>`;
-    out += `<p class="v2hint" style="margin:8px 0 0">Want a ping when this happens? Ask the Strategist: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.</p>`;
+    out += `<p class="v2hint" style="margin:8px 0 0">Want a ping when this happens? Ask Locus: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.</p>`;
     return out;
   }
   const AHC = new Map();
@@ -747,7 +747,7 @@
     const r = heroRows(d, v, 5); WR.lowStock = r.low.map(p => p.title);
     el.innerHTML = r.html;
   }
-  /* The Strategist's read: what to do now. account-health /api/read (Sonnet), cached there per facts; the 15-minute
+  /* Locus's read: what to do now. account-health /api/read (Sonnet), cached there per facts; the 15-minute
      slot in the facts makes it a fresh read at most every 15 minutes, and Refresh adds a nonce to force one. */
   async function warRead(t, d, fresh) {
     const el = document.getElementById('wrRead'); if (!el || isCl()) return;
@@ -756,7 +756,7 @@
       last_3_hours: L.last3, ladder: d.ladder ? { breakeven: d.ladder.be, target: d.ladder.target, scale_50: d.ladder.s50, scale_100: d.ladder.s100, says: lad.text } : null,
       channels: (L.channels || []).map(c => ({ channel: c.label, spent: c.spend, day_budget: c.budget, by_now: c.budget_now })), sale_so_far: L.sale_so_far || null,
       goals: d.goals_list, alerts_fired_today: WR.firedToday || [], stock_running_out: WR.lowStock || [], slot: Math.floor(Date.now() / 9e5), ...(fresh ? { nonce: Date.now() } : {}) };
-    el.innerHTML = `<section class="v2card wr-read"><div class="v2h"><h3>What to do now</h3><span class="cap"><button type="button" class="v2btn ghost" id="wrReadRef">Refresh</button></span></div><p class="v2hint">The Strategist is reading the numbers&hellip;</p></section>`;
+    el.innerHTML = `<section class="v2card wr-read"><div class="v2h"><h3>What to do now</h3><span class="cap"><button type="button" class="v2btn ghost" id="wrReadRef">Refresh</button></span></div><p class="v2hint">Locus is reading the numbers&hellip;</p></section>`;
     try {
       const r = await H.apiAH('/api/read', { method: 'POST', body: JSON.stringify({ screen: 'war room', scope: d.name, range: `Today, ${L.date}`, compare: 'the plan for today', facts }) });
       if (t !== H.RUN() || !el.isConnected) return;
@@ -903,7 +903,7 @@
   }
   /* LOCUS ITSELF (2026-10-10): the daily smoke check (account-health smoke.js). Every page's data routes for All
      clients and each active brand, the connections and data freshness, every morning at 6am Central; failures
-     go to the Strategist channel. Run now is a dry run unless "Post failures to Slack" is ticked. */
+     go to Locus channel. Run now is a dry run unless "Post failures to Slack" is ticked. */
   async function smokeCard(t, fresh) {
     const el = $('#puSmoke'); if (!el) return;
     const chrono = iso => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
@@ -922,9 +922,9 @@
       L.not_checked ? `${L.not_checked} reads did not fit in the budget` : '',
       L.cost != null ? `about ${L.cost} subrequests` : '',
       L.slowest && L.slowest[0] ? `slowest: ${esc(L.slowest[0].page)} for ${esc(L.slowest[0].brand)}, ${(L.slowest[0].ms / 1000).toFixed(1)}s` : '',
-      L.dry ? 'dry run, nothing posted' : L.posted ? 'posted to the Strategist channel' : L.post_error ? esc(L.post_error) : fails.length ? '' : 'nothing to post',
+      L.dry ? 'dry run, nothing posted' : L.posted ? 'posted to Locus channel' : L.post_error ? esc(L.post_error) : fails.length ? '' : 'nothing to post',
     ].filter(Boolean).join('. ') + '.' : '';
-    el.innerHTML = U().card('Locus itself', 'Every page, every brand, the connections and data freshness, read every morning at 6am Central. Only failures are posted, to the Strategist channel.',
+    el.innerHTML = U().card('Locus itself', 'Every page, every brand, the connections and data freshness, read every morning at 6am Central. Only failures are posted, to Locus channel.',
       `<p class="v2say">${say}</p>${run}
       ${rows ? `<div class="v2tbl pu-t"><table><thead><tr><th>Brand</th><th>What</th><th>Error</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
       ${facts ? `<p class="v2hint">${facts}</p>` : ''}
@@ -932,7 +932,7 @@
         <label><input type="checkbox" id="smOn" ${st.check !== 'off' ? 'checked' : ''}> Check every morning <span class="faint">(off stops the daily check)</span></label>
         <label><input type="checkbox" id="smLoud" ${st.quiet === 'off' ? 'checked' : ''}> Post when everything passes too <span class="faint">(default: failures only)</span></label>
         <label><input type="checkbox" id="smPost"> Post this run's failures to Slack <span class="faint">(unticked = a dry run: results show here only)</span></label>
-        ${st.channel ? '' : '<p class="v2hint">No Strategist channel is set, so nothing is posted. Set it in Agency settings, The Strategist.</p>'}
+        ${st.channel ? '' : '<p class="v2hint">No Locus channel is set, so nothing is posted. Set it in Agency settings, Locus.</p>'}
       </div>`,
       `<button type="button" class="ds-btn" id="smRun"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Run now</button>`);
     el.querySelectorAll('.pu-open').forEach(b => b.onclick = () => pickAct(b.dataset.sa, b.dataset.so));

@@ -49,7 +49,7 @@ import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboa
    thread carries a reference). The knowledge it reasons with is below (PLAYBOOK) and in the
    brand brain (brain.js); the doctrine Cole set out for the team is in docs/strategist-brain/. */
 const WHO = `
-You are the Strategist for Mobius Digital, a direct-to-consumer marketing
+You are Locus, the strategist for Mobius Digital (people tag you @Locus in Slack and ask you in the Locus app; never call yourself "the Strategist"), a direct-to-consumer marketing
 agency run by Cole with account strategists (Ahsan, Noma) and a video editor
 (Ravo). You are the agency's full strategist, not a lookup tool: you know the
 numbers, the research on every brand, how Mobius builds and tests ads, and you
@@ -345,6 +345,9 @@ SEARCH, ORGANIC (view search, Search Console):
 - Brand search volume is demand the ads and the brand created; rising brand clicks are a sign the paid work builds the brand.
 - Non-brand queries sitting at position 4 to 15 with real impressions are the opportunities: a better page, title or content moves them onto page one.
 - Low click rate at a good position means the title and description do not earn the click.
+GIVEAWAYS AND THE MER FLOOR (2026-10-10):
+- Every brand holds a blended MER floor of 2.5 (Grunk Dolfer 3.0). A brand running a giveaway (Lucky Golf, Dartee Golf this autumn) splits its spend: SALES spend (everything else) and GIVEAWAY spend (Meta campaigns named giveaway or leads, or with a leads objective, on the giveaway's dates). The floor applies to Sales MER = revenue / sales spend, never to the blended MER that includes the giveaway.
+- Giveaway spend buys email and SMS entries, not sales; it is judged on COST PER ENTRY against the most to pay (buy rate x AOV / floor: Dartee $3.20, Lucky $1.40 by default) and on its pace against the entries goal. Never call it wasted or a missed MER, never cut it for low ROAS. The store view carries the split (sales_spend, giveaway_spend, sales_mer, giveaway.since_start); /api/hub/giveaway?act= has the same per brand. Payback is measured after Cyber Monday: orders from entrants November 1 to 30 against the giveaway spend.
 STORE (view store):
 - AOV levers: bundles, a free-shipping threshold just above the current AOV, a gift with purchase. Discounts buy conversion now and train customers to wait.
 - New against returning: a brand living on returning customers is healthy only if new-customer acquisition holds; check CAC and the 90-day value per ad.
@@ -402,7 +405,7 @@ const VIEW_BLURBS = {
   accounts: 'every client brand with its targets, budget, channels, whether the brief is on, and when it last synced. Start here to resolve a brand name to an account.',
   overview: 'the Overview tab: each active brand over the window with sales, spend, MER, AMER, new-customer revenue and contribution margin, all blended (Triple Whale). Use it for "how is the book doing".',
   account: 'one brand, the same numbers the Daily Brief is built from: month to date and last month, sales, spend, MER, per-channel attributed revenue (Triple Whale), pace against the plan. Pass the brand name or its id (brand_...) in `brand`.',
-  store: 'one brand over a range, store-level (Triple Whale, blended): revenue, orders, AOV, new customers and their AOV, returning orders and AOV, CAC (cost to acquire a new customer), first-order margin, MER, aMER, contribution margin, email (Klaviyo) revenue and share. THE view for "what is the AOV", "how many orders", "what does a new customer cost", "how much is email". Pass `brand` and either `days` (default 30, ends yesterday), `month` (YYYY-MM) or `from` + `to` (YYYY-MM-DD). Pass `compare: true` to get the prior period of the same length beside it.',
+  store: 'one brand over a range, store-level (Triple Whale, blended): revenue, orders, AOV, new customers and their AOV, returning orders and AOV, CAC (cost to acquire a new customer), first-order margin, MER, aMER, contribution margin, email (Klaviyo) revenue and share. THE view for "what is the AOV", "how many orders", "what does a new customer cost", "how much is email". When a giveaway ran in the range it also carries sales_spend, giveaway_spend, sales_mer and the giveaway read (entries, cost per entry against the most to pay). Pass `brand` and either `days` (default 30, ends yesterday), `month` (YYYY-MM) or `from` + `to` (YYYY-MM-DD). Pass `compare: true` to get the prior period of the same length beside it.',
   series: 'one brand day by day over a range: Meta spend, impressions, clicks, and Triple Whale netSales and blendedAds per day. Pass `brand` and `days` (default 30).',
   changes: 'what was changed on one account and by whom: budgets, campaigns paused or launched, bid strategy, targeting. Pass `brand` and `days`.',
   creatives: 'the ads on one account over the last days: spend, Meta-reported clicks and CTR, thruplays, with the last 3 days against the prior 14 so fatigue shows. Pass `brand` and `days`.',
@@ -1660,8 +1663,8 @@ export function buildStrategist(d) {
   });
   d.h = h;
   engine = createAssistant({
-    name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist', owner: 'Cole', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
-    slackName: 'Strategist',
+    name: 'Locus', app: 'Locus', memoryPrefix: 'strategist', owner: 'Cole', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
+    slackName: 'Locus',
     /* A Slack thread is the conversation: keep enough of it that a follow-up ("and last month?")
        lands on what was said. The engine default (12 turns, 600 chars each) lost the Monday
        message and the brief card the thread hangs off. Same as the Controller's. */

@@ -9,7 +9,7 @@
  * the angle when the media buyer makes the call.
  *
  * Server: account-health src/launch.js (/api/launch/prep | preview | create | list), which makes the ad through
- * metawrite.js meta_create_ad (one Meta write path with the Strategist and Ads > Meta). Turning it on and undo use
+ * metawrite.js meta_create_ad (one Meta write path with Locus and Ads > Meta). Turning it on and undo use
  * the existing /api/meta/write (kind resume) and /api/meta/undo.
  *
  *   window.LaunchToMeta.open({ act, tok, studioAd | asset, onDone })   the Launch window

@@ -63,6 +63,7 @@ import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 import { handleLaunch } from './launch.js';
+import { loadGiveaways, giveawayRead, clip as gwClip, giveawayLine, salesMerLine, giveawayRead1 } from '../../../profit/worker/src/giveaway.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -73,7 +74,8 @@ const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle la
 // 3 = video_plays - the correct denominator for the retention curve. Dividing
 //     by 3-second views produced 150%, because a 25% view of a 7-second video
 //     happens BEFORE 3 seconds.
-const ADS_METRICS_VERSION = 4;   // 4 (2026-09-24): add_to_cart per ad, for the Brand tab's test scorecard
+const ADS_METRICS_VERSION = 5;   // 4 (2026-09-24): add_to_cart per ad, for the Brand tab's test scorecard
+                                 // 5 (2026-10-10): leads per ad (giveaway entries when no Klaviyo list is set; profit giveaway.js)
 const ACTIVITY_BACKFILL_DAYS = 90;
 // One platform: the Meta screens are now a tab inside Mobius (was the separate
 // Account Health dashboard, which is kept only as a redirect). This worker is
@@ -363,6 +365,16 @@ async function syncMetaStructure(env, acct, force = false) {
 
 const PURCHASE_TYPES = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
 const ATC_TYPES = ['omni_add_to_cart', 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart'];
+/* Lead results (2026-10-10, giveaways): Meta's own `lead` total first (it already sums on-Facebook forms and pixel leads),
+   then the grouped on-Facebook form count, then the pixel's Lead, then a registration for giveaways that fire that instead. */
+const LEAD_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead', 'complete_registration', 'offsite_conversion.fb_pixel_complete_registration'];
+/* ad_daily.leads is added on first use (guarded: an existing column is fine), once per isolate, before the first insert. */
+let leadsCol = false;
+async function ensureLeadsCol(env) {
+  if (leadsCol) return;
+  await env.DB.prepare(`ALTER TABLE ad_daily ADD COLUMN leads REAL NOT NULL DEFAULT 0`).run().catch(() => {});
+  leadsCol = true;
+}
 function pickAction(list, types) {
   if (!Array.isArray(list)) return 0;
   for (const t of types) {
@@ -829,22 +841,23 @@ async function syncAdSlice(env, acct, since, until) {
     +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
     sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
     // avg watch time is SECONDS per impression-ish, not a count - never summed.
-    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES)]);
-  const COLS = 20;
+    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES), pickAction(r.actions, LEAD_TYPES)]);
+  await ensureLeadsCol(env);
+  const COLS = 21;
   const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
   const stmts = [];
   for (let i = 0; i < daily.length; i += per) {
     const chunk = daily.slice(i, i + per);
     stmts.push(env.DB.prepare(
       `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s,
-         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart) VALUES ` +
+         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart, leads) VALUES ` +
       chunk.map(() => `(${Array(COLS).fill('?').join(',')})`).join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
         purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
         video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100,
         reach = excluded.reach, clicks_all = excluded.clicks_all, outbound_clicks = excluded.outbound_clicks,
         video_p25 = excluded.video_p25, video_p50 = excluded.video_p50, video_p75 = excluded.video_p75,
-        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart`,
+        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart, leads = excluded.leads`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();
@@ -2404,10 +2417,11 @@ async function briefData(env, acct, upTo) {
       };
     }
   }
+  const giveaway = await briefGiveaway(env, acct, monthStart, upTo, done, mtd).catch(() => null);
   const lastSync = (await env.DB.prepare(`SELECT MAX(synced_at) AS t FROM tw_daily WHERE act_id = ?1`).bind(acct.act_id).first())?.t ?? null;
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency, tz: acct.tz },
-    month: ym, up_to: upTo, goals, goals_planned: planned, goals_inherited_from: inheritedFrom,
+    month: ym, up_to: upTo, goals, goals_planned: planned, goals_inherited_from: inheritedFrom, giveaway,
     cm_pct: cmPct, margin_28d: margin28,
     cogs_quality: cmPct != null ? { verdict: 'override', reason: `using your ${Math.round(cmPct * 100)}% margin override` } : cogsQuality,
     weights: 'even across the month',
@@ -2422,6 +2436,45 @@ async function briefData(env, acct, upTo) {
       by_date: Object.fromEntries(done.filter(x => x.a.issues?.length).map(x => [x.date, x.a.issues])),
     },
   };
+}
+
+/* GIVEAWAY SPEND VS SALES MER (2026-10-10, profit/worker/src/giveaway.js). A brand running a giveaway (list building
+   for Black Friday) is judged on Sales MER = revenue / (spend - giveaway spend): each day it spent carries
+   giveaway_spend, sales_spend and sales_mer, month to date carries the same, and the return value is the to-date read
+   (entries, cost per entry against the most to pay). A brand without one returns null and nothing else changes. */
+async function briefGiveaway(env, acct, from, upTo, done, mtd) {
+  const cfgs = await loadGiveaways(env, [acct.act_id]);
+  const cfg = cfgs[acct.act_id];
+  if (!cfg || cfg.active === 0 || !gwClip(cfg, from, upTo)) return null;
+  const r = (await giveawayRead(env, [acct], from, upTo, { [acct.act_id]: { revenue: mtd.sales, spend: mtd.spend } },
+    { cfgs, today: () => localDate(acct.tz), fetch: xfetch }))[acct.act_id] || null;
+  if (!r) return null;
+  for (const x of done) {
+    const g = r.window?.days?.[x.date]?.spend || 0;
+    if (!(g > 0) || !x.a) continue;
+    x.a.giveaway_spend = g;
+    x.a.sales_spend = x.a.spend != null ? Math.max(0, x.a.spend - g) : null;
+    x.a.sales_mer = x.a.sales != null && x.a.sales_spend > 0 ? x.a.sales / x.a.sales_spend : null;
+  }
+  if (r.window?.giveaway_spend > 0) { mtd.giveaway_spend = r.window.giveaway_spend; mtd.sales_spend = r.window.sales_spend; mtd.sales_mer = r.window.sales_mer; }
+  return r;
+}
+/** The giveaway line for a brief covering `dates`, or null when no giveaway ran on them. */
+function briefGiveawayLine(data, dates) {
+  const g = data.giveaway; if (!g) return null;
+  const list = Array.isArray(dates) ? dates : [dates];
+  if (!list.some(d => d >= g.start && d <= g.end)) return null;
+  return giveawayLine(g, data.account.currency);
+}
+/** What the narrative is told about a giveaway that ran on the brief's days ('' when none). */
+function gwPrompt(data, dates) {
+  if (!briefGiveawayLine(data, dates) && !(data.mtd?.giveaway_spend > 0)) return '';
+  return `GIVEAWAY (list building for Black Friday): ${giveawayRead1(data.giveaway, data.account.currency)} The giveaway buys email and SMS entries, not sales; that money comes back on Black Friday. On days it spent, the numbers block shows Sales MER (revenue over the spend WITHOUT the giveaway) with the MER including it beside it, and one Giveaway line. Judge the ads on Sales MER; never call the giveaway spend wasted or a missed MER. Mention the giveaway at most once, in words a client understands (entries, cost per entry, building the Black Friday list). Never quote the most-to-pay figure, the buy rate or the floor.\n\n`;
+}
+/** The MER row of one day: Sales MER (blended beside it) on a day with giveaway spend, the plain MER row otherwise. */
+function merRowOrSales(L, a, rowFor, f, fx) {
+  if (a.giveaway_spend > 0 && a.sales_mer != null) L.push(salesMerLine({ sales_mer: a.sales_mer, blended_mer: a.mer }));
+  else rowFor('MER', a.mer, f.mer, fx);
 }
 
 /** The deterministic numbers block of the Slack brief (CTC's Forecasted/Actual shape). */
@@ -2491,10 +2544,11 @@ function buildBriefText(data, dates, narrative) {
     };
     rowFor(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', a.sales, f.sales, fm);
     rowFor('Ad Spend', a.spend, f.spend, fm);
-    rowFor('MER', a.mer, f.mer, fx);
+    merRowOrSales(L, a, rowFor, f, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
   }
+  { const gl = briefGiveawayLine(data, list); if (gl) L.push('', gl); }
 
   /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
      it was a straight duplicate: the weekly REPORT drafts on the same Monday
@@ -2671,6 +2725,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
 `
         : '') +
       `Last ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth-to-date: ${JSON.stringify(data.mtd)}\n\n` +
+      gwPrompt(data, data.covering || [date]) +
     (data.to_hit ? `Catch-up already stated in the numbers block above (do NOT restate the figures, but you may build on what they imply): ${JSON.stringify(data.to_hit)}\n\n` : '') +
       (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} → ${data.week.to}): ${JSON.stringify(data.week)}\n`
         + `There is NO week-in-review block in the numbers section - the weekly report is a separate deliverable and this brief must not duplicate it as a second scoreboard. So the week reaches the reader ONLY through your narrative. Give it ONE bullet in What we saw with the figures that matter (net sales against plan, spend, aMER, best and slowest day), weigh the weekly shape rather than just yesterday in What it means, and let it inform What we're doing. Do not list the week metric by metric.\n\n` : '') +
@@ -2753,7 +2808,7 @@ function buildBriefTextV2(data, dates, narrative) {
     L.push('', `*${prettyDate(d)}*`);
     rowFor(a.ship_rev ? 'Net Sales + Shipping' : 'Net Sales', a.sales, f.sales, fm);
     rowFor('Ad Spend', a.spend, f.spend, fm);
-    rowFor('MER', a.mer, f.mer, fx);
+    merRowOrSales(L, a, rowFor, f, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
   }
@@ -2766,8 +2821,10 @@ function buildBriefTextV2(data, dates, narrative) {
     L.push('', `*${MONTH_NAMES[+data.month.slice(5, 7) - 1]} so far* (day ${elapsed} of ${dim})`);
     rowFor('Net Sales', mt.sales, mt.sales_f, fm);
     rowFor('Ad Spend', mt.spend, mt.spend_f, fm);
+    if (mt.giveaway_spend > 0 && mt.sales_mer != null) L.push(salesMerLine({ sales_mer: mt.sales_mer, blended_mer: mt.spend ? mt.sales / mt.spend : null }));
     if (cmOk) rowFor('Contribution Margin', mt.cm, mt.cm_f, fm);
   }
+  { const gl = briefGiveawayLine(data, list); if (gl) L.push('', gl); }
 
   const th = data.to_hit;
   if (th && th.days_elapsed >= 7 && th.days_remaining > 0) {
@@ -2853,6 +2910,7 @@ async function writeBriefNarrativeV2(env, acct, data, date, steer) {
       `Goals this month: ${JSON.stringify(data.goals)}.${data.goals && data.goals_planned === false ? ' (Carried over from last month; call it last month\'s pace, never "plan".)' : ''}\n` +
       (cmBad ? `CONTRIBUTION MARGIN IS UNAVAILABLE for this client (cost data unreliable). Never mention margin or profit; use the *Sales:* lead-in.\n` : '') +
       `\nLast ${lines.length} days (forecast | actual):\n${lines.join('\n')}\n\nMonth to date: ${JSON.stringify(data.mtd)}\n\n` +
+      gwPrompt(data, data.covering || [date]) +
       (data.week ? `THE WEEK THAT JUST CLOSED (${data.week.from} to ${data.week.to}): ${JSON.stringify(data.week)}\n\n` : '') +
       (data.meta_day && (data.meta_day.verdict === 'bad' || data.meta_day.verdict === 'vbad') ? `META THAT DAY: it was a ${data.meta_day.verdict === 'vbad' ? 'very bad' : 'bad'} day on Meta for advertisers in general (${data.meta_day.signs.join('; ')}). Say so in one plain sentence in What it means, so the client knows part of the day was the platform, not their brand. Never name other brands or where this comes from.
 
@@ -3445,7 +3503,7 @@ async function storePeriod(env, acct, from, to) {
   const sumM = k => { let s = 0, any = false; for (const d in (piv[k] || {})) if (d >= from && d <= to && piv[k][d] != null) { s += piv[k][d]; any = true; } return any ? s : null; };
   const email = sumM('klaviyoPlacedOrderSales');
   const retOrders = t.orders != null && t.new_orders != null ? t.orders - t.new_orders : null;
-  return {
+  const out = {
     from, to, days: rows.length, currency: acct.currency,
     revenue: t.sales, ad_spend: t.spend, meta_spend: t.meta_spend, google_spend: t.google_spend,
     mer: t.mer, amer: t.amer, contribution_margin: t.cm, gross_margin_pct: t.margin,
@@ -3458,6 +3516,23 @@ async function storePeriod(env, acct, from, to) {
     email_revenue: email, email_share_of_revenue: email != null && t.sales > 0 ? email / t.sales : null,
     how_to_read: 'All Triple Whale store-level (blended), revenue = Shopify total sales less tax. aov = revenue / orders. new_customers = first-time orders (TW newCustomersOrders); cac = ad_spend / new_customers (the same number Reports call New-customer CPA and Customers calls Cost to acquire). first_order_margin = new_customer_aov x gross margin: the money the first order leaves to pay back the cac. email_revenue is Klaviyo-attributed and overlaps new and returning, never added to them. A null means Triple Whale has not synced that metric for the range.',
   };
+  /* Giveaway (2026-10-10, profit giveaway.js): when one ran in the range, the spend splits in two and the MER floor is
+     judged on SALES spend; the giveaway is judged on cost per entry against the most to pay, never on MER. */
+  try {
+    const gcfgs = await loadGiveaways(env, [acct.act_id]);
+    const g0 = gcfgs[acct.act_id];
+    if (g0 && g0.active !== 0 && gwClip(g0, from, to)) {
+      const g = (await giveawayRead(env, [acct], from, to, { [acct.act_id]: { revenue: t.sales, spend: t.spend } }, { cfgs: gcfgs, today: () => localDate(acct.tz), fetch: xfetch }))[acct.act_id];
+      if (g) {
+        const { days: _d, ...win } = g.window;
+        Object.assign(out, { sales_spend: win.sales_spend, giveaway_spend: win.giveaway_spend, sales_mer: win.sales_mer,
+          giveaway: { name: g.name, start: g.start, end: g.end, live: g.live, mer_floor: g.floor, max_cost_per_entry: g.max_cost_per_entry, status: g.status_text,
+            window: win, since_start: g.to_date, after_cyber_monday: g.payback, read: giveawayRead1(g, acct.currency) } });
+        out.how_to_read += ' A GIVEAWAY ran in this range: sales_spend = ad_spend minus giveaway_spend (Meta campaigns named giveaway or leads, or a leads objective); sales_mer = revenue / sales_spend is what the MER floor (giveaway.mer_floor) applies to. Judge the giveaway on cost per entry (since_start.cost_per_entry) against giveaway.max_cost_per_entry and its pace against the entries goal, never on MER.';
+      }
+    }
+  } catch {}
+  return out;
 }
 
 /** Per-platform sections, this period vs the prior one. A channel only appears
@@ -4634,10 +4709,24 @@ async function reportData(env, acct, period, start, end) {
     };
   })();
 
+  /* Giveaway (2026-10-10, profit giveaway.js): only when one ran in the period, so every other brand's report and every
+     report already frozen is unchanged. Sales MER = revenue / (spend - giveaway spend); entries and cost per entry since
+     the giveaway started. */
+  let giveaway = null;
+  try {
+    const gcfgs = await loadGiveaways(env, [acct.act_id]);
+    const g0 = gcfgs[acct.act_id];
+    if (g0 && g0.active !== 0 && gwClip(g0, start, end)) {
+      giveaway = (await giveawayRead(env, [acct], start, end, { [acct.act_id]: { revenue: cur.sales, spend: cur.spend } },
+        { cfgs: gcfgs, today: () => localDate(acct.tz), fetch: xfetch }))[acct.act_id] || null;
+      if (giveaway && !(giveaway.window.giveaway_spend > 0) && !(giveaway.to_date.entries > 0)) giveaway = null;
+    }
+  } catch { giveaway = null; }
+
   return {
     account: { act_id: acct.act_id, name: acct.name, currency: acct.currency },
     period, start, end, prev_start: prevStart, prev_end: prevEnd,
-    totals: cur, previous: prev, forecast, pacing, weeks, channels, ads,
+    totals: cur, previous: prev, forecast, pacing, weeks, channels, ads, ...(giveaway ? { giveaway } : {}),
     attr,
     changes, changes_total: evs.length,
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
@@ -4694,6 +4783,8 @@ async function writeReportNarrative(env, acct, data, steer) {
       `Plan for the period: ${JSON.stringify({ sales: f2(data.forecast?.sales), spend: f2(data.forecast?.spend), mer: f2(data.forecast?.mer), cm: f2(data.forecast?.cm) })}\n` +
       (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} - the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
       (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report - do NOT mention margin, CM or profit anywhere.\n`) +
+      (data.giveaway ? `GIVEAWAY (list building for Black Friday): ${giveawayRead1(data.giveaway, acct.currency)} It buys email and SMS entries, not sales; that money comes back on Black Friday. The report shows Sales MER (revenue over spend without the giveaway) beside MER, and one Giveaway line. Judge the ads on Sales MER, never call the giveaway spend wasted or a missed MER, mention the giveaway once in client words (entries, cost per entry, building the Black Friday list), and never quote the most-to-pay figure, the buy rate or the floor.
+` : '') +
       (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
       `Channels - revenue, ROAS, purchases and CPA are Triple Whale's pixel attribution (last platform click); spend, CPM and CTR are the platform's own. A line marked low_signal recorded fewer than two orders in the whole window, so quote its spend and say the conversions have not landed rather than repeating the ratio. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
       `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
@@ -4742,6 +4833,11 @@ function reportHeadline(data) {
     `• *Ad spend* ${money(t.spend)}${vs(t.spend, f.spend, p.spend)}`,
     `• *MER* ${x(t.mer)}${vs(t.mer, f.mer, p.mer)}`,
   ];
+  /* A giveaway ran (2026-10-10): the ads are judged on Sales MER, and the list building gets its own line. */
+  const g = data.giveaway;
+  if (g && g.window?.giveaway_spend > 0 && g.window.sales_mer != null) L.push(`• *Sales MER* ${x(g.window.sales_mer)}  (${x(g.window.blended_mer)} including giveaway spend)`);
+  const gl = g ? giveawayLine(g, cur) : null;
+  if (gl) L.push(`• *Giveaway* ${gl.replace(/^Giveaway:\s*/, '')}`);
   if (t.cm != null) L.push(`• *Contribution margin* ${money(t.cm)}${vs(t.cm, f.cm, p.cm)}`);
   return L.join('\n');
 }
@@ -6750,7 +6846,7 @@ function hubDeps() {
    remembered; urgent new findings to the team channel; Monday, the briefing. */
 /* A post under the Strategist's name where the app allows it (chat:write.customize), the app's name where not. */
 async function strategistSay(env, channel, text) {
-  const r = await slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false, username: 'Strategist' });
+  const r = await slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false, username: 'Locus' });
   if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || '')))
     return slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false });
   return r;
@@ -6850,7 +6946,7 @@ async function handleSlackEvent(request, env, ctx) {
   let dmScreen = null;
   if (dm || agencyCh) {
     const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
-    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Strategist' }).catch(() => {})); return ACK(); }
+    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Locus' }).catch(() => {})); return ACK(); }
     dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '') };
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
@@ -6951,7 +7047,7 @@ async function strategistThreadOpen(env, channel, ts) {
   /* Not seen before: is the thread's first message the Strategist's own? */
   const r = await slackApi(env, 'conversations.replies', { channel, ts, limit: 1, inclusive: true });
   const root = (r?.messages || [])[0];
-  const mine = !!root && !!root.bot_id && /^strategist$/i.test(String(root.username || root.bot_profile?.name || ''));
+  const mine = !!root && !!root.bot_id && /^(strategist|locus)$/i.test(String(root.username || root.bot_profile?.name || ''));
   await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`).bind(key, mine ? '1' : '0').run().catch(() => {});
   return mine;
 }
@@ -9335,4 +9431,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 };
 /* For the offline dashboard checks (test-dashrange.mjs). */
 export { dashNumbers, dashBlocks, dashRange };
+/* For test-giveaway.mjs (offline): the brief and report text builders and their data. */
+export const _giveawayTest = { buildBriefText, buildBriefTextV2, reportHeadline, briefData, reportData, storePeriod };
 export default AH_APP;
