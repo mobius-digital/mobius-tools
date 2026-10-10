@@ -1788,3 +1788,13 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 #v2panel .pb > *{flex:none}
 #v2panel .v2cmp .hd .cv{max-height:240px;width:100%;margin:0 auto}
 #v2panel .v2cmp > span,#v2panel .v2cmp > button{padding:9px 12px}
+
+/* 2026-10-10 (Cole, a client login at 1280 wide: "weird formatting at the top"): the right side wrapped onto two rows
+   and squeezed the ask bar. The controls never wrap; on narrower screens they drop their second line of text (the
+   dates and the model, both still in their menus) so everything fits on one row. */
+[data-ui="v2"] .hd-right{flex-wrap:nowrap;flex-shrink:0}
+@media (max-width:1560px){#hdModel .hd-per-d{display:none}}
+@media (max-width:1420px){#hdPeriod .hd-per-d{display:none}}
+@media (max-width:1200px){#hdToday{display:none!important}}
+/* A client with one brand: the brand's name under the label, never an empty space. */
+.side-one{display:block;padding:2px 8px 4px;font-weight:650;font-size:14px;color:var(--rail-ink,var(--ink))}

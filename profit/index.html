@@ -2186,7 +2186,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=30">
+<link rel="stylesheet" href="v2.css?v=31">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
@@ -4841,6 +4841,11 @@ function applyClientMode() {
   const rs = $('#railSetLbl'); if (rs) rs.textContent = 'Your profile';
   document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me) && !(b.dataset.me === 'install' && installable()); });
   const pk = $('#pfPick'); if (pk) pk.hidden = S.accounts.length < 2;
+  /* One brand: its name under the label instead of an empty space (2026-10-10, Cole's first client login). */
+  const sc = document.querySelector('.side-client'); if (sc) {
+    const cap = sc.querySelector('.side-cap'); if (cap) cap.textContent = S.accounts.length < 2 ? 'Your brand' : 'Client';
+    let one = sc.querySelector('.side-one'); if (S.accounts.length < 2) { if (!one) { one = document.createElement('span'); one.className = 'side-one'; sc.appendChild(one); } one.textContent = (S.accounts[0] || {}).name || ''; } else if (one) one.remove();
+  }
 }
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
 /* Test calls left the Meta jobs (2026-10-09): a call is a buying decision, so it is a row on Ads > Today; the page still opens from there. */
