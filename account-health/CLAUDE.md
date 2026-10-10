@@ -1445,6 +1445,15 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
 - **Tests:** `node test-clients.mjs` (17 checks: the real workers in node, the profit AUTH binding wired to this worker
   as in production, sign-in, other brand / "all" / writes / settings / Strategist internals / drafts / P&L / ads /
   calendar refused, the dev-key forgery refused, invites owner-only and approval-gated).
+- **2026-10-10: clients see Stock and Drops** (read only, never Buying). `GET /api/supply/client?act=<brand>&what=brands|state`
+  (worker.js, before the `/api/supply/` write proxy; stock.js `supplyClient` + `clientSupplyState`): resolves the Supply
+  brand (`supplyBrandOf`), calls Supply over the SUPPLY binding with SUPPLY_TOKEN, and returns an ALLOWLIST of fields:
+  products, on hand, sold per day, days left, run-out dates, restocks landing (placed orders only, dates and units, ids
+  renamed restock_n), drops, designs with dates, stages and sample state, keep or cut, factory closures (factory ids
+  renamed f1, f2). Never costs, prices, supplier names or contacts, order money, notes, Asana, settings, suggested orders;
+  `buys` is always false in the brand list. The handler re-checks `clientScope(request).ids` for the brand; the team reads
+  any brand. CLIENT_RULES (both brandguard copies) gained GET `/api/supply/client` and GET `/api/hub/stockads` (act need);
+  every `/api/supply/*` write stays off the list. Tested in `test-clients.mjs` with a mocked SUPPLY binding.
 
 
 ## 2026-10-09: client switches ON by default; the command center's work feed (`src/command.js`)
@@ -1664,26 +1673,3 @@ block and tool group; ~2.5 characters a token, calibrated on strat_run; set ANTH
   The cold write of the stable part is now the whole cost; the next cut, if ever needed, is moving the creative
   framework and the account doctrine into knowledge topics too (~10k tokens), at the risk of the model skipping them.
 
-## 2026-10-10: giveaway spend vs sales MER
-
-Design and screens: profit/CLAUDE.md, same title. The math lives in `profit/worker/src/giveaway.js`, imported here.
-- **Daily Brief (v1 and v2)**: `briefData` -> `briefGiveaway` adds `giveaway_spend`, `sales_spend`, `sales_mer` to each day the
-  giveaway spent and to mtd, and `data.giveaway` (the since-start read). On those days the MER row becomes
-  "Sales MER: *3.29x* (2.50x including giveaway spend)" (`merRowOrSales`), month so far gets the same, and ONE line
-  "Giveaway: N entries at $X each, building the Black Friday list." (`briefGiveawayLine`, only when a covered date is inside
-  the giveaway). The narrative gets `gwPrompt` (judge on Sales MER, mention the giveaway once in client words, never quote the
-  most to pay, buy rate or floor). A brand without a giveaway: nothing changes.
-- **Weekly/monthly reports**: `reportData` adds `giveaway` only when one ran in the period (spend or entries);
-  `reportHeadline` adds "Sales MER" and "Giveaway" bullets; the narrative gets the same instruction. Frozen reports untouched.
-- **Strategist**: `storePeriod` (the store view) carries sales_spend, giveaway_spend, sales_mer and a `giveaway` block when one
-  ran; PLAYBOOK "GIVEAWAYS AND THE MER FLOOR"; the Monday review prompt (review.js step 2) says the floor is on sales spend
-  and the giveaway is judged on cost per entry. `settings.strategistInstructions` was not touched.
-- **Meta leads**: `ad_daily.leads` (schema.sql; ALTERed on first use by `ensureLeadsCol` in `syncAdSlice`), from actions
-  `lead`, `onsite_conversion.lead_grouped`, `offsite_conversion.fb_pixel_lead`, `complete_registration`, the pixel registration
-  (first found wins). **ADS_METRICS_VERSION 4 -> 5**, so every account re-walks 90 days of ad insights once (2 slices a sync),
-  the same way add_to_cart filled in. schema.sql now also lists `add_to_cart`, which prod has had since 2026-09-24.
-- Klaviyo list counts go through `xfetch` here (one call per brand per hour at most, cached in settings).
-- `_giveawayTest` export (buildBriefText, buildBriefTextV2, reportHeadline, briefData, reportData, storePeriod) is for tests only.
-- Tests: `node test-giveaway.mjs` (16: max cost per entry, matching, split math, seeds, Klaviyo and Meta entries, status and
-  pace, the real profit routes, command center, briefData, brief v1/v2 lines, report headline and data, store view,
-  brandguard). routes.js rebuilt.

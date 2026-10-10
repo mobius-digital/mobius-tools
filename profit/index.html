@@ -2186,7 +2186,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=30">
+<link rel="stylesheet" href="v2.css?v=31">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
@@ -2311,13 +2311,12 @@
 <script src="launch.js?v=2"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=11"></script>
-<script src="command.js?v=4"></script>
-<script src="giveaway.js?v=1"></script>
-<script src="v2.js?v=44"></script>
+<script src="command.js?v=5"></script>
+<script src="v2.js?v=45"></script>
 <script src="desk.js?v=16"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=10"></script>
-<script src="supply.js?v=4"></script>
+<script src="supply.js?v=5"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=3"></script>
 <script src="survey.js?v=1"></script>
@@ -4818,16 +4817,18 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
 /* ---------- CLIENT LOGINS (2026-10-09) ----------
    A client (account-health clients.js; who may open what = brandguard.js on both workers) sees one brand, read-only:
    Home (Overview, P&L when Cole switched it on), Ads (All channels, Meta and Google overview + campaigns, Changes when on),
-   Email and SMS, Store, Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
+   Email and SMS, Store, Products > Stock and Drops (read only, 2026-10-10; never Buying), Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
    when on), and Settings = their own profile. Everything here only DRAWS that; the server refuses the rest. */
 const isClient = () => S.role === 'client';
-const CLIENT_TABS = new Set(['overview', 'profit', 'requests', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
+const CLIENT_TABS = new Set(['overview', 'profit', 'requests', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'stock', 'drops', 'calendar', 'reports', 'amb', 'settings', 'war']);
 function clientCan(k, act = S.act) { const b = ((S.client && S.client.brands) || []).find(x => x.id === act); return !!(b && b.access && b.access[k]); }
 function clientTabOk(t) {
   if (!CLIENT_TABS.has(t)) return false;
   if (t === 'profit') return clientCan('pl');
   if (t === 'changes' || t === 'gchanges') return clientCan('changes');
   if (t === 'amb') return clientCan('creators');
+  /* Products (2026-10-10): Stock for a brand with a stock feed, Drops where it designs; read only, never Buying (supply.js). */
+  if (t === 'stock' || t === 'drops') return !!(window.SupplyTab && window.SupplyTab.tabOk(t, S.act));
   return true;
 }
 const CLIENT_R = { reports: f => window.ClientsTab.reports(f), settings: () => window.ClientsTab.profile(), amb: () => window.ClientsTab.creators() };
@@ -4838,10 +4839,15 @@ function applyClientMode() {
   if (!on) return;
   if (!S.accounts.some(a => a.act_id === S.act) && S.accounts[0]) { S.act = S.accounts[0].act_id; try { localStorage.setItem(LS.act, S.act); } catch {} }
   document.querySelectorAll('#tabs button[data-grp], #tabbar button[data-grp]').forEach(b => { const g = NAV[b.dataset.grp]; b.hidden = !g || !g.tabs.some(t => clientTabOk(t[0])); });
-  ['#railTools', '#railProducts', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
+  ['#railTools', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
   const rs = $('#railSetLbl'); if (rs) rs.textContent = 'Your profile';
   document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me) && !(b.dataset.me === 'install' && installable()); });
   const pk = $('#pfPick'); if (pk) pk.hidden = S.accounts.length < 2;
+  /* One brand: its name under the label instead of an empty space (2026-10-10, Cole's first client login). */
+  const sc = document.querySelector('.side-client'); if (sc) {
+    const cap = sc.querySelector('.side-cap'); if (cap) cap.textContent = S.accounts.length < 2 ? 'Your brand' : 'Client';
+    let one = sc.querySelector('.side-one'); if (S.accounts.length < 2) { if (!one) { one = document.createElement('span'); one.className = 'side-one'; sc.appendChild(one); } one.textContent = (S.accounts[0] || {}).name || ''; } else if (one) one.remove();
+  }
 }
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
 /* Test calls left the Meta jobs (2026-10-09): a call is a buying decision, so it is a row on Ads > Today; the page still opens from there. */
@@ -5159,8 +5165,8 @@ function show(tab, opt) {
       if (k === 'website') return ck.includes('ga4'); if (k === 'search') return ck.includes('gsc'); return true; };
     const tabsHere = def ? def.tabs.filter(t => (t[0] !== 'economics' || S.role === 'owner') && (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
     const row1 = tabsHere.length > 1 ? tabsHere : null;
-    const rp = $('#railProducts'); if (rp) rp.hidden = isClient() || !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
-    if (window.SupplyTab && !window.__spBrands && S.tok && !isClient()) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
+    const rp = $('#railProducts'); if (rp) rp.hidden = !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
+    if (window.SupplyTab && !window.__spBrands && S.tok && (!isClient() || S.accounts.length)) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
     const gDirect = !!(oneA && Array.isArray(oneA.conn_kinds) && oneA.conn_kinds.includes('google_ads'));
     const jobs0 = grp === 'ads' && chan === 'meta' ? META_JOBS : grp === 'ads' && chan === 'google' && gDirect ? GOOGLE_JOBS : grp === 'creative' && chan === 'studio' ? STUDIO_JOBS : null;
     const jobs = jobs0 && isClient() ? jobs0.filter(j => clientTabOk(j[0])) : jobs0;
@@ -5222,7 +5228,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets().then(addGiveawayCard).catch(() => {}); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -5294,17 +5300,6 @@ async function addGoalTargets() {
       msg.textContent = 'Saved. Every screen uses these now.';
     } catch (e) { msg.textContent = e.message; }
   };
-}
-/* Giveaway / list building (2026-10-10, giveaway.js): under the targets on Home > Goals, the "Sales spend cap at the MER
-   floor" line, the giveaway's own budget and its settings. Saving drops the cached Home and Meta reads. */
-async function addGiveawayCard() {
-  if (S.act === 'all' || S.tab !== 'plan' || !window.GiveawayUI || isClient()) return;
-  const run = RUN;
-  const host = document.querySelector('#main .lx') || document.querySelector('#main > div') || document.querySelector('#main');
-  if (!host) return;
-  await window.GiveawayUI.goalsCard(host, { api, act: S.act, month: PL.month, sales: PL.act === S.act ? PL.sales : null,
-    alive: () => run === RUN && S.tab === 'plan',
-    refresh: () => { if (window.V2 && window.V2.dropCache) window.V2.dropCache('/api/hub/'); } });
 }
 /* The calendar (2026-10-09, calendar.js): Lineup's dates, the Black Friday plan, Drops and Klaviyo in one place. */
 function CALR(first) {
@@ -8498,20 +8493,10 @@ function reportBodyHTML(d, summary, opts = {}) {
     : opts.editable ? `<div class="card rp-sumcard" style="border-left-color:var(--warn)"><h3 style="margin-bottom:4px">Summary</h3>
       <p class="hint">No narrative was written (the Claude call failed at generation time). Press <b>Rewrite with AI</b> at the top to retry.</p></div>` : '';
 
-  const gwR = d.giveaway || null;
-  const fmtMoney2 = n => n == null ? '–' : new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-  const gwHtml = gwR && gwR.to_date ? (() => {
-    const g = gwR.to_date, w = gwR.window || {};
-    const line = g.entries > 0 && g.cost_per_entry != null ? `<b>${fmtInt(g.entries)}</b> entries at <b>${fmtMoney2(g.cost_per_entry)}</b> each` : g.giveaway_spend > 0 ? `${money(g.giveaway_spend)} spent so far; entries are still being counted` : '';
-    if (!line) return '';
-    return `<div class="card"><h3 style="margin-bottom:4px">Giveaway: building the Black Friday list</h3><p style="margin:0">${line}${w.giveaway_spend > 0 ? `, with ${money(w.giveaway_spend)} of this ${prevTag}'s ad spend going to it` : ''}. It buys email and SMS sign-ups rather than sales, so it is measured by what each entry costs, and Sales MER leaves it out.</p></div>`;
-  })() : '';
   const kpis = [
     kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax - every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
     kpi('Ad spend', t.spend, money, f.spend, p.spend, 'neutral', 'Every platform combined - Meta, Google and anything else Triple Whale tracks. Shown without a good/bad colour on purpose: spend is a decision, not a result - whether it was the right amount is what MER, aMER and CPA answer.'),
     kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
-    /* A giveaway ran in the period (2026-10-10): Sales MER beside MER. Reports frozen before then carry no `giveaway`. */
-    gwR && gwR.window && gwR.window.giveaway_spend > 0 && gwR.window.sales_mer != null ? kpi('Sales MER', gwR.window.sales_mer, fmtX, null, null, false, 'Revenue ÷ every ad dollar except the giveaway. The giveaway buys email and SMS sign-ups for Black Friday, so it is judged on what each entry costs instead.') : '',
     kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
     t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfilment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
     kpi('New-customer CPA', t.ncpa, money, null, p.ncpa, true, 'Total ad spend ÷ new customers acquired. Blended - not any platform’s self-reported CPA.'),
@@ -8887,7 +8872,7 @@ function reportBodyHTML(d, summary, opts = {}) {
   const changesSec = sec('changes', 'Changes', changesHtml);
   const jumpHtml = jump.length > 1 ? `<nav class="rp-jump" aria-label="Jump to a section of this report"><span class="rp-jump-l">Jump to</span>${
     jump.map(([id, label]) => `<button class="chip" type="button" data-jump="rpsec-${esc(id)}">${esc(label)}</button>`).join('')}</nav>` : '';
-  return `${jumpHtml}<div class="v2tiles rp-kpis">${kpis}</div>${gwHtml}
+  return `${jumpHtml}<div class="v2tiles rp-kpis">${kpis}</div>
     <div class="two rp-two">
       <div>${sumSec}${chartSec}</div>
       <div>${paceSec}${splitSec}${weeksSec}</div>

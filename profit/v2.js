@@ -114,7 +114,7 @@
     }, true);
   }
   const DRILL_TABS = new Set(['overview', 'profit', 'store', 'channels', 'meta', 'campaigns', 'google', 'tiktok', 'email']);
-  const METRIC_OF = { revenue: 'revenue', 'returning revenue': 'revenue', orders: 'orders', 'average order': 'aov', 'ad spend': 'spend', spend: 'spend', mer: 'mer', 'sales mer': 'mer', amer: 'amer', roas: 'roas',
+  const METRIC_OF = { revenue: 'revenue', 'returning revenue': 'revenue', orders: 'orders', 'average order': 'aov', 'ad spend': 'spend', spend: 'spend', mer: 'mer', amer: 'amer', roas: 'roas',
     'new customers': 'newcust', 'first orders': 'newcust', 'cost per new customer': 'cac', 'contribution margin': 'cm', 'net profit': 'net', 'email and sms': 'email', 'email and sms revenue': 'email',
     campaigns: 'email', flows: 'email', purchases: 'purchases', 'paid purchases': 'purchases', 'cost per purchase': 'cpa' };
   const PLAT_OF = { meta: 'meta', campaigns: 'meta', google: 'google', tiktok: 'tiktok' };
@@ -847,9 +847,8 @@
     const scope = one ? one.name : `all ${all.length} brands`;
     const title = one ? `Overview: ${esc(one.name)}` : 'Overview';
     if (first) $('#main').innerHTML = shell('overview', title, skPage({ tiles: 8 }));
-    let ch = null, st = null, gwr = null;
-    try { [ch, st, gwr] = await Promise.all([get(`/api/hub/paid?platform=all&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`).catch(() => null), get(`/api/hub/store?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`).catch(() => null),
-      one ? get(`/api/hub/giveaway?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`).catch(() => null) : null]); } catch {}
+    let ch = null, st = null;
+    try { [ch, st] = await Promise.all([get(`/api/hub/paid?platform=all&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`).catch(() => null), get(`/api/hub/store?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`).catch(() => null)]); } catch {}
     if (t !== H.RUN()) return;
     /* Totals from the host snapshot (the same numbers every other screen uses). */
     const sum = (src, get) => { let x = 0, any = false; for (const a of all) { const w = a[src]; if (!w) continue; const v = get(w, a); if (v != null && isFinite(v)) { x += v; any = true; } } return any ? x : null; };
@@ -877,20 +876,12 @@
     const fun = S0.reduce((s, b) => { const x = b.cur || {}, y = b.prev || {}; s.ses += x.sessions || 0; s.cart += x.carts || 0; s.ord += x.orders || 0; s.pses += y.sessions || 0; s.pcart += y.carts || 0; s.pord += y.orders || 0; return s; }, { ses: 0, cart: 0, ord: 0, pses: 0, pcart: 0, pord: 0 });
 
     const km = v => kmoney(v, cur), mo = v => money(v, cur);
-    /* GIVEAWAY (2026-10-10, giveaway.js): with a giveaway in the window, the MER tile is SALES MER (revenue over every ad
-       dollar except the giveaway's) with the blended MER as its second line, and a Giveaway card follows the tiles. */
-    const gw = one && gwr && gwr.brands && gwr.brands[0] && (gwr.brands[0].in_window || gwr.brands[0].live) ? gwr.brands[0] : null;
-    const sMer = gw && window.GiveawayUI ? window.GiveawayUI.salesMer(gw, c.sales, c.spend) : null;
-    const merTile = sMer != null
-      ? tile({ label: 'Sales MER', src: 'BLENDED', hint: 'revenue ÷ ad spend without the giveaway', value: x2(sMer), bullet: bullet(sMer, goalMer, false, goalMer ? `goal ${x2(goalMer)}` : ''), sub: `${x2(c.mer)} blended, counting ${kmoney(gw.window.giveaway_spend, cur)} of giveaway spend`, spark: tspark(rows, prev, 'mer', x2, 'blended MER'), go: 'channels' })
-      : tile({ label: 'MER', src: 'BLENDED', hint: 'revenue ÷ all ad spend', value: x2(c.mer), delta: delta(c.mer, p.mer), bullet: bullet(c.mer, goalMer, false, goalMer ? `goal ${x2(goalMer)}` : ''), sub: `${kmoney(c.sales, cur)} on ${kmoney(c.spend, cur)}`, spark: tspark(rows, prev, 'mer', x2, 'MER'), go: 'channels' });
-    const gwCard = gw && window.GiveawayUI ? window.GiveawayUI.homeCard(gw, cur) : '';
     const tiles = cur ? `<div class="v2tiles home8">
       ${tile({ hero: true, label: 'Revenue', src: 'SHOPIFY', hint: 'total sales minus tax', value: kmoney(c.sales, cur), delta: delta(c.sales, p.sales), sub: `${p.sales ? `${kmoney(p.sales, cur)} ${cmpLabel()}` : 'Shopify total sales minus tax'}`, spark: tspark(rows, prev, 'sales', km, 'revenue'),
         bullet: pace ? `<div class="v2bul"${tipAttr(`Month so far ${kmoney(mtd.sales, cur)} against ${kmoney(mtd.plan, cur)} planned by now. At this pace the month lands at ${kmoney(pace.landing, cur)}; the tick is the full month plan.`)}><div class="trk"><i style="width:${Math.min(100, pace.landing / Math.max(pace.full, pace.landing) * 100 * 0.8).toFixed(1)}%;background:${pace.pct >= 0.98 ? 'var(--good)' : pace.pct >= 0.85 ? 'var(--warn)' : 'var(--bad)'}"></i><b style="left:${(pace.full / Math.max(pace.full, pace.landing) * 80).toFixed(1)}%"></b></div><div class="lb">Month so far ${kmoney(mtd.sales, cur)} of ${kmoney(mtd.plan, cur)} planned by now · pace to ${kmoney(pace.landing, cur)}</div></div>` : '', go: 'store' })}
       ${tile({ label: 'Orders', src: 'SHOPIFY', hint: 'paid orders', value: int(c.orders), delta: delta(c.orders, p.orders), sub: `AOV ${money2(c.aov, cur)} ${delta(c.aov, p.aov)}`, spark: tspark(rows, prev, 'orders', int, 'orders'), go: 'store' })}
       ${tile({ label: 'Ad spend', src: 'TW', hint: 'every platform', value: kmoney(c.spend, cur), delta: delta(c.spend, p.spend, 'n'), sub: p.spend ? `${kmoney(p.spend, cur)} ${cmpLabel()}` : 'Meta, Google, TikTok and the rest', spark: tspark(rows, prev, 'spend', km, 'ad spend'), go: 'channels' })}
-      ${merTile}
+      ${tile({ label: 'MER', src: 'BLENDED', hint: 'revenue ÷ all ad spend', value: x2(c.mer), delta: delta(c.mer, p.mer), bullet: bullet(c.mer, goalMer, false, goalMer ? `goal ${x2(goalMer)}` : ''), sub: `${kmoney(c.sales, cur)} on ${kmoney(c.spend, cur)}`, spark: tspark(rows, prev, 'mer', x2, 'MER'), go: 'channels' })}
       ${tile({ label: 'aMER', src: 'BLENDED', hint: 'new-customer revenue ÷ ad spend', value: x2(c.amer), delta: delta(c.amer, p.amer), sub: `${kmoney(c.newRev, cur)} from first orders`, spark: tspark(rows, prev, 'amer', x2, 'aMER'), go: 'customers' })}
       ${tile({ label: 'New customers', src: 'TW', hint: 'first paid orders', value: int(c.newOrd), delta: delta(c.newOrd, p.newOrd), sub: `${pct(c.newShare, 0)} of revenue from first orders`, spark: tspark(rows, prev, 'new_orders', int, 'new customers'), go: 'customers' })}
       ${tile({ label: 'Cost per new customer', src: 'TW', hint: 'lower is better', value: money(c.cac, cur), delta: delta(c.cac, p.cac, true), bullet: bullet(c.cac, goalCac, true, goalCac ? `goal ${money(goalCac, cur)}` : ''), sub: `${int(c.newOrd)} first orders`, spark: tspark(rows, prev, 'cac', mo, 'cost per new customer'), go: 'customers' })}
@@ -935,7 +926,7 @@
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
-    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}${gwCard}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
@@ -950,7 +941,7 @@
     }
     if (rows.length > 1) wireLine('v2rev', rows, { tip: (r, i) => `<b>${day(r.date)}</b> · revenue ${kmoney(r.sales, cur)} · spend ${kmoney(r.spend, cur)}${r.spend ? ` · MER ${x2(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(cmpLabel())}: ${kmoney(prev[i].sales, cur)} on ${day(prev[i].date)}</span>` : ''}` });
     if (false && chSeries.length > 1) wireStack('v2pstack', chSeries, [{ key: 'meta', label: 'Meta', color: '--c-meta' }, { key: 'google', label: 'Google', color: '--c-google' }, { key: 'tiktok', label: 'TikTok', color: '--c-tiktok' }], cur);
-    if (!cmdOn && cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, ...(sMer != null ? { sales_mer: sMer, giveaway: { spend_in_window: gw.window.giveaway_spend, entries: gw.to_date.entries, cost_per_entry: gw.to_date.cost_per_entry, most_to_pay: gw.max_cost_per_entry, note: 'MER goal applies to sales_mer; the giveaway is judged on cost per entry' } } : {}), cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
+    if (!cmdOn && cur && c.sales != null) fillRead('v2read', 'overview', scope, { currency: cur, revenue: c.sales, revenue_compare: p.sales, orders: c.orders, aov: c.aov, ad_spend: c.spend, ad_spend_compare: p.spend, mer: c.mer, mer_goal: goalMer, cac: c.cac, cac_compare: p.cac, cac_goal: goalCac, new_customer_share: c.newShare, contribution_margin: c.cm,
       month_to_date: mtd.plan ? { revenue: mtd.sales, planned_by_now: mtd.plan } : null, site: fun.ses ? { sessions: fun.ses, carts: fun.cart, orders: fun.ord, sessions_before: fun.pses, orders_before: fun.pord } : null,
       channels: chRows.map(r => ({ channel: r.label, spend: r.spend, revenue: r.revenue, platform_says: r.hasP ? r.platform_revenue : null, revenue_before: r.hasPrev ? r.prev_revenue : null })),
       brands: one ? undefined : all.map(a => ({ name: a.name, revenue: a.window?.sales, revenue_before: a.prev?.sales, mer: a.window?.mer, mtd_vs_plan: a.plan?.sales && a.mtd?.sales != null ? Math.round((a.mtd.sales / a.plan.sales - 1) * 100) + '%' : null })) });
@@ -993,7 +984,7 @@
     const oneA = one ? H.S.accounts.find(a => a.act_id === H.S.act) : null;
     if (noMeta(oneA)) { $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, noMetaCard(oneA)); return; }
     if (first) $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, view === 'campaigns' ? skCard(10) : skPage({ tiles: 8, lead: true }));
-    let d, gwr = null; try { [d, gwr] = await Promise.all([get(`/api/hub/paid?platform=meta&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`), one && view !== 'campaigns' ? get(`/api/hub/giveaway?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}`).catch(() => null) : null]); }
+    let d; try { d = await get(`/api/hub/paid?platform=meta&act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}`); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('meta', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     if (!one) return metaAll(d, title);
@@ -1018,9 +1009,7 @@
       lineChart('v2cpa', sz.map(r => ({ ...r, v: r.cpa })), { key: 'v', prev: (b.prev_series || []).map(r => ({ ...r, v: r.cpa })), plan: g.cpa, cur, fmt: v => money(v, cur), h: 200 }));
     const table = campTable(b, cur, view === 'campaigns');
     const srChart = paidChart('v2msr', sz, psz, cur, 'Spend and revenue by day', `Revenue credited to Meta under ${esc(MODEL_SHORT[H.S.model])}; spend is Meta’s own.`);
-    /* The giveaway split (2026-10-10): how much of this Meta spend was list building, and Sales MER on the rest. */
-    const gwLine = gwr && gwr.brands && gwr.brands[0] && window.GiveawayUI ? window.GiveawayUI.metaLine(gwr.brands[0], cur) : '';
-    const body = view === 'campaigns' ? `${table}` : `<p class="v2say lead">${esc(verdict)}</p>${gwLine}<div class="v2tiles">${tl}</div>${srChart}${funnel}<div class="v2two">${spendChart}${perf}</div>${table}
+    const body = view === 'campaigns' ? `${table}` : `<p class="v2say lead">${esc(verdict)}</p><div class="v2tiles">${tl}</div>${srChart}${funnel}<div class="v2two">${spendChart}${perf}</div>${table}
       <div class="v2gos"><button type="button" class="v2go" data-go="mtoday"><b>Today against a normal day</b><span>Hour by hour: is today's spend and buying running hot or cold?</span><i>›</i></button><button type="button" class="v2go" data-go="mbrowser"><b>Creative browser</b><span>Every ad with its cover and copy, and the client's own ads page link.</span><i>›</i></button><button type="button" class="v2go" data-go="changes"><b>What changed</b><span>Budgets, launches and pauses, with the reason next to each.</span><i>›</i></button></div>`;
     $('#main').innerHTML = shell(view === 'campaigns' ? 'campaigns' : 'meta', title, body + foot('Spend, impressions, clicks, CPM, CTR, frequency, hook and hold are Meta’s own. Purchases, revenue, ROAS and CPA follow the attribution switch; Meta’s own count stays beside them. Click a purchases cell for the orders behind it.'));
     const root = $('#main'); wireGo(root); wireCamp(root, b, cur);
@@ -3198,7 +3187,5 @@
       if (tab === 'search') return search(first);
     },
     MODEL_SHORT,
-    /* Drop the cached /api/hub reads whose path starts with `prefix` (a settings save that changes them, e.g. the giveaway). */
-    dropCache(prefix) { for (const k of [...CACHE.keys()]) if (!prefix || k.startsWith(prefix)) CACHE.delete(k); },
   };
 })();

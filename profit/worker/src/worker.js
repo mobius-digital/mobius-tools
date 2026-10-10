@@ -29,7 +29,6 @@ import { handleDashboard } from './dashboard.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { handleHub } from './hub.js';
 import { handleExpenses, loadExpenses, spread, applyAdSpend } from './expenses.js';
-import { loadGiveaways, saveGiveaway, removeGiveaway, merFloorFor, maxCostPerEntry } from './giveaway.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -1864,9 +1863,6 @@ export default {
             // `account` carries the Meta act_id — internal. The top-level account
             // object (name + currency) is all the page needs.
             if (data) for (const k of ['cogs_quality', 'margin_28d', 'cm_pct', 'changes', 'changes_total', 'account']) delete data[k];
-            /* A giveaway's workings (most to pay, buy rate, floor, match terms, campaigns) are ours; the client keeps Sales MER,
-               entries and cost per entry (2026-10-10). */
-            if (data && data.giveaway) { const g = data.giveaway; data.giveaway = { name: g.name, start: g.start, end: g.end, window: g.window ? { giveaway_spend: g.window.giveaway_spend, sales_spend: g.window.sales_spend, sales_mer: g.window.sales_mer, blended_mer: g.window.blended_mer } : null, to_date: g.to_date ? { entries: g.to_date.entries, cost_per_entry: g.to_date.cost_per_entry, giveaway_spend: g.to_date.giveaway_spend } : null }; }
             report = { period: row.period, start: row.period_start, end: row.period_end,
               sent_at: row.sent_at, summary: row.summary, data, preview: row.status !== 'sent' };
           }
@@ -2773,23 +2769,6 @@ export default {
         const fr = await handleExpenses({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
           client: clientScope(request), sources: acct => costSources(env, acct) });
         if (fr) return fr;
-      }
-      /* Giveaway / list building per brand (2026-10-10, giveaway.js): the settings the Goals page edits. Team only (not on
-         CLIENT_RULES). The numbers themselves are GET /api/hub/giveaway. */
-      if (path === '/api/giveaway') {
-        const act = request.method === 'GET' || request.method === 'DELETE' ? url.searchParams.get('act') : null;
-        const body = request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
-        const id = act || body.act;
-        const acct = (await accountsFor(false)).find(a => a.act_id === id);
-        if (!acct) return json({ error: 'unknown brand' }, 404);
-        if (request.method === 'GET') {
-          const cfg = (await loadGiveaways(env, [acct.act_id]))[acct.act_id] || null;
-          const floor = merFloorFor(acct.name, cfg);
-          return json({ act: acct.act_id, name: acct.name, currency: acct.currency, giveaway: cfg, floor, max_cost_per_entry: cfg ? maxCostPerEntry(cfg, floor) : null,
-            klaviyo_connected: !!(await env.DB.prepare(`SELECT 1 FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'klaviyo'`).bind(acct.act_id).first().catch(() => null)) });
-        }
-        if (request.method === 'PUT') { const r = await saveGiveaway(env, acct.act_id, body, await sessionEmail(env, request)); return json(r, r.error ? 400 : 200); }
-        if (request.method === 'DELETE') return json(await removeGiveaway(env, acct.act_id));
       }
       /* Saved dashboards (the hub, 2026-10-07). Routes live in dashboard.js. */
       if (path === '/api/dashboards' || path === '/api/dashboard') {

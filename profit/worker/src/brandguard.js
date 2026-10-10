@@ -139,8 +139,6 @@ export const CLIENT_RULES = [
   { m: 'GET', p: '/api/hub/paid', act: 'need' },
   // The data behind a tile (2026-10-09). Costs, CM and fixed expenses ride under `profit`, scrubbed while P&L is off.
   { m: 'GET', p: '/api/hub/drill', act: 'need' },
-  // Giveaway spend vs sales MER (2026-10-10): Home's Giveaway card and the Sales MER line, one brand.
-  { m: 'GET', p: '/api/hub/giveaway', act: 'need' },
   { m: 'GET', p: '/api/hub/orders', act: 'need' },
   { m: 'GET', p: '/api/hub/customer', act: 'need' },
   { m: 'GET', p: '/api/google/ads', act: 'need' },
@@ -161,6 +159,11 @@ export const CLIENT_RULES = [
   // Black Friday War Room (profit worker, 2026-10-09): their brand's plan and live numbers, read only.
   { m: 'GET', p: '/api/season/war', act: 'need' },
   { m: 'GET', p: '/api/tw-day', act: 'need', post: twDayClient },
+  // Products > Stock and Drops (2026-10-10, stock.js supplyClient): their brand's stock and drops, READ ONLY, through this
+  // worker with the Supply token. The handler keeps an allowlist of fields (no costs, suppliers, order money, notes, Asana).
+  // Never Buying, never a Supply write (/api/supply/* POST and PUT stay off this list). Ad spend per product rides along.
+  { m: 'GET', p: '/api/supply/client', act: 'need' },
+  { m: 'GET', p: '/api/hub/stockads', act: 'need' },
   // Reports: sent only, never a draft.
   { m: 'GET', p: '/api/reports', act: 'need', post: sentOnlyList },
   { m: 'GET', p: '/api/report', act: 'need', post: sentOnlyOne },
