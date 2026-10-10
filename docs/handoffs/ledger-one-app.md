@@ -78,6 +78,25 @@ repo. Trap: never declare a top-level `const` the engine already declares (check
 books (same files, agency preset, blue accent per `/mobius.css` data-app rules), the Caddie tab folded, an
 `edition` setting read by the rail and Settings.
 
+## Done by the cloud session (2026-10-10, later the same day)
+
+- **The Caddie tab is gone** (Lucky repo, commit 0d6a1da on main, NOT yet deployed: deploy from the laptop with
+  the Lucky Golf wrangler login, `cd worker && npx wrangler deploy`, then hard refresh). Findings (all of them)
+  and the Monday briefing sit in one card on Home > Overview; "Needs you" scrolls to it. Earlier chats sit
+  beside the reports on Reports > Caddie reports. "Run the checks now" lives only in Settings > Slack and the
+  Caddie. The old `caddie` id routes to Overview. Files: app/lg-core.js (NAV, LEGACY), app/lg-home.js,
+  app/lg-books.js, app/lg-settings.js (SCREEN_NAMES), docs/redesign-2026-10-10.md.
+- **The thought process is written**: `docs/one-ledger.md` in this repo, and the shareable page
+  https://claude.ai/artifact/UvsU4xNMyb7KT7qvkhpTuk (private until Cole shares it). Evidence measured from the
+  code: Lucky's worker.js is 66% verbatim the Mobius worker.js, its front-end engine 69%, its engine.js 92% the
+  shared `ask/engine.js` (which the Mobius Controller already imports). Shared tables: transactions, vendors,
+  months, settings, clients. Recommendation: one codebase, three editions (Service business, Product brand,
+  Household), three separate sets of books, deployed three times; build order A (v6 shell into `ledger/` with
+  an `edition` setting), B (one worker on Lucky's base plus Mobius's seven audit migrations), C (Household),
+  D (multi-tenant, only if sold).
+- **Waiting on Cole**: the four decisions in section 9 of `docs/one-ledger.md`. Step A starts on his word.
+- No Cloudflare token was found in the cloud environment (checked `env`); nothing was deployed from here.
+
 ## Constraints the cloud must respect
 
 - Deploys: the Lucky worker and Pages deploy need the Lucky Golf wrangler login on Cole's laptop
