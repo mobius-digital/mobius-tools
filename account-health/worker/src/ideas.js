@@ -727,7 +727,7 @@ const arr = items => ({ type: 'array', items });
 const obj = p => ({ type: 'object', properties: p, required: Object.keys(p), additionalProperties: false });
 const en = (...v) => ({ type: 'string', enum: v });
 export const IDEA_SCHEMA = obj({
-  teardown: obj({ summary: S, awareness: S, sophistication: S, desire: S, mechanism: S, proof: S, hook_why: S, weak: S }),
+  teardown: obj({ summary: S, awareness: S, sophistication: S, desire: S, layer: S, mechanism: S, proof: S, hook_why: S, weak: S }),
   transfer: obj({ mode: en('as_is', 'style', 'hook_only', 'mixed'), reason: S, disagreement: S }),
   questions: arr(obj({ q: S, blocking: B })),
   destination: obj({ pick: en(...Object.keys(DESTS)), reason: S }),
@@ -756,7 +756,7 @@ READING THE THREAD
 
 IMAGES: for every image in the thread (I1, I2...) say in \`images\` what it is: another brand's ad or a reference to copy (inspiration), a clean studio shot of OUR product on a plain background (product_studio), a real photo of our product in use or in a scene (product_lifestyle), or other (a screenshot of a chat, a spec sheet). What the team wrote wins ("here are the product photos", "this one is the inspo"). Studio draws the product from product photos and checks every ad against them, and uses inspiration only for the look, so this sorting decides what the ads look like.
 
-TEARDOWN: why the reference works for its audience: the awareness stage, the sophistication stage, the desire it hits, the mechanism, the proof it uses, and why the hook stops the scroll. Then what is weak or not worth copying. ONE short sentence per field (summary may be two). Specific to this reference: if a sentence would fit any ad, cut it. A typed idea with no reference gets the same treatment for the idea itself.
+TEARDOWN: why the reference works for its audience: the awareness stage, the sophistication stage, the desire it hits, the problem layer it wins on (layer: external = the physical problem, internal = how it makes them feel, philosophical = why it is wrong they should have to put up with it; name the layer, and if a deeper one would carry this angle further for our brand, say which in the same sentence), the mechanism, the proof it uses, and why the hook stops the scroll. Then what is weak or not worth copying. ONE short sentence per field (summary may be two). Specific to this reference: if a sentence would fit any ad, cut it. A typed idea with no reference gets the same treatment for the idea itself.
 
 QUESTIONS: 0 to 3, only when the brand brain AND the thread truly lack something you need (for example which persona or which product). blocking = true only when any draft would be a guess without the answer.
 
@@ -1109,6 +1109,7 @@ function draftBody(d, acct, hub, { buttons = true } = {}) {
   if (t.desire) why.push(`• Desire: ${esc(t.desire)}`);
   if (t.awareness) why.push(`• Awareness: ${esc(t.awareness)}`);
   if (t.sophistication) why.push(`• Sophistication: ${esc(t.sophistication)}`);
+  if (t.layer) why.push(`• Problem layer: ${esc(t.layer)}`);
   if (t.mechanism) why.push(`• Mechanism: ${esc(t.mechanism)}`);
   if (t.proof) why.push(`• Proof: ${esc(t.proof)}`);
   if (t.weak) why.push(`*Don't copy:* ${esc(t.weak)}`);

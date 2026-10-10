@@ -1353,7 +1353,7 @@ function rsDrafts(L) {
   const d = S.d;
   const ok = (kind, list) => list.filter(x => x.line_id === L && x.status === 'draft').map(x => ({ kind, row: { id: x.id, status: 'approved' } }));
   const personas = ok('persona', d.personas), quotes = ok('voc', d.voc), comps = ok('comp', d.comps);
-  const docs = [[L, 'market', 'the market read'], [L, 'mechanism', 'the mechanism'], ['', 'brand_facts', 'the website notes']].filter(([ln, k]) => d.docs[ln]?.[k]?._status === 'draft');
+  const docs = [[L, 'market', 'the market read'], [L, 'mechanism', 'the mechanism'], [L, 'problem', 'the problem layers'], ['', 'brand_facts', 'the website notes']].filter(([ln, k]) => d.docs[ln]?.[k]?._status === 'draft');
   const parts = [[personas.length, 'persona'], [quotes.length, 'customer quote'], [comps.length, 'competitor']].filter(([n]) => n).map(([n, w]) => `${n} ${w}${n === 1 ? '' : 's'}`).concat(docs.map(x => x[2]));
   return { rows: [...personas, ...quotes, ...comps], docs, parts, n: personas.length + quotes.length + comps.length + docs.length };
 }
@@ -1439,7 +1439,7 @@ function factsCard(f) {
 function paintLine(el, line) {
   const d = S.d, L = line.id, R = rsState();
   const docs = d.docs[L] || {};
-  const m = docs.market || {}, mech = docs.mechanism || {};
+  const m = docs.market || {}, mech = docs.mechanism || {}, prob = docs.problem || {};
   const draftLast = (a, b) => (a.status === 'draft') - (b.status === 'draft');
   const personas = d.personas.filter(p => p.line_id === L).sort(draftLast);
   const voc = d.voc.filter(v => v.line_id === L);
@@ -1524,6 +1524,16 @@ function paintLine(el, line) {
       : `<div class="rs-read rs-clamp">${esc(mech.solution || mech.problem || '')}</div>`,
     kHas ? rsToggle('mech', kOpen, 'Show the full mechanism') : '');
 
+  /* ---- what is really wrong for them? (StoryBrand's three layers; knowledge topic messaging) ---- */
+  const prOpen = !!R.open.prob;
+  const prHas = prob.villain || prob.external || prob.internal || prob.philosophical;
+  const secProb = rsSec('prob', `The problem${rsDraftTag(prob._status)}`, 'What is really wrong for them?',
+    `${prob._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|problem">Approve</button>` : ''}<button class="rs-q" id="brEditProb">Edit</button>`,
+    !prHas ? '<p class="hint" style="margin:0">Not written yet. Research tools draft it with the personas, or press Edit. Most ads only say the first layer; the money is usually in the second.</p>' : prOpen
+      ? `<dl class="br-kv"><dt>Villain</dt><dd>${esc(prob.villain || '-')}</dd><dt>What they would search</dt><dd>${esc(prob.external || '-')}</dd><dt>How it makes them feel</dt><dd>${esc(prob.internal || '-')}</dd><dt>Why it is wrong</dt><dd>${esc(prob.philosophical || '-')}</dd></dl>`
+      : `<div class="rs-read rs-clamp">${esc(prob.internal || prob.external || prob.philosophical || '')}</div>`,
+    prHas ? rsToggle('prob', prOpen, 'Show all three layers') : '');
+
   /* ---- who else are they looking at? ---- */
   const cOpen = !!R.open.comps;
   const cCard = c => { const x = c.data || {}; const cut = (s, n) => cOpen ? String(s || '') : short(s, n); return `<div class="br-pcard" data-comp="${c.id}"><div class="br-bar"><h4>${esc(c.name)}</h4>${statusTag(c.status)}</div>
@@ -1536,10 +1546,11 @@ function paintLine(el, line) {
     comps.length ? `<div class="br-g3">${(cOpen ? comps : comps.slice(0, 3)).map(cCard).join('')}</div>` : '<p class="hint" style="margin:0">No competitors yet. Research tools can find them, or add one by hand there.</p>',
     comps.length ? rsToggle('comps', cOpen, comps.length > 3 ? `Show all ${comps.length} competitors in full` : 'Show the competitors in full') : '');
 
-  el.innerHTML = tiles + secPersonas + secVoc + secIdeas + secMarket + secMech + secComps;
+  el.innerHTML = tiles + secPersonas + secVoc + secIdeas + secMarket + secMech + secProb + secComps;
 
   el.querySelector('#rsOkAll')?.addEventListener('click', () => rsApproveAll(L));
   el.querySelector('#brEditMarket').onclick = () => marketModal(L, m);
+  el.querySelector('#brEditProb').onclick = () => docModal(L, 'problem', 'The problem, three layers', [['villain', 'Villain: the one thing causing it (not a person)', 2], ['external', 'External: the physical problem, what they would type into Google', 2], ['internal', 'Internal: how it makes them feel, in their words', 3], ['philosophical', 'Philosophical: why nobody should have to put up with it', 2]], prob);
   el.querySelector('#brEditMech').onclick = () => docModal(L, 'mechanism', 'The mechanism', [['problem', 'Why what they tried before failed', 3], ['solution', 'Why this product works', 3]], mech);
   el.querySelectorAll('[data-p]').forEach(c => c.onclick = () => personaModal(d.personas.find(p => p.id === c.dataset.p), L));
   el.querySelectorAll('[data-comp]').forEach(c => c.onclick = () => compModal(d.comps.find(x => x.id === c.dataset.comp), L));

@@ -1,0 +1,100 @@
+# Messaging depth: the three layers of a customer's problem
+
+Scope: what an ad, email, page, script or brief actually argues, at what depth, and how to check it. Applies to every channel and every surface: Meta and TikTok ads, creator scripts, Asana briefs, email and SMS, product and landing pages, the creator link, client calls. Read with `meta.md` (testing), `email-sms.md` (flows), `website-cro.md` (pages). Added 2026-10-10 from a TikTok Cole flagged (a Shopify coach summarising Donald Miller), checked against the sources below.
+
+The one idea behind this file: **brands sell the solution to the external problem; people buy the solution to the internal one.** (Donald Miller, Building a StoryBrand, 2017, "StoryBrand Principle Two".) Almost every brand in a category talks at layer one, so the layer one ad is the most crowded ad in the auction.
+
+---
+
+## 1. Where it comes from
+
+- **Donald Miller, Building a StoryBrand** (HarperCollins Leadership, 2017; revised as Building a StoryBrand 2.0, January 2025, mostly more worked steps plus his StoryBrand AI tool). Follow-up: Marketing Made Simple (2020, with J.J. Peterson), which applies the same script to the one-liner, website, lead magnet, nurture emails and sales emails.
+- Miller was a memoirist (Blue Like Jazz, A Million Miles in a Thousand Years). Turning his book into a film sent him to Robert McKee's Story seminar, and StoryBrand is screenwriting structure applied to marketing: a character wants something, meets conflict, and a guide helps them win. McKee's own "levels of conflict" (inner, personal, extra-personal) are the obvious parallel; Miller's Star Wars example: external = blow up the Death Star, internal = Luke's doubt that he has what it takes, philosophical = good against evil.
+- It is NOT only a website framework. Miller says the script has to show up on the website, in emails, in sales scripts and in the elevator pitch. It reads as a website thing because his best known tool is the website wireframe.
+- The academic version is older: **means-end chains and laddering** (Gutman 1982; Reynolds and Gutman 1988). Product attribute -> consequence for me -> the personal value it serves, found by asking "why does that matter to you?" until the answer stops changing. External = attribute and functional consequence, internal = emotional consequence, philosophical = the value.
+- Same shape elsewhere: Jobs to Be Done (functional, emotional and social jobs; Christensen), Bain's Elements of Value pyramid (functional, emotional, life changing, social impact; HBR 2016: brands strong on four or more elements had much higher loyalty), Simon Sinek's "people buy why you do it".
+
+## 2. The parts
+
+**The villain.** One specific thing causing the problem. Miller's rules: the root source (not a symptom), relatable, singular, real. Usually a thing, a practice or an old way of doing it, never a person and almost never a named competitor. Dollar Shave Club's villain was overpriced razors that fund celebrity endorsements; Liquid Death's is plastic; Starface's is shame-based acne marketing.
+
+**Layer 1, external.** The physical, visible problem. What they would type into Google or ChatGPT. "I chunk my chips." "My ball marker falls out of my pocket." "My skin is dry." Necessary (it tells the scroller what this is for) and never enough on its own, because every competitor says the same sentence.
+
+**Layer 2, internal.** How the external problem makes them FEEL. Frustration, embarrassment, fear, doubt, feeling stupid, feeling old, feeling like they are holding the group up. Nobody types this into Google; they lie awake with it. This is what they are actually paying to get rid of. Miller: focus here. Rule: solve the bad feeling before you pitch the physical fix.
+
+**Layer 3, philosophical.** Why it is plain wrong that anyone has to put up with it. Written with "should", "shouldn't have to", "deserve", "ought". It gives the customer a side to stand on and the brand a fight to pick, which is what turns buyers into advocates. Optional: use it only when the product can carry it (see section 6).
+
+**Miller's own examples:**
+| Brand | Villain | External | Internal | Philosophical |
+|---|---|---|---|---|
+| Tesla | gas guzzling, inferior technology | I need a car | I want to be an early adopter | my car ought to help the environment |
+| Nespresso | machines that make bad coffee | I want better coffee at home | I want to feel sophisticated | I shouldn't have to be a barista to make great coffee at home |
+| CarMax | | I need an affordable car | I dread haggling with a salesman | |
+| House painter | | my house looks bad | I am embarrassed by it | (line: "Paint that will make your neighbors jealous") |
+
+**Starface (checked):** founded 2019; the founders saw acne marketing as fear-based and "designed to hide pimples", and made a bright yellow star you wear on purpose. External: a pimple. Internal: feeling self-conscious, wanting to hide. Philosophical: a pimple is not something you should have to hide. The product design itself carries the philosophy (a visible patch). About $90M revenue in 2024, profitable since 2023. Note the TikTok's "you shouldn't have to hide your face" is its paraphrase, not the founders' words.
+
+**The rest of Miller's script (SB7), for context:** the customer is the hero, never the brand. The brand is the GUIDE: empathy ("we get it") plus authority (proof, reviews, numbers). The guide gives a PLAN (three or four steps to buy or use, plus promises that remove fear: guarantee, free returns), a CALL TO ACTION (one direct, one softer), the STAKES (what it costs them to do nothing) and SUCCESS (what life looks like after). Underneath it all is the IDENTITY shift, from who they are to who they want to be ("from passive dog owner to every dog's hero").
+
+## 3. Layers and awareness: which one to lead with
+
+The layer decides what the ad is about. Awareness (Schwartz) decides how it opens. They work together; this mapping is our synthesis, not Miller's or Schwartz's:
+
+| Customer is | Lead with | The other layers |
+|---|---|---|
+| Unaware | the internal feeling, or the moment it happens ("that walk to the green when you know you're about to chunk it") | external comes second, as the reason |
+| Problem aware | internal first, then name the villain | external fix as the turn |
+| Solution aware (tried other fixes) | the villain: why what they tried failed (this is the mechanism) | internal as the stakes |
+| Product aware | external: proof, the specific fix, the offer | internal in one line, as the payoff |
+| Most aware / past buyers | the offer, the new thing, belonging | philosophical as the club they are in |
+
+Market sophistication: in a stage 3 to 5 market (every claim made, every mechanism heard) layer one has nothing left to say. The room left is the internal feeling nobody names and the philosophical stance nobody takes (Schwartz's last stage is identification with the buyer). That is why crowded DTC categories reward this.
+
+## 4. How it fits the Mobius framework
+
+- **The layer is part of the ANGLE.** An angle is the reason to buy. The same product and the same external problem argued at a different layer is a different reason to buy: "stop chunking chips" (external) and "stop dreading the chip in front of your buddies" (internal) are TWO angles. So a layer change is an angle test, never a headline test.
+- **Concepts deliver the layer.** The concept is how the feeling gets shown: a creator talking about the exact moment, a before and after of the moment, a skit of the group waiting. A concept that shows only the product doing its job is a layer one concept, whatever the headline says.
+- **Every deeper layer stays anchored to a concrete external moment.** "Feel confident" is nobody's words and sells nothing. "That walk up to a greenside chip with three guys watching" is internal AND specific. The internal layer is found in the voice of the customer quotes (pain, failed, trigger kinds), never invented.
+- **Copy is talking (Cole's rule).** The layers are for the THINKING (what is really wrong for this person), not a template to fill. Become the person, say it out loud, write it down; check the layer at read-back.
+
+## 5. Using it on every surface
+
+- **Meta and TikTok ads:** the hook carries the internal moment; the body names the villain or the external fix; the product shot is the proof. A creator brief says which feeling to talk about, not just which product to hold. Statics: the headline is the internal line, the subhead or the visual is the external fix.
+- **Creator link and creator scripts:** each section's "why film this" is usually the internal layer in the customer's words. Creators are naturally good at layer two (they tell the story of feeling it); give them the moment, not a claim.
+- **Asana briefs:** the WHY line names the layer and the belief behind it ("golfers do not buy wedges to hit it closer, they buy them to stop dreading the chip in front of their group").
+- **Product and landing pages:** the hero line answers the internal problem, the subhead the external fix, then proof (the guide's authority), the plan (how it works, guarantee), the stakes, the success picture. Specs and FAQs stay layer one, which is correct there.
+- **Email and SMS:** welcome flow = the philosophical stance and the villain (why this brand exists); browse and cart abandonment = internal plus the agreement plan (returns, guarantee) to answer the anxiety; post-purchase = the identity ("you're one of us now"); win-back = the stakes.
+- **Retention and community:** layer three is what makes people repeat and talk. A brand with a stance gives people a reason to wear the logo.
+- **Client calls and onboarding:** ask the laddering questions. "What does it feel like for your customer when that happens?" then "why should nobody have to put up with that?" Clients know layer one cold and rarely say layer two unprompted.
+
+## 6. When NOT to go deep (the limits)
+
+- **Lower funnel and warm traffic want layer one.** Retargeting, branded search, product aware buyers comparing options: proof, price, offer, shipping, reviews. Binet and Field (IPA databank, 1,200+ campaigns): rational, offer-led messages win short-term sales; emotional work builds long-term growth. A healthy account runs both.
+- **The philosophical layer can read as preachy** on low-involvement buys. Use it only when the brand can credibly stand there and the product itself can carry it (Starface's visible star, Liquid Death's can). A "should" line stuck on a commodity reads as a slogan.
+- **Distinctiveness still matters.** The Ehrenberg-Bass view (Sharp, Romaniuk): growth comes from being easy to notice and remember at buying moments, not from stories. Deep messaging in a forgettable look loses to plain messaging in a look people recognise.
+- **No rigorous proof exists that StoryBrand lifts conversion.** It is practitioner wisdom. Treat a deeper layer as a hypothesis and test it (one layer per angle test).
+- **Do not repeat the myths.** "95% of decisions are subconscious" (Zaltman's figure was about cognition, and there is no evidence for it) and "layer one hits the smallest part of the brain" are pop neuroscience. Never put them in a brief, report or client message.
+- **StoryBrand applied literally makes sites sound the same** ("the hero's guide" boilerplate). Use the layers to find what to say; say it in the brand's own voice.
+
+## 7. The layer check (reviewing anything)
+
+For any ad, brief, email, page or script, answer in one line each:
+1. Which layer does it argue? (Most of what we ship is layer one: features, specs, "the best X".)
+2. Is that the right layer for who sees it? (Cold audience and layer one only = the usual miss. Retargeting and layer three only = also a miss.)
+3. Is the internal line in the customer's words and tied to a concrete moment, or is it "feel confident"?
+4. Is there one villain, and is it a thing, not a person or a named competitor?
+5. If there is a philosophical line, can this product carry it?
+6. Is a deeper layer an untested angle for this brand? If so, that is a gap worth naming (Gaps are findings).
+
+Golf illustrations (check against each brand's brain before using):
+- A wedge: external "I chunk chips"; internal "I dread the greenside chip with my group watching"; philosophical "a weekend golfer shouldn't need a tour pro's practice time to trust their short game".
+- A magnetic belt with ball marker: external "my marker and tees are buried in my pocket"; internal "I feel flustered and slow on the green while everyone waits"; philosophical "you shouldn't have to dig for your gear to play like you belong".
+- Bold golf apparel (Bad Birdie is the public example: villain "boring golf polos"): external "I need a polo"; internal "I don't want to look like every other guy at the club"; philosophical "golf shouldn't have to be stiff to be respected".
+
+## Sources
+- Miller, Building a StoryBrand (2017; 2.0, 2025); notes: nateliason.com/notes/building-a-story-brand-donald-miller, grahammann.net/book-notes/building-a-storybrand-donald-miller, shortform.com/blog/types-of-problems
+- McKee levels of conflict; Miller's McKee seminar: en.wikipedia.org/wiki/A_Million_Miles_in_a_Thousand_Years
+- Gutman 1982 (Journal of Marketing 46(2)); Reynolds and Gutman 1988 (Journal of Advertising Research 28(1))
+- Bain Elements of Value, HBR September 2016
+- Starface: CNBC 2025 ($90M 2024 revenue), mecca.com founder interview, BeautyMatter ($105M minority round, March 2026)
+- Binet and Field, The Long and the Short of It (IPA); Research World on the 95% myth
