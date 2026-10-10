@@ -1530,7 +1530,7 @@ function paintLine(el, line) {
   const secProb = rsSec('prob', `The problem${rsDraftTag(prob._status)}`, 'What is really wrong for them?',
     `${prob._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|problem">Approve</button>` : ''}<button class="rs-q" id="brEditProb">Edit</button>`,
     !prHas ? '<p class="hint" style="margin:0">Not written yet. Research tools draft it with the personas, or press Edit. Most ads only say the first layer; the money is usually in the second.</p>' : prOpen
-      ? `<dl class="br-kv"><dt>Villain</dt><dd>${esc(prob.villain || '-')}</dd><dt>What they would search</dt><dd>${esc(prob.external || '-')}</dd><dt>How it makes them feel</dt><dd>${esc(prob.internal || '-')}</dd><dt>Why it is wrong</dt><dd>${esc(prob.philosophical || '-')}</dd></dl>`
+      ? `<dl class="br-kv"><dt>Villain</dt><dd>${esc(prob.villain || '-')}</dd>${lines(prob.other_villains).length ? `<dt>Other villains</dt><dd>${lines(prob.other_villains).map(esc).join('\n')}<span class="tiny">\nEach one can be its own angle.</span></dd>` : ''}<dt>What they would search</dt><dd>${esc(prob.external || '-')}</dd><dt>How it makes them feel</dt><dd>${esc(prob.internal || '-')}</dd><dt>Why it is wrong</dt><dd>${esc(prob.philosophical || '-')}</dd></dl>`
       : `<div class="rs-read rs-clamp">${esc(prob.internal || prob.external || prob.philosophical || '')}</div>`,
     prHas ? rsToggle('prob', prOpen, 'Show all three layers') : '');
 
@@ -1550,7 +1550,7 @@ function paintLine(el, line) {
 
   el.querySelector('#rsOkAll')?.addEventListener('click', () => rsApproveAll(L));
   el.querySelector('#brEditMarket').onclick = () => marketModal(L, m);
-  el.querySelector('#brEditProb').onclick = () => docModal(L, 'problem', 'The problem, three layers', [['villain', 'Villain: the one thing causing it (not a person)', 2], ['external', 'External: the physical problem, what they would type into Google', 2], ['internal', 'Internal: how it makes them feel, in their words', 3], ['philosophical', 'Philosophical: why nobody should have to put up with it', 2]], prob);
+  el.querySelector('#brEditProb').onclick = () => docModal(L, 'problem', 'The problem, three layers', [['villain', 'Villain: the one thing causing it (not a person)', 2], ['other_villains', 'Other villains, one per line (each can power its own angle)', 3], ['external', 'External: the physical problem, what they would type into Google', 2], ['internal', 'Internal: how it makes them feel, in their words', 3], ['philosophical', 'Philosophical: why nobody should have to put up with it', 2]], prob);
   el.querySelector('#brEditMech').onclick = () => docModal(L, 'mechanism', 'The mechanism', [['problem', 'Why what they tried before failed', 3], ['solution', 'Why this product works', 3]], mech);
   el.querySelectorAll('[data-p]').forEach(c => c.onclick = () => personaModal(d.personas.find(p => p.id === c.dataset.p), L));
   el.querySelectorAll('[data-comp]').forEach(c => c.onclick = () => compModal(d.comps.find(x => x.id === c.dataset.comp), L));
