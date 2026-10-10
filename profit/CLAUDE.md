@@ -2707,3 +2707,16 @@ cadence cards were hard to read, and Overview vs Campaigns looked the same. All 
 - Local check recipe used (no shared browser pane): own static server + `wrangler dev --remote` profit / account-health on
   spare ports, headless Chrome driven over CDP from node (scratch scripts), light, dark and 375 wide. The tag tables also
   fixed a page that was 486-525px wide on a phone.
+
+## 2026-10-10: agency economics and team workload (`agency.js`, `window.AgencyTab`)
+
+Two pages under Tools (NAV.tools `economics`, `workload`; `AGR()` in index.html hands the host helpers to
+`window.AgencyTab.render`). Backend: account-health `src/agency.js` (see that CLAUDE.md, same date).
+- **Agency economics** (Cole only: hidden from the Tools tabs, the search list and show() for any role but owner; the
+  server refuses everyone else): month picker (last full month by default, 13 months), the one-sentence answer, four
+  tiles (paid to Mobius, team cost estimate, AI cost, margin), the Per client table (paid, tasks done, team hours and
+  cost marked est., AI with a hover breakdown, margin and %, revenue per team hour), "Ledger names to match" (pick the
+  client per unknown payer, or Not a client), the Team cards, and the "Set people's costs" modal (cost and hours a
+  month per person seen in Asana).
+- **Team workload** (team): rows = people, columns = Overdue + Mon to Sun (today tinted), each task a card with its
+  brand chip linking to Asana, three per cell then "N more", a Person filter (remembered in `ag_who`), Read Asana again.

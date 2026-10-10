@@ -2,6 +2,7 @@ import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tik
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
+import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -7952,6 +7953,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* The agency command center (command.js): Asana overdue / stuck per brand, new clients being set up, alerts fired. */
     if (path === '/api/command/work') {
       const r = await handleCommand(request, env, path, json, isAdmin, async rq => brandsFor(env, await sessionEmail(env, rq).catch(() => null)));
+      if (r) return r;
+    }
+    /* Agency economics (owner only) and team workload (team): agency.js. Clients are refused (not on CLIENT_RULES). */
+    if (/^\/api\/agency\//.test(path)) {
+      const r = await handleAgency(request, env, path, json, { isAdmin, sessionEmail, brandsFor, mintSession });
       if (r) return r;
     }
     if (path === '/api/daycheck' && request.method === 'POST') {
