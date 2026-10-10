@@ -214,3 +214,7 @@ textarea.spx-in{height:auto;min-height:72px;padding:8px 10px;resize:vertical;lin
 .spx-kc .v2tbl th:nth-child(2),.spx-kc .v2tbl td:nth-child(2){text-align:left}
 .spx-bar .ds-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}.spx-bar .ds-seg button{flex:none;white-space:nowrap}
 #v2panel .pb > .spx-steps,#v2panel .pb > .spx-form,#v2panel .pb > .spx-acts{flex-shrink:0}
+
+/* 2026-10-10 (Cole: "the circle looks cut off"): the list scrolls sideways, which clips anything outside its box,
+   so the current step's ring lost its top and left edge. Room inside the scroller for the ring. */
+.spx-steps{padding:5px 4px 2px 5px}

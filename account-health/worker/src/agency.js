@@ -87,16 +87,20 @@ async function roleOf(request, env, d) {
 /* ---------------- economics: the pieces ---------------- */
 /** Tasks each person completed in one brand's project in the month: {by: {gid: {name, n}}}. */
 async function doneFor(env, brand, gid, month, fresh, isCurrent) {
-  const key = `agencyDone:${brand}:${month}`;
+  const key = `agencyDone2:${brand}:${month}`;
   const hit = fresh ? null : await getSetting(env, key);
   if (hit && hit.gid === gid && Date.now() - Date.parse(hit.at) < (isCurrent ? CUR_MS : PAST_MS)) return hit;
   const from = month + '-01', to = nextMonth(month) + '-01';
   try {
-    const tasks = await asanaAll(env, `/projects/${gid}/tasks?completed_since=${from}T00:00:00Z&opt_fields=completed,completed_at,assignee.name`);
+    const tasks = await asanaAll(env, `/projects/${gid}/tasks?completed_since=${from}T00:00:00Z&opt_fields=completed,completed_at,modified_at,assignee.name`);
     const by = {};
     for (const t of tasks || []) {
-      if (!t.completed || !t.completed_at || !t.assignee?.gid) continue;
-      const day = central(new Date(t.completed_at));
+      /* Work in the month = a task finished that month, or an open task of theirs that moved that month (most of the
+         team moves tasks between sections and never ticks them; 2026-10-10 only Ahsan's work was counted). */
+      if (!t.assignee?.gid) continue;
+      const when = t.completed ? t.completed_at : t.modified_at;
+      if (!when) continue;
+      const day = central(new Date(when));
       if (day < from || day >= to) continue;
       const p = by[t.assignee.gid] ||= { name: t.assignee.name || 'Someone', n: 0 };
       p.n++;
@@ -230,6 +234,10 @@ export async function economics(env, d, { month, fresh = false } = {}) {
       const share = n / seen[p.gid].total;
       tasks += n; hours += p.hours * share; if (p.cost) team += p.cost * share;
     }
+    /* Someone with a cost and no task seen in any client project that month: their month is split evenly over the
+       clients who paid, so the whole payroll lands somewhere (said in the model line). */
+    const payers = Object.keys(revenue).filter(x => revenue[x] > 0);
+    if (revenue[b] > 0) for (const p of peopleOut) if (p.cost && !(seen[p.gid]?.total)) { team += p.cost / payers.length; hours += p.hours / payers.length; }
     const a = ai.per[b] || { strategist: 0, ideas: 0, studio: 0, tagging: 0, client_ask: 0 };
     const aiCost = a.strategist + a.ideas + a.studio + a.tagging + a.client_ask;
     const rev = r2(revenue[b] || 0);
@@ -245,7 +253,7 @@ export async function economics(env, d, { month, fresh = false } = {}) {
     sentence: sentenceFor(out, peopleSet), unmatched, map, brands: book.brands.filter(b => b.status !== 'demo').map(b => ({ id: b.id, name: b.name })).sort((a, b) => a.name.localeCompare(b.name)),
     ledger: { ok: !led.error, error: led.error || null, frozen: !!led.frozen, revenue: led.revenue ?? null },
     ai_unassigned: ai.unassigned, asana_errors: asanaErrors, hours_default: HOURS_DEFAULT,
-    model: 'Estimate. Each person\'s monthly cost and hours are split across clients by their share of the Asana tasks they completed that month in each client\'s project.',
+    model: 'Estimate. Each person\'s monthly cost and hours are split across clients by their share of the Asana tasks they finished or moved that month in each client\'s project.',
   };
 }
 
