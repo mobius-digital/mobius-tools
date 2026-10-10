@@ -2,7 +2,7 @@
  * Agency settings > The Strategist (2026-10-09, the Viktor-grade pass): the controls Viktor puts in its
  * settings, for ours. Model (Smart / Quick / Deep), standing instructions, what it remembers (per brand,
  * editable, with history), its skills, what it reads in Slack, and what it costs.
- * Data: account-health /api/ask/settings | memory | skills | index | usage (admin), through apiAH.
+ * Data: account-health /api/ask/settings | memory | skills | index | usage | review (admin), through apiAH.
  * Mounted by index.html's renderSettings wrapper: StratSettings.mount(slot).
  */
 window.StratSettings = (() => {
@@ -45,9 +45,10 @@ window.StratSettings = (() => {
       ${card('ssMem', 'What it remembers', 'Short facts it has been told: decisions, offers, dates, preferences, rules a client set. A new fact on the same topic replaces the old one, dated facts stop on their day, and each brand keeps 40 at most. Every night it reads the day\'s brand channels and keeps what matters. Edit or forget anything here.', '<div class="hint">Loading…</div>')}
       ${card('ssSkills', 'Skills', 'How this team does a job, written down once so it is done the same way every time. It reads the matching skill before the job. Teach it in chat ("from now on, do it like this") or add one here.', '<div class="hint">Loading…</div>')}
       ${card('ssSlack', 'What it reads in Slack', 'Every message in each brand\'s internal and client channel is kept as it arrives and searched when a question needs it. It never posts in a client channel.', '<div class="hint">Loading…</div>')}
+      ${card('ssReview', 'Monday account review', 'Every Monday after the briefs and weekly reports, it reviews each active brand: the command center and Day check, goals against the plan, tired ads, budgets, stock and the next 14 days of the calendar. It posts one message to the brand\'s internal channel with its read, and each change it would make as an Apply card under it. Nothing changes until someone presses Apply. It never posts to a client channel.', '<div class="hint">Loading…</div>')}
       ${card('ssUse', 'What it costs', 'Every answer, last 30 days. Each answer in Slack and Locus also shows its own cost underneath.', '<div class="hint">Loading…</div>')}
     </div>`);
-    await Promise.all([model(), memory(), skills(), slack(), usage()]);
+    await Promise.all([model(), memory(), skills(), slack(), review(), usage()]);
   }
 
   /* ---- model + instructions ---- */
@@ -162,6 +163,66 @@ window.StratSettings = (() => {
         try { const r = await api('/api/ask/index', { method: 'POST' }); m.textContent = `Added ${r.channels.reduce((n, c) => n + (c.added || 0), 0)} messages.`; slack(); } catch (e) { m.textContent = e.message; }
       };
       $('#ssExtraSave').onclick = async () => { await api('/api/ask/settings', { method: 'PUT', body: JSON.stringify({ indexChannels: $('#ssExtra').value }) }); slack(); };
+    } catch (e) { el.innerHTML = `<div class="hint">${E(e.message)}</div>`; }
+  }
+
+  /* ---- Monday account review (2026-10-10, account-health review.js) ---- */
+  const REV_STATE = { ok: 'Posted', skipped: 'Skipped', error: 'Failed', running: 'Running' };
+  function showModal(title, html) {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal" style="max-width:720px;max-height:86vh;overflow:auto"><h3>${E(title)}</h3>${html}
+      <div class="row" style="justify-content:flex-end;margin:16px 0 0"><button class="btn primary" data-m="ok">Close</button></div></div>`;
+    document.body.appendChild(w);
+    const done = () => { w.remove(); document.removeEventListener('keydown', k); };
+    const k = e => { if (e.key === 'Escape') done(); };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(); });
+    w.querySelector('[data-m="ok"]').onclick = done;
+  }
+  async function review() {
+    const el = $('#ssReview .set-body');
+    try {
+      const r = await api('/api/ask/review');
+      const brands = r.brands || [];
+      const ready = brands.filter(b => !b.skip);
+      el.innerHTML = `<div class="row" style="gap:10px;margin:0 0 10px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="ssRevOn" ${r.on ? 'checked' : ''}> Run the review every Monday</label>
+          <span class="tiny" id="ssRevMsg"></span></div>
+        <p class="tiny" style="margin:0 0 4px">${E(r.when || '')}. ${E(r.cost || '')} At most ${r.max_cards || 4} suggested changes per brand.</p>
+        <table class="settings" style="width:100%;margin:10px 0 0"><thead><tr><th>Brand</th><th>Posts to</th><th>This Monday</th></tr></thead><tbody>${brands.map(b => {
+          const t = b.today;
+          const st = b.skip ? `<span class="tiny">Skipped: ${E(b.skip)}</span>`
+            : t ? `<span class="tiny" style="${t.status === 'error' ? 'color:var(--bad)' : ''}">${E(REV_STATE[t.status] || t.status)}${t.status === 'ok' ? ` · ${t.cards || 0} card${t.cards === 1 ? '' : 's'} · ${usd(t.cost)}` : ''}${t.error ? ` · ${E(t.error)}` : ''}</span>`
+            : '<span class="tiny" style="opacity:.6">Not run yet</span>';
+          return `<tr><td>${E(b.name)}</td><td class="tiny">${b.channel ? 'Internal channel' : '<span style="opacity:.6">None</span>'}</td><td>${st}</td></tr>`;
+        }).join('')}</tbody></table>
+        <label class="tiny" style="display:block;margin:16px 0 5px;font-weight:600">Preview this week's review for one brand</label>
+        <div class="row" style="gap:8px;margin:0;flex-wrap:wrap;align-items:center">
+          <select id="ssRevBrand">${ready.map(b => `<option value="${E(b.act_id)}">${E(b.name)}</option>`).join('')}</select>
+          <button class="btn" id="ssRevPrev" ${ready.length ? '' : 'disabled'}>Preview this week's review</button><span class="tiny" id="ssRevPrevMsg"></span></div>
+        <p class="tiny" style="margin:5px 0 0;opacity:.7">Runs the real review now and shows it here. Nothing is posted to Slack and nothing changes. Costs one answer (about $0.40 to $1.00) and takes a minute or two.</p>`;
+      $('#ssRevOn').onchange = async e => {
+        const m = $('#ssRevMsg'); m.textContent = 'Saving…';
+        try { const x = await api('/api/ask/review', { method: 'PUT', body: JSON.stringify({ on: e.target.checked }) }); m.textContent = x.on ? 'On. The next one runs on Monday.' : 'Off.'; }
+        catch (err) { m.textContent = err.message; e.target.checked = !e.target.checked; }
+      };
+      $('#ssRevPrev').onclick = async () => {
+        const sel = $('#ssRevBrand'), name = sel.options[sel.selectedIndex]?.text || '';
+        if (!(await window.confirmModal(`Preview the review for ${name}?`, 'The Strategist reads the brand and writes its Monday review now. Nothing is posted or changed. It costs one answer (about $0.40 to $1.00) and takes a minute or two.', 'Run the preview'))) return;
+        const b = $('#ssRevPrev'), m = $('#ssRevPrevMsg');
+        b.disabled = true; m.textContent = 'Reading the account. This takes a minute or two.';
+        try {
+          const x = await api('/api/ask/review/preview', { method: 'POST', body: JSON.stringify({ act: sel.value }) });
+          m.textContent = '';
+          const ps = x.proposals || [];
+          showModal(`Monday review: ${x.brand}`, `<div style="white-space:pre-wrap;font-size:13.5px;line-height:1.55">${E(x.text || '')}</div>
+            <h4 style="margin:18px 0 6px">Changes it would post as Apply cards (${ps.length})</h4>
+            ${ps.length ? ps.map(p => `<div style="padding:8px 0;border-top:1px solid var(--line)"><b>${E(p.summary)}</b>${p.detail ? `<div class="tiny" style="white-space:pre-wrap;opacity:.85">${E(p.detail)}</div>` : ''}</div>`).join('') : '<div class="hint">None. It would say nothing needs to change.</div>'}
+            <p class="tiny" style="margin:12px 0 0;opacity:.7">${E(x.costLine || usd(x.cost))}. A preview only: nothing was posted or changed.</p>`);
+        } catch (e) { m.textContent = e.message; }
+        b.disabled = false;
+      };
     } catch (e) { el.innerHTML = `<div class="hint">${E(e.message)}</div>`; }
   }
 

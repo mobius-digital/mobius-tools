@@ -8,6 +8,7 @@ import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
+import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 /**
@@ -7084,6 +7085,8 @@ const AH_APP = {
         ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
+        ran.mondayReview = await reviewTick(env, { ...hubDeps(), briefHour }).catch(e => ({ error: e.message }));
         /* Alerts: rules checked at their hour, posted at most once a Central day (alerts.js). */
         ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
@@ -7441,6 +7444,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Scheduled questions (askschedule.js): admin-checked inside. */
       const sched = await handleSchedules(request, env, path, json, hubDeps());
       if (sched) return sched;
+      /* The Monday account review: switch, state, a dry-run preview for one brand (review.js). Admin-checked inside. */
+      const rev = await handleReview(request, env, path, json, { ...hubDeps(), briefHour });
+      if (rev) return rev;
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const { engine, h } = strategist();
       const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
