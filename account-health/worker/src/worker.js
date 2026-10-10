@@ -6833,23 +6833,25 @@ async function handleSlackEvent(request, env, ctx) {
   const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
   if (!claim.meta?.changes) return ACK();
-  let brandRow = null;
+  let brandRow = null, agencyCh = false;
   if (!dm) {
     /* The brand comes from brands (brands.js), so a brand with no Meta account (Speedin) is still a
        brand. brand_accounts is the fallback (an active or demo brand's internal channel). */
     const b = await brandByChannel(env, ev.channel).catch(() => null);
     brandRow = b ? { act_id: b.id, name: b.name, brand: b }
       : await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
-    if (!brandRow) return ACK();   // not a team channel: stay silent
+    /* The agency Strategist channel (settings.strategistChannel, #locus-alerts since 2026-10-10) answers like a DM:
+       any brand, named in the words, team members only. Any other channel that is not a brand's: stay silent. */
+    if (!brandRow && !(agencyCh = ev.channel === await getSetting(env, 'strategistChannel').catch(() => null))) return ACK();
   }
   /* DMs to the app come HERE since 2026-10-09 (slack-router sends every DM to Locus; they went to the Ledger).
      Team members only (the numbers are the team's); the brand comes from the words; the Ledger is one tool
      away (ask_ledger, Cole only). */
   let dmScreen = null;
-  if (dm) {
+  if (dm || agencyCh) {
     const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
     if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Strategist' }).catch(() => {})); return ACK(); }
-    dmScreen = { dm: true, note: gate.note };
+    dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '') };
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
      brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
