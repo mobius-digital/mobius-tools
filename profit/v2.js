@@ -743,7 +743,8 @@
       ['Hook', r => pct(r.hook, 0), r => r.hook, 1], ['Hold', r => pct(r.hold, 0), r => r.hold, 1], ['CTR', r => pct(r.ctr, 2), r => r.ctr, 1], ['CPM', r => money2(r.cpm, cur), r => r.cpm, -1], ['Running', r => r.age != null ? `${r.age} days` : ' - ', null, 0],
       ['Format', r => esc(r.tags?.format || ' - '), null, 0], ['Hook type', r => esc(r.tags?.hook || ' - '), null, 0], ['On screen', r => esc(r.tags?.person || ' - '), null, 0], ['Message', r => esc(r.tags?.message || ' - '), null, 0]];
     const best = (get, dir) => { if (!get || !dir) return null; const v = list.map(get).filter(x => x != null && isFinite(x)); if (v.length < 2) return null; return dir > 0 ? Math.max(...v) : Math.min(...v); };
-    panel.wide = true;
+    /* 2026-10-10 (Cole: "compare doesn't scroll and the pop-up is weird"): the same centred sheet as the ad preview. */
+    panel.sheet = { lead: `<span class="lx-pv-lead">${window.icon ? window.icon('layout-grid', { size: 20 }) : ''}</span>`, chip: `<span class="ds-chip">${list.length} ads side by side</span>` };
     const body = panel(`Compare ${list.length} ads`, `<div class="v2cmp" style="grid-template-columns:110px repeat(${list.length},minmax(0,1fr))">
       <span></span>${list.map(r => `<button type="button" class="hd" data-open="${esc(r.id)}"><span class="cv" data-thumb="${esc(r.id)}"${THUMBS.has(r.id) ? ` style="background-image:url('${THUMBS.get(r.id)}')"` : ''}></span><b title="${esc(r.name)}">${esc(r.name)}</b></button>`).join('')}
       ${rows.map(([l, f, get, dir]) => { const b = best(get, dir); return `<span class="l">${l}</span>${list.map(r => `<span class="${b != null && get(r) === b ? 'best' : ''}">${f(r)}</span>`).join('')}`; }).join('')}</div>

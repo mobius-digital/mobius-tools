@@ -87,16 +87,20 @@ async function roleOf(request, env, d) {
 /* ---------------- economics: the pieces ---------------- */
 /** Tasks each person completed in one brand's project in the month: {by: {gid: {name, n}}}. */
 async function doneFor(env, brand, gid, month, fresh, isCurrent) {
-  const key = `agencyDone:${brand}:${month}`;
+  const key = `agencyDone2:${brand}:${month}`;
   const hit = fresh ? null : await getSetting(env, key);
   if (hit && hit.gid === gid && Date.now() - Date.parse(hit.at) < (isCurrent ? CUR_MS : PAST_MS)) return hit;
   const from = month + '-01', to = nextMonth(month) + '-01';
   try {
-    const tasks = await asanaAll(env, `/projects/${gid}/tasks?completed_since=${from}T00:00:00Z&opt_fields=completed,completed_at,assignee.name`);
+    const tasks = await asanaAll(env, `/projects/${gid}/tasks?completed_since=${from}T00:00:00Z&opt_fields=completed,completed_at,modified_at,assignee.name`);
     const by = {};
     for (const t of tasks || []) {
-      if (!t.completed || !t.completed_at || !t.assignee?.gid) continue;
-      const day = central(new Date(t.completed_at));
+      /* Work in the month = a task finished that month, or an open task of theirs that moved that month (most of the
+         team moves tasks between sections and never ticks them; 2026-10-10 only Ahsan's work was counted). */
+      if (!t.assignee?.gid) continue;
+      const when = t.completed ? t.completed_at : t.modified_at;
+      if (!when) continue;
+      const day = central(new Date(when));
       if (day < from || day >= to) continue;
       const p = by[t.assignee.gid] ||= { name: t.assignee.name || 'Someone', n: 0 };
       p.n++;
@@ -205,7 +209,9 @@ export async function economics(env, d, { month, fresh = false } = {}) {
   const peopleOut = Object.entries({ ...Object.fromEntries(Object.keys(people).map(g => [g, null])), ...seen }).map(([g, s]) => {
     const cfg = people[g] || {};
     return { gid: g, name: cfg.name || s?.name || 'Someone', tasks: s?.total || 0, by_brand: Object.fromEntries(Object.entries(s?.by || {}).map(([b, n]) => [book.name[b] || b, n])),
-      cost: Number(cfg.cost) > 0 ? Number(cfg.cost) : null, hours: Number(cfg.hours) > 0 ? Number(cfg.hours) : HOURS_DEFAULT, set: Number(cfg.cost) > 0 };
+      cost: Number(cfg.cost) > 0 ? Number(cfg.cost) : null, hours: Number(cfg.hours) > 0 ? Number(cfg.hours) : HOURS_DEFAULT, set: Number(cfg.cost) > 0,
+      /* People outside Asana (Radhesh on Google, Hamza on Amazon; 2026-10-10): a fixed list of brands, cost split evenly. */
+      brands: Array.isArray(cfg.brands) && cfg.brands.length ? cfg.brands : null };
   }).sort((a, b) => b.tasks - a.tasks || a.name.localeCompare(b.name));
   const peopleSet = peopleOut.some(p => p.set && p.tasks > 0);
 
@@ -226,10 +232,15 @@ export async function economics(env, d, { month, fresh = false } = {}) {
   const out = [...ids].filter(b => book.name[b]).map(b => {
     let tasks = 0, hours = 0, team = 0;
     for (const p of peopleOut) {
+      if (p.brands) { if (p.brands.includes(b)) { team += (p.cost || 0) / p.brands.length; hours += p.hours / p.brands.length; } continue; }
       const n = seen[p.gid]?.by[b] || 0; if (!n) continue;
       const share = n / seen[p.gid].total;
       tasks += n; hours += p.hours * share; if (p.cost) team += p.cost * share;
     }
+    /* Someone with a cost and no task seen in any client project that month: their month is split evenly over the
+       clients who paid, so the whole payroll lands somewhere (said in the model line). */
+    const payers = Object.keys(revenue).filter(x => revenue[x] > 0);
+    if (revenue[b] > 0) for (const p of peopleOut) if (p.cost && !p.brands && !(seen[p.gid]?.total)) { team += p.cost / payers.length; hours += p.hours / payers.length; }
     const a = ai.per[b] || { strategist: 0, ideas: 0, studio: 0, tagging: 0, client_ask: 0 };
     const aiCost = a.strategist + a.ideas + a.studio + a.tagging + a.client_ask;
     const rev = r2(revenue[b] || 0);
@@ -245,7 +256,7 @@ export async function economics(env, d, { month, fresh = false } = {}) {
     sentence: sentenceFor(out, peopleSet), unmatched, map, brands: book.brands.filter(b => b.status !== 'demo').map(b => ({ id: b.id, name: b.name })).sort((a, b) => a.name.localeCompare(b.name)),
     ledger: { ok: !led.error, error: led.error || null, frozen: !!led.frozen, revenue: led.revenue ?? null },
     ai_unassigned: ai.unassigned, asana_errors: asanaErrors, hours_default: HOURS_DEFAULT,
-    model: 'Estimate. Each person\'s monthly cost and hours are split across clients by their share of the Asana tasks they completed that month in each client\'s project.',
+    model: 'Estimate. Each person\'s monthly cost and hours are split across clients by their share of the Asana tasks they finished or moved that month in each client\'s project.',
   };
 }
 
@@ -323,7 +334,8 @@ export async function handleAgency(request, env, path, json, d) {
         if (!/^[0-9a-z_]{1,40}$/i.test(g)) continue;
         if (v === null) { delete cur[g]; continue; }
         const cost = Math.max(0, Math.min(1e6, Number(v.cost) || 0)), hours = Math.max(0, Math.min(744, Number(v.hours) || 0));
-        cur[g] = { name: String(v.name || cur[g]?.name || '').slice(0, 80), cost, hours: hours || HOURS_DEFAULT };
+        cur[g] = { name: String(v.name || cur[g]?.name || '').slice(0, 80), cost, hours: hours || HOURS_DEFAULT,
+          ...(Array.isArray(v.brands) ? { brands: v.brands.map(String).filter(x => /^brand_[a-z0-9_]+$/.test(x)).slice(0, 20) } : cur[g]?.brands ? { brands: cur[g].brands } : {}) };
       }
       await putSetting(env, 'agencyPeople', cur);
     }

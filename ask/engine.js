@@ -1021,7 +1021,9 @@ export function createAssistant(config) {
     const update = async (text, blocks) => work?.ts ? h.slack(env, 'chat.update', { channel, ts: work.ts, text, blocks: blocks || [{ type: 'section', text: { type: 'mrkdwn', text: String(text).slice(0, 2900) } }] }, true) : null;
 
     const system = [...(await systemBlocks(env, h, extra)),
-      { type: 'text', text: 'You are answering in Slack. Slack mrkdwn, NOT markdown: *bold* with single asterisks, _italic_, `code`. Bullets are "• ". Never use headings (#) or tables.' }];
+      { type: 'text', text: 'You are answering in Slack. Slack mrkdwn, NOT markdown: *bold* with single asterisks, _italic_, `code`. Bullets are "• ". Never use headings (#) or tables. ' +
+        /* 2026-10-10 (Cole: "it always doesn't show the full message, just Show more"): Slack folds any long message. */
+        'LENGTH: Slack folds a long message behind "Show more", so keep the whole answer to about 8 short lines (under 700 characters): the answer first with its numbers, then at most 3 bullets. Offer the rest in one closing line ("Want the breakdown by ad set?") instead of writing it. Only go longer when they asked for a full review, a plan or a report (a report goes in make_report, which posts its own link).' }];
     const prior = await threadTranscript(env, h, ev);
     const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q }];
     const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null,

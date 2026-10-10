@@ -1782,3 +1782,9 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 .v2tg th{white-space:normal;line-height:1.3}
 .v2share{width:calc(100% - 40px);min-width:24px;max-width:64px}
 @media (max-width:720px){.v2tg th,.v2tg td{padding:7px 4px}.v2tg td .v2pill{display:inline-block;margin:2px 0 0}}
+
+/* 2026-10-10: a panel's children never shrink (the compare grid was squashed to the panel height and clipped, so
+   nothing scrolled); compare covers stay a sensible size in the sheet. */
+#v2panel .pb > *{flex:none}
+#v2panel .v2cmp .hd .cv{max-height:240px;width:100%;margin:0 auto}
+#v2panel .v2cmp > span,#v2panel .v2cmp > button{padding:9px 12px}
