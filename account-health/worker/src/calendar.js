@@ -30,6 +30,7 @@
 import { metaOf } from './brands.js';
 import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
+import { clientScope } from './brandguard.js';
 
 let F = (...a) => fetch(...a);
 /** The worker hands in its counted fetch (xfetch), like every other module. */
@@ -313,7 +314,18 @@ export async function handleCalendar(request, env, url, path, json, isAdmin, ses
   if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   if (!env.CAL) return json({ error: 'The calendar database is not bound on the server (CAL).' }, 500);
   await ensure(env);
-  const by = await actorName(env, await sessionEmail(env, request).catch(() => null));
+  /* A CLIENT LOGIN (2026-10-09) may read its brand, add a date, edit / move / end its brand's dates and leave a
+     note. brandguard.js lets only those routes through and checks the brand in the query or body; a route that
+     names a date by id is checked HERE against the date's own brand. The changelog row carries the client's
+     name, so calendarTick tells the team in the brand's internal channel (it is not a team name). */
+  const cs = clientScope(request);
+  const by = cs ? (cs.name || cs.email.split('@')[0].replace(/^./, c => c.toUpperCase())) : await actorName(env, await sessionEmail(env, request).catch(() => null));
+  const mine = async id => {
+    if (!cs) return true;
+    const e = id ? await env.CAL.prepare(`SELECT locus_brand, brand_id FROM events WHERE id = ?1`).bind(id).first().catch(() => null) : null;
+    return !!e && cs.ids.has(e.locus_brand || idOfSlug(e.brand_id));
+  };
+  const notYours = () => json({ error: 'That date is not on your calendar.' }, 403);
   try {
     if (path === '/api/calendar' && request.method === 'GET') {
       return json(await calendarData(env, { act: url.searchParams.get('act') || 'all', from: url.searchParams.get('from') || undefined, to: url.searchParams.get('to') || undefined, lite: url.searchParams.get('lite') === '1' }));
@@ -325,10 +337,26 @@ export async function handleCalendar(request, env, url, path, json, isAdmin, ses
         brands: data.brands.map(b => ({ brand: b.name, channel: b.client_channel || b.channel, posts: (b.client_channel || b.channel) ? clientMessages(data, b, today) : [], note: b.client_channel ? null : b.channel ? 'one channel: the client posts go to its internal channel' : 'no channel: nothing posts' })) });
     }
     if (path === '/api/calendar/history' && request.method === 'GET') {
+      if (!(await mine(url.searchParams.get('id') || ''))) return notYours();
       const { results } = await env.CAL.prepare(`SELECT change_summary s, changed_by b, created_at t FROM changelog WHERE event_id = ?1 ORDER BY created_at DESC LIMIT 20`).bind(url.searchParams.get('id') || '').all();
       return json({ history: results || [] });
     }
     const body = request.method === 'DELETE' ? {} : await request.json().catch(() => ({}));
+    if (cs) {
+      const allowed = ['/api/calendar/event', '/api/calendar/move', '/api/calendar/end', '/api/calendar/comment'];
+      if (request.method !== 'POST' || !allowed.includes(path)) return json({ error: 'Your login can add dates and notes, not this.' }, 403);
+      if (path === '/api/calendar/event' && (!body.act || !cs.ids.has(body.act))) return notYours();
+      if ((path !== '/api/calendar/event' || body.id) && !(await mine(body.id))) return notYours();
+    }
+    /* A note on a date (clients and the team): one changelog line, shown in the date's history. */
+    if (path === '/api/calendar/comment' && request.method === 'POST') {
+      const e = await env.CAL.prepare(`SELECT * FROM events WHERE id = ?1`).bind(body.id).first();
+      if (!e) return json({ error: 'That date is gone.' }, 404);
+      const text = clean(body.text, 600).replace(/[<>]/g, '');
+      if (!text) return json({ error: 'Write the note first.' }, 400);
+      await log(env, e, `Note: ${text}`, by);
+      return json({ ok: true });
+    }
     if (path === '/api/calendar/event' && request.method === 'POST') {
       if (!body.act || !/^brand_/.test(body.act)) return json({ error: 'Pick a brand first.' }, 400);
       return json({ ok: true, id: await saveEvent(env, body, by) });

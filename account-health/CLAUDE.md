@@ -1235,3 +1235,235 @@ META, ASANA AND DRIVE". Tests: `node test-metawrite.mjs` (14 offline checks, Gra
   2026-10-09 on Lucky 6859198499 and Bonk 2589863833: nothing refused (change_event, search_term_view, asset_group
   metrics and the Demand Gen ad fields all answered).
 - The Strategist reaches them through `locus_get` (routes.js rebuilt). strategist.js has no view for them on purpose.
+
+## 2026-10-09: LIVE CHECKS, ALERTS, SCHEDULED TASKS, DMs (`src/checknow.js`, `src/alerts.js`). Read before touching them.
+
+Cole: Viktor "can set automations and checks". Tests: `node test-alerts.mjs` (19 offline checks: curve math, today vs
+normal, signs, cache, market, rules, the three windows, goal / fixed, isDue, the tick firing once, routes, the
+Strategist's tools and cards, scheduled task / check / dashboard / report, router DMs).
+- **Right now** (`checknow.js`, `GET /api/daycheck/now?act=&fresh=1&web=1`, Strategist tool `check_now`, the Day check
+  "Right now" card in profit/desk.js): today so far vs a NORMAL DAY BY THIS HOUR = the brand's last 28 days (tw_daily;
+  Meta from hourly_insights) x the share of a day done by now from the brand's own hourly curve (TW hourly charts for the
+  last 5 days, fetched once a local day, `cnshape:<brand>`; else Meta's spend curve; else a straight line, and it says
+  which). Today = the TW live summary (same call as /api/tw-day): revenue = total sales less tax, PAID orders, new
+  customers less free orders, blended spend; Meta live by the hour (spend and CPM only, never Meta purchases). Meta hourly
+  history is backfilled 28 days once when under 14 days (`cnbf:<meta act>`). Signs with stated thresholds (revenue under
+  50% / 75%, no orders in 3 finished hours when about 3+ are normal, Meta spend under 50%, CPM up 35%+, MER under 60%);
+  nothing before 8% of the day. Market: Pulse now + today, Breezeway's latest day; the Haiku web search of the last few
+  hours ONLY on demand (`web`, about 3c, `checknow:web`). All cached 10 minutes in settings (`checknow:<brand>`, `checknow:market`).
+- **Alerts** (`p_alert`, created on first use; `"window"` is quoted on purpose). Metrics revenue, orders, new_customers,
+  spend, mer, cpa (blended spend / paid orders), roas (Meta on TW lastPlatformClick, finished days only: refused for
+  today), meta_cpm. Window today | yesterday | last7; baseline normal (today: by this hour; finished: the 28 days before) |
+  goal (goalsFor pro-rated / target_cpa / target_roas; none = says set it on Home > Goals) | fixed (threshold = the
+  number). Threshold is a PERCENT for normal / goal. `alertTick` (hourly, after scheduleTick, `subCanAfford(40)` per rule):
+  a rule with an hour is checked once a Central day at or up to 2 hours after it; no hour = every hour 9am to 9pm (today)
+  or from 8am (finished days); an unsynced day WAITS (not marked checked); fires at most once per Central day
+  (`last_fired`). Message: tag, the number, the normal, the rule in words, Open in Locus (`?open=yesterday&act=`).
+  Channels: internal (askschedule `allowedChannels`) or a full member's DM (U id; guests refused). Routes (admin):
+  `GET/PUT/DELETE /api/alerts`, `POST /api/alerts/pause`, `POST /api/alerts/test {id|rule, post}`.
+  Locus: Reports > Dashboards > Alerts (askextra.js `alerts`: add / edit / pause / delete / test now / post the test).
+- **Strategist** (strategist.js: one import + `...autoTools(d)` / `...autoActions(d)`; deps arrive as `d.auto` =
+  worker.js `autoDeps()`): tools `check_now`, `list_alerts`, `ask_ledger`; Apply cards `create_alert` (its description
+  carries Cole's example; "tell me if..." is judged from meaning, no word list), `pause_alert`, `delete_alert`, `schedule_task`.
+- **Scheduled tasks** (askschedule.js, columns `kind` + `ref` by guarded ALTERs; cadence `weekdays` added): question (as
+  before) | task (the Strategist runs the instruction; each proposal is posted as an Apply card in the thread under the
+  answer, never applied) | report (make_report text posted) | check (checkNow posted, no model) | dashboard
+  (`postDashboard` to the schedule's channel, no model). Only question / task / report count toward the 10 a day.
+- **DMs go to the Strategist** (slack-router: `dm || locusOwns`). `handleSlackEvent` DM path: `dmGate` = Slack users.info,
+  full members only (no guests, strangers, bots), a Mobius email (`emailAllowed`) or a userBrands person (ACCESS RULE in
+  the note); the brand comes from the words. The Ledger lost nothing: it only answered TEXT asks in DMs (a DM with a file
+  was ignored there) and reads receipts from #receipts by its own poll. **`ask_ledger`** (Cole only: Slack user
+  U06C37MDWD7 or his email; Locus = Cole's session or the admin key) POSTs to the Ledger's `/api/ask` over the new `LEDGER`
+  service binding with a minted Cole session and returns the answer; Ledger proposals are not applied from here.
+- NOT tested live at build time: TW hourly charts for past days (the curve), the 28-day Meta hourly backfill size, the web
+  search prompt, posting an alert to a U id, a DM end to end, the Ledger binding answering.
+
+## 2026-10-09: THE STRATEGIST MAKES THINGS (`src/stratmake.js`): images, PDF reports, a code sandbox, Frame
+
+Cole: "can it build a nice PDF report? build images right then and there with Studio, analyze it, produce it in the
+chat? build dashboards and link them? Viktor can do literally all of that." Registered in strategist.js with one import
+and three spreads (`...makeHooks(d)`, `makeTools(d)`, `makeActions(d)`). Tests: `node test-stratmake.mjs` (18 offline
+checks; OpenAI, Anthropic, Shopify, Slack and Frame mocked).
+- **Engine hooks (ask/engine.js, generic):** a tool result may return `content` (an array of blocks, e.g. text + an image)
+  and `cost` (dollars spent outside the model, added to the answer's cost line); `onReport(env, report, ctx)` merges
+  fields into every make_report; `afterSlack(env, r, ctx)` runs after the answer and the report text are posted. A report
+  with `share` gets "Open the report" / "PDF" link buttons (one actions block each, action_id `noop_open`, the only link
+  id the router acks).
+- **make_image:** Studio's path (OpenAI GPT Image, key `p_studio_cfg.openai_key`, newest non-mini `gpt-image*` from
+  /v1/models). A named product = its Shopify photos (brand_accounts.tw_shop products.json, up to 3) + up to 2 photo
+  library shots (`p_asset.products` LIKE, thumb from R2) + its fingerprint (`dna:<brand>:<handle>`, else the storage
+  prefix). Brain excerpt (1,500 chars) for tone only. Formats 1:1 / 4:5 / 9:16 with Studio's layout rules. Stored at R2
+  `strat/<24 hex>.png`, row in `strat_media`, served by `GET /strat/<id>.<ext>` (public by id; `?dl=1` = attachment).
+  The model gets the image back (768px JPEG via the Images binding) and may redo ONCE (`redo_of` + `fix`). Caps: 4 per
+  answer, 60 a day (`settings.stratImgDay`). Slack: uploaded into the thread after the answer, never the one that was
+  redone. Locus: inline with Download and "Open in Studio" (`POST /api/strat/studio {id}`: copies the PNG to
+  `studio/ref/<id>.png` and makes a one-line DRAFT batch with it as inspiration; the team picks the product and Makes).
+- **Reports:** every make_report gets a token in `strat_report` (32 hex): `GET /r/<token>` = the light, printable page with
+  the Locus header (public, noindex), `GET /api/report-public?t=` = the spec, `GET /r/<token>.pdf` = the PDF. **PDF path:
+  Anthropic's code sandbox, not Browser Rendering.** This worker has no `browser` binding and no package.json; adding
+  @cloudflare/puppeteer would make every other deploy of it need npm install. The sandbox has reportlab + matplotlib, so
+  `scripts/render_report.py` (bundled into `src/reportpy.js` by `node scripts/build_reportpy.mjs`; check it locally with
+  `python scripts/render_report.py spec.json out.pdf`) is uploaded with the spec through the Files API and Haiku 4.5 runs
+  one fixed command that writes `$OUTPUT_DIR/report.pdf`. Kept in R2 `strat/rep-<token>.pdf`. Slack renders it while the
+  answer is written and uploads it after the report text; Locus renders on the first click of "PDF file".
+- **run_analysis:** its OWN Messages request (Opus 5.5, effort medium, `code_execution_20260521`, falls back to
+  `_20250825`), never beside web_search/web_fetch (those bundle their own code execution). The rows the Strategist already
+  fetched go up as `container_upload`; files the sandbox leaves in `$OUTPUT_DIR` come back by `file_id`
+  (`outputFileIds`), go to R2 + `strat_media`, then the Slack thread or Locus downloads; the Files API copies are deleted.
+  Caps: 3 per answer, 170 s, 2 MB of data, 6 files; pause_turn continues on the same container.
+- **Frame (V4):** tools `frame_list` (project = input, else the brand's `connections` kind frame link, else the project
+  named like the brand; folders by a path of names or an id) and `frame_share` (POST `/projects/<p>/shares`, type asset,
+  public by default, downloads off, returns `short_url`); Apply cards `frame_folder` (refuses a twin name) and
+  `frame_move` (PATCH `/files|folders/<id>/move`). **NO DELETE, no archive, nothing that removes**: a test checks it.
+- **Dashboards:** save_dashboard already builds from words, so no new tool. The Slack Apply reply now turns any Locus /
+  share / Frame link in the note into a button ("Open the dashboard" for `?open=dash`); Locus links them in the card.
+- **Costs per use:** image $0.25 (1:1) to $0.42 (9:16) from OpenAI's usage, plus the model looking at it (~1.5k tokens);
+  PDF ~$0.003 of Haiku tokens (container time is inside the free 1,550 hours a month); analysis ~$0.05 to $0.40.
+- **Verified live 2026-10-09:** `/r/<token>` page and `/r/<token>.pdf` on a test row: Files API upload, the sandbox run
+  (Haiku 4.5 + `code_execution_20260521`), the reportlab render and the download back all worked, 13 s, a clean 2-page PDF
+  (test row and file removed after). **NOT tested live (mocks only):** make_image through this worker (needs a real ask;
+  Studio's own key), run_analysis on Opus (same sandbox code as the PDF, so the plumbing is proven; the analysis is not),
+  Slack uploads of images / PDFs from the queue, every Frame call (list, share body, folder, move).
+
+## 2026-10-09: the same Meta writes from a Locus screen, and Google campaign writes
+
+- `metawrite.js` section C: `locusWrite(env, d, {act, kind: pause|resume|budget|min_spend|rename|duplicate, level,
+  object, amount|min|cap|name|daily_budget, dry, expect}, {who})` runs the SAME action's propose + apply as the
+  Strategist (one code path: brand check, metaCan, before/after, p_meta_write, Change Log). `dry` returns summary,
+  detail, before; the write proposes again from a fresh read and refuses (`stale`) when `expect` no longer matches.
+  Budget from a screen passes `big: true` (the person typed the number; the modal warns over 50%). Logged with
+  `ctx.via = 'locus'`: event_type `locus_write`, actor "<email> in Locus". `locusUndo` (24h, same brand only) and
+  `metaLive(env, d, brand)` (live status, budgets, min/cap per object + `can` / fix per ad account, ~3 to 9 Graph reads).
+- Routes (worker.js, one block before Send to Slack): `GET /api/meta/live`, `POST /api/meta/write`, `POST /api/meta/undo`,
+  `POST /api/google/write`; admin + brandsFor. After a Meta write the synced row in meta_campaigns / meta_adsets takes the
+  new status / budget / name / min at once.
+- google.js `adsCampaignWrite(env, act, {kind: pause|resume|budget, object, amount, dry, validate, expect})`: reads the
+  campaign and its budget fresh, refuses shared and total budgets, `campaigns:mutate` (status) or
+  `campaignBudgets:mutate` (amount_micros), drops the `gads2:` cache. `adsReport` now carries `budget`, `budget_total`,
+  `budget_shared` per campaign (cache key `gads2:`).
+- Tests: test-metawrite.mjs has a Locus check (dry, stale, write logged as the person, undo, another brand refused,
+  read-only refused, metaLive). 15/15.
+
+## 2026-10-09: KLAVIYO, READ IN DEPTH AND CHANGED FROM LOCUS (`src/klaviyo.js`, `src/klaviyowrite.js`)
+
+Cole: "Should I be able to edit email stuff the same way I can edit ads, with the AI strategist and from within
+Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). Tests: `node test-klaviyowrite.mjs`
+(10 offline checks, Klaviyo mocked), `node test-klaviyo.mjs` (4, brought up to date).
+- **New reads** (`GET /api/klaviyo?act=&what=`, admin, brand limits apply): `daily` = Klaviyo metric-aggregates (event
+  time, 60 calls a minute, NOT the reporting endpoints' 2 a minute), 180 days in the account's zone: Placed Order by
+  `[$attributed_channel, $attributed_flow, $attributed_message]` (one call: email vs SMS revenue and orders, flows vs
+  campaigns, `by_flow` / `by_message` = revenue per day for the last 120 days, from `attr_from`; a campaign's message
+  key is usually the CAMPAIGN id, so match both), then one count each for Received / Opened (unique) / Clicked
+  (unique) / Bounced Email, Marked Email as Spam, Unsubscribe, Received / Clicked SMS, subscribed vs unsubscribed
+  (names tried in order in `MET`; `metrics_missing` says what an account lacks, e.g. Lucky has no Klaviyo SMS
+  metrics). About 15 calls, 3 s on Lucky. `flow&id=` = one flow's messages named (each `/api/flow-messages/{id}`) with
+  their stats from the cached flows_report. `templates`, `audiences` (list + segment names, default sender),
+  `attentive&from&to` (tw_ad_attr rows on Attentive links), `can` (write scopes).
+- **Changed reads:** `campaigns` now reads email AND SMS lists (Klaviyo requires a channel filter), keeps
+  `message_id`, `audiences`, `send_at` (the strategy's datetime; `scheduled_at` is when it was scheduled), adds
+  `upcoming` (drafts and scheduled), spam and bounce rates; SMS results in their own report, best effort.
+  `flows_report` lists every non-archived flow (zero-send ones too, with status) and keeps `messages` per flow.
+  **Cache keys for those two are `klv:<act>:campaigns:2` / `flows_report:2`** (the shape changed; an old copy must
+  never be served as the new one). `klaviyo()` retries a 429 up to twice when Retry-After is 6 s or less.
+- **Writes** (`klaviyowrite.js`, `OPS`): flow_status (live / manual / draft), campaign_draft (name, audiences by name
+  or id, exclude, subject, preview, sender defaulting to the account's, template by name or id; created with NO send
+  strategy, template attached with `/api/campaign-message-assign-template/`), campaign_schedule (a DRAFT only, a
+  fixed time 15+ minutes and under 120 days ahead; PATCH `send_strategy {method: static, datetime, options:
+  {is_local: false}}`, READ BACK, and only then `POST /api/campaign-send-jobs/`; if Klaviyo did not keep the time
+  nothing is sent), campaign_unschedule / campaign_cancel (`PATCH /api/campaign-send-jobs/{id}` action revert /
+  cancel), campaign_duplicate (`/api/campaign-clone/`). **Nothing ever sends immediately.** Every op: propose (looks
+  the object up, before -> after, no write) then apply (re-reads, refuses if it moved), one manual `activities` row
+  filed under the brand's Meta account (event_type `klaviyo_write`, category `email`, actor "<who> in Locus" or "the
+  Strategist, approved by <who>"), and `bust()` drops the cached reads. Attentive brands are refused.
+- **Route** `POST /api/klaviyo/write {act, op, input, confirm, expect}` (admin, brandsFor): without confirm = the card
+  (no patch); with confirm = propose again server side (the browser's patch is never trusted), 409 if the summary
+  changed since it was shown, then apply with `who` = the session email.
+- **Scopes:** `klaviyoCan` probes with a PATCH on an id that cannot exist (`/api/flows/LOCUS0/`,
+  `/api/campaigns/LOCUSPROBE0/`): 403 = scope missing, 404 = present; templates by a GET. Cached in settings
+  `klvCan:<act>` an hour (yes) / 5 min (no); `probe` keeps the raw answers. A missing scope refuses the card and the
+  route with `fixFor`: "create a private key with flows:write (Flows: Full access) ... paste it in Brand settings >
+  Integrations > Klaviyo". Probed 2026-10-09 on all five keys (Bonk, Dartee, Grunk, Lucky, Party Patch): every key
+  has flows:write, campaigns:write and templates:read. Not proven against a read-only key that a missing scope
+  answers 403 BEFORE the 404; if not, the write itself still returns the same fix on its 403.
+- **Strategist** (registered in strategist.js by one import and a spread in tools and actions): tool `klaviyo_read`
+  (what = campaigns | flows | flow | lists | segments | audiences | templates | daily | can), Apply cards
+  `klaviyo_flow_status`, `klaviyo_campaign_draft`, `klaviyo_campaign_schedule`, `klaviyo_campaign_cancel` (mode
+  unschedule | cancel). The card refuses with the scope fix before anything is read.
+- **NOT tested against the real API (mocks only):** every write. Reads were run live on the dev worker against
+  Lucky (daily, campaigns, flows_report, flow, audiences, templates) and the all-brands board on five brands. The
+  first real Apply of each kind is the test; the modal shows what Klaviyo answered.
+
+## 2026-10-09: CLIENT LOGINS (`src/clients.js`, `src/brandguard.js`). Read before touching auth, /api/me or any route a client might reach.
+
+- **Three roles.** owner (Cole or the admin token), team (@go-mobius-digital.com or `settings.allowedEmails`), client
+  (`settings.clientUsers` = {email: {brands, name, invited_at, invited_by, last_invite, last_sign_in, last_seen,
+  welcomed_at}}). Clients are NOT in allowedEmails, so `emailAllowed` and `isAdmin` are false for them everywhere.
+  `googleLogin` accepts a client email too (`isClientEmail`), records `last_sign_in` and returns `role`.
+  A team guest or a Mobius-domain email is never a client, whatever clientUsers says.
+- **brandguard.js is the whole rule** (same file in profit/worker/src; `test-clients.mjs` checks they are identical).
+  A client request passes only if its method + path is in `CLIENT_RULES` (an ALLOWLIST), its `act` (query, or JSON
+  body `act` / `screen.act_id`) is one of its brands (never "all"), the brand switch the rule needs is on
+  (`settings.clientAccess` {brand: {pl, strategist, changes, creators}}, all off by default), and any ad ids in
+  `ads` / `ad` belong to its brands (looked up in `ads`). Then the request is remembered (`clientScope(request)`):
+  `isAdmin` answers true for exactly that request, so the handler runs. The answer is filtered (`filterActs`)
+  and scrubbed (`scrub`): Slack channels, report config and team names always go; costs and margins unless P&L is
+  on; change logs unless Changes is on. `/api/reports` keeps sent rows only, `/api/report` 404s a draft.
+  A client with no brand left gets 401. Anything not on the list is 403 before any handler runs.
+- **Adding a page clients should see = add its GET route to CLIENT_RULES** (both copies) and a test. Never widen
+  a rule to a prefix.
+- **Calendar** (calendar.js): a client may GET its brand, POST event (its brand; editing an existing date checks the
+  date's own brand), move, end, and the new `POST /api/calendar/comment {id, text}` (a "Note: ..." changelog row,
+  for the team too). Never delete, restore, tick or make Asana tasks. Its changelog rows carry the client's name,
+  so `calendarTick` posts them to the brand's internal channel like Lineup client edits.
+- **/api/me** now returns `role` (owner | team | client) and, for a client, `client` {name, welcomed, brands
+  [{id, name, access}]}; it updates `last_seen` at most hourly. The profit and ledger workers delegate to it; the
+  profit worker refuses `role: 'client'` outside the allowlist (ledger only accepts its own email list).
+- **Routes** (clients.js): `GET /api/clients?act=` (team; a limited teammate sees only their brands' rows),
+  `GET /api/clients/draft?brands=&name=&email=` (the invite text), `POST /api/clients/invite {emails, brands,
+  name, access, send, approved, subject, body}` (OWNER only; Mobius emails refused; the email goes from Cole's Gmail
+  through mail.js `sendMail` only with send + approved), `POST /api/clients/remove {email, brand?}`,
+  `PUT /api/clients/access {act, pl?, strategist?, changes?, creators?}` (owner), `GET/PUT /api/clients/me` (the
+  client: its brands, switches, creator link; name and welcomed only).
+- **The client Strategist** (`clientAsk`, OFF per brand until Cole switches it on): NOT the team engine. Haiku 4.5,
+  one read-only tool `read_page` over a fixed page list pinned to the brand, fetched THROUGH the client's own
+  login (so brandguard scrubs it), no SQL, no memory, no skills, no Slack, no actions; 20 questions or $0.50 per
+  client per day (`settings clientAsk:<date>:<email>`). Every other /api/ask route is 403 for a client.
+- **The 'dev' signing key is gone.** `hmacKey` used `SESSION_SECRET || ADMIN_TOKEN || 'dev'`; the profit worker runs
+  with neither set, so ANY token signed with 'dev' passed its local verify (an admin session forgeable for any
+  Mobius email). Both workers now verify nothing locally without a key; the profit worker asks this worker
+  (`delegateWho`, cached a minute), which also lets brandguard see who is asking there for the first time
+  (per-brand team limits were not enforced on the profit worker before this).
+- **Tests:** `node test-clients.mjs` (17 checks: the real workers in node, the profit AUTH binding wired to this worker
+  as in production, sign-in, other brand / "all" / writes / settings / Strategist internals / drafts / P&L / ads /
+  calendar refused, the dev-key forgery refused, invites owner-only and approval-gated).
+
+
+## 2026-10-09: client switches ON by default; the command center's work feed (`src/command.js`)
+- brandguard `CLIENT_SWITCHES` are all true; `clientAccess` stores overrides only (see profit/CLAUDE.md, same date).
+- `GET /api/command/work` (team; brandsFor-limited): Asana overdue / stuck per brand, new clients with steps left
+  (`STEPS` now exported from newclient.js), alerts fired in 48h. `POST /api/read` with `screen: 'command'` uses
+  `COMMAND_SYSTEM` and returns `order`.
+## 2026-10-09: the message itself, GA4 drill-downs, Microsoft Clarity
+
+- **`GET /api/klaviyo?what=message&kind=campaign|flow&id=`** (klaviyo.js `messageView` / `readMessage`): subject,
+  preview, sender and the template HTML of a campaign-message or flow-message (`/api/<campaign|flow>-messages/{id}/`
+  then `/template/`), filled by `POST /api/template-render/` when it has tags (sample `first_name`), or the SMS body.
+  A campaign id (the day-by-day read's message key is sometimes the campaign) resolves to its first message. Kept 30
+  days in `settings` `klvmsg:<act>:<kind>:<id>`; HTML over 900K characters is answered but not kept. Verified live on
+  Lucky (campaign email 37K chars, SMS campaign) and Party Patch (flow email).
+- **google.js**: `websiteReport` (cache `g4v3:`) now returns `prev_days`, more per day, channel / landing / source /
+  device / new-vs-returning rows WITH the window before (`g4By`: two named date ranges in one request) and funnel
+  steps per row; landing pages are `landingPage` (no query string). `websiteDrill` = `GET /api/google/website-drill
+  ?kind=channel|source|page|device|nvr&value=` (cache `g4d2:`): one slice's totals, days (both windows), devices and
+  its other side (a page's channels and sources; a source's landing pages).
+- **clarity.js** (`/api/clarity`, admin + brandsFor; one route block above /api/brand-links, and `clarity_token` on
+  /api/brand-links for the Integrations paste box): Clarity Data Export API
+  (`https://www.clarity.ms/export-data/api/v1/project-live-insights`, Bearer project token, numOfDays 1 to 3, up to 3
+  dimensions, 10 calls a project a day). Token + project id in `p_br_doc` key `clarity` (never returned). The per-page
+  read (numOfDays=3, dimension1=URL) is cached 8 hours in `clarity:<act>:pages`; once a UTC day a whole-site read is
+  appended to `clarity:<act>:hist` (90 kept); calls counted per brand per UTC day in `clarityCalls:<act>` and refused
+  at 9. `shapeInsights` joins Traffic, ScrollDepth, EngagementTime and the click metrics (`sessionsWithMetricPercentage`
+  = % of the page's sessions, `subTotal` = times) per URL. PUT {act, token, project?} checks the token with one real
+  read; PUT {act, project} sets the id for links; DELETE forgets. integrations.js has a per-brand "Microsoft Clarity"
+  item (group Website). Tests: `node test-clarity.mjs` (8 offline checks, Clarity and Klaviyo mocked). NOT tested live:
+  any Clarity call (no brand has a token yet), so the response field names come from Microsoft's docs and sample.

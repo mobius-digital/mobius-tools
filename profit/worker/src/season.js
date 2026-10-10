@@ -207,13 +207,226 @@ export function liveFrom(hours, asOf) {
   return { today: { ...day, mer: mer(day) }, last3: { ...l3, mer: mer(l3), from: Math.max(0, last - 2), to: last }, as_of: asOf || null, hours_with_data: last + 1 };
 }
 
+/* ---------- THE WAR ROOM (2026-10-09, Triple Whale's BFCM Command Center done in Locus) ----------
+ * Cole: "the war room should be like Triple Whale's war room, full on plans and everything, the actual war room."
+ * PLAN (before the sale): a seven-step checklist per brand. Last year's same BFCM window (revenue by day, orders,
+ * AOV, spend, MER, by channel, top products), goals (up to 5 metrics), the season ladder, the paid budget split by
+ * channel, the offers and dates (Season phases + the Calendar), alert thresholds saved as real p_alert rules
+ * (account-health alerts.js fires them in Slack), and stock cover on the hero products (Supply, in the browser).
+ * LIVE (during the sale): today against the day's plan hour by hour, the weekend so far against the goal, spend by
+ * channel against the day's budget, the ladder on the last three hours. The plan lives in p_season_answer key `war`
+ * (JSON); the ladder stays in key `goals` (one place). Everything here is grouped reads on tables we already sync. */
+export const LY_BF = '2025-11-28';   // last year's Black Friday
+const between = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5);
+export const WAR_STEPS = [
+  ['baseline', 'Review last year'], ['goals', 'Set the goals'], ['ladder', 'Set the scaling ladder'], ['budget', 'Split the paid budget'],
+  ['offers', 'Lock the offers and dates'], ['alerts', 'Turn on the Slack alerts'], ['stock', 'Check stock on the heroes'],
+];
+export const WAR_METRICS = { revenue: 'Revenue', orders: 'Orders', aov: 'AOV', mer: 'MER', new_customers: 'New customers', spend: 'Ad spend' };
+export const WAR_CHANNELS = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', other: 'Other paid' };
+const SALE_KEYS = ['access', 'bf', 'planb', 'cm'];
+export function warOf(answers) { const w = safeJson(answers && answers.war, {}) || {}; return typeof w === 'object' ? w : {}; }
+/** The sale window: what the plan says, else the Thursday-to-Cyber-Monday phases, else Nov 26 to Nov 30. */
+export function saleOf(phases, war) {
+  if (war.sale && isoOk(war.sale.start) && isoOk(war.sale.end) && war.sale.start && war.sale.end) return { start: war.sale.start, end: war.sale.end, set: 1 };
+  const ps = (phases || []).filter(p => SALE_KEYS.includes(p.key) && p.status !== 'skip' && p.start);
+  if (!ps.length) return { start: addDays(BF, -1), end: addDays(BF, 3) };
+  const start = ps.map(p => p.start).sort()[0], end = ps.map(p => p.end || p.start).sort().pop();
+  return { start: start < addDays(BF, -7) ? addDays(BF, -1) : start, end: end > addDays(BF, 10) ? addDays(BF, 3) : end };
+}
+/** Last year's window: the same days around last year's Black Friday, one day either side. */
+export function baselineWindow(sale, war) {
+  if (war.baseline && isoOk(war.baseline.from) && isoOk(war.baseline.to) && war.baseline.from && war.baseline.to) return { from: war.baseline.from, to: war.baseline.to };
+  return { from: addDays(LY_BF, between(BF, sale.start) - 1), to: addDays(LY_BF, between(BF, sale.end) + 1) };
+}
+/** The goals the war room tracks: the saved list, else the season goals (weekend revenue, the ladder's target). */
+export function warGoals(war, g) {
+  const saved = Array.isArray(war.goals) ? war.goals.filter(x => x && WAR_METRICS[x.metric]).slice(0, 5).map(x => ({ metric: x.metric, target: num(x.target) })) : null;
+  if (saved && saved.length) return { list: saved, saved: 1 };
+  const out = [];
+  if (g.bf) out.push({ metric: 'revenue', target: g.bf });
+  if (g.target) out.push({ metric: 'mer', target: g.target });
+  return { list: out, saved: 0 };
+}
+const budgetOf = war => {
+  const b = war.budget || {}, total = num(b.total) || 0;
+  const ch = (Array.isArray(b.channels) ? b.channels : []).filter(c => c && WAR_CHANNELS[c.id]).map(c => {
+    const v = num(c.value) || 0, unit = c.unit === '%' ? '%' : '$';
+    return { id: c.id, label: WAR_CHANNELS[c.id], unit, value: v, amount: unit === '%' ? total * v / 100 : v, metric: ['roas', 'cpa'].includes(c.metric) ? c.metric : null, target: num(c.target) };
+  });
+  const allocated = ch.reduce((s, c) => s + c.amount, 0);
+  return { total, channels: ch, allocated, unallocated: total - allocated };
+};
+/** The seven steps, each done or not, from what is stored. Stock and alerts are ticked by the page when they are saved. */
+export function warSteps(a, war) {
+  const g = a.goals || {}, bud = budgetOf(war), goals = warGoals(war, g);
+  const bfp = (a.phases || []).find(p => p.key === 'bf');
+  const done = {
+    baseline: !!war.baseline_ok,
+    goals: goals.list.some(x => x.target > 0),
+    ladder: g.be != null && g.target != null && g.s50 != null && g.s100 != null,
+    budget: bud.total > 0 && bud.channels.length > 0 && Math.abs(bud.unallocated) < 1,
+    offers: !!bfp && bfp.status === 'locked',
+    alerts: Array.isArray(war.alerts) && war.alerts.length > 0,
+    stock: !!war.stock_ok,
+  };
+  const why = {
+    baseline: 'Look over last year\'s numbers and press "Use this baseline".',
+    goals: 'Give at least one goal a target.',
+    ladder: 'Breakeven, target and the two scale lines.',
+    budget: !bud.total ? 'Set the paid budget for the sale.' : !bud.channels.length ? 'Split it by channel.' : `${Math.round(Math.abs(bud.unallocated)).toLocaleString('en-US')} ${bud.unallocated > 0 ? 'not allocated' : 'over-allocated'}.`,
+    offers: !bfp ? 'No Black Friday phase.' : bfp.status === 'locked' ? '' : `The Black Friday offer is ${bfp.status === 'draft' || bfp.status === 'proposed' ? 'still a proposal, not locked' : 'missing'}.`,
+    alerts: 'Save the thresholds as Slack alerts.',
+    stock: 'Look at stock cover on the hero products and press "Stock checked".',
+  };
+  return WAR_STEPS.map(([key, label]) => ({ key, label, done: !!done[key], why: done[key] ? '' : why[key] }));
+}
+/** Last year's BFCM per day (the P&L revenue line), by channel and the top products. */
+async function warBaseline(env, a, win, { series, channels, titles }) {
+  const out = { from: win.from, to: win.to, days: [], totals: null, channels: [], products: [] };
+  if (!series) return out;
+  let s; try { s = await series(a, win.from, win.to); } catch (e) { out.error = e.message; return out; }
+  const rows = s.rows || [];
+  out.days = rows.map(r => ({ date: r.date, sales: r.sales, orders: r.orders, aov: r.orders > 0 && r.sales != null ? r.sales / r.orders : null, spend: r.spend,
+    mer: r.mer, meta_spend: r.meta_spend, google_spend: r.google_spend, email_rev: r.email_rev, new_orders: r.new_orders }));
+  const sum = k => rows.reduce((t, r) => t + (+r[k] || 0), 0);
+  const sales = sum('sales'), orders = sum('orders'), spend = sum('spend');
+  out.totals = rows.length ? { sales, orders, aov: orders > 0 ? sales / orders : null, spend, mer: spend > 0 ? sales / spend : null, new_orders: sum('new_orders'), days: rows.length } : null;
+  if (channels && rows.length) out.channels = await channels(a, rows, s.piv || {}, win.from, win.to).catch(() => []);
+  /* Top products: orders that carried each product (Triple Whale orders), revenue split evenly across an order's products. */
+  const { results } = await env.DB.prepare(`SELECT products_json, total FROM tw_orders WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(a.act_id, win.from, win.to).all().catch(() => ({ results: [] }));
+  const by = {};
+  for (const o of results || []) {
+    let ps = []; try { ps = [...new Set(JSON.parse(o.products_json || '[]').map(String))]; } catch {}
+    if (!ps.length) continue;
+    for (const p of ps) { const x = (by[p] ??= { id: p, orders: 0, revenue: 0 }); x.orders++; x.revenue += (+o.total || 0) / ps.length; }
+  }
+  const top = Object.values(by).sort((x, y) => y.revenue - x.revenue).slice(0, 8);
+  const names = titles && top.length ? await titles(a, top.map(p => p.id)).catch(() => ({})) : {};
+  /* Add-ons that ride on orders (package protection, free returns) are not products anyone sells. */
+  out.products = top.map(p => ({ ...p, title: names[p.id] || `Product ${p.id}` })).filter(p => !/protection|free returns|shipping insurance|route\b|gift wrap/i.test(p.title)).slice(0, 6);
+  out.orders_seen = (results || []).length;
+  return out;
+}
+/** The plan for each sale day: the revenue goal and the budget split by last year's shape of the same days. */
+export function dayPlan(sale, revGoal, spendTotal, baseDays) {
+  const byLy = Object.fromEntries((baseDays || []).map(d => [d.date, d]));
+  const days = [];
+  for (let d = sale.start; d <= sale.end; d = addDays(d, 1)) { const ly = addDays(LY_BF, between(BF, d)); days.push({ date: d, ly, ly_sales: byLy[ly]?.sales ?? null, ly_spend: byLy[ly]?.spend ?? null }); }
+  const sS = days.reduce((t, x) => t + (x.ly_sales || 0), 0), sP = days.reduce((t, x) => t + (x.ly_spend || 0), 0);
+  for (const x of days) {
+    x.share = sS > 0 ? (x.ly_sales || 0) / sS : 1 / days.length;
+    x.spend_share = sP > 0 ? (x.ly_spend || 0) / sP : x.share;
+    x.revenue = revGoal ? revGoal * x.share : null;
+    x.spend = spendTotal ? spendTotal * x.spend_share : null;
+  }
+  return days;
+}
+/** The brand's hourly curve (checknow.js keeps it in settings as cnshape:<brand>): share of a day done by each hour. */
+async function curveOf(env, act) {
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`cnshape:${act}`).first().catch(() => null);
+  const c = safeJson(row?.value, null);
+  return c && Array.isArray(c.rev) && c.rev.length === 24 ? { cum: c.rev, src: `the brand's own hourly curve (last ${c.days || 5} days)` } : { cum: null, src: 'a straight line through the day (no hourly curve stored yet)' };
+}
+/** Live today against the plan: hour by hour, by channel, the ladder's 3 hours. */
+async function warLive(env, a, { live, series }, plan, today, sale, bud) {
+  const out = {};
+  let d; try { d = await live(a); } catch (e) { return { error: e.message || 'Triple Whale did not answer' }; }
+  const hours = d.hours || [];
+  const lf = liveFrom(hours, d.as_of);
+  const row = d.row || {};
+  const sales = lf.today.sales, spend = lf.today.spend, orders = row.orders ?? hours.reduce((t, h) => t + (+h.orders || 0), 0);
+  const inSale = today >= sale.start && today <= sale.end;
+  let dayGoal = null, daySpend = null, src = '';
+  const pd = plan.find(x => x.date === today);
+  if (inSale && pd && pd.revenue) { dayGoal = pd.revenue; daySpend = pd.spend; src = 'the sale plan for today'; }
+  else if (series) {
+    /* Not a sale day (a dry run): a normal day is the plan, the brand's own last 28 days. */
+    try { const s = await series(a, addDays(today, -28), addDays(today, -1)); const r = s.rows || [];
+      if (r.length) { dayGoal = r.reduce((t, x) => t + (+x.sales || 0), 0) / r.length; daySpend = r.reduce((t, x) => t + (+x.spend || 0), 0) / r.length; src = 'a normal day (the last 28 days), because today is not a sale day'; } } catch {}
+  }
+  const curve = await curveOf(env, a.act_id);
+  const cumAt = h => curve.cum ? curve.cum[Math.min(23, h)] : (h + 1) / 24;
+  let cS = 0, cP = 0, cO = 0;
+  out.hours = hours.map((h, i) => { cS += h.sales || 0; cP += h.spend || 0; cO += +h.orders || 0;
+    return { hour: i, sales: h.sales || 0, spend: h.spend || 0, orders: +h.orders || 0, cum_sales: cS, cum_spend: cP, cum_orders: cO, plan_cum: dayGoal ? dayGoal * cumAt(i) : null }; });
+  out.plan_curve = dayGoal ? Array.from({ length: 24 }, (_, i) => dayGoal * cumAt(i)) : null;
+  const last = lf.hours_with_data - 1;
+  const planNow = dayGoal && last >= 0 ? dayGoal * cumAt(last) : null;
+  out.date = d.date; out.as_of = d.as_of; out.curve = curve.src; out.plan_src = src; out.in_sale = inSale;
+  out.day = { goal: dayGoal, spend_budget: daySpend, plan_now: planNow, pace: planNow ? sales / planNow : null, projected: dayGoal && planNow ? sales / planNow * dayGoal : null };
+  out.today = { sales, orders, aov: orders > 0 ? sales / orders : null, spend, mer: lf.today.mer, new_orders: row.new_orders ?? null, email_rev: row.email_rev ?? null };
+  out.last3 = lf.last3;
+  /* Spend by channel today against the day's share of each channel's budget. */
+  const meta = row.meta_spend ?? hours.reduce((t, h) => t + (+h.meta || 0), 0), google = row.google_spend ?? hours.reduce((t, h) => t + (+h.google || 0), 0);
+  const dayShare = inSale && pd ? pd.spend_share : null;
+  const spendOf = { meta, google, tiktok: null, other: Math.max(0, (spend || 0) - (meta || 0) - (google || 0)) };
+  const ids = new Set(['meta', 'google', ...bud.channels.map(c => c.id)]);
+  out.channels = [...ids].map(id => { const c = bud.channels.find(x => x.id === id);
+    const budget = c && dayShare != null ? c.amount * dayShare : null, so = spendOf[id];
+    return { id, label: WAR_CHANNELS[id], spend: so, budget, budget_now: budget != null && curve.cum && last >= 0 ? budget * (curve.cum[last]) : budget != null && last >= 0 ? budget * (last + 1) / 24 : null };
+  }).filter(c => c.spend > 0 || c.budget);
+  /* The weekend so far: finished sale days (the P&L line) plus today. */
+  if (series && today > sale.start) {
+    try { const to = addDays(today, -1) < sale.end ? addDays(today, -1) : sale.end; const s = await series(a, sale.start, to);
+      const r = s.rows || [], sum = k => r.reduce((t, x) => t + (+x[k] || 0), 0);
+      out.sale_so_far = { days: r.length, sales: sum('sales') + (inSale ? sales : 0), spend: sum('spend') + (inSale ? spend : 0), orders: sum('orders') + (inSale ? orders : 0) }; } catch {}
+  } else if (inSale) out.sale_so_far = { days: 0, sales, spend, orders };
+  return out;
+}
+/** One brand's war room. */
+async function warBrand(env, a, today, deps, { withLive, client }) {
+  const war = warOf(a.answers);
+  const sale = saleOf(a.phases, war), win = baselineWindow(sale, war);
+  const base = await warBaseline(env, a, win, deps);
+  const goals = warGoals(war, a.goals || {});
+  const bud = budgetOf(war);
+  const revGoal = goals.list.find(x => x.metric === 'revenue')?.target || a.goals?.bf || null;
+  const plan = dayPlan(sale, revGoal, bud.total, base.days);
+  const mode = today >= sale.start && today <= sale.end ? 'live' : today > sale.end ? 'after' : 'plan';
+  const out = {
+    act_id: a.act_id, name: a.name, currency: a.currency || 'USD', tz: a.tz || null, today, bf: BF, ly_bf: LY_BF, mode, sale, sale_days_to: between(today, sale.start),
+    war: client ? { goals: war.goals || null, budget: war.budget || null } : war, goals_list: goals.list, goals_saved: goals.saved, ladder: client ? null : a.goals,
+    budget: bud, baseline: base, plan, steps: warSteps(a, war),
+    phases: (a.phases || []).filter(p => p.status !== 'skip').map(p => ({ key: p.key, name: p.name, start: p.start, end: p.end, grp: p.grp, offer: p.offer, status: p.status, who: p.who })),
+    checkins: (a.checkins || []).map(c => client ? { date: c.date, slot: c.slot, action: c.action, by: c.by } : c),
+    metrics: WAR_METRICS, channel_names: WAR_CHANNELS,
+  };
+  if (withLive && deps.live) out.live = await warLive(env, a, deps, plan, today, sale, bud).catch(e => ({ error: e.message }));
+  return out;
+}
+/** Every brand in the season: plan progress before the sale, pacing during it, riskiest first. */
+async function warAll(env, accounts, today, deps) {
+  const d = await seasonData(env, accounts, {});
+  const rows = await Promise.all(d.accounts.filter(a => a.in_season && a.phases.some(p => p.status !== 'skip')).map(async a => {
+    const acct = accounts.find(x => x.act_id === a.act_id) || a;
+    const war = warOf(a.answers), sale = saleOf(a.phases, war), steps = warSteps(a, war);
+    const goals = warGoals(war, a.goals || {}), revGoal = goals.list.find(x => x.metric === 'revenue')?.target || a.goals?.bf || null;
+    const mode = today >= sale.start && today <= sale.end ? 'live' : today > sale.end ? 'after' : 'plan';
+    const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', mode, sale, days_to: between(today, sale.start), steps, done: steps.filter(s => s.done).length, goal: revGoal,
+      bf_offer: (a.phases.find(p => p.key === 'bf') || {}).offer || '' };
+    if (mode === 'live' && deps.live) {
+      const win = baselineWindow(sale, war);
+      const base = await warBaseline(env, acct, win, { series: deps.series }).catch(() => ({ days: [] }));
+      const plan = dayPlan(sale, revGoal, budgetOf(war).total, base.days);
+      r.live = await warLive(env, { ...acct, ...a }, deps, plan, today, sale, budgetOf(war)).catch(e => ({ error: e.message }));
+    }
+    /* Risk: live = how far behind the plan right now; before = steps missing, weighted by how close the sale is. */
+    const pace = r.live?.day?.pace;
+    r.risk = mode === 'live' ? (pace == null ? 50 : Math.round((1 - Math.min(pace, 1.5)) * 100)) : mode === 'after' ? -100 : Math.round((7 - r.done) * (r.days_to <= 14 ? 3 : r.days_to <= 30 ? 2 : 1) * 10) / 10;
+    return r;
+  }));
+  rows.sort((x, y) => y.risk - x.risk || x.name.localeCompare(y.name));
+  return { today, bf: BF, brands: rows, steps: WAR_STEPS.map(([key, label]) => ({ key, label })) };
+}
+
 /* ---------- Routes ---------- */
 const clean = (v, n = 4000) => v == null ? null : String(v).slice(0, n);
 const isoOk = v => v == null || v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** Authenticated routes. Returns null when the path is not ours.
  *  `series(acct, from, to)` and `live(acct)` come from the host worker. */
-export async function handleSeason({ path, request, env, accountsFor, email, series, live }) {
+export async function handleSeason({ path, request, env, accountsFor, email, series, live, channels, titles, client }) {
   if (!path.startsWith('/api/season')) return null;
   const m = request.method;
   const b = m === 'GET' ? {} : await request.json().catch(() => ({}));
@@ -237,6 +450,43 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
       const d = await live(acct);
       return json({ ok: true, act: acct.act_id, date: d.date, ...liveFrom(d.hours, d.as_of) });
     } catch (e) { return json({ error: e.message || 'Triple Whale did not answer' }, 502); }
+  }
+  /* The War Room (2026-10-09). act=all = the grid; act=<brand> = plan + baseline (+ live when the sale is on or ?live=1). */
+  if (path === '/api/season/war' && m === 'GET') {
+    const act = url.searchParams.get('act') || 'all';
+    const today = todayCentral();
+    const deps = { series, live, channels, titles };
+    if (act === 'all') {
+      if (client) return json({ error: 'Pick your brand first.' }, 403);
+      return json(await warAll(env, await accountsFor(), today, deps));
+    }
+    const acct = await actOf(act);
+    if (!acct) return json({ error: 'unknown account' }, 404);
+    const d = await seasonData(env, [acct], {});
+    const a = d.accounts[0];
+    const sale = saleOf(a.phases, warOf(a.answers));
+    const withLive = url.searchParams.get('live') === '1' || (today >= sale.start && today <= sale.end);
+    return json(await warBrand(env, { ...acct, ...a, currency: acct.currency }, today, deps, { withLive, client: !!client }));
+  }
+  /* Save part of the plan: the patch is merged into p_season_answer key `war`, so two people editing two steps never
+     overwrite each other. Only known keys are kept. */
+  if (path === '/api/season/war' && m === 'PUT') {
+    if (!b.act || !(await actOf(b.act))) return json({ error: 'unknown account' }, 404);
+    const row = await env.DB.prepare(`SELECT value FROM p_season_answer WHERE act_id = ?1 AND season = ?2 AND key = 'war'`).bind(b.act, SEASON).first();
+    const cur = safeJson(row?.value, {}) || {};
+    const p = b.patch && typeof b.patch === 'object' ? b.patch : {};
+    const KEYS = ['goals', 'budget', 'sale', 'baseline', 'baseline_ok', 'thresholds', 'alerts', 'stock_ok', 'heroes', 'notes'];
+    for (const k of KEYS) if (k in p) { if (p[k] === null) delete cur[k]; else cur[k] = p[k]; }
+    if (cur.sale && (!isoOk(cur.sale.start) || !isoOk(cur.sale.end))) return json({ error: 'sale dates must be YYYY-MM-DD' }, 400);
+    if (Array.isArray(cur.goals)) cur.goals = cur.goals.filter(g => g && WAR_METRICS[g.metric]).slice(0, 5).map(g => ({ metric: g.metric, target: num(g.target) }));
+    cur.updated_by = who(); cur.updated_at = new Date().toISOString();
+    const value = JSON.stringify(cur);
+    if (value.length > 20000) return json({ error: 'plan too large' }, 400);
+    await env.DB.prepare(
+      `INSERT INTO p_season_answer (act_id, season, key, value, updated_at) VALUES (?1,?2,'war',?3,datetime('now'))
+       ON CONFLICT(act_id, season, key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+    ).bind(b.act, SEASON, value).run();
+    return json({ ok: true, war: cur });
   }
   if (path === '/api/season/checkin' && m === 'PUT') {
     if (!b.act || !b.date || !b.slot || !(await actOf(b.act))) return json({ error: 'unknown account' }, 404);

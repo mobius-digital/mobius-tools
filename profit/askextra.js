@@ -95,12 +95,14 @@
   function refresh(btn) { const q = btn && btn.dataset.q; if (q && window.AskUI) AskUI.ask(q); }
 
   /* ---------------- Scheduled questions (Settings > The Strategist) ---------------- */
-  const CAD = [['daily', 'Every morning'], ['monday', 'Every Monday'], ['first', 'On the 1st of the month']];
+  const CAD = [['daily', 'Every morning'], ['weekdays', 'Every weekday'], ['monday', 'Every Monday'], ['first', 'On the 1st of the month']];
+  /* What a schedule does (2026-10-09, account-health askschedule.js KINDS). */
+  const KIND = [['question', 'Answer a question'], ['task', 'Do a task (any change comes as an Apply card)'], ['report', 'Build a report'], ['check', 'Run the live check (is anything weird right now?)'], ['dashboard', 'Post a dashboard']];
   const hourL = h => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'am' : 'pm'}`;
   async function schedules(slot) {
     if (!slot) return;
-    slot.insertAdjacentHTML('beforeend', `<div class="card set-card" id="sqCard"><h3>Scheduled questions</h3>
-      <p class="hint set-why">Questions the Strategist answers on its own, fresh from the data each time, and posts to an internal Slack channel. Never a client channel. At most 10 runs a day across all of them.</p>
+    slot.insertAdjacentHTML('beforeend', `<div class="card set-card" id="sqCard"><h3>Scheduled</h3>
+      <p class="hint set-why">Things the Strategist does on its own and posts to an internal Slack channel: answer a question, do a task (any change it suggests comes as an Apply card a person presses, never on its own), build a report, run the live check or post a dashboard. Never a client channel. At most 10 Strategist runs a day; checks and dashboards do not count.</p>
       <div class="set-body"><div id="sqList"><span class="hint">Loading&hellip;</span></div>
         <div class="row" style="margin:12px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="sqAdd">Add a question</button><span class="tiny" id="sqMsg"></span></div>
         <p class="tiny" style="margin:8px 0 0;opacity:.8">You can also say it in the chat: "ask how Lucky did last week every Monday at 8 in #lucky-internal".</p></div></div>`);
@@ -112,7 +114,7 @@
       const rows = data.schedules || [];
       host.innerHTML = rows.length ? `<div style="display:grid;gap:10px">${rows.map(r => `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
           <div style="font-weight:600">${E(r.question)}</div>
-          <div class="tiny" style="margin-top:3px">${E(r.brand)} &middot; ${E(r.when)} &middot; posts to ${E(r.channel_name)}</div>
+          <div class="tiny" style="margin-top:3px">${E(r.kind_label || 'Answer a question')} &middot; ${E(r.brand)} &middot; ${E(r.when)} &middot; posts to ${E(r.channel_name)}</div>
           <div class="tiny" style="margin-top:3px;${r.last_status && r.last_status !== 'ok' ? 'color:var(--bad)' : ''}">${r.last_run ? `Last run ${E(new Date(r.last_run).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }))} Central: ${E(r.last_status === 'ok' ? 'posted' : r.last_status || '')}` : 'Not run yet.'}</div>
           <div class="row" style="margin:8px 0 0;gap:6px;flex-wrap:wrap"><button class="btn" type="button" data-run="${E(r.id)}">Run now</button><button class="btn" type="button" data-edit="${E(r.id)}">Edit</button><button class="btn" type="button" data-del="${E(r.id)}" style="color:var(--bad)">Delete</button></div></div>`).join('')}</div>
           <p class="tiny" style="margin:8px 0 0">${data.runs_today || 0} of ${data.max_per_day || 10} runs used today.</p>`
@@ -145,7 +147,10 @@
       const startAct = r ? r.act : (S.act || 'all');
       const m = shell(`<h3>${r ? 'Change the scheduled question' : 'Schedule a question'}</h3>
         <p class="hint">The Strategist asks this on its own and posts the answer in Slack, written fresh from the data each time.</p>
-        <label class="set-lbl" for="sqQ" style="margin-top:8px">The question <span class="tiny" style="font-weight:400">Name the period, as you would ask it in the chat.</span></label>
+        <label class="set-lbl" for="sqKind" style="margin-top:8px">What it does</label>
+        <select id="sqKind" style="${field}">${KIND.map(([k, l]) => `<option value="${k}" ${(r ? r.kind || 'question' : 'question') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <div id="sqDashW" style="display:none"><label class="set-lbl" for="sqDash">Which dashboard</label><select id="sqDash" style="${field}"><option value="">Loading&hellip;</option></select></div>
+        <label class="set-lbl" for="sqQ" id="sqQL">The question <span class="tiny" style="font-weight:400">Name the period, as you would ask it in the chat.</span></label>
         <textarea id="sqQ" rows="3" style="${field}" placeholder="How did last week go against plan, and what moved?">${E(r ? r.question : '')}</textarea>
         <label class="set-lbl" for="sqBrand">Brand <span class="tiny" style="font-weight:400">The answer stays about this brand.</span></label>
         <select id="sqBrand" style="${field}"><option value="all">All brands</option>${(S.accounts || []).map(a => `<option value="${E(a.act_id)}" ${startAct === a.act_id ? 'selected' : ''}>${E(a.name)}</option>`).join('')}</select>
@@ -161,10 +166,26 @@
       ch.value = r ? r.channel : (internalOf(startAct) || (chans[0] || {}).id || '');
       m.q('#sqBrand').onchange = e => { const c = internalOf(e.target.value); if (c && chans.some(x => x.id === c)) ch.value = c; };
       m.q('#sqCancel').onclick = m.close;
+      const QL = { question: 'The question <span class="tiny" style="font-weight:400">Name the period, as you would ask it in the chat.</span>', task: 'What to do each time <span class="tiny" style="font-weight:400">Name the brand and the period. Changes come as Apply cards.</span>',
+        report: 'The report to build <span class="tiny" style="font-weight:400">What it should show.</span>', check: 'A note (optional) <span class="tiny" style="font-weight:400">The check itself needs no words.</span>', dashboard: 'A note (optional)' };
+      let dashLoaded = false;
+      const onKind = async () => {
+        const k = m.q('#sqKind').value;
+        m.q('#sqQL').innerHTML = QL[k] || QL.question;
+        m.q('#sqDashW').style.display = k === 'dashboard' ? '' : 'none';
+        if (k === 'dashboard' && !dashLoaded) {
+          dashLoaded = true;
+          try { const l = (await api('/api/dashboards?act=all')).dashboards || []; m.q('#sqDash').innerHTML = l.length ? l.map(x => `<option value="${E(x.id)}" ${r && r.ref === x.id ? 'selected' : ''}>${E(x.name)}</option>`).join('') : '<option value="">No dashboards yet</option>'; }
+          catch (e) { m.q('#sqDash').innerHTML = `<option value="">Could not load: ${E(e.message)}</option>`; }
+        }
+      };
+      m.q('#sqKind').onchange = onKind; onKind();
       m.q('#sqSave').onclick = async () => {
         const b = m.q('#sqSave'), mm = m.q('#sqMMsg');
-        const body = { id: r ? r.id : undefined, question: m.q('#sqQ').value.trim(), act: m.q('#sqBrand').value, cadence: m.q('#sqCad').value, hour_central: +m.q('#sqHour').value, channel: ch.value };
-        if (body.question.length < 8) { mm.textContent = 'Write the question you want asked.'; return; }
+        const kind = m.q('#sqKind').value;
+        const body = { id: r ? r.id : undefined, kind, ref: kind === 'dashboard' ? m.q('#sqDash').value : null, question: m.q('#sqQ').value.trim(), act: m.q('#sqBrand').value, cadence: m.q('#sqCad').value, hour_central: +m.q('#sqHour').value, channel: ch.value };
+        if (kind === 'dashboard' && !body.ref) { mm.textContent = 'Pick the dashboard to post.'; return; }
+        if (body.question.length < 8 && !['check', 'dashboard'].includes(kind)) { mm.textContent = kind === 'task' ? 'Write what it should do each time.' : 'Write the question you want asked.'; return; }
         if (!body.channel) { mm.textContent = 'Pick a channel.'; return; }
         b.disabled = true; mm.textContent = 'Saving…';
         try { const s = await apiAH('/api/ask/schedules', { method: 'PUT', body: JSON.stringify(body) }); m.close(); msg(`Saved. It runs ${s.schedule.when}.`); await load(); }
@@ -173,6 +194,99 @@
       setTimeout(() => m.q('#sqQ').focus(), 30);
     };
     $q('#sqAdd').onclick = () => editModal(null);
+    await load();
+  }
+
+  /* ---------------- Alerts (Reports > Dashboards, 2026-10-09; account-health alerts.js /api/alerts) ---------------- */
+  const WIN = [['today', 'Today so far'], ['yesterday', 'Yesterday'], ['last7', 'The last 7 days']];
+  const BASE = [['normal', 'A normal day (its last 28 days)'], ['goal', 'The goal'], ['fixed', 'A fixed number']];
+  async function alerts(slot) {
+    if (!slot) return;
+    slot.insertAdjacentHTML('beforeend', `<div class="card set-card" id="alCard"><h3>Alerts</h3>
+      <p class="hint set-why">Rules checked every hour that post to Slack when they trip, at most once a day, with the number and the normal. Example: revenue under 50% of a normal day by 12pm Central. Internal channels or a teammate's DM only.</p>
+      <div class="set-body"><div id="alList"><span class="hint">Loading&hellip;</span></div>
+        <div class="row" style="margin:12px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="alAdd">Add an alert</button><span class="tiny" id="alMsg"></span></div>
+        <p class="tiny" style="margin:8px 0 0;opacity:.8">Or say it in the chat: "tell me if Lucky's revenue is under half of normal by noon".</p></div></div>`);
+    const $q = s => document.querySelector(s);
+    let data = { alerts: [], channels: [], metrics: [] };
+    const msg = t => { const el = $q('#alMsg'); if (el) el.textContent = t; };
+    const when = r => r.last_fired ? `Last fired ${new Date(r.last_fired).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central` : 'Not fired yet';
+    const paint = () => {
+      const host = $q('#alList'); if (!host) return;
+      const rows = data.alerts || [];
+      host.innerHTML = rows.length ? `<div style="display:grid;gap:10px">${rows.map(r => `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;${r.active ? '' : 'opacity:.6'}">
+          <div style="font-weight:600">${E(r.rule)}</div>
+          <div class="tiny" style="margin-top:3px">${r.active ? 'On' : 'Paused'} &middot; posts to ${E(r.channel_name)} &middot; ${E(when(r))}${r.last_status ? ` &middot; last check: ${E(r.last_status)}` : ''}</div>
+          <div class="row" style="margin:8px 0 0;gap:6px;flex-wrap:wrap"><button class="btn" type="button" data-test="${E(r.id)}">Test now</button><button class="btn" type="button" data-edit="${E(r.id)}">Edit</button><button class="btn" type="button" data-pause="${E(r.id)}">${r.active ? 'Pause' : 'Turn on'}</button><button class="btn" type="button" data-del="${E(r.id)}" style="color:var(--bad)">Delete</button></div>
+          <div class="tiny" data-out="${E(r.id)}" style="margin-top:6px"></div></div>`).join('')}</div>`
+        : '<p class="hint" style="margin:0">None yet. Add one, or ask the Strategist to set one up.</p>';
+      const find = id => rows.find(r => r.id === id);
+      host.querySelectorAll('[data-test]').forEach(b => b.onclick = () => test(find(b.dataset.test), b));
+      host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editModal(find(b.dataset.edit)));
+      host.querySelectorAll('[data-pause]').forEach(b => b.onclick = async () => { const r = find(b.dataset.pause); try { await apiAH('/api/alerts/pause', { method: 'POST', body: JSON.stringify({ id: r.id, active: !r.active }) }); msg(r.active ? 'Paused.' : 'Turned on.'); await load(); } catch (e) { msg(e.message); } });
+      host.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        const r = find(b.dataset.del);
+        if (!(await confirmModal('Delete this alert?', `"${r.rule}" stops being checked. Nothing already posted is touched.`, 'Delete'))) return;
+        try { await apiAH(`/api/alerts?id=${encodeURIComponent(r.id)}`, { method: 'DELETE' }); msg('Deleted.'); await load(); } catch (e) { msg(e.message); }
+      });
+    };
+    const load = async () => {
+      try { data = await apiAH('/api/alerts'); paint(); }
+      catch (e) { const h = $q('#alList'); if (h) h.innerHTML = `<span style="color:var(--bad)">Could not load: ${E(e.message)}</span>`; }
+    };
+    const test = async (r, b) => {
+      const out = document.querySelector(`[data-out="${r.id}"]`);
+      b.disabled = true; b.textContent = 'Checking…';
+      try {
+        const t = await apiAH('/api/alerts/test', { method: 'POST', body: JSON.stringify({ id: r.id }) });
+        const lines = t.fires ? t.fired.map(f => E(f.text)) : [`It would not fire right now (${t.checked} brand${t.checked === 1 ? '' : 's'} checked).`];
+        for (const s of [...(t.waiting || []), ...(t.skipped || [])]) lines.push(E(s));
+        out.innerHTML = lines.join('<br>') + (t.fires ? ` <button class="btn" type="button" style="padding:2px 9px;font-size:12px" data-post>Post this test to Slack</button>` : '');
+        const pb = out.querySelector('[data-post]');
+        if (pb) pb.onclick = async () => { pb.disabled = true; try { const p = await apiAH('/api/alerts/test', { method: 'POST', body: JSON.stringify({ id: r.id, post: true }) }); pb.textContent = p.posted ? 'Posted' : (p.error || 'Not posted'); } catch (e) { pb.textContent = e.message; } };
+      } catch (e) { out.textContent = e.message; }
+      b.disabled = false; b.textContent = 'Test now';
+    };
+    const editModal = r => {
+      const chans = data.channels || [], mets = data.metrics || [];
+      const startAct = r ? r.act : (S.act || 'all');
+      const opt = (list, cur) => list.map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('');
+      const m = shell(`<h3>${r ? 'Change the alert' : 'Add an alert'}</h3>
+        <p class="hint">Checked every hour (or at the hour you pick). Posts at most once a day.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label class="set-lbl" for="alBrand">Brand</label><select id="alBrand" style="${field}"><option value="all">Every brand (each on its own)</option>${(S.accounts || []).map(a => `<option value="${E(a.act_id)}" ${startAct === a.act_id ? 'selected' : ''}>${E(a.name)}</option>`).join('')}</select></div>
+          <div><label class="set-lbl" for="alMet">Number</label><select id="alMet" style="${field}">${mets.map(x => `<option value="${E(x.id)}" ${(r ? r.metric : 'revenue') === x.id ? 'selected' : ''}>${E(x.label)}</option>`).join('')}</select></div>
+          <div><label class="set-lbl" for="alWin">Over</label><select id="alWin" style="${field}">${opt(WIN, r ? r.window : 'today')}</select></div>
+          <div><label class="set-lbl" for="alHour">Check at <span class="tiny" style="font-weight:400">Central</span></label><select id="alHour" style="${field}"><option value="">Every hour from 9am</option>${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${r && r.at_hour_central === h ? 'selected' : ''}>${hourL(h)}</option>`).join('')}</select></div>
+          <div><label class="set-lbl" for="alCmp">When it is</label><select id="alCmp" style="${field}">${opt([['below', 'Under'], ['above', 'Over']], r ? r.comparison : 'below')}</select></div>
+          <div><label class="set-lbl" for="alThr" id="alThrL">Percent of the baseline</label><input type="text" id="alThr" style="${field}" value="${E(r ? r.threshold : 50)}"></div>
+        </div>
+        <label class="set-lbl" for="alBase">Compared with</label><select id="alBase" style="${field}">${opt(BASE, r ? r.baseline : 'normal')}</select>
+        <label class="set-lbl" for="alChan">Post it to <span class="tiny" style="font-weight:400">Internal channels only. Empty = the brand's internal channel.</span></label>
+        <select id="alChan" style="${field}"><option value="">The brand's internal channel</option>${chans.map(c => `<option value="${E(c.id)}" ${r && r.channel === c.id ? 'selected' : ''}>${E(c.name)}</option>`).join('')}${r && r.channel && /^U/.test(r.channel) ? `<option value="${E(r.channel)}" selected>A direct message (as set up)</option>` : ''}</select>
+        <p class="tiny" id="alRead" style="margin:10px 0 0"></p>
+        <p class="tiny" id="alMMsg" style="min-height:16px;margin:6px 0 0;color:var(--bad)"></p>
+        <div class="row" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn" type="button" id="alCancel">Cancel</button><button class="btn primary" type="button" id="alSave">${r ? 'Save' : 'Add it'}</button></div>`, true);
+      const read = () => {
+        const base = m.q('#alBase').value, thr = m.q('#alThr').value, met = (mets.find(x => x.id === m.q('#alMet').value) || {}).label || '';
+        m.q('#alThrL').textContent = base === 'fixed' ? 'The number (dollars, x or a count)' : 'Percent of the baseline';
+        const h = m.q('#alHour').value;
+        m.q('#alRead').textContent = `Reads as: tell us when ${m.q('#alBrand').selectedOptions[0].text}'s ${met} ${m.q('#alWin').selectedOptions[0].text.toLowerCase()}${h !== '' && m.q('#alWin').value === 'today' ? ` by ${hourL(+h)} Central` : ''} is ${m.q('#alCmp').value === 'below' ? 'under' : 'over'} ${base === 'fixed' ? thr : `${thr}% of ${base === 'goal' ? 'the goal' : 'normal'}`}.`;
+      };
+      m.w.querySelectorAll('select,input').forEach(x => { x.oninput = read; x.onchange = read; }); read();
+      m.q('#alCancel').onclick = m.close;
+      m.q('#alSave').onclick = async () => {
+        const b = m.q('#alSave'), mm = m.q('#alMMsg');
+        const h = m.q('#alHour').value;
+        const body = { id: r ? r.id : undefined, act: m.q('#alBrand').value, metric: m.q('#alMet').value, window: m.q('#alWin').value, at_hour_central: h === '' ? null : +h,
+          comparison: m.q('#alCmp').value, threshold: parseFloat(String(m.q('#alThr').value).replace(/[$,%x\s]/g, '')), baseline: m.q('#alBase').value, channel: m.q('#alChan').value, mention: r ? r.mention : null, active: r ? r.active : true };
+        if (!isFinite(body.threshold)) { mm.textContent = 'Write a number.'; return; }
+        b.disabled = true; mm.textContent = '';
+        try { await apiAH('/api/alerts', { method: 'PUT', body: JSON.stringify(body) }); m.close(); msg('Saved.'); await load(); }
+        catch (e) { mm.textContent = e.message; b.disabled = false; }
+      };
+    };
+    $q('#alAdd').onclick = () => editModal(null);
     await load();
   }
 
@@ -194,5 +308,5 @@
   }
 
   if (window.AskUI) AskUI.state.onPin = pinModal;
-  window.AskX = { pinModal, chartBlock, refresh, schedules, movedSetting };
+  window.AskX = { pinModal, chartBlock, refresh, schedules, alerts, movedSetting };
 })();

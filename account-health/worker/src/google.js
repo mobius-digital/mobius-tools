@@ -118,30 +118,72 @@ const num = v => v == null ? null : +v;
 const ga4 = (env, prop, body) => gfetch(env, SCOPES.ga, `https://analyticsdata.googleapis.com/v1beta/properties/${prop}:runReport`, { body });
 const rowsOf = (j, dims, mets) => (j.rows || []).map(r => Object.fromEntries([...dims.map((d, i) => [d, r.dimensionValues[i].value]), ...mets.map((m, i) => [m, num(r.metricValues[i].value)])]));
 
-/** GA4 for one brand and window: totals against the window before, by day, channel groups,
- *  landing pages, devices, and the shopping funnel. */
+/** GA4 for one brand and window: totals against the window before, by day (both windows), channel groups and landing
+ *  pages (with their funnel steps and the window before, for sorting and deltas), devices, new against returning,
+ *  source / medium, and the shopping funnel. 2026-10-09: more per row for the sortable tables and drill-downs; the
+ *  cache key moved to g4v3: so an old copy is never served as the new shape. */
+const G4M = ['sessions', 'totalUsers', 'newUsers', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'ecommercePurchases', 'purchaseRevenue', 'addToCarts', 'checkouts'];
+const G4ROW = ['sessions', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'addToCarts', 'checkouts', 'ecommercePurchases', 'purchaseRevenue'];
+const G4DAY = ['sessions', 'engagedSessions', 'totalUsers', 'newUsers', 'addToCarts', 'checkouts', 'ecommercePurchases', 'purchaseRevenue', 'averageSessionDuration'];
+const ymd = s => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}`;
+/** A breakdown over the window and (when given) the window before: rows carry `prev` {..} from the same request. */
+async function g4By(env, P, dim, from, to, pfrom, pto, limit, filter) {
+  const ranges = [{ startDate: from, endDate: to, name: 'cur' }, ...(pfrom ? [{ startDate: pfrom, endDate: pto, name: 'prev' }] : [])];
+  const j = await ga4(env, P, { dateRanges: ranges, dimensions: [{ name: dim }], metrics: G4ROW.map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: limit * (pfrom ? 3 : 1), ...(filter ? { dimensionFilter: filter } : {}) });
+  const dims = ranges.length > 1 ? ['k', 'range'] : ['k'];
+  const rows = rowsOf(j, dims, G4ROW);
+  const cur = rows.filter(r => !r.range || r.range === 'cur'), prev = new Map(rows.filter(r => r.range === 'prev').map(r => [r.k, r]));
+  return cur.slice(0, limit).map(r => { const p = prev.get(r.k); delete r.range; if (p) { const q = { ...p }; delete q.k; delete q.range; r.prev = q; } return r; });
+}
 export async function websiteReport(env, act, from, to, pfrom, pto) {
   const link = await linkFor(env, act);
   if (!link.ga4) return { error: 'not_linked', what: 'ga4' };
-  return cached(env, `g4:${act}:${link.ga4}:${from}:${to}:${pfrom || ""}`, 3600e3, async () => {
+  return cached(env, `g4v3:${act}:${link.ga4}:${from}:${to}:${pfrom || ''}`, 3600e3, async () => {
     const P = link.ga4; const range = [{ startDate: from, endDate: to }];
-    const M = ['sessions', 'totalUsers', 'newUsers', 'engagedSessions', 'engagementRate', 'averageSessionDuration', 'ecommercePurchases', 'purchaseRevenue', 'addToCarts', 'checkouts'];
-    const [tot, prev, byDay, chan, land, dev, src] = await Promise.all([
-      ga4(env, P, { dateRanges: range, metrics: M.map(name => ({ name })) }),
-      pfrom ? ga4(env, P, { dateRanges: [{ startDate: pfrom, endDate: pto }], metrics: M.map(name => ({ name })) }).catch(() => null) : null,
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'date' }], metrics: ['sessions', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ dimension: { dimensionName: 'date' } }] }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'sessionDefaultChannelGroup' }], metrics: ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 12 }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'landingPagePlusQueryString' }], metrics: ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 15 }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'deviceCategory' }], metrics: ['sessions', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })) }),
-      ga4(env, P, { dateRanges: range, dimensions: [{ name: 'sessionSourceMedium' }], metrics: ['sessions', 'ecommercePurchases', 'purchaseRevenue'].map(name => ({ name })), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 15 }),
+    const day = (f, t) => ga4(env, P, { dateRanges: [{ startDate: f, endDate: t }], dimensions: [{ name: 'date' }], metrics: G4DAY.map(name => ({ name })), orderBys: [{ dimension: { dimensionName: 'date' } }] });
+    const [tot, prev, byDay, prevDay, chan, land, dev, nvr, src] = await Promise.all([
+      ga4(env, P, { dateRanges: range, metrics: G4M.map(name => ({ name })) }),
+      pfrom ? ga4(env, P, { dateRanges: [{ startDate: pfrom, endDate: pto }], metrics: G4M.map(name => ({ name })) }).catch(() => null) : null,
+      day(from, to),
+      pfrom ? day(pfrom, pto).catch(() => null) : null,
+      g4By(env, P, 'sessionDefaultChannelGroup', from, to, pfrom, pto, 15),
+      g4By(env, P, 'landingPage', from, to, pfrom, pto, 40),
+      g4By(env, P, 'deviceCategory', from, to, pfrom, pto, 5),
+      g4By(env, P, 'newVsReturning', from, to, pfrom, pto, 3).catch(() => []),
+      g4By(env, P, 'sessionSourceMedium', from, to, pfrom, pto, 25),
     ]);
-    const one = j => { const r = rowsOf(j, [], M)[0] || {}; return r; };
-    const days = rowsOf(byDay, ['date'], ['sessions', 'ecommercePurchases', 'purchaseRevenue']).map(r => ({ date: `${r.date.slice(0, 4)}-${r.date.slice(4, 6)}-${r.date.slice(6)}`, sessions: r.sessions, purchases: r.ecommercePurchases, revenue: r.purchaseRevenue }));
-    return { property: P, cur: one(tot), prev: prev ? one(prev) : null, days,
-      channels: rowsOf(chan, ['group'], ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue']),
-      landing: rowsOf(land, ['page'], ['sessions', 'engagementRate', 'ecommercePurchases', 'purchaseRevenue']),
-      devices: rowsOf(dev, ['device'], ['sessions', 'ecommercePurchases', 'purchaseRevenue']),
-      sources: rowsOf(src, ['source'], ['sessions', 'ecommercePurchases', 'purchaseRevenue']) };
+    const one = j => rowsOf(j, [], G4M)[0] || {};
+    const days = j => j ? rowsOf(j, ['date'], G4DAY).map(r => ({ ...r, date: ymd(r.date), purchases: r.ecommercePurchases, revenue: r.purchaseRevenue })) : [];
+    const ren = (rows, k) => rows.map(r => { const o = { [k]: r.k, ...r }; delete o.k; return o; });
+    return { property: P, cur: one(tot), prev: prev ? one(prev) : null, days: days(byDay), prev_days: days(prevDay),
+      channels: ren(chan, 'group'), landing: ren(land, 'page'), devices: ren(dev, 'device'), nvr: ren(nvr.filter(r => r.k && r.k !== '(not set)'), 'kind'), sources: ren(src, 'source') };
+  });
+}
+/** One slice of the website, drilled: its days (and the window before), its funnel, and the other side of it (a source's
+ *  landing pages, a page's channels and sources), plus devices. kind = channel | source | page | device | nvr. */
+const DRILL_DIM = { channel: 'sessionDefaultChannelGroup', source: 'sessionSourceMedium', page: 'landingPage', device: 'deviceCategory', nvr: 'newVsReturning' };
+export async function websiteDrill(env, act, from, to, pfrom, pto, kind, value) {
+  const dim = DRILL_DIM[kind]; if (!dim) return { error: 'kind is channel, source, page, device or nvr' };
+  const link = await linkFor(env, act);
+  if (!link.ga4) return { error: 'not_linked', what: 'ga4' };
+  return cached(env, `g4d2:${act}:${link.ga4}:${kind}:${String(value).slice(0, 200)}:${from}:${to}:${pfrom || ''}`, 3600e3, async () => {
+    const P = link.ga4; const f = { filter: { fieldName: dim, stringFilter: { matchType: 'EXACT', value: String(value) } } };
+    const day = (a, b) => ga4(env, P, { dateRanges: [{ startDate: a, endDate: b }], dimensions: [{ name: 'date' }], metrics: G4DAY.map(name => ({ name })), orderBys: [{ dimension: { dimensionName: 'date' } }], dimensionFilter: f });
+    const sideDims = kind === 'page' ? [['channels', 'sessionDefaultChannelGroup', 10], ['sources', 'sessionSourceMedium', 10]]
+      : kind === 'channel' ? [['landing', 'landingPage', 12], ['sources', 'sessionSourceMedium', 10]]
+      : kind === 'source' ? [['landing', 'landingPage', 12]]
+      : [['channels', 'sessionDefaultChannelGroup', 10], ['landing', 'landingPage', 10]];
+    const [tot, ptot, d1, d0, dev, ...sides] = await Promise.all([
+      ga4(env, P, { dateRanges: [{ startDate: from, endDate: to }], metrics: G4M.map(name => ({ name })), dimensionFilter: f }),
+      pfrom ? ga4(env, P, { dateRanges: [{ startDate: pfrom, endDate: pto }], metrics: G4M.map(name => ({ name })), dimensionFilter: f }).catch(() => null) : null,
+      day(from, to), pfrom ? day(pfrom, pto).catch(() => null) : null,
+      kind === 'device' ? [] : g4By(env, P, 'deviceCategory', from, to, null, null, 5, f),
+      ...sideDims.map(([, d, n]) => g4By(env, P, d, from, to, pfrom, pto, n, f)),
+    ]);
+    const days = j => j ? rowsOf(j, ['date'], G4DAY).map(r => ({ ...r, date: ymd(r.date), purchases: r.ecommercePurchases, revenue: r.purchaseRevenue })) : [];
+    const out = { kind, value, cur: rowsOf(tot, [], G4M)[0] || {}, prev: ptot ? rowsOf(ptot, [], G4M)[0] || {} : null, days: days(d1), prev_days: days(d0), devices: dev.map(r => ({ device: r.k, ...r })) };
+    sideDims.forEach(([name], i) => { out[name] = sides[i].map(r => ({ name: r.k, ...r })); });
+    return out;
   });
 }
 
@@ -174,13 +216,14 @@ export async function searchReport(env, act, from, to, pfrom, pto, brandWords = 
 export async function adsReport(env, act, from, to) {
   const link = await linkFor(env, act);
   if (!link.ads) return { error: 'not_linked', what: 'ads' };
-  return cached(env, `gads:${act}:${link.ads}:${from}:${to}`, 3600e3, async () => {
+  return cached(env, `gads2:${act}:${link.ads}:${from}:${to}`, 3600e3, async () => {
     const cid = String(link.ads).replace(/\D/g, '');
     const search = query => gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${cid}/googleAds:search`, { body: { query }, headers: adsHeaders(env) });
-    const camps = await search(`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC`);
+    const camps = await search(`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign.campaign_budget, campaign_budget.amount_micros, campaign_budget.total_amount_micros, campaign_budget.explicitly_shared, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}' AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC`);
     const days = await search(`SELECT segments.date, metrics.cost_micros, metrics.clicks, metrics.conversions, metrics.conversions_value FROM customer WHERE segments.date BETWEEN '${from}' AND '${to}'`);
     return { customer: cid,
-      campaigns: (camps.results || []).map(r => ({ id: r.campaign.id, name: r.campaign.name, status: r.campaign.status, type: r.campaign.advertisingChannelType, spend: (+r.metrics.costMicros || 0) / 1e6, impressions: +r.metrics.impressions || 0, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })),
+      campaigns: (camps.results || []).map(r => ({ id: r.campaign.id, name: r.campaign.name, status: r.campaign.status, type: r.campaign.advertisingChannelType,
+        budget: r.campaignBudget?.amountMicros ? +r.campaignBudget.amountMicros / 1e6 : null, budget_total: r.campaignBudget?.totalAmountMicros ? +r.campaignBudget.totalAmountMicros / 1e6 : null, budget_shared: !!r.campaignBudget?.explicitlyShared, spend: (+r.metrics.costMicros || 0) / 1e6, impressions: +r.metrics.impressions || 0, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })),
       days: (days.results || []).map(r => ({ date: r.segments.date, spend: (+r.metrics.costMicros || 0) / 1e6, clicks: +r.metrics.clicks || 0, conversions: +r.metrics.conversions || 0, value: +r.metrics.conversionsValue || 0 })) };
   });
 }
@@ -329,4 +372,54 @@ export async function adsChanges(env, act, from, to) {
     return { changes, from: f, to: t, truncated: changes.length >= 200 };
   });
   return out.error ? out : { ...out, clamped: !!from && f !== from, floor };
+}
+
+/* ---------- Google Ads writes from Locus (2026-10-09) ----------
+   Ads > Google > Campaigns: pause / turn on a campaign and change its daily budget, the same confirm-then-write
+   flow as Meta. Reads the campaign fresh first (status, budget, shared or not), refuses a shared budget (it moves
+   every campaign on it) and a total (lifetime) budget, and drops the hourly report cache so the screen shows the
+   change. Google keeps its own change history (the Changes job reads it), so nothing else is logged here; undo is
+   the same write back to the before value. `validate: true` asks Google to check the write without making it. A refusal (access level, permission) comes back as { error } in
+   Google's words, never thrown. */
+export async function adsCampaignWrite(env, act, b) {
+  const link = await linkFor(env, act);
+  if (!link.ads) return { error: 'This brand has no Google Ads customer ID.' };
+  const cid = String(link.ads).replace(/\D/g, ''), id = String(b.object || '').replace(/\D/g, '');
+  if (!id) return { error: 'Which campaign?' };
+  let row;
+  try {
+    const j = await adsSearch(env, cid, `SELECT campaign.id, campaign.name, campaign.status, campaign.campaign_budget, campaign_budget.amount_micros, campaign_budget.total_amount_micros, campaign_budget.explicitly_shared FROM campaign WHERE campaign.id = ${id}`);
+    row = (j.results || [])[0];
+  } catch (e) { return { error: `Google Ads did not answer: ${gaqlErr(e)}` }; }
+  if (!row) return { error: 'No such campaign in this brand\u2019s Google Ads account.' };
+  const name = row.campaign.name, money$ = v => `$${(+v).toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  let op, url, summary, before, after;
+  if (b.kind === 'pause' || b.kind === 'resume') {
+    const to = b.kind === 'pause' ? 'PAUSED' : 'ENABLED';
+    if (row.campaign.status === to) return { error: `"${name}" is already ${lc(to)}.` };
+    before = { status: row.campaign.status }; after = { status: to };
+    summary = `${b.kind === 'pause' ? 'Pause' : 'Turn on'} Google campaign "${name}": ${lc(row.campaign.status)} \u2192 ${lc(to)}`;
+    url = `customers/${cid}/campaigns:mutate`;
+    op = { update: { resourceName: `customers/${cid}/campaigns/${id}`, status: to }, updateMask: 'status' };
+  } else if (b.kind === 'budget') {
+    const bud = row.campaignBudget || {};
+    if (bud.totalAmountMicros && !bud.amountMicros) return { error: `"${name}" runs on a total budget; change it in Google Ads.` };
+    if (bud.explicitlyShared) return { error: `"${name}" uses a shared budget, which would move every campaign on it. Change it in Google Ads > Shared library.` };
+    const from = +bud.amountMicros / 1e6, to = Math.round(+b.amount * 100) / 100;
+    if (!(to > 0)) return { error: 'The new budget must be more than zero.' };
+    if (Math.abs(to - from) < 0.005) return { error: `The budget is already ${money$(from)}.` };
+    before = { budget: from }; after = { budget: to };
+    const pc = from ? Math.round((to - from) / from * 100) : null;
+    summary = `Google campaign "${name}" daily budget ${money$(from)} \u2192 ${money$(to)}${pc != null ? ` (${pc >= 0 ? '+' : ''}${pc}%)` : ''}`;
+    url = `customers/${cid}/campaignBudgets:mutate`;
+    op = { update: { resourceName: row.campaign.campaignBudget, amountMicros: String(Math.round(to * 1e6)) }, updateMask: 'amount_micros' };
+  } else return { error: 'Unknown change.' };
+  if (b.expect && Object.entries(b.expect).some(([k, v]) => k in before && String(before[k]) !== String(v))) return { error: `"${name}" changed since you opened this. Nothing was written; look again.`, stale: true };
+  if (b.dry) return { ok: true, dry: true, summary, name, before, after };
+  try {
+    await gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/${url}`, { body: { operations: [op], ...(b.validate ? { validateOnly: true } : {}) }, headers: adsHeaders(env) });
+  } catch (e) { const msg = gaqlErr(e); return { error: `Google Ads refused the change: ${msg}`, refused: true }; }
+  if (b.validate) return { ok: true, validated: true, summary, name, before, after };
+  await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(`gads2:${act}:%`).run().catch(() => {});
+  return { ok: true, summary, name, before, after };
 }

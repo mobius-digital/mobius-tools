@@ -130,7 +130,8 @@
       if (t.__lxTh) return; t.__lxTh = 1;
       t.addEventListener('scroll', () => fitCheck(t), { passive: true });
       const ths = [...t.querySelectorAll('thead th, tr:first-child > th')].filter(th => (th.textContent || '').trim());
-      if (!ths.length || ths.some(th => th.querySelector('svg'))) return;
+      /* sortable tables (v2.js TBL) redraw their head on every sort, so they carry the arrow, not icons */
+      if (!ths.length || ths.some(th => th.querySelector('svg') || th.classList.contains('v2srt'))) return;
       const hits = ths.map(th => { const txt = th.textContent.trim(); return txt.length <= 26 && th.children.length <= 1 ? TH_ICON.find(([re]) => re.test(txt)) : null; });
       if (hits.filter(Boolean).length < Math.ceil(ths.length * 0.6)) return;
       ths.forEach((th, i) => { if (hits[i]) th.insertAdjacentHTML('afterbegin', `<svg class="ic lx-thi" aria-hidden="true"><use href="#i-${hits[i][1]}"/></svg>`); });

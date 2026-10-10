@@ -51,37 +51,45 @@ function injectCss() {
   .cc{--cc-line:var(--line);--cc-muted:var(--muted);--cc-surface:var(--surface);--cc-wash:var(--surface-2,var(--bg));--cc-good:var(--good);--cc-warn:var(--warn);--cc-bad:var(--bad);--cc-acc:var(--brand);--cc-mono:var(--sans,system-ui);--cc-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--cc-tipbg:var(--v2-tip-bg,var(--ink));--cc-tipink:var(--v2-tip-ink,var(--surface))}
   .cc{font-variant-numeric:tabular-nums}
   .cc .ph{margin-bottom:16px}
-  .cc .card{margin:0 0 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:none}
+  .cc .card{margin:0 0 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,14px);padding:20px;box-shadow:var(--sh-card,none)}
   .cc .mono{font-family:var(--cc-mono);font-variant-numeric:tabular-nums}
-  .cc-seg{margin:0 0 14px}
+  .cc-seg{margin:0 0 16px}
+  .cc .cc-pre{margin:0 0 12px;font-size:13px;color:var(--ink-2)}
+  .cc .cc-tg .lx-sw{margin:0}
+  .cc-sk{display:grid;gap:16px}.cc-sk>span{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+  .cc-sk i{display:block;height:104px;border-radius:var(--r-lg,14px);background:linear-gradient(90deg,var(--surface-2,#F4F4F6) 0%,var(--surface,#fff) 50%,var(--surface-2,#F4F4F6) 100%);background-size:200% 100%;animation:cc-sk 1.4s ease-in-out infinite}
+  @keyframes cc-sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
   .cc-seg.v2jobs{display:flex}
   /* hero: the one answer, then the stat tiles under it */
-  .cc-hero{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:18px 20px 16px;margin-bottom:12px;position:relative}
+  .cc-hero{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-lg,14px);padding:20px 24px;margin-bottom:16px;position:relative;box-shadow:var(--sh-card,none)}
   .cc-hero .eb{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .cc-hero .eb b{color:var(--ink-2);font-weight:600}
   .cc-hero .big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:10px 0 4px}
-  .cc-hero .big .n{font-size:44px;font-weight:700;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .cc-hero .big .n{font-size:44px;font-weight:650;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink)}
   .cc-hero .big .u{font-size:14px;color:var(--ink-2);max-width:44ch;line-height:1.4}
   .cc-hero .act{margin-left:auto;display:flex;gap:8px}
-  .cc-hbtn{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 12px;font:600 12.5px var(--sans,system-ui);cursor:pointer;letter-spacing:0;text-transform:none}
-  .cc-hbtn:hover{border-color:var(--cc-acc)}
+  .cc-hbtn{display:inline-flex;align-items:center;gap:7px;height:32px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:var(--r-sm,8px);padding:0 12px;font:550 13px var(--sans,system-ui);cursor:pointer;letter-spacing:0;text-transform:none;white-space:nowrap}
+  .cc-hbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .cc-hbtn:hover{border-color:var(--ink-2)}
   .cc-hbtn.pri{background:var(--cc-acc);color:var(--on-brand);border-color:var(--cc-acc)}
   .cc-hbtn.pri:hover{filter:brightness(1.08)}
-  .cc-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;border-radius:99px;padding:2px 8px;background:var(--unk-bg);color:var(--ink-2)}
+  .cc-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;border-radius:99px;height:22px;padding:0 9px;background:var(--unk-bg);color:var(--ink-2)}
   .cc-pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
   .cc-pill.good{background:var(--good-bg);color:var(--cc-good)}.cc-pill.warn{background:var(--warn-bg);color:var(--cc-warn)}.cc-pill.bad{background:var(--bad-bg);color:var(--cc-bad)}
   .cc-hero .read{font-size:13.5px;line-height:1.55;color:var(--ink-2);max-width:96ch;margin:8px 0 0}
-  .cc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 16px}
-  .cc-stats>div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:4px}
-  .cc-stats .l{font-size:12px;color:var(--muted)}
-  .cc-stats .v{font-size:21px;font-weight:650;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .cc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin:0 0 16px}
+  .cc-stats>div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,14px);padding:16px 18px 14px;min-width:0;min-height:104px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--sh-card,none);cursor:help;transition:border-color .15s}
+  .cc-stats>div:hover{border-color:var(--line-strong)}
+  .cc-stats .l{font-size:12.5px;font-weight:500;color:var(--muted)}
+  .cc-stats .v{font-size:26px;font-weight:650;line-height:1.1;letter-spacing:-.028em;font-variant-numeric:tabular-nums;color:var(--ink)}
   .cc-stats .v.good{color:var(--cc-good)}.cc-stats .v.bad{color:var(--cc-bad)}.cc-stats .v.warn{color:var(--cc-warn)}
-  .cc-stats .s{font-size:12px;color:var(--muted);line-height:1.35}
+  .cc-stats .s{font-size:12px;color:var(--muted);line-height:1.35;margin-top:auto}
   /* layout */
   .cc-two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
-  .cc-h3{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 12px}
-  .cc-h3 h3{margin:0;font-size:13.5px;font-weight:650;color:var(--ink)}
-  .cc-h3 .find{font-size:13px;color:var(--ink-2);flex:1;min-width:200px}
+  .cc-two>.card,.cc-two>div>.card:last-child{margin-bottom:16px}
+  .cc-h3{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin:0 0 16px}
+  .cc-h3 h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+  .cc-h3 .find{order:3;flex:1 1 100%;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
   .cc-h3 .tiny{font-size:12px;color:var(--muted);margin-left:auto}
   /* dials */
   .cc-dial{display:grid;grid-template-columns:1fr;gap:14px}
@@ -102,12 +110,12 @@ function injectCss() {
   .cc-d input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--cc-acc)}
   .cc-d small{grid-column:1/-1;font-size:11.5px;color:var(--cc-muted);line-height:1.4;margin-top:-6px}
   .cc-assume{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-  .cc-assume>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .cc-assume>div{border:1px solid var(--line);border-radius:var(--r-md,10px);padding:12px 14px}
   .cc-assume .l{font-size:12px;color:var(--cc-muted)}
   .cc-assume .v{font-size:18px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums;color:var(--ink)}
   /* scenario cards */
   .cc-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-  .cc-sc{border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px;background:var(--surface);cursor:pointer;min-width:0;position:relative;transition:border-color .12s,box-shadow .12s}
+  .cc-sc{border:1px solid var(--line);border-radius:var(--r-md,10px);padding:12px 14px 10px;background:var(--surface);cursor:pointer;min-width:0;position:relative;transition:border-color .12s,box-shadow .12s}
   .cc-sc:hover{border-color:var(--line-strong)}
   .cc-sc.on{border-color:var(--cc-acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 18%,transparent)}
   .cc-sc .nm{width:100%;border:0;background:transparent;font:600 13px var(--sans,system-ui);color:var(--ink);padding:0 14px 0 0;margin-bottom:6px;border-bottom:1px dashed transparent}
@@ -147,8 +155,8 @@ function injectCss() {
   .cc-leg i.tg{border-color:var(--cc-good);border-top-style:dashed}
   .cc-leg i.be{border-color:var(--cc-bad);border-top-style:dashed}
   .cc-chart{width:100%;height:auto;display:block;cursor:crosshair;touch-action:none}
-  .cc-chart text{font-size:11px;fill:var(--cc-muted);font-variant-numeric:tabular-nums}
-  .cc-chart .grid{stroke:var(--v2-grid,var(--line))}
+  .cc-chart text{font-size:11px;fill:var(--faint,var(--cc-muted));font-variant-numeric:tabular-nums}
+  .cc-chart .grid{stroke:var(--v2-grid,var(--line));stroke-dasharray:2 4}
   .cc-chart .ax{stroke:var(--line-strong)}
   .cc-chart .band{fill:var(--cc-good);opacity:.08}
   .cc-chart .area{fill:url(#ccGrad)}
@@ -159,18 +167,19 @@ function injectCss() {
   .cc-chart .be{stroke:var(--cc-bad);stroke-width:1.5;stroke-dasharray:6 4}
   .cc-chart .dot{fill:var(--cc-acc);stroke:var(--surface);stroke-width:2.5}
   .cc-chart .dot.halo{fill:var(--cc-acc);opacity:.18;stroke:none}
-  .cc-chart .xh{stroke:var(--ink);stroke-width:1;opacity:.35}
+  .cc-chart .xh{stroke:var(--ink);stroke-width:1;opacity:.45;stroke-dasharray:3 3}
   .cc-chart .tagbox{fill:var(--surface);stroke:var(--line)}
-  .cc-chart .tag{font-size:10px;font-weight:600}
-  .cc-tip{position:fixed;z-index:95;pointer-events:none;background:var(--cc-tipbg,var(--ink));color:var(--cc-tipink,var(--surface));border-radius:7px;padding:8px 10px;font:12px/1.45 var(--sans,system-ui);box-shadow:0 8px 24px -10px rgba(0,0,0,.5);min-width:170px;max-width:320px;font-variant-numeric:tabular-nums}
+  .cc-chart .tag{font-size:11px;font-weight:600}
+  .cc-tip{position:fixed;z-index:95;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:12.5px/1.5 var(--sans,system-ui);box-shadow:var(--sh-pop,0 8px 24px -10px rgba(0,0,0,.3));min-width:170px;max-width:320px;font-variant-numeric:tabular-nums}
   .cc-tip b{font-weight:600}
-  .cc-tip .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:4px}
+  .cc-tip .h{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .cc-tip .r span{color:var(--muted)}
   .cc-tip .r{display:flex;justify-content:space-between;gap:14px}
   .cc-tip i.dt{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
   .cc-tip i.dt.good{background:var(--good)}.cc-tip i.dt.bad{background:var(--bad)}
   /* dollar bar */
   .cc-dol{margin-top:4px}
-  .cc-dol .bar{display:flex;height:28px;border-radius:6px;overflow:hidden;gap:2px;background:var(--cc-wash)}
+  .cc-dol .bar{display:flex;height:28px;border-radius:var(--r-sm,8px);overflow:hidden;gap:2px;background:var(--cc-wash)}
   .cc-dol .bar i{display:block;height:100%;min-width:2px;transition:width .2s}
   .cc-dol .lg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
   .cc-dol .lg div{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--cc-muted);min-width:0}
@@ -179,31 +188,32 @@ function injectCss() {
   .cc-dol .lg b em{font-style:normal;font-size:12px;font-weight:500;color:var(--cc-muted)}
   .cc-dol .lg b.good{color:var(--cc-good)}.cc-dol .lg b.bad{color:var(--cc-bad)}
   /* words: an ask bar at the top */
-  .cc-say{display:grid;gap:8px;margin:0 0 16px}
-  .cc-ask{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);padding:5px 5px 5px 13px;transition:border-color .12s,box-shadow .12s}
+  .cc-say{display:grid;gap:10px;margin:0 0 24px}
+  .cc-ask{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:var(--r-lg,14px);background:var(--surface);padding:6px 6px 6px 14px;transition:border-color .12s,box-shadow .12s}
   .cc-ask:focus-within{border-color:var(--cc-acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-acc) 16%,transparent)}
-  .cc-ask svg{width:16px;height:16px;stroke:var(--cc-acc);fill:none;stroke-width:1.6;flex:none}
+  .cc-ask svg{width:16px;height:16px;stroke:var(--cc-acc);fill:none;stroke-width:1.5;stroke-linejoin:round;flex:none}
   .cc .cc-ask input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;font:13.5px var(--sans,system-ui)!important;color:var(--ink)!important;padding:6px 0!important;margin:0!important;height:auto!important}
   .cc .cc-ask input::placeholder{color:var(--muted);opacity:1}
   .cc-ask .btn{margin:0;flex:none}
   .cc-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .cc-chips span{font-size:12px;color:var(--cc-muted);margin-right:2px}
-  .cc-chip{font:inherit;font-size:12.5px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:99px;padding:4px 11px;cursor:pointer}
-  .cc-chip:hover{border-color:var(--line-strong);color:var(--ink)}
+  .cc-chip{font:inherit;font-size:12.5px;font-weight:500;color:var(--ink-2);background:var(--surface);border:1px solid var(--line-strong);border-radius:99px;padding:4px 11px;cursor:pointer;line-height:1.35;text-align:left}
+  .cc-chip:hover{border-color:var(--ink-2);color:var(--ink)}
   .cc-say #ccReading{font-size:12.5px;color:var(--ink-2)}
   /* saved */
   .cc-saved{display:flex;gap:6px;flex-wrap:wrap}
-  .cc-saved .sv{border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:12.5px;background:var(--surface);display:flex;gap:10px;align-items:center;color:var(--ink)}
+  .cc-saved .sv{border:1px solid var(--line);border-radius:var(--r-md,10px);padding:8px 12px;font-size:12.5px;background:var(--surface);display:flex;gap:10px;align-items:center;color:var(--ink)}
   .cc-saved .sv b{font-weight:600}.cc-saved .sv .m{color:var(--cc-muted);font-size:12px;font-variant-numeric:tabular-nums}
   /* roas extras */
-  .cc-mode{display:inline-flex;gap:4px;flex-wrap:wrap}
-  .cc-mode button{border:1px solid var(--line);background:transparent;border-radius:99px;padding:4px 11px;font:600 12px var(--sans,system-ui);color:var(--ink-2);cursor:pointer}
-  .cc-mode button:hover{border-color:var(--line-strong);color:var(--ink)}
-  .cc-mode button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-  .cc-togs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:14px}
-  .cc-tg{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12.5px;color:var(--ink)}
+  .cc-mode{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-sm,8px);background:var(--surface-2,var(--bg));flex-wrap:wrap;margin-left:auto}
+  .cc-mode button{border:0;background:transparent;border-radius:6px;padding:4px 11px;font:550 12.5px var(--sans,system-ui);color:var(--muted);cursor:pointer}
+  .cc-mode button:hover{color:var(--ink)}
+  .cc-mode button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(15,15,20,.08)}
+  .cc-togs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+  .cc-tg{border:1px solid var(--line);border-radius:var(--r-md,10px);padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12.5px;color:var(--ink)}
   .cc-tg.off{opacity:.6}
-  .cc-tg input[type=checkbox]{accent-color:var(--cc-acc);width:15px;height:15px;margin:0}
+  .cc-tg input[type=checkbox]:not(.lx-sw){accent-color:var(--cc-acc);width:15px;height:15px;margin:0}
+  .cc-tg{grid-template-columns:1fr auto}.cc-tg label{order:-1;font-weight:550}
   .cc-tg .f{grid-column:1/-1;display:flex;gap:6px;align-items:center}
   .cc-tg .f input{width:70px;border:1px solid var(--line-strong);border-radius:6px;padding:4px 6px;font:600 12.5px var(--sans,system-ui);background:var(--cc-wash);color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
   .cc-tg .f span{color:var(--cc-muted);font-size:11.5px}
@@ -211,7 +221,7 @@ function injectCss() {
   .cc-grid{display:grid;gap:2px}
   .cc-grid .h{font-size:10.5px;font-weight:600;color:var(--cc-muted);text-align:center;padding:0 2px 6px;align-self:end;letter-spacing:.04em;text-transform:uppercase}
   .cc-grid .h.rh{text-align:right;padding:0 10px 0 0;align-self:center;font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none}
-  .cc-grid .c{border-radius:5px;padding:8px 4px 6px;text-align:center;cursor:pointer;color:var(--ink);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;transition:transform .08s}
+  .cc-grid .c{border-radius:var(--r-xs,6px);padding:8px 4px 6px;text-align:center;cursor:pointer;color:var(--ink);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;transition:transform .08s}
   .cc-grid .c small{display:block;font-size:10.5px;font-weight:500;color:var(--ink);opacity:.8;margin-top:2px}
   .cc-grid .c:hover{transform:translateY(-1px);box-shadow:0 4px 12px -6px rgba(0,0,0,.4)}
   .cc-grid .c.on{outline:2px solid var(--ink);outline-offset:1px}
@@ -236,9 +246,10 @@ function injectCss() {
   .cc-foot[open] summary::before{content:"\\2013"}
   .cc-foot p{margin:10px 0 0}
   .cc-foot code{font:12px var(--cc-code);background:var(--cc-wash);padding:1px 5px;border-radius:4px;color:var(--ink)}
+  @media (max-width:720px){.cc .card,.cc-hero{padding:16px}.cc-hero .big .n{font-size:32px}.cc-sk>span{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:980px){.cc-two{grid-template-columns:1fr}.cc-hero .big .n{font-size:36px}.cc-hero .act{margin-left:0}}
   @media (max-width:600px){.cc-grid .c{padding:6px 2px 4px;font-size:11px}.cc-grid .c small{font-size:9.5px}.cc-d{grid-template-columns:1fr 100px}}
-  @media (prefers-reduced-motion:reduce){.cc-sc,.cc-dol .bar i,.cc-grid .c{transition:none}}
+  @media (prefers-reduced-motion:reduce){.cc-sk i{animation:none}.cc-sc,.cc-dol .bar i,.cc-grid .c{transition:none}}
   `;
   document.head.appendChild(st);
 }
@@ -325,7 +336,7 @@ function zoneStrip(ms) {
 }
 /* ROAS on the lead spend against cost per lead. Hover anywhere for the numbers at that CPL. */
 function leadCurve(f) {
-  const W = 760, H = 270, L = 48, R = 112, T = 16, B = 34;
+  const W = 1120, H = 300, L = 48, R = 120, T = 16, B = 40;
   const xmax = Math.max(8, Math.ceil((f.cpl || 3) * 2));
   const curves = [f.cvr / 2, f.cvr, f.cvr * 2].map(cv => cpl => cv * f.aov / cpl);
   const ymax = Math.min(16, Math.max(4, Math.ceil(Math.max(f.roas * 1.8, S.target * 1.5, (f.beRoas || 0) * 1.2))));
@@ -340,7 +351,7 @@ function leadCurve(f) {
     <defs><linearGradient id="ccGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--cc-acc)" stop-opacity=".22"/><stop offset="1" stop-color="var(--cc-acc)" stop-opacity="0"/></linearGradient></defs>
     ${f.tgtCpl ? `<rect class="band" x="${L}" y="${T}" width="${(X(Math.min(f.tgtCpl, xmax)) - L).toFixed(1)}" height="${H - T - B}"/>` : ''}
     ${yt.map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${v}x</text>`).join('')}
-    ${xt.map(v => `<text x="${X(v)}" y="${H - 10}" text-anchor="middle">$${v}</text>`).join('')}
+    ${xt.map(v => `<text x="${X(v)}" y="${H - 22}" text-anchor="middle">$${v}</text>`).join('')}
     <line class="ax" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>
     <path class="area" d="${area}"/>
     ${f.beRoas && f.beRoas <= ymax ? `<line class="be" x1="${L}" x2="${W - R}" y1="${Y(f.beRoas)}" y2="${Y(f.beRoas)}"/>${tagR(Y(f.beRoas), `breakeven ${x2(f.beRoas)}`, 'var(--cc-bad)')}` : ''}
@@ -348,7 +359,7 @@ function leadCurve(f) {
     <path class="l0" d="${path(curves[0])}"/><path class="l2" d="${path(curves[2])}"/><path class="l1" d="${path(curves[1])}"/>
     <g id="ccXh" style="display:none"><line class="xh" y1="${T}" y2="${H - B}"/><circle class="dot" r="4.5"/></g>
     <circle class="dot halo" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11"/><circle class="dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5"/>
-    <text x="${(W - R) / 2 + L / 2}" y="${H - 24}" text-anchor="middle" style="font-size:10px;letter-spacing:.1em">COST PER LEAD</text>
+    <text x="${(W - R) / 2 + L / 2}" y="${H - 4}" text-anchor="middle" style="font-size:10px;letter-spacing:.1em">COST PER LEAD</text>
   </svg>`;
 }
 function wireLeadCurve(f) {
@@ -454,7 +465,7 @@ function roasReceipt(r, m) {
   return `<div class="cc-rh">One order</div><div class="cc-rcpt">${rows.map(([l, v, sg]) => `<div class="r"><span>${l}</span><b>${sg}${money2(v)}</b></div>`).join('')}<div class="r t"><span>${r.fixed_on ? 'Net per order' : 'Left per order after ads'}</span><b class="${left >= 0 ? 'good' : 'bad'}">${money2(left)}</b></div></div>`;
 }
 function roasCurve(r, m) {
-  const W = 760, H = 250, L = 64, R = 112, T = 16, B = 34;
+  const W = 1120, H = 280, L = 64, R = 120, T = 16, B = 40;
   const xs = []; for (let v = 0.5; v <= 6.0001; v += 0.05) xs.push(+v.toFixed(2));
   const prof = v => { const t = roasMath({ ...r, mode: 'roas', roas: v, spend: m.spend || +r.spend || 0 }); return r.fixed_on ? t.net : t.contrib; };
   const vals = xs.map(prof); const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
@@ -466,14 +477,14 @@ function roasCurve(r, m) {
   return `<svg class="cc-chart" id="ccRoasCurve" viewBox="0 0 ${W} ${H}" data-lo="${lo}" data-hi="${hi}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-w="${W}" data-h="${H}" role="img" aria-label="Profit at every ROAS, same spend">
     <defs><linearGradient id="ccGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--cc-acc)" stop-opacity=".22"/><stop offset="1" stop-color="var(--cc-acc)" stop-opacity="0"/></linearGradient></defs>
     ${[lo, 0, hi].filter((v, i, a) => a.indexOf(v) === i).map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${ka(v)}</text>`).join('')}
-    ${[1, 2, 3, 4, 5, 6].map(v => `<text x="${X(v)}" y="${H - 10}" text-anchor="middle">${v}x</text>`).join('')}
+    ${[1, 2, 3, 4, 5, 6].map(v => `<text x="${X(v)}" y="${H - 22}" text-anchor="middle">${v}x</text>`).join('')}
     <line class="ax" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>
     <path class="area" d="${area}"/>
     ${be && be >= 0.5 && be <= 6 ? `<line class="be" x1="${X(be)}" x2="${X(be)}" y1="${T}" y2="${H - B}"/><rect class="tagbox" x="${(X(be) + 6).toFixed(1)}" y="${T}" width="96" height="18" rx="5"/><text class="tag" x="${(X(be) + 12).toFixed(1)}" y="${T + 12.5}" style="fill:var(--cc-bad)">breakeven ${x2(be)}</text>` : ''}
     <path class="l1" d="${d}"/>
     <g id="ccXh2" style="display:none"><line class="xh" y1="${T}" y2="${H - B}"/><circle class="dot" r="4.5"/></g>
     <circle class="dot halo" cx="${X(cur).toFixed(1)}" cy="${Y(prof(cur)).toFixed(1)}" r="11"/><circle class="dot" cx="${X(cur).toFixed(1)}" cy="${Y(prof(cur)).toFixed(1)}" r="5.5"/>
-    <text x="${(W - R) / 2 + L / 2}" y="${H - 24}" text-anchor="middle" style="font-size:10px;letter-spacing:.1em">ROAS AT ${k(m.spend).toUpperCase()} OF SPEND</text>
+    <text x="${(W - R) / 2 + L / 2}" y="${H - 4}" text-anchor="middle" style="font-size:10px;letter-spacing:.1em">ROAS AT ${k(m.spend).toUpperCase()} OF SPEND</text>
   </svg>`;
 }
 function wireRoasCurve(r, m) {
@@ -516,11 +527,11 @@ function assumeCard(items) { return `<div class="card"><div class="cc-h3"><h3>Wh
 function seg() { if (S.ro) return ''; return `<div class="cc-seg v2jobs" role="tablist"><button data-kind="leads" class="${S.kind === 'leads' ? 'on' : ''}">Leads</button><button data-kind="roas" class="${S.kind === 'roas' ? 'on' : ''}">ROAS</button></div>`; }
 function preLine() {
   if (S.ro) return '';
-  if (S.act === 'all') return `<p class="hint" style="margin:0 0 12px">Pick a brand up top and the dials start from its real last 90 days. Scenarios save to that brand.</p>`;
-  if (S.preErr) return `<p class="hint" style="margin:0 0 12px">Could not read the brand's numbers (${esc(S.preErr)}); the dials start from defaults.</p>`;
+  if (S.act === 'all') return `<p class="hint cc-pre">Pick a brand up top and the dials start from its real last 90 days. Scenarios save to that brand.</p>`;
+  if (S.preErr) return `<p class="hint cc-pre">Could not read the brand's numbers (${esc(S.preErr)}); the dials start from defaults.</p>`;
   if (!S.pre) return '';
   const p = S.pre;
-  return `<p class="hint" style="margin:0 0 12px">${esc(brand()?.name || '')}, last 90 days: order <b class="mono">${money(p.new_aov)}</b> · margin before ads <b class="mono">${p.margin != null ? pct(p.margin * 100) : '-'}</b> · cost per new customer <b class="mono">${money(p.cac)}</b> · goal <b class="mono">${x2(S.target)}</b>. <button class="cc-link" id="ccUsePre">Use these</button>${p.cm_ok === false ? ' <span style="color:var(--bad)">Cost data is flagged on the Costs page; type the real margin.</span>' : ''}</p>`;
+  return `<p class="hint cc-pre">${esc(brand()?.name || '')}, last 90 days: order <b class="mono">${money(p.new_aov)}</b> · margin before ads <b class="mono">${p.margin != null ? pct(p.margin * 100) : '-'}</b> · cost per new customer <b class="mono">${money(p.cac)}</b> · goal <b class="mono">${x2(S.target)}</b>. <button class="cc-link" id="ccUsePre">Use these</button>${p.cm_ok === false ? ' <span style="color:var(--bad)">Cost data is flagged on the Costs page; type the real margin.</span>' : ''}</p>`;
 }
 const fmtIn = v => !fin(+v) ? '' : (+v).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const parseIn = str => parseFloat(String(str).replace(/[^0-9.\-]/g, ''));
@@ -536,7 +547,7 @@ function wordsCard() {
     : ['$30k in November at 3x with a $140 order and 60% margin', 'What ROAS clears $10k a month of fixed costs on $25k of spend', '400 orders at $99 with $8 shipping and 2.9% fees on $15k of ads'];
   /* At the TOP, as an ask bar (2026-10-08, Cole: "anything asking should be at the top, like
      Triple Whale"). Plain English in, the dials and scenario cards out. */
-  return `<div class="cc-say"><div class="cc-ask"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2"/></svg><input type="text" id="ccWords" autocomplete="off" placeholder="Say it in words: ${esc(ex[0])}"><button class="btn primary" id="ccBuild">Build it</button></div>
+  return `<div class="cc-say"><div class="cc-ask"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.13 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z"/></svg><input type="text" id="ccWords" autocomplete="off" placeholder="Say it in words: ${esc(ex[0])}"><button class="btn primary" id="ccBuild">Build it</button></div>
     <div class="cc-chips"><span>Try</span>${ex.map(e => `<button type="button" class="cc-chip" data-ex="${esc(e)}">${esc(e)}</button>`).join('')}</div>
     <p class="tiny" id="ccReading" style="margin:0"></p></div>`;
 }
@@ -579,7 +590,7 @@ function paintLeads() {
       <div data-tip="Revenue back times the margin before ads, minus the lead spend."><div class="l">Left after lead spend</div><div class="v ${f.profit >= 0 ? 'good' : 'bad'}">${k(f.profit)}</div><div class="s">${pct(f.margin * 100)} margin, minus ${k(f.spend)}</div></div>
       <div data-tip="What the lead spend works out to per order it brings in."><div class="l">Per order won</div><div class="v">${money2(f.cpb)}</div><div class="s">lead spend / orders</div></div>
     </div>`;
-  const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial in "${esc(c.name)}"</h3><button class="cc-link" id="ccReset">reset</button></div><div class="cc-dial">
+  const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial in "${esc(c.name)}"</h3><button class="cc-link" id="ccReset">Reset</button></div><div class="cc-dial">
     ${dial('Lead-gen spend', 'spend', c.spend, { min: 1000, max: 100000, step: 500, pre: '$', sub: 'What goes into the giveaway or signup ads over the whole run.' })}
     ${dial('Cost per lead (CPL)', 'cpl', c.cpl, { min: 0.5, max: 15, step: 0.25, pre: '$', sub: 'Giveaway leads usually land at $1 to $4. Dartee is planning on $2 to $3.' })}
     ${dial('Conversion rate (CVR)', 'cvr', c.cvr, { min: 1, max: 50, step: 1, unit: '%', sub: 'The share of leads that place an order in the window you care about (the weekend plus December). Giveaway lists 3 to 10%; a true early-access list up to 40%.' })}
@@ -656,8 +667,8 @@ function paintRoas() {
     </div>`;
   const spendOrRev = r.mode === 'revenue' ? dial('Revenue goal', 'revenue', r.revenue, { min: 5000, max: 1000000, step: 1000, pre: '$', sub: 'What you want the month to do. Spend is derived from the ROAS.' }) : dial('Ad spend', 'spend', r.spend, { min: 500, max: 200000, step: 500, pre: '$', sub: 'Meta + Google for the period.' });
   const roasOrOrders = r.mode === 'orders' ? dial('Orders', 'orders', r.orders, { min: 10, max: 5000, step: 10, sub: `Orders you expect that spend to produce. That is ${x2(m.roas)} and ${money2(m.cpa)} an order.` }) : dial('ROAS', 'roas', r.roas, { min: 0.5, max: 8, step: 0.05, unit: 'x', sub: `Blended, Triple Whale revenue over total spend. At ${x2(m.roas)} an order costs ${money2(m.cpa)} in ads; the ceiling is ${money2(m.beCpa)}.` });
-  const T = (label, onKey, fields) => `<div class="cc-tg ${r[onKey] ? '' : 'off'}"><input type="checkbox" id="cc_${onKey}" data-rt="${onKey}" ${r[onKey] ? 'checked' : ''}><label for="cc_${onKey}">${label}</label><div class="f">${fields}</div></div>`;
-  const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial it in <button class="cc-link" id="ccReset" style="margin-left:8px;font-weight:400">reset</button></h3><div class="cc-mode">${[['roas', 'Spend + ROAS'], ['orders', 'Spend + orders'], ['revenue', 'Goal + ROAS']].map(([v, l]) => `<button data-mode="${v}" class="${r.mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="cc-dial">
+  const T = (label, onKey, fields) => `<div class="cc-tg ${r[onKey] ? '' : 'off'}"><input type="checkbox" class="lx-sw" id="cc_${onKey}" data-rt="${onKey}" ${r[onKey] ? 'checked' : ''}><label for="cc_${onKey}">${label}</label><div class="f">${fields}</div></div>`;
+  const dials = `<div class="card" id="ccDials"><div class="cc-h3"><h3>Dial it in</h3><button class="cc-link" id="ccReset">Reset</button><div class="cc-mode" role="group" aria-label="What you know">${[['roas', 'Spend + ROAS'], ['orders', 'Spend + orders'], ['revenue', 'Goal + ROAS']].map(([v, l]) => `<button data-mode="${v}" class="${r.mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div><div class="cc-dial">
     ${dial('Average order', 'aov', r.aov, { min: 20, max: 600, step: 5, pre: '$', sub: 'Before discounts and refunds. Prefilled from the last 90 days.' })}
     ${dial('Gross margin', 'margin', r.margin, { min: 10, max: 95, step: 1, unit: '%', sub: 'Of the order, after product cost only. Shipping and fees have their own switches below.' })}
     ${spendOrRev}${roasOrOrders}
@@ -795,7 +806,7 @@ async function render({ tok, url, act, accounts }) {
   injectCss();
   try { S.kind = localStorage.getItem(LS_KIND) || S.kind; } catch {}
   if (switched) { S.cols = []; S.roas = null; S.focus = 0; S.target = 3; }
-  $('#main').innerHTML = `<div class="cc"><div class="card"><span class="hint">Loading…</span></div></div>`;
+  $('#main').innerHTML = `<div class="cc">${title()}<div class="cc-sk"><i style="height:150px"></i><span><i></i><i></i><i></i><i></i><i></i></span><i style="height:320px"></i></div></div>`;
   await Promise.all([loadPre(), loadSaved()]);
   if (!S.cols.length) S.cols = defaultCols();
   if (!S.roas) S.roas = defaultRoas();

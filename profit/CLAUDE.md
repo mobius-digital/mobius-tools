@@ -2120,6 +2120,33 @@ Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log a
 - **Drops on screen:** a group with 52+ weeks of stock shows "Hold new <group>", 0 new to make and no next-order line
   (Hats: 253 weeks on Oct 8). Closures shown are the drop's own factories only. Asana cards started outside a drop
   show under "Started in Asana, not in a drop" with Make it a design.
+- **2026-10-09 REDESIGN to the v2 system (Cole: "how long the stock lasts looks super weird", "text overlapping", "I
+  can't hover over anything", "Kind of product doesn't fill in", Buying "not sure it's updated", Drops "clunky; a weird
+  refresh thing; brown vs grey bars").** Pages are `.v2 .spx` built from `window.V2UI` (tile + spark, ib, panel as a
+  SHEET), `ds-btn` / `ds-seg` / `ds-chip`, `v2tbl` with `th.v2srt` sort buttons, skeletons, `ds-empty`. Every page has
+  an "is it current" line (`updated()`: when Shopify was read, Central) and a **Refresh** that POSTs
+  `/api/shopify/snapshot` then redraws.
+  - **Stock** = lead, 4 tiles (ad spend on low stock; Ease off / Safe to scale / Push to clear with a 12-week units-sold
+    sparkline; clicking one filters the table), ONE sortable table (On hand, Sold per day, Days left with a bar, Runs out
+    on with "<size> first" when other sizes still hold stock, Restock landing with days short, Ads 30 days, Ad call chip),
+    filter seg + "Only products with ads", then "What the words mean" (every term once; clients may read this page).
+    Sort / filter in localStorage `sp_ss` / `sp_sf` / `sp_sa`. The old lanes and the runway chart are gone.
+  - **Product sheet** (`openProduct`, V2UI.panel with `panel.sheet`): verdict, 5 stats, ONE chart `stockChart()` =
+    units on the shelf for 180 days projected SIZE BY SIZE (`project()`: a size that runs out does not borrow from the
+    others; orders on the way land as steps), short period shaded from the brain's run-out (first core size) to the next
+    landing, marker names in a flag row ABOVE the plot (stacked rows, so no label touches a line), hover per day = units,
+    core sizes in stock, events. By size table (core pill, "runs out first"), Kind of product as a 4-way `ds-seg`,
+    Try an order (buyers) draws a dashed line only once a number is typed.
+  - **Buying** = 4 tiles, one card per factory order (why-now sentence, facts strip, rows with reason, top size chips
+    from `suggestedLines`, qty, In/Out seg), On the way = `steps()` stepper per order (Placed, In production, Ships,
+    Lands; each step owns a grid column) + progress bar, Drafts, landed folded, Coming up table.
+  - **Drops** = drop picker (PillMenu), Edit / New drop, 4 tiles, the drop's dates as a stepper, designs table +
+    Coming due, Asana cards, then **Keep or cut** per group: the rule in one sentence, keep / your call / cut / new
+    counts, a table with one-colour bars (units sold 90 days) and a dashed cut line, "Rule says" chip beside "Your call"
+    Keep / Cut seg and a "Use the rule" button (replaced the ↺). Size mix = single-colour bars.
+  - Order builder, order and design sheets use the same pieces (`spx-form`, `spx-in`). Brand settings > Stock and
+    factories and the Meta ad chips keep their `sp-` classes. Local check: a harness page with the Oct 8 state.json
+    and stubbed fetch, headless Chrome at 1440 and 375, light and dark.
 - Old app `supply/index.html` carries a "moved to Locus" banner and forwards `?slot=`; retire it to a redirect after
   Lucky has used Locus for a week (plan step 5). The worker, engine and D1 stay.
 
@@ -2294,7 +2321,389 @@ Research: docs/strategist-viktor-grade-plan.md section 15 (Triple Whale's per-se
 - **Print or save as PDF**: `beforeprint` switches to the light theme and puts the page title, brand, dates and compare at
   the top of `#main` (`.lx-print-h`); `afterprint` puts it back. v2.css print rules hide the rail, top bar, page tabs,
   menus, panels and toasts and keep cards, tiles and table rows whole.
-- NOT built (Cole decides): public no-login snapshot links. The chart's area gradient does not come through in the
+- Public no-login snapshot links: BUILT the same day (section below). The chart's area gradient does not come through in the
   picture (the line does); everything else matched.
 - Files: share.js (new), index.html (`pillMenuInner` icon option, `shareHost`, boot + show hooks), v2.js (ad / campaign
   hooks), v2.css (block at the end), icons.js (`share`, `printer`), account-health worker.js (`/api/share/slack`).
+
+## 2026-10-09: Ads screens, Cole's pass (sort, columns, edit in place, export frame, Day check, parallel jobs)
+
+- **Tables you can sort and shape** (v2.js `TBL`): click any header to sort, again to flip (arrow on the column; CPA,
+  CPM, CPC and cost columns sort low first); the **Columns** menu (top-bar menu style, `.v2cols`) ticks columns on or off
+  and moves them up/down; "Back to the default". Saved per table in localStorage `pf_tbl_<id>` (`meta-camps`,
+  `google-camps`). Meta columns = everything `metaMetrics` returns (spend, purchases, Meta says, revenue, Meta revenue,
+  ROAS, CPA, CPM, CTR, CPC, frequency, impressions, reach, link clicks, hook, hold, add to cart, cost per ATC, click to
+  cart, cart to purchase) plus Status and Budget; the same columns and sort apply to ad set and ad rows (sorted inside
+  their parent). polish.js skips header icons on sortable tables (`th.v2srt`).
+- **Edit in place on Ads > Meta > Campaigns** (only the Campaigns job; Overview's table stays read only): a status
+  switch per campaign / ad set / ad, the budget (daily or lifetime, wherever Meta holds it), an ad set inside a campaign
+  budget shows its min / cap (click to set), and the row's ⋯ menu = Rename, Copy this ad set (paused), Open in Ads
+  Manager. Every edit opens one in-app modal (`editMeta`) with before -> after in dollars and %, a warning over 50%, then
+  writes, updates the row in place and shows a toast with Undo; the last change also sits in the table bar with Undo for
+  24h (`pf_mw_last`). Live status and budgets come from account-health `GET /api/meta/live?act=` on load (Meta's own
+  values; D1 can be 6h old); a read-only account says why on every control (the metaCan fix text).
+- **Google > Campaigns**: same table, plus a status switch and daily budget edit (`gEdit`, account-health
+  `POST /api/google/write`). Shared and total budgets are refused with the reason. Google ACCEPTS our mutates (checked
+  2026-10-09 with `validateOnly` on Lucky: pause and budget both validated). Undo = the toast writes the old value back.
+- **Jobs are parallel**: Meta = Overview, Campaigns, Ads (the creative gallery, page id still `adcreative`), Changes;
+  Google = Overview, Campaigns, Ads, Search terms, Changes. TAB_TITLE: Meta campaigns / Meta ads / Meta changes.
+- **Export frame** (share.js `frame`): the mark is drawn at its own shape (20 x 13; it is 2000 x 1294, it used to be
+  squeezed into 18 x 18), a 4px line in the mark's colours on top, the page as a small label over the brand, dates on
+  the right, a hairline footer with the mark, "Locus by Mobius Digital" and the attribution. The table bar and row ⋯
+  buttons are dropped from the picture. `LocusShare.picture(el)` returns the PNG blob (to check the frame by eye).
+- **Day check strip**: the chosen day is an inset ring at the square's own radius (was an offset outline cut by the
+  scrolling strip); tooltip = "Monday, Oct 5 / Mixed signals · 1 of 4 signs".
+- Not tested live: an actual Meta or Google write from the screen (all dry / validate only, so no client account was
+  touched); the write path is the Strategist's tested `metawrite.js` code (`node test-metawrite.mjs`).
+
+## 2026-10-09: EMAIL AND SMS, AS STRONG AS ADS (charts, flows, campaigns, and changing Klaviyo from Locus)
+
+Cole: "Should I be able to edit email stuff the same way I can edit ads? Am I missing stats or charts? Should campaigns
+and flows have charts the way revenue does?" References read: Klaviyo's own dashboards (business performance,
+deliverability hub, list growth), Triple Whale's email/SMS view, Polar's Klaviyo connector, Lifetimely, Hyros. Kept
+what a strategist acts on. Backend: account-health/CLAUDE.md, same date. v2.js email block (`klGet` to `klaviyoCards`).
+- **One brand, top to bottom:** Triple Whale tiles (each with its line and the compare period) and "Email and SMS
+  revenue by day" (`emStack`: flows and campaigns stacked, the compare window's total as a dashed line, hover
+  reads both); then from Klaviyo itself (`klaviyoCards`, loads on its own): four tiles (SMS share, revenue per email
+  with Klaviyo's $0.10, placed order rate with 0.08%, list growth), **Engagement and deliverability** (flags in plain
+  words first, `klFlags`: spam over 0.1% / 0.03%, bounces over 2% / 1%, unsubscribes over 0.5%, opens down 15%, list
+  shrinking, a flow that is off but earned, missing core flows; then six rate lines, open / click / placed order /
+  unsubscribe / spam / bounce, each with Klaviyo's average as a dashed amber rule, `rateSpark`), **List growth**
+  (`growthChart`: joined up, left down, net line), **Email vs SMS**, **Flows** (status menu per flow, revenue 90
+  days, the flow's line over the window from `by_flow`, rates; the chevron opens each message with its own rates and
+  subject), **Drafts and scheduled** (Schedule / Unschedule / Cancel / Duplicate / Open in Klaviyo, New draft
+  campaign), **Campaigns sent** (the Ads tables' `TBL` helper: sort on a header, Columns menu, saved as
+  `pf_tbl_kl-camps`; After send = revenue on each of the 14 days after the send, `afterSend`; Duplicate per row),
+  then Subject lines and send times and What Klaviyo is running. Days need 200+ emails received to draw a rate; over
+  45 days the lines go weekly (`klBucket`).
+- **All brands:** the TW table gains a line per brand; the board (`emailBoard`) reads overview + flows_report + daily
+  per brand and shows Klaviyo revenue (flows, campaigns), SMS share, per recipient, placed order, open, click, unsub,
+  spam, bounce (each coloured against Klaviyo's average), list growth, live flows, missing core flows and "Needs a
+  look" (the flags as a tooltip). Attentive brands get one line from Triple Whale. The Golf Sock is never flagged.
+- **Attentive brand (Ice & Gold):** the TW part, then "Attentive, as Triple Whale sees it" (what=attentive) and a
+  plain "not connected directly" note.
+- **Edits** (`klWrite`): preview from POST /api/klaviyo/write, an in-app modal (`klModal`) with a Now -> After table
+  and what happens, confirm sends `expect` = the summary shown, a Done modal with the Klaviyo link, then the cards
+  reload. `klNewDraft` = the labelled form (name, send to, leave out, subject, preview, sender, template; searchable
+  lists). `klSchedule` = a datetime in the viewer's zone, 15+ minutes ahead. A key without the scope shows a "read
+  only" note with the exact scope and hides the controls. **Real finding on the first local run: Lucky's "Welcome
+  (NEW) - Email [BHM]" flow is DRAFT and earned $11.8K in 90 days** (the flag catches it).
+- CSS at the end of v2.css (`kl-*`). A checkbox inside `.modal` needs `width:auto` (the modal stretches inputs).
+  index.html: v2.css?v=24, v2.js?v=35. Screens were checked on the local pair (worktree statics + `ah-worker-dev` +
+  `profit-worker-dev`) for Lucky, Party Patch, Ice & Gold and all brands; no write was applied live.
+
+## 2026-10-09: Public snapshot links ("Share a public link" in every Export menu)
+
+Cole approved section 15 step 3 of docs/strategist-viktor-grade-plan.md: one card or a whole page, frozen, no login.
+- **Freeze, never live.** share.js `freeze(el)` clones the card (or `#main` for the page item), turns canvases into
+  images, drops menus / controls / skeletons / scripts / inputs, strips handlers and `<a href>`, makes src URLs absolute,
+  copies the sprite symbols its `<use>` point at, and collects ONLY the CSS rules the element or its ancestors use
+  (`usedCss`, read with the page switched to light for that instant). Selectors on `:root` / `html` / `body` are rewritten
+  to `.lxs-html` / `.lxs-body`, the wrappers the snapshot carries (with the ancestor chain as `.lxs-w` divs), because the
+  public page draws it in a SHADOW ROOT. Brand, title, page, dates, compare and attribution ride as meta.
+- **One brand per link.** All clients is refused (modal and server). The worker refuses a view whose text names another
+  client from `brand_accounts` (`otherBrandIn`), and scrubs scripts, handlers, javascript: URLs and `act_` / `brand_` ids.
+  A limited user (brandguard `brandsFor`) can only share, list and turn off their own brands.
+- **Worker** (`src/snapshot.js`, table `p_snapshot`, `migrations/snapshot-001.sql`, also created on first use):
+  `GET /api/snapshot/:token` PUBLIC, before the auth gate (32-hex token; 404 when missing, revoked or expired; counts a
+  view; 60 a minute per IP per isolate; never returns who made it or any id); `POST /api/snapshot` {act, kind, title,
+  page, dates, cmp, attr, html, css, root, days 7|30|0} (1.8 MB cap); `GET /api/snapshots`; `POST /api/snapshot/revoke`.
+- **Public page** `profit/s.html?t=<token>`: light, Locus header (page label, brand, dates, compare), "Numbers as of ...
+  They do not update", Print or save as PDF, footer with the attribution. The frozen markup goes through DOMPurify 3.1.6
+  (cdnjs) into a shadow root: its CSS cannot leak out, nothing in it runs, links out are dropped, folded sections open.
+- **Create modal**: expiry 7 days / 30 days (default) / never, the note "Anyone with this link can see these numbers as
+  they are now", then the link with Copy (copied on create) and Open it.
+- **Agency settings > Shared links** (`SET_SECS` `links`, host `#snapList`, filled by share.js `links()`): title, brand,
+  who, when, views (+ last view), state, Copy / Open / Turn off (confirm modal).
+- Tests: `node test-snapshot.mjs` (profit/worker; token required, revoked 404, expired 404, payload has one brand and no
+  author or ids, other-brand refusal, brand limits, views, rate limit). Checked in the browser against a local mock: a
+  card frozen from dark mode came out light, a page with tiles, chart and a wide table, 375px wide with no sideways
+  scroll, the modal and the list. Not checked with a real signed-in session (no prod sign-in here).
+- `LocusShare.freeze(el)` returns the payload a link would carry, to check by eye.
+
+## 2026-10-09: CLIENT LOGINS. Clients sign in to Locus. Read before touching the rail, show() or Settings.
+
+The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandguard.js`); this page only draws them.
+- **How a client gets in.** Cole: Agency settings > Clients > "Client logins" card (or Brand settings > Client access,
+  or the New client setup screen's "4. Their Locus login") > Invite a client: emails, first name, brands, P&L and
+  Strategist switches > Next: the email (editable text, Copy, "Give access, no email", Send invite = Cole's Gmail
+  after a confirm). The client opens tools.go-mobius-digital.com/profit, Continue with Google (any email; a non-Gmail
+  address can be a Google account via "Use my current email address instead"), HQ sends a client straight back to
+  /profit/ (`mobius_session_role`). No password option: the old shared password is an admin key.
+- **What a client sees** (index.html `CLIENT_TABS` / `clientTabOk` / `applyClientMode`, `isClient()` = `S.role === 'client'`
+  from /api/me in `boot()`): Home (Overview; P&L only with the switch), Ads (All channels, Meta Overview + Campaigns,
+  Google Overview + Campaigns; Changes only with the switch), Email and SMS, Store (Sales, Customers, Website, Search),
+  Calendar (add a date, edit / move its own, leave a note; no Remove, ticks or Asana), Reports (`ClientsTab.reports`:
+  sent only, the client archive layout), Creative > Creators only with the switch (`ClientsTab.creators`: the public
+  link). Settings = `ClientsTab.profile` (name, brands, sign out). Profile menu = Your profile, Sign out. No All
+  clients, no picker with one brand, no Products / Brand / Season / Tools, no ask bar unless the Strategist switch
+  is on (then AskUI only ever calls POST /api/ask). First sign-in: a welcome card on Home until "Got it"
+  (`/api/clients/me` welcomed). `body.is-client` CSS (in clients.js) hides the team's buttons; `[hidden]` is forced.
+- **Role checks elsewhere (kept minimal):** v2.js (no AI read, no Day check line, no Needs you today, no CM tile when
+  P&L is off), calendar.js (client panel actions, note box, no team line), share.js (no Send to Slack for a client).
+- **profit/clients.js** (`window.ClientsTab`): card, invite, welcome, profile, reports, creators.
+- **Local check (2026-10-09):** both dev workers from the worktree with SESSION_SECRET = the dev ADMIN_TOKEN in the
+  gitignored .dev.vars, a temporary `clientUsers` row (removed after), headless Chrome over CDP: client rail = Home, Ads,
+  Email, Store, Calendar, Reports; studio / today / profit / research all fell back to Overview; owner view unchanged.
+  Proxied routes (reports) 401 locally because the dev profit worker's AUTH binding is the deployed account-health.
+
+
+## 2026-10-09: the top loading bar, Scenarios and Platform status on v2, Dashboards ask-first, spacing pass
+
+- **The top loading bar (`body.pf-loading`) has its own ticket: `loadBar` in index.html** (`start()` returns a ticket,
+  `end(t)` clears only the latest, `clear()`, 15s safety timer). Cole saw the line "always pulsating": `show()` cleared it
+  only when `run === RUN`, but most renderers take their own ticket (`const run = ++RUN`), so RUN had moved on and the bar
+  never cleared (Dashboards, Settings, P&L, every `++RUN` renderer). `show(tab, {bar})` adopts a ticket (periodChanged
+  passes its own); a repaint of the page already open that was not caused by a click or key (`window.event`) is QUIET:
+  no bar, no dimming. Never add `pf-loading` by hand again; call `loadBar.start()` / `loadBar.end(t)`.
+  Checked headless: 30 page switches, 30s idle, a period change: bar always clears, longest on 1.5s.
+- **Scenarios (calc.js?v=11)** on the v2 spec without touching the math: cards 20px / `--r-lg`, tiles 26/650 with the
+  label 12.5/500, card header = title then the answer sentence on its own line, the mode picker is a segmented control,
+  cost switches are `input.lx-sw` (a checkbox drawn as the app switch, defined in v2.css), tooltips are surface + hairline
+  like the menus, charts drawn at 1120 wide so the axis text is not blown up, dotted grid, dashed hover guide, skeleton
+  while loading. share.html loads only /mobius.css, so every value in calc's CSS keeps a fallback.
+- **Platform status (desk.js `pulse`, desk.js?v=12)**: the answer sentence, four tiles (problems now, working of N, problems
+  started in 7 days, last checked), every platform with a feed as a card (logo, services checked, status chip, the
+  services with a problem, status page link), problems first, feedless platforms as link chips, "The last 14 days" bars
+  (hover = which platforms), "Recent changes" as a table with a platform filter (`ds-seg`) and "lasted N" on each fix
+  (a resolved row closes the latest earlier incident on the same service). "Check again" re-reads Pulse. CSS `#pucss`.
+  Never give a card the class `bad` / `warn` / `good` (global text colours): use `pu-bad` / `pu-warn`.
+- **Dashboards: ask first.** The list opens with a composer (`dashComposer`, `.ds-composer.de-ask`): words + example chips,
+  Build it = `AskUI.ask("Build a dashboard and save it with save_dashboard (...): <words>")`; Apply in the chat saves it.
+  An open dashboard has "Change it with the Strategist" (prefills the chat) and "Edit by hand".
+- **The hand editor is a sheet** (`dashEditor`, `.de-scrim` > `.de-sheet`, CSS at the end of v2.css): left = name, for,
+  brand, dates, compare (`ds-seg`), then the blocks as collapsible rows; right = the dashboard drawn LIVE with the real
+  `dashBlockHtml` (overview reads cached per query in `DASH_PREVIEW`, 220ms debounce). Blocks reorder by the grip
+  (`.de-grip`): pointer drag (pointer capture, the others slide, `html.de-nosel` stops text selection) or focus + arrow
+  keys (announced in `#deLive`). Every option the spec allows: block titles, up to 8 metrics / 8 columns as numbered chips
+  in pick order, note text, a saved ads view's sort / how many / one card per creative; chart blocks are kept read-only.
+  **The spec has ONE range per dashboard** (`cleanSpec` drops anything else), so there is no per-block date range; adding
+  one needs dashboard.js, strategist.js `save_dashboard` and the Slack tick changed together. Escape or Cancel closes.
+- **Spacing pass** (block "SPACING PASS" at the end of v2.css): brand settings groups (`.setpane.bmode .brow-grp`) were
+  cards with 2px top/bottom padding inside the old accordion body's 14px 16px inset, so the cards sat 16px right of their
+  section title and inner boxes touched the card edges (Cole's Archive box). Now: body inset 0, group 4px 20px 20px,
+  inner boxes (`.dc-block`, `.brow-danger2`) 16px 20px, 12px apart, the archive box tinted. The Slack and sending post
+  table wraps instead of running 110px past its card; settings cards are 16px apart (`section > .set-card`); Ads rules
+  cards pad 20px; Shared links table scrolls inside its card; Brand > At a glance facts line up. Probe used to find these
+  (a boxed child within 8px of its boxed parent's edge, tables wider than their card) found nothing else on Settings,
+  Integrations, Calendar, Reports, Dashboards, Brand, Creators, Library, Inspiration or Studio at 1440.
+- **Local check recipe used:** a python static server on its own port from the worktree, `profit-worker-dev` (:8799) and
+  `ah-worker-dev` (:8798) with the dev token, headless Chrome over CDP (Node 24 has WebSocket built in). The scratchpad is
+  shared with other jobs: keep scripts in your own subfolder.
+## 2026-10-09: THE WAR ROOM (Triple Whale's BFCM Command Center, done in Locus). Read before touching desk.js war*.
+
+Cole: "the war room should be like Triple Whale's war room, full on plans and everything, the actual war room", and the
+title had "war" in lower case. Reference: docs/triplewhale-reference/. Page names in the season item are Title Case now
+(War Room, The Plan; TAB_TITLE / TAB_CRUMB / NAV.season in index.html). Other page names were left as they are.
+- **Server** (worker/src/season.js, "THE WAR ROOM" block): `GET /api/season/war?act=all|<brand>[&live=1]`, `PUT /api/season/war
+  {act, patch}`. The plan lives in `p_season_answer` key `war` (JSON: goals [{metric,target}] up to 5, budget {total, channels
+  [{id meta|google|tiktok|other, unit $|%, value, metric roas|cpa, target}]}, sale {start,end}, baseline {from,to}, baseline_ok,
+  thresholds, alerts [{kind,id}], stock_ok); the PUT merges known keys server side. The ladder stays in key `goals` (one place).
+  `saleOf` = saved dates, else the access/bf/planb/cm phases, else Nov 26 to 30. `baselineWindow` = the same days around last
+  year's BF (`LY_BF` 2025-11-28), one day either side. `warBaseline` = seriesFor rows (P&L line, paid orders) + channelsFor +
+  top products from tw_orders (add-ons like package protection dropped). `dayPlan` splits the revenue goal and the budget by
+  last year's shape of the same days. `warSteps` = the 7 steps (baseline, goals, ladder, budget, offers = bf phase locked,
+  alerts, stock). `warLive` = the `live` dep (twDay hours with orders and Meta / Google spend, plus liveRow) against the day's
+  plan; the hourly plan curve is checknow's `cnshape:<brand>` from settings; outside the sale it is a dry run against a normal
+  day (last 28 days). `warAll` = every brand in season, steps before the sale, pace during it, riskiest first.
+  worker.js passes `channels`, `titles`, `client` (clientScope) into handleSeason. `AH_DEV_URL` (dev only, a var in a local
+  config) lets twDay call a local account-health.
+- **Page** (desk.js `war`, `warGrid`, CSS `.wr-*` at the end of v2.css): Plan = sticky step list + sections (baseline with a
+  window picker and "Use this baseline", goals + ladder, budget with "$X not allocated" and "Split like last year", offers
+  timeline from phases + Calendar pins, alert thresholds, stock on the heroes from the Supply worker). Live = six big tiles (pace
+  vs plan by now, heading for, orders + AOV floor, MER, spend vs the day budget, last 3 hours), the hour-by-hour chart
+  (cumulative vs plan, hover per hour), the desk (8am / 4pm / midnight check-ins with the ladder), spend by channel vs budget,
+  alerts fired today, stock, the Strategist's "What to do now" (account-health /api/read; a 15-minute slot in the facts,
+  Refresh adds a nonce) and the Day check's Right now card. TV mode = no chrome, bigger numbers, refresh every 5 minutes.
+- **Alerts are real p_alert rules** (account-health alerts.js): overspend (`spend` above the biggest sale day's budget x %, plus
+  `meta_spend` when Meta has a budget), MER floor, AOV floor (new metric `aov`), stock cover (new metric `stock_cover`: days on
+  the 5 best sellers via stock.js). New columns `starts` / `ends` (Central dates; `isDue` skips outside them) and `source`.
+- **Clients** see their brand's War Room read only (CLIENT_TABS 'war', brandguard rule GET /api/season/war): no edits, no ladder,
+  no alerts, stock or AI read. Live numbers for a client need account-health to accept the client token on /api/tw-day (it does
+  not today), so the live card says the team reads them.
+- Checked on a local pair (account-health `wrangler dev --remote` + the profit worker local with remote D1) with real data for
+  Lucky, Bonk and all brands: dark, light, TV mode, 390px with no sideways scroll; alert create / test / delete with the new
+  metrics ran against the real tables and were removed. Stock showed "needs the Google sign-in" locally (dev token).
+
+
+## 2026-10-09: THE COMMAND CENTER (Home for All clients) and clients see everything by default
+
+- **Client access defaults flipped.** brandguard `CLIENT_SWITCHES` = all ON (P&L, change history, Strategist, creator
+  link) for every brand and every client, existing ones included (nothing was stored on prod). `settings.clientAccess`
+  now holds ONLY overrides (`setAccess` stores a key only when it differs from the default; back to on = the row goes).
+  The client Strategist keeps its 20 questions / $0.50 a day cap. clients.js: the card and the invite say "Clients see
+  everything about their own business" with a folded "Turn something off for this client" (all four switches, on = they
+  see it, "N off: ..." beside the fold). Welcome card and profile say what is on / off. test-clients.mjs 19 checks
+  (defaults on, overrides stored alone, client refused on both command routes, command routes answer the team).
+- **Command center** (`profit/command.js`, `window.CommandCenter.render(host, H, all)`, called from v2.js home() when the
+  team is on All clients; it replaces the "Each brand" table and the Overview read there). Cards: **Focus first** (AI read,
+  account-health `POST /api/read` screen `command` = `COMMAND_SYSTEM`, returns `order` [{brand, why, do}] + lines + focus,
+  Sonnet, cached an hour per facts), **Every brand, what needs you first** (one row per brand: name + status dot, trend,
+  MTD % of plan; pills revenue / spend / MER / CPA vs goal with deltas; revenue sparkline; the reasons, 4 shown + "N more",
+  every reason a button to the brand page that shows it or the Asana task), paused brands on one unflagged line, and
+  **Setting up** (new client runs with steps left: moved here from the New client modal; Open its setup =
+  `NewClient.status`). Rows sort by severity score (bad 10, warn 4, info 1), then revenue.
+- **Reasons**: profit `GET /api/hub/command` (hub.js `commandMany`, fixed windows ending yesterday): goal (blended CPA =
+  spend / paid orders vs rulesFor target_cpa, else MER vs month plan / target_roas; rolling 3 days, 10% wrong side;
+  3+ days warn, 7+ bad), cadence (days since the last Meta `ads.created_time`, $100+ Meta spend in 7 days; 10+ warn,
+  21+ bad), fatigue (CTR, hook, frequency last 7 vs the 14 before from daily_insights; 2 of 3 moved 15%+ on $300+),
+  Day check (yesterdayMany: bad yesterday, or 3+ bad in 7), setup gaps (Triple Whale, Meta, goals, Asana). account-health
+  `GET /api/command/work` (src/command.js): Asana per brand live (open tasks of the linked project, cached 30 min as
+  `cmdasana2:<brand>`; overdue = due in the last 60 days outside parked / done / Analyze Results sections; stuck = untouched
+  10+ days in a working section; note Locus's own sync bumps modified_at, so stuck undercounts), pending new clients, alerts
+  fired in 48 hours. Month vs plan is judged in the browser from `S.accounts` (10% behind warn, 20% bad).
+- **New client modal**: "Already started" list removed; team chips use the selected style (brand-soft fill, accent ring,
+  check icon), readable in both themes (it was `--ink` on `--on-ink`, light on light in dark). Same style on the invite's
+  brand chips.
+- Local check recipe for parallel sessions: run your own ports (static 8761, `wrangler dev --remote` profit 8762 and
+  account-health 8763 from the worktree with the .dev.vars copied in) and drive headless Chrome over CDP (Node's global
+  WebSocket); the shared Browser pane is taken over by other sessions.
+
+## 2026-10-09: THE DATA BEHIND A TILE (drill-downs) + fixed expenses and Net profit
+
+Cole: the tile popup explained what a metric MEANS; he wants Triple Whale's answer, the DATA behind the number ("ad spend
+should break down Google, Meta, what was each; contribution margin should break down every part").
+- **Click a headline tile** on Home (Overview), P&L, Store > Sales, Email and SMS, Ads > All channels / Meta / Google / TikTok
+  (`DRILL_TABS` in v2.js) = the number large with its delta, the day line (blended screens draw it from the drill data with the
+  compare period dashed; ad spend is a stacked bar by platform; on one platform's screen the tile's own line), a BREAKDOWN, then
+  ONE "What it is" sentence (`WHAT`, fallback the glossary's `one`). The long glossary text lives only under Metrics now.
+  Labels map to metrics in `METRIC_OF`; any other tile (Discounts, CPM, CTR...) or any other page keeps the simple panel.
+  A tile that linked to a page (Home's `go`) now opens its drill-down and offers "Open <page> ›" at the bottom; the click
+  listener runs in the CAPTURE phase so the tile's own data-go never fires first. CSS is injected by v2.js (`#v2dcss`).
+- **Breakdowns** (`drillBody`): revenue = by channel (credited, share, change) + new vs returning + top products (one brand);
+  ad spend = by platform with share of blended and each platform's change; MER / ROAS = per-platform ROAS under the whole-store
+  MER; aMER = how it is made + first orders by source; orders / AOV = new vs returning (orders, revenue, AOV) + the last 14 days;
+  new customers / CAC = first orders and cost each by source; paid purchases / CPA = per platform; email = flows vs campaigns;
+  contribution margin / net profit = the waterfall (`drillFall`, reuses `.pnl-fall`): revenue, product cost, shipping and
+  fulfilment, handling, payment fees, gross profit, ad spend, CM, then fixed expenses (each line) and net profit; every line
+  with % of revenue and its change. A margin override shows one "product and delivery at X%" line. All brands sums one currency
+  only and leaves out brands whose cost check is broken (named), like the Home CM tile.
+- **Amazon ads sit OUTSIDE the blended total.** Measured on Bonk: Meta + Google = TW `blendedAds` to the dollar; Amazon ads
+  ($2.7K) are on top. When the numbers say so the spend table marks Amazon "not in the total" with a note, instead of shares
+  adding to 115%.
+- **Data** = `GET /api/hub/drill?act=&model=&cmp=&days|from&to` (hub.js `drillMany`, one call for every metric, cached in the
+  page): the host's own `dayEconomics` + `totals` over a grouped tw_daily pivot and grouped `daily_insights` (so the panel
+  matches the tile to the dollar), `allChannelsMany` for platforms, `storeMany` for products (one brand), `p_cost_health`,
+  fixed.js. Costs, CM and fixed ride under `profit` so **clients** get the same drill-downs and brandguard scrubs `profit` while
+  their P&L switch is off (`/api/hub/drill` is on CLIENT_RULES, `fixed` and `cost_verdict` added to PL_OUT; both brandguard
+  copies identical, test-clients 17/17). Today's window has no stored days: the panel says the breakdown lands overnight.
+- **Fixed expenses** (Triple Whale's "Edit expenses"): Brand settings > Data and costs > Fixed expenses (`loadFixed` in
+  index.html): one card per expense (name, kind, each month, from, until), Save replaces the list. Table `p_fixed_cost`
+  (`migrations/fixed-001.sql`, also created on first use by `src/fixed.js`), `GET/PUT /api/fixed-costs` (not on CLIENT_RULES).
+  `fixedFor(env, acts, from, to)` spreads each monthly amount over its month's days. **They feed ONE line: Net profit = CM minus
+  fixed**, on P&L (a Net profit tile; Orders now carries AOV so the row stays eight; waterfall lines Fixed expenses, each item,
+  Net profit; "Add them ›" when none, `openFixedCosts(act)`) and in the CM drill-down. Contribution margin, briefs, reports and
+  the Strategist are unchanged. `/api/client` returns `fixed {total, items}`.
+- Checked locally 2026-10-09 against real data (worktree statics + own dev workers on 8811/8813, headless Chrome): Bonk Home
+  tiles all eight drills match their tiles; Meta tab (spend, purchases, revenue, ROAS, CPA), Store, Email, P&L; all brands CM
+  ($69.7K, Bonk's fixed listed). Two test expenses on Bonk ($1,200 from Aug, $3,000 from Sep) gave $4,164 over Sep 9 to Oct 8,
+  checked by hand, then removed. index.html loads v2.js?v=38.
+
+
+## 2026-10-09: Email and SMS, Website and Search, Cole's pass (see the email, the funnel, sortable drill-downs, Clarity)
+
+Cole: "Am I supposed to see what these campaigns and flows look like?", the Status pill "looks really off", the little
+bars under Placed order and after send were "not good visualizations", the subject-line summary sat jammed beside its
+title, "no space between sections", the Website funnel was unreadable past add to cart, the tables could not be sorted
+or opened, a tile click only said "go to the Metrics tab", and he expected heatmaps and recordings (Microsoft Clarity).
+All in v2.js `email()` / `klaviyoCards()` / `subjectsCard()` / `website()` / `search()` and the block at the end of
+v2.css ("EMAIL AND SMS, STORE > WEBSITE AND SEARCH"). index.html: v2.css?v=27, v2.js?v=39.
+- **See the message** (`klPreview`, `pvStats`): a sent campaign row (or a subject in Subject lines) and a flow MESSAGE
+  row (inside an opened flow) open a sheet: the inbox line (from, subject, preview), the email itself in an
+  `<iframe sandbox="allow-popups allow-popups-to-escape-sandbox">` (no scripts, no same-origin, links open in a new tab
+  via an injected `<base target="_blank">`), Desktop / Phone width (`.ds-seg`), and the results beside it with each
+  rate coloured against Klaviyo's average; campaigns add "How fast the money came in". SMS shows the text in a phone
+  bubble. Data: account-health `GET /api/klaviyo?what=message&kind=campaign|flow&id=` (kept 30 days in `settings`
+  `klvmsg:*`; the template's HTML, filled by Klaviyo's template-render with sample values when it has tags). Cached in
+  the page per session (`MSG`).
+- **Status = the design-system chip** (`stChip`: `.ds-chip.lx-chip` + `.ds-dot`; `FLOW_ST`), a button when the key can
+  write, opening `statusMenu` (three choices with what each means; then the usual `klWrite` before/after modal).
+  Drafts and scheduled (`campChip`), the flags ("Fix" / "Check") and the rate cards' "Better / Worse than average"
+  use the same chip. NOTE: `.lx-st` is the snapshot links' class (share.js), so the chip is `.lx-chip`.
+- **No goal bullets on the Klaviyo tiles**: revenue per email and placed order rate say the benchmark in words
+  (`vsAvg`: "59% under the Klaviyo average ($0.10)", amber / green); share of store revenue says "In / Under the
+  healthy range (25 to 35%)". The campaign table's Open / Click / Placed order / Unsub / Spam / Bounce are coloured
+  against the average with the average in the tooltip (`rateCell`), replacing the "better than avg" pills.
+- **Money after send** (`afterSeries` / `afterSend`): the RUNNING TOTAL over the 14 days after the send as one sparkline
+  plus "80% by day N"; hover reads "Day N: $X, $Y so far of $Z". A send under 3 days old says "$X so far, just sent".
+  Reason: the question is how fast the money came in; the amount is already in the Revenue column.
+- **Layout**: `cardL(title, lead, body, cap)` puts a card's conclusion on its own line UNDER the title (`.lx-lead`); used
+  by every Email, Website and Search card. The Klaviyo part (`#v2kl`, `#v2klall`) is `.lx-stack` (16px gap; it used to
+  be a plain div so its cards touched), opened by a small-caps "From Klaviyo, read with <brand>'s own key" label.
+  Subject lines is one grid (`.lx-subj`) with a plain-English conclusion.
+- **Website funnel** (`webFunnel`): a row per step (count + change, % of the step before + pt change, % of sessions, a
+  LOG-SCALED bar with the compare period as a grey bar), the drop between steps as its own line ("91.6% left before
+  adding to cart (29,053), better than before (93.1%)"), the biggest drop highlighted, and the step that slipped most
+  named under it. GA4 counts add-to-cart and checkout as events (said on screen).
+- **Sortable tables with drill-downs** (`webTable` / `wireWebTable` on the Ads `TBL` helper, saved as `pf_tbl_web-ch`,
+  `web-lp`, `web-src`, `clarity-pages`): sessions (+ change), share, engaged, avg time, add to cart, conversion
+  (green / red against the site on real traffic), purchases, revenue, per session. A row opens `webDrill`: a sheet with
+  Summary, Day by day (compare dashed, missing GA4 days filled with zero so the lines align), Funnel, Top landing pages
+  (for a channel or source), Channels and Sources (for a page), Devices. Landing pages now use GA4 `landingPage`
+  (query strings folded; fbclid made every Meta click its own row). **Who visits** card: device and new against
+  returning, each row drills.
+- **Tiles drill properly**: Website and Search tiles open `webMetric` / the search drill (the number, its change, what it
+  means, the line large with the compare period, best and weakest day, and the same number by channel / device / new
+  vs returning, or the queries and pages behind it). The listener sits on the tile row and stops the click before the
+  app-wide glossary panel (which is someone else's code; left untouched). Rates are drawn in percent units because
+  `lineChart` floors its scale at 1.
+- **Behaviour (Microsoft Clarity)** (`clarityCard`, `#v2clar` on Website, shown even when GA4 is not linked): not
+  connected = what it adds + the steps + a token box (and optional project ID) that PUTs account-health `/api/clarity`;
+  connected = a conclusion line, four minis (rage clicks, dead clicks, quick backs, scroll depth, each % of sessions,
+  with a daily line once history builds), a sortable per-page table (red = well above the site's own rate) with a
+  Heatmap link per page (`/projects/view/<id>/heatmaps?url=`; the `url` parameter is unverified against Clarity) and
+  Open recordings. Clarity's API gives the last 3 days only and 10 reads a project a day; Locus reads at most every 8
+  hours and keeps a daily history. Brand settings > Integrations has a "Microsoft Clarity" row (group Website).
+- Checked on the local trio (worktree statics :8821, account-health dev :8822, profit dev :8823) with Lucky (email,
+  website, search), Party Patch and all brands; 375 wide has no sideways scroll. The Clarity connected state was checked
+  with a stubbed answer only (no brand has a token yet).
+
+
+## 2026-10-09: Ads > Meta > Ads (the gallery), Cole's pass, and Make iterations
+
+Cole: only the picture opened an ad, "super laggy", after closing an ad nothing was clickable, the sheet's left nav stopped
+on The call, "Make iterations in Studio" was a pop-up in a pop-up with no workflow, the tag report, scatters, fatigue and
+cadence cards were hard to read, and Overview vs Campaigns looked the same. All in v2.js `creative()` / `previewAd` /
+`panel()` / `campTable`, studio.js, and the "Ads > Meta > Ads, Cole's pass" block at the end of v2.css.
+- **The closed sheet ate every click.** `#v2panel.sheet` without `.on` sat centred over the page at opacity 0. v2.css now
+  gives a closed panel `pointer-events:none; visibility:hidden` (visibility flips after the fade), and `close()` removes
+  any playing iframe / video (Meta's preview kept playing invisibly). `panel.close()` is exposed. Checked 20 open/close
+  cycles (Escape and scrim): 0 stuck (was 20 of 20).
+- **The whole card is one button** (`.g[data-prev]`, role button, Enter/Space). Only the Compare tick keeps its own
+  click. One delegated click / keydown / change listener on `#v2galw` serves every card (it survives repaints). The
+  card's purchases number no longer drills to orders (the sheet's Purchases does).
+- **Lag:** pages of 24 cards, "Show N more" appends (never a full redraw; auto-append on scroll was itself jank, so it is
+  a click); covers load through an IntersectionObserver (1200px margin, batched 60ms); no backdrop blur on the play mark,
+  no filter / lift / shadow on card hover, `contain: layout paint` per card; the global hover tip (`tipAt`) only
+  rewrites and re-measures when its text changes. Measured headless Chrome, 4x CPU throttle, Party Patch 30 days, same
+  data, before (HEAD copy) vs after: hover + scroll sweep main-thread work ~9.0s -> ~5.4s, long tasks in the sweep 52 / 23
+  -> 0 / 1, layout in the sweep ~310ms -> ~65ms; page load long-task time ~5.2s -> ~3.4s; hover-only paint 911ms -> ~450ms.
+  `content-visibility:auto` on cards was tried and dropped (it moved the work into scrolling).
+- **Sheet scroll-spy** (`panel()`): positions from getBoundingClientRect against `.pb`, rAF-throttled, the last row wins at
+  the end, a `.v2spy-end` spacer lets the last section reach the top (`panel.refit()` after late content: copy, breakdown),
+  a click lights its row at once and holds 900ms. The Ad copy section always exists (filled when Meta answers).
+- **Make iterations** (preview "Next steps", every ad; video = a frame): the sheet becomes ONE step (`iterateStep`, no
+  modal): what Locus learned (call + why, results, weakest funnel step from `weakOf`, AI tags, the copy, the grade),
+  "What the three will test" (picked from the weakest step: hook -> headlines / hooks, hold -> looks, click or purchase
+  -> offer; changeable), an optional "What should change?", one button. `StudioTab.iterate()` (studio.js) sends a written
+  brief to account-health `/api/studio-ai/brief` (the same reader + brand brain the ideas pipeline uses; no worker change),
+  fetches `/api/ad-original` as the base photo of every line, saves the batch with `setup.from_ad` {id, name, change, at},
+  then Locus opens Studio, which opens that batch and plans it (`S.openId`, `S.autoPlan`). A from-ad batch with no ads
+  is ONE card ("Ready to make": base image, angle, why, testing, the three lines, one primary Make button) with the brief,
+  product and plan folded under it. Measured live (Party Patch, ah-worker-dev): 17s to write, 45s to planned. Test batch
+  archived after. "Brief it in Asana instead" keeps the Strategist route. `StudioTab.fromAd` still exists, unused by v2.
+- **What is working, by tag**: one ranked table per tag group (share of the group's spend as a bar, CPA and ROAS each
+  against the account, best / worst marked only when 10% better / 15% worse or no sales, among values past the judging
+  bar); the card's first line names the best and the worst across groups (both clickable). A row filters the gallery and
+  scrolls to it; a "Showing only" line clears it.
+- **Scatters** (`scatter()` / `wireScatter()`): labelled axes, gridlines, goal line, a "no purchases yet" band on the CPA
+  chart, every dot a focusable button (hover or focus = name + numbers + call, click / Enter = the preview). The hover tip
+  is mouse-only on hover devices, so a tap opens the ad at once. One legend line explains colour and size.
+- **When ads tire / Are we launching enough?** use `ccard()` (the conclusion is its own line under the title, never beside
+  it) and SVG charts: CPA by days live with the goal line in the right margin; ads launched per week as bars (left axis)
+  with spend on ads under 14 days old as a line (right axis). When every age runs over goal the line says it is not fatigue.
+- **Meta Overview = "Top campaigns"** (the 5 that spent most, total row "All N campaigns", "See all N campaigns" opens the
+  Campaigns job); Campaigns keeps the full editable tree.
+- Local check recipe used (no shared browser pane): own static server + `wrangler dev --remote` profit / account-health on
+  spare ports, headless Chrome driven over CDP from node (scratch scripts), light, dark and 375 wide. The tag tables also
+  fixed a page that was 486-525px wide on a phone.

@@ -37,8 +37,12 @@ function css() {
   const s = document.createElement('style'); s.id = 'ncCss';
   s.textContent = `
   .nc-chips{display:flex;flex-wrap:wrap;gap:6px}
-  .nc-chip{border:1px solid var(--line-strong);background:transparent;color:inherit;border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
-  .nc-chip[aria-pressed="true"]{background:var(--ink,#17202b);color:var(--on-ink,#fff);border-color:transparent}
+  /* The selected state is the design system's (soft fill, accent ring, a check), readable in light and dark.
+     It used to be --ink on --on-ink, which in dark is light text on a light fill: the name vanished. */
+  .nc-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line-strong);background:transparent;color:inherit;border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+  .nc-chip .nc-ck{display:none;width:13px;height:13px;flex:none}
+  .nc-chip[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand-ink,var(--ink));border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);font-weight:600;padding-left:9px}
+  .nc-chip[aria-pressed="true"] .nc-ck{display:block}
   .nc-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media (max-width:560px){.nc-two{grid-template-columns:1fr}}
   .nc-step{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:10px 0;border-top:1px solid var(--line);align-items:start}
@@ -48,9 +52,7 @@ function css() {
   .nc-step .tiny{display:block;margin-top:2px;line-height:1.45;overflow-wrap:anywhere}
   .nc-bad{color:var(--bad)}
   .nc-mail textarea,.nc-mail input{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:9px 10px;font:inherit;font-size:13.5px;line-height:1.5;background:transparent;color:inherit}
-  .nc-list{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55}
-  .nc-runs{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
-  .nc-runs a{font-size:13.5px}`;
+  .nc-list{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55}`;
   document.head.appendChild(s);
 }
 
@@ -83,11 +85,10 @@ async function open() {
   const guess = re => team.filter(t => re.test(t.name) || re.test(t.email)).map(t => t.email);
   pick.buyer = guess(/ahsan/i); pick.editor = guess(/ravo/i); pick.designer = guess(/william/i);
   const chips = role => team.length
-    ? `<div class="nc-chips" data-role="${role}">${team.map(t => `<button type="button" class="nc-chip" data-e="${esc(t.email)}" aria-pressed="${pick[role].includes(t.email)}">${esc(t.name.split(' ')[0])}</button>`).join('')}</div>`
+    ? `<div class="nc-chips" data-role="${role}">${team.map(t => `<button type="button" class="nc-chip" data-e="${esc(t.email)}" aria-pressed="${pick[role].includes(t.email)}"><svg class="nc-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>${esc(t.name.split(' ')[0])}</button>`).join('')}</div>`
     : `<span class="tiny nc-bad">Could not read the team from Asana${opts.team_error ? ': ' + esc(opts.team_error) : ''}.</span>`;
   const f = (label, help, control) => `<div class="ab-f"><label>${label}</label><p class="hint">${help}</p>${control}</div>`;
   const today = new Date().toISOString().slice(0, 10);
-  const runs = (opts.runs || []);
 
   const frameRow = opts.frame
     ? ''
@@ -95,7 +96,6 @@ async function open() {
   const w = shell(`<h3>New client</h3>
     <p class="hint" style="margin-bottom:14px">Fill this in once. Locus then makes their Asana project, onboarding link, Drive folder, Slack channels and Frame project. The client gets nothing until you press Send on the welcome email. You see every step as it happens.</p>
     ${frameRow}
-    ${runs.length ? `<div class="nc-runs"><span class="tiny">Already started:</span>${runs.map(r => `<a href="#" data-run="${esc(r.id)}">${esc(r.name)} · open its setup</a>`).join('')}</div>` : ''}
     <div class="ab-form">
       ${f('Brand name', 'What you call them everywhere. It becomes the Asana project, the Drive folder and the Slack channel names.', '<input type="text" id="ncName" placeholder="e.g. Bonk Golf">')}
       ${f('Website', 'Locus reads it to pre-fill their onboarding form.', '<input type="text" id="ncSite" placeholder="brand.com">')}
@@ -128,7 +128,6 @@ async function open() {
     pick[role] = pick[role].includes(b.dataset.e) ? pick[role].filter(x => x !== b.dataset.e) : [...pick[role], b.dataset.e];
     g.querySelectorAll('.nc-chip').forEach(x => x.setAttribute('aria-pressed', String(pick[role].includes(x.dataset.e))));
   });
-  w.querySelectorAll('[data-run]').forEach(a => a.onclick = e => { e.preventDefault(); close(); status(a.dataset.run, false); });
   const fr = $$('#ncFrame'); if (fr) fr.onclick = e => { e.preventDefault(); close(); connectFrame(); };
   const te = $$('#ncTeamEdit'); if (te) te.onclick = e => { e.preventDefault(); close(); editTeam(team); };
 
@@ -298,10 +297,16 @@ async function status(id, autorun) {
       </div>
       ${invoiceBlock()}
       ${contractBlock()}
+      <div style="margin-top:16px"><b style="font-size:14px">4. Their Locus login</b>
+        <span class="tiny" style="display:block;margin-top:2px">Their own sign-in to Locus with Google: ${esc(run.name)} only, read-only, and everything about their own business (sales, ads, email, the store, P&L, change history, the calendar, the reports you send). You see the email before it goes; nothing is sent on its own.</span>
+        <button class="btn" id="ncLocus" style="margin-top:6px">Invite to Locus</button></div>
       <div style="margin-top:16px"><b style="font-size:14px">Still by hand for now</b>
         <ul class="nc-list">${BY_HAND.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div class="row" style="justify-content:space-between;gap:8px;margin:14px 0 0"><button class="btn" id="ncRemove" style="color:var(--bad)">Remove this client</button><button class="btn" id="ncClose">Close</button></div>`;
     body.querySelector('#ncClose').onclick = close;
+    /* Invite to Locus (2026-10-09): the same invite as Agency settings > Clients (clients.js), prefilled. */
+    const lb = body.querySelector('#ncLocus');
+    if (lb) lb.onclick = () => { if (window.ClientsTab) window.ClientsTab.invite({ emails: run.contact_email || '', name: run.contact_name || '', brands: run.act_id && /^brand_/.test(run.act_id) ? [run.act_id] : [] }); };
     wireAmend();
     wireChange();
     wireMeta();
