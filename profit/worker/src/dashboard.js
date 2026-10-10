@@ -17,7 +17,16 @@
  * The vocabularies (METRICS, COLUMNS) are the same words the Strategist is told to use.
  * `chart` (2026-10-08) is a Strategist answer pinned from the chat (ask-ui.js "Pin to a dashboard"):
  * `spec` is the ```chart JSON exactly as it was drawn, frozen as of `pinned_at`; Locus draws it with
- * AskUI.chartHTML and offers Refresh (re-asks `question`); the Slack post shows its title only. */
+ * AskUI.chartHTML and offers Refresh (re-asks `question`); the Slack post shows its title only.
+ *
+ * Per-block dates (2026-10-10): a data block (tiles, brands, channels, daily, email, ads) may carry
+ * `dates: { range, from?, to?, compare? }` that overrides the dashboard's range for that block only.
+ * range = one of the dashboard presets, a whole number of days 1..90 ("14" = last 14 days), or
+ * 'custom' with from/to (YYYY-MM-DD, from <= to, at most 366 days). compare is optional; left out it
+ * follows the dashboard's. No `dates` = the dashboard's range, exactly as before. Anything invalid is
+ * dropped by `cleanDates` (the block falls back to the dashboard's dates). Locus fetches one
+ * /api/overview per distinct range; the account-health Slack post reads storePeriod per range;
+ * the Strategist's save_dashboard imports cleanDates from here. */
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, POST, PATCH, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', ...CORS } });
 const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, n);
@@ -29,6 +38,22 @@ const COMPARES = new Set(['prev', 'yoy', 'none']);
 const SCHEDULES = new Set(['', 'daily', 'monday', 'first']);
 const BLOCKS = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'note', 'chart', 'ads']);
 const CHART_MAX = 20000;
+/** Blocks that read numbers, so can carry their own dates. A note or a pinned chart cannot. */
+export const DATED_BLOCKS = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'ads']);
+const isDay = x => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(x || ''))) return false; const t = Date.parse(x + 'T00:00:00Z'); return isFinite(t) && new Date(t).toISOString().slice(0, 10) === x; };
+/** A block's own dates, cleaned; null = invalid or absent, so the block uses the dashboard's. */
+export function cleanDates(d) {
+  if (!d || typeof d !== 'object') return null;
+  const r = String(d.range ?? '').trim(), out = {};
+  if (r === 'custom') {
+    if (!isDay(d.from) || !isDay(d.to) || d.from > d.to || (Date.parse(d.to) - Date.parse(d.from)) / 86400000 + 1 > 366) return null;
+    out.range = 'custom'; out.from = d.from; out.to = d.to;
+  } else if (RANGES.has(r)) out.range = r;
+  else if (/^\d{1,2}$/.test(r) && +r >= 1 && +r <= 90) out.range = String(+r);
+  else return null;
+  if (COMPARES.has(d.compare)) out.compare = d.compare;
+  return out;
+}
 /** A pinned chart's spec, cleaned to what AskUI.chartHTML draws: bar | line | table, 15 labels, 3 series. */
 function cleanChart(c) {
   if (!c || typeof c !== 'object' || !['bar', 'line', 'table'].includes(c.type)) return null;
@@ -75,6 +100,7 @@ export function cleanSpec(sp, scope) {
       out.tag = b.tag && typeof b.tag === 'object' ? { k: clip(b.tag.k, 30), v: clip(b.tag.v, 80) } : null;
       out.ids = Array.isArray(b.ids) ? b.ids.map(x => clip(x, 30)).filter(x => /^\d{6,25}$/.test(x)).slice(0, 8) : [];
     }
+    if (DATED_BLOCKS.has(b.type) && b.dates) { const dt = cleanDates(b.dates); if (dt) out.dates = dt; }
     if (b.type === 'chart') {
       out.spec = cleanChart(b.spec); if (!out.spec) return null;
       out.question = clip(b.question, 600);

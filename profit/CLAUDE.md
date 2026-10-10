@@ -1794,7 +1794,8 @@ Plan: `docs/locus-hub/plan.md` (Cole approved the rail and said "start and end e
   Routes (profit worker, authed): `GET /api/dashboards?act=`, `GET /api/dashboard?id=`, `PUT /api/dashboard`
   (upsert; `cleanSpec` drops anything outside the vocabulary), `DELETE /api/dashboard?id=`.
 - **The spec** = `{scope: 'all'|act_id, range: yesterday|7|30|90|mtd|lastmonth, compare: prev|yoy|none,
-  blocks: [tiles{metrics} | brands{columns} | channels | daily | email | note{text}]}`. Vocabularies
+  blocks: [tiles{metrics} | brands{columns} | channels | daily | email | note{text}]}`; since 2026-10-10 a data block
+  may also carry its own `dates` (see "Per-block dates" further down). Vocabularies
   `METRICS` / `COLUMNS` in dashboard.js are the words the Strategist is told to use; keep the three copies
   (dashboard.js, strategist.js `save_dashboard`, index.html `DASH_TILES` / `DASH_COLS`) in step.
 - **The Strategist** (`save_dashboard` action, `dashboards` view) writes the spec from words; Apply inserts
@@ -2477,8 +2478,17 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   (`.de-grip`): pointer drag (pointer capture, the others slide, `html.de-nosel` stops text selection) or focus + arrow
   keys (announced in `#deLive`). Every option the spec allows: block titles, up to 8 metrics / 8 columns as numbered chips
   in pick order, note text, a saved ads view's sort / how many / one card per creative; chart blocks are kept read-only.
-  **The spec has ONE range per dashboard** (`cleanSpec` drops anything else), so there is no per-block date range; adding
-  one needs dashboard.js, strategist.js `save_dashboard` and the Slack tick changed together. Escape or Cancel closes.
+  **Per-block dates (2026-10-10):** the dashboard has one range and compare, and any DATA block (tiles, brands, channels,
+  daily, email, ads; never note or chart) may carry `dates: {range, from?, to?, compare?}` that overrides it for that
+  block only. range = a dashboard preset, a whole number of days 1..90, or `custom` with from/to (YYYY-MM-DD, at most 366
+  days); compare left out = the dashboard's. `cleanDates` (dashboard.js, exported) cleans it; anything invalid is
+  dropped and the block falls back to the dashboard's dates; no `dates` = exactly as before. Locus: `dashEff(spec, b)`
+  is the spec a block reads with, `dashLoad` reads `/api/overview` once per distinct range, `dashBlockFrom` draws a
+  block from its own read, and a block whose range differs says it under its title (`.ds-rng`). The editor has
+  "Dates: Same as the dashboard / Its own" inside each data block (range, compare, From/To for custom). The Strategist's
+  `save_dashboard` takes `dates` per block (imports `cleanDates` from dashboard.js) from words like "last 7 days for the
+  CPA tiles". The Slack post (account-health `dashNumbers` / `dashBlocks`) reads storePeriod once per distinct range and
+  puts the block's range in italics under its title. Checks: account-health/worker/test-dashrange.mjs. Escape or Cancel closes.
 - **Spacing pass** (block "SPACING PASS" at the end of v2.css): brand settings groups (`.setpane.bmode .brow-grp`) were
   cards with 2px top/bottom padding inside the old accordion body's 14px 16px inset, so the cards sat 16px right of their
   section title and inner boxes touched the card edges (Cole's Archive box). Now: body inset 0, group 4px 20px 20px,

@@ -1152,7 +1152,9 @@ const DASH_POST_HOUR = 8;
 const DASH_URL = 'https://tools.go-mobius-digital.com/profit/?open=dash&id=';
 const DASH_TABLE = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, act_id TEXT, name TEXT NOT NULL, for_who TEXT, spec_json TEXT NOT NULL, schedule TEXT, channel TEXT, pinned INTEGER NOT NULL DEFAULT 1, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), last_posted TEXT)`;
 const centralDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: BRIEF_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-function dashRange(acct, range) {
+function dashRange(acct, range, from, to) {
+  /* A block's own custom dates (2026-10-10, cleaned by profit dashboard.js cleanDates). */
+  if (range === 'custom' && /^\d{4}-\d{2}-\d{2}$/.test(from || '') && /^\d{4}-\d{2}-\d{2}$/.test(to || '') && from <= to) return { from, to, label: `${from} to ${to}` };
   const today = localDate(acct.tz), y = addDays(today, -1);
   if (range === 'yesterday') return { from: y, to: y, label: `Yesterday, ${y}` };
   if (range === 'mtd') return { from: `${today.slice(0, 7)}-01`, to: y, label: `Month to date, ${today.slice(0, 7)}-01 to ${y}` };
@@ -1192,31 +1194,66 @@ function dashSum(list) {
   t.email_share_of_revenue = t.revenue && t.email_revenue != null ? t.email_revenue / t.revenue : null;
   return t;
 }
-async function dashNumbers(env, row) {
-  const spec = safeJson(row.spec_json, {}) || {};
-  const all = await listAccounts(env, true);
-  /* A dashboard saved before phase 3 may hold an old act id as its scope. */
-  const scope = spec.scope && spec.scope !== 'all' ? await resolveBrandId(env, spec.scope) : null;
-  const accts = scope ? all.filter(a => a.act_id === scope) : all;
-  if (!accts.length) throw new Error('No brand in this dashboard\'s scope is active.');
+/* One range over every brand in scope: per brand numbers, the sum, and the compare period. */
+async function dashPeriod(env, accts, dt, read = storePeriod) {
   const out = [];
   let label = '';
   for (const a of accts) {
-    const r = dashRange(a, spec.range || '30'); label = label || r.label;
-    const prev = dashPrev(r.from, r.to, spec.compare || 'prev');
-    const cur = await storePeriod(env, a, r.from, r.to).catch(() => null);
-    const pr = prev ? await storePeriod(env, a, prev.from, prev.to).catch(() => null) : null;
+    const r = dashRange(a, dt.range || '30', dt.from, dt.to); label = label || r.label;
+    const prev = dashPrev(r.from, r.to, dt.compare || 'prev');
+    const cur = await read(env, a, r.from, r.to).catch(() => null);
+    const pr = prev ? await read(env, a, prev.from, prev.to).catch(() => null) : null;
     out.push({ a, cur, prev: pr });
   }
-  return { spec, accts: out, label, cur: dashSum(out.map(x => x.cur).filter(Boolean)), prev: spec.compare === 'none' ? null : dashSum(out.map(x => x.prev).filter(Boolean)), cur_code: [...new Set(accts.map(a => a.currency))].length === 1 ? accts[0].currency : null };
+  return { accts: out, label, compare: dt.compare || 'prev', cur: dashSum(out.map(x => x.cur).filter(Boolean)), prev: dt.compare === 'none' ? null : dashSum(out.map(x => x.prev).filter(Boolean)) };
+}
+/** A block's own dates (2026-10-10): `dates` on a block overrides the dashboard's range; compare
+ *  left out follows the dashboard's. Null = the dashboard's dates. */
+const DASH_DATED = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'ads']);
+function dashBlockDates(spec, b) {
+  const o = b && DASH_DATED.has(b.type) && b.dates && typeof b.dates === 'object' ? b.dates : null;
+  if (!o || !o.range) return null;
+  return { range: String(o.range), from: o.from, to: o.to, compare: ['prev', 'yoy', 'none'].includes(o.compare) ? o.compare : (spec.compare || 'prev') };
+}
+const dashKey = dt => [dt.range, dt.from || '', dt.to || '', dt.compare].join('|');
+/* `deps` (accounts, read) is for the offline test (test-dashrange.mjs); the worker never passes it. */
+async function dashNumbers(env, row, deps = {}) {
+  const spec = safeJson(row.spec_json, {}) || {};
+  const all = deps.accounts || await listAccounts(env, true);
+  /* A dashboard saved before phase 3 may hold an old act id as its scope. */
+  const scope = spec.scope && spec.scope !== 'all' ? (deps.accounts ? spec.scope : await resolveBrandId(env, spec.scope)) : null;
+  const accts = scope ? all.filter(a => a.act_id === scope) : all;
+  if (!accts.length) throw new Error('No brand in this dashboard\'s scope is active.');
+  const read = deps.read || storePeriod;
+  const main = { range: String(spec.range || '30'), compare: spec.compare || 'prev' };
+  const base = await dashPeriod(env, accts, main, read);
+  /* One read per distinct block range; a block whose dates equal the dashboard's reuses it. */
+  const seen = new Map([[dashKey(main), base]]);
+  const blk = [];
+  for (const b of spec.blocks || []) {
+    const dt = dashBlockDates(spec, b);
+    if (!dt) { blk.push(null); continue; }
+    const k = dashKey(dt);
+    if (!seen.has(k)) seen.set(k, await dashPeriod(env, accts, dt, read));
+    const p = seen.get(k);
+    blk.push(p === base ? null : p);
+  }
+  return { spec, ...base, blk, cur_code: [...new Set(accts.map(a => a.currency))].length === 1 ? accts[0].currency : null };
 }
 function dashBlocks(row, d) {
   const cur = d.cur_code, mixed = !cur;
   const scopeName = d.accts.length === 1 ? d.accts[0].a.name : `${d.accts.length} brands`;
   const blocks = [{ type: 'header', text: { type: 'plain_text', text: row.name.slice(0, 150) } },
     { type: 'context', elements: [{ type: 'mrkdwn', text: `${scopeName} · ${d.label}${d.prev ? ` · deltas vs ${d.spec.compare === 'yoy' ? 'same dates last year' : 'the period before'}` : ''}${row.for_who ? ` · for ${row.for_who}` : ''}` }] }];
-  for (const b of d.spec.blocks || []) {
-    const title = b.title ? `*${b.title}*\n` : '';
+  const vsOf = c => c === 'yoy' ? 'same dates last year' : 'the period before';
+  const base = d;
+  for (const [bi, b] of (base.spec.blocks || []).entries()) {
+    /* A block with its own dates (2026-10-10) reads its own numbers and says its range under the title. */
+    const own = base.blk && base.blk[bi];
+    const d = own ? { ...base, ...own } : base;
+    const deflt = { channels: 'Where the money came from', email: 'Email and SMS', daily: 'Day by day', tiles: 'The numbers', brands: 'By brand' };
+    const title = (b.title ? `*${b.title}*\n` : own && deflt[b.type] ? `*${deflt[b.type]}*\n` : '')
+      + (own ? `_${own.label}${own.prev ? `, deltas vs ${vsOf(own.compare)}` : ''}_\n` : '');
     if (b.type === 'tiles') {
       if (mixed) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}_Brands report in different currencies; open in Locus for the per-brand view._` } }); continue; }
       const lines = (b.metrics || []).map(m => DASH_METRICS[m]).filter(Boolean).map(([l, f, k]) => `• ${l}: *${f(d.cur, cur)}*${d.prev ? dDelta(d.cur[k], d.prev[k]) : ''}`);
@@ -1243,7 +1280,7 @@ function dashBlocks(row, d) {
 _A chart pinned from the Strategist${b.pinned_at ? ` on ${String(b.pinned_at).slice(0, 10)}` : ''}; open in Locus to see it._` } });
     } else if (b.type === 'ads') {
       /* A view saved from Ads > Creative (2026-10-09): the ad cards live in Locus. */
-      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || 'Ads').slice(0, 150)}*
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || 'Ads').slice(0, 150)}*${own ? `\n_${own.label}_` : ''}
 _The ad cards (sorted by ${b.sort || 'spend'}${b.group ? ', one per creative' : ''}) are on the dashboard in Locus._` } });
     }
   }
@@ -9223,4 +9260,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
   },
 };
+/* For the offline dashboard checks (test-dashrange.mjs). */
+export { dashNumbers, dashBlocks, dashRange };
 export default AH_APP;
