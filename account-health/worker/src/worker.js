@@ -52,6 +52,7 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
+import { smokeTick, handleSmoke } from './smoke.js';
 import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProject, forgetClarity } from './clarity.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
@@ -6687,6 +6688,15 @@ function autoDeps() {
 function idxDeps() {
   return { slackApi, getSetting, putSetting, safeJson, xfetch, canAfford: n => subCanAfford(n) };
 }
+/* The daily smoke check (smoke.js, 2026-10-10). `meter` lets it run this worker's own routes in-process:
+   handle() resets SUB_USED and COST_SEEN, so hold() saves both and its restore puts back the saved count plus
+   what the smoke check counted itself. */
+function smokeDeps() {
+  return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackApi, isAdmin, xfetch, mintSession, integrationsReport,
+    ahFetch: (req, env) => AH_APP.fetch(req, env, { waitUntil() {} }),
+    meter: { left: subLeft, used: subUsed, spend: subSpend, zero: () => { SUB_USED = 0; },
+      hold: () => { const used = SUB_USED, seen = new Map(COST_SEEN); return extra => { SUB_USED = used + extra; COST_SEEN.clear(); for (const [k, v] of seen) COST_SEEN.set(k, v); }; } } };
+}
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
@@ -7086,6 +7096,8 @@ const AH_APP = {
         ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* Is Locus itself working: every page's routes, connections and freshness, once a Central morning (smoke.js). */
+        ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
         ran.slackIndex = await backfillTick(env, idxDeps()).then(r => ({ pages: r.pages, added: r.channels.reduce((s, c) => s + (c.added || 0), 0), errors: r.channels.filter(c => c.error).length })).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
@@ -8158,6 +8170,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       for (const [k, v] of Object.entries(links)) { try { await connSet(env, acct.act_id, k, v); } catch (e) { return json({ error: e.message }, 400); } }
       const next = { drive: (await connGet(env, acct.act_id, 'drive'))?.external_id, frame: (await connGet(env, acct.act_id, 'frame'))?.external_id };
       return json({ ok: true, links: next, ...(klaviyo ? { klaviyo: { company: klaviyo.company, account_id: klaviyo.account_id } } : {}) });
+    }
+    /* The daily smoke check (smoke.js): GET /api/smoke, POST /api/smoke/run {dry, brand}, PUT /api/smoke {check, quiet}. Admin. */
+    if (path.startsWith('/api/smoke')) {
+      const r = await handleSmoke(request, env, path, json, smokeDeps());
+      if (r) return r;
     }
     if (path === '/api/schedule-health' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);

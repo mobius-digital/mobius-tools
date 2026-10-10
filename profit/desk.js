@@ -890,6 +890,7 @@
     }).join('');
     $('#main').innerHTML = shell('pulse', 'Platform status', `<p class="v2say lead">${say}</p>
       <div class="v2tiles pu-tiles">${tiles}</div>
+      <div id="puSmoke"></div>
       ${U().card('Right now', 'Problems first. Times in Central.', `<div class="pu-grid">${fedSorted.map(card).join('')}</div>
         ${dark.length ? `<div class="pu-dark"><span class="ds-label">No public feed: check their page</span><div>${dark.map(p => `<a class="ds-chip" href="${esc(p.link || '#')}" target="_blank" rel="noopener">${window.logo ? window.logo(PULSE_LOGO[p.id] || '', 14, p.name) : ''}${esc(p.name)}<svg class="ic" aria-hidden="true"><use href="#i-external-link"/></svg></a>`).join('')}</div></div>` : ''}`, `<button type="button" class="ds-btn" id="puAgain"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Check again</button>`)}
       ${U().card('The last 14 days', `${per.reduce((s, a) => s + a.length, 0)} problems started. Hover a day for which platform.`, bars)}
@@ -898,6 +899,52 @@
       ${U().foot('Pulse reads the public status feeds of Meta, Google Ads, Shopify, Pinterest, OpenAI and Anthropic. TikTok, Microsoft, LinkedIn, Snap, X, Amazon and Apple publish no machine feed, so they show their status page link. An outage also shows on Home &gt; Day check. Slack alerts and client fan-out stay on the Pulse page.')}`);
     const again = $('#puAgain'); if (again) again.onclick = () => H.show('pulse');
     document.querySelectorAll('#main [data-pf]').forEach(b => b.onclick = () => { PULSE_F = b.dataset.pf; pulse(false); });
+    smokeCard(t);
+  }
+  /* LOCUS ITSELF (2026-10-10): the daily smoke check (account-health smoke.js). Every page's data routes for All
+     clients and each active brand, the connections and data freshness, every morning at 6am Central; failures
+     go to the Strategist channel. Run now is a dry run unless "Post failures to Slack" is ticked. */
+  async function smokeCard(t, fresh) {
+    const el = $('#puSmoke'); if (!el) return;
+    const chrono = iso => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+    let d = fresh;
+    if (!d) { try { d = await H.apiAH(`/api/smoke?t=${Date.now()}`); } catch (e) { if (t === H.RUN() && el.isConnected) el.innerHTML = U().card('Locus itself', '', `<p class="v2bad">The check did not answer: ${esc(e.message)}</p>`); return; } }
+    if (t !== H.RUN() || !el.isConnected) return;
+    const L = d.last, st = d.settings || {};
+    const fails = (L && L.failed) || [];
+    const say = !L ? 'Not run yet. The first check runs at 6am Central, or press Run now.'
+      : fails.length ? `<b class="bad">${fails.length} of ${L.total} checks failed</b> ${L.manual ? 'on a run by hand' : 'this morning'}, ${esc(chrono(L.at))} Central.`
+      : `<b class="good">All ${L.total} checks passed</b>, ${esc(chrono(L.at))} Central.`;
+    const run = d.running ? `<p class="v2hint">This morning's check is part way: ${d.running.done} of ${d.running.of} pages read. It finishes on the next hourly run.</p>` : '';
+    const rows = fails.slice(0, 40).map(f => `<tr><td>${esc(f.brand)}</td><td>${esc(f.page)}</td><td class="pu-note">${esc(f.error)}</td><td><button type="button" class="ds-btn pu-open" data-sa="${esc(f.act || 'all')}" data-so="${esc((/[?&]open=([a-z]+)/.exec(f.link || '') || [])[1] || 'overview')}">Open</button></td></tr>`).join('');
+    const facts = L ? [
+      `${L.checked} page reads${L.brands != null ? ` across ${L.brands} brands and All clients` : ''}, plus connections and freshness`,
+      L.not_checked ? `${L.not_checked} reads did not fit in the budget` : '',
+      L.cost != null ? `about ${L.cost} subrequests` : '',
+      L.slowest && L.slowest[0] ? `slowest: ${esc(L.slowest[0].page)} for ${esc(L.slowest[0].brand)}, ${(L.slowest[0].ms / 1000).toFixed(1)}s` : '',
+      L.dry ? 'dry run, nothing posted' : L.posted ? 'posted to the Strategist channel' : L.post_error ? esc(L.post_error) : fails.length ? '' : 'nothing to post',
+    ].filter(Boolean).join('. ') + '.' : '';
+    el.innerHTML = U().card('Locus itself', 'Every page, every brand, the connections and data freshness, read every morning at 6am Central. Only failures are posted, to the Strategist channel.',
+      `<p class="v2say">${say}</p>${run}
+      ${rows ? `<div class="v2tbl pu-t"><table><thead><tr><th>Brand</th><th>What</th><th>Error</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+      ${facts ? `<p class="v2hint">${facts}</p>` : ''}
+      <div class="pu-sm">
+        <label><input type="checkbox" id="smOn" ${st.check !== 'off' ? 'checked' : ''}> Check every morning <span class="faint">(off stops the daily check)</span></label>
+        <label><input type="checkbox" id="smLoud" ${st.quiet === 'off' ? 'checked' : ''}> Post when everything passes too <span class="faint">(default: failures only)</span></label>
+        <label><input type="checkbox" id="smPost"> Post this run's failures to Slack <span class="faint">(unticked = a dry run: results show here only)</span></label>
+        ${st.channel ? '' : '<p class="v2hint">No Strategist channel is set, so nothing is posted. Set it in Agency settings, The Strategist.</p>'}
+      </div>`,
+      `<button type="button" class="ds-btn" id="smRun"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Run now</button>`);
+    el.querySelectorAll('.pu-open').forEach(b => b.onclick = () => pickAct(b.dataset.sa, b.dataset.so));
+    const save = body => H.apiAH('/api/smoke', { method: 'PUT', body: JSON.stringify(body) }).catch(e => alertBox(e.message));
+    const alertBox = msg => { const p = el.querySelector('.pu-sm'); if (p) p.insertAdjacentHTML('beforeend', `<p class="v2bad">${esc(msg)}</p>`); };
+    el.querySelector('#smOn').onchange = e => save({ check: e.target.checked ? 'on' : 'off' });
+    el.querySelector('#smLoud').onchange = e => save({ quiet: e.target.checked ? 'off' : 'on' });
+    el.querySelector('#smRun').onclick = async e => {
+      const b = e.currentTarget; b.disabled = true; b.textContent = 'Reading every page, about a minute…';
+      try { const r = await H.apiAH('/api/smoke/run', { method: 'POST', body: JSON.stringify({ dry: !el.querySelector('#smPost').checked }) }); if (t === H.RUN()) smokeCard(t, { ...d, last: r.last }); }
+      catch (err) { b.disabled = false; b.textContent = 'Run now'; alertBox(`Run now failed: ${err.message}`); }
+    };
   }
   function pulseCss() {
     if (document.getElementById('pucss')) return;
@@ -935,6 +982,9 @@
       .dk .pu-pl{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
       .dk .pu-note{color:var(--muted)}
       .dk .pu-dur{white-space:nowrap;color:var(--ink-2);text-align:right}
+      .dk .pu-sm{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:13px}
+      .dk .pu-sm label{display:flex;gap:8px;align-items:center;cursor:pointer}
+      .dk .pu-open{padding:4px 10px}
       .dk .pu-sk{display:grid;gap:16px}.dk .pu-sk>span{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
       .dk .pu-sk i{display:block;height:116px;border-radius:var(--r-lg);background:var(--surface-2);animation:pu-sk 1.4s ease-in-out infinite}
       .dk .pu-sk>i:first-child{height:22px;width:60%;border-radius:6px}
