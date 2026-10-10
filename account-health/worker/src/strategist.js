@@ -1,4 +1,5 @@
 import { tiktokReport } from './tiktok.js';
+import { surveyReport } from './survey.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
 /**
@@ -38,6 +39,8 @@ import { writeTools, writeActions } from './metawrite.js';
 import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
+/* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
+import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -259,10 +262,11 @@ WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhe
 - Never say Settings > Connections, Creative > Brand, Copy desk or Yesterday (it is Day check): those names are gone. Orders are PAID orders: $0 orders (product seeding) are not counted (raw counts: totalOrdersAll, newCustomersOrdersAll).
 
 THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of every platform and how they work together")
-- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, cross-channel, messaging). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
+- You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, post-purchase-survey, cross-channel, messaging). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
+- Before cutting a channel that clicks under-credit (upper-funnel video, TikTok, YouTube, creators, podcasts), check the survey view when the brand has a post-purchase survey: what customers SAY is a reality check on Triple Whale, never a replacement for it (knowledge topic post-purchase-survey).
 
 READING AN ACCOUNT
 - Is the brand making money: blended (Triple Whale) first, MER and aMER against the plan. Then are the ads working: Meta-reported delivery (spend, CPM, CTR, hook, hold). Say which lens you are using.
@@ -390,6 +394,7 @@ const VIEW_BLURBS = {
   calendar: 'the marketing calendar (Locus Calendar): for every client or one `brand`, what is live now, every drop, sale, ad push and Black Friday phase in the next six weeks with its offer and its countdown (photos in, ads briefed, built, email scheduled, ads loaded: done, due or LATE, with the owner), Klaviyo sends in the next 14 days, and the brands with nothing planned. Read it before any promotion, launch or budget advice, and to explain a day that moved.',
   stock: 'the brand\'s stock, read live from Shopify through Supply (only brands with the Mobius Digital Shopify app; Lucky today). Pass `brand` and `what` = summary (ease off / safe to scale / push to clear for the ads, with ad spend per product from Triple Whale orders, plus to order and on the way on brands we buy for), products (every product), orders (factory orders and factories) or drops (new designs, keep or cut). THE view for "what is at risk for Black Friday", "can we scale X", "what should we order". Not connected = say so; never guess stock from sales.',
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
+  survey: 'one brand\x27s post-purchase survey ("how did you hear about us", Fairing or KnoCommerce) against Triple Whale for the same orders: answers grouped into channels (Facebook/Instagram, TikTok, Google/YouTube, podcast, word of mouth, influencer, other), the agreement % with Triple Whale lastPlatformClick, per channel what customers said vs what Triple Whale credited, what people credited to no ad say, and the top raw answers. Pass `brand`, optionally `days` or `from`/`to`. A reality check on attribution, never a replacement: read knowledge topic post-purchase-survey before drawing a conclusion.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -665,6 +670,11 @@ function buildViews(d) {
       const acct = await need(env, a); const w = winOf(a);
       const r = await tiktokReport(env, acct.act_id, w.from, w.to);
       return { brand: acct.name, from: w.from, to: w.to, ...r, how_to_read: r.error ? 'TikTok is not read directly for this brand yet (not connected or not linked); use the channels view (Triple Whale totals) and say so.' : 'TikTok\x27s own numbers: spend, impressions, clicks, CTR, CPM exact; purchases and ROAS are TikTok\x27s (include view-through), quote Triple Whale for results.' };
+    },
+    survey: async (env, a) => {
+      const acct = await need(env, a); const w = winOf(a);
+      const r = await surveyReport(env, acct.act_id, { from: w.from, to: w.to });
+      return { brand: acct.name, ...r, how_to_read: r.error === 'not_linked' ? 'No post-purchase survey is connected for this brand (Brand settings > Integrations > Post-purchase survey). Say so, and suggest Fairing if the brand runs upper-funnel video, podcasts or creators.' : `${r.how_to_read} ${VIEW_BLURBS.survey}` };
     },
     google_ads: async (env, a) => {
       const acct = await need(env, a); const w = winOf(a);
@@ -1042,14 +1052,18 @@ const BUILD_ACTIONS = (d) => {
        Blocks bind to views Locus already has; a block that needs a view that does not exist is
        NOT invented: say so and hand it to Claude Code. */
     { name: 'save_dashboard',
-      description: 'Save a dashboard the team wants to KEEP in Locus (Reports > Dashboards), for one brand or all brands, optionally posted to a Slack channel every morning / Monday / the 1st. Blocks: tiles (pick metrics from: revenue, orders, aov, spend, mer, amer, new_share, new_orders, cac, cm, email_rev, email_share, meta_spend, google_spend), brands (one row per brand; columns from: revenue, mtd_vs_plan, spend, mer, amer, new_share, orders, aov, cac, cm, email_rev, costs, trend; only makes sense for scope all), channels (spend and Triple Whale revenue per platform), daily (revenue and spend by day), email (Klaviyo revenue, share, campaigns vs flows), note (a line of text). Read the dashboards view first so you do not make a twin. For a one-off page use make_report instead.',
+      description: 'Save a dashboard the team wants to KEEP in Locus (Reports > Dashboards), for one brand or all brands, optionally posted to a Slack channel every morning / Monday / the 1st. Blocks: tiles (pick metrics from: revenue, orders, aov, spend, mer, amer, new_share, new_orders, cac, cm, email_rev, email_share, meta_spend, google_spend), brands (one row per brand; columns from: revenue, mtd_vs_plan, spend, mer, amer, new_share, orders, aov, cac, cm, email_rev, costs, trend; only makes sense for scope all), channels (spend and Triple Whale revenue per platform), daily (revenue and spend by day), email (Klaviyo revenue, share, campaigns vs flows), note (a line of text). The dashboard has ONE range and compare (range, compare); a data block (not a note) may carry its OWN dates that override it for that block only: dates {range, compare?} or {range: "custom", from, to}. Use it when the words give one block a different window ("last 7 days for the CPA tiles", "the brand table month to date", "email for September": custom 2026-09-01 to 2026-09-30); leave dates off every block that should follow the dashboard. Read the dashboards view first so you do not make a twin. For a one-off page use make_report instead.',
       input_schema: { type: 'object', properties: {
         name: { type: 'string', description: 'Short, as the person would call it: "Ahsan every morning", "Party Patch weekly".' },
         brand: { type: 'string', description: 'A brand name, or "all" for the whole agency.' },
         for_who: { type: 'string', description: 'Who it is for: a name or a role.' },
         range: { type: 'string', enum: ['yesterday', '7', '30', '90', 'mtd', 'lastmonth'], description: 'Default 7 for a daily dashboard, 30 otherwise.' },
         compare: { type: 'string', enum: ['prev', 'yoy', 'none'] },
-        blocks: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['tiles', 'brands', 'channels', 'daily', 'email', 'note'] }, title: { type: 'string' }, metrics: { type: 'array', items: { type: 'string' } }, columns: { type: 'array', items: { type: 'string' } }, text: { type: 'string' } }, required: ['type'] }, description: '1 to 8 blocks, in reading order.' },
+        blocks: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['tiles', 'brands', 'channels', 'daily', 'email', 'note'] }, title: { type: 'string' }, metrics: { type: 'array', items: { type: 'string' } }, columns: { type: 'array', items: { type: 'string' } }, text: { type: 'string' },
+          dates: { type: 'object', description: 'Only when THIS block needs a different window from the dashboard. Left out = the dashboard\'s range and compare.', properties: {
+            range: { type: 'string', description: 'yesterday | mtd | lastmonth | a whole number of days 1 to 90 ("7", "14", "30") | custom' },
+            from: { type: 'string', description: 'YYYY-MM-DD, only with range custom' }, to: { type: 'string', description: 'YYYY-MM-DD, only with range custom (at most 366 days after from)' },
+            compare: { type: 'string', enum: ['prev', 'yoy', 'none'], description: 'Left out = the dashboard\'s compare.' } }, required: ['range'] } }, required: ['type'] }, description: '1 to 8 blocks, in reading order.' },
         schedule: { type: 'string', enum: ['', 'daily', 'monday', 'first'], description: 'When it posts itself to Slack (8am Central). Empty = never.' },
         channel: { type: 'string', description: 'The Slack channel id (C... or G...) it posts to; the brand\'s internal channel when the person says "our channel".' },
         summary: { type: 'string' } }, required: ['name', 'brand', 'blocks', 'summary'] },
@@ -1064,6 +1078,7 @@ const BUILD_ACTIONS = (d) => {
           if (b.type === 'tiles') { o.metrics = (b.metrics || []).filter(m => METRICS.includes(m)).slice(0, 8); if (!o.metrics.length) return null; }
           if (b.type === 'brands') o.columns = (b.columns || []).filter(c => COLUMNS.includes(c)).slice(0, 8);
           if (b.type === 'note') { o.text = clip(b.text || '', 600); if (!o.text) return null; }
+          if (b.type !== 'note' && b.dates) { const dt = cleanDashDates(b.dates); if (dt) o.dates = dt; }
           return o;
         }).filter(Boolean).slice(0, 8);
         if (!blocks.length) return { error: 'None of those blocks can be drawn. Use tiles, brands, channels, daily, email or note.' };
@@ -1071,7 +1086,8 @@ const BUILD_ACTIONS = (d) => {
         const schedule = ['daily', 'monday', 'first'].includes(i.schedule) ? i.schedule : '';
         const channel = /^[CG][A-Z0-9]{6,}$/.test(String(i.channel || '')) ? String(i.channel) : (schedule && acct?.slack_channel ? acct.slack_channel : '');
         const RL = { yesterday: 'Yesterday', '7': 'Last 7 days', '30': 'Last 30 days', '90': 'Last 90 days', mtd: 'Month to date', lastmonth: 'Last month' };
-        const preview = blocks.map((b, n) => `${n + 1}. ${b.title || b.type}${b.type === 'tiles' ? ': ' + b.metrics.join(', ') : b.type === 'brands' ? ': one row per brand' + (b.columns.length ? ' (' + b.columns.join(', ') + ')' : '') : b.type === 'note' ? ': ' + b.text : ''}`).join('\n');
+        const dLabel = dt => (dt.range === 'custom' ? `${dt.from} to ${dt.to}` : RL[dt.range] || `Last ${dt.range} days`) + (dt.compare ? `, compare ${dt.compare === 'none' ? 'nothing' : dt.compare === 'yoy' ? 'same dates last year' : 'the period before'}` : '');
+        const preview = blocks.map((b, n) => `${n + 1}. ${b.title || b.type}${b.type === 'tiles' ? ': ' + b.metrics.join(', ') : b.type === 'brands' ? ': one row per brand' + (b.columns.length ? ' (' + b.columns.join(', ') + ')' : '') : b.type === 'note' ? ': ' + b.text : ''}${b.dates ? ` [own dates: ${dLabel(b.dates)}]` : ''}`).join('\n');
         return { summary: i.summary || `Save the dashboard "${i.name}"`,
           detail: `${acct ? acct.name : 'All brands'} · ${RL[range]} · compare ${i.compare === 'none' ? 'nothing' : i.compare === 'yoy' ? 'same dates last year' : 'the period before'}${i.for_who ? ` · for ${clip(i.for_who, 60)}` : ''}${schedule ? ` · posts ${schedule === 'daily' ? 'every morning' : schedule === 'monday' ? 'every Monday' : 'on the 1st'} at 8am Central${channel ? ` to ${channel}` : ' (no channel yet)'}` : ''}. It lands in Locus under Reports > Dashboards and draws live each time it opens.`,
           preview, patch: { name: clip(i.name, 120), act_id: acct ? acct.act_id : null, for_who: clip(i.for_who || '', 80), spec: { scope: acct ? acct.act_id : 'all', range, compare: ['prev', 'yoy', 'none'].includes(i.compare) ? i.compare : 'prev', blocks }, schedule, channel } };

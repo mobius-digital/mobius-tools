@@ -1794,7 +1794,8 @@ Plan: `docs/locus-hub/plan.md` (Cole approved the rail and said "start and end e
   Routes (profit worker, authed): `GET /api/dashboards?act=`, `GET /api/dashboard?id=`, `PUT /api/dashboard`
   (upsert; `cleanSpec` drops anything outside the vocabulary), `DELETE /api/dashboard?id=`.
 - **The spec** = `{scope: 'all'|act_id, range: yesterday|7|30|90|mtd|lastmonth, compare: prev|yoy|none,
-  blocks: [tiles{metrics} | brands{columns} | channels | daily | email | note{text}]}`. Vocabularies
+  blocks: [tiles{metrics} | brands{columns} | channels | daily | email | note{text}]}`; since 2026-10-10 a data block
+  may also carry its own `dates` (see "Per-block dates" further down). Vocabularies
   `METRICS` / `COLUMNS` in dashboard.js are the words the Strategist is told to use; keep the three copies
   (dashboard.js, strategist.js `save_dashboard`, index.html `DASH_TILES` / `DASH_COLS`) in step.
 - **The Strategist** (`save_dashboard` action, `dashboards` view) writes the spec from words; Apply inserts
@@ -2477,8 +2478,17 @@ The rules live on the server (account-health/CLAUDE.md "CLIENT LOGINS", `brandgu
   (`.de-grip`): pointer drag (pointer capture, the others slide, `html.de-nosel` stops text selection) or focus + arrow
   keys (announced in `#deLive`). Every option the spec allows: block titles, up to 8 metrics / 8 columns as numbered chips
   in pick order, note text, a saved ads view's sort / how many / one card per creative; chart blocks are kept read-only.
-  **The spec has ONE range per dashboard** (`cleanSpec` drops anything else), so there is no per-block date range; adding
-  one needs dashboard.js, strategist.js `save_dashboard` and the Slack tick changed together. Escape or Cancel closes.
+  **Per-block dates (2026-10-10):** the dashboard has one range and compare, and any DATA block (tiles, brands, channels,
+  daily, email, ads; never note or chart) may carry `dates: {range, from?, to?, compare?}` that overrides it for that
+  block only. range = a dashboard preset, a whole number of days 1..90, or `custom` with from/to (YYYY-MM-DD, at most 366
+  days); compare left out = the dashboard's. `cleanDates` (dashboard.js, exported) cleans it; anything invalid is
+  dropped and the block falls back to the dashboard's dates; no `dates` = exactly as before. Locus: `dashEff(spec, b)`
+  is the spec a block reads with, `dashLoad` reads `/api/overview` once per distinct range, `dashBlockFrom` draws a
+  block from its own read, and a block whose range differs says it under its title (`.ds-rng`). The editor has
+  "Dates: Same as the dashboard / Its own" inside each data block (range, compare, From/To for custom). The Strategist's
+  `save_dashboard` takes `dates` per block (imports `cleanDates` from dashboard.js) from words like "last 7 days for the
+  CPA tiles". The Slack post (account-health `dashNumbers` / `dashBlocks`) reads storePeriod once per distinct range and
+  puts the block's range in italics under its title. Checks: account-health/worker/test-dashrange.mjs. Escape or Cancel closes.
 - **Spacing pass** (block "SPACING PASS" at the end of v2.css): brand settings groups (`.setpane.bmode .brow-grp`) were
   cards with 2px top/bottom padding inside the old accordion body's 14px 16px inset, so the cards sat 16px right of their
   section title and inner boxes touched the card edges (Cole's Archive box). Now: body inset 0, group 4px 20px 20px,
@@ -2519,8 +2529,8 @@ title had "war" in lower case. Reference: docs/triplewhale-reference/. Page name
   `meta_spend` when Meta has a budget), MER floor, AOV floor (new metric `aov`), stock cover (new metric `stock_cover`: days on
   the 5 best sellers via stock.js). New columns `starts` / `ends` (Central dates; `isDue` skips outside them) and `source`.
 - **Clients** see their brand's War Room read only (CLIENT_TABS 'war', brandguard rule GET /api/season/war): no edits, no ladder,
-  no alerts, stock or AI read. Live numbers for a client need account-health to accept the client token on /api/tw-day (it does
-  not today), so the live card says the team reads them.
+  no alerts, stock or AI read. Live numbers: since 2026-10-10 account-health accepts a client token on
+  /api/tw-day for its own brand (cost ids stripped while P&L is off), so the live card works for clients too.
 - Checked on a local pair (account-health `wrangler dev --remote` + the profit worker local with remote D1) with real data for
   Lucky, Bonk and all brands: dark, light, TV mode, 390px with no sideways scroll; alert create / test / delete with the new
   metrics ran against the real tables and were removed. Stock showed "needs the Google sign-in" locally (dev token).
@@ -2707,3 +2717,75 @@ cadence cards were hard to read, and Overview vs Campaigns looked the same. All 
 - Local check recipe used (no shared browser pane): own static server + `wrangler dev --remote` profit / account-health on
   spare ports, headless Chrome driven over CDP from node (scratch scripts), light, dark and 375 wide. The tag tables also
   fixed a page that was 486-525px wide on a phone.
+
+## 2026-10-10: Launch to Meta (`launch.js`)
+
+- An approved Studio ad shows **Launch to Meta** (studio.js adCard, `data-launch`). The in-app window (launch.js,
+  `window.LaunchToMeta.open`) shows the ad, its test, the ad set picker (suggested first, with why), the name preview
+  ("415 B | Still", editable), primary text, headline, button, link, description; **Check it (dry run)** shows the ad
+  set before and after, then **Create paused**. Afterwards: Open in Ads Manager, Undo (existing /api/meta/undo),
+  Turn it on now (existing /api/meta/write kind resume, dry first, then confirm).
+- Status chips (Live on Meta / On Meta, paused / In review / Rejected / Judged: Winner...) on the Studio ad card and
+  on test library rows (`.lb-row[data-b]` in brand.js, decorated by a MutationObserver in launch.js; brand.js untouched).
+  Click a chip = status window (Check status now reads Meta live). Studio calls `LaunchToMeta.watch(act, tok, paint)`.
+- Server and rules: account-health/CLAUDE.md "2026-10-10: Launch to Meta". Creator assets: `open({act, asset: {image_url |
+  video_id, handle, num}})` works, but no screen calls it yet. NOT tested live (the window was checked only against a
+  mocked API in a local page).
+## 2026-10-10: post-purchase survey card on Store > Customers
+
+- `profit/survey.js` (`window.SurveyCard.mount(host, {act, from, to, api, esc, client, onConnect})`), loaded by a script
+  tag; `renderCustomers` (single brand) adds `<div id="cuSurvey">` above the footnote and mounts it after the page draws,
+  so it never holds the page up. Reads account-health `GET /api/survey` (see account-health/CLAUDE.md, same date).
+- Card "How customers say they found you": the agreement line (same channel on X% of orders both know, and on orders
+  Triple Whale credits to an ad), the biggest gap in words when 30+ orders match, paired bars (customer said vs Triple
+  Whale credited), a table (said, credited, both agree, all answers, plus Triple Whale-only rows such as no ad click),
+  the raw answers, a question picker (team only, when the survey asks more than one). Under 30 matched orders = warning.
+- Empty state: team gets "Connect Fairing or KnoCommerce" (opens Brand settings > Integrations); a client gets a plain
+  "ask your Mobius team". The Integrations save message now names the service it checks with (was always "Klaviyo").
+## 2026-10-10: client requests and approvals (Home > Requests, `requests.js`)
+
+- **Page** `requests` = the fifth tab under Home (NAV.home), also in CLIENT_TABS, SHOWABLE, TAB_TITLE, the `?open=` list
+  and the show() map (inline `window.RequestsTab.render(host, first)`). Engine and rules: account-health/CLAUDE.md
+  "client requests and approvals".
+- **Team, one brand:** "Send for approval" (modal: Ads from this brand's Studio as a thumbnail picker, a calendar date from
+  this week on, an offer, a link or file; title + note) and "Add a request". Sections: Waiting for us (client requests
+  open + changes asked), Waiting for the client, Approved not closed; Done folded. Each item: preview, Mark done / Open it
+  again, thread with a reply box. **All clients:** every brand's items with the brand name, no send buttons.
+- **Client:** Waiting for you (open approvals with Approve / Ask for changes, a note required for changes), Your requests,
+  "Ask the team for something". Their Home shows a "N waiting for you" card (clients.js `waitingLine`, called from
+  `welcome`, so it still shows after the welcome card is dismissed); the welcome list names Requests.
+- Studio images in previews load from this worker's public `/api/studio/img/<id>/<full|final>`. No change to studio.js.
+- Not built: a count on the command center (command.js was out of scope), email for new approvals (nothing for now).
+- Checked offline: a headless Chrome render of requests.js with a stubbed host (client and team sections, escaping, the
+  decide and send modals and their POST bodies). Not tested against the live workers.
+## 2026-10-10: agency economics and team workload (`agency.js`, `window.AgencyTab`)
+
+Two pages under Tools (NAV.tools `economics`, `workload`; `AGR()` in index.html hands the host helpers to
+`window.AgencyTab.render`). Backend: account-health `src/agency.js` (see that CLAUDE.md, same date).
+- **Agency economics** (Cole only: hidden from the Tools tabs, the search list and show() for any role but owner; the
+  server refuses everyone else): month picker (last full month by default, 13 months), the one-sentence answer, four
+  tiles (paid to Mobius, team cost estimate, AI cost, margin), the Per client table (paid, tasks done, team hours and
+  cost marked est., AI with a hover breakdown, margin and %, revenue per team hour), "Ledger names to match" (pick the
+  client per unknown payer, or Not a client), the Team cards, and the "Set people's costs" modal (cost and hours a
+  month per person seen in Asana).
+- **Team workload** (team): rows = people, columns = Overdue + Mon to Sun (today tinted), each task a card with its
+  brand chip linking to Asana, three per cell then "N more", a Person filter (remembered in `ag_who`), Read Asana again.
+
+## 2026-10-10: Locus as a phone app, Stop says so, the session's fixes
+
+- **Installable (feature 8).** `profit/manifest.webmanifest` (id /profit/, graphite colours, shortcuts Home / Day check /
+  Today's calls / Calendar via `?open=`), `profit/sw.js` (scope /profit/: navigations network first with the last
+  index.html or `offline.html` as the fallback; the app's own files and Google Fonts cache-first refreshed behind;
+  never an API answer or a number), registered at the end of the boot script. Profile menu "Install Locus as an app"
+  shows while the browser offers an install (`beforeinstallprompt`) or on an iPhone / iPad not yet installed (a modal
+  with Share > Add to Home Screen); clients see it too. Bump `VERSION` in sw.js to drop every cached copy.
+- **Stop** (ask-ui.js v12, Ledger and Supply v9): pressing Stop shows "Stopping after this step..." and a disabled
+  "Stopping..." button at once (`A.stopping`); the progress poll used to overwrite it. A stop lands at the end of the
+  model's current round (about 20s).
+- **ask/engine.js streams every model call** (`readStream`, exported): a long round (a PDF report) thought past 100s
+  and Anthropic's edge answered 524. The user-facing error no longer prints the key's shape. Open Apply cards kept: 120.
+- **Pulse** is read through a `PULSE` service binding on account-health (its workers.dev URL is refused from a worker
+  on the same account; the Strategist said "Pulse returned an error").
+- **Command center "stuck"** = 10+ days since the task ENTERED its section (`cmdstage:<brand>`, Asana stories once per
+  task), not since modified_at. Calendar cards pad 20px.
+

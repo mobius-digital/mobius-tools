@@ -637,7 +637,7 @@ export function createAssistant(config) {
   async function keepProposal(env, h, p) {
     const list = await pendingList(env, h);
     list.push(p);
-    await h.putSetting(env, K.pending, JSON.stringify(list.slice(-20)));
+    await h.putSetting(env, K.pending, JSON.stringify(list.slice(-120)));
   }
   async function dropProposal(env, h, id) {
     const list = (await pendingList(env, h)).filter(p => p.id !== id);

@@ -20,8 +20,8 @@
  *   - ad ids in the query must belong to the client's brands (looked up in `ads`);
  *   - the answer is filtered like a team member's, and then scrubbed: internal keys (Slack channels,
  *     report config) always go, costs and margins go unless P&L is on, change logs unless Changes is on.
- * Only the calendar routes, the Strategist question (when switched on) and the client's own profile take a
- * non-GET. A request that passed is remembered (clientScope) so the worker's own isAdmin lets it through
+ * Only the calendar routes, the Requests routes, the Strategist question (when switched on) and the client's own
+ * profile take a non-GET. A request that passed is remembered (clientScope) so the worker's own isAdmin lets it through
  * and a handler can check ownership of a record it loads by id (the calendar does).
  * `sessionEmail(env, request)` is passed in because each worker verifies its own session. */
 const OWNER = 'cole@go-mobius-digital.com';
@@ -148,6 +148,8 @@ export const CLIENT_RULES = [
   { m: 'GET', p: '/api/klaviyo', act: 'need' },
   { m: 'GET', p: '/api/hub/store', act: 'need' },
   { m: 'GET', p: '/api/customers', act: 'need' },
+  // Post-purchase survey vs Triple Whale (account-health survey.js, 2026-10-10): aggregates only, no emails.
+  { m: 'GET', p: '/api/survey', act: 'need' },
   { m: 'GET', p: '/api/google/website', act: 'need' },
   { m: 'GET', p: '/api/google/search', act: 'need' },
   // Black Friday War Room (profit worker, 2026-10-09): their brand's plan and live numbers, read only.
@@ -163,6 +165,12 @@ export const CLIENT_RULES = [
   { m: 'POST', p: '/api/calendar/move', act: 'none', cal: true },
   { m: 'POST', p: '/api/calendar/end', act: 'none', cal: true },
   { m: 'POST', p: '/api/calendar/comment', act: 'none', cal: true },
+  // Requests and approvals (requests.js, 2026-10-10): their brand's list, ask the team for something, reply,
+  // approve or ask for changes. The handler checks every item id against the brand; never done, never an approval.
+  { m: 'GET', p: '/api/requests', act: 'need' },
+  { m: 'POST', p: '/api/requests', act: 'need' },
+  { m: 'POST', p: '/api/requests/reply', act: 'need' },
+  { m: 'POST', p: '/api/requests/decide', act: 'need' },
   // The client-safe Strategist (clientask.js): on by default, refused where the brand has it turned off.
   { m: 'POST', p: '/api/ask', act: 'need', opt: 'strategist' },
 ];

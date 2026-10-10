@@ -1057,6 +1057,12 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   via conversations.list or defaults to the brand's internal channel; view `schedules`.
 - **Dashboard Slack posts** (`dashBlocks`): a `chart` block (a Strategist answer pinned in Locus) posts as its
   title plus "open in Locus to see it".
+- **Per-block dates on dashboards (2026-10-10)**: a block's `dates` (profit dashboard.js `cleanDates`) overrides the
+  dashboard's range. `dashNumbers` reads `dashPeriod` (storePeriod per brand, current + compare) once for the dashboard
+  and once per distinct block range; `d.blk[i]` is that block's period (null = the dashboard's). `dashBlocks` draws the
+  block from it and adds its range in italics under the title (`dashRange` handles `custom` from/to). The header line
+  still carries the dashboard's range. `save_dashboard` (strategist.js) takes `dates` per block. Exported for
+  test-dashrange.mjs: `dashNumbers(env, row, {accounts, read})`, `dashBlocks`, `dashRange`.
 
 ## 2026-10-08 (night): stock for the Strategist (`src/stock.js`)
 
@@ -1467,3 +1473,160 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   read; PUT {act, project} sets the id for links; DELETE forgets. integrations.js has a per-brand "Microsoft Clarity"
   item (group Website). Tests: `node test-clarity.mjs` (8 offline checks, Clarity and Klaviyo mocked). NOT tested live:
   any Clarity call (no brand has a token yet), so the response field names come from Microsoft's docs and sample.
+
+## 2026-10-10: Launch to Meta (`src/launch.js`)
+
+- Closes the creative loop: an approved Studio ad (or a creator asset: image link or Meta video id + @handle) becomes a
+  Meta ad, PAUSED, in the right ad set, tied to its test. The ad is made by metawrite.js `meta_create_ad` (propose, then
+  apply, ctx.via 'locus'): one Meta write path with the Strategist and Ads > Meta (brand check, metaCan, adimages upload,
+  p_meta_write for undo, Change Log line as the person). `live` is never passed, so every launch is born PAUSED.
+- Naming: `<test> <letter> | <Format>` ("415 B | Still"), creator `<test> <letter> | @handle`. Letter = Studio line
+  (0 = A), moved to the next free letter when an ad with that number already uses it (Meta names + p_launch). No test
+  number = `<headline> | Still` with a warning. Preview/create refuse a name that does not start with the test number.
+- Ad set: the test's own ad set (numOf of the name = test number), else the newest live ad set in a campaign named
+  like "test", else the newest live one; the person can pick any non-archived set. Fields: primary text from the
+  Studio brief's post_copy, else the copy the set already runs; link = the set's landing page origin + /products/<handle>.
+- Routes (one block in worker.js, admin + brandsFor, team only): `POST /api/launch/prep | preview | create`,
+  `GET /api/launch/list?act=&refresh=1` (no act = every brand the person sees, for the test library chips).
+  Table `p_launch` (created on first use). create also writes `p_br_adtag` (ad -> p_br_batch). A second launch of the
+  same Studio ad into the same set is refused.
+- Judged -> learning filed: on every list, a launch whose test (p_br_batch) has verdict winner / loser / cancelled gets
+  the verdict + learning copied, and the angle's `note` gets one line `#415 Winner: <learning>` (once per test).
+  Launches made before the test reached the library link up by number on the next list.
+- metawrite.js: only exports added (`gget`, `gall`, `metaActs`), and `meta_create_ad` apply now also returns
+  `write`, `created`, `creative` (like duplicate does).
+- Tests: `node test-launch.mjs` (13 offline checks, Graph API mocked). NOT tested live: a real ad creation (the
+  adimages upload from the profit worker's Studio image URL, the creative spec, PAUSED status), the `ad.id IN` status
+  read, the ad set filter by effective_status. The first real launch is the test; it is paused, and undo archives it.
+## 2026-10-10: Monday account review (`src/review.js`)
+
+- **What it does.** Every Monday (Central), from `briefHour + 2` (the weekly reports' hour; 11am with the default 9am
+  brief), the hourly tick runs `reviewTick` right after `scheduleTick`. For each active brand that is not paused (Galway,
+  Instyler, Gum of Gods, JudyP, Le Pickle, PopBy), not The Golf Sock and not Harborline, the Strategist gets ONE
+  `engine.answerWeb` with `reviewPrompt`: read the command center (`/api/hub/command?act=`) and the Day check
+  (`/api/hub/yesterday?act=`), goals vs plan (`plan` view), fatigue (`creatives`, `tests`), budgets and structure
+  (`meta_read`, ad set first, never cut a working set's anchor), `stock`, the `calendar` for the next 14 days and the
+  last 7 days of `changes`; then a short read and at most 4 proposals with its normal actions. The prompt names where to
+  read, never what to conclude (judge from context, no word lists).
+- **Where it posts.** ONE message to `brand_accounts.slack_channel` (internal), never `brief_channel`; a brand whose
+  internal channel equals its client channel, or has none, is skipped and shown as skipped. The proposals go as Apply
+  cards (`engine.proposalBlocks`) in the THREAD under the read, like askschedule kind `task`: an Apply tap answers with
+  `replace_original`, so a card inside the read would wipe it. Nothing is ever applied by the review.
+- **Switch:** `settings.mondayReview` = 'on' runs it; anything else (the default) is OFF. Locus: Agency settings > The
+  Strategist > Monday account review (toggle, this Monday's state per brand, "Preview this week's review").
+- **Caps and budget:** `subCanAfford(200)` before each brand (never mid-brand); 2 brands a tick; 12 brands a Monday; a
+  failed answer is tried once more next hour, then left (the try is written BEFORE the model call, so a killed run is not
+  retried for ever); 4 cards a brand. State: `settings.mondayReviewDone` = {date, acts: {brand: {status ok | skipped |
+  error | running, tries, ts, cards, cost, why, error}}}.
+- **Cost:** one answer per brand per Monday on the workspace model (Opus 5.5 medium by default), about $0.40 to $1.00
+  each, so about $3 to $8 a Monday for eight brands (~$15 to $35 a month). Each run is in `strat_run` (who "Monday
+  review", brand = the brand, via `screen.act_id`), so it shows on the settings cost card.
+- **Routes** (admin, inside the `/api/ask` block so a client login never reaches them): `GET /api/ask/review`,
+  `PUT /api/ask/review {on}`, `POST /api/ask/review/preview {act}` (the real review for one brand, returned, posted
+  nowhere, not counted as the Monday run; logged in strat_run as "<email> (preview)").
+- **Known limit, outside review.js:** ask/engine.js `keepProposal` keeps only the last 20 pending proposals across the
+  whole Strategist. Eight brands x 4 cards = 32, so the first brands' cards can say "expired" before anyone taps them.
+  Fix: raise `list.slice(-20)` in `keepProposal` (e.g. to -100). Not done here (engine.js was out of scope).
+- Tests: `node test-review.mjs` (11 offline checks; Strategist and Slack mocked). NOT tested live: a real Opus review
+  (the tool path through locus_get to the profit worker, answer length, card count), the Slack posts and Apply taps.
+## 2026-10-10: post-purchase survey (Fairing / KnoCommerce vs Triple Whale)
+
+- **survey.js** (`/api/survey`, admin + brandsFor; one route block above /api/brand-links). Triple Whale lastPlatformClick
+  stays the attribution everywhere; this is a reality CHECK beside it. Fairing: `GET https://app.fairing.co/api/responses`,
+  `Authorization: <secret token>` (no Bearer), `inserted_at_min`, `sort=inserted_at_asc`, `limit` 1000, follow `next`.
+  KnoCommerce (from its OpenAPI spec v1.3.0): client credentials at `api.knocommerce.com/api/oauth2/token` (Basic
+  id:secret, scope RESPONSES), then `GET app-api.knocommerce.com/api/rest/responses?maxPageSize=250&expand=order
+  &status=completed&updatedAt[gte]=` with `pageToken`. Kno's answer items and `order` are untyped "object" in the spec,
+  so `fromKno` reads them defensively; verify on the first real key.
+- Keys in `p_br_doc` `survey_fairing` {key} / `survey_kno` {client_id, client_secret, token, token_exp}, NEVER returned.
+  `/api/brand-links` takes `survey_key` (the Integrations box: `a:b` = Kno, else Fairing), or `fairing_key` / `kno_key`;
+  each checked with one real call before it is kept; empty = forget. integrations.js item `survey` (group Store).
+- Answers go to D1 `survey_responses` (created at runtime: act_id, provider, id, order_id, date, question_id, question,
+  answer, other_text, channel; no emails). Sync on read at most every 6 hours (`survey:<act>:sync` cursor, first read
+  90 days, 12 calls max, cursor only moves on a clean read). The question read = the one whose answers map to channels
+  most (5+ answers), or the pinned one (`PUT /api/survey {act, question_id}`, `survey:<act>:question`).
+- `surveyReport`: seven channels (`channelOf`), joined to `tw_orders` by order id (gid -> number): agreement %,
+  agreement on paid, per channel said / tw / agree / said_all with shares and gap points, `tw_other` (no ad click,
+  email / SMS clicks), top raw answers. Strategist view `survey`; knowledge file `post-purchase-survey`; a line in
+  THE CMO METHOD. Clients may GET their own brand (CLIENT_RULES, both brandguard copies).
+- Tests: `node test-survey.mjs` (12 offline checks, Fairing and Kno mocked), test-clients.mjs has a survey check,
+  test-strategist.mjs checks the view is listed. NOT tested live: any Fairing or Kno call (no brand has a key yet).
+## 2026-10-10: client requests and approvals (`src/requests.js`)
+
+- **Two kinds of item per brand.** `approval` = the team sends the client something to sign off (`what`: `studio` = Studio
+  ad ids in `ref`, `date` = a Lineup event id in `ref`, `offer` = the text, `link` = a link or file). `request` = the client
+  (or the team, logging a call) asks for something: title, text, optional link, then a thread.
+- **Tables** `p_request` + `p_request_msg` on this D1, created on first use (`ensureRequests`, like p_alert). Status: open,
+  approved / changes (the client's decision on an approval), done (the team closes anything; `done:false` reopens). A
+  client reply on a done request reopens it. Done items drop off the list after 60 days.
+- **Effects of an approval:** Studio ads -> `p_studio_ad.status = 'approved'` (same D1, the state Studio's own Approve sets,
+  only rows of that brand); a date -> Lineup `events.status = 'confirmed'` plus a changelog row "Confirmed: <name> approved
+  it in Requests" written as `Locus` (a team name), so `calendarTick` does not post it a second time.
+- **Routes** (one block in worker.js above /api/brand-asana): `GET /api/requests?act=` (team: a brand or `all`, filtered
+  by brandguard for a limited teammate; client: its brand only) -> {items (with thread, ads / date preview), waiting_client,
+  waiting_team}; `POST /api/requests` {act, kind, what, ref, title, text, link}; `POST /api/requests/reply` {act, id, text};
+  `POST /api/requests/decide` {act, id, decision: approved | changes, note (required for changes)}; `POST
+  /api/requests/done` {act, id, done} (team only). Every id route checks the item's own brand against `act` and, for a
+  client, `clientScope(request).ids`.
+- **brandguard CLIENT_RULES** (both copies): GET /api/requests, POST /api/requests, /reply, /decide, all `act: 'need'`.
+  A client can never send an approval (403 in the handler) or mark done (not on the list).
+- **Slack:** a client's new request, decision or reply posts ONE line to the brand's internal channel
+  (`brand_accounts.slack_channel`), button "Open in Locus" (`?open=requests&act=`). Never the client channel. A team
+  action posts nothing. No email: a new approval only shows in Locus (the client's Home says "N waiting for you").
+- **Tests:** `node test-requests.mjs` (9 offline checks, Slack mocked). Not tested live.
+## 2026-10-10: agency economics and team workload (`src/agency.js`)
+
+Routes (one block in worker.js after /api/command/work; not on brandguard CLIENT_RULES, and the handler refuses a client
+scope again): `GET /api/agency/economics?month=YYYY-MM&fresh=1` and `PUT /api/agency/settings {people, map}` are OWNER
+ONLY (Cole's session or the admin key; the team gets 403); `GET /api/agency/workload?fresh=1` is the team's (brandsFor
+limits a teammate to their brands). Tests: `node test-agency.mjs` (10 offline checks, Asana and the Ledger mocked).
+- **Revenue** = the Ledger's month report (`/api/report?month=`, `byClient` = income by payer name) over the LEDGER
+  binding with a minted Cole session, cached an hour in `agencyLedger:<month>`. Payer names match brands by name (exact,
+  then one contains the other, only when one brand fits); settings `agencyLedgerMap` {payer: brand id | '' (not a
+  client)} pins the rest from the page.
+- **Team cost model (an ESTIMATE, labelled so):** settings `agencyPeople` {Asana user gid: {name, cost (a month),
+  hours (a month, default 160)}}. Each person's month is split across brands by their share of the tasks they
+  COMPLETED that month in each brand's linked Asana project (connections kind 'asana'; paused and test brands skipped
+  like command.js). Work outside client projects is not seen, so the whole month lands on clients. Counts cached in
+  `agencyDone:<brand>:<month>` (30 min current month, 12 h past).
+- **AI cost** per brand: strat_run (already includes Strategist images, PDFs, analysis), idea_run, p_studio_ad,
+  p_studio_vid, p_asset looks (source 'locus'), ad_tag, and the client Strategist (`clientAsk:<day>:<email>`, filed
+  under the client's first brand). Ids resolve through brands.legacy_key, brand_alias and Meta connections; runs with
+  no brand are `ai_unassigned`.
+- **Sentence** is written by rules, no model (`sentenceFor`): most revenue per team hour; anyone whose AI cost is over
+  what they paid; else the biggest loss or the thinnest margin; a nudge when no costs are entered.
+- **Workload:** open tasks with a due date per brand project (`agencyOpen:<brand>`, 30 min), due this Central week
+  (Mon to Sun) or overdue (before Monday, up to 60 days, NOT_DUE sections left out), grouped by assignee
+  ("Not assigned" last), a task in two projects counted once.
+- NOT tested live: the Ledger binding's /api/report answer, real Asana paging on big projects, real payer names.
+## 2026-10-10: daily smoke check (`src/smoke.js`)
+- **What:** once a Central morning (hourly tick, settings `smokeHour`, default 6, after briefs and reports in the tick
+  order) it reads every Locus page's data routes for All clients and each ACTIVE brand (paused and demo are not
+  active), as Cole (minted owner session): profit routes through the PROFIT binding, this worker's routes in-process
+  (`AH_APP.fetch`), Stock through SUPPLY. The table is `SMOKE_ROUTES` (page, ?open= tab, worker, path, scope
+  all/brand/both, needs). A route that needs a connection (Google Ads direct, GA4, Search Console, Clarity, TikTok
+  direct, Klaviyo key, Supply, Meta, TW) runs only for brands that have it. Read-only GETs only. Adding a page = add
+  its row; `node test-smoke.mjs` checks every row against `src/routes.js`.
+- **Also checks:** `integrationsReport` (a failure = a core agency key off, a brand item `bad`, or anything that was
+  `ok` last run and is not now; `smokeLast.conn_state` is that memory, so never-connected things are not noise), live
+  Meta (`/me`, token in a header), Asana (`/users/me`) and Slack (`auth.test`) tokens, freshness (daily_insights and
+  tw_daily reached each brand's yesterday, Meta synced in 12h, TW in 26h, `lastHourly` under 3h, `lastRun` under 30h).
+- **Posting:** ONE message of failures to `strategistChannel` (none set = no post; the card says so). `smokeQuiet` =
+  'off' also posts "all N checks passed". `smokeCheck` = 'off' stops it. Each line: brand, page, error, Open link
+  (`/profit/?open=<tab>&act=<brand>`).
+- **Budget:** a run is spread over ticks: each tick spends at most `TICK_CAP` (1500), leaves `TICK_KEEP` (1500) for
+  the jobs after it, runs at most 120 reads and stops starting new ones after 4 minutes; progress in settings
+  `smokeRun`. Cost is about 1 per profit read (the binding call) plus the measured D1/fetch count of each in-process
+  read (seed 25, the highest seen is used for the next estimate) plus about 40 for the connections pass. Roughly
+  1,500 to 2,500 a run at 9 brands, over 2 to 3 ticks.
+- **The meter trap:** `handle()` calls `subReset()`, so an in-process route zeroes SUB_USED and COST_SEEN for the
+  whole tick. smoke.js runs the reads inside `smokeDeps().meter.hold()` (saves both, restores saved + its own count),
+  and runs in-process reads one at a time, each measured from `zero()`. Do not call `AH_APP.fetch` from a scheduled
+  job without the same hold, or every job after it in the tick believes it has the whole budget.
+- **Routes (admin):** `GET /api/smoke` (last run, switches, progress), `POST /api/smoke/run {dry (default true),
+  brand?}` (Run now, inside the request; stores `smokeLast` with `manual` and `dry`), `PUT /api/smoke {check, quiet}`.
+- **Locus:** Tools > Platform status, card "Locus itself" (profit/desk.js `smokeCard`): the answer, the failures with
+  Open buttons, the switches, Run now (dry unless "Post this run's failures to Slack" is ticked).
+- **Tests:** `node test-smoke.mjs` (113 offline checks; bindings, routes, Meta, Asana and Slack mocked). NOT tested
+  live: any real route, how Cloudflare counts a service-binding call (counted as 1 here), CPU time of about 100
+  in-process reads in one tick, Run now's wall time from the browser.

@@ -18,7 +18,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Locus">
-<meta name="theme-color" content="#F7F7F8">
+<meta name="theme-color" content="#F7F7F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet">
@@ -2188,8 +2189,8 @@
 <link rel="stylesheet" href="v2.css?v=29">
 <link rel="stylesheet" href="supply.css?v=3">
 <script src="/sheet.js?v=1"></script>
-<script src="/ask/ask-ui.js?v=11"></script>
-<script src="strategist.js?v=2"></script>
+<script src="/ask/ask-ui.js?v=12"></script>
+<script src="strategist.js?v=3"></script>
 <body>
 <!-- The Mobius strip on first paint (DESIGN.md section 7): an overlay that ignores the pointer and is gone within 1.5s. -->
 <mobius-loader mode="load"></mobius-loader>
@@ -2222,7 +2223,7 @@
            are a switcher at the top of the screen (#v2seg), never sub-tabs in the rail.
            Settings lives in the foot. Every tab selector stays scoped to `button[data-t]`. -->
       <div class="grp v2nav" data-g="main"><div class="grp-btns">
-          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L, Goals"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
+          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L, Goals, Requests"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
           <button data-t="today" data-grp="ads" title="Today, Meta, Google, TikTok, All channels, Tests and angles"><svg class="ic"><use href="#i-mega"/></svg><span>Ads</span></button>
           <button data-t="email" data-grp="email" title="Klaviyo or Attentive: campaigns and flows"><svg class="ic"><use href="#i-email"/></svg><span>Email and SMS</span></button>
           <button data-t="store" data-grp="store" title="Sales, Customers, Website, Search"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
@@ -2236,7 +2237,7 @@
     </nav>
     </div>
     <div class="side-foot">
-      <button class="v2settings" type="button" data-t="calc" data-grp="tools" id="railTools" title="Scenarios and platform status"><svg viewBox="0 0 24 24"><use href="#i-wrench"/></svg><span>Tools</span></button>
+      <button class="v2settings" type="button" data-t="calc" data-grp="tools" id="railTools" title="Scenarios, platform status, team workload"><svg viewBox="0 0 24 24"><use href="#i-wrench"/></svg><span>Tools</span></button>
       <button class="v2settings" type="button" data-t="settings" id="railSettings" title="This brand's own settings"><svg viewBox="0 0 16 16"><use href="#i-settings"/></svg><span id="railSetLbl">Brand settings</span></button>
       <div class="v2theme" role="group" aria-label="Theme"><button type="button" data-theme-pick="dark">Dark</button><button type="button" data-theme-pick="light">Light</button></div>
       <div class="hd-period lc-me" id="pfMe">
@@ -2247,6 +2248,7 @@
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
           <button type="button" role="menuitem" data-me="profile" hidden>Your profile<small>Your name, your brands, sign out</small></button>
           <button type="button" role="menuitem" data-me="guide">How to use Locus</button>
+          <button type="button" role="menuitem" data-me="install" hidden>Install Locus as an app<small>Opens full screen from your home screen</small></button>
           <button type="button" role="menuitem" data-me="out">Sign out</button>
         </div>
       </div>
@@ -2302,17 +2304,21 @@
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=20"></script>
 <script src="newclient.js?v=16"></script>
-<script src="clients.js?v=2"></script>
-<script src="studio.js?v=29"></script>
+<script src="clients.js?v=3"></script>
+<script src="requests.js?v=1"></script>
+<script src="studio.js?v=30"></script>
+<script src="launch.js?v=1"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=2"></script>
 <script src="v2.js?v=40"></script>
-<script src="desk.js?v=14"></script>
+<script src="desk.js?v=15"></script>
+<script src="agency.js?v=1"></script>
 <script src="calendar.js?v=9"></script>
 <script src="supply.js?v=3"></script>
 <script src="askextra.js?v=2"></script>
 <script src="share.js?v=3"></script>
+<script src="survey.js?v=1"></script>
 <script src="polish.js?v=2" defer></script>
 <script>
 'use strict';
@@ -2517,7 +2523,7 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -2888,8 +2894,25 @@ document.addEventListener('click', e => {
   const me = e.target.closest('[data-me]');
   if (me) { closePops(); const k = me.dataset.me;
     if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team'); else if (k === 'profile') show('settings');
-    else if (k === 'guide') show('guide'); else if (k === 'out') $('#btnOut').click(); }
+    else if (k === 'guide') show('guide'); else if (k === 'install') installApp(); else if (k === 'out') $('#btnOut').click(); }
 });
+/* LOCUS AS A PHONE APP (2026-10-10). sw.js is the offline shell (the app's files only, never a number);
+   manifest.webmanifest makes it installable. "Install Locus as an app" sits in the profile menu while the browser
+   offers an install (Chrome / Edge / Android: beforeinstallprompt) or on an iPhone / iPad not yet installed
+   (Safari has no prompt, so the menu item explains Share > Add to Home Screen). */
+let INSTALL_EVT = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function installable() { return !isStandalone() && (!!INSTALL_EVT || isIOS()); }
+function syncInstallItem() { const b = document.querySelector('#pfMe [data-me="install"]'); if (b) b.hidden = !installable(); }
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); INSTALL_EVT = e; syncInstallItem(); });
+addEventListener('appinstalled', () => { INSTALL_EVT = null; syncInstallItem(); });
+async function installApp() {
+  if (INSTALL_EVT) { const ev = INSTALL_EVT; INSTALL_EVT = null; ev.prompt(); try { await ev.userChoice; } catch {} syncInstallItem(); return; }
+  noteModal('Install Locus on this phone', '<p>In Safari, tap the <b>Share</b> button (the square with an arrow), then <b>Add to Home Screen</b>, then <b>Add</b>.</p><p class="hint">Locus then opens full screen from its own icon, like any app. You stay signed in.</p>');
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => { navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {}); });
+syncInstallItem();
 /* The rail clips anything wider than itself (.side is overflow:hidden), which cut the profile menu's
    text off on the right. Both rail menus are pinned to the screen at the button instead, so they can be
    wider than the rail; the profile menu opens upward, the client picker downward. */
@@ -3026,6 +3049,8 @@ Object.assign(PAGE_BRIEF, {
   website: { answers: 'How the website converts: visits, add to cart, checkout and purchase, by channel and page.', when: 'When conversion drops or a new landing page goes live.', todo: 'Find the step that drops most and the landing pages that convert under the site average.' },
   search: { answers: 'How the brand shows up in Google’s free search results.', when: 'Monthly.', todo: 'Watch brand searches grow, and look at queries sitting in positions 4 to 15: those are the cheapest wins.' },
   season: { answers: 'The holiday plan: every offer, date and task for each brand.', when: 'Weekly through Q4.', todo: 'Check the offers are locked and the tasks due this week are done.' },
+  economics: { answers: 'Which clients earn the most per hour of team time, and which cost more than they pay.', when: 'At the start of a month, for the month before.', todo: 'Set each person’s monthly cost once, match any Ledger names, then read the sentence at the top.' },
+  workload: { answers: 'Who has what due this week across every client, and what is late.', when: 'Monday morning, and before handing someone new work.', todo: 'Filter to a person, open late tasks in Asana and move or finish them.' },
   calc: { answers: 'What-if math: what a lead or a ROAS level is worth, and where a brand breaks even.', when: 'When setting goals or pitching a budget.', todo: 'Move the dials, compare scenarios, save or share the one you agree on.' },
   studio: { answers: 'Static ads made by AI from a brief, a product and real photos.', when: 'When a brief needs static ads.', todo: 'Start a batch from the Asana brief, pick the product and photos, make the ads, approve or redo each one.' },
   brand: { answers: 'Everything we know about the brand: the client’s answers, research and voice.', when: 'Before writing a brief or a call.', todo: 'Read the call sheet first, then the research and How we write.' },
@@ -3316,6 +3341,8 @@ const TAB_PURPOSE = {
   research:  'What our research found: who buys, what they say, the angles, the market and the competitors.',
   voice:     'How the brand talks: the writing guide, the speaker and the copy skill Studio writes with.',
   overview:  'Which clients are making money right now. Start here every morning - click a client to dig into theirs.',
+  economics: 'What each client paid Mobius in a month against the team time and AI it took. Team time is an estimate from finished Asana tasks. Cole only.',
+  workload:  'Who has what due this week across every client, from Asana, with what is late.',
   calc:      'The lead math and the ROAS math with the brand numbers already in the boxes: what a lead can cost, what a plan returns, where breakeven sits. Scenarios save per brand.',
   season:    'The BFCM plan for every brand: the offer for each part of the season, when it runs, and what is due this week. Tick things off here; the briefs themselves stay in Asana.',
   profit:    "Did this brand make money in the window: revenue, orders, average order, every cost, what was left. Same numbers as the Daily Brief and Reports.",
@@ -4722,7 +4749,8 @@ const NAV = {
      Brand holds what we know about the client. Every old page id still routes. */
   /* 2026-10-09 (later): Goals moved to Home (they change every month; Brand is what rarely changes). Creative is
      grouped by where ads come from: AI ads (Studio, with Words), Creators (the creator link), Library, Inspiration. */
-  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L'], ['plan', 'Goals']] },
+  /* Requests (2026-10-10, requests.js): approvals sent to the client and what the client asked us for. */
+  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L'], ['plan', 'Goals'], ['requests', 'Requests']] },
   /* Ads order (2026-10-09, Cole): the buyer's list first, then the blended view that matches Home, then each platform. */
   ads: { label: 'Ads', tabs: [['today', 'Today’s calls'], ['channels', 'All channels'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['angles', 'Tests and angles']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
@@ -4735,7 +4763,8 @@ const NAV = {
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
   season: { label: 'Black Friday', tabs: [['war', 'War Room'], ['season', 'The Plan']] },
-  tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status']] },
+  /* 2026-10-10: Agency economics (Cole only; hidden for everyone else) and Team workload (agency.js). */
+  tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status'], ['economics', 'Agency economics'], ['workload', 'Team workload']] },
 };
 const META_KIDS = ['meta', 'campaigns', 'adcreative', 'tests', 'changes', 'mtoday', 'mbrowser'];
 /* Google's jobs (2026-10-09): where the brand has a direct Google Ads link, the same depth as Meta: Overview,
@@ -4790,7 +4819,7 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
    Email and SMS, Store, Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
    when on), and Settings = their own profile. Everything here only DRAWS that; the server refuses the rest. */
 const isClient = () => S.role === 'client';
-const CLIENT_TABS = new Set(['overview', 'profit', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
+const CLIENT_TABS = new Set(['overview', 'profit', 'requests', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
 function clientCan(k, act = S.act) { const b = ((S.client && S.client.brands) || []).find(x => x.id === act); return !!(b && b.access && b.access[k]); }
 function clientTabOk(t) {
   if (!CLIENT_TABS.has(t)) return false;
@@ -4809,7 +4838,7 @@ function applyClientMode() {
   document.querySelectorAll('#tabs button[data-grp], #tabbar button[data-grp]').forEach(b => { const g = NAV[b.dataset.grp]; b.hidden = !g || !g.tabs.some(t => clientTabOk(t[0])); });
   ['#railTools', '#railProducts', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
   const rs = $('#railSetLbl'); if (rs) rs.textContent = 'Your profile';
-  document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me); });
+  document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me) && !(b.dataset.me === 'install' && installable()); });
   const pk = $('#pfPick'); if (pk) pk.hidden = S.accounts.length < 2;
 }
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */
@@ -4818,9 +4847,9 @@ function applyClientMode() {
    the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
+  health: 'Data Health', economics: 'Agency economics', workload: 'Team workload', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
@@ -5064,7 +5093,7 @@ function openFixedCosts(act) {
 window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
-const SHOWABLE = new Set(["gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
   const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
@@ -5074,6 +5103,7 @@ function show(tab, opt) {
   /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of
      "This page didn't load" with a Try again that retries the same unknown id. */
   if (!SHOWABLE.has(tab)) tab = 'overview';
+  if (tab === 'economics' && S.role !== 'owner') tab = 'workload';   // Cole's page (the server refuses anyone else too)
   if (isClient()) { applyClientMode(); if (!clientTabOk(tab)) tab = 'overview'; }
   ++RUN;   // invalidate in-flight renders even when the new renderer is synchronous
   S.tab = tab; localStorage.setItem(LS.tab, tab);
@@ -5122,7 +5152,7 @@ function show(tab, opt) {
     const platOk = k => { if (!oneA || !Array.isArray(oneA.conn_kinds)) return true; const ck = oneA.conn_kinds;
       if (k === 'google') return ck.includes('google_ads') || chSpend('google'); if (k === 'tiktok') return ck.includes('tiktok') || chSpend('tiktok');
       if (k === 'website') return ck.includes('ga4'); if (k === 'search') return ck.includes('gsc'); return true; };
-    const tabsHere = def ? def.tabs.filter(t => (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
+    const tabsHere = def ? def.tabs.filter(t => (t[0] !== 'economics' || S.role === 'owner') && (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
     const row1 = tabsHere.length > 1 ? tabsHere : null;
     const rp = $('#railProducts'); if (rp) rp.hidden = isClient() || !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
     if (window.SupplyTab && !window.__spBrands && S.tok && !isClient()) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
@@ -5187,7 +5217,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -5267,6 +5297,11 @@ function CALR(first) {
   const r = window.CalendarTab.render('calendar', host, first);
   if (window.CAL_OPEN) { const id = window.CAL_OPEN; window.CAL_OPEN = null; Promise.resolve(r).then(() => window.CalendarTab.open(id, host)).catch(() => {}); }
   return r;
+}
+/* Agency economics and Team workload (2026-10-10, agency.js), under Tools. */
+function AGR(tab, first) {
+  if (!window.AgencyTab) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
+  return window.AgencyTab.render(tab, { S, api, apiAH, show, pageHead, confirmModal, AH_URL, RUN: () => RUN }, first);
 }
 /* The daily desk (2026-10-09): Yesterday, Today, the War room and Platform status (desk.js). */
 function DR(tab, first) {
@@ -5394,7 +5429,7 @@ function askPlaceholder() { const i = $('#v2askIn'); if (i && document.activeEle
 const ASKB = { items: [], hi: 0, found: [], q: '', timer: null };
 function askPages() {
   const out = [];
-  for (const [g, v] of Object.entries(NAV)) for (const [k, l] of v.tabs) out.push({ kind: 'go', tab: k, label: l, where: v.label });
+  for (const [g, v] of Object.entries(NAV)) for (const [k, l] of v.tabs) if (k !== 'economics' || S.role === 'owner') out.push({ kind: 'go', tab: k, label: l, where: v.label });
   for (const [k, l] of META_JOBS) if (k !== 'meta') out.push({ kind: 'go', tab: k, label: `Meta ${l.toLowerCase()}`, where: 'Ads' });
   out.push({ kind: 'go', tab: 'settings', label: 'Settings', where: '' }, { kind: 'go', tab: 'guide', label: 'How to use Locus', where: '' });
   return out;
@@ -6524,14 +6559,45 @@ const DASH_COLS = {
   email_rev: ['Email revenue', (a, w) => fmtK(w.email_rev, a.currency)], costs: ['Costs', a => { const v = a.cost_health?.verdict; return !v || v === 'good' ? '<span class="pill good">Good</span>' : v === 'override' || v === 'noisy' ? `<span class="pill warn">${v === 'noisy' ? 'Noisy' : 'Override'}</span>` : '<span class="pill bad">Fix</span>'; }],
   trend: ['Trend', a => { const pts = (a.spark || []).filter(v => v != null); if (pts.length < 4) return ''; const hi = Math.max(...pts), lo = Math.min(...pts), rng = hi - lo || 1; const third = Math.ceil(pts.length / 3); const rising = pts.slice(-third).reduce((x, v) => x + v, 0) >= pts.slice(0, third).reduce((x, v) => x + v, 0); return `<svg class="sc-spark" viewBox="0 0 200 28" preserveAspectRatio="none"><polyline points="${pts.map((v, i) => `${(i / (pts.length - 1) * 200).toFixed(1)},${(26 - (v - lo) / rng * 22).toFixed(1)}`).join(' ')}" fill="none" stroke="${rising ? 'var(--good)' : 'var(--bad)'}" stroke-width="2"/></svg>`; }],
 };
-/** The query string for a dashboard's own range (not the shared picker). */
+/** The query string for a dashboard's own range (not the shared picker), or a block's own (dashEff). */
 function dashQuery(spec) {
-  const r = spec.range || '30', cmp = spec.compare && spec.compare !== 'prev' ? `&cmp=${spec.compare}` : '';
+  const r = String(spec.range || '30'), cmp = spec.compare && spec.compare !== 'prev' ? `&cmp=${spec.compare}` : '';
   const now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  if (r === 'custom' && /^\d{4}-\d{2}-\d{2}$/.test(spec.from || '') && /^\d{4}-\d{2}-\d{2}$/.test(spec.to || '')) return `from=${spec.from}&to=${spec.to}${cmp}`;
   if (r === 'yesterday') return `days=1${cmp}`;
   if (r === 'mtd') return `from=${ymd(new Date(now.getFullYear(), now.getMonth(), 1))}&to=${ymd(y)}${cmp}`;
   if (r === 'lastmonth') return `from=${ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1))}&to=${ymd(new Date(now.getFullYear(), now.getMonth(), 0))}${cmp}`;
   return `days=${+r || 30}${cmp}`;
+}
+/* PER-BLOCK DATES (2026-10-10): a data block may carry `dates: {range, from?, to?, compare?}` (cleanSpec in
+   worker/src/dashboard.js keeps it) that overrides the dashboard's range for that block only. dashEff gives the
+   spec that block reads with (its own range, compare left out = the dashboard's); `__own` marks one that differs,
+   and the block then says its range under its title. Each distinct range is one /api/overview read (dashLoad). */
+const DASH_DATED = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'ads']);
+function dashEff(spec, b) {
+  const o = b && b.dates;
+  if (!o || !o.range || !DASH_DATED.has(b.type)) return spec;
+  const e = { ...spec, range: String(o.range), from: o.from, to: o.to, compare: o.compare || spec.compare || 'prev' };
+  e.__own = dashQuery(e) !== dashQuery(spec);
+  return e;
+}
+const dashRangeText = sp => String(sp.range) === 'custom' ? `${sp.from || '?'} to ${sp.to || '?'}` : DASH_RANGE_L[sp.range] || `Last ${+sp.range || 30} days`;
+/** Every /api/overview read a dashboard needs: its own range plus each block's own, once each. */
+async function dashLoad(spec, cache) {
+  const qs = [...new Set([dashQuery(spec), ...(spec.blocks || []).map(b => dashQuery(dashEff(spec, b)))])];
+  const got = await Promise.all(qs.map(q => {
+    if (!cache) return api('/api/overview?' + q);
+    if (!cache.has(q)) { const pr = api('/api/overview?' + q); cache.set(q, pr); pr.catch(() => cache.delete(q)); }
+    return cache.get(q);
+  }));
+  return new Map(qs.map((q, i) => [q, got[i]]));
+}
+const dashScoped = (ov, scope) => scope && scope !== 'all' ? ((ov && ov.accounts) || []).filter(a => a.act_id === scope) : ((ov && ov.accounts) || []);
+const dashCur = all => { const c = [...new Set(all.map(a => a.currency))]; return c.length === 1 ? c[0] : null; };
+/** One block drawn with its own numbers: the overview read for its range, scoped like the dashboard. */
+function dashBlockFrom(b, spec, ovs) {
+  const es = dashEff(spec, b), all = dashScoped(ovs.get(dashQuery(es)), spec.scope);
+  return dashBlockHtml(b, all, es, dashCur(all));
 }
 function dashTotals(all, src) {
   const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(a[src] || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
@@ -6550,7 +6616,10 @@ function dashDelta(cur, prev, lower, cmp) {
 function dashBlockHtml(b, all, spec, cur) {
   const t = dashTotals(all, 'window'), p = spec.compare !== 'none' && all.some(a => a.prev) ? dashTotals(all, 'prev') : {};
   const U = window.V2UI;
-  const h = b.title ? `<h3>${esc(b.title)}</h3>` : '';
+  /* A block with its own dates says them under its title (spec here is dashEff's, marked __own). */
+  const rl = spec.__own ? `<span class="v2hint ds-rng" style="display:block;flex-basis:100%;margin-top:2px;font-size:12.5px">${esc(dashRangeText(spec))}${spec.compare !== 'none' ? ` &middot; vs ${esc(CMP_LABEL[spec.compare] || 'the period before')}` : ''}</span>` : '';
+  const dflt = { tiles: 'The numbers', brands: 'By brand', email: 'Email and SMS' };
+  const h = b.title ? `<h3>${esc(b.title)}</h3>${rl}` : rl ? `<h3>${esc(dflt[b.type] || '')}</h3>${rl}` : '';
   /* v2 pieces (2026-10-08): tiles with a chip against the compare period (spend is neutral,
      it is a decision), brand rows as a v2 table with bars beside revenue, the daily chart with
      the compare period ghosted and a hover. */
@@ -6567,14 +6636,14 @@ function dashBlockHtml(b, all, spec, cur) {
     const rows = all.slice().sort((x, y) => (y.window?.sales ?? -1) - (x.window?.sales ?? -1)).map(a => `<tr data-id="${a.act_id}" tabindex="0" role="button" class="link"><td><b>${esc(a.name)}</b></td>${cols.map(([c, [l, f]]) => `<td>${c === 'revenue' ? U.ib(a.window?.sales || 0, mx, '--brand', f(a, a.window || {}), `${a.name}: ${fmtMoney(a.window?.sales, a.currency)} revenue`) : f(a, a.window || {})}</td>`).join('')}</tr>`).join('');
     return `<section class="v2card">${h ? `<div class="v2h">${h}</div>` : ''}<div class="v2tbl"><table><thead><tr><th>Brand</th>${cols.map(([c, [l]]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
-  if (b.type === 'channels') return cur ? channelsCard(all, t.sales, cur).replace('<h3>Where the money came from</h3>', `<h3>${esc(b.title || 'Where the money came from')}</h3>`) : '';
+  if (b.type === 'channels') return cur ? channelsCard(all, t.sales, cur).replace('<h3>Where the money came from</h3>', `<h3>${esc(b.title || 'Where the money came from')}</h3>${rl}`) : '';
   if (b.type === 'daily') {
     const merge = key => { const m = new Map(); for (const a of all) for (const q of (a[key] || [])) { const r = m.get(q.date) || { date: q.date, sales: 0, spend: 0, orders: 0 }; r.sales += q.sales || 0; r.spend += q.spend || 0; r.orders += q.orders || 0; m.set(q.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
     const rows = merge('series'), prev = spec.compare !== 'none' ? merge('prev_series') : [];
     if (!cur || rows.length < 2) return `<div class="card">${h}<p class="hint">Not enough days in this window for a chart.</p></div>`;
     const id = 'ds' + Math.random().toString(36).slice(2, 7);
     setTimeout(() => LX.wireDual(id, rows, (r, i) => `<b>${U.day(r.date)}</b> · revenue ${fmtK(r.sales, cur)} · spend ${fmtK(r.spend, cur)}${r.spend ? ` · MER ${fmtX(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(CMP_LABEL[spec.compare] || 'before')}: ${fmtK(prev[i].sales, cur)}</span>` : ''}`), 0);
-    return `<section class="v2card"><div class="v2h">${h || '<h3>Day by day</h3>'}</div>${LX.dual(id, rows, cur, { prev, prevLabel: CMP_LABEL[spec.compare] || 'Compare period' })}</section>`;
+    return `<section class="v2card"><div class="v2h">${b.title ? h : `<h3>Day by day</h3>${rl}`}</div>${LX.dual(id, rows, cur, { prev, prevLabel: CMP_LABEL[spec.compare] || 'Compare period' })}</section>`;
   }
   if (b.type === 'email') {
     if (!cur) return '';
@@ -6587,7 +6656,7 @@ function dashBlockHtml(b, all, spec, cur) {
   /* A Strategist answer pinned from the chat (askextra.js): frozen as of its date, with Refresh. */
   if (b.type === 'chart') return window.AskX ? AskX.chartBlock(b) : '';
   /* A view saved from Ads > Creative (2026-10-09): drawn after paint by v2.js (V2.adsBlock). */
-  if (b.type === 'ads') return `<section class="v2card" data-adsblk="${esc(JSON.stringify(b))}" data-q="${esc(dashQuery(spec))}"><div class="v2h"><h3>${esc(b.title || 'Ads')}</h3></div><p class="v2hint">Loading the ads&hellip;</p></section>`;
+  if (b.type === 'ads') return `<section class="v2card" data-adsblk="${esc(JSON.stringify(b))}" data-q="${esc(dashQuery(spec))}"><div class="v2h"><h3>${esc(b.title || 'Ads')}</h3>${rl}</div><p class="v2hint">Loading the ads&hellip;</p></section>`;
   return '';
 }
 /* BUILD OR EDIT A DASHBOARD BY HAND (rebuilt 2026-10-09 after Cole: "really badly formatted, barely any options,
@@ -6595,8 +6664,9 @@ function dashBlockHtml(b, all, spec, cur) {
    editor behind it: a full sheet, the settings and the blocks on the left, the dashboard drawn LIVE on the right.
    Blocks reorder by their grip (pointer drag, or focus the grip and press the arrow keys). Every option the spec
    allows is here: name, for, brand, range, compare, block titles, up to 8 metrics per tile row and 8 columns per
-   brand table (in the order picked), note text, and a saved ads view's sort, size and grouping. The spec has ONE
-   range for the whole dashboard (cleanSpec in worker/src/dashboard.js), so there is no per-block date range.
+   brand table (in the order picked), note text, and a saved ads view's sort, size and grouping. Dates: one range
+   for the dashboard, and since 2026-10-10 each data block can have its own ("Dates: same as the dashboard / its
+   own" inside the block; `dates` on the block, cleanSpec in worker/src/dashboard.js keeps it).
    Same spec the Strategist writes, saved through PUT /api/dashboard. */
 const DASH_BLOCK_L = { tiles: 'Number tiles', brands: 'One row per brand', channels: 'Where the money came from', daily: 'Revenue and spend by day', email: 'Email and SMS', note: 'A note' };
 const DASH_BLOCK_HELP = { tiles: 'Up to 8 headline numbers, each against the compare period.', brands: 'A table, one row per brand, up to 8 columns.', channels: 'Revenue and spend split by platform.', daily: 'Revenue against ad spend, day by day.', email: 'Email and SMS revenue and its share of the store.', note: 'A sentence or two the reader should know.', chart: 'A Strategist answer pinned from the chat.', ads: 'A saved view of one brand’s ads.' };
@@ -6634,6 +6704,17 @@ function dashEditor(d) {
       <label class="de-f"><span>How many</span><select data-bnn="${i}">${[4, 6, 8, 12, 16].map(n => `<option${(+b.n || 8) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="de-f de-tog"><span>One card per creative</span><input type="checkbox" class="lx-sw" data-bg="${i}"${b.group ? ' checked' : ''}></label></div>`;
     if (b.type === 'chart') x += `<p class="de-help">Pinned from the chat${b.question ? `: "${esc(b.question)}"` : ''}. Ask the Strategist again to change what it shows.</p>`;
+    if (DASH_DATED.has(b.type)) {
+      const o = b.dates, own = !!(o && o.range);
+      x += `<div class="de-f"><span>Dates</span><div class="ds-seg" role="radiogroup" aria-label="Dates for this block">${[['same', 'Same as the dashboard'], ['own', 'Its own']].map(([k, l]) => `<button type="button" role="radio" data-bdo="${i}" data-v="${k}" class="${(k === 'own') === own ? 'on' : ''}" aria-checked="${(k === 'own') === own}">${l}</button>`).join('')}</div></div>`;
+      if (own) {
+        const opts = { ...DASH_RANGE_L }; if (!opts[o.range] && o.range !== 'custom') opts[o.range] = dashRangeText(o); opts.custom = 'Pick the dates';
+        x += `<div class="de-row3"><label class="de-f"><span>Range</span><select data-bdr="${i}">${Object.entries(opts).map(([k, l]) => `<option value="${esc(k)}"${String(o.range) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+          <label class="de-f"><span>Compare with</span><select data-bdc="${i}">${[['', 'Same as the dashboard'], ['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<option value="${k}"${(o.compare || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>`;
+        if (o.range === 'custom') x += `<div class="de-row3"><label class="de-f"><span>From</span><input type="date" data-bdf="${i}" value="${esc(o.from || '')}"></label><label class="de-f"><span>To</span><input type="date" data-bdt="${i}" value="${esc(o.to || '')}"></label></div>`;
+        x += `<p class="de-help">This block reads its own dates; the rest of the dashboard keeps ${esc(dashRangeText(state.spec).toLowerCase())}.</p>`;
+      }
+    }
     return x;
   };
   const blockName = b => DASH_BLOCK_L[b.type] || (b.type === 'chart' ? 'Pinned answer' : b.type === 'ads' ? 'Saved ads view' : b.type);
@@ -6647,11 +6728,11 @@ function dashEditor(d) {
         <label class="de-f"><span>Dates</span><select id="deRange">${Object.entries(DASH_RANGE_L).map(([k, l]) => `<option value="${k}" ${sp.range === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       </div>
       <div class="de-f"><span>Compare with</span><div class="ds-seg" role="radiogroup" aria-label="Compare with">${[['prev', 'The period before'], ['yoy', 'Same time last year'], ['none', 'Nothing']].map(([k, l]) => `<button type="button" role="radio" data-cmp="${k}" class="${sp.compare === k ? 'on' : ''}" aria-checked="${sp.compare === k}">${l}</button>`).join('')}</div></div>
-      <p class="de-help">One date range for the whole dashboard. It never follows the date picker at the top.</p></section>
+      <p class="de-help">The dashboard's dates. A block can have its own (open the block, Dates). It never follows the date picker at the top.</p></section>
       <section class="de-card"><div class="de-bh"><div class="ds-label">Blocks, top to bottom</div><span class="de-help">${sp.blocks.length} of 10. Drag a grip to reorder, or focus it and press the arrow keys.</span></div>
       ${sp.blocks.length ? `<ol class="de-blocks" id="deBlocks">${sp.blocks.map((b, i) => { const op = state.open.has(b.__k); return `<li class="de-blk${op ? ' open' : ''}" data-i="${i}">
         <div class="de-blkh"><button type="button" class="de-grip" data-grip="${i}" aria-label="Move the ${esc(blockName(b))} block, position ${i + 1} of ${sp.blocks.length}. Use the up and down arrow keys" title="Drag to reorder">${DASH_GRIP}</button>
-          <button type="button" class="de-blkt" data-tog="${i}" aria-expanded="${op}"><span class="de-bi">${icon(DASH_BLOCK_IC[b.type] || 'layers')}</span><span class="de-bt"><b>${esc(b.title || blockName(b))}</b><em>${esc(b.title ? blockName(b) : (DASH_BLOCK_HELP[b.type] || ''))}${b.type === 'tiles' ? ` · ${(b.metrics || []).length} numbers` : b.type === 'brands' ? ` · ${(b.columns || []).length || 5} columns` : ''}</em></span>${icon('chevron-down')}</button>
+          <button type="button" class="de-blkt" data-tog="${i}" aria-expanded="${op}"><span class="de-bi">${icon(DASH_BLOCK_IC[b.type] || 'layers')}</span><span class="de-bt"><b>${esc(b.title || blockName(b))}</b><em>${esc(b.title ? blockName(b) : (DASH_BLOCK_HELP[b.type] || ''))}${b.type === 'tiles' ? ` · ${(b.metrics || []).length} numbers` : b.type === 'brands' ? ` · ${(b.columns || []).length || 5} columns` : ''}${dashEff(sp, b).__own ? ` · ${esc(dashRangeText(dashEff(sp, b)))}` : ''}</em></span>${icon('chevron-down')}</button>
           <button type="button" class="ds-iconbtn" data-rm="${i}" aria-label="Remove the ${esc(blockName(b))} block" title="Remove">${icon('x')}</button></div>
         ${op ? `<div class="de-blkb">${blockBody(b, i)}</div>` : ''}</li>`; }).join('')}</ol>`
       : `<div class="ds-empty"><i>${icon('layers')}</i><p>No blocks yet. Add one below.</p></div>`}
@@ -6669,19 +6750,22 @@ function dashEditor(d) {
     ed.querySelectorAll('[data-bs]').forEach(el => { state.spec.blocks[+el.dataset.bs].sort = el.value; });
     ed.querySelectorAll('[data-bnn]').forEach(el => { state.spec.blocks[+el.dataset.bnn].n = +el.value; });
     ed.querySelectorAll('[data-bg]').forEach(el => { state.spec.blocks[+el.dataset.bg].group = el.checked; });
+    ed.querySelectorAll('[data-bdr]').forEach(el => { const dt = state.spec.blocks[+el.dataset.bdr].dates; if (!dt) return; dt.range = el.value;
+      if (el.value === 'custom' && !dt.from) { const y = new Date(); y.setDate(y.getDate() - 1); const f = new Date(y); f.setDate(y.getDate() - 29); dt.from = ymd(f); dt.to = ymd(y); }
+      if (el.value !== 'custom') { delete dt.from; delete dt.to; } });
+    ed.querySelectorAll('[data-bdc]').forEach(el => { const dt = state.spec.blocks[+el.dataset.bdc].dates; if (!dt) return; if (el.value) dt.compare = el.value; else delete dt.compare; });
+    ed.querySelectorAll('[data-bdf]').forEach(el => { const dt = state.spec.blocks[+el.dataset.bdf].dates; if (dt && el.value) dt.from = el.value; });
+    ed.querySelectorAll('[data-bdt]').forEach(el => { const dt = state.spec.blocks[+el.dataset.bdt].dates; if (dt && el.value) dt.to = el.value; });
   };
   let pvT = 0;
   const preview = () => { clearTimeout(pvT); pvT = setTimeout(drawPv, 220); };
   const drawPv = async () => {
-    const sp = state.spec, q = dashQuery(sp);
-    if (!DASH_PREVIEW.has(q)) { const pr = api('/api/overview?' + q); DASH_PREVIEW.set(q, pr); pr.catch(() => DASH_PREVIEW.delete(q)); }
+    const sp = state.spec, qKey = () => [dashQuery(state.spec), ...state.spec.blocks.map(b => dashQuery(dashEff(state.spec, b)))].join(' '), q = qKey();
     const st = wrap.querySelector('#dePvS'); if (st) st.textContent = `${sp.scope === 'all' ? 'All brands' : (S.accounts.find(a => a.act_id === sp.scope) || {}).name || 'One brand'} · ${DASH_RANGE_L[sp.range] || ''}${sp.compare !== 'none' ? ' · vs ' + CMP_LABEL[sp.compare] : ''}`;
     if (!pv.firstElementChild) pv.innerHTML = '<div class="ds-sk" style="height:116px;border-radius:14px"></div><div class="ds-sk" style="height:240px;border-radius:14px;margin-top:16px"></div>';
-    let ov; try { ov = await DASH_PREVIEW.get(q); } catch (e) { pv.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
-    if (!wrap.isConnected || dashQuery(state.spec) !== q) return;
-    const all = sp.scope !== 'all' ? (ov.accounts || []).filter(a => a.act_id === sp.scope) : (ov.accounts || []);
-    const curs = [...new Set(all.map(a => a.currency))], cur = curs.length === 1 ? curs[0] : null;
-    const html = sp.blocks.map(b => dashBlockHtml(b, all, sp, cur)).join('');
+    let ovs; try { ovs = await dashLoad(sp, DASH_PREVIEW); } catch (e) { pv.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    if (!wrap.isConnected || qKey() !== q) return;
+    const html = sp.blocks.map(b => dashBlockFrom(b, sp, ovs)).join('');
     pv.innerHTML = html ? (state.name ? `<h2 class="de-pvt">${esc(state.name)}</h2>` : '') + html : `<div class="ds-empty"><i>${icon('layout-grid')}</i><p>Add a block on the left and it shows here.</p></div>`;
     pv.querySelectorAll('[data-adsblk]').forEach(el => { if (window.V2 && V2.adsBlock) { let bb = {}; try { bb = JSON.parse(el.dataset.adsblk); } catch {} V2.adsBlock(el, bb, el.dataset.q, v2Host()); } });
     pv.querySelectorAll('tr[data-id]').forEach(r => { r.removeAttribute('role'); r.removeAttribute('tabindex'); r.classList.remove('link'); });
@@ -6721,7 +6805,14 @@ function dashEditor(d) {
       sync(); preview();
       if (el.dataset.bt != null) { const t = el.closest('.de-blk').querySelector('.de-bt b'); if (t) t.textContent = el.value || blockName(state.spec.blocks[+el.dataset.bt]); }
     }));
-    ed.querySelectorAll('select,input[type=checkbox]').forEach(el => el.addEventListener('change', () => { sync(); preview(); }));
+    ed.querySelectorAll('select,input[type=checkbox],input[type=date]').forEach(el => el.addEventListener('change', () => { sync(); preview(); }));
+    /* A block's own dates: the toggle adds or drops `dates`; picking "Pick the dates" redraws to show From and To. */
+    ed.querySelectorAll('[data-bdr]').forEach(el => el.addEventListener('change', () => { drawEd(); const a = ed.querySelector(`[data-bdr="${el.dataset.bdr}"]`); if (a) a.focus(); }));
+    ed.querySelectorAll('[data-bdo]').forEach(b => b.onclick = () => {
+      sync(); const blk = state.spec.blocks[+b.dataset.bdo];
+      if (b.dataset.v === 'own') { if (!blk.dates) blk.dates = { range: state.spec.range === '7' ? '30' : '7' }; } else delete blk.dates;
+      drawEd(); preview(); const a = ed.querySelector(`[data-bdo="${b.dataset.bdo}"][data-v="${b.dataset.v}"]`); if (a) a.focus();
+    });
     ed.querySelectorAll('[data-cmp]').forEach(b => b.onclick = () => { sync(); state.spec.compare = b.dataset.cmp; drawEd(); preview(); const a = ed.querySelector(`[data-cmp="${b.dataset.cmp}"]`); if (a) a.focus(); });
     const toggleIn = (attr, key) => ed.querySelectorAll(`[${attr}]`).forEach(c => c.onclick = () => {
       sync(); const bi = c.getAttribute(attr), blk = state.spec.blocks[+bi], list = blk[key] = (blk[key] || []).slice(), v = c.dataset.v, at = list.indexOf(v);
@@ -6749,7 +6840,7 @@ function dashEditor(d) {
   wrap.querySelector('#deSave').onclick = async () => {
     sync(); const msg = wrap.querySelector('#deMsg');
     if (!state.name.trim()) { msg.textContent = 'Give it a name.'; const n = ed.querySelector('#deName'); if (n) n.focus(); return; }
-    const blocks = state.spec.blocks.filter(b => b.type !== 'note' || (b.text || '').trim()).map(b => { const c = { ...b }; delete c.__k; return c; });
+    const blocks = state.spec.blocks.filter(b => b.type !== 'note' || (b.text || '').trim()).map(b => { const c = { ...b }; delete c.__k; if (c.dates && (!DASH_DATED.has(c.type) || (c.dates.range === 'custom' && !(c.dates.from && c.dates.to && c.dates.from <= c.dates.to)))) delete c.dates; return c; });
     if (!blocks.length) { msg.textContent = 'Add at least one block.'; return; }
     msg.textContent = 'Saving…';
     try { const r = await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d?.id, name: state.name.trim(), for_who: state.for_who.trim(), act: state.spec.scope, spec: { ...state.spec, blocks }, schedule: d?.schedule || '', channel: d?.channel || '', pinned: true }) });
@@ -6824,15 +6915,14 @@ async function renderDash(first) {
   try { d = await api(`/api/dashboard?id=${encodeURIComponent(DS.id)}`); }
   catch (e) { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} if (run === RUN) show('dash'); return; }
   const spec = d.spec || {}; spec.compare = spec.compare || 'prev';
-  let ov;
-  try { ov = await api('/api/overview?' + dashQuery(spec)); } catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
+  let ovs;
+  try { ovs = await dashLoad(spec); } catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
-  const all = spec.scope && spec.scope !== 'all' ? (ov.accounts || []).filter(a => a.act_id === spec.scope) : (ov.accounts || []);
-  const curs = [...new Set(all.map(a => a.currency))], cur = curs.length === 1 ? curs[0] : null;
+  const all = dashScoped(ovs.get(dashQuery(spec)), spec.scope), cur = dashCur(all);
   const scopeName = spec.scope && spec.scope !== 'all' ? (all[0]?.name || 'that brand') : `All ${all.length} brands`;
   const chanOpts = [['', 'No channel']].concat(S.accounts.flatMap(a => [a.slack_channel ? [a.slack_channel, `${a.name} internal`] : null, a.brief_channel ? [a.brief_channel, `${a.name} client`] : null].filter(Boolean)));
   if (d.channel && !chanOpts.some(o => o[0] === d.channel)) chanOpts.push([d.channel, d.channel]);
-  const blocks = (spec.blocks || []).map(b => dashBlockHtml(b, all, spec, cur)).join('');
+  const blocks = (spec.blocks || []).map(b => dashBlockFrom(b, spec, ovs)).join('');
   const tt = cur ? dashTotals(all, 'window') : null, tp = cur && spec.compare !== 'none' && all.some(a => a.prev) ? dashTotals(all, 'prev') : null;
   const tOff = tt && tp && tp.sales ? tt.sales / tp.sales - 1 : null;
   const dsSay = tt ? `${esc(scopeName)}, ${esc((DASH_RANGE_L[spec.range] || 'Last 30 days').toLowerCase())}: <b>${fmtMoney(tt.sales, cur)}</b> revenue on ${fmtMoney(tt.spend, cur)} of ad spend, ${fmtX(tt.mer)} MER${tOff != null ? `, revenue <b class="${tOff >= 0 ? 'good' : 'bad'}">${tOff >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(tOff * 100))}%</b> on ${esc(CMP_LABEL[spec.compare])}` : ''}.` : `${esc(scopeName)} report in different currencies, so the totals are per brand.`;
@@ -6850,7 +6940,7 @@ async function renderDash(first) {
     </div>
     <p class="lx-msg" id="dsMsg" style="min-height:16px;margin:-6px 0 0">${d.last_posted ? `Last posted ${esc(String(d.last_posted).slice(0, 16).replace('T', ' '))} UTC.` : ''}</p>
     ${blocks || '<div class="card"><p class="hint">This dashboard has no blocks Locus can draw.</p></div>'}
-    <details class="footnote"><summary>How this dashboard is drawn</summary><div class="fn-body">Every number is read live from the same source as Home when the page opens: Triple Whale store-level money, platform spend, Triple Whale last platform click per platform, Klaviyo placed orders for email. The range and compare period belong to this dashboard, not to the date picker. The Slack post carries the tiles, the brand table, email and notes; charts and the channel split live here.</div></details></div>`;
+    <details class="footnote"><summary>How this dashboard is drawn</summary><div class="fn-body">Every number is read live from the same source as Home when the page opens: Triple Whale store-level money, platform spend, Triple Whale last platform click per platform, Klaviyo placed orders for email. The range and compare period belong to this dashboard, not to the date picker; a block that shows its own dates under its title reads those instead. The Slack post carries the tiles, the brand table, email and notes; charts and the channel split live here.</div></details></div>`;
   const msg = t => { const el = $('#dsMsg'); if (el) el.textContent = t; };
   $('#main').querySelectorAll('[data-adsblk]').forEach(el => { if (window.V2 && V2.adsBlock) { let b = {}; try { b = JSON.parse(el.dataset.adsblk); } catch {} V2.adsBlock(el, b, el.dataset.q, v2Host()); } });
   $('#dsBack').onclick = () => { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} show('dash'); };
@@ -10711,9 +10801,13 @@ async function renderCustomers(first) {
     <div class="lx-t3">${tiles}</div>
     ${have ? `${ltvCurve(j, cur)}${cohortTable(j, cur)}<div class="v2two eq">${journeyCard(j, cur)}${sourcesCard(j)}</div>`
     : `<div class="card"><h3 style="margin-bottom:4px">What they spend over time, and what they buy</h3><p class="hint" style="margin:0">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'} Until then this page shows the first-order numbers only.</p></div>`}
+    <div id="cuSurvey"></div>
     <details class="footnote"><summary>Where these numbers come from, and what is approximate</summary>
       <div class="fn-body">The cost to get a customer and the first-order figures are Triple Whale store totals for the selected window. Spend over time, who orders again, how fast, and what they buy follow real customers through Triple Whale’s order history${have ? ` (${j.history.days} days on record, ${fmtN(j.customers)} customers; ${fmtN(j.guest_orders)} guest orders cannot be followed)` : ''}. People first seen in the first 60 days of that history may have bought before it starts, so they are left out of the averages. Products are what the shopper put in the cart, not the receipt. Connect Shopify (Settings) for exact order lines.</div></details>`);
   if (have) LX.wireChart('cuCurve');
+  /* Post-purchase survey vs Triple Whale (survey.js, 2026-10-10): loads on its own, never holds up the page. */
+  if (window.SurveyCard) { const rr = resolveRange(); window.SurveyCard.mount($('#cuSurvey'), { act: S.act, from: rr.from, to: rr.to, api: apiAH, esc, client: isClient(),
+    onConnect: () => { try { localStorage.setItem('pf_set_bsec', 'conn'); } catch {} SETMODE.set('brand'); show('settings'); } }); }
 }
 
 /* ---------- Settings ---------- */
@@ -11509,7 +11603,7 @@ async function renderSettings() {
       const save = drawer.querySelector('#cnSave');
       if (save) save.onclick = async () => {
         const v = drawer.querySelector('#cnLink').value.trim();
-        save.disabled = true; msg(inp.secret ? 'Checking with Klaviyo…' : 'Saving…');
+        save.disabled = true; msg(inp.secret ? `Checking with ${it.key === 'email' ? 'Klaviyo' : it.key === 'survey' ? (v.includes(':') ? 'KnoCommerce' : 'Fairing') : it.key === 'clarity' ? 'Clarity' : 'the service'}…` : 'Saving…');
         try {
           if (inp.key === 'tw_shop' && !it.input) { const vv = v.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); await mApi(`/api/accounts/${b.act_id}`, { method: 'PUT', body: JSON.stringify({ tw_shop: vv }) }); }
           else await saveLink(b, { [inp.key]: v });

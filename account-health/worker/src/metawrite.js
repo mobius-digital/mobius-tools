@@ -46,6 +46,14 @@ export function money(cents, cur = 'USD') {
   const s = v.toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
   return (cur === 'USD' ? '$' : `${cur} `) + s;
 }
+/* An image on our own profit worker (Studio ads, Strategist images) cannot be fetched over its workers.dev URL from this
+   worker (same account: Cloudflare refuses it, which read as a 404 on the first live Launch to Meta, 2026-10-10). The
+   PROFIT service binding reaches it; anything else goes out through xfetch as before. */
+const PROFIT_HOST = 'mobius-profit.mobius-digital.workers.dev';
+function fetchImage(env, d, url) {
+  try { if (env.PROFIT && new URL(url).host === PROFIT_HOST) return env.PROFIT.fetch(new Request(url)); } catch {}
+  return d.xfetch(url);
+}
 const pctText = (from, to) => { const p = Math.round((to - from) / from * 100); return `${p >= 0 ? '+' : ''}${p}%`; };
 
 /* ---------------- Graph API ---------------- */
@@ -385,7 +393,7 @@ const createAdAction = d => ({
     let media;
     if (input.image_url) {
       if (!/^https?:\/\//.test(input.image_url)) return { error: 'image_url must be a full URL the worker can download.' };
-      const res = await d.xfetch(input.image_url).catch(e => ({ ok: false, status: e.message }));
+      const res = await fetchImage(env, d, input.image_url).catch(e => ({ ok: false, status: e.message }));
       const type = res.headers?.get?.('content-type') || '';
       if (!res.ok || !/^image\//.test(type)) return { error: `The worker could not download an image from ${input.image_url} (${res.ok ? type || 'not an image' : `HTTP ${res.status}`}). Give a public or Locus asset link.` };
       media = { image_url: input.image_url };
@@ -405,7 +413,7 @@ const createAdAction = d => ({
     const cta = p.cta === 'NO_BUTTON' ? null : { type: p.cta, value: { link: p.link } };
     let spec;
     if (p.media.image_url) {
-      const res = await d.xfetch(p.media.image_url);
+      const res = await fetchImage(env, d, p.media.image_url);
       if (!res.ok) return { error: `The image could not be downloaded any more (HTTP ${res.status}).` };
       const bytes = new Uint8Array(await res.arrayBuffer());
       let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -419,7 +427,7 @@ const createAdAction = d => ({
     const cr = await gpost(d, env, `${p.act}/adcreatives`, { name: p.ad_name, object_story_spec: spec });
     const ad = await gpost(d, env, `${p.act}/ads`, { name: p.ad_name, adset_id: p.id, creative: { creative_id: cr.id }, status: p.status });
     const wid = await record(env, { ...p, level: 'ad', name: p.ad_name }, ctx, { before: null, after: { created: ad.id, creative: cr.id }, object: ad.id, summary: `New ad "${p.ad_name}" in "${p.name}" (${p.status})`, category: 'new_creative' });
-    return { ok: true, note: `Ad "${p.ad_name}" made (${ad.id}), ${p.status}. Ads Manager: https://adsmanager.facebook.com/adsmanager/manage/ads?act=${p.act.replace('act_', '')}&selected_ad_ids=${ad.id} (undo: ${wid}).` };
+    return { ok: true, write: wid, created: ad.id, creative: cr.id, note: `Ad "${p.ad_name}" made (${ad.id}), ${p.status}. Ads Manager: https://adsmanager.facebook.com/adsmanager/manage/ads?act=${p.act.replace('act_', '')}&selected_ad_ids=${ad.id} (undo: ${wid}).` };
   },
 });
 
@@ -765,4 +773,6 @@ export async function metaLive(env, d, brandId) {
   out.can = out.accounts.some(a => a.can);
   return out;
 }
+/* Read helpers for launch.js (Launch to Meta, 2026-10-10): the same Graph reads and the brand's Meta accounts. */
+export { gget, gall, metaActs };
 export const _test = { findObject, driveIdOf, targetingSummary, WRITE_SQL, resetTable: () => { tabled = false; } };

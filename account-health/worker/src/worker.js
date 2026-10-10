@@ -2,14 +2,17 @@ import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tik
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
+import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
+import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
+import { handleRequests } from './requests.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -52,11 +55,14 @@ import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
 import { handleMake } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
+import { smokeTick, handleSmoke } from './smoke.js';
 import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProject, forgetClarity } from './clarity.js';
+import { useFetch as surveyFetch, surveyReport, storeFairing, storeKno, forgetSurvey, setSurveyQuestion } from './survey.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
+import { handleLaunch } from './launch.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -213,6 +219,7 @@ klaviyoFetch(xfetch);
 calendarFetch(xfetch);
 googleFetch(xfetch);
 clarityFetch(xfetch);
+surveyFetch(xfetch);
 assetsFetch(xfetch);
 tiktokFetch(xfetch);
 marketFetch(xfetch);
@@ -1153,7 +1160,9 @@ const DASH_POST_HOUR = 8;
 const DASH_URL = 'https://tools.go-mobius-digital.com/profit/?open=dash&id=';
 const DASH_TABLE = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, act_id TEXT, name TEXT NOT NULL, for_who TEXT, spec_json TEXT NOT NULL, schedule TEXT, channel TEXT, pinned INTEGER NOT NULL DEFAULT 1, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), last_posted TEXT)`;
 const centralDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: BRIEF_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-function dashRange(acct, range) {
+function dashRange(acct, range, from, to) {
+  /* A block's own custom dates (2026-10-10, cleaned by profit dashboard.js cleanDates). */
+  if (range === 'custom' && /^\d{4}-\d{2}-\d{2}$/.test(from || '') && /^\d{4}-\d{2}-\d{2}$/.test(to || '') && from <= to) return { from, to, label: `${from} to ${to}` };
   const today = localDate(acct.tz), y = addDays(today, -1);
   if (range === 'yesterday') return { from: y, to: y, label: `Yesterday, ${y}` };
   if (range === 'mtd') return { from: `${today.slice(0, 7)}-01`, to: y, label: `Month to date, ${today.slice(0, 7)}-01 to ${y}` };
@@ -1193,31 +1202,66 @@ function dashSum(list) {
   t.email_share_of_revenue = t.revenue && t.email_revenue != null ? t.email_revenue / t.revenue : null;
   return t;
 }
-async function dashNumbers(env, row) {
-  const spec = safeJson(row.spec_json, {}) || {};
-  const all = await listAccounts(env, true);
-  /* A dashboard saved before phase 3 may hold an old act id as its scope. */
-  const scope = spec.scope && spec.scope !== 'all' ? await resolveBrandId(env, spec.scope) : null;
-  const accts = scope ? all.filter(a => a.act_id === scope) : all;
-  if (!accts.length) throw new Error('No brand in this dashboard\'s scope is active.');
+/* One range over every brand in scope: per brand numbers, the sum, and the compare period. */
+async function dashPeriod(env, accts, dt, read = storePeriod) {
   const out = [];
   let label = '';
   for (const a of accts) {
-    const r = dashRange(a, spec.range || '30'); label = label || r.label;
-    const prev = dashPrev(r.from, r.to, spec.compare || 'prev');
-    const cur = await storePeriod(env, a, r.from, r.to).catch(() => null);
-    const pr = prev ? await storePeriod(env, a, prev.from, prev.to).catch(() => null) : null;
+    const r = dashRange(a, dt.range || '30', dt.from, dt.to); label = label || r.label;
+    const prev = dashPrev(r.from, r.to, dt.compare || 'prev');
+    const cur = await read(env, a, r.from, r.to).catch(() => null);
+    const pr = prev ? await read(env, a, prev.from, prev.to).catch(() => null) : null;
     out.push({ a, cur, prev: pr });
   }
-  return { spec, accts: out, label, cur: dashSum(out.map(x => x.cur).filter(Boolean)), prev: spec.compare === 'none' ? null : dashSum(out.map(x => x.prev).filter(Boolean)), cur_code: [...new Set(accts.map(a => a.currency))].length === 1 ? accts[0].currency : null };
+  return { accts: out, label, compare: dt.compare || 'prev', cur: dashSum(out.map(x => x.cur).filter(Boolean)), prev: dt.compare === 'none' ? null : dashSum(out.map(x => x.prev).filter(Boolean)) };
+}
+/** A block's own dates (2026-10-10): `dates` on a block overrides the dashboard's range; compare
+ *  left out follows the dashboard's. Null = the dashboard's dates. */
+const DASH_DATED = new Set(['tiles', 'brands', 'channels', 'daily', 'email', 'ads']);
+function dashBlockDates(spec, b) {
+  const o = b && DASH_DATED.has(b.type) && b.dates && typeof b.dates === 'object' ? b.dates : null;
+  if (!o || !o.range) return null;
+  return { range: String(o.range), from: o.from, to: o.to, compare: ['prev', 'yoy', 'none'].includes(o.compare) ? o.compare : (spec.compare || 'prev') };
+}
+const dashKey = dt => [dt.range, dt.from || '', dt.to || '', dt.compare].join('|');
+/* `deps` (accounts, read) is for the offline test (test-dashrange.mjs); the worker never passes it. */
+async function dashNumbers(env, row, deps = {}) {
+  const spec = safeJson(row.spec_json, {}) || {};
+  const all = deps.accounts || await listAccounts(env, true);
+  /* A dashboard saved before phase 3 may hold an old act id as its scope. */
+  const scope = spec.scope && spec.scope !== 'all' ? (deps.accounts ? spec.scope : await resolveBrandId(env, spec.scope)) : null;
+  const accts = scope ? all.filter(a => a.act_id === scope) : all;
+  if (!accts.length) throw new Error('No brand in this dashboard\'s scope is active.');
+  const read = deps.read || storePeriod;
+  const main = { range: String(spec.range || '30'), compare: spec.compare || 'prev' };
+  const base = await dashPeriod(env, accts, main, read);
+  /* One read per distinct block range; a block whose dates equal the dashboard's reuses it. */
+  const seen = new Map([[dashKey(main), base]]);
+  const blk = [];
+  for (const b of spec.blocks || []) {
+    const dt = dashBlockDates(spec, b);
+    if (!dt) { blk.push(null); continue; }
+    const k = dashKey(dt);
+    if (!seen.has(k)) seen.set(k, await dashPeriod(env, accts, dt, read));
+    const p = seen.get(k);
+    blk.push(p === base ? null : p);
+  }
+  return { spec, ...base, blk, cur_code: [...new Set(accts.map(a => a.currency))].length === 1 ? accts[0].currency : null };
 }
 function dashBlocks(row, d) {
   const cur = d.cur_code, mixed = !cur;
   const scopeName = d.accts.length === 1 ? d.accts[0].a.name : `${d.accts.length} brands`;
   const blocks = [{ type: 'header', text: { type: 'plain_text', text: row.name.slice(0, 150) } },
     { type: 'context', elements: [{ type: 'mrkdwn', text: `${scopeName} · ${d.label}${d.prev ? ` · deltas vs ${d.spec.compare === 'yoy' ? 'same dates last year' : 'the period before'}` : ''}${row.for_who ? ` · for ${row.for_who}` : ''}` }] }];
-  for (const b of d.spec.blocks || []) {
-    const title = b.title ? `*${b.title}*\n` : '';
+  const vsOf = c => c === 'yoy' ? 'same dates last year' : 'the period before';
+  const base = d;
+  for (const [bi, b] of (base.spec.blocks || []).entries()) {
+    /* A block with its own dates (2026-10-10) reads its own numbers and says its range under the title. */
+    const own = base.blk && base.blk[bi];
+    const d = own ? { ...base, ...own } : base;
+    const deflt = { channels: 'Where the money came from', email: 'Email and SMS', daily: 'Day by day', tiles: 'The numbers', brands: 'By brand' };
+    const title = (b.title ? `*${b.title}*\n` : own && deflt[b.type] ? `*${deflt[b.type]}*\n` : '')
+      + (own ? `_${own.label}${own.prev ? `, deltas vs ${vsOf(own.compare)}` : ''}_\n` : '');
     if (b.type === 'tiles') {
       if (mixed) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${title}_Brands report in different currencies; open in Locus for the per-brand view._` } }); continue; }
       const lines = (b.metrics || []).map(m => DASH_METRICS[m]).filter(Boolean).map(([l, f, k]) => `• ${l}: *${f(d.cur, cur)}*${d.prev ? dDelta(d.cur[k], d.prev[k]) : ''}`);
@@ -1244,7 +1288,7 @@ function dashBlocks(row, d) {
 _A chart pinned from the Strategist${b.pinned_at ? ` on ${String(b.pinned_at).slice(0, 10)}` : ''}; open in Locus to see it._` } });
     } else if (b.type === 'ads') {
       /* A view saved from Ads > Creative (2026-10-09): the ad cards live in Locus. */
-      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || 'Ads').slice(0, 150)}*
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${(b.title || 'Ads').slice(0, 150)}*${own ? `\n_${own.label}_` : ''}
 _The ad cards (sorted by ${b.sort || 'spend'}${b.group ? ', one per creative' : ''}) are on the dashboard in Locus._` } });
     }
   }
@@ -6688,6 +6732,15 @@ function autoDeps() {
 function idxDeps() {
   return { slackApi, getSetting, putSetting, safeJson, xfetch, canAfford: n => subCanAfford(n) };
 }
+/* The daily smoke check (smoke.js, 2026-10-10). `meter` lets it run this worker's own routes in-process:
+   handle() resets SUB_USED and COST_SEEN, so hold() saves both and its restore puts back the saved count plus
+   what the smoke check counted itself. */
+function smokeDeps() {
+  return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackApi, isAdmin, xfetch, mintSession, integrationsReport,
+    ahFetch: (req, env) => AH_APP.fetch(req, env, { waitUntil() {} }),
+    meter: { left: subLeft, used: subUsed, spend: subSpend, zero: () => { SUB_USED = 0; },
+      hold: () => { const used = SUB_USED, seen = new Map(COST_SEEN); return extra => { SUB_USED = used + extra; COST_SEEN.clear(); for (const [k, v] of seen) COST_SEEN.set(k, v); }; } } };
+}
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
@@ -7083,10 +7136,14 @@ const AH_APP = {
         ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
+        ran.mondayReview = await reviewTick(env, { ...hubDeps(), briefHour }).catch(e => ({ error: e.message }));
         /* Alerts: rules checked at their hour, posted at most once a Central day (alerts.js). */
         ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* Is Locus itself working: every page's routes, connections and freshness, once a Central morning (smoke.js). */
+        ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
         ran.slackIndex = await backfillTick(env, idxDeps()).then(r => ({ pages: r.pages, added: r.channels.reduce((s, c) => s + (c.added || 0), 0), errors: r.channels.filter(c => c.error).length })).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
@@ -7311,6 +7368,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleCalendar(request, env, url, path, json, isAdmin, sessionEmail);
       if (r) return r;
     }
+    /* ---- Client requests and approvals (requests.js, 2026-10-10) ---- */
+    if (path === '/api/requests' || path.startsWith('/api/requests/')) {
+      const r = await handleRequests(request, env, url, path, json, { isAdmin, sessionEmail, slackPost });
+      if (r) return r;
+    }
     if (path.startsWith('/api/brand-asana')) {
       const r = await handleBrandAsana(request, env, path, json, isAdmin);
       if (r) return r;
@@ -7369,6 +7431,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           await env.DB.prepare(`UPDATE ${t} SET ${m[0]} = ?2 WHERE ${k} = ?1`).bind(String(id), m[1](v)).run().catch(() => {});
         }
       }
+    }
+    /* ---- Launch to Meta (2026-10-10, src/launch.js): an approved Studio ad or a creator asset becomes a PAUSED
+       Meta ad through metawrite meta_create_ad, named "<test> <letter> | <Format>", tied to its test. Admin + brandsFor. */
+    {
+      const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting } });
+      if (r) return r;
     }
     /* ---- Export > Send to Slack (Locus share.js, 2026-10-09) ----
        A picture of one Locus card into the brand's OWN internal (slack_channel) or client (brief_channel) channel.
@@ -7434,6 +7502,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Scheduled questions (askschedule.js): admin-checked inside. */
       const sched = await handleSchedules(request, env, path, json, hubDeps());
       if (sched) return sched;
+      /* The Monday account review: switch, state, a dry-run preview for one brand (review.js). Admin-checked inside. */
+      const rev = await handleReview(request, env, path, json, { ...hubDeps(), briefHour });
+      if (rev) return rev;
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const { engine, h } = strategist();
       const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
@@ -7955,6 +8026,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleCommand(request, env, path, json, isAdmin, async rq => brandsFor(env, await sessionEmail(env, rq).catch(() => null)));
       if (r) return r;
     }
+    /* Agency economics (owner only) and team workload (team): agency.js. Clients are refused (not on CLIENT_RULES). */
+    if (/^\/api\/agency\//.test(path)) {
+      const r = await handleAgency(request, env, path, json, { isAdmin, sessionEmail, brandsFor, mintSession });
+      if (r) return r;
+    }
     if (path === '/api/daycheck' && request.method === 'POST') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       return json(await dayCheckVerdict(env, await request.json().catch(() => ({}))));
@@ -8101,6 +8177,23 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       } catch (e) { return json({ error: e.message }, e.status === 429 ? 429 : 400); }
       return json({ error: 'GET, PUT or DELETE' }, 405);
     }
+    /* Post-purchase survey (survey.js, 2026-10-10): Fairing or KnoCommerce answers vs Triple Whale for the same orders,
+       the "How customers say they found you" card on Store > Customers. GET = the report (syncs at most every 6 hours;
+       clients may read their own brand, CLIENT_RULES), PUT {act, question_id} = pin the question, DELETE ?provider= = forget. */
+    if (path === '/api/survey') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const only = await brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
+      const b = request.method === 'GET' || request.method === 'DELETE' ? {} : await request.json().catch(() => ({}));
+      const acct = await acctOf(env, String(url.searchParams.get('act') || b.act || ''));
+      if (!acct) return json({ error: 'act is required' }, 400);
+      if (only && !only.has(acct.act_id)) return json({ error: 'You do not have access to this brand.' }, 403);
+      try {
+        if (request.method === 'GET') return json(await surveyReport(env, acct.act_id, { from: url.searchParams.get('from'), to: url.searchParams.get('to'), fresh: url.searchParams.get('fresh') === '1' }));
+        if (request.method === 'PUT') return json(await setSurveyQuestion(env, acct.act_id, b.question_id));
+        if (request.method === 'DELETE') { await forgetSurvey(env, acct.act_id, ['fairing', 'knocommerce'].includes(url.searchParams.get('provider')) ? url.searchParams.get('provider') : null); return json({ ok: true }); }
+      } catch (e) { return json({ error: e.message }, 400); }
+      return json({ error: 'GET, PUT or DELETE' }, 405);
+    }
     /* Older brands' Drive folder / Frame project links, pasted from the Connections page. */
     if (path === '/api/brand-links' && request.method === 'PUT') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -8134,6 +8227,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (!String(b.clarity_token || '').trim()) await forgetClarity(env, acct.act_id);
         else { try { await storeClarity(env, acct.act_id, b.clarity_token); } catch (e) { return json({ error: e.message }, 400); } }
       }
+      /* Post-purchase survey keys (survey.js): Fairing's secret token, KnoCommerce's client_id:client_secret; each checked by one real call, never echoed.
+         `survey_key` (the Integrations box) is either: a colon between two parts = KnoCommerce, else Fairing. */
+      if (b.survey_key !== undefined) { const v = String(b.survey_key || '').trim(); if (/^[^:\s]+:[^:\s]+$/.test(v)) b.kno_key = v; else b.fairing_key = v; }
+      for (const [k, store, prov] of [['fairing_key', storeFairing, 'fairing'], ['kno_key', storeKno, 'knocommerce']]) {
+        if (b[k] === undefined) continue;
+        if (!String(b[k] || '').trim()) await forgetSurvey(env, acct.act_id, prov);
+        else { try { await store(env, acct.act_id, b[k]); } catch (e) { return json({ error: e.message }, 400); } }
+      }
       /* The Triple Whale shop domain, the same column Settings > Brands writes. */
       if (b.tw_shop !== undefined) {
         const v = String(b.tw_shop || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -8159,6 +8260,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       for (const [k, v] of Object.entries(links)) { try { await connSet(env, acct.act_id, k, v); } catch (e) { return json({ error: e.message }, 400); } }
       const next = { drive: (await connGet(env, acct.act_id, 'drive'))?.external_id, frame: (await connGet(env, acct.act_id, 'frame'))?.external_id };
       return json({ ok: true, links: next, ...(klaviyo ? { klaviyo: { company: klaviyo.company, account_id: klaviyo.account_id } } : {}) });
+    }
+    /* The daily smoke check (smoke.js): GET /api/smoke, POST /api/smoke/run {dry, brand}, PUT /api/smoke {check, quiet}. Admin. */
+    if (path.startsWith('/api/smoke')) {
+      const r = await handleSmoke(request, env, path, json, smokeDeps());
+      if (r) return r;
     }
     if (path === '/api/schedule-health' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -9224,4 +9330,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
   },
 };
+/* For the offline dashboard checks (test-dashrange.mjs). */
+export { dashNumbers, dashBlocks, dashRange };
 export default AH_APP;

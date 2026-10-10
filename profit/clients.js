@@ -200,9 +200,23 @@ async function invite(o = {}) {
 /* ---------------- what a signed-in client sees ---------------- */
 const brandOf = (act = S.act) => (S.client && S.client.brands || []).find(b => b.id === act) || null;
 
+/** "N waiting for you" on a client's Home (2026-10-10, requests.js): approvals the team sent that are still open. */
+async function waitingLine(main) {
+  if (!main || !window.RequestsTab || !S.act || S.act === 'all') return;
+  const act = S.act, n = await window.RequestsTab.waiting(act, apiAH);
+  if (!n || S.tab !== 'overview' || S.act !== act || main.querySelector('.cl-wait')) return;
+  const el = document.createElement('div'); el.className = 'cl-wel cl-wait';
+  el.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:inset 0 0 0 1px var(--brand)';
+  el.innerHTML = `<div style="flex:1;min-width:200px"><b>${n} waiting for you</b><div class="hint" style="margin:2px 0 0">${n === 1 ? 'Something the team needs you to approve.' : 'Things the team needs you to approve.'} It takes a tap: Approve, or Ask for changes.</div></div>
+    <button class="btn primary" type="button">Open Requests</button>`;
+  el.querySelector('button').onclick = () => show('requests');
+  const head = main.querySelector('.ph'); if (head && head.parentElement) head.parentElement.insertBefore(el, head.nextSibling); else main.prepend(el);
+}
+
 /** The first-sign-in card on Home, until they press Got it. */
 function welcome(main) {
   css();
+  if (S.client && main) waitingLine(main).catch(() => {});
   if (!S.client || S.client.welcomed || !main) return;
   const b = brandOf(); const name = (S.client.name || '').split(/\s+/)[0];
   const el = document.createElement('div'); el.className = 'cl-wel';
@@ -214,10 +228,11 @@ function welcome(main) {
       <li><b>Email and SMS</b>: what your emails and texts sold.</li>
       <li><b>Store</b>: sales, customers, your website and search.</li>
       <li><b>Calendar</b>: your launches and sales. Add a date or leave a note and the team hears about it right away.</li>
+      <li><b>Requests</b> (under Home): approve the ads, offers and dates we send you, and ask us for anything.</li>
       <li><b>Reports</b>: every weekly and monthly report we sent you.</li>
       ${A.creators ? '<li><b>Creative</b>: your creator link, the page your creators film from.</li>' : ''}
       ${A.strategist ? '<li><b>Ask</b>: type a question about your numbers in the bar at the top and the Strategist answers from your own data.</li>' : ''}</ul>
-    <p class="hint" style="margin:0 0 12px">Change the dates and what they compare to in the top bar. Everything is read-only except the calendar, so there is nothing you can break.</p>
+    <p class="hint" style="margin:0 0 12px">Change the dates and what they compare to in the top bar. Everything is read-only except the calendar and Requests, so there is nothing you can break.</p>
     <button class="btn primary" type="button">Got it</button>`;
   const head = main.querySelector('.ph'); if (head && head.parentElement) head.parentElement.insertBefore(el, head.nextSibling); else main.prepend(el);
   el.querySelector('button').onclick = async () => { el.remove(); S.client.welcomed = true; try { await apiAH('/api/clients/me', { method: 'PUT', body: JSON.stringify({ welcomed: true }) }); } catch {} };
