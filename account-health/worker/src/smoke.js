@@ -121,6 +121,10 @@ function has(need, b) {
   return it(need)?.state === 'ok';   // ga4, gsc, clarity: only when Locus can read it
 }
 
+/* Paused brands and The Golf Sock (a paused test account) are never flagged anywhere (Cole's rule; same list as
+   command.js and hub.js SKIP_HUB), even while they are still switched on. */
+const SKIP = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock/i;
+
 /** Every check for today, from the route table, the active brands and what each one has connected. */
 export function buildPlan(brands, { from, to, only = null } = {}) {
   const fill = (p, act) => p.replace('{act}', encodeURIComponent(act)).replace('{from}', from).replace('{to}', to);
@@ -139,7 +143,7 @@ export function buildPlan(brands, { from, to, only = null } = {}) {
 /* ---------------- phase A: brands, connections, freshness ---------------- */
 async function survey(env, d, { only = null } = {}) {
   const now = d.now ? d.now() : Date.now();
-  const accts = (await d.listAccounts(env, true)).filter(a => !only || a.act_id === only);
+  const accts = (await d.listAccounts(env, true)).filter(a => (!only || a.act_id === only) && !SKIP.test(a.name || ''));
   const conn = [], fresh = [];
   const fail = (list, x) => list.push({ ...x, error: clip(x.error) });
 
@@ -215,7 +219,9 @@ async function survey(env, d, { only = null } = {}) {
       if (a.meta_act) {
         const latest = M[a.act_id]?.latest || null, age = hoursSince(a.last_sync_insights, now);
         if (a.last_error) fail(fresh, { what: 'Meta sync', brand: a.name, act: a.act_id, open: 'health', error: `Meta sync failing: ${a.last_error}` });
-        else if (!latest || latest < d.addDays(yday, -1)) fail(fresh, { what: 'Meta data', brand: a.name, act: a.act_id, open: 'health', error: `Meta data (daily_insights) stops at ${latest || 'nothing in 3 weeks'}, expected ${yday}.` });
+        /* No rows at all in 3 weeks with no sync error = the account is not spending (a new client not live yet), not a
+           failure. Data that flowed and then stopped is one. */
+        else if (latest && latest < d.addDays(yday, -1)) fail(fresh, { what: 'Meta data', brand: a.name, act: a.act_id, open: 'health', error: `Meta data (daily_insights) stops at ${latest}, expected ${yday}.` });
         else if (age == null || age > 12) fail(fresh, { what: 'Meta sync', brand: a.name, act: a.act_id, open: 'health', error: `Meta has not synced for ${age == null ? 'ever' : Math.round(age) + ' hours'}.` });
       }
       if (a.tw_shop) {

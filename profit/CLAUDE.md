@@ -2529,8 +2529,8 @@ title had "war" in lower case. Reference: docs/triplewhale-reference/. Page name
   `meta_spend` when Meta has a budget), MER floor, AOV floor (new metric `aov`), stock cover (new metric `stock_cover`: days on
   the 5 best sellers via stock.js). New columns `starts` / `ends` (Central dates; `isDue` skips outside them) and `source`.
 - **Clients** see their brand's War Room read only (CLIENT_TABS 'war', brandguard rule GET /api/season/war): no edits, no ladder,
-  no alerts, stock or AI read. Live numbers for a client need account-health to accept the client token on /api/tw-day (it does
-  not today), so the live card says the team reads them.
+  no alerts, stock or AI read. Live numbers: since 2026-10-10 account-health accepts a client token on
+  /api/tw-day for its own brand (cost ids stripped while P&L is off), so the live card works for clients too.
 - Checked on a local pair (account-health `wrangler dev --remote` + the profit worker local with remote D1) with real data for
   Lucky, Bonk and all brands: dark, light, TV mode, 390px with no sideways scroll; alert create / test / delete with the new
   metrics ran against the real tables and were removed. Stock showed "needs the Google sign-in" locally (dev token).
