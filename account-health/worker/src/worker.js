@@ -11,6 +11,7 @@ import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
+import { handleRequests } from './requests.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -7315,6 +7316,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
     if (path.startsWith('/api/calendar')) {
       const r = await handleCalendar(request, env, url, path, json, isAdmin, sessionEmail);
+      if (r) return r;
+    }
+    /* ---- Client requests and approvals (requests.js, 2026-10-10) ---- */
+    if (path === '/api/requests' || path.startsWith('/api/requests/')) {
+      const r = await handleRequests(request, env, url, path, json, { isAdmin, sessionEmail, slackPost });
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {

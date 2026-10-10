@@ -2222,7 +2222,7 @@
            are a switcher at the top of the screen (#v2seg), never sub-tabs in the rail.
            Settings lives in the foot. Every tab selector stays scoped to `button[data-t]`. -->
       <div class="grp v2nav" data-g="main"><div class="grp-btns">
-          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L, Goals"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
+          <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L, Goals, Requests"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
           <button data-t="today" data-grp="ads" title="Today, Meta, Google, TikTok, All channels, Tests and angles"><svg class="ic"><use href="#i-mega"/></svg><span>Ads</span></button>
           <button data-t="email" data-grp="email" title="Klaviyo or Attentive: campaigns and flows"><svg class="ic"><use href="#i-email"/></svg><span>Email and SMS</span></button>
           <button data-t="store" data-grp="store" title="Sales, Customers, Website, Search"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
@@ -2302,7 +2302,8 @@
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=19"></script>
 <script src="newclient.js?v=16"></script>
-<script src="clients.js?v=2"></script>
+<script src="clients.js?v=3"></script>
+<script src="requests.js?v=1"></script>
 <script src="studio.js?v=30"></script>
 <script src="launch.js?v=1"></script>
 <script src="season.js?v=17"></script>
@@ -2519,7 +2520,7 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -4724,7 +4725,8 @@ const NAV = {
      Brand holds what we know about the client. Every old page id still routes. */
   /* 2026-10-09 (later): Goals moved to Home (they change every month; Brand is what rarely changes). Creative is
      grouped by where ads come from: AI ads (Studio, with Words), Creators (the creator link), Library, Inspiration. */
-  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L'], ['plan', 'Goals']] },
+  /* Requests (2026-10-10, requests.js): approvals sent to the client and what the client asked us for. */
+  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L'], ['plan', 'Goals'], ['requests', 'Requests']] },
   /* Ads order (2026-10-09, Cole): the buyer's list first, then the blended view that matches Home, then each platform. */
   ads: { label: 'Ads', tabs: [['today', 'Today’s calls'], ['channels', 'All channels'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['angles', 'Tests and angles']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
@@ -4792,7 +4794,7 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
    Email and SMS, Store, Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
    when on), and Settings = their own profile. Everything here only DRAWS that; the server refuses the rest. */
 const isClient = () => S.role === 'client';
-const CLIENT_TABS = new Set(['overview', 'profit', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
+const CLIENT_TABS = new Set(['overview', 'profit', 'requests', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
 function clientCan(k, act = S.act) { const b = ((S.client && S.client.brands) || []).find(x => x.id === act); return !!(b && b.access && b.access[k]); }
 function clientTabOk(t) {
   if (!CLIENT_TABS.has(t)) return false;
@@ -4820,7 +4822,7 @@ function applyClientMode() {
    the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5066,7 +5068,7 @@ function openFixedCosts(act) {
 window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
-const SHOWABLE = new Set(["gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
   const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
@@ -5189,7 +5191,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = (isClient() && CLIENT_R[tab]) ? CLIENT_R[tab](first) : ({ requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */

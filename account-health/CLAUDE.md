@@ -1545,3 +1545,26 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   THE CMO METHOD. Clients may GET their own brand (CLIENT_RULES, both brandguard copies).
 - Tests: `node test-survey.mjs` (12 offline checks, Fairing and Kno mocked), test-clients.mjs has a survey check,
   test-strategist.mjs checks the view is listed. NOT tested live: any Fairing or Kno call (no brand has a key yet).
+## 2026-10-10: client requests and approvals (`src/requests.js`)
+
+- **Two kinds of item per brand.** `approval` = the team sends the client something to sign off (`what`: `studio` = Studio
+  ad ids in `ref`, `date` = a Lineup event id in `ref`, `offer` = the text, `link` = a link or file). `request` = the client
+  (or the team, logging a call) asks for something: title, text, optional link, then a thread.
+- **Tables** `p_request` + `p_request_msg` on this D1, created on first use (`ensureRequests`, like p_alert). Status: open,
+  approved / changes (the client's decision on an approval), done (the team closes anything; `done:false` reopens). A
+  client reply on a done request reopens it. Done items drop off the list after 60 days.
+- **Effects of an approval:** Studio ads -> `p_studio_ad.status = 'approved'` (same D1, the state Studio's own Approve sets,
+  only rows of that brand); a date -> Lineup `events.status = 'confirmed'` plus a changelog row "Confirmed: <name> approved
+  it in Requests" written as `Locus` (a team name), so `calendarTick` does not post it a second time.
+- **Routes** (one block in worker.js above /api/brand-asana): `GET /api/requests?act=` (team: a brand or `all`, filtered
+  by brandguard for a limited teammate; client: its brand only) -> {items (with thread, ads / date preview), waiting_client,
+  waiting_team}; `POST /api/requests` {act, kind, what, ref, title, text, link}; `POST /api/requests/reply` {act, id, text};
+  `POST /api/requests/decide` {act, id, decision: approved | changes, note (required for changes)}; `POST
+  /api/requests/done` {act, id, done} (team only). Every id route checks the item's own brand against `act` and, for a
+  client, `clientScope(request).ids`.
+- **brandguard CLIENT_RULES** (both copies): GET /api/requests, POST /api/requests, /reply, /decide, all `act: 'need'`.
+  A client can never send an approval (403 in the handler) or mark done (not on the list).
+- **Slack:** a client's new request, decision or reply posts ONE line to the brand's internal channel
+  (`brand_accounts.slack_channel`), button "Open in Locus" (`?open=requests&act=`). Never the client channel. A team
+  action posts nothing. No email: a new approval only shows in Locus (the client's Home says "N waiting for you").
+- **Tests:** `node test-requests.mjs` (9 offline checks, Slack mocked). Not tested live.
