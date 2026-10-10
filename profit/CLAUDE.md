@@ -2707,3 +2707,20 @@ cadence cards were hard to read, and Overview vs Campaigns looked the same. All 
 - Local check recipe used (no shared browser pane): own static server + `wrangler dev --remote` profit / account-health on
   spare ports, headless Chrome driven over CDP from node (scratch scripts), light, dark and 375 wide. The tag tables also
   fixed a page that was 486-525px wide on a phone.
+
+## 2026-10-10: client requests and approvals (Home > Requests, `requests.js`)
+
+- **Page** `requests` = the fifth tab under Home (NAV.home), also in CLIENT_TABS, SHOWABLE, TAB_TITLE, the `?open=` list
+  and the show() map (inline `window.RequestsTab.render(host, first)`). Engine and rules: account-health/CLAUDE.md
+  "client requests and approvals".
+- **Team, one brand:** "Send for approval" (modal: Ads from this brand's Studio as a thumbnail picker, a calendar date from
+  this week on, an offer, a link or file; title + note) and "Add a request". Sections: Waiting for us (client requests
+  open + changes asked), Waiting for the client, Approved not closed; Done folded. Each item: preview, Mark done / Open it
+  again, thread with a reply box. **All clients:** every brand's items with the brand name, no send buttons.
+- **Client:** Waiting for you (open approvals with Approve / Ask for changes, a note required for changes), Your requests,
+  "Ask the team for something". Their Home shows a "N waiting for you" card (clients.js `waitingLine`, called from
+  `welcome`, so it still shows after the welcome card is dismissed); the welcome list names Requests.
+- Studio images in previews load from this worker's public `/api/studio/img/<id>/<full|final>`. No change to studio.js.
+- Not built: a count on the command center (command.js was out of scope), email for new approvals (nothing for now).
+- Checked offline: a headless Chrome render of requests.js with a stubbed host (client and team sections, escaping, the
+  decide and send modals and their POST bodies). Not tested against the live workers.
