@@ -65,7 +65,7 @@ export function reviewPrompt(b, today) {
   return `[Monday account review for ${b.name} (${id}), ${today}. It runs on its own every Monday and your answer is posted to the team's INTERNAL Slack channel for ${b.name}. Nobody is there to answer questions back, so do not ask any.]
 Review ${b.name} for the week ahead the way a senior strategist does on a Monday morning. Read before you judge, about this brand only:
 1. The audit: locus_get /api/hub/command?act=${id} (the command center: what needs a call and why, fatigue, stuck work) and locus_get /api/hub/yesterday?act=${id} (the Day check verdicts for the last 14 days).
-2. Goals against the plan: the plan view (goals and this month's plan) against month to date.
+2. Goals against the plan: the plan view (goals and this month's plan) against month to date. If a giveaway is running (the store view's giveaway block, or locus_get /api/hub/giveaway?act=${id}), the MER floor applies to SALES spend (Sales MER) and the giveaway is judged on cost per entry against its most to pay and its pace to the entries goal, never on MER.
 3. Creative fatigue: the creatives view (14 days) and the tests view. A tiring ad is judged by its role in its ad set, not alone.
 4. Budgets and structure: meta_read (live campaigns, ad sets, budgets). Judge each ad set first, then each ad by its role in that set. Never cut the anchor of an ad set that is working.
 5. Stock: the stock view. Do not put more spend behind a product that runs out soon; say where the spend can go instead.
