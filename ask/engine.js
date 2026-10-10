@@ -449,7 +449,16 @@ export function createAssistant(config) {
   /* Every action is a tool, and every action's description says the same
    * thing first: this proposes, a person applies. The model cannot be told
    * that too often. */
-  const actionDefs = ACTIONS.map(a => ({
+  /* 2026-10-10, Cole: "why does it have to ask me when I tell it to do it?" An app may name low-risk,
+   * internal, easy-to-undo actions (C.directActions: a brand setting, a dashboard, a schedule). Those apply
+   * at once when the person's own message asked for exactly that change (the model sets asked_directly);
+   * anything it suggests on its own, and every other action, is still a card with Apply. */
+  const DIRECT = new Set(C.directActions || []);
+  const actionDefs = ACTIONS.map(a => DIRECT.has(a.name) ? ({
+    name: a.name,
+    description: 'Applies RIGHT AWAY when asked_directly is true (the person explicitly asked for exactly this change in their own words); otherwise PROPOSES it as a card with an Apply button. ' + a.description,
+    input_schema: { ...a.input_schema, properties: { ...(a.input_schema?.properties || {}), asked_directly: { type: 'boolean', description: 'true ONLY when the person\'s own message explicitly asked for exactly this change ("turn on the daily brief for Ice & Gold"). false when it is your own suggestion, when you are filling in details they did not give, or when they asked a question rather than gave an instruction.' } } },
+  }) : ({
     name: a.name,
     description: 'PROPOSES a change; it does NOT apply it. A card with an Apply button is shown and the person taps it. ' + a.description,
     input_schema: a.input_schema,
@@ -688,6 +697,13 @@ export function createAssistant(config) {
     if (!d || d.error) return { is_error: true, text: d?.error || 'Could not describe that change.' };
     const p = { id: Math.random().toString(36).slice(2, 10), action: name, summary: String(d.summary || name).slice(0, 160),
       detail: String(d.detail || '').slice(0, 1200), patch: d.patch ?? input, at: new Date().toISOString(), preview: d.preview || null };
+    if (DIRECT.has(name) && input?.asked_directly === true && ctx?.call) {
+      try {
+        const r = await a.apply(env, p.patch, h, ctx);
+        if (!r?.error) return { text: `Done: ${p.summary}. ${r?.note || ''} It is applied, no card needed. Reply with ONE short sentence that says it is done, plus any gap worth knowing.` };
+        return { is_error: true, text: `Could not apply it: ${r.error}` };
+      } catch (e) { return { is_error: true, text: `Could not apply it: ${String(e.message || e)}` }; }
+    }
     await keepProposal(env, h, p);
     return { text: `Proposed: ${p.summary}. The card with the Apply button is shown; the person applies it with a tap. Reply with ONE short sentence that says what you proposed and that it is waiting on them. Do not repeat the details.`,
       flags: { proposals: [p] } };
@@ -779,7 +795,7 @@ export function createAssistant(config) {
     const playbook = (await h.getSetting(env, K.playbook)) || C.playbook || '';
     if (playbook) blocks.push({ type: 'text', text: '## How you think (your playbook)\n' + playbook });
     blocks.push({ type: 'text', text: '## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.' });
-    if (ACTIONS.length) blocks.push({ type: 'text', text: '## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.' });
+    if (ACTIONS.length) blocks.push({ type: 'text', text: '## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. The exception: an action that takes asked_directly applies at once when the person plainly told you to make exactly that change; then say it is done. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.' });
     /* The app's own context, in the order it gives: stable blocks first (marked cache, e.g. the brand brain),
        then the ones that move (memory, skills, the last two weeks of Slack). */
     if (C.extraSystem) {
@@ -1010,7 +1026,7 @@ export function createAssistant(config) {
         'LENGTH: Slack folds a long message behind "Show more", so keep the whole answer to about 8 short lines (under 700 characters): the answer first with its numbers, then at most 3 bullets. Offer the rest in one closing line ("Want the breakdown by ad set?") instead of writing it. Only go longer when they asked for a full review, a plan or a report (a report goes in make_report, which posts its own link).' }];
     const prior = await threadTranscript(env, h, ev);
     const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q }];
-    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId,
+    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null,
       onStep: async s => {
         const line = s.label || s.note; if (!line) return;
         stepsSeen.push(line);
@@ -1103,7 +1119,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
       r = await loop(env, h, system, messages, webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
         return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web' }) : null;
-      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, runId,
+      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId,
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },
         shouldStop: async () => !!(runId && C.progress && (await C.progress.get(env, runId))?.stop) }, choice.effort || null);
       return { answer: r.answer || (r.stopped ? 'Stopped.' : 'I could not work that one out. Try naming the period.'), sql: r.sql, inTok: r.inTok, outTok: r.outTok,

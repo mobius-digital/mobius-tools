@@ -6901,7 +6901,8 @@ async function dmGate(env, ev) {
 async function strategistSlackAnswer(env, ev, screen) {
   const { engine, h } = strategist();
   const findings = await engine.openFindings(env, h()).catch(() => []);
-  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}) });
+  /* call: a plainly asked-for internal setting is applied right away, as the owner (the same as an Apply tap from Slack). */
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), call: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
 /* A thread is "open" (the Strategist answers plain replies in it) once it was mentioned there,
@@ -7521,7 +7522,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            auth + who: locus_get / locus_write act as this person, and the usage log says who asked. */
         const r = await engine.answerWeb(env, q, body.history, h(), { findings: findings.slice(0, 6), screen: body.screen || null,
           runId: /^[a-z0-9]{6,16}$/.test(String(body.runId || '')) ? body.runId : null,
-          auth: request.headers.get('Authorization') || '', who: await sessionEmail(env, request).catch(() => null) || 'admin' });
+          auth: request.headers.get('Authorization') || '', call: askCaller(env, request.headers.get('Authorization') || '', ctx).call, who: await sessionEmail(env, request).catch(() => null) || 'admin' });
         const auth = request.headers.get('Authorization') || '';
         const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
         const sess = tok && !(env.ADMIN_TOKEN && tok === env.ADMIN_TOKEN) ? await verifySession(env, tok) : null;
