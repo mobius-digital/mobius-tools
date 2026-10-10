@@ -20,6 +20,10 @@
  * Nothing here posts or writes anything but its own cache rows. */
 let F = fetch;
 export function useFetch(f) { F = f; }
+/* Pulse is a worker on the same account, so its workers.dev URL is refused from here (2026-10-10: the Strategist said
+   "Pulse returned an error"). The PULSE service binding reaches it; meterEnv hands it over at every entry point. */
+let PULSE = null;
+export function usePulse(b) { if (b && typeof b.fetch === 'function') PULSE = b; }
 
 const PULSE_URL = 'https://mobius-ad-status.mobius-digital.workers.dev/api/status';
 const BREEZEWAY_URL = 'https://headwinds.s3.us-east-1.amazonaws.com/cpa_z_data.json';
@@ -53,7 +57,7 @@ function centralStart(date) {
 let pulseMemo = null;   // { at, j } per isolate, 5 minutes: the Yesterday grid asks for several dates at once
 async function pulseJson() {
   if (pulseMemo && Date.now() - pulseMemo.at < 5 * 60e3) return pulseMemo.j;
-  const r = await F(PULSE_URL, { headers: { accept: 'application/json' } });
+  const r = PULSE ? await PULSE.fetch(new Request(PULSE_URL, { headers: { accept: 'application/json' } })) : await F(PULSE_URL, { headers: { accept: 'application/json' } });
   if (!r.ok) throw new Error(`Pulse answered ${r.status}`);
   const j = await r.json();
   pulseMemo = { at: Date.now(), j };

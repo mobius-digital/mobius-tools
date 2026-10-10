@@ -53,6 +53,12 @@ service = "mobius-profit"
 binding = "LEDGER"
 service = "mobius-ledger"
 
+# Pulse (mobius-ad-status): the Day check, Right now and the Strategist read platform outages from it. A binding,
+# because its workers.dev URL is refused from a worker on the same account.
+[[services]]
+binding = "PULSE"
+service = "mobius-ad-status"
+
 [[queues.producers]]
 binding = "IDEA_Q"
 queue = "mobius-ideas"

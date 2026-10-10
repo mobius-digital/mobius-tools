@@ -498,21 +498,34 @@ export function createAssistant(config) {
       if (effort) extra.output_config = { effort };
       if (C.fallbacks && /opus-5-5|sonnet-5-5|opus-5$|fable-5-1/.test(model)) { extra.fallbacks = C.fallbacks; betas.push('server-side-fallback-2026-07-01'); }
     }
+    /* STREAMED (2026-10-10). A long round (a report, a deep answer) can think for over 100 seconds before the first
+       byte, and Anthropic's edge then answers 524 ("make a PDF of last week" failed this way). Streaming keeps bytes
+       flowing; `readStream` rebuilds the same message object the plain call returned. A reply that is not an event
+       stream (an error, a test mock) is read as JSON exactly as before. */
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json', ...(betas.length ? { 'anthropic-beta': [...new Set(betas)].join(',') } : {}) },
       /* Top-level cache_control caches the conversation so far: every round of
        * the tool loop re-sends it, and each round now reads it back at a tenth
        * of the price instead of paying for it again. */
-      body: JSON.stringify({ model, max_tokens: deep ? 20000 : strong ? 16000 : 1200, system, messages, ...(tools ? { tools } : {}), ...(tools && final ? { tool_choice: { type: 'none' } } : {}), cache_control: { type: 'ephemeral' }, ...extra }),
+      body: JSON.stringify({ model, max_tokens: deep ? 20000 : strong ? 16000 : 1200, system, messages, ...(tools ? { tools } : {}), ...(tools && final ? { tool_choice: { type: 'none' } } : {}), cache_control: { type: 'ephemeral' }, stream: true, ...extra }),
     });
-    const body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
-    let j; try { j = JSON.parse(body); } catch { j = {}; }
+    const streamed = r.ok && /event-stream/i.test(r.headers?.get?.('content-type') || '') && r.body;
+    let j, body = '';
+    if (streamed) {
+      try { j = await readStream(r.body); } catch (e) { j = { type: 'error', error: { type: 'stream_error', message: e.message } }; }
+    } else {
+      body = typeof r.text === 'function' ? await r.text().catch(() => '') : JSON.stringify(await r.json().catch(() => ({})));
+      try { j = JSON.parse(body); } catch { j = {}; }
+    }
     if (j.type === 'error' || !j.content) {
+      /* The key's shape goes to the worker log only; the person sees what failed and the request id. */
       const k = String(env.ANTHROPIC_API_KEY || '');
-      const shape = `key len=${k.length} prefix=${k.slice(0, 12)} quotes=${/["']/.test(k)} ws=${/\s/.test(k)} nonascii=${/[^!-~]/.test(k)}`;
-      const why = j?.error?.message ? `${j.error.type || 'error'}: ${j.error.message}` : `Claude call failed (HTTP ${r.status}): ${String(body).slice(0, 300) || '(empty reply)'} [${shape}; ${r.headers?.get?.('content-type') || 'no content-type'}; ${r.headers?.get?.('request-id') || r.headers?.get?.('cf-ray') || 'no id'}]`;
-      console.log(`${C.name}: model call refused (${r.status}): ${String(body).slice(0, 800)} | key shape: len=${k.length} prefix=${k.slice(0, 12)} quotes=${/["']/.test(k)} ws=${/\s/.test(k)} nonascii=${/[^!-~]/.test(k)} | resp headers: ${JSON.stringify(Object.fromEntries([...(r.headers || [])].filter(([h]) => /content-type|cf-ray|request-id|server|x-should-retry/i.test(h))))}`);
+      const id = r.headers?.get?.('request-id') || r.headers?.get?.('cf-ray') || '';
+      const why = j?.error?.message ? `${j.error.type || 'error'}: ${j.error.message}` : r.status === 524 || r.status === 529 || r.status >= 500
+        ? `The model did not answer in time (HTTP ${r.status}). Try again in a minute.${id ? ` [${id}]` : ''}`
+        : `Claude call failed (HTTP ${r.status}): ${String(body).slice(0, 300) || '(empty reply)'}${id ? ` [${id}]` : ''}`;
+      console.log(`${C.name}: model call refused (${r.status}): ${String(body).slice(0, 800)} | key shape: len=${k.length} quotes=${/["']/.test(k)} ws=${/\s/.test(k)} nonascii=${/[^!-~]/.test(k)} | resp headers: ${JSON.stringify(Object.fromEntries([...(r.headers || [])].filter(([h]) => /content-type|cf-ray|request-id|server|x-should-retry/i.test(h))))}`);
       throw new Error(why);
     }
     return j;
@@ -1169,4 +1182,42 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },
   };
+}
+
+/** A Messages API event stream -> the message object a plain call returns (every block type kept as sent:
+ *  text, thinking, tool_use, server tool use and results; string deltas appended, tool input JSON parsed). */
+export async function readStream(stream) {
+  const reader = stream.getReader(), dec = new TextDecoder();
+  let buf = '', msg = null;
+  const blocks = [], partial = [];
+  const onEvent = ev => {
+    if (ev.type === 'message_start') { msg = { ...ev.message, content: [] }; }
+    else if (ev.type === 'content_block_start') { blocks[ev.index] = { ...ev.content_block }; partial[ev.index] = ''; }
+    else if (ev.type === 'content_block_delta') {
+      const b = blocks[ev.index] || (blocks[ev.index] = {}), d = ev.delta || {};
+      if (d.type === 'input_json_delta') partial[ev.index] += d.partial_json || '';
+      else if (d.type === 'citations_delta') (b.citations = b.citations || []).push(d.citation);
+      else for (const [k, v] of Object.entries(d)) { if (k === 'type') continue; b[k] = typeof v === 'string' && typeof b[k] === 'string' && k !== 'signature' ? b[k] + v : v; }
+    } else if (ev.type === 'content_block_stop') {
+      const b = blocks[ev.index];
+      if (b && partial[ev.index]) { try { b.input = JSON.parse(partial[ev.index]); } catch { b.input = {}; } }
+    } else if (ev.type === 'message_delta') {
+      if (msg) { Object.assign(msg, ev.delta || {}); if (ev.usage) msg.usage = { ...(msg.usage || {}), ...ev.usage }; }
+    } else if (ev.type === 'error') { throw new Error(ev.error?.message || 'the stream broke'); }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buf += dec.decode(value, { stream: true });
+    let i;
+    buf = buf.replace(/\r\n/g, '\n');
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+      const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trimStart()).join('\n');
+      if (data) { let ev; try { ev = JSON.parse(data); } catch { continue; } onEvent(ev); }
+    }
+    if (done) break;
+  }
+  if (!msg) throw new Error('the stream ended before the message started');
+  msg.content = blocks.filter(Boolean);
+  return msg;
 }

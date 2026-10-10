@@ -6,7 +6,7 @@ import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
-import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
+import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } from './market.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
@@ -175,6 +175,7 @@ function costReport() { return Object.fromEntries(COST_SEEN); }
  *  Statements keep a `__raw` handle because D1's batch() needs the real
  *  objects, not these wrappers. */
 function meterEnv(env) {
+  usePulse(env && env.PULSE);
   if (env.__metered) return env;
   const raw = env.DB;
   if (!raw) return env;
