@@ -227,8 +227,10 @@ export function stratHooks(d) {
       const instr = await d.getSetting(env, 'strategistInstructions').catch(() => null);
       if (instr) out.push({ text: '## Standing instructions from the team (they outrank your defaults)\n' + instr, cache: false });
       if (brand) {
-        const b = await brandBrain(env, brand, { creator: true }).catch(() => null);
-        if (b?.md) out.push({ text: `## The ${name} brain (research, personas, customer words, tests, the creator link; drafts are labelled draft)\n` + b.md, cache: true });
+        /* The SHORT brain (about 12k characters, cost pass 2026-10-10): the full 60k one is read_app view=brain,
+           and the brain's own first lines tell the model when to read it. */
+        const b = await brandBrain(env, brand, { short: true }).catch(() => null);
+        if (b?.md) out.push({ text: `## The ${name} brain, short version (facts, staff rules, lines, angles and tests; drafts are labelled draft)\n` + b.md, cache: true });
       }
       const facts = await factsFor(env, ['agency', brand]).catch(() => []);
       const fb = factsBlock(facts, name); if (fb) out.push(fb);

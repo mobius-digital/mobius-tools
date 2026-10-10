@@ -1650,9 +1650,19 @@ block and tool group; ~2.5 characters a token, calibrated on strat_run; set ANTH
 - **Rules that keep it cheap:** nothing that changes per question, brand, surface or day may go in the stable part or
   in a tool definition. A new tool is deferred by default; add it to `alwaysLoaded` only if most questions need it.
   A new everyday tool costs every question; a deferred one costs one line in the catalog.
-- Expected: a simple brand question inside the hour ~$0.20 (was ~$0.47 cold), a no-brand one ~$0.05; the first
-  question of an hour ~$0.43 (the 1-hour write is 2x). The remaining big cost is the brand brain (~25k tokens,
-  written once per brand per 5 minutes).
+- Same evening, two more cuts: (1) **the SHORT brain** is what every answer carries (`brandBrain(..., {short: true})`,
+  `SHORT_CAP` / `SHORT_MAX` 14k chars: brand facts, staff rules, lines, personas by name, the angle library with
+  results, GAPS; no quotes, competitors, research notes, creator link or voice). Its first lines tell the model the
+  full brain is `read_app view=brain` and when to read it (creative, research, voice, "who is the customer"); the
+  model judges that from the question. (2) **The playbook no longer repeats the knowledge files**: the Google Ads,
+  TikTok, email, website, search, store, stock and calendar bullet lists and most of the StoryBrand method are gone
+  from PLAYBOOK (31.9k -> 25k chars); THE CMO METHOD already says to read the topic before advising, and the house
+  rules that were not in any file (Attentive brands, stock + calendar before a scale call, calendar actions, Black
+  Friday phases) stayed. Web chat history is 12 x 4000 chars (was 16 x 6000).
+- Per question now: stable prefix ~28k tokens (1h cache), short brain ~5k (5m cache), moving part ~3k, output.
+  Cold brand question ~$0.30 (was $0.47); within the hour ~$0.08 plus output; no-brand cold ~$0.25, warm ~$0.03.
+  The cold write of the stable part is now the whole cost; the next cut, if ever needed, is moving the creative
+  framework and the account doctrine into knowledge topics too (~10k tokens), at the risk of the model skipping them.
 
 ## 2026-10-10: giveaway spend vs sales MER
 

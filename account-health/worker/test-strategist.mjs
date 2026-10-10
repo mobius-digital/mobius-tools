@@ -204,6 +204,17 @@ await check('the engine lists every new action and the brain view is part-wise',
   const b = await view('brain', { brand: 'Lucky', part: 1 });
   assert.equal(b.part, 1); assert.ok(b.parts >= 1);
 });
+await check('the short brain (what every answer carries): facts, rules, lines, angles and gaps; quotes, competitors, research and voice left to the full brain view', async () => {
+  const { brandBrain, SHORT_MAX } = await import('./src/brain.js');
+  const full = await brandBrain(env, LUCKY), short = await brandBrain(env, LUCKY, { short: true });
+  /* The fixture brand is tiny (its full brain is 1.3k), so only the cap and the sections are checked here; a real
+     brand goes from ~60k to under 14k. */
+  assert.ok(short.md.length <= SHORT_MAX, `${short.md.length} (full ${full.md.length})`);
+  assert.match(short.md, /the short version[\s\S]*read_app view=brain/);
+  assert.match(short.md, /## Angle library and past tests[\s\S]*395[\s\S]*## GAPS/);
+  assert.ok(!/## Voice of customer|## Competitors|## Earlier research|## How the brand sounds|## Creator link/.test(short.md));
+  assert.equal(await brandBrain(env, LUCKY, { short: true }).then(x => x.md), short.md, 'deterministic (cache-safe)');
+});
 await check('brief html: a given field is written, a missing one stays a bare label, numbering is not doubled', () => {
   const html = strat._test.briefNotesHtml({ angle: 'A', why: 'B', testing: '3 concepts', ads: ['2. second', 'third'], kind: 'static', headline: 'H' }, { num: 5, by: 'Test', inspo: ['https://x.y/z'] });
   assert.ok(html.includes('<strong>Headline:</strong> H')); assert.ok(html.includes('<strong>Offer:</strong> </strong>') === false);

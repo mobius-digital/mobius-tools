@@ -68,6 +68,14 @@ const TRIM_FLOOR = { research: 600, creator: 1200, brand: 1500, comps: 1500, vik
 const MAX_PERSONAS = 14, MAX_VOC = 50, MAX_NUGGETS = 24;
 /* Focused on one or two lines: every persona and quote of those lines fits, so the caps open up. */
 const FOCUS_CAP = { personas: 22000, voc: 22000 };
+/* SHORT BRAIN (2026-10-10 cost pass): what every Strategist answer carries by default, about 12k characters
+   instead of 60k: the brand, the staff rules (never cut), the product lines, the angle library with its
+   results, the personas by name, and the gaps. A 0 leaves the section out. The full brain is one view call
+   away (read_app view=brain), and the brain's own first lines say when to read it; the model judges that
+   from the question, never from a word list. */
+export const SHORT_MAX = 14000;
+const SHORT_CAP = { brand: 3500, rules: 4000, viktor: 0, lines: 2500, personas: 1200, voc: 0, comps: 0, angles: 3500, research: 0, creator: 0, voice: 0 };
+const TRIM_SHORT = ['lines', 'personas', 'angles', 'brand'];
 const FOCUS_LIMIT = { personas: 30, voc: 120, nuggets: 60 };
 /* Over FOCUS_MAX: least valuable first. The older research notes (mostly repeated by Viktor's), then the
    OLDEST tests (the section is most recent first, so a cut comes off the old end), before any brand fact.
@@ -103,6 +111,7 @@ function capped(text, n) {
  * @param opts.creator  false leaves out the creator link (the caller already has it)
  * @param opts.max      total character cap (default BRAIN_MAX, or FOCUS_MAX when focused)
  * @param opts.lines    product line ids to focus on (see FOCUSED BRAIN above); none = the full brain
+ * @param opts.short    the short brain (SHORT_CAP, about 12k characters) for everyday Strategist answers
  * @returns { md, size, gaps, has_skill }
  */
 export async function brandBrain(env, act, opts = {}) {
@@ -132,8 +141,9 @@ export async function brandBrain(env, act, opts = {}) {
   const focus = new Set((Array.isArray(opts.lines) ? opts.lines : []).map(String).filter(id => lines.some(l => l.id === id)));
   const focused = focus.size > 0;
   const inFocus = id => !focused || !id || focus.has(id);
-  const cap = focused ? { ...CAP, ...FOCUS_CAP } : CAP;
-  const sec = (key, title, body) => { if (body && body.trim()) out.push({ key, text: capped(`## ${title}\n${body.trim()}`, cap[key]) }); };
+  const short = !!opts.short && !focused;
+  const cap = short ? { ...CAP, ...SHORT_CAP } : focused ? { ...CAP, ...FOCUS_CAP } : CAP;
+  const sec = (key, title, body) => { if (body && body.trim() && cap[key] !== 0) out.push({ key, text: capped(`## ${title}\n${body.trim()}`, cap[key]) }); };
 
   /* ---- 1. brand, products, offers, facts ---- */
   const profile = data('', 'profile') || {};
@@ -370,20 +380,20 @@ export async function brandBrain(env, act, opts = {}) {
 
   /* ---- 11. GAPS, always last and never cut ---- */
   const focusNames = lines.filter(l => focus.has(l.id)).map(l => l.name);
-  const head = `# BRAND BRAIN: ${name}\nEverything Locus knows about ${name}, in one place. Items marked draft are AI research nobody has approved yet: use them, but prefer approved items when they disagree. Staff rules outrank everything.${focused
+  const head = `# BRAND BRAIN: ${name}${short ? ' (the short version)' : ''}\n${short ? `The essentials of what Locus knows about ${name}. The FULL brain (personas in full, customer quotes, competitors, research notes, the creator link, how the brand sounds) is read_app view=brain: read it before any creative, research or brand-voice work, and whenever a question turns on who the customer is.` : `Everything Locus knows about ${name}, in one place.`} Items marked draft are AI research nobody has approved yet: use them, but prefer approved items when they disagree. Staff rules outrank everything.${focused
     ? `\nFOCUSED ON: ${focusNames.join(' and ')}. The market, personas, customer quotes and tests below are for ${focusNames.length > 1 ? 'those lines' : 'that line'} (plus anything not tied to a line). The other product lines are listed in one line each so you know they exist.` : ''}`;
   const tail = `## GAPS (what Locus does not know yet; never fill these with generic language)\n${gaps.length ? gaps.map(g => `- ${g}`).join('\n') : '- None worth flagging.'}`;
-  const max = opts.max || (focused ? FOCUS_MAX : BRAIN_MAX);
+  const max = opts.max || (short ? SHORT_MAX : focused ? FOCUS_MAX : BRAIN_MAX);
   const room = max - head.length - tail.length - 4;
   /* Over the total: shorten the least important sections first (older notes before fresh
      research; staff rules never), each only as far as needed and never below its floor, in a
      fixed order so the result stays deterministic. The cut comes off a section's END, and every
      section puts its most useful lines first (guardrails, nuggets, the most recent tests). */
   const total = () => out.reduce((n, x) => n + x.text.length + 2, 0);
-  for (const k of focused ? TRIM_FOCUS : TRIM) {
-    const x = out.find(o => o.key === k), over = total() - room;
+  for (const k of short ? TRIM_SHORT : focused ? TRIM_FOCUS : TRIM) {
+    const x = out.find(o => o.key === k), over = total() - room, floor = short ? 600 : TRIM_FLOOR[k];
     if (over <= 0) break;
-    if (x && x.text.length > TRIM_FLOOR[k]) x.text = capped(x.text, Math.max(TRIM_FLOOR[k], x.text.length - over - 40));
+    if (x && x.text.length > floor) x.text = capped(x.text, Math.max(floor, x.text.length - over - 40));
   }
   let body = out.map(x => x.text).join('\n\n');
   if (body.length > room) body = capped(body, room);
