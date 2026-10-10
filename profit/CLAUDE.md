@@ -2789,3 +2789,46 @@ Two pages under Tools (NAV.tools `economics`, `workload`; `AGR()` in index.html 
 - **Command center "stuck"** = 10+ days since the task ENTERED its section (`cmdstage:<brand>`, Asana stories once per
   task), not since modified_at. Calendar cards pad 20px.
 
+
+## 2026-10-10: Costs like Triple Whale (`expenses.js` front and worker). Supersedes "Fixed expenses" of 2026-10-09.
+
+Cole: brand expenses must work like Triple Whale's Cost Settings, and the brand adds its own. Research and the
+TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
+- **One Costs page per brand**, `window.CostsUI` (profit/expenses.js): Brand settings > Data and costs > Costs
+  (`loadFixed` now just mounts it) and a sheet from P&L (the **Costs** page button, "Add them ›" under the waterfall)
+  and the margin drill-down (`openFixedCosts(act)` opens the sheet for everyone, client included). Two parts:
+  1. **Where each cost comes from** (read only): product cost, shipping, handling, payment fees over the last 30 whole
+     days from Triple Whale (`costSources` in worker.js: `seriesRaw`, so the override is ignored like the cost check),
+     share of revenue, per order, the source, the cost check verdict, a link to Triple Whale (Settings > Cost Settings).
+     Flags only what is MISSING (no product cost or fees with sales; shipping charged with none booked). A margin
+     override is named ("not used while the X% margin is set"). **No second COGS editor: TW stays the source.**
+  2. **Custom expenses** (table `p_expense`, `migrations/expenses-001.sql`, also made on first use): name, category
+     (team, software, rent, agency, marketing, other), kind `monthly | once | pct_revenue | pct_spend | per_order`,
+     amount (money, or the percent), start_date, end_date (none for once), `is_ad_spend`, notes, created_by /
+     created_name ("Added by", only the name ever leaves the worker). Add and edit in an in-app modal; each save PUTs
+     the whole list (`PUT /api/expenses {act, items}`; ids keep their creator; an id from another brand becomes a new
+     row). `GET /api/expenses?act=` = items, choices, `sources`.
+- **Spread per day** (`spread()`, pure): monthly over its month's days; once on its date; % of revenue from the day's
+  revenue; % of ad spend from the day's PLATFORM spend (`base_spend`, never the expense itself); per order from
+  `totalOrders`. Removing an expense removes it from every period (TW does the same); an end date stops it from a day.
+- **Where they flow.** `is_ad_spend` rows join blended spend inside `seriesFor` (so /api/overview, /api/client, Plan,
+  forecast, Season all see it) and in the drill-down (`drillMany`), via `applyAdSpend` (rows keep `base_spend` and
+  `ad_expense`; mer, amer, cm recomputed; `totals()` carries `ad_expense` and `base_spend`). The live today row gets
+  them too in /api/client and /api/overview. Every other row = Net profit (CM minus them), `fixed {total, items,
+  ad_total, ad_items}` on /api/client. P&L: the Ad spend tile names "other marketing", the waterfall lists Ad platforms
+  and each ad-spend expense under Ad spend, then Custom expenses (each line) and Net profit; the spend drill-down lists
+  each ad-spend expense as its own row ("custom expense, counts as ad spend"); the CM drill-down does the same.
+  **Briefs and reports (account-health) do not read p_expense**: their spend and CM stay Triple Whale's. seriesRaw (the
+  cost check) is untouched. Ad-spend expenses on a day with no stored TW row are not added (no row to add them to).
+- **Old rows**: `p_fixed_cost` is copied ONCE into p_expense as monthly costs (Software->software, Salaries->team,
+  Agency fee->agency, Rent->rent, else other; end month -> its last day; `legacy_id` unique + INSERT OR IGNORE;
+  then `settings.expensesMigrated`), so a row the brand later removes never comes back. p_fixed_cost is left in place.
+  `/api/fixed-costs` and fixed.js are gone.
+- **Clients edit their own**: `GET` and `PUT /api/expenses` on CLIENT_RULES (`act: 'need', opt: 'pl'`, both brandguard
+  copies identical); the handler checks `clientScope(request).ids` again. `ad_items`, `ad_expense`, `expenses` added
+  to PL_OUT. The team edits any brand (a limited teammate only theirs, as everywhere).
+- **Tests**: `node test-expenses.mjs` (profit/worker, 9: every kind, clipping, migration once, a removed migrated row
+  stays gone, ad spend through the REAL worker /api/client and /api/hub/drill: spend, MER, CAC, CM, Net profit, and
+  switching the flag back); account-health `test-clients.mjs` 22/22 (new: client edits only its own brand, only with
+  P&L on, no email in the answer, "Added by" kept, another brand's row id cannot be taken over, team sees all).
+  expenses.js?v=1, v2.js?v=41. Not deployed.

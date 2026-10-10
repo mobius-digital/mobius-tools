@@ -1421,6 +1421,9 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   date's own brand), move, end, and the new `POST /api/calendar/comment {id, text}` (a "Note: ..." changelog row,
   for the team too). Never delete, restore, tick or make Asana tasks. Its changelog rows carry the client's name,
   so `calendarTick` posts them to the brand's internal channel like Lineup client edits.
+- **Costs** (2026-10-10, profit worker `expenses.js`): a client may `GET` and `PUT /api/expenses` on its own brand
+  while P&L is on (adds, edits, removes its custom expenses; the handler re-checks the brand). See profit/CLAUDE.md
+  "Costs like Triple Whale".
 - **/api/me** now returns `role` (owner | team | client) and, for a client, `client` {name, welcomed, brands
   [{id, name, access}]}; it updates `last_seen` at most hourly. The profit and ledger workers delegate to it; the
   profit worker refuses `role: 'client'` outside the allowlist (ledger only accepts its own email list).

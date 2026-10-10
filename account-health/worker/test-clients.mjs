@@ -319,6 +319,50 @@ await check('the command center answers the team (every brand with its reasons) 
   setSetting('userBrands', {});
 });
 
+await check('Costs (2026-10-10): a client adds and edits its own brand\'s custom expenses with P&L on, never another brand\'s, never with P&L off', async () => {
+  const item = { name: 'Warehouse rent', category: 'rent', kind: 'monthly', amount: 3000, start_date: '2026-10-01' };
+  const put = await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [item] });
+  assert.equal(put.status, 200, JSON.stringify(put.j));
+  assert.equal(put.j.items[0].added_by, 'Nick', 'the client\'s own name');
+  assert.ok(!JSON.stringify(put.j).includes('@'), 'no email in the answer');
+  const got = await pf(CLIENT, 'GET', '/api/expenses?act=brand_alpha');
+  assert.equal(got.status, 200); assert.deepEqual(got.j.items.map(x => x.name), ['Warehouse rent']);
+  assert.ok(got.j.sources && 'cogs' in got.j.sources, 'where each cost comes from rides along (P&L on)');
+  /* another brand, "all", or a body/query mismatch: refused */
+  assert.equal((await pf(CLIENT, 'GET', '/api/expenses?act=brand_beta')).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_beta', items: [item] })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/expenses?act=brand_alpha', { act: 'brand_beta', items: [item] })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/expenses', { act: 'all', items: [] })).status, 403);
+  /* P&L switched off for the brand: both routes refused, nothing changes */
+  setSetting('clientAccess', { brand_alpha: { pl: false } });
+  assert.equal((await pf(CLIENT, 'GET', '/api/expenses?act=brand_alpha')).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [] })).status, 403);
+  setSetting('clientAccess', {});
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_expense WHERE act_id = 'brand_alpha'`).get().n, 1, 'still there');
+  /* the team edits any brand; Cole's row keeps "Added by" through the client's later edit */
+  const t = await pf(OWNER, 'PUT', '/api/expenses', { act: 'brand_beta', items: [{ name: 'Klaviyo', category: 'software', kind: 'monthly', amount: 400, start_date: '2026-09-01' }] });
+  assert.equal(t.status, 200, JSON.stringify(t.j)); assert.equal(t.j.items[0].added_by, 'Cole');
+  const tg = await pf(TEAM, 'GET', '/api/expenses?act=brand_alpha');
+  assert.equal(tg.status, 200); assert.equal(tg.j.items[0].added_by, 'Nick', 'the team sees what the client added');
+  const id = got.j.items[0].id;
+  const t2 = await pf(OWNER, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [{ ...got.j.items[0], id, amount: 3200 }, { name: 'Podcast read', category: 'marketing', kind: 'once', amount: 900, start_date: '2026-10-03', is_ad_spend: true }] });
+  assert.equal(t2.status, 200);
+  const rent = t2.j.items.find(x => x.name === 'Warehouse rent');
+  assert.equal(rent.amount, 3200); assert.equal(rent.added_by, 'Nick', 'editing keeps who added it');
+  assert.equal(t2.j.items.find(x => x.name === 'Podcast read').added_by, 'Cole');
+  /* a client cannot slip another brand's row id into its own list to take it over */
+  const betaId = t.j.items[0].id;
+  const steal = await pf(CLIENT, 'PUT', '/api/expenses', { act: 'brand_alpha', items: [{ id: betaId, name: 'Mine now', kind: 'monthly', amount: 1, start_date: '2026-10-01' }] });
+  assert.equal(steal.status, 200);
+  assert.equal(db.prepare(`SELECT name FROM p_expense WHERE act_id = 'brand_beta'`).get().name, 'Klaviyo', 'beta untouched');
+  assert.equal(steal.j.items[0].added_by, 'Nick', 'treated as a new row of its own');
+  /* P&L off: the expense keys ride nowhere in Home */
+  setSetting('clientAccess', { brand_alpha: { pl: false } });
+  const ov = JSON.stringify((await pf(CLIENT, 'GET', '/api/overview?days=30&series=0')).j);
+  setSetting('clientAccess', {});
+  assert.ok(!ov.includes('"ad_expense"'), 'ad_expense scrubbed with P&L off');
+});
+
 await check('a client can edit only its own profile', async () => {
   const r = await ah(CLIENT, 'PUT', '/api/clients/me', { name: 'Nick Y', welcomed: true });
   assert.equal(r.status, 200);
