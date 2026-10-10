@@ -148,6 +148,8 @@ export const CLIENT_RULES = [
   { m: 'GET', p: '/api/klaviyo', act: 'need' },
   { m: 'GET', p: '/api/hub/store', act: 'need' },
   { m: 'GET', p: '/api/customers', act: 'need' },
+  // Post-purchase survey vs Triple Whale (account-health survey.js, 2026-10-10): aggregates only, no emails.
+  { m: 'GET', p: '/api/survey', act: 'need' },
   { m: 'GET', p: '/api/google/website', act: 'need' },
   { m: 'GET', p: '/api/google/search', act: 'need' },
   // Black Friday War Room (profit worker, 2026-10-09): their brand's plan and live numbers, read only.

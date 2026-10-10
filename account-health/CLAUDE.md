@@ -1467,3 +1467,26 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   read; PUT {act, project} sets the id for links; DELETE forgets. integrations.js has a per-brand "Microsoft Clarity"
   item (group Website). Tests: `node test-clarity.mjs` (8 offline checks, Clarity and Klaviyo mocked). NOT tested live:
   any Clarity call (no brand has a token yet), so the response field names come from Microsoft's docs and sample.
+
+## 2026-10-10: post-purchase survey (Fairing / KnoCommerce vs Triple Whale)
+
+- **survey.js** (`/api/survey`, admin + brandsFor; one route block above /api/brand-links). Triple Whale lastPlatformClick
+  stays the attribution everywhere; this is a reality CHECK beside it. Fairing: `GET https://app.fairing.co/api/responses`,
+  `Authorization: <secret token>` (no Bearer), `inserted_at_min`, `sort=inserted_at_asc`, `limit` 1000, follow `next`.
+  KnoCommerce (from its OpenAPI spec v1.3.0): client credentials at `api.knocommerce.com/api/oauth2/token` (Basic
+  id:secret, scope RESPONSES), then `GET app-api.knocommerce.com/api/rest/responses?maxPageSize=250&expand=order
+  &status=completed&updatedAt[gte]=` with `pageToken`. Kno's answer items and `order` are untyped "object" in the spec,
+  so `fromKno` reads them defensively; verify on the first real key.
+- Keys in `p_br_doc` `survey_fairing` {key} / `survey_kno` {client_id, client_secret, token, token_exp}, NEVER returned.
+  `/api/brand-links` takes `survey_key` (the Integrations box: `a:b` = Kno, else Fairing), or `fairing_key` / `kno_key`;
+  each checked with one real call before it is kept; empty = forget. integrations.js item `survey` (group Store).
+- Answers go to D1 `survey_responses` (created at runtime: act_id, provider, id, order_id, date, question_id, question,
+  answer, other_text, channel; no emails). Sync on read at most every 6 hours (`survey:<act>:sync` cursor, first read
+  90 days, 12 calls max, cursor only moves on a clean read). The question read = the one whose answers map to channels
+  most (5+ answers), or the pinned one (`PUT /api/survey {act, question_id}`, `survey:<act>:question`).
+- `surveyReport`: seven channels (`channelOf`), joined to `tw_orders` by order id (gid -> number): agreement %,
+  agreement on paid, per channel said / tw / agree / said_all with shares and gap points, `tw_other` (no ad click,
+  email / SMS clicks), top raw answers. Strategist view `survey`; knowledge file `post-purchase-survey`; a line in
+  THE CMO METHOD. Clients may GET their own brand (CLIENT_RULES, both brandguard copies).
+- Tests: `node test-survey.mjs` (12 offline checks, Fairing and Kno mocked), test-clients.mjs has a survey check,
+  test-strategist.mjs checks the view is listed. NOT tested live: any Fairing or Kno call (no brand has a key yet).

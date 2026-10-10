@@ -200,7 +200,7 @@ await check('integrations view: agency list with fixes, per-brand items graded, 
 });
 await check('the engine lists every new action and the brain view is part-wise', async () => {
   for (const n of ['fill_brief', 'create_brief', 'build_scenario', 'studio_batch', 'create_angles']) assert.ok(engine.actions.includes(n), n);
-  for (const v of ['tests', 'brief', 'customers', 'scenarios', 'brain']) assert.ok(views.appViews().includes(v), v);
+  for (const v of ['tests', 'brief', 'customers', 'scenarios', 'brain', 'survey']) assert.ok(views.appViews().includes(v), v);
   const b = await view('brain', { brand: 'Lucky', part: 1 });
   assert.equal(b.part, 1); assert.ok(b.parts >= 1);
 });

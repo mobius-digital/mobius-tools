@@ -146,7 +146,16 @@ export async function integrationsReport(env, { brand = null } = {}) {
     { t: 'Optional, for the "Open recordings" and heatmap links: on Store > Website > Behaviour, paste the project ID (the part after /projects/view/ in Clarity\'s address bar).' },
     { t: 'Clarity lets the API read only the last 3 days, 10 times a day per project, so Locus reads it at most every 8 hours and keeps a daily history itself. Recordings and heatmap pictures stay in Clarity.' },
   ];
-  const dashed = id => String(id).replace(/\D/g, '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+  /* Post-purchase survey (survey.js, 2026-10-10): Fairing's token or KnoCommerce's client pair per brand. Presence and date only. */
+  const svDocs = await q(`SELECT act_id, key, data_json FROM p_br_doc WHERE line_id = '' AND key IN ('survey_fairing', 'survey_kno') AND act_id IN (${IN})`, ...ids)
+    .then(rows => { const o = {}; for (const r of rows) { const d = safeJson(r.data_json, {}) || {}; if (d.key || d.client_id) (o[r.act_id] ||= {})[r.key === 'survey_fairing' ? 'fairing' : 'kno'] = { verified_at: d.verified_at }; } return o; });
+  const SURVEY_STEPS = [
+    { t: 'Fairing (the usual one): in Shopify admin open Apps > Fairing (it opens signed in), then Account. In the API credentials section, copy the secret token. A Fairing admin on the client side can also send it.', u: 'https://app.fairing.co' },
+    { t: 'Paste it here. Locus checks it with one real read before saving and never shows it again. The first read pulls the last 90 days of answers; after that Locus reads what is new at most every 6 hours.' },
+    { t: 'KnoCommerce instead: in Kno open Settings > API Access, create an API client named as below, tick the Responses permission, then paste the client ID and client secret into this same box as client_id:client_secret (one colon between them). API access depends on the Kno plan.', u: 'https://app.knocommerce.com', c: 'Locus-Mobius' },
+    { t: 'The card is Store > Customers > "How customers say they found you". Locus picks the "how did you hear about us" question itself (the one whose answers name channels); if the survey asks more than one, another can be pinned on the card.' },
+  ];
+  const dashed = id =>String(id).replace(/\D/g, '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
   /* What Locus can already SEE, as pick lists (2026-10-09): the page offers these instead of a paste box. */
   const mcc = String(env.GOOGLE_ADS_MCC || '5566468199').replace(/\D/g, '');
   const adsSeen = new Map();
@@ -302,6 +311,11 @@ export async function integrationsReport(env, { brand = null } = {}) {
       C('clarity', 'Microsoft Clarity', clDocs[id]?.has ? 'ok' : 'off', clDocs[id]?.has ? `Connected${clDocs[id].project ? `, project ${clDocs[id].project}` : ' (no project ID yet, so the recording links open the project list)'} (checked ${String(clDocs[id].verified_at || '').slice(0, 10)}).` : 'Not connected: the Behaviour card on Store > Website (rage clicks, dead clicks, scroll depth, quick backs per page) stays empty.',
         'Paste the project\'s Data Export API token.', { group: 'Website', gets: 'Rage clicks, dead clicks, quick backs and scroll depth per page (last 3 days, kept daily), with links to the recordings and heatmaps in Clarity.', steps: CLARITY_STEPS,
           input: clDocs[id]?.has ? null : { key: 'clarity_token', label: 'Clarity API token', placeholder: 'eyJhbGciOi...', secret: true } }),
+      /* ---- Store: the post-purchase survey (survey.js). One box: client_id:client_secret = KnoCommerce, anything else = Fairing. ---- */
+      C('survey', 'Post-purchase survey (Fairing or KnoCommerce)', svDocs[id] ? 'ok' : 'off',
+        svDocs[id] ? `${svDocs[id].fairing ? 'Fairing' : 'KnoCommerce'} connected (checked ${String((svDocs[id].fairing || svDocs[id].kno).verified_at || '').slice(0, 10)}).` : 'Not connected: Store > Customers cannot show what customers say against what Triple Whale credited.',
+        'Paste the brand\'s Fairing API secret token (or KnoCommerce client_id:client_secret).', { group: 'Store', gets: '"How did you hear about us" answers grouped into channels and matched to Triple Whale orders by order id: how often the customer and Triple Whale agree, and the channels clicks miss (podcast, word of mouth, influencers).', steps: SURVEY_STEPS,
+          input: svDocs[id] ? null : { key: 'survey_key', label: 'Fairing secret token (or Kno client_id:client_secret)', placeholder: 'Fairing secret token', secret: true } }),
       /* ---- Email and SMS ---- */
       email,
       /* ---- Work ---- */
