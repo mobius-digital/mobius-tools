@@ -97,15 +97,14 @@
     @media (prefers-reduced-motion:reduce){mobius-loader .ml-mark{animation:none!important;transition:none!important}}`;
   const style = () => { if (document.getElementById('mlcss')) return; const s = document.createElement('style'); s.id = 'mlcss'; s.textContent = CSS; document.head.appendChild(s); };
 
-  /* Which file: VP9 with alpha everywhere it is supported; Safari does not draw VP9 alpha, so it gets the H.264 copy
-     baked on the light or dark canvas colour. */
+  /* Which file: the H.264 copy baked on the page colour, on every browser (2026-10-10, Cole: "choppy, almost
+     flickering"). The VP9-with-alpha copy is decoded in software in Chrome at 1080 x 1080, 60 fps, two planes, while
+     the app boots behind it, and it dropped frames; H.264 goes to the graphics card. The overlay's background is the
+     film's own baked colour (BAKED), so there is no edge. */
+  const BAKED = { light: 'rgb(246,246,246)', dark: 'rgb(17,16,19)' };
+  const isDark = () => document.documentElement.dataset.theme === 'dark';
   function introSrc() {
-    const ua = navigator.userAgent || '';
-    const safari = /safari/i.test(ua) && !/chrome|chromium|crios|edg|android|fxios|firefox/i.test(ua);
-    const v = document.createElement('video');
-    if (!safari && v.canPlayType && v.canPlayType('video/webm; codecs="vp9"')) return BASE + 'mobius-intro-square.webm' + FILM;
-    const dark = document.documentElement.dataset.theme === 'dark';
-    return BASE + (dark ? 'mobius-intro-square-dark.mp4' : 'mobius-intro-square.mp4') + FILM;
+    return BASE + (isDark() ? 'mobius-intro-square-dark.mp4' : 'mobius-intro-square.mp4') + FILM;
   }
 
   class MobiusLoader extends HTMLElement {
@@ -142,6 +141,7 @@
       } catch {}
       if (recent && !force) { this._gone = true; this.remove(); return; }
       this.setAttribute('role', 'img'); this.setAttribute('aria-label', 'Locus');
+      this.style.background = BAKED[isDark() ? 'dark' : 'light'];
       const box = document.createElement('span'); box.className = 'ml-box';
       box.insertAdjacentHTML('beforeend', mark(FINAL_VB));
       this.appendChild(box); this._box = box;
