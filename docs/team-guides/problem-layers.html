@@ -1,0 +1,178 @@
+<title>Three Layers of a Problem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one page read top to bottom. Depth runs light (layer 1) to deep (layer 3), like strata. */
+:root{
+  --bg:#f3f4f2; --paper:#ffffff; --ink:#1d2321; --muted:#5d6763; --line:#dde1de;
+  --l1:#e6ece9; --l1ink:#3d4a45; --l2:#9fc4b5; --l2ink:#173a2e; --l3:#1f4a3d; --l3ink:#eaf4ef;
+  --villain:#b4432e;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141917; --paper:#1b2220; --ink:#e7ecea; --muted:#9aa6a1; --line:#2c3532;
+  --l1:#26302d; --l1ink:#c9d3cf; --l2:#2f5a4a; --l2ink:#e3f2ec; --l3:#7fc2a8; --l3ink:#0d1f19; --villain:#e2785f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141917; --paper:#1b2220; --ink:#e7ecea; --muted:#9aa6a1; --line:#2c3532;
+  --l1:#26302d; --l1ink:#c9d3cf; --l2:#2f5a4a; --l2ink:#e3f2ec; --l3:#7fc2a8; --l3ink:#0d1f19; --villain:#e2785f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);padding-inline:16px;padding-block:28px 48px}
+.wrap{max-width:1040px;margin:0 auto;display:grid;gap:28px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,5vw,46px);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+h2{font-size:20px;font-weight:600}
+.lbl{font:500 11px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+p{margin:0;max-width:68ch}
+.lede{font-size:17px;color:var(--muted)}
+.lede b{color:var(--ink)}
+header{display:grid;gap:12px}
+/* the strata */
+.strata{display:grid;gap:0;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.stratum{display:grid;grid-template-columns:150px 1fr 1.1fr;gap:16px;padding:16px 18px;align-items:start}
+.stratum>*{min-width:0}
+.s0{background:var(--paper);border-bottom:1px solid var(--line)}
+.s1{background:var(--l1);color:var(--l1ink)} .s2{background:var(--l2);color:var(--l2ink)} .s3{background:var(--l3);color:var(--l3ink)}
+.stratum h3{font-size:18px}
+.stratum .q{font-weight:600}
+.stratum .note{font-size:14px;opacity:.9}
+.s0 h3{color:var(--villain)}
+.tag{display:inline-block;font:500 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:99px;border:1px solid currentColor;margin-top:6px;opacity:.8}
+/* tally */
+.tally{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:24px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px}
+.bar{display:flex;height:34px;border-radius:8px;overflow:hidden;font:600 13px/34px var(--mono);font-variant-numeric:tabular-nums}
+.bar span{padding-left:10px;white-space:nowrap;overflow:hidden}
+.b1{background:var(--l1);color:var(--l1ink);width:64%} .b2{background:var(--l2);color:var(--l2ink);width:32%} .b3{background:var(--l3);color:var(--l3ink);width:4%;padding-left:0!important}
+.tally small{display:block;color:var(--muted);margin-top:8px;font-size:13px}
+/* when */
+.when{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.when div{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:4px;align-content:start}
+.when b{font-family:var(--display);font-size:16px}
+.when span{font-size:14px;color:var(--muted)}
+/* brands */
+.brands{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px;align-content:start}
+.card header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card h3{font-size:19px}
+.card .type{font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.row{display:grid;grid-template-columns:76px 1fr;gap:10px;font-size:14px;align-items:baseline}
+.row>*{min-width:0}
+.row i{font:500 10.5px/1.3 var(--mono);font-style:normal;letter-spacing:.06em;text-transform:uppercase;padding:4px 6px;border-radius:5px;text-align:center}
+.rv i{color:var(--villain);border:1px solid var(--villain)}
+.r1 i{background:var(--l1);color:var(--l1ink)} .r2 i{background:var(--l2);color:var(--l2ink)} .r3 i{background:var(--l3);color:var(--l3ink)}
+.hook{border-top:1px dashed var(--line);padding-top:10px;font-size:14px}
+.hook q{font-family:var(--display);font-weight:600;font-size:15.5px}
+.hook q::before,.hook q::after{content:none}
+.hook .lbl{display:block;margin-bottom:4px}
+/* rules + check */
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.box{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:10px;align-content:start}
+.box ol,.box ul{margin:0;padding-left:20px;display:grid;gap:7px}
+.box li{font-size:14.5px}
+.bad{color:var(--villain);font-weight:600}
+footer{color:var(--muted);font-size:13px;display:grid;gap:4px}
+@media (max-width:760px){
+  .stratum{grid-template-columns:1fr;gap:6px}
+  .tally,.two,.when{grid-template-columns:1fr}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="lbl">Mobius creative team · one-page guide</span>
+    <h1>Every problem has three layers. Most of our ads only say the first one.</h1>
+    <p class="lede">From Donald Miller's <b>Building a StoryBrand</b>: <b>brands sell the fix to the external problem; people buy the fix to the internal one.</b> Every brand in a category says layer one, so a layer-one ad sounds like everyone else's. Use this for ads, creator scripts, briefs, emails, pages and client calls.</p>
+  </header>
+
+  <section class="strata" aria-label="The villain and the three layers">
+    <div class="stratum s0"><div><h3>The villain</h3><span class="tag">start here</span></div><div class="q">What is causing this?</div><div class="note">One root cause. A thing, a habit or an old way of doing it. Never a person, never a named competitor. One villain per ad; a brand can have several, each one its own angle.</div></div>
+    <div class="stratum s1"><div><h3>1 · External</h3><span class="tag">what they search</span></div><div class="q">What is the physical problem?</div><div class="note">What they would type into Google. Needed so people know what it's for. Never enough on its own.</div></div>
+    <div class="stratum s2"><div><h3>2 · Internal</h3><span class="tag">what they pay for</span></div><div class="q">How does it make them feel?</div><div class="note">Embarrassed, flustered, dreading it, feeling old. Nobody searches for it; they lie awake with it. Take it from the customer quotes and tie it to one moment.</div></div>
+    <div class="stratum s3"><div><h3>3 · Philosophical</h3><span class="tag">why they stay</span></div><div class="q">Why is it wrong that they have to deal with this?</div><div class="note">"You shouldn't have to..." It gives the customer a side to take. Only use it when the product can back it up, or it sounds preachy.</div></div>
+  </section>
+
+  <section class="tally">
+    <div><span class="lbl">Where we are today</span><h2>Our current angles, sorted by layer</h2><small>About 100 angles in the Locus library, across Lucky, Dartee, Grunk, Party Patch and Bonk, sorted on 2026-10-10.</small></div>
+    <div><div class="bar" role="img" aria-label="64 percent external, 32 percent internal, 4 percent philosophical"><span class="b1">64% external</span><span class="b2">32% internal</span><span class="b3"></span></div><small>Layer three is 4%: 4 angles out of about 100.</small></div>
+  </section>
+
+  <section style="display:grid;gap:12px">
+    <h2>Which layer to lead with</h2>
+    <div class="when">
+      <div><span class="lbl">Cold · never heard of us</span><b>Lead with layer 2</b><span>Open on the moment and the feeling. The product comes in as the way out.</span></div>
+      <div><span class="lbl">Tried other fixes</span><b>Name the villain</b><span>Why what they tried didn't work. Layer 2 is what's at stake.</span></div>
+      <div><span class="lbl">Warm · retargeting · past buyers</span><b>Layer 1 is right</b><span>Proof, offer, reviews, shipping. Layer 3 makes them feel part of the club.</span></div>
+    </div>
+  </section>
+
+  <section style="display:grid;gap:12px">
+    <h2>Same idea, five kinds of brand</h2>
+    <div class="brands">
+      <article class="card"><header><h3>Party Patch</h3><span class="type">Hangover patches</span></header>
+        <div class="row rv"><i>Villain</i><span>Morning-after fixes that only clean up the damage</span></div>
+        <div class="row r1"><i>1</i><span>I get wrecked hangovers, even after a few drinks.</span></div>
+        <div class="row r2"><i>2</i><span>I'm giving up the whole next day, and it gets worse every year.</span></div>
+        <div class="row r3"><i>3</i><span>One fun night shouldn't cost you the whole next day.</span></div>
+        <div class="hook"><span class="lbl">Layer 2 hook</span><q>Remember when a hangover was just a nap? Now it's your whole Sunday.</q></div>
+      </article>
+      <article class="card"><header><h3>Lucky Golf</h3><span class="type">Golf clubs</span></header>
+        <div class="row rv"><i>Villain</i><span>The old wedge you never trusted</span></div>
+        <div class="row r1"><i>1</i><span>I chunk and blade chips inside 100 yards.</span></div>
+        <div class="row r2"><i>2</i><span>Standing over a chip, buddies watching, already expecting the chunk.</span></div>
+        <div class="row r3"><i>3</i><span>A weekend golfer shouldn't need a tour pro's practice time to trust a chip.</span></div>
+        <div class="hook"><span class="lbl">Layer 2 hook</span><q>Your buddies already know you're about to chunk this.</q></div>
+      </article>
+      <article class="card"><header><h3>Grunk Dolfer</h3><span class="type">Funny golf apparel</span></header>
+        <div class="row rv"><i>Villain</i><span>The plain, forgettable polo cut for athletes</span></div>
+        <div class="row r1"><i>1</i><span>I need a polo that fits a bigger guy.</span></div>
+        <div class="row r2"><i>2</i><span>I always give the compliments on the course. I never get one.</span></div>
+        <div class="row r3"><i>3</i><span>You shouldn't need a pro's body to be the best dressed in the group.</span></div>
+        <div class="hook"><span class="lbl">Layer 3 hook</span><q>Golf shouldn't be dressed for guys with six packs. Dad bod approved.</q></div>
+      </article>
+      <article class="card"><header><h3>Ice &amp; Gold</h3><span class="type">Jewelry</span></header>
+        <div class="row rv"><i>Villain</i><span>Electroplating: a thin gold coat that wears off in weeks</span></div>
+        <div class="row r1"><i>1</i><span>My earrings tarnished and turned my ears green.</span></div>
+        <div class="row r2"><i>2</i><span>Getting ready for dinner and finding a green wrist and an itchy neck.</span></div>
+        <div class="row r3"><i>3</i><span>Jewelry that lasts shouldn't cost solid-gold money.</span></div>
+        <div class="hook"><span class="lbl">Layer 2 hook</span><q>Valentine's dinner in an hour. Green wrist. Itchy neck. Never again.</q></div>
+      </article>
+      <article class="card"><header><h3>Dartee</h3><span class="type">Golf accessories</span></header>
+        <div class="row rv"><i>Villain</i><span>A regular belt that only holds up your pants</span></div>
+        <div class="row r1"><i>1</i><span>My marker and tees are buried in my pockets.</span></div>
+        <div class="row r2"><i>2</i><span>Fumbling for a marker on the green while my group waits.</span></div>
+        <div class="row r3"><i>3</i><span>Your belt should work as hard as the rest of your bag.</span></div>
+        <div class="hook"><span class="lbl">Layer 2 hook</span><q>Still marking it with a tee and hoping it's not in someone's line?</q></div>
+      </article>
+      <article class="card"><header><h3>Taking an angle deeper</h3><span class="type">From our library</span></header>
+        <div class="row r1"><i>Today</i><span>"Better wedge, lower score" (Lucky)</span></div>
+        <div class="row r2"><i>Deeper</i><span>Stop dreading the greenside chip with your buddies watching.</span></div>
+        <div class="row r1"><i>Today</i><span>"Best golf polo around" (Grunk)</span></div>
+        <div class="row r2"><i>Deeper</i><span>The guy who always gives compliments finally hears "where'd you get that polo?"</span></div>
+        <div class="hook"><span class="lbl">Rule</span>Changing the layer changes the reason to buy, so it is a <b>new angle</b>. Test it as an angle, never as a headline.</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="two">
+    <div class="box"><h2>The layer check (any brief, ad or email)</h2>
+      <ol>
+        <li>Which layer does it argue? Write it on the brief's WHY line.</li>
+        <li>Is that the right layer for who sees it? Cold audience plus layer 1 only is our most common miss.</li>
+        <li>Is the feeling in the customer's own words, at one real moment? <span class="bad">"Feel confident"</span> is nobody's words.</li>
+        <li>One villain, and it's a thing, not a person or a competitor?</li>
+        <li>If there's a "should" line, can this product back it up?</li>
+      </ol>
+    </div>
+    <div class="box"><h2>Where it lives</h2>
+      <ul>
+        <li><b>Locus · Brand · Research · "The problem":</b> each product line's villain, other villains and three layers. Drafts are waiting for approval.</li>
+        <li><b>The Strategist</b> reads them, names the layer on every brief it writes or reviews, and points out where an angle could go deeper.</li>
+        <li><b>The ideas bot</b> says which layer a reference ad argues.</li>
+        <li>The layers are for <b>thinking</b>, not a template. Picture the customer, say it out loud the way they would, then write it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>Sources: Donald Miller, Building a StoryBrand (2017; 2.0 in 2025). Examples drafted from each brand's own customer quotes in Locus, 2026-10-10.</span>
+  </footer>
+</div>
