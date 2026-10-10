@@ -1568,3 +1568,28 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   (`brand_accounts.slack_channel`), button "Open in Locus" (`?open=requests&act=`). Never the client channel. A team
   action posts nothing. No email: a new approval only shows in Locus (the client's Home says "N waiting for you").
 - **Tests:** `node test-requests.mjs` (9 offline checks, Slack mocked). Not tested live.
+## 2026-10-10: agency economics and team workload (`src/agency.js`)
+
+Routes (one block in worker.js after /api/command/work; not on brandguard CLIENT_RULES, and the handler refuses a client
+scope again): `GET /api/agency/economics?month=YYYY-MM&fresh=1` and `PUT /api/agency/settings {people, map}` are OWNER
+ONLY (Cole's session or the admin key; the team gets 403); `GET /api/agency/workload?fresh=1` is the team's (brandsFor
+limits a teammate to their brands). Tests: `node test-agency.mjs` (10 offline checks, Asana and the Ledger mocked).
+- **Revenue** = the Ledger's month report (`/api/report?month=`, `byClient` = income by payer name) over the LEDGER
+  binding with a minted Cole session, cached an hour in `agencyLedger:<month>`. Payer names match brands by name (exact,
+  then one contains the other, only when one brand fits); settings `agencyLedgerMap` {payer: brand id | '' (not a
+  client)} pins the rest from the page.
+- **Team cost model (an ESTIMATE, labelled so):** settings `agencyPeople` {Asana user gid: {name, cost (a month),
+  hours (a month, default 160)}}. Each person's month is split across brands by their share of the tasks they
+  COMPLETED that month in each brand's linked Asana project (connections kind 'asana'; paused and test brands skipped
+  like command.js). Work outside client projects is not seen, so the whole month lands on clients. Counts cached in
+  `agencyDone:<brand>:<month>` (30 min current month, 12 h past).
+- **AI cost** per brand: strat_run (already includes Strategist images, PDFs, analysis), idea_run, p_studio_ad,
+  p_studio_vid, p_asset looks (source 'locus'), ad_tag, and the client Strategist (`clientAsk:<day>:<email>`, filed
+  under the client's first brand). Ids resolve through brands.legacy_key, brand_alias and Meta connections; runs with
+  no brand are `ai_unassigned`.
+- **Sentence** is written by rules, no model (`sentenceFor`): most revenue per team hour; anyone whose AI cost is over
+  what they paid; else the biggest loss or the thinnest margin; a nudge when no costs are entered.
+- **Workload:** open tasks with a due date per brand project (`agencyOpen:<brand>`, 30 min), due this Central week
+  (Mon to Sun) or overdue (before Monday, up to 60 days, NOT_DUE sections left out), grouped by assignee
+  ("Not assigned" last), a task in two projects counted once.
+- NOT tested live: the Ledger binding's /api/report answer, real Asana paging on big projects, real payer names.
