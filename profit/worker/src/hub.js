@@ -25,9 +25,11 @@
  *   GET /api/hub/stockads?act=        products and ad sets tied to ad spend through Triple Whale orders (30 days)
  *   GET /api/hub/drill?act=&model=&cmp=&days|from&to   the data behind every headline tile (drillMany, end of file)
  *   GET /api/hub/command?act=all      the agency command center: why each brand needs attention (team only)
+ *   GET /api/hub/giveaway?act=&days|from&to   sales spend vs giveaway spend, Sales MER, entries and cost per entry (giveaway.js)
  */
 import { metaOf } from './brandids.js';
 import { rulesFor } from './brand.js';
+import { giveawayRead, loadGiveaways, giveawaySpend, merFloorFor } from './giveaway.js';
 
 /* Brand-first phase 3 (2026-10-08): `act` / `a.act_id` here is the BRAND id. Meta's own tables
    (ad_daily, ads, meta_campaigns, meta_adsets, activities) stay on the Meta ad account id, so they
@@ -94,6 +96,7 @@ export async function handleHub(ctx) {
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
     if (path === '/api/hub/command') return json(await commandMany(env, ctx, accts));
+    if (path === '/api/hub/giveaway') return json({ ...base, window: w0, brands: await giveawayMany(env, ctx, accts, w0) });
     if (path === '/api/hub/stockads') return json({ brands: await Promise.all(accts.map(a => stockAds(env, ctx, a))) });
     if (path === '/api/hub/yesterday') return json(await yesterdayMany(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || '')), act === 'all'));
     if (path === '/api/hub/today' && url.searchParams.get('live') !== '1') return json(await buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))));
@@ -976,6 +979,23 @@ async function drillMany(env, ctx, accts, w, model) {
    - SETUP: no Triple Whale shop, no Meta account, no goals, no Asana project.
    Paused and test brands (SKIP_HUB) come back `paused` with no reasons: never flag them (Cole's rule).
    Asana, pending new clients and alerts live on account-health (/api/command/work); the AI read is /api/read. */
+/* ---------- giveaway spend vs sales MER (2026-10-10, giveaway.js) ----------
+   Per brand over the screen's window: store revenue and ALL ad spend from Triple Whale (the same basis as the command
+   center), the giveaway's Meta spend, Sales MER = revenue / (spend - giveaway spend), and since the giveaway started:
+   entries, cost per entry against the most to pay, pace against the goal. Brands without a giveaway are left out. */
+async function giveawayMany(env, ctx, accts, w) {
+  const live = accts.filter(a => !SKIP_HUB.test(a.name || ''));
+  if (!live.length) return [];
+  const cfgs = await loadGiveaways(env, live.map(a => a.act_id));
+  const withG = live.filter(a => cfgs[a.act_id]);
+  if (!withG.length) return [];
+  const piv = await twPivotMany(env, withG.map(a => a.act_id), w.from, w.to, ['totalSales', 'totalNetTaxes', 'blendedAds']);
+  const money = {};
+  for (const a of withG) { const P = piv[a.act_id] || {}; const s = sumM(P, 'totalSales', w.from, w.to); money[a.act_id] = { revenue: s == null ? null : s - (sumM(P, 'totalNetTaxes', w.from, w.to) || 0), spend: sumM(P, 'blendedAds', w.from, w.to) }; }
+  const r = await giveawayRead(env, withG, w.from, w.to, money, { today: a => ctx.localDate(a.tz) });
+  return withG.filter(a => r[a.act_id]).map(a => ({ act_id: a.act_id, name: a.name, currency: a.currency, ...r[a.act_id] }));
+}
+
 function monthGoals(goals, ym) {
   const g = goals && typeof goals === 'object' ? goals : {};
   if (g[ym]) return g[ym];
@@ -989,7 +1009,7 @@ async function commandMany(env, ctx, accts) {
   const live = accts.filter(a => !SKIP_HUB.test(a.name || ''));
   const acts = live.map(a => a.act_id);
   const none = { results: [] };
-  let piv = {}, adQ = none, fatQ = none, conQ = none, docQ = none, yd = null;
+  let piv = {}, adQ = none, fatQ = none, conQ = none, docQ = none, yd = null, gwCfg = {}, gwDays = {}, gwRead = {};
   if (acts.length) {
     const IN1 = inList(acts.length, 1), IN3 = inList(acts.length, 3);
     [piv, adQ, fatQ, conQ, docQ, yd] = await Promise.all([
@@ -1002,6 +1022,16 @@ async function commandMany(env, ctx, accts) {
       env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE act_id IN (${IN1}) AND line_id = '' AND key = 'rules'`).bind(...acts).all().catch(() => none),
       yesterdayMany(env, ctx, live, true).catch(() => null),
     ]);
+    /* Giveaways (2026-10-10): MER is judged on SALES spend, so the giveaway's Meta spend comes off each day first; a live
+       giveaway paying more per entry than it is worth is its own reason. */
+    try {
+      gwCfg = await loadGiveaways(env, acts);
+      if (Object.keys(gwCfg).length) {
+        const sp = await giveawaySpend(env, gwCfg, ctx.addDays(y, -22), y);
+        for (const a in sp) gwDays[a] = sp[a].days || {};
+        gwRead = await giveawayRead(env, live.filter(a => gwCfg[a.act_id]), ctx.addDays(y, -6), y, {}, { today: a => ctx.localDate(a.tz) });
+      }
+    } catch { gwCfg = {}; gwDays = {}; gwRead = {}; }
   }
   const AD = Object.fromEntries((adQ.results || []).map(r => [r.act_id, r]));
   const FT = {}; for (const r of fatQ.results || []) (FT[r.act_id] ??= {})[r.date] = r;
@@ -1017,18 +1047,24 @@ async function commandMany(env, ctx, accts) {
     const $ = moneyOf(a.currency || 'USD');
     /* GOAL */
     const P = piv[a.act_id] || {}, val = (k, d) => num(P[k] && P[k][d]);
-    const roll = (d, n) => { const r = { rev: 0, sp: 0, o: 0 }; for (let i = 0; i < n; i++) { const x = ctx.addDays(d, -i); r.rev += val('totalSales', x) - val('totalNetTaxes', x); r.sp += val('blendedAds', x); r.o += val('totalOrders', x); } return r; };
+    const GD = gwDays[a.act_id] || {};
+    const roll = (d, n, sales) => { const r = { rev: 0, sp: 0, o: 0 }; for (let i = 0; i < n; i++) { const x = ctx.addDays(d, -i); r.rev += val('totalSales', x) - val('totalNetTaxes', x); r.sp += val('blendedAds', x) - (sales && GD[x] ? GD[x].spend : 0); r.o += val('totalOrders', x); } return r; };
     const rules = rulesFor(a, DOC[a.act_id]);
     const mg = monthGoals(a.goals, y.slice(0, 7));
     const goalCpa = rules.target_cpa || null;
     const goalMer = mg.sales > 0 && mg.spend > 0 ? mg.sales / mg.spend : a.target_roas > 0 ? +a.target_roas : null;
     const goal = goalCpa ? { kind: 'cpa', target: goalCpa } : goalMer ? { kind: 'mer', target: goalMer } : null;
+    /* With giveaway spend in the last 22 days the MER goal is judged on SALES spend (the giveaway is judged per entry, below). */
+    const gw = gwCfg[a.act_id] ? gwRead[a.act_id] || null : null;
+    const gwSpend = Object.values(GD).reduce((s, x) => s + (x.spend || 0), 0) > 0;
+    if (goal && goal.kind === 'mer' && gwSpend) { goal.sales = true; goal.floor = merFloorFor(a.name, gwCfg[a.act_id]); }
+    const c2 = v => (v == null ? '' : `${a.currency && a.currency !== 'USD' ? a.currency + ' ' : '$'}${(+v).toFixed(2)}`);
     if (goal) {
-      const w7 = roll(y, 7);
+      const w7 = roll(y, 7, goal.sales);
       goal.value7 = goal.kind === 'cpa' ? (w7.o ? w7.sp / w7.o : null) : (w7.sp ? w7.rev / w7.sp : null);
       let streak = 0;
       for (let i = days.length - 1; i >= 0; i--) {
-        const r = roll(days[i], 3); if (!(r.sp > 0)) break;
+        const r = roll(days[i], 3, goal.sales); if (!(r.sp > 0)) break;
         const v = goal.kind === 'cpa' ? (r.o ? r.sp / r.o : Infinity) : r.rev / r.sp;
         if (!(goal.kind === 'cpa' ? v > goal.target * 1.1 : v < goal.target * 0.9)) break;
         streak++;
@@ -1036,7 +1072,14 @@ async function commandMany(env, ctx, accts) {
       goal.off_days = streak;
       const fmt = v => goal.kind === 'cpa' ? $(v) : `${(+v).toFixed(2)}x`;
       if (streak >= 3 && goal.value7 != null) add(streak >= 7 ? 'bad' : 'warn', 'goal',
-        `${goal.kind === 'cpa' ? 'CPA' : 'MER'} ${fmt(goal.value7)} vs ${fmt(goal.target)} goal over 7 days, off goal ${streak >= days.length ? `${streak}+` : streak} days running`, 'overview', { days: streak });
+        `${goal.kind === 'cpa' ? 'CPA' : goal.sales ? 'Sales MER (giveaway spend left out)' : 'MER'} ${fmt(goal.value7)} vs ${fmt(goal.target)} goal over 7 days, off goal ${streak >= days.length ? `${streak}+` : streak} days running`, 'overview', { days: streak });
+    }
+    /* GIVEAWAY: judged on cost per entry, never on MER. */
+    if (gw && gw.live) {
+      const t = gw.to_date || {};
+      if (gw.status === 'over_max') add('warn', 'giveaway', `Giveaway entries cost ${c2(t.cost_per_entry)} each, over the ${c2(gw.max_cost_per_entry)} most to pay (${(t.entries || 0).toLocaleString('en-US')} entries)`, 'overview');
+      else if (t.pace_status === 'behind' && t.days_elapsed >= 3) add('info', 'giveaway', `Giveaway at ${Math.round((t.pace || 0) * 100)}% of the entries expected by now (${(t.entries || 0).toLocaleString('en-US')} of ${(t.expected_entries || 0).toLocaleString('en-US')})`, 'overview');
+      else if (gw.status === 'no_entries') add('info', 'giveaway', 'Giveaway is spending but no entries are counted: set its Klaviyo list on Home > Goals', 'plan');
     }
     /* CADENCE */
     const F = FT[a.act_id] || {};
@@ -1075,7 +1118,7 @@ async function commandMany(env, ctx, accts) {
     if (!goal && !(mg.sales > 0)) gaps.push(['No goals set (goal CPA or a monthly plan)', 'plan']);
     if (!K.has('asana')) gaps.push(['No Asana project linked', 'settings']);
     for (const [t, go] of gaps) add('info', 'setup', t, go);
-    out.push({ ...base, goal, cadence, fatigue: fat, daycheck, gaps: gaps.map(g => g[0]), reasons });
+    out.push({ ...base, goal, cadence, fatigue: fat, daycheck, gaps: gaps.map(g => g[0]), reasons, ...(gw ? { giveaway: { name: gw.name, live: gw.live, status: gw.status, cost_per_entry: gw.to_date?.cost_per_entry ?? null, max_cost_per_entry: gw.max_cost_per_entry, entries: gw.to_date?.entries ?? null } } : {}) });
   }
   return { as_of, yesterday: y, market: yd ? yd.market : null, brands: out };
 }
