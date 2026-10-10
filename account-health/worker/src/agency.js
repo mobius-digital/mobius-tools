@@ -209,7 +209,9 @@ export async function economics(env, d, { month, fresh = false } = {}) {
   const peopleOut = Object.entries({ ...Object.fromEntries(Object.keys(people).map(g => [g, null])), ...seen }).map(([g, s]) => {
     const cfg = people[g] || {};
     return { gid: g, name: cfg.name || s?.name || 'Someone', tasks: s?.total || 0, by_brand: Object.fromEntries(Object.entries(s?.by || {}).map(([b, n]) => [book.name[b] || b, n])),
-      cost: Number(cfg.cost) > 0 ? Number(cfg.cost) : null, hours: Number(cfg.hours) > 0 ? Number(cfg.hours) : HOURS_DEFAULT, set: Number(cfg.cost) > 0 };
+      cost: Number(cfg.cost) > 0 ? Number(cfg.cost) : null, hours: Number(cfg.hours) > 0 ? Number(cfg.hours) : HOURS_DEFAULT, set: Number(cfg.cost) > 0,
+      /* People outside Asana (Radhesh on Google, Hamza on Amazon; 2026-10-10): a fixed list of brands, cost split evenly. */
+      brands: Array.isArray(cfg.brands) && cfg.brands.length ? cfg.brands : null };
   }).sort((a, b) => b.tasks - a.tasks || a.name.localeCompare(b.name));
   const peopleSet = peopleOut.some(p => p.set && p.tasks > 0);
 
@@ -230,6 +232,7 @@ export async function economics(env, d, { month, fresh = false } = {}) {
   const out = [...ids].filter(b => book.name[b]).map(b => {
     let tasks = 0, hours = 0, team = 0;
     for (const p of peopleOut) {
+      if (p.brands) { if (p.brands.includes(b)) { team += (p.cost || 0) / p.brands.length; hours += p.hours / p.brands.length; } continue; }
       const n = seen[p.gid]?.by[b] || 0; if (!n) continue;
       const share = n / seen[p.gid].total;
       tasks += n; hours += p.hours * share; if (p.cost) team += p.cost * share;
@@ -237,7 +240,7 @@ export async function economics(env, d, { month, fresh = false } = {}) {
     /* Someone with a cost and no task seen in any client project that month: their month is split evenly over the
        clients who paid, so the whole payroll lands somewhere (said in the model line). */
     const payers = Object.keys(revenue).filter(x => revenue[x] > 0);
-    if (revenue[b] > 0) for (const p of peopleOut) if (p.cost && !(seen[p.gid]?.total)) { team += p.cost / payers.length; hours += p.hours / payers.length; }
+    if (revenue[b] > 0) for (const p of peopleOut) if (p.cost && !p.brands && !(seen[p.gid]?.total)) { team += p.cost / payers.length; hours += p.hours / payers.length; }
     const a = ai.per[b] || { strategist: 0, ideas: 0, studio: 0, tagging: 0, client_ask: 0 };
     const aiCost = a.strategist + a.ideas + a.studio + a.tagging + a.client_ask;
     const rev = r2(revenue[b] || 0);
@@ -331,7 +334,8 @@ export async function handleAgency(request, env, path, json, d) {
         if (!/^[0-9a-z_]{1,40}$/i.test(g)) continue;
         if (v === null) { delete cur[g]; continue; }
         const cost = Math.max(0, Math.min(1e6, Number(v.cost) || 0)), hours = Math.max(0, Math.min(744, Number(v.hours) || 0));
-        cur[g] = { name: String(v.name || cur[g]?.name || '').slice(0, 80), cost, hours: hours || HOURS_DEFAULT };
+        cur[g] = { name: String(v.name || cur[g]?.name || '').slice(0, 80), cost, hours: hours || HOURS_DEFAULT,
+          ...(Array.isArray(v.brands) ? { brands: v.brands.map(String).filter(x => /^brand_[a-z0-9_]+$/.test(x)).slice(0, 20) } : cur[g]?.brands ? { brands: cur[g].brands } : {}) };
       }
       await putSetting(env, 'agencyPeople', cur);
     }
