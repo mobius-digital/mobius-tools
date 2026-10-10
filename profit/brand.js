@@ -1528,7 +1528,7 @@ function paintLine(el, line) {
   const prOpen = !!R.open.prob;
   const chains = probChains(prob);
   const prHas = chains.length > 0;
-  const chainHtml = (c, i) => `<div class="rs-idea"><b>${esc(c.villain || 'Problem ' + (i + 1))}</b><dl class="br-kv" style="margin-top:4px"><dt>1 · What they'd search</dt><dd>${esc(c.external || '-')}</dd><dt>2 · How it feels</dt><dd>${esc(c.internal || '-')}</dd><dt>3 · Why it's wrong</dt><dd>${esc(c.philosophical || 'None')}</dd></dl></div>`;
+  const chainHtml = (c, i) => `<div class="rs-idea"><b>${esc(c.villain || 'Problem ' + (i + 1))}</b><dl class="br-kv" style="margin-top:4px">${c.want ? `<dt>What they want</dt><dd>${esc(c.want)}</dd>` : ''}<dt>1 · What they'd search</dt><dd>${esc(c.external || '-')}</dd><dt>2 · How it feels</dt><dd>${esc(c.internal || '-')}</dd><dt>3 · Why it's wrong</dt><dd>${esc(c.philosophical || 'None')}</dd></dl></div>`;
   const secProb = rsSec('prob', `The problem${rsDraftTag(prob._status)}`, 'What is really wrong for them?',
     `${prob._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|problem">Approve</button>` : ''}<button class="rs-q" id="brEditProb">Edit</button>`,
     !prHas ? '<p class="hint" style="margin:0">Not written yet. Research tools draft it with the personas, or press Edit. Most ads only say the first layer; the money is usually in the second.</p>'
@@ -1603,12 +1603,13 @@ function probChains(p) {
 function problemModal(L, prob) {
   const have = probChains(prob), n = Math.max(have.length + 1, 3);
   const slot = (c, i) => `<div class="br-form" style="border-top:1px solid var(--line);padding-top:10px;margin-top:6px"><b style="grid-column:1/-1">Problem ${i + 1}</b>
-    ${inp(`pv${i}`, 'Villain: what causes it (a thing, never a person)', c.villain, { rows: 0, full: true })}
+    ${inp(`pw${i}`, 'What they want (the problem is what stands in the way)', c.want, { rows: 0, full: true })}
+    ${inp(`pv${i}`, 'Villain: what stands in the way (a thing, never a person)', c.villain, { rows: 0, full: true })}
     ${inp(`pe${i}`, '1 · External: what they would type into Google, a few words', c.external, { rows: 0, full: true })}
     ${inp(`pi${i}`, '2 · Internal: how it makes them feel, one moment, in their words', c.internal, { rows: 2, full: true })}
     ${inp(`pp${i}`, '3 · Philosophical: the norm that is wrong (leave empty if this product cannot back one up)', c.philosophical, { rows: 2, full: true })}</div>`;
-  modal('The problem, three layers', `<p class="hint">Each problem is one story: the villain causes the external problem, which causes the feeling, and layer 3 says why nobody should put up with it. Leave a box empty to drop it.</p>${Array.from({ length: n }, (_, i) => slot(have[i] || {}, i)).join('')}`, { onOpen: (w, ctl) => w.onSubmit(async () => {
-    const problems = Array.from({ length: n }, (_, i) => ({ villain: val(w, `pv${i}`), external: val(w, `pe${i}`), internal: val(w, `pi${i}`), philosophical: val(w, `pp${i}`) })).filter(c => c.villain || c.external || c.internal || c.philosophical);
+  modal('The problem, three layers', `<p class="hint">Each problem is one story: they want something, the villain stands in the way and causes the external problem, which causes the feeling, and layer 3 says why nobody should put up with it. Leave a box empty to drop it.</p>${Array.from({ length: n }, (_, i) => slot(have[i] || {}, i)).join('')}`, { onOpen: (w, ctl) => w.onSubmit(async () => {
+    const problems = Array.from({ length: n }, (_, i) => ({ want: val(w, `pw${i}`), villain: val(w, `pv${i}`), external: val(w, `pe${i}`), internal: val(w, `pi${i}`), philosophical: val(w, `pp${i}`) })).filter(c => c.villain || c.external || c.internal || c.philosophical);
     await putDoc(L, 'problem', { problems }); ctl.close(); repaint();
   }) });
 }
