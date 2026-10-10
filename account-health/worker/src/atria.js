@@ -17,6 +17,8 @@
  */
 import { clip, safeJson } from './research.js';
 import { resolveBrandId, storagePrefix } from './brands.js';
+import { clientScope } from './brandguard.js';
+import { swipeBoardsFor } from '../../../profit/worker/src/season.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -261,6 +263,9 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
     if (path === '/api/atria/board' && request.method === 'GET') {
       const id = url.searchParams.get('board_id');
       if (!id) return json({ error: 'board_id is required' }, 400);
+      /* A client login (the brand edition, 2026-10-10) reads its own brand's board and the shared season boards only. */
+      const cs = clientScope(request);
+      if (cs) { const b = cs.brandOf(url.searchParams.get('act') || ''); if (!b || !swipeBoardsFor(b).includes(id)) return json({ error: 'That board belongs to another brand.' }, 403); }
       const mcp = mcpSession(env);
       let r;
       try {

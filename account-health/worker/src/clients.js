@@ -1,24 +1,24 @@
 /**
- * CLIENT LOGINS (2026-10-09). A client is an email (any domain, Google sign-in) tied to one or more brands,
- * read-only. Who may do what is decided in brandguard.js (the allowlist); this file is the records, the
- * invite email and the client-safe Strategist.
+ * CLIENT LOGINS (2026-10-09), THE BRAND EDITION since 2026-10-10. A client is an email (any domain, Google sign-in)
+ * tied to one or more brands, and gets everything Locus has for those brands (docs/locus-hub/editions.md). Who may
+ * do what is decided in brandguard.js (the allowlist); this file is the records, the invite email and the client's
+ * door to the assistant.
  *
  *   settings.clientUsers  = { email: { brands: [brand_x], name, invited_at, invited_by, last_invite,
  *                                       last_sign_in, last_seen, welcomed_at } }
- *   settings.clientAccess = { brand_x: { pl, strategist, changes, creators } }   (only overrides; all ON by default since 2026-10-09)
+ *   settings.clientAccess is no longer read: the four switches are gone, everything is on.
  *
  * Routes (mounted in worker.js before the admin gate; each checks its own caller):
  *   GET  /api/clients?act=            team: the client logins (a limited teammate sees only their brands' rows)
  *   GET  /api/clients/draft           team: the invite email text for {brands, name, email}
  *   POST /api/clients/invite          OWNER: add or update clients and, with send:true + approved:true, email them
  *   POST /api/clients/remove          OWNER: {email, brand?} take one brand or the whole login away
- *   PUT  /api/clients/access          OWNER: {act, pl?, strategist?, changes?, creators?}
- *   GET  /api/clients/me              the signed-in client: their brands, switches, creator link
+ *   GET  /api/clients/me              the signed-in client: their brands, creator link
  *   PUT  /api/clients/me              the signed-in client: {name?, welcomed?} (their own profile only)
  * Nothing here sends anything unless the owner pressed Send on text they saw (the New client rule).
  */
 import { sendMail } from './mail.js';
-import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES } from './brandguard.js';
+import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse, capAdd, capMessage } from './brandguard.js';
 
 const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
@@ -51,7 +51,7 @@ export function inviteDraft({ brands = [], name = '', email = '' }) {
     subject: `Your Locus login for ${list.length === 1 ? list[0] : 'your brands'}`,
     body: `Hi ${hi},
 
-You now have your own login to Locus, the dashboard we use to run ${what}. It shows the numbers we look at every day: sales, ad spend and results by channel, email and SMS, your store, the marketing calendar and the reports we send you.
+You now have your own login to Locus, the system we use to run ${what}. You see exactly what we see: sales and profit, ad spend and results by channel, email and SMS, your store and customers, stock, the creative studio, the marketing calendar, your plan and goals, and the reports we send you.
 
 To sign in:
 - Open ${LOCUS_URL}
@@ -59,7 +59,7 @@ To sign in:
 
 If ${who} is not a Google account yet, you can still use it: on Google's sign-in screen choose Create account, then "Use my current email address instead". It takes a minute and needs no Gmail.
 
-On the calendar you can add your own dates (a launch, a sale, an event) and leave a note on ours. Everything else is read-only, so there is nothing you can break.
+You can work in it too: add dates to the calendar, ask us for something under Requests, set your goals, make ads in the studio, and ask the assistant anything about your numbers. Changes to live ads always show you what will happen and wait for you to confirm.
 
 Any question, ask us in Slack or reply to this email.
 
@@ -83,18 +83,6 @@ async function upsertClient(env, email, brands, by, name) {
   users[e] = cur;
   await putJson(env, 'clientUsers', users);
   return null;
-}
-
-async function setAccess(env, act, sw) {
-  const all = (await getJson(env, 'clientAccess', {})) || {};
-  /* Only the overrides are stored (2026-10-09: everything is ON by default), so a switch nobody touched follows
-     the default if it ever changes, and a brand with nothing turned off has no row at all. */
-  const cur = { ...CLIENT_SWITCHES, ...(all[act] || {}) };
-  for (const k of Object.keys(CLIENT_SWITCHES)) if (typeof sw[k] === 'boolean') cur[k] = sw[k];
-  const over = Object.fromEntries(Object.keys(CLIENT_SWITCHES).filter(k => cur[k] !== CLIENT_SWITCHES[k]).map(k => [k, cur[k]]));
-  if (Object.keys(over).length) all[act] = over; else delete all[act];
-  await putJson(env, 'clientAccess', all);
-  return cur;
 }
 
 /** Record a client's sign-in (googleLogin) or a page open (/api/me, at most once an hour). */
@@ -141,9 +129,8 @@ export async function handleClients(request, env, path, json, { isAdmin, session
       return json({ ok: true, name: me.name || null });
     }
     const me = await meClient(env, cs.email);
-    /* The creator link, only where Cole switched Creators on and the page is live. */
+    /* The creator link, where the page is live. */
     for (const b of me?.brands || []) {
-      if (!b.access?.creators) continue;
       const row = await env.DB.prepare(`SELECT slug, live FROM p_amb_brand WHERE act_id = ?1`).bind(b.id).first().catch(() => null);
       if (row?.slug && row.live) b.creator_link = `https://tools.go-mobius-digital.com/angles/${row.slug}`;
     }
@@ -159,15 +146,15 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     const act = url.searchParams.get('act');
     const only = await brandsFor(env, who).catch(() => null);
     const users = (await getJson(env, 'clientUsers', {})) || {};
-    const access = (await getJson(env, 'clientAccess', {})) || {};
     const allIds = [...new Set(Object.values(users).flatMap(u => (u && u.brands) || []))];
     const names = await brandNames(env, allIds);
     const rows = Object.entries(users).map(([email, u]) => ({ email, name: u.name || null, brands: (u.brands || []).filter(b => !only || only.has(b)).map(b => ({ id: b, name: names[b] || b })),
       invited_at: u.invited_at || null, invited_by: u.invited_by || null, last_invite: u.last_invite || null, last_sign_in: u.last_sign_in || null, last_seen: u.last_seen || null }))
       .filter(r => r.brands.length && (!act || act === 'all' || r.brands.some(b => b.id === act)))
       .sort((a, b) => a.email.localeCompare(b.email));
-    const acc = act && act !== 'all' ? { [act]: { ...CLIENT_SWITCHES, ...(access[act] || {}) } } : Object.fromEntries(Object.entries(access).filter(([b]) => !only || only.has(b)));
-    return json({ clients: rows, access: acc, switches: Object.keys(CLIENT_SWITCHES), can_edit: owner, locus: LOCUS_URL });
+    /* `access` and `switches` stay in the answer (always everything) for any screen that still reads them. */
+    const acc = act && act !== 'all' ? { [act]: { ...CLIENT_SWITCHES } } : {};
+    return json({ clients: rows, access: acc, switches: [], can_edit: owner, locus: LOCUS_URL });
   }
 
   if (path === '/api/clients/draft' && request.method === 'GET') {
@@ -198,7 +185,6 @@ export async function handleClients(request, env, path, json, { isAdmin, session
       if (err) { failed.push({ email: e, error: err }); continue; }
       added.push(e);
     }
-    if (b.access && typeof b.access === 'object') for (const x of brands) await setAccess(env, x, b.access);
     if (send) {
       for (const e of added) {
         try { await sendMail(env, e, subject, text); sent.push(e); }
@@ -223,93 +209,50 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     return json({ ok: true, removed: !users[e] });
   }
 
-  if (path === '/api/clients/access' && request.method === 'PUT') {
-    const act = String(b.act || '');
-    if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Pick a brand.' }, 400);
-    return json({ ok: true, act, access: await setAccess(env, act, b) });
-  }
   return json({ error: 'not found' }, 404);
 }
 
-/* ---------------- the client-safe Strategist ----------------
- * ON by default (2026-10-09); off where Cole turned it off for the brand (brandguard refuses /api/ask then). It is NOT the team's
- * Strategist with a rule line on top: no SQL over the shared database, no internal memory or skills in the
- * prompt, no Slack, no actions, no memory writes. One read-only tool, `read_page`, reads a fixed list of the
- * client's own pages THROUGH THE CLIENT'S OWN LOGIN (so brandguard scrubs every answer exactly as it does for
- * the page), pinned to the brand. Haiku 4.5, 4 rounds, capped per client per day. */
-const CLIENT_MODEL = 'claude-haiku-4-5-20251001';
-const CAP_QUESTIONS = 20, CAP_DOLLARS = 0.5;
-const PAGES = {
-  overview: { w: 'profit', p: (a, d) => `/api/overview?act=${a}&days=${d}&series=0`, what: 'sales, orders, ad spend, MER, new customers for the window' },
-  all_channels: { w: 'profit', p: (a, d) => `/api/hub/paid?platform=all&act=${a}&days=${d}`, what: 'every ad channel side by side' },
-  meta: { w: 'profit', p: (a, d) => `/api/hub/paid?platform=meta&act=${a}&days=${d}`, what: 'Meta ads: spend, purchases, ROAS, CPA, campaigns' },
-  google: { w: 'profit', p: (a, d) => `/api/hub/paid?platform=google&act=${a}&days=${d}`, what: 'Google ads as Triple Whale sees them' },
-  store: { w: 'profit', p: (a, d) => `/api/hub/store?act=${a}&days=${d}`, what: 'store sales, orders, average order, new vs returning' },
-  email: { w: 'profit', p: (a, d) => `/api/hub/email?act=${a}&days=${d}`, what: 'email and SMS revenue' },
-  pl: { w: 'profit', p: (a, d) => `/api/client?act=${a}&days=${d}`, what: 'profit and loss (only when switched on)' },
-  calendar: { w: 'ah', p: a => `/api/calendar?act=${a}&lite=1`, what: 'the marketing calendar' },
-  reports: { w: 'ah', p: a => `/api/reports?act=${a}`, what: 'the reports sent to you' },
-};
-const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
-const AH_ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
-
+/* ---------------- the assistant, for a client ----------------
+ * THE BRAND EDITION (2026-10-10, Cole: a client gets everything a brand has). A client's question runs on the SAME
+ * engine as the team's (ask/engine.js answerWeb, the Strategist config), in its client mode: pinned to the client's
+ * brand with the ACCESS RULE, only the tools that read Locus through the client's OWN sign-in (locus_routes,
+ * locus_get: brandguard's allowlist and scrub apply to every read), reports, files and the web. Never the SQL gate,
+ * the app views, the agency's memory, skills, Slack or playbook, and no actions from the chat (the same buttons are on
+ * the pages). Capped per client per day in dollars (settings clientAsk:<date>:<email>, $2, shared with the AI reads on
+ * screens), and every question is in the usage log under the client's email (logRun). */
 export async function clientAsk(env, request, body, d) {
   const cs = clientScope(request);
   if (!cs) return { error: 'unauthorized', status: 401 };
-  if (!env.ANTHROPIC_API_KEY) return { error: 'The Strategist is not set up on this server.' };
+  if (!env.ANTHROPIC_API_KEY) return { error: 'The assistant is not set up on this server.' };
   const act = String(body.act || body.screen?.act_id || '');
   const brand = cs.brandOf(act);
-  if (!brand || !cs.access[brand]?.strategist) return { error: 'That is switched off for your login.', status: 403 };
-  const q = String(body.question || '').trim().slice(0, 1500);
+  if (!brand) return { error: 'Pick your brand first.', status: 403 };
+  const q = String(body.question || '').trim().slice(0, 4000);
   if (!q) return { error: 'Ask something.' };
-  const day = new Date().toISOString().slice(0, 10);
-  const key = `clientAsk:${day}:${cs.email}`;
-  const use = (await getJson(env, key, null)) || { n: 0, cost: 0 };
-  if (use.n >= CAP_QUESTIONS || use.cost >= CAP_DOLLARS) return { error: 'That is the limit of questions for today. It resets tomorrow, or ask us in Slack.' };
+  const use = await capUse(env, 'clientAsk', cs.email);
+  if ((use.cost || 0) >= CLIENT_CAPS.clientAsk.max) return { error: capMessage('clientAsk'), status: 429 };
   const name = (await brandNames(env, [brand]))[brand] || 'your brand';
-  const auth = request.headers.get('Authorization') || '';
-  const read = async (page, days) => {
-    const P = PAGES[page]; if (!P) return { error: 'No such page.' };
-    if (page === 'pl' && !cs.access[brand]?.pl) return { error: 'Profit and loss is not switched on for this login.' };
-    const n = Math.min(Math.max(+days || 30, 1), 180);
-    const path = P.p(encodeURIComponent(brand), n);
-    const init = { headers: { Authorization: auth } };
-    const res = P.w === 'profit' ? (env.PROFIT ? await env.PROFIT.fetch(new Request(PROFIT_ORIGIN + path, init)) : null) : await d.ahFetch(new Request(AH_ORIGIN + path, init), env);
-    if (!res) return { error: 'That page is not reachable from here.' };
-    const t = await res.text();
-    return res.ok ? t.slice(0, 14000) : { error: `HTTP ${res.status}` };
-  };
-  const system = `You answer questions from a CLIENT of Mobius Digital, inside Locus, about their own brand: ${name}. Today is ${day}.
-Rules: talk about ${name} only; you know nothing about any other brand, the Mobius team's internal notes, costs or tools, and you never guess at them. Read the numbers with read_page before you state one; say which page and window each number came from. Plain sentences, no markdown, no em dashes, lead with the answer, two to four sentences. You cannot change anything: if they ask for a change (budgets, ads, offers, dates on our side), say their Mobius team handles it and they can ask in their Slack channel. Never promise results.`;
-  const tools = [{ name: 'read_page', description: `Read one of ${name}'s Locus pages as JSON. Pages: ${Object.entries(PAGES).filter(([k]) => k !== 'pl' || cs.access[brand]?.pl).map(([k, v]) => `${k} (${v.what})`).join('; ')}.`,
-    input_schema: { type: 'object', properties: { page: { type: 'string', enum: Object.keys(PAGES).filter(k => k !== 'pl' || cs.access[brand]?.pl) }, days: { type: 'number', description: 'window in days ending yesterday, default 30' } }, required: ['page'] } }];
-  const messages = [];
-  for (const m of (Array.isArray(body.history) ? body.history : []).slice(-6)) {
-    const text = String(m?.text || '').slice(0, 1500); if (!text) continue;
-    const role = m.role === 'assistant' ? 'assistant' : 'user';
-    if (messages.length && messages[messages.length - 1].role === role) messages[messages.length - 1].content += '\n\n' + text; else messages.push({ role, content: text });
+  const runId = /^[a-z0-9]{6,16}$/.test(String(body.runId || '')) ? body.runId : null;
+  if (runId) await putJson(env, `askRunWho:${runId}`, cs.email).catch(() => {});
+  const { engine, h } = d.strategist();
+  let r;
+  try {
+    r = await engine.answerWeb(env, q, body.history, h(), {
+      screen: { ...(body.screen && typeof body.screen === 'object' ? body.screen : {}), act_id: brand, brand_selected: name },
+      runId, auth: request.headers.get('Authorization') || '', who: cs.email, client: { brand, name, email: cs.email },
+    });
+  } finally {
+    if (runId) await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(`askRunWho:${runId}`).run().catch(() => {});
   }
-  if (messages.length && messages[0].role === 'assistant') messages.shift();
-  if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + q; else messages.push({ role: 'user', content: q });
-  let inTok = 0, outTok = 0, answer = '';
-  for (let round = 0; round < 4; round++) {
-    const r = await d.xfetch('https://api.anthropic.com/v1/messages', { method: 'POST',
-      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: CLIENT_MODEL, max_tokens: 900, system, messages, tools, ...(round === 3 ? { tool_choice: { type: 'none' } } : {}) }) });
-    const j = await r.json().catch(() => ({}));
-    if (!j.content) { answer = 'I could not answer that one right now. Ask us in Slack.'; break; }
-    inTok += j.usage?.input_tokens || 0; outTok += j.usage?.output_tokens || 0;
-    const calls = j.content.filter(c => c.type === 'tool_use');
-    if (!calls.length) { answer = j.content.filter(c => c.type === 'text').map(c => c.text).join('\n').trim(); break; }
-    messages.push({ role: 'assistant', content: j.content });
-    const results = [];
-    for (const c of calls) {
-      const out = c.name === 'read_page' ? await read(c.input?.page, c.input?.days).catch(e => ({ error: e.message })) : { error: 'Not available.' };
-      results.push({ type: 'tool_result', tool_use_id: c.id, content: typeof out === 'string' ? out : JSON.stringify(out), ...(typeof out === 'string' ? {} : { is_error: true }) });
-    }
-    messages.push({ role: 'user', content: results });
-  }
-  const cost = inTok / 1e6 * 1 + outTok / 1e6 * 5;
-  await putJson(env, key, { n: use.n + 1, cost: +(use.cost + cost).toFixed(4) }).catch(() => {});
-  return { answer: answer.replace(/\u2014/g, ',') || 'I could not work that one out.', cost: +cost.toFixed(4), model: CLIENT_MODEL, client: true };
+  const cost = +(r?.cost || 0);
+  const now = await capAdd(env, 'clientAsk', cs.email, cost);
+  const answer = String(r?.answer || '').replace(/\u2014/g, ',');
+  return { ...r, answer, client: true, isOwner: false, spent_today: now.cost, cap: CLIENT_CAPS.clientAsk.max };
+}
+
+/** May this client read or stop this running answer? Only the client that started it. */
+export async function clientOwnsRun(env, request, id) {
+  const cs = clientScope(request);
+  if (!cs || !/^[a-z0-9]{6,16}$/.test(String(id || ''))) return false;
+  return (await getJson(env, `askRunWho:${id}`, null)) === cs.email;
 }

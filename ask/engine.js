@@ -472,6 +472,14 @@ export function createAssistant(config) {
   const memDefs = memoryDefs.filter(t => !drop.has(t.name));
   /* Anthropic-hosted tools (web search / web fetch): declared, run on Anthropic's side, no loop work here. */
   const serverDefs = C.serverTools || [];
+  /* THE BRAND EDITION (2026-10-10): an app's client login asks the SAME engine, with only the tools named in
+     C.clientTools (tools that read through the person's own sign-in, so the app's access rules apply) plus the
+     hosted web tools when C.clientServerTools. Never the SQL gate, the app views, memory or actions: those read and
+     change the whole database, every brand at once. Built before the cache pass below so no tool is deferred. */
+  const clientAllow = new Set([...(C.clientTools || [])]);
+  const clientToolDefs = [reportDef, ...extraBoth.map(t => t.def), ...extraWeb.map(t => t.def)].filter(t => clientAllow.has(t.name))
+    .concat(C.clientServerTools ? serverDefs : []);
+  for (const t of serverDefs) if (C.clientServerTools) clientAllow.add(t.name);
   let slackToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraSlack.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
   let webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraWeb.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
   /* COST PASS (2026-10-10, the Strategist: ~80k tokens rewritten on every cold question, ~30k of it tool
@@ -861,6 +869,24 @@ export function createAssistant(config) {
     return blocks;
   }
 
+  /* The system prompt for a client login (the brand edition): who it is, the access rule, what the app gives about
+     the one brand (C.clientSystem: the Strategist's brand brain), the date and the screen. Never the schema, the
+     playbook, the company brief, memory, findings or the team's standing instructions: those are the agency's. */
+  async function clientBlocks(env, h, extra = {}) {
+    const today = h.centralDate(Date.now() / 1000);
+    const cl = extra.client || {};
+    const name = cl.name || 'their brand';
+    const blocks = [{ type: 'text', text: C.clientIntro ? C.clientIntro(cl) : `You are ${C.name}, the assistant inside ${C.app || 'the app'}, answering someone from ${name}, a client of the agency, about their own business.
+
+ACCESS RULE: this person may only see ${name}. Read, mention, compare or total no other brand, and never guess at one; if asked about another brand, the agency's other clients, the agency's own costs or its internal notes, say that is not something their login covers. Every number comes from a tool call you made in this conversation; say which page or period it came from. Your tools read the app exactly as this person's own login does, so whatever they return is theirs to see. You cannot apply changes from this chat: when they ask for one, say which page in the app has the button (the same buttons the agency uses), or that their team can do it.
+
+Plain English, no em dashes, lead with the answer.` }];
+    if (C.clientSystem) for (const b of (await C.clientSystem(env, h, extra).catch(() => [])) || []) { const text = typeof b === 'string' ? b : b?.text; if (text) blocks.push({ type: 'text', text }); }
+    blocks.push({ type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` });
+    if (extra.screen) blocks.push({ type: 'text', text: '## What the person is looking at right now, in the app\n' + JSON.stringify(extra.screen, null, 1) + '\nResolve "this", "that number", "this month" against it. Verify any figure with a tool before quoting it back.' });
+    return blocks;
+  }
+
   /* ---------------- the loop ---------------- */
 
   /* Dollars per million tokens: [input, output]. Cache reads are a tenth of input (Opus/Sonnet 5.5: $0.20),
@@ -922,7 +948,9 @@ export function createAssistant(config) {
         for (const c of calls) {
           await step({ label: stepLabel(c.name, c.input), tool: c.name });
           let out;
-          if (c.name === C.sqlTool) {
+          if (ctx?.allow && !ctx.allow.has(c.name)) {
+            out = { is_error: true, text: 'Not available on this login. Answer from what you can read with your tools.' };
+          } else if (c.name === C.sqlTool) {
             sql.push(String(c.input?.sql || '').slice(0, 600));
             const r = await runQuery(env, c.input?.sql, h);
             out = r.error ? { is_error: true, text: r.error } : { text: r.text };
@@ -964,7 +992,7 @@ export function createAssistant(config) {
       usage.count = (usage.count || 0) + 1;
       usage.inTok = (usage.inTok || 0) + inTok;
       usage.outTok = (usage.outTok || 0) + outTok;
-      await h.putSetting(env, K.usage, JSON.stringify(usage));
+      if (!ctx?.noUsage) await h.putSetting(env, K.usage, JSON.stringify(usage));
     }
     return { answer, sql, inTok, outTok, cacheRead, cacheWrite, cost, steps, stopped, ms: Date.now() - t0, flags };
   }
@@ -1131,10 +1159,12 @@ export function createAssistant(config) {
     if (!env.ANTHROPIC_API_KEY) return { error: 'The reader key is not set on this worker.' };
     const q = String(question || '').trim();
     if (!q) return { error: 'Ask something.' };
-    const usage = await usageToday(env, h);
-    if (usage.count >= C.dailyCap) return { error: `That is ${C.dailyCap} questions today, which is the cap. It resets at midnight.` };
+    const client = extra.client || null;
+    /* A client's questions are capped and counted by the app (its own dollars a day), never against the team's cap. */
+    const usage = client ? { count: 0, inTok: 0, outTok: 0 } : await usageToday(env, h);
+    if (!client && usage.count >= C.dailyCap) return { error: `That is ${C.dailyCap} questions today, which is the cap. It resets at midnight.` };
 
-    const system = [...(await systemBlocks(env, h, extra)),
+    const system = [...(client ? await clientBlocks(env, h, extra) : await systemBlocks(env, h, extra)),
       { type: 'text', text: extra.style || `You are answering inside the ${C.app || 'app'}, not Slack. Write plain sentences with no markdown, no asterisks and no bullets beyond "- ". Lead with the number. Two or three sentences unless more is genuinely needed.
 
 When the answer compares several things (brands, campaigns, ads, channels, months) or shows a trend over days or weeks, add ONE visual AFTER the sentences, as a fenced block exactly like this and nothing else inside it:
@@ -1160,10 +1190,11 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     const t0 = Date.now();
     let r = null;
     try {
-      r = await loop(env, h, system, messages, webToolDefs, async (name, input) => {
+      r = await loop(env, h, system, messages, client ? clientToolDefs : webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
-        return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web' }) : null;
+        return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web', client }) : null;
       }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId,
+        ...(client ? { client, allow: clientAllow, noUsage: true } : {}),
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },
         shouldStop: async () => !!(runId && C.progress && (await C.progress.get(env, runId))?.stop) }, choice.effort || null);
       return { answer: r.answer || (r.stopped ? 'Stopped.' : 'I could not work that one out. Try naming the period.'), sql: r.sql, inTok: r.inTok, outTok: r.outTok,

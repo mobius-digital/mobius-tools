@@ -423,13 +423,14 @@
     if (x.src === 'cal' && !past && (isOpen(x) || (live && x.kind !== 'drop'))) h += `<div class="wb"><b>${isOpen(x) ? 'When does it end?' : 'Ending early?'}</b><span>${isOpen(x) ? 'Until it has an end, the Monday Slack post asks "still running?".' : 'Tap when it stops.'}</span><div class="acts"><button type="button" class="cal-btn" data-end="${today}">It ended today</button>${isOpen(x) ? '<button type="button" class="cal-btn" data-endpick="1">Set an end date</button>' : ''}</div></div>`;
     if (st.length && !past) h += `<div><h4>Countdown (ticks itself)</h4><div class="cd">${st.map(s => `<div class="st ${s.state === 'late' ? 'lt' : ''}"><button type="button" class="ok ${s.state === 'done' ? 'y' : s.state === 'late' ? 'w' : ''}" ${x.src === 'cal' ? `data-tick="${s.key}" data-done="${s.state === 'done' ? 0 : 1}"` : 'disabled'}${tip(esc(s.state === 'done' ? (x.ticks && x.ticks[s.key] ? 'Ticked by hand. Click to untick.' : 'Done. ' + s.how + '.') : `${s.how}. ${x.src === 'cal' ? 'Or click to tick it by hand.' : ''}`))}>${s.state === 'done' ? '&#10003;' : ''}</button><div><b>${esc(s.label)}</b><span class="s">${esc(s.note)}</span></div><div class="r"><b>${wd(s.due)} ${md(s.due)}</b>${esc(s.who)}</div></div>`).join('')}</div></div>`;
     const acts = [];
-    /* A client login (2026-10-09) may edit and move its own typed dates and leave a note; nothing else here. */
+    /* A client login (the brand edition, 2026-10-10) edits, moves, removes and notes its own dates and opens the season
+       and drop pages; ticking the team's work steps and making Asana tasks (Mobius's Asana) stay the team's. */
     const CL = H.S && H.S.role === 'client';
     if (!CL && x.src === 'cal' && !past && st.some(s => ['briefs', 'built'].includes(s.key) && !s.asana && s.state !== 'done')) acts.push('<button type="button" class="cal-btn pri" data-asana-p="1">Make the Asana tasks</button>');
     if (x.src === 'cal' && st.some(s => s.asana)) acts.push(`<span class="v2hint" style="margin:0;align-self:center">${st.filter(s => s.asana).length} Asana tasks made</span>`);
-    if (x.src === 'cal') acts.push('<button type="button" class="cal-btn" data-edit="1">Edit</button><button type="button" class="cal-btn" data-movep="1">Move the date</button>' + (CL ? '' : '<button type="button" class="cal-btn" data-del="1" style="color:var(--bad)">Remove</button>'));
-    if (!CL && x.src === 'season') acts.push('<button type="button" class="cal-btn pri" data-go="season">Edit on the Black Friday plan</button>');
-    if (!CL && x.src === 'drop') acts.push('<button type="button" class="cal-btn pri" data-go="drops">Open Drops</button>');
+    if (x.src === 'cal') acts.push('<button type="button" class="cal-btn" data-edit="1">Edit</button><button type="button" class="cal-btn" data-movep="1">Move the date</button><button type="button" class="cal-btn" data-del="1" style="color:var(--bad)">Remove</button>');
+    if (x.src === 'season') acts.push('<button type="button" class="cal-btn pri" data-go="season">Edit on the Black Friday plan</button>');
+    if (x.src === 'drop') acts.push('<button type="button" class="cal-btn pri" data-go="drops">Open Drops</button>');
     h += `<div class="acts">${acts.join('')}</div>`;
     if (x.src === 'cal') h += `<div class="cal-note"><h4>Leave a note</h4><textarea id="calNote" rows="2" maxlength="600" placeholder="${CL ? 'A question or a detail for the Mobius team' : 'A note on this date, kept in its history'}"></textarea><div class="acts"><button type="button" class="cal-btn" data-note="1">Add the note</button></div></div><div><h4>History</h4><div class="hist" id="calHist"><span>Loading…</span></div></div>`;
     h += '</div>';

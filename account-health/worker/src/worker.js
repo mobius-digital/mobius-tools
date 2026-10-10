@@ -3,7 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
-import { handleClients, clientAsk, touchClient, meClient } from './clients.js';
+import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
@@ -7185,7 +7185,7 @@ const AH_APP = {
         if (bid && bid !== raw) { u.searchParams.set('act', bid); request = new Request(u.toString(), request); }
       }
     } catch { /* an unreadable act stays as it was; the handler answers for it */ }
-    return guardBrands(request, env, sessionEmail, () => AH_APP.handle(request, env, ctx), CORS);
+    return guardBrands(request, env, sessionEmail, r => AH_APP.handle(r || request, env, ctx), CORS);
   },
 
   async handle(request, env, ctx) {
@@ -7495,12 +7495,28 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 
     /* ---- the Strategist, in Locus ---- */
     if (path.startsWith('/api/ask')) {
-      /* A client login gets the client-safe Strategist (clients.js), never this one. brandguard.js lets a client
-         reach only POST /api/ask, and only where Cole switched the Strategist on for the brand. */
+      /* A client login (the brand edition, 2026-10-10) asks the SAME engine in its client mode (clients.js clientAsk):
+         pinned to its brand, reading Locus through its own sign-in, $2 a day. It may also follow and Stop its own answer.
+         Every other /api/ask route (settings, memory, skills, findings, schedules, the review) stays the team's. */
       if (clientScope(request)) {
-        if (path !== '/api/ask' || request.method !== 'POST') return json({ error: 'Your Locus login shows your own brand.' }, 403);
-        const r = await clientAsk(env, request, await request.json().catch(() => ({})), { ahFetch: (rq, e) => AH_APP.fetch(rq, e, { waitUntil() {} }), xfetch });
-        return json(r, r.status || (r.error ? 400 : 200));
+        if (path === '/api/ask' && request.method === 'POST') {
+          const r = await clientAsk(env, request, await request.json().catch(() => ({})), { strategist });
+          return json(r, r.status || (r.error ? 400 : 200));
+        }
+        if (path === '/api/ask/progress' && request.method === 'GET') {
+          const id = String(url.searchParams.get('id') || '');
+          if (!(await clientOwnsRun(env, request, id))) return json({ steps: [], done: true });
+          const p = safeJson(await getSetting(env, `askRun:${id}`), null) || { steps: [], done: true };
+          return json({ steps: p.steps || [], stop: !!p.stop, done: !!p.done });
+        }
+        if (path === '/api/ask/stop' && request.method === 'POST') {
+          const id = String((await request.json().catch(() => ({}))).id || '');
+          if (!(await clientOwnsRun(env, request, id))) return json({ ok: false });
+          const cur = safeJson(await getSetting(env, `askRun:${id}`), null);
+          if (cur) await putSetting(env, `askRun:${id}`, JSON.stringify({ ...cur, stop: true }));
+          return json({ ok: !!cur });
+        }
+        return json({ error: 'The assistant settings are for the Mobius team.' }, 403);
       }
       /* Scheduled questions (askschedule.js): admin-checked inside. */
       const sched = await handleSchedules(request, env, path, json, hubDeps());

@@ -354,7 +354,7 @@
   const stepDone = (d, k) => !!(d.steps.find(s => s.key === k) || {}).done;
 
   function baseSec(d) {
-    const b = d.baseline || {}, T = b.totals, ro = isCl();
+    const b = d.baseline || {}, T = b.totals, ro = false;   // a client edits its own plan too (2026-10-10)
     const tiles = T ? `<div class="wr-ks">${kpi('Revenue', Ko(T.sales), `${T.days} days`)}${kpi('Orders', In(T.orders))}${kpi('AOV', Mo(T.aov))}${kpi('Ad spend', Ko(T.spend))}${kpi('MER', Xo(T.mer), 'revenue over ad spend')}${kpi('New customers', In(T.new_orders))}</div>`
       : `<p class="v2hint">No Triple Whale days are stored for ${md(b.from)} to ${md(b.to)}, ${String(b.from || '').slice(0, 4)}. Pick other dates, or set the goals by hand.</p>`;
     const mx = Math.max(1, ...(b.days || []).map(x => x.sales || 0));
@@ -373,7 +373,7 @@
   }
 
   function goalsSec(d) {
-    const ro = isCl();
+    const ro = false;
     if (!WR.goals || WR.goals.act !== d.act_id) WR.goals = { act: d.act_id, list: d.goals_list.map(g => ({ ...g })) };
     const list = WR.goals.list;
     const opts = sel => Object.entries(d.metrics).map(([k, l]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
@@ -402,7 +402,7 @@
     return (d.plan || []).map(x => ({ ...x, revenue: goal ? goal * x.share : null, spend: B.total ? B.total * x.spend_share : null }));
   }
   function budgetSec(d) {
-    const ro = isCl(), B = budDraft(d), ch = d.channel_names || {};
+    const ro = false, B = budDraft(d), ch = d.channel_names || {};
     const alloc = B.channels.reduce((s, c) => s + amountOf(B, c), 0), left = (B.total || 0) - alloc;
     const warn = !B.total ? '<div class="wr-warn amber"><b>No budget yet</b><span>Set the paid budget for the whole sale to start splitting it.</span></div>'
       : Math.abs(left) < 1 ? `<div class="wr-warn green"><b>${Ko(B.total)} fully allocated</b><span>Every dollar has a channel.</span></div>`
@@ -433,7 +433,7 @@
     const bfp = (d.phases || []).find(p => p.key === 'bf');
     const line = !bfp ? '<span class="v2pill bad">No Black Friday phase</span>' : `<span class="v2pill ${bfp.status === 'locked' ? 'good' : bfp.status === 'draft' || bfp.status === 'proposed' ? 'warn' : 'bad'}">Black Friday offer: ${STAT[bfp.status]}</span> <span>${esc(bfp.offer || 'Nothing written yet.')}</span>`;
     return sec('wrOffers', 5, stepDone(d, 'offers'), 'Offers and key dates', 'What runs when, from The plan, and every other date around the sale from the Calendar (drops, launches, emails). Hover a bar for the deal.',
-      `<div class="wr-offer">${line}${isCl() ? '' : ' <button type="button" class="v2link" data-go="season">Edit on The plan</button>'}</div>
+      `<div class="wr-offer">${line} <button type="button" class="v2link" data-go="season">Edit on The plan</button></div>
       <div class="wr-tl"><div class="wr-tlh"><span class="l"></span><div class="tr">${ticks.join('')}${mark(d.today, 'Today', 'today')}${mark(d.bf, 'Black Friday', 'bf')}</div></div>${rows || '<p class="v2hint">No phases in these weeks.</p>'}<div id="wrCal"><p class="v2hint">Reading the Calendar&hellip;</p></div></div>`);
   }
   async function fillCal(t, d) {
