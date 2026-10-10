@@ -1467,3 +1467,35 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
   read; PUT {act, project} sets the id for links; DELETE forgets. integrations.js has a per-brand "Microsoft Clarity"
   item (group Website). Tests: `node test-clarity.mjs` (8 offline checks, Clarity and Klaviyo mocked). NOT tested live:
   any Clarity call (no brand has a token yet), so the response field names come from Microsoft's docs and sample.
+
+## 2026-10-10: Monday account review (`src/review.js`)
+
+- **What it does.** Every Monday (Central), from `briefHour + 2` (the weekly reports' hour; 11am with the default 9am
+  brief), the hourly tick runs `reviewTick` right after `scheduleTick`. For each active brand that is not paused (Galway,
+  Instyler, Gum of Gods, JudyP, Le Pickle, PopBy), not The Golf Sock and not Harborline, the Strategist gets ONE
+  `engine.answerWeb` with `reviewPrompt`: read the command center (`/api/hub/command?act=`) and the Day check
+  (`/api/hub/yesterday?act=`), goals vs plan (`plan` view), fatigue (`creatives`, `tests`), budgets and structure
+  (`meta_read`, ad set first, never cut a working set's anchor), `stock`, the `calendar` for the next 14 days and the
+  last 7 days of `changes`; then a short read and at most 4 proposals with its normal actions. The prompt names where to
+  read, never what to conclude (judge from context, no word lists).
+- **Where it posts.** ONE message to `brand_accounts.slack_channel` (internal), never `brief_channel`; a brand whose
+  internal channel equals its client channel, or has none, is skipped and shown as skipped. The proposals go as Apply
+  cards (`engine.proposalBlocks`) in the THREAD under the read, like askschedule kind `task`: an Apply tap answers with
+  `replace_original`, so a card inside the read would wipe it. Nothing is ever applied by the review.
+- **Switch:** `settings.mondayReview` = 'on' runs it; anything else (the default) is OFF. Locus: Agency settings > The
+  Strategist > Monday account review (toggle, this Monday's state per brand, "Preview this week's review").
+- **Caps and budget:** `subCanAfford(200)` before each brand (never mid-brand); 2 brands a tick; 12 brands a Monday; a
+  failed answer is tried once more next hour, then left (the try is written BEFORE the model call, so a killed run is not
+  retried for ever); 4 cards a brand. State: `settings.mondayReviewDone` = {date, acts: {brand: {status ok | skipped |
+  error | running, tries, ts, cards, cost, why, error}}}.
+- **Cost:** one answer per brand per Monday on the workspace model (Opus 5.5 medium by default), about $0.40 to $1.00
+  each, so about $3 to $8 a Monday for eight brands (~$15 to $35 a month). Each run is in `strat_run` (who "Monday
+  review", brand = the brand, via `screen.act_id`), so it shows on the settings cost card.
+- **Routes** (admin, inside the `/api/ask` block so a client login never reaches them): `GET /api/ask/review`,
+  `PUT /api/ask/review {on}`, `POST /api/ask/review/preview {act}` (the real review for one brand, returned, posted
+  nowhere, not counted as the Monday run; logged in strat_run as "<email> (preview)").
+- **Known limit, outside review.js:** ask/engine.js `keepProposal` keeps only the last 20 pending proposals across the
+  whole Strategist. Eight brands x 4 cards = 32, so the first brands' cards can say "expired" before anyone taps them.
+  Fix: raise `list.slice(-20)` in `keepProposal` (e.g. to -100). Not done here (engine.js was out of scope).
+- Tests: `node test-review.mjs` (11 offline checks; Strategist and Slack mocked). NOT tested live: a real Opus review
+  (the tool path through locus_get to the profit worker, answer length, card count), the Slack posts and Apply taps.
