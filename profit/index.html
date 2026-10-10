@@ -18,7 +18,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Locus">
-<meta name="theme-color" content="#F7F7F8">
+<meta name="theme-color" content="#F7F7F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet">
@@ -2188,7 +2189,7 @@
 <link rel="stylesheet" href="v2.css?v=29">
 <link rel="stylesheet" href="supply.css?v=3">
 <script src="/sheet.js?v=1"></script>
-<script src="/ask/ask-ui.js?v=11"></script>
+<script src="/ask/ask-ui.js?v=12"></script>
 <script src="strategist.js?v=3"></script>
 <body>
 <!-- The Mobius strip on first paint (DESIGN.md section 7): an overlay that ignores the pointer and is gone within 1.5s. -->
@@ -2247,6 +2248,7 @@
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
           <button type="button" role="menuitem" data-me="profile" hidden>Your profile<small>Your name, your brands, sign out</small></button>
           <button type="button" role="menuitem" data-me="guide">How to use Locus</button>
+          <button type="button" role="menuitem" data-me="install" hidden>Install Locus as an app<small>Opens full screen from your home screen</small></button>
           <button type="button" role="menuitem" data-me="out">Sign out</button>
         </div>
       </div>
@@ -2892,8 +2894,25 @@ document.addEventListener('click', e => {
   const me = e.target.closest('[data-me]');
   if (me) { closePops(); const k = me.dataset.me;
     if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team'); else if (k === 'profile') show('settings');
-    else if (k === 'guide') show('guide'); else if (k === 'out') $('#btnOut').click(); }
+    else if (k === 'guide') show('guide'); else if (k === 'install') installApp(); else if (k === 'out') $('#btnOut').click(); }
 });
+/* LOCUS AS A PHONE APP (2026-10-10). sw.js is the offline shell (the app's files only, never a number);
+   manifest.webmanifest makes it installable. "Install Locus as an app" sits in the profile menu while the browser
+   offers an install (Chrome / Edge / Android: beforeinstallprompt) or on an iPhone / iPad not yet installed
+   (Safari has no prompt, so the menu item explains Share > Add to Home Screen). */
+let INSTALL_EVT = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function installable() { return !isStandalone() && (!!INSTALL_EVT || isIOS()); }
+function syncInstallItem() { const b = document.querySelector('#pfMe [data-me="install"]'); if (b) b.hidden = !installable(); }
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); INSTALL_EVT = e; syncInstallItem(); });
+addEventListener('appinstalled', () => { INSTALL_EVT = null; syncInstallItem(); });
+async function installApp() {
+  if (INSTALL_EVT) { const ev = INSTALL_EVT; INSTALL_EVT = null; ev.prompt(); try { await ev.userChoice; } catch {} syncInstallItem(); return; }
+  noteModal('Install Locus on this phone', '<p>In Safari, tap the <b>Share</b> button (the square with an arrow), then <b>Add to Home Screen</b>, then <b>Add</b>.</p><p class="hint">Locus then opens full screen from its own icon, like any app. You stay signed in.</p>');
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => { navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {}); });
+syncInstallItem();
 /* The rail clips anything wider than itself (.side is overflow:hidden), which cut the profile menu's
    text off on the right. Both rail menus are pinned to the screen at the button instead, so they can be
    wider than the rail; the profile menu opens upward, the client picker downward. */
@@ -4819,7 +4838,7 @@ function applyClientMode() {
   document.querySelectorAll('#tabs button[data-grp], #tabbar button[data-grp]').forEach(b => { const g = NAV[b.dataset.grp]; b.hidden = !g || !g.tabs.some(t => clientTabOk(t[0])); });
   ['#railTools', '#railProducts', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
   const rs = $('#railSetLbl'); if (rs) rs.textContent = 'Your profile';
-  document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me); });
+  document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me) && !(b.dataset.me === 'install' && installable()); });
   const pk = $('#pfPick'); if (pk) pk.hidden = S.accounts.length < 2;
 }
 /* The jobs on a platform screen, drawn as a switcher above the page (never in the rail). */

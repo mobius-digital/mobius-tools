@@ -240,9 +240,12 @@ window.AskUI = (() => {
     const steps = A.steps || [];
     const icon = window.customElements && customElements.get('mobius-loader') ? '<mobius-loader mode="working" size="22"></mobius-loader>' : '<span class="ask-pulse"></span>';
     const secs = A.t0 ? Math.round((Date.now() - A.t0) / 1000) : 0;
-    return `<div class="m ai think working">${icon}<div class="wk"><b>${esc(steps.length ? steps[steps.length - 1] : 'Reading the question…')}</b>`
+    /* A Stop lands at the end of the model's current round (up to ~20s), so say so at once and keep saying it:
+       the progress poll replaces A.steps every second (2026-10-10). */
+    const head = A.stopping ? 'Stopping after this step…' : steps.length ? steps[steps.length - 1] : 'Reading the question…';
+    return `<div class="m ai think working">${icon}<div class="wk"><b>${esc(head)}</b>`
       + (steps.length > 1 ? `<div class="wk-done">${steps.slice(-5, -1).map(s => `<span>✓ ${esc(s)}</span>`).join('')}</div>` : '')
-      + `<span class="wk-t">${secs}s</span></div><button class="btn wk-stop" type="button" onclick="AskUI.stop()">Stop</button></div>`;
+      + `<span class="wk-t">${secs}s</span></div><button class="btn wk-stop" type="button" onclick="AskUI.stop()"${A.stopping ? ' disabled' : ''}>${A.stopping ? 'Stopping…' : 'Stop'}</button></div>`;
   }
   function render(intro) {
     const log = $('#askLog');
@@ -254,7 +257,7 @@ window.AskUI = (() => {
   }
   async function stop() {
     if (!A.runId) return;
-    A.steps = [...(A.steps || []), 'Stopping after this step…']; render();
+    A.stopping = true; render();
     try { await A.api(A.base + '/stop', { method: 'POST', body: JSON.stringify({ id: A.runId }) }); } catch (e) {}
   }
   async function applyProposal(id, cancel = false) {
@@ -275,7 +278,7 @@ window.AskUI = (() => {
     el.value = ''; if (el._grow) el._grow();
     A.chat.push({ role: 'user', text: (file ? `📎 ${file.name}${q ? ' · ' : ''}` : '') + q });
     A.file = null; drop();
-    A.busy = true; A.steps = []; A.t0 = Date.now();
+    A.busy = true; A.steps = []; A.t0 = Date.now(); A.stopping = false;
     A.runId = Math.random().toString(36).slice(2, 12);
     render();
     /* Poll what it is doing (the engine writes each step); redraw the working line every second. */

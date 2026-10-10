@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Locus is offline</title>
+<link rel="icon" type="image/png" sizes="192x192" href="../icons/locus-round-192.png">
+<meta name="theme-color" content="#111113">
+<style>
+  :root { --bg:#111113; --surface:#19191C; --ink:#F2F2F4; --muted:#8E8E9A; --line:rgba(255,255,255,.1); --accent:#62BDEA; }
+  @media (prefers-color-scheme: light) { :root { --bg:#F7F7F8; --surface:#FFFFFF; --ink:#111114; --muted:#71717A; --line:rgba(0,0,0,.08); } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px 16px; background:var(--bg); color:var(--ink);
+    font:15px/1.5 Inter, system-ui, -apple-system, Segoe UI, sans-serif; }
+  .card { width:100%; max-width:380px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:28px 24px; text-align:center; }
+  img { width:56px; height:56px; border-radius:14px; }
+  h1 { font-size:19px; margin:16px 0 6px; font-weight:650; }
+  p { margin:0 0 20px; color:var(--muted); }
+  button { font:inherit; font-weight:600; padding:10px 18px; border-radius:10px; border:0; background:var(--accent); color:#0B1A22; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="../icons/locus-round-192.png" alt="">
+    <h1>No connection</h1>
+    <p>Locus needs the internet to read your numbers. It will open as soon as you are back online.</p>
+    <button type="button" onclick="location.href='./'">Try again</button>
+  </div>
+  <script>addEventListener('online', () => { location.href = './'; });</script>
+</body>
+</html>

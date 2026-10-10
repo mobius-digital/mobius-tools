@@ -2770,3 +2770,22 @@ Two pages under Tools (NAV.tools `economics`, `workload`; `AGR()` in index.html 
   month per person seen in Asana).
 - **Team workload** (team): rows = people, columns = Overdue + Mon to Sun (today tinted), each task a card with its
   brand chip linking to Asana, three per cell then "N more", a Person filter (remembered in `ag_who`), Read Asana again.
+
+## 2026-10-10: Locus as a phone app, Stop says so, the session's fixes
+
+- **Installable (feature 8).** `profit/manifest.webmanifest` (id /profit/, graphite colours, shortcuts Home / Day check /
+  Today's calls / Calendar via `?open=`), `profit/sw.js` (scope /profit/: navigations network first with the last
+  index.html or `offline.html` as the fallback; the app's own files and Google Fonts cache-first refreshed behind;
+  never an API answer or a number), registered at the end of the boot script. Profile menu "Install Locus as an app"
+  shows while the browser offers an install (`beforeinstallprompt`) or on an iPhone / iPad not yet installed (a modal
+  with Share > Add to Home Screen); clients see it too. Bump `VERSION` in sw.js to drop every cached copy.
+- **Stop** (ask-ui.js v12, Ledger and Supply v9): pressing Stop shows "Stopping after this step..." and a disabled
+  "Stopping..." button at once (`A.stopping`); the progress poll used to overwrite it. A stop lands at the end of the
+  model's current round (about 20s).
+- **ask/engine.js streams every model call** (`readStream`, exported): a long round (a PDF report) thought past 100s
+  and Anthropic's edge answered 524. The user-facing error no longer prints the key's shape. Open Apply cards kept: 120.
+- **Pulse** is read through a `PULSE` service binding on account-health (its workers.dev URL is refused from a worker
+  on the same account; the Strategist said "Pulse returned an error").
+- **Command center "stuck"** = 10+ days since the task ENTERED its section (`cmdstage:<brand>`, Asana stories once per
+  task), not since modified_at. Calendar cards pad 20px.
+
