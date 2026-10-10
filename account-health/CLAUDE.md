@@ -1057,6 +1057,12 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   via conversations.list or defaults to the brand's internal channel; view `schedules`.
 - **Dashboard Slack posts** (`dashBlocks`): a `chart` block (a Strategist answer pinned in Locus) posts as its
   title plus "open in Locus to see it".
+- **Per-block dates on dashboards (2026-10-10)**: a block's `dates` (profit dashboard.js `cleanDates`) overrides the
+  dashboard's range. `dashNumbers` reads `dashPeriod` (storePeriod per brand, current + compare) once for the dashboard
+  and once per distinct block range; `d.blk[i]` is that block's period (null = the dashboard's). `dashBlocks` draws the
+  block from it and adds its range in italics under the title (`dashRange` handles `custom` from/to). The header line
+  still carries the dashboard's range. `save_dashboard` (strategist.js) takes `dates` per block. Exported for
+  test-dashrange.mjs: `dashNumbers(env, row, {accounts, read})`, `dashBlocks`, `dashRange`.
 
 ## 2026-10-08 (night): stock for the Strategist (`src/stock.js`)
 

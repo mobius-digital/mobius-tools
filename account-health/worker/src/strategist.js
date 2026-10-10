@@ -39,6 +39,8 @@ import { writeTools, writeActions } from './metawrite.js';
 import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
+/* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
+import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
 /* 2026-10-07, Cole: "this is the same core strategist within Locus, it just has different
    functionalities... it should be able to do everything that we connect it to." One brain:
@@ -1049,14 +1051,18 @@ const BUILD_ACTIONS = (d) => {
        Blocks bind to views Locus already has; a block that needs a view that does not exist is
        NOT invented: say so and hand it to Claude Code. */
     { name: 'save_dashboard',
-      description: 'Save a dashboard the team wants to KEEP in Locus (Reports > Dashboards), for one brand or all brands, optionally posted to a Slack channel every morning / Monday / the 1st. Blocks: tiles (pick metrics from: revenue, orders, aov, spend, mer, amer, new_share, new_orders, cac, cm, email_rev, email_share, meta_spend, google_spend), brands (one row per brand; columns from: revenue, mtd_vs_plan, spend, mer, amer, new_share, orders, aov, cac, cm, email_rev, costs, trend; only makes sense for scope all), channels (spend and Triple Whale revenue per platform), daily (revenue and spend by day), email (Klaviyo revenue, share, campaigns vs flows), note (a line of text). Read the dashboards view first so you do not make a twin. For a one-off page use make_report instead.',
+      description: 'Save a dashboard the team wants to KEEP in Locus (Reports > Dashboards), for one brand or all brands, optionally posted to a Slack channel every morning / Monday / the 1st. Blocks: tiles (pick metrics from: revenue, orders, aov, spend, mer, amer, new_share, new_orders, cac, cm, email_rev, email_share, meta_spend, google_spend), brands (one row per brand; columns from: revenue, mtd_vs_plan, spend, mer, amer, new_share, orders, aov, cac, cm, email_rev, costs, trend; only makes sense for scope all), channels (spend and Triple Whale revenue per platform), daily (revenue and spend by day), email (Klaviyo revenue, share, campaigns vs flows), note (a line of text). The dashboard has ONE range and compare (range, compare); a data block (not a note) may carry its OWN dates that override it for that block only: dates {range, compare?} or {range: "custom", from, to}. Use it when the words give one block a different window ("last 7 days for the CPA tiles", "the brand table month to date", "email for September": custom 2026-09-01 to 2026-09-30); leave dates off every block that should follow the dashboard. Read the dashboards view first so you do not make a twin. For a one-off page use make_report instead.',
       input_schema: { type: 'object', properties: {
         name: { type: 'string', description: 'Short, as the person would call it: "Ahsan every morning", "Party Patch weekly".' },
         brand: { type: 'string', description: 'A brand name, or "all" for the whole agency.' },
         for_who: { type: 'string', description: 'Who it is for: a name or a role.' },
         range: { type: 'string', enum: ['yesterday', '7', '30', '90', 'mtd', 'lastmonth'], description: 'Default 7 for a daily dashboard, 30 otherwise.' },
         compare: { type: 'string', enum: ['prev', 'yoy', 'none'] },
-        blocks: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['tiles', 'brands', 'channels', 'daily', 'email', 'note'] }, title: { type: 'string' }, metrics: { type: 'array', items: { type: 'string' } }, columns: { type: 'array', items: { type: 'string' } }, text: { type: 'string' } }, required: ['type'] }, description: '1 to 8 blocks, in reading order.' },
+        blocks: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['tiles', 'brands', 'channels', 'daily', 'email', 'note'] }, title: { type: 'string' }, metrics: { type: 'array', items: { type: 'string' } }, columns: { type: 'array', items: { type: 'string' } }, text: { type: 'string' },
+          dates: { type: 'object', description: 'Only when THIS block needs a different window from the dashboard. Left out = the dashboard\'s range and compare.', properties: {
+            range: { type: 'string', description: 'yesterday | mtd | lastmonth | a whole number of days 1 to 90 ("7", "14", "30") | custom' },
+            from: { type: 'string', description: 'YYYY-MM-DD, only with range custom' }, to: { type: 'string', description: 'YYYY-MM-DD, only with range custom (at most 366 days after from)' },
+            compare: { type: 'string', enum: ['prev', 'yoy', 'none'], description: 'Left out = the dashboard\'s compare.' } }, required: ['range'] } }, required: ['type'] }, description: '1 to 8 blocks, in reading order.' },
         schedule: { type: 'string', enum: ['', 'daily', 'monday', 'first'], description: 'When it posts itself to Slack (8am Central). Empty = never.' },
         channel: { type: 'string', description: 'The Slack channel id (C... or G...) it posts to; the brand\'s internal channel when the person says "our channel".' },
         summary: { type: 'string' } }, required: ['name', 'brand', 'blocks', 'summary'] },
@@ -1071,6 +1077,7 @@ const BUILD_ACTIONS = (d) => {
           if (b.type === 'tiles') { o.metrics = (b.metrics || []).filter(m => METRICS.includes(m)).slice(0, 8); if (!o.metrics.length) return null; }
           if (b.type === 'brands') o.columns = (b.columns || []).filter(c => COLUMNS.includes(c)).slice(0, 8);
           if (b.type === 'note') { o.text = clip(b.text || '', 600); if (!o.text) return null; }
+          if (b.type !== 'note' && b.dates) { const dt = cleanDashDates(b.dates); if (dt) o.dates = dt; }
           return o;
         }).filter(Boolean).slice(0, 8);
         if (!blocks.length) return { error: 'None of those blocks can be drawn. Use tiles, brands, channels, daily, email or note.' };
@@ -1078,7 +1085,8 @@ const BUILD_ACTIONS = (d) => {
         const schedule = ['daily', 'monday', 'first'].includes(i.schedule) ? i.schedule : '';
         const channel = /^[CG][A-Z0-9]{6,}$/.test(String(i.channel || '')) ? String(i.channel) : (schedule && acct?.slack_channel ? acct.slack_channel : '');
         const RL = { yesterday: 'Yesterday', '7': 'Last 7 days', '30': 'Last 30 days', '90': 'Last 90 days', mtd: 'Month to date', lastmonth: 'Last month' };
-        const preview = blocks.map((b, n) => `${n + 1}. ${b.title || b.type}${b.type === 'tiles' ? ': ' + b.metrics.join(', ') : b.type === 'brands' ? ': one row per brand' + (b.columns.length ? ' (' + b.columns.join(', ') + ')' : '') : b.type === 'note' ? ': ' + b.text : ''}`).join('\n');
+        const dLabel = dt => (dt.range === 'custom' ? `${dt.from} to ${dt.to}` : RL[dt.range] || `Last ${dt.range} days`) + (dt.compare ? `, compare ${dt.compare === 'none' ? 'nothing' : dt.compare === 'yoy' ? 'same dates last year' : 'the period before'}` : '');
+        const preview = blocks.map((b, n) => `${n + 1}. ${b.title || b.type}${b.type === 'tiles' ? ': ' + b.metrics.join(', ') : b.type === 'brands' ? ': one row per brand' + (b.columns.length ? ' (' + b.columns.join(', ') + ')' : '') : b.type === 'note' ? ': ' + b.text : ''}${b.dates ? ` [own dates: ${dLabel(b.dates)}]` : ''}`).join('\n');
         return { summary: i.summary || `Save the dashboard "${i.name}"`,
           detail: `${acct ? acct.name : 'All brands'} · ${RL[range]} · compare ${i.compare === 'none' ? 'nothing' : i.compare === 'yoy' ? 'same dates last year' : 'the period before'}${i.for_who ? ` · for ${clip(i.for_who, 60)}` : ''}${schedule ? ` · posts ${schedule === 'daily' ? 'every morning' : schedule === 'monday' ? 'every Monday' : 'on the 1st'} at 8am Central${channel ? ` to ${channel}` : ' (no channel yet)'}` : ''}. It lands in Locus under Reports > Dashboards and draws live each time it opens.`,
           preview, patch: { name: clip(i.name, 120), act_id: acct ? acct.act_id : null, for_who: clip(i.for_who || '', 80), spec: { scope: acct ? acct.act_id : 'all', range, compare: ['prev', 'yoy', 'none'].includes(i.compare) ? i.compare : 'prev', blocks }, schedule, channel } };
