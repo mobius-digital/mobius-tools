@@ -1526,13 +1526,14 @@ function paintLine(el, line) {
 
   /* ---- what is really wrong for them? (StoryBrand's three layers; knowledge topic messaging) ---- */
   const prOpen = !!R.open.prob;
-  const prHas = prob.villain || prob.external || prob.internal || prob.philosophical;
+  const chains = probChains(prob);
+  const prHas = chains.length > 0;
+  const chainHtml = (c, i) => `<div class="rs-idea"><b>${esc(c.villain || 'Problem ' + (i + 1))}</b><dl class="br-kv" style="margin-top:4px"><dt>1 · What they'd search</dt><dd>${esc(c.external || '-')}</dd><dt>2 · How it feels</dt><dd>${esc(c.internal || '-')}</dd><dt>3 · Why it's wrong</dt><dd>${esc(c.philosophical || 'None')}</dd></dl></div>`;
   const secProb = rsSec('prob', `The problem${rsDraftTag(prob._status)}`, 'What is really wrong for them?',
     `${prob._status === 'draft' ? `<button class="btn" data-approve-doc="${L}|problem">Approve</button>` : ''}<button class="rs-q" id="brEditProb">Edit</button>`,
-    !prHas ? '<p class="hint" style="margin:0">Not written yet. Research tools draft it with the personas, or press Edit. Most ads only say the first layer; the money is usually in the second.</p>' : prOpen
-      ? `<dl class="br-kv"><dt>Villain</dt><dd>${esc(prob.villain || '-')}</dd>${lines(prob.other_villains).length ? `<dt>Other villains</dt><dd>${lines(prob.other_villains).map(esc).join('\n')}<span class="tiny">\nEach one can be its own angle.</span></dd>` : ''}<dt>What they would search</dt><dd>${esc(prob.external || '-')}</dd><dt>How it makes them feel</dt><dd>${esc(prob.internal || '-')}</dd><dt>Why it is wrong</dt><dd>${esc(prob.philosophical || '-')}</dd></dl>`
-      : `<div class="rs-read rs-clamp">${esc(prob.internal || prob.external || prob.philosophical || '')}</div>`,
-    prHas ? rsToggle('prob', prOpen, 'Show all three layers') : '');
+    !prHas ? '<p class="hint" style="margin:0">Not written yet. Research tools draft it with the personas, or press Edit. Most ads only say the first layer; the money is usually in the second.</p>'
+      : `<p class="tiny" style="margin:0 0 6px">The problems we know about, each one villain with its three layers. A starting map, not a rule: an ad can argue a problem that is not here.</p>${(prOpen ? chains : chains.slice(0, 1)).map(chainHtml).join('')}`,
+    prHas ? rsToggle('prob', prOpen, chains.length > 1 ? `Show all ${chains.length} problems` : 'Show less', 'Show less') : '');
 
   /* ---- who else are they looking at? ---- */
   const cOpen = !!R.open.comps;
@@ -1550,7 +1551,7 @@ function paintLine(el, line) {
 
   el.querySelector('#rsOkAll')?.addEventListener('click', () => rsApproveAll(L));
   el.querySelector('#brEditMarket').onclick = () => marketModal(L, m);
-  el.querySelector('#brEditProb').onclick = () => docModal(L, 'problem', 'The problem, three layers', [['villain', 'Villain: the one thing causing it (not a person)', 2], ['other_villains', 'Other villains, one per line (each can power its own angle)', 3], ['external', 'External: the physical problem, what they would type into Google', 2], ['internal', 'Internal: how it makes them feel, in their words', 3], ['philosophical', 'Philosophical: why nobody should have to put up with it', 2]], prob);
+  el.querySelector('#brEditProb').onclick = () => problemModal(L, prob);
   el.querySelector('#brEditMech').onclick = () => docModal(L, 'mechanism', 'The mechanism', [['problem', 'Why what they tried before failed', 3], ['solution', 'Why this product works', 3]], mech);
   el.querySelectorAll('[data-p]').forEach(c => c.onclick = () => personaModal(d.personas.find(p => p.id === c.dataset.p), L));
   el.querySelectorAll('[data-comp]').forEach(c => c.onclick = () => compModal(d.comps.find(x => x.id === c.dataset.comp), L));
@@ -1591,6 +1592,24 @@ function marketModal(L, m) {
     ${inp('mO', 'Open ground: what nobody is saying', lines(m.open_ground).join('\n'), { rows: 3, full: true, hint: 'one per line' })}</div>`, { onOpen: (w, ctl) => w.onSubmit(async () => {
     await putDoc(L, 'market', { mass_desire: val(w, 'mD'), awareness: val(w, 'mAw'), awareness_why: val(w, 'mAwW'), stage: val(w, 'mSt'), stage_why: val(w, 'mStW'), claims_made: lines(val(w, 'mC')), open_ground: lines(val(w, 'mO')) });
     ctl.close(); repaint();
+  }) });
+}
+/* The problem doc: a list of problems, each a villain with its three layers (StoryBrand). Older docs kept one
+   villain in flat fields; probChains reads both. */
+function probChains(p) {
+  const list = Array.isArray(p?.problems) ? p.problems : (p && (p.external || p.internal) ? [{ villain: p.villain, external: p.external, internal: p.internal, philosophical: p.philosophical }] : []);
+  return list.filter(c => c && (c.villain || c.external || c.internal || c.philosophical));
+}
+function problemModal(L, prob) {
+  const have = probChains(prob), n = Math.max(have.length + 1, 3);
+  const slot = (c, i) => `<div class="br-form" style="border-top:1px solid var(--line);padding-top:10px;margin-top:6px"><b style="grid-column:1/-1">Problem ${i + 1}</b>
+    ${inp(`pv${i}`, 'Villain: what causes it (a thing, never a person)', c.villain, { rows: 0, full: true })}
+    ${inp(`pe${i}`, '1 · External: what they would type into Google, a few words', c.external, { rows: 0, full: true })}
+    ${inp(`pi${i}`, '2 · Internal: how it makes them feel, one moment, in their words', c.internal, { rows: 2, full: true })}
+    ${inp(`pp${i}`, '3 · Philosophical: the norm that is wrong (leave empty if this product cannot back one up)', c.philosophical, { rows: 2, full: true })}</div>`;
+  modal('The problem, three layers', `<p class="hint">Each problem is one story: the villain causes the external problem, which causes the feeling, and layer 3 says why nobody should put up with it. Leave a box empty to drop it.</p>${Array.from({ length: n }, (_, i) => slot(have[i] || {}, i)).join('')}`, { onOpen: (w, ctl) => w.onSubmit(async () => {
+    const problems = Array.from({ length: n }, (_, i) => ({ villain: val(w, `pv${i}`), external: val(w, `pe${i}`), internal: val(w, `pi${i}`), philosophical: val(w, `pp${i}`) })).filter(c => c.villain || c.external || c.internal || c.philosophical);
+    await putDoc(L, 'problem', { problems }); ctl.close(); repaint();
   }) });
 }
 function docModal(L, key, title, fields, data) {

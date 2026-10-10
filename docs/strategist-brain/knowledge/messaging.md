@@ -45,6 +45,11 @@ The layers are the customer's own thoughts, not ad lines. Say them the way the p
 - **A tagline is not a philosophical layer.** Slogan shapes to kill on sight: "your X should work as hard as your Y", "X shouldn't cost Y money", "you deserve better", "elevate your game". They sound like a point and say nothing.
 - **"None" is a good answer.** Plenty of products (a koozie, a polo, add-on markers) cannot back up a stance. Write "None" and lead with the feeling. A forced layer three is worse than none.
 
+- **Each problem is one story; read the four lines together.** The villain causes the external problem, the external problem causes the feeling, layer 3 says why nobody should put up with it. Organic lawn care: villain = the usual harsh chemical sprays; 1 "weeds and bugs in my lawn"; 2 "I'm embarrassed when the neighbors walk by"; 3 "Your lawn should be a safe place for your kids to play, not a chemical zone." If the villain is not really what causes the feeling, it is the wrong chain.
+- **Layer 1 is the plain search phrase,** two to six words: "dry skin", "hangover cure", "golf polo for big guys". Not a sentence someone would never say.
+- **A product has several problems, an ad picks one.** Brand > Research keeps the known problems per product line as a MAP, not a rule. A brief that argues a different villain is fine; judge whether its own chain holds together and is true to the customers. A new chain that wins a test belongs on the map.
+- **Pain products vs fun products.** Miller's examples are mostly pain (CarMax haggling), but his Tesla internal is a want ("I want to be an early adopter"), so the internal layer can be a social want. Hangovers, a 3 wood you are scared of, jewelry that turns green: all three layers. Print polos, novelty hats, gifts, add-on accessories: the internal is a social want (getting the laugh, being asked where you got it, finally fitting) and there is often no layer 3. Never force one.
+
 Bad then good, from our own first drafts:
 | Bad (slogan) | Good (a belief the customer already has) |
 |---|---|
