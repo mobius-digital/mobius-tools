@@ -968,11 +968,27 @@ function paintTests(main) {
     ${tiles}
     ${content}
     <p class="v2foot ts-foot">${making.length ? `Being made in Asana: ${plural(ideas, 'brief')}, ${prod} in production. ` : ''}${asn?.url ? `<a href="${esc(asn.url)}" target="_blank" rel="noopener">Open ${esc(asn.project_name || 'the project')} in Asana</a> · ` : ''}Past tests and what won are on <a href="#" id="tsToAngles">Tests and angles</a>.</p>
+    ${layerCard(d.batches)}
     ${untaggedCard()}
   </div>`;
   main.querySelectorAll('[data-jump]').forEach(t => t.onclick = () => document.getElementById(t.dataset.jump)?.scrollIntoView({ block: 'start' }));
   main.querySelectorAll('[data-goals]').forEach(t => t.onclick = () => window.openGoals && window.openGoals(S.act));
   wireTests(main);
+}
+/* Which problem layer wins (StoryBrand; filled by the account-health tag pass, 2026-10-10). Every
+   judged test with a layer, grouped: how many, how many won, the win rate. */
+const LAYER_NAMES = { external: ['The problem itself', 'Specs, features, the product doing its job'], internal: ['How it feels', 'The moment and the feeling'], philosophical: ['A stance', 'Why nobody should put up with it'], success: ['The payoff', 'Who they become, access, scarcity'], offer: ['Just the deal', 'Discount or bundle only'] };
+function layerCard(batches) {
+  const judged = (batches || []).filter(b => LAYER_NAMES[b.layer] && ['winner', 'loser', 'keep'].includes(outcomeOf(b)));
+  const all = (batches || []).filter(b => LAYER_NAMES[b.layer]);
+  if (!all.length) return '';
+  const rows = Object.keys(LAYER_NAMES).map(k => {
+    const t = all.filter(b => b.layer === k), j = judged.filter(b => b.layer === k), w = j.filter(b => outcomeOf(b) === 'winner').length;
+    return t.length ? `<tr><td style="text-align:left;white-space:normal"><b>${LAYER_NAMES[k][0]}</b><div class="tiny">${LAYER_NAMES[k][1]}</div></td><td class="num">${t.length}</td><td class="num">${j.length}</td><td class="num">${w}</td><td class="num">${j.length ? Math.round(w / j.length * 100) + '%' : '-'}</td></tr>` : '';
+  }).join('');
+  return `<section class="v2card"><div class="v2h"><h3>Which layer wins</h3></div>
+    <p class="v2hint" style="margin:0 0 8px">What each test mainly argued, filed by Locus from the brief and the ads that ran. Win rate counts tests with a call.</p>
+    <div class="v2tbl"><table><thead><tr><th style="text-align:left">Layer</th><th class="num">Tests</th><th class="num">With a call</th><th class="num">Winners</th><th class="num">Win rate</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 function wireTests(body) {
   const d = S.d, rules = d.rules;

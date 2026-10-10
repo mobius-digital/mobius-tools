@@ -14,7 +14,7 @@ const root = path.join(here, '..', '..');
 const db = new DatabaseSync(':memory:');
 const load = f => { for (const st of fs.readFileSync(f, 'utf8').replace(/--[^\n]*/g, '').split(/;\s*(?:\n|$)/)) { try { if (st.trim()) db.exec(st); } catch { /* re-applied ALTER */ } } };
 load(path.join(here, 'schema.sql'));
-for (const f of ['brand-001.sql', 'brand-002.sql', 'brand-003.sql', 'brand-004.sql', 'amb-001.sql', 'amb-002.sql', 'studio-001.sql', 'studio-002.sql', 'scenario-001.sql'])
+for (const f of ['brand-001.sql', 'brand-002.sql', 'brand-003.sql', 'brand-004.sql', 'brand-005.sql', 'amb-001.sql', 'amb-002.sql', 'studio-001.sql', 'studio-002.sql', 'scenario-001.sql'])
   load(path.join(root, 'profit', 'worker', 'migrations', f));
 db.exec(`CREATE TABLE IF NOT EXISTS tw_orders (act_id TEXT NOT NULL, order_id TEXT NOT NULL, customer_id TEXT, date TEXT NOT NULL, total REAL NOT NULL DEFAULT 0, currency TEXT, products_json TEXT, source TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (act_id, order_id))`);
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);

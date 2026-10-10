@@ -18,7 +18,7 @@ const db = new DatabaseSync(':memory:');
 /* Statement by statement (comments stripped first), so a re-applied ALTER cannot stop the rest. */
 const load = f => { for (const st of fs.readFileSync(f, 'utf8').replace(/--[^\n]*/g, '').split(/;\s*(?:\n|$)/)) { try { if (st.trim()) db.exec(st); } catch { /* duplicate column etc. */ } } };
 load(path.join(here, 'schema.sql'));
-for (const f of ['brand-001.sql', 'brand-002.sql', 'brand-003.sql', 'brand-004.sql', 'amb-001.sql', 'amb-002.sql', 'studio-001.sql', 'studio-002.sql'])
+for (const f of ['brand-001.sql', 'brand-002.sql', 'brand-003.sql', 'brand-004.sql', 'brand-005.sql', 'amb-001.sql', 'amb-002.sql', 'studio-001.sql', 'studio-002.sql'])
   load(path.join(root, 'profit', 'worker', 'migrations', f));
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
 const vals = a => Object.fromEntries(a.map((v, i) => ['p' + (i + 1), v === undefined ? null : typeof v === 'boolean' ? +v : v]));

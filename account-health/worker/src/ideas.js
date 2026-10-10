@@ -733,7 +733,7 @@ export const IDEA_SCHEMA = obj({
   destination: obj({ pick: en(...Object.keys(DESTS)), reason: S }),
   creator_link: obj({ section_id: S, new_section: S, new_section_line: S, duplicate_of: S, title: S, argument: S, who: S, format: S, products: S,
     openers: arr(S), shots: arr(obj({ label: S, text: S })), on_screen: S, do_text: S, dont_text: S, proof_note: S }),
-  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, testing: S,
+  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, problem: S, testing: S,
     ads: arr(S), creator: S, script: S, primary_text: S, headline: S, offer: S }),
   studio: obj({ name: S, angle: S, why: S, concept: S, testing: en(...STUDIO_TESTING), post_copy: S, use_photos: B, lines: arr(S) }),
   images: arr(obj({ label: S, kind: en('inspiration', 'product_studio', 'product_lifestyle', 'other'), note: S })),
@@ -764,6 +764,8 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 - creator_link: anything a creator could film at home or out and about from a short pitch, including odd props, visual hooks, skits, talking heads and demos. Props a creator already owns (scissors, a glass, a drawer of packets) do NOT make it a production job. Pick this unless one of the two below clearly fits better.${lucky ? '\n- lucky_creators: Lucky Golf\'s own creator app (its "What to shoot" page; the sections and angles listed below are the app\'s). For Lucky Golf this IS the creator link, so pick it wherever creator_link would fit.' : ''}
 - asana_brief: only when a creator could not make it from a pitch: it needs our editor to build it from existing footage, a specific person or location, heavy motion graphics, or it is a structured paid test of several scripted versions the team must control. Also when the thread asks for a brief.
 - studio: static image ads the AI can make now from lines of words.
+
+For an Asana brief, problem = one line: what they want / the villain in the way / the layer the ads argue (external, internal, philosophical, or success for status and fun products).
 
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
@@ -985,6 +987,7 @@ function asanaText(a) {
   if (!a?.title) return '';
   const l = [`*Asana brief*  ·  ${a.kind === 'video' ? 'Video' : 'Static'}, ${TEST_TYPE[a.test_type] || 'concept test'}`, `*${esc(a.title)}*`,
     `*Angle:* ${esc(a.angle)}`, `*Why:* ${esc(a.why)}`];
+  if (a.problem) l.push(`*Problem:* ${esc(a.problem)}`);
   l.push(`*What we're testing:* ${esc(a.testing)}`, ...(a.ads || []).map((x, i) => `${i + 1}. ${esc(unnum(x))}`));
   if (a.kind === 'video') {
     if (a.creator) l.push(`*Creator:* ${esc(a.creator)}`);
@@ -1636,7 +1639,7 @@ export function briefHtml(a, { num, from, permalink, refs = [] }) {
   const ads = (a.ads || []).length ? a.ads : ['', '', ''];
   const parts = [
     `<body><em>Idea from ${x(from || 'the team')}${permalink ? ` in <a href="${x(permalink)}">Slack</a>` : ' in Slack'}. Drafted by Locus.</em>`,
-    `<h2>The test</h2>${line('Angle', a.angle)}`, line('Why', a.why), line("What we're testing", a.testing),
+    `<h2>The test</h2>${line('Angle', a.angle)}`, line('Why', a.why), line('Problem (want / villain / layer)', a.problem), line("What we're testing", a.testing),
     ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${x(unnum(t))}`),
   ];
   if (a.kind === 'video') parts.push(`<h2>Video</h2>${line('Creator', a.creator)}`, line('Script', a.script));

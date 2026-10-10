@@ -89,17 +89,47 @@ The layer decides what the ad is about. Awareness (Schwartz) decides how it open
 
 Market sophistication: in a stage 3 to 5 market (every claim made, every mechanism heard) layer one has nothing left to say. The room left is the internal feeling nobody names and the philosophical stance nobody takes (Schwartz's last stage is identification with the buyer). That is why crowded DTC categories reward this.
 
-## 4. How it fits the Mobius framework
+## 4. How it fits the Mobius framework (checked against the full 2017 book, 2026-10-10)
 
-- **The layer is part of the ANGLE.** An angle is the reason to buy. The same product and the same external problem argued at a different layer is a different reason to buy: "stop chunking chips" (external) and "stop dreading the chip in front of your buddies" (internal) are TWO angles. So a layer change is an angle test, never a headline test.
-- **Concepts deliver the layer.** The concept is how the feeling gets shown: a creator talking about the exact moment, a before and after of the moment, a skit of the group waiting. A concept that shows only the product doing its job is a layer one concept, whatever the headline says.
-- **Every deeper layer stays anchored to a concrete external moment.** "Feel confident" is nobody's words and sells nothing. "That walk up to a greenside chip with three guys watching" is internal AND specific. The internal layer is found in the voice of the customer quotes (pain, failed, trigger kinds), never invented.
-- **Copy is talking (Cole's rule).** The layers are for the THINKING (what is really wrong for this person), not a template to fill. Become the person, say it out loud, write it down; check the layer at read-back.
+**Angles.** An angle is the reason to buy. In SB7 terms an angle = one want + one villain + the layer the ad argues (or, for status and fun products, the success or identity it promises). Labeling rules:
+- A different want, a different villain, or a different layer the WHOLE ad argues = a different reason to buy = a NEW ANGLE. "Stop chunking chips" (external) and "stop dreading the chip with your buddies watching" (internal) are two angles.
+- Same story, different opening line (open on the search phrase vs open on the moment, body unchanged) = a HOOK test inside the concept. Do not call that a new angle.
+- Arguing the success instead of the problem ("be the guy the group asks about") is its own angle. For status and fun products this is often the strongest one (see 4b).
+
+**Concepts.** Miller's seven parts are a ready menu of genuinely different concepts under ONE angle, which is exactly what Andromeda rewards:
+- The villain made into a character (Miller's examples: animated dust bunnies, Allstate's Mayhem): personify the old wedge, the sweaty pocket, the plated chain.
+- The moment (internal): the chip with the group watching, the green wrist an hour before dinner.
+- The guide's proof: about three short testimonials, one number, a demo. Never ten testimonials (the brand becomes the hero).
+- The plan: how it works in three steps, or the fear answered (fit guarantee, free returns). Miller's CarMax point: the agreement plan answers the internal fear.
+- The stakes: what doing nothing costs, as salt (the lost Sunday, the 80-yard top). A pinch, never the meal.
+- The success: the happy ending, shown (the group laughing, the compliment, the photo you are in).
+- The transformation (From / To): before and after of WHO they are, not just the product.
+Three concepts under one angle should usually come from three different parts of this menu.
+
+**Creator scripts.** Miller's five testimonial questions make a ready talking-head structure for UGC and creators: the problem before; what the frustration felt like; what was different about this; the moment it started working; what life is like now.
+
+**Hooks and statics.** Miller's grunt test: in about five seconds a person should know what you sell, how it makes life better, and what to do. A static or a first frame that fails it is noise, however clever.
+
+**Every deeper layer stays anchored to a concrete moment.** "Feel confident" is nobody's words. The internal layer is found in the voice of the customer quotes (pain, failed, trigger kinds), never invented.
+
+**Copy is talking (Cole's rule).** The layers are for the THINKING, not a template to fill. Become the person, say it out loud, write it down; check the layer at read-back.
+
+### 4b. Status, fun and gift products: the success side carries them
+Miller's success chapter names three endings people want: status (power or position), being made whole by something outside themselves (less anxiety, less work, more time), and self-realization (inspiration, acceptance, belonging to a movement). For status he lists concrete levers: ACCESS (member levels, early access), SCARCITY (limited runs), a PREMIUM title for the best customers, and IDENTITY association. So a drop, a club membership or a limited colorway argues the success side: scarcity and access are the angle, not a forced problem. His transformation test fits identity brands best: how does the customer want their friends to describe them? Pain products lean on the problem side; status and fun products lean on success and transformation; most need a little of both.
+
+### 4c. Media buying
+- One Sales campaign with Advantage+ audience means we do not pick who sees which ad by temperature; Meta matches ads to people. So a batch should span depths (a problem-led ad, a success-led ad, a proof-and-offer ad) and Meta finds each its audience. Five layer-one ads give Meta nothing different to match.
+- Judging stays the doctrine (Triple Whale lastPlatformClick, the two-line rule). When reading a test, also note the new-customer share: deeper-layer and success-led ads usually bring new customers; layer-one proof and offer ads often convert people who already knew the brand.
+- Tag each test with its want, villain and layer so wins can be read by layer over time.
+
+### 4d. Brand level
+Miller writes one story for the whole brand first (one want, one villain, the From/To, a one-liner of character, problem, plan, success), then one per product line, then per segment if needed. Product-line problems are subplots of the brand story; every ad should still sound like the same brand.
 
 ## 5. Using it on every surface
 
 - **Meta and TikTok ads:** the hook carries the internal moment; the body names the villain or the external fix; the product shot is the proof. A creator brief says which feeling to talk about, not just which product to hold. Statics: the headline is the internal line, the subhead or the visual is the external fix.
 - **Creator link and creator scripts:** each section's "why film this" is usually the internal layer in the customer's words. Creators are naturally good at layer two (they tell the story of feeling it); give them the moment, not a claim.
+- **Email (Miller's roadmap):** a nurture email = a problem, a plan to solve it, what life looks like after, plus a P.S.; about every third or fourth email makes a direct offer with one clear action.
 - **Asana briefs:** the WHY line names the layer and the belief behind it ("golfers do not buy wedges to hit it closer, they buy them to stop dreading the chip in front of their group").
 - **Product and landing pages:** the hero line answers the internal problem, the subhead the external fix, then proof (the guide's authority), the plan (how it works, guarantee), the stakes, the success picture. Specs and FAQs stay layer one, which is correct there.
 - **Email and SMS:** welcome flow = the philosophical stance and the villain (why this brand exists); browse and cart abandonment = internal plus the agreement plan (returns, guarantee) to answer the anxiety; post-purchase = the identity ("you're one of us now"); win-back = the stakes.
