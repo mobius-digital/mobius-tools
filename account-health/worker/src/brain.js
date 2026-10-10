@@ -111,7 +111,7 @@ export async function brandBrain(env, act, opts = {}) {
   const [acct, lines, docs, personas, voc, comps, angles, batches, onboard, amb] = await Promise.all([
     first(`SELECT act_id, name, currency, target_cpa, target_roas, tw_shop FROM brand_accounts WHERE act_id = ?1`, act),
     q(`SELECT id, name, about, products FROM p_br_line WHERE act_id = ?1 ORDER BY sort, created_at, id`, act),
-    q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'problem', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
+    q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'problem', 'brandscript', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
     q(`SELECT id, line_id, name, data_json, status, source FROM p_br_persona WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id`, act),
     q(`SELECT line_id, kind, quote, source, theme, nugget, status FROM p_br_voc WHERE act_id = ?1 ORDER BY nugget DESC, status = 'approved' DESC, created_at DESC, id LIMIT ${opts.lines?.length ? 1000 : 400}`, act),
     q(`SELECT line_id, name, url, data_json, status FROM p_br_comp WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id LIMIT 16`, act),
@@ -159,6 +159,8 @@ export async function brandBrain(env, act, opts = {}) {
       if (list(facts.offers).length) b.push(`Offers seen on the site:\n${list(facts.offers).slice(0, 10).map(o => `- ${one(o, 240)}`).join('\n')}`);
       if (facts.notes) b.push(`Notes: ${one(facts.notes, 900)}`);
     }
+    const bs = data('', 'brandscript');
+    if (bs && (bs.want || bs.villain || bs.one_liner)) b.push(`\n### The brand's story (StoryBrand top level: every product line and ad is a subplot of this)${draftTag(docOf('', 'brandscript')?.status, docOf('', 'brandscript')?.source)}${bs.want ? `\n- What the customer wants: ${one(bs.want, 300)}` : ''}${bs.villain ? `\n- The villain the brand stands against: ${one(bs.villain, 300)}` : ''}${bs.from || bs.to ? `\n- From / to (who they become): ${one(bs.from, 160)} -> ${one(bs.to, 160)}` : ''}${bs.one_liner ? `\n- One-liner: ${one(bs.one_liner, 400)}` : ''}${bs.controlling_idea ? `\n- Controlling idea (the one point every message serves): ${one(bs.controlling_idea, 300)}` : ''}`);
     if (said.length || best.length) b.push(`\n### What the client told us at onboarding\n${said.join('\n')}${best.length ? `\n- best sellers: ${one(best.join('; '), 500)}` : ''}`);
     sec('brand', `Brand: ${name}`, b.join('\n'));
     if (!facts) gaps.push('No brand facts yet (run Research > Brand to read the website).');
