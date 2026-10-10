@@ -139,8 +139,6 @@ export const CLIENT_RULES = [
   { m: 'GET', p: '/api/hub/paid', act: 'need' },
   // The data behind a tile (2026-10-09). Costs, CM and fixed expenses ride under `profit`, scrubbed while P&L is off.
   { m: 'GET', p: '/api/hub/drill', act: 'need' },
-  // Giveaway spend vs sales MER (2026-10-10): Home's Giveaway card and the Sales MER line, one brand.
-  { m: 'GET', p: '/api/hub/giveaway', act: 'need' },
   { m: 'GET', p: '/api/hub/orders', act: 'need' },
   { m: 'GET', p: '/api/hub/customer', act: 'need' },
   { m: 'GET', p: '/api/google/ads', act: 'need' },

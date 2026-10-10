@@ -2832,38 +2832,3 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
   switching the flag back); account-health `test-clients.mjs` 22/22 (new: client edits only its own brand, only with
   P&L on, no email in the answer, "Added by" kept, another brand's row id cannot be taken over, team sees all).
   expenses.js?v=1, v2.js?v=41. Not deployed.
-
-## 2026-10-10: giveaway spend vs sales MER
-
-Cole: every brand holds blended MER 2.5+ (Grunk Dolfer 3.0+), but Lucky Golf (giveaway Oct 14 to Nov 16) and Dartee Golf
-(Oct 9 to Nov 16) run giveaways that buy email/SMS entries, not sales; that money comes back on Black Friday.
-- **One module, `profit/worker/src/giveaway.js`**, imported by the profit worker AND by account-health
-  (`../../../profit/worker/src/giveaway.js`, like dashboard.js). Spend splits in two per brand: **sales spend** (everything
-  else; the floor applies to **Sales MER = revenue / sales spend**) and **giveaway spend** = Meta spend (ad_daily -> ads.campaign_id
-  -> meta_campaigns) on campaigns whose name holds "giveaway" or "leads" (any case, plus the brand's extra terms) OR whose
-  objective is OUTCOME_LEADS / LEAD_GENERATION (switchable), on the giveaway's dates only. Google and other platforms stay sales.
-  Giveaway spend is judged on **cost per entry vs the most to pay = buy_rate x AOV / floor** (Dartee 0.10 x 80 / 2.5 = $3.20,
-  Lucky 0.03 x 117 / 2.5 = $1.40), and on pace vs the entries goal. Never on MER.
-- **Table `p_giveaway`** (one row per brand, created on first use): name, start/end, extra_terms, match_objective, daily_budget,
-  entries_goal, buy_rate, aov, mer_floor (blank = 2.5, Grunk 3.0), klaviyo_list_id, list_baseline, payback_segment_id.
-  **Seeded on the first read** (settings `giveawaySeeded`, matched by brand NAME): Lucky (Oct 14 to Nov 16, $200/day, 5,000)
-  and Dartee (Oct 9 to Nov 16, $555/day, 10,000). A removed row never comes back. No migration file to run.
-- **Entries**: the Klaviyo list's profile_count minus `list_baseline` when a list id is set and the brand's Klaviyo key is in
-  Locus (cached an hour, settings `gwkl:<act>:list:<id>`); else Meta lead results on the matched campaigns (`ad_daily.leads`,
-  new, see account-health); else "not counted yet". The screen names the source. Neither seed has a list id yet, so both
-  read Meta leads until one is set on Home > Goals.
-- **Payback** after Cyber Monday: before Nov 30 a "measured after Cyber Monday" line; after it, a Klaviyo segment id
-  (entrants who placed an order Nov 1 to 30) gives buyers x AOV vs giveaway spend (an estimate, says so); without one, how to make it.
-- **Routes**: `GET /api/hub/giveaway?act=&days|from&to` (hub.js `giveawayMany`; window split + since-start read; brands with no
-  giveaway are absent; on CLIENT_RULES with act need, both brandguard copies). `GET/PUT/DELETE /api/giveaway` (settings, team only).
-- **Screens** (`profit/giveaway.js`, `window.GiveawayUI`; giveaway.js?v=1, v2.js?v=43, command.js?v=3): Home (one brand) with a
-  giveaway in the window = the MER tile becomes **Sales MER** (blended MER on its second line; the drill maps 'sales mer' to mer)
-  and a **Giveaway** card (spend vs budget, entries + source, cost per entry vs most to pay, pace vs goal, the payback line).
-  Ads > Meta > Overview: one split line under the verdict. Home > Goals: "Giveaway / list building" card under the targets
-  (`addGiveawayCard` in index.html): **Sales spend cap at the MER floor** (planned revenue / floor), the separate giveaway
-  budget (daily x days in the month), the settings, Edit (in-app modal) and Remove. Saving drops the v2 /api/hub cache
-  (`V2.dropCache`). Command center: the MER goal reason is judged on sales spend (`goal.sales`, the pill says "sales MER"), plus
-  a `giveaway` reason (over the most to pay = warn; behind pace, or spending with no entries = info).
-- Reports page renders a Sales MER tile and a "Giveaway: building the Black Friday list" card only when `d.giveaway` exists;
-  frozen reports have none. The client archive (`/api/report-view`) strips the workings (most to pay, buy rate, terms).
-- Tests: `account-health/worker/test-giveaway.mjs` (16). Not deployed; not checked against live data.
