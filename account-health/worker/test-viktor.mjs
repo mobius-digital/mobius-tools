@@ -237,6 +237,43 @@ await check('Slack answer with the AI-app feature on: Slack own spinner (setStat
   assert.equal(slackCalls.filter(c => c.method === 'chat.update').length, 0);
   assert.equal(slackCalls.filter(c => c.method === 'chat.postMessage').length, 1, 'only the answer');
 });
+/* Cost pass 2026-10-10: one tool list for both surfaces, rare tools behind tool search, a stable prefix cached for an hour. */
+await check('cost pass: same tools on Slack and web, rare tools deferred and listed, stable prefix first with a 1h breakpoint, a found tool still runs', async () => {
+  const bodies = [];
+  let step = 0;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).includes('anthropic.com')) return realFetch(url, init);
+    const body = JSON.parse(init.body); bodies.push(body);
+    /* Web: search for the action, then call it (the API returns the search blocks in the same reply), then answer. */
+    if (++step === 1) return new Response(JSON.stringify({ model: body.model, stop_reason: 'tool_use', usage: { input_tokens: 100, output_tokens: 50 }, content: [
+      { type: 'server_tool_use', id: 'srvtoolu_1', name: 'tool_search_tool_regex', input: { pattern: 'flag_it' } },
+      { type: 'tool_search_tool_result', tool_use_id: 'srvtoolu_1', content: { type: 'tool_search_tool_search_result', tool_references: [{ type: 'tool_reference', tool_name: 'flag_it' }] } },
+      { type: 'tool_use', id: 't9', name: 'flag_it', input: { what: 'the daily report' } }] }), { status: 200 });
+    return new Response(JSON.stringify({ model: body.model, stop_reason: 'end_turn', usage: { input_tokens: 100, output_tokens: 50 }, content: [{ type: 'text', text: 'Proposed.' }] }), { status: 200 });
+  };
+  const flagIt = { name: 'flag_it', description: 'Turn a brand setting on. Second sentence that the catalog leaves out.', input_schema: { type: 'object', properties: { what: { type: 'string' } } },
+    propose: async (env, input) => ({ summary: `Turn on ${input.what}`, patch: input }), apply: async () => ({ ok: true }) };
+  const eng = createAssistant({ name: 'Strategist', who: 'test', schema: 'tables', sqlTool: 'query_locus', model: 'claude-opus-5-5', playbook: 'THE PLAYBOOK',
+    ...hooks, tools: stratTools(d), dropTools: ['remember'], actions: [flagIt], slackTools: [{ def: { name: 'slack_only', description: 'Only in Slack.', input_schema: { type: 'object', properties: {} } }, run: async () => ({ text: 'ok' }) }],
+    liveContext: async () => '## Live\nmoves', sameTools: true, toolSearch: true, cacheTtl: '1h', alwaysLoaded: ['read_app', 'search_slack'], slackName: 'Strategist', slackApp: 'locus' });
+  const r = await eng.answerWeb(env, 'turn on the daily report', [], h(), { screen: { act_id: 'brand_ice' } });
+  assert.equal(r.proposals?.length, 1, 'the deferred action ran after the search');
+  assert.ok(bodies[1].messages[1].content.some(c => c.type === 'tool_search_tool_result'), 'search blocks go back unchanged');
+  step = 1;
+  await eng.answerSlack(env, { channel: 'C_ICE_INT', ts: '1790004000.000100', user: 'U1', text: '<@B> anything?' }, h(), { screen: { act_id: 'brand_ice' } });
+  const web = bodies[0], slack = bodies[bodies.length - 1];
+  assert.deepEqual(web.tools, slack.tools, 'one tool list on both surfaces');
+  assert.equal(web.tools[0].type, 'tool_search_tool_regex_20251119');
+  const by = Object.fromEntries(web.tools.map(t => [t.name, t]));
+  for (const n of ['flag_it', 'slack_only', 'make_report', 'forget']) assert.equal(by[n]?.defer_loading, true, n + ' deferred');
+  for (const n of ['query_locus', 'read_app', 'search_slack', 'web_search']) assert.ok(by[n] && !by[n].defer_loading, n + ' loaded');
+  const sys = web.system, bp = sys.findIndex(b => b.cache_control);
+  assert.equal(sys[bp].cache_control.ttl, '1h');
+  assert.match(sys.slice(0, bp + 1).map(b => b.text).join('\n'), /THE PLAYBOOK[\s\S]*More tools[\s\S]*- flag_it\*: Turn a brand setting on\n/);
+  assert.ok(!/^(Today is|## Live|## What you remember|## The last two weeks)/m.test(sys.slice(0, bp + 1).map(b => b.text).join('\n')), 'nothing that moves before the breakpoint');
+  assert.ok(sys.filter(b => b.cache_control).length <= 3, 'at most 3 marked blocks (+ the automatic one = 4)');
+  assert.deepEqual(slack.system.slice(0, bp + 1), sys.slice(0, bp + 1), 'Slack and the web share the cached prefix');
+});
 globalThis.fetch = realFetch;
 
 /* ---------------- report ---------------- */

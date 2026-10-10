@@ -1679,6 +1679,12 @@ export function buildStrategist(d) {
     ...stratHooks(d), ...makeHooks(d),
     tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d)],
     dropTools: ['remember'],
+    /* Cost pass 2026-10-10 (scripts/prompt-size.mjs measures it): one tool list on both surfaces, the everyday
+       tools loaded up front and the other ~70 found through tool search, the stable prompt cached for an hour
+       (questions come minutes apart, not seconds: strat_run 2026-10-10 had 8 cold starts on the 5-minute cache
+       and 4 on the hour). The brand brain stays on 5 minutes (one brand is rarely asked twice in an hour). */
+    sameTools: true, toolSearch: true, cacheTtl: '1h',
+    alwaysLoaded: ['read_app', 'make_report', 'locus_get', 'locus_routes', 'search_slack', 'read_thread', 'remember', 'recall', 'read_skill', 'meta_read', 'check_now'],
     liveSteps: true, progressNotes: true, fallbacks: 'default', workingEmoji: ['mobius'],
     webHistory: 16, webHistoryChars: 6000,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',

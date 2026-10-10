@@ -472,8 +472,39 @@ export function createAssistant(config) {
   const memDefs = memoryDefs.filter(t => !drop.has(t.name));
   /* Anthropic-hosted tools (web search / web fetch): declared, run on Anthropic's side, no loop work here. */
   const serverDefs = C.serverTools || [];
-  const slackToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraSlack.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
-  const webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraWeb.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
+  let slackToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraSlack.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
+  let webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraWeb.map(t => t.def), ...actionDefs, ...memDefs, ...serverDefs];
+  /* COST PASS (2026-10-10, the Strategist: ~80k tokens rewritten on every cold question, ~30k of it tool
+     definitions). Two opt-ins, both cache-only, neither changes what a tool does:
+     - C.sameTools: Slack and the web send ONE tool list (Slack's own tools ride along on the web and answer
+       "Not available here" there), so a question on either surface reads the prefix the other one wrote.
+     - C.toolSearch: only C.alwaysLoaded (the everyday tools) load up front; every other tool is sent with
+       defer_loading and found through Anthropic's tool search when needed. Deferred definitions stay out of the
+       prompt, and a found tool is appended inline, so the cached prefix never moves. Their names and first
+       lines are listed in the cached system part (toolCatalog) so the model always knows what exists. */
+  if (C.sameTools) {
+    const seen = new Set();
+    slackToolDefs = webToolDefs = [sqlToolDef, readAppDef, reportDef, handoffDef, ...extraBoth.map(t => t.def), ...extraSlack.map(t => t.def), ...extraWeb.map(t => t.def), ...actionDefs, ...memDefs]
+      .filter(t => !seen.has(t.name) && seen.add(t.name)).concat(serverDefs);
+  }
+  const SEARCH_TOOL = 'tool_search_tool_regex';
+  const deferredNames = [];
+  if (C.toolSearch) {
+    const keep = new Set([C.sqlTool, ...(C.alwaysLoaded || [])]);
+    const defer = list => list.map(t => (t.type || keep.has(t.name)) ? t : (deferredNames.includes(t.name) || deferredNames.push(t.name), { ...t, defer_loading: true }));
+    slackToolDefs = [{ type: 'tool_search_tool_regex_20251119', name: SEARCH_TOOL }, ...defer(slackToolDefs)];
+    webToolDefs = C.sameTools ? slackToolDefs : [{ type: 'tool_search_tool_regex_20251119', name: SEARCH_TOOL }, ...defer(webToolDefs)];
+  }
+  /* One line per deferred tool: its name and the first sentence of its own description (the "PROPOSES a
+     change" prefix every action carries is dropped here; the full text loads with the tool). */
+  const toolCatalog = () => {
+    if (!deferredNames.length) return '';
+    const byName = Object.fromEntries([...slackToolDefs, ...webToolDefs].map(t => [t.name, t]));
+    const first = s => String(s || '').replace(/^(PROPOSES a change; it does NOT apply it\. A card with an Apply button is shown and the person taps it\.|Applies RIGHT AWAY when asked_directly is true \(the person explicitly asked for exactly this change in their own words\); otherwise PROPOSES it as a card with an Apply button\.)\s*/, '')
+      .split(/(?<=[.;])\s/)[0].replace(/[:;.]$/, '').replace(/^(.{0,80})\s.*$/s, (all, head) => all.length > 90 ? head : all);
+    return '## More tools, loaded when you need them\nThe tools below are not loaded yet. To use one, call ' + SEARCH_TOOL + ' with a regex of its name (for example "set_account|set_brief_time"); its full definition then loads and you call it as normal. Never say you cannot do something before checking this list. Actions (cards with Apply) are marked *.\n'
+      + deferredNames.map(n => `- ${n}${actionByName[n] ? '*' : ''}: ${first(byName[n]?.description)}`).join('\n');
+  };
 
   /* ---------------- the model ---------------- */
 
@@ -785,26 +816,39 @@ export function createAssistant(config) {
   async function systemBlocks(env, h, extra = {}) {
     const today = h.centralDate(Date.now() / 1000);
     const live = C.liveContext ? await C.liveContext(env, h).catch(() => '') : '';
-    const blocks = [
-      { type: 'text', text: schemaDoc(h), cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` },
-    ];
+    /* THE ORDER IS THE CACHE (2026-10-10). The prompt cache matches a prefix, tools first, then these blocks.
+       1. What never changes between questions, surfaces or brands: who it is, the schema, the playbook, the
+          standing rules, the catalog of deferred tools. One breakpoint at its end (C.cacheTtl: '1h' when the
+          app's questions come minutes apart, not seconds). Nothing that moves may go in here.
+       2. The app's cached blocks (the Strategist's brand brain): one breakpoint after the last of them.
+       3. Everything that moves: the date, live context, the company brief, memory, the screen.
+       It used to be schema [cached], date, live, brief, playbook..., so the playbook sat after the date and
+       live context and was rewritten on every cold question. */
+    const playbook = (await h.getSetting(env, K.playbook)) || C.playbook || '';
+    const stable = [schemaDoc(h)];
+    if (playbook) stable.push('## How you think (your playbook)\n' + playbook);
+    stable.push('## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.');
+    if (ACTIONS.length) stable.push('## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. The exception: an action that takes asked_directly applies at once when the person plainly told you to make exactly that change; then say it is done. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.');
+    const cat = toolCatalog(); if (cat) stable.push(cat);
+    const blocks = stable.map(text => ({ type: 'text', text }));
+    blocks[blocks.length - 1].cache_control = { type: 'ephemeral', ...(C.cacheTtl ? { ttl: C.cacheTtl } : {}) };
+    /* The app's own context: its cached blocks first (one breakpoint after the last, so a request never asks
+       for more than the API's four), then the ones that move (memory, skills, the last two weeks of Slack). */
+    const moving = [];
+    if (C.extraSystem) {
+      const more = await C.extraSystem(env, h, extra).catch(e => { console.log(`${C.name} extraSystem: ${e.message}`); return []; });
+      const cached = [];
+      for (const b of more || []) {
+        const text = typeof b === 'string' ? b : b?.text;
+        if (text) (b?.cache ? cached : moving).push({ type: 'text', text });
+      }
+      if (cached.length) { cached[cached.length - 1].cache_control = { type: 'ephemeral' }; blocks.push(...cached); }
+    }
+    blocks.push({ type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` });
     if (live) blocks.push({ type: 'text', text: live });
     const brief = await getBrief(env, h);
     if (brief) blocks.push({ type: 'text', text: '## What you know about the company\n' + brief });
-    const playbook = (await h.getSetting(env, K.playbook)) || C.playbook || '';
-    if (playbook) blocks.push({ type: 'text', text: '## How you think (your playbook)\n' + playbook });
-    blocks.push({ type: 'text', text: '## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.' });
-    if (ACTIONS.length) blocks.push({ type: 'text', text: '## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. The exception: an action that takes asked_directly applies at once when the person plainly told you to make exactly that change; then say it is done. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.' });
-    /* The app's own context, in the order it gives: stable blocks first (marked cache, e.g. the brand brain),
-       then the ones that move (memory, skills, the last two weeks of Slack). */
-    if (C.extraSystem) {
-      const more = await C.extraSystem(env, h, extra).catch(e => { console.log(`${C.name} extraSystem: ${e.message}`); return []; });
-      for (const b of more || []) {
-        const text = typeof b === 'string' ? b : b?.text;
-        if (text) blocks.push({ type: 'text', text, ...(b?.cache ? { cache_control: { type: 'ephemeral' } } : {}) });
-      }
-    }
+    blocks.push(...moving);
     const mem = await memoryBlock(env, h).catch(() => '');
     if (mem) blocks.push({ type: 'text', text: mem });
     if (extra.findings?.length) blocks.push({ type: 'text', text: '## What you have already flagged this week\n' +
@@ -857,7 +901,7 @@ export function createAssistant(config) {
         cost += costOf(reply.model || model, u);
         /* The model's own progress notes between tool calls ("Checking the Dartee thread next"): the live line. */
         for (const c of reply.content || []) if (c.type === 'thinking' && String(c.thinking || '').trim()) await step({ note: String(c.thinking).trim().slice(0, 160) });
-        for (const c of reply.content || []) if (c.type === 'server_tool_use') await step({ label: c.name === 'web_search' ? `Searching the web for "${String(c.input?.query || '').slice(0, 60)}"` : `Reading ${String(c.input?.url || 'a page').slice(0, 70)}` });
+        for (const c of reply.content || []) if (c.type === 'server_tool_use') await step({ label: c.name === 'web_search' ? `Searching the web for "${String(c.input?.query || '').slice(0, 60)}"` : c.name === SEARCH_TOOL ? 'Picking up the tool it needs' : `Reading ${String(c.input?.url || 'a page').slice(0, 70)}` });
         const calls = (reply.content || []).filter(c => c.type === 'tool_use');
         /* A long server-tool turn can pause; send it back as is and it carries on. */
         if (!calls.length && reply.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: reply.content }); continue; }
