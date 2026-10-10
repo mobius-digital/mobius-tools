@@ -19,7 +19,12 @@
  * product opens a sheet with ONE chart (projected units, restock steps, the first core size out, hover
  * per day). Buying = order cards + a stage stepper per order on the way. Drops = a stepper for the drop,
  * a design table, and keep or cut as a table with the rule in a sentence and one-colour bars.
- * Clients may see Stock later (read only), so its copy explains every term in plain words. */
+ * Clients may see Stock later (read only), so its copy explains every term in plain words.
+ *
+ * CLIENTS (2026-10-10, Cole: "why doesn't the client have access to drops?"): a client login sees Stock and Drops for
+ * its own brand, READ ONLY. `isClient()` reads through account-health `/api/supply/client` (one brand, costs, suppliers,
+ * order money, notes and Asana stripped there), never Supply directly; every edit control is hidden and Buying never
+ * shows. The server refuses the rest (brandguard CLIENT_RULES), so hiding a button here is only the drawing. */
 (() => {
   const SUP = 'https://mobius-supply.mobius-digital.workers.dev';
   let H = null;
@@ -56,7 +61,15 @@
   /* ---------- the Supply worker ---------- */
   const token = () => { const t = localStorage.getItem('mobius_session'), e = +localStorage.getItem('mobius_session_exp') || 0; return t && (e === 0 || e > Date.now()) ? t : (H && H.S.tok) || ''; };
   const actor = () => localStorage.getItem('mobius_session_email') || '';
+  const isClient = () => !!(H && H.S && H.S.role === 'client');
+  /* A client reads only, through account-health (brand list and state), with its own Locus session. */
+  const actOfSup = brand => ((BRANDS || []).find(b => b.id === brand) || {}).act_id || (H && H.S.act);
+  async function capi(brand, path, opts = {}) {
+    if ((opts.method || 'GET') !== 'GET' || !['/api/state', '/api/brands'].includes(path)) throw new Error('Stock is read only on your login. Ask Mobius if something needs changing.');
+    return H.apiAH(`/api/supply/client?act=${encodeURIComponent(actOfSup(brand))}&what=${path === '/api/brands' ? 'brands' : 'state'}`);
+  }
   async function sapi(brand, path, opts = {}) {
+    if (isClient()) return capi(brand, path, opts);
     const res = await fetch(`${SUP}${path}${path.includes('?') ? '&' : '?'}brand=${encodeURIComponent(brand)}`, {
       method: opts.method || 'GET',
       headers: { 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json', 'X-Actor': actor() },
@@ -71,7 +84,10 @@
   function loadBrands() {
     if (BRANDS_P) return BRANDS_P;
     const first = !BRANDS;
-    BRANDS_P = sapi('lucky', '/api/brands').then(r => {
+    /* A client asks once per brand of its own (the server names the Locus brand as act_id). */
+    const get = isClient() ? Promise.all((H.S.accounts || []).map(a => H.apiAH(`/api/supply/client?act=${encodeURIComponent(a.act_id)}&what=brands`).catch(() => ({ brands: [] }))))
+      .then(rs => ({ brands: rs.flatMap(r => r.brands || []) })) : sapi('lucky', '/api/brands');
+    BRANDS_P = get.then(r => {
       BRANDS = (r.brands || []).filter(b => b.active && b.act_id);
       /* The page tabs were drawn before the list arrived: draw them again once, now they can be right. */
       if (first && H && ['stock', 'buying', 'drops'].includes(H.S.tab)) setTimeout(() => H.show(H.S.tab), 0);
@@ -179,7 +195,7 @@
   const fail = (tab, title, e) => msg(tab, title, `<p class="v2bad">${esc(e.message)}</p>`);
   const noFeed = (tab, name) => msg(tab, tab === 'stock' ? 'Stock' : tab === 'buying' ? 'Buying' : 'Drops', tab === 'stock'
     ? empty('package', `<b>${esc(name)} has no stock feed yet.</b><br>Stock reads itself from Shopify once the brand installs the Mobius Digital Shopify app. Then this page shows what to ease off in ads, what is safe to scale and what to push, with no other setup.`)
-    : empty(tab === 'buying' ? 'factory' : 'layers', `<b>${tab === 'buying' ? 'Buying' : 'Drops'} is off for ${esc(name)}.</b><br>${tab === 'buying' ? 'Buying is for brands we buy stock for: factories, order dates and quantities.' : 'Drops is for brands that design their own products: drops, designs and keep or cut.'}`, btn('Open Stock and factories', 'data-sp-set="1"')));
+    : empty(tab === 'buying' ? 'factory' : 'layers', `<b>${tab === 'buying' ? 'Buying' : 'Drops'} is off for ${esc(name)}.</b><br>${tab === 'buying' ? 'Buying is for brands we buy stock for: factories, order dates and quantities.' : 'Drops is for brands that design their own products: drops, designs and keep or cut.'}`, isClient() ? '' : btn('Open Stock and factories', 'data-sp-set="1"')));
   /* "Is this up to date?" answered on every page: when Shopify was last read, and a Refresh that reads it now. */
   function asOf(st) {
     const t = new Date(st.lastRun || st.generatedAt); if (isNaN(t)) return '';
@@ -187,7 +203,7 @@
     const sameDay = t.toLocaleDateString('en-US', o) === new Date().toLocaleDateString('en-US', o);
     return `${sameDay ? 'today' : t.toLocaleDateString('en-US', { ...o, month: 'short', day: 'numeric' })} at ${t.toLocaleTimeString('en-US', { ...o, hour: 'numeric', minute: '2-digit' })} Central`;
   }
-  const updated = (st, what) => `<div class="spx-upd"><span>${ic('clock', 14)}${what} ${esc(asOf(st))}.</span>${btn(`${ic('refresh', 14)}Refresh`, 'data-sp-refresh="1" aria-label="Read Shopify again and redraw"', 'sm ghost')}</div>`;
+  const updated = (st, what) => `<div class="spx-upd"><span>${ic('clock', 14)}${what} ${esc(asOf(st))}.</span>${isClient() ? '' : btn(`${ic('refresh', 14)}Refresh`, 'data-sp-refresh="1" aria-label="Read Shopify again and redraw"', 'sm ghost')}</div>`;
   function wireCommon(root) {
     root.querySelectorAll('[data-sp-set]').forEach(b => b.onclick = () => openStockSettings());
     root.querySelectorAll('[data-sp-p]').forEach(el => {
@@ -232,7 +248,8 @@
       UI().tile({ label: 'Ad spend on low stock', value: money(J.easeSpend), sub: ads ? `Last 30 days, of ${money(mapped)} of Meta spend that ties to a product. Matched through Triple Whale orders, never ad names.` : 'Ad data is not available right now.' }),
       T('ease', UI().tile({ label: 'Ease off', value: `${J.ease.length}<small class="spx-u">products</small>`, sub: `${J.out} out now. Run out before Cyber Monday (${day(J.SE.cm)}) or before their restock.`, spark: spk(J.ease, st.today) })),
       T('scale', UI().tile({ label: 'Safe to scale', value: `${J.scale.length}<small class="spx-u">products</small>`, sub: '3+ months of stock, or a restock lands in time.', spark: spk(J.scale, st.today) })),
-      T('clear', UI().tile({ label: 'Push to clear', value: money(J.tiedUp), sub: `${plural(J.clear.length, 'product')} with over a year of stock, at cost.`, spark: spk(J.clear, st.today) })),
+      T('clear', isClient() ? UI().tile({ label: 'Push to clear', value: `${J.clear.length}<small class="spx-u">products</small>`, sub: `${int(J.clear.reduce((a, p) => a + Math.max(0, p.onHand), 0))} units with over a year of stock, or sitting unsold.`, spark: spk(J.clear, st.today) })
+        : UI().tile({ label: 'Push to clear', value: money(J.tiedUp), sub: `${plural(J.clear.length, 'product')} with over a year of stock, at cost.`, spark: spk(J.clear, st.today) })),
     ].join('') : '';
     $('#main').innerHTML = frame(tab, 'Stock', `
       <p class="v2say lead">${lead}</p>
@@ -355,7 +372,7 @@
     const verdict = {
       ease: `${p.status === 'out' ? 'It is out now.' : `At ${perDay(p.velocity)} a day, the ${esc(sizeName(fc))} runs out ${day(p.runOutDate)}${fc && p.onHand - Math.max(0, fc.onHand) > p.velocity * Math.max(1, r.days) ? ` while ${int(p.onHand - Math.max(0, fc.onHand))} units of other sizes sit on the shelf` : ''}.`}${r.land != null ? ` The restock lands ${day(p.incomingLands)}${r.gap ? `, ${r.gap} days later` : ''}.` : ' Nothing is on order.'}${J.spend(p) ? ` ${money(J.spend(p))} of ads sold it last month: move that budget to a product that can take it${r.gap > 14 ? ', or sell the gap on pre-order' : ''}.` : ''}`,
       scale: `${r.days > H_DAYS ? 'More than 6 months of stock' : `Stock lasts to ${day(p.runOutDate)}`}${r.land != null ? ` and ${int(p.incoming)} more land ${day(p.incomingLands)}` : ''}. Room to spend more on it.`,
-      clear: `${int(p.onHand)} on hand at ${perDay(p.velocity)} a day is ${p.weeksOfCover ? p.weeksOfCover + ' weeks' : 'more than a year'} of stock, ${money(J.tied(p))} at cost. Worth a promotion, a bundle with a best seller, or an ad test.`,
+      clear: `${int(p.onHand)} on hand at ${perDay(p.velocity)} a day is ${p.weeksOfCover ? p.weeksOfCover + ' weeks' : 'more than a year'} of stock${isClient() ? '' : `, ${money(J.tied(p))} at cost`}. Worth a promotion, a bundle with a best seller, or an ad test.`,
       watch: `Stock lasts to ${day(p.runOutDate)}. Fine for now; it turns to Ease off if a restock is not placed in time.`,
       quiet: p.lifecycle === 'drop' ? 'A limited drop: it sells out on purpose and never asks for a reorder.' : 'No sales in the last 90 days.' }[c];
     const kind = p.lifecycle === 'seasonal' ? 'core' : (p.lifecycle || 'core');
@@ -365,7 +382,7 @@
     const sheet = {
       lead: p.image ? `<span class="plead-th" style="background-image:url('${esc(p.image)}')"></span>` : '',
       chip: callChip(c, p),
-      actions: `${buyer ? btn('Add to an order', 'id="spAddO"', 'primary sm') : ''}${btn(`${ic('external-link', 14)}Shopify`, 'id="spShop" aria-label="Open in Shopify"', 'sm')}`,
+      actions: isClient() ? '' : `${buyer ? btn('Add to an order', 'id="spAddO"', 'primary sm') : ''}${btn(`${ic('external-link', 14)}Shopify`, 'id="spShop" aria-label="Open in Shopify"', 'sm')}`,
       navLabel: 'On this sheet' };
     const body = panel(p.title, `
       <section data-sec="Summary" data-ic="info">
@@ -386,13 +403,13 @@
           <td>${v.velocity <= 0.001 ? '<span class="spx-mut">not selling</span>' : UI() ? UI().ib(Math.min(dl ?? H_DAYS, H_DAYS), H_DAYS, out || dl < 30 ? '--bad' : v.isCore ? '--ink-2' : '--faint', out ? 'Out' : dl > H_DAYS ? '180+' : int(dl)) : int(dl)}</td>
           <td>${out ? '<b class="spx-bad">Out now</b>' : v.runOutDays == null ? '–' : v.runOutDays > H_DAYS ? '6+ months' : day(add(st.today, v.runOutDays))}</td>
           <td>${v.incoming ? `+${int(v.incoming)} <span class="spx-mut">${day(v.incomingLands)}</span>` : '<span class="spx-mut">–</span>'}</td>${buyer ? `<td>${v.suggested || '–'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div></section>
-      <section class="v2card" data-sec="How we treat it" data-ic="sliders"><div class="v2h"><h3>How we treat it</h3><span class="cap">saves as you change it</span></div>
+      ${isClient() ? '' : `<section class="v2card" data-sec="How we treat it" data-ic="sliders"><div class="v2h"><h3>How we treat it</h3><span class="cap">saves as you change it</span></div>
         <div class="spx-form">
           <div class="spx-f wide"><label>Kind of product</label><div class="ds-seg spx-kind" role="radiogroup" aria-label="Kind of product">${KINDS.map(([v, l]) => `<button type="button" role="radio" aria-checked="${kind === v}" class="${kind === v ? 'on' : ''}" data-kind="${v}">${l}</button>`).join('')}</div><p class="spx-help">${esc((KINDS.find(x => x[0] === kind) || KINDS[0])[2])} Only core products are forecast for a reorder.</p></div>
           ${buyer ? `<div class="spx-f"><label for="spMoq">Minimum order</label><input class="spx-in" id="spMoq" type="number" min="0" value="${p.moq ?? ''}" placeholder="none"><p class="spx-help">Units the factory needs per style.</p></div>
           <div class="spx-f"><label for="spLead">Lead time, days</label><input class="spx-in" id="spLead" type="number" min="0" value="${p.leadParts && p.leadParts.source === 'product' ? p.leadParts.base : ''}" placeholder="${p.leadParts ? p.leadParts.base : ''}"><p class="spx-help">${p.leadParts ? `${p.leadParts.base} days from the ${p.leadParts.source === 'factory' ? 'factory' : p.leadParts.source === 'line' ? 'group' : 'product'}, plus ${p.leadParts.buffer} buffer.` : 'No factory yet.'}</p></div>` : ''}
           <div class="spx-f wide"><label for="spNotes">Notes</label><textarea class="spx-in" id="spNotes" placeholder="Anything the next person should know">${esc(p.notes || '')}</textarea></div>
-        </div></section>
+        </div></section>`}
       ${buyer && p.leadDays != null ? `<section class="v2card" data-sec="Try an order" data-ic="cart"><div class="v2h"><h3>Try an order</h3><span class="find">Type a quantity and a date; the chart above draws it as a dashed line.</span></div>
         <div class="spx-form"><div class="spx-f"><label for="spWq">Units</label><input class="spx-in" id="spWq" type="number" min="0" value="${what.qty}"></div><div class="spx-f"><label for="spWs">Placed on</label><input class="spx-in" id="spWs" type="date" value="${what.sent}"></div></div>
         <div id="spPlanOut"></div></section>` : ''}`, sheet);
@@ -412,7 +429,7 @@
     paint();
     const set = patch => save(brand.id, `/api/products/${encodeURIComponent(p.id)}`, patch).then(() => refresh().then(() => openProduct(id, readWhat()))).catch(() => {});
     body.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { if (b.classList.contains('on')) return; set({ lifecycle: b.dataset.kind }); });
-    body.querySelector('#spNotes').onchange = e => set({ notes: e.target.value });
+    if (body.querySelector('#spNotes')) body.querySelector('#spNotes').onchange = e => set({ notes: e.target.value });
     if (body.querySelector('#spMoq')) { body.querySelector('#spMoq').onchange = e => set({ moq: +e.target.value || 0 }); body.querySelector('#spLead').onchange = e => set({ lead_override_days: +e.target.value || null }); }
     if (body.querySelector('#spWq')) { body.querySelector('#spWq').oninput = () => { tried = true; paint(); }; body.querySelector('#spWs').onchange = () => { tried = true; paint(); }; }
     const shop = pacts('#spShop'); if (shop) shop.onclick = () => window.open(`https://admin.shopify.com/store/${encodeURIComponent((st.db.brand?.shop_domain || '').replace('.myshopify.com', ''))}/products/${p.id}`, '_blank', 'noopener');
@@ -567,6 +584,7 @@
     const tab = 'buying';
     if (first || !$('#main .spx')) loading(tab, 'Buying');
     try { await loadBrands(); } catch (e) { return fail(tab, 'Buying', e); }
+    if (isClient()) return msg(tab, 'Buying', empty('factory', 'Buying is for the Mobius team.'));
     const act = H.S.act, b = act === 'all' ? null : brandOf(act);
     if (act === 'all') return msg(tab, 'Buying', empty('factory', 'Buying is per brand. Pick a brand we buy for in the client picker.'));
     if (!b || !b.buys) return noFeed(tab, (H.S.accounts.find(a => a.act_id === act) || {}).name || 'This brand');
@@ -771,7 +789,7 @@
     const d = mine[0] && mine[0].dates;
     const groups = {}; for (const s of st.slots) if (s.next && s.status !== 'live') { const k = `${s.next.on}|${s.next.what}|${s.collectionName || ''}|${s.lineName || ''}`; (groups[k] = groups[k] || []).push(s); }
     const dueList = [...Object.entries(groups).map(([k, ss]) => { const [on, what, c, line] = k.split('|'); return { on, late: ss[0].next.late, h: `${ss.length > 1 ? ss.length + ' ' : ''}${what.toLowerCase()}${ss.length > 1 ? 's' : ''} due`, s: `${c || 'No drop'} · ${line}` }; }),
-      ...st.orders.filter(o => OPEN.includes(o.status)).map(o => ({ on: o.expected_at, late: o.overdue, h: `${o.id} lands`, s: `${int(o.units)} units from ${o.factoryName || 'the factory'}` }))].filter(x => x.on).sort((x, y) => x.on < y.on ? -1 : 1).slice(0, 6);
+      ...st.orders.filter(o => OPEN.includes(o.status)).map(o => ({ on: o.expected_at, late: o.overdue, h: isClient() ? 'A restock lands' : `${o.id} lands`, s: `${int(o.units)} units from ${o.factoryName || 'the factory'}` }))].filter(x => x.on).sort((x, y) => x.on < y.on ? -1 : 1).slice(0, 6);
     const planned = st.lines.filter(l => (st.db.lines.find(x => x.id === l.id) || {}).target_designs != null);
     const nextOf = mine.filter(s => s.next).sort((x, y) => x.next.on < y.next.on ? -1 : 1)[0];
     const lateN = mine.filter(s => s.next && s.next.late).length;
@@ -786,32 +804,34 @@
       UI().tile({ label: 'Next step', value: nextOf ? day(nextOf.next.on) : '–', sub: nextOf ? `${esc(nextOf.next.what)}${nextOf.next.late ? ', late' : `, in ${nextOf.next.days} days`}.` : 'Every design is past its last step.' }),
       UI().tile({ label: 'Late steps', value: String(lateN), sub: lateN ? 'Designs past a due date. Open one to see which step.' : 'Nothing is late.' }),
     ].join('') : '';
+    const CL = isClient();
     const dropOpts = cols.map(c => [c.id, c.name, `On the site ${day(c.drop_at, true)} · ${plural(c.designs || 0, 'design')}`]);
     $('#main').innerHTML = frame(tab, 'Drops', `
       <p class="v2say lead">${lead}</p>
-      <div class="spx-upd"><span>${ic('clock', 14)}Stock read ${esc(asOf(st))}${checked ? `. Asana checked ${esc(asOfStamp(checked))}` : ''}.</span>${btn(`${ic('refresh', 14)}Refresh`, 'data-sp-refresh="1"', 'sm ghost')}</div>
-      <div class="spx-bar">${cols.length && window.PillMenu ? window.PillMenu.html('spDropPick', 'Drop', dropOpts, col && col.id) : ''}<span class="spx-grow"></span>${col ? btn(`${ic('pencil', 14)}Edit the drop`, 'id="spEdDrop"') : ''}${btn(`${ic('plus', 14)}New drop`, 'id="spNewDrop"', 'primary')}</div>
+      <div class="spx-upd"><span>${ic('clock', 14)}Stock read ${esc(asOf(st))}${checked ? `. Asana checked ${esc(asOfStamp(checked))}` : ''}.</span>${CL ? '' : btn(`${ic('refresh', 14)}Refresh`, 'data-sp-refresh="1"', 'sm ghost')}</div>
+      <div class="spx-bar">${cols.length && window.PillMenu ? window.PillMenu.html('spDropPick', 'Drop', dropOpts, col && col.id) : ''}<span class="spx-grow"></span>${CL ? '' : `${col ? btn(`${ic('pencil', 14)}Edit the drop`, 'id="spEdDrop"') : ''}${btn(`${ic('plus', 14)}New drop`, 'id="spNewDrop"', 'primary')}`}</div>
       ${col ? `<div class="v2tiles">${tiles}</div>
-      <section class="v2card"><div class="v2h"><h3>The dates for ${esc(col.name)}</h3><span class="find">You set one date: when it goes on the site. Every step is worked back from it with the factory's lead time. Move the drop and every date moves, Asana due dates too.</span></div>
+      <section class="v2card"><div class="v2h"><h3>The dates for ${esc(col.name)}</h3><span class="find">${CL ? 'Every step is worked back from the day it goes on the site, with the factory\'s lead time.' : 'You set one date: when it goes on the site. Every step is worked back from it with the factory\'s lead time. Move the drop and every date moves, Asana due dates too.'}</span></div>
         ${d ? steps([['Brief', d.briefDue, '', d.briefDue < st.today], ['Tech pack', d.techPackDue, '', d.techPackDue < st.today], ['Sample approved', d.sampleDue, '', d.sampleDue < st.today], ['Order placed', d.orderBy, '', d.orderBy < st.today], ['Stock lands', d.lands, ''], ['On the site', d.onSite, '']].map(x => [x[0], x[1], x[1] && x[1] >= st.today ? `in ${between(st.today, x[1])} days` : '', false]), [d.briefDue, d.techPackDue, d.sampleDue, d.orderBy, d.lands, d.onSite].filter(x => x && x < st.today).length) : empty('calendar', 'Add a design to see its dates.')}
-        ${cny.length ? `<p class="v2hint spx-closed">${ic('alert', 14)} Factory closed: ${esc(cny.map(c => `${c.f} ${day(c.from)} to ${day(c.to)}${c.label ? ' (' + c.label + ')' : ''}`).join('; '))}. Those days are skipped when the dates are worked out.</p>` : ''}</section>
+        ${cny.length ? `<p class="v2hint spx-closed">${ic('alert', 14)} Factory closed: ${esc(cny.map(c => `${c.f || 'The factory'} ${day(c.from)} to ${day(c.to)}${c.label ? ' (' + c.label + ')' : ''}`).join('; '))}. Those days are skipped when the dates are worked out.</p>` : ''}</section>
       <div class="v2two">
-        <section class="v2card"><div class="v2h"><h3>Designs in ${esc(col.name)}</h3><span class="find">Click one for its dates, sample and Asana task. Its Asana column sets the stage.</span></div>
+        <section class="v2card"><div class="v2h"><h3>Designs in ${esc(col.name)}</h3><span class="find">${CL ? 'Click one for its dates and where its sample is.' : 'Click one for its dates, sample and Asana task. Its Asana column sets the stage.'}</span></div>
           ${mine.length ? `<div class="v2tbl"><table><thead><tr><th>Design</th><th>Stage</th><th>Next step</th><th>Sample or stock</th></tr></thead><tbody>${mine.map(s => `<tr class="link" data-s="${esc(s.id)}" tabindex="0"><td><b>${esc(s.name.replace(col.name + ' · ', ''))}</b><span class="sub">${esc(s.lineName || '')}</span></td><td>${slotChip(s.status)}</td><td>${s.next ? `${esc(s.next.what)}<span class="sub ${s.next.late ? 'spx-bad' : ''}">${s.next.late ? 'was due ' : 'by '}${day(s.next.on)}</span>` : '–'}</td><td>${s.made ? `<span class="ds-chip ${s.made.status === 'landed' ? 'good' : 'warn'}">${esc(s.made.label)}</span>` : s.sample ? `<span class="ds-chip ${s.sample.state === 'in hand' ? 'good' : 'on'}">${esc(s.sample.label)}</span>` : '<span class="spx-mut">nothing made yet</span>'}</td></tr>`).join('')}</tbody></table></div>` : empty('layers', 'Nothing in this drop yet.')}
-          <div class="spx-acts">${(planned.length ? planned : st.lines.filter(l => l.planned)).map(l => btn(`${ic('plus', 14)}${esc(l.name)}`, `data-addl="${esc(l.id)}"`, 'sm')).join('')}${btn(`${ic('plus', 14)}Another group`, 'data-addl=""', 'sm')}${mine.some(s => !s.asana_task) ? btn('Make the missing Asana tasks', 'id="spCatch"', 'sm') : ''}</div></section>
+          ${CL ? '' : `<div class="spx-acts">${(planned.length ? planned : st.lines.filter(l => l.planned)).map(l => btn(`${ic('plus', 14)}${esc(l.name)}`, `data-addl="${esc(l.id)}"`, 'sm')).join('')}${btn(`${ic('plus', 14)}Another group`, 'data-addl=""', 'sm')}${mine.some(s => !s.asana_task) ? btn('Make the missing Asana tasks', 'id="spCatch"', 'sm') : ''}</div>`}</section>
         <section class="v2card"><div class="v2h"><h3>Coming due</h3><span class="find">Every design step and factory order, soonest first.</span></div>
           ${dueList.length ? `<ul class="spx-due">${dueList.map(x => `<li><span class="spx-dd ${x.late ? 'late' : ''}"><b>${day(x.on)}</b><em>${x.late ? 'late' : `in ${between(st.today, x.on)} days`}</em></span><span><b>${esc(x.h[0].toUpperCase() + x.h.slice(1))}</b><span class="spx-mut">${esc(x.s)}</span></span></li>`).join('')}</ul>` : empty('check', 'Nothing due.')}</section>
-      </div>` : `<section class="v2card">${empty('layers', '<b>No drops yet.</b><br>A drop is the new designs that go on the site the same day: a themed collection or a plain refresh. Give it a name and a date, then add designs from any group.', btn('New drop', 'data-newdrop="1"', 'primary'))}</section>`}
-      ${(st.asanaLoose || []).length ? `<section class="v2card"><div class="v2h"><h3>Started in Asana, not in a drop</h3><span class="find">Make one a design and it gets a group, a drop and every date. The Asana card stays the same.</span></div><div class="v2tbl"><table><tbody>${st.asanaLoose.map(t => `<tr><td><b>${esc(t.name)}</b><span class="sub">${esc(t.section || 'no column')}</span></td><td><div class="spx-acts end"><a class="ds-btn sm ghost" href="${esc(t.url)}" target="_blank" rel="noopener">${ic('external-link', 14)}Asana</a>${btn('Make it a design', `data-claim="${esc(t.gid)}"`, 'sm')}</div></td></tr>`).join('')}</tbody></table></div></section>` : ''}
+      </div>` : `<section class="v2card">${empty('layers', CL ? '<b>No drops planned yet.</b><br>A drop is the new designs that go on the site the same day. They show here once Mobius plans one.' : '<b>No drops yet.</b><br>A drop is the new designs that go on the site the same day: a themed collection or a plain refresh. Give it a name and a date, then add designs from any group.', CL ? '' : btn('New drop', 'data-newdrop="1"', 'primary'))}</section>`}
+      ${!CL && (st.asanaLoose || []).length ? `<section class="v2card"><div class="v2h"><h3>Started in Asana, not in a drop</h3><span class="find">Make one a design and it gets a group, a drop and every date. The Asana card stays the same.</span></div><div class="v2tbl"><table><tbody>${st.asanaLoose.map(t => `<tr><td><b>${esc(t.name)}</b><span class="sub">${esc(t.section || 'no column')}</span></td><td><div class="spx-acts end"><a class="ds-btn sm ghost" href="${esc(t.url)}" target="_blank" rel="noopener">${ic('external-link', 14)}Asana</a>${btn('Make it a design', `data-claim="${esc(t.gid)}"`, 'sm')}</div></td></tr>`).join('')}</tbody></table></div></section>` : ''}
       ${loose.length ? `<section class="v2card"><div class="v2h"><h3>Designs not in a drop</h3></div><div class="v2tbl"><table><tbody>${loose.map(s => `<tr class="link" data-s="${esc(s.id)}" tabindex="0"><td><b>${esc(s.name)}</b><span class="sub">${esc(s.lineName || '')}</span></td><td>${slotChip(s.status)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
       <div class="ds-label spx-sec">Keep or cut</div>
-      ${planned.map(l => keepCut(st, l)).join('') || `<section class="v2card">${empty('sliders', 'Keep or cut shows for a group with a target number of designs. Set one in Brand settings, Stock and factories.', btn('Open Stock and factories', 'data-sp-set="1"'))}</section>`}`);
+      ${planned.map(l => keepCut(st, l)).join('') || `<section class="v2card">${empty('sliders', CL ? 'Keep or cut shows once a group has a target number of designs.' : 'Keep or cut shows for a group with a target number of designs. Set one in Brand settings, Stock and factories.', CL ? '' : btn('Open Stock and factories', 'data-sp-set="1"'))}</section>`}`);
     const root = $('#main'); wireCommon(root);
     if (window.PillMenu) window.PillMenu.wire(root.querySelector('#spDropPick'), v => { DROP.set(v); renderDrops(false); });
-    root.querySelector('#spNewDrop').onclick = () => editDrop(null);
+    if (root.querySelector('#spNewDrop')) root.querySelector('#spNewDrop').onclick = () => editDrop(null);
     root.querySelectorAll('[data-newdrop]').forEach(x => x.onclick = () => editDrop(null));
     if (root.querySelector('#spEdDrop')) root.querySelector('#spEdDrop').onclick = () => editDrop(col);
-    root.querySelectorAll('tr[data-s]').forEach(tr => { tr.onclick = () => openSlot(tr.dataset.s); tr.onkeydown = e => { if (e.key === 'Enter') openSlot(tr.dataset.s); }; });
+    const os = CL ? slotView : openSlot;
+    root.querySelectorAll('tr[data-s]').forEach(tr => { tr.onclick = () => os(tr.dataset.s); tr.onkeydown = e => { if (e.key === 'Enter') os(tr.dataset.s); }; });
     root.querySelectorAll('[data-addl]').forEach(bn => bn.onclick = () => addDesigns(col, bn.dataset.addl));
     root.querySelectorAll('[data-kc]').forEach(bn => bn.onclick = e => { e.stopPropagation(); const [pid, v] = bn.dataset.kc.split('|'); save(b.id, `/api/products/${encodeURIComponent(pid)}`, { decision: v || null }, 'PUT', v === 'cut' ? 'Cut. It stops reordering and sells down.' : v === 'keep' ? 'Kept' : 'Back to the rule').then(() => { STATE.delete(b.id); renderDrops(false); }).catch(() => {}); });
     root.querySelectorAll('[data-claim]').forEach(bn => bn.onclick = () => claim(bn.dataset.claim));
@@ -820,7 +840,7 @@
       for (const s of todo) { try { await sapi(b.id, `/api/slots/${encodeURIComponent(s.id)}/asana`, { method: 'POST' }); made++; } catch (e) { toast(e.message, true); break; } }
       if (made) toast(`${plural(made, 'Asana task')} made`); STATE.delete(b.id); renderDrops(false);
     };
-    const pd = PENDING.take('design'); if (pd) openSlot(pd);
+    const pd = PENDING.take('design'); if (pd) os(pd);
   }
   /* "2026-10-09 21:52:17" (UTC, from D1) as "today at 4:52 PM Central". */
   const asOfStamp = s => asOf({ lastRun: String(s).replace(' ', 'T') + 'Z' });
@@ -849,11 +869,11 @@
       ${rows.map(x => { const rs = ruleSays(x), st2 = x.decided ? x.state : null; return `<tr class="link" data-sp-p="${esc(x.p.id)}"><td class="spx-mut">${x.rank}</td><td><div class="spx-pn">${av(x.p)}<div><b>${esc(x.p.title)}</b></div></div></td>
         <td class="spx-barc"><span class="spx-kbar"${tip(`${x.p.sold90} sold in 90 days${cutAt != null ? `; the cut line is ${cutAt}` : ''}`)}><i style="width:${(x.p.sold90 / max * 100).toFixed(1)}%"></i>${cutAt != null ? `<em style="left:${(cutAt / max * 100).toFixed(1)}%"></em>` : ''}</span><b>${x.p.sold90}</b></td>
         <td>${int(x.p.onHand)}</td><td><span class="ds-chip ${RS[rs][0]}">${RS[rs][1]}</span></td>
-        <td><div class="spx-acts end"><div class="ds-seg" role="radiogroup" aria-label="Your call on ${esc(x.p.title)}"><button type="button" class="${st2 === 'keep' ? 'on' : ''}" data-kc="${esc(x.p.id)}|keep" aria-checked="${st2 === 'keep'}">Keep</button><button type="button" class="${st2 === 'cut' ? 'on' : ''}" data-kc="${esc(x.p.id)}|cut" aria-checked="${st2 === 'cut'}">Cut</button></div>${x.decided ? btn('Use the rule', `data-kc="${esc(x.p.id)}|"`, 'sm ghost') : ''}</div></td></tr>`; }).join('')}
+        <td>${isClient() ? (st2 ? `<span class="ds-chip ${RS[st2][0]}">${RS[st2][1]}</span>` : '<span class="spx-mut">the rule</span>') : `<div class="spx-acts end"><div class="ds-seg" role="radiogroup" aria-label="Your call on ${esc(x.p.title)}"><button type="button" class="${st2 === 'keep' ? 'on' : ''}" data-kc="${esc(x.p.id)}|keep" aria-checked="${st2 === 'keep'}">Keep</button><button type="button" class="${st2 === 'cut' ? 'on' : ''}" data-kc="${esc(x.p.id)}|cut" aria-checked="${st2 === 'cut'}">Cut</button></div>${x.decided ? btn('Use the rule', `data-kc="${esc(x.p.id)}|"`, 'sm ghost') : ''}</div>`}</td></tr>`; }).join('')}
       </tbody></table></div>
-      <p class="v2hint">${heavy
+      ${isClient() ? '' : `<p class="v2hint">${heavy
         ? `Nothing in this group needs a reorder until the shelf comes down.${l.cut ? ` The ${l.cut} cut sell down and are not reordered.` : ''}`
-        : `Next order: ${designs} designs at ${per} units each is <b>${int(designs * per)} ${esc(noun)}</b>${unit != null ? `, about ${money(designs * per * unit)} at cost` : ''}.${l.cut ? ` The ${l.cut} cut stop reordering and sell down.` : ''}`}</p>
+        : `Next order: ${designs} designs at ${per} units each is <b>${int(designs * per)} ${esc(noun)}</b>${unit != null ? `, about ${money(designs * per * unit)} at cost` : ''}.${l.cut ? ` The ${l.cut} cut stop reordering and sell down.` : ''}`}</p>`}
       ${curve.length > 1 ? `<div class="spx-mix"><div class="ds-label">Size mix for a new design's order</div>${curve.map(([k, v]) => `<div class="spx-mixr"><span>${esc(k)}</span><span class="spx-kbar"><i style="width:${Math.round(v * 100)}%"></i></span><b>${Math.round(v * 100)}%</b></div>`).join('')}</div>` : ''}</section>`;
   }
   async function editDrop(c) {
@@ -899,6 +919,19 @@
     if (!r) return;
     await save(brand.id, '/api/slots', { line_id: r.line, collection_id: r.col, name: t.name, asana_task: t.url, status: 'needs_brief' }, 'POST', 'Claimed. It is a design now.').catch(() => {});
     DROP.set(r.col); renderDrops(false);
+  }
+  /* A client's view of one design: stage, what is next, the dates and where the sample is. Nothing to edit. */
+  function slotView(id) {
+    const { st } = CUR; const sl = st.slots.find(x => x.id === id);
+    if (!sl) return toast('That design is gone.', true);
+    const d = sl.dates || {}, L = sl.lateParts || {};
+    const p = sl.product_id ? st.products.find(x => String(x.id) === String(sl.product_id)) : null;
+    panel(sl.name, `
+      <div class="spx-acts">${p && p.image ? `<span class="sp-av" style="background-image:url('${esc(p.image)}')"></span>` : ''}${slotChip(sl.status)}<span class="spx-mut">${esc(sl.lineName || '')} · ${esc(sl.collectionName || 'no drop')}</span></div>
+      ${sl.next ? `<div class="spx-box ${sl.next.late ? 'bad' : 'info'}"><b>Next: ${esc(sl.next.what)}</b>, ${sl.next.late ? `was due ${day(sl.next.on, true)}` : `due ${day(sl.next.on, true)}, in ${sl.next.days} days`}.</div>` : ''}
+      <section class="v2card"><div class="v2h"><h3>What has to happen by when</h3><span class="find">Worked back from the day the drop goes on the site.</span></div>
+        ${steps([['Brief', d.briefDue, 'words for the designer', L.brief], ['Tech pack', d.techPackDue, 'specs for the factory', L.techPack], ['Sample approved', d.sampleDue, '', L.sample], ['Order placed', d.orderBy, '', L.order], ['Stock lands', d.lands, ''], ['On the site', d.onSite, '']], [d.briefDue, d.techPackDue, d.sampleDue, d.orderBy, d.lands, d.onSite].filter(x => x && x < st.today).length)}</section>
+      <section class="v2card"><div class="v2h"><h3>Where it is</h3></div><p class="v2say">${sl.made ? `${esc(sl.made.label)}${sl.made.expected_at ? `, landing ${day(sl.made.expected_at, true)}` : ''}.` : sl.sample ? `${esc(sl.sample.label)}.` : 'Nothing made yet.'}${p ? ` In the shop as <b>${esc(p.title)}</b>.` : ''}</p></section>`);
   }
   function openSlot(id) {
     const { st, brand } = CUR; const sl = st.slots.find(x => x.id === id);
@@ -1110,6 +1143,7 @@
   /** Which Store tabs this brand shows. Before the brand list has loaded, Stock shows and the rest wait. */
   function tabOk(k, act) {
     if (!['stock', 'buying', 'drops'].includes(k)) return true;
+    if (k === 'buying' && isClient()) return false;   // factory orders and costs are the team's
     if (act === 'all') return k === 'stock';
     if (!BRANDS) return false;
     const b = brandOf(act); return !!(b && (k === 'stock' || (k === 'buying' ? b.buys : b.makes)));

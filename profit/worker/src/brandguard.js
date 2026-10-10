@@ -159,6 +159,11 @@ export const CLIENT_RULES = [
   // Black Friday War Room (profit worker, 2026-10-09): their brand's plan and live numbers, read only.
   { m: 'GET', p: '/api/season/war', act: 'need' },
   { m: 'GET', p: '/api/tw-day', act: 'need', post: twDayClient },
+  // Products > Stock and Drops (2026-10-10, stock.js supplyClient): their brand's stock and drops, READ ONLY, through this
+  // worker with the Supply token. The handler keeps an allowlist of fields (no costs, suppliers, order money, notes, Asana).
+  // Never Buying, never a Supply write (/api/supply/* POST and PUT stay off this list). Ad spend per product rides along.
+  { m: 'GET', p: '/api/supply/client', act: 'need' },
+  { m: 'GET', p: '/api/hub/stockads', act: 'need' },
   // Reports: sent only, never a draft.
   { m: 'GET', p: '/api/reports', act: 'need', post: sentOnlyList },
   { m: 'GET', p: '/api/report', act: 'need', post: sentOnlyOne },

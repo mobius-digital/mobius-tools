@@ -8129,6 +8129,20 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown assets route' }, 404);
     }
+    /* Products > Stock and Drops for a client login, read only (stock.js supplyClient, 2026-10-10): ONE brand, costs,
+       suppliers, order money, notes and Asana stripped. brandguard clears the client for its own brand; checked again here. */
+    if (path === '/api/supply/client' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const act = url.searchParams.get('act') || '', what = url.searchParams.get('what') === 'brands' ? 'brands' : 'state';
+      if (!act || act === 'all') return json({ error: 'Pick one brand.' }, 400);
+      const cs = clientScope(request);
+      if (cs && !cs.ids.has(act)) return json({ error: 'You do not have access to that brand.' }, 403);
+      try {
+        const { supplyClient } = await import('./stock.js');
+        const r = await supplyClient(env, act, what);
+        return r && r.status && r.error ? json({ error: r.error }, r.status) : json(r);
+      } catch (e) { return json({ error: e.message }, 502); }
+    }
     /* Stock writes from the Strategist's actions (stock.js): forwarded to the Supply worker. */
     if (path.startsWith('/api/supply/')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);

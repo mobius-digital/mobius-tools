@@ -1445,6 +1445,15 @@ Locus? Am I missing stats or charts?" Screens in profit/CLAUDE.md (same date). T
 - **Tests:** `node test-clients.mjs` (17 checks: the real workers in node, the profit AUTH binding wired to this worker
   as in production, sign-in, other brand / "all" / writes / settings / Strategist internals / drafts / P&L / ads /
   calendar refused, the dev-key forgery refused, invites owner-only and approval-gated).
+- **2026-10-10: clients see Stock and Drops** (read only, never Buying). `GET /api/supply/client?act=<brand>&what=brands|state`
+  (worker.js, before the `/api/supply/` write proxy; stock.js `supplyClient` + `clientSupplyState`): resolves the Supply
+  brand (`supplyBrandOf`), calls Supply over the SUPPLY binding with SUPPLY_TOKEN, and returns an ALLOWLIST of fields:
+  products, on hand, sold per day, days left, run-out dates, restocks landing (placed orders only, dates and units, ids
+  renamed restock_n), drops, designs with dates, stages and sample state, keep or cut, factory closures (factory ids
+  renamed f1, f2). Never costs, prices, supplier names or contacts, order money, notes, Asana, settings, suggested orders;
+  `buys` is always false in the brand list. The handler re-checks `clientScope(request).ids` for the brand; the team reads
+  any brand. CLIENT_RULES (both brandguard copies) gained GET `/api/supply/client` and GET `/api/hub/stockads` (act need);
+  every `/api/supply/*` write stays off the list. Tested in `test-clients.mjs` with a mocked SUPPLY binding.
 
 
 ## 2026-10-09: client switches ON by default; the command center's work feed (`src/command.js`)

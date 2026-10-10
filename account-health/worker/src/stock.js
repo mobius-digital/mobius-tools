@@ -107,6 +107,47 @@ export async function stockView(env, acct, what = 'summary') {
     ...(b.buys ? { to_order: st.products.filter(p => ['out', 'order', 'gap'].includes(p.status)).map(prod), on_the_way: st.orders.filter(o => ['sent', 'confirmed', 'production', 'shipped', 'partial'].includes(o.status)).map(o => ({ id: o.id, factory: o.factoryName, lands: o.expected_at, units: o.units, products: o.productTitles })) } : {}) };
 }
 
+/* CLIENT STOCK AND DROPS (2026-10-10, Cole: "why doesn't the client have access to drops?").
+ * GET /api/supply/client?act=<brand>&what=brands|state. A client login (brandguard CLIENT_RULES, its own brand
+ * only) or the team reads ONE brand's stock and drops through here; Supply is called server side with
+ * SUPPLY_TOKEN, so the client never holds a Supply session and never reaches a Supply write.
+ * The answer is an ALLOWLIST of fields (a new field Supply adds stays out until it is named here).
+ * Kept: products, stock on hand, sold per day, days left, run-out dates, restocks landing (dates and units),
+ * drops and designs with dates, stages and images, keep or cut. Out: factory, unit and landed costs, prices,
+ * supplier names and contacts, order money and ids, notes, Asana links, settings, suggested orders, buying. */
+const pickK = (o, keys) => { const r = {}; if (!o) return r; for (const k of keys) if (o[k] !== undefined) r[k] = o[k]; return r; };
+const BUY_STATUS = new Set(['order', 'soon', 'nofactory']);   // order-timing statuses: to a client the product is simply fine
+const OPEN_ORDER = new Set(['sent', 'confirmed', 'production', 'shipped', 'partial', 'landed']);
+export function clientSupplyState(st, b, act) {
+  /* Factory ids can carry a supplier's name: every one becomes f1, f2... */
+  const fid = new Map(); const fOf = id => { if (!id) return null; if (!fid.has(id)) fid.set(id, 'f' + (fid.size + 1)); return fid.get(id); };
+  const variant = v => ({ ...pickK(v, ['id', 'sku', 'title', 'axis', 'sizeKey', 'onHand', 'velocity', 'isCore', 'isNew', 'runOutDays', 'runOutDate', 'incoming', 'incomingLands', 'gapDays',
+    'sold14', 'sold30', 'sold90', 'trend', 'series', 'curveBased', 'capped', 'plainRate']), incomingOrders: (v.incomingOrders || []).map(o => ({ qty: o.qty, lands: o.lands || null })) });
+  const products = (st.products || []).map(p => ({ ...pickK(p, ['id', 'title', 'image', 'lineId', 'lineName', 'lifecycle', 'decision', 'onHand', 'oversold', 'incoming', 'incomingLands',
+    'velocity', 'perWeek', 'trend', 'runOutDays', 'runOutDate', 'weeksOfCover', 'sold14', 'sold30', 'sold90', 'coreCount', 'sizeGap', 'thin', 'ageDays', 'axis']),
+    status: BUY_STATUS.has(p.status) ? 'ok' : p.status, variants: (p.variants || []).map(variant) }));
+  const makes = !!b.makes;
+  const lines = makes ? (st.lines || []).map(l => ({ ...pickK(l, ['id', 'name', 'axis', 'target', 'cutRulePct', 'planned', 'designs', 'sold90', 'sold30', 'onHand', 'perWeek', 'weeksOfCover',
+    'keep', 'decide', 'cut', 'openSlots', 'sizeCurve', 'cutCandidates']), factoryId: fOf(l.factoryId), plan: (l.plan || []).map(x => pickK(x, ['productId', 'rank', 'band', 'near', 'state', 'decided'])) })) : [];
+  const slots = makes ? (st.slots || []).map(s => ({ ...pickK(s, ['id', 'name', 'line_id', 'lineName', 'collection_id', 'collectionName', 'status', 'on_site_at', 'dropAt', 'dates', 'next', 'late', 'lateParts', 'product_id']),
+    factoryId: fOf(s.factoryId), made: s.made ? pickK(s.made, ['status', 'label', 'expected_at']) : null,
+    sample: s.sample ? pickK(s.sample, ['state', 'label', 'on', 'late']) : null })) : [];
+  const collections = makes ? (st.collections || []).map(c => pickK(c, ['id', 'name', 'drop_at', 'designs', 'lines', 'late', 'byStatus', 'done', 'orderBy'])) : [];
+  /* Restocks: placed orders only (never drafts or cancelled), dates and units, no id, factory or money. */
+  const orders = (st.orders || []).filter(o => OPEN_ORDER.has(o.status)).map((o, i) => ({ id: 'restock_' + (i + 1), status: o.status === 'confirmed' ? 'sent' : o.status,
+    expected_at: o.expected_at || null, landed_at: o.landed_at || null, overdue: !!o.overdue, units: o.units || 0, received: o.received || 0 }));
+  const factories = makes ? (st.factories || []).filter(f => fid.has(f.id) || (f.closures || []).length).map(f => ({ id: fOf(f.id), closures: (f.closures || []).map(c => pickK(c, ['from', 'to', 'label'])) })) : [];
+  return { client: true, act, brand: b.id, brandName: st.brandName || null, tz: st.tz, today: st.today, generatedAt: st.generatedAt, lastRun: st.lastRun || null,
+    historyDays: st.historyDays, historyStart: st.historyStart, products, lines, slots, collections, orders, factories,
+    db: { lines: makes ? ((st.db && st.db.lines) || []).map(l => ({ id: l.id, target_designs: l.target_designs ?? null })) : [] } };
+}
+export async function supplyClient(env, act, what) {
+  const b = await supplyBrandOf(env, act);
+  if (what === 'brands') return { brands: b ? [{ id: b.id, act_id: act, name: b.name || null, makes: !!b.makes, buys: false, active: true }] : [] };
+  if (!b) return { error: 'This brand has no stock feed yet.', status: 404 };
+  return clientSupplyState(await supplyFetch(env, '/api/state', { brand: b.id, actor: 'a client login' }), b, act);
+}
+
 /** /api/supply/<route>?brand=: the Strategist's actions write through here, behind this worker's auth. */
 export async function handleSupplyProxy(request, env, path, url, json, actor) {
   const rest = path.slice('/api/supply'.length);   // '/orders', '/orders/PO-0001', '/products/123', '/slots', '/collections'

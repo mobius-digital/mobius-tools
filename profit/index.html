@@ -2316,7 +2316,7 @@
 <script src="desk.js?v=16"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=10"></script>
-<script src="supply.js?v=4"></script>
+<script src="supply.js?v=5"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=3"></script>
 <script src="survey.js?v=1"></script>
@@ -4817,16 +4817,18 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
 /* ---------- CLIENT LOGINS (2026-10-09) ----------
    A client (account-health clients.js; who may open what = brandguard.js on both workers) sees one brand, read-only:
    Home (Overview, P&L when Cole switched it on), Ads (All channels, Meta and Google overview + campaigns, Changes when on),
-   Email and SMS, Store, Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
+   Email and SMS, Store, Products > Stock and Drops (read only, 2026-10-10; never Buying), Calendar (add dates and notes), Reports (sent only), Creative > Creators (their creator link,
    when on), and Settings = their own profile. Everything here only DRAWS that; the server refuses the rest. */
 const isClient = () => S.role === 'client';
-const CLIENT_TABS = new Set(['overview', 'profit', 'requests', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'calendar', 'reports', 'amb', 'settings', 'war']);
+const CLIENT_TABS = new Set(['overview', 'profit', 'requests', 'channels', 'meta', 'campaigns', 'changes', 'google', 'gcampaigns', 'gchanges', 'email', 'store', 'customers', 'website', 'search', 'stock', 'drops', 'calendar', 'reports', 'amb', 'settings', 'war']);
 function clientCan(k, act = S.act) { const b = ((S.client && S.client.brands) || []).find(x => x.id === act); return !!(b && b.access && b.access[k]); }
 function clientTabOk(t) {
   if (!CLIENT_TABS.has(t)) return false;
   if (t === 'profit') return clientCan('pl');
   if (t === 'changes' || t === 'gchanges') return clientCan('changes');
   if (t === 'amb') return clientCan('creators');
+  /* Products (2026-10-10): Stock for a brand with a stock feed, Drops where it designs; read only, never Buying (supply.js). */
+  if (t === 'stock' || t === 'drops') return !!(window.SupplyTab && window.SupplyTab.tabOk(t, S.act));
   return true;
 }
 const CLIENT_R = { reports: f => window.ClientsTab.reports(f), settings: () => window.ClientsTab.profile(), amb: () => window.ClientsTab.creators() };
@@ -4837,7 +4839,7 @@ function applyClientMode() {
   if (!on) return;
   if (!S.accounts.some(a => a.act_id === S.act) && S.accounts[0]) { S.act = S.accounts[0].act_id; try { localStorage.setItem(LS.act, S.act); } catch {} }
   document.querySelectorAll('#tabs button[data-grp], #tabbar button[data-grp]').forEach(b => { const g = NAV[b.dataset.grp]; b.hidden = !g || !g.tabs.some(t => clientTabOk(t[0])); });
-  ['#railTools', '#railProducts', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
+  ['#railTools', '#railSeason', '#btnGuide', '#roleSeg'].forEach(q => { const el = $(q); if (el) el.hidden = true; });
   const rs = $('#railSetLbl'); if (rs) rs.textContent = 'Your profile';
   document.querySelectorAll('#pfMe [data-me]').forEach(b => { b.hidden = !['profile', 'out'].includes(b.dataset.me) && !(b.dataset.me === 'install' && installable()); });
   const pk = $('#pfPick'); if (pk) pk.hidden = S.accounts.length < 2;
@@ -5163,8 +5165,8 @@ function show(tab, opt) {
       if (k === 'website') return ck.includes('ga4'); if (k === 'search') return ck.includes('gsc'); return true; };
     const tabsHere = def ? def.tabs.filter(t => (t[0] !== 'economics' || S.role === 'owner') && (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
     const row1 = tabsHere.length > 1 ? tabsHere : null;
-    const rp = $('#railProducts'); if (rp) rp.hidden = isClient() || !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
-    if (window.SupplyTab && !window.__spBrands && S.tok && !isClient()) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
+    const rp = $('#railProducts'); if (rp) rp.hidden = !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
+    if (window.SupplyTab && !window.__spBrands && S.tok && (!isClient() || S.accounts.length)) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
     const gDirect = !!(oneA && Array.isArray(oneA.conn_kinds) && oneA.conn_kinds.includes('google_ads'));
     const jobs0 = grp === 'ads' && chan === 'meta' ? META_JOBS : grp === 'ads' && chan === 'google' && gDirect ? GOOGLE_JOBS : grp === 'creative' && chan === 'studio' ? STUDIO_JOBS : null;
     const jobs = jobs0 && isClient() ? jobs0.filter(j => clientTabOk(j[0])) : jobs0;
