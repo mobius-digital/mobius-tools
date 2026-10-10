@@ -108,15 +108,30 @@ async function adsetsOf(env, d, act) {
   }
   return { metas, sets: out };
 }
-/** The test's own ad set (its number starts the name), else the newest live ad set in a testing campaign, else the newest live one. */
-export function suggest(sets, num) {
+/** The test's own ad set (its number starts the name). Else, by where the ad comes from (2026-10-10, first live open on
+ *  Lucky suggested a Trybe creator ad set for a Studio static): a Studio ad goes to the newest live NUMBERED test ad set
+ *  outside creator / partnership campaigns (the account's own test structure), a creator asset to the newest live set in
+ *  a creator campaign. Then a campaign named "test", then the newest live set. */
+const CREATOR = /creator|partnership|trybe|ambassador|influencer|ugc creator/i;
+export function suggest(sets, num, kind = 'studio') {
   const newest = (a, b) => String(b.created).localeCompare(String(a.created));
   const own = num ? sets.filter(s => s.num === String(num)).sort((a, b) => (a.status === 'ACTIVE' ? -1 : 0) - (b.status === 'ACTIVE' ? -1 : 0) || newest(a, b)) : [];
   if (own.length) return { id: own[0].id, why: `This test's own ad set (its name starts with ${num}).` };
-  const testing = sets.filter(s => /test/i.test(s.campaign) && s.status === 'ACTIVE').sort(newest);
+  const live = sets.filter(s => s.status === 'ACTIVE');
+  const isCreator = s => CREATOR.test(s.campaign || '') || CREATOR.test(s.name || '');
+  const copyTip = num ? ` No ad set starts with ${num} yet: to give test ${num} its own, copy this one first (Ads > Meta > Campaigns, the row's menu, Copy this ad set) and pick the copy.` : '';
+  if (kind === 'creator') {
+    const cr = live.filter(isCreator).sort(newest);
+    if (cr.length) return { id: cr[0].id, why: `The newest live ad set in the creator campaign "${cr[0].campaign}".${num ? ` No ad set starts with ${num} yet.` : ''}` };
+  } else {
+    const tests = live.filter(s => s.num && !isCreator(s)).sort((a, b) => (+b.num || 0) - (+a.num || 0) || newest(a, b));
+    if (tests.length) return { id: tests[0].id, why: `The newest live test ad set ("${tests[0].name}" in "${tests[0].campaign}").${copyTip}` };
+  }
+  const testing = live.filter(s => /test/i.test(s.campaign) && (kind === 'creator' || !isCreator(s))).sort(newest);
   if (testing.length) return { id: testing[0].id, why: `The newest live ad set in the testing campaign "${testing[0].campaign}".${num ? ` No ad set starts with ${num} yet.` : ''}` };
-  const live = sets.filter(s => s.status === 'ACTIVE').sort(newest);
-  if (live.length) return { id: live[0].id, why: `The newest live ad set. No testing campaign found${num ? ` and no ad set starts with ${num}` : ''}, so check this one.` };
+  const pool = (kind === 'creator' ? live : live.filter(s => !isCreator(s))).sort(newest);
+  const any = (pool.length ? pool : [...live].sort(newest));
+  if (any.length) return { id: any[0].id, why: `The newest live ad set. No testing campaign found${num ? ` and no ad set starts with ${num}` : ''}, so check this one.` };
   return { id: sets[0]?.id || null, why: sets.length ? 'Nothing is live, so this is only the newest ad set. Check it.' : 'No ad sets found in the Meta account.' };
 }
 async function namesIn(env, d, metaAct, num) {
@@ -151,7 +166,7 @@ export async function launchPrep(env, d, act, b) {
   const { metas, sets } = await adsetsOf(env, d, act);
   if (!metas.length) return { error: 'This brand has no Meta ad account connected in Locus.' };
   const can = await metaCan(env, metas[0].act, d, metas[0].name);
-  const sug = suggest(sets, src.num);
+  const sug = suggest(sets, src.num, src.kind === 'creator' ? 'creator' : 'studio');
   const pick = sets.find(s => s.id === sug.id) || null;
   const copy = pick ? await setCopy(env, d, pick.id) : { link: null, primary_text: null, names: [], count: 0 };
   const taken = pick ? await takenFor(env, d, pick.meta_act, src.num) : new Set();

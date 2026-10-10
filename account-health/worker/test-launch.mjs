@@ -158,8 +158,16 @@ await check('naming: "<num> <letter> | <Format>", next free letter, creator hand
 await check('suggest: the test\'s own ad set first, else the newest live set in a testing campaign, else the newest live one', async () => {
   const sets = [{ id: '1', num: '412', status: 'ACTIVE', campaign: 'Tests', created: '2026-10-01' }, { id: '2', num: null, status: 'ACTIVE', campaign: 'Scale', created: '2026-10-09' }, { id: '3', num: null, status: 'ACTIVE', campaign: 'Lucky | Tests', created: '2026-10-05' }];
   assert.equal(L.suggest(sets, '412').id, '1');
-  const t = L.suggest(sets, '999'); assert.equal(t.id, '3'); assert.match(t.why, /testing campaign "Lucky \| Tests"\. No ad set starts with 999/);
+  const t = L.suggest(sets, '999'); assert.equal(t.id, '1', 'a Studio ad: the newest live NUMBERED test ad set'); assert.match(t.why, /newest live test ad set.*No ad set starts with 999/);
+  assert.equal(L.suggest(sets.filter(s => s.id !== '1'), '999').id, '3', 'no numbered set: the testing campaign');
   assert.equal(L.suggest(sets.filter(s => s.id === '2'), '999').id, '2');
+  /* Lucky, 2026-10-10: a newer Trybe creator set must not win a Studio static; a creator asset goes there. */
+  const lucky = [{ id: 'c', name: 'Trybe | LGP02 - 09/25', num: null, status: 'ACTIVE', campaign: '[MD] CBO | Creator Campaign', created: '2026-10-09' },
+    { id: 'p', name: 'Josh | Partnership - 09/03', num: null, status: 'ACTIVE', campaign: '[MD] CBO | Creator Campaign', created: '2026-10-08' },
+    { id: 'a', name: '413 UGC', num: '413', status: 'ACTIVE', campaign: '[MD] CBO', created: '2026-09-30' },
+    { id: 'b', name: '414 | Still', num: '414', status: 'ACTIVE', campaign: '[MD] CBO', created: '2026-09-29' }];
+  assert.equal(L.suggest(lucky, '421').id, 'b', 'Studio static: the highest-numbered live test set, never the creator campaign');
+  assert.equal(L.suggest(lucky, '421', 'creator').id, 'c', 'creator asset: the creator campaign');
 });
 
 await check('prep: an approved Studio ad gets its test, the own ad set suggested, the name, and fields from the brief and the set', async () => {
