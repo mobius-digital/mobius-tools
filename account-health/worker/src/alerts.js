@@ -251,7 +251,7 @@ export function alertBlocks(row, fired, { test = false, brandName } = {}) {
 }
 
 async function postTo(env, d, channel, msg) {
-  const r = await d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false, username: 'Strategist' });
+  const r = await d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false, username: 'Locus' });
   if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || ''))) return d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false });
   return r;
 }

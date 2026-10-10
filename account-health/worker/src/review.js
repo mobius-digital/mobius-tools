@@ -98,13 +98,13 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
   if (dry) return { ok: true, dry: true, brand: b.name, channel: b.channel, text, blocks, proposals: proposals.map(p => ({ summary: p.summary, detail: p.detail || '' })), cost, costLine: r.costLine || null, model: r.model };
   if (!b.channel || b.skip) return { error: b.skip || 'no internal channel' };
   const fallback = `Monday review: ${b.name}`;
-  const msg = { channel: b.channel, text: fallback, blocks, unfurl_links: false, username: 'Strategist' };
+  const msg = { channel: b.channel, text: fallback, blocks, unfurl_links: false, username: 'Locus' };
   let posted = await d.slackApi(env, 'chat.postMessage', msg).catch(e => ({ ok: false, error: e.message }));
   if (posted && posted.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(posted.error || ''))) { const { username, ...plain } = msg; posted = await d.slackApi(env, 'chat.postMessage', plain).catch(e => ({ ok: false, error: e.message })); }
   if (!posted || posted.ok === false) return { error: `Slack said ${posted?.error || 'nothing'}`, cost };
   let cards = 0;
   for (const p of proposals) {
-    const c = await d.slackApi(env, 'chat.postMessage', { channel: b.channel, thread_ts: posted.ts, text: p.summary, blocks: engine.proposalBlocks(p), unfurl_links: false, username: 'Strategist' }).catch(() => null);
+    const c = await d.slackApi(env, 'chat.postMessage', { channel: b.channel, thread_ts: posted.ts, text: p.summary, blocks: engine.proposalBlocks(p), unfurl_links: false, username: 'Locus' }).catch(() => null);
     if (c?.ok) cards++;
   }
   return { ok: true, ts: posted.ts, cards, cost };

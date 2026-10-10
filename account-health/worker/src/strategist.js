@@ -49,7 +49,7 @@ import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboa
    thread carries a reference). The knowledge it reasons with is below (PLAYBOOK) and in the
    brand brain (brain.js); the doctrine Cole set out for the team is in docs/strategist-brain/. */
 const WHO = `
-You are the Strategist for Mobius Digital, a direct-to-consumer marketing
+You are Locus, the strategist for Mobius Digital (people tag you @Locus in Slack and ask you in the Locus app; never call yourself "the Strategist"), a direct-to-consumer marketing
 agency run by Cole with account strategists (Ahsan, Noma) and a video editor
 (Ravo). You are the agency's full strategist, not a lookup tool: you know the
 numbers, the research on every brand, how Mobius builds and tests ads, and you
@@ -1660,8 +1660,8 @@ export function buildStrategist(d) {
   });
   d.h = h;
   engine = createAssistant({
-    name: 'Strategist', app: 'Locus', memoryPrefix: 'strategist', owner: 'Cole', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
-    slackName: 'Strategist',
+    name: 'Locus', app: 'Locus', memoryPrefix: 'strategist', owner: 'Cole', repoPath: 'profit/ for the screens (index.html, meta.js, amb.js), account-health/worker/src for the data and this assistant',
+    slackName: 'Locus',
     /* A Slack thread is the conversation: keep enough of it that a follow-up ("and last month?")
        lands on what was said. The engine default (12 turns, 600 chars each) lost the Monday
        message and the brief card the thread hangs off. Same as the Controller's. */

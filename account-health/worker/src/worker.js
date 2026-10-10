@@ -6750,7 +6750,7 @@ function hubDeps() {
    remembered; urgent new findings to the team channel; Monday, the briefing. */
 /* A post under the Strategist's name where the app allows it (chat:write.customize), the app's name where not. */
 async function strategistSay(env, channel, text) {
-  const r = await slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false, username: 'Strategist' });
+  const r = await slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false, username: 'Locus' });
   if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || '')))
     return slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false });
   return r;
@@ -6850,7 +6850,7 @@ async function handleSlackEvent(request, env, ctx) {
   let dmScreen = null;
   if (dm || agencyCh) {
     const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
-    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Strategist' }).catch(() => {})); return ACK(); }
+    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Locus' }).catch(() => {})); return ACK(); }
     dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '') };
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
@@ -6950,7 +6950,7 @@ async function strategistThreadOpen(env, channel, ts) {
   /* Not seen before: is the thread's first message the Strategist's own? */
   const r = await slackApi(env, 'conversations.replies', { channel, ts, limit: 1, inclusive: true });
   const root = (r?.messages || [])[0];
-  const mine = !!root && !!root.bot_id && /^strategist$/i.test(String(root.username || root.bot_profile?.name || ''));
+  const mine = !!root && !!root.bot_id && /^(strategist|locus)$/i.test(String(root.username || root.bot_profile?.name || ''));
   await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`).bind(key, mine ? '1' : '0').run().catch(() => {});
   return mine;
 }

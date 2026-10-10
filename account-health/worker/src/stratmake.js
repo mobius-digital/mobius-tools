@@ -371,7 +371,7 @@ const PDF_CMD = 'S=$(find / -name render_report.py -not -path "/proc/*" 2>/dev/n
 export async function renderPdf(env, d, report) {
   const F = d.xfetch;
   const enc = new TextEncoder();
-  const spec = { title: report.title, subtitle: report.subtitle || '', by: report.by || 'Strategist', at: report.at, blocks: report.blocks || [] };
+  const spec = { title: report.title, subtitle: report.subtitle || '', by: report.by || 'Locus', at: report.at, blocks: report.blocks || [] };
   const specId = await filesUpload(env, F, 'report_spec.json', enc.encode(JSON.stringify(spec)), 'application/json');
   const pyId = await filesUpload(env, F, 'render_report.py', enc.encode(REPORT_PY), 'text/plain');
   try {
@@ -499,7 +499,7 @@ footer{margin-top:36px;color:var(--muted);font-size:12px}
 </style></head><body><div class="bar"></div><div class="wrap">
 <header><div class="logo"><img src="https://tools.go-mobius-digital.com/logo/mobius-mark-locus.svg" alt="">LOCUS <span>by Mobius Digital${brand ? ' · ' + esc(brand) : ''}</span></div>
 <div class="acts"><a href="/r/${esc(token)}.pdf">PDF</a><a href="#" onclick="window.print();return false">Print</a></div></header>
-<h1>${esc(rep.title)}</h1>${rep.subtitle ? `<div class="sub">${esc(rep.subtitle)}</div>` : ''}<div class="sub">Built by the ${esc(rep.by || 'Strategist')}, ${esc(String(rep.at || '').slice(0, 10))}</div>
+<h1>${esc(rep.title)}</h1>${rep.subtitle ? `<div class="sub">${esc(rep.subtitle)}</div>` : ''}<div class="sub">Built by ${esc(rep.by || 'Locus')}, ${esc(String(rep.at || '').slice(0, 10))}</div>
 ${blocks}<footer>Every number here came from Locus at the time the report was built.</footer></div></body></html>`;
 }
 

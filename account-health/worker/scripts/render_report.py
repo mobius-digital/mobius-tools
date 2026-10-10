@@ -126,7 +126,7 @@ def chart(b):
 story = [Paragraph(esc(spec.get("title", "Report")), H1)]
 if spec.get("subtitle"): story.append(Paragraph(esc(spec["subtitle"]), SUB))
 at = spec.get("at") or datetime.datetime.utcnow().isoformat()
-story.append(Paragraph("Built by the %s, %s" % (esc(spec.get("by") or "Strategist"), esc(str(at)[:10])), SUB))
+story.append(Paragraph("Built by %s, %s" % (esc(spec.get("by") or "Locus"), esc(str(at)[:10])), SUB))
 story.append(Spacer(1, 14))
 for b in spec.get("blocks") or []:
     t = b.get("type")

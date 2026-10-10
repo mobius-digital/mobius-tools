@@ -190,7 +190,7 @@ async function slack(env, method, body, form = false) {
    "Strategist"; both live in the one @Mobius Digital app). Refused by Slack = the app's own name. */
 const say = async (env, channel, thread_ts, text, blocks) => {
   const params = { channel, thread_ts, text, unfurl_links: false, unfurl_media: false, ...(blocks ? { blocks } : {}) };
-  const r = await slack(env, 'chat.postMessage', { ...params, username: 'Ideas', icon_emoji: ':bulb:' });
+  const r = await slack(env, 'chat.postMessage', { ...params, username: 'Locus' });
   return r?.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || '')) ? slack(env, 'chat.postMessage', params) : r;
 };
 const whisper = (env, channel, user, text, thread_ts) => channel && user ? slack(env, 'chat.postEphemeral', { channel, user, text, ...(thread_ts ? { thread_ts } : {}) }) : null;
