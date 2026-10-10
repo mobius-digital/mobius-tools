@@ -172,7 +172,12 @@ const TAG_SCHEMA = obj({ tags: { type: 'array', items: obj({
   level: { type: 'string', enum: ['angle', 'concept', 'variation', 'offer'] },
   variable: { type: 'string', enum: ['', 'headline', 'hook', 'person', 'edit', 'redesign', 'review', 'offer', 'copy', 'visual', 'format'] },
   offer: S, hypothesis: S,
+  layer: { type: 'string', enum: ['external', 'internal', 'philosophical', 'success', 'offer'] },
 }) } });
+/* The problem layer a test argues (StoryBrand; knowledge topic messaging). Filled by the tag pass for new
+   tests and by layerPass for old ones, so wins can be read by layer. */
+const LAYER_SCHEMA = obj({ tags: { type: 'array', items: obj({ num: S, layer: { type: 'string', enum: ['external', 'internal', 'philosophical', 'success', 'offer'] } }) } });
+const LAYER_RULE = `LAYER = what the ads mainly argue: external (the physical problem or the product doing its job: specs, features, "stops your chips"), internal (how the problem makes them feel, a moment: dreading the chip, the green wrist, holding up the group), philosophical (a stance: why nobody should have to put up with it), success (the payoff or who they become: the compliment, being the funny one, access, scarcity, belonging), offer (only the deal).`;
 const LEARN_SCHEMA = obj({ learning: S });
 
 /* ---------------- brand settings ---------------- */
@@ -270,6 +275,7 @@ const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,pe
    no crop line, no subtasks. Ideas bot's briefHtml (ideas.js) uses the same layout. */
 const BRIEF_TEST = eg => `<h2>The test</h2><strong>Angle:</strong>
 <strong>Why:</strong>
+<strong>Problem (want / villain / layer):</strong>
 <strong>What we're testing:</strong>
 <em>What changes, and on which ad. Like: ${eg}</em>
 <strong>1.</strong>
@@ -423,6 +429,24 @@ async function adCopyFor(env, act, nums) {
   return out;
 }
 
+/* Backfill: tests filed before layers existed (2026-10-10). Reads what each test argued (brief, angle,
+   the ads that ran) and stores only the layer. Cheap: titles and copy, no Drive reads. */
+async function layerPass(env, act, { limit = 25 } = {}) {
+  const rows = (await env.DB.prepare(`SELECT b.id, b.num, b.title, b.hypothesis, b.why, b.offer, b.brief_text, a.name AS angle, a.argument FROM p_br_batch b LEFT JOIN p_br_angle a ON a.id = b.angle_id
+      WHERE b.act_id = ?1 AND b.layer IS NULL AND b.tagged_at IS NOT NULL ORDER BY CAST(b.num AS INTEGER) DESC LIMIT ?2`).bind(act, limit).all().catch(() => ({ results: [] }))).results || [];
+  if (!rows.length) return { layered: 0 };
+  const copy = await adCopyFor(env, act, rows.map(r => String(parseInt(r.num, 10))));
+  const items = rows.map(r => `### TEST ${parseInt(r.num, 10)}: ${r.title}\n${r.angle ? `Angle: ${r.angle}: ${clip(r.argument, 200)}\n` : ''}${r.hypothesis ? `What we tested: ${clip(r.hypothesis, 300)}\n` : ''}${r.why ? `Why: ${clip(r.why, 300)}\n` : ''}${r.offer ? `Offer: ${r.offer}\n` : ''}${r.brief_text ? `Brief: ${clip(r.brief_text, 900)}\n` : ''}${copy[String(parseInt(r.num, 10))] ? `Ads that ran:\n${copy[String(parseInt(r.num, 10))].slice(0, 4).join('\n')}\n` : ''}`).join('\n');
+  const { out } = await claudeJson(env, { system: `For each ad test below, say which problem layer it mainly argues. ${LAYER_RULE} Return one entry per test, keyed by its number.`, user: items, schema: LAYER_SCHEMA, effort: 'low' });
+  let n = 0;
+  for (const r of rows) {
+    const t = (out?.tags || []).find(x => String(parseInt(x.num, 10)) === String(parseInt(r.num, 10)));
+    await env.DB.prepare(`UPDATE p_br_batch SET layer = ?2 WHERE id = ?1`).bind(r.id, t?.layer || 'unknown').run();
+    if (t?.layer) n++;
+  }
+  return { layered: n };
+}
+
 async function tagPass(env, act, { limit = 12, warn = true } = {}) {
   const rows = (await env.DB.prepare(`SELECT id, num, title, offer, hypothesis, why, level, brief_url, brief_text, legacy_json, asana_gid, stage, created_at, source FROM p_br_batch
       WHERE act_id = ?1 AND angle_id IS NULL AND tagged_at IS NULL ORDER BY CAST(num AS INTEGER) ASC LIMIT ?2`).bind(act, limit).all()).results || [];
@@ -460,6 +484,7 @@ Rules:
 - A pure discount or bundle test with no reason to buy beyond the deal: level "offer", and pick the angle only if the ad clearly argues one.
 - concept: a short name for the idea. When the test is the same idea as an EXISTING CONCEPT under the same angle (a new hook, headline, person, edit or format of it), copy that concept's name EXACTLY. Only name a new concept when the idea itself is new.
 - offer: the deal named in the ad or brief, empty if none. hypothesis: one line, what this test tries to learn.
+- ${LAYER_RULE}
 Return one entry per test, keyed by its number. ${VOICE}`,
     user: `EXISTING ANGLES (id | name | argument):\n${angles.map(a => `${a.id} | ${a.name} | ${clip(a.argument, 200)}`).join('\n') || 'none yet'}\n\nEXISTING CONCEPTS (angle id | concept name | tests):\n${concepts.map(c => `${c.angle_id} | ${c.name} | ${c.n}`).join('\n') || 'none yet'}\n\nTESTS:\n${items}`,
     schema: TAG_SCHEMA, effort: 'medium',
@@ -495,8 +520,8 @@ Return one entry per test, keyed by its number. ${VOICE}`,
       if (!c) await env.DB.prepare(`INSERT INTO p_br_concept (id, act_id, angle_id, name) VALUES (?1, ?2, ?3, ?4)`).bind(conceptId, act, angleId, clip(t.concept.trim(), 200)).run();
     }
     await env.DB.prepare(`UPDATE p_br_batch SET angle_id = ?2, concept_id = ?3, level = COALESCE(level, ?4), variable = COALESCE(variable, NULLIF(?5, '')),
-        offer = COALESCE(offer, NULLIF(?6, '')), hypothesis = COALESCE(hypothesis, NULLIF(?7, '')), tagged_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`)
-      .bind(r.id, angleId, conceptId, t.level, t.variable, clip(t.offer, 300), clip(t.hypothesis, 3000)).run();
+        offer = COALESCE(offer, NULLIF(?6, '')), hypothesis = COALESCE(hypothesis, NULLIF(?7, '')), layer = COALESCE(layer, NULLIF(?8, '')), tagged_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`)
+      .bind(r.id, angleId, conceptId, t.level, t.variable, clip(t.offer, 300), clip(t.hypothesis, 3000), t.layer || '').run();
     tagged++;
     /* Write Angle + Testing onto OPEN tasks only; finished ones would just notify people about history. */
     if (r.asana_gid && r.stage !== 'done' && fields.angle) {
@@ -1105,7 +1130,8 @@ export async function brandAsanaTick(env, canAfford = () => true) {
       if (hooked) s.hook = hooked;
       const t = await tagPass(env, d.act_id, { limit: 8 });
       const r = await resultsPass(env, d.act_id, { limit: 4 });
-      out[d.act_id] = { sync: s, tagged: t.tagged, results: r.posted };
+      const lp = t.tagged ? { layered: 0 } : await layerPass(env, d.act_id, { limit: 25 }).catch(() => ({ layered: 0 }));
+      out[d.act_id] = { sync: s, tagged: t.tagged, results: r.posted, layered: lp.layered };
     } catch (e) { out[d.act_id] = { error: e.message }; }
   }
   /* New client projects: onboarding links posted, tasks ticked (section 6). */

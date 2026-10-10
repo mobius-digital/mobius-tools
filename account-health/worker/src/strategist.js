@@ -296,7 +296,7 @@ BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "exec
 - The 3-question test to label anything: did the reason to buy change (new angle)? same reason, different idea (new concept)? same idea, one piece changed (testing inside the concept)? Price, a new demographic with a new reason: new angle. Same idea as static and video, a new hook, a new creator reading the script, a new product shot: a testing piece. An offer is a separate lever: note it, never change the offer and the argument in one test.
 - WHY are we testing this: every batch states the reason, from the data. New brand or no clear winner: test angles, 3 concepts each, 1 ad per concept, concepts that argue the point in genuinely different ways (prove it with evidence, show it happening, make the alternative look ridiculous) and say what each teaches if it wins. Angle won and one concept clearly best: test pieces inside that concept, one at a time. Angle won and concepts close: more concepts under it. Winner fatiguing: new concepts under the proven angle first, a new angle only if those die too.
 - Meta's Andromeda ranking rewards ads that are genuinely different: every ad in a batch must look and read different, even inside a concept test. Near-duplicates are wasted spend.
-- The brief shape (the Asana template): ANGLE (one sentence) / WHY (a belief about the customer, not a description of the copy) / WHAT WE'RE TESTING (one line: "3 new concepts", "3 headlines on 412-3", "2 hooks on 290-1"; the number names the winning ad) / numbered ads, one line each the editor can build from / Copy: headline, primary text, offer, landing page, inspo / for video: creator, script. Ads are named "<batch>-<n> | <format>" so results join back to the test.
+- The brief shape (the Asana template): ANGLE (one sentence) / WHY (a belief about the customer, not a description of the copy) / PROBLEM (want / villain / layer, one line) / WHAT WE'RE TESTING (one line: "3 new concepts", "3 headlines on 412-3", "2 hooks on 290-1"; the number names the winning ad) / numbered ads, one line each the editor can build from / Copy: headline, primary text, offer, landing page, inspo / for video: creator, script. Ads are named "<batch>-<n> | <format>" so results join back to the test.
 - Reviewing a batch someone sent: 1) read the brand brain and the test library first; 2) relabel what they sent with the correct words (strategists mislabel: an angle called a concept, a format called a concept, three designs called three concepts, a persona written as an angle, no Testing line); 3) check: angle is an argument, concepts are buildable and different, one level changes, the level fits the account state, the angle fits the brand's rules and the customer's awareness, it argues the right problem layer for who will see it (layer one features to a cold audience is the most common miss; an internal line must be tied to a concrete moment, never "feel confident"), it is not a claim a competitor owns, it has not been tested and lost without a reason to retest, the headline would stop the right person, it sounds like the customer and the brand, every claim is true; 4) VERDICT: Good as is / Fix and send back / Redo, then WHAT'S WRONG (most important first, 5 max), then the FIXED VERSION in brief shape using their own ideas, then a short Slack message to the strategist (what is working in one line if true, numbered fixes, 4 max, a clear next step, under 150 words). Name the psychological lever each angle pulls (loss, status, social proof, relief, contrarian, proof, belonging, curiosity, real urgency); no lever, weak angle.
 - Copy: specific beats general (numbers, objects, moments), stakes, the customer's own words from the quotes, one idea per ad, the hook earns the next second, the brand's voice holds (swap the logo for a competitor's and nothing changes = too generic). Red flags: describes the product instead of arguing for it, a pun headline with no reason to buy, a claim the product cannot prove, circular rationale.
 
@@ -578,7 +578,7 @@ function buildViews(d) {
       const acct = await need(env, a);
       const q = String(a.q || '').trim().toLowerCase();
       const like = `%${q.replace(/[%_]/g, ' ')}%`;
-      const { results: batches } = await env.DB.prepare(`SELECT b.num, b.title, b.level, b.variable, b.hypothesis, b.why, b.stage, b.verdict, b.verdict_note, b.learning, b.asana_url, b.asana_section, b.asana_angle, b.asana_result, b.check_again, b.updated_at,
+      const { results: batches } = await env.DB.prepare(`SELECT b.num, b.title, b.level, b.variable, b.hypothesis, b.why, b.stage, b.verdict, b.verdict_note, b.learning, b.asana_url, b.asana_section, b.asana_angle, b.asana_result, b.check_again, b.layer, b.updated_at,
           g.name AS angle, c.name AS concept, substr(b.brief_text, 1, ${q ? 900 : 240}) AS brief
         FROM p_br_batch b LEFT JOIN p_br_angle g ON g.id = b.angle_id LEFT JOIN p_br_concept c ON c.id = b.concept_id
         WHERE b.act_id = ?1 ${q ? 'AND (lower(b.title) LIKE ?2 OR lower(b.hypothesis) LIKE ?2 OR lower(b.why) LIKE ?2 OR lower(b.brief_text) LIKE ?2 OR lower(b.learning) LIKE ?2 OR lower(g.name) LIKE ?2 OR lower(g.argument) LIKE ?2 OR lower(b.asana_angle) LIKE ?2)' : ''}
@@ -587,8 +587,9 @@ function buildViews(d) {
           SUM(CASE WHEN b.verdict = 'winner' THEN 1 ELSE 0 END) AS won, SUM(CASE WHEN b.verdict = 'loser' THEN 1 ELSE 0 END) AS lost, SUM(CASE WHEN b.verdict = 'keep' THEN 1 ELSE 0 END) AS kept, COUNT(b.id) AS tests
         FROM p_br_angle a LEFT JOIN p_br_line l ON l.id = a.line_id LEFT JOIN p_br_batch b ON b.angle_id = a.id
         WHERE a.act_id = ?1 ${q ? 'AND (lower(a.name) LIKE ?2 OR lower(a.argument) LIKE ?2)' : ''} GROUP BY a.id ORDER BY a.status, tests DESC LIMIT 60`).bind(...(q ? [acct.act_id, like] : [acct.act_id])).all().catch(() => ({ results: [] }));
-      return { brand: acct.name, search: q || null, tests: batches || [], angles: angles || [],
-        how_to_read: VIEW_BLURBS.tests + ' level: angle = a new argument, concept = new ideas on a proven angle, variation = one piece inside a proven concept (the team\'s words: "inside a concept"). verdict is the team\'s call; asana_result is the Result field in Asana. An empty search means nothing like it was tested; say so rather than assuming it was.' };
+      const { results: layers } = await env.DB.prepare(`SELECT layer, COUNT(*) AS tests, SUM(CASE WHEN verdict = 'winner' THEN 1 ELSE 0 END) AS won, SUM(CASE WHEN verdict = 'loser' THEN 1 ELSE 0 END) AS lost FROM p_br_batch WHERE act_id = ?1 AND layer IS NOT NULL AND layer != 'unknown' GROUP BY layer`).bind(acct.act_id).all().catch(() => ({ results: [] }));
+      return { brand: acct.name, search: q || null, tests: batches || [], angles: angles || [], by_layer: layers || [],
+        how_to_read: VIEW_BLURBS.tests + ' level: angle = a new argument, concept = new ideas on a proven angle, variation = one piece inside a proven concept (the team\'s words: "inside a concept"). layer = what the test mainly argued (external, internal, philosophical, success, offer); by_layer = wins and losses per layer for this brand. verdict is the team\'s call; asana_result is the Result field in Asana. An empty search means nothing like it was tested; say so rather than assuming it was.' };
     },
     brief: async (env, a) => {
       const acct = await need(env, a);
@@ -887,7 +888,7 @@ function briefNotesHtml(a, { num, by, inspo = [] }) {
   const ads = (a.ads || []).length ? a.ads : ['', '', ''];
   const parts = [`<body><em>${xesc(by || 'Filled in by the Strategist')}.</em>`, `<h2>The test</h2>${line('Angle', a.angle)}`];
   if (a.concept) parts.push(line('Concept', a.concept));
-  parts.push(line('Why', a.why), line("What we're testing", a.testing), ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${xesc(String(t || '').replace(/^\s*\d+[.)]\s*/, ''))}`));
+  parts.push(line('Why', a.why), line('Problem (want / villain / layer)', a.problem), line("What we're testing", a.testing), ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${xesc(String(t || '').replace(/^\s*\d+[.)]\s*/, ''))}`));
   if (a.guardrails && a.guardrails.length) parts.push(`<strong>Keep in mind:</strong> ${xesc(a.guardrails.join(' · '))}`);
   if (a.kind === 'video') parts.push(`<h2>Video</h2>${line('Creator', a.creator)}`, line('Script', a.script));
   parts.push(`<h2>Copy</h2>${line('Headline', a.headline)}`, line('Primary text', a.primary_text), line('Offer', a.offer), line('Landing page', a.landing_page),
@@ -897,7 +898,7 @@ function briefNotesHtml(a, { num, by, inspo = [] }) {
 function briefNotesText(a, { by, inspo = [] }) {
   const l = (k, v) => `${k}: ${v || ''}`;
   const ads = (a.ads || []).length ? a.ads : ['', '', ''];
-  return [by || '', 'THE TEST', l('Angle', a.angle), a.concept ? l('Concept', a.concept) : null, l('Why', a.why), l("What we're testing", a.testing),
+  return [by || '', 'THE TEST', l('Angle', a.angle), a.concept ? l('Concept', a.concept) : null, l('Why', a.why), l('Problem (want / villain / layer)', a.problem), l("What we're testing", a.testing),
     ...ads.map((t, i) => `${i + 1}. ${String(t || '').replace(/^\s*\d+[.)]\s*/, '')}`), a.guardrails?.length ? `Keep in mind: ${a.guardrails.join(' · ')}` : null,
     a.kind === 'video' ? `VIDEO\n${l('Creator', a.creator)}\n${l('Script', a.script)}` : null,
     'COPY', l('Headline', a.headline), l('Primary text', a.primary_text), l('Offer', a.offer), l('Landing page', a.landing_page), `Inspo: ${inspo.join(' ')}`].filter(x => x != null).join('\n');
@@ -912,6 +913,7 @@ const BRIEF_PROPS = {
   angle: { type: 'string', description: 'The argument, one sentence, as approved.' },
   concept: { type: 'string', description: 'Only when testing inside a proven concept: the concept, naming the winning ad.' },
   why: { type: 'string', description: 'One sentence: the belief about the customer.' },
+  problem: { type: 'string', description: 'One line: what they want / the villain in the way / the layer the ads argue (external, internal, philosophical, or success for status and fun products). Take it from the brand\'s known problems when one fits; a new one is fine.' },
   testing: { type: 'string', description: 'One line: what changes and on which ad. "3 new concepts", "3 headlines on 412-3".' },
   ads: { type: 'array', items: { type: 'string' }, description: 'One line per ad, in order, as approved, each buildable with no questions. Include the headline on a line when the thread gave one.' },
   guardrails: { type: 'array', items: { type: 'string' }, description: 'Rules from the thread the editor must keep (e.g. "nothing that hints tour players use it"). Short.' },
