@@ -111,7 +111,7 @@ export async function brandBrain(env, act, opts = {}) {
   const [acct, lines, docs, personas, voc, comps, angles, batches, onboard, amb] = await Promise.all([
     first(`SELECT act_id, name, currency, target_cpa, target_roas, tw_shop FROM brand_accounts WHERE act_id = ?1`, act),
     q(`SELECT id, name, about, products FROM p_br_line WHERE act_id = ?1 ORDER BY sort, created_at, id`, act),
-    q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
+    q(`SELECT line_id, key, data_json, status, source FROM p_br_doc WHERE act_id = ?1 AND key IN ('profile', 'rules', 'brand_facts', 'market', 'market_viktor', 'mechanism', 'problem', 'voice', 'voice_guide', 'voice_speaker', 'voice_skill', 'research_notes', 'viktor_notes')`, act),
     q(`SELECT id, line_id, name, data_json, status, source FROM p_br_persona WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id`, act),
     q(`SELECT line_id, kind, quote, source, theme, nugget, status FROM p_br_voc WHERE act_id = ?1 ORDER BY nugget DESC, status = 'approved' DESC, created_at DESC, id LIMIT ${opts.lines?.length ? 1000 : 400}`, act),
     q(`SELECT line_id, name, url, data_json, status FROM p_br_comp WHERE act_id = ?1 ORDER BY status = 'approved' DESC, sort, name, id LIMIT 16`, act),
@@ -202,8 +202,8 @@ export async function brandBrain(env, act, opts = {}) {
       if (!focus.has(l.id) && focused) continue;
       /* The market doc, with Viktor's filling any field it leaves empty: Grunk's Apparel line has an
          approved market doc from the sheet, so Viktor's sits beside it as 'market_viktor'. */
-      const m0 = data(l.id, 'market') || {}, mv = data(l.id, 'market_viktor') || {}, mech = data(l.id, 'mechanism') || {};
-      const d0 = docOf(l.id, 'market'), dv = docOf(l.id, 'market_viktor'), dk = docOf(l.id, 'mechanism');
+      const m0 = data(l.id, 'market') || {}, mv = data(l.id, 'market_viktor') || {}, mech = data(l.id, 'mechanism') || {}, prob = data(l.id, 'problem') || {};
+      const d0 = docOf(l.id, 'market'), dv = docOf(l.id, 'market_viktor'), dk = docOf(l.id, 'mechanism'), dp = docOf(l.id, 'problem');
       const has = v => Array.isArray(v) ? v.length > 0 : !!v;
       const pick = f => has(m0[f]) ? [m0[f], draftTag(d0?.status, d0?.source)] : [mv[f], draftTag(dv?.status, dv?.source)];
       const m = Object.fromEntries(['mass_desire', 'awareness', 'awareness_why', 'stage', 'stage_why', 'claims_made', 'open_ground'].map(f => [f, pick(f)[0]]));
@@ -217,7 +217,9 @@ export async function brandBrain(env, act, opts = {}) {
       if (list(m.claims_made).length) x.push(`Claims the market has already made${tg('claims_made')}:\n${list(m.claims_made).slice(0, 6).map(c => `- ${one(c, 200)}`).join('\n')}`);
       if (list(m.open_ground).length) x.push(`Open ground, nobody is saying this${tg('open_ground')}:\n${list(m.open_ground).slice(0, 6).map(c => `- ${one(c, 220)}`).join('\n')}`);
       if (mech.problem || mech.solution) x.push(`Mechanism${kt}: why what they tried failed: ${sent(mech.problem, 400) || 'not known.'} Why this works: ${sent(mech.solution, 400) || 'not known.'}`);
+      if (prob.external || prob.internal || prob.philosophical) x.push(`The problem in three layers${draftTag(dp?.status, dp?.source)} (lead with the deepest layer this customer will believe):${prob.villain ? `\n- Villain: ${sent(prob.villain, 250)}` : ''}${prob.external ? `\n- External (what they would search): ${sent(prob.external, 300)}` : ''}${prob.internal ? `\n- Internal (how it makes them feel): ${sent(prob.internal, 300)}` : ''}${prob.philosophical ? `\n- Philosophical (why it is wrong): ${sent(prob.philosophical, 300)}` : ''}`);
       r.push(x.join('\n'));
+      if (!prob.internal && (m.stage || m.awareness)) gaps.push(`No internal problem for the ${l.name} line (how the problem makes the customer feel). Run Research > Competitors and Personas, or write it under The problem.`);
       if (!m.stage && !m.awareness) gaps.push(`No market stage or awareness for the ${l.name} line (run Research > Competitors and Personas).`);
       if (!list(m.open_ground).length && m.stage) gaps.push(`No open ground mapped for the ${l.name} line.`);
     }
