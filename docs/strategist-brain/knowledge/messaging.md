@@ -16,7 +16,7 @@ The one idea behind this file: **brands sell the solution to the external proble
 
 ## 2. The parts
 
-**The villain.** One specific thing causing the problem. Miller's rules: the root source (not a symptom), relatable, singular, real. Usually a thing, a practice or an old way of doing it, never a person and almost never a named competitor. Dollar Shave Club's villain was overpriced razors that fund celebrity endorsements; Liquid Death's is plastic; Starface's is shame-based acne marketing.
+**The villain.** One specific thing causing the problem. Miller's rules: the root source (not a symptom), relatable, singular, real. Usually a thing, a practice or an old way of doing it, never a person and almost never a named competitor. Dollar Shave Club's villain was overpriced razors that fund celebrity endorsements; Liquid Death's is plastic; Starface's is shame-based acne marketing. "Villain" is Miller's own word (it is the first part of his Problem element). **One villain per message, not per brand:** Miller wants a single villain so the ad has one clear point; a brand or product line can have several root causes, and each one can power its own angle (Brand > Research, The problem, keeps a main villain plus "other villains"). Two villains in one ad = two arguments = a muddy test.
 
 **Layer 1, external.** The physical, visible problem. What they would type into Google or ChatGPT. "I chunk my chips." "My ball marker falls out of my pocket." "My skin is dry." Necessary (it tells the scroller what this is for) and never enough on its own, because every competitor says the same sentence.
 
