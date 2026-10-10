@@ -1633,3 +1633,23 @@ limits a teammate to their brands). Tests: `node test-agency.mjs` (10 offline ch
 - **Tests:** `node test-smoke.mjs` (113 offline checks; bindings, routes, Meta, Asana and Slack mocked). NOT tested
   live: any real route, how Cloudflare counts a service-binding call (counted as 1 here), CPU time of about 100
   in-process reads in one tick, Run now's wall time from the browser.
+
+## 2026-10-10: Strategist cost pass (what the model is sent). Read before adding tools or system text.
+
+Measured with `node scripts/prompt-size.mjs` (builds the real engine on the test fixtures and sizes every system
+block and tool group; ~2.5 characters a token, calibrated on strat_run; set ANTHROPIC_API_KEY for exact counts).
+- Before: ~54k tokens on a cold no-brand question (tools ~30k, schema/WHO ~11k, playbook ~12k), +~27k with a brand
+  (brain + Slack digest). Only tools + schema were cached, and Slack and the web had different tool lists, so the
+  playbook (after the date and live context) was rewritten on every question and the two surfaces never shared a cache.
+- After (ask/engine.js opt-ins `sameTools`, `toolSearch` + `alwaysLoaded`, `cacheTtl`): ~31k. One tool list on both
+  surfaces; only the everyday tools load up front (strategist.js `alwaysLoaded`), the other ~70 go with
+  `defer_loading` behind Anthropic's tool search (`tool_search_tool_regex_20251119`, no beta) and are listed one line
+  each in the cached prompt ("More tools, loaded when you need them"). System order is now: stable part (WHO/schema,
+  playbook, rules, tool catalog) with a 1-hour breakpoint, then the brand brain (5-minute breakpoint), then
+  everything that moves (date, live brands, company brief, memory, skills, Slack digest, screen).
+- **Rules that keep it cheap:** nothing that changes per question, brand, surface or day may go in the stable part or
+  in a tool definition. A new tool is deferred by default; add it to `alwaysLoaded` only if most questions need it.
+  A new everyday tool costs every question; a deferred one costs one line in the catalog.
+- Expected: a simple brand question inside the hour ~$0.20 (was ~$0.47 cold), a no-brand one ~$0.05; the first
+  question of an hour ~$0.43 (the 1-hour write is 2x). The remaining big cost is the brand brain (~25k tokens,
+  written once per brand per 5 minutes).
