@@ -116,6 +116,11 @@ export function clientScope(request) { return (request && CLEARED.get(request)) 
    post = a last pass over the answer. cal = calendar write (the handler checks the date's brand). */
 const sentOnlyList = b => { if (b && Array.isArray(b.rows)) b.rows = b.rows.filter(r => r && r.status === 'sent'); if (b) delete b.lastRun; return b; };
 const sentOnlyOne = b => (b && b.status === 'sent' ? b : { __deny: 404, error: 'no report for that period' });
+/* Triple Whale's live day (2026-10-10, War Room live numbers for clients): the raw map carries cost ids
+   (product costs, gross profit, fees...) under Triple Whale's own names, which the key scrub cannot know, so
+   they go here while the brand's P&L switch is off. */
+const COST_ID = /cost|profit|fee|margin|cogs|handling|shipping/i;
+const twDayClient = (b, off) => { if (!b || !off || !off.pl) return b; for (const k of ['map', 'hours']) if (b[k] && typeof b[k] === 'object') for (const id of Object.keys(b[k])) if (COST_ID.test(id)) delete b[k][id]; return b; };
 export const CLIENT_RULES = [
   // Who am I, and my own profile.
   { m: 'GET', p: '/api/me', act: 'none' },
@@ -147,6 +152,7 @@ export const CLIENT_RULES = [
   { m: 'GET', p: '/api/google/search', act: 'need' },
   // Black Friday War Room (profit worker, 2026-10-09): their brand's plan and live numbers, read only.
   { m: 'GET', p: '/api/season/war', act: 'need' },
+  { m: 'GET', p: '/api/tw-day', act: 'need', post: twDayClient },
   // Reports: sent only, never a draft.
   { m: 'GET', p: '/api/reports', act: 'need', post: sentOnlyList },
   { m: 'GET', p: '/api/report', act: 'need', post: sentOnlyOne },
@@ -231,7 +237,7 @@ async function guardClient(request, env, client, handle, CORS) {
   const strict = { pl: client.brands.some(x => !client.access[x]?.pl), changes: client.brands.some(x => !client.access[x]?.changes) };
   const offFor = id => { const bb = (id && brandOf(id)) || b; if (!bb) return strict; const a = client.access[bb] || {}; return { pl: !a.pl, changes: !a.changes }; };
   data = scrub(filterActs(data, ids.all), offFor, act || null);
-  if (rule.post) data = rule.post(data);
+  if (rule.post) data = rule.post(data, offFor(act || null));
   if (data && data.__deny) return out(data.__deny, data.error);
   const h = new Headers(res.headers); h.delete('Content-Length');
   return new Response(JSON.stringify(data), { status: res.status, headers: h });

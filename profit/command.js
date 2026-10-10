@@ -110,7 +110,7 @@ function reasonsFor(a, c, w) {
   const as = w && w.brands ? w.brands[a.act_id] : null;
   if (as && !as.error) {
     if (as.overdue_n) { const t = as.overdue[0]; rs.push({ sev: as.overdue_n >= 5 || (t && t.late >= 7) ? 'warn' : 'info', kind: 'asana', text: `${as.overdue_n} Asana task${as.overdue_n === 1 ? '' : 's'} overdue${t ? `: "${t.name}" ${t.late} day${t.late === 1 ? '' : 's'} late${t.who ? ` (${t.who.split(' ')[0]})` : ''}` : ''}`, url: (t && t.url) || as.url }); }
-    if (as.stuck_n) { const t = as.stuck[0]; rs.push({ sev: as.stuck_n >= 4 ? 'warn' : 'info', kind: 'asana', text: `${as.stuck_n} task${as.stuck_n === 1 ? '' : 's'} untouched 10+ days${t ? `: "${t.name}" in ${t.section}, ${t.idle} days` : ''}`, url: (t && t.url) || as.url }); }
+    if (as.stuck_n) { const t = as.stuck[0]; rs.push({ sev: as.stuck_n >= 4 ? 'warn' : 'info', kind: 'asana', text: `${as.stuck_n} task${as.stuck_n === 1 ? '' : 's'} stuck in the same stage 10+ days${t ? `: "${t.name}" in ${t.section} for ${t.idle} days` : ''}`, url: (t && t.url) || as.url }); }
   } else if (as && as.error) rs.push({ sev: 'info', kind: 'asana', text: `Asana could not be read: ${as.error}`, url: as.url });
   for (const al of (w && w.alerts) || []) if (al.act === a.act_id) rs.push({ sev: 'warn', kind: 'alert', text: `Alert fired ${new Date(al.fired).toLocaleString('en-US', { weekday: 'short', hour: 'numeric' })}: ${al.text.replace(/^Tell us when /, '').replace(/\.$/, '')}`, go: 'yesterday' });
   const order = { bad: 0, warn: 1, info: 2 };

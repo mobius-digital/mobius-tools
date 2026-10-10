@@ -216,6 +216,19 @@ await check('Home: /api/overview answers with the client\'s brand only, internal
   assert.equal(team.status, 200); assert.equal(team.j.accounts.length, 2, 'team still sees every brand');
 });
 
+await check('War Room live: a client may read its own brand Triple Whale day (never another or all); costs go while P&L is off', async () => {
+  assert.equal((await ah(CLIENT, 'GET', '/api/tw-day?act=brand_beta')).status, 403, 'another brand');
+  assert.equal((await ah(CLIENT, 'GET', '/api/tw-day?act=all')).status, 403, 'all');
+  assert.notEqual((await ah(CLIENT, 'GET', '/api/tw-day?act=brand_alpha')).status, 403, 'its own brand passes the guard');
+  const { CLIENT_RULES } = await import('./src/brandguard.js');
+  const rule = CLIENT_RULES.find(r => r.p === '/api/tw-day');
+  const day = () => ({ map: { netSales: 100, blendedAds: 20, orders: 3, totalProductCosts: 40, grossProfit: 60, totalPaymentGatewayCosts: 3 }, hours: { netSales: [1], totalProductCosts: [1] } });
+  const off = rule.post(day(), { pl: true, changes: false });
+  assert.deepEqual(Object.keys(off.map).sort(), ['blendedAds', 'netSales', 'orders'], 'P&L off: cost ids stripped');
+  assert.deepEqual(Object.keys(off.hours), ['netSales']);
+  assert.equal(Object.keys(rule.post(day(), { pl: false, changes: false }).map).length, 6, 'P&L on: the whole map');
+});
+
 await check('ads: a client may open its own ad, never another brand\'s', async () => {
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-video?ad=9002&mode=preview')).status, 403);
   assert.equal((await ah(CLIENT, 'GET', '/api/ad-breakdown?ad=9002&from=2026-09-01&to=2026-09-30')).status, 403);

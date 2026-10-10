@@ -639,7 +639,7 @@
   function liveBody(d) {
     const L = d.live;
     if (!L) return U().card('Live', '', '<p class="v2hint">Reading Triple Whale&hellip;</p>');
-    if (L.error) return U().card('Live numbers did not load', '', `<p class="v2bad">${esc(L.error)}</p><p class="v2hint">${isCl() ? 'Live numbers are read by the Mobius team during the sale. Your plan is on the Plan tab.' : 'Triple Whale answers the live call. Try Refresh in a minute.'}</p>`);
+    if (L.error) return U().card('Live numbers did not load', '', `<p class="v2bad">${esc(L.error)}</p><p class="v2hint">Triple Whale answers the live call. Try Refresh in a minute.</p>`);
     const T = L.today || {}, D = L.day || {}, g = d.ladder || {};
     const th = thDefaults(d);
     const pace = D.pace, ptone = pace == null ? '' : pace >= 1 ? 'good' : pace >= 0.85 ? 'warn' : 'bad';

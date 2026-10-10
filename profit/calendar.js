@@ -42,7 +42,7 @@
       .cal .cal-tile{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px 14px;display:grid;gap:3px;cursor:pointer;text-align:left;color:var(--ink);font:inherit}
       .cal .cal-tile:hover{border-color:var(--line-strong)} .cal .cal-tile .l{font-size:12px;color:var(--muted)} .cal .cal-tile .v{font-size:24px;font-weight:650;line-height:1.15}
       .cal .cal-tile .s{font-size:12px;color:var(--muted)} .cal .cal-tile.warn .v{color:var(--warn)}
-      .cal .cal-card{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:14px 16px;margin:0 0 14px;min-width:0}
+      .cal .cal-card{border:1px solid var(--line);border-radius:var(--r-lg,12px);background:var(--surface);padding:20px;margin:0 0 16px;min-width:0}
       .cal .cal-ch{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px} .cal .cal-ch h3{margin:0;font-size:13.5px;font-weight:650}
       .cal .cal-ch .cap{font-size:12px;color:var(--muted)} .cal .cal-ch .r{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .cal .cal-layer{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line-strong);border-radius:99px;font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;background:none;font-family:inherit}

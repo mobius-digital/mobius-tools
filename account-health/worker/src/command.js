@@ -7,9 +7,12 @@
  *       pending: [new client runs not finished], alerts: [alerts fired in the last 48 hours] }
  *
  * ASANA (each brand's linked project, connections kind 'asana'): the open tasks, read live and cached 30 minutes
- * per brand in settings `cmdasana2:<brand>`. OVERDUE = due_on before today (Central). STUCK = sitting in a working
- * section (not backlog, ideas, done, reference or the client's own tasks) with nothing changed for 10+ days
- * (Asana's modified_at; it has no "entered this section at", so untouched is the honest proxy). Five of each.
+ * per brand in settings `cmdasana3:<brand>`. OVERDUE = due_on before today (Central). STUCK = sitting in a working
+ * section (not backlog, ideas, done, reference or the client's own tasks) for 10+ days since it ENTERED that section
+ * (2026-10-10: modified_at undercounted because Locus's own sync bumps it). Stage entry = `cmdstage:<brand>` {task gid:
+ * {s: section, d: date}}: a task seen in the same section keeps its date, a task seen in a new section starts today,
+ * a task seen for the first time is looked up once in its stories (latest section_changed / added_to_project, else
+ * created_at; up to STAGE_LOOKUPS a refresh, oldest first; the rest wait for the next refresh). Five of each.
  * Paused and test brands are skipped (never flag them: Cole's rule, same list as hub.js SKIP_HUB).
  * PENDING = p_newclient rows (90 days old at most) with a step that is not done / skipped (the list that
  * used to sit in the New client modal as "Already started").
@@ -25,7 +28,8 @@ const CACHE_MS = 30 * 60 * 1000;
    counts for overdue (an onboarding link not done) but never for stuck. */
 const NOT_WORK = /backlog|idea|complete|done|archive|reference|resource|template|start here|client responsible|on hold|parked|untitled|analy[sz]e/i;
 const NOT_DUE = /backlog|idea|complete|done|archive|reference|resource|template|on hold|parked|untitled|analy[sz]e/i;
-const OVERDUE_DAYS = 60;   // due longer ago than this = abandoned, not overdue
+const OVERDUE_DAYS = 60;
+const STAGE_LOOKUPS = 12;   // stories reads per brand per refresh (each is one Asana call)   // due longer ago than this = abandoned, not overdue
 const NC_LABEL = { asana: 'Asana project', onboard: 'Onboarding link', drive: 'Drive folder', slack: 'Slack channels', frame: 'Frame project', stripe: 'First invoice', contract: 'Agreement', email: 'Welcome email', summary: 'Team summary' };
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const central = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -36,21 +40,40 @@ async function putSetting(env, key, v) { await env.DB.prepare(`INSERT INTO setti
 
 /** One brand's Asana project: overdue and stuck open tasks. */
 async function asanaFor(env, brand, gid, url, today, fresh) {
-  const key = `cmdasana2:${brand}`;
+  const key = `cmdasana3:${brand}`;
   const hit = fresh ? null : await getSetting(env, key);
   if (hit && hit.at && Date.now() - Date.parse(hit.at) < CACHE_MS && hit.gid === gid) return hit;
-  const opt = 'name,due_on,due_at,assignee.name,memberships.section.name,memberships.project.gid,modified_at,created_at,permalink_url';
+  const opt = 'gid,name,due_on,due_at,assignee.name,memberships.section.name,memberships.project.gid,modified_at,created_at,permalink_url';
   let tasks;
   try { tasks = await asanaAll(env, `/projects/${gid}/tasks?completed_since=now&opt_fields=${opt}`); }
   catch (e) { return { gid, url, error: e.message, overdue: [], stuck: [], open: 0, at: new Date().toISOString() }; }
   const row = t => {
     const section = (t.memberships || []).find(m => m.project?.gid === gid)?.section?.name || '';
-    return { name: String(t.name || '').slice(0, 140), section, who: t.assignee?.name || null, url: t.permalink_url || null, due: t.due_on || (t.due_at ? String(t.due_at).slice(0, 10) : null), touched: t.modified_at ? String(t.modified_at).slice(0, 10) : null };
+    return { name: String(t.name || '').slice(0, 140), section, who: t.assignee?.name || null, url: t.permalink_url || null, due: t.due_on || (t.due_at ? String(t.due_at).slice(0, 10) : null), touched: t.modified_at ? String(t.modified_at).slice(0, 10) : null, gid: t.gid, created: t.created_at ? String(t.created_at).slice(0, 10) : null };
   };
   const all = (tasks || []).filter(t => String(t.name || '').trim() && !/^\u{1F4CC}/u.test(String(t.name || '').trim())).map(row);
   const overdue = all.filter(t => t.due && t.due < today && !NOT_DUE.test(t.section)).map(t => ({ ...t, late: daysSince(t.due, today) })).filter(t => t.late <= OVERDUE_DAYS).sort((a, b) => b.late - a.late);
-  const stuck = all.filter(t => !(t.due && t.due < today) && t.section && !NOT_WORK.test(t.section) && t.touched && daysSince(t.touched, today) >= 10)
-    .map(t => ({ ...t, idle: daysSince(t.touched, today) })).sort((a, b) => b.idle - a.idle);
+  /* When did each working task enter its section? */
+  const work = all.filter(t => !(t.due && t.due < today) && t.section && !NOT_WORK.test(t.section));
+  const prev = (await getSetting(env, `cmdstage:${brand}`)) || {};
+  const stage = {}, ask = [];
+  for (const t of work) {
+    const p = prev[t.gid];
+    if (p && p.s === t.section) stage[t.gid] = p;
+    else if (p) stage[t.gid] = { s: t.section, d: today };
+    else ask.push(t);
+  }
+  ask.sort((a, b) => String(a.created || '').localeCompare(String(b.created || '')));
+  await Promise.all(ask.slice(0, STAGE_LOOKUPS).map(async t => {
+    try {
+      const st = await asanaAll(env, `/tasks/${t.gid}/stories?opt_fields=resource_subtype,created_at`);
+      const hit = st.filter(x => x.resource_subtype === 'section_changed' || x.resource_subtype === 'added_to_project').map(x => String(x.created_at || '').slice(0, 10)).filter(Boolean).sort().pop();
+      stage[t.gid] = { s: t.section, d: hit || t.created || today };
+    } catch {}
+  }));
+  if (work.length) await putSetting(env, `cmdstage:${brand}`, stage);
+  const stuck = work.filter(t => stage[t.gid] && daysSince(stage[t.gid].d, today) >= 10)
+    .map(t => ({ ...t, idle: daysSince(stage[t.gid].d, today), since: stage[t.gid].d })).sort((a, b) => b.idle - a.idle);
   const out = { gid, url, open: all.length, overdue_n: overdue.length, stuck_n: stuck.length, overdue: overdue.slice(0, 5), stuck: stuck.slice(0, 5), at: new Date().toISOString() };
   await putSetting(env, key, out);
   return out;
