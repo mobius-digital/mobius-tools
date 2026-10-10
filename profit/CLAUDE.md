@@ -2707,3 +2707,17 @@ cadence cards were hard to read, and Overview vs Campaigns looked the same. All 
 - Local check recipe used (no shared browser pane): own static server + `wrangler dev --remote` profit / account-health on
   spare ports, headless Chrome driven over CDP from node (scratch scripts), light, dark and 375 wide. The tag tables also
   fixed a page that was 486-525px wide on a phone.
+
+## 2026-10-10: Launch to Meta (`launch.js`)
+
+- An approved Studio ad shows **Launch to Meta** (studio.js adCard, `data-launch`). The in-app window (launch.js,
+  `window.LaunchToMeta.open`) shows the ad, its test, the ad set picker (suggested first, with why), the name preview
+  ("415 B | Still", editable), primary text, headline, button, link, description; **Check it (dry run)** shows the ad
+  set before and after, then **Create paused**. Afterwards: Open in Ads Manager, Undo (existing /api/meta/undo),
+  Turn it on now (existing /api/meta/write kind resume, dry first, then confirm).
+- Status chips (Live on Meta / On Meta, paused / In review / Rejected / Judged: Winner...) on the Studio ad card and
+  on test library rows (`.lb-row[data-b]` in brand.js, decorated by a MutationObserver in launch.js; brand.js untouched).
+  Click a chip = status window (Check status now reads Meta live). Studio calls `LaunchToMeta.watch(act, tok, paint)`.
+- Server and rules: account-health/CLAUDE.md "2026-10-10: Launch to Meta". Creator assets: `open({act, asset: {image_url |
+  video_id, handle, num}})` works, but no screen calls it yet. NOT tested live (the window was checked only against a
+  mocked API in a local page).

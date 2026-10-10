@@ -57,6 +57,7 @@ import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klavi
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
+import { handleLaunch } from './launch.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7369,6 +7370,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           await env.DB.prepare(`UPDATE ${t} SET ${m[0]} = ?2 WHERE ${k} = ?1`).bind(String(id), m[1](v)).run().catch(() => {});
         }
       }
+    }
+    /* ---- Launch to Meta (2026-10-10, src/launch.js): an approved Studio ad or a creator asset becomes a PAUSED
+       Meta ad through metawrite meta_create_ad, named "<test> <letter> | <Format>", tied to its test. Admin + brandsFor. */
+    {
+      const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting } });
+      if (r) return r;
     }
     /* ---- Export > Send to Slack (Locus share.js, 2026-10-09) ----
        A picture of one Locus card into the brand's OWN internal (slack_channel) or client (brief_channel) channel.

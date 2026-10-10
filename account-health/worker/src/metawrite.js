@@ -419,7 +419,7 @@ const createAdAction = d => ({
     const cr = await gpost(d, env, `${p.act}/adcreatives`, { name: p.ad_name, object_story_spec: spec });
     const ad = await gpost(d, env, `${p.act}/ads`, { name: p.ad_name, adset_id: p.id, creative: { creative_id: cr.id }, status: p.status });
     const wid = await record(env, { ...p, level: 'ad', name: p.ad_name }, ctx, { before: null, after: { created: ad.id, creative: cr.id }, object: ad.id, summary: `New ad "${p.ad_name}" in "${p.name}" (${p.status})`, category: 'new_creative' });
-    return { ok: true, note: `Ad "${p.ad_name}" made (${ad.id}), ${p.status}. Ads Manager: https://adsmanager.facebook.com/adsmanager/manage/ads?act=${p.act.replace('act_', '')}&selected_ad_ids=${ad.id} (undo: ${wid}).` };
+    return { ok: true, write: wid, created: ad.id, creative: cr.id, note: `Ad "${p.ad_name}" made (${ad.id}), ${p.status}. Ads Manager: https://adsmanager.facebook.com/adsmanager/manage/ads?act=${p.act.replace('act_', '')}&selected_ad_ids=${ad.id} (undo: ${wid}).` };
   },
 });
 
@@ -765,4 +765,6 @@ export async function metaLive(env, d, brandId) {
   out.can = out.accounts.some(a => a.can);
   return out;
 }
+/* Read helpers for launch.js (Launch to Meta, 2026-10-10): the same Graph reads and the brand's Meta accounts. */
+export { gget, gall, metaActs };
 export const _test = { findObject, driveIdOf, targetingSummary, WRITE_SQL, resetTable: () => { tabled = false; } };

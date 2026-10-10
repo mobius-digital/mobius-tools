@@ -722,9 +722,11 @@ function adCard(a) {
     : `<span class="v2pill warn"${tip(`${sz.issue}. The Stories or Reels buttons may cover them.`)}>9:16 words near the buttons</span>`;
   const pills = chk + zone + szp;
   const tags = [a.line != null ? `<span class="st-tag">Ad ${a.line + 1}</span>` : '', appr ? '<span class="st-tag ok"><i></i>Approved</span>' : ''].join('');
+  /* Launch to Meta (2026-10-10, launch.js): the launched ad's status from Meta, and the button on approved ads. */
+  const ln = window.LaunchToMeta ? window.LaunchToMeta.chip(a.id) : '';
   return `<div class="st-ad ${appr ? 'ok' : ''}"><div class="pic" data-zoom="${a.id}" title="Open it large"><img src="${esc(shown(a))}" alt="${esc(s.headline || 'Ad')}" loading="lazy"><div class="tags">${tags}</div></div>
-    <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${pills ? `<div class="pills">${pills}</div>` : ''}${ck?.ok === false && ck.issue ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
-      <div class="act1">${appr ? `<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}<button class="btn" data-change="${a.id}" title="Say what to change and only that changes. About 25 cents.">Change with AI</button><button class="btn" data-redo="${a.id}" title="Make this one again from the plan. The old one goes to Deleted.">Redo</button></div>
+    <div class="meta"><b>${esc(s.headline || s.product || '')}</b>${pills || ln ? `<div class="pills">${ln}${pills}</div>` : ''}${ck?.ok === false && ck.issue ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
+      <div class="act1">${appr ? `${window.LaunchToMeta ? `<button class="btn primary" data-launch="${a.id}" title="Make it in Meta, paused, in the test's ad set. You check a dry run first.">${window.LaunchToMeta.launched(a.id) ? 'Launch again' : 'Launch to Meta'}</button>` : ''}<button class="btn" data-unapprove="${a.id}">Unapprove</button>` : `<button class="btn primary" data-approve="${a.id}">Approve</button>`}<button class="btn" data-change="${a.id}" title="Say what to change and only that changes. About 25 cents.">Change with AI</button><button class="btn" data-redo="${a.id}" title="Make this one again from the plan. The old one goes to Deleted.">Redo</button></div>
       ${vidStrip(a)}
       <div class="act2"><button class="v2link" data-vid="${a.id}" title="Turn this ad into an 8-second vertical video">Make video</button><button class="v2link" data-dl="${a.id}">Download</button>${s.story || s.tall ? `<button class="v2link" data-dl9="${a.id}" title="The tall version for Stories and Reels">Download 9:16</button><button class="v2link" data-st9="${a.id}" title="Make the 9:16 again. About ${Math.round(STORY_COST * 100)} cents.">Redo 9:16</button>` : `<button class="v2link" data-st9="${a.id}" title="The same ad laid out tall for Stories and Reels, words kept clear of their buttons. About ${Math.round(STORY_COST * 100)} cents.">Make 9:16</button>`}<button class="v2link del" data-del="${a.id}" title="Take it out of the batch">Delete</button></div></div></div>`;
 }
@@ -1308,6 +1310,8 @@ function wireAds() {
   const setStatus = async (id, status) => { const r = await post('/api/studio/status', { id, status }); Object.assign(S.d.ads.find(a => a.id === id), r.ad); paint(); };
   document.querySelectorAll('[data-approve]').forEach(x => x.onclick = () => setStatus(x.dataset.approve, 'approved'));
   document.querySelectorAll('[data-unapprove]').forEach(x => x.onclick = () => setStatus(x.dataset.unapprove, 'review'));
+  document.querySelectorAll('[data-launch]').forEach(x => x.onclick = () => window.LaunchToMeta.open({ act: S.act, tok: S.tok, studioAd: x.dataset.launch, onDone: paint }));
+  window.LaunchToMeta?.watch(S.act, S.tok, paint);
   document.querySelectorAll('[data-del]').forEach(x => x.onclick = () => setStatus(x.dataset.del, 'deleted'));
   document.querySelectorAll('[data-dl]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl)));
   document.querySelectorAll('[data-dl9]').forEach(x => x.onclick = () => download(S.d.ads.find(a => a.id === x.dataset.dl9), S.cur, 'story'));
