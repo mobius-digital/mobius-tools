@@ -97,7 +97,7 @@
     if (!d.ledger.ok) notes.push(`<b>The Ledger did not answer</b>, so what clients paid shows as $0. ${esc(d.ledger.error || '')}`);
     if (!d.people_set) notes.push('<b>Team cost is not set yet.</b> Press <b>Set people\'s costs</b> and enter what each person costs a month; until then margins leave team time out.');
     if ((d.asana_errors || []).length) notes.push(`<b>Asana did not answer for</b> ${d.asana_errors.map(x => esc(x.brand)).join(', ')}, so their team time is missing. ${esc(d.asana_errors[0].error)}`);
-    const aiTip = r => U().tipAttr(`<b>${esc(r.name)}: AI</b><br>Strategist ${usd2(r.ai.strategist)}<br>Ideas bot ${usd2(r.ai.ideas)}<br>Studio ${usd2(r.ai.studio)}<br>Creative tagging ${usd2(r.ai.tagging)}<br>Client Strategist ${usd2(r.ai.client_ask)}`);
+    const aiTip = r => U().tipAttr(`<b>${esc(r.name)}: AI</b><br>Locus ${usd2(r.ai.strategist)}<br>Ideas bot ${usd2(r.ai.ideas)}<br>Studio ${usd2(r.ai.studio)}<br>Creative tagging ${usd2(r.ai.tagging)}<br>Client Locus ${usd2(r.ai.client_ask)}`);
     const tr = rows.map(r => `<tr>
       <td><b>${esc(r.name)}</b>${r.asana ? '' : ' <span class="ag-est">no Asana project</span>'}</td>
       <td>${usd(r.revenue)}</td><td>${r.tasks || 0}</td><td>${r.hours ? r.hours.toLocaleString('en-US') : '·'}</td>
@@ -127,7 +127,7 @@
       ${U().card('Per client', `${esc(d.label)}${d.current ? ', so far' : ''}. Hover the AI number for where it went.`, table)}
       ${unmatched ? U().card('Ledger names to match', 'These payments are in the Ledger but no client has that name. Pick who each one is; it is remembered.', `<div class="ag-map">${unmatched}</div><p style="margin:14px 0 0"><button type="button" class="ds-btn primary" id="agMapSave">Save matches</button> <span class="v2hint" id="agMapMsg"></span></p>`) : ''}
       ${U().card('Team', 'Who finished tasks in client projects this month, and what each person costs.', ppl ? `<div class="ag-ppl">${ppl}</div>` : '<p class="v2hint">No completed Asana tasks in a client project this month.</p>')}
-      ${U().foot(`${esc(d.model)} Work outside client projects is not seen, so the whole month lands on clients. Hours default to ${d.hours_default} a month. AI = the Strategist (with its images, PDFs and analysis), the ideas bot, Studio images, videos and photo looks, creative tagging and the client Strategist. Paid Mobius = income in the Ledger for the month, matched to clients by name${pinned ? ` (${pinned} name${pinned === 1 ? '' : 's'} matched by hand)` : ''}.`)}`);
+      ${U().foot(`${esc(d.model)} Work outside client projects is not seen, so the whole month lands on clients. Hours default to ${d.hours_default} a month. AI = Locus (with its images, PDFs and analysis), the ideas bot, Studio images, videos and photo looks, creative tagging and the client Locus. Paid Mobius = income in the Ledger for the month, matched to clients by name${pinned ? ` (${pinned} name${pinned === 1 ? '' : 's'} matched by hand)` : ''}.`)}`);
     $('#agMonth').onchange = e => { ECON_M = e.target.value; economics(true); };
     $('#agFresh').onclick = () => economics(true, true);
     $('#agPeople').onclick = () => peopleModal(d);

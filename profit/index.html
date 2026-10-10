@@ -667,7 +667,7 @@
   .ds-note p{margin:0;font-size:14.5px;line-height:1.55}
   @media (max-width:720px){.ovd-cols{grid-template-columns:minmax(0,1fr)}}
   @media (max-width:520px){.ovd-go{display:none}}
-  /* The Strategist card with nothing to say is one line, so it never pushes the
+  /* Locus card with nothing to say is one line, so it never pushes the
      numbers below the fold. Its markup comes from ask-ui.js; renderOverview's
      wrapper swaps in the short form. */
   #main .askcard.loading{padding:10px 16px;margin-bottom:14px}
@@ -1183,7 +1183,7 @@
   .brow-grp.brow-danger{border-color:color-mix(in srgb,var(--bad) 30%,var(--line))}
   .brow-grp.brow-danger .brow-gh b{color:var(--bad)}
   .brow .btn-s{font-size:12px;padding:5px 10px}
-  /* The Strategist card (ask-ui.js) brings its own markup; give it the same rhythm. */
+  /* Locus card (ask-ui.js) brings its own markup; give it the same rhythm. */
   #askSet .lbl{display:block;font-weight:700;font-size:13.5px;margin:16px 0 2px}
   #askSet .lbl .why{display:block;font-weight:400;font-size:12.5px;color:var(--muted);margin-top:2px}
   #askSet textarea{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.5;background:var(--surface);color:var(--ink);margin-top:6px;resize:vertical}
@@ -1820,7 +1820,7 @@
   .rp-ks{font-size:11px;color:var(--on-ink-2);display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;line-height:1.5}
   .rp-kpi .info-i{border-color:var(--ink-panel-2);color:var(--on-ink-2)}
   .rp-two{gap:11px}
-  /* Phone width: the Strategist card (shared ask.css) and this grid pushed the page sideways. */
+  /* Phone width: Locus card (shared ask.css) and this grid pushed the page sideways. */
   .two>*{min-width:0}   /* a table inside a column must scroll in its own box, not widen the page */
   .askcard{min-width:0}
   .askcard .brief,.askcard .find .ft{overflow-wrap:anywhere}
@@ -2190,7 +2190,7 @@
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
-<script src="strategist.js?v=3"></script>
+<script src="strategist.js?v=4"></script>
 <body>
 <!-- The Mobius strip on first paint (DESIGN.md section 7): an overlay that ignores the pointer and is gone within 1.5s. -->
 <mobius-loader mode="load"></mobius-loader>
@@ -2243,7 +2243,7 @@
       <div class="hd-period lc-me" id="pfMe">
         <button type="button" class="lc-me-btn" id="pfMeBtn" aria-haspopup="true"><span class="lc-av" id="pfAv">M</span><span class="lc-me-t"><b id="pfMeName">Mobius Digital</b><small id="pfMeMail">Agency settings</small></span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 5l4-4 4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
         <div class="hd-per-menu lc-me-menu" role="menu">
-          <button type="button" role="menuitem" data-me="agency">Agency settings<small>Team, Slack timing, the Strategist, connections made once</small></button>
+          <button type="button" role="menuitem" data-me="agency">Agency settings<small>Team, Slack timing, Locus, connections made once</small></button>
           <button type="button" role="menuitem" data-me="clients">Clients<small>Every brand, and + New client</small></button>
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
           <button type="button" role="menuitem" data-me="profile" hidden>Your profile<small>Your name, your brands, sign out</small></button>
@@ -2266,7 +2266,7 @@
     <div class="topbar">
       <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="side" aria-expanded="false"><svg class="li ni" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg></button>
       <div class="hd-title" id="hdTitle"></div>
-      <div class="v2ask" id="v2ask" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg><input id="v2askIn" type="text" autocomplete="off" spellcheck="false" aria-label="Ask the Strategist, or jump to a page or a brand" placeholder="Ask anything, or jump to a page or brand"><kbd>Ctrl K</kbd><div class="v2ask-pop" id="v2askPop" hidden></div></div>
+      <div class="v2ask" id="v2ask" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg><input id="v2askIn" type="text" autocomplete="off" spellcheck="false" aria-label="Ask Locus, or jump to a page or a brand" placeholder="Ask anything, or jump to a page or brand"><kbd>Ctrl K</kbd><div class="v2ask-pop" id="v2askPop" hidden></div></div>
       <div class="hd-right">
         <div class="hd-actions" id="hdActions"></div>
         <div class="hd-today" id="hdToday" hidden title="So far today, live from Triple Whale; refreshed each time a page opens"></div>
@@ -2304,20 +2304,20 @@
 <script src="../onboard/questions.js?v=9"></script>
 <script src="brand.js?v=23"></script>
 <script src="newclient.js?v=16"></script>
-<script src="clients.js?v=3"></script>
+<script src="clients.js?v=4"></script>
 <script src="requests.js?v=1"></script>
 <script src="expenses.js?v=1"></script>
 <script src="studio.js?v=30"></script>
-<script src="launch.js?v=1"></script>
+<script src="launch.js?v=2"></script>
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=11"></script>
-<script src="command.js?v=2"></script>
-<script src="v2.js?v=42"></script>
-<script src="desk.js?v=15"></script>
-<script src="agency.js?v=1"></script>
-<script src="calendar.js?v=9"></script>
-<script src="supply.js?v=3"></script>
-<script src="askextra.js?v=2"></script>
+<script src="command.js?v=3"></script>
+<script src="v2.js?v=43"></script>
+<script src="desk.js?v=16"></script>
+<script src="agency.js?v=2"></script>
+<script src="calendar.js?v=10"></script>
+<script src="supply.js?v=4"></script>
+<script src="askextra.js?v=3"></script>
 <script src="share.js?v=3"></script>
 <script src="survey.js?v=1"></script>
 <script src="polish.js?v=2" defer></script>
@@ -3062,7 +3062,7 @@ Object.assign(PAGE_BRIEF, {
   inspo: { answers: 'Other brands’ ads saved as inspiration.', when: 'When briefing new creative.', todo: 'Browse the boards and use Brief one like it on anything worth borrowing.' },
   brief: { answers: 'Yesterday’s numbers written up for the client, ready to send.', when: 'Every morning.', todo: 'Read it, add What we did, then Send to client.' },
   reports: { answers: 'The weekly and monthly client reports.', when: 'Monday for weekly, the 1st for monthly.', todo: 'Read the draft, fix anything wrong, then Send.' },
-  dash: { answers: 'Saved views you or the Strategist built, which can post to Slack on a schedule.', when: 'Whenever you want the same view again.', todo: 'Open one, or ask the Strategist to build one.' },
+  dash: { answers: 'Saved views you or Locus built, which can post to Slack on a schedule.', when: 'Whenever you want the same view again.', todo: 'Open one, or ask Locus to build one.' },
   costs: { answers: 'Whether the brand’s cost data can be trusted, so profit numbers are real.', when: 'When contribution margin looks wrong.', todo: 'Fix costs in Triple Whale, or set a flat margin here.' },
   health: { answers: 'Whether each brand’s data is complete and syncing.', when: 'When a number looks wrong.', todo: 'Fix anything marked broken before trusting that brand’s numbers.' },
   guide: { answers: 'How the team uses Locus, step by step for each role.', when: 'Your first week, or when you forget where something lives.', todo: 'Follow your role’s steps; each has an Open button.' },
@@ -3360,11 +3360,11 @@ const TAB_PURPOSE = {
   studio:    'Make a batch of ads from a brief: the AI drafts the whole ad, you fix only what you want, then it goes to Canva.',
   costs:     'Whether a client’s cost data can be trusted. Everything profit-related depends on the answer, so check it here when a warning appears.',
   health:    'Whether Triple Whale still agrees with the ad platforms. Green means this morning’s numbers are safe to send; red tells you what broke and what to press.',
-  settings:  'Set up each brand, how briefs reach Slack, the Strategist, who can sign in, and the jobs that run in the background.',
+  settings:  'Set up each brand, how briefs reach Slack, Locus, who can sign in, and the jobs that run in the background.',
   google:    'Google Ads for this brand: what Triple Whale sees today (spend and attributed revenue), and what connecting Google directly adds.',
   tiktok:    'TikTok Ads for this brand: what Triple Whale sees today, and what connecting TikTok directly adds.',
   email:     'Email and SMS for this brand: how much of the store\'s revenue email makes, campaigns against flows, the list, and what Klaviyo is running.',
-  dash:      'Your own views of the numbers. Build one by hand or ask the Strategist in words; it draws live every time it opens and can post itself to Slack.',
+  dash:      'Your own views of the numbers. Build one by hand or ask Locus in words; it draws live every time it opens and can post itself to Slack.',
   stock:     'Is the stock there for what we advertise: what to ease off in ads, what is safe to scale, what to push because it sits. Read every hour from Shopify; products tied to ad spend through Triple Whale orders.',
   buying:    'What to order from each factory, how many and by when, and every order on its way. Only on brands we buy stock for.',
   drops:     'New designs by the day they go on the site: every brief, tech pack, sample and order date worked back from it, keep or cut per group, and the Asana cards. Only on brands that design their own products.',
@@ -3377,7 +3377,7 @@ const SET_SECS = [
   ['team', 'Team and access', 'Who can sign in to Locus, whether they can change things or only look, and which brands each person sees.'],
   ['links', 'Shared links', 'Every public link made from an Export menu: who made it, how often it was opened, when it expires. Copy one or turn it off.'],
   ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack. Each brand’s own posts are in its brand settings.'],
-  ['strategist', 'The Strategist', 'What the AI Strategist knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
+  ['strategist', 'Ask Locus', 'What Locus knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['system', 'Data and jobs', 'Whether the automatic syncs and sends are running, which brand’s data is stale, and one-off data fixes.'],
 ];
 /* The last two entries of the same list are whole pages, not sections: they open
@@ -3509,7 +3509,7 @@ const TOURS = {
     { sel: '#tabs [data-grp="ads"]', title: 'Ads', body: 'One tab per platform with its logo: <b>Meta</b>, <b>Google</b>, <b>TikTok</b> and <b>All channels</b>. Meta adds a second row: Overview, Campaigns, Creative, Tests and Changes.' },
     { sel: '#hdModel', title: 'Whose credit?', body: 'On Ads screens this menu picks who gets credit for an order: a Triple Whale model or the platform itself. Spend and delivery are always the platform’s own.' },
     { sel: '#tabs [data-grp="creative"]', title: 'Creative', body: '<b>Tests and angles</b> is what we tested and what won. <b>Studio</b> makes a batch of ads from a brief. <b>Brand</b> is who buys and how they talk. <b>Copy desk</b> writes in their voice. <b>Creator link</b> is the page creators read.' },
-    { sel: '#tabs [data-grp="reports"]', title: 'Reports', body: '<b>Daily Brief</b> and <b>Weekly and monthly</b> go to clients. <b>Dashboards</b> are yours: build one by hand or ask the Strategist, and it can post itself to Slack. <b>Settings</b>, at the bottom of the menu, holds brands, connections, goals and the team.' },
+    { sel: '#tabs [data-grp="reports"]', title: 'Reports', body: '<b>Daily Brief</b> and <b>Weekly and monthly</b> go to clients. <b>Dashboards</b> are yours: build one by hand or ask Locus, and it can post itself to Slack. <b>Settings</b>, at the bottom of the menu, holds brands, connections, goals and the team.' },
     { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
@@ -3560,7 +3560,7 @@ const TOURS = {
   ] },
 
   settings: { name: 'Settings', steps: [
-    { sel: '#setNav', title: 'One menu for all of Settings', body: 'Settings is split into sections: <b>Brands</b>, <b>Briefs and Slack</b>, <b>The Strategist</b>, <b>Team</b>, <b>Jobs and data</b> and <b>Guided tours</b>. Pick one here; it remembers where you were. <b>Data health</b> and <b>Costs</b> at the end open their own pages, each with a link back to Settings.' },
+    { sel: '#setNav', title: 'One menu for all of Settings', body: 'Settings is split into sections: <b>Brands</b>, <b>Briefs and Slack</b>, <b>Locus</b>, <b>Team</b>, <b>Jobs and data</b> and <b>Guided tours</b>. Pick one here; it remembers where you were. <b>Data health</b> and <b>Costs</b> at the end open their own pages, each with a link back to Settings.' },
     { sel: '#ncOpen', title: 'A new client starts here', body: '<b>+ New client</b> sets a brand-new client up everywhere. <b>+ Add a brand</b> beside it is for a client whose Meta ad account Locus can already see.' },
     { sel: '.brow', title: 'One row per brand', body: 'Open a row and everything about that brand is in it, in groups: the brand, its goals, Slack and sending, money, and data repairs. The line on the right tells you what is still missing.' },
   ] },
@@ -5380,7 +5380,7 @@ function renderModelMenu(tab) {
 
 /* ---------- The ask bar (2026-10-08) ----------
    Top of every screen, like Triple Whale's Moby: focus it for questions that fit the page you
-   are on, type to jump to any page or brand, Enter to ask the Strategist. Ctrl/Cmd+K focuses it. */
+   are on, type to jump to any page or brand, Enter to ask Locus. Ctrl/Cmd+K focuses it. */
 const ASK_SUGGEST = {
   calendar: ['What goes live for {b} in the next two weeks?', 'What is late for Black Friday?', 'Which clients have nothing planned next month?', 'Did {b}’s last sale work?'],
   yesterday: ['Was yesterday a bad day on Meta?', 'How many bad Meta days this month?', 'Did our brands follow the market yesterday?', 'Should we hold changes today?'],
@@ -5446,7 +5446,7 @@ function askPaint() {
   else {
     const pages = askPages().filter(p => `${p.label} ${p.where}`.toLowerCase().includes(t)).slice(0, 6);
     const brands = [{ act_id: 'all', name: 'All clients' }, ...S.accounts].filter(a => a.name.toLowerCase().includes(t)).slice(0, 4).map(a => ({ kind: 'brand', id: a.act_id, label: a.name }));
-    const ask = { kind: 'ask', label: `Ask the Strategist: “${q}”`, q };
+    const ask = { kind: 'ask', label: `Ask Locus: “${q}”`, q };
     /* Any Meta campaign or ad by name (hub /api/hub/find), fetched as you type. */
     if (t.length >= 3 && ASKB.q !== t) { ASKB.q = t; clearTimeout(ASKB.timer); ASKB.timer = setTimeout(() => api(`/api/hub/find?act=${encodeURIComponent(S.act)}&q=${encodeURIComponent(q)}`).then(r => { if (ASKB.q === t) { ASKB.found = r.items || []; if (document.activeElement === inp) askPaint(); } }).catch(() => {}), 220); }
     const found = t.length >= 3 ? ASKB.found.map(x => ({ ...x, where: `${x.kind === 'camp' ? 'Campaign' : 'Ad'} · ${x.brand || ''}` })) : [];
@@ -5984,7 +5984,7 @@ function ovTodayHtml(n) {
       ${line(n && n.calls, 'tests need a call', 'test needs a call', 'No tests need a call', 'Make the test calls', 'tests', 'Open Test calls')}
       ${line(n && n.reports, 'reports waiting to send', 'report waiting to send', 'No reports waiting to send', 'Read and send the reports', 'reports', 'Open Reports')}
     </div>`;
-  const strat = `<div class="ovd-col"><div class="ovd-who">Strategist</div>
+  const strat = `<div class="ovd-col"><div class="ovd-who">Locus</div>
       ${line(n && n.making, 'tests being made in Asana', 'test being made in Asana', 'No tests being made in Asana', 'Tests being made are in Asana', null)}
       ${line(n && n.drafts, 'research drafts to approve', 'research draft to approve', 'No research drafts to approve', 'Approve the research drafts', 'brand', 'Open Brand')}
       <button class="ovd-line" type="button" data-go="angles"><span class="ovd-n"></span><span class="ovd-t">Check an idea before you brief it</span><span class="ovd-go">Open Angles</span></button>
@@ -6091,7 +6091,7 @@ function deltaPill(cur, prev, lower) {
   return `<span class="hm-d ${tone}" title="Against ${esc(CMP_LABEL[S.cmp] || 'the compare period')}">${p > 0 ? '+' : ''}${p}%</span>`;
 }
 
-/** The read card: a skeleton until the Strategist answers, then three lines, the
+/** The read card: a skeleton until Locus answers, then three lines, the
  *  leaks and the focus. `r` = the /api/read answer, or null while loading, or {error}. */
 function ovReadHtml(r) {
   const ask = `<button class="btn hm-ask" type="button" id="ovAsk">Ask about this</button>`;
@@ -6539,7 +6539,7 @@ async function renderPlatform(kind, first) {
 }
 
 /* ---------- Dashboards (the hub, phase 2, 2026-10-07) ----------
-   A dashboard the team asked for in chat and kept. The Strategist writes the spec
+   A dashboard the team asked for in chat and kept. Locus writes the spec
    (save_dashboard), this screen draws it live from /api/overview over the dashboard's
    own range and compare period, and the account-health hourly tick posts it to Slack on
    its schedule. Blocks: tiles, brands, channels, daily, email, note. The list shows the
@@ -6657,23 +6657,23 @@ function dashBlockHtml(b, all, spec, cur) {
     return `<div class="ds-blk">${h ? `<div class="ds-h">${h}</div>` : ''}<div class="lx-t3 ds-tiles">${tiles}</div></div>`;
   }
   if (b.type === 'note') return `<section class="v2card ds-note">${h ? `<div class="v2h">${h}</div>` : ''}<p class="v2say">${esc(b.text || '')}</p></section>`;
-  /* A Strategist answer pinned from the chat (askextra.js): frozen as of its date, with Refresh. */
+  /* A Locus answer pinned from the chat (askextra.js): frozen as of its date, with Refresh. */
   if (b.type === 'chart') return window.AskX ? AskX.chartBlock(b) : '';
   /* A view saved from Ads > Creative (2026-10-09): drawn after paint by v2.js (V2.adsBlock). */
   if (b.type === 'ads') return `<section class="v2card" data-adsblk="${esc(JSON.stringify(b))}" data-q="${esc(dashQuery(spec))}"><div class="v2h"><h3>${esc(b.title || 'Ads')}</h3>${rl}</div><p class="v2hint">Loading the ads&hellip;</p></section>`;
   return '';
 }
 /* BUILD OR EDIT A DASHBOARD BY HAND (rebuilt 2026-10-09 after Cole: "really badly formatted, barely any options,
-   uses arrows to reorder"). The front door is now "Ask the Strategist" at the top of Dashboards; this is the hand
+   uses arrows to reorder"). The front door is now "Ask Locus" at the top of Dashboards; this is the hand
    editor behind it: a full sheet, the settings and the blocks on the left, the dashboard drawn LIVE on the right.
    Blocks reorder by their grip (pointer drag, or focus the grip and press the arrow keys). Every option the spec
    allows is here: name, for, brand, range, compare, block titles, up to 8 metrics per tile row and 8 columns per
    brand table (in the order picked), note text, and a saved ads view's sort, size and grouping. Dates: one range
    for the dashboard, and since 2026-10-10 each data block can have its own ("Dates: same as the dashboard / its
    own" inside the block; `dates` on the block, cleanSpec in worker/src/dashboard.js keeps it).
-   Same spec the Strategist writes, saved through PUT /api/dashboard. */
+   Same spec Locus writes, saved through PUT /api/dashboard. */
 const DASH_BLOCK_L = { tiles: 'Number tiles', brands: 'One row per brand', channels: 'Where the money came from', daily: 'Revenue and spend by day', email: 'Email and SMS', note: 'A note' };
-const DASH_BLOCK_HELP = { tiles: 'Up to 8 headline numbers, each against the compare period.', brands: 'A table, one row per brand, up to 8 columns.', channels: 'Revenue and spend split by platform.', daily: 'Revenue against ad spend, day by day.', email: 'Email and SMS revenue and its share of the store.', note: 'A sentence or two the reader should know.', chart: 'A Strategist answer pinned from the chat.', ads: 'A saved view of one brand’s ads.' };
+const DASH_BLOCK_HELP = { tiles: 'Up to 8 headline numbers, each against the compare period.', brands: 'A table, one row per brand, up to 8 columns.', channels: 'Revenue and spend split by platform.', daily: 'Revenue against ad spend, day by day.', email: 'Email and SMS revenue and its share of the store.', note: 'A sentence or two the reader should know.', chart: 'A Locus answer pinned from the chat.', ads: 'A saved view of one brand’s ads.' };
 const DASH_BLOCK_IC = { tiles: 'layout-grid', brands: 'users', channels: 'chart-column', daily: 'chart-line', email: 'mail', note: 'file-text', chart: 'sparkles', ads: 'image' };
 const DASH_ADS_SORT = { spend: 'Spend', purchases: 'Purchases', roas: 'ROAS', cpa: 'CPA', hook: 'Hook rate', hold: 'Hold rate', ctr: 'CTR', ltv: 'Customer value', newest: 'Newest' };
 const DASH_GRIP = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="5" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="9" cy="19" r="1.3"/><circle cx="15" cy="5" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="15" cy="19" r="1.3"/></svg>';
@@ -6707,7 +6707,7 @@ function dashEditor(d) {
     if (b.type === 'ads') x += `<div class="de-row3"><label class="de-f"><span>Sort by</span><select data-bs="${i}">${Object.entries(DASH_ADS_SORT).map(([k, l]) => `<option value="${k}"${(b.sort || 'spend') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="de-f"><span>How many</span><select data-bnn="${i}">${[4, 6, 8, 12, 16].map(n => `<option${(+b.n || 8) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="de-f de-tog"><span>One card per creative</span><input type="checkbox" class="lx-sw" data-bg="${i}"${b.group ? ' checked' : ''}></label></div>`;
-    if (b.type === 'chart') x += `<p class="de-help">Pinned from the chat${b.question ? `: "${esc(b.question)}"` : ''}. Ask the Strategist again to change what it shows.</p>`;
+    if (b.type === 'chart') x += `<p class="de-help">Pinned from the chat${b.question ? `: "${esc(b.question)}"` : ''}. Ask Locus again to change what it shows.</p>`;
     if (DASH_DATED.has(b.type)) {
       const o = b.dates, own = !!(o && o.range);
       x += `<div class="de-f"><span>Dates</span><div class="ds-seg" role="radiogroup" aria-label="Dates for this block">${[['same', 'Same as the dashboard'], ['own', 'Its own']].map(([k, l]) => `<button type="button" role="radio" data-bdo="${i}" data-v="${k}" class="${(k === 'own') === own ? 'on' : ''}" aria-checked="${(k === 'own') === own}">${l}</button>`).join('')}</div></div>`;
@@ -6855,7 +6855,7 @@ function dashEditor(d) {
   setTimeout(() => { const n = ed.querySelector('#deName'); if (n && !n.value) n.focus(); }, 60);
 }
 
-/* "Ask the Strategist to build it" (2026-10-09): the front door of Dashboards. The words go to the Strategist,
+/* "Ask Locus to build it" (2026-10-09): the front door of Dashboards. The words go to Locus,
    which answers with a save_dashboard action; Apply in the chat saves it and it lands on this page. */
 const DASH_EXAMPLES = [
   'Spend, revenue and MER per brand against last week, posted to our channel every morning',
@@ -6873,8 +6873,8 @@ function dashAsk(text, change) {
 function dashComposer() {
   const one = S.act !== 'all' ? (S.accounts.find(a => a.act_id === S.act) || {}).name : '';
   const ex = DASH_EXAMPLES.map(e => e.replace('{b}', one || 'Lucky Golf'));
-  return `<section class="ds-composer de-ask" aria-label="Ask the Strategist to build a dashboard">
-    <div class="de-askh"><span class="de-bi">${svgUse('sparkles')}</span><span><b>Ask the Strategist to build it</b><em>Say what you look at, who it is for and when it should post. It builds the dashboard; press Apply in the chat and it lands here.</em></span></div>
+  return `<section class="ds-composer de-ask" aria-label="Ask Locus to build a dashboard">
+    <div class="de-askh"><span class="de-bi">${svgUse('sparkles')}</span><span><b>Ask Locus to build it</b><em>Say what you look at, who it is for and when it should post. It builds the dashboard; press Apply in the chat and it lands here.</em></span></div>
     <label class="sr-only" for="dsAskIn">Describe the dashboard</label><textarea id="dsAskIn" rows="3" placeholder="e.g. ${esc(ex[0])}"></textarea>
     <div class="ds-composer-row"><span class="ds-chip">${svgUse('layers')}${esc(one || 'All brands')}</span><span class="sp"></span><button class="ds-btn ghost" type="button" id="dsMake">${svgUse('sliders')}Build by hand</button><button class="ds-btn primary" type="button" id="dsAskGo">${svgUse('send')}Build it</button></div>
   </section>
@@ -6903,12 +6903,12 @@ async function renderDash(first) {
         <span class="ds-meta">${d.act ? esc(nameOf(d.act)) : 'All brands'} &middot; ${DASH_RANGE_L[d.spec?.range] || 'Last 30 days'}${d.for_who ? ` &middot; for ${esc(d.for_who)}` : ''}</span>
         <span class="ds-meta">${(d.spec?.blocks || []).length} block${(d.spec?.blocks || []).length === 1 ? '' : 's'}${d.schedule ? ` &middot; posts ${DASH_SCHED_L[d.schedule].toLowerCase()}${d.channel ? '' : ' (no channel yet)'}` : ''}</span>
       </button>`;
-    $('#main').innerHTML = shell(`${LX.say(mine.length ? `<b>${mine.length} dashboard${mine.length === 1 ? '' : 's'}</b>${S.act === 'all' ? '' : ' for this brand and the agency'}. Each draws live when it opens${mine.some(x => x.schedule) ? `, and ${mine.filter(x => x.schedule).length} post${mine.filter(x => x.schedule).length === 1 ? 's' : ''} itself to Slack` : ''}.` : 'No dashboards yet. Say what you want to see and the Strategist builds it.')}
+    $('#main').innerHTML = shell(`${LX.say(mine.length ? `<b>${mine.length} dashboard${mine.length === 1 ? '' : 's'}</b>${S.act === 'all' ? '' : ' for this brand and the agency'}. Each draws live when it opens${mine.some(x => x.schedule) ? `, and ${mine.filter(x => x.schedule).length} post${mine.filter(x => x.schedule).length === 1 ? 's' : ''} itself to Slack` : ''}.` : 'No dashboards yet. Say what you want to see and Locus builds it.')}
       ${dashComposer()}
       <div class="ds-label de-listl">Saved dashboards</div>
       ${mine.length ? `<div class="ds-grid">${mine.map(card).join('')}</div>` : `<div class="v2card"><div class="ds-empty"><i>${svgUse('layout-grid')}</i><p>No dashboards yet${S.act === 'all' ? '' : ' for this brand'}. Ask for one above.</p></div></div>`}
       <div id="dsAlerts"></div><div id="dsSched"></div>`);
-    /* Scheduled questions sit here since 2026-10-09 (were Settings > The Strategist): like a dashboard, they post themselves to Slack. */
+    /* Scheduled questions sit here since 2026-10-09 (were Settings > Locus): like a dashboard, they post themselves to Slack. */
     if (window.AskX && AskX.schedules) AskX.schedules($('#dsSched'));
     if (window.AskX && AskX.alerts) AskX.alerts($("#dsAlerts"));
     wireDashComposer();
@@ -6938,7 +6938,7 @@ async function renderDash(first) {
       <span class="ds-ctl"><label>Posts to Slack <select id="dsSched">${Object.entries(DASH_SCHED_L).map(([k, l]) => `<option value="${k}" ${k === (d.schedule || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label>Channel <select id="dsChan">${chanOpts.map(([v, l]) => `<option value="${esc(v)}" ${v === (d.channel || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <button class="btn" type="button" id="dsPost">Post to Slack now</button>
-        <button class="btn" type="button" id="dsAskCh">Change it with the Strategist</button>
+        <button class="btn" type="button" id="dsAskCh">Change it with Locus</button>
         <button class="btn" type="button" id="dsEdit">Edit by hand</button>
         <button class="btn" type="button" id="dsDel" style="color:var(--bad)">Delete</button></span>
     </div>
@@ -6953,7 +6953,7 @@ async function renderDash(first) {
   $('#dsPost').onclick = async () => { const b = $('#dsPost'); b.disabled = true; msg('Posting…'); try { const r = await apiAH('/api/dashboard-post', { method: 'POST', body: JSON.stringify({ id: d.id, channel: $('#dsChan').value }) }); msg(r.error || `Posted to Slack (${r.brands} brand${r.brands === 1 ? '' : 's'}).`); } catch (e) { msg(e.message); } b.disabled = false; };
   $('#dsEdit').onclick = () => dashEditor(d);
   $('#dsAskCh').onclick = () => { if (window.AskUI) AskUI.open('Change the dashboard "' + d.name + '" and save it with save_dashboard (same name): '); };
-  $('#dsDel').onclick = async () => { if (!(await confirmModal('Delete this dashboard?', 'It disappears from Locus and stops posting to Slack. The Strategist can build it again from the same words.', 'Delete'))) return; try { await api(`/api/dashboard?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }); DS.id = ''; localStorage.setItem('pf_dash', ''); show('dash'); } catch (e) { msg(e.message); } };
+  $('#dsDel').onclick = async () => { if (!(await confirmModal('Delete this dashboard?', 'It disappears from Locus and stops posting to Slack. Locus can build it again from the same words.', 'Delete'))) return; try { await api(`/api/dashboard?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }); DS.id = ''; localStorage.setItem('pf_dash', ''); show('dash'); } catch (e) { msg(e.message); } };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => { const go = () => { S.act = c.dataset.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); }; c.onclick = go; c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
 }
 
@@ -7401,7 +7401,7 @@ async function renderProfit(first) {
           sub: `margin ${fmtPct(t.margin)} before ad spend` })
       : LX.tile({ label: 'Contribution margin', value: '<span style="color:var(--muted)">Hidden</span>', go: 'costs', info: 'Switched off because the cost data cannot be trusted. Open Costs to see why.', sub: 'cost data unreliable, open Costs' }),
     /* NET PROFIT (2026-10-09): contribution margin minus the brand's fixed expenses (Brand settings > Data and costs).
-       A separate line on purpose: CM keeps its definition everywhere else (briefs, reports, the Strategist). */
+       A separate line on purpose: CM keeps its definition everywhere else (briefs, reports, Locus). */
     trusted && t.cm != null
       ? LX.tile({ label: 'Net profit', value: fx ? `<span class="${net >= 0 ? 'good' : 'bad'}">${M(net)}</span>` : M(t.cm), info: 'Contribution margin minus the custom expenses on Costs (the team, software, rent, agency fees...): monthly ones spread over each month’s days, one-time ones on their date, % and per-order ones from each day’s numbers.',
           sub: fx ? `after ${M(fx)} of custom expenses` : 'no custom expenses set yet' })
@@ -10847,7 +10847,7 @@ async function renderSettings() {
   if (window.MetaTab) window.MetaTab.setToken(S.tok);
 
   /* SECTIONED (2026-10-04, Cole: "still very not good organized and formatted").
-     It was one long scroll: the Strategist's two big text boxes sat ABOVE the
+     It was one long scroll: Locus's two big text boxes sat ABOVE the
      brands, and seven unrelated cards were piled under "Everything else". Now a
      section list on the left (a strip on phones), the same pattern as Ledger's
      Settings, and one section shown at a time. Every section is rendered up
@@ -10865,7 +10865,7 @@ async function renderSettings() {
         }).join('')).join('')
     : `<div class="setnav-g">${esc(one ? one.name : 'This brand')}</div>` + BRAND_SECS.map(([k, label, ic]) => `<button type="button" data-bsec="${k}" class="${k === bsec ? 'on' : ''}"><svg class="ic"><use href="#${ic}"/></svg><span>${label}</span></button>`).join('')
       + '' + [].map(([k, label]) => `<button type="button" data-page="${k}" title="${k === 'health' ? 'Is this brand’s data complete and up to date? Open it when a number looks wrong.' : 'Are this brand’s product and shipping costs right? Profit and contribution margin depend on them.'}"><svg class="ic"><use href="#${SET_ICONS[k]}"/></svg><span>${k === 'health' ? 'Data check' : 'Cost check'}</span><small>page</small></button>`).join('')
-      + `<p class="setnav-note">Team, Slack timing, the Strategist and the connections made once for every brand are in <a href="#" data-agency="1">Agency settings</a>.</p>`;
+      + `<p class="setnav-note">Team, Slack timing, Locus and the connections made once for every brand are in <a href="#" data-agency="1">Agency settings</a>.</p>`;
   $('#main').innerHTML = `<div class="v2 lx">${LX.head('settings', AGENCY ? 'Agency settings' : `Settings: ${esc(one ? one.name : '')}`,
     AGENCY ? 'Everything that applies to Mobius Digital as a whole. A brand\u2019s own settings open when you pick the brand and press Settings.' : `Only <b>${esc(one ? one.name : '')}</b>. Nothing here changes another brand.`)}
     <div class="setwrap">
@@ -10891,7 +10891,7 @@ async function renderSettings() {
             '<div id="slackInteract"><span class="hint">Checking…</span></div>')}
         </section>
         <section data-sec="strategist"${sec === 'strategist' ? '' : ' hidden'}>${secHead('strategist')}
-          <div id="askSetSlot"><div class="card"><span class="hint">Loading the Strategist…</span></div></div>
+          <div id="askSetSlot"><div class="card"><span class="hint">Loading Locus…</span></div></div>
         </section>
         <section data-sec="team"${sec === 'team' ? '' : ' hidden'}>${secHead('team')}
           <div id="teamCard"><div class="card"><span class="hint">Loading who has access…</span></div></div>
@@ -11697,7 +11697,7 @@ async function renderSettings() {
    brain answers the team in each brand's Slack channel (../ask/ask-ui.js). */
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 async function apiAH(path, opts = {}) {
-  /* Same 90-second read cache as api(); the Strategist's own calls (/api/ask...) are never cached. */
+  /* Same 90-second read cache as api(); Locus's own calls (/api/ask...) are never cached. */
   const go = async () => {
     const res = await fetch(AH_URL + path, { ...opts, headers: { 'Authorization': 'Bearer ' + S.tok, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
     const j = await res.json().catch(() => ({}));
@@ -11708,7 +11708,7 @@ async function apiAH(path, opts = {}) {
 }
 const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)', dash: 'Dashboards (saved, drawn live)', store: 'Store sales (Triple Whale store level)' };
 AskUI.init({
-  name: 'Strategist', api: (p, o) => isClient() && !/^\/api\/ask(\?|$)/.test(p) ? Promise.resolve(/findings/.test(p) ? { findings: [], memory: {}, pending: [] } : { steps: [], done: true, reports: [] }) : apiAH(p, o), esc, hotkey: false, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
+  name: 'Locus', api: (p, o) => isClient() && !/^\/api\/ask(\?|$)/.test(p) ? Promise.resolve(/findings/.test(p) ? { findings: [], memory: {}, pending: [] } : { steps: [], done: true, reports: [] }) : apiAH(p, o), esc, hotkey: false, confirm: async o => !!(await confirmModal(o.title, o.body || '', o.ok)),
   onApplied: () => { try { show(S.tab); } catch (e) {} },
   flash: msg => { const el = document.getElementById('connChip'); if (el) { const was = el.textContent; el.textContent = msg; setTimeout(() => { el.textContent = was; }, 2500); } },
   cardH: (t, q, right = '') => `<div class="ch" style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:0"><h3 style="margin:0 0 4px">${esc(t)}</h3>${q ? `<div class="hint">${esc(q)}</div>` : ''}</div>${right}</div>`,
@@ -11716,13 +11716,13 @@ AskUI.init({
   screen: () => {
     try {
       const a = S.act === 'all' ? null : S.accounts.find(x => x.act_id === S.act);
-      /* act_id: the Strategist loads this brand's brain, memory and last two weeks of Slack (2026-10-09). */
+      /* act_id: Locus loads this brand's brain, memory and last two weeks of Slack (2026-10-09). */
       const ctx = { screen: SCREEN_NAMES[S.tab] || S.tab, screen_id: S.tab, brand_selected: a ? a.name : 'All clients', act_id: a ? a.act_id : null, range: S.range?.preset || S.days };
       return ctx;
     } catch (e) { return null; }
   },
 });
-/* The Overview leads with what the Strategist found. */
+/* The Overview leads with what Locus found. */
 const _renderOverviewBase = renderOverview;
 renderOverview = async function(){
   await _renderOverviewBase();
@@ -11734,7 +11734,7 @@ renderOverview = async function(){
     const c = document.getElementById('askCard');
     if (!c || S.tab !== 'overview' || c.querySelector('.find, .brief')) return;
     c.classList.add('quiet');
-    c.innerHTML = `<b>The Strategist</b><span class="hint">The nightly checks found nothing that needs you.</span><button class="btn" onclick="AskUI.open()">Ask the Strategist</button>`;
+    c.innerHTML = `<b>Locus</b><span class="hint">The nightly checks found nothing that needs you.</span><button class="btn" onclick="AskUI.open()">Ask Locus</button>`;
   }).catch(() => {});
 };
 const _renderSettingsBase = renderSettings;
@@ -11757,7 +11757,7 @@ renderSettings = async function(){
   AskUI.afterSettings();
   /* Model, instructions, memory, skills, Slack index, usage (strategist.js, 2026-10-09). */
   if (window.StratSettings) window.StratSettings.mount(slot);
-  /* Scheduled questions (Strategist section) and the What moved switch (Briefs and Slack): askextra.js. */
+  /* Scheduled questions (Locus section) and the What moved switch (Briefs and Slack): askextra.js. */
   /* The 8am "What moved" post is gone (2026-10-09): a bad day on Meta is one line in the Daily Brief. Scheduled questions are on Reports > Dashboards. */
   try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}
 };

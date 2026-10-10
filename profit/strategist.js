@@ -1,5 +1,5 @@
 /**
- * Agency settings > The Strategist (2026-10-09, the Viktor-grade pass): the controls Viktor puts in its
+ * Agency settings > Locus (2026-10-09, the Viktor-grade pass): the controls Viktor puts in its
  * settings, for ours. Model (Smart / Quick / Deep), standing instructions, what it remembers (per brand,
  * editable, with history), its skills, what it reads in Slack, and what it costs.
  * Data: account-health /api/ask/settings | memory | skills | index | usage | review (admin), through apiAH.
@@ -209,7 +209,7 @@ window.StratSettings = (() => {
       };
       $('#ssRevPrev').onclick = async () => {
         const sel = $('#ssRevBrand'), name = sel.options[sel.selectedIndex]?.text || '';
-        if (!(await window.confirmModal(`Preview the review for ${name}?`, 'The Strategist reads the brand and writes its Monday review now. Nothing is posted or changed. It costs one answer (about $0.40 to $1.00) and takes a minute or two.', 'Run the preview'))) return;
+        if (!(await window.confirmModal(`Preview the review for ${name}?`, 'Locus reads the brand and writes its Monday review now. Nothing is posted or changed. It costs one answer (about $0.40 to $1.00) and takes a minute or two.', 'Run the preview'))) return;
         const b = $('#ssRevPrev'), m = $('#ssRevPrevMsg');
         b.disabled = true; m.textContent = 'Reading the account. This takes a minute or two.';
         try {

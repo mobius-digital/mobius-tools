@@ -1,13 +1,13 @@
-/* Locus extras around the Strategist (2026-10-08). Loaded after v2.js; uses the host's globals
+/* Locus extras around Locus (2026-10-08). Loaded after v2.js; uses the host's globals
  * (S, api, apiAH, esc, confirmModal, show, DS) at call time, like the other screen files.
  *
- *  - Pin to a dashboard: every chart in a Strategist answer (ask-ui.js) gets a button; this file is
+ *  - Pin to a dashboard: every chart in a Locus answer (ask-ui.js) gets a button; this file is
  *    the modal behind it. It saves a `chart` block {title, spec, question, act, pinned_at} on an
  *    existing dashboard or a new one (PUT /api/dashboard on the profit worker, cleanSpec in
  *    worker/src/dashboard.js). Pinning the same question again on the same dashboard replaces it.
  *  - chartBlock(b): how a dashboard draws that block (renderDash -> dashBlockHtml): the chart the
  *    way the chat drew it, "as of <date>", and Refresh (asks the stored question again).
- *  - schedules(slot): Settings > The Strategist > Scheduled questions (account-health
+ *  - schedules(slot): Settings > Locus > Scheduled questions (account-health
  *    /api/ask/schedules, askschedule.js).
  *  - movedSetting(): Settings > Briefs and Slack > the What moved switch (settings movedPost). */
 (() => {
@@ -17,7 +17,7 @@
   const dayText = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
   const field = 'width:100%;margin-top:4px';
 
-  /* A modal shell above the Strategist panel (z 63). Resolves when closed. */
+  /* A modal shell above Locus panel (z 63). Resolves when closed. */
   function shell(html, wide) {
     const w = document.createElement('div');
     w.className = 'modal-wrap'; w.style.zIndex = '80';
@@ -90,11 +90,11 @@
     const who = b.act && b.act !== 'all' ? brandName(b.act) : '';
     return `<section class="v2card ds-pin"><div class="v2h"><h3>${E(b.title || b.spec.title || 'Pinned answer')}</h3></div>
       ${chart ? `<div style="max-width:640px">${chart}</div>` : '<p class="hint">This chart could not be drawn.</p>'}
-      <p class="tiny" style="margin:8px 0 0">As of ${E(dayText(b.pinned_at))}${who ? ` &middot; ${E(who)}` : ''}${b.question ? ` &middot; asked: &ldquo;${E(b.question.slice(0, 160))}&rdquo; <button type="button" class="btn" style="padding:2px 9px;font-size:12px;margin-left:4px" data-q="${E(b.question)}" onclick="AskX.refresh(this)" title="Ask the Strategist the same question now; pin the new answer to replace this one">Refresh</button>` : ''}</p></section>`;
+      <p class="tiny" style="margin:8px 0 0">As of ${E(dayText(b.pinned_at))}${who ? ` &middot; ${E(who)}` : ''}${b.question ? ` &middot; asked: &ldquo;${E(b.question.slice(0, 160))}&rdquo; <button type="button" class="btn" style="padding:2px 9px;font-size:12px;margin-left:4px" data-q="${E(b.question)}" onclick="AskX.refresh(this)" title="Ask Locus the same question now; pin the new answer to replace this one">Refresh</button>` : ''}</p></section>`;
   }
   function refresh(btn) { const q = btn && btn.dataset.q; if (q && window.AskUI) AskUI.ask(q); }
 
-  /* ---------------- Scheduled questions (Settings > The Strategist) ---------------- */
+  /* ---------------- Scheduled questions (Settings > Locus) ---------------- */
   const CAD = [['daily', 'Every morning'], ['weekdays', 'Every weekday'], ['monday', 'Every Monday'], ['first', 'On the 1st of the month']];
   /* What a schedule does (2026-10-09, account-health askschedule.js KINDS). */
   const KIND = [['question', 'Answer a question'], ['task', 'Do a task (any change comes as an Apply card)'], ['report', 'Build a report'], ['check', 'Run the live check (is anything weird right now?)'], ['dashboard', 'Post a dashboard']];
@@ -102,7 +102,7 @@
   async function schedules(slot) {
     if (!slot) return;
     slot.insertAdjacentHTML('beforeend', `<div class="card set-card" id="sqCard"><h3>Scheduled</h3>
-      <p class="hint set-why">Things the Strategist does on its own and posts to an internal Slack channel: answer a question, do a task (any change it suggests comes as an Apply card a person presses, never on its own), build a report, run the live check or post a dashboard. Never a client channel. At most 10 Strategist runs a day; checks and dashboards do not count.</p>
+      <p class="hint set-why">Things Locus does on its own and posts to an internal Slack channel: answer a question, do a task (any change it suggests comes as an Apply card a person presses, never on its own), build a report, run the live check or post a dashboard. Never a client channel. At most 10 Locus runs a day; checks and dashboards do not count.</p>
       <div class="set-body"><div id="sqList"><span class="hint">Loading&hellip;</span></div>
         <div class="row" style="margin:12px 0 0;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="sqAdd">Add a question</button><span class="tiny" id="sqMsg"></span></div>
         <p class="tiny" style="margin:8px 0 0;opacity:.8">You can also say it in the chat: "ask how Lucky did last week every Monday at 8 in #lucky-internal".</p></div></div>`);
@@ -118,7 +118,7 @@
           <div class="tiny" style="margin-top:3px;${r.last_status && r.last_status !== 'ok' ? 'color:var(--bad)' : ''}">${r.last_run ? `Last run ${E(new Date(r.last_run).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }))} Central: ${E(r.last_status === 'ok' ? 'posted' : r.last_status || '')}` : 'Not run yet.'}</div>
           <div class="row" style="margin:8px 0 0;gap:6px;flex-wrap:wrap"><button class="btn" type="button" data-run="${E(r.id)}">Run now</button><button class="btn" type="button" data-edit="${E(r.id)}">Edit</button><button class="btn" type="button" data-del="${E(r.id)}" style="color:var(--bad)">Delete</button></div></div>`).join('')}</div>
           <p class="tiny" style="margin:8px 0 0">${data.runs_today || 0} of ${data.max_per_day || 10} runs used today.</p>`
-        : '<p class="hint" style="margin:0">None yet. Add one, or ask the Strategist to set one up.</p>';
+        : '<p class="hint" style="margin:0">None yet. Add one, or ask Locus to set one up.</p>';
       host.querySelectorAll('[data-run]').forEach(b => b.onclick = () => runNow(rows.find(r => r.id === b.dataset.run), b));
       host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editModal(rows.find(r => r.id === b.dataset.edit)));
       host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => del(rows.find(r => r.id === b.dataset.del)));
@@ -129,7 +129,7 @@
     };
     const runNow = async (r, b) => {
       if (!r) return;
-      if (!(await confirmModal('Run this question now?', `The Strategist answers "${r.question.slice(0, 120)}" now and posts it to ${r.channel_name}. It counts toward today's 10.`, 'Run it now'))) return;
+      if (!(await confirmModal('Run this question now?', `Locus answers "${r.question.slice(0, 120)}" now and posts it to ${r.channel_name}. It counts toward today's 10.`, 'Run it now'))) return;
       b.disabled = true; b.textContent = 'Asking…'; msg('');
       try { await apiAH('/api/ask/schedules/run', { method: 'POST', body: JSON.stringify({ id: r.id }) }); msg(`Posted to ${r.channel_name}.`); }
       catch (e) { msg(e.message); }
@@ -146,7 +146,7 @@
       const internalOf = act => ((S.accounts || []).find(a => a.act_id === act) || {}).slack_channel || '';
       const startAct = r ? r.act : (S.act || 'all');
       const m = shell(`<h3>${r ? 'Change the scheduled question' : 'Schedule a question'}</h3>
-        <p class="hint">The Strategist asks this on its own and posts the answer in Slack, written fresh from the data each time.</p>
+        <p class="hint">Locus asks this on its own and posts the answer in Slack, written fresh from the data each time.</p>
         <label class="set-lbl" for="sqKind" style="margin-top:8px">What it does</label>
         <select id="sqKind" style="${field}">${KIND.map(([k, l]) => `<option value="${k}" ${(r ? r.kind || 'question' : 'question') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <div id="sqDashW" style="display:none"><label class="set-lbl" for="sqDash">Which dashboard</label><select id="sqDash" style="${field}"><option value="">Loading&hellip;</option></select></div>
@@ -219,7 +219,7 @@
           <div class="tiny" style="margin-top:3px">${r.active ? 'On' : 'Paused'} &middot; posts to ${E(r.channel_name)} &middot; ${E(when(r))}${r.last_status ? ` &middot; last check: ${E(r.last_status)}` : ''}</div>
           <div class="row" style="margin:8px 0 0;gap:6px;flex-wrap:wrap"><button class="btn" type="button" data-test="${E(r.id)}">Test now</button><button class="btn" type="button" data-edit="${E(r.id)}">Edit</button><button class="btn" type="button" data-pause="${E(r.id)}">${r.active ? 'Pause' : 'Turn on'}</button><button class="btn" type="button" data-del="${E(r.id)}" style="color:var(--bad)">Delete</button></div>
           <div class="tiny" data-out="${E(r.id)}" style="margin-top:6px"></div></div>`).join('')}</div>`
-        : '<p class="hint" style="margin:0">None yet. Add one, or ask the Strategist to set one up.</p>';
+        : '<p class="hint" style="margin:0">None yet. Add one, or ask Locus to set one up.</p>';
       const find = id => rows.find(r => r.id === id);
       host.querySelectorAll('[data-test]').forEach(b => b.onclick = () => test(find(b.dataset.test), b));
       host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editModal(find(b.dataset.edit)));

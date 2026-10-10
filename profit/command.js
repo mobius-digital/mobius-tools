@@ -185,7 +185,7 @@ async function render(host, h, all) {
       <span class="cmd-bar"><i style="width:${Math.round(p.done / p.of * 100)}%"></i></span></div>`).join('')}
       ${agencyAlerts.map(al => `<div class="cmd-run"><b>Alert fired</b><button type="button" class="btn" data-go2="yesterday">Open Day check</button><small>${esc(al.text)}</small></div>`).join('')}</div></section>` : '';
   host.innerHTML = `<div class="cmd">
-    <section class="v2card cmd-read" id="cmdRead"><div class="v2h"><h3>Focus first</h3><span class="cap">The Strategist, across every brand</span></div><p class="v2hint">Reading every brand…</p></section>
+    <section class="v2card cmd-read" id="cmdRead"><div class="v2h"><h3>Focus first</h3><span class="cap">Locus, across every brand</span></div><p class="v2hint">Reading every brand…</p></section>
     <section class="v2card"><div class="v2h"><h3>Every brand, what needs you first</h3><span class="find">${sub}</span></div>
       ${cmd ? `<div class="cmd-sum">${n('bad') ? `<span class="v2pill bad">${n('bad')} act now</span>` : ''}${n('warn') ? `<span class="v2pill warn">${n('warn')} look today</span>` : ''}${n('info') ? `<span class="v2pill">${n('info')} setup only</span>` : ''}${n('good') ? `<span class="v2pill good">${n('good')} on track</span>` : ''}</div>` : ''}
       <div class="cmd-rows">${rows.map(rowHtml).join('')}</div>
@@ -234,7 +234,7 @@ async function readAll(rows, pending, agencyAlerts) {
   if (r.error) { el.innerHTML = `<div class="v2h"><h3>Focus first</h3></div><p class="v2say quiet">The read could not run: ${esc(r.error)}</p>`; return; }
   const byName = Object.fromEntries(rows.map(x => [x.a.name.toLowerCase(), x.a.act_id]));
   const order = (r.order || []).slice(0, 4);
-  el.innerHTML = `<div class="v2h"><h3>Focus first</h3>${r.focus ? `<span class="find"><b>${esc(r.focus)}</b></span>` : ''}<span class="cap">The Strategist, across every brand</span></div>
+  el.innerHTML = `<div class="v2h"><h3>Focus first</h3>${r.focus ? `<span class="find"><b>${esc(r.focus)}</b></span>` : ''}<span class="cap">Locus, across every brand</span></div>
     ${order.length ? `<ol>${order.map(o => { const act = byName[String(o.brand || '').toLowerCase()];
       return `<li><span class="w">${act ? `<button type="button" class="cmd-bn" data-cmd="${esc(act)}:overview">${esc(o.brand)}</button>` : `<b>${esc(o.brand)}</b>`}: ${esc(o.why)}</span>${o.do ? `<span class="d">${esc(o.do)}</span>` : ''}</li>`; }).join('')}</ol>` : ''}
     ${(r.lines || []).length ? `<p class="lines">${esc(r.lines.join(' '))} <button type="button" class="v2link" data-ask="1">Ask about this ›</button></p>` : ''}`;
