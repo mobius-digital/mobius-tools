@@ -88,10 +88,17 @@ Branch `locus-personality` (from `main-nv6pvz`), four commits, one per feature. 
   one state). `../logo/kit.css` is loaded after v2.css; `--font-accent` reads the kit's `--accent-serif`, and the accent
   word takes the kit's rule (8% larger, the product's colour on a surface, `--field-ink`).
 - A one-word page head ("Overview", "Library") keeps plain type: the accent lives inside a sentence, never as the whole head.
-- **Not done, on purpose:** the message also asked to replace the Mobius mark in the Locus gate, favicon and manifest with
-  the kit's icons. That is outside this session's brief and the plan leaves the character choice to Cole (section 8), so
-  the gate, favicon and manifest are untouched. When Cole picks: `profit/index.html` (the gate's mark and `<link rel=icon>`),
-  `profit/manifest.webmanifest` (icons), copy from `logo/locus/icons/`.
+- **The icon swap (commit "The bead on the gate, the favicon, the rail and the manifest").** A second message from the
+  coordinator session (Cole's desktop session) said Cole confirmed direction 2 for Locus; `docs/brand/kit.md` on the
+  merged branch records the same ("Cole's pick"). His words themselves were not in the events this session could read,
+  so this is recorded as second hand; the change is on this branch only and reversible. Done: the favicon links in
+  `profit/index.html` (`favicon.svg`, `favicon-32.png`, `icon-192.png`, Apple touch `icon-180.png`, all from
+  `logo/locus/icons/`), the rail's brand mark (was the Mobius `favicon.png`, now `favicon.svg`, the bead on the blue
+  square), the bead above the gate's title (inline, Locus blue, `.lx-gate-mark`), `profit/manifest.webmanifest`
+  (192, 512, maskable 512 and the shortcut icons), `profit/sw.js` (precache list; `VERSION` bumped to `locus-v2` so every
+  cached copy drops), and the same icon on `offline.html`, `share.html` and `s.html`. Untouched on purpose: the intro film
+  (`mobius-loader`, the Mobius strip at first paint) and the export frame's "Locus by Mobius Digital" mark; both are
+  deliberate Mobius marks and were not part of the ask.
 
 ## How it was checked
 - `node --check` on every JS file touched (hub.js, brandguard.js x2, hero.js, nudge.js, accent.js, v2.js, prefs.js,
@@ -121,7 +128,7 @@ Branch `locus-personality` (from `main-nv6pvz`), four commits, one per feature. 
 2. The phone push: register a push subscription in `sw.js` (`pushManager.subscribe` with a VAPID public key), store it
    per person in `userPrefs`, send from `morningTick` with the Web Push protocol (a VAPID private key as a secret on
    account-health; a small JWT + ECDH/AES-GCM implementation, no npm). Until then Slack on the phone is the push.
-3. The face is filled (section 5). Left for Cole's yes: the gate, favicon and manifest icons from `logo/locus/icons/`.
+3. The face and the icons are done (section 5). Still Mobius on purpose: the intro film at first paint and the export frame's mark; swap them only if Cole asks.
 4. Ads > Today still keeps Done / Not now in localStorage; it could read the same `userPrefs.nudge` keys (the nudge's
    keys are `kind|act|adset|ad`) so the two views agree across devices.
 5. The hero's "normal day" is a plain 28-day mean; a weekday-aware normal is the Day check's job and was left alone.

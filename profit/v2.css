@@ -1884,3 +1884,5 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 .lx-ask-face{flex:none;margin:0 2px 0 4px}
 @keyframes lx-think{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
 @media (prefers-reduced-motion:reduce){.lx-face[data-face="thinking"] svg{animation:none}}
+/* The gate's mark (2026-10-11): the bead in the Locus blue above the title. */
+.gate .lx-gate-mark{width:44px;height:44px;display:block;color:var(--field-ink,var(--brand));margin:0 0 14px}
