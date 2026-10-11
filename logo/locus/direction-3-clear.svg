@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Locus, the heading, clear</title>
+  <defs>
+    <mask id="l3c" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <path d="M26.9 31a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.7 31a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M29.4 35a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M39.07 24.93L46.85 17.15"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3c)"/>
+</svg>

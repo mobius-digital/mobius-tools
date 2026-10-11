@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Locus, the heading, asleep</title>
+  <defs>
+    <mask id="l3a" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <path d="M27 30.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 30.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 35.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <circle cx="32" cy="32" r="21"/>
+    <path d="M32 42L32 53"/>
+    <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3a)"/>
+  </g>
+</svg>

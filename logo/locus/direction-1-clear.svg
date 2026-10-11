@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Locus, the trail, clear</title>
+  <defs>
+    <mask id="l1c" fill="#000" stroke="none">
+      <circle cx="48.09" cy="18.5" r="11" fill="#fff"/>
+      <path d="M42.99 17.5a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M49.79 17.5a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M45.49 21.5a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M15.45 44.93A21 21 0 0 1 11.79 37.7" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M11.79 37.7A21 21 0 0 1 11.13 29.62" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M11.13 29.62A21 21 0 0 1 13.59 21.9" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M13.59 21.9A21 21 0 0 1 18.78 15.68" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M18.78 15.68A21 21 0 0 1 25.95 11.89" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M25.95 11.89A21 21 0 0 1 34.01 11.1" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M34.01 11.1A21 21 0 0 1 41.78 13.42" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M41.78 13.42A21 21 0 0 1 48.09 18.5" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="48.09" cy="18.5" r="10" fill="currentColor" stroke="none" mask="url(#l1c)"/>
+</svg>
