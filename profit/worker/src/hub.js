@@ -97,6 +97,8 @@ export async function handleHub(ctx) {
     if (path === '/api/hub/stockads') return json({ brands: await Promise.all(accts.map(a => stockAds(env, ctx, a))) });
     if (path === '/api/hub/yesterday') return json(await yesterdayMany(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || '')), act === 'all'));
     if (path === '/api/hub/today' && url.searchParams.get('live') !== '1') return json(await buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))));
+    /* The hero number and the morning line (2026-10-11): what each brand kept yesterday, with the bites. */
+    if (path === '/api/hub/kept') return json(await keptMany(env, ctx, act === 'all' ? accts.filter(a => !SKIP_HUB.test(a.name || '')) : accts, { calls: url.searchParams.get('calls') !== '0' }));
     /* Live "today so far" (the top-bar chip). It was /api/hub/today until 2026-10-09, when that path
        became the media buyer's list; /api/hub/today?live=1 still answers the old shape. */
     if (path === '/api/hub/live' || path === '/api/hub/today') {
@@ -401,6 +403,58 @@ async function buyerList(env, ctx, accts) {
   const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct);
   const rules_note = `Ad sets first, over the last 7 days of Triple Whale attribution: judged after ${r.cr_judge_x}x the goal cost per sale is spent; scale at ${r.cr_scale_buys}+ sales at or under goal; cut at ${r.cr_cut_zero_x}x the goal spent with no sale, or ${r.cr_cut_spend_x}x spent at over ${r.cr_cut_cpa_x}x the goal; in a set working within 1.3x the goal, the main ad (${pct}%+ of its spend) is never cut${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
   return { as_of, rules_note, brands, rows: rows.sort((p, q) => q.stake - p.stake) };
+}
+
+/* ---------- THE HERO NUMBER AND THE MORNING LINE (2026-10-11, docs/two-products.md section 5) ----------
+   "Yesterday you actually kept $X": one number per brand for the brand's own local yesterday. It is the contribution
+   margin the P&L already computes (the host's dayEconomics: sales minus ad spend, product cost, shipping, handling and
+   fees, or the flat margin override), named contribution, never profit. The bites under it are those lines. Revenue is
+   Shopify total sales after returns and minus tax, so there is no refunds bite: it would count returns twice.
+   A normal day = the mean of the brand's last 28 days with data (10+ needed), so the sentence under the number can say
+   how yesterday compared. The morning line (one sentence per brand, shown on Home until noon and sent as a Slack DM by
+   account-health morning.js) rides on the same call so the app and Slack never disagree; it counts the buyer's calls
+   from buyerList for "N things to change". Custom expenses marked "counts as ad spend" join spend here as everywhere. */
+const BITES = [['ads', 'Ads', r => r.spend], ['cogs', 'Product cost', r => r.cogs], ['shipping', 'Shipping and handling', r => num(r.ship_cost) + num(r.handling)], ['fees', 'Fees', r => r.fees]];
+async function keptMany(env, ctx, accts, opts = {}) {
+  const as_of = new Date().toISOString();
+  if (!accts.length) return { as_of, date: null, brands: [] };
+  const acts = accts.map(a => a.act_id);
+  const y = ctx.addDays(ctx.localDate(accts[0].tz), -1), lo = ctx.addDays(y, -28);
+  const [piv, metaRows, health, exps, calls] = await Promise.all([
+    twPivotMany(env, acts, lo, y, ECON_IDS),
+    env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend FROM daily_insights d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id
+      WHERE c.brand_id IN (${inList(acts.length, 3)}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(lo, y, ...acts).all().then(r => r.results || []).catch(() => []),
+    env.DB.prepare(`SELECT act_id, verdict FROM p_cost_health WHERE act_id IN (${inList(acts.length)})`).bind(...acts).all().then(r => r.results || []).catch(() => []),
+    ctx.loadExpenses(env, acts).catch(() => ({})),
+    opts.calls === false ? Promise.resolve(null) : buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))).catch(() => null),
+  ]);
+  const metaBy = {}; for (const r of metaRows) (metaBy[r.act_id] ??= {})[r.date] = { spend: r.spend };
+  const verdict = Object.fromEntries(health.map(r => [r.act_id, r.verdict]));
+  const brands = accts.map(a => {
+    const P = piv[a.act_id] || {}, M = metaBy[a.act_id] || {}, mp = ctx.marginOverride(a, ctx.monthOf(y));
+    const rows = dates(lo, y, ctx.addDays).map(d => ctx.econ(P, M, d, mp)).filter(Boolean);
+    const sp = ctx.spread(exps[a.act_id] || [], lo, y, rows); ctx.applyAdSpend(rows, sp.adByDate);
+    const x = rows.find(r => r.date === y) || null;
+    const base = rows.filter(r => r.date !== y && r.cm != null);
+    const normal = base.length >= 10 ? base.reduce((s, r) => s + r.cm, 0) / base.length : null;
+    const broken = verdict[a.act_id] === 'broken';
+    const kept = x && !broken && x.cm != null ? x.cm : null;
+    const bites = !x ? [] : mp != null
+      ? [{ k: 'ads', label: 'Ads', v: num(x.spend) }, { k: 'costs', label: `Product and delivery at ${Math.round((1 - mp) * 100)}%`, v: Math.max(0, num(x.sales) - num(x.gross_profit)) }]
+      : BITES.map(([k, label, f]) => ({ k, label, v: f(x) == null ? null : num(f(x)) })).filter(b => b.v != null && b.v > 0);
+    const $ = moneyOf(a.currency);
+    const c = calls ? (calls.rows || []).filter(r => r.act_id === a.act_id) : null;
+    const change = c ? c.filter(r => ['cut', 'trim', 'scale', 'refresh'].includes(r.kind)).length : null, fix = c ? c.filter(r => r.kind === 'fix').length : null;
+    const todo = change == null ? '' : !change && !fix ? 'Nothing to change.' : [change ? `${change === 1 ? 'One thing' : change + ' things'} to change` : '', fix ? `${fix === 1 ? 'one' : fix} to fix` : ''].filter(Boolean).join(', ').replace(/^one/, 'One') + '.';
+    const adsPct = x && x.sales > 0 && x.spend != null ? Math.round(x.spend / x.sales * 100) : null;
+    const line = !x ? `${a.name}: no numbers for yesterday yet.`
+      : kept != null ? `${a.name} kept ${$(kept)} yesterday on ${$(x.sales)} of sales${adsPct != null ? `; ads at ${adsPct}%` : ''}. ${todo}`.trim()
+      : `${a.name} sold ${$(x.sales)} yesterday${adsPct != null ? `; ads at ${adsPct}%` : ''}. Contribution needs cost data. ${todo}`.trim();
+    return { act_id: a.act_id, name: a.name, currency: a.currency, date: y, has: !!x, broken, margin_pct: mp,
+      sales: x ? x.sales : null, spend: x ? x.spend : null, orders: x ? x.orders : null, kept, normal, bites, ads_pct: adsPct,
+      to_change: change, to_fix: fix, line };
+  });
+  return { as_of, date: y, brands };
 }
 
 /* ---------- shared readers ---------- */

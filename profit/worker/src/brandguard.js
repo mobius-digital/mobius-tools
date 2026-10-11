@@ -172,6 +172,8 @@ export const CLIENT_RULES = [
   /* ---- HOME: Overview, Day check, P&L, Goals, Requests ---- */
   R('GET', '/api/overview', 'opt'),
   R('GET', '/api/hub/live', 'opt'),
+  /* The hero number and the morning line on Home (2026-10-11, hero.js): what the brand kept yesterday. */
+  R('GET', '/api/hub/kept'),
   R('GET', '/api/hub/find'),
   R('GET', '/api/client'),
   R('GET', '/api/forecast'),
