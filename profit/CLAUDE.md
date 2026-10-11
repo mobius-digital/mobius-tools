@@ -2857,7 +2857,10 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
   never a third source of truth. Pause and Scale go through `/api/meta/write` (dry, modal, write with `expect`, Undo);
   Done writes the Ads > Today manual Change Log line; Not now snoozes 24 hours per person in the worker
   (`/api/me/prefs`, account-health prefs.js, settings `userPrefs:<email>`), never localStorage. The helper's face slot is
-  `<span class="lx-face" data-state="asleep|thinking|found|clear">`, a plain dot until the brand kit lands.
+  `<span class="lx-face" data-state="asleep|thinking|found|clear">`; since the brand kit landed (branch brand-kit, merged
+  here) `profit/helper.js` fills every slot with the kit's bead (`../logo/locus/direction-2-<state>.svg`, inline, currentColor) and
+  the ask bar carries it too. `../logo/kit.css` is loaded after v2.css. The gate, favicon and manifest still carry the Mobius mark
+  until Cole picks the character (two-products.md section 8).
 - **The morning line**: one sentence per brand built server side in `keptMany` (`line`), on Home until noon (hero.js)
   and as a Slack DM from account-health morning.js (hourly from `morningHour` 7 Central, once per person per day,
   the existing bot, `users.lookupByEmail`; filtered per person with brandsFor). Switch and "Send me today's line now"

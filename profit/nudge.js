@@ -67,12 +67,16 @@
     h = document.createElement('div'); h.id = 'lxNudgeHost'; h.className = 'lx-nudge-host';
     h.innerHTML = `<button type="button" class="lx-nudge" id="lxNudge" aria-haspopup="dialog" aria-expanded="false" title="What Locus found"><span class="lx-face" data-state="asleep" aria-hidden="true"></span><span class="lx-nudge-t">Locus</span></button><div class="lx-nudge-pop" id="lxNudgePop" hidden role="dialog" aria-label="What Locus found"></div>`;
     right.insertBefore(h, right.firstChild);
+    /* The ask bar carries the helper too (the plan: "it lives in the ask bar, blinks while thinking, lights up when it
+       has a call for you"), left of the search mark, the same state as the badge. */
+    const ask = document.getElementById('v2ask');
+    if (ask && !ask.querySelector('.lx-face')) { const f = document.createElement('span'); f.className = 'lx-face lx-helper lx-ask-face'; f.dataset.state = 'asleep'; f.setAttribute('aria-hidden', 'true'); ask.insertBefore(f, ask.firstChild); }
     h.querySelector('#lxNudge').onclick = e => { e.stopPropagation(); toggle(!ST.open); };
     document.addEventListener('click', e => { if (ST.open && !e.target.closest('#lxNudgeHost') && !e.target.closest('.modal-wrap')) toggle(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && ST.open && !document.querySelector('.modal-wrap')) toggle(false); });
     return h;
   }
-  function face(state) { const f = document.querySelector('#lxNudge .lx-face'); if (f) f.dataset.state = state; }
+  function face(state) { document.querySelectorAll('#lxNudge .lx-face, .lx-ask-face').forEach(f => { f.dataset.state = state; }); }
   function badge() {
     const b = document.getElementById('lxNudge'); if (!b) return;
     const n = visible().length, t = b.querySelector('.lx-nudge-t');

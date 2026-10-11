@@ -77,6 +77,22 @@ Branch `locus-personality` (from `main-nv6pvz`), four commits, one per feature. 
   wraps the first whole-word match in the title with `<em class="lx-accent">`; a title without its word gets no accent.
   Every file that builds a page head goes through `pageHead`, so it shows across the app with no layout change.
 
+### 5. The bead in the helper slot (after the brand kit landed, commit "The bead in the helper slot")
+- Session B's message named the kit on `origin/brand-kit`: `logo/locus/direction-2.svg` (the mark), `direction-2-asleep |
+  thinking | found | clear.svg` (the helper's states), `logo/locus/icons/`, `logo/kit.css`. Verified at those paths, then
+  `origin/brand-kit` was MERGED into this branch so the files resolve from `profit/` as `../logo/locus/...`.
+- `profit/helper.js` fetches the four state drawings once and fills every `.lx-face` with the inline SVG for its
+  `data-state` (they draw in currentColor); a MutationObserver swaps the drawing when the state changes; the plain dot
+  stays until the files load. Sizes per the kit: 20px in the ask bar and the badge, 28px on the morning strip and the
+  nudge stack. The ask bar (`#v2ask`) now carries the helper too (`nudge.js` inserts it; the badge and the ask bar share
+  one state). `../logo/kit.css` is loaded after v2.css; `--font-accent` reads the kit's `--accent-serif`, and the accent
+  word takes the kit's rule (8% larger, the product's colour on a surface, `--field-ink`).
+- A one-word page head ("Overview", "Library") keeps plain type: the accent lives inside a sentence, never as the whole head.
+- **Not done, on purpose:** the message also asked to replace the Mobius mark in the Locus gate, favicon and manifest with
+  the kit's icons. That is outside this session's brief and the plan leaves the character choice to Cole (section 8), so
+  the gate, favicon and manifest are untouched. When Cole picks: `profit/index.html` (the gate's mark and `<link rel=icon>`),
+  `profit/manifest.webmanifest` (icons), copy from `logo/locus/icons/`.
+
 ## How it was checked
 - `node --check` on every JS file touched (hub.js, brandguard.js x2, hero.js, nudge.js, accent.js, v2.js, prefs.js,
   morning.js, worker.js, test-morning.mjs).
@@ -105,7 +121,7 @@ Branch `locus-personality` (from `main-nv6pvz`), four commits, one per feature. 
 2. The phone push: register a push subscription in `sw.js` (`pushManager.subscribe` with a VAPID public key), store it
    per person in `userPrefs`, send from `morningTick` with the Web Push protocol (a VAPID private key as a secret on
    account-health; a small JWT + ECDH/AES-GCM implementation, no npm). Until then Slack on the phone is the push.
-3. The face: when the brand kit lands, fill `.lx-face` with the dot-and-trail mark and animate the four states.
+3. The face is filled (section 5). Left for Cole's yes: the gate, favicon and manifest icons from `logo/locus/icons/`.
 4. Ads > Today still keeps Done / Not now in localStorage; it could read the same `userPrefs.nudge` keys (the nudge's
    keys are `kind|act|adset|ad`) so the two views agree across devices.
 5. The hero's "normal day" is a plain 28-day mean; a weekday-aware normal is the Day check's job and was left alone.

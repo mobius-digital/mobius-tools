@@ -2,7 +2,7 @@
  * One word per page head in Instrument Serif italic ("what you actually kept"): the type rule from the plan, on every
  * page, without touching a layout. The word is chosen by hand per page here, ONE list; pageHead (index.html) wraps the
  * first whole-word match in the title with <em class="lx-accent">. A title that does not carry its word gets no accent
- * (never a wrong word). The Home hero carries its own word ("actually") inside hero.js.
+ * (never a wrong word), and a head that IS only the word keeps plain type: the accent lives inside a sentence. The Home hero carries its own word ("actually") inside hero.js.
  * The font is loaded with the other Google Fonts in index.html; the token is --font-accent in v2.css. */
 (() => {
   /* tab id -> the words to try, in order. Titles are usually "<page>: <brand>", a few are sentences. */
@@ -23,6 +23,9 @@
     if (!t || /lx-accent/.test(t)) return t;
     const words = WORDS[tab]; if (!words) return t;
     const parts = t.split(/(<[^>]+>)/);               // text and tags alternate; tags are odd indexes
+    /* One word IN a sentence: a head that is only the word ("Overview", "Library") keeps its plain type. */
+    const plain = parts.filter((_, i) => i % 2 === 0).join('').replace(/\s+/g, ' ').trim();
+    if (words.some(w => plain.toLowerCase() === w.toLowerCase())) return t;
     for (const w of words) {
       const re = new RegExp(`(^|[^\\w&])(${escRe(w)})(?![\\w;])`, 'i');
       for (let i = 0; i < parts.length; i += 2) {
