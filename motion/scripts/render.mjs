@@ -33,7 +33,7 @@ const gl = 'angle';
 const ids = { kept: ['KeptVertical', 'KeptLandscape'], locus: ['LocusVertical', 'LocusLandscape'] };
 const posters = { KeptVertical: 'kept-poster.png', LocusVertical: 'locus-poster.png' };
 // The poster frame of each spot: the circled number for Kept, the dot awake for Locus.
-const posterFrame = { KeptVertical: 820, LocusVertical: 470 };
+const posterFrame = { KeptVertical: 820, LocusVertical: 456 };
 
 const args = process.argv.slice(2);
 let toRender = [];
