@@ -2186,7 +2186,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=33">
+<link rel="stylesheet" href="v2.css?v=34">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
@@ -2312,6 +2312,7 @@
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=5"></script>
+<script src="accent.js?v=1"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=1"></script>
 <script src="v2.js?v=47"></script>
@@ -3476,7 +3477,7 @@ function pageHead(tab, title, extra) {
   return `<div class="ph">
       <div>
         ${crumb ? `<div class="ph-crumb">${crumb}</div>` : ''}
-        <div class="ph-t">${title}</div>
+        <div class="ph-t">${window.LxAccent ? window.LxAccent.apply(tab, title) : title}</div>
         ${purpose ? `<p class="ph-sub">${purpose}</p>` : ''}
       </div>
       <div class="ph-r">

@@ -1803,7 +1803,7 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
    The accent word: one word per page head in Instrument Serif italic (loaded with the other Google Fonts in index.html).
    The hero number on Home, the morning line, the nudge card and the helper's face slot. Tokens only, no new hex. */
 :root[data-ui="v2"]{--font-accent:'Instrument Serif',Georgia,'Times New Roman',serif}
-[data-ui="v2"] .lx-accent{font-family:var(--font-accent);font-style:italic;font-weight:400;letter-spacing:0;font-size:1.12em;line-height:1}
+[data-ui="v2"] .lx-accent{font-family:var(--font-accent);font-style:italic;font-weight:400;letter-spacing:0;font-size:1.12em;line-height:1;color:inherit}
 /* the hero */
 [data-ui="v2"] .lx-hero{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,14px);padding:22px 24px 20px;margin:0 0 16px;font-feature-settings:"tnum" 1,"lnum" 1}
 [data-ui="v2"] .lx-hero-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:0 0 6px}
