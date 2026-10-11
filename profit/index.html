@@ -2187,8 +2187,8 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=39">
-<link rel="stylesheet" href="../logo/kit.css?v=1">
+<link rel="stylesheet" href="v2.css?v=40">
+<link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
@@ -2839,19 +2839,30 @@ function clientFooter(note) {
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   chrome(false);
-  /* The gate is the Locus colour field (two-products.md section 5; logo/kit.css --field): the character beside the name,
-     the one line with its accent word, then the sign-in card. body.lx-gate-on paints the field; chrome(true) ends it. */
+  /* The gate is the Locus colour field (two-products.md section 5; logo/kit.css section 7, the same gate as Cashew in
+     its own colour): the character, the name with the bead, the tagline with its accent word, the one line, then the
+     sign-in card. The tabs drifting behind are the "14 tabs" of the pitch. body.lx-gate-on paints the field; chrome(true) ends it. */
   document.body.classList.add('lx-gate-on');
+  const tab = '<path d="M3 50c9 0 7-36 18-36h22c11 0 9 36 18 36"/><circle cx="24" cy="31" r="3" fill="currentColor" stroke="none"/><path d="M32 31h10"/>';
+  const sky = [1, 2, 3, 4].map(i => `<span class="kit-bite b${i}"><svg viewBox="0 0 64 64" aria-hidden="true">${tab}</svg></span>`).join('');
+  const bead = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" aria-hidden="true"><path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/><circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none"/></svg>';
   $('#main').innerHTML = `
-  <div class="lx-gate">
-    <div class="lx-gate-hero">
-      <img class="lx-gate-char" src="../logo/locus/character/rest.png" alt="" draggable="false">
-      <div><h1 class="lx-gate-name">Locus</h1>
-      <p class="lx-gate-line">Where a brand's growth gets run. Every store, every ad account, every email, read every morning, with the calls to make <em class="lx-accent">today</em>.</p></div>
-    </div>
-  <div class="gate">
+  <div class="kit-gate" data-gate="locus">
+    <div class="kit-gate-sky" aria-hidden="true">${sky}</div>
+    <div class="kit-gate-body">
+      <div class="kit-gate-hero">
+        <div class="kit-gate-char" aria-hidden="true"><span class="breathe"><span class="move">
+          <img class="rest" src="../logo/locus/character/rest.png" alt="" draggable="false">
+          <img class="blink" src="../logo/locus/character/asleep.png" alt="" draggable="false"></span></span></div>
+        <div class="kit-gate-head">
+          <div class="kit-gate-label">${bead}<span>Locus</span></div>
+          <h1>Know what to <em>change</em>.</h1>
+          <p class="kit-gate-line">Every store, every ad account, every email, read every morning, with the calls to make today.</p>
+        </div>
+      </div>
+  <div class="gate kit-gate-card">
     <p>Sign in with Google, using the email Mobius invited.</p>
-    <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
+    <a class="cta" style="display:flex;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
     <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
@@ -2860,6 +2871,8 @@ function renderGate(err, offerRetry) {
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
     </details>
   </div>
+      <p class="kit-gate-foot"><b>Locus</b> by Mobius Digital.</p>
+    </div>
   </div>`;
   const go = () => {
     S.url = ($('#gUrl').value||'').trim() || DEFAULT_WORKER_URL;

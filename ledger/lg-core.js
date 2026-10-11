@@ -318,23 +318,45 @@ show = function (view) {
 renderReports = function () { show('reports'); };
 renderDashboards = function () { show('dashboards'); };
 
-/* the gate: full screen, no rail */
+/* the gate: full screen, no rail. The field, the character, the tagline, the card
+   (logo/kit.css section 7; the same gate as Locus in its own colour). The bites
+   drifting behind are the cost characters from the brand's bite family: a folded
+   bill, a box, a flame, a blob, a spiral, drawn in the marks' stroke family. */
+const GATE_BITES = [
+  '<path d="M10 20h30l14 14v10H10z"/><path d="M40 20v14h14"/><circle cx="25" cy="32" r="5"/>',
+  '<path d="M32 8 56 20v24L32 56 8 44V20z"/><path d="M8 20l24 12 24-12M32 32v24"/>',
+  '<path d="M32 8c7 10 16 17 16 30a16 16 0 0 1-32 0c0-8 4-13 9-18 0 6 3 9 6 9-1-8 0-14 1-21z"/>',
+  '<path d="M29 11c13-3 25 7 24 20-1 10-5 22-18 23S9 47 11 33s8-20 18-22z"/>',
+  '<path d="M34 34a2 2 0 0 1 2 2 4 4 0 0 1-4 4 6 6 0 0 1-6-6 8 8 0 0 1 8-8 10 10 0 0 1 10 10 12 12 0 0 1-12 12 14 14 0 0 1-14-14 16 16 0 0 1 16-16"/>',
+];
 renderGate = function (err) {
   document.body.classList.add('gated');
   setChip('Signed out', 'off');
   setHelper('asleep');
-  $('#main').innerHTML = `<div class="gate-field">
-    <div class="lockup"><img class="chr" src="../logo/cashew/character/rest.png" alt=""><img class="wm" src="../logo/cashew/wordmark.svg" alt="Cashew"></div>
-    <p class="tag">Mobius Digital's books. Know what you kept.</p>
-    <div class="gate">
-    <p>Money in, money out, the month closed, and the pack the CPA needs. Sign in once at Mobius HQ and every internal tool opens.</p>
-    <a class="cta" href="../hq/?next=/ledger/">Continue with Google</a>
-    ${err ? `<div class="err">${esc(err)}</div>` : ''}
-    <details><summary>Use an administrator token</summary>
-      <label>Administrator token</label><input id="gTok" type="password" placeholder="administrator token">
-      <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
-      <button class="cta" id="gGo">Sign in</button></details></div>
-    <p class="foot">The app never moves money. <a href="privacy/">Privacy</a> · <a href="security/">Security</a></p></div>`;
+  const sky = GATE_BITES.map((d, i) => `<span class="kit-bite b${i + 1}"><svg viewBox="0 0 64 64" aria-hidden="true">${d}</svg></span>`).join('');
+  $('#main').innerHTML = `<div class="kit-gate" data-gate="cashew">
+    <div class="kit-gate-sky" aria-hidden="true">${sky}</div>
+    <div class="kit-gate-body">
+      <div class="kit-gate-hero">
+        <div class="kit-gate-char" aria-hidden="true"><span class="breathe"><span class="move">
+          <img class="rest" src="../logo/cashew/character/rest.png" alt="" draggable="false">
+          <img class="blink" src="../logo/cashew/character/asleep.png" alt="" draggable="false"></span></span></div>
+        <div class="kit-gate-head">
+          <div class="kit-gate-label"><img src="../logo/cashew/wordmark.svg" alt="Cashew"></div>
+          <h1>Know what you <em>kept</em>.</h1>
+          <p class="kit-gate-line">What came in, what you actually kept, what is coming, and the books your CPA needs, kept clean every night.</p>
+        </div>
+      </div>
+      <div class="gate kit-gate-card">
+      <p>Mobius Digital's books. Sign in once at Mobius HQ and every internal tool opens.</p>
+      <a class="cta" href="../hq/?next=/ledger/">Continue with Google</a>
+      ${err ? `<div class="err">${esc(err)}</div>` : ''}
+      <details><summary>Use an administrator token</summary>
+        <label>Administrator token</label><input id="gTok" type="password" placeholder="administrator token">
+        <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
+        <button class="cta" id="gGo">Sign in</button></details></div>
+      <p class="kit-gate-foot">The app never moves money. <a href="privacy/">Privacy</a> · <a href="security/">Security</a></p>
+    </div></div>`;
   const goIn = () => {
     S.url = ($('#gUrl').value || '').trim() || DEFAULT_WORKER_URL;
     S.tok = $('#gTok').value.trim();
