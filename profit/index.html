@@ -2186,7 +2186,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=32">
+<link rel="stylesheet" href="v2.css?v=33">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
@@ -2313,6 +2313,7 @@
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=5"></script>
 <script src="hero.js?v=1"></script>
+<script src="nudge.js?v=1"></script>
 <script src="v2.js?v=47"></script>
 <script src="desk.js?v=17"></script>
 <script src="agency.js?v=2"></script>
@@ -5241,6 +5242,8 @@ function show(tab, opt) {
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
   if (window.LocusShare) window.LocusShare.sync(tab);
+  /* The nudge card (nudge.js, 2026-10-11): the badge in the top bar follows the brand on screen. */
+  if (window.LxNudge) window.LxNudge.refresh(v2Host());
 }
 
 /* ---------- Meta ----------

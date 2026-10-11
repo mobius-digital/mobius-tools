@@ -13,6 +13,7 @@ import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 import { handleRequests } from './requests.js';
+import { handlePrefs, morningPeople } from './prefs.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -8487,6 +8488,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json({ ok: true, email, role, guest: extra.includes(email), brands: ub[email] || [] });
     }
 
+    /* Per-person preferences (2026-10-11, prefs.js): the morning DM switch and the nudge card's snoozes and dones. */
+    if (path === '/api/me/prefs') {
+      const cs = clientScope(request);
+      const who = cs ? cs.email : (await sessionEmail(env, request)) || ((await isAdmin(request, env)) ? 'admin' : null);
+      return handlePrefs(request, env, path, who, json);
+    }
     if (path === '/api/me') {
       const sess = await verifySession(env, (request.headers.get('Authorization') || '').slice(7));
       /* role: owner | team | client (2026-10-09). The profit and ledger workers delegate here, so a client

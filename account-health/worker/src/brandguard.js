@@ -168,6 +168,9 @@ export const CLIENT_RULES = [
   R('GET', '/api/me', 'none'),
   R('GET', '/api/clients/me', 'none'),
   R('PUT', '/api/clients/me', 'none'),
+  /* Per-person preferences (prefs.js, 2026-10-11): the morning DM switch, the nudge card's Not now and Done. */
+  R('GET', '/api/me/prefs', 'none'),
+  R('PUT', '/api/me/prefs', 'none', { fields: ['morning_dm', 'nudge'] }),
 
   /* ---- HOME: Overview, Day check, P&L, Goals, Requests ---- */
   R('GET', '/api/overview', 'opt'),

@@ -1843,3 +1843,27 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 [data-ui="v2"] .lx-morning-l p{margin:0;font-size:14px;line-height:1.5;color:var(--ink);font-feature-settings:"tnum" 1}
 [data-ui="v2"] .lx-morning-l p+p{margin-top:2px}
 [data-ui="v2"] .lx-morning-k{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+/* the nudge card: a badge in the top bar, a stack under it */
+.lx-nudge-host{position:relative;display:flex;align-items:center}
+.lx-nudge{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border:1px solid var(--line-strong,var(--line));border-radius:var(--r-pill,999px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:550;cursor:pointer;white-space:nowrap}
+.lx-nudge:hover{border-color:var(--brand)}
+.lx-nudge.has{border-color:var(--brand-line,var(--brand));background:var(--brand-tint,var(--brand-soft))}
+.lx-nudge-pop{position:absolute;top:calc(100% + 8px);right:0;width:min(440px,calc(100vw - 32px));max-height:min(70vh,640px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl,18px);box-shadow:var(--sh-pop,0 12px 32px rgba(0,0,0,.25));padding:14px 16px 12px;z-index:60;text-align:left;font-feature-settings:"tnum" 1}
+.lx-nudge-h{display:flex;align-items:center;gap:10px;margin:0 0 6px}.lx-nudge-h b{flex:1;font-size:14px}
+.lx-nudge-x{margin-left:auto;font-size:18px;line-height:1}
+.lx-nudge-it{padding:12px 0;border-top:1px solid var(--line)}
+.lx-nudge-it p{margin:6px 0 10px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+.lx-nudge-k{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:var(--surface-2);color:var(--muted)}
+.lx-nudge-k.cut,.lx-nudge-k.trim,.lx-nudge-k.bad{background:var(--bad-bg);color:var(--bad)}.lx-nudge-k.scale,.lx-nudge-k.good{background:var(--good-bg);color:var(--good)}.lx-nudge-k.refresh,.lx-nudge-k.moved{background:var(--brand-soft);color:var(--brand)}.lx-nudge-k.fix{background:var(--warn-bg);color:var(--warn)}
+.lx-nudge-a{display:flex;gap:6px;flex-wrap:wrap}
+.lx-nudge-a .ds-btn{height:30px;font-size:12.5px}.lx-nudge-a a.ds-btn{text-decoration:none;display:inline-flex;align-items:center}
+.lx-nudge-empty{margin:8px 0;color:var(--muted);font-size:13px}
+.lx-nudge-more{margin:8px 0 0;color:var(--muted);font-size:12px}
+.lx-nudge-f{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:10px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.lx-nudge-m .lx-nudge-mb{margin:8px 0 0}
+.lx-nudge-t1{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}.lx-nudge-t1:first-child{border-top:0}
+.lx-ba{display:inline-flex;gap:8px;align-items:center;font-size:13px}.lx-ba i{font-style:normal;color:var(--muted)}.lx-ba em{font-style:normal;color:var(--good);font-weight:600}
+.lx-nudge-in{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;margin:0 0 10px}
+.lx-nudge-ma{justify-content:flex-end;gap:8px;margin:14px 0 0;align-items:center}.lx-nudge-ma .faint{margin-right:auto;font-size:11.5px}
+@media (max-width:720px){.lx-nudge-t{display:none}.lx-nudge{padding:0 10px}.lx-nudge-pop{position:fixed;top:auto;bottom:70px;left:16px;right:16px;width:auto}}
+.lx-nudge-err{color:var(--bad);font-size:13px;margin:8px 0 0}.lx-nudge-err[hidden]{display:none}

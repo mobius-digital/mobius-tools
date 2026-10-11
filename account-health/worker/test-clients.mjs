@@ -149,7 +149,7 @@ const PAGE_ROUTES = [
   ['ah', '/api/calendar?act=brand_alpha'], ['pf', '/api/briefs?act=brand_alpha'], ['pf', '/api/brief?act=brand_alpha'], ['pf', '/api/reports?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'],
   ['pf', '/api/snapshots'], ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/season/war?act=brand_alpha'], ['ah', '/api/tw-day?act=brand_alpha'], ['pf', '/api/scenario?act=brand_alpha'],
   // Brand settings and the profile
-  ['ah', '/api/accounts'], ['ah', '/api/integrations'], ['ah', '/api/clients/me'],
+  ['ah', '/api/accounts'], ['ah', '/api/integrations'], ['ah', '/api/clients/me'], ['ah', '/api/me/prefs'],
 ];
 await check('the brand edition: every page a brand has answers a client for its own brand (both workers)', async () => {
   const shut = [];
