@@ -15,7 +15,7 @@ type SvgModule = { default: React.FC<React.SVGProps<SVGSVGElement>> };
 const svgs = require.context('../../../logo', true, /^\.\/(locus|kept|cashew)\/[^/]+\.svg$/);
 const pngs = require.context('../../../logo', true, /\/character\/(rest|thinking|found|asleep|clear)\.png$/);
 
-const svg = (file: string) => (svgs(`./${file}`) as SvgModule).default;
+export const svg = (file: string) => (svgs(`./${file}`) as SvgModule).default;
 const png = (file: string) => {
   const m = pngs(`./${file}`) as string | { default: string };
   return typeof m === 'string' ? m : m.default;

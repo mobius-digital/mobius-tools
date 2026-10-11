@@ -1,0 +1,188 @@
+{
+ "cashew-01": {
+  "file": "vo/cashew-01.wav",
+  "seconds": 3.303,
+  "text": "Your bank app says you have eighteen thousand four hundred dollars.",
+  "hash": "8ac5265f8f1f"
+ },
+ "cashew-02": {
+  "file": "vo/cashew-02.wav",
+  "seconds": 1.489,
+  "text": "That is not what you made.",
+  "hash": "5d4aafb50c3e"
+ },
+ "cashew-03": {
+  "file": "vo/cashew-03.wav",
+  "seconds": 1.297,
+  "text": "Rent takes a bite.",
+  "hash": "71d39c539fa7"
+ },
+ "cashew-04": {
+  "file": "vo/cashew-04.wav",
+  "seconds": 1.532,
+  "text": "The factory takes a bite.",
+  "hash": "a7f8376c37f5"
+ },
+ "cashew-05": {
+  "file": "vo/cashew-05.wav",
+  "seconds": 0.977,
+  "text": "Ads burn.",
+  "hash": "cfc49da4c50f"
+ },
+ "cashew-06": {
+  "file": "vo/cashew-06.wav",
+  "seconds": 2.343,
+  "text": "And the tax you owe, but have not paid yet.",
+  "hash": "c0b08c0a533f"
+ },
+ "cashew-07": {
+  "file": "vo/cashew-07.wav",
+  "seconds": 3.388,
+  "text": "What you actually kept? Three thousand, one hundred and twenty.",
+  "hash": "8926313e6c8b"
+ },
+ "cashew-08": {
+  "file": "vo/cashew-08.wav",
+  "seconds": 2.556,
+  "text": "And you found out in April. From your CPA.",
+  "hash": "5e7cf981dc92"
+ },
+ "cashew-09": {
+  "file": "vo/cashew-09.wav",
+  "seconds": 0.871,
+  "text": "Cashew.",
+  "hash": "798c3d5117f0"
+ },
+ "cashew-10": {
+  "file": "vo/cashew-10.wav",
+  "seconds": 2.407,
+  "text": "Every account. Every sale. Every bill.",
+  "hash": "c9844af22a2a"
+ },
+ "cashew-11": {
+  "file": "vo/cashew-11.wav",
+  "seconds": 1.895,
+  "text": "One real number. Every night.",
+  "hash": "b5cda2b7afe5"
+ },
+ "cashew-12": {
+  "file": "vo/cashew-12.wav",
+  "seconds": 3.281,
+  "text": "The bill that did not come. The payment that landed twice.",
+  "hash": "293476f56a1e"
+ },
+ "cashew-13": {
+  "file": "vo/cashew-13.wav",
+  "seconds": 3.047,
+  "text": "Cashew taps you on the shoulder. One tap. Booked.",
+  "hash": "920bd814326c"
+ },
+ "cashew-14": {
+  "file": "vo/cashew-14.wav",
+  "seconds": 2.364,
+  "text": "Monday, seven oh two. Here is your week.",
+  "hash": "199bc0ae26f3"
+ },
+ "cashew-15": {
+  "file": "vo/cashew-15.wav",
+  "seconds": 4.348,
+  "text": "Close the month in one sitting. Hand your CPA a pack, not a shoebox.",
+  "hash": "6e75952d28cb"
+ },
+ "cashew-16": {
+  "file": "vo/cashew-16.wav",
+  "seconds": 1.511,
+  "text": "Cashew. Know what you kept.",
+  "hash": "126817757a6d"
+ },
+ "locus-01": {
+  "file": "vo/locus-01.wav",
+  "seconds": 1.617,
+  "text": "Meta says four point one.",
+  "hash": "958cd84ff139"
+ },
+ "locus-02": {
+  "file": "vo/locus-02.wav",
+  "seconds": 1.831,
+  "text": "Shopify says two point three.",
+  "hash": "78a03f5a3526"
+ },
+ "locus-03": {
+  "file": "vo/locus-03.wav",
+  "seconds": 3.047,
+  "text": "Your ad spend is bleeding. And nobody can see where.",
+  "hash": "7121d981559f"
+ },
+ "locus-04": {
+  "file": "vo/locus-04.wav",
+  "seconds": 2.236,
+  "text": "You find out at eleven forty seven.",
+  "hash": "958a5174f907"
+ },
+ "locus-05": {
+  "file": "vo/locus-05.wav",
+  "seconds": 3.196,
+  "text": "Fourteen tabs open. Nobody knows what to change.",
+  "hash": "b1889702773a"
+ },
+ "locus-06": {
+  "file": "vo/locus-06.wav",
+  "seconds": 0.935,
+  "text": "Locus.",
+  "hash": "aea7f5e4c8dd"
+ },
+ "locus-07": {
+  "file": "vo/locus-07.wav",
+  "seconds": 1.425,
+  "text": "It wakes before you do.",
+  "hash": "cc634f2a7018"
+ },
+ "locus-08": {
+  "file": "vo/locus-08.wav",
+  "seconds": 3.879,
+  "text": "Every store. Every ad account. Every email. Read by seven.",
+  "hash": "4cb6fe84689d"
+ },
+ "locus-09": {
+  "file": "vo/locus-09.wav",
+  "seconds": 2.492,
+  "text": "The morning brief. One sentence per brand.",
+  "hash": "e2368b50c138"
+ },
+ "locus-10": {
+  "file": "vo/locus-10.wav",
+  "seconds": 3.708,
+  "text": "Yesterday, you actually kept four thousand, three hundred and ten.",
+  "hash": "29bd0dadd5aa"
+ },
+ "locus-11": {
+  "file": "vo/locus-11.wav",
+  "seconds": 5.116,
+  "text": "Today's calls. Scale this. Cut that. Refresh this. Ranked by the money at stake.",
+  "hash": "95b8b2bb1bff"
+ },
+ "locus-12": {
+  "file": "vo/locus-12.wav",
+  "seconds": 1.937,
+  "text": "One tap. Paused. And logged.",
+  "hash": "4353989d670f"
+ },
+ "locus-13": {
+  "file": "vo/locus-13.wav",
+  "seconds": 2.172,
+  "text": "What to make next, from what already won.",
+  "hash": "5a9326316839"
+ },
+ "locus-14": {
+  "file": "vo/locus-14.wav",
+  "seconds": 2.961,
+  "text": "Running an agency? Every brand. One morning.",
+  "hash": "13a1b4dd7b51"
+ },
+ "locus-15": {
+  "file": "vo/locus-15.wav",
+  "seconds": 1.639,
+  "text": "Locus. Know what to change.",
+  "hash": "ac3dad00eefe"
+ }
+}

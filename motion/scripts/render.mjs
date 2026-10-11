@@ -2,10 +2,10 @@
 // and prints how long each took. Output goes to out/ (gitignored).
 //
 //   node scripts/render.mjs            all four MP4s and the two posters
-//   node scripts/render.mjs kept       the Kept spot, both formats
+//   node scripts/render.mjs cashew     the Cashew spot, both formats
 //   node scripts/render.mjs locus      the Locus spot, both formats
 //   node scripts/render.mjs posters    the two 1080x1920 poster frames only
-//   node scripts/render.mjs KeptVertical LocusLandscape   named compositions
+//   node scripts/render.mjs CashewVertical LocusLandscape   named compositions
 //
 // Settings (browser path, CRF, renderer) come from remotion.config.ts.
 import { bundle } from '@remotion/bundler';
@@ -30,20 +30,20 @@ const browserExecutable = process.env.REMOTION_BROWSER ?? '/opt/pw-browsers/chro
 const crf = 28;
 const gl = 'angle';
 
-const ids = { kept: ['KeptVertical', 'KeptLandscape'], locus: ['LocusVertical', 'LocusLandscape'] };
-const posters = { KeptVertical: 'kept-poster.png', LocusVertical: 'locus-poster.png' };
-// The poster frame of each spot: the circled number for Kept, the dot awake for Locus.
-const posterFrame = { KeptVertical: 820, LocusVertical: 456 };
+const ids = { cashew: ['CashewVertical', 'CashewLandscape'], locus: ['LocusVertical', 'LocusLandscape'] };
+const posters = { CashewVertical: 'cashew-poster.png', LocusVertical: 'locus-poster.png' };
+// The poster frame of each spot, as a share of the length: the circled number for Cashew, the calls for Locus.
+const posterShare = { CashewVertical: 0.62, LocusVertical: 0.66 };
 
 const args = process.argv.slice(2);
 let toRender = [];
 let doPosters = false;
 if (args.length === 0) {
-  toRender = [...ids.kept, ...ids.locus];
+  toRender = [...ids.cashew, ...ids.locus];
   doPosters = true;
 } else {
   for (const a of args) {
-    if (a === 'kept' || a === 'locus') toRender.push(...ids[a]);
+    if (a === 'cashew' || a === 'locus') toRender.push(...ids[a]);
     else if (a === 'posters') doPosters = true;
     else toRender.push(a);
   }
@@ -94,16 +94,17 @@ if (doPosters) {
     const t = Date.now();
     const composition = await selectComposition({ serveUrl, id, browserExecutable, chromiumOptions: { gl } });
     const output = join(outDir, file);
+    const frame = Math.round(composition.durationInFrames * posterShare[id]);
     await renderStill({
       composition,
       serveUrl,
       output,
-      frame: posterFrame[id],
+      frame,
       imageFormat: 'png',
       browserExecutable,
       chromiumOptions: { gl },
     });
-    console.log(`${id} frame ${posterFrame[id]} -> out/${file}  ${((Date.now() - t) / 1000).toFixed(1)}s`);
+    console.log(`${id} frame ${frame} -> out/${file}  ${((Date.now() - t) / 1000).toFixed(1)}s`);
   }
 }
 

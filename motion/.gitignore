@@ -4,9 +4,9 @@ node_modules/
 # in the repo so frames can be reviewed without a render; everything else in
 # out/ stays out.
 out/*
-!out/kept-vertical.mp4
-!out/kept-landscape.mp4
+!out/cashew-vertical.mp4
+!out/cashew-landscape.mp4
 !out/locus-vertical.mp4
 !out/locus-landscape.mp4
-!out/kept-poster.png
+!out/cashew-poster.png
 !out/locus-poster.png

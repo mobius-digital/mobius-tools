@@ -1,414 +1,438 @@
-// The Locus spot, beat by beat from docs/two-products.md section 6.
+// The Locus spot. One app, the morning read and the calls. The picture
+// follows the voice (vo.json, lines 01 to 15).
 //
-//  1. "Meta says 4.1." "Shopify says 2.3." Two numbers argue.
-//  2. "14 tabs open. Nobody knows what to change." Tabs fly.
-//  3. Locus. The dot wakes before you do. "Every store. Every ad account.
-//     Every email. Read by 7."
-//  4. "The morning brief." One sentence per brand.
-//  5. "Today's calls." Scale this. Cut that. Refresh this. Ranked by money
-//     at stake. One tap. "Paused."
-//  6. "What to make next." The creative engine: the winning angle, the
-//     brief, the library.
-//  7. "Agency edition: every brand, one morning." Lanes of brands.
-//  8. "Locus. Know what to change."
-//  Then the two characters and the two logos: Locus knows where you are.
-//  Cashew knows what you have.
+//  01-02 Meta says 4.1. Shopify says 2.3.            two platform cards shove each other
+//  03 Your ad spend is bleeding.                     the spend bars, the last three turn red and run down the chart
+//  04 You find out at 11:47.                         dark, a clock spins to 11:47
+//  05 Fourteen tabs open. Nobody knows what to change.   tabs fly in, a count, then they collapse into one point
+//  06-07 Locus. It wakes before you do.              the field floods blue, the bead, the character wakes
+//  08 Every store. Every ad account. Every email. Read by 7.   Home's own tiles and the day check fly in
+//  09 The morning brief.                             the morning line types in, one sentence per brand
+//  10 Yesterday you actually kept $4,310.            the hero with the bites bar
+//  11 Today's calls. Scale this. Cut that. Refresh this.   the calls, one row per phrase
+//  12 One tap. Paused. And logged.                   the tap, the row flips, the chime
+//  13 What to make next.                             the proven angle, three iterations
+//  14 Every brand, one morning.                      the agency lanes fill
+//  15 Locus. Know what to change.                    dark, the lockup, the tagline, the nod
 import React from 'react';
-import { AbsoluteFill, Sequence, interpolate, random, useCurrentFrame } from 'remotion';
-import { colours, locus as locusApp, locusNumbers } from '../../brand';
-import { Column, Figure, Fit, Line, Stage, useStage } from '../lib/stage';
-import { feel, money, rise, useBump, useExit, useSpring } from '../lib/motion';
+import { Sequence, interpolate, random, useCurrentFrame } from 'remotion';
+import { colours, locus as app, locusNumbers as N } from '../../brand';
+import { buildTimeline, type Cue } from '../lib/timeline';
+import { Bed, Sfx, Voice } from '../lib/audio';
+import { feel, useBump, useExit, useSpring } from '../lib/motion';
+import { Big, Caption, Camera, Field, SceneBox, Words } from '../shared/scene';
 import { Character, CharacterBlend, LogoLockup } from '../marks/Mark';
-import { Card, Tap } from '../shared/pieces';
-import { Ending } from '../shared/Ending';
-import { Tagline } from '../shared/Tagline';
+import { LxAngle, LxCalls, LxDayCheck, LxHero, LxLanes, LxMorning, LxSpendBars, LxTile, LxWindow, PlatformCard, Tab, Zoom } from '../ui/locus';
+import { MetaMark, ShopifyMark } from '../ui/marks';
+import { channel } from '../ui/tokens';
+import { serifStack } from '../lib/fonts';
 
-const beats = {
-  argue: [0, 150],
-  tabs: [150, 570], // the tabs, then the collapse into the dot and the wake
-  brief: [570, 720],
-  calls: [720, 930],
-  creative: [930, 1080],
-  agency: [1080, 1200],
-  tagline: [1200, 1290],
-  ending: [1290, 1395],
-} as const;
-export const locusDuration = beats.ending[1];
-const FLOOD_AT = 350; // the field floods in during the collapse
+const cues: Cue[] = [
+  { id: '01', gap: 0.6 }, { id: '02', gap: 0.4 }, { id: '03', gap: 0.8, hold: 1.0 }, { id: '04', gap: 0 }, { id: '05', gap: 0.3, hold: 0.9 },
+  { id: '06', gap: 0 }, { id: '07', gap: 0.3 }, { id: '08', gap: 0.5, hold: 0.5 }, { id: '09', gap: 0 }, { id: '10', gap: 0.3, hold: 1.0 },
+  { id: '11', gap: 0 }, { id: '12', gap: 0.5, hold: 1.1 }, { id: '13', gap: 0, hold: 0.7 }, { id: '14', gap: 0, hold: 0.8 }, { id: '15', gap: 0.3 },
+];
+export const tl = buildTimeline('locus', cues, 2.6);
+export const locusDuration = tl.total;
+const A = (id: string) => tl.at(id);
+const E = (id: string) => tl.end(id);
+
+const keptCheck = N.sales - N.bites.reduce((s, b) => s + b.v, 0);
+if (keptCheck !== N.kept) throw new Error(`brand.ts: Locus sales minus the bites is ${keptCheck}, not kept ${N.kept}.`);
 
 const B = colours.locus;
+const INK = colours.ink;
+const PAPER = colours.paper;
+const NIGHT = colours.night;
 const W = colours.onField;
-const W2 = colours.onField2;
+const RED = colours.blood;
+const WIN = { k: 1.75, w: 560, x: 50 }; // the app window: 560 app px wide, scaled to 980
 
-const accentLast = (line: string) => {
-  const words = line.split(' ');
-  const last = words.pop();
-  return `${words.join(' ')} *${last}*`;
-};
-
-// ---- 1. Two numbers argue ---------------------------------------------------------
-const Argue: React.FC<{ len: number }> = ({ len }) => {
-  const s = useSpring();
-  const bump = useBump();
-  const out = useExit(len, 8);
-  const { portrait } = useStage();
-  const left = s(0, feel.pop);
-  const right = s(10, feel.pop);
-  // Each shoves in turn; the other flinches.
-  const shoveL = bump(36, 5, feel.wobble) + bump(84, 5, feel.wobble) + bump(126, 5, feel.wobble);
-  const shoveR = bump(60, 5, feel.wobble) + bump(106, 5, feel.wobble);
-  const side = (label: string, value: string, p: number, shove: number, flinch: number, dir: number) => (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 6,
-        transform: `translateX(${dir * (shove * 70 - flinch * 50)}px) rotate(${dir * (shove * 6 - flinch * 8)}deg) scale(${p + shove * 0.08})`,
-        opacity: p,
-      }}
-    >
-      <div style={{ fontSize: 40, fontWeight: 500, color: colours.muted }}>{label}</div>
-      <Figure text={value} size={portrait ? 250 : 320} />
-    </div>
-  );
-  return (
-    <Column style={{ opacity: out, flexDirection: 'row', gap: portrait ? 130 : 220 }}>
-      {side('Meta says', locusNumbers.metaRoas, left, shoveL, shoveR, 1)}
-      {side('Shopify says', locusNumbers.shopifyRoas, right, shoveR, shoveL, -1)}
-    </Column>
-  );
-};
-
-// ---- 2 and 3. Tabs fly, then collapse into the dot, which wakes --------------------
-const TabCard: React.FC<{ i: number }> = ({ i }) => (
-  <div style={{ width: 300, height: 200, borderRadius: 18, background: '#FFFFFF', boxShadow: '0 18px 40px rgba(0,0,0,.16)', overflow: 'hidden' }}>
-    <div style={{ height: 48, background: colours.ink, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
-      <div style={{ width: 18, height: 18, borderRadius: 9, border: '3px solid #fff', boxSizing: 'border-box' }} />
-      <div style={{ height: 9, width: 70 + ((i * 37) % 110), borderRadius: 5, background: 'rgba(255,255,255,.65)' }} />
-    </div>
-    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {[0, 1, 2, 3].map((k) => (
-        <div key={k} style={{ height: 14, borderRadius: 7, width: `${35 + ((i * 29 + k * 53) % 60)}%`, background: k === 0 ? 'rgba(15,15,20,.5)' : 'rgba(15,15,20,.12)' }} />
-      ))}
-    </div>
-  </div>
-);
-
-const COLLAPSE = 180;
-const WAKE = 240;
-
-const TabsAndWake: React.FC<{ len: number }> = ({ len }) => {
-  const s = useSpring();
-  const bump = useBump();
-  const out = useExit(len, 8);
-  const { dw, dh, portrait } = useStage();
-  const n = locusNumbers.tabs;
-
-  const tabs = Array.from({ length: n }, (_, i) => {
-    const arrive = s(i * 4, feel.pop);
-    const go = s(COLLAPSE + i * 2, { damping: 18, stiffness: 140, mass: 0.9 });
-    const rx = (random(`tx${i}`) - 0.5) * (dw - 420);
-    const ry = (random(`ty${i}`) - 0.5) * (dh - 560);
-    const rot = (random(`tr${i}`) - 0.5) * 28;
-    const ang = (i / n) * Math.PI * 2 + 0.7;
-    const fromX = Math.cos(ang) * 1600;
-    const fromY = Math.sin(ang) * 1600;
-    const x = interpolate(go, [0, 1], [fromX + (rx - fromX) * arrive, 0]);
-    const y = interpolate(go, [0, 1], [fromY + (ry - fromY) * arrive, 0]);
-    const sc = (1 - go) * (0.7 + 0.3 * arrive);
-    return { i, x, y, rot: rot * (1 - go) + go * 180 * (random(`ts${i}`) - 0.5), sc, arrive };
-  });
-  const counted = tabs.filter((t) => t.arrive > 0.5).length;
-  const countIn = s(12, feel.settle);
-  const nobody = s(96, feel.settle);
-  const linesOut = 1 - s(COLLAPSE - 6, feel.soft);
-
-  // The dot: a point grows where the tabs went, then the bead wakes.
-  const dot = s(COLLAPSE + 20, feel.pop);
-  const bead = s(WAKE - 20, feel.pop);
-  const wake = s(WAKE, feel.settle);
-  const blink = bump(WAKE + 30, 3, feel.snap);
-  const name = s(WAKE + 22, feel.settle);
-  const wakesLine = s(WAKE + 40, feel.settle);
-  const up = s(WAKE + 76, feel.settle);
-  const l1 = s(WAKE + 80, feel.settle);
-  const l2 = s(WAKE + 94, feel.settle);
-  const l3 = s(WAKE + 108, feel.settle);
-  const l4 = s(WAKE + 130, feel.pop);
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, opacity: out }}>
-      {tabs.map((t) => (
-        <div
-          key={t.i}
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: `translate(${t.x}px, ${t.y}px) translate(-50%, -50%) rotate(${t.rot}deg) scale(${t.sc})`,
-            opacity: t.arrive,
-          }}
-        >
-          <TabCard i={t.i} />
-        </div>
-      ))}
-
-      <Column gap={16} style={{ opacity: linesOut }}>
-        <div style={{ background: colours.paper, padding: '18px 40px', borderRadius: 28, ...rise(countIn, 20) }}>
-          <Line text={`${counted} tabs open.`} size={76} />
-        </div>
-        <div style={{ background: colours.paper, padding: '14px 40px', borderRadius: 28, ...rise(nobody, 20) }}>
-          <Line text="Nobody knows what to change." size={56} weight={600} />
-        </div>
-      </Column>
-
-      {/* The point every tab went into. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '50%',
-          top: '50%',
-          width: 44,
-          height: 44,
-          marginLeft: -22,
-          marginTop: -22,
-          borderRadius: 22,
-          background: B,
-          transform: `scale(${dot * (1 - bead)})`,
-        }}
-      />
-
-      {/* The character wakes: asleep to found, with a blink, then the logo. */}
-      <div style={{ position: 'absolute', inset: 0, color: W, transform: `translateY(${-up * (portrait ? 420 : 300)}px)` }}>
-        <Column gap={30}>
-          <CharacterBlend
-            app={locusApp}
-            from="asleep"
-            to="found"
-            t={Math.min(1, wake + blink * 0.3)}
-            size={360}
-            style={{ transform: `scale(${bead * (1 - up * 0.4)}) translateY(${-wake * 20}px)`, opacity: bead }}
-          />
-          <LogoLockup app={locusApp} height={110} color={W} style={rise(name, 30)} />
-          <Line text="The dot *wakes* before you do." size={60} weight={600} color={W} style={{ ...rise(wakesLine, 24), opacity: Math.min(wakesLine, 1 - up) }} />
-        </Column>
-      </div>
-
-      <div style={{ position: 'absolute', inset: 0, color: W, transform: `translateY(${portrait ? 180 : 150}px)` }}>
-        <Column gap={14}>
-          <Line text="Every store." size={64} weight={600} color={W} style={rise(l1, 24)} />
-          <Line text="Every ad account." size={64} weight={600} color={W} style={rise(l2, 24)} />
-          <Line text="Every email." size={64} weight={600} color={W} style={rise(l3, 24)} />
-          <Line text={`Read by ${locusNumbers.readBy}.`} size={110} weight={700} color={W} style={{ ...rise(l4, 40), marginTop: 20 }} />
-        </Column>
-      </div>
-    </div>
-  );
-};
-
-// The field floods in from the dot and stays.
-const Flood: React.FC<{ color: string }> = ({ color }) => {
-  const s = useSpring();
-  const p = s(0, { damping: 22, stiffness: 110, mass: 1.1 });
-  return <AbsoluteFill style={{ background: color, clipPath: `circle(${p * 1500}px at 50% 50%)` }} />;
-};
-
-// ---- 4. The morning brief ------------------------------------------------------------
-const Ring: React.FC<{ size?: number; color?: string }> = ({ size = 44, color = B }) => (
-  <div style={{ width: size, height: size, borderRadius: size / 2, border: `${Math.max(4, size / 9)}px solid ${color}`, boxSizing: 'border-box', flex: 'none' }} />
-);
-
-const Brief: React.FC<{ len: number }> = ({ len }) => {
-  const s = useSpring();
-  const out = useExit(len, 8);
-  const head = s(0, feel.settle);
-  const sub = s(14, feel.settle);
-  const rows = [0, 1, 2].map((i) => ({ card: s(30 + i * 10, feel.pop), bar: s(44 + i * 10, feel.settle, 40) }));
-  return (
-    <Column gap={28} style={{ opacity: out, color: W }}>
-      <Line text="The morning brief." size={84} weight={700} color={W} style={rise(head, 30)} />
-      <Line text="One sentence per brand." size={44} weight={500} color={W2} style={{ ...rise(sub, 20), marginBottom: 24 }} />
-      {rows.map((r, i) => (
-        <Card key={i} width={900} style={{ display: 'flex', alignItems: 'center', gap: 24, padding: '30px 36px', transform: `translateY(${(1 - r.card) * 60}px)`, opacity: r.card }}>
-          <Ring />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ height: 18, borderRadius: 9, background: colours.ink, width: `${r.bar * (78 + ((i * 13) % 20))}%` }} />
-            <div style={{ height: 18, borderRadius: 9, background: 'rgba(15,15,20,.18)', width: `${r.bar * (40 + ((i * 31) % 35))}%` }} />
-          </div>
-        </Card>
-      ))}
-    </Column>
-  );
-};
-
-// ---- 5. Today's calls -----------------------------------------------------------------
-const Calls: React.FC<{ len: number }> = ({ len }) => {
+// ---- 01 and 02. Two numbers argue --------------------------------------------
+const SceneArgue: React.FC<{ len: number; secondAt: number }> = ({ len, secondAt }) => {
   const f = useCurrentFrame();
   const s = useSpring();
   const bump = useBump();
-  const out = useExit(len, 8);
-  const head = s(0, feel.settle);
-  const cards = locusNumbers.calls.map((_, i) => s(16 + i * 9, feel.pop));
-  const ranked = s(50, feel.settle);
-  const oneTap = s(84, feel.settle);
-  const tapT = interpolate(f, [104, 128], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const press = bump(106, 4, feel.snap);
-  const paused = s(112, feel.pop);
-  const headOut = 1 - s(112, feel.soft);
-  const k = locusNumbers.tappedCall;
-  const look = s(6, feel.pop);
-  const perk = s(106, feel.snap);
+  const out = useExit(len, 10);
+  const left = s(0, feel.pop);
+  const right = s(secondAt, feel.pop);
+  const shoveL = bump(secondAt + 30, 5, feel.wobble) + bump(secondAt + 70, 5, feel.wobble);
+  const shoveR = bump(secondAt + 50, 5, feel.wobble) + bump(secondAt + 90, 5, feel.wobble);
+  const q = s(secondAt + 60, feel.pop);
+  const capText = f < secondAt ? 'Meta says *4.1*.' : 'Shopify says *2.3*.';
+  const capP = s(f < secondAt ? 2 : secondAt, feel.settle);
   return (
-    <Column gap={22} style={{ opacity: out, color: W }}>
-      <div style={{ position: 'relative', height: 120, width: 900, marginBottom: 10 }}>
-        <CharacterBlend app={locusApp} from="thinking" to="found" t={perk} size={190} style={{ position: 'absolute', left: -40, top: -60, transform: `scale(${look})`, opacity: look }} />
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', opacity: headOut }}>
-          <Line text="Today's calls." size={84} weight={700} color={W} style={rise(head, 30)} />
-        </div>
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', opacity: paused, transform: `scale(${paused})` }}>
-          <Line text="*Paused.*" size={140} color={W} />
-        </div>
+    <SceneBox opacity={out}>
+      <Caption text={capText} y={330} p={capP} color={W} size={56} />
+      <div style={{ position: 'absolute', left: 50, top: 620, transform: `translateX(${(1 - left) * -600 + shoveL * 70 - shoveR * 26}px) rotate(${(1 - left) * -10 + shoveL * 3}deg)`, opacity: left, transformOrigin: '50% 100%' }}>
+        <Zoom k={2.1} w={330}>
+          <PlatformCard name="Ads Manager" colour="#0866FF" metric="Purchase ROAS, last 7 days" value={N.metaRoas} note="0.4" up series={[3.2, 3.5, 3.4, 3.8, 3.9, 4.0, 4.1]} t={s(10, feel.settle, 50)} mark={<MetaMark size={14} />} />
+        </Zoom>
       </div>
-      {locusNumbers.calls.map((c, i) => {
-        const tapped = i === k;
-        const done = tapped ? paused : 0;
+      <div style={{ position: 'absolute', left: 1080 - 50 - 693, top: 1060, transform: `translateX(${(1 - right) * 600 - shoveR * 70 + shoveL * 26}px) rotate(${(1 - right) * 10 - shoveR * 3}deg)`, opacity: right, transformOrigin: '50% 0' }}>
+        <Zoom k={2.1} w={330}>
+          <PlatformCard name="Shopify" colour="#5E8E3E" metric="Total sales over ad spend" value={N.shopifyRoas} note="0.3" up={false} series={[2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3]} t={s(secondAt + 10, feel.settle, 50)} mark={<ShopifyMark size={14} />} />
+        </Zoom>
+      </div>
+      <div style={{ position: 'absolute', left: 540 - 70, top: 980 - 70, width: 140, height: 140, borderRadius: '50%', background: W, color: B, display: 'grid', placeItems: 'center', fontSize: 100, fontWeight: 800, transform: `scale(${q}) rotate(${(1 - q) * 30}deg)`, opacity: q, boxShadow: '0 20px 50px rgba(0,0,0,.25)' }}>?</div>
+    </SceneBox>
+  );
+};
+
+// ---- 03. The spend bleeds --------------------------------------------------------
+const SceneBleed: React.FC<{ len: number; bleedAt: number }> = ({ len, bleedAt }) => {
+  const f = useCurrentFrame();
+  const s = useSpring();
+  const out = useExit(len, 10);
+  const win = s(0, feel.pop);
+  const bars = s(8, feel.settle, 44);
+  const bleed = s(bleedAt, feel.heavy, 110);
+  const cam = s(bleedAt, feel.soft, 150);
+  const worry = s(bleedAt + 20, feel.pop);
+  const capText = f < bleedAt + 10 ? 'Your ad spend.' : 'Your ad spend is *bleeding*.';
+  const capP = s(f < bleedAt + 10 ? 2 : bleedAt + 10, feel.settle);
+  return (
+    <SceneBox opacity={out}>
+      <Caption text={capText} y={330} p={capP} color={INK} accentColor={RED} size={54} />
+      <Camera p={cam} zoom={1.24} cx={600} cy={1000}>
+        <div style={{ position: 'absolute', left: WIN.x, top: 560, transform: `translateY(${(1 - win) * 140}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
+          <Zoom k={WIN.k} w={WIN.w}>
+            <LxWindow width={WIN.w} crumb={['Ads', 'Meta']} tabs={["Today's calls", 'All channels', 'Meta', 'Google', 'TikTok']} active={2} faceState="thinking" badge="Looking">
+              <LxSpendBars width={524} t={bars} bleed={bleed} red={RED} />
+            </LxWindow>
+          </Zoom>
+        </div>
+      </Camera>
+      <div style={{ position: 'absolute', left: 60, top: 1470, transform: `scale(${worry}) translateY(${(1 - worry) * 60}px)`, transformOrigin: '50% 100%', opacity: worry }}>
+        <Character app={app} state="thinking" size={220} />
+      </div>
+    </SceneBox>
+  );
+};
+
+// ---- 04 and 05. 11:47, fourteen tabs ----------------------------------------------
+const tabColours = [channel.meta, '#95BF47', channel.email, channel.google, '#2A86B3', '#1E9C8C', '#F2F2F4', '#E01E5A', '#F06A6A', '#635BFF', '#4285F4', '#EA4335', '#9A9AA6', channel.meta];
+const SceneNight: React.FC<{ len: number; tabsAt: number; collapseAt: number }> = ({ len, tabsAt, collapseAt }) => {
+  const f = useCurrentFrame();
+  const s = useSpring();
+  const out = useExit(len, 6);
+  const clockIn = s(0, feel.pop);
+  const spin = s(6, feel.settle, 60); // hands race round to 11:47
+  const timeIn = s(50, feel.pop);
+  const minuteDeg = -90 + 360 * (47 / 60) + 720 * (1 - spin);
+  const hourDeg = -90 + 360 * ((11 + 47 / 60) / 12) + 60 * (1 - spin);
+  const tabCount = Math.max(0, Math.min(N.tabs.length, Math.floor((f - tabsAt) / 4) + 1));
+  const countIn = s(tabsAt, feel.pop);
+  const openIn = s(tabsAt + 4 * N.tabs.length + 4, feel.settle);
+  const collapse = s(collapseAt, feel.settle, 30);
+  const point = s(collapseAt + 14, feel.pop);
+  const clockOut = 1 - s(tabsAt - 6, feel.soft);
+  return (
+    <SceneBox opacity={out}>
+      {/* the clock */}
+      <div style={{ position: 'absolute', left: 540 - 170, top: 700, width: 340, height: 340, borderRadius: '50%', background: '#F4F4F6', transform: `scale(${clockIn * (1 - collapse)})`, opacity: clockIn * clockOut, boxShadow: '0 0 0 14px rgba(255,255,255,.06), 0 30px 80px rgba(0,0,0,.6)' }}>
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: 110, height: 8, background: '#15171C', borderRadius: 4, transformOrigin: '0 50%', transform: `rotate(${hourDeg}deg) translateY(-4px)` }} />
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: 150, height: 6, background: '#15171C', borderRadius: 3, transformOrigin: '0 50%', transform: `rotate(${minuteDeg}deg) translateY(-3px)` }} />
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: 16, height: 16, borderRadius: '50%', background: colours.blood, transform: 'translate(-50%,-50%)' }} />
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 1090, textAlign: 'center', opacity: timeIn * clockOut, transform: `scale(${0.8 + 0.2 * timeIn})` }}>
+        <Big text={N.clock} size={150} color={W} />
+        <div style={{ fontFamily: serifStack, fontStyle: 'italic', fontSize: 60, color: 'rgba(255,255,255,.75)', marginTop: 6 }}>at night.</div>
+      </div>
+      <Caption text="And you find out" y={330} p={s(2, feel.settle)} out={clockOut} color={W} size={46} />
+      {/* the tabs */}
+      {N.tabs.slice(0, tabCount).map((name, i) => {
+        const p = s(tabsAt + i * 4, feel.pop);
+        const rx = random(`tx${i}`) * 900 - 450;
+        const ry = random(`ty${i}`) * 1300 - 650;
+        const rot = random(`tr${i}`) * 24 - 12;
+        const cx = 540 + rx * (1 - collapse);
+        const cy = 940 + ry * (1 - collapse);
         return (
-          <div key={c.label} style={{ position: 'relative', transform: `translateY(${(1 - cards[i]) * 60}px) scale(${1 - press * (tapped ? 0.04 : 0)})`, opacity: cards[i] }}>
-            <Card width={900} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '34px 40px', opacity: 1 - done * 0.45 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-                <Ring />
-                <div style={{ fontSize: 46, fontWeight: 650, letterSpacing: '-0.02em' }}>{c.label}</div>
-              </div>
-              <div style={{ fontSize: 46, fontWeight: 600, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', color: done > 0.5 ? colours.muted : colours.ink, textDecoration: done > 0.5 ? 'line-through' : 'none' }}>
-                {money(c.stake)}
-              </div>
-            </Card>
-            {tapped && <Tap t={tapT} color={colours.ink} size={240} style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} />}
+          <div key={i} style={{ position: 'absolute', left: cx, top: cy, transform: `translate(-50%,-50%) scale(${(0.6 + 0.4 * p) * 1.35 * (1 - collapse)}) rotate(${rot * (1 - collapse)}deg)`, opacity: p * (1 - collapse) }}>
+            <Tab name={name} colour={tabColours[i]} />
           </div>
         );
       })}
-      <Line text="Ranked by money at stake." size={44} weight={500} color={W2} style={{ ...rise(ranked, 20), marginTop: 12, opacity: Math.min(ranked, 1 - oneTap) }} />
-      <Line text="One tap." size={44} weight={500} color={W2} style={{ ...rise(oneTap, 20), marginTop: -66, opacity: oneTap }} />
-    </Column>
-  );
-};
-
-// ---- 6. What to make next -----------------------------------------------------------------
-const Glyph: React.FC<{ kind: 'angle' | 'brief' | 'library'; p: number }> = ({ kind, p }) => {
-  const common = { fill: 'none', stroke: B, strokeWidth: 6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  if (kind === 'angle') {
-    const len = 190;
-    return (
-      <svg viewBox="0 0 120 80" width={150} height={100} {...common}>
-        <path d="M10 66 L40 46 L62 54 L110 14" strokeDasharray={len} strokeDashoffset={len * (1 - p)} />
-        <circle cx="110" cy="14" r="6" fill={B} stroke="none" opacity={p > 0.95 ? 1 : 0} />
-      </svg>
-    );
-  }
-  if (kind === 'brief') {
-    return (
-      <svg viewBox="0 0 120 80" width={150} height={100} {...common}>
-        <path d="M14 18h92" strokeDasharray={92} strokeDashoffset={92 * (1 - p)} />
-        <path d="M14 40h70" strokeDasharray={70} strokeDashoffset={70 * (1 - Math.max(0, p * 1.3 - 0.3))} />
-        <path d="M14 62h50" strokeDasharray={50} strokeDashoffset={50 * (1 - Math.max(0, p * 1.6 - 0.6))} />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 120 80" width={150} height={100} {...common}>
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const x = 12 + (i % 3) * 36;
-        const y = 8 + Math.floor(i / 3) * 36;
-        const q = Math.max(0, Math.min(1, p * 2.2 - i * 0.22));
-        return <rect key={i} x={x + 14 * (1 - q)} y={y + 14 * (1 - q)} width={28 * q} height={28 * q} rx="6" />;
-      })}
-    </svg>
-  );
-};
-
-const Creative: React.FC<{ len: number }> = ({ len }) => {
-  const s = useSpring();
-  const out = useExit(len, 8);
-  const head = s(0, feel.settle);
-  const items: { kind: 'angle' | 'brief' | 'library'; label: string }[] = [
-    { kind: 'angle', label: 'The winning angle' },
-    { kind: 'brief', label: 'The brief' },
-    { kind: 'library', label: 'The library' },
-  ];
-  return (
-    <Column gap={24} style={{ opacity: out, color: W }}>
-      <Line text="What to make next." size={84} weight={700} color={W} style={{ ...rise(head, 30), marginBottom: 20 }} />
-      {items.map((it, i) => {
-        const card = s(18 + i * 12, feel.pop);
-        const draw = s(34 + i * 12, feel.settle, 40);
-        return (
-          <Card key={it.kind} width={900} style={{ display: 'flex', alignItems: 'center', gap: 34, padding: '26px 40px', transform: `translateY(${(1 - card) * 60}px)`, opacity: card }}>
-            <Glyph kind={it.kind} p={draw} />
-            <div style={{ fontSize: 48, fontWeight: 650, letterSpacing: '-0.02em' }}>{it.label}</div>
-          </Card>
-        );
-      })}
-    </Column>
-  );
-};
-
-// ---- 7. Agency edition --------------------------------------------------------------------
-const Agency: React.FC<{ len: number }> = ({ len }) => {
-  const s = useSpring();
-  const out = useExit(len, 8);
-  const head = s(0, feel.settle);
-  const lanes = Array.from({ length: locusNumbers.brands }, (_, i) => s(16 + i * 7, feel.pop));
-  return (
-    <Column gap={18} style={{ opacity: out, color: W }}>
-      <Line text="Agency edition: every brand, one morning." size={64} weight={700} color={W} style={{ ...rise(head, 30), marginBottom: 26, maxWidth: 900 }} />
-      {lanes.map((p, i) => (
-        <div
-          key={i}
-          style={{
-            width: 900,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 22,
-            padding: '20px 28px',
-            borderRadius: 24,
-            background: colours.onFieldWell,
-            border: `2px solid ${colours.onFieldLine}`,
-            boxSizing: 'border-box',
-            transform: `translateX(${(1 - p) * -500}px)`,
-            opacity: p,
-          }}
-        >
-          <Ring color={W} size={40} />
-          <div style={{ height: 16, borderRadius: 8, background: W, width: `${48 + ((i * 17) % 30)}%` }} />
-          <div style={{ height: 16, borderRadius: 8, background: colours.onFieldLine, flex: 1 }} />
+      {f >= tabsAt && (
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 820, textAlign: 'center', transform: `scale(${(0.8 + 0.2 * countIn) * (1 - collapse)})`, opacity: countIn * (1 - collapse) }}>
+          <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 18 }}>
+            <Big text={String(tabCount)} size={230} color={B === '#2F62D9' ? '#8FB3FF' : B} />
+            <span style={{ fontSize: 120, fontWeight: 800, letterSpacing: '-0.04em', color: W }}>TABS</span>
+            <span style={{ fontFamily: serifStack, fontStyle: 'italic', fontSize: 120, color: '#8FB3FF', opacity: openIn, marginLeft: 6 }}>open.</span>
+          </div>
+          <div style={{ fontSize: 46, fontWeight: 600, color: 'rgba(255,255,255,.8)', marginTop: 14, opacity: openIn }}>Nobody knows what to change.</div>
         </div>
-      ))}
-    </Column>
+      )}
+      {/* the point everything collapses into */}
+      <div style={{ position: 'absolute', left: 540 - 20, top: 940 - 20, width: 40, height: 40, borderRadius: '50%', background: W, transform: `scale(${point * 1.4})`, opacity: point, boxShadow: `0 0 ${60 * point}px ${30 * point}px rgba(143,179,255,.6)` }} />
+    </SceneBox>
   );
 };
 
-// ---- The spot --------------------------------------------------------------------------------
-const Beat: React.FC<{ at: readonly [number, number]; children: (len: number) => React.ReactNode }> = ({ at, children }) => (
-  <Sequence from={at[0]} durationInFrames={at[1] - at[0]}>
-    <Fit>{children(at[1] - at[0])}</Fit>
-  </Sequence>
-);
+// ---- 06 and 07. Locus wakes ------------------------------------------------------
+const SceneWake: React.FC<{ len: number; nameAt: number; wakeAt: number }> = ({ len, nameAt, wakeAt }) => {
+  const s = useSpring();
+  const out = useExit(len, 10);
+  const flood = s(0, feel.settle, 40);
+  const lockup = s(nameAt, feel.pop);
+  const wake = s(wakeAt + 4, feel.pop);
+  const blink = useBump()(wakeAt + 26, 3, feel.snap);
+  const lift = s(wakeAt, feel.pop);
+  const line = s(wakeAt + 10, feel.settle);
+  return (
+    <SceneBox opacity={out}>
+      <div style={{ position: 'absolute', left: 540 - 1400, top: 940 - 1400, width: 2800, height: 2800, borderRadius: '50%', background: B, transform: `scale(${flood})` }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 760, display: 'flex', justifyContent: 'center', transform: `scale(${0.6 + 0.4 * lockup})`, opacity: lockup, color: W }}>
+        <LogoLockup app={app} height={120} color={W} />
+      </div>
+      <Caption text="It wakes before *you* do." y={1010} p={line} color={W} size={50} />
+      <div style={{ position: 'absolute', left: 540 - 125, top: 1180, transform: `translateY(${(1 - lift) * 40 - lift * 10}px) scale(1, ${1 - blink * 0.08})`, transformOrigin: '50% 100%', opacity: Math.min(1, lockup * 2) }}>
+        <CharacterBlend app={app} from="asleep" to="found" t={wake} size={250} />
+      </div>
+    </SceneBox>
+  );
+};
 
-export const LocusSpot: React.FC = () => (
-  <Stage bg={colours.paper} ink={colours.ink}>
-    <Sequence from={FLOOD_AT}>
-      <Fit>
-        <Flood color={B} />
-      </Fit>
-    </Sequence>
-    <Beat at={beats.argue}>{(len) => <Argue len={len} />}</Beat>
-    <Beat at={beats.tabs}>{(len) => <TabsAndWake len={len} />}</Beat>
-    <Beat at={beats.brief}>{(len) => <Brief len={len} />}</Beat>
-    <Beat at={beats.calls}>{(len) => <Calls len={len} />}</Beat>
-    <Beat at={beats.creative}>{(len) => <Creative len={len} />}</Beat>
-    <Beat at={beats.agency}>{(len) => <Agency len={len} />}</Beat>
-    <Beat at={beats.tagline}>{() => <Tagline app={locusApp} tagline={accentLast(locusApp.tagline)} />}</Beat>
-    <Beat at={beats.ending}>{() => <Ending />}</Beat>
-  </Stage>
-);
+// ---- 08 to 10. The read: tiles, the morning line, the hero ------------------------
+const SceneRead: React.FC<{ len: number; waves: number[]; readAt: number; morningAt: number; heroAt: number }> = ({ len, waves, readAt, morningAt, heroAt }) => {
+  const f = useCurrentFrame();
+  const s = useSpring();
+  const out = useExit(len, 10);
+  const win = s(0, feel.pop);
+  const tileIn = [waves[0], waves[0] + 8, waves[1], waves[1] + 8].map((t) => s(t, feel.pop));
+  const tileDraw = [waves[0], waves[0] + 8, waves[1], waves[1] + 8].map((t) => s(t + 10, feel.settle, 40));
+  const dayIn = s(waves[2], feel.pop);
+  const dayDraw = s(waves[2] + 6, feel.settle, 44);
+  const read = s(readAt, feel.pop);
+  const morning = s(morningAt, feel.pop);
+  const typed = N.morning.map((l, i) => interpolate(f, [morningAt + 10 + i * 24, morningAt + 10 + i * 24 + l.length * 0.55], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }));
+  const hero = s(heroAt, feel.pop);
+  const heroBar = s(heroAt + 14, feel.settle, 56);
+  const heroCount = s(heroAt + 6, feel.settle, 50);
+  const scrollUp = s(heroAt - 4, feel.settle, 40);
+  const cam = s(heroAt + 10, feel.soft, 150);
+  const charState = f < morningAt ? 'rest' : 'found';
+  const capText = f < morningAt ? 'Every store. Every ad account. Every email.' : f < heroAt ? 'The morning *brief*.' : 'What you *actually* kept.';
+  const capAt = f < morningAt ? waves[0] : f < heroAt ? morningAt : heroAt;
+  const capP = s(capAt, feel.settle);
+  const tiles = N.tiles;
+  return (
+    <SceneBox opacity={out}>
+      <Caption text={capText} y={300} p={capP} color={W} size={46} />
+      <Camera p={cam} zoom={1.2} cx={540} cy={760}>
+        <div style={{ position: 'absolute', left: WIN.x, top: 470 - scrollUp * 60, transform: `translateY(${(1 - win) * 160}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
+          <Zoom k={WIN.k} w={WIN.w}>
+            <LxWindow width={WIN.w} crumb={['Home', 'Overview']} tabs={['Overview', 'Day check', 'P&L', 'Goals', 'Requests']} active={0} faceState={charState} badge={f < morningAt ? 'Locus' : '2 to do'}>
+              {f >= morningAt - 2 && (
+                <div style={{ transform: `translateY(${(1 - morning) * -30}px)`, opacity: morning }}>
+                  <LxMorning width={524} lines={N.morning} shown={typed} faceState="found" />
+                </div>
+              )}
+              {f >= heroAt - 2 && (
+                <div style={{ transform: `scale(${0.9 + 0.1 * hero})`, opacity: hero, transformOrigin: '50% 0' }}>
+                  <LxHero width={524} t={heroBar} count={heroCount} />
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxHeight: scrollUp > 0.5 && f >= heroAt ? 0 : 400, overflow: 'hidden', opacity: 1 - scrollUp }}>
+                {tiles.map((tile, i) => (
+                  <div key={tile.label} style={{ transform: `translate(${(1 - tileIn[i]) * 80}px, ${(1 - tileIn[i]) * 60}px) rotate(${(1 - tileIn[i]) * 3}deg)`, opacity: tileIn[i] }}>
+                    <LxTile label={tile.label} value={tile.value} delta={tile.delta} up={tile.up} series={tile.series} t={tileDraw[i]} src={i === 0 ? 'Shopify' : i === 1 ? 'Meta' : undefined} />
+                  </div>
+                ))}
+              </div>
+              {f >= waves[2] - 2 && (
+                <div style={{ transform: `translateY(${(1 - dayIn) * 60}px)`, opacity: dayIn * (1 - scrollUp) }}>
+                  <LxDayCheck width={524} t={dayDraw} />
+                </div>
+              )}
+            </LxWindow>
+          </Zoom>
+        </div>
+      </Camera>
+      {/* "Read by 7": the stamp */}
+      {f >= readAt - 2 && f < morningAt + 10 && (
+        <div style={{ position: 'absolute', left: 540 - 180, top: 1560, width: 360, textAlign: 'center', padding: '14px 0', borderRadius: 999, background: W, color: B, fontSize: 34, fontWeight: 700, transform: `scale(${0.7 + 0.3 * read}) rotate(${(1 - read) * -6}deg)`, opacity: read * (1 - s(morningAt, feel.soft)), boxShadow: '0 20px 50px rgba(0,0,0,.25)' }}>
+          Read by <span style={{ fontFamily: serifStack, fontStyle: 'italic', fontWeight: 400, fontSize: 40 }}>7</span>.
+        </div>
+      )}
+      <div style={{ position: 'absolute', left: 820, top: 1540, transformOrigin: '50% 100%', transform: `translateY(${(1 - win) * 100}px)` }}>
+        <Character app={app} state={charState} size={220} />
+      </div>
+    </SceneBox>
+  );
+};
+
+// ---- 11 and 12. Today's calls, one tap ------------------------------------------
+const SceneCalls: React.FC<{ len: number; rowAt: number[]; tapAt: number; pausedAt: number }> = ({ len, rowAt, tapAt, pausedAt }) => {
+  const f = useCurrentFrame();
+  const s = useSpring();
+  const bump = useBump();
+  const out = useExit(len, 10);
+  const win = s(0, feel.pop);
+  const rows = rowAt.map((t) => s(t, feel.pop));
+  const pressed = bump(tapAt, 5, feel.snap);
+  const tap = interpolate(f, [tapAt - 8, tapAt + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const done = s(pausedAt, feel.pop);
+  const hop = bump(tapAt + 8, 8, feel.pop);
+  const perk = s(tapAt - 10, feel.pop);
+  const cam = s(rowAt[1], feel.soft, 160);
+  const capText = f < tapAt - 12 ? "Today's *calls*." : f < pausedAt ? 'One tap.' : '*Paused.*';
+  const capP = s(f < tapAt - 12 ? 2 : f < pausedAt ? tapAt - 12 : pausedAt, feel.settle);
+  return (
+    <SceneBox opacity={out}>
+      <Caption text={capText} y={f < pausedAt ? 300 : 260} p={capP} color={W} size={f < pausedAt ? 50 : 110} />
+      <Camera p={cam} zoom={1.18} cx={540} cy={1080}>
+        <div style={{ position: 'absolute', left: WIN.x, top: 470, transform: `translateY(${(1 - win) * 160}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
+          <Zoom k={WIN.k} w={WIN.w}>
+            <LxWindow width={WIN.w} crumb={['Ads', "Today's calls"]} tabs={["Today's calls", 'All channels', 'Meta', 'Google', 'TikTok']} active={0} faceState={done > 0.5 ? 'clear' : 'found'} badge={done > 0.5 ? '2 to do' : '3 to do'}>
+              <LxCalls width={524} shown={rows} pressed={pressed} pressedIndex={N.tappedCall} done={done} tap={tap} />
+            </LxWindow>
+          </Zoom>
+        </div>
+      </Camera>
+      <div style={{ position: 'absolute', left: 820, top: 1540, transform: `translateY(${-hop * 26}px) rotate(${perk * -5}deg)`, transformOrigin: '50% 100%' }}>
+        <CharacterBlend app={app} from="rest" to="found" t={perk} size={220} />
+      </div>
+    </SceneBox>
+  );
+};
+
+// ---- 13. What to make next --------------------------------------------------------
+const SceneAngle: React.FC<{ len: number; pressAt: number }> = ({ len, pressAt }) => {
+  const s = useSpring();
+  const bump = useBump();
+  const out = useExit(len, 10);
+  const win = s(0, feel.pop);
+  const pressed = bump(pressAt, 5, feel.snap);
+  const f = useCurrentFrame();
+  const tap = interpolate(f, [pressAt - 8, pressAt + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const lines = [0, 1, 2].map((i) => s(pressAt + 12 + i * 9, feel.pop));
+  return (
+    <SceneBox opacity={out}>
+      <Caption text="What to make *next*." y={300} p={s(2, feel.settle)} color={W} size={50} />
+      <div style={{ position: 'absolute', left: WIN.x, top: 470, transform: `translateX(${(1 - win) * 500}px)`, opacity: win }}>
+        <Zoom k={WIN.k} w={WIN.w}>
+          <LxWindow width={WIN.w} crumb={['Ads', 'Tests and angles']} tabs={["Today's calls", 'All channels', 'Meta', 'Google', 'Tests and angles']} active={4} faceState="clear" badge="2 to do">
+            <LxAngle width={524} pressed={pressed} tap={tap} lines={lines} />
+          </LxWindow>
+        </Zoom>
+      </div>
+      <div style={{ position: 'absolute', left: 820, top: 1540, transformOrigin: '50% 100%' }}>
+        <Character app={app} state="clear" size={220} />
+      </div>
+    </SceneBox>
+  );
+};
+
+// ---- 14. Every brand, one morning ----------------------------------------------
+const SceneAgency: React.FC<{ len: number }> = ({ len }) => {
+  const s = useSpring();
+  const bump = useBump();
+  const out = useExit(len, 10);
+  const win = s(0, feel.pop);
+  const fill = s(14, feel.settle, 60);
+  const count = s(10, feel.settle, 60);
+  const nod = bump(70, 10, feel.soft);
+  return (
+    <SceneBox opacity={out}>
+      <Caption text="Every brand. *One* morning." y={300} p={s(2, feel.settle)} color={W} size={50} />
+      <div style={{ position: 'absolute', left: WIN.x, top: 470, transform: `translateY(${(1 - win) * 140}px)`, opacity: win }}>
+        <Zoom k={WIN.k} w={WIN.w}>
+          <LxWindow width={WIN.w} crumb={['Home', 'Overview']} tabs={['Overview', 'Day check', 'P&L', 'Goals', 'Requests']} active={0} faceState="clear" badge="All clear">
+            <LxLanes width={524} t={fill} count={count} />
+          </LxWindow>
+        </Zoom>
+      </div>
+      <div style={{ position: 'absolute', left: 820, top: 1540, transform: `translateY(${nod * 12}px)`, transformOrigin: '50% 100%' }}>
+        <Character app={app} state="clear" size={220} />
+      </div>
+    </SceneBox>
+  );
+};
+
+// ---- 15. The end --------------------------------------------------------------------
+const SceneEnd: React.FC<{ len: number }> = ({ len }) => {
+  const f = useCurrentFrame();
+  const s = useSpring();
+  const bump = useBump();
+  const logo = s(6, feel.pop);
+  const line = s(22, feel.settle);
+  const charIn = s(30, feel.pop);
+  const nod = bump(56, 10, feel.soft) + bump(80, 10, feel.soft);
+  const black = interpolate(f, [len - 26, len - 2], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  return (
+    <SceneBox>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 760, display: 'flex', justifyContent: 'center', transform: `scale(${0.7 + 0.3 * logo})`, opacity: logo, color: W }}>
+        <LogoLockup app={app} height={120} color={W} />
+      </div>
+      <div style={{ position: 'absolute', left: 90, right: 90, top: 950, opacity: line, transform: `translateY(${(1 - line) * 24}px)` }}>
+        <Words text="Know what to *change*." size={72} color={W} weight={600} />
+      </div>
+      <div style={{ position: 'absolute', left: 540 - 115, top: 1130, transform: `scale(${charIn}) translateY(${nod * 12}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
+        <Character app={app} state="clear" size={230} />
+      </div>
+      <div style={{ position: 'absolute', inset: -200, background: '#000', opacity: black }} />
+    </SceneBox>
+  );
+};
+
+// ---- The spot ------------------------------------------------------------------
+export const LocusSpot: React.FC = () => {
+  const argue = [0, A('03') - 2] as const;
+  const bleed = [A('03') - 8, A('04') - 2] as const;
+  const night = [A('04') - 8, A('06') + 2] as const;
+  const wake = [A('06') - 14, A('08') - 2] as const;
+  const read = [A('08') - 8, A('11') - 2] as const;
+  const calls = [A('11') - 8, A('13') - 2] as const;
+  const angle = [A('13') - 8, A('14') - 2] as const;
+  const agency = [A('14') - 8, A('15') - 10] as const;
+  const end = [A('15') - 12, tl.total] as const;
+  const bleedAt = A('03') - bleed[0] + 26;
+  const tabsAt = A('05') - night[0];
+  const collapseAt = E('05') - night[0] + 6;
+  const waves = [0, 28, 56].map((d) => A('08') - read[0] + d);
+  const readAt = A('08') - read[0] + 92;
+  const rowAt = [27, 45, 63].map((d) => A('11') - calls[0] + d);
+  const tapAt = A('12') - calls[0] + 10;
+  const pausedAt = A('12') - calls[0] + 26;
+  const pressAt = A('13') - angle[0] + 30;
+  return (
+    <Field stops={[[0, B], [bleed[0] + 6, PAPER], [night[0] + 6, NIGHT], [read[0] - 10, B], [end[0] + 6, NIGHT]]}>
+      <Sequence from={argue[0]} durationInFrames={argue[1] - argue[0]} name="argue"><SceneArgue len={argue[1] - argue[0]} secondAt={A('02')} /></Sequence>
+      <Sequence from={bleed[0]} durationInFrames={bleed[1] - bleed[0]} name="bleed"><SceneBleed len={bleed[1] - bleed[0]} bleedAt={bleedAt} /></Sequence>
+      <Sequence from={night[0]} durationInFrames={night[1] - night[0]} name="night"><SceneNight len={night[1] - night[0]} tabsAt={tabsAt} collapseAt={collapseAt} /></Sequence>
+      <Sequence from={wake[0]} durationInFrames={wake[1] - wake[0]} name="wake"><SceneWake len={wake[1] - wake[0]} nameAt={A('06') - wake[0]} wakeAt={A('07') - wake[0]} /></Sequence>
+      <Sequence from={read[0]} durationInFrames={read[1] - read[0]} name="read"><SceneRead len={read[1] - read[0]} waves={waves} readAt={readAt} morningAt={A('09') - read[0]} heroAt={A('10') - read[0]} /></Sequence>
+      <Sequence from={calls[0]} durationInFrames={calls[1] - calls[0]} name="calls"><SceneCalls len={calls[1] - calls[0]} rowAt={rowAt} tapAt={tapAt} pausedAt={pausedAt} /></Sequence>
+      <Sequence from={angle[0]} durationInFrames={angle[1] - angle[0]} name="angle"><SceneAngle len={angle[1] - angle[0]} pressAt={pressAt} /></Sequence>
+      <Sequence from={agency[0]} durationInFrames={agency[1] - agency[0]} name="agency"><SceneAgency len={agency[1] - agency[0]} /></Sequence>
+      <Sequence from={end[0]} durationInFrames={end[1] - end[0]} name="end"><SceneEnd len={end[1] - end[0]} /></Sequence>
+
+      {/* the mix */}
+      <Voice tl={tl} ids={cues.map((c) => c.id)} />
+      <Bed name="bed-locus" tl={tl} />
+      <Sfx name="pop" at={A('01')} volume={0.4} rate={0.9} />
+      <Sfx name="pop" at={A('02')} volume={0.4} rate={0.8} />
+      <Sfx name="tick" at={A('02') + 60} volume={0.4} />
+      {[0, 10, 22, 36, 52].map((d, i) => <Sfx key={i} name="drip" at={bleed[0] + bleedAt + 10 + d} volume={0.4} rate={1 - i * 0.08} />)}
+      <Sfx name="whoosh" at={bleed[0] + bleedAt} volume={0.3} rate={0.8} />
+      <Sfx name="tick" at={A('04') + 50} volume={0.4} rate={0.8} />
+      {N.tabs.map((_, i) => <Sfx key={i} name="tick" at={night[0] + tabsAt + i * 4} volume={0.22} rate={1.1 + (i % 3) * 0.1} />)}
+      <Sfx name="whoosh" at={night[0] + collapseAt} volume={0.45} rate={1.3} />
+      <Sfx name="riser" at={A('06') - 46} volume={0.5} />
+      <Sfx name="chime-low" at={A('06')} volume={0.35} />
+      <Sfx name="wake" at={A('07') + 4} volume={0.5} />
+      {[0, 8, 28, 36, 56].map((d, i) => <Sfx key={i} name="wake" at={A('08') + d} volume={0.16} rate={1.3 + i * 0.05} />)}
+      <Sfx name="pop" at={read[0] + readAt} volume={0.35} rate={1.2} />
+      <Sfx name="wake" at={A('10')} volume={0.3} />
+      {rowAt.map((r, i) => <Sfx key={i} name="wake" at={calls[0] + r} volume={0.18} rate={1.4} />)}
+      <Sfx name="tick" at={calls[0] + tapAt} volume={0.6} />
+      <Sfx name="chime" at={calls[0] + pausedAt} volume={0.55} />
+      <Sfx name="tick" at={angle[0] + pressAt} volume={0.5} />
+      {[0, 1, 2].map((i) => <Sfx key={i} name="pop" at={angle[0] + pressAt + 12 + i * 9} volume={0.25} rate={1.4 + i * 0.1} />)}
+      <Sfx name="whoosh" at={agency[0]} volume={0.25} rate={1.3} />
+      <Sfx name="chime" at={A('15')} volume={0.45} />
+    </Field>
+  );
+};
