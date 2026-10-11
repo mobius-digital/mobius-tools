@@ -121,6 +121,21 @@ waveform (raised from 0.16 to 0.26).
   Push into a card inside the window, not the window.
 - The headless shell and the SVGR setup are unchanged from the first build (`motion/README.md`).
 
+## Render times here
+
+From `node scripts/render.mjs` on the cloud session (4 cores, no GPU, software ANGLE), after a 4 second bundle,
+CRF 28 with the AAC mix:
+
+| Composition | Time | Size | Length |
+| --- | --- | --- | --- |
+| CashewVertical | 82 s | 4.9 MB | 59.2 s, 1776 frames |
+| CashewLandscape | 73 s | 4.1 MB | 59.2 s |
+| LocusVertical | 76 s | 5.0 MB | 55.3 s, 1660 frames |
+| LocusLandscape | 69 s | 4.2 MB | 55.3 s |
+
+All four plus the posters: about five and a half minutes. A contact sheet (one frame a second) takes about a
+minute per composition.
+
 ## Not verified
 
 - Nobody has heard the mix. Levels are set by numbers: voice at 1.0 (peaks normalized to 0.89), the bed at 0.16
