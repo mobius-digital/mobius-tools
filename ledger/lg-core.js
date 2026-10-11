@@ -324,8 +324,7 @@ renderGate = function (err) {
   setChip('Signed out', 'off');
   setHelper('asleep');
   $('#main').innerHTML = `<div class="gate-field">
-    <img class="sil" src="../logo/cashew/silhouette.svg" alt="">
-    <img class="wm" src="../logo/cashew/wordmark.svg" alt="Cashew">
+    <div class="lockup"><img class="chr" src="../logo/cashew/character/rest.png" alt=""><img class="wm" src="../logo/cashew/wordmark.svg" alt="Cashew"></div>
     <p class="tag">Mobius Digital's books. Know what you kept.</p>
     <div class="gate">
     <p>Money in, money out, the month closed, and the pack the CPA needs. Sign in once at Mobius HQ and every internal tool opens.</p>
@@ -351,7 +350,8 @@ boot = async function () {
   if (S.tok && S.boot) { document.body.classList.remove('gated'); syncEdition(); paintNav(); }
 };
 /* ---- the helper in the ask bar ----
-   The Cashew character (logo/cashew/<state>.svg), one drawing per state:
+   The Cashew character (logo/cashew/character/<state>.png, a rendered
+   image, 200px cut-outs), one picture per state:
    asleep when signed out, thinking while the Controller works, found when it
    has open findings, clear when the checks ran clean, rest while it has not
    looked yet. The Controller's own state (AskUI.state) drives it. */
@@ -359,7 +359,7 @@ const HELPER_STATES = new Set(['rest', 'asleep', 'thinking', 'found', 'clear']);
 function setHelper(state) {
   if (!HELPER_STATES.has(state)) state = 'rest';
   const el = $('#askMark'); if (!el || el.dataset.state === state) return;
-  el.dataset.state = state; el.src = `../logo/cashew/${state}.svg`;
+  el.dataset.state = state; el.src = `../logo/cashew/character/${state}.png`;
 }
 function helperTick() {
   const A = window.AskUI && AskUI.state;

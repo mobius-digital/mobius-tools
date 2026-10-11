@@ -481,8 +481,9 @@ table.st.cols td:first-child,table.st.cols th:first-child{position:sticky;left:0
 body.gated main#main{background:var(--field);color:var(--on-field);max-width:none;min-height:100vh;display:grid;place-items:center;padding:32px 20px;animation:none}
 body.gated footer{display:none}
 .gate-field{text-align:center;width:100%;max-width:420px}
-.gate-field .sil{width:84px;height:84px;display:block;margin:0 auto 10px;filter:brightness(0) invert(1)}
-.gate-field .wm{width:190px;height:auto;display:block;margin:0 auto;filter:brightness(0) invert(1);font-size:28px;font-weight:650;letter-spacing:-.02em;color:#fff;line-height:1.15}
+.gate-field .lockup{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap}
+.gate-field .chr{width:96px;height:96px;display:block;object-fit:contain}
+.gate-field .wm{width:190px;height:auto;display:block;filter:brightness(0) invert(1);font-size:28px;font-weight:650;letter-spacing:-.02em;color:#fff;line-height:1.15}
 .gate-field .tag{color:var(--on-field-2);font-size:15px;margin:10px 0 22px}
 .gate{max-width:420px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:28px 32px;text-align:center;color:var(--ink)}
 .gate img{width:56px;height:56px;border-radius:16px;margin:0 auto 14px;display:block}
