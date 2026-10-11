@@ -117,7 +117,7 @@ export const Accent: React.FC<{ children: React.ReactNode; color: string }> = ({
 // The hero (.lx-hero): "Yesterday you actually kept $X" with the bites bar and the sentence.
 export const LxHero: React.FC<{ T?: Theme; t?: number; count?: number; width?: number }> = ({ T = locusLight, t = 1, count = 1, width = 560 }) => {
   const n = locusNumbers;
-  const shown = Math.round(n.kept * count);
+  const shown = Math.round(n.kept * (0.4 + 0.6 * count)); // never a zero on screen: the count starts from a number
   const bitesList = n.bites.map((b) => `${money(b.v)} of ${b.label.toLowerCase()}`);
   const minus = `${bitesList.slice(0, -1).join(', ')} and ${bitesList[bitesList.length - 1]}`;
   return (
@@ -312,7 +312,7 @@ export const LxLanes: React.FC<{ T?: Theme; t?: number; width?: number; count?: 
         <span>Contribution, every brand</span>
       </div>
       <h2 style={{ margin: '0 0 10px', fontSize: 34, fontWeight: 650, letterSpacing: '-0.028em', lineHeight: 1.1, color: T.ink }}>
-        The book <Accent color={T.brandInk}>actually</Accent> kept <b style={{ fontWeight: 700 }}>{money(sum * count)}</b>
+        The book <Accent color={T.brandInk}>actually</Accent> kept <b style={{ fontWeight: 700 }}>{money(sum * (0.4 + 0.6 * count))}</b>
       </h2>
       <div style={{ display: 'grid', gap: 2, margin: '0 -8px' }}>
         {rows.map((r, i) => {

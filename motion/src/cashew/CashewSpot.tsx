@@ -27,14 +27,18 @@ import { BittenPill, MeltPill } from '../fx/Goo';
 import { Cost, costInk } from '../fx/Costs';
 import { BankCard, CwClose, CwFinding, CwForecast, CwHeroTile, CwKeptHero, CwNetByMonth, CwPack, CwTile, CwWhereItWent, CwWindow, Zoom, cwMoney as money } from '../ui/cashew';
 import { serifStack } from '../lib/fonts';
+import { TabsBeat, cashewTabs } from '../shared/tabsBeat';
 
 // The silence before each line, and how long the picture holds after it.
 const cues: Cue[] = [
   { id: '01', gap: 0.6 }, { id: '02', gap: 0.5 }, { id: '03', gap: 0.7 }, { id: '04', gap: 0.35 }, { id: '05', gap: 0.35 }, { id: '06', gap: 0.45 },
-  { id: '07', gap: 0.5, hold: 1.4 }, { id: '08', gap: 0 }, { id: '09', gap: 1.0, hold: 0.3 }, { id: '10', gap: 0 }, { id: '11', gap: 0.4, hold: 1.4 },
-  { id: '12', gap: 0 }, { id: '13', gap: 0.3, hold: 1.1 }, { id: '14', gap: 0 }, { id: '15', gap: 0.6, hold: 0.6 }, { id: '16', gap: 0.3 },
+  { id: '07', gap: 0.5, hold: 0.9 },
+  { id: '07a', gap: 0 }, { id: '07b', gap: 0.15 }, { id: '07c', gap: 0.08 }, { id: '07d', gap: 0.08 }, { id: '07e', gap: 0.08 }, { id: '07f', gap: 0.08 }, { id: '07g', gap: 0.08 }, { id: '07h', gap: 0.08 },
+  { id: '07i', gap: 0.15, hold: 0.4 },
+  { id: '08', gap: 0 }, { id: '09', gap: 0.7, hold: 0.3 }, { id: '10', gap: 0 }, { id: '11', gap: 0.4, hold: 0.9 },
+  { id: '12', gap: 0 }, { id: '13', gap: 0.3, hold: 0.8 }, { id: '14', gap: 0 }, { id: '15', gap: 0.6, hold: 0.5 }, { id: '16', gap: 0.3 },
 ];
-export const tl = buildTimeline('cashew', cues, 2.6);
+export const tl = buildTimeline('cashew', cues, 2.0);
 export const cashewDuration = tl.total;
 const A = (id: string) => tl.at(id);
 const E = (id: string) => tl.end(id);
@@ -142,7 +146,7 @@ const SceneBites: React.FC<{ len: number; biteAt: number[]; meltAt: number; sigh
       )}
       {/* the melt */}
       {melting && (
-        <MeltPill w={PILL.w} h={PILL.h} t={melt} color={G} floor={FLOOR} width={1080} height={1920}>
+        <MeltPill w={PILL.w} h={PILL.h} t={melt} color={G} floor={FLOOR} width={1080} height={1920} top={PILL.y} spots={spots}>
           <Big text={valueText} size={132} color={W} />
         </MeltPill>
       )}
@@ -199,6 +203,18 @@ const SceneBites: React.FC<{ len: number; biteAt: number[]; meltAt: number; sigh
   );
 };
 
+// ---- 07a to 07i. Or add it up yourself: the tabs -------------------------------
+const SceneTabs: React.FC<{ len: number; nameAt: number[]; restAt: number; collapseAt: number }> = ({ len, nameAt, restAt, collapseAt }) => {
+  const s = useSpring();
+  const out = useExit(len, 6);
+  return (
+    <SceneBox opacity={out}>
+      <Caption text="Or add it up *yourself*." y={330} p={s(0, feel.settle)} color={W} size={50} />
+      <TabsBeat tabs={cashewTabs} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} accent={colours.cashewBright} tail="Still no number." tailAt={restAt + 24} word="open." />
+    </SceneBox>
+  );
+};
+
 // ---- 08. April -----------------------------------------------------------------
 const months = ['September', 'October', 'November', 'December', 'January', 'February', 'March', 'April'];
 const SceneApril: React.FC<{ len: number; emailAt: number }> = ({ len, emailAt }) => {
@@ -217,7 +233,7 @@ const SceneApril: React.FC<{ len: number; emailAt: number }> = ({ len, emailAt }
   const charIn = s(10, feel.pop);
   return (
     <SceneBox opacity={out}>
-      <Caption text="And you found out in *April*." y={330} p={s(2, feel.settle)} color={INK} accentColor={G} size={54} />
+      <Caption text="So you found out in *April*." y={330} p={s(2, feel.settle)} color={INK} accentColor={G} size={54} />
       <div style={{ position: 'absolute', left: 540 - 310, top: 600, width: 620, height: 500, background: '#fff', borderRadius: 28, boxShadow: '0 30px 70px rgba(0,0,0,.14)', opacity: cardIn, transform: `scale(${0.85 + 0.15 * cardIn}) rotate(${(1 - landed) * 0}deg)`, padding: '34px 40px', boxSizing: 'border-box' }}>
         <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: colours.muted }}>2026</div>
         <div style={{ fontSize: 76, fontWeight: 700, letterSpacing: '-0.035em', color: month === 'April' ? '#9C3A2E' : INK, transform: `scaleY(${flipScale}) scale(${1 + (1 - landed) * 0.0})`, transformOrigin: '0 60%', height: 92, lineHeight: '92px' }}>{month}</div>
@@ -326,7 +342,7 @@ const SceneNudge: React.FC<{ len: number; secondAt: number; shoulderAt: number; 
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={330} p={capP} color={W} size={50} />
-      <Camera p={cam} zoom={1.3} cx={540} cy={880}>
+      <Camera p={cam} zoom={1.12} cx={540} cy={860}>
         <div style={{ position: 'absolute', left: 50, top: 520, transform: `translateY(${(1 - win) * 140}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={1.75} w={560}>
             <CwWindow width={560} crumb={['Home', 'Overview']} tabs={['Overview', 'Transactions', 'Receipts', 'Close']} active={0} faceState={booked > 0.5 ? 'clear' : 'found'}>
@@ -451,7 +467,8 @@ const SceneEnd: React.FC<{ len: number }> = ({ len }) => {
 // ---- The spot ------------------------------------------------------------------
 export const CashewSpot: React.FC = () => {
   const bank = [0, A('02') + 8] as const;
-  const bites = [A('02') - 6, A('08') - 2] as const;
+  const bites = [A('02') - 6, A('07a') - 2] as const;
+  const tabs = [A('07a') - 8, A('08') - 2] as const;
   const april = [A('08') - 6, A('09') - 10] as const;
   const product = [A('09') - 12, A('12') - 2] as const;
   const nudge = [A('12') - 6, A('14') - 6] as const;
@@ -459,15 +476,19 @@ export const CashewSpot: React.FC = () => {
   const close = [A('15') - 10, A('16') - 10] as const;
   const end = [A('16') - 12, tl.total] as const;
   const biteAt = ['03', '04', '05', '06'].map((id) => A(id) - bites[0]);
+  const nameAt = ['07b', '07c', '07d', '07e', '07f', '07g', '07h'].map((id) => A(id) - tabs[0] + 4);
+  const restAt = A('07i') - tabs[0] + 10;
+  const collapseAt = E('07i') - tabs[0] - 4;
   const meltAt = A('07') - bites[0];
   const sighAt = E('07') - bites[0] + 8;
   const tapAt = A('13') - nudge[0] + 56;
   const tickAt = [8, 18, 28, 38, 56].map((t) => A('15') - close[0] + t);
   const packAt = A('15') - close[0] + 74;
   return (
-    <Field stops={[[0, G], [bites[0] + 4, PAPER], [product[0] + 6, G], [monday[0] + 6, NIGHT], [close[0] + 6, G], [end[0] + 6, NIGHT]]}>
+    <Field stops={[[0, G], [bites[0] + 4, PAPER], [tabs[0] + 6, NIGHT], [april[0] + 12, PAPER], [product[0] + 6, G], [monday[0] + 6, NIGHT], [close[0] + 6, G], [end[0] + 6, NIGHT]]}>
       <Sequence from={bank[0]} durationInFrames={bank[1] - bank[0]} name="bank"><SceneBank len={bank[1] - bank[0]} /></Sequence>
       <Sequence from={bites[0]} durationInFrames={bites[1] - bites[0]} name="bites"><SceneBites len={bites[1] - bites[0]} biteAt={biteAt} meltAt={meltAt} sighAt={sighAt} /></Sequence>
+      <Sequence from={tabs[0]} durationInFrames={tabs[1] - tabs[0]} name="tabs"><SceneTabs len={tabs[1] - tabs[0]} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} /></Sequence>
       <Sequence from={april[0]} durationInFrames={april[1] - april[0]} name="april"><SceneApril len={april[1] - april[0]} emailAt={E('08') - april[0] - 34} /></Sequence>
       <Sequence from={product[0]} durationInFrames={product[1] - product[0]} name="product"><SceneProduct len={product[1] - product[0]} logoAt={A('09') - product[0]} cardsAt={A('10') - product[0]} gatherAt={A('11') - product[0]} /></Sequence>
       <Sequence from={nudge[0]} durationInFrames={nudge[1] - nudge[0]} name="nudge"><SceneNudge len={nudge[1] - nudge[0]} secondAt={A('12') - nudge[0] + 48} shoulderAt={A('13') - nudge[0]} tapAt={tapAt} /></Sequence>
@@ -481,6 +502,9 @@ export const CashewSpot: React.FC = () => {
       {biteAt.map((b, i) => <Sfx key={i} name="pop" at={bites[0] + b + CHOMP} volume={0.7} rate={1 - i * 0.06} />)}
       <Sfx name="whoosh" at={bites[0] + meltAt} volume={0.6} />
       <Sfx name="wake" at={bites[0] + meltAt + 48} volume={0.3} />
+      {nameAt.map((t, i) => <Sfx key={`n${i}`} name="tick" at={tabs[0] + t} volume={0.4} rate={1.1 + (i % 3) * 0.08} />)}
+      {Array.from({ length: 7 }, (_, i) => <Sfx key={`r${i}`} name="tick" at={tabs[0] + restAt + i * 3} volume={0.25} rate={1.3 + (i % 3) * 0.1} />)}
+      <Sfx name="whoosh" at={tabs[0] + collapseAt} volume={0.4} rate={1.3} />
       {Array.from({ length: 7 }, (_, i) => <Sfx key={i} name="tick" at={april[0] + 8 + i * 7} volume={0.35} rate={1.2} />)}
       <Sfx name="riser" at={A('09') - 50} volume={0.55} />
       <Sfx name="chime-low" at={A('09')} volume={0.35} />

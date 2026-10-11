@@ -1,29 +1,35 @@
 # motion: the two commercials
 
-Session C of docs/two-products.md. Two 46 second spots, Cashew then Locus, built with Remotion so they can be
-re-rendered when a name, a number, a logo or a character changes. Beat by beat they follow section 6 of the plan;
-the craft they chase is section 1 (one hero number, every cost has a face, the product after the pain, one
-colour field, one serif italic word, the helper reacts and never talks).
+Two spots, Cashew and Locus, 59 and 55 seconds, built with Remotion so they can be re-rendered when a name,
+a number, a logo, a character or a spoken line changes. Each spot sells one app and never names the other. The
+screens are the apps' own cards rebuilt in React with the apps' tokens, the picture follows a voice generated per
+line, and every sound is synthesized here. The reference and what Cole asked for are in `../motion-reference/` and
+`../docs/handoffs/motion-v2.md`.
 
 ## What is here
 
 | Path | What it is |
 | --- | --- |
-| `brand.ts` | the one file to edit: each app's name, tagline, logo file and character, the colours, every number on screen |
-| `src/kept/KeptSpot.tsx` | the money app's spot (Cashew today), nine beats and the ending |
-| `src/locus/LocusSpot.tsx` | the Locus spot, eight beats and the ending |
-| `src/bites/Bite.tsx` | the five bite characters (rent, the factory, ads, fees, tax), drawn on the kit's grid with two dots for eyes |
-| `src/marks/Mark.tsx` | loads the logos (SVG as React components) and the characters (PNG states, or a vector mark's drawn states) from `../logo/` |
-| `src/shared/` | the phone, the card, the tap, the circled number, the tagline beat, the two-characters ending |
-| `src/lib/` | the stage (fonts, the two formats), the spring presets, the accent-word line |
-| `public/fonts/` | Inter and Instrument Serif italic, fetched once from Google Fonts by `npm run fonts` |
-| `scripts/render.mjs` | bundles once and renders everything, printing times and sizes |
-| `scripts/stills.mjs` | a handful of frames as PNG, for a look before a full render |
-| `out/` | the renders (gitignored) |
+| `brand.ts` | the one data file: each app's name, tagline, logo file and character, the colours, every number on screen |
+| `vo.json` | the spoken script, one line per picture event, and the voice |
+| `scripts/voice.py` | voices `vo.json` with Kokoro into `public/vo/`, writes `public/vo/manifest.json` with each line's length |
+| `scripts/make-sfx.mjs` | synthesizes every sound and the two music beds into `public/sfx/` |
+| `src/lib/timeline.ts` | turns the voiced lengths into beat frames; `src/lib/audio.tsx` places the voice, the sounds and the ducked bed |
+| `src/cashew/CashewSpot.tsx` | the Cashew spot, twenty five lines, ten scenes |
+| `src/locus/LocusSpot.tsx` | the Locus spot, twenty one lines, nine scenes |
+| `src/ui/cashew.tsx`, `src/ui/locus.tsx` | the apps' screens as React: tiles, the hero with the bites bar, the finding card, Today's calls, the spend bars, the lanes, the windows |
+| `src/ui/charts.tsx` | the apps' sparkline, line chart and bar chart (the same smoothing as lg-core.js) with a draw-in `t` |
+| `src/ui/tokens.ts` | the colour tokens copied from profit/v2.css and ledger/ledger.css |
+| `src/fx/Goo.tsx` | the liquid: the melt, the bitten pill, the drips and the puddle under one goo filter |
+| `src/fx/Costs.tsx` | the four cost characters: rent, the factory, ads, the tax, filled and lit |
+| `src/ui/browser.tsx`, `src/shared/tabsBeat.tsx` | the browser and its tab strip, the platform marks from `../profit/logos/`, the tabs beat both spots share |
+| `src/marks/Mark.tsx` | the logos (SVG as React components) and the characters (PNG states) from `../logo/` |
+| `src/shared/scene.tsx` | the colour field, the scene box for both formats, captions, the slow camera |
+| `scripts/render.mjs`, `scripts/stills.mjs` | render everything; render frames or a one-frame-a-second contact sheet |
+| `out/` | the renders (gitignored except the four MP4s and the two posters) |
 
-Four compositions: `KeptVertical` and `LocusVertical` (1080x1920), `KeptLandscape` and `LocusLandscape`
-(1920x1080), all 30 fps, 1395 frames (46.5 s). The composition ids keep the folder's name; the money app's
-name on screen comes from `brand.ts`.
+Four compositions: `CashewVertical` and `LocusVertical` (1080x1920), `CashewLandscape` and `LocusLandscape`
+(1920x1080), 30 fps. The length comes from the voiced lines, so it changes when a line does.
 
 ## Render
 
@@ -31,18 +37,14 @@ name on screen comes from `brand.ts`.
 cd motion
 npm install          # once; versions are pinned
 npm run render       # all four MP4s and the two posters into out/
-npm run render:kept  # the money app's spot, both formats
-npm run posters      # the two 1080x1920 poster frames only
-node scripts/render.mjs KeptVertical   # one composition by name
+npm run render:cashew
+npm run render:locus
+node scripts/render.mjs CashewVertical            # one composition by name
+node scripts/stills.mjs CashewVertical sheet out/stills   # a contact sheet, one frame a second
+node scripts/stills.mjs LocusVertical 300 640 out/stills  # named frames at half size
 ```
 
-The Remotion CLI works too, with the same settings from `remotion.config.ts`:
-
-```
-npx remotion render src/index.ts KeptVertical out/kept-vertical.mp4
-npx remotion still src/index.ts LocusVertical out/locus-poster.png --frame=456
-npx remotion studio    # the editor, if you have a browser on the machine
-```
+The Remotion CLI works too (`npx remotion render src/index.ts CashewVertical out/x.mp4`, `npx remotion studio`).
 
 ### The browser
 
@@ -53,74 +55,48 @@ speaks it is Playwright's headless shell, so `remotion.config.ts` points there:
 /opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell
 ```
 
-Plain `/opt/pw-browsers/chromium` (Chromium 141) refuses with "Old Headless mode has been removed". Nothing is
-downloaded. On another machine set `REMOTION_BROWSER` to a Chrome or a headless shell, or delete the
-`setBrowserExecutable` line and let Remotion fetch its own.
+Plain `/opt/pw-browsers/chromium` refuses with "Old Headless mode has been removed". On another machine set
+`REMOTION_BROWSER` to a Chrome or a headless shell, or delete the `setBrowserExecutable` line and let Remotion fetch
+its own.
 
-### How long a render takes here
+## Change a spoken line
 
-On the cloud session (4 cores, no GPU, software ANGLE), after a 10 second bundle:
+Edit the line in `vo.json`, then:
 
-| Composition | Time | Size |
-| --- | --- | --- |
-| KeptVertical | about 55 s | about 1 MB |
-| KeptLandscape | about 50 s | under 1 MB |
-| LocusVertical | about 60 s | about 1 MB |
-| LocusLandscape | about 55 s | about 1 MB |
-
-All four plus the posters: under four minutes. A still takes about a second once bundled. CRF is 28, so each
-file stays far under 10 MB.
-
-## Swap the name
-
-`brand.ts`, section 1. Each app is a name, a tagline, a logo and a character:
-
-```ts
-export const money: App = apps.cashew;   // or apps.kept
+```
+pip install kokoro-onnx soundfile     # once
+python3 scripts/voice.py              # re-voices only the lines whose text changed
 ```
 
-That one line renames the money app and swaps its logo and character everywhere: the title card, the nudge
-("Cashew taps you on the shoulder"), the tagline beat and the closing line of both spots. The tagline stays
-"Know what you kept." for both names, as the plan says; the accent word in a tagline is always its last word.
+The model and the voices download from Hugging Face the first time (onnx-community/Kokoro-82M-v1.0-ONNX, about
+330 MB) into `~/.cache/kokoro/`. The voice is `af_heart` at speed 1.0; both are in `vo.json`. A line's new length
+moves every beat after it, and the on-screen moment inside a line (the chomp, the tap) is a frame offset from the
+line's start in the spot file, so a much longer or shorter line may want that offset nudged. Keep the lines short
+and plain; a picture event gets its own line. No dashes in the script, the generator refuses them.
 
-## Swap a logo or a character
+## Change a number, a name, a mark
 
-`brand.ts`, section 1. A logo is one SVG in `logo/` drawn in `currentColor` (so it goes white on the field),
-with a `kind`: `wordmark` when the name is in the drawing (Cashew), `mark` when the name is set in type beside it
-(Locus, Kept). A character is one of two things:
+`brand.ts`. The Cashew bites must add up to the balance minus the kept number and the Locus bites to sales minus
+kept, or the spot refuses to render with a message saying by how much. A logo is an SVG in `logo/` drawn in
+currentColor; a character is a folder of PNG states (rest, thinking, found, asleep, clear). The 200px PNGs are kept
+at 260px or smaller on screen; drop 1024px files in under the same names and nothing else changes.
 
-- `{ kind: 'image', dir: 'cashew/character' }`: a folder of transparent PNGs named `rest`, `thinking`,
-  `found`, `asleep`, `clear`. Today's files are 200px; the same names at 1024px drop in with no code change.
-  They are scaled smoothly, never pixelated.
-- `{ kind: 'vector', base: 'kept/direction-1' }`: a drawn mark and its four states (`-asleep`, `-thinking`,
-  `-found`, `-clear`), the brand kit's own SVGs.
+## Change a sound
 
-Change the file or the folder, keep the five state names, and render.
-
-## Swap a number
-
-`brand.ts`, section 4. The money app: the bank balance, the kept number and the four bites. The bites must add
-up to the balance minus the kept number, or the render stops with a message saying by how much they miss. Locus:
-the two numbers that argue, the tab count, the hour, the three calls with their stakes (and which one gets the
-tap), and how many brand lanes. Numbers that are part of the script and never change (14 tabs, 7:02) are there
-too, so the script and the screen cannot drift.
+`scripts/make-sfx.mjs`, then `npm run sfx`. Each sound is a few lines of sine, noise and envelope. The beds are a
+slow chord progression with a quiet pulse, low passed; `src/lib/audio.tsx` ducks the bed to 38% under every spoken
+line and fades it out over the last second and a half.
 
 ## How the spots are put together
 
-- Every motion is a Remotion `spring()`; the presets in `src/lib/motion.ts` are named for how they feel (pop,
-  settle, snap, heavy, wobble, soft). Nothing is linear.
-- Each spot has one orchestrated moment. The money spot: the balance melts into a puddle and the character
-  rises out of it, eyes shut, with the one number. Locus: the fourteen tabs collapse into a point, the field
-  floods out of it, and the character wakes.
-- The character reacts and never talks: it sighs at the melted number, perks up at the tap on the shoulder,
-  nods when the folder closes and on the tagline. In Locus it wakes before you, watches the calls and perks at
-  the tap. The logo is the logo: the wordmark or the bead on the title card and the closing card, never the
-  character in its place.
-- One colour field per spot: paper and ink for the pain, then the product's field (Locus blue, the money
-  green from `logo/kit.css`) from the moment the product appears to the end. The logos are white on the field.
-- The accent word is Instrument Serif italic, one per beat at most: "actually", "real", "Booked.", "kept";
-  "wakes", "Paused.", "change".
-- Landscape reuses the same scenes. A `Fit` wrapper gives each scene a design canvas 1080 wide in portrait and
-  scales a 2400 by 1350 canvas by 0.8 in landscape, so stacked beats keep their proportions.
-- The text on screen is the plan's words. Where the plan says "one sentence per brand" or "lanes of brands", the
-  sentence and the brands are drawn as bars, not invented copy.
+- Every motion is a Remotion `spring()` (`src/lib/motion.ts`: pop, settle, snap, heavy, wobble, soft). Nothing is linear.
+- One colour field per spot, changing under the beats (`Field` in `src/shared/scene.tsx`): the product's colour for
+  the bank app and the product, paper for the pain, night for 11:47 and the endings.
+- Each scene is laid out in a 1080 by 1920 box. Portrait fills the frame; landscape scales the band the beats live
+  in (y 260 to 1760) to the frame's height and centres it.
+- The app screens are authored in app px (the CSS values from v2.css and ledger.css) and scaled up with `Zoom`,
+  so a 13.5px label is the app's 13.5px label, 1.75 times larger.
+- The orchestrated moment: Cashew's balance melts into a puddle and the character rises out of it; Locus's
+  fourteen tabs collapse into one point and the field floods out of it.
+- The character reacts and never talks: it sighs at the melt, thinks at the bleeding bars, wakes before you,
+  perks at the tap, nods at the close and on the tagline.

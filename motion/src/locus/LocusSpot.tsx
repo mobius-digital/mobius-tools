@@ -15,24 +15,26 @@
 //  14 Every brand, one morning.                      the agency lanes fill
 //  15 Locus. Know what to change.                    dark, the lockup, the tagline, the nod
 import React from 'react';
-import { Sequence, interpolate, random, useCurrentFrame } from 'remotion';
+import { Sequence, interpolate, useCurrentFrame } from 'remotion';
 import { colours, locus as app, locusNumbers as N } from '../../brand';
 import { buildTimeline, type Cue } from '../lib/timeline';
 import { Bed, Sfx, Voice } from '../lib/audio';
 import { feel, useBump, useExit, useSpring } from '../lib/motion';
 import { Big, Caption, Camera, Field, SceneBox, Words } from '../shared/scene';
 import { Character, CharacterBlend, LogoLockup } from '../marks/Mark';
-import { LxAngle, LxCalls, LxDayCheck, LxHero, LxLanes, LxMorning, LxSpendBars, LxTile, LxWindow, PlatformCard, Tab, Zoom } from '../ui/locus';
+import { LxAngle, LxCalls, LxDayCheck, LxHero, LxLanes, LxMorning, LxSpendBars, LxTile, LxWindow, PlatformCard, Zoom } from '../ui/locus';
+import { TabsBeat, locusTabs } from '../shared/tabsBeat';
 import { MetaMark, ShopifyMark } from '../ui/marks';
-import { channel } from '../ui/tokens';
 import { serifStack } from '../lib/fonts';
 
 const cues: Cue[] = [
-  { id: '01', gap: 0.6 }, { id: '02', gap: 0.4 }, { id: '03', gap: 0.8, hold: 1.0 }, { id: '04', gap: 0 }, { id: '05', gap: 0.3, hold: 0.9 },
+  { id: '01', gap: 0.6 }, { id: '02', gap: 0.4 }, { id: '03', gap: 0.8, hold: 0.7 }, { id: '04', gap: 0 },
+  { id: '04a', gap: 0.3 }, { id: '04b', gap: 0.08 }, { id: '04c', gap: 0.08 }, { id: '04d', gap: 0.08 }, { id: '04e', gap: 0.08 }, { id: '04f', gap: 0.08 },
+  { id: '05', gap: 0.15, hold: 0.6 },
   { id: '06', gap: 0 }, { id: '07', gap: 0.3 }, { id: '08', gap: 0.5, hold: 0.5 }, { id: '09', gap: 0 }, { id: '10', gap: 0.3, hold: 1.0 },
-  { id: '11', gap: 0 }, { id: '12', gap: 0.5, hold: 1.1 }, { id: '13', gap: 0, hold: 0.7 }, { id: '14', gap: 0, hold: 0.8 }, { id: '15', gap: 0.3 },
+  { id: '11', gap: 0 }, { id: '12', gap: 0.5, hold: 0.8 }, { id: '13', gap: 0, hold: 0.7 }, { id: '14', gap: 0, hold: 0.8 }, { id: '15', gap: 0.3 },
 ];
-export const tl = buildTimeline('locus', cues, 2.6);
+export const tl = buildTimeline('locus', cues, 2.0);
 export const locusDuration = tl.total;
 const A = (id: string) => tl.at(id);
 const E = (id: string) => tl.end(id);
@@ -94,7 +96,7 @@ const SceneBleed: React.FC<{ len: number; bleedAt: number }> = ({ len, bleedAt }
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={330} p={capP} color={INK} accentColor={RED} size={54} />
-      <Camera p={cam} zoom={1.24} cx={600} cy={1000}>
+      <Camera p={cam} zoom={1.14} cx={560} cy={1000}>
         <div style={{ position: 'absolute', left: WIN.x, top: 560, transform: `translateY(${(1 - win) * 140}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={WIN.k} w={WIN.w}>
             <LxWindow width={WIN.w} crumb={['Ads', 'Meta']} tabs={["Today's calls", 'All channels', 'Meta', 'Google', 'TikTok']} active={2} faceState="thinking" badge="Looking">
@@ -110,27 +112,19 @@ const SceneBleed: React.FC<{ len: number; bleedAt: number }> = ({ len, bleedAt }
   );
 };
 
-// ---- 04 and 05. 11:47, fourteen tabs ----------------------------------------------
-const tabColours = [channel.meta, '#95BF47', channel.email, channel.google, '#2A86B3', '#1E9C8C', '#F2F2F4', '#E01E5A', '#F06A6A', '#635BFF', '#4285F4', '#EA4335', '#9A9AA6', channel.meta];
-const SceneNight: React.FC<{ len: number; tabsAt: number; collapseAt: number }> = ({ len, tabsAt, collapseAt }) => {
-  const f = useCurrentFrame();
+// ---- 04 and 05. 11:47, then the tabs ----------------------------------------------
+const SceneNight: React.FC<{ len: number; nameAt: number[]; restAt: number; collapseAt: number }> = ({ len, nameAt, restAt, collapseAt }) => {
   const s = useSpring();
   const out = useExit(len, 6);
   const clockIn = s(0, feel.pop);
-  const spin = s(6, feel.settle, 60); // hands race round to 11:47
+  const spin = s(6, feel.settle, 60); // the hands race round to 11:47
   const timeIn = s(50, feel.pop);
   const minuteDeg = -90 + 360 * (47 / 60) + 720 * (1 - spin);
   const hourDeg = -90 + 360 * ((11 + 47 / 60) / 12) + 60 * (1 - spin);
-  const tabCount = Math.max(0, Math.min(N.tabs.length, Math.floor((f - tabsAt) / 4) + 1));
-  const countIn = s(tabsAt, feel.pop);
-  const openIn = s(tabsAt + 4 * N.tabs.length + 4, feel.settle);
-  const collapse = s(collapseAt, feel.settle, 30);
-  const point = s(collapseAt + 14, feel.pop);
-  const clockOut = 1 - s(tabsAt - 6, feel.soft);
+  const clockOut = 1 - s(nameAt[0] - 10, feel.soft);
   return (
     <SceneBox opacity={out}>
-      {/* the clock */}
-      <div style={{ position: 'absolute', left: 540 - 170, top: 700, width: 340, height: 340, borderRadius: '50%', background: '#F4F4F6', transform: `scale(${clockIn * (1 - collapse)})`, opacity: clockIn * clockOut, boxShadow: '0 0 0 14px rgba(255,255,255,.06), 0 30px 80px rgba(0,0,0,.6)' }}>
+      <div style={{ position: 'absolute', left: 540 - 170, top: 700, width: 340, height: 340, borderRadius: '50%', background: '#F4F4F6', transform: `scale(${clockIn * clockOut})`, opacity: clockIn * clockOut, boxShadow: '0 0 0 14px rgba(255,255,255,.06), 0 30px 80px rgba(0,0,0,.6)' }}>
         <div style={{ position: 'absolute', left: '50%', top: '50%', width: 110, height: 8, background: '#15171C', borderRadius: 4, transformOrigin: '0 50%', transform: `rotate(${hourDeg}deg) translateY(-4px)` }} />
         <div style={{ position: 'absolute', left: '50%', top: '50%', width: 150, height: 6, background: '#15171C', borderRadius: 3, transformOrigin: '0 50%', transform: `rotate(${minuteDeg}deg) translateY(-3px)` }} />
         <div style={{ position: 'absolute', left: '50%', top: '50%', width: 16, height: 16, borderRadius: '50%', background: colours.blood, transform: 'translate(-50%,-50%)' }} />
@@ -139,33 +133,8 @@ const SceneNight: React.FC<{ len: number; tabsAt: number; collapseAt: number }> 
         <Big text={N.clock} size={150} color={W} />
         <div style={{ fontFamily: serifStack, fontStyle: 'italic', fontSize: 60, color: 'rgba(255,255,255,.75)', marginTop: 6 }}>at night.</div>
       </div>
-      <Caption text="And you find out" y={330} p={s(2, feel.settle)} out={clockOut} color={W} size={46} />
-      {/* the tabs */}
-      {N.tabs.slice(0, tabCount).map((name, i) => {
-        const p = s(tabsAt + i * 4, feel.pop);
-        const rx = random(`tx${i}`) * 900 - 450;
-        const ry = random(`ty${i}`) * 1300 - 650;
-        const rot = random(`tr${i}`) * 24 - 12;
-        const cx = 540 + rx * (1 - collapse);
-        const cy = 940 + ry * (1 - collapse);
-        return (
-          <div key={i} style={{ position: 'absolute', left: cx, top: cy, transform: `translate(-50%,-50%) scale(${(0.6 + 0.4 * p) * 1.35 * (1 - collapse)}) rotate(${rot * (1 - collapse)}deg)`, opacity: p * (1 - collapse) }}>
-            <Tab name={name} colour={tabColours[i]} />
-          </div>
-        );
-      })}
-      {f >= tabsAt && (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 820, textAlign: 'center', transform: `scale(${(0.8 + 0.2 * countIn) * (1 - collapse)})`, opacity: countIn * (1 - collapse) }}>
-          <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 18 }}>
-            <Big text={String(tabCount)} size={230} color={B === '#2F62D9' ? '#8FB3FF' : B} />
-            <span style={{ fontSize: 120, fontWeight: 800, letterSpacing: '-0.04em', color: W }}>TABS</span>
-            <span style={{ fontFamily: serifStack, fontStyle: 'italic', fontSize: 120, color: '#8FB3FF', opacity: openIn, marginLeft: 6 }}>open.</span>
-          </div>
-          <div style={{ fontSize: 46, fontWeight: 600, color: 'rgba(255,255,255,.8)', marginTop: 14, opacity: openIn }}>Nobody knows what to change.</div>
-        </div>
-      )}
-      {/* the point everything collapses into */}
-      <div style={{ position: 'absolute', left: 540 - 20, top: 940 - 20, width: 40, height: 40, borderRadius: '50%', background: W, transform: `scale(${point * 1.4})`, opacity: point, boxShadow: `0 0 ${60 * point}px ${30 * point}px rgba(143,179,255,.6)` }} />
+      <Caption text={clockOut > 0.5 ? 'And you find out' : '11:47, with everything open.'} y={330} p={clockOut > 0.5 ? s(2, feel.settle) : s(nameAt[0] - 6, feel.settle)} color={W} size={46} />
+      <TabsBeat tabs={locusTabs} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} accent="#8FB3FF" tail="Nobody knows what to change." tailAt={restAt + 20} />
     </SceneBox>
   );
 };
@@ -220,7 +189,7 @@ const SceneRead: React.FC<{ len: number; waves: number[]; readAt: number; mornin
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={300} p={capP} color={W} size={46} />
-      <Camera p={cam} zoom={1.2} cx={540} cy={760}>
+      <Camera p={cam} zoom={1.1} cx={540} cy={760}>
         <div style={{ position: 'absolute', left: WIN.x, top: 470 - scrollUp * 60, transform: `translateY(${(1 - win) * 160}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={WIN.k} w={WIN.w}>
             <LxWindow width={WIN.w} crumb={['Home', 'Overview']} tabs={['Overview', 'Day check', 'P&L', 'Goals', 'Requests']} active={0} faceState={charState} badge={f < morningAt ? 'Locus' : '2 to do'}>
@@ -282,7 +251,7 @@ const SceneCalls: React.FC<{ len: number; rowAt: number[]; tapAt: number; paused
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={f < pausedAt ? 300 : 260} p={capP} color={W} size={f < pausedAt ? 50 : 110} />
-      <Camera p={cam} zoom={1.18} cx={540} cy={1080}>
+      <Camera p={cam} zoom={1.08} cx={540} cy={1080}>
         <div style={{ position: 'absolute', left: WIN.x, top: 470, transform: `translateY(${(1 - win) * 160}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={WIN.k} w={WIN.w}>
             <LxWindow width={WIN.w} crumb={['Ads', "Today's calls"]} tabs={["Today's calls", 'All channels', 'Meta', 'Google', 'TikTok']} active={0} faceState={done > 0.5 ? 'clear' : 'found'} badge={done > 0.5 ? '2 to do' : '3 to do'}>
@@ -382,15 +351,16 @@ export const LocusSpot: React.FC = () => {
   const argue = [0, A('03') - 2] as const;
   const bleed = [A('03') - 8, A('04') - 2] as const;
   const night = [A('04') - 8, A('06') + 2] as const;
-  const wake = [A('06') - 14, A('08') - 2] as const;
+  const wake = [A('06') - 4, A('08') - 2] as const;
   const read = [A('08') - 8, A('11') - 2] as const;
   const calls = [A('11') - 8, A('13') - 2] as const;
   const angle = [A('13') - 8, A('14') - 2] as const;
   const agency = [A('14') - 8, A('15') - 10] as const;
   const end = [A('15') - 12, tl.total] as const;
   const bleedAt = A('03') - bleed[0] + 26;
-  const tabsAt = A('05') - night[0];
-  const collapseAt = E('05') - night[0] + 6;
+  const nameAt = ['04a', '04b', '04c', '04d', '04e', '04f'].map((id) => A(id) - night[0] + 4);
+  const restAt = A('05') - night[0] + 10;
+  const collapseAt = E('05') - night[0] - 4;
   const waves = [0, 28, 56].map((d) => A('08') - read[0] + d);
   const readAt = A('08') - read[0] + 92;
   const rowAt = [27, 45, 63].map((d) => A('11') - calls[0] + d);
@@ -401,7 +371,7 @@ export const LocusSpot: React.FC = () => {
     <Field stops={[[0, B], [bleed[0] + 6, PAPER], [night[0] + 6, NIGHT], [read[0] - 10, B], [end[0] + 6, NIGHT]]}>
       <Sequence from={argue[0]} durationInFrames={argue[1] - argue[0]} name="argue"><SceneArgue len={argue[1] - argue[0]} secondAt={A('02')} /></Sequence>
       <Sequence from={bleed[0]} durationInFrames={bleed[1] - bleed[0]} name="bleed"><SceneBleed len={bleed[1] - bleed[0]} bleedAt={bleedAt} /></Sequence>
-      <Sequence from={night[0]} durationInFrames={night[1] - night[0]} name="night"><SceneNight len={night[1] - night[0]} tabsAt={tabsAt} collapseAt={collapseAt} /></Sequence>
+      <Sequence from={night[0]} durationInFrames={night[1] - night[0]} name="night"><SceneNight len={night[1] - night[0]} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} /></Sequence>
       <Sequence from={wake[0]} durationInFrames={wake[1] - wake[0]} name="wake"><SceneWake len={wake[1] - wake[0]} nameAt={A('06') - wake[0]} wakeAt={A('07') - wake[0]} /></Sequence>
       <Sequence from={read[0]} durationInFrames={read[1] - read[0]} name="read"><SceneRead len={read[1] - read[0]} waves={waves} readAt={readAt} morningAt={A('09') - read[0]} heroAt={A('10') - read[0]} /></Sequence>
       <Sequence from={calls[0]} durationInFrames={calls[1] - calls[0]} name="calls"><SceneCalls len={calls[1] - calls[0]} rowAt={rowAt} tapAt={tapAt} pausedAt={pausedAt} /></Sequence>
@@ -418,7 +388,8 @@ export const LocusSpot: React.FC = () => {
       {[0, 10, 22, 36, 52].map((d, i) => <Sfx key={i} name="drip" at={bleed[0] + bleedAt + 10 + d} volume={0.4} rate={1 - i * 0.08} />)}
       <Sfx name="whoosh" at={bleed[0] + bleedAt} volume={0.3} rate={0.8} />
       <Sfx name="tick" at={A('04') + 50} volume={0.4} rate={0.8} />
-      {N.tabs.map((_, i) => <Sfx key={i} name="tick" at={night[0] + tabsAt + i * 4} volume={0.22} rate={1.1 + (i % 3) * 0.1} />)}
+      {nameAt.map((t, i) => <Sfx key={i} name="tick" at={night[0] + t} volume={0.4} rate={1.1 + (i % 3) * 0.08} />)}
+      {Array.from({ length: 8 }, (_, i) => <Sfx key={`r${i}`} name="tick" at={night[0] + restAt + i * 3} volume={0.25} rate={1.3 + (i % 3) * 0.1} />)}
       <Sfx name="whoosh" at={night[0] + collapseAt} volume={0.45} rate={1.3} />
       <Sfx name="riser" at={A('06') - 46} volume={0.5} />
       <Sfx name="chime-low" at={A('06')} volume={0.35} />

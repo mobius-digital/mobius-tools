@@ -63,12 +63,12 @@ export const Puddle: React.FC<{ cx: number; cy: number; t: number; color: string
 // The melt. A pill (the number's home) sinks and stretches down into drips
 // and a puddle. t 0: the pill. t 1: only the puddle, the pill gone.
 export const MeltPill: React.FC<{
-  w: number; h: number; t: number; color: string; floor: number; width?: number; height?: number; children?: React.ReactNode;
-}> = ({ w, h, t, color, floor, width = 1080, height = 900, children }) => {
+  w: number; h: number; t: number; color: string; floor: number; width?: number; height?: number; top?: number; spots?: BiteSpot[]; children?: React.ReactNode;
+}> = ({ w, h, t, color, floor, width = 1080, height = 900, top: topProp, spots = [], children }) => {
   const sink = ease(interpolate(t, [0, 0.75], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }));
   const fade = ease(interpolate(t, [0.55, 0.95], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }));
   const cx = width / 2;
-  const top = height * 0.18;
+  const top = topProp ?? height * 0.18;
   // The pill drops a little, squashes to the bottom, and widens.
   const pillH = h * (1 - 0.72 * sink);
   const pillW = w * (1 + 0.22 * sink);
@@ -78,9 +78,26 @@ export const MeltPill: React.FC<{
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>
       <GooDefs id="meltgoo" blur={9} />
+      <defs>
+        <mask id="meltbites">
+          <rect x={0} y={0} width={width} height={height} fill="white" />
+          {spots.map((s, i) => {
+            // The bites the pill already took, carried into the melt and healing as it softens.
+            const bx = cx - pillW / 2 + s.x * pillW;
+            const by = pillY + s.y * pillH;
+            const r = s.r * (0.6 + 0.4 * (pillH / h)) * (1 - sink * 0.7);
+            return (
+              <g key={i}>
+                <circle cx={bx} cy={by} r={r} fill="black" />
+                <circle cx={bx + (s.x < 0.5 ? -1 : 1) * r * 0.45} cy={by + (s.y < 0.5 ? -1 : 1) * r * 0.35} r={r * 0.5} fill="black" />
+              </g>
+            );
+          })}
+        </mask>
+      </defs>
       <g filter="url(#meltgoo)">
         <g opacity={fade}>
-          <rect x={cx - pillW / 2} y={pillY} width={pillW} height={pillH} rx={Math.min(pillH / 2, h / 2)} fill={color} />
+          <rect x={cx - pillW / 2} y={pillY} width={pillW} height={pillH} rx={Math.min(pillH / 2, h / 2)} fill={color} mask="url(#meltbites)" />
         </g>
         <g opacity={fade}>
           <Drips x={cx - pillW / 2 + 30} y={pillY + pillH - 8} width={pillW - 60} t={dripT} color={color} count={5} maxLen={floor - (pillY + pillH)} floorY={floor} seed={3} thin={1.5} />

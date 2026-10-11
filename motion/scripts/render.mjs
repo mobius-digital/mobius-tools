@@ -33,7 +33,7 @@ const gl = 'angle';
 const ids = { cashew: ['CashewVertical', 'CashewLandscape'], locus: ['LocusVertical', 'LocusLandscape'] };
 const posters = { CashewVertical: 'cashew-poster.png', LocusVertical: 'locus-poster.png' };
 // The poster frame of each spot, as a share of the length: the circled number for Cashew, the calls for Locus.
-const posterShare = { CashewVertical: 0.62, LocusVertical: 0.66 };
+const posterShare = { CashewVertical: 0.578, LocusVertical: 0.68 };
 
 const args = process.argv.slice(2);
 let toRender = [];

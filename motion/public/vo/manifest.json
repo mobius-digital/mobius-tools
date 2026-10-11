@@ -43,9 +43,9 @@
  },
  "cashew-08": {
   "file": "vo/cashew-08.wav",
-  "seconds": 2.556,
-  "text": "And you found out in April. From your CPA.",
-  "hash": "5e7cf981dc92"
+  "seconds": 2.62,
+  "text": "So you found out in April. From your CPA.",
+  "hash": "392182878814"
  },
  "cashew-09": {
   "file": "vo/cashew-09.wav",
@@ -184,5 +184,95 @@
   "seconds": 1.639,
   "text": "Locus. Know what to change.",
   "hash": "ac3dad00eefe"
+ },
+ "cashew-07a": {
+  "file": "vo/cashew-07a.wav",
+  "seconds": 1.383,
+  "text": "Or add it up yourself.",
+  "hash": "78ba4fcda642"
+ },
+ "cashew-07b": {
+  "file": "vo/cashew-07b.wav",
+  "seconds": 0.849,
+  "text": "The bank.",
+  "hash": "55624ff212ce"
+ },
+ "cashew-07c": {
+  "file": "vo/cashew-07c.wav",
+  "seconds": 0.828,
+  "text": "Stripe.",
+  "hash": "60e96a1d015a"
+ },
+ "cashew-07d": {
+  "file": "vo/cashew-07d.wav",
+  "seconds": 0.935,
+  "text": "PayPal.",
+  "hash": "d6177faa24c9"
+ },
+ "cashew-07e": {
+  "file": "vo/cashew-07e.wav",
+  "seconds": 0.849,
+  "text": "Amex.",
+  "hash": "562cb8a07ed0"
+ },
+ "cashew-07f": {
+  "file": "vo/cashew-07f.wav",
+  "seconds": 1.297,
+  "text": "Shopify payouts.",
+  "hash": "2a0935ebd224"
+ },
+ "cashew-07g": {
+  "file": "vo/cashew-07g.wav",
+  "seconds": 0.956,
+  "text": "QuickBooks.",
+  "hash": "1a94977ef68c"
+ },
+ "cashew-07h": {
+  "file": "vo/cashew-07h.wav",
+  "seconds": 0.871,
+  "text": "The sheet.",
+  "hash": "bd2e4a890ca6"
+ },
+ "cashew-07i": {
+  "file": "vo/cashew-07i.wav",
+  "seconds": 2.215,
+  "text": "Fourteen tabs. Still no number.",
+  "hash": "5e26ba2866b0"
+ },
+ "locus-04a": {
+  "file": "vo/locus-04a.wav",
+  "seconds": 1.02,
+  "text": "Shopify.",
+  "hash": "990aea22451e"
+ },
+ "locus-04b": {
+  "file": "vo/locus-04b.wav",
+  "seconds": 0.764,
+  "text": "Meta.",
+  "hash": "7badbd8bce36"
+ },
+ "locus-04c": {
+  "file": "vo/locus-04c.wav",
+  "seconds": 0.828,
+  "text": "Google.",
+  "hash": "fcd39e70e38d"
+ },
+ "locus-04d": {
+  "file": "vo/locus-04d.wav",
+  "seconds": 0.956,
+  "text": "TikTok.",
+  "hash": "f11065f23f01"
+ },
+ "locus-04e": {
+  "file": "vo/locus-04e.wav",
+  "seconds": 1.02,
+  "text": "Triple Whale.",
+  "hash": "c81e05d47655"
+ },
+ "locus-04f": {
+  "file": "vo/locus-04f.wav",
+  "seconds": 0.913,
+  "text": "Klaviyo.",
+  "hash": "55b47db4286c"
  }
 }

@@ -6,7 +6,7 @@ import { Audio, Sequence, interpolate, staticFile } from 'remotion';
 import type { Timeline } from './timeline';
 
 export const VOICE_GAIN = 1.0;
-export const BED_GAIN = 0.16;
+export const BED_GAIN = 0.26;
 export const DUCK_TO = 0.38; // the bed drops to this share of itself under speech
 
 // Every spoken line, placed where the timeline puts it.

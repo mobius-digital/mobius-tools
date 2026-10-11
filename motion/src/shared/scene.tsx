@@ -33,13 +33,15 @@ export const SCENE_H = 1920;
 export const SceneBox: React.FC<{ children: React.ReactNode; style?: React.CSSProperties; opacity?: number }> = ({ children, style, opacity = 1 }) => {
   const { width, height } = useVideoConfig();
   const portrait = height > width;
-  const k = portrait ? width / SCENE_W : height / SCENE_H;
+  // In landscape the beats live between y 260 and 1760 of the box, so that band fills the frame's height.
+  const k = portrait ? width / SCENE_W : height / 1500;
+  const shift = portrait ? 0 : (1010 - SCENE_H / 2) * k;
   return (
     <div
       style={{
         position: 'absolute',
         left: '50%',
-        top: '50%',
+        top: `calc(50% - ${shift}px)`,
         width: SCENE_W,
         height: SCENE_H,
         transform: `translate(-50%, -50%) scale(${k})`,
