@@ -181,3 +181,11 @@ My own pick from round one was the bead for Locus (now Cole's pick) and the jar 
 For Cashew round two: the character (direction 3) with the wordmark as its lockup, because it is the only one of
 the three that gives the helper a body the commercial can act with, and the wordmark covers the places a character
 should never go (the CPA pack, the invoice, the site footer). If Cole wants one mark and no mascot, the curl.
+
+## The gate (2026-10-11, evening)
+
+Both sign-in screens are one gate, drawn by `logo/kit.css` section 7 (`.kit-gate`), each app in its own colour with its
+own character. The reference video read into it: one character, alive, on a field with depth; the tagline with its serif
+accent word ("Know what you *kept*.", "Know what to *change*."); the one line from the plan; the white card lifted on a
+two-layer shadow with the Google button in the product colour. The field is the product's colour in both themes (a brand
+field, not a surface). Detail and the screenshots: `docs/handoffs/gates.md`.
