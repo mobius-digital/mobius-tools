@@ -108,6 +108,14 @@ Branch `locus-personality` (from `main-nv6pvz`), four commits, one per feature. 
   the four and keeping the plain dot until they load. The vector bead stays the logo, favicon and manifest icon. `rest.png`
   is not used (the app has four states). Relayed by the coordinator session, like the icon swap.
 
+- **The gate as a colour field (commit "The gate is the Locus colour field")**, the third relayed ask, and in the plan
+  itself (section 5, "the Locus blue on the gate"): `body.lx-gate-on` (set by `renderGate`, cleared by `chrome(true)`)
+  paints `.content` with the kit's `--field` (deeper in the dark theme), hides the top bar, and `renderGate` draws the
+  character (`rest.png`, 96px) beside "Locus" in white, the one line from two-products.md section 2 with "today" as the
+  accent word, then the sign-in card (white in both themes, its own light tokens) with Continue with Google and the
+  password fallback exactly as before, and the footer in white at 70%. The sign-in logic is untouched. Checked light,
+  dark and 390 wide: no sideways scroll.
+
 ## How it was checked
 - `node --check` on every JS file touched (hub.js, brandguard.js x2, hero.js, nudge.js, accent.js, v2.js, prefs.js,
   morning.js, worker.js, test-morning.mjs).

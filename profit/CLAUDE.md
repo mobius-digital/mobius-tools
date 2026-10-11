@@ -2861,7 +2861,8 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
   here) `profit/helper.js` fills every slot with the rendered character (`../logo/locus/character/<state>.png`, an img, object-fit
   contain; the vector bead stays the logo and the icons) and the ask bar carries it too. `../logo/kit.css` is loaded after v2.css. The gate (the bead above the title), the favicon,
   the rail mark, the manifest, sw.js (VERSION locus-v2) and the share pages carry the kit's icons from `logo/locus/icons/`
-  (Cole's pick per docs/brand/kit.md, relayed by the coordinator session); the intro film and the export frame keep the Mobius mark.
+  (Cole's pick per docs/brand/kit.md, relayed by the coordinator session); the intro film and the export frame keep the Mobius mark. The gate is the Locus colour field (`body.lx-gate-on`, set by
+  `renderGate`, cleared by `chrome(true)`): the character beside the name, the one line with its accent word, the white sign-in card.
 - **The morning line**: one sentence per brand built server side in `keptMany` (`line`), on Home until noon (hero.js)
   and as a Slack DM from account-health morning.js (hourly from `morningHour` 7 Central, once per person per day,
   the existing bot, `users.lookupByEmail`; filtered per person with brandsFor). Switch and "Send me today's line now"
