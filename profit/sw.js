@@ -8,8 +8,8 @@
  *     Every script tag carries ?v=, so a new version is a new URL and never waits on the old copy.
  *   - Anything else (the API, Meta and Triple Whale images, POSTs): straight to the network, untouched.
  * Bump VERSION to drop every old copy. */
-const VERSION = 'locus-v1';
-const SHELL = ['./', './index.html', './offline.html', './manifest.webmanifest', '../icons/locus-round-192.png', '../icons/locus-round-512.png', '../mobius.css'];
+const VERSION = 'locus-v2';   /* v2 (2026-10-11): the bead icons from logo/locus/icons replace the Mobius mark */
+const SHELL = ['./', './index.html', './offline.html', './manifest.webmanifest', '../logo/locus/icons/icon-192.png', '../logo/locus/icons/icon-512.png', '../mobius.css'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));

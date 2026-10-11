@@ -2846,3 +2846,29 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
   switching the flag back); account-health `test-clients.mjs` 22/22 (new: client edits only its own brand, only with
   P&L on, no email in the answer, "Added by" kept, another brand's row id cannot be taken over, team sees all).
   expenses.js?v=1, v2.js?v=41. Not deployed.
+
+## 2026-10-11: LOCUS PERSONALITY, session D (branch locus-personality; docs/handoffs/locus-personality.md has the detail)
+
+- **The hero number** opens Home: "Yesterday you *actually* kept $X", the contribution margin the P&L computes (hub.js
+  `keptMany`, `GET /api/hub/kept`), named contribution, never profit; the bites as a stacked bar (ads, product cost,
+  shipping and handling, fees; no refunds bite, revenue is already after returns); the agency sum with a row per brand.
+  `profit/hero.js`, mounted by v2.js `home()` into `#v2hero`. Everything else on Home stays where it was.
+- **The nudge card** (`profit/nudge.js`, the badge in the top bar) is a VIEW over `/api/hub/today` and `/api/hub/moved`,
+  never a third source of truth. Pause and Scale go through `/api/meta/write` (dry, modal, write with `expect`, Undo);
+  Done writes the Ads > Today manual Change Log line; Not now snoozes 24 hours per person in the worker
+  (`/api/me/prefs`, account-health prefs.js, settings `userPrefs:<email>`), never localStorage. The helper's face slot is
+  `<span class="lx-face" data-state="asleep|thinking|found|clear">`; since the brand kit landed (branch brand-kit, merged
+  here) `profit/helper.js` fills every slot with the rendered character (`../logo/locus/character/<state>.png`, an img, object-fit
+  contain; the vector bead stays the logo and the icons) and the ask bar carries it too. `../logo/kit.css` is loaded after v2.css. The gate (the bead above the title), the favicon,
+  the rail mark, the manifest, sw.js (VERSION locus-v2) and the share pages carry the kit's icons from `logo/locus/icons/`
+  (Cole's pick per docs/brand/kit.md, relayed by the coordinator session); the intro film and the export frame keep the Mobius mark. The gate is the Locus colour field (`body.lx-gate-on`, set by
+  `renderGate`, cleared by `chrome(true)`): the character beside the name, the one line with its accent word, the white sign-in card.
+- **The morning line**: one sentence per brand built server side in `keptMany` (`line`), on Home until noon (hero.js)
+  and as a Slack DM from account-health morning.js (hourly from `morningHour` 7 Central, once per person per day,
+  the existing bot, `users.lookupByEmail`; filtered per person with brandsFor). Switch and "Send me today's line now"
+  on Settings > Your profile, which is a section for EVERYONE now (brand and agency settings, `SET_GROUPS` 'You').
+  No phone push: nothing in the repo has web push wired; it is the next step in the handoff.
+- **The accent word**: `profit/accent.js` is the one list (tab id -> words); `pageHead` wraps the first match in
+  `<em class="lx-accent">` (Instrument Serif italic, token `--font-accent` in v2.css). A title without its word gets none.
+- Tests: `node test-morning.mjs` (7), test-clients covers the new routes. Checked with Playwright against stubbed routes
+  only; nothing ran against real data or was deployed.

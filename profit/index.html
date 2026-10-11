@@ -8,9 +8,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Locus</title>
 <meta name="description" content="Locus by Mobius Digital - the agency system: blended contribution margin, MER and aMER for every client, the agreed monthly plan, weekly and monthly client reports, and the Meta ad accounts behind them.">
-<link rel="icon" type="image/png" sizes="32x32" href="../icons/locus-round-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="../icons/locus-round-192.png">
-<link rel="apple-touch-icon" href="../icons/locus-180.png">
+<link rel="icon" type="image/svg+xml" href="../logo/locus/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../logo/locus/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../logo/locus/icons/icon-192.png">
+<link rel="apple-touch-icon" href="../logo/locus/icons/icon-180.png">
 <!-- Installable, like Ledger. Without these Locus can only ever be a browser
      tab with a URL bar over it, which is half of "doesn't feel like a real
      phone app" before a single pixel of layout is considered. -->
@@ -2186,7 +2187,8 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=31">
+<link rel="stylesheet" href="v2.css?v=39">
+<link rel="stylesheet" href="../logo/kit.css?v=1">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=12"></script>
@@ -2204,7 +2206,7 @@
 <div class="app">
   <aside class="side" id="side">
     <a class="side-brand" href="../" title="All Mobius tools">
-      <img src="../favicon.png" alt="">
+      <img src="../logo/locus/icons/favicon.svg" alt="">
       <span><span class="nm">Locus</span><span class="by">Mobius Digital</span></span>
     </a>
     <div class="side-client">
@@ -2246,7 +2248,7 @@
           <button type="button" role="menuitem" data-me="agency">Agency settings<small>Team, Slack timing, Locus, connections made once</small></button>
           <button type="button" role="menuitem" data-me="clients">Clients<small>Every brand, and + New client</small></button>
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
-          <button type="button" role="menuitem" data-me="profile" hidden>Your profile<small>Your name, your brands, sign out</small></button>
+          <button type="button" role="menuitem" data-me="profile">Your profile<small>Who you are, and the morning line</small></button>
           <button type="button" role="menuitem" data-me="guide">How to use Locus</button>
           <button type="button" role="menuitem" data-me="install" hidden>Install Locus as an app<small>Opens full screen from your home screen</small></button>
           <button type="button" role="menuitem" data-me="out">Sign out</button>
@@ -2312,7 +2314,11 @@
 <script src="season.js?v=17"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=5"></script>
-<script src="v2.js?v=46"></script>
+<script src="accent.js?v=1"></script>
+<script src="helper.js?v=2"></script>
+<script src="hero.js?v=1"></script>
+<script src="nudge.js?v=2"></script>
+<script src="v2.js?v=47"></script>
 <script src="desk.js?v=17"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=11"></script>
@@ -2396,6 +2402,7 @@ if (window.MobiusSheet) {
    forgot it would render a client's report beside an empty dark column. */
 function chrome(on) {
   document.body.classList.toggle('nochrome', !on);
+  if (on) document.body.classList.remove('lx-gate-on');   // the gate's colour field (renderGate) ends when the app chrome returns
   const set = (sel, v) => { const el = document.querySelector(sel); if (el) el.style.display = v; };
   set('#tabs', on ? '' : 'none');
   set('#tabbar', on ? '' : 'none');   // the phone tab bar is chrome too
@@ -2832,10 +2839,18 @@ function clientFooter(note) {
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   chrome(false);
+  /* The gate is the Locus colour field (two-products.md section 5; logo/kit.css --field): the character beside the name,
+     the one line with its accent word, then the sign-in card. body.lx-gate-on paints the field; chrome(true) ends it. */
+  document.body.classList.add('lx-gate-on');
   $('#main').innerHTML = `
+  <div class="lx-gate">
+    <div class="lx-gate-hero">
+      <img class="lx-gate-char" src="../logo/locus/character/rest.png" alt="" draggable="false">
+      <div><h1 class="lx-gate-name">Locus</h1>
+      <p class="lx-gate-line">Where a brand's growth gets run. Every store, every ad account, every email, read every morning, with the calls to make <em class="lx-accent">today</em>.</p></div>
+    </div>
   <div class="gate">
-    <h1>Locus</h1>
-    <p><b>Locus</b> is the Mobius Digital dashboard: sales, ads, email, the store, the calendar and the reports, in one place. Sign in with Google, using the email Mobius invited.</p>
+    <p>Sign in with Google, using the email Mobius invited.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
@@ -2844,6 +2859,7 @@ function renderGate(err, offerRetry) {
       <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
     </details>
+  </div>
   </div>`;
   const go = () => {
     S.url = ($('#gUrl').value||'').trim() || DEFAULT_WORKER_URL;
@@ -2894,7 +2910,7 @@ document.addEventListener('click', e => {
   if (it) { closePops(); const p = $('#clientPick'); p.value = it.dataset.act; S.act = it.dataset.act; localStorage.setItem(LS.act, S.act); syncPick(); show(S.tab); return; }
   const me = e.target.closest('[data-me]');
   if (me) { closePops(); const k = me.dataset.me;
-    if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team'); else if (k === 'profile') show('settings');
+    if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team'); else if (k === 'profile') { try { localStorage.setItem('pf_set_bsec', 'profile'); localStorage.setItem('pf_set_sec', 'profile'); } catch {} show('settings'); }
     else if (k === 'guide') show('guide'); else if (k === 'install') installApp(); else if (k === 'out') $('#btnOut').click(); }
 });
 /* LOCUS AS A PHONE APP (2026-10-10). sw.js is the offline shell (the app's files only, never a number);
@@ -3379,6 +3395,7 @@ const SET_SECS = [
   ['sending', 'Slack and sending', 'When the daily brief posts, who client messages come from, who can send from inside Slack. Each brand’s own posts are in its brand settings.'],
   ['strategist', 'Ask Locus', 'What Locus knows about Mobius, how it thinks, and where it posts its Monday briefing.'],
   ['system', 'Data and jobs', 'Whether the automatic syncs and sends are running, which brand’s data is stale, and one-off data fixes.'],
+  ['profile', 'Your profile', 'Who you are signed in as, and what Locus sends you: the morning line in Slack.'],
 ];
 /* The last two entries of the same list are whole pages, not sections: they open
    show('health') / show('costs'), and each of those pages has a link back here. */
@@ -3389,7 +3406,7 @@ const SET_PAGES = [['health', 'Data health'], ['costs', 'Costs']];   // still pa
    Digital settings are different"). Brand settings = the rail's Settings with a brand picked: only that brand,
    one group at a time (BRAND_SECS). Agency settings = the profile menu at the bottom of the rail: everything
    that applies to Mobius as a whole (SET_GROUPS). With All clients picked, Settings opens the agency side. */
-const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'links', 'sending', 'strategist', 'system']]];   // 2026-10-09: tours moved to How to use Locus, Data health into Data and jobs
+const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'links', 'sending', 'strategist', 'system']], ['You', ['profile']]];   // 2026-10-09: tours moved to How to use Locus, Data health into Data and jobs
 /* BRAND SETTINGS, 6 SECTIONS (2026-10-09 restructure). Meta, Triple Whale and Shopify moved from About to Integrations;
    goal CPA and ROAS moved to Home > Goals; Money, Data repairs and the Data check / Cost check pages are one section,
    Data and costs; Remove from Locus is "Archive this brand" at the bottom of About. One icon each, never repeated. */
@@ -3401,7 +3418,7 @@ const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zon
   ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.'],
   ['clients', 'Client access', 'i-key', 'Who from the client signs in to Locus. They see everything about this brand, read-only; turn something off here.']];
 const BG_OF = ['about', 'goals', 'slack', 'data'];   // the brand row's groups, in order
-const SET_ICONS = { brands: 'i-building', connections: 'i-plug', links: 'i-globe', sending: 'i-plane', strategist: 'i-spark', team: 'i-key', system: 'i-refresh', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
+const SET_ICONS = { profile: 'i-user', brands: 'i-building', connections: 'i-plug', links: 'i-globe', sending: 'i-plane', strategist: 'i-spark', team: 'i-key', system: 'i-refresh', tours: 'i-play', health: 'i-health', costs: 'i-costs' };
 /** The way back, at the top of Data health and Costs. */
 const backToSettings = () => `<p class="set-back"><button type="button" class="link" data-go="settings">&larr; Settings</button></p>`;
 /** Standard page heading. `extra` is for the genuinely per-page bit (which client,
@@ -3473,7 +3490,7 @@ function pageHead(tab, title, extra) {
   return `<div class="ph">
       <div>
         ${crumb ? `<div class="ph-crumb">${crumb}</div>` : ''}
-        <div class="ph-t">${title}</div>
+        <div class="ph-t">${window.LxAccent ? window.LxAccent.apply(tab, title) : title}</div>
         ${purpose ? `<p class="ph-sub">${purpose}</p>` : ''}
       </div>
       <div class="ph-r">
@@ -5240,6 +5257,8 @@ function show(tab, opt) {
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
   if (window.LocusShare) window.LocusShare.sync(tab);
+  /* The nudge card (nudge.js, 2026-10-11): the badge in the top bar follows the brand on screen. */
+  if (window.LxNudge) window.LxNudge.refresh(v2Host());
 }
 
 /* ---------- Meta ----------
@@ -10858,7 +10877,8 @@ async function renderSettings() {
   const one = AGENCY ? null : S.accounts.find(a => a.act_id === S.act);
   /* The brand edition (2026-10-10): a client's Settings are its brand's settings without the sending setup (Slack is the
      agency's) or the stock and factory setup (the Supply worker), plus Your profile. */
-  const BSECS = CL ? BRAND_SECS.filter(b => !['slack', 'stock'].includes(b[0])).concat([['profile', 'Your profile', 'i-user', 'Who you are signed in as, your name, and signing out.']]) : BRAND_SECS;
+  /* Your profile is for everyone since 2026-10-11 (the morning line switch, hero.js profileCard); a client's also holds its name and sign out. */
+  const BSECS = (CL ? BRAND_SECS.filter(b => !['slack', 'stock'].includes(b[0])) : BRAND_SECS).concat([['profile', 'Your profile', 'i-user', CL ? 'Who you are signed in as, your name, and signing out.' : 'Who you are signed in as, and what Locus sends you.']]);
   // meta.js owns its own closure and only has a token if the host hands it one.
   // Doing this ONCE at the top, before anything calls it, is the fix for the
   // Team card reporting "the Meta section was not given a sign-in token" -
@@ -10899,7 +10919,7 @@ async function renderSettings() {
         </section>
         ${AGENCY ? '' : `<section data-sec="stock"${sec === 'stock' ? '' : ' hidden'}>${secHead('stock')}<div id="stockSet"></div></section>`}
         ${AGENCY ? '' : `<section data-sec="clientacc"${sec === 'clientacc' ? '' : ' hidden'}>${secHead('clientacc')}<div id="clientAcc"></div></section>`}
-        ${CL ? `<section data-sec="profile"${sec === 'profile' ? '' : ' hidden'}>${secHead('profile')}<div id="clientMe"></div></section>` : ''}
+        <section data-sec="profile"${sec === 'profile' ? '' : ' hidden'}>${secHead('profile')}<div id="clientMe"></div></section>
         <section data-sec="connections"${sec === 'connections' ? '' : ' hidden'}>${secHead('connections')}
           <div id="connPage"><div class="card"><span class="hint">Checking every connection…</span></div></div>
         </section>
@@ -10930,6 +10950,7 @@ async function renderSettings() {
 
   if (!AGENCY && bsec === 'stock' && window.SupplyTab) window.SupplyTab.settings($('#stockSet'), S.act, supplyHost());
   if (window.ClientsTab) { if (AGENCY) window.ClientsTab.card($('#clientLogins')); else if (bsec === 'clients') window.ClientsTab.card($('#clientAcc'), { act: S.act }); if (CL) window.ClientsTab.profile($('#clientMe')); }
+  if (window.LxHero && window.LxHero.profileCard) window.LxHero.profileCard($('#clientMe'), v2Host());
   document.querySelectorAll('.setpane button[data-page]').forEach(b => b.onclick = () => { show(b.dataset.page); window.scrollTo(0, 0); });
   { const sb = $('#seasonCfgBtn'); if (sb) sb.onclick = () => { if (window.DeskTab && window.DeskTab.seasonCfg) window.DeskTab.seasonCfg({ apiAH, api, S }); }; }
   /* Switching sections only flips `hidden`; nothing is re-fetched or re-drawn,

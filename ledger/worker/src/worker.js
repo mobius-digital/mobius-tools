@@ -126,6 +126,8 @@ async function saveJob(env,id,kind,payload,error=null) {
 }
 async function finishJob(env,id) { await env.DB.prepare("UPDATE ledger_jobs SET status='done',error=NULL WHERE id=?1").bind(id).run(); }
 
+/* The three editions the front end knows (ledger/lg-edition.js). */
+const EDITIONS = ['service', 'product', 'household'];
 async function getSetting(env, key) {
   const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?1').bind(key).first();
   return row ? row.value : null;
@@ -3437,6 +3439,7 @@ const LEDGER = {
             accounts: Object.values(i.accounts || {}).map(a => `${a.name} (${a.type})`),
           })),
           buckets: BUCKETS_OUT,
+          edition: (await getSetting(env, 'edition')) || 'service',
         });
       }
 
@@ -4394,7 +4397,11 @@ const LEDGER = {
           const cats = [...new Set(b.taxCats.map(c => String(c).trim().slice(0, 60)).filter(Boolean))].slice(0, 40);
           if (cats.length) await putSetting(env, 'taxCats', JSON.stringify(cats));
         }
-        return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []), notify: await getNotify(env) });
+        /* The edition: which business the books are for. It picks the rail,
+           the Settings sections and the words; it never hides data. */
+        if (EDITIONS.includes(b.edition)) await putSetting(env, 'edition', b.edition);
+        return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []), notify: await getNotify(env),
+          edition: (await getSetting(env, 'edition')) || 'service' });
       }
 
       if (path === '/api/password' && request.method === 'POST') {
