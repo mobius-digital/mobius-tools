@@ -100,6 +100,14 @@ Branch `locus-personality` (from `main-nv6pvz`), four commits, one per feature. 
   (`mobius-loader`, the Mobius strip at first paint) and the export frame's "Locus by Mobius Digital" mark; both are
   deliberate Mobius marks and were not part of the ask.
 
+- **The rendered character (commit "The helper is the rendered character")**: the coordinator session committed
+  `logo/locus/character/{rest,thinking,found,asleep,clear}.png` (transparent 200px cut-outs, a glossy blue bead with an
+  orbit ring, matching Cashew's character; larger versions to come under the same names) to main and asked for them in
+  the slots. `origin/main-nv6pvz` was merged into this branch; `helper.js` now puts the PNG for the state into every
+  `.lx-face` as an `<img>` (object-fit contain; 20px ask bar and badge, 48px nudge stack, 28px morning strip), preloading
+  the four and keeping the plain dot until they load. The vector bead stays the logo, favicon and manifest icon. `rest.png`
+  is not used (the app has four states). Relayed by the coordinator session, like the icon swap.
+
 ## How it was checked
 - `node --check` on every JS file touched (hub.js, brandguard.js x2, hero.js, nudge.js, accent.js, v2.js, prefs.js,
   morning.js, worker.js, test-morning.mjs).

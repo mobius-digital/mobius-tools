@@ -1872,17 +1872,16 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 .lx-prof-row{gap:14px;align-items:center;flex-wrap:wrap;margin:0}
 .lx-sw-l{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-weight:500}
 
-/* THE HELPER'S FACE, filled by helper.js with the kit's bead (logo/locus/direction-2-<state>.svg, drawn in currentColor).
-   Sizes from the kit: 20px in the ask bar and the badge, 28px on the morning strip and the stack. The plain dot above is
-   the fallback while the files load. */
-.lx-face[data-face]:not([data-face="dot"]){width:var(--helper-sm,20px);height:var(--helper-sm,20px);border-radius:0;background:transparent;box-shadow:none;opacity:1;animation:none;color:var(--field-ink,var(--brand))}
-.lx-face[data-face]:not([data-face="dot"]) svg{width:100%;height:100%;display:block}
-.lx-face[data-face="thinking"] svg{animation:lx-think 1.6s ease-in-out infinite}
-.lx-face[data-face="clear"]{opacity:.85}
-[data-ui="v2"] .lx-morning .lx-face[data-face]:not([data-face="dot"]),.lx-nudge-h .lx-face[data-face]:not([data-face="dot"]){width:28px;height:28px}
-[data-ui="v2"] .lx-morning .lx-face[data-face]:not([data-face="dot"]){margin-top:0}
+/* THE HELPER'S FACE, filled by helper.js with the rendered character (logo/locus/character/<state>.png, transparent, object-fit
+   contain). Sizes: 20px in the ask bar and the badge, 48px on the nudge card, 28px on the morning strip. The plain dot above is
+   the fallback until the image loads. */
+.lx-face[data-face]:not([data-face="dot"]){width:var(--helper-sm,20px);height:var(--helper-sm,20px);border-radius:0;background:transparent;box-shadow:none;opacity:1;animation:none}
+.lx-face[data-face]:not([data-face="dot"]) img{width:100%;height:100%;display:block;object-fit:contain}
+.lx-face[data-face="thinking"] img{animation:lx-think 1.6s ease-in-out infinite}
+[data-ui="v2"] .lx-morning .lx-face[data-face]:not([data-face="dot"]){width:28px;height:28px;margin-top:0}
+.lx-nudge-h .lx-face[data-face]:not([data-face="dot"]){width:var(--helper-md,48px);height:var(--helper-md,48px)}
 .lx-ask-face{flex:none;margin:0 2px 0 4px}
 @keyframes lx-think{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
-@media (prefers-reduced-motion:reduce){.lx-face[data-face="thinking"] svg{animation:none}}
+@media (prefers-reduced-motion:reduce){.lx-face[data-face="thinking"] img{animation:none}}
 /* The gate's mark (2026-10-11): the bead in the Locus blue above the title. */
 .gate .lx-gate-mark{width:44px;height:44px;display:block;color:var(--field-ink,var(--brand));margin:0 0 14px}
