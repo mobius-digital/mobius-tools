@@ -2187,7 +2187,7 @@
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=37">
+<link rel="stylesheet" href="v2.css?v=39">
 <link rel="stylesheet" href="../logo/kit.css?v=1">
 <link rel="stylesheet" href="supply.css?v=4">
 <script src="/sheet.js?v=1"></script>
@@ -2402,6 +2402,7 @@ if (window.MobiusSheet) {
    forgot it would render a client's report beside an empty dark column. */
 function chrome(on) {
   document.body.classList.toggle('nochrome', !on);
+  if (on) document.body.classList.remove('lx-gate-on');   // the gate's colour field (renderGate) ends when the app chrome returns
   const set = (sel, v) => { const el = document.querySelector(sel); if (el) el.style.display = v; };
   set('#tabs', on ? '' : 'none');
   set('#tabbar', on ? '' : 'none');   // the phone tab bar is chrome too
@@ -2838,11 +2839,18 @@ function clientFooter(note) {
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   chrome(false);
+  /* The gate is the Locus colour field (two-products.md section 5; logo/kit.css --field): the character beside the name,
+     the one line with its accent word, then the sign-in card. body.lx-gate-on paints the field; chrome(true) ends it. */
+  document.body.classList.add('lx-gate-on');
   $('#main').innerHTML = `
+  <div class="lx-gate">
+    <div class="lx-gate-hero">
+      <img class="lx-gate-char" src="../logo/locus/character/rest.png" alt="" draggable="false">
+      <div><h1 class="lx-gate-name">Locus</h1>
+      <p class="lx-gate-line">Where a brand's growth gets run. Every store, every ad account, every email, read every morning, with the calls to make <em class="lx-accent">today</em>.</p></div>
+    </div>
   <div class="gate">
-    <svg class="lx-gate-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/><circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none"/></svg>
-    <h1>Locus</h1>
-    <p><b>Locus</b> is the Mobius Digital dashboard: sales, ads, email, the store, the calendar and the reports, in one place. Sign in with Google, using the email Mobius invited.</p>
+    <p>Sign in with Google, using the email Mobius invited.</p>
     <a class="cta" style="display:block;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
@@ -2851,6 +2859,7 @@ function renderGate(err, offerRetry) {
       <button class="cta" id="gGo" style="margin-top:12px">Sign in</button>
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
     </details>
+  </div>
   </div>`;
   const go = () => {
     S.url = ($('#gUrl').value||'').trim() || DEFAULT_WORKER_URL;
