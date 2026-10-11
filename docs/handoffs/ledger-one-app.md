@@ -108,6 +108,22 @@ books (same files, agency preset, blue accent per `/mobius.css` data-app rules),
   That is why Lucky ships through GitHub Actions. The Mobius worker has no assets block, so it can deploy from
   this environment directly.
 
+## The second ask (2026-10-11): two products, one voice
+
+Cole sent the "Tally" concept video and asked for the positioning of both apps, a name, the helper with a face,
+the commercials and a build plan. Answered in `docs/two-products.md` and the page
+https://claude.ai/artifact/9Gij7iF7xHnKb1ewyCJafF. Build sessions started from this session, each on its own branch:
+
+| Session | Branch | Id |
+| --- | --- | --- |
+| A. The money shell (v6 shell on the Mobius books, `edition` setting, `ledger/lg-edition.js`) | `ledger-shell-a` | session_01Nv82cCZu84TftWTK3m5kGb |
+| B. The brand kit (Locus dot, Kept coin, three directions each, `logo/locus`, `logo/kept`, `logo/kit.css`, `docs/brand/`) | `brand-kit` | session_01F85DqNFa3HSiDL3eCYZbRQ |
+| D. Locus personality (hero number, nudge card, morning line, accent word) | `locus-personality` | session_01DPDfo7cay2HMD3pjJFKH91 |
+
+C (the two Remotion commercials in `motion/`) starts when B returns. E (Kept personality) and F (the rename)
+wait for Cole's yes on the name. None of the branches merge to main without a review: the repo root is GitHub
+Pages served from main, so a merge is a deploy of Locus and the Mobius ledger front end.
+
 ## Constraints the cloud must respect
 
 - Deploys: the Lucky worker and Pages deploy need the Lucky Golf wrangler login on Cole's laptop
