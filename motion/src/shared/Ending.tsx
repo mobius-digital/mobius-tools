@@ -1,23 +1,29 @@
-// The last beat of both spots: the two marks side by side on the field,
-// then the line. The field colour is the spot's own.
+// The last beat of both spots: the two characters side by side above the two
+// logos on the field, then the line. The field colour is the spot's own.
 import React from 'react';
-import { useCurrentFrame } from 'remotion';
-import { closingLine, colours, money } from '../../brand';
+import { closingLine, colours, locus, money } from '../../brand';
 import { Line, Column } from '../lib/stage';
 import { feel, rise, useSpring } from '../lib/motion';
-import { Mark } from '../marks/Mark';
+import { Character, LogoLockup } from '../marks/Mark';
 
 export const Ending: React.FC = () => {
   const s = useSpring();
-  useCurrentFrame();
   const a = s(0, feel.pop);
   const b = s(8, feel.pop);
-  const l = s(26, feel.settle);
+  const la = s(18, feel.settle);
+  const lb = s(24, feel.settle);
+  const l = s(36, feel.settle);
   return (
-    <Column gap={64}>
-      <div style={{ display: 'flex', gap: 110, alignItems: 'center' }}>
-        <Mark product="locus" size={300} color={colours.onField} style={{ transform: `scale(${a})`, opacity: a }} />
-        <Mark product="money" size={300} color={colours.onField} style={{ transform: `scale(${b})`, opacity: b }} />
+    <Column gap={56}>
+      <div style={{ display: 'flex', gap: 90, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
+          <Character app={locus} state="clear" size={300} style={{ transform: `scale(${a})`, opacity: a }} />
+          <LogoLockup app={locus} height={64} color={colours.onField} style={rise(la, 20)} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
+          <Character app={money} state="clear" size={300} style={{ transform: `scale(${b})`, opacity: b }} />
+          <LogoLockup app={money} height={64} color={colours.onField} style={rise(lb, 20)} />
+        </div>
       </div>
       <Line
         text={closingLine.replace('{money}', money.name)}

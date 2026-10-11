@@ -3,22 +3,23 @@
 //  1. A bank app. "$18,400 in the bank." The owner smiles.
 //  2. "That is not what you made." Rent, the factory, ads and the tax each
 //     take a bite. The balance melts.
-//  3. "What you actually kept: $3,120." The coin sighs.
+//  3. "What you actually kept: $3,120." The character sighs.
 //  4. "And you found out in April. From your CPA." A calendar flips.
-//  5. Kept. "Every account. Every sale. Every bill. One real number, every
+//  5. Cashew. "Every account. Every sale. Every bill. One real number, every
 //     night." The number is circled.
 //  6. "The bill that did not come. The payment that landed twice." A nudge
-//     card. "Kept taps you on the shoulder." One tap: "Booked."
+//     card. "Cashew taps you on the shoulder." One tap: "Booked."
 //  7. "Monday, 7:02. Here is your week." The phone.
 //  8. "Close the month in one sitting. Hand your CPA a pack." A folder closes.
-//  9. "Kept. Know what you kept."
-//  Then the two marks: Locus knows where you are. Kept knows what you have.
+//  9. "Cashew. Know what you kept."
+//  Then the two characters and the two logos: Locus knows where you are.
+//  Cashew knows what you have. (The name and the files come from brand.ts.)
 import React from 'react';
 import { AbsoluteFill, Sequence, interpolate, useCurrentFrame } from 'remotion';
 import { colours, keptNumbers, money as moneyApp } from '../../brand';
 import { Column, Figure, Fit, Line, Stage, useStage } from '../lib/stage';
 import { feel, money, rise, useBump, useExit, useSpring } from '../lib/motion';
-import { Mark, MarkBlend } from '../marks/Mark';
+import { Character, CharacterBlend, LogoLockup } from '../marks/Mark';
 import { Bite } from '../bites/Bite';
 import { Button, Card, Circled, Crumbs, Phone, Tap } from '../shared/pieces';
 import { Ending } from '../shared/Ending';
@@ -167,7 +168,7 @@ const BitesAndMelt: React.FC<{ len: number }> = ({ len }) => {
           />
         ))}
 
-        {/* The coin rises out of the puddle and sighs. */}
+        {/* The character rises out of the puddle, eyes shut, and sighs. */}
         {reform > 0.001 && (
           <div
             style={{
@@ -178,7 +179,7 @@ const BitesAndMelt: React.FC<{ len: number }> = ({ len }) => {
               transformOrigin: '50% 100%',
             }}
           >
-            <Mark product="money" state="thinking" size={260} color={colours.keptInk} />
+            <CharacterBlend app={moneyApp} from="asleep" to="rest" t={figIn} size={260} />
           </div>
         )}
       </div>
@@ -316,10 +317,7 @@ const Product: React.FC<{ len: number }> = ({ len }) => {
   const figW = figText.length * 0.56 * figSize;
   return (
     <Column gap={48} style={{ opacity: out, color: W }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
-        <Mark product="money" size={170} color={W} style={{ transform: `scale(${mark})`, opacity: mark }} />
-        <Line text={`${moneyApp.name}.`} size={120} weight={700} color={W} style={rise(name, 30)} />
-      </div>
+      <LogoLockup app={moneyApp} height={moneyApp.logo.kind === 'wordmark' ? 150 : 120} color={W} style={{ ...rise(name, 30), transform: `scale(${0.9 + 0.1 * mark}) translateY(${(1 - name) * 30}px)` }} />
       <div style={{ position: 'relative', width: 900, height: 420 }}>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, opacity: 1 - swap, transform: `translateY(${-swap * 60}px)` }}>
           <Line text="Every account." size={64} weight={600} color={W} style={rise(l1, 24)} />
@@ -352,7 +350,7 @@ const Nudge: React.FC<{ len: number }> = ({ len }) => {
   const press = bump(94, 4, feel.snap);
   const booked = s(100, feel.pop);
   const linesOut = 1 - s(100, feel.soft);
-  const wake = s(60, feel.settle);
+  const perk = s(92, feel.snap);
   return (
     <Column gap={48} style={{ opacity: out, color: W }}>
       <div style={{ position: 'relative', width: 900, height: 230 }}>
@@ -366,7 +364,7 @@ const Nudge: React.FC<{ len: number }> = ({ len }) => {
       </div>
       <div style={{ position: 'relative', transform: `translateY(${(1 - card) * 120}px) scale(${0.9 + 0.1 * card})`, opacity: card }}>
         <Card width={900} style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-          <MarkBlend product="money" from="thinking" to="found" t={wake} size={110} color={G} />
+          <CharacterBlend app={moneyApp} from="thinking" to="found" t={perk} size={120} />
           <div style={{ flex: 1, fontSize: 36, fontWeight: 500, lineHeight: 1.25, letterSpacing: '-0.01em' }}>The payment that landed twice.</div>
           <div style={{ position: 'relative' }}>
             <Button label={booked > 0.5 ? 'Booked.' : 'Book it'} fill={G} pressed={press} />
@@ -395,7 +393,7 @@ const Monday: React.FC<{ len: number }> = ({ len }) => {
         </div>
         <div style={{ position: 'absolute', left: 24, right: 24, top: 420, transform: `translateY(${(1 - card) * -80}px)`, opacity: card }}>
           <Card width={360} style={{ padding: '24px 26px', display: 'flex', alignItems: 'center', gap: 20, boxShadow: 'none' }}>
-            <Mark product="money" state="clear" size={64} color={G} />
+            <Character app={moneyApp} state="rest" size={72} />
             <div style={{ fontSize: 30, fontWeight: 600, lineHeight: 1.2 }}>Here is your week.</div>
           </Card>
         </div>
@@ -407,16 +405,20 @@ const Monday: React.FC<{ len: number }> = ({ len }) => {
 // ---- 8. The folder -----------------------------------------------------------------------
 const Folder: React.FC<{ len: number }> = ({ len }) => {
   const s = useSpring();
+  const bump = useBump();
   const out = useExit(len, 8);
   const head = s(0, feel.settle);
   const folder = s(8, feel.pop);
   const close = s(34, { damping: 18, stiffness: 120, mass: 1.2 });
   const pack = s(58, feel.settle);
   const flap = -75 + 75 * close;
+  const nodIn = s(44, feel.pop);
+  const nod = bump(62, 6, feel.settle);
   return (
     <Column gap={56} style={{ opacity: out, color: W }}>
       <Line text="Close the month in one sitting." size={64} weight={600} color={W} style={rise(head, 24)} />
       <div style={{ width: 560, height: 420, position: 'relative', perspective: 1400, transform: `scale(${folder})`, opacity: folder }}>
+        <Character app={moneyApp} state="clear" size={220} style={{ position: 'absolute', right: -200, bottom: 20, transform: `scale(${nodIn}) translateY(${nod * 16}px)`, opacity: nodIn }} />
         {/* back panel with its tab */}
         <svg viewBox="0 0 560 420" width="560" height="420" style={{ position: 'absolute', inset: 0 }} fill="none" stroke={W} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round">
           <path d="M40 80h150l40 40h290v260H40z" />
@@ -465,7 +467,7 @@ export const KeptSpot: React.FC = () => (
     <Beat at={beats.nudge}>{(len) => <Nudge len={len} />}</Beat>
     <Beat at={beats.monday}>{(len) => <Monday len={len} />}</Beat>
     <Beat at={beats.folder}>{(len) => <Folder len={len} />}</Beat>
-    <Beat at={beats.tagline}>{() => <Tagline product="money" name={moneyApp.name} tagline={accentLast(moneyApp.tagline)} />}</Beat>
+    <Beat at={beats.tagline}>{() => <Tagline app={moneyApp} tagline={accentLast(moneyApp.tagline)} />}</Beat>
     <Beat at={beats.ending}>{() => <Ending />}</Beat>
   </Stage>
 );

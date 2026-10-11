@@ -11,13 +11,14 @@
 //     brief, the library.
 //  7. "Agency edition: every brand, one morning." Lanes of brands.
 //  8. "Locus. Know what to change."
-//  Then the two marks: Locus knows where you are. Kept knows what you have.
+//  Then the two characters and the two logos: Locus knows where you are.
+//  Cashew knows what you have.
 import React from 'react';
 import { AbsoluteFill, Sequence, interpolate, random, useCurrentFrame } from 'remotion';
 import { colours, locus as locusApp, locusNumbers } from '../../brand';
 import { Column, Figure, Fit, Line, Stage, useStage } from '../lib/stage';
 import { feel, money, rise, useBump, useExit, useSpring } from '../lib/motion';
-import { Mark, MarkBlend } from '../marks/Mark';
+import { Character, CharacterBlend, LogoLockup } from '../marks/Mark';
 import { Card, Tap } from '../shared/pieces';
 import { Ending } from '../shared/Ending';
 import { Tagline } from '../shared/Tagline';
@@ -178,19 +179,18 @@ const TabsAndWake: React.FC<{ len: number }> = ({ len }) => {
         }}
       />
 
-      {/* The bead wakes: asleep to found, with a blink, then the name. */}
+      {/* The character wakes: asleep to found, with a blink, then the logo. */}
       <div style={{ position: 'absolute', inset: 0, color: W, transform: `translateY(${-up * (portrait ? 420 : 300)}px)` }}>
         <Column gap={30}>
-          <MarkBlend
-            product="locus"
+          <CharacterBlend
+            app={locusApp}
             from="asleep"
             to="found"
             t={Math.min(1, wake + blink * 0.3)}
-            size={320}
-            color={W}
-            style={{ transform: `scale(${bead * (1 - up * 0.45)}) translateY(${-wake * 20}px)`, opacity: bead }}
+            size={360}
+            style={{ transform: `scale(${bead * (1 - up * 0.4)}) translateY(${-wake * 20}px)`, opacity: bead }}
           />
-          <Line text={`${locusApp.name}.`} size={120} weight={700} color={W} style={rise(name, 30)} />
+          <LogoLockup app={locusApp} height={110} color={W} style={rise(name, 30)} />
           <Line text="The dot *wakes* before you do." size={60} weight={600} color={W} style={{ ...rise(wakesLine, 24), opacity: Math.min(wakesLine, 1 - up) }} />
         </Column>
       </div>
@@ -257,9 +257,12 @@ const Calls: React.FC<{ len: number }> = ({ len }) => {
   const paused = s(112, feel.pop);
   const headOut = 1 - s(112, feel.soft);
   const k = locusNumbers.tappedCall;
+  const look = s(6, feel.pop);
+  const perk = s(106, feel.snap);
   return (
     <Column gap={22} style={{ opacity: out, color: W }}>
       <div style={{ position: 'relative', height: 120, width: 900, marginBottom: 10 }}>
+        <CharacterBlend app={locusApp} from="thinking" to="found" t={perk} size={190} style={{ position: 'absolute', left: -40, top: -60, transform: `scale(${look})`, opacity: look }} />
         <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', opacity: headOut }}>
           <Line text="Today's calls." size={84} weight={700} color={W} style={rise(head, 30)} />
         </div>
@@ -405,7 +408,7 @@ export const LocusSpot: React.FC = () => (
     <Beat at={beats.calls}>{(len) => <Calls len={len} />}</Beat>
     <Beat at={beats.creative}>{(len) => <Creative len={len} />}</Beat>
     <Beat at={beats.agency}>{(len) => <Agency len={len} />}</Beat>
-    <Beat at={beats.tagline}>{() => <Tagline product="locus" name={locusApp.name} tagline={accentLast(locusApp.tagline)} />}</Beat>
+    <Beat at={beats.tagline}>{() => <Tagline app={locusApp} tagline={accentLast(locusApp.tagline)} />}</Beat>
     <Beat at={beats.ending}>{() => <Ending />}</Beat>
   </Stage>
 );
