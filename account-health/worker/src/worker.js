@@ -13,6 +13,8 @@ import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 import { handleRequests } from './requests.js';
+import { handlePrefs, morningPeople } from './prefs.js';
+import { morningTick, handleMorning } from './morning.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -6742,6 +6744,8 @@ function smokeDeps() {
       hold: () => { const used = SUB_USED, seen = new Map(COST_SEEN); return extra => { SUB_USED = used + extra; COST_SEEN.clear(); for (const [k, v] of seen) COST_SEEN.set(k, v); }; } } };
 }
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
+/* morning.js: the numbers as the owner over the PROFIT binding, filtered per person with brandsFor. */
+function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningPeople }; }
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7137,6 +7141,8 @@ const AH_APP = {
         ran.dashboards = await dashboardTick(env).catch(e => ({ error: e.message }));
         /* What moved yesterday, once a day per brand to its internal channel, only when something moved (moved.js). */
         ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* The morning line as a Slack DM to each person who switched it on (morning.js, 2026-10-11). */
+        ran.morning = await morningTick(env, morningDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -8487,6 +8493,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json({ ok: true, email, role, guest: extra.includes(email), brands: ub[email] || [] });
     }
 
+    /* Per-person preferences (2026-10-11, prefs.js): the morning DM switch and the nudge card's snoozes and dones. */
+    if (path === '/api/me/prefs' || path === '/api/me/morning') {
+      const cs = clientScope(request);
+      const who = cs ? cs.email : (await sessionEmail(env, request)) || ((await isAdmin(request, env)) ? 'admin' : null);
+      if (path === '/api/me/morning') return handleMorning(request, env, path, url, who && who !== 'admin' ? who : (await sessionEmail(env, request)), morningDeps(), json);
+      return handlePrefs(request, env, path, who, json);
+    }
     if (path === '/api/me') {
       const sess = await verifySession(env, (request.headers.get('Authorization') || '').slice(7));
       /* role: owner | team | client (2026-10-09). The profit and ledger workers delegate here, so a client

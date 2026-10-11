@@ -1677,3 +1677,11 @@ block and tool group; ~2.5 characters a token, calibrated on strat_run; set ANTH
   The cold write of the stable part is now the whole cost; the next cut, if ever needed, is moving the creative
   framework and the account doctrine into knowledge topics too (~10k tokens), at the risk of the model skipping them.
 
+
+## 2026-10-11: prefs.js and morning.js (session D, branch locus-personality)
+- `src/prefs.js`: `GET/PUT /api/me/prefs`, one settings row per person (`userPrefs:<email>`): the morning DM switch and
+  the nudge card's snoozes and dones. `src/morning.js`: `morningTick` in the hourly cron (after movedTick) DMs the
+  morning line (profit `/api/hub/kept`, read once as the owner over PROFIT, filtered per person with brandsFor) to
+  everyone opted in, from `settings.morningHour` (7 Central) until noon, once a day; `GET/POST /api/me/morning` = the
+  signed-in person's lines / send them now. `settings.morningDm = 'off'` stops it. Tests: `node test-morning.mjs`.
+  Needs the bot scopes `users:read.email`, `im:write`, `chat:write` (not verified live).

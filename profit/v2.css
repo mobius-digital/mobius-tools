@@ -1798,3 +1798,90 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 @media (max-width:1200px){#hdToday{display:none!important}}
 /* A client with one brand: the brand's name under the label, never an empty space. */
 .side-one{display:block;padding:2px 8px 4px;font-weight:650;font-size:14px;color:var(--rail-ink,var(--ink))}
+
+/* ===================== LOCUS PERSONALITY, SESSION D (2026-10-11, docs/two-products.md sections 4 and 5) =====================
+   The accent word: one word per page head in Instrument Serif italic (loaded with the other Google Fonts in index.html).
+   The hero number on Home, the morning line, the nudge card and the helper's face slot. Tokens only, no new hex. */
+:root[data-ui="v2"]{--font-accent:var(--accent-serif,'Instrument Serif',Georgia,'Times New Roman',serif)}
+/* The kit's rule (logo/kit.css .kit-accent): the serif word sits 8% larger and takes the product's colour on a surface. */
+[data-ui="v2"] .lx-accent{font-family:var(--font-accent);font-style:italic;font-weight:400;letter-spacing:0;font-size:1.08em;line-height:1;color:var(--field-ink,var(--brand-ink,inherit))}
+/* the hero */
+[data-ui="v2"] .lx-hero{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,14px);padding:22px 24px 20px;margin:0 0 16px;font-feature-settings:"tnum" 1,"lnum" 1}
+[data-ui="v2"] .lx-hero-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:0 0 6px}
+[data-ui="v2"] .lx-hero-k{font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
+[data-ui="v2"] .lx-hero-n{margin:0 0 14px;font-size:clamp(28px,4.2vw,44px);font-weight:650;letter-spacing:-.028em;line-height:1.1;color:var(--ink)}
+[data-ui="v2"] .lx-hero-n .num{font-weight:700;font-variant-numeric:tabular-nums}
+[data-ui="v2"] .lx-hero-n .num.lost,[data-ui="v2"] .lx-hero-row .v.lost{color:var(--bad)}
+[data-ui="v2"] .lx-bites{display:flex;height:14px;border-radius:var(--r-pill,999px);overflow:hidden;background:var(--surface-2);gap:2px}
+[data-ui="v2"] .lx-bites i{display:block;min-width:0}
+[data-ui="v2"] .lx-bites.ds-sk{height:14px}
+[data-ui="v2"] .b-kept{background:var(--brand)}[data-ui="v2"] .b-ads{background:var(--c-google)}[data-ui="v2"] .b-cogs{background:var(--c-amazon)}[data-ui="v2"] .b-ship{background:var(--c-tiktok)}[data-ui="v2"] .b-fees{background:var(--c-email)}[data-ui="v2"] .b-rest{background:transparent}
+[data-ui="v2"] .lx-bites-l{display:flex;gap:6px 16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--ink-2)}
+[data-ui="v2"] .lx-bites-l .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 6px 0 0;vertical-align:-1px}
+[data-ui="v2"] .lx-bites-l b{font-weight:600;color:var(--ink)}
+[data-ui="v2"] .lx-hero-s{margin:12px 0 0;font-size:14px;line-height:1.5;color:var(--ink-2);max-width:72ch}
+[data-ui="v2"] .lx-hero-rows{display:grid;gap:2px;margin:14px -8px 0}
+[data-ui="v2"] .lx-hero-row{display:grid;grid-template-columns:minmax(110px,1.2fr) minmax(0,2fr) auto minmax(0,1.6fr);gap:12px;align-items:center;padding:7px 8px;border:0;background:transparent;color:var(--ink);font:inherit;text-align:left;border-radius:var(--r-sm,8px);cursor:pointer}
+[data-ui="v2"] .lx-hero-row:hover{background:var(--surface-2)}
+[data-ui="v2"] .lx-hero-row .n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-ui="v2"] .lx-hero-row .bar{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+[data-ui="v2"] .lx-hero-row .bar i{display:block;height:100%;background:var(--brand);border-radius:999px}[data-ui="v2"] .lx-hero-row .bar i.lost{background:var(--bad)}
+[data-ui="v2"] .lx-hero-row .v{font-weight:650;font-variant-numeric:tabular-nums;text-align:right;min-width:72px}
+[data-ui="v2"] .lx-hero-row .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:720px){[data-ui="v2"] .lx-hero{padding:18px 16px 16px}[data-ui="v2"] .lx-hero-row{grid-template-columns:minmax(0,1.2fr) auto;gap:4px 10px}[data-ui="v2"] .lx-hero-row .bar{grid-column:1 / -1;order:3}[data-ui="v2"] .lx-hero-row .s{grid-column:1 / -1}}
+/* the helper's face slot: a plain dot in the Locus blue until the brand kit lands. Four states, nothing else. */
+.lx-face{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--brand);flex:none;transition:opacity var(--t,200ms) var(--ease,ease),transform var(--t,200ms) var(--ease,ease)}
+.lx-face[data-state="asleep"]{opacity:.35}
+.lx-face[data-state="thinking"]{opacity:.8;animation:lx-face-think 1.1s ease-in-out infinite}
+.lx-face[data-state="found"]{opacity:1;box-shadow:0 0 0 4px var(--brand-soft)}
+.lx-face[data-state="clear"]{opacity:.7}
+@keyframes lx-face-think{0%,100%{transform:scale(.85)}50%{transform:scale(1.15)}}
+@media (prefers-reduced-motion:reduce){.lx-face[data-state="thinking"]{animation:none}}
+/* the morning line */
+[data-ui="v2"] .lx-morning{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;margin:0 0 12px;border:1px solid var(--brand-line,var(--line));background:var(--brand-tint,var(--brand-soft));border-radius:var(--r-lg,14px)}
+[data-ui="v2"] .lx-morning .lx-face{margin-top:5px}
+[data-ui="v2"] .lx-morning-l{flex:1;min-width:0}
+[data-ui="v2"] .lx-morning-l p{margin:0;font-size:14px;line-height:1.5;color:var(--ink);font-feature-settings:"tnum" 1}
+[data-ui="v2"] .lx-morning-l p+p{margin-top:2px}
+[data-ui="v2"] .lx-morning-k{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+/* the nudge card: a badge in the top bar, a stack under it */
+.lx-nudge-host{position:relative;display:flex;align-items:center}
+.lx-nudge{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border:1px solid var(--line-strong,var(--line));border-radius:var(--r-pill,999px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:550;cursor:pointer;white-space:nowrap}
+.lx-nudge:hover{border-color:var(--brand)}
+.lx-nudge.has{border-color:var(--brand-line,var(--brand));background:var(--brand-tint,var(--brand-soft))}
+.lx-nudge-pop{position:absolute;top:calc(100% + 8px);right:0;width:min(440px,calc(100vw - 32px));max-height:min(70vh,640px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl,18px);box-shadow:var(--sh-pop,0 12px 32px rgba(0,0,0,.25));padding:14px 16px 12px;z-index:60;text-align:left;font-feature-settings:"tnum" 1}
+.lx-nudge-h{display:flex;align-items:center;gap:10px;margin:0 0 6px}.lx-nudge-h b{flex:1;font-size:14px}
+.lx-nudge-x{margin-left:auto;font-size:18px;line-height:1}
+.lx-nudge-it{padding:12px 0;border-top:1px solid var(--line)}
+.lx-nudge-it p{margin:6px 0 10px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+.lx-nudge-k{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:var(--surface-2);color:var(--muted)}
+.lx-nudge-k.cut,.lx-nudge-k.trim,.lx-nudge-k.bad{background:var(--bad-bg);color:var(--bad)}.lx-nudge-k.scale,.lx-nudge-k.good{background:var(--good-bg);color:var(--good)}.lx-nudge-k.refresh,.lx-nudge-k.moved{background:var(--brand-soft);color:var(--brand)}.lx-nudge-k.fix{background:var(--warn-bg);color:var(--warn)}
+.lx-nudge-a{display:flex;gap:6px;flex-wrap:wrap}
+.lx-nudge-a .ds-btn{height:30px;font-size:12.5px}.lx-nudge-a a.ds-btn{text-decoration:none;display:inline-flex;align-items:center}
+.lx-nudge-empty{margin:8px 0;color:var(--muted);font-size:13px}
+.lx-nudge-more{margin:8px 0 0;color:var(--muted);font-size:12px}
+.lx-nudge-f{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:10px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.lx-nudge-m .lx-nudge-mb{margin:8px 0 0}
+.lx-nudge-t1{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}.lx-nudge-t1:first-child{border-top:0}
+.lx-ba{display:inline-flex;gap:8px;align-items:center;font-size:13px}.lx-ba i{font-style:normal;color:var(--muted)}.lx-ba em{font-style:normal;color:var(--good);font-weight:600}
+.lx-nudge-in{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;margin:0 0 10px}
+.lx-nudge-ma{justify-content:flex-end;gap:8px;margin:14px 0 0;align-items:center}.lx-nudge-ma .faint{margin-right:auto;font-size:11.5px}
+@media (max-width:720px){.lx-nudge-t{display:none}.lx-nudge{padding:0 10px}.lx-nudge-pop{position:fixed;top:auto;bottom:70px;left:16px;right:16px;width:auto}}
+.lx-nudge-err{color:var(--bad);font-size:13px;margin:8px 0 0}.lx-nudge-err[hidden]{display:none}
+/* Settings > Your profile: the morning line card */
+.lx-prof-row{gap:14px;align-items:center;flex-wrap:wrap;margin:0}
+.lx-sw-l{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-weight:500}
+
+/* THE HELPER'S FACE, filled by helper.js with the rendered character (logo/locus/character/<state>.png, transparent, object-fit
+   contain). Sizes: 20px in the ask bar and the badge, 48px on the nudge card, 28px on the morning strip. The plain dot above is
+   the fallback until the image loads. */
+.lx-face[data-face]:not([data-face="dot"]){width:var(--helper-sm,20px);height:var(--helper-sm,20px);border-radius:0;background:transparent;box-shadow:none;opacity:1;animation:none}
+.lx-face[data-face]:not([data-face="dot"]) img{width:100%;height:100%;display:block;object-fit:contain}
+.lx-face[data-face="thinking"] img{animation:lx-think 1.6s ease-in-out infinite}
+[data-ui="v2"] .lx-morning .lx-face[data-face]:not([data-face="dot"]){width:28px;height:28px;margin-top:0}
+.lx-nudge-h .lx-face[data-face]:not([data-face="dot"]){width:var(--helper-md,48px);height:var(--helper-md,48px)}
+.lx-ask-face{flex:none;margin:0 2px 0 4px}
+@keyframes lx-think{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+@media (prefers-reduced-motion:reduce){.lx-face[data-face="thinking"] img{animation:none}}
+/* The gate's mark (2026-10-11): the bead in the Locus blue above the title. */
+.gate .lx-gate-mark{width:44px;height:44px;display:block;color:var(--field-ink,var(--brand));margin:0 0 14px}

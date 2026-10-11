@@ -131,7 +131,7 @@ await check('/api/me says who: client (with brands, every old switch reading on)
 /* THE BRAND EDITION: every page a single brand has answers a client for its own brand. */
 const PAGE_ROUTES = [
   // Home: Overview, Day check, P&L, Goals, Requests
-  ['pf', '/api/overview?days=30&series=0'], ['pf', '/api/hub/live?act=brand_alpha'], ['pf', '/api/client?act=brand_alpha&days=30'], ['pf', '/api/forecast?act=brand_alpha'],
+  ['pf', '/api/overview?days=30&series=0'], ['pf', '/api/hub/live?act=brand_alpha'], ['pf', '/api/hub/kept?act=brand_alpha'], ['pf', '/api/client?act=brand_alpha&days=30'], ['pf', '/api/forecast?act=brand_alpha'],
   ['pf', '/api/costs?act=brand_alpha'], ['pf', '/api/expenses?act=brand_alpha'], ['pf', '/api/plan?act=brand_alpha&month=2026-10'], ['pf', '/api/quarter?act=brand_alpha'], ['pf', '/api/rhythm?act=brand_alpha'],
   ['ah', '/api/metaday?days=30'], ['ah', '/api/daycheck/now?act=brand_alpha'], ['ah', '/api/requests?act=brand_alpha'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
   // Ads: Today, All channels, Meta and its jobs, Google and its jobs, TikTok, Tests and angles
@@ -149,7 +149,7 @@ const PAGE_ROUTES = [
   ['ah', '/api/calendar?act=brand_alpha'], ['pf', '/api/briefs?act=brand_alpha'], ['pf', '/api/brief?act=brand_alpha'], ['pf', '/api/reports?act=brand_alpha'], ['pf', '/api/dashboards?act=brand_alpha'],
   ['pf', '/api/snapshots'], ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/season/war?act=brand_alpha'], ['ah', '/api/tw-day?act=brand_alpha'], ['pf', '/api/scenario?act=brand_alpha'],
   // Brand settings and the profile
-  ['ah', '/api/accounts'], ['ah', '/api/integrations'], ['ah', '/api/clients/me'],
+  ['ah', '/api/accounts'], ['ah', '/api/integrations'], ['ah', '/api/clients/me'], ['ah', '/api/me/prefs'],
 ];
 await check('the brand edition: every page a brand has answers a client for its own brand (both workers)', async () => {
   const shut = [];

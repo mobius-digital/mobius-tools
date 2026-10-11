@@ -925,11 +925,13 @@
             <td>${kmoney(w.spend, a.currency)}</td><td>${x2(w.mer)}</td><td>${pct(w.new_share, 0)}</td><td>${money(w.cac, a.currency)}</td><td class="${w.cm == null ? '' : w.cm >= 0 ? 'good' : 'bad'}">${a.cost_health?.verdict === 'broken' ? '<span class="faint">cost data</span>' : kmoney(w.cm, a.currency)}</td></tr>`; }).join('')}
       </tbody></table></div>`) : '';
 
-    $('#main').innerHTML = shell('overview', title, `<div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
+    /* The hero number (2026-10-11, hero.js): the page opens on what was kept yesterday; every tile below stays where it was. */
+    $('#main').innerHTML = shell('overview', title, `<div id="v2hero"></div><div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
     wireGo(root); wireRows(root, 'overview');
+    if (window.LxHero) window.LxHero.mount(document.getElementById('v2hero'), H, all);
     movedCard(scope);
     if (cmdOn) window.CommandCenter.render(document.getElementById('v2cmd'), H, all);
     if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
