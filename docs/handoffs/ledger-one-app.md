@@ -142,6 +142,27 @@ Later the same day, the decisions and what followed:
   Cloudflare login, or from the Default cloud environment where the Mobius token works).
 - Lucky deploys on push to main through GitHub Actions; the `cashew` branch there must be reviewed, then merged.
 
+## End of day (2026-10-11, 14:35 UTC): everything built, nothing live
+
+- **Mobius repo, branch `main-nv6pvz`** holds all of it merged: the brand kit, the Cashew shell with editions on
+  the Mobius books, Locus personality (hero number, nudge card, morning line, the bead, the gate), both gates
+  redone (session G: the character as the hero with idle motion, the field with depth, drifting cost shapes), and
+  the rebuilt commercials (`motion/`, branch `motion-v2`: inside the app, real cards and charts, voice by Kokoro,
+  synthesized sound, one app per spot; MP4s under `motion/out/`; page
+  https://claude.ai/artifact/EfkzcHEK8FGuYmFmQ2MzZq). Cole's verdict on the first spots was "plain, no voice,
+  no real UI"; the rebuild answers each point; his notes on the rebuild are pending.
+- **Lucky repo, branch `cashew`**: the hero number, one-tap findings, the morning line, the character, the new
+  gate (ported, then two fixes: full-width Google pill, drift layer behind the card). Tests green. Not merged.
+- **Go live, in order, on Cole's word**: (1) merge `cashew` to main in the Lucky repo (GitHub Actions deploys
+  ledger.luckygolf.com and the worker, about a minute); (2) merge `main-nv6pvz` to main in the Mobius repo
+  (GitHub Pages deploys Locus and the Mobius ledger front end); (3) deploy the Mobius ledger worker for the
+  `edition` setting and the Locus worker (account-health) for the nudge and morning routes, from the Default cloud
+  environment (the Mobius Cloudflare token works there for worker-only deploys) or the laptop; (4) hard refresh.
+- **Open notes from the parent session's own review**: the characters sit small in the corners for most of the
+  spots and could react bigger at the key beats; the white sections are quieter than the colour fields; the
+  music bed level has not been heard through a speaker; the 1024px character exports are still to do; the
+  Locus gate's drifting "tab" shapes read as odd glyphs.
+
 ## Constraints the cloud must respect
 
 - Deploys: the Lucky worker and Pages deploy need the Lucky Golf wrangler login on Cole's laptop
