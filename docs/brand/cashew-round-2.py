@@ -1,5 +1,10 @@
 """Cashew, round two: three real directions, written as clean SVG.
 
+Writes the explorations to logo/cashew/round-2/ and the FINAL files (the pick
+of 2026-10-11: the wordmark with the C as the icon, the character as the
+helper) to logo/cashew/: mark, wordmark, lockup, silhouette, rest, asleep,
+thinking, found, clear.
+
 1. The curl: the C of Cashew as a thick geometric curl that suggests the
    kidney. Solid fill, currentColor, 64 grid.
 2. The wordmark: "cashew" as a monoline geometric lowercase, drawn as paths
@@ -201,11 +206,15 @@ def c_icon():
 
 CHAR = dict(body='#1E7A52', belly='#5CC395', cap='#13573A', ink='#0C161D')
 
-# the kidney, clockwise from the top of the head: a plump bean with a big
-# head lobe at the upper left, a smaller tail lobe at the lower right and a
-# soft dent between them on the upper right
-BEAN = [(22, 11), (12, 18), (9, 30), (13, 43), (24, 52), (38, 53), (49, 47), (54, 37),
-        (52, 29), (45, 29), (38, 24), (33, 15)]
+# the kidney, clockwise from the top of the head: a head lobe at the upper
+# left that curls back toward the belly, a tail lobe at the lower right, and
+# a deep dent between them on the inner side
+BEAN = [(20, 9), (11, 15), (8, 27), (11, 40), (21, 51), (34, 55), (47, 52), (55, 43),
+        (56, 32), (49, 29), (39, 27), (34, 18), (28, 9)]
+BELLY = dict(dx=-1, dy=5, scale=0.7)     # the lighter belly, pushed down and left
+CAP = [(16, 8.5), (22, 6.5), (26.5, 8.5), (24, 11.5), (18.5, 12)]   # the stem cap, small and tucked
+FACE = (24, 33)                           # where the eyes sit, on the belly
+EYE = 2.4
 
 
 def closed_bez(pts):
@@ -225,36 +234,38 @@ def bean_d(dx=0, dy=0, scale=1.0, about=(32, 33)):
 
 
 def cap_d(dy=0):
-    """The stem cap: a small soft cap sitting on the top of the head."""
-    pts = [(17, 9 + dy), (24, 7 + dy), (29.5, 10 + dy), (26, 13 + dy), (19.5, 13.5 + dy)]
-    return closed_bez(pts)
+    """The stem cap: a small soft cap tucked on the top of the head."""
+    return closed_bez([(x, y + dy) for x, y in CAP])
 
 
 def face(state, fx, fy, ink):
+    e = EYE
+    dx = 4.4
+    def eye(x, y, r=e):
+        return f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r)}" fill="{ink}"/>'
+    def line(x1, y1, x2, y2):
+        return f'<path d="M{f(x1)} {f(y1)}L{f(x2)} {f(y2)}" stroke="{ink}" stroke-width="2" stroke-linecap="round" fill="none"/>'
+    def arc(x, y, w, up):
+        return (f'<path d="M{f(x - w)} {f(y)}a{f(w)} {f(w)} 0 0 {1 if up else 0} {f(2 * w)} 0" stroke="{ink}" '
+                f'stroke-width="2" stroke-linecap="round" fill="none"/>')
     if state == 'asleep':
-        return ''.join(f'<path d="M{f(fx + sx - 1.7)} {f(fy - 1.2)}h3.4" stroke="{ink}" stroke-width="1.9" stroke-linecap="round" fill="none"/>' for sx in (-4, 4)) + \
-            f'<path d="M{f(fx - 1.2)} {f(fy + 4)}h2.4" stroke="{ink}" stroke-width="1.9" stroke-linecap="round" fill="none"/>'
+        return line(fx - dx - 2, fy, fx - dx + 2, fy) + line(fx + dx - 2, fy, fx + dx + 2, fy) + line(fx - 1.3, fy + 5.4, fx + 1.3, fy + 5.4)
     if state == 'thinking':
-        return ''.join(f'<circle cx="{f(fx + sx + 1.8)}" cy="{f(fy - 2.6)}" r="2" fill="{ink}"/>' for sx in (-4, 4)) + \
-            f'<path d="M{f(fx + 0.6)} {f(fy + 4)}h2.8" stroke="{ink}" stroke-width="1.9" stroke-linecap="round" fill="none"/>'
+        return eye(fx - dx + 2, fy - 1.4) + eye(fx + dx + 2, fy - 1.4) + line(fx + 0.6, fy + 5.2, fx + 3.6, fy + 5.2)
     if state == 'found':
-        return ''.join(f'<circle cx="{f(fx + sx)}" cy="{f(fy - 1.8)}" r="2.6" fill="{ink}"/>' for sx in (-4.4, 4.4)) + \
-            f'<circle cx="{f(fx)}" cy="{f(fy + 4.4)}" r="1.9" fill="{ink}"/>'
+        return eye(fx - dx - 0.4, fy - 0.4, e + 0.6) + eye(fx + dx + 0.4, fy - 0.4, e + 0.6) + f'<circle cx="{f(fx)}" cy="{f(fy + 6)}" r="2.1" fill="{ink}"/>'
     if state == 'clear':
-        return ''.join(f'<path d="M{f(fx + sx - 1.9)} {f(fy - 1)}a1.9 1.9 0 0 1 3.8 0" stroke="{ink}" stroke-width="1.9" stroke-linecap="round" fill="none"/>' for sx in (-4, 4)) + \
-            f'<path d="M{f(fx - 3)} {f(fy + 3)}a3 3 0 0 0 6 0" stroke="{ink}" stroke-width="1.9" stroke-linecap="round" fill="none"/>'
-    # at rest: open eyes, a small flat mouth
-    return ''.join(f'<circle cx="{f(fx + sx)}" cy="{f(fy - 1.6)}" r="2" fill="{ink}"/>' for sx in (-4, 4)) + \
-        f'<path d="M{f(fx - 2)} {f(fy + 4)}h4" stroke="{ink}" stroke-width="1.9" stroke-linecap="round" fill="none"/>'
+        return arc(fx - dx, fy + 0.6, 2.1, True) + arc(fx + dx, fy + 0.6, 2.1, True) + arc(fx, fy + 4.6, 3.2, False)
+    return eye(fx - dx, fy) + eye(fx + dx, fy) + line(fx - 2.2, fy + 5.4, fx + 2.2, fy + 5.4)
 
 
 def character(state=None):
     P = CHAR
     lift = 1.5 if state == 'found' else (-1 if state == 'clear' else 0)
     body = f'<path d="{bean_d(dy=-lift)}" fill="{P["body"]}"/>'
-    body += f'<path d="{bean_d(dx=-2, dy=3.5 - lift, scale=0.58)}" fill="{P["belly"]}"/>'
+    body += f'<path d="{bean_d(dx=BELLY["dx"], dy=BELLY["dy"] - lift, scale=BELLY["scale"])}" fill="{P["belly"]}"/>'
     body += f'<path d="{cap_d(dy=-lift)}" fill="{P["cap"]}"/>'
-    body += face(state, 23, 28 - lift, P['ink'])
+    body += face(state, FACE[0], FACE[1] - lift, P['ink'])
     title = 'Cashew, the character' + (f', {state}' if state else '')
     if state == 'asleep':
         return svg(title, f'<g opacity=".78">{body}</g>')
@@ -280,12 +291,45 @@ FILES = {
 }
 
 
+def lockup():
+    """The silhouette beside the wordmark, one colour. The silhouette is set
+    48 units tall; the wordmark's x-height is centred on it."""
+    sil = character_mark()
+    sil_body = re.search(r'<title>.*?</title>\n(.*)</svg>', sil, re.S).group(1)
+    wm = wordmark()
+    wm_body = re.search(r'<title>.*?</title>\n(.*)</svg>', wm, re.S).group(1)
+    P = WM
+    paths, w = glyphs(P)
+    sil_g = '<g transform="scale(0.75)">' + sil_body.strip().replace('\n', '') + '</g>'
+    wm_g = (f'<g transform="translate(62 37)" fill="none" stroke="currentColor" stroke-width="{P["s"]}" '
+            f'stroke-linecap="round" stroke-linejoin="round">' + wm_body.strip().replace('\n', '') + '</g>')
+    vb = f'0 -4 {f(62 + w + P["s"] / 2)} 56'
+    return svg('Cashew lockup', sil_g + wm_g, vb=vb)
+
+
+FINAL = {
+    'mark.svg': c_icon,                       # the C, the app icon
+    'wordmark.svg': wordmark,
+    'lockup.svg': lockup,
+    'silhouette.svg': character_mark,         # one colour, for the field and the CPA pack
+    'rest.svg': lambda: character(None),
+    'asleep.svg': lambda: character('asleep'),
+    'thinking.svg': lambda: character('thinking'),
+    'found.svg': lambda: character('found'),
+    'clear.svg': lambda: character('clear'),
+}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, fn in FILES.items():
         with open(os.path.join(OUT, name), 'w') as fh:
             fh.write(fn())
-    print('ok', len(FILES))
+    final_dir = os.path.dirname(OUT.rstrip('/'))          # logo/cashew
+    for name, fn in FINAL.items():
+        with open(os.path.join(final_dir, name), 'w') as fh:
+            fh.write(fn())
+    print('ok', len(FILES), 'round-2 files,', len(FINAL), 'final files in', final_dir)
 
 
 if __name__ == '__main__':

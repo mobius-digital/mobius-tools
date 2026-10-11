@@ -142,16 +142,28 @@ carries the commercial without props. It is weak because a character is the most
 the app, the site and the spot; the silhouette alone is a bean at 16px and wants the word next to it; and the
 illustration cannot sit on the green field in its own colours, so the field gets the silhouette in white.
 
-## Final picks and the icon set
+## Final picks and the icon set (2026-10-11, end of day)
 
-- **Locus: the bead, direction 2.** Final. The app icons are in `logo/locus/icons/`: `icon-512.png`, `icon-192.png`,
-  `icon-180.png` (Apple touch), `favicon-32.png` and `favicon.svg`, the mark in white centred on the Locus blue
-  with the mark at 60% of the box, square (the OS rounds the corners), plus `icon-maskable.svg` and
-  `icon-maskable-512.png` with the mark at 46% for the maskable safe zone. Rendered from the SVG through Chromium;
-  the 32px favicon was checked by eye and reads as the ring and its bead.
-- **The money app: the name is Cashew.** The mark is open: Cole picks from round two above. The icon set for
-  Cashew is built the same way once the mark is picked (the script that made the Locus set takes any mark).
-- The board's pick box defaults to the bead for Locus and shows Cole's date; the Cashew row waits for the tick.
+- **Locus: the bead, direction 2.** Cole's pick. Icons in `logo/locus/icons/`: `icon-512.png`, `icon-192.png`,
+  `icon-180.png` (Apple touch), `favicon-32.png` and `favicon.svg`, the bead in white centred on the Locus blue at
+  60% of the box, square (the OS rounds the corners), plus `icon-maskable.svg` and `icon-maskable-512.png` at 46%
+  for the maskable safe zone. Rendered from the SVG through Chromium; the 32px favicon reads as the ring and bead.
+- **Cashew: the wordmark is the logo, the C is the app icon, the character is the helper.** The parent
+  session's pick from round two, pending Cole's veto: logo and mascot kept separate, the way the reference video
+  splits its mark from its puddle. The character got one more polish pass (three tries, the second kept): a deeper
+  kidney bend with the head curling back toward the belly and the tail curling up toward the head, the stem cap
+  smaller and tucked, the lighter belly grown to carry the face, the eyes bigger and set lower so the expression
+  reads at 48px.
+- **The final files, at fixed paths** (other sessions load them by path), all in `logo/cashew/`, written by
+  `docs/brand/cashew-round-2.py` alongside the round-two explorations:
+  `mark.svg` (the C, the app icon), `wordmark.svg`, `lockup.svg` (the silhouette at 48 units beside the wordmark,
+  one colour), `silhouette.svg` (body plus cap in currentColor, for the field and the CPA pack), and the character
+  in full colour: `rest.svg`, `asleep.svg`, `thinking.svg`, `found.svg`, `clear.svg`.
+  Icons in `logo/cashew/icons/`, the same set as Locus, built from the C in white on the Cashew green.
+- **How they are used.** The wordmark goes on the CPA pack, the site and the gate's foot; the C on the phone and
+  in the tab; the silhouette in white on the green field and wherever one colour is required; the character in
+  the ask bar, the nudge card, the empty states and the commercial, never on a document.
+- The board's pick box defaults to these two and says so; the round-one drawings stay folded as the record.
 
 ## The pick
 

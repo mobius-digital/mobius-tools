@@ -47,6 +47,17 @@ def sprite():
         if vb != '0 0 64 64':
             vbs[sid] = vb
         out.append(sym)
+    fin = os.path.join(ROOT, 'logo', 'cashew')
+    for name in sorted(os.listdir(fin)):
+        if not name.endswith('.svg'):
+            continue
+        sid = 'cashew-' + name[:-4]
+        sym = symbol_from(os.path.join(fin, name), sid)
+        vb = re.search(r'viewBox="([^"]+)"', sym).group(1)
+        if vb != '0 0 64 64':
+            vbs[sid] = vb
+        out.append(sym)
+    out.append(symbol_from(os.path.join(fin, 'icons', 'favicon.svg'), 'cashew-icon'))
     mob = open(os.path.join(ROOT, 'logo', 'mobius-mark-ink.svg')).read()
     d = re.search(r'<path d="([^"]+)"', mob).group(1)
     out.append(f'<symbol id="mobius" viewBox="0 0 2400 1655"><path d="{d}" fill="currentColor"/></symbol>')

@@ -301,6 +301,13 @@ section{margin-top:56px}
 .r2 .chars small{font-size:11px; color:var(--muted)}
 .r2 .chars .state{display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center}
 .dirs.r2{grid-template-columns:1fr}
+.final{background:var(--surface); border:1px solid var(--field); box-shadow:0 0 0 3px var(--field-soft); border-radius:14px; padding:18px 20px; margin-bottom:16px}
+.final .finrow{display:flex; align-items:center; gap:22px; flex-wrap:wrap; margin-top:10px; color:var(--field)}
+.final .finrow .wm svg{display:block; height:52px; width:auto}
+.final .finrow .kit-helper.px48{width:48px; height:48px; color:var(--field)}
+.final .icon{display:block; width:48px; height:48px; border-radius:11px; overflow:hidden} .final .icon.sm{width:32px; height:32px; border-radius:7px}
+.final .icon svg{display:block; width:100%; height:100%}
+.final p{font-size:12.5px; color:var(--muted); margin-top:12px; max-width:80ch}
 .dir.wide{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:20px 28px; align-items:start}
 .dir.wide .dir-h,.dir.wide .why,.dir.wide .fam{grid-column:1 / -1}
 .dir.wide .why{padding-top:0; border-top:0}
@@ -758,39 +765,39 @@ section{margin-top:56px}
   <path d="M27.73 17.56C26.68 17.71 23.41 17.65 21.45 18.43C19.49 19.22 17.45 20.62 15.95 22.26C14.46 23.9 13.16 26.11 12.49 28.27C11.81 30.44 11.63 33 11.91 35.26C12.19 37.51 13.02 39.9 14.17 41.82C15.31 43.73 17 45.52 18.76 46.74C20.51 47.97 22.71 48.88 24.7 49.16C26.68 49.45 29.69 48.56 30.69 48.44A3 3 0 0 0 31.22 42.47C30.87 41.99 29.65 40.46 29.16 39.59C28.67 38.71 28.45 37.94 28.27 37.23C28.09 36.52 28.1 35.89 28.08 35.33C28.07 34.76 28.14 34.3 28.18 33.83C28.22 33.37 28.3 32.99 28.33 32.52C28.37 32.04 28.31 31.57 28.39 30.97C28.46 30.37 28.51 29.69 28.78 28.91C29.06 28.12 29.85 26.7 30.06 26.26A4.5 4.5 0 0 0 33.19 23.25A2.79 2.79 0 0 1 31.75 18.43A4.5 4.5 0 0 0 27.73 17.56Z" fill="currentColor" stroke="none" mask="url(#cfc)"/></symbol>
 <symbol id="c2-c-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/></symbol>
 <symbol id="c2-character-asleep" viewBox="0 0 64 64"><g opacity=".78">
-  <path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="#1E7A52"/>
-  <path d="M24.2 23.74C22.17 24.03 19.66 25.96 18.4 27.8C17.14 29.64 16.56 32.34 16.66 34.76C16.76 37.18 17.53 40.17 18.98 42.3C20.43 44.43 22.94 46.55 25.36 47.52C27.78 48.49 31.06 48.58 33.48 48.1C35.9 47.62 38.31 46.17 39.86 44.62C41.41 43.07 42.47 40.56 42.76 38.82C43.05 37.08 42.47 34.95 41.6 34.18C40.73 33.41 38.89 34.66 37.54 34.18C36.19 33.7 34.64 32.63 33.48 31.28C32.32 29.93 32.13 27.32 30.58 26.06C29.03 24.8 26.23 23.45 24.2 23.74Z" fill="#5CC395"/>
-  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="#13573A"/>
-  <path d="M17.3 26.8h3.4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
-  <path d="M25.3 26.8h3.4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
-  <path d="M21.8 32h2.4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+  <path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <path d="M17.6 33L21.6 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.4 33L30.4 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M22.7 38.4L25.3 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
   </g></symbol>
-<symbol id="c2-character-clear" viewBox="0 0 64 64"><path d="M22 12C18.5 12.5 14.17 15.83 12 19C9.83 22.17 8.83 26.83 9 31C9.17 35.17 10.5 40.33 13 44C15.5 47.67 19.83 51.33 24 53C28.17 54.67 33.83 54.83 38 54C42.17 53.17 46.33 50.67 49 48C51.67 45.33 53.5 41 54 38C54.5 35 53.5 31.33 52 30C50.5 28.67 47.33 30.83 45 30C42.67 29.17 40 27.33 38 25C36 22.67 35.67 18.17 33 16C30.33 13.83 25.5 11.5 22 12Z" fill="#1E7A52"/>
-  <path d="M24.2 24.74C22.17 25.03 19.66 26.96 18.4 28.8C17.14 30.64 16.56 33.34 16.66 35.76C16.76 38.18 17.53 41.17 18.98 43.3C20.43 45.43 22.94 47.55 25.36 48.52C27.78 49.49 31.06 49.58 33.48 49.1C35.9 48.62 38.31 47.17 39.86 45.62C41.41 44.07 42.47 41.56 42.76 39.82C43.05 38.08 42.47 35.95 41.6 35.18C40.73 34.41 38.89 35.66 37.54 35.18C36.19 34.7 34.64 33.63 33.48 32.28C32.32 30.93 32.13 28.32 30.58 27.06C29.03 25.8 26.23 24.45 24.2 24.74Z" fill="#5CC395"/>
-  <path d="M17 10C17.75 8.92 21.92 7.83 24 8C26.08 8.17 29.17 10 29.5 11C29.83 12 27.67 13.42 26 14C24.33 14.58 21 15.17 19.5 14.5C18 13.83 16.25 11.08 17 10Z" fill="#13573A"/>
-  <path d="M17.1 28a1.9 1.9 0 0 1 3.8 0" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
-  <path d="M25.1 28a1.9 1.9 0 0 1 3.8 0" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
-  <path d="M20 32a3 3 0 0 0 6 0" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/></symbol>
-<symbol id="c2-character-found" viewBox="0 0 64 64"><path d="M22 9.5C18.5 10 14.17 13.33 12 16.5C9.83 19.67 8.83 24.33 9 28.5C9.17 32.67 10.5 37.83 13 41.5C15.5 45.17 19.83 48.83 24 50.5C28.17 52.17 33.83 52.33 38 51.5C42.17 50.67 46.33 48.17 49 45.5C51.67 42.83 53.5 38.5 54 35.5C54.5 32.5 53.5 28.83 52 27.5C50.5 26.17 47.33 28.33 45 27.5C42.67 26.67 40 24.83 38 22.5C36 20.17 35.67 15.67 33 13.5C30.33 11.33 25.5 9 22 9.5Z" fill="#1E7A52"/>
-  <path d="M24.2 22.24C22.17 22.53 19.66 24.46 18.4 26.3C17.14 28.14 16.56 30.84 16.66 33.26C16.76 35.68 17.53 38.67 18.98 40.8C20.43 42.93 22.94 45.05 25.36 46.02C27.78 46.99 31.06 47.08 33.48 46.6C35.9 46.12 38.31 44.67 39.86 43.12C41.41 41.57 42.47 39.06 42.76 37.32C43.05 35.58 42.47 33.45 41.6 32.68C40.73 31.91 38.89 33.16 37.54 32.68C36.19 32.2 34.64 31.13 33.48 29.78C32.32 28.43 32.13 25.82 30.58 24.56C29.03 23.3 26.23 21.95 24.2 22.24Z" fill="#5CC395"/>
-  <path d="M17 7.5C17.75 6.42 21.92 5.33 24 5.5C26.08 5.67 29.17 7.5 29.5 8.5C29.83 9.5 27.67 10.92 26 11.5C24.33 12.08 21 12.67 19.5 12C18 11.33 16.25 8.58 17 7.5Z" fill="#13573A"/>
-  <circle cx="18.6" cy="24.7" r="2.6" fill="#0C161D"/>
-  <circle cx="27.4" cy="24.7" r="2.6" fill="#0C161D"/>
-  <circle cx="23" cy="30.9" r="1.9" fill="#0C161D"/></symbol>
-<symbol id="c2-character-mark" viewBox="0 0 64 64"><path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="currentColor"/>
-  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="currentColor"/></symbol>
-<symbol id="c2-character-thinking" viewBox="0 0 64 64"><path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="#1E7A52"/>
-  <path d="M24.2 23.74C22.17 24.03 19.66 25.96 18.4 27.8C17.14 29.64 16.56 32.34 16.66 34.76C16.76 37.18 17.53 40.17 18.98 42.3C20.43 44.43 22.94 46.55 25.36 47.52C27.78 48.49 31.06 48.58 33.48 48.1C35.9 47.62 38.31 46.17 39.86 44.62C41.41 43.07 42.47 40.56 42.76 38.82C43.05 37.08 42.47 34.95 41.6 34.18C40.73 33.41 38.89 34.66 37.54 34.18C36.19 33.7 34.64 32.63 33.48 31.28C32.32 29.93 32.13 27.32 30.58 26.06C29.03 24.8 26.23 23.45 24.2 23.74Z" fill="#5CC395"/>
-  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="#13573A"/>
-  <circle cx="20.8" cy="25.4" r="2" fill="#0C161D"/>
-  <circle cx="28.8" cy="25.4" r="2" fill="#0C161D"/>
-  <path d="M23.6 32h2.8" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/></symbol>
-<symbol id="c2-character" viewBox="0 0 64 64"><path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="#1E7A52"/>
-  <path d="M24.2 23.74C22.17 24.03 19.66 25.96 18.4 27.8C17.14 29.64 16.56 32.34 16.66 34.76C16.76 37.18 17.53 40.17 18.98 42.3C20.43 44.43 22.94 46.55 25.36 47.52C27.78 48.49 31.06 48.58 33.48 48.1C35.9 47.62 38.31 46.17 39.86 44.62C41.41 43.07 42.47 40.56 42.76 38.82C43.05 37.08 42.47 34.95 41.6 34.18C40.73 33.41 38.89 34.66 37.54 34.18C36.19 33.7 34.64 32.63 33.48 31.28C32.32 29.93 32.13 27.32 30.58 26.06C29.03 24.8 26.23 23.45 24.2 23.74Z" fill="#5CC395"/>
-  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="#13573A"/>
-  <circle cx="19" cy="26.4" r="2" fill="#0C161D"/>
-  <circle cx="27" cy="26.4" r="2" fill="#0C161D"/>
-  <path d="M21 32h4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character-clear" viewBox="0 0 64 64"><path d="M20 10C17.17 11 13 13 11 16C9 19 8 23.83 8 28C8 32.17 8.83 37 11 41C13.17 45 17.17 49.5 21 52C24.83 54.5 29.67 55.83 34 56C38.33 56.17 43.5 55 47 53C50.5 51 53.5 47.33 55 44C56.5 40.67 57 35.33 56 33C55 30.67 51.83 30.83 49 30C46.17 29.17 41.5 29.83 39 28C36.5 26.17 35.83 22 34 19C32.17 16 30.33 11.5 28 10C25.67 8.5 22.83 9 20 10Z" fill="#1E7A52"/>
+  <path d="M22.6 22.2C20.62 22.9 17.7 24.3 16.3 26.4C14.9 28.5 14.2 31.88 14.2 34.8C14.2 37.72 14.78 41.1 16.3 43.9C17.82 46.7 20.62 49.85 23.3 51.6C25.98 53.35 29.37 54.28 32.4 54.4C35.43 54.52 39.05 53.7 41.5 52.3C43.95 50.9 46.05 48.33 47.1 46C48.15 43.67 48.5 39.93 47.8 38.3C47.1 36.67 44.88 36.78 42.9 36.2C40.92 35.62 37.65 36.08 35.9 34.8C34.15 33.52 33.68 30.6 32.4 28.5C31.12 26.4 29.83 23.25 28.2 22.2C26.57 21.15 24.58 21.5 22.6 22.2Z" fill="#5CC395"/>
+  <path d="M16 9.5C16.58 8.58 20.25 7.5 22 7.5C23.75 7.5 26.17 8.67 26.5 9.5C26.83 10.33 25.33 11.92 24 12.5C22.67 13.08 19.83 13.5 18.5 13C17.17 12.5 15.42 10.42 16 9.5Z" fill="#13573A"/>
+  <path d="M17.5 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.3 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M20.8 38.6a3.2 3.2 0 0 0 6.4 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character-found" viewBox="0 0 64 64"><path d="M20 7.5C17.17 8.5 13 10.5 11 13.5C9 16.5 8 21.33 8 25.5C8 29.67 8.83 34.5 11 38.5C13.17 42.5 17.17 47 21 49.5C24.83 52 29.67 53.33 34 53.5C38.33 53.67 43.5 52.5 47 50.5C50.5 48.5 53.5 44.83 55 41.5C56.5 38.17 57 32.83 56 30.5C55 28.17 51.83 28.33 49 27.5C46.17 26.67 41.5 27.33 39 25.5C36.5 23.67 35.83 19.5 34 16.5C32.17 13.5 30.33 9 28 7.5C25.67 6 22.83 6.5 20 7.5Z" fill="#1E7A52"/>
+  <path d="M22.6 19.7C20.62 20.4 17.7 21.8 16.3 23.9C14.9 26 14.2 29.38 14.2 32.3C14.2 35.22 14.78 38.6 16.3 41.4C17.82 44.2 20.62 47.35 23.3 49.1C25.98 50.85 29.37 51.78 32.4 51.9C35.43 52.02 39.05 51.2 41.5 49.8C43.95 48.4 46.05 45.83 47.1 43.5C48.15 41.17 48.5 37.43 47.8 35.8C47.1 34.17 44.88 34.28 42.9 33.7C40.92 33.12 37.65 33.58 35.9 32.3C34.15 31.02 33.68 28.1 32.4 26C31.12 23.9 29.83 20.75 28.2 19.7C26.57 18.65 24.58 19 22.6 19.7Z" fill="#5CC395"/>
+  <path d="M16 7C16.58 6.08 20.25 5 22 5C23.75 5 26.17 6.17 26.5 7C26.83 7.83 25.33 9.42 24 10C22.67 10.58 19.83 11 18.5 10.5C17.17 10 15.42 7.92 16 7Z" fill="#13573A"/>
+  <circle cx="19.2" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="28.8" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="24" cy="37.5" r="2.1" fill="#0C161D"/></symbol>
+<symbol id="c2-character-mark" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="currentColor"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="currentColor"/></symbol>
+<symbol id="c2-character-thinking" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="21.6" cy="31.6" r="2.4" fill="#0C161D"/>
+  <circle cx="30.4" cy="31.6" r="2.4" fill="#0C161D"/>
+  <path d="M24.6 38.2L27.6 38.2" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="19.6" cy="33" r="2.4" fill="#0C161D"/>
+  <circle cx="28.4" cy="33" r="2.4" fill="#0C161D"/>
+  <path d="M21.8 38.4L26.2 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
 <symbol id="c2-curl" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"><path d="M41.12 26.76A6.5 6.5 0 0 0 37.62 18.09A15 15 0 1 0 37.62 45.91"/></symbol>
 <symbol id="c2-wordmark" viewBox="0 -40.8 154.94 43.6" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>
   <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>
@@ -802,9 +809,64 @@ section{margin-top:56px}
   <path d="M97.14 -13H117.54"/>
   <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>
   <path d="M136.69 -9.12V-16.12"/></symbol>
+<symbol id="cashew-asleep" viewBox="0 0 64 64"><g opacity=".78">
+  <path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <path d="M17.6 33L21.6 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.4 33L30.4 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M22.7 38.4L25.3 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  </g></symbol>
+<symbol id="cashew-clear" viewBox="0 0 64 64"><path d="M20 10C17.17 11 13 13 11 16C9 19 8 23.83 8 28C8 32.17 8.83 37 11 41C13.17 45 17.17 49.5 21 52C24.83 54.5 29.67 55.83 34 56C38.33 56.17 43.5 55 47 53C50.5 51 53.5 47.33 55 44C56.5 40.67 57 35.33 56 33C55 30.67 51.83 30.83 49 30C46.17 29.17 41.5 29.83 39 28C36.5 26.17 35.83 22 34 19C32.17 16 30.33 11.5 28 10C25.67 8.5 22.83 9 20 10Z" fill="#1E7A52"/>
+  <path d="M22.6 22.2C20.62 22.9 17.7 24.3 16.3 26.4C14.9 28.5 14.2 31.88 14.2 34.8C14.2 37.72 14.78 41.1 16.3 43.9C17.82 46.7 20.62 49.85 23.3 51.6C25.98 53.35 29.37 54.28 32.4 54.4C35.43 54.52 39.05 53.7 41.5 52.3C43.95 50.9 46.05 48.33 47.1 46C48.15 43.67 48.5 39.93 47.8 38.3C47.1 36.67 44.88 36.78 42.9 36.2C40.92 35.62 37.65 36.08 35.9 34.8C34.15 33.52 33.68 30.6 32.4 28.5C31.12 26.4 29.83 23.25 28.2 22.2C26.57 21.15 24.58 21.5 22.6 22.2Z" fill="#5CC395"/>
+  <path d="M16 9.5C16.58 8.58 20.25 7.5 22 7.5C23.75 7.5 26.17 8.67 26.5 9.5C26.83 10.33 25.33 11.92 24 12.5C22.67 13.08 19.83 13.5 18.5 13C17.17 12.5 15.42 10.42 16 9.5Z" fill="#13573A"/>
+  <path d="M17.5 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.3 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M20.8 38.6a3.2 3.2 0 0 0 6.4 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="cashew-found" viewBox="0 0 64 64"><path d="M20 7.5C17.17 8.5 13 10.5 11 13.5C9 16.5 8 21.33 8 25.5C8 29.67 8.83 34.5 11 38.5C13.17 42.5 17.17 47 21 49.5C24.83 52 29.67 53.33 34 53.5C38.33 53.67 43.5 52.5 47 50.5C50.5 48.5 53.5 44.83 55 41.5C56.5 38.17 57 32.83 56 30.5C55 28.17 51.83 28.33 49 27.5C46.17 26.67 41.5 27.33 39 25.5C36.5 23.67 35.83 19.5 34 16.5C32.17 13.5 30.33 9 28 7.5C25.67 6 22.83 6.5 20 7.5Z" fill="#1E7A52"/>
+  <path d="M22.6 19.7C20.62 20.4 17.7 21.8 16.3 23.9C14.9 26 14.2 29.38 14.2 32.3C14.2 35.22 14.78 38.6 16.3 41.4C17.82 44.2 20.62 47.35 23.3 49.1C25.98 50.85 29.37 51.78 32.4 51.9C35.43 52.02 39.05 51.2 41.5 49.8C43.95 48.4 46.05 45.83 47.1 43.5C48.15 41.17 48.5 37.43 47.8 35.8C47.1 34.17 44.88 34.28 42.9 33.7C40.92 33.12 37.65 33.58 35.9 32.3C34.15 31.02 33.68 28.1 32.4 26C31.12 23.9 29.83 20.75 28.2 19.7C26.57 18.65 24.58 19 22.6 19.7Z" fill="#5CC395"/>
+  <path d="M16 7C16.58 6.08 20.25 5 22 5C23.75 5 26.17 6.17 26.5 7C26.83 7.83 25.33 9.42 24 10C22.67 10.58 19.83 11 18.5 10.5C17.17 10 15.42 7.92 16 7Z" fill="#13573A"/>
+  <circle cx="19.2" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="28.8" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="24" cy="37.5" r="2.1" fill="#0C161D"/></symbol>
+<symbol id="cashew-lockup" viewBox="0 -4 216.94 56"><g transform="scale(0.75)">
+  <path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="currentColor"/>  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="currentColor"/>
+  </g>
+  <g transform="translate(62 37)" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>  <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>  <path d="M50.1 -23.2V-2.8"/>  <path d="M66.12 -20.65A5.1 5.1 0 1 0 61.7 -13A5.1 5.1 0 1 1 57.28 -5.35"/>  <path d="M73.3 -35.2V-2.8"/>  <path d="M73.3 -11.47A8.67 8.67 0 0 1 90.64 -11.47V-2.8"/>  <path d="M117.54 -13A10.2 10.2 0 1 0 114.92 -6.17"/>  <path d="M97.14 -13H117.54"/>  <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>  <path d="M136.69 -9.12V-16.12"/>
+  </g></symbol>
+<symbol id="cashew-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/></symbol>
+<symbol id="cashew-rest" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="19.6" cy="33" r="2.4" fill="#0C161D"/>
+  <circle cx="28.4" cy="33" r="2.4" fill="#0C161D"/>
+  <path d="M21.8 38.4L26.2 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="cashew-silhouette" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="currentColor"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="currentColor"/></symbol>
+<symbol id="cashew-thinking" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="21.6" cy="31.6" r="2.4" fill="#0C161D"/>
+  <circle cx="30.4" cy="31.6" r="2.4" fill="#0C161D"/>
+  <path d="M24.6 38.2L27.6 38.2" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="cashew-wordmark" viewBox="0 -40.8 154.94 43.6" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>
+  <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>
+  <path d="M50.1 -23.2V-2.8"/>
+  <path d="M66.12 -20.65A5.1 5.1 0 1 0 61.7 -13A5.1 5.1 0 1 1 57.28 -5.35"/>
+  <path d="M73.3 -35.2V-2.8"/>
+  <path d="M73.3 -11.47A8.67 8.67 0 0 1 90.64 -11.47V-2.8"/>
+  <path d="M117.54 -13A10.2 10.2 0 1 0 114.92 -6.17"/>
+  <path d="M97.14 -13H117.54"/>
+  <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>
+  <path d="M136.69 -9.12V-16.12"/></symbol>
+<symbol id="cashew-icon" viewBox="0 0 64 64"><rect width="64" height="64" fill="#1E7A52"/>
+  <g transform="translate(1.63 -0.34) scale(1.0105)" color="#fff" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/>
+  </g></symbol>
 <symbol id="mobius" viewBox="0 0 2400 1655"><path d="M221.200 1393.617 C120.000 1292.448 120.000 1126.895 221.200 1025.689 L1025.947 221.189 C1127.148 120.020 1292.751 120.020 1393.989 221.189 C1495.189 322.358 1495.189 487.911 1393.989 589.117 L589.241 1393.617 C488.041 1494.786 322.437 1494.786 221.200 1393.617 M2232.828 701.215 L1738.573 1195.317 L1738.573 1252.477 C1738.573 1395.581 1855.671 1512.642 1998.818 1512.642 C2141.966 1512.642 2259.063 1395.581 2259.063 1252.477 L2259.063 671.616 C2250.985 681.840 2242.277 691.768 2232.828 701.215 M1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 Z" fill="currentColor"/></symbol>
 </svg>
-<script>window.KIT_VB={"c2-wordmark": "0 -40.8 154.94 43.6"}</script>
+<script>window.KIT_VB={"c2-wordmark": "0 -40.8 154.94 43.6", "cashew-lockup": "0 -4 216.94 56", "cashew-wordmark": "0 -40.8 154.94 43.6"}</script>
 <!-- marks:end -->
 
 <div class="wrap">
@@ -822,7 +884,7 @@ section{margin-top:56px}
     <div>
       <div class="label">Brand kit, 2026-10-11</div>
       <h1 style="margin-top:8px">Two products, one <em class="kit-accent" style="color:var(--locus-ink)">voice</em>.</h1>
-      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. Cole picked the bead for Locus and the name Cashew for the money app; the Cashew mark is open again in round two, below. Tick a Cashew direction and the samples at the bottom redraw with it.</p>
+      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. Cole picked the bead for Locus and the name Cashew for the money app. For Cashew the pick, pending Cole's veto, is the wordmark with the C as the app icon, and the character from direction 3 as the helper, kept separate from the logo the way the reference video splits mark and mascot. The final files are in logo/cashew/.</p>
     </div>
     <div class="pickbox">
       <div class="label">Your pick</div>
@@ -841,6 +903,17 @@ section{margin-top:56px}
   <section id="cashew" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
     <div class="sec-h"><h2>Cashew, round <em class="kit-accent">two</em></h2><span class="n">3 directions</span></div>
     <p class="sec-p">The name is Cashew. Round one drew a literal nut in one stroke on the ring grid and Cole said no, so this round is three proper logos, not pictograms: a curl that only suggests the kidney, a wordmark whose C is the icon, and a character drawn as an illustration with its silhouette as the mark. Each is shown at 200, 48, 20 and 16px, on white and on the green, and beside the Locus bead and the Mobius ribbon.</p>
+    <div class="final" id="cashewFinal">
+      <div class="label">The pick, 2026-10-11, pending Cole's veto</div>
+      <div class="finrow">
+        <span class="wm"><svg class="m" viewBox="0 0 216.94 56" style="aspect-ratio:216.94 / 56" role="img" aria-label="Cashew lockup"><use href="#cashew-lockup"/></svg></span>
+        <span class="kit-helper px48"><svg class="m"><use href="#cashew-mark"/></svg></span>
+        <span class="kit-helper px48"><svg class="m"><use href="#cashew-rest"/></svg></span>
+        <span class="icon"><svg class="m" viewBox="0 0 64 64"><use href="#cashew-icon"/></svg></span>
+        <span class="icon sm"><svg class="m" viewBox="0 0 64 64"><use href="#cashew-icon"/></svg></span>
+      </div>
+      <p>The lockup (silhouette plus wordmark, one colour), the C as the mark, the character at rest as the helper, and the app icon at 48px and 32px. Files: mark.svg, wordmark.svg, lockup.svg, silhouette.svg, rest.svg, asleep.svg, thinking.svg, found.svg, clear.svg, and icons/ with the C on the green.</p>
+    </div>
     <div class="dirs r2" id="cashewDirs"></div>
   </section>
 
@@ -963,7 +1036,7 @@ section{margin-top:56px}
           <p id="packFoot">Prepared by Kept from the bank, Shopify and Stripe. Every line ties to a statement.</p>
           <table><tr><td>Revenue, net of tax and refunds</td><td>$118,420</td></tr><tr><td>Cost of goods</td><td>$41,900</td></tr><tr><td>Advertising</td><td>$31,250</td></tr><tr><td>Fees, shipping, software</td><td>$17,880</td></tr><tr><td><b>What you kept</b></td><td><b>$27,390</b></td></tr></table>
         </div>
-        <p class="cap">The CPA pack header: the plain mark without the face, the name set in Inter, the month. The helper never appears on a document.</p>
+        <p class="cap">The CPA pack header: the wordmark (or the plain mark for a direction without one), the month. The helper never appears on a document.</p>
       </div>
     </div>
   </section>
@@ -1002,8 +1075,8 @@ section{margin-top:56px}
      why:'<b>Strong:</b> the one Cole can lean into: a creature, not a glyph, drawn with a body colour, a lighter belly, a darker cap and two dot eyes, so it carries the four states and the commercial without props. The silhouette (body plus cap) reduces to a solid mark, and the wordmark from direction 2 sits beside it as the lockup. <b>Weak:</b> a character is the most work to keep consistent across the app, the site and the spot; the silhouette alone is a bean at 16px and needs the word next to it; and the illustration cannot go on the green field in its own colours, so the field gets the silhouette in white.'}
   ];
   var STATES = ['asleep','thinking','found','clear'];
-  var pick = {locus:2, cashew:null};
-  try{ var saved = JSON.parse(localStorage.getItem('kit_pick2')||'{}'); if(saved.locus) pick.locus = saved.locus; pick.cashew = saved.cashew||null; }catch(e){}
+  var pick = {locus:2, cashew:2};
+  try{ var saved = JSON.parse(localStorage.getItem('kit_pick3')||'{}'); if(saved.locus) pick.locus = saved.locus; if(saved.cashew) pick.cashew = saved.cashew; }catch(e){}
 
   function use(id, cls){ var vb = (window.KIT_VB||{})[id]; var ar = ''; if(vb){ var v = vb.split(' '); ar = ' style="aspect-ratio:'+v[2]+' / '+v[3]+'"'; vb = '0 0 '+v[2]+' '+v[3]; } return '<svg class="m'+(cls?' '+cls:'')+'"'+(vb?' viewBox="'+vb+'"':'')+ar+' role="img" aria-label="'+id+'"><use href="#'+id+'"/></svg>'; }
   function helper(id, extra){ return '<span class="kit-helper '+(extra||'')+'">'+use(id)+'</span>'; }
@@ -1082,9 +1155,9 @@ section{margin-top:56px}
     setId('gateLocus', 'locus-'+ln+'-clear'); setId('mornLocus', 'locus-'+ln+'-clear');
     setId('askLocus', 'locus-'+ln+'-thinking'); setId('nudgeLocus', 'locus-'+ln+'-found'); setId('clearLocus', 'locus-'+ln+'-clear');
     var cn = pick.cashew || 1, cd = DIRS.cashew[cn-1];
-    document.getElementById('pickKept').innerHTML = helper(cd.mark) + '<b>Cashew</b><span>'+(pick.cashew ? nameOf('cashew', cn) : 'nothing ticked yet, showing direction 1')+'</span>';
-    var st = function(s){ return cd.states ? 'c2-character-'+s : cd.mark; };
-    setId('gateKept', cd.mark); setId('mornKept', cd.mark);
+    document.getElementById('pickKept').innerHTML = helper(cd.mark) + '<b>Cashew</b><span>'+nameOf('cashew', cn)+(cn === 2 ? ', the character as the helper (pending Cole)' : '')+'</span>';
+    var st = function(s){ return (cd.states || cd.n === 2) ? 'cashew-'+s : cd.mark; };
+    setId('gateKept', (cd.n === 1 ? cd.mark : 'cashew-silhouette')); setId('mornKept', (cd.n === 1 ? cd.mark : 'cashew-silhouette'));
     setId('askKept', st('thinking')); setId('nudgeKept', st('found')); setId('clearKept', st('clear'));
     document.getElementById('useKeptLabel').textContent = 'Cashew';
     document.getElementById('askKeptIn').placeholder = 'Ask Cashew';
@@ -1100,12 +1173,12 @@ section{margin-top:56px}
   document.addEventListener('click', function(e){
     var b = e.target.closest('.pick'); if(!b) return;
     var c = b.closest('.dir'); var p = c.dataset.p, n = Number(c.dataset.n);
-    pick[p] = (pick[p] === n && p !== 'locus') ? null : n;
-    try{ localStorage.setItem('kit_pick2', JSON.stringify(pick)); }catch(err){}
+    pick[p] = n;
+    try{ localStorage.setItem('kit_pick3', JSON.stringify(pick)); }catch(err){}
     render();
   });
   document.getElementById('copyPick').addEventListener('click', function(){
-    var t = 'Locus: '+nameOf('locus', pick.locus || 2)+'. Cashew: '+(pick.cashew ? nameOf('cashew', pick.cashew) : 'no pick')+'.';
+    var t = 'Locus: '+nameOf('locus', pick.locus || 2)+'. Cashew: '+nameOf('cashew', pick.cashew || 2)+(pick.cashew === 2 ? ', the character from direction 3 as the helper' : '')+'.';
     var toast = document.getElementById('toast');
     function done(ok){ toast.textContent = ok ? 'Copied: '+t : t; setTimeout(function(){ toast.textContent = ''; }, 6000); }
     try{ navigator.clipboard.writeText(t).then(function(){ done(true); }, function(){ done(false); }); }catch(err){ done(false); }
