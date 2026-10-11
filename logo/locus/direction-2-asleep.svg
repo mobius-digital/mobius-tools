@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Locus, the bead, asleep</title>
+  <defs>
+    <mask id="l2a" fill="#000" stroke="none">
+      <circle cx="32" cy="53" r="11" fill="#fff"/>
+      <path d="M27 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 56.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M20.56 49.61A21 21 0 1 1 43.44 49.61"/>
+    <circle cx="32" cy="53" r="10" fill="currentColor" stroke="none" mask="url(#l2a)"/>
+  </g>
+</svg>

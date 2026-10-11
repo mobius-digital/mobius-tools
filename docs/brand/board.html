@@ -1,0 +1,1198 @@
+<title>Locus and Kept Brand Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+/* Layout: a review sheet. One column of sections, each a question Cole answers
+   by looking; the marks do the talking, the page stays quiet around them. */
+:root{
+  --bg:#F7F7F8; --surface:#FFFFFF; --surface-2:#F0F0F2;
+  --ink:#111114; --ink-2:#3F3F46; --muted:#71717A; --faint:#A1A1AA;
+  --line:rgba(15,15,20,.08); --line-strong:rgba(15,15,20,.14);
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mobius:#0C161D;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#111113; --surface:#19191C; --surface-2:#222226;
+    --ink:#F4F4F5; --ink-2:#C9C9CE; --muted:#8B8B93; --faint:#5E5E66;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
+    --mobius:#EAF2F7;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111113; --surface:#19191C; --surface-2:#222226;
+  --ink:#F4F4F5; --ink-2:#C9C9CE; --muted:#8B8B93; --faint:#5E5E66;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
+  --mobius:#EAF2F7;
+  color-scheme:dark;
+}
+
+/* kit:start */
+/* ==========================================================================
+   logo/kit.css: the brand kit shared by Locus and Kept (2026-10-11)
+   --------------------------------------------------------------------------
+   Two products, one voice. This file holds only what the two apps share:
+
+     THE TWO FIELDS   the Locus blue and the Kept green as full-screen
+                      colour fields, for the gate, the empty states and the
+                      morning line, with the ink that reads on them.
+     THE ACCENT WORD  one serif italic word per page head.
+     THE HELPER       sizes and colour for the helper character.
+
+   Load it after /mobius.css and the app's own stylesheet:
+     <link rel="stylesheet" href="/logo/kit.css">
+   and set the product on <html>:
+     <html data-product="locus">  or  <html data-product="kept">
+
+   Fonts: Inter is the app face (profit/DESIGN.md). The accent word is
+   Instrument Serif italic, already a Google Font the Mobius tools load:
+     https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=Instrument+Serif:ital@0;1&display=swap
+
+   Rules (docs/two-products.md section 4 and 5):
+   - The field is the product's colour at full strength. Ink on it is white.
+     Nothing else on a field: one line, one button, the helper.
+   - The accent word is ONE word per page head, never a whole sentence.
+   - The helper never talks in paragraphs and never blocks a screen.
+   ========================================================================== */
+
+/* ---- 1. The two colours, named once ------------------------------------ */
+:root{
+  /* Locus. The v2 Locus blue (profit/v2.css --brand), kept as the field. */
+  --locus:#2F62D9;            /* the field and the accent, light theme   */
+  --locus-deep:#2451B8;       /* the field in the dark theme (less glare) */
+  --locus-ink:#2552BF;        /* Locus blue as TEXT on a light surface   */
+  --locus-soft:#EAF0FD;       /* a tint for chips and the active pill    */
+  --locus-rgb:47,98,217;
+
+  /* Kept. The Ledger green from /mobius.css (#5CC395) deepened until white
+     ink passes on it as a full field (5.3:1). Same hue, more weight. */
+  --kept:#1E7A52;
+  --kept-deep:#176443;
+  --kept-ink:#1B6B48;
+  --kept-soft:#E6F4EC;
+  --kept-rgb:30,122,82;
+
+  /* Ink on a field, both themes. The field is dark enough for white. */
+  --on-field:#FFFFFF;
+  --on-field-2:rgba(255,255,255,.74);   /* the second line, the hint      */
+  --on-field-line:rgba(255,255,255,.26);/* a hairline or a quiet border   */
+  --on-field-well:rgba(255,255,255,.14);/* an input or a chip on a field  */
+
+  /* The accent word. */
+  --accent-serif:'Instrument Serif',Georgia,'Times New Roman',serif;
+
+  /* The helper at its three sizes: ask bar, card, commercial. */
+  --helper-sm:20px; --helper-md:48px; --helper-lg:200px;
+}
+
+/* ---- 2. The product picks its colour ------------------------------------ */
+/* Each app reads --field, --field-ink, --field-soft and never the product
+   name, so a screen built for Locus draws green in Kept without a change. */
+:root,
+:root[data-product="locus"]{
+  --field:var(--locus); --field-deep:var(--locus-deep);
+  --field-ink:var(--locus-ink); --field-soft:var(--locus-soft);
+  --field-rgb:var(--locus-rgb);
+}
+:root[data-product="kept"]{
+  --field:var(--kept); --field-deep:var(--kept-deep);
+  --field-ink:var(--kept-ink); --field-soft:var(--kept-soft);
+  --field-rgb:var(--kept-rgb);
+}
+
+/* Dark theme (Locus: <html data-theme="dark">; the OS setting when nothing
+   is saved). The field deepens a step so a full screen of it does not glare;
+   the ink on it stays white. Colour AS TEXT on the dark canvas lightens,
+   because #2F62D9 on #111113 is 3.5:1 and fails. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --locus-ink:#8FB3FF; --locus-soft:rgba(143,179,255,.14);
+    --kept-ink:#6FD0A4;  --kept-soft:rgba(111,208,164,.14);
+    --field:var(--field-deep);
+  }
+}
+:root[data-theme="dark"]{
+  --locus-ink:#8FB3FF; --locus-soft:rgba(143,179,255,.14);
+  --kept-ink:#6FD0A4;  --kept-soft:rgba(111,208,164,.14);
+  --field:var(--field-deep);
+}
+
+/* ---- 3. The field --------------------------------------------------------- */
+/* A full-screen colour field: the gate, an empty state, the morning line.
+   One idea per field. The helper sits in it at --helper-md or larger. */
+.kit-field{
+  background:var(--field); color:var(--on-field);
+  min-height:100dvh; display:grid; place-items:center;
+  padding:32px 20px; text-align:center;
+}
+.kit-field.inline{min-height:0; border-radius:14px; padding:28px 24px}   /* a card-sized field */
+.kit-field h1,.kit-field .kit-h1{font-weight:650; letter-spacing:-.02em; font-size:28px; line-height:1.15; text-wrap:balance; margin:0}
+.kit-field p{color:var(--on-field-2); font-size:15px; line-height:1.5; max-width:38ch; margin:10px auto 0}
+.kit-field a{color:var(--on-field)}
+.kit-field .kit-btn{
+  display:inline-flex; align-items:center; gap:8px; height:40px; padding:0 18px; margin-top:20px;
+  border-radius:10px; border:0; background:var(--on-field); color:var(--field);
+  font:inherit; font-weight:600; font-size:14px; cursor:pointer;
+}
+.kit-field .kit-btn.quiet{background:var(--on-field-well); color:var(--on-field); border:1px solid var(--on-field-line)}
+.kit-field input{
+  width:100%; height:40px; padding:0 12px; border-radius:10px; font:inherit; font-size:14px;
+  color:var(--on-field); background:var(--on-field-well); border:1px solid var(--on-field-line); outline:0;
+}
+.kit-field input::placeholder{color:var(--on-field-2)}
+.kit-field input:focus{border-color:var(--on-field); box-shadow:0 0 0 3px var(--on-field-well)}
+.kit-field .kit-helper{color:var(--on-field)}
+
+/* The morning line: one sentence, the helper first, on a thin field. */
+.kit-morning{
+  display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px;
+  background:var(--field); color:var(--on-field); font-size:15px; font-weight:500; line-height:1.4;
+}
+.kit-morning .kit-helper{flex:none; width:28px; height:28px}
+.kit-morning time{color:var(--on-field-2); font-weight:400; font-variant-numeric:tabular-nums}
+
+/* ---- 4. The accent word ------------------------------------------------- */
+/* One word per page head. "what you <em>actually</em> kept". The serif
+   italic sits 8% larger than the sans around it so the x-heights match.
+   Use <em class="kit-accent"> or <em> inside .kit-head. Never two in a head. */
+.kit-accent,
+.kit-head em{
+  font-family:var(--accent-serif); font-style:italic; font-weight:400;
+  font-size:1.08em; letter-spacing:0; line-height:1;
+  color:var(--field-ink);            /* on a surface: the product's colour   */
+}
+.kit-field .kit-accent,
+.kit-field .kit-head em{color:var(--on-field)}   /* on the field: white, like the rest */
+.kit-head{font-weight:650; letter-spacing:-.02em; line-height:1.15; text-wrap:balance}
+
+/* ---- 5. The helper ------------------------------------------------------- */
+/* The helper is an inline SVG (logo/<product>/direction-N-<state>.svg)
+   drawn in currentColor. Give it a colour by giving its box a colour. */
+.kit-helper{display:inline-block; width:var(--helper-md); height:var(--helper-md); color:var(--field); vertical-align:middle}
+.kit-helper svg{width:100%; height:100%; display:block}
+.kit-helper.sm{width:var(--helper-sm); height:var(--helper-sm)}
+.kit-helper.lg{width:var(--helper-lg); height:var(--helper-lg)}
+.kit-helper.on-field{color:var(--on-field)}
+/* States are separate drawings, not CSS. Asleep is drawn dim in the file.
+   A thinking helper may breathe; nothing else moves on its own. */
+@keyframes kit-think{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+.kit-helper.thinking svg{animation:kit-think 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.kit-helper.thinking svg{animation:none}}
+
+/* ---- 6. The nudge card and the ask bar ---------------------------------- */
+/* The tap on the shoulder: the helper, one sentence, one button. Nothing
+   else. Built on the Locus card (profit/DESIGN.md) with the kit's colour. */
+.kit-nudge{
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px;
+  padding:14px 16px; border-radius:14px;
+  background:var(--surface,#fff); border:1px solid var(--line,rgba(15,15,20,.07));
+  color:var(--ink,#111114);
+}
+.kit-nudge .kit-helper{width:36px; height:36px}
+.kit-nudge p{margin:0; font-size:14px; line-height:1.45; min-width:0}
+.kit-nudge p b{font-weight:600}
+.kit-nudge .kit-acts{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+.kit-nudge .kit-acts button{
+  font:inherit; font-size:13px; font-weight:550; height:32px; padding:0 12px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--line-strong,rgba(15,15,20,.12)); background:var(--surface,#fff); color:var(--ink,#111114);
+}
+.kit-nudge .kit-acts button.primary{background:var(--field); border-color:var(--field); color:var(--on-field)}
+@media (max-width:480px){.kit-nudge{grid-template-columns:auto 1fr} .kit-nudge .kit-acts{grid-column:1 / -1; justify-content:flex-start}}
+
+/* The ask bar carries the helper at --helper-sm, left of the text. */
+.kit-ask{
+  display:flex; align-items:center; gap:10px; height:36px; padding:0 10px 0 8px; border-radius:10px;
+  background:var(--surface,#fff); border:1px solid var(--line-strong,rgba(15,15,20,.12)); color:var(--ink,#111114);
+}
+.kit-ask .kit-helper{width:var(--helper-sm); height:var(--helper-sm)}
+.kit-ask input{flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; font-size:14px; color:inherit}
+.kit-ask input::placeholder{color:var(--muted,#71717A)}
+.kit-ask:focus-within{border-color:var(--field); box-shadow:0 0 0 3px var(--field-soft)}
+
+/* kit:end */
+
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.5; font-feature-settings:"tnum","cv11"; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px; margin:0 auto; padding-block:0 80px; padding-inline:20px}
+h1,h2,h3{margin:0; text-wrap:balance}
+p{margin:0}
+button{font:inherit}
+svg.m{display:block; width:100%; height:100%}
+.label{font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+
+/* top bar */
+.top{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; display:flex; align-items:center; gap:14px; padding:12px 0; margin-bottom:28px; background:color-mix(in srgb,var(--bg) 86%,transparent); backdrop-filter:blur(12px); border-bottom:1px solid var(--line)}
+.top .marks{display:flex; align-items:center; gap:10px}
+.top .marks .kit-helper{width:26px; height:26px}
+.top .sp{flex:1}
+.seg{display:inline-flex; gap:2px; padding:2px; border-radius:8px; background:var(--surface-2)}
+.seg button{font-size:12.5px; font-weight:550; padding:4px 10px; border-radius:6px; border:0; background:transparent; color:var(--muted); cursor:pointer}
+.seg button.on{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(15,15,20,.1)}
+.seg button:focus-visible,.pick:focus-visible,.btn:focus-visible{outline:2px solid var(--field); outline-offset:2px}
+
+/* head */
+.head{display:grid; grid-template-columns:1.3fr 1fr; gap:32px; align-items:end; margin-bottom:44px}
+.head h1{font-size:34px; font-weight:650; letter-spacing:-.025em; line-height:1.1}
+.head h1 em{font-size:1.1em}
+.head .lead{font-size:15px; color:var(--ink-2); max-width:56ch; margin-top:12px}
+.head .lead b{font-weight:600; color:var(--ink)}
+.pickbox{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
+.pickbox .row{display:flex; align-items:center; gap:10px; margin-top:8px; font-size:14px}
+.pickbox .row .kit-helper{width:28px; height:28px}
+.pickbox .row b{font-weight:600; min-width:46px}
+.pickbox .row span{color:var(--muted)}
+.btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font-size:13px; font-weight:550; cursor:pointer}
+.btn.primary{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.pickbox .btn{margin-top:14px}
+.toast{font-size:12.5px; color:var(--muted); margin-left:8px}
+
+/* sections */
+section{margin-top:56px}
+.sec-h{display:flex; align-items:baseline; gap:14px; margin-bottom:6px}
+.sec-h h2{font-size:22px; font-weight:650; letter-spacing:-.02em}
+.sec-h h2 em{font-size:1.1em}
+.sec-h .n{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+.sec-p{color:var(--ink-2); max-width:70ch; margin-bottom:22px}
+
+/* direction cards */
+.dirs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.dirs.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dirs.four > .dir:nth-child(5){grid-column:1 / -1}
+.dirs.four > .dir:nth-child(5) .states{max-width:620px}
+.weigh{display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding-top:14px; border-top:1px solid var(--line); color:var(--ink)}
+.weigh .mob{width:29px; height:20px; color:var(--mobius)} .weigh .mob svg{width:100%; height:100%; display:block}
+.weigh .kit-helper{width:20px; height:20px; color:var(--ink)}
+.weigh .big .mob{width:70px; height:48px} .weigh .big .kit-helper{width:48px; height:48px}
+.weigh .big,.weigh .sm{display:flex; align-items:center; gap:14px}
+.weigh small{font-size:11px; color:var(--muted); flex-basis:100%}
+.names{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px}
+.name{display:flex; align-items:center; gap:16px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
+.name .kit-helper{width:44px; height:44px; color:var(--field)}
+.name .marks3{display:flex; gap:6px}
+.name .marks3 .kit-helper{width:30px; height:30px}
+.name b{display:block; font-size:28px; font-weight:650; letter-spacing:-.025em; line-height:1}
+.name small{display:block; font-size:12.5px; color:var(--muted); margin-top:5px}
+.name small em{font-size:1.1em}
+.dir-h .brand{font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--field-ink)}
+.r2 .sizes{grid-template-columns:auto minmax(0,1fr)}
+.r2 .row4{display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.r2 .row4 .kit-helper{color:var(--field)}
+.r2 .row4 .px16{width:16px; height:16px}
+.r2 .row4 small{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
+.r2 .onfield .px16{width:16px; height:16px}
+.r2 .fam{display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-top:14px; border-top:1px solid var(--line); color:var(--ink)}
+.r2 .fam .mob{width:44px; height:30px; color:var(--mobius)} .r2 .fam .mob svg{width:100%; height:100%; display:block}
+.r2 .fam .kit-helper{width:30px; height:30px; color:var(--ink)}
+.r2 .fam .sm{display:flex; align-items:center; gap:8px; margin-left:10px}
+.r2 .fam .sm .mob{width:23px; height:16px} .r2 .fam .sm .kit-helper{width:16px; height:16px}
+.r2 .fam small{font-size:11px; color:var(--muted); flex-basis:100%}
+.r2 .wm{color:var(--field); flex:none; display:block} .r2 .wm svg{display:block; height:56px; width:auto; max-width:100%}
+.r2 .wm.sm svg{height:22px} .r2 .wm.xs svg{height:14px}
+.r2 .wmrow{display:flex; align-items:center; gap:18px; flex-wrap:wrap}
+.r2 .wmfield{display:flex; align-items:center; gap:18px; padding:14px 16px; border-radius:10px; background:var(--field); color:var(--on-field)}
+.r2 .wmfield .wm{color:var(--on-field)} .r2 .wmfield .kit-helper{color:var(--on-field); width:40px; height:40px}
+.r2 .lockup{display:flex; align-items:center; gap:10px; color:var(--field)}
+.r2 .lockup .kit-helper{width:36px; height:36px; color:var(--field)}
+.r2 .lockup .wm svg{height:30px}
+.r2 .chars{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; padding-top:14px; border-top:1px solid var(--line)}
+.r2 .chars .kit-helper{width:72px; height:72px}
+.r2 .chars .px20{width:20px; height:20px}
+.r2 .chars small{font-size:11px; color:var(--muted)}
+.r2 .chars .state{display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center}
+.dirs.r2{grid-template-columns:1fr}
+.final{background:var(--surface); border:1px solid var(--field); box-shadow:0 0 0 3px var(--field-soft); border-radius:14px; padding:18px 20px; margin-bottom:16px}
+.final .finrow{display:flex; align-items:center; gap:22px; flex-wrap:wrap; margin-top:10px; color:var(--field)}
+.final .finrow .wm svg{display:block; height:52px; width:auto}
+.final .finrow .kit-helper.px48{width:48px; height:48px; color:var(--field)}
+.final .icon{display:block; width:48px; height:48px; border-radius:11px; overflow:hidden} .final .icon.sm{width:32px; height:32px; border-radius:7px}
+.final .icon svg{display:block; width:100%; height:100%}
+.final p{font-size:12.5px; color:var(--muted); margin-top:12px; max-width:80ch}
+.dir.wide{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:20px 28px; align-items:start}
+.dir.wide .dir-h,.dir.wide .why,.dir.wide .fam{grid-column:1 / -1}
+.dir.wide .why{padding-top:0; border-top:0}
+.arch summary{cursor:pointer; font-size:14px; font-weight:600; color:var(--ink-2); list-style:none; display:flex; align-items:center; gap:8px}
+.arch summary::before{content:""; width:6px; height:6px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg); transition:transform .15s}
+.arch[open] summary::before{transform:rotate(45deg)}
+.arch{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 20px}
+.arch .names,.arch .dirs{margin-top:16px}
+@media (max-width:900px){.dir.wide{grid-template-columns:1fr}}
+.pack{background:#fff; color:#111114; border:1px solid var(--line-strong); border-radius:6px; padding:16px 18px 14px; box-shadow:0 1px 0 rgba(15,15,20,.04)}
+.pack .ph{display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid rgba(15,15,20,.12)}
+.pack .ph .kit-helper{width:20px; height:20px; color:var(--field)}
+.pack .ph .wm{flex:none; display:block} .pack .ph .wm svg{display:block; height:18px; width:auto}
+.pack .ph b{font-size:14px; font-weight:650; letter-spacing:-.01em}
+.pack .ph .when{margin-left:auto; font-size:11px; color:#71717A; font-variant-numeric:tabular-nums}
+.pack h4{margin:12px 0 2px; font-size:15px; font-weight:650; letter-spacing:-.01em}
+.pack p{font-size:12px; color:#3F3F46}
+.pack table{width:100%; border-collapse:collapse; margin-top:10px; font-size:11.5px; font-variant-numeric:tabular-nums}
+.pack td{padding:4px 0; border-bottom:1px solid rgba(15,15,20,.08)}
+.pack td:last-child{text-align:right}
+.dir{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:16px; min-width:0}
+.dir.picked{border-color:var(--field); box-shadow:0 0 0 3px var(--field-soft)}
+.dir-h{display:flex; align-items:flex-start; gap:10px}
+.dir-h .num{font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--muted)}
+.dir-h h3{font-size:15px; font-weight:600}
+.dir-h p{font-size:13px; color:var(--muted); margin-top:2px}
+.pick{margin-left:auto; flex:none; display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px 0 8px; border-radius:999px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink-2); font-size:12.5px; font-weight:550; cursor:pointer}
+.pick i{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--line-strong); display:grid; place-items:center}
+.pick i::after{content:""; width:7px; height:7px; border-radius:50%; background:transparent}
+.dir.picked .pick{border-color:var(--field); color:var(--field-ink)}
+.dir.picked .pick i{border-color:var(--field)} .dir.picked .pick i::after{background:var(--field)}
+.sizes{display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:end}
+.sizes .big{width:200px; height:200px; color:var(--field)}
+.sizes .small{display:flex; flex-direction:column; gap:12px; min-width:0}
+.sizes .r{display:flex; align-items:center; gap:14px}
+.sizes .r .kit-helper{color:var(--field)}
+.sizes .r .kit-helper.px48{width:48px; height:48px}
+.sizes .r .kit-helper.px20{width:20px; height:20px}
+.sizes .r small{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
+.onfield{display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; background:var(--field); color:var(--on-field)}
+.onfield .kit-helper{color:var(--on-field)}
+.onfield .kit-helper.px48{width:48px; height:48px}
+.onfield .kit-helper.px20{width:20px; height:20px}
+.onfield small{font-size:11px; color:var(--on-field-2)}
+.states{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding-top:14px; border-top:1px solid var(--line)}
+.state{display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center}
+.state .kit-helper{width:52px; height:52px; color:var(--field)}
+.state .kit-helper.px20{width:20px; height:20px}
+.state small{font-size:11px; color:var(--muted)}
+.dir .why{font-size:13px; color:var(--ink-2); line-height:1.5; padding-top:12px; border-top:1px solid var(--line)}
+.dir .why b{font-weight:600; color:var(--ink)}
+
+/* family */
+.family{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px}
+.family .row{display:flex; align-items:center; gap:28px; flex-wrap:wrap}
+.family .mob{height:40px; width:58px; color:var(--mobius)}
+.family .mob svg{width:100%; height:100%; display:block}
+.family .gap{width:1px; height:40px; background:var(--line-strong)}
+.family .kit-helper{width:44px; height:44px}
+.family .ink .kit-helper{color:var(--ink)}
+.family .row+.row{margin-top:18px}
+.family .cap{font-size:12px; color:var(--muted); margin-top:16px; max-width:70ch}
+
+/* fields */
+.fields{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.gate{border-radius:16px; padding:48px 24px; min-height:400px; display:grid; place-items:center; text-align:center}
+.gate .in{width:min(320px,100%)}
+.gate .kit-helper{width:96px; height:96px; margin:0 auto 18px}
+.gate h2{font-size:28px; font-weight:650; letter-spacing:-.02em; line-height:1.15}
+.gate h2 em{font-size:1.1em}
+.gate p{margin-top:8px}
+.gate input{margin-top:20px}
+.gate .kit-btn{width:100%; justify-content:center; margin-top:10px}
+.swatch{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px}
+.sw{border-radius:10px; padding:12px 14px; font-size:12px; line-height:1.45}
+.sw b{display:block; font-size:12.5px; font-weight:600}
+.sw code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; opacity:.85}
+.sw.f{color:var(--on-field)}
+.sw.s{background:var(--surface); border:1px solid var(--line); color:var(--ink)}
+.sw.s b{color:var(--field-ink)}
+.morning{margin-top:10px}
+
+/* accent */
+.accent{display:grid; grid-template-columns:1.1fr 1fr; gap:16px}
+.accent .ex{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px 24px; display:flex; flex-direction:column; gap:18px}
+.accent .ex .kit-head{font-size:24px}
+.accent .ex .kit-head em{font-size:1.08em}
+.accent .ex .sub{font-size:13px; color:var(--muted); margin-top:4px}
+.accent .rule{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px 24px}
+.accent .rule ul{margin:10px 0 0; padding-left:18px; color:var(--ink-2)}
+.accent .rule li{margin:6px 0}
+.accent .pair{display:flex; gap:20px; margin-top:16px; padding-top:16px; border-top:1px solid var(--line)}
+.accent .pair div{flex:1}
+.accent .pair .big{font-size:30px; line-height:1.1; color:var(--ink)}
+.accent .pair .big.serif{font-family:var(--accent-serif); font-style:italic; font-weight:400}
+.accent .pair small{display:block; font-size:11px; color:var(--muted); margin-top:6px}
+
+/* in use */
+.use{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.use .col{display:flex; flex-direction:column; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px}
+.use .col .kit-ask,.use .col .kit-nudge{background:var(--bg)}
+.use .col .pack{margin-top:4px}
+.use .col .kit-nudge{border-color:var(--line-strong)}
+.use .cap{font-size:12px; color:var(--muted)}
+.use .kit-morning{font-size:14px}
+
+/* phone */
+@media (max-width:900px){
+  .dirs,.dirs.four,.names{grid-template-columns:1fr}
+  .head,.fields,.accent,.use{grid-template-columns:1fr}
+}
+@media (max-width:480px){
+  .sizes{grid-template-columns:1fr}
+  .sizes .big{width:160px; height:160px}
+  .head h1{font-size:28px}
+  .top{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<!-- marks:start -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="locus-1" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.45 44.93A21 21 0 0 1 11.79 37.7" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M11.79 37.7A21 21 0 0 1 11.13 29.62" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M11.13 29.62A21 21 0 0 1 13.59 21.9" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M13.59 21.9A21 21 0 0 1 18.78 15.68" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M18.78 15.68A21 21 0 0 1 25.95 11.89" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M25.95 11.89A21 21 0 0 1 34.01 11.1" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M34.01 11.1A21 21 0 0 1 41.78 13.42" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M41.78 13.42A21 21 0 0 1 48.09 18.5" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="48.09" cy="18.5" r="10" fill="currentColor" stroke="none"/></symbol>
+<symbol id="locus-1-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1a" fill="#000" stroke="none">
+      <circle cx="32" cy="53" r="11" fill="#fff"/>
+      <path d="M27 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 56.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M51.73 39.18A21 21 0 0 1 50.41 42.1" opacity="0.1" stroke-linecap="butt"/>
+    <path d="M50.41 42.1A21 21 0 0 1 48.66 44.78" opacity="0.18" stroke-linecap="butt"/>
+    <path d="M48.66 44.78A21 21 0 0 1 46.52 47.17" opacity="0.27" stroke-linecap="butt"/>
+    <path d="M46.52 47.17A21 21 0 0 1 44.05 49.2" opacity="0.38" stroke-linecap="butt"/>
+    <path d="M44.05 49.2A21 21 0 0 1 41.29 50.83" opacity="0.5" stroke-linecap="butt"/>
+    <path d="M41.29 50.83A21 21 0 0 1 38.31 52.03" opacity="0.63" stroke-linecap="butt"/>
+    <path d="M38.31 52.03A21 21 0 0 1 35.19 52.76" opacity="0.77" stroke-linecap="butt"/>
+    <path d="M35.19 52.76A21 21 0 0 1 32 53" opacity="0.9" stroke-linecap="butt"/>
+    <circle cx="32" cy="53" r="10" fill="currentColor" stroke="none" mask="url(#l1a)"/>
+  </g></symbol>
+<symbol id="locus-1-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1t" fill="#000" stroke="none">
+      <circle cx="12.27" cy="24.82" r="11" fill="#fff"/>
+      <circle cx="7.27" cy="22.66" r="1.7" fill="#000"/>
+      <circle cx="14.07" cy="22.66" r="1.7" fill="#000"/>
+      <path d="M9.47 28.18h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M45.5 48.09A21 21 0 0 1 39.61 51.57" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M39.61 51.57A21 21 0 0 1 32.92 52.98" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M32.92 52.98A21 21 0 0 1 26.12 52.16" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M26.12 52.16A21 21 0 0 1 19.95 49.2" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M19.95 49.2A21 21 0 0 1 15.06 44.42" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M15.06 44.42A21 21 0 0 1 11.97 38.31" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M11.97 38.31A21 21 0 0 1 11 31.54" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M11 31.54A21 21 0 0 1 12.27 24.82" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="12.27" cy="24.82" r="10" fill="currentColor" stroke="none" mask="url(#l1t)"/></symbol>
+<symbol id="locus-1-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1f" fill="#000" stroke="none">
+      <circle cx="37.82" cy="10.27" r="11" fill="#fff"/>
+      <circle cx="34.02" cy="8.47" r="2.3" fill="#000"/>
+      <circle cx="41.62" cy="8.47" r="2.3" fill="#000"/>
+      <circle cx="37.82" cy="14.27" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M25.86 52.08A21 21 0 0 1 18.71 48.26" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M18.71 48.26A21 21 0 0 1 13.54 42.02" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M13.54 42.02A21 21 0 0 1 11.12 34.29" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M11.12 34.29A21 21 0 0 1 11.81 26.21" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M11.81 26.21A21 21 0 0 1 15.51 19" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M15.51 19A21 21 0 0 1 21.66 13.72" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M21.66 13.72A21 21 0 0 1 29.35 11.17" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M29.35 11.17A21 21 0 0 1 37.44 11.72" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="37.82" cy="10.27" r="10" fill="currentColor" stroke="none" mask="url(#l1f)"/></symbol>
+<symbol id="locus-1-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1c" fill="#000" stroke="none">
+      <circle cx="48.09" cy="18.5" r="11" fill="#fff"/>
+      <path d="M42.99 17.5a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M49.79 17.5a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M45.49 21.5a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M15.45 44.93A21 21 0 0 1 11.79 37.7" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M11.79 37.7A21 21 0 0 1 11.13 29.62" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M11.13 29.62A21 21 0 0 1 13.59 21.9" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M13.59 21.9A21 21 0 0 1 18.78 15.68" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M18.78 15.68A21 21 0 0 1 25.95 11.89" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M25.95 11.89A21 21 0 0 1 34.01 11.1" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M34.01 11.1A21 21 0 0 1 41.78 13.42" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M41.78 13.42A21 21 0 0 1 48.09 18.5" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="48.09" cy="18.5" r="10" fill="currentColor" stroke="none" mask="url(#l1c)"/></symbol>
+<symbol id="locus-2" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+  <circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none"/></symbol>
+<symbol id="locus-2-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2a" fill="#000" stroke="none">
+      <circle cx="32" cy="53" r="11" fill="#fff"/>
+      <path d="M27 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 56.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M20.56 49.61A21 21 0 1 1 43.44 49.61"/>
+    <circle cx="32" cy="53" r="10" fill="currentColor" stroke="none" mask="url(#l2a)"/>
+  </g></symbol>
+<symbol id="locus-2-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2t" fill="#000" stroke="none">
+      <circle cx="11" cy="32" r="11" fill="#fff"/>
+      <circle cx="9.2" cy="29.56" r="1.7" fill="#000"/>
+      <circle cx="16" cy="29.56" r="1.7" fill="#000"/>
+      <path d="M10.6 35.24h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M14.39 20.56A21 21 0 1 1 14.39 43.44"/>
+  <circle cx="11" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l2t)"/></symbol>
+<symbol id="locus-2-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2f" fill="#000" stroke="none">
+      <circle cx="48.26" cy="15.74" r="11" fill="#fff"/>
+      <circle cx="44.46" cy="13.94" r="2.3" fill="#000"/>
+      <circle cx="52.06" cy="13.94" r="2.3" fill="#000"/>
+      <circle cx="48.26" cy="19.74" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+  <circle cx="48.26" cy="15.74" r="10" fill="currentColor" stroke="none" mask="url(#l2f)"/></symbol>
+<symbol id="locus-2-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2c" fill="#000" stroke="none">
+      <circle cx="46.85" cy="17.15" r="11" fill="#fff"/>
+      <path d="M41.75 16.15a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M48.55 16.15a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M44.25 20.15a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+  <circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none" mask="url(#l2c)"/></symbol>
+<symbol id="locus-3" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="21"/>
+  <path d="M39.07 24.93L46.85 17.15"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none"/></symbol>
+<symbol id="locus-3-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3a" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <path d="M27 30.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 30.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 35.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <circle cx="32" cy="32" r="21"/>
+    <path d="M32 42L32 53"/>
+    <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3a)"/>
+  </g></symbol>
+<symbol id="locus-3-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3t" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <circle cx="27" cy="29.7" r="1.7" fill="#000"/>
+      <circle cx="33.8" cy="29.7" r="1.7" fill="#000"/>
+      <path d="M29.2 35.3h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M22.6 28.58L12.27 24.82"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3t)"/></symbol>
+<symbol id="locus-3-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3f" fill="#000" stroke="none">
+      <circle cx="32" cy="30.5" r="11" fill="#fff"/>
+      <circle cx="28.2" cy="28.7" r="2.3" fill="#000"/>
+      <circle cx="35.8" cy="28.7" r="2.3" fill="#000"/>
+      <circle cx="32" cy="34.5" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M32 20.5L32 11"/>
+  <circle cx="32" cy="30.5" r="10" fill="currentColor" stroke="none" mask="url(#l3f)"/></symbol>
+<symbol id="locus-3-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3c" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <path d="M26.9 31a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.7 31a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M29.4 35a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M39.07 24.93L46.85 17.15"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3c)"/></symbol>
+<symbol id="kept-1" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="29" r="20"/>
+  <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/></symbol>
+<symbol id="kept-1-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><g opacity=".55">
+    <circle cx="32" cy="29" r="20"/>
+    <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+    <path d="M27 27.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 27.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 32.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g></symbol>
+<symbol id="kept-1-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="29" r="20"/>
+  <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+  <circle cx="30.2" cy="26.56" r="1.7" fill="currentColor"/>
+  <circle cx="37" cy="26.56" r="1.7" fill="currentColor"/>
+  <path d="M31.6 32.24h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-1-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="27.5" r="20"/>
+  <path d="M12.16 30A20 20 0 1 0 51.84 30"/>
+  <circle cx="28.2" cy="25.7" r="2.3" fill="currentColor"/>
+  <circle cx="35.8" cy="25.7" r="2.3" fill="currentColor"/>
+  <circle cx="32" cy="31.5" r="1.6" fill="currentColor"/></symbol>
+<symbol id="kept-1-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="29" r="20"/>
+  <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+  <path d="M26.9 28a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M33.7 28a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M29.4 32a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-2" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="21" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/></symbol>
+<symbol id="kept-2-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><g opacity=".55">
+    <circle cx="32" cy="21" r="14"/>
+    <path d="M16 44h32"/>
+    <path d="M16 52h32"/>
+    <path d="M27 19.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 19.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 24.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g></symbol>
+<symbol id="kept-2-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="21" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/>
+  <circle cx="30.2" cy="18.56" r="1.7" fill="currentColor"/>
+  <circle cx="37" cy="18.56" r="1.7" fill="currentColor"/>
+  <path d="M31.6 24.24h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-2-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="19" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/>
+  <circle cx="28.2" cy="17.2" r="2.3" fill="currentColor"/>
+  <circle cx="35.8" cy="17.2" r="2.3" fill="currentColor"/>
+  <circle cx="32" cy="23" r="1.6" fill="currentColor"/></symbol>
+<symbol id="kept-2-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="21" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/>
+  <path d="M16 60h32"/>
+  <path d="M26.9 20a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M33.7 20a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M29.4 24a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-3" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 11.5h16"/>
+  <circle cx="32" cy="34" r="20"/>
+  <path d="M14.5 40A18.5 18.5 0 0 0 49.5 40Z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="kept-3-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><g opacity=".55">
+    <path d="M24 11.5h16"/>
+    <circle cx="32" cy="34" r="20"/>
+    <path d="M14.5 40A18.5 18.5 0 0 0 49.5 40Z" fill="currentColor" stroke="none"/>
+    <path d="M27 25.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 25.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 30.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g></symbol>
+<symbol id="kept-3-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 11.5h16"/>
+  <circle cx="32" cy="34" r="20"/>
+  <path d="M14.5 40A18.5 18.5 0 0 0 49.5 40Z" fill="currentColor" stroke="none"/>
+  <circle cx="29.08" cy="26.8" r="1.7" fill="currentColor"/>
+  <circle cx="35.88" cy="26.8" r="1.7" fill="currentColor"/>
+  <path d="M30.76 31.2h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-3-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 10h16"/>
+  <circle cx="32" cy="32.5" r="20"/>
+  <path d="M14.5 38.5A18.5 18.5 0 0 0 49.5 38.5Z" fill="currentColor" stroke="none"/>
+  <circle cx="28.2" cy="23.7" r="2.3" fill="currentColor"/>
+  <circle cx="35.8" cy="23.7" r="2.3" fill="currentColor"/>
+  <circle cx="32" cy="29.5" r="1.6" fill="currentColor"/></symbol>
+<symbol id="kept-3-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 11.5h16"/>
+  <circle cx="32" cy="34" r="20"/>
+  <path d="M13.61 36A18.5 18.5 0 0 0 50.39 36Z" fill="currentColor" stroke="none"/>
+  <path d="M26.9 26a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M33.7 26a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M29.4 30a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-4" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M27.02 13.41C25.8 13.59 22.01 13.56 19.74 14.49C17.46 15.41 15.1 17.05 13.37 18.96C11.64 20.86 10.14 23.42 9.36 25.93C8.57 28.45 8.36 31.42 8.69 34.04C9.01 36.66 9.98 39.43 11.31 41.65C12.64 43.87 14.61 45.94 16.65 47.35C18.69 48.76 21.25 49.81 23.55 50.11C25.86 50.42 29.34 49.34 30.5 49.18A3.25 3.25 0 0 0 31.06 42.71C30.65 42.14 29.2 40.31 28.61 39.26C28.03 38.22 27.77 37.3 27.55 36.45C27.33 35.6 27.33 34.86 27.31 34.19C27.29 33.51 27.37 32.96 27.42 32.4C27.47 31.84 27.55 31.39 27.6 30.82C27.64 30.25 27.59 29.69 27.69 28.98C27.79 28.28 27.86 27.48 28.2 26.58C28.54 25.67 29.48 24.05 29.74 23.55A5.25 5.25 0 0 0 27.02 13.41Z"/></symbol>
+<symbol id="kept-4-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="ca" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M13.13 28.7h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M19.93 28.7h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M16.73 33.7h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M27.02 13.41C25.8 13.59 22.01 13.56 19.74 14.49C17.46 15.41 15.1 17.05 13.37 18.96C11.64 20.86 10.14 23.42 9.36 25.93C8.57 28.45 8.36 31.42 8.69 34.04C9.01 36.66 9.98 39.43 11.31 41.65C12.64 43.87 14.61 45.94 16.65 47.35C18.69 48.76 21.25 49.81 23.55 50.11C25.86 50.42 29.34 49.34 30.5 49.18A3.25 3.25 0 0 0 31.06 42.71C30.65 42.14 29.2 40.31 28.61 39.26C28.03 38.22 27.77 37.3 27.55 36.45C27.33 35.6 27.33 34.86 27.31 34.19C27.29 33.51 27.37 32.96 27.42 32.4C27.47 31.84 27.55 31.39 27.6 30.82C27.64 30.25 27.59 29.69 27.69 28.98C27.79 28.28 27.86 27.48 28.2 26.58C28.54 25.67 29.48 24.05 29.74 23.55A5.25 5.25 0 0 0 27.02 13.41Z" fill="currentColor" stroke="none" mask="url(#ca)"/>
+  </g></symbol>
+<symbol id="kept-4-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="ct" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="16.33" cy="27.66" r="1.7" fill="#000"/>
+      <circle cx="23.13" cy="27.66" r="1.7" fill="#000"/>
+      <path d="M17.73 33.34h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.02 13.41C25.8 13.59 22.01 13.56 19.74 14.49C17.46 15.41 15.1 17.05 13.37 18.96C11.64 20.86 10.14 23.42 9.36 25.93C8.57 28.45 8.36 31.42 8.69 34.04C9.01 36.66 9.98 39.43 11.31 41.65C12.64 43.87 14.61 45.94 16.65 47.35C18.69 48.76 21.25 49.81 23.55 50.11C25.86 50.42 29.34 49.34 30.5 49.18A3.25 3.25 0 0 0 31.06 42.71C30.65 42.14 29.2 40.31 28.61 39.26C28.03 38.22 27.77 37.3 27.55 36.45C27.33 35.6 27.33 34.86 27.31 34.19C27.29 33.51 27.37 32.96 27.42 32.4C27.47 31.84 27.55 31.39 27.6 30.82C27.64 30.25 27.59 29.69 27.69 28.98C27.79 28.28 27.86 27.48 28.2 26.58C28.54 25.67 29.48 24.05 29.74 23.55A5.25 5.25 0 0 0 27.02 13.41Z" fill="currentColor" stroke="none" mask="url(#ct)"/></symbol>
+<symbol id="kept-4-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cf" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="14.33" cy="26.8" r="2.3" fill="#000"/>
+      <circle cx="21.93" cy="26.8" r="2.3" fill="#000"/>
+      <circle cx="18.13" cy="32.6" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M27.02 11.91C25.8 12.09 22.01 12.06 19.74 12.99C17.46 13.91 15.1 15.55 13.37 17.46C11.64 19.36 10.14 21.92 9.36 24.43C8.57 26.95 8.36 29.92 8.69 32.54C9.01 35.16 9.98 37.93 11.31 40.15C12.64 42.37 14.61 44.44 16.65 45.85C18.69 47.26 21.25 48.31 23.55 48.61C25.86 48.92 29.34 47.84 30.5 47.68A3.25 3.25 0 0 0 31.06 41.21C30.65 40.64 29.2 38.81 28.61 37.76C28.03 36.72 27.77 35.8 27.55 34.95C27.33 34.1 27.33 33.36 27.31 32.69C27.29 32.01 27.37 31.46 27.42 30.9C27.47 30.34 27.55 29.89 27.6 29.32C27.64 28.75 27.59 28.19 27.69 27.48C27.79 26.78 27.86 25.98 28.2 25.08C28.54 24.17 29.48 22.55 29.74 22.05A5.25 5.25 0 0 0 27.02 11.91Z" fill="currentColor" stroke="none" mask="url(#cf)"/></symbol>
+<symbol id="kept-4-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cc" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M13.03 30.6a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M19.83 30.6a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M15.53 34.6a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.02 14.91C25.8 15.09 22.01 15.06 19.74 15.99C17.46 16.91 15.1 18.55 13.37 20.46C11.64 22.36 10.14 24.92 9.36 27.43C8.57 29.95 8.36 32.92 8.69 35.54C9.01 38.16 9.98 40.93 11.31 43.15C12.64 45.37 14.61 47.44 16.65 48.85C18.69 50.26 21.25 51.31 23.55 51.61C25.86 51.92 29.34 50.84 30.5 50.68A3.25 3.25 0 0 0 31.06 44.21C30.65 43.64 29.2 41.81 28.61 40.76C28.03 39.72 27.77 38.8 27.55 37.95C27.33 37.1 27.33 36.36 27.31 35.69C27.29 35.01 27.37 34.46 27.42 33.9C27.47 33.34 27.55 32.89 27.6 32.32C27.64 31.75 27.59 31.19 27.69 30.48C27.79 29.78 27.86 28.98 28.2 28.08C28.54 27.17 29.48 25.55 29.74 25.05A5.25 5.25 0 0 0 27.02 14.91Z" fill="currentColor" stroke="none" mask="url(#cc)"/></symbol>
+<symbol id="kept-5" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M27.73 16.06C26.68 16.21 23.41 16.15 21.45 16.93C19.49 17.72 17.45 19.12 15.95 20.76C14.46 22.4 13.16 24.61 12.49 26.77C11.81 28.94 11.63 31.5 11.91 33.76C12.19 36.01 13.02 38.4 14.17 40.32C15.31 42.23 17 44.02 18.76 45.24C20.51 46.47 22.71 47.38 24.7 47.66C26.68 47.95 29.69 47.06 30.69 46.94A3 3 0 0 0 31.22 40.97C30.87 40.49 29.65 38.96 29.16 38.09C28.67 37.21 28.45 36.44 28.27 35.73C28.09 35.02 28.1 34.39 28.08 33.83C28.07 33.26 28.14 32.8 28.18 32.33C28.22 31.87 28.3 31.49 28.33 31.02C28.37 30.54 28.31 30.07 28.39 29.47C28.46 28.87 28.51 28.19 28.78 27.41C29.06 26.62 29.85 25.2 30.06 24.76A4.5 4.5 0 0 0 33.19 21.75A2.79 2.79 0 0 1 31.75 16.93A4.5 4.5 0 0 0 27.73 16.06Z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="kept-5-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cfa" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M15.11 28.97h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M21.91 28.97h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M18.71 33.97h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M27.73 16.06C26.68 16.21 23.41 16.15 21.45 16.93C19.49 17.72 17.45 19.12 15.95 20.76C14.46 22.4 13.16 24.61 12.49 26.77C11.81 28.94 11.63 31.5 11.91 33.76C12.19 36.01 13.02 38.4 14.17 40.32C15.31 42.23 17 44.02 18.76 45.24C20.51 46.47 22.71 47.38 24.7 47.66C26.68 47.95 29.69 47.06 30.69 46.94A3 3 0 0 0 31.22 40.97C30.87 40.49 29.65 38.96 29.16 38.09C28.67 37.21 28.45 36.44 28.27 35.73C28.09 35.02 28.1 34.39 28.08 33.83C28.07 33.26 28.14 32.8 28.18 32.33C28.22 31.87 28.3 31.49 28.33 31.02C28.37 30.54 28.31 30.07 28.39 29.47C28.46 28.87 28.51 28.19 28.78 27.41C29.06 26.62 29.85 25.2 30.06 24.76A4.5 4.5 0 0 0 33.19 21.75A2.79 2.79 0 0 1 31.75 16.93A4.5 4.5 0 0 0 27.73 16.06Z" fill="currentColor" stroke="none" mask="url(#cfa)"/>
+  </g></symbol>
+<symbol id="kept-5-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cft" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="18.31" cy="27.93" r="1.7" fill="#000"/>
+      <circle cx="25.11" cy="27.93" r="1.7" fill="#000"/>
+      <path d="M19.71 33.61h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.73 16.06C26.68 16.21 23.41 16.15 21.45 16.93C19.49 17.72 17.45 19.12 15.95 20.76C14.46 22.4 13.16 24.61 12.49 26.77C11.81 28.94 11.63 31.5 11.91 33.76C12.19 36.01 13.02 38.4 14.17 40.32C15.31 42.23 17 44.02 18.76 45.24C20.51 46.47 22.71 47.38 24.7 47.66C26.68 47.95 29.69 47.06 30.69 46.94A3 3 0 0 0 31.22 40.97C30.87 40.49 29.65 38.96 29.16 38.09C28.67 37.21 28.45 36.44 28.27 35.73C28.09 35.02 28.1 34.39 28.08 33.83C28.07 33.26 28.14 32.8 28.18 32.33C28.22 31.87 28.3 31.49 28.33 31.02C28.37 30.54 28.31 30.07 28.39 29.47C28.46 28.87 28.51 28.19 28.78 27.41C29.06 26.62 29.85 25.2 30.06 24.76A4.5 4.5 0 0 0 33.19 21.75A2.79 2.79 0 0 1 31.75 16.93A4.5 4.5 0 0 0 27.73 16.06Z" fill="currentColor" stroke="none" mask="url(#cft)"/></symbol>
+<symbol id="kept-5-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cff" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="16.31" cy="27.07" r="2.3" fill="#000"/>
+      <circle cx="23.91" cy="27.07" r="2.3" fill="#000"/>
+      <circle cx="20.11" cy="32.87" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M27.73 14.56C26.68 14.71 23.41 14.65 21.45 15.43C19.49 16.22 17.45 17.62 15.95 19.26C14.46 20.9 13.16 23.11 12.49 25.27C11.81 27.44 11.63 30 11.91 32.26C12.19 34.51 13.02 36.9 14.17 38.82C15.31 40.73 17 42.52 18.76 43.74C20.51 44.97 22.71 45.88 24.7 46.16C26.68 46.45 29.69 45.56 30.69 45.44A3 3 0 0 0 31.22 39.47C30.87 38.99 29.65 37.46 29.16 36.59C28.67 35.71 28.45 34.94 28.27 34.23C28.09 33.52 28.1 32.89 28.08 32.33C28.07 31.76 28.14 31.3 28.18 30.83C28.22 30.37 28.3 29.99 28.33 29.52C28.37 29.04 28.31 28.57 28.39 27.97C28.46 27.37 28.51 26.69 28.78 25.91C29.06 25.12 29.85 23.7 30.06 23.26A4.5 4.5 0 0 0 33.19 20.25A2.79 2.79 0 0 1 31.75 15.43A4.5 4.5 0 0 0 27.73 14.56Z" fill="currentColor" stroke="none" mask="url(#cff)"/></symbol>
+<symbol id="kept-5-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cfc" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M15.01 30.87a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M21.81 30.87a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M17.51 34.87a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.73 17.56C26.68 17.71 23.41 17.65 21.45 18.43C19.49 19.22 17.45 20.62 15.95 22.26C14.46 23.9 13.16 26.11 12.49 28.27C11.81 30.44 11.63 33 11.91 35.26C12.19 37.51 13.02 39.9 14.17 41.82C15.31 43.73 17 45.52 18.76 46.74C20.51 47.97 22.71 48.88 24.7 49.16C26.68 49.45 29.69 48.56 30.69 48.44A3 3 0 0 0 31.22 42.47C30.87 41.99 29.65 40.46 29.16 39.59C28.67 38.71 28.45 37.94 28.27 37.23C28.09 36.52 28.1 35.89 28.08 35.33C28.07 34.76 28.14 34.3 28.18 33.83C28.22 33.37 28.3 32.99 28.33 32.52C28.37 32.04 28.31 31.57 28.39 30.97C28.46 30.37 28.51 29.69 28.78 28.91C29.06 28.12 29.85 26.7 30.06 26.26A4.5 4.5 0 0 0 33.19 23.25A2.79 2.79 0 0 1 31.75 18.43A4.5 4.5 0 0 0 27.73 17.56Z" fill="currentColor" stroke="none" mask="url(#cfc)"/></symbol>
+<symbol id="c2-c-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/></symbol>
+<symbol id="c2-character-asleep" viewBox="0 0 64 64"><g opacity=".78">
+  <path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <path d="M17.6 33L21.6 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.4 33L30.4 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M22.7 38.4L25.3 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  </g></symbol>
+<symbol id="c2-character-clear" viewBox="0 0 64 64"><path d="M20 10C17.17 11 13 13 11 16C9 19 8 23.83 8 28C8 32.17 8.83 37 11 41C13.17 45 17.17 49.5 21 52C24.83 54.5 29.67 55.83 34 56C38.33 56.17 43.5 55 47 53C50.5 51 53.5 47.33 55 44C56.5 40.67 57 35.33 56 33C55 30.67 51.83 30.83 49 30C46.17 29.17 41.5 29.83 39 28C36.5 26.17 35.83 22 34 19C32.17 16 30.33 11.5 28 10C25.67 8.5 22.83 9 20 10Z" fill="#1E7A52"/>
+  <path d="M22.6 22.2C20.62 22.9 17.7 24.3 16.3 26.4C14.9 28.5 14.2 31.88 14.2 34.8C14.2 37.72 14.78 41.1 16.3 43.9C17.82 46.7 20.62 49.85 23.3 51.6C25.98 53.35 29.37 54.28 32.4 54.4C35.43 54.52 39.05 53.7 41.5 52.3C43.95 50.9 46.05 48.33 47.1 46C48.15 43.67 48.5 39.93 47.8 38.3C47.1 36.67 44.88 36.78 42.9 36.2C40.92 35.62 37.65 36.08 35.9 34.8C34.15 33.52 33.68 30.6 32.4 28.5C31.12 26.4 29.83 23.25 28.2 22.2C26.57 21.15 24.58 21.5 22.6 22.2Z" fill="#5CC395"/>
+  <path d="M16 9.5C16.58 8.58 20.25 7.5 22 7.5C23.75 7.5 26.17 8.67 26.5 9.5C26.83 10.33 25.33 11.92 24 12.5C22.67 13.08 19.83 13.5 18.5 13C17.17 12.5 15.42 10.42 16 9.5Z" fill="#13573A"/>
+  <path d="M17.5 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.3 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M20.8 38.6a3.2 3.2 0 0 0 6.4 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character-found" viewBox="0 0 64 64"><path d="M20 7.5C17.17 8.5 13 10.5 11 13.5C9 16.5 8 21.33 8 25.5C8 29.67 8.83 34.5 11 38.5C13.17 42.5 17.17 47 21 49.5C24.83 52 29.67 53.33 34 53.5C38.33 53.67 43.5 52.5 47 50.5C50.5 48.5 53.5 44.83 55 41.5C56.5 38.17 57 32.83 56 30.5C55 28.17 51.83 28.33 49 27.5C46.17 26.67 41.5 27.33 39 25.5C36.5 23.67 35.83 19.5 34 16.5C32.17 13.5 30.33 9 28 7.5C25.67 6 22.83 6.5 20 7.5Z" fill="#1E7A52"/>
+  <path d="M22.6 19.7C20.62 20.4 17.7 21.8 16.3 23.9C14.9 26 14.2 29.38 14.2 32.3C14.2 35.22 14.78 38.6 16.3 41.4C17.82 44.2 20.62 47.35 23.3 49.1C25.98 50.85 29.37 51.78 32.4 51.9C35.43 52.02 39.05 51.2 41.5 49.8C43.95 48.4 46.05 45.83 47.1 43.5C48.15 41.17 48.5 37.43 47.8 35.8C47.1 34.17 44.88 34.28 42.9 33.7C40.92 33.12 37.65 33.58 35.9 32.3C34.15 31.02 33.68 28.1 32.4 26C31.12 23.9 29.83 20.75 28.2 19.7C26.57 18.65 24.58 19 22.6 19.7Z" fill="#5CC395"/>
+  <path d="M16 7C16.58 6.08 20.25 5 22 5C23.75 5 26.17 6.17 26.5 7C26.83 7.83 25.33 9.42 24 10C22.67 10.58 19.83 11 18.5 10.5C17.17 10 15.42 7.92 16 7Z" fill="#13573A"/>
+  <circle cx="19.2" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="28.8" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="24" cy="37.5" r="2.1" fill="#0C161D"/></symbol>
+<symbol id="c2-character-mark" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="currentColor"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="currentColor"/></symbol>
+<symbol id="c2-character-thinking" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="21.6" cy="31.6" r="2.4" fill="#0C161D"/>
+  <circle cx="30.4" cy="31.6" r="2.4" fill="#0C161D"/>
+  <path d="M24.6 38.2L27.6 38.2" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="19.6" cy="33" r="2.4" fill="#0C161D"/>
+  <circle cx="28.4" cy="33" r="2.4" fill="#0C161D"/>
+  <path d="M21.8 38.4L26.2 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-curl" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"><path d="M41.12 26.76A6.5 6.5 0 0 0 37.62 18.09A15 15 0 1 0 37.62 45.91"/></symbol>
+<symbol id="c2-wordmark" viewBox="0 -40.8 154.94 43.6" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>
+  <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>
+  <path d="M50.1 -23.2V-2.8"/>
+  <path d="M66.12 -20.65A5.1 5.1 0 1 0 61.7 -13A5.1 5.1 0 1 1 57.28 -5.35"/>
+  <path d="M73.3 -35.2V-2.8"/>
+  <path d="M73.3 -11.47A8.67 8.67 0 0 1 90.64 -11.47V-2.8"/>
+  <path d="M117.54 -13A10.2 10.2 0 1 0 114.92 -6.17"/>
+  <path d="M97.14 -13H117.54"/>
+  <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>
+  <path d="M136.69 -9.12V-16.12"/></symbol>
+<symbol id="cashew-asleep" viewBox="0 0 64 64"><g opacity=".78">
+  <path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <path d="M17.6 33L21.6 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.4 33L30.4 33" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M22.7 38.4L25.3 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  </g></symbol>
+<symbol id="cashew-clear" viewBox="0 0 64 64"><path d="M20 10C17.17 11 13 13 11 16C9 19 8 23.83 8 28C8 32.17 8.83 37 11 41C13.17 45 17.17 49.5 21 52C24.83 54.5 29.67 55.83 34 56C38.33 56.17 43.5 55 47 53C50.5 51 53.5 47.33 55 44C56.5 40.67 57 35.33 56 33C55 30.67 51.83 30.83 49 30C46.17 29.17 41.5 29.83 39 28C36.5 26.17 35.83 22 34 19C32.17 16 30.33 11.5 28 10C25.67 8.5 22.83 9 20 10Z" fill="#1E7A52"/>
+  <path d="M22.6 22.2C20.62 22.9 17.7 24.3 16.3 26.4C14.9 28.5 14.2 31.88 14.2 34.8C14.2 37.72 14.78 41.1 16.3 43.9C17.82 46.7 20.62 49.85 23.3 51.6C25.98 53.35 29.37 54.28 32.4 54.4C35.43 54.52 39.05 53.7 41.5 52.3C43.95 50.9 46.05 48.33 47.1 46C48.15 43.67 48.5 39.93 47.8 38.3C47.1 36.67 44.88 36.78 42.9 36.2C40.92 35.62 37.65 36.08 35.9 34.8C34.15 33.52 33.68 30.6 32.4 28.5C31.12 26.4 29.83 23.25 28.2 22.2C26.57 21.15 24.58 21.5 22.6 22.2Z" fill="#5CC395"/>
+  <path d="M16 9.5C16.58 8.58 20.25 7.5 22 7.5C23.75 7.5 26.17 8.67 26.5 9.5C26.83 10.33 25.33 11.92 24 12.5C22.67 13.08 19.83 13.5 18.5 13C17.17 12.5 15.42 10.42 16 9.5Z" fill="#13573A"/>
+  <path d="M17.5 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M26.3 34.6a2.1 2.1 0 0 1 4.2 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M20.8 38.6a3.2 3.2 0 0 0 6.4 0" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="cashew-found" viewBox="0 0 64 64"><path d="M20 7.5C17.17 8.5 13 10.5 11 13.5C9 16.5 8 21.33 8 25.5C8 29.67 8.83 34.5 11 38.5C13.17 42.5 17.17 47 21 49.5C24.83 52 29.67 53.33 34 53.5C38.33 53.67 43.5 52.5 47 50.5C50.5 48.5 53.5 44.83 55 41.5C56.5 38.17 57 32.83 56 30.5C55 28.17 51.83 28.33 49 27.5C46.17 26.67 41.5 27.33 39 25.5C36.5 23.67 35.83 19.5 34 16.5C32.17 13.5 30.33 9 28 7.5C25.67 6 22.83 6.5 20 7.5Z" fill="#1E7A52"/>
+  <path d="M22.6 19.7C20.62 20.4 17.7 21.8 16.3 23.9C14.9 26 14.2 29.38 14.2 32.3C14.2 35.22 14.78 38.6 16.3 41.4C17.82 44.2 20.62 47.35 23.3 49.1C25.98 50.85 29.37 51.78 32.4 51.9C35.43 52.02 39.05 51.2 41.5 49.8C43.95 48.4 46.05 45.83 47.1 43.5C48.15 41.17 48.5 37.43 47.8 35.8C47.1 34.17 44.88 34.28 42.9 33.7C40.92 33.12 37.65 33.58 35.9 32.3C34.15 31.02 33.68 28.1 32.4 26C31.12 23.9 29.83 20.75 28.2 19.7C26.57 18.65 24.58 19 22.6 19.7Z" fill="#5CC395"/>
+  <path d="M16 7C16.58 6.08 20.25 5 22 5C23.75 5 26.17 6.17 26.5 7C26.83 7.83 25.33 9.42 24 10C22.67 10.58 19.83 11 18.5 10.5C17.17 10 15.42 7.92 16 7Z" fill="#13573A"/>
+  <circle cx="19.2" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="28.8" cy="31.1" r="3" fill="#0C161D"/>
+  <circle cx="24" cy="37.5" r="2.1" fill="#0C161D"/></symbol>
+<symbol id="cashew-lockup" viewBox="0 -4 216.94 56"><g transform="scale(0.75)">
+  <path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="currentColor"/>  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="currentColor"/>
+  </g>
+  <g transform="translate(62 37)" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>  <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>  <path d="M50.1 -23.2V-2.8"/>  <path d="M66.12 -20.65A5.1 5.1 0 1 0 61.7 -13A5.1 5.1 0 1 1 57.28 -5.35"/>  <path d="M73.3 -35.2V-2.8"/>  <path d="M73.3 -11.47A8.67 8.67 0 0 1 90.64 -11.47V-2.8"/>  <path d="M117.54 -13A10.2 10.2 0 1 0 114.92 -6.17"/>  <path d="M97.14 -13H117.54"/>  <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>  <path d="M136.69 -9.12V-16.12"/>
+  </g></symbol>
+<symbol id="cashew-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/></symbol>
+<symbol id="cashew-rest" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="19.6" cy="33" r="2.4" fill="#0C161D"/>
+  <circle cx="28.4" cy="33" r="2.4" fill="#0C161D"/>
+  <path d="M21.8 38.4L26.2 38.4" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="cashew-silhouette" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="currentColor"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="currentColor"/></symbol>
+<symbol id="cashew-thinking" viewBox="0 0 64 64"><path d="M20 9C17.17 10 13 12 11 15C9 18 8 22.83 8 27C8 31.17 8.83 36 11 40C13.17 44 17.17 48.5 21 51C24.83 53.5 29.67 54.83 34 55C38.33 55.17 43.5 54 47 52C50.5 50 53.5 46.33 55 43C56.5 39.67 57 34.33 56 32C55 29.67 51.83 29.83 49 29C46.17 28.17 41.5 28.83 39 27C36.5 25.17 35.83 21 34 18C32.17 15 30.33 10.5 28 9C25.67 7.5 22.83 8 20 9Z" fill="#1E7A52"/>
+  <path d="M22.6 21.2C20.62 21.9 17.7 23.3 16.3 25.4C14.9 27.5 14.2 30.88 14.2 33.8C14.2 36.72 14.78 40.1 16.3 42.9C17.82 45.7 20.62 48.85 23.3 50.6C25.98 52.35 29.37 53.28 32.4 53.4C35.43 53.52 39.05 52.7 41.5 51.3C43.95 49.9 46.05 47.33 47.1 45C48.15 42.67 48.5 38.93 47.8 37.3C47.1 35.67 44.88 35.78 42.9 35.2C40.92 34.62 37.65 35.08 35.9 33.8C34.15 32.52 33.68 29.6 32.4 27.5C31.12 25.4 29.83 22.25 28.2 21.2C26.57 20.15 24.58 20.5 22.6 21.2Z" fill="#5CC395"/>
+  <path d="M16 8.5C16.58 7.58 20.25 6.5 22 6.5C23.75 6.5 26.17 7.67 26.5 8.5C26.83 9.33 25.33 10.92 24 11.5C22.67 12.08 19.83 12.5 18.5 12C17.17 11.5 15.42 9.42 16 8.5Z" fill="#13573A"/>
+  <circle cx="21.6" cy="31.6" r="2.4" fill="#0C161D"/>
+  <circle cx="30.4" cy="31.6" r="2.4" fill="#0C161D"/>
+  <path d="M24.6 38.2L27.6 38.2" stroke="#0C161D" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="cashew-wordmark" viewBox="0 -40.8 154.94 43.6" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>
+  <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>
+  <path d="M50.1 -23.2V-2.8"/>
+  <path d="M66.12 -20.65A5.1 5.1 0 1 0 61.7 -13A5.1 5.1 0 1 1 57.28 -5.35"/>
+  <path d="M73.3 -35.2V-2.8"/>
+  <path d="M73.3 -11.47A8.67 8.67 0 0 1 90.64 -11.47V-2.8"/>
+  <path d="M117.54 -13A10.2 10.2 0 1 0 114.92 -6.17"/>
+  <path d="M97.14 -13H117.54"/>
+  <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>
+  <path d="M136.69 -9.12V-16.12"/></symbol>
+<symbol id="cashew-icon" viewBox="0 0 64 64"><rect width="64" height="64" fill="#1E7A52"/>
+  <g transform="translate(1.63 -0.34) scale(1.0105)" color="#fff" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/>
+  </g></symbol>
+<symbol id="mobius" viewBox="0 0 2400 1655"><path d="M221.200 1393.617 C120.000 1292.448 120.000 1126.895 221.200 1025.689 L1025.947 221.189 C1127.148 120.020 1292.751 120.020 1393.989 221.189 C1495.189 322.358 1495.189 487.911 1393.989 589.117 L589.241 1393.617 C488.041 1494.786 322.437 1494.786 221.200 1393.617 M2232.828 701.215 L1738.573 1195.317 L1738.573 1252.477 C1738.573 1395.581 1855.671 1512.642 1998.818 1512.642 C2141.966 1512.642 2259.063 1395.581 2259.063 1252.477 L2259.063 671.616 C2250.985 681.840 2242.277 691.768 2232.828 701.215 M1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 Z" fill="currentColor"/></symbol>
+</svg>
+<script>window.KIT_VB={"c2-wordmark": "0 -40.8 154.94 43.6", "cashew-lockup": "0 -4 216.94 56", "cashew-wordmark": "0 -40.8 154.94 43.6"}</script>
+<!-- marks:end -->
+
+<div class="wrap">
+  <div class="top">
+    <div class="marks" id="topMarks"></div>
+    <div class="sp"></div>
+    <div class="seg" id="theme" role="group" aria-label="Theme">
+      <button type="button" data-t="light">Light</button>
+      <button type="button" data-t="system" class="on">System</button>
+      <button type="button" data-t="dark">Dark</button>
+    </div>
+  </div>
+
+  <div class="head">
+    <div>
+      <div class="label">Brand kit, 2026-10-11</div>
+      <h1 style="margin-top:8px">Two products, one <em class="kit-accent" style="color:var(--locus-ink)">voice</em>.</h1>
+      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. Cole picked the bead for Locus and the name Cashew for the money app. For Cashew the pick, pending Cole's veto, is the wordmark with the C as the app icon, and the character from direction 3 as the helper, kept separate from the logo the way the reference video splits mark and mascot. The final files are in logo/cashew/.</p>
+    </div>
+    <div class="pickbox">
+      <div class="label">Your pick</div>
+      <div class="row" id="pickLocus"><b>Locus</b><span>nothing ticked yet</span></div>
+      <div class="row" id="pickKept"><b>Cashew</b><span>nothing ticked yet</span></div>
+      <button type="button" class="btn primary" id="copyPick">Copy the pick</button><span class="toast" id="toast"></span>
+    </div>
+  </div>
+
+  <section id="locus" data-product="locus" style="--field:var(--locus);--field-ink:var(--locus-ink);--field-soft:var(--locus-soft)">
+    <div class="sec-h"><h2>Locus, the <em class="kit-accent">dot</em></h2><span class="n">3 directions</span></div>
+    <p class="sec-p">A locus is a point moving along a path. The helper is the dot: it lives in the ask bar, looks aside while it thinks, lights up when it has a call for you, and goes dim when all is well. All three directions keep that one character and differ in what the path is.</p>
+    <div class="dirs" id="locusDirs"></div>
+  </section>
+
+  <section id="cashew" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+    <div class="sec-h"><h2>Cashew, round <em class="kit-accent">two</em></h2><span class="n">3 directions</span></div>
+    <p class="sec-p">The name is Cashew. Round one drew a literal nut in one stroke on the ring grid and Cole said no, so this round is three proper logos, not pictograms: a curl that only suggests the kidney, a wordmark whose C is the icon, and a character drawn as an illustration with its silhouette as the mark. Each is shown at 200, 48, 20 and 16px, on white and on the green, and beside the Locus bead and the Mobius ribbon.</p>
+    <div class="final" id="cashewFinal">
+      <div class="label">The pick, 2026-10-11, pending Cole's veto</div>
+      <div class="finrow">
+        <span class="wm"><svg class="m" viewBox="0 0 216.94 56" style="aspect-ratio:216.94 / 56" role="img" aria-label="Cashew lockup"><use href="#cashew-lockup"/></svg></span>
+        <span class="kit-helper px48"><svg class="m"><use href="#cashew-mark"/></svg></span>
+        <span class="kit-helper px48"><svg class="m"><use href="#cashew-rest"/></svg></span>
+        <span class="icon"><svg class="m" viewBox="0 0 64 64"><use href="#cashew-icon"/></svg></span>
+        <span class="icon sm"><svg class="m" viewBox="0 0 64 64"><use href="#cashew-icon"/></svg></span>
+      </div>
+      <p>The lockup (silhouette plus wordmark, one colour), the C as the mark, the character at rest as the helper, and the app icon at 48px and 32px. Files: mark.svg, wordmark.svg, lockup.svg, silhouette.svg, rest.svg, asleep.svg, thinking.svg, found.svg, clear.svg, and icons/ with the C on the green.</p>
+    </div>
+    <div class="dirs r2" id="cashewDirs"></div>
+  </section>
+
+  <section id="kept" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+    <div class="sec-h"><h2>The money app, round <em class="kit-accent">one</em></h2><span class="n">kept as the record</span></div>
+    <p class="sec-p">What the first morning produced: three coins under the name Kept, and two literal nuts under Cashew (directions 4 and 5), which Cole called terrible. The name Cashew won; these drawings did not. They stay here so the record is whole.</p>
+    <details class="arch"><summary>Round one, five drawings</summary>
+    <div class="names">
+      <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-1"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-2"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-3"/></svg></span></div><div><b>Kept</b><small>Know what you <em class="kit-accent">kept</em>. Directions 1 to 3.</small></div></div>
+      <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-4"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-5"/></svg></span></div><div><b>Cashew</b><small>Know what you <em class="kit-accent">kept</em>. Directions 4 and 5.</small></div></div>
+    </div>
+    <div class="dirs four" id="keptDirs"></div>
+    </details>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Beside the Mobius mark</h2></div>
+    <p class="sec-p">The Mobius mark leaves the apps and stays on the agency site. The new marks should sit beside it like relatives, not copies: the same confident weight, a different shape. In ink first, then in colour.</p>
+    <div class="family">
+      <div class="row ink" id="famInk"></div>
+      <div class="row" id="famColor"></div>
+      <p class="cap">Mobius is a ribbon; Locus and the Kept coins are rings; the Cashew curl is a stroke of the same weight. The ribbon's band is about 14% of its height, the rings' stroke is 8% of the box and 12% of the ring, so the three share a weight without sharing a shape. Each ring sits on a 64 grid, radius 21, stroke 5, round caps, currentColor.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>The two <em class="kit-accent" style="color:var(--kept-ink)">fields</em></h2></div>
+    <p class="sec-p">One bold colour field, borrowed from the video: the gate, the empty states and the morning line. Ink on a field is white in both themes; in dark the field itself goes a step deeper so a full screen of it does not glare. Below each gate, the colour as it is used on a surface: text, chips, the active pill.</p>
+    <div class="fields">
+      <div data-product="locus" style="--field:var(--locus);--field-ink:var(--locus-ink);--field-soft:var(--locus-soft)">
+        <div class="kit-field gate">
+          <div class="in">
+            <div class="kit-helper on-field" id="gateLocus"></div>
+            <h2 class="kit-head">Know what to <em>change</em> today.</h2>
+            <p>Every store, every ad account, every email, read before you wake up.</p>
+            <input type="email" id="gateLocusEmail" placeholder="you@brand.com" aria-label="Email">
+            <button type="button" class="kit-btn">Continue with Google</button>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="sw f" style="background:var(--locus)"><b>Locus blue</b><code>--locus #2F62D9</code><br>ink on it: white, 5.4:1</div>
+          <div class="sw f" style="background:var(--locus-deep)"><b>In the dark theme</b><code>--locus-deep #2451B8</code><br>the field, not the text</div>
+          <div class="sw s" style="--field-ink:var(--locus-ink)"><b>As text on a surface</b><code>--locus-ink</code><br>#2552BF light, #8FB3FF dark</div>
+          <div class="sw s" style="background:var(--locus-soft);border-color:transparent"><b style="color:var(--locus-ink)">The soft tint</b><code>--locus-soft</code><br>chips, the active rail pill</div>
+        </div>
+        <div class="kit-morning morning"><span class="kit-helper on-field" id="mornLocus"></span><span><time>7:02</time> &nbsp;Bonk is pacing 9% over plan. Nothing to change before coffee.</span></div>
+      </div>
+      <div data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+        <div class="kit-field gate">
+          <div class="in">
+            <div class="kit-helper on-field" id="gateKept"></div>
+            <h2 class="kit-head">Know what you <em>actually</em> kept.</h2>
+            <p>Every account, every sale, every bill. One real number, every night.</p>
+            <input type="email" id="gateKeptEmail" placeholder="you@business.com" aria-label="Email">
+            <button type="button" class="kit-btn">Continue with Google</button>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="sw f" style="background:var(--kept)"><b>Kept green</b><code>--kept #1E7A52</code><br>ink on it: white, 5.3:1</div>
+          <div class="sw f" style="background:var(--kept-deep)"><b>In the dark theme</b><code>--kept-deep #176443</code><br>the field, not the text</div>
+          <div class="sw s" style="--field-ink:var(--kept-ink)"><b>As text on a surface</b><code>--kept-ink</code><br>#1B6B48 light, #6FD0A4 dark</div>
+          <div class="sw s" style="background:var(--kept-soft);border-color:transparent"><b style="color:var(--kept-ink)">The soft tint</b><code>--kept-soft</code><br>chips, the active rail pill</div>
+        </div>
+        <div class="kit-morning morning"><span class="kit-helper on-field" id="mornKept"></span><span><time>Mon 7:02</time> &nbsp;You kept $3,120 last week. One bill did not arrive.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>The accent <em class="kit-accent" style="color:var(--locus-ink)">word</em></h2></div>
+    <p class="sec-p">One serif italic word per page head, the word that carries the sentence. Instrument Serif is already loaded by every Mobius tool and sits well against Inter: a narrow, high-contrast italic next to a plain sans. The rule is in logo/kit.css as the class kit-accent.</p>
+    <div class="accent">
+      <div class="ex">
+        <div><div class="kit-head" style="--field-ink:var(--locus-ink)">Yesterday you <em>kept</em> $1,284.</div><div class="sub">Locus, Home. The hero number is the money app's number when a brand uses both.</div></div>
+        <div><div class="kit-head" style="--field-ink:var(--locus-ink)">Today's <em>calls</em>.</div><div class="sub">Locus, Ads. Scale this, cut that, refresh this creative.</div></div>
+        <div><div class="kit-head" style="--field-ink:var(--kept-ink)">What you <em>actually</em> kept this month.</div><div class="sub">Kept, Home. Every other tile is a bite out of it.</div></div>
+        <div><div class="kit-head" style="--field-ink:var(--kept-ink)">The month is <em>closed</em>.</div><div class="sub">Kept, the close. The pack for the CPA is ready.</div></div>
+      </div>
+      <div class="rule">
+        <div class="label">The rule</div>
+        <ul>
+          <li>One accent word per page head. Never two, never a whole sentence.</li>
+          <li>The word that carries the meaning: actually, change, kept, paused. Not the product name.</li>
+          <li>Instrument Serif italic, regular weight, 8% larger than the sans so the x-heights line up.</li>
+          <li>On a surface the word takes the product's colour. On a field it stays white like the rest.</li>
+          <li>Numbers, buttons and labels never take the serif. It is a voice, not a style.</li>
+        </ul>
+        <div class="pair">
+          <div><div class="big" style="font-weight:650;letter-spacing:-.02em">Inter</div><small>the app face, 400 to 700, tabular numbers</small></div>
+          <div><div class="big serif">Instrument Serif</div><small>italic only, one word at a time</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>The helper in <em class="kit-accent" style="color:var(--kept-ink)">use</em></h2></div>
+    <p class="sec-p">The ask bar and the nudge card, drawn with the direction you ticked. The helper never talks in paragraphs: one sentence and one button, and it never blocks a screen.</p>
+    <div class="use">
+      <div class="col" data-product="locus" style="--field:var(--locus);--field-ink:var(--locus-ink);--field-soft:var(--locus-soft)">
+        <div class="label">Locus</div>
+        <div class="kit-ask"><span class="kit-helper thinking" id="askLocus"></span><input type="text" id="askLocusIn" placeholder="Ask Locus" aria-label="Ask Locus"></div>
+        <p class="cap">The ask bar at 20px, thinking. Enter sends; the dot looks aside while it works.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="nudgeLocus"></span><p><b>Dartee's Meta spend</b> is 31% over plan and the CPA crossed goal for the third day.</p><div class="kit-acts"><button type="button">Not now</button><button type="button" class="primary">Pause the set</button></div></div>
+        <p class="cap">The nudge card: found something. One sentence, one action, Not now.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="clearLocus"></span><p>Every brand is on plan. Nothing to change today.</p><div class="kit-acts"><button type="button">Open Home</button></div></div>
+        <p class="cap">All clear: the small nod.</p>
+      </div>
+      <div class="col" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+        <div class="label" id="useKeptLabel">Kept</div>
+        <div class="kit-ask"><span class="kit-helper thinking" id="askKept"></span><input type="text" id="askKeptIn" placeholder="Ask Kept" aria-label="Ask the money app"></div>
+        <p class="cap">The ask bar at 20px. With the character it thinks; with a mark it just sits.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="nudgeKept"></span><p><b>The Shopify payout</b> landed twice on Tuesday. $2,140 is counted two times.</p><div class="kit-acts"><button type="button">Not now</button><button type="button" class="primary">Book it</button></div></div>
+        <p class="cap">The nudge card: found something.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="clearKept"></span><p>September is closed. The pack for your CPA is ready.</p><div class="kit-acts"><button type="button">Open the pack</button></div></div>
+        <p class="cap">All clear: the small nod.</p>
+        <div class="pack">
+          <div class="ph"><span class="kit-helper" id="packMark"></span><span class="wm" id="packWm" style="color:var(--field)"></span><b id="packName">Kept</b><span class="when">September 2026</span></div>
+          <h4>Lucky Golf, the month closed</h4>
+          <p id="packFoot">Prepared by Kept from the bank, Shopify and Stripe. Every line ties to a statement.</p>
+          <table><tr><td>Revenue, net of tax and refunds</td><td>$118,420</td></tr><tr><td>Cost of goods</td><td>$41,900</td></tr><tr><td>Advertising</td><td>$31,250</td></tr><tr><td>Fees, shipping, software</td><td>$17,880</td></tr><tr><td><b>What you kept</b></td><td><b>$27,390</b></td></tr></table>
+        </div>
+        <p class="cap">The CPA pack header: the wordmark (or the plain mark for a direction without one), the month. The helper never appears on a document.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var DIRS = {
+    locus: [
+      {n:1, name:'The trail', one:'A point and the path it has travelled.',
+       why:'<b>Strong:</b> the only mark that moves even when it is still; the trail is the story of the morning read. The helper has a built-in posture, the trail says where it has been. <b>Weak:</b> it is not symmetrical, so it fights a square app icon, and at 20px the fade is a smudge.'},
+      {n:2, name:'The bead', one:'A point sitting in its ring, where the path is whole.',
+       why:'<b>Strong:</b> the simplest of the three and the one that survives 16px. The bead sits in a gap it completes, and its place on the ring is the state: at the bottom asleep, at the left thinking, lifted off when it has found something. <b>Weak:</b> a ring with a dot is a shape other apps own too; the character carries the difference.'},
+      {n:3, name:'The heading', one:'A point at the centre with a needle to the ring.',
+       why:'<b>Strong:</b> it says what Locus sells, the call: where you are and which way to go. The needle is the posture, hanging down asleep, straight up when it has found something. <b>Weak:</b> at 20px it can read as a clock or a dial, and the needle crowds the face on a phone.'}
+    ],
+    kept: [
+      {n:1, brand:'Kept', name:'The coin', one:'A disc with its edge showing. The face lives on it.',
+       why:'<b>Strong:</b> the plainest reading of what the app is about, and the face has the most room of the three. The edge keeps it from being a plain circle. <b>Weak:</b> a coin is the oldest money symbol there is; it needs the character to be anyone.'},
+      {n:2, brand:'Kept', name:'The stack', one:'A coin standing on the coins already kept. It grows.',
+       why:'<b>Strong:</b> the mark carries the promise: what you kept, kept. The all-clear state adds a coin to the pile, so a good month shows. <b>Weak:</b> the tallest and busiest of the six; at 20px the bars thin to lines, and it is the one mark that does not fit a circle.'},
+      {n:3, brand:'Kept', name:'The jar', one:'A round jar with a lid, filled to what you kept.',
+       why:'<b>Strong:</b> the fill line is the hero number drawn as a shape, and it moves: fuller on a clean close, the face looks down at it while thinking. It pairs with the video\'s melting balance. <b>Weak:</b> a half-filled circle can read as a gauge or a contrast icon before it reads as a jar, and the lid adds a second shape to the construction.'},
+      {n:4, brand:'Cashew', name:'The nut', one:'A cashew, one closed stroke, belly on the ring.',
+       why:'<b>Strong:</b> the name and the mark are one joke told once, cash and a nut, and the helper has the most personality to lean into: the nut itself is the character, no props needed, and the plain outline is a quiet mark for a CPA pack. <b>Weak:</b> it is the one shape here that is not a circle, so it is the odd one next to Locus and the Mobius ribbon; a kidney at 20px can read as a crescent moon; and the name says nothing about money until the tagline does.'},
+      {n:5, brand:'Cashew', weigh:true, name:'The nut, filled', one:'The same cashew as a solid silhouette, with the stem notch. No face at 20px.', plain20:true,
+       why:'<b>Strong:</b> the silhouette is unmistakably a cashew at every size, the curl, the belly and the stem all read, where the open stroke of direction 4 turns into a crescent moon at 48px and below. The kidney is drawn fatter and a size smaller than direction 4, so its ink at 20px matches the rings beside it (the row under this card). The face is punched through the fill at 48px and above and left off at 20px, so the ask bar carries the plain nut. <b>Weak:</b> it is the only solid mark in the family, so on a dark surface it is a heavier shape than the rings even at matched ink, and a filled kidney is a shape nut brands already use.'}
+    ]
+  };
+  DIRS.cashew = [
+    {n:1, name:'The curl', one:'The C of Cashew as a thick curl that only suggests the kidney.', mark:'c2-curl', helper:'c2-curl',
+     why:'<b>Strong:</b> the simplest of the three and the one that works at 16px: one thick stroke, three arcs, solid. The inward curl at the head is the whole suggestion of the nut; the rest is the letter. It sits beside the Locus bead as a relative, the same weight, one a ring and one a curl. <b>Weak:</b> on its own it is a bold C with a curled terminal, so the nut is only there once you know the name; and a curl this fat can be mistaken for a lower-case e or a 6 in a crowded tab bar.'},
+    {n:2, name:'The wordmark', one:'Cashew set in a custom monoline lowercase; the C alone is the icon.', mark:'c2-c-icon', helper:'c2-c-icon', wordmark:true,
+     why:'<b>Strong:</b> the name does the work, which is what a four-letter-plus-two name wants: the word on the CPA pack, the site and the gate, the C on the phone. The letters are drawn, not typed: a round c whose top terminal curls inward, a bowl-and-stem a, an s from two half circles, a w that sits like a double bowl. It pairs with Inter because it is the same geometry at a heavier weight. <b>Weak:</b> a monoline rounded lowercase is a familiar register (a lot of fintech lives there), and the C icon alone says Cashew only next to the word.'},
+    {n:3, name:'The character', one:'A soft kidney with a lighter belly, a stem cap and a face; its silhouette is the mark.', mark:'c2-character-mark', helper:'c2-character', states:true, lockup:true,
+     why:'<b>Strong:</b> the one Cole can lean into: a creature, not a glyph, drawn with a body colour, a lighter belly, a darker cap and two dot eyes, so it carries the four states and the commercial without props. The silhouette (body plus cap) reduces to a solid mark, and the wordmark from direction 2 sits beside it as the lockup. <b>Weak:</b> a character is the most work to keep consistent across the app, the site and the spot; the silhouette alone is a bean at 16px and needs the word next to it; and the illustration cannot go on the green field in its own colours, so the field gets the silhouette in white.'}
+  ];
+  var STATES = ['asleep','thinking','found','clear'];
+  var pick = {locus:2, cashew:2};
+  try{ var saved = JSON.parse(localStorage.getItem('kit_pick3')||'{}'); if(saved.locus) pick.locus = saved.locus; if(saved.cashew) pick.cashew = saved.cashew; }catch(e){}
+
+  function use(id, cls){ var vb = (window.KIT_VB||{})[id]; var ar = ''; if(vb){ var v = vb.split(' '); ar = ' style="aspect-ratio:'+v[2]+' / '+v[3]+'"'; vb = '0 0 '+v[2]+' '+v[3]; } return '<svg class="m'+(cls?' '+cls:'')+'"'+(vb?' viewBox="'+vb+'"':'')+ar+' role="img" aria-label="'+id+'"><use href="#'+id+'"/></svg>'; }
+  function helper(id, extra){ return '<span class="kit-helper '+(extra||'')+'">'+use(id)+'</span>'; }
+
+  function card2(d){
+    var p = 'cashew', m = d.mark;
+    var h = '<div class="dir wide r2" data-p="'+p+'" data-n="'+d.n+'">';
+    h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+' <span class="brand">CASHEW</span></div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
+    h += '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button></div>';
+    h += '<div><div class="sizes"><div class="kit-helper big">'+use(m)+'</div><div class="small">';
+    h += '<div class="row4">'+helper(m,'px48')+'<small>48</small>'+helper(m,'px20')+'<small>20</small>'+helper(m,'px16')+'<small>16</small></div>';
+    h += '<div class="onfield">'+helper(m,'px48')+helper(m,'px20')+helper(m,'px16')+'<small>on the field</small></div>';
+    h += '</div></div></div>';
+    var right = '';
+    if(d.wordmark || d.lockup){
+      right += '<div class="wmrow"><span class="wm">'+use('c2-wordmark')+'</span></div>';
+      right += '<div class="wmrow" style="margin-top:12px"><span class="wm sm">'+use('c2-wordmark')+'</span><span class="wm xs">'+use('c2-wordmark')+'</span></div>';
+      right += '<div class="wmfield" style="margin-top:12px"><span class="wm sm">'+use('c2-wordmark')+'</span>'+(d.lockup ? helper('c2-character-mark','px48') : helper('c2-c-icon','px48'))+'</div>';
+      if(d.lockup) right += '<div class="lockup" style="margin-top:14px">'+helper('c2-character-mark')+'<span class="wm">'+use('c2-wordmark')+'</span><small style="color:var(--muted);font-size:11px">the lockup</small></div>';
+    }
+    h += '<div>'+right+'</div>';
+    if(d.states){
+      h += '<div class="chars" style="grid-column:1 / -1"><div class="state">'+helper('c2-character')+helper('c2-character','px20')+'<small>at rest</small></div>'+STATES.map(function(s){ return '<div class="state">'+helper('c2-character-'+s)+helper('c2-character-'+s,'px20')+'<small>'+s.replace('found','found something').replace('clear','all clear')+'</small></div>'; }).join('')+'</div>';
+    }
+    h += '<div class="fam"><small>Beside the Mobius mark and the Locus bead, at 30px and 16px</small><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper(m)+'<span class="sm"><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper(m)+'</span></div>';
+    h += '<p class="why">'+d.why+'</p>';
+    return h+'</div>';
+  }
+  function card(p, d){
+    var base = p+'-'+d.n;
+    var h = '<div class="dir" data-p="'+p+'" data-n="'+d.n+'">';
+    h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+(d.brand ? ' <span class="brand">'+d.brand.toUpperCase()+'</span>' : '')+'</div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
+    h += (p === 'kept' ? '' : '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button>')+'</div>';
+    h += '<div class="sizes"><div class="kit-helper big">'+use(base)+'</div><div class="small">';
+    h += '<div class="r">'+helper(base,'px48')+'<small>48px</small></div>';
+    h += '<div class="r">'+helper(base,'px20')+'<small>20px</small></div>';
+    h += '<div class="onfield">'+helper(base,'px48')+helper(base,'px20')+'<small>on the field</small></div>';
+    h += '</div></div>';
+    h += '<div class="states">'+STATES.map(function(s){ return '<div class="state">'+helper(base+'-'+s)+helper(d.plain20 ? base : base+'-'+s,'px20')+'<small>'+s.replace('found','found something').replace('clear','all clear')+'</small></div>'; }).join('')+'</div>';
+    h += '<p class="why">'+d.why+'</p>';
+    if(d.weigh){
+      h += '<div class="weigh"><small>Ink weight beside the Mobius mark and a Locus ring, at 48px and at 20px</small>';
+      h += '<div class="big"><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper('kept-1')+helper(base)+'</div>';
+      h += '<div class="sm"><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper('kept-1')+helper(base)+'</div></div>';
+    }
+    return h+'</div>';
+  }
+  document.getElementById('locusDirs').innerHTML = DIRS.locus.map(function(d){ return card('locus', d); }).join('');
+  document.getElementById('keptDirs').innerHTML = DIRS.kept.map(function(d){ return card('kept', d); }).join('');
+  document.getElementById('cashewDirs').innerHTML = DIRS.cashew.map(card2).join('');
+
+  function fam(color){
+    var h = '<div class="mob">'+use('mobius')+'</div><div class="gap"></div>';
+    [1,2,3].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--locus)':'inherit')+'">'+use('locus-'+n)+'</span>'; });
+    h += '<div class="gap"></div>';
+    ['c2-curl','c2-c-icon','c2-character-mark'].forEach(function(id){ h += '<span class="kit-helper" style="color:'+(color?'var(--kept)':'inherit')+'">'+use(id)+'</span>'; });
+    return h;
+  }
+  document.getElementById('famInk').innerHTML = fam(false);
+  document.getElementById('famColor').innerHTML = fam(true);
+
+  function nameOf(p, n){ var d = DIRS[p][n-1]; return 'direction '+n+', '+d.name.toLowerCase(); }
+  function setId(id, sym){ var el = document.getElementById(id); if(el) el.innerHTML = use(sym); }
+  function render(){
+    ['locus','cashew'].forEach(function(p){
+      document.querySelectorAll('.dir[data-p="'+p+'"]').forEach(function(c){
+        var on = String(c.dataset.n) === String(pick[p]);
+        c.classList.toggle('picked', on);
+        var b = c.querySelector('.pick'); if(!b) return;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.lastChild.nodeValue = on ? 'Picked' : 'Pick';
+      });
+    });
+    var ln = pick.locus || 2;
+    document.getElementById('pickLocus').innerHTML = helper('locus-'+ln+'-clear') + '<b>Locus</b><span>'+nameOf('locus', ln)+(ln === 2 ? ' (Cole, 2026-10-11)' : '')+'</span>';
+    setId('gateLocus', 'locus-'+ln+'-clear'); setId('mornLocus', 'locus-'+ln+'-clear');
+    setId('askLocus', 'locus-'+ln+'-thinking'); setId('nudgeLocus', 'locus-'+ln+'-found'); setId('clearLocus', 'locus-'+ln+'-clear');
+    var cn = pick.cashew || 1, cd = DIRS.cashew[cn-1];
+    document.getElementById('pickKept').innerHTML = helper(cd.mark) + '<b>Cashew</b><span>'+nameOf('cashew', cn)+(cn === 2 ? ', the character as the helper (pending Cole)' : '')+'</span>';
+    var st = function(s){ return (cd.states || cd.n === 2) ? 'cashew-'+s : cd.mark; };
+    setId('gateKept', (cd.n === 1 ? cd.mark : 'cashew-silhouette')); setId('mornKept', (cd.n === 1 ? cd.mark : 'cashew-silhouette'));
+    setId('askKept', st('thinking')); setId('nudgeKept', st('found')); setId('clearKept', st('clear'));
+    document.getElementById('useKeptLabel').textContent = 'Cashew';
+    document.getElementById('askKeptIn').placeholder = 'Ask Cashew';
+    document.getElementById('packName').textContent = 'Cashew';
+    document.getElementById('packFoot').textContent = 'Prepared by Cashew from the bank, Shopify and Stripe. Every line ties to a statement.';
+    var pm = document.getElementById('packMark');
+    if(cd.wordmark || cd.lockup){ pm.innerHTML = (cd.lockup ? use(cd.mark) : '') ; document.getElementById('packWm').innerHTML = use('c2-wordmark'); document.getElementById('packName').hidden = true; pm.hidden = !cd.lockup; }
+    else { pm.innerHTML = use(cd.mark); pm.hidden = false; document.getElementById('packWm').innerHTML = ''; document.getElementById('packName').hidden = false; }
+    document.getElementById('topMarks').innerHTML =
+      '<span class="kit-helper" style="color:var(--locus)">'+use('locus-'+ln)+'</span>' +
+      '<span class="kit-helper" style="color:var(--kept)">'+use(cd.mark)+'</span>';
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.pick'); if(!b) return;
+    var c = b.closest('.dir'); var p = c.dataset.p, n = Number(c.dataset.n);
+    pick[p] = n;
+    try{ localStorage.setItem('kit_pick3', JSON.stringify(pick)); }catch(err){}
+    render();
+  });
+  document.getElementById('copyPick').addEventListener('click', function(){
+    var t = 'Locus: '+nameOf('locus', pick.locus || 2)+'. Cashew: '+nameOf('cashew', pick.cashew || 2)+(pick.cashew === 2 ? ', the character from direction 3 as the helper' : '')+'.';
+    var toast = document.getElementById('toast');
+    function done(ok){ toast.textContent = ok ? 'Copied: '+t : t; setTimeout(function(){ toast.textContent = ''; }, 6000); }
+    try{ navigator.clipboard.writeText(t).then(function(){ done(true); }, function(){ done(false); }); }catch(err){ done(false); }
+  });
+
+  var root = document.documentElement, seg = document.getElementById('theme');
+  function theme(t, save){
+    if(t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    seg.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.dataset.t === t); });
+    if(save){ try{ localStorage.setItem('kit_theme', t); }catch(err){} }
+  }
+  seg.addEventListener('click', function(e){ var b = e.target.closest('button'); if(b) theme(b.dataset.t, true); });
+  var t0 = 'system'; try{ t0 = localStorage.getItem('kit_theme') || (root.getAttribute('data-theme') || 'system'); }catch(err){}
+  theme(t0, false);
+  render();
+})();
+</script>
