@@ -28,7 +28,7 @@ def symbol_from(path, sid):
 def sprite():
     out = []
     for product in ('locus', 'kept'):
-        for i in ((1, 2, 3) if product == 'locus' else (1, 2, 3, 4)):
+        for i in ((1, 2, 3) if product == 'locus' else (1, 2, 3, 4, 5)):
             for st in STATES:
                 name = f'direction-{i}' + (f'-{st}' if st else '')
                 sid = f'{product}-{i}' + (f'-{st}' if st else '')

@@ -258,6 +258,14 @@ section{margin-top:56px}
 /* direction cards */
 .dirs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
 .dirs.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dirs.four > .dir:nth-child(5){grid-column:1 / -1}
+.dirs.four > .dir:nth-child(5) .states{max-width:620px}
+.weigh{display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding-top:14px; border-top:1px solid var(--line); color:var(--ink)}
+.weigh .mob{width:29px; height:20px; color:var(--mobius)} .weigh .mob svg{width:100%; height:100%; display:block}
+.weigh .kit-helper{width:20px; height:20px; color:var(--ink)}
+.weigh .big .mob{width:70px; height:48px} .weigh .big .kit-helper{width:48px; height:48px}
+.weigh .big,.weigh .sm{display:flex; align-items:center; gap:14px}
+.weigh small{font-size:11px; color:var(--muted); flex-basis:100%}
 .names{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px}
 .name{display:flex; align-items:center; gap:16px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
 .name .kit-helper{width:44px; height:44px; color:var(--field)}
@@ -673,6 +681,45 @@ section{margin-top:56px}
     </mask>
   </defs>
   <path d="M27.02 14.91C25.8 15.09 22.01 15.06 19.74 15.99C17.46 16.91 15.1 18.55 13.37 20.46C11.64 22.36 10.14 24.92 9.36 27.43C8.57 29.95 8.36 32.92 8.69 35.54C9.01 38.16 9.98 40.93 11.31 43.15C12.64 45.37 14.61 47.44 16.65 48.85C18.69 50.26 21.25 51.31 23.55 51.61C25.86 51.92 29.34 50.84 30.5 50.68A3.25 3.25 0 0 0 31.06 44.21C30.65 43.64 29.2 41.81 28.61 40.76C28.03 39.72 27.77 38.8 27.55 37.95C27.33 37.1 27.33 36.36 27.31 35.69C27.29 35.01 27.37 34.46 27.42 33.9C27.47 33.34 27.55 32.89 27.6 32.32C27.64 31.75 27.59 31.19 27.69 30.48C27.79 29.78 27.86 28.98 28.2 28.08C28.54 27.17 29.48 25.55 29.74 25.05A5.25 5.25 0 0 0 27.02 14.91Z" fill="currentColor" stroke="none" mask="url(#cc)"/></symbol>
+<symbol id="kept-5" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M27.73 16.06C26.68 16.21 23.41 16.15 21.45 16.93C19.49 17.72 17.45 19.12 15.95 20.76C14.46 22.4 13.16 24.61 12.49 26.77C11.81 28.94 11.63 31.5 11.91 33.76C12.19 36.01 13.02 38.4 14.17 40.32C15.31 42.23 17 44.02 18.76 45.24C20.51 46.47 22.71 47.38 24.7 47.66C26.68 47.95 29.69 47.06 30.69 46.94A3 3 0 0 0 31.22 40.97C30.87 40.49 29.65 38.96 29.16 38.09C28.67 37.21 28.45 36.44 28.27 35.73C28.09 35.02 28.1 34.39 28.08 33.83C28.07 33.26 28.14 32.8 28.18 32.33C28.22 31.87 28.3 31.49 28.33 31.02C28.37 30.54 28.31 30.07 28.39 29.47C28.46 28.87 28.51 28.19 28.78 27.41C29.06 26.62 29.85 25.2 30.06 24.76A4.5 4.5 0 0 0 33.19 21.75A2.79 2.79 0 0 1 31.75 16.93A4.5 4.5 0 0 0 27.73 16.06Z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="kept-5-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cfa" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M15.11 28.97h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M21.91 28.97h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M18.71 33.97h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M27.73 16.06C26.68 16.21 23.41 16.15 21.45 16.93C19.49 17.72 17.45 19.12 15.95 20.76C14.46 22.4 13.16 24.61 12.49 26.77C11.81 28.94 11.63 31.5 11.91 33.76C12.19 36.01 13.02 38.4 14.17 40.32C15.31 42.23 17 44.02 18.76 45.24C20.51 46.47 22.71 47.38 24.7 47.66C26.68 47.95 29.69 47.06 30.69 46.94A3 3 0 0 0 31.22 40.97C30.87 40.49 29.65 38.96 29.16 38.09C28.67 37.21 28.45 36.44 28.27 35.73C28.09 35.02 28.1 34.39 28.08 33.83C28.07 33.26 28.14 32.8 28.18 32.33C28.22 31.87 28.3 31.49 28.33 31.02C28.37 30.54 28.31 30.07 28.39 29.47C28.46 28.87 28.51 28.19 28.78 27.41C29.06 26.62 29.85 25.2 30.06 24.76A4.5 4.5 0 0 0 33.19 21.75A2.79 2.79 0 0 1 31.75 16.93A4.5 4.5 0 0 0 27.73 16.06Z" fill="currentColor" stroke="none" mask="url(#cfa)"/>
+  </g></symbol>
+<symbol id="kept-5-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cft" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="18.31" cy="27.93" r="1.7" fill="#000"/>
+      <circle cx="25.11" cy="27.93" r="1.7" fill="#000"/>
+      <path d="M19.71 33.61h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.73 16.06C26.68 16.21 23.41 16.15 21.45 16.93C19.49 17.72 17.45 19.12 15.95 20.76C14.46 22.4 13.16 24.61 12.49 26.77C11.81 28.94 11.63 31.5 11.91 33.76C12.19 36.01 13.02 38.4 14.17 40.32C15.31 42.23 17 44.02 18.76 45.24C20.51 46.47 22.71 47.38 24.7 47.66C26.68 47.95 29.69 47.06 30.69 46.94A3 3 0 0 0 31.22 40.97C30.87 40.49 29.65 38.96 29.16 38.09C28.67 37.21 28.45 36.44 28.27 35.73C28.09 35.02 28.1 34.39 28.08 33.83C28.07 33.26 28.14 32.8 28.18 32.33C28.22 31.87 28.3 31.49 28.33 31.02C28.37 30.54 28.31 30.07 28.39 29.47C28.46 28.87 28.51 28.19 28.78 27.41C29.06 26.62 29.85 25.2 30.06 24.76A4.5 4.5 0 0 0 33.19 21.75A2.79 2.79 0 0 1 31.75 16.93A4.5 4.5 0 0 0 27.73 16.06Z" fill="currentColor" stroke="none" mask="url(#cft)"/></symbol>
+<symbol id="kept-5-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cff" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="16.31" cy="27.07" r="2.3" fill="#000"/>
+      <circle cx="23.91" cy="27.07" r="2.3" fill="#000"/>
+      <circle cx="20.11" cy="32.87" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M27.73 14.56C26.68 14.71 23.41 14.65 21.45 15.43C19.49 16.22 17.45 17.62 15.95 19.26C14.46 20.9 13.16 23.11 12.49 25.27C11.81 27.44 11.63 30 11.91 32.26C12.19 34.51 13.02 36.9 14.17 38.82C15.31 40.73 17 42.52 18.76 43.74C20.51 44.97 22.71 45.88 24.7 46.16C26.68 46.45 29.69 45.56 30.69 45.44A3 3 0 0 0 31.22 39.47C30.87 38.99 29.65 37.46 29.16 36.59C28.67 35.71 28.45 34.94 28.27 34.23C28.09 33.52 28.1 32.89 28.08 32.33C28.07 31.76 28.14 31.3 28.18 30.83C28.22 30.37 28.3 29.99 28.33 29.52C28.37 29.04 28.31 28.57 28.39 27.97C28.46 27.37 28.51 26.69 28.78 25.91C29.06 25.12 29.85 23.7 30.06 23.26A4.5 4.5 0 0 0 33.19 20.25A2.79 2.79 0 0 1 31.75 15.43A4.5 4.5 0 0 0 27.73 14.56Z" fill="currentColor" stroke="none" mask="url(#cff)"/></symbol>
+<symbol id="kept-5-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cfc" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M15.01 30.87a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M21.81 30.87a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M17.51 34.87a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.73 17.56C26.68 17.71 23.41 17.65 21.45 18.43C19.49 19.22 17.45 20.62 15.95 22.26C14.46 23.9 13.16 26.11 12.49 28.27C11.81 30.44 11.63 33 11.91 35.26C12.19 37.51 13.02 39.9 14.17 41.82C15.31 43.73 17 45.52 18.76 46.74C20.51 47.97 22.71 48.88 24.7 49.16C26.68 49.45 29.69 48.56 30.69 48.44A3 3 0 0 0 31.22 42.47C30.87 41.99 29.65 40.46 29.16 39.59C28.67 38.71 28.45 37.94 28.27 37.23C28.09 36.52 28.1 35.89 28.08 35.33C28.07 34.76 28.14 34.3 28.18 33.83C28.22 33.37 28.3 32.99 28.33 32.52C28.37 32.04 28.31 31.57 28.39 30.97C28.46 30.37 28.51 29.69 28.78 28.91C29.06 28.12 29.85 26.7 30.06 26.26A4.5 4.5 0 0 0 33.19 23.25A2.79 2.79 0 0 1 31.75 18.43A4.5 4.5 0 0 0 27.73 17.56Z" fill="currentColor" stroke="none" mask="url(#cfc)"/></symbol>
 <symbol id="mobius" viewBox="0 0 2400 1655"><path d="M221.200 1393.617 C120.000 1292.448 120.000 1126.895 221.200 1025.689 L1025.947 221.189 C1127.148 120.020 1292.751 120.020 1393.989 221.189 C1495.189 322.358 1495.189 487.911 1393.989 589.117 L589.241 1393.617 C488.041 1494.786 322.437 1494.786 221.200 1393.617 M2232.828 701.215 L1738.573 1195.317 L1738.573 1252.477 C1738.573 1395.581 1855.671 1512.642 1998.818 1512.642 C2141.966 1512.642 2259.063 1395.581 2259.063 1252.477 L2259.063 671.616 C2250.985 681.840 2242.277 691.768 2232.828 701.215 M1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 Z" fill="currentColor"/></symbol>
 </svg>
 <!-- marks:end -->
@@ -709,11 +756,11 @@ section{margin-top:56px}
   </section>
 
   <section id="kept" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
-    <div class="sec-h"><h2>The money app: <em class="kit-accent">Kept</em> or <em class="kit-accent">Cashew</em></h2><span class="n">4 directions, 2 names</span></div>
-    <p class="sec-p">The money app tells you one number every night: what you actually kept. The name is between Kept (the word from that line) and Cashew (cash, and a nut with a face; the tagline stays Know what you kept). Under Kept the helper is the coin, in three directions that differ in what the coin is doing. Under Cashew the helper is the nut itself. Both names keep the same green and the same construction, so the pick is one choice: a name and its drawing.</p>
+    <div class="sec-h"><h2>The money app: <em class="kit-accent">Kept</em> or <em class="kit-accent">Cashew</em></h2><span class="n">5 directions, 2 names</span></div>
+    <p class="sec-p">The money app tells you one number every night: what you actually kept. The name is between Kept (the word from that line) and Cashew (cash, and a nut with a face; the tagline stays Know what you kept). Under Kept the helper is the coin, in three directions that differ in what the coin is doing. Under Cashew the helper is the nut itself, drawn two ways: as one open stroke (direction 4) and as a filled silhouette (direction 5). Both names keep the same green and the same construction, so the pick is one choice: a name and its drawing.</p>
     <div class="names">
       <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-1"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-2"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-3"/></svg></span></div><div><b>Kept</b><small>Know what you <em class="kit-accent">kept</em>. Directions 1 to 3.</small></div></div>
-      <div class="name"><span class="kit-helper"><svg class="m"><use href="#kept-4"/></svg></span><div><b>Cashew</b><small>Know what you <em class="kit-accent">kept</em>. Direction 4.</small></div></div>
+      <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-4"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-5"/></svg></span></div><div><b>Cashew</b><small>Know what you <em class="kit-accent">kept</em>. Directions 4 and 5.</small></div></div>
     </div>
     <div class="dirs four" id="keptDirs"></div>
   </section>
@@ -850,7 +897,9 @@ section{margin-top:56px}
       {n:3, brand:'Kept', name:'The jar', one:'A round jar with a lid, filled to what you kept.',
        why:'<b>Strong:</b> the fill line is the hero number drawn as a shape, and it moves: fuller on a clean close, the face looks down at it while thinking. It pairs with the video\'s melting balance. <b>Weak:</b> a half-filled circle can read as a gauge or a contrast icon before it reads as a jar, and the lid adds a second shape to the construction.'},
       {n:4, brand:'Cashew', name:'The nut', one:'A cashew, one closed stroke, belly on the ring.',
-       why:'<b>Strong:</b> the name and the mark are one joke told once, cash and a nut, and the helper has the most personality to lean into: the nut itself is the character, no props needed, and the plain outline is a quiet mark for a CPA pack. <b>Weak:</b> it is the one shape here that is not a circle, so it is the odd one next to Locus and the Mobius ribbon; a kidney at 20px can read as a crescent moon; and the name says nothing about money until the tagline does.'}
+       why:'<b>Strong:</b> the name and the mark are one joke told once, cash and a nut, and the helper has the most personality to lean into: the nut itself is the character, no props needed, and the plain outline is a quiet mark for a CPA pack. <b>Weak:</b> it is the one shape here that is not a circle, so it is the odd one next to Locus and the Mobius ribbon; a kidney at 20px can read as a crescent moon; and the name says nothing about money until the tagline does.'},
+      {n:5, brand:'Cashew', weigh:true, name:'The nut, filled', one:'The same cashew as a solid silhouette, with the stem notch. No face at 20px.', plain20:true,
+       why:'<b>Strong:</b> the silhouette is unmistakably a cashew at every size, the curl, the belly and the stem all read, where the open stroke of direction 4 turns into a crescent moon at 48px and below. The kidney is drawn fatter and a size smaller than direction 4, so its ink at 20px matches the rings beside it (the row under this card). The face is punched through the fill at 48px and above and left off at 20px, so the ask bar carries the plain nut. <b>Weak:</b> it is the only solid mark in the family, so on a dark surface it is a heavier shape than the rings even at matched ink, and a filled kidney is a shape nut brands already use.'}
     ]
   };
   var STATES = ['asleep','thinking','found','clear'];
@@ -870,8 +919,13 @@ section{margin-top:56px}
     h += '<div class="r">'+helper(base,'px20')+'<small>20px</small></div>';
     h += '<div class="onfield">'+helper(base,'px48')+helper(base,'px20')+'<small>on the field</small></div>';
     h += '</div></div>';
-    h += '<div class="states">'+STATES.map(function(s){ return '<div class="state">'+helper(base+'-'+s)+helper(base+'-'+s,'px20')+'<small>'+s.replace('found','found something').replace('clear','all clear')+'</small></div>'; }).join('')+'</div>';
+    h += '<div class="states">'+STATES.map(function(s){ return '<div class="state">'+helper(base+'-'+s)+helper(d.plain20 ? base : base+'-'+s,'px20')+'<small>'+s.replace('found','found something').replace('clear','all clear')+'</small></div>'; }).join('')+'</div>';
     h += '<p class="why">'+d.why+'</p>';
+    if(d.weigh){
+      h += '<div class="weigh"><small>Ink weight beside the Mobius mark and a Locus ring, at 48px and at 20px</small>';
+      h += '<div class="big"><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper('kept-1')+helper(base)+'</div>';
+      h += '<div class="sm"><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper('kept-1')+helper(base)+'</div></div>';
+    }
     return h+'</div>';
   }
   document.getElementById('locusDirs').innerHTML = DIRS.locus.map(function(d){ return card('locus', d); }).join('');
@@ -881,7 +935,7 @@ section{margin-top:56px}
     var h = '<div class="mob">'+use('mobius')+'</div><div class="gap"></div>';
     [1,2,3].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--locus)':'inherit')+'">'+use('locus-'+n)+'</span>'; });
     h += '<div class="gap"></div>';
-    [1,2,3].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--kept)':'inherit')+'">'+use('kept-'+n)+'</span>'; });
+    [1,2,3,4,5].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--kept)':'inherit')+'">'+use('kept-'+n)+'</span>'; });
     return h;
   }
   document.getElementById('famInk').innerHTML = fam(false);
@@ -904,7 +958,7 @@ section{margin-top:56px}
       var cap = p === 'locus' ? 'Locus' : 'Kept';
       setId('gate'+cap, p+'-'+n+'-clear');
       setId('morn'+cap, p+'-'+n+'-clear');
-      setId('ask'+cap, p+'-'+n+'-thinking');
+      setId('ask'+cap, (DIRS[p][n-1].plain20 ? p+'-'+n : p+'-'+n+'-thinking'));
       setId('nudge'+cap, p+'-'+n+'-found');
       setId('clear'+cap, p+'-'+n+'-clear');
       if(p === 'kept'){

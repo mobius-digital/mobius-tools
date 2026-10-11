@@ -74,6 +74,18 @@ about money until the tagline does. It lives in logo/kept/direction-4*.svg becau
 whatever the name ends up being. The board shows both names set in Inter beside their marks, and a CPA pack
 header that carries whichever plain mark is ticked.
 
+**Direction 5, Cashew, the nut, filled.** The parent session's note after the first board: at 48px and 20px the
+open stroke of direction 4 reads as a crescent moon, and Cashew is the name Cole is most drawn to, so the same
+direction got a second take. The mark is the cashew as a solid silhouette on the 64 grid, with the stem as a
+dimple cut into the head cap (one path, three arcs where the cap was one), and the kidney drawn fatter and a size
+smaller than direction 4 (belly 16.5 on a curl of radius 12, against 19 on 14) so its ink at 20px matches the Locus
+ring and the Kept coin beside it; the card on the board shows
+that row in ink next to the Mobius ribbon at 48px and 20px. The helper is the same silhouette with the face
+punched through the fill, used at 48px and above; at 20px the plain nut is used, so the ask bar carries no face.
+It is strong because the silhouette is unmistakably a cashew at every size, where direction 4's outline is not. It
+is weak because it is the only solid mark in the family, so on a dark surface it reads heavier than the rings even
+at matched ink, and a filled kidney is a shape nut brands already use.
+
 ## The two fields
 
 Locus blue is the v2 Locus blue, `#2F62D9`, kept as the field: white ink on it is 5.4:1. Kept green is the Ledger
