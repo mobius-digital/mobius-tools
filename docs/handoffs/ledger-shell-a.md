@@ -85,6 +85,25 @@ this session's scratchpad, not in the repo):
   engine's `openAddSheet` is unreachable now (Add a transaction and Upload receipts sit on Overview and
   Transactions).
 
+## Cashew (added after the first push, the same day)
+
+The brand-kit session sent word that Cole named the money app Cashew; `docs/brand/kit.md` on the `brand-kit`
+branch records the decision and the final files sit at fixed paths in `logo/cashew/`. The shell reads them by
+path (`../logo/cashew/...`), nothing is copied into `ledger/`:
+
+- The gate: the silhouette in white on the green field (`--field #1E7A52`, the kit's green), the wordmark, the line
+  "Mobius Digital's books. Know what you kept.", then the sign-in card. If the files are not served, the wordmark's
+  alt text "Cashew" shows in white and the field stays green.
+- The ask bar carries the character at 20px with a `data-state` (rest, asleep, thinking, found, clear) that the
+  Controller's state sets: asleep when signed out, thinking while it works, found with open findings, clear after a
+  clean run. One drawing per state, `logo/cashew/<state>.svg`.
+- The rail brand, the page title, the manifest (name, icons, theme colour) and the footer say Cashew. The Controller
+  stays the helper's nickname in Settings. The engine's ids and the worker are untouched.
+- `index.html` links `../logo/kit.css`; `ledger.css` carries fallbacks for the field tokens so the gate draws the
+  same when the kit stylesheet is not served.
+- Until `brand-kit` merges, the `logo/cashew/` files are not on this branch, so on a checkout of `ledger-shell-a`
+  alone the marks 404 and the fallbacks show. Verified both ways in Playwright (files present and absent).
+
 ## How to review it
 
 1. Check out `ledger-shell-a`, serve the repo root (`npx http-server . -p 8765`), open

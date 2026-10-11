@@ -1,15 +1,15 @@
 {
-  "name": "Mobius Ledger",
-  "short_name": "Ledger",
-  "description": "Money in, money out, receipts and the end-of-month report card.",
+  "name": "Cashew",
+  "short_name": "Cashew",
+  "description": "Mobius Digital's books: money in, money out, the month closed and the CPA pack. Know what you kept.",
   "start_url": "/ledger/",
   "scope": "/ledger/",
   "display": "standalone",
-  "background_color": "#0D2119",
-  "theme_color": "#0C161D",
+  "background_color": "#1E7A52",
+  "theme_color": "#1E7A52",
   "icons": [
-    { "src": "/icons/ledger-round-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/ledger-round-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/ledger-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/logo/cashew/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo/cashew/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/logo/cashew/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

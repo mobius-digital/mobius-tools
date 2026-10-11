@@ -267,7 +267,7 @@ function segHTML() {
 function drawTopbar() {
   const g = navOf(S.view), title = PAGE_TITLE[S.view] || ALL_TITLES[S.view] || '';
   const t = $('#hdTitle'); if (t) t.innerHTML = g ? `${esc(g.label)}<i>›</i><b>${esc(title)}</b>` : `<b>${esc(title)}</b>`;
-  document.title = `${title ? title + ' · ' : ''}Ledger`;
+  document.title = `${title ? title + ' · ' : ''}Cashew`;
   const r = $('#hdRight'); if (!r) return;
   if (PERIOD_PAGES.has(S.view)) r.innerHTML = periodHTML();
   else if (MONTH_PAGES.has(S.view)) r.innerHTML = `<div class="mo-nav">${monthPicker(S.month, 'setMonth')}<span class="mo-lock ${moState(S.month)}">${moState(S.month) === 'closed' ? 'Closed' : 'Open'}</span></div>`;
@@ -308,7 +308,7 @@ show = function (view) {
   document.body.dataset.view = view;
   const g = navOf(view); if (g) { NAV_LAST[g.id] = view; try { localStorage.setItem('ledger_navlast', JSON.stringify(NAV_LAST)); } catch (e) {} }
   try { const u = new URL(location.href); if (u.searchParams.get('open') !== view) { u.searchParams.set('open', view); history.replaceState(null, '', u); } } catch (e) {}
-  paintNav(); segHTML(); drawTopbar();
+  paintNav(); segHTML(); drawTopbar(); helperTick();
   $('#main').className = '';
   window.scrollTo({ top: 0 });
   const fn = SCREENS[view] || (() => renderStub(view));
@@ -322,14 +322,20 @@ renderDashboards = function () { show('dashboards'); };
 renderGate = function (err) {
   document.body.classList.add('gated');
   setChip('Signed out', 'off');
-  $('#main').innerHTML = `<div class="gate"><img src="../icons/ledger-round-192.png" alt=""><h1>Mobius Ledger</h1>
+  setHelper('asleep');
+  $('#main').innerHTML = `<div class="gate-field">
+    <img class="sil" src="../logo/cashew/silhouette.svg" alt="">
+    <img class="wm" src="../logo/cashew/wordmark.svg" alt="Cashew">
+    <p class="tag">Mobius Digital's books. Know what you kept.</p>
+    <div class="gate">
     <p>Money in, money out, the month closed, and the pack the CPA needs. Sign in once at Mobius HQ and every internal tool opens.</p>
     <a class="cta" href="../hq/?next=/ledger/">Continue with Google</a>
     ${err ? `<div class="err">${esc(err)}</div>` : ''}
     <details><summary>Use an administrator token</summary>
       <label>Administrator token</label><input id="gTok" type="password" placeholder="administrator token">
       <label>Worker URL</label><input id="gUrl" value="${esc(S.url)}">
-      <button class="cta" id="gGo">Sign in</button></details></div>`;
+      <button class="cta" id="gGo">Sign in</button></details></div>
+    <p class="foot">The app never moves money. <a href="privacy/">Privacy</a> · <a href="security/">Security</a></p></div>`;
   const goIn = () => {
     S.url = ($('#gUrl').value || '').trim() || DEFAULT_WORKER_URL;
     S.tok = $('#gTok').value.trim();
@@ -344,6 +350,25 @@ boot = async function () {
   await _boot();
   if (S.tok && S.boot) { document.body.classList.remove('gated'); syncEdition(); paintNav(); }
 };
+/* ---- the helper in the ask bar ----
+   The Cashew character (logo/cashew/<state>.svg), one drawing per state:
+   asleep when signed out, thinking while the Controller works, found when it
+   has open findings, clear when the checks ran clean, rest while it has not
+   looked yet. The Controller's own state (AskUI.state) drives it. */
+const HELPER_STATES = new Set(['rest', 'asleep', 'thinking', 'found', 'clear']);
+function setHelper(state) {
+  if (!HELPER_STATES.has(state)) state = 'rest';
+  const el = $('#askMark'); if (!el || el.dataset.state === state) return;
+  el.dataset.state = state; el.src = `../logo/cashew/${state}.svg`;
+}
+function helperTick() {
+  const A = window.AskUI && AskUI.state;
+  if (!S.tok || document.body.classList.contains('gated') || !A) return setHelper('asleep');
+  if (A.busy) return setHelper('thinking');
+  if (!A.data) return setHelper('rest');
+  setHelper((A.data.findings || []).length ? 'found' : 'clear');
+}
+setInterval(helperTick, 1000);
 /* scroll shadow + drawer */
 document.addEventListener('scroll', () => document.documentElement.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
 function navToggle() { const on = !document.body.classList.contains('nav-open'); document.body.classList.toggle('nav-open', on); const sc = $('#navScrim'); if (sc) sc.hidden = !on; }

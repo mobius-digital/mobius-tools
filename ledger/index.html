@@ -1,23 +1,25 @@
 <!DOCTYPE html>
-<html lang="en" data-app="ledger">
+<html lang="en" data-app="ledger" data-product="kept">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mobius Ledger</title>
-<meta name="description" content="Money in, money out, the month closed and the CPA pack. Mobius Digital's books.">
-<link rel="icon" type="image/png" sizes="32x32" href="../icons/ledger-round-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="../icons/ledger-round-192.png">
-<link rel="apple-touch-icon" href="../icons/ledger-180.png">
+<title>Cashew</title>
+<meta name="description" content="Cashew: Mobius Digital's books. Money in, money out, the month closed and the CPA pack. Know what you kept.">
+<link rel="icon" type="image/svg+xml" href="../logo/cashew/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../logo/cashew/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../logo/cashew/icons/icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Ledger">
+<meta name="apple-mobile-web-app-title" content="Cashew">
 <meta name="theme-color" content="#F6F7F6">
 <script data-theme-init>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('ledger_theme')||'light')}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ledger.css?v=6">
+<link rel="stylesheet" href="ledger.css?v=7">
+<!-- The brand kit (logo/kit.css on the brand-kit branch): the green field and the accent word. ledger.css carries fallbacks for the same tokens. -->
+<link rel="stylesheet" href="../logo/kit.css">
 <link rel="stylesheet" href="../ask/ask.css?v=10">
 <!-- Phone sheet behaviour, shared with Locus. Loaded after ledger.css so its
      class-gated rules win the ties they are meant to win. -->
@@ -33,7 +35,7 @@
      Spec: docs/one-ledger.md section 6, docs/handoffs/ledger-shell-a.md. -->
 <div class="app">
   <aside class="side no-print" id="side">
-    <a class="side-brand" href="./" onclick="show('overview');return false"><img src="../icons/ledger-round-192.png" alt=""><span><span class="nm">Ledger</span><span class="by" id="brandBy">Mobius Digital</span></span></a>
+    <a class="side-brand" href="./" onclick="show('overview');return false"><img src="../logo/cashew/icons/favicon.svg" alt=""><span><span class="nm">Cashew</span><span class="by" id="brandBy">Mobius Digital</span></span></a>
     <div class="side-scroll"><nav class="tabs" id="nav" aria-label="Primary"></nav></div>
     <div class="side-foot">
       <button type="button" class="vsettings" id="railSettings" onclick="show('settings')"><svg viewBox="0 0 24 24"><use href="#i-settings"/></svg><span>Settings</span></button>
@@ -47,12 +49,12 @@
     <div class="topbar no-print">
       <button class="nav-toggle" id="navToggle" aria-label="Open navigation" onclick="navToggle()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="hd-title" id="hdTitle"></div>
-      <div class="askbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="askIn2" type="text" autocomplete="off" spellcheck="false" placeholder="Ask the Controller, or jump to a page"><kbd>Ctrl K</kbd><div class="askpop" id="askPop" hidden></div></div>
+      <div class="askbar"><img class="askmark" id="askMark" src="../logo/cashew/rest.svg" alt="" data-state="rest" title="The helper"><input id="askIn2" type="text" autocomplete="off" spellcheck="false" placeholder="Ask the Controller, or jump to a page"><kbd>Ctrl K</kbd><div class="askpop" id="askPop" hidden></div></div>
       <div class="hd-right" id="hdRight"></div>
     </div>
     <div class="seg-row no-print" id="seg" hidden></div>
     <main id="main"></main>
-    <footer class="no-print">Mobius Ledger. Net income is revenue minus expenses minus Stripe fees. The app never moves money: it works out the split, you make the transfers.
+    <footer class="no-print">Cashew, Mobius Digital's books. Net income is revenue minus expenses minus Stripe fees. The app never moves money: it works out the split, you make the transfers.
       <span style="display:block;margin-top:6px"><a href="privacy/">Privacy policy</a> · <a href="security/">Security policy</a></span></footer>
   </div>
 </div>
