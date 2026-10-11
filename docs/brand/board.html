@@ -275,9 +275,45 @@ section{margin-top:56px}
 .name small{display:block; font-size:12.5px; color:var(--muted); margin-top:5px}
 .name small em{font-size:1.1em}
 .dir-h .brand{font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--field-ink)}
+.r2 .sizes{grid-template-columns:auto minmax(0,1fr)}
+.r2 .row4{display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.r2 .row4 .kit-helper{color:var(--field)}
+.r2 .row4 .px16{width:16px; height:16px}
+.r2 .row4 small{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
+.r2 .onfield .px16{width:16px; height:16px}
+.r2 .fam{display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-top:14px; border-top:1px solid var(--line); color:var(--ink)}
+.r2 .fam .mob{width:44px; height:30px; color:var(--mobius)} .r2 .fam .mob svg{width:100%; height:100%; display:block}
+.r2 .fam .kit-helper{width:30px; height:30px; color:var(--ink)}
+.r2 .fam .sm{display:flex; align-items:center; gap:8px; margin-left:10px}
+.r2 .fam .sm .mob{width:23px; height:16px} .r2 .fam .sm .kit-helper{width:16px; height:16px}
+.r2 .fam small{font-size:11px; color:var(--muted); flex-basis:100%}
+.r2 .wm{color:var(--field); flex:none; display:block} .r2 .wm svg{display:block; height:56px; width:auto; max-width:100%}
+.r2 .wm.sm svg{height:22px} .r2 .wm.xs svg{height:14px}
+.r2 .wmrow{display:flex; align-items:center; gap:18px; flex-wrap:wrap}
+.r2 .wmfield{display:flex; align-items:center; gap:18px; padding:14px 16px; border-radius:10px; background:var(--field); color:var(--on-field)}
+.r2 .wmfield .wm{color:var(--on-field)} .r2 .wmfield .kit-helper{color:var(--on-field); width:40px; height:40px}
+.r2 .lockup{display:flex; align-items:center; gap:10px; color:var(--field)}
+.r2 .lockup .kit-helper{width:36px; height:36px; color:var(--field)}
+.r2 .lockup .wm svg{height:30px}
+.r2 .chars{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; padding-top:14px; border-top:1px solid var(--line)}
+.r2 .chars .kit-helper{width:72px; height:72px}
+.r2 .chars .px20{width:20px; height:20px}
+.r2 .chars small{font-size:11px; color:var(--muted)}
+.r2 .chars .state{display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center}
+.dirs.r2{grid-template-columns:1fr}
+.dir.wide{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:20px 28px; align-items:start}
+.dir.wide .dir-h,.dir.wide .why,.dir.wide .fam{grid-column:1 / -1}
+.dir.wide .why{padding-top:0; border-top:0}
+.arch summary{cursor:pointer; font-size:14px; font-weight:600; color:var(--ink-2); list-style:none; display:flex; align-items:center; gap:8px}
+.arch summary::before{content:""; width:6px; height:6px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg); transition:transform .15s}
+.arch[open] summary::before{transform:rotate(45deg)}
+.arch{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 20px}
+.arch .names,.arch .dirs{margin-top:16px}
+@media (max-width:900px){.dir.wide{grid-template-columns:1fr}}
 .pack{background:#fff; color:#111114; border:1px solid var(--line-strong); border-radius:6px; padding:16px 18px 14px; box-shadow:0 1px 0 rgba(15,15,20,.04)}
 .pack .ph{display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid rgba(15,15,20,.12)}
 .pack .ph .kit-helper{width:20px; height:20px; color:var(--field)}
+.pack .ph .wm{flex:none; display:block} .pack .ph .wm svg{display:block; height:18px; width:auto}
 .pack .ph b{font-size:14px; font-weight:650; letter-spacing:-.01em}
 .pack .ph .when{margin-left:auto; font-size:11px; color:#71717A; font-variant-numeric:tabular-nums}
 .pack h4{margin:12px 0 2px; font-size:15px; font-weight:650; letter-spacing:-.01em}
@@ -720,8 +756,55 @@ section{margin-top:56px}
     </mask>
   </defs>
   <path d="M27.73 17.56C26.68 17.71 23.41 17.65 21.45 18.43C19.49 19.22 17.45 20.62 15.95 22.26C14.46 23.9 13.16 26.11 12.49 28.27C11.81 30.44 11.63 33 11.91 35.26C12.19 37.51 13.02 39.9 14.17 41.82C15.31 43.73 17 45.52 18.76 46.74C20.51 47.97 22.71 48.88 24.7 49.16C26.68 49.45 29.69 48.56 30.69 48.44A3 3 0 0 0 31.22 42.47C30.87 41.99 29.65 40.46 29.16 39.59C28.67 38.71 28.45 37.94 28.27 37.23C28.09 36.52 28.1 35.89 28.08 35.33C28.07 34.76 28.14 34.3 28.18 33.83C28.22 33.37 28.3 32.99 28.33 32.52C28.37 32.04 28.31 31.57 28.39 30.97C28.46 30.37 28.51 29.69 28.78 28.91C29.06 28.12 29.85 26.7 30.06 26.26A4.5 4.5 0 0 0 33.19 23.25A2.79 2.79 0 0 1 31.75 18.43A4.5 4.5 0 0 0 27.73 17.56Z" fill="currentColor" stroke="none" mask="url(#cfc)"/></symbol>
+<symbol id="c2-c-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M44.71 46.12A19 19 0 1 1 44.71 17.88A7.22 7.22 0 0 1 46.58 25.95"/></symbol>
+<symbol id="c2-character-asleep" viewBox="0 0 64 64"><g opacity=".78">
+  <path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="#1E7A52"/>
+  <path d="M24.2 23.74C22.17 24.03 19.66 25.96 18.4 27.8C17.14 29.64 16.56 32.34 16.66 34.76C16.76 37.18 17.53 40.17 18.98 42.3C20.43 44.43 22.94 46.55 25.36 47.52C27.78 48.49 31.06 48.58 33.48 48.1C35.9 47.62 38.31 46.17 39.86 44.62C41.41 43.07 42.47 40.56 42.76 38.82C43.05 37.08 42.47 34.95 41.6 34.18C40.73 33.41 38.89 34.66 37.54 34.18C36.19 33.7 34.64 32.63 33.48 31.28C32.32 29.93 32.13 27.32 30.58 26.06C29.03 24.8 26.23 23.45 24.2 23.74Z" fill="#5CC395"/>
+  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="#13573A"/>
+  <path d="M17.3 26.8h3.4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+  <path d="M25.3 26.8h3.4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+  <path d="M21.8 32h2.4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+  </g></symbol>
+<symbol id="c2-character-clear" viewBox="0 0 64 64"><path d="M22 12C18.5 12.5 14.17 15.83 12 19C9.83 22.17 8.83 26.83 9 31C9.17 35.17 10.5 40.33 13 44C15.5 47.67 19.83 51.33 24 53C28.17 54.67 33.83 54.83 38 54C42.17 53.17 46.33 50.67 49 48C51.67 45.33 53.5 41 54 38C54.5 35 53.5 31.33 52 30C50.5 28.67 47.33 30.83 45 30C42.67 29.17 40 27.33 38 25C36 22.67 35.67 18.17 33 16C30.33 13.83 25.5 11.5 22 12Z" fill="#1E7A52"/>
+  <path d="M24.2 24.74C22.17 25.03 19.66 26.96 18.4 28.8C17.14 30.64 16.56 33.34 16.66 35.76C16.76 38.18 17.53 41.17 18.98 43.3C20.43 45.43 22.94 47.55 25.36 48.52C27.78 49.49 31.06 49.58 33.48 49.1C35.9 48.62 38.31 47.17 39.86 45.62C41.41 44.07 42.47 41.56 42.76 39.82C43.05 38.08 42.47 35.95 41.6 35.18C40.73 34.41 38.89 35.66 37.54 35.18C36.19 34.7 34.64 33.63 33.48 32.28C32.32 30.93 32.13 28.32 30.58 27.06C29.03 25.8 26.23 24.45 24.2 24.74Z" fill="#5CC395"/>
+  <path d="M17 10C17.75 8.92 21.92 7.83 24 8C26.08 8.17 29.17 10 29.5 11C29.83 12 27.67 13.42 26 14C24.33 14.58 21 15.17 19.5 14.5C18 13.83 16.25 11.08 17 10Z" fill="#13573A"/>
+  <path d="M17.1 28a1.9 1.9 0 0 1 3.8 0" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+  <path d="M25.1 28a1.9 1.9 0 0 1 3.8 0" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+  <path d="M20 32a3 3 0 0 0 6 0" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character-found" viewBox="0 0 64 64"><path d="M22 9.5C18.5 10 14.17 13.33 12 16.5C9.83 19.67 8.83 24.33 9 28.5C9.17 32.67 10.5 37.83 13 41.5C15.5 45.17 19.83 48.83 24 50.5C28.17 52.17 33.83 52.33 38 51.5C42.17 50.67 46.33 48.17 49 45.5C51.67 42.83 53.5 38.5 54 35.5C54.5 32.5 53.5 28.83 52 27.5C50.5 26.17 47.33 28.33 45 27.5C42.67 26.67 40 24.83 38 22.5C36 20.17 35.67 15.67 33 13.5C30.33 11.33 25.5 9 22 9.5Z" fill="#1E7A52"/>
+  <path d="M24.2 22.24C22.17 22.53 19.66 24.46 18.4 26.3C17.14 28.14 16.56 30.84 16.66 33.26C16.76 35.68 17.53 38.67 18.98 40.8C20.43 42.93 22.94 45.05 25.36 46.02C27.78 46.99 31.06 47.08 33.48 46.6C35.9 46.12 38.31 44.67 39.86 43.12C41.41 41.57 42.47 39.06 42.76 37.32C43.05 35.58 42.47 33.45 41.6 32.68C40.73 31.91 38.89 33.16 37.54 32.68C36.19 32.2 34.64 31.13 33.48 29.78C32.32 28.43 32.13 25.82 30.58 24.56C29.03 23.3 26.23 21.95 24.2 22.24Z" fill="#5CC395"/>
+  <path d="M17 7.5C17.75 6.42 21.92 5.33 24 5.5C26.08 5.67 29.17 7.5 29.5 8.5C29.83 9.5 27.67 10.92 26 11.5C24.33 12.08 21 12.67 19.5 12C18 11.33 16.25 8.58 17 7.5Z" fill="#13573A"/>
+  <circle cx="18.6" cy="24.7" r="2.6" fill="#0C161D"/>
+  <circle cx="27.4" cy="24.7" r="2.6" fill="#0C161D"/>
+  <circle cx="23" cy="30.9" r="1.9" fill="#0C161D"/></symbol>
+<symbol id="c2-character-mark" viewBox="0 0 64 64"><path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="currentColor"/>
+  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="currentColor"/></symbol>
+<symbol id="c2-character-thinking" viewBox="0 0 64 64"><path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="#1E7A52"/>
+  <path d="M24.2 23.74C22.17 24.03 19.66 25.96 18.4 27.8C17.14 29.64 16.56 32.34 16.66 34.76C16.76 37.18 17.53 40.17 18.98 42.3C20.43 44.43 22.94 46.55 25.36 47.52C27.78 48.49 31.06 48.58 33.48 48.1C35.9 47.62 38.31 46.17 39.86 44.62C41.41 43.07 42.47 40.56 42.76 38.82C43.05 37.08 42.47 34.95 41.6 34.18C40.73 33.41 38.89 34.66 37.54 34.18C36.19 33.7 34.64 32.63 33.48 31.28C32.32 29.93 32.13 27.32 30.58 26.06C29.03 24.8 26.23 23.45 24.2 23.74Z" fill="#5CC395"/>
+  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="#13573A"/>
+  <circle cx="20.8" cy="25.4" r="2" fill="#0C161D"/>
+  <circle cx="28.8" cy="25.4" r="2" fill="#0C161D"/>
+  <path d="M23.6 32h2.8" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-character" viewBox="0 0 64 64"><path d="M22 11C18.5 11.5 14.17 14.83 12 18C9.83 21.17 8.83 25.83 9 30C9.17 34.17 10.5 39.33 13 43C15.5 46.67 19.83 50.33 24 52C28.17 53.67 33.83 53.83 38 53C42.17 52.17 46.33 49.67 49 47C51.67 44.33 53.5 40 54 37C54.5 34 53.5 30.33 52 29C50.5 27.67 47.33 29.83 45 29C42.67 28.17 40 26.33 38 24C36 21.67 35.67 17.17 33 15C30.33 12.83 25.5 10.5 22 11Z" fill="#1E7A52"/>
+  <path d="M24.2 23.74C22.17 24.03 19.66 25.96 18.4 27.8C17.14 29.64 16.56 32.34 16.66 34.76C16.76 37.18 17.53 40.17 18.98 42.3C20.43 44.43 22.94 46.55 25.36 47.52C27.78 48.49 31.06 48.58 33.48 48.1C35.9 47.62 38.31 46.17 39.86 44.62C41.41 43.07 42.47 40.56 42.76 38.82C43.05 37.08 42.47 34.95 41.6 34.18C40.73 33.41 38.89 34.66 37.54 34.18C36.19 33.7 34.64 32.63 33.48 31.28C32.32 29.93 32.13 27.32 30.58 26.06C29.03 24.8 26.23 23.45 24.2 23.74Z" fill="#5CC395"/>
+  <path d="M17 9C17.75 7.92 21.92 6.83 24 7C26.08 7.17 29.17 9 29.5 10C29.83 11 27.67 12.42 26 13C24.33 13.58 21 14.17 19.5 13.5C18 12.83 16.25 10.08 17 9Z" fill="#13573A"/>
+  <circle cx="19" cy="26.4" r="2" fill="#0C161D"/>
+  <circle cx="27" cy="26.4" r="2" fill="#0C161D"/>
+  <path d="M21 32h4" stroke="#0C161D" stroke-width="1.9" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="c2-curl" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"><path d="M41.12 26.76A6.5 6.5 0 0 0 37.62 18.09A15 15 0 1 0 37.62 45.91"/></symbol>
+<symbol id="c2-wordmark" viewBox="0 -40.8 154.94 43.6" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19.83 -5.42A10.2 10.2 0 1 1 19.83 -20.58A3.88 3.88 0 0 1 20.83 -16.25"/>
+  <path d="M50.1 -13A10.2 10.2 0 1 0 50.1 -12.99"/>
+  <path d="M50.1 -23.2V-2.8"/>
+  <path d="M66.12 -20.65A5.1 5.1 0 1 0 61.7 -13A5.1 5.1 0 1 1 57.28 -5.35"/>
+  <path d="M73.3 -35.2V-2.8"/>
+  <path d="M73.3 -11.47A8.67 8.67 0 0 1 90.64 -11.47V-2.8"/>
+  <path d="M117.54 -13A10.2 10.2 0 1 0 114.92 -6.17"/>
+  <path d="M97.14 -13H117.54"/>
+  <path d="M124.04 -23.2V-9.12A6.32 6.32 0 0 0 136.69 -9.12V-9.12A6.32 6.32 0 0 0 149.34 -9.12V-23.2"/>
+  <path d="M136.69 -9.12V-16.12"/></symbol>
 <symbol id="mobius" viewBox="0 0 2400 1655"><path d="M221.200 1393.617 C120.000 1292.448 120.000 1126.895 221.200 1025.689 L1025.947 221.189 C1127.148 120.020 1292.751 120.020 1393.989 221.189 C1495.189 322.358 1495.189 487.911 1393.989 589.117 L589.241 1393.617 C488.041 1494.786 322.437 1494.786 221.200 1393.617 M2232.828 701.215 L1738.573 1195.317 L1738.573 1252.477 C1738.573 1395.581 1855.671 1512.642 1998.818 1512.642 C2141.966 1512.642 2259.063 1395.581 2259.063 1252.477 L2259.063 671.616 C2250.985 681.840 2242.277 691.768 2232.828 701.215 M1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 Z" fill="currentColor"/></symbol>
 </svg>
+<script>window.KIT_VB={"c2-wordmark": "0 -40.8 154.94 43.6"}</script>
 <!-- marks:end -->
 
 <div class="wrap">
@@ -739,12 +822,12 @@ section{margin-top:56px}
     <div>
       <div class="label">Brand kit, 2026-10-11</div>
       <h1 style="margin-top:8px">Two products, one <em class="kit-accent" style="color:var(--locus-ink)">voice</em>.</h1>
-      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. The money app has two names on the table, Kept and Cashew, each with its own drawing. Tick one per product; the samples at the bottom redraw with your pick.</p>
+      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. Cole picked the bead for Locus and the name Cashew for the money app; the Cashew mark is open again in round two, below. Tick a Cashew direction and the samples at the bottom redraw with it.</p>
     </div>
     <div class="pickbox">
       <div class="label">Your pick</div>
       <div class="row" id="pickLocus"><b>Locus</b><span>nothing ticked yet</span></div>
-      <div class="row" id="pickKept"><b>Money</b><span>nothing ticked yet</span></div>
+      <div class="row" id="pickKept"><b>Cashew</b><span>nothing ticked yet</span></div>
       <button type="button" class="btn primary" id="copyPick">Copy the pick</button><span class="toast" id="toast"></span>
     </div>
   </div>
@@ -755,14 +838,22 @@ section{margin-top:56px}
     <div class="dirs" id="locusDirs"></div>
   </section>
 
+  <section id="cashew" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+    <div class="sec-h"><h2>Cashew, round <em class="kit-accent">two</em></h2><span class="n">3 directions</span></div>
+    <p class="sec-p">The name is Cashew. Round one drew a literal nut in one stroke on the ring grid and Cole said no, so this round is three proper logos, not pictograms: a curl that only suggests the kidney, a wordmark whose C is the icon, and a character drawn as an illustration with its silhouette as the mark. Each is shown at 200, 48, 20 and 16px, on white and on the green, and beside the Locus bead and the Mobius ribbon.</p>
+    <div class="dirs r2" id="cashewDirs"></div>
+  </section>
+
   <section id="kept" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
-    <div class="sec-h"><h2>The money app: <em class="kit-accent">Kept</em> or <em class="kit-accent">Cashew</em></h2><span class="n">5 directions, 2 names</span></div>
-    <p class="sec-p">The money app tells you one number every night: what you actually kept. The name is between Kept (the word from that line) and Cashew (cash, and a nut with a face; the tagline stays Know what you kept). Under Kept the helper is the coin, in three directions that differ in what the coin is doing. Under Cashew the helper is the nut itself, drawn two ways: as one open stroke (direction 4) and as a filled silhouette (direction 5). Both names keep the same green and the same construction, so the pick is one choice: a name and its drawing.</p>
+    <div class="sec-h"><h2>The money app, round <em class="kit-accent">one</em></h2><span class="n">kept as the record</span></div>
+    <p class="sec-p">What the first morning produced: three coins under the name Kept, and two literal nuts under Cashew (directions 4 and 5), which Cole called terrible. The name Cashew won; these drawings did not. They stay here so the record is whole.</p>
+    <details class="arch"><summary>Round one, five drawings</summary>
     <div class="names">
       <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-1"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-2"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-3"/></svg></span></div><div><b>Kept</b><small>Know what you <em class="kit-accent">kept</em>. Directions 1 to 3.</small></div></div>
       <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-4"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-5"/></svg></span></div><div><b>Cashew</b><small>Know what you <em class="kit-accent">kept</em>. Directions 4 and 5.</small></div></div>
     </div>
     <div class="dirs four" id="keptDirs"></div>
+    </details>
   </section>
 
   <section>
@@ -771,7 +862,7 @@ section{margin-top:56px}
     <div class="family">
       <div class="row ink" id="famInk"></div>
       <div class="row" id="famColor"></div>
-      <p class="cap">Mobius is a ribbon; Locus and Kept are rings. The ribbon's band is about 14% of its height, the rings' stroke is 8% of the box and 12% of the ring, so the three share a weight without sharing a shape. Each ring sits on a 64 grid, radius 21, stroke 5, round caps, currentColor.</p>
+      <p class="cap">Mobius is a ribbon; Locus and the Kept coins are rings; the Cashew curl is a stroke of the same weight. The ribbon's band is about 14% of its height, the rings' stroke is 8% of the box and 12% of the ring, so the three share a weight without sharing a shape. Each ring sits on a 64 grid, radius 21, stroke 5, round caps, currentColor.</p>
     </div>
   </section>
 
@@ -861,13 +952,13 @@ section{margin-top:56px}
       <div class="col" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
         <div class="label" id="useKeptLabel">Kept</div>
         <div class="kit-ask"><span class="kit-helper thinking" id="askKept"></span><input type="text" id="askKeptIn" placeholder="Ask Kept" aria-label="Ask the money app"></div>
-        <p class="cap">The ask bar at 20px, thinking.</p>
+        <p class="cap">The ask bar at 20px. With the character it thinks; with a mark it just sits.</p>
         <div class="kit-nudge"><span class="kit-helper" id="nudgeKept"></span><p><b>The Shopify payout</b> landed twice on Tuesday. $2,140 is counted two times.</p><div class="kit-acts"><button type="button">Not now</button><button type="button" class="primary">Book it</button></div></div>
         <p class="cap">The nudge card: found something.</p>
         <div class="kit-nudge"><span class="kit-helper" id="clearKept"></span><p>September is closed. The pack for your CPA is ready.</p><div class="kit-acts"><button type="button">Open the pack</button></div></div>
         <p class="cap">All clear: the small nod.</p>
         <div class="pack">
-          <div class="ph"><span class="kit-helper" id="packMark"></span><b id="packName">Kept</b><span class="when">September 2026</span></div>
+          <div class="ph"><span class="kit-helper" id="packMark"></span><span class="wm" id="packWm" style="color:var(--field)"></span><b id="packName">Kept</b><span class="when">September 2026</span></div>
           <h4>Lucky Golf, the month closed</h4>
           <p id="packFoot">Prepared by Kept from the bank, Shopify and Stripe. Every line ties to a statement.</p>
           <table><tr><td>Revenue, net of tax and refunds</td><td>$118,420</td></tr><tr><td>Cost of goods</td><td>$41,900</td></tr><tr><td>Advertising</td><td>$31,250</td></tr><tr><td>Fees, shipping, software</td><td>$17,880</td></tr><tr><td><b>What you kept</b></td><td><b>$27,390</b></td></tr></table>
@@ -902,18 +993,50 @@ section{margin-top:56px}
        why:'<b>Strong:</b> the silhouette is unmistakably a cashew at every size, the curl, the belly and the stem all read, where the open stroke of direction 4 turns into a crescent moon at 48px and below. The kidney is drawn fatter and a size smaller than direction 4, so its ink at 20px matches the rings beside it (the row under this card). The face is punched through the fill at 48px and above and left off at 20px, so the ask bar carries the plain nut. <b>Weak:</b> it is the only solid mark in the family, so on a dark surface it is a heavier shape than the rings even at matched ink, and a filled kidney is a shape nut brands already use.'}
     ]
   };
+  DIRS.cashew = [
+    {n:1, name:'The curl', one:'The C of Cashew as a thick curl that only suggests the kidney.', mark:'c2-curl', helper:'c2-curl',
+     why:'<b>Strong:</b> the simplest of the three and the one that works at 16px: one thick stroke, three arcs, solid. The inward curl at the head is the whole suggestion of the nut; the rest is the letter. It sits beside the Locus bead as a relative, the same weight, one a ring and one a curl. <b>Weak:</b> on its own it is a bold C with a curled terminal, so the nut is only there once you know the name; and a curl this fat can be mistaken for a lower-case e or a 6 in a crowded tab bar.'},
+    {n:2, name:'The wordmark', one:'Cashew set in a custom monoline lowercase; the C alone is the icon.', mark:'c2-c-icon', helper:'c2-c-icon', wordmark:true,
+     why:'<b>Strong:</b> the name does the work, which is what a four-letter-plus-two name wants: the word on the CPA pack, the site and the gate, the C on the phone. The letters are drawn, not typed: a round c whose top terminal curls inward, a bowl-and-stem a, an s from two half circles, a w that sits like a double bowl. It pairs with Inter because it is the same geometry at a heavier weight. <b>Weak:</b> a monoline rounded lowercase is a familiar register (a lot of fintech lives there), and the C icon alone says Cashew only next to the word.'},
+    {n:3, name:'The character', one:'A soft kidney with a lighter belly, a stem cap and a face; its silhouette is the mark.', mark:'c2-character-mark', helper:'c2-character', states:true, lockup:true,
+     why:'<b>Strong:</b> the one Cole can lean into: a creature, not a glyph, drawn with a body colour, a lighter belly, a darker cap and two dot eyes, so it carries the four states and the commercial without props. The silhouette (body plus cap) reduces to a solid mark, and the wordmark from direction 2 sits beside it as the lockup. <b>Weak:</b> a character is the most work to keep consistent across the app, the site and the spot; the silhouette alone is a bean at 16px and needs the word next to it; and the illustration cannot go on the green field in its own colours, so the field gets the silhouette in white.'}
+  ];
   var STATES = ['asleep','thinking','found','clear'];
-  var pick = {locus:null, kept:null};
-  try{ var saved = JSON.parse(localStorage.getItem('kit_pick')||'{}'); pick.locus = saved.locus||null; pick.kept = saved.kept||null; }catch(e){}
+  var pick = {locus:2, cashew:null};
+  try{ var saved = JSON.parse(localStorage.getItem('kit_pick2')||'{}'); if(saved.locus) pick.locus = saved.locus; pick.cashew = saved.cashew||null; }catch(e){}
 
-  function use(id, cls){ return '<svg class="m'+(cls?' '+cls:'')+'" role="img" aria-label="'+id+'"><use href="#'+id+'"/></svg>'; }
+  function use(id, cls){ var vb = (window.KIT_VB||{})[id]; var ar = ''; if(vb){ var v = vb.split(' '); ar = ' style="aspect-ratio:'+v[2]+' / '+v[3]+'"'; vb = '0 0 '+v[2]+' '+v[3]; } return '<svg class="m'+(cls?' '+cls:'')+'"'+(vb?' viewBox="'+vb+'"':'')+ar+' role="img" aria-label="'+id+'"><use href="#'+id+'"/></svg>'; }
   function helper(id, extra){ return '<span class="kit-helper '+(extra||'')+'">'+use(id)+'</span>'; }
 
+  function card2(d){
+    var p = 'cashew', m = d.mark;
+    var h = '<div class="dir wide r2" data-p="'+p+'" data-n="'+d.n+'">';
+    h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+' <span class="brand">CASHEW</span></div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
+    h += '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button></div>';
+    h += '<div><div class="sizes"><div class="kit-helper big">'+use(m)+'</div><div class="small">';
+    h += '<div class="row4">'+helper(m,'px48')+'<small>48</small>'+helper(m,'px20')+'<small>20</small>'+helper(m,'px16')+'<small>16</small></div>';
+    h += '<div class="onfield">'+helper(m,'px48')+helper(m,'px20')+helper(m,'px16')+'<small>on the field</small></div>';
+    h += '</div></div></div>';
+    var right = '';
+    if(d.wordmark || d.lockup){
+      right += '<div class="wmrow"><span class="wm">'+use('c2-wordmark')+'</span></div>';
+      right += '<div class="wmrow" style="margin-top:12px"><span class="wm sm">'+use('c2-wordmark')+'</span><span class="wm xs">'+use('c2-wordmark')+'</span></div>';
+      right += '<div class="wmfield" style="margin-top:12px"><span class="wm sm">'+use('c2-wordmark')+'</span>'+(d.lockup ? helper('c2-character-mark','px48') : helper('c2-c-icon','px48'))+'</div>';
+      if(d.lockup) right += '<div class="lockup" style="margin-top:14px">'+helper('c2-character-mark')+'<span class="wm">'+use('c2-wordmark')+'</span><small style="color:var(--muted);font-size:11px">the lockup</small></div>';
+    }
+    h += '<div>'+right+'</div>';
+    if(d.states){
+      h += '<div class="chars" style="grid-column:1 / -1"><div class="state">'+helper('c2-character')+helper('c2-character','px20')+'<small>at rest</small></div>'+STATES.map(function(s){ return '<div class="state">'+helper('c2-character-'+s)+helper('c2-character-'+s,'px20')+'<small>'+s.replace('found','found something').replace('clear','all clear')+'</small></div>'; }).join('')+'</div>';
+    }
+    h += '<div class="fam"><small>Beside the Mobius mark and the Locus bead, at 30px and 16px</small><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper(m)+'<span class="sm"><span class="mob">'+use('mobius')+'</span>'+helper('locus-2')+helper(m)+'</span></div>';
+    h += '<p class="why">'+d.why+'</p>';
+    return h+'</div>';
+  }
   function card(p, d){
     var base = p+'-'+d.n;
     var h = '<div class="dir" data-p="'+p+'" data-n="'+d.n+'">';
     h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+(d.brand ? ' <span class="brand">'+d.brand.toUpperCase()+'</span>' : '')+'</div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
-    h += '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button></div>';
+    h += (p === 'kept' ? '' : '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button>')+'</div>';
     h += '<div class="sizes"><div class="kit-helper big">'+use(base)+'</div><div class="small">';
     h += '<div class="r">'+helper(base,'px48')+'<small>48px</small></div>';
     h += '<div class="r">'+helper(base,'px20')+'<small>20px</small></div>';
@@ -930,59 +1053,59 @@ section{margin-top:56px}
   }
   document.getElementById('locusDirs').innerHTML = DIRS.locus.map(function(d){ return card('locus', d); }).join('');
   document.getElementById('keptDirs').innerHTML = DIRS.kept.map(function(d){ return card('kept', d); }).join('');
+  document.getElementById('cashewDirs').innerHTML = DIRS.cashew.map(card2).join('');
 
   function fam(color){
     var h = '<div class="mob">'+use('mobius')+'</div><div class="gap"></div>';
     [1,2,3].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--locus)':'inherit')+'">'+use('locus-'+n)+'</span>'; });
     h += '<div class="gap"></div>';
-    [1,2,3,4,5].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--kept)':'inherit')+'">'+use('kept-'+n)+'</span>'; });
+    ['c2-curl','c2-c-icon','c2-character-mark'].forEach(function(id){ h += '<span class="kit-helper" style="color:'+(color?'var(--kept)':'inherit')+'">'+use(id)+'</span>'; });
     return h;
   }
   document.getElementById('famInk').innerHTML = fam(false);
   document.getElementById('famColor').innerHTML = fam(true);
 
-  function nameOf(p, n){ var d = DIRS[p][n-1]; return (d.brand ? d.brand+', ' : '')+'direction '+n+', '+d.name.toLowerCase(); }
-  function brandOf(p, n){ var d = DIRS[p][(n||1)-1]; return d.brand || (p === 'locus' ? 'Locus' : 'Kept'); }
+  function nameOf(p, n){ var d = DIRS[p][n-1]; return 'direction '+n+', '+d.name.toLowerCase(); }
   function setId(id, sym){ var el = document.getElementById(id); if(el) el.innerHTML = use(sym); }
   function render(){
-    ['locus','kept'].forEach(function(p){
-      var n = pick[p] || 1;
+    ['locus','cashew'].forEach(function(p){
       document.querySelectorAll('.dir[data-p="'+p+'"]').forEach(function(c){
         var on = String(c.dataset.n) === String(pick[p]);
         c.classList.toggle('picked', on);
-        c.querySelector('.pick').setAttribute('aria-pressed', on ? 'true' : 'false');
-        c.querySelector('.pick').lastChild.nodeValue = on ? 'Picked' : 'Pick';
+        var b = c.querySelector('.pick'); if(!b) return;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.lastChild.nodeValue = on ? 'Picked' : 'Pick';
       });
-      var row = document.getElementById(p === 'locus' ? 'pickLocus' : 'pickKept');
-      row.innerHTML = helper(p+'-'+n+'-clear') + '<b>'+(p==='locus'?'Locus':'Money')+'</b><span>'+(pick[p] ? nameOf(p, pick[p]) : 'nothing ticked yet, showing direction 1')+'</span>';
-      var cap = p === 'locus' ? 'Locus' : 'Kept';
-      setId('gate'+cap, p+'-'+n+'-clear');
-      setId('morn'+cap, p+'-'+n+'-clear');
-      setId('ask'+cap, (DIRS[p][n-1].plain20 ? p+'-'+n : p+'-'+n+'-thinking'));
-      setId('nudge'+cap, p+'-'+n+'-found');
-      setId('clear'+cap, p+'-'+n+'-clear');
-      if(p === 'kept'){
-        var nm = brandOf('kept', n);
-        document.getElementById('useKeptLabel').textContent = nm;
-        document.getElementById('askKeptIn').placeholder = 'Ask '+nm;
-        document.getElementById('packName').textContent = nm;
-        document.getElementById('packFoot').textContent = 'Prepared by '+nm+' from the bank, Shopify and Stripe. Every line ties to a statement.';
-        setId('packMark', 'kept-'+n);
-      }
     });
+    var ln = pick.locus || 2;
+    document.getElementById('pickLocus').innerHTML = helper('locus-'+ln+'-clear') + '<b>Locus</b><span>'+nameOf('locus', ln)+(ln === 2 ? ' (Cole, 2026-10-11)' : '')+'</span>';
+    setId('gateLocus', 'locus-'+ln+'-clear'); setId('mornLocus', 'locus-'+ln+'-clear');
+    setId('askLocus', 'locus-'+ln+'-thinking'); setId('nudgeLocus', 'locus-'+ln+'-found'); setId('clearLocus', 'locus-'+ln+'-clear');
+    var cn = pick.cashew || 1, cd = DIRS.cashew[cn-1];
+    document.getElementById('pickKept').innerHTML = helper(cd.mark) + '<b>Cashew</b><span>'+(pick.cashew ? nameOf('cashew', cn) : 'nothing ticked yet, showing direction 1')+'</span>';
+    var st = function(s){ return cd.states ? 'c2-character-'+s : cd.mark; };
+    setId('gateKept', cd.mark); setId('mornKept', cd.mark);
+    setId('askKept', st('thinking')); setId('nudgeKept', st('found')); setId('clearKept', st('clear'));
+    document.getElementById('useKeptLabel').textContent = 'Cashew';
+    document.getElementById('askKeptIn').placeholder = 'Ask Cashew';
+    document.getElementById('packName').textContent = 'Cashew';
+    document.getElementById('packFoot').textContent = 'Prepared by Cashew from the bank, Shopify and Stripe. Every line ties to a statement.';
+    var pm = document.getElementById('packMark');
+    if(cd.wordmark || cd.lockup){ pm.innerHTML = (cd.lockup ? use(cd.mark) : '') ; document.getElementById('packWm').innerHTML = use('c2-wordmark'); document.getElementById('packName').hidden = true; pm.hidden = !cd.lockup; }
+    else { pm.innerHTML = use(cd.mark); pm.hidden = false; document.getElementById('packWm').innerHTML = ''; document.getElementById('packName').hidden = false; }
     document.getElementById('topMarks').innerHTML =
-      '<span class="kit-helper" style="color:var(--locus)">'+use('locus-'+(pick.locus||1))+'</span>' +
-      '<span class="kit-helper" style="color:var(--kept)">'+use('kept-'+(pick.kept||1))+'</span>';
+      '<span class="kit-helper" style="color:var(--locus)">'+use('locus-'+ln)+'</span>' +
+      '<span class="kit-helper" style="color:var(--kept)">'+use(cd.mark)+'</span>';
   }
   document.addEventListener('click', function(e){
     var b = e.target.closest('.pick'); if(!b) return;
     var c = b.closest('.dir'); var p = c.dataset.p, n = Number(c.dataset.n);
-    pick[p] = pick[p] === n ? null : n;
-    try{ localStorage.setItem('kit_pick', JSON.stringify(pick)); }catch(err){}
+    pick[p] = (pick[p] === n && p !== 'locus') ? null : n;
+    try{ localStorage.setItem('kit_pick2', JSON.stringify(pick)); }catch(err){}
     render();
   });
   document.getElementById('copyPick').addEventListener('click', function(){
-    var t = 'Locus: '+(pick.locus ? nameOf('locus', pick.locus) : 'no pick')+'. Kept: '+(pick.kept ? nameOf('kept', pick.kept) : 'no pick')+'.';
+    var t = 'Locus: '+nameOf('locus', pick.locus || 2)+'. Cashew: '+(pick.cashew ? nameOf('cashew', pick.cashew) : 'no pick')+'.';
     var toast = document.getElementById('toast');
     function done(ok){ toast.textContent = ok ? 'Copied: '+t : t; setTimeout(function(){ toast.textContent = ''; }, 6000); }
     try{ navigator.clipboard.writeText(t).then(function(){ done(true); }, function(){ done(false); }); }catch(err){ done(false); }
