@@ -149,7 +149,7 @@ illustration cannot sit on the green field in its own colours, so the field gets
   60% of the box, square (the OS rounds the corners), plus `icon-maskable.svg` and `icon-maskable-512.png` at 46%
   for the maskable safe zone. Rendered from the SVG through Chromium; the 32px favicon reads as the ring and bead.
 - **Cashew: the wordmark is the logo, the C is the app icon, the character is the helper.** The parent
-  session's pick from round two, pending Cole's veto: logo and mascot kept separate, the way the reference video
+  session's pick from round two, confirmed by Cole for the logo: logo and mascot kept separate, the way the reference video
   splits its mark from its puddle. The character got one more polish pass (three tries, the second kept): a deeper
   kidney bend with the head curling back toward the belly and the tail curling up toward the head, the stem cap
   smaller and tucked, the lighter belly grown to carry the face, the eyes bigger and set lower so the expression
@@ -160,6 +160,15 @@ illustration cannot sit on the green field in its own colours, so the field gets
   one colour), `silhouette.svg` (body plus cap in currentColor, for the field and the CPA pack), and the character
   in full colour: `rest.svg`, `asleep.svg`, `thinking.svg`, `found.svg`, `clear.svg`.
   Icons in `logo/cashew/icons/`, the same set as Locus, built from the C in white on the Cashew green.
+- **The character is rendered, not drawn (2026-10-11, closing).** Cole rejected the drawn character from
+  direction 3 ("looks drawn, not a logo"). The helper is now an image-model render made by the parent session: a
+  glossy green cashew with a pale belly and two bead eyes, cut out onto transparent PNGs in five states (rest,
+  thinking, found, asleep, clear) at `logo/cashew/character/`, 200px today, 1024px for the commercial when
+  exported. Why a render: a mascot in the reference video is a lit object with weight and gloss, and a flat vector
+  face next to a flat vector wordmark read as two logos competing; a rendered character sits in a different
+  register from the logo, which is the split the video makes between its mark and its puddle. The wordmark and
+  the C stay the logo; the silhouette stays for one-colour places; the drawn vector states in `logo/cashew/` and
+  the round-two card on the board stay as the record. The board inlines the five PNGs so it needs no files beside it.
 - **How they are used.** The wordmark goes on the CPA pack, the site and the gate's foot; the C on the phone and
   in the tab; the silhouette in white on the green field and wherever one colour is required; the character in
   the ask bar, the nudge card, the empty states and the commercial, never on a document.
