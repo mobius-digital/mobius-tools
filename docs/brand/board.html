@@ -257,6 +257,26 @@ section{margin-top:56px}
 
 /* direction cards */
 .dirs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.dirs.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+.names{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px}
+.name{display:flex; align-items:center; gap:16px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
+.name .kit-helper{width:44px; height:44px; color:var(--field)}
+.name .marks3{display:flex; gap:6px}
+.name .marks3 .kit-helper{width:30px; height:30px}
+.name b{display:block; font-size:28px; font-weight:650; letter-spacing:-.025em; line-height:1}
+.name small{display:block; font-size:12.5px; color:var(--muted); margin-top:5px}
+.name small em{font-size:1.1em}
+.dir-h .brand{font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--field-ink)}
+.pack{background:#fff; color:#111114; border:1px solid var(--line-strong); border-radius:6px; padding:16px 18px 14px; box-shadow:0 1px 0 rgba(15,15,20,.04)}
+.pack .ph{display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid rgba(15,15,20,.12)}
+.pack .ph .kit-helper{width:20px; height:20px; color:var(--field)}
+.pack .ph b{font-size:14px; font-weight:650; letter-spacing:-.01em}
+.pack .ph .when{margin-left:auto; font-size:11px; color:#71717A; font-variant-numeric:tabular-nums}
+.pack h4{margin:12px 0 2px; font-size:15px; font-weight:650; letter-spacing:-.01em}
+.pack p{font-size:12px; color:#3F3F46}
+.pack table{width:100%; border-collapse:collapse; margin-top:10px; font-size:11.5px; font-variant-numeric:tabular-nums}
+.pack td{padding:4px 0; border-bottom:1px solid rgba(15,15,20,.08)}
+.pack td:last-child{text-align:right}
 .dir{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:16px; min-width:0}
 .dir.picked{border-color:var(--field); box-shadow:0 0 0 3px var(--field-soft)}
 .dir-h{display:flex; align-items:flex-start; gap:10px}
@@ -338,13 +358,14 @@ section{margin-top:56px}
 .use{display:grid; grid-template-columns:1fr 1fr; gap:16px}
 .use .col{display:flex; flex-direction:column; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px}
 .use .col .kit-ask,.use .col .kit-nudge{background:var(--bg)}
+.use .col .pack{margin-top:4px}
 .use .col .kit-nudge{border-color:var(--line-strong)}
 .use .cap{font-size:12px; color:var(--muted)}
 .use .kit-morning{font-size:14px}
 
 /* phone */
 @media (max-width:900px){
-  .dirs{grid-template-columns:1fr}
+  .dirs,.dirs.four,.names{grid-template-columns:1fr}
   .head,.fields,.accent,.use{grid-template-columns:1fr}
 }
 @media (max-width:480px){
@@ -613,6 +634,45 @@ section{margin-top:56px}
   <path d="M26.9 26a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
   <path d="M33.7 26a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
   <path d="M29.4 30a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-4" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M27.02 13.41C25.8 13.59 22.01 13.56 19.74 14.49C17.46 15.41 15.1 17.05 13.37 18.96C11.64 20.86 10.14 23.42 9.36 25.93C8.57 28.45 8.36 31.42 8.69 34.04C9.01 36.66 9.98 39.43 11.31 41.65C12.64 43.87 14.61 45.94 16.65 47.35C18.69 48.76 21.25 49.81 23.55 50.11C25.86 50.42 29.34 49.34 30.5 49.18A3.25 3.25 0 0 0 31.06 42.71C30.65 42.14 29.2 40.31 28.61 39.26C28.03 38.22 27.77 37.3 27.55 36.45C27.33 35.6 27.33 34.86 27.31 34.19C27.29 33.51 27.37 32.96 27.42 32.4C27.47 31.84 27.55 31.39 27.6 30.82C27.64 30.25 27.59 29.69 27.69 28.98C27.79 28.28 27.86 27.48 28.2 26.58C28.54 25.67 29.48 24.05 29.74 23.55A5.25 5.25 0 0 0 27.02 13.41Z"/></symbol>
+<symbol id="kept-4-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="ca" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M13.13 28.7h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M19.93 28.7h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M16.73 33.7h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M27.02 13.41C25.8 13.59 22.01 13.56 19.74 14.49C17.46 15.41 15.1 17.05 13.37 18.96C11.64 20.86 10.14 23.42 9.36 25.93C8.57 28.45 8.36 31.42 8.69 34.04C9.01 36.66 9.98 39.43 11.31 41.65C12.64 43.87 14.61 45.94 16.65 47.35C18.69 48.76 21.25 49.81 23.55 50.11C25.86 50.42 29.34 49.34 30.5 49.18A3.25 3.25 0 0 0 31.06 42.71C30.65 42.14 29.2 40.31 28.61 39.26C28.03 38.22 27.77 37.3 27.55 36.45C27.33 35.6 27.33 34.86 27.31 34.19C27.29 33.51 27.37 32.96 27.42 32.4C27.47 31.84 27.55 31.39 27.6 30.82C27.64 30.25 27.59 29.69 27.69 28.98C27.79 28.28 27.86 27.48 28.2 26.58C28.54 25.67 29.48 24.05 29.74 23.55A5.25 5.25 0 0 0 27.02 13.41Z" fill="currentColor" stroke="none" mask="url(#ca)"/>
+  </g></symbol>
+<symbol id="kept-4-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="ct" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="16.33" cy="27.66" r="1.7" fill="#000"/>
+      <circle cx="23.13" cy="27.66" r="1.7" fill="#000"/>
+      <path d="M17.73 33.34h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.02 13.41C25.8 13.59 22.01 13.56 19.74 14.49C17.46 15.41 15.1 17.05 13.37 18.96C11.64 20.86 10.14 23.42 9.36 25.93C8.57 28.45 8.36 31.42 8.69 34.04C9.01 36.66 9.98 39.43 11.31 41.65C12.64 43.87 14.61 45.94 16.65 47.35C18.69 48.76 21.25 49.81 23.55 50.11C25.86 50.42 29.34 49.34 30.5 49.18A3.25 3.25 0 0 0 31.06 42.71C30.65 42.14 29.2 40.31 28.61 39.26C28.03 38.22 27.77 37.3 27.55 36.45C27.33 35.6 27.33 34.86 27.31 34.19C27.29 33.51 27.37 32.96 27.42 32.4C27.47 31.84 27.55 31.39 27.6 30.82C27.64 30.25 27.59 29.69 27.69 28.98C27.79 28.28 27.86 27.48 28.2 26.58C28.54 25.67 29.48 24.05 29.74 23.55A5.25 5.25 0 0 0 27.02 13.41Z" fill="currentColor" stroke="none" mask="url(#ct)"/></symbol>
+<symbol id="kept-4-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cf" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <circle cx="14.33" cy="26.8" r="2.3" fill="#000"/>
+      <circle cx="21.93" cy="26.8" r="2.3" fill="#000"/>
+      <circle cx="18.13" cy="32.6" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M27.02 11.91C25.8 12.09 22.01 12.06 19.74 12.99C17.46 13.91 15.1 15.55 13.37 17.46C11.64 19.36 10.14 21.92 9.36 24.43C8.57 26.95 8.36 29.92 8.69 32.54C9.01 35.16 9.98 37.93 11.31 40.15C12.64 42.37 14.61 44.44 16.65 45.85C18.69 47.26 21.25 48.31 23.55 48.61C25.86 48.92 29.34 47.84 30.5 47.68A3.25 3.25 0 0 0 31.06 41.21C30.65 40.64 29.2 38.81 28.61 37.76C28.03 36.72 27.77 35.8 27.55 34.95C27.33 34.1 27.33 33.36 27.31 32.69C27.29 32.01 27.37 31.46 27.42 30.9C27.47 30.34 27.55 29.89 27.6 29.32C27.64 28.75 27.59 28.19 27.69 27.48C27.79 26.78 27.86 25.98 28.2 25.08C28.54 24.17 29.48 22.55 29.74 22.05A5.25 5.25 0 0 0 27.02 11.91Z" fill="currentColor" stroke="none" mask="url(#cf)"/></symbol>
+<symbol id="kept-4-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="cc" fill="#000" stroke="none">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M13.03 30.6a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M19.83 30.6a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M15.53 34.6a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M27.02 14.91C25.8 15.09 22.01 15.06 19.74 15.99C17.46 16.91 15.1 18.55 13.37 20.46C11.64 22.36 10.14 24.92 9.36 27.43C8.57 29.95 8.36 32.92 8.69 35.54C9.01 38.16 9.98 40.93 11.31 43.15C12.64 45.37 14.61 47.44 16.65 48.85C18.69 50.26 21.25 51.31 23.55 51.61C25.86 51.92 29.34 50.84 30.5 50.68A3.25 3.25 0 0 0 31.06 44.21C30.65 43.64 29.2 41.81 28.61 40.76C28.03 39.72 27.77 38.8 27.55 37.95C27.33 37.1 27.33 36.36 27.31 35.69C27.29 35.01 27.37 34.46 27.42 33.9C27.47 33.34 27.55 32.89 27.6 32.32C27.64 31.75 27.59 31.19 27.69 30.48C27.79 29.78 27.86 28.98 28.2 28.08C28.54 27.17 29.48 25.55 29.74 25.05A5.25 5.25 0 0 0 27.02 14.91Z" fill="currentColor" stroke="none" mask="url(#cc)"/></symbol>
 <symbol id="mobius" viewBox="0 0 2400 1655"><path d="M221.200 1393.617 C120.000 1292.448 120.000 1126.895 221.200 1025.689 L1025.947 221.189 C1127.148 120.020 1292.751 120.020 1393.989 221.189 C1495.189 322.358 1495.189 487.911 1393.989 589.117 L589.241 1393.617 C488.041 1494.786 322.437 1494.786 221.200 1393.617 M2232.828 701.215 L1738.573 1195.317 L1738.573 1252.477 C1738.573 1395.581 1855.671 1512.642 1998.818 1512.642 C2141.966 1512.642 2259.063 1395.581 2259.063 1252.477 L2259.063 671.616 C2250.985 681.840 2242.277 691.768 2232.828 701.215 M1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 Z" fill="currentColor"/></symbol>
 </svg>
 <!-- marks:end -->
@@ -632,12 +692,12 @@ section{margin-top:56px}
     <div>
       <div class="label">Brand kit, 2026-10-11</div>
       <h1 style="margin-top:8px">Two products, one <em class="kit-accent" style="color:var(--locus-ink)">voice</em>.</h1>
-      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. Tick one per product; the samples at the bottom redraw with your pick.</p>
+      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. The money app has two names on the table, Kept and Cashew, each with its own drawing. Tick one per product; the samples at the bottom redraw with your pick.</p>
     </div>
     <div class="pickbox">
       <div class="label">Your pick</div>
       <div class="row" id="pickLocus"><b>Locus</b><span>nothing ticked yet</span></div>
-      <div class="row" id="pickKept"><b>Kept</b><span>nothing ticked yet</span></div>
+      <div class="row" id="pickKept"><b>Money</b><span>nothing ticked yet</span></div>
       <button type="button" class="btn primary" id="copyPick">Copy the pick</button><span class="toast" id="toast"></span>
     </div>
   </div>
@@ -649,9 +709,13 @@ section{margin-top:56px}
   </section>
 
   <section id="kept" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
-    <div class="sec-h"><h2>Kept, the <em class="kit-accent">coin</em></h2><span class="n">3 directions</span></div>
-    <p class="sec-p">The money app tells you one number every night: what you actually kept. The helper is the coin. It sighs at a loss, nods at a clean close, and gets a little heavier when the month is good. The three directions differ in what the coin is doing.</p>
-    <div class="dirs" id="keptDirs"></div>
+    <div class="sec-h"><h2>The money app: <em class="kit-accent">Kept</em> or <em class="kit-accent">Cashew</em></h2><span class="n">4 directions, 2 names</span></div>
+    <p class="sec-p">The money app tells you one number every night: what you actually kept. The name is between Kept (the word from that line) and Cashew (cash, and a nut with a face; the tagline stays Know what you kept). Under Kept the helper is the coin, in three directions that differ in what the coin is doing. Under Cashew the helper is the nut itself. Both names keep the same green and the same construction, so the pick is one choice: a name and its drawing.</p>
+    <div class="names">
+      <div class="name"><div class="marks3"><span class="kit-helper"><svg class="m"><use href="#kept-1"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-2"/></svg></span><span class="kit-helper"><svg class="m"><use href="#kept-3"/></svg></span></div><div><b>Kept</b><small>Know what you <em class="kit-accent">kept</em>. Directions 1 to 3.</small></div></div>
+      <div class="name"><span class="kit-helper"><svg class="m"><use href="#kept-4"/></svg></span><div><b>Cashew</b><small>Know what you <em class="kit-accent">kept</em>. Direction 4.</small></div></div>
+    </div>
+    <div class="dirs four" id="keptDirs"></div>
   </section>
 
   <section>
@@ -748,13 +812,20 @@ section{margin-top:56px}
         <p class="cap">All clear: the small nod.</p>
       </div>
       <div class="col" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
-        <div class="label">Kept</div>
-        <div class="kit-ask"><span class="kit-helper thinking" id="askKept"></span><input type="text" id="askKeptIn" placeholder="Ask Kept" aria-label="Ask Kept"></div>
+        <div class="label" id="useKeptLabel">Kept</div>
+        <div class="kit-ask"><span class="kit-helper thinking" id="askKept"></span><input type="text" id="askKeptIn" placeholder="Ask Kept" aria-label="Ask the money app"></div>
         <p class="cap">The ask bar at 20px, thinking.</p>
         <div class="kit-nudge"><span class="kit-helper" id="nudgeKept"></span><p><b>The Shopify payout</b> landed twice on Tuesday. $2,140 is counted two times.</p><div class="kit-acts"><button type="button">Not now</button><button type="button" class="primary">Book it</button></div></div>
         <p class="cap">The nudge card: found something.</p>
         <div class="kit-nudge"><span class="kit-helper" id="clearKept"></span><p>September is closed. The pack for your CPA is ready.</p><div class="kit-acts"><button type="button">Open the pack</button></div></div>
         <p class="cap">All clear: the small nod.</p>
+        <div class="pack">
+          <div class="ph"><span class="kit-helper" id="packMark"></span><b id="packName">Kept</b><span class="when">September 2026</span></div>
+          <h4>Lucky Golf, the month closed</h4>
+          <p id="packFoot">Prepared by Kept from the bank, Shopify and Stripe. Every line ties to a statement.</p>
+          <table><tr><td>Revenue, net of tax and refunds</td><td>$118,420</td></tr><tr><td>Cost of goods</td><td>$41,900</td></tr><tr><td>Advertising</td><td>$31,250</td></tr><tr><td>Fees, shipping, software</td><td>$17,880</td></tr><tr><td><b>What you kept</b></td><td><b>$27,390</b></td></tr></table>
+        </div>
+        <p class="cap">The CPA pack header: the plain mark without the face, the name set in Inter, the month. The helper never appears on a document.</p>
       </div>
     </div>
   </section>
@@ -772,12 +843,14 @@ section{margin-top:56px}
        why:'<b>Strong:</b> it says what Locus sells, the call: where you are and which way to go. The needle is the posture, hanging down asleep, straight up when it has found something. <b>Weak:</b> at 20px it can read as a clock or a dial, and the needle crowds the face on a phone.'}
     ],
     kept: [
-      {n:1, name:'The coin', one:'A disc with its edge showing. The face lives on it.',
+      {n:1, brand:'Kept', name:'The coin', one:'A disc with its edge showing. The face lives on it.',
        why:'<b>Strong:</b> the plainest reading of what the app is about, and the face has the most room of the three. The edge keeps it from being a plain circle. <b>Weak:</b> a coin is the oldest money symbol there is; it needs the character to be anyone.'},
-      {n:2, name:'The stack', one:'A coin standing on the coins already kept. It grows.',
+      {n:2, brand:'Kept', name:'The stack', one:'A coin standing on the coins already kept. It grows.',
        why:'<b>Strong:</b> the mark carries the promise: what you kept, kept. The all-clear state adds a coin to the pile, so a good month shows. <b>Weak:</b> the tallest and busiest of the six; at 20px the bars thin to lines, and it is the one mark that does not fit a circle.'},
-      {n:3, name:'The jar', one:'A round jar with a lid, filled to what you kept.',
-       why:'<b>Strong:</b> the fill line is the hero number drawn as a shape, and it moves: fuller on a clean close, the face looks down at it while thinking. It pairs with the video\'s melting balance. <b>Weak:</b> a half-filled circle can read as a gauge or a contrast icon before it reads as a jar, and the lid adds a second shape to the construction.'}
+      {n:3, brand:'Kept', name:'The jar', one:'A round jar with a lid, filled to what you kept.',
+       why:'<b>Strong:</b> the fill line is the hero number drawn as a shape, and it moves: fuller on a clean close, the face looks down at it while thinking. It pairs with the video\'s melting balance. <b>Weak:</b> a half-filled circle can read as a gauge or a contrast icon before it reads as a jar, and the lid adds a second shape to the construction.'},
+      {n:4, brand:'Cashew', name:'The nut', one:'A cashew, one closed stroke, belly on the ring.',
+       why:'<b>Strong:</b> the name and the mark are one joke told once, cash and a nut, and the helper has the most personality to lean into: the nut itself is the character, no props needed, and the plain outline is a quiet mark for a CPA pack. <b>Weak:</b> it is the one shape here that is not a circle, so it is the odd one next to Locus and the Mobius ribbon; a kidney at 20px can read as a crescent moon; and the name says nothing about money until the tagline does.'}
     ]
   };
   var STATES = ['asleep','thinking','found','clear'];
@@ -790,7 +863,7 @@ section{margin-top:56px}
   function card(p, d){
     var base = p+'-'+d.n;
     var h = '<div class="dir" data-p="'+p+'" data-n="'+d.n+'">';
-    h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+'</div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
+    h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+(d.brand ? ' <span class="brand">'+d.brand.toUpperCase()+'</span>' : '')+'</div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
     h += '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button></div>';
     h += '<div class="sizes"><div class="kit-helper big">'+use(base)+'</div><div class="small">';
     h += '<div class="r">'+helper(base,'px48')+'<small>48px</small></div>';
@@ -814,7 +887,8 @@ section{margin-top:56px}
   document.getElementById('famInk').innerHTML = fam(false);
   document.getElementById('famColor').innerHTML = fam(true);
 
-  function nameOf(p, n){ var d = DIRS[p][n-1]; return 'direction '+n+', '+d.name.toLowerCase(); }
+  function nameOf(p, n){ var d = DIRS[p][n-1]; return (d.brand ? d.brand+', ' : '')+'direction '+n+', '+d.name.toLowerCase(); }
+  function brandOf(p, n){ var d = DIRS[p][(n||1)-1]; return d.brand || (p === 'locus' ? 'Locus' : 'Kept'); }
   function setId(id, sym){ var el = document.getElementById(id); if(el) el.innerHTML = use(sym); }
   function render(){
     ['locus','kept'].forEach(function(p){
@@ -826,13 +900,21 @@ section{margin-top:56px}
         c.querySelector('.pick').lastChild.nodeValue = on ? 'Picked' : 'Pick';
       });
       var row = document.getElementById(p === 'locus' ? 'pickLocus' : 'pickKept');
-      row.innerHTML = helper(p+'-'+n+'-clear') + '<b>'+(p==='locus'?'Locus':'Kept')+'</b><span>'+(pick[p] ? nameOf(p, pick[p]) : 'nothing ticked yet, showing direction 1')+'</span>';
+      row.innerHTML = helper(p+'-'+n+'-clear') + '<b>'+(p==='locus'?'Locus':'Money')+'</b><span>'+(pick[p] ? nameOf(p, pick[p]) : 'nothing ticked yet, showing direction 1')+'</span>';
       var cap = p === 'locus' ? 'Locus' : 'Kept';
       setId('gate'+cap, p+'-'+n+'-clear');
       setId('morn'+cap, p+'-'+n+'-clear');
       setId('ask'+cap, p+'-'+n+'-thinking');
       setId('nudge'+cap, p+'-'+n+'-found');
       setId('clear'+cap, p+'-'+n+'-clear');
+      if(p === 'kept'){
+        var nm = brandOf('kept', n);
+        document.getElementById('useKeptLabel').textContent = nm;
+        document.getElementById('askKeptIn').placeholder = 'Ask '+nm;
+        document.getElementById('packName').textContent = nm;
+        document.getElementById('packFoot').textContent = 'Prepared by '+nm+' from the bank, Shopify and Stripe. Every line ties to a statement.';
+        setId('packMark', 'kept-'+n);
+      }
     });
     document.getElementById('topMarks').innerHTML =
       '<span class="kit-helper" style="color:var(--locus)">'+use('locus-'+(pick.locus||1))+'</span>' +

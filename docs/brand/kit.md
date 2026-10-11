@@ -2,7 +2,7 @@
 
 Session B of docs/two-products.md. The board is docs/brand/board.html (rebuild it with `python3 docs/brand/build.py`
 after touching anything in logo/); the shareable copy is the artifact linked from the session report. The marks are
-in logo/locus/ and logo/kept/ (direction-N.svg is the mark, direction-N-asleep / -thinking / -found / -clear are the
+in logo/locus/ and logo/kept/ (the money app's folder, both names; direction-N.svg is the mark, direction-N-asleep / -thinking / -found / -clear are the
 helper), the tokens in logo/kit.css. Nothing here is wired into an app yet; that is sessions D and E.
 
 ## One construction
@@ -60,6 +60,19 @@ shape, and it moves: fuller on a clean close, and the face looks down at it whil
 video's melting balance without copying it (the balance melts, the jar holds). It is weak because a half-filled
 circle reads as a gauge or a contrast icon before it reads as a jar, and the lid is a second shape on top of the
 one construction, which bends the family rule a little.
+
+**Direction 4, Cashew, the nut.** Added at Cole's word, the same morning: the money app's name is between Kept and
+Cashew (cash, and a nut with a face; the tagline stays "Know what you kept"), so Cashew is a full direction, not a
+variant. The mark is a cashew drawn as one closed stroke on the same grid: the belly sits on the ring's radius, the
+curl is 160 degrees, the head end is fatter than the tail, stroke 5, currentColor. The helper is the nut itself,
+filled, with the face punched through like the Locus dot (two dots and a mouth, no arms, no blush, no gradient),
+lifted when it has found something, lowered for the nod. It is strong because the name and the mark are one joke
+told once and the character has the most personality to lean into of the four, and because the plain outline is a
+quiet mark on a CPA pack. It is weak because it is the one shape here that is not a circle, so it is the odd one
+beside Locus and the Mobius ribbon; a kidney at 20px can read as a crescent moon; and the name says nothing
+about money until the tagline does. It lives in logo/kept/direction-4*.svg because the folder is the money app,
+whatever the name ends up being. The board shows both names set in Inter beside their marks, and a CPA pack
+header that carries whichever plain mark is ticked.
 
 ## The two fields
 
