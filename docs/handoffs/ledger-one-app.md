@@ -120,9 +120,27 @@ https://claude.ai/artifact/9Gij7iF7xHnKb1ewyCJafF. Build sessions started from t
 | B. The brand kit (Locus dot, Kept coin, three directions each, `logo/locus`, `logo/kept`, `logo/kit.css`, `docs/brand/`) | `brand-kit` | session_01F85DqNFa3HSiDL3eCYZbRQ |
 | D. Locus personality (hero number, nudge card, morning line, accent word) | `locus-personality` | session_01DPDfo7cay2HMD3pjJFKH91 |
 
-C (the two Remotion commercials in `motion/`) starts when B returns. E (Kept personality) and F (the rename)
-wait for Cole's yes on the name. None of the branches merge to main without a review: the repo root is GitHub
-Pages served from main, so a merge is a deploy of Locus and the Mobius ledger front end.
+Later the same day, the decisions and what followed:
+
+- **The name is Cashew** (Cole picked it over Kept for the personality it can carry). Line: "Know what you
+  kept." Lucky keeps "the Caddie" as its helper's nickname. Locus's mark is the bead (direction 2).
+- **The logo is the hand-lettered wordmark** (`logo/cashew/wordmark.svg`) with the C as the icon
+  (`mark.svg`, `icons/`). Cole rejected every drawn character ("looks drawn, not a logo").
+- **The characters are rendered images**, made with the Canva image model in this session: a glossy green
+  cashew (`logo/cashew/character/{rest,thinking,found,asleep,clear}.png`) and, so the pair matches, a glossy
+  blue bead with an orbit ring for Locus (`logo/locus/character/`). 200px transparent cut-outs; the full-size
+  originals live in Canva (media ids in this session's transcript); exporting them at 1024px under the same
+  names is the next step and needs a blank Canva design, which the generator refused to make.
+- **Sessions C (commercials, `motion/`, branch `motion-spots`, page
+  https://claude.ai/artifact/EfkzcHEK8FGuYmFmQ2MzZq), E (Lucky repo, branch `cashew`, restarted once after a
+  permission prompt stalled it) and G (both gates redone with the character as the hero, branch `gates`,
+  session_0134iNp938vjGrbRjKkyH5t8)** were started after A, B and D finished.
+- **Integration**: brand-kit, ledger-shell-a and locus-personality are merged into `main-nv6pvz` (pushed).
+  motion-spots and gates merge when they land. Nothing merged to main yet: the repo root is GitHub Pages
+  served from main, so that merge deploys Locus and the Mobius ledger front end; Cole decides after seeing
+  the screenshots. The ledger worker needs a deploy for the `edition` setting (`ledger/worker`, Mobius
+  Cloudflare login, or from the Default cloud environment where the Mobius token works).
+- Lucky deploys on push to main through GitHub Actions; the `cashew` branch there must be reviewed, then merged.
 
 ## Constraints the cloud must respect
 
