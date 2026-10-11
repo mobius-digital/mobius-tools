@@ -1,0 +1,193 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "note": "One line per picture event. scripts/voice.py reads this and writes public/vo/<spot>-<id>.wav plus manifest.json with each line's length; the spots time their beats to those lengths. Change a line here and re-run the script; only changed lines are re-voiced.",
+  "cashew": [
+    {
+      "id": "01",
+      "text": "Your bank app says you have eighteen thousand four hundred dollars."
+    },
+    {
+      "id": "02",
+      "text": "That is not what you made."
+    },
+    {
+      "id": "03",
+      "text": "Rent takes a bite."
+    },
+    {
+      "id": "04",
+      "text": "The factory takes a bite."
+    },
+    {
+      "id": "05",
+      "text": "Ads burn."
+    },
+    {
+      "id": "06",
+      "text": "And the tax you owe, but have not paid yet."
+    },
+    {
+      "id": "07",
+      "text": "What you actually kept? Three thousand, one hundred and twenty."
+    },
+    {
+      "id": "07a",
+      "text": "Or add it up yourself."
+    },
+    {
+      "id": "07b",
+      "text": "The bank."
+    },
+    {
+      "id": "07c",
+      "text": "Stripe."
+    },
+    {
+      "id": "07d",
+      "text": "PayPal."
+    },
+    {
+      "id": "07e",
+      "text": "Amex."
+    },
+    {
+      "id": "07f",
+      "text": "Shopify payouts."
+    },
+    {
+      "id": "07g",
+      "text": "QuickBooks."
+    },
+    {
+      "id": "07h",
+      "text": "The sheet."
+    },
+    {
+      "id": "07i",
+      "text": "Fourteen tabs. Still no number."
+    },
+    {
+      "id": "08",
+      "text": "So you found out in April. From your CPA."
+    },
+    {
+      "id": "09",
+      "text": "Cashew."
+    },
+    {
+      "id": "10",
+      "text": "Every account. Every sale. Every bill."
+    },
+    {
+      "id": "11",
+      "text": "One real number. Every night."
+    },
+    {
+      "id": "12",
+      "text": "The bill that did not come. The payment that landed twice."
+    },
+    {
+      "id": "13",
+      "text": "Cashew taps you on the shoulder. One tap. Booked."
+    },
+    {
+      "id": "14",
+      "text": "Monday, seven oh two. Here is your week."
+    },
+    {
+      "id": "15",
+      "text": "Close the month in one sitting. Hand your CPA a pack, not a shoebox."
+    },
+    {
+      "id": "16",
+      "text": "Cashew. Know what you kept."
+    }
+  ],
+  "locus": [
+    {
+      "id": "01",
+      "text": "Meta says four point one."
+    },
+    {
+      "id": "02",
+      "text": "Shopify says two point three."
+    },
+    {
+      "id": "03",
+      "text": "Your ad spend is bleeding. And nobody can see where."
+    },
+    {
+      "id": "04",
+      "text": "You find out at eleven forty seven."
+    },
+    {
+      "id": "04a",
+      "text": "Shopify."
+    },
+    {
+      "id": "04b",
+      "text": "Meta."
+    },
+    {
+      "id": "04c",
+      "text": "Google."
+    },
+    {
+      "id": "04d",
+      "text": "TikTok."
+    },
+    {
+      "id": "04e",
+      "text": "Triple Whale."
+    },
+    {
+      "id": "04f",
+      "text": "Klaviyo."
+    },
+    {
+      "id": "05",
+      "text": "Fourteen tabs open. Nobody knows what to change."
+    },
+    {
+      "id": "06",
+      "text": "Locus."
+    },
+    {
+      "id": "07",
+      "text": "It wakes before you do."
+    },
+    {
+      "id": "08",
+      "text": "Every store. Every ad account. Every email. Read by seven."
+    },
+    {
+      "id": "09",
+      "text": "The morning brief. One sentence per brand."
+    },
+    {
+      "id": "10",
+      "text": "Yesterday, you actually kept four thousand, three hundred and ten."
+    },
+    {
+      "id": "11",
+      "text": "Today's calls. Scale this. Cut that. Refresh this. Ranked by the money at stake."
+    },
+    {
+      "id": "12",
+      "text": "One tap. Paused. And logged."
+    },
+    {
+      "id": "13",
+      "text": "What to make next, from what already won."
+    },
+    {
+      "id": "14",
+      "text": "Running an agency? Every brand. One morning."
+    },
+    {
+      "id": "15",
+      "text": "Locus. Know what to change."
+    }
+  ]
+}

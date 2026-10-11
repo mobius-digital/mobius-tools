@@ -1,0 +1,32 @@
+{
+  "name": "mobius-motion-spots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The two commercials (Cashew and Locus) as Remotion compositions. See README.md.",
+  "scripts": {
+    "fonts": "node scripts/fetch-fonts.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "node scripts/render.mjs",
+    "render:cashew": "node scripts/render.mjs cashew",
+    "render:locus": "node scripts/render.mjs locus",
+    "posters": "node scripts/render.mjs posters",
+    "typecheck": "tsc --noEmit",
+    "sfx": "node scripts/make-sfx.mjs",
+    "voice": "python3 scripts/voice.py"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.534",
+    "@remotion/fonts": "4.0.534",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.534"
+  },
+  "devDependencies": {
+    "@svgr/webpack": "8.1.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/webpack-env": "1.18.8",
+    "typescript": "5.9.3"
+  },
+  "type": "module"
+}
