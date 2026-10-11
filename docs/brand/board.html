@@ -1,0 +1,866 @@
+<title>Locus and Kept Brand Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+/* Layout: a review sheet. One column of sections, each a question Cole answers
+   by looking; the marks do the talking, the page stays quiet around them. */
+:root{
+  --bg:#F7F7F8; --surface:#FFFFFF; --surface-2:#F0F0F2;
+  --ink:#111114; --ink-2:#3F3F46; --muted:#71717A; --faint:#A1A1AA;
+  --line:rgba(15,15,20,.08); --line-strong:rgba(15,15,20,.14);
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mobius:#0C161D;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#111113; --surface:#19191C; --surface-2:#222226;
+    --ink:#F4F4F5; --ink-2:#C9C9CE; --muted:#8B8B93; --faint:#5E5E66;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
+    --mobius:#EAF2F7;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111113; --surface:#19191C; --surface-2:#222226;
+  --ink:#F4F4F5; --ink-2:#C9C9CE; --muted:#8B8B93; --faint:#5E5E66;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
+  --mobius:#EAF2F7;
+  color-scheme:dark;
+}
+
+/* kit:start */
+/* ==========================================================================
+   logo/kit.css: the brand kit shared by Locus and Kept (2026-10-11)
+   --------------------------------------------------------------------------
+   Two products, one voice. This file holds only what the two apps share:
+
+     THE TWO FIELDS   the Locus blue and the Kept green as full-screen
+                      colour fields, for the gate, the empty states and the
+                      morning line, with the ink that reads on them.
+     THE ACCENT WORD  one serif italic word per page head.
+     THE HELPER       sizes and colour for the helper character.
+
+   Load it after /mobius.css and the app's own stylesheet:
+     <link rel="stylesheet" href="/logo/kit.css">
+   and set the product on <html>:
+     <html data-product="locus">  or  <html data-product="kept">
+
+   Fonts: Inter is the app face (profit/DESIGN.md). The accent word is
+   Instrument Serif italic, already a Google Font the Mobius tools load:
+     https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=Instrument+Serif:ital@0;1&display=swap
+
+   Rules (docs/two-products.md section 4 and 5):
+   - The field is the product's colour at full strength. Ink on it is white.
+     Nothing else on a field: one line, one button, the helper.
+   - The accent word is ONE word per page head, never a whole sentence.
+   - The helper never talks in paragraphs and never blocks a screen.
+   ========================================================================== */
+
+/* ---- 1. The two colours, named once ------------------------------------ */
+:root{
+  /* Locus. The v2 Locus blue (profit/v2.css --brand), kept as the field. */
+  --locus:#2F62D9;            /* the field and the accent, light theme   */
+  --locus-deep:#2451B8;       /* the field in the dark theme (less glare) */
+  --locus-ink:#2552BF;        /* Locus blue as TEXT on a light surface   */
+  --locus-soft:#EAF0FD;       /* a tint for chips and the active pill    */
+  --locus-rgb:47,98,217;
+
+  /* Kept. The Ledger green from /mobius.css (#5CC395) deepened until white
+     ink passes on it as a full field (5.3:1). Same hue, more weight. */
+  --kept:#1E7A52;
+  --kept-deep:#176443;
+  --kept-ink:#1B6B48;
+  --kept-soft:#E6F4EC;
+  --kept-rgb:30,122,82;
+
+  /* Ink on a field, both themes. The field is dark enough for white. */
+  --on-field:#FFFFFF;
+  --on-field-2:rgba(255,255,255,.74);   /* the second line, the hint      */
+  --on-field-line:rgba(255,255,255,.26);/* a hairline or a quiet border   */
+  --on-field-well:rgba(255,255,255,.14);/* an input or a chip on a field  */
+
+  /* The accent word. */
+  --accent-serif:'Instrument Serif',Georgia,'Times New Roman',serif;
+
+  /* The helper at its three sizes: ask bar, card, commercial. */
+  --helper-sm:20px; --helper-md:48px; --helper-lg:200px;
+}
+
+/* ---- 2. The product picks its colour ------------------------------------ */
+/* Each app reads --field, --field-ink, --field-soft and never the product
+   name, so a screen built for Locus draws green in Kept without a change. */
+:root,
+:root[data-product="locus"]{
+  --field:var(--locus); --field-deep:var(--locus-deep);
+  --field-ink:var(--locus-ink); --field-soft:var(--locus-soft);
+  --field-rgb:var(--locus-rgb);
+}
+:root[data-product="kept"]{
+  --field:var(--kept); --field-deep:var(--kept-deep);
+  --field-ink:var(--kept-ink); --field-soft:var(--kept-soft);
+  --field-rgb:var(--kept-rgb);
+}
+
+/* Dark theme (Locus: <html data-theme="dark">; the OS setting when nothing
+   is saved). The field deepens a step so a full screen of it does not glare;
+   the ink on it stays white. Colour AS TEXT on the dark canvas lightens,
+   because #2F62D9 on #111113 is 3.5:1 and fails. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --locus-ink:#8FB3FF; --locus-soft:rgba(143,179,255,.14);
+    --kept-ink:#6FD0A4;  --kept-soft:rgba(111,208,164,.14);
+    --field:var(--field-deep);
+  }
+}
+:root[data-theme="dark"]{
+  --locus-ink:#8FB3FF; --locus-soft:rgba(143,179,255,.14);
+  --kept-ink:#6FD0A4;  --kept-soft:rgba(111,208,164,.14);
+  --field:var(--field-deep);
+}
+
+/* ---- 3. The field --------------------------------------------------------- */
+/* A full-screen colour field: the gate, an empty state, the morning line.
+   One idea per field. The helper sits in it at --helper-md or larger. */
+.kit-field{
+  background:var(--field); color:var(--on-field);
+  min-height:100dvh; display:grid; place-items:center;
+  padding:32px 20px; text-align:center;
+}
+.kit-field.inline{min-height:0; border-radius:14px; padding:28px 24px}   /* a card-sized field */
+.kit-field h1,.kit-field .kit-h1{font-weight:650; letter-spacing:-.02em; font-size:28px; line-height:1.15; text-wrap:balance; margin:0}
+.kit-field p{color:var(--on-field-2); font-size:15px; line-height:1.5; max-width:38ch; margin:10px auto 0}
+.kit-field a{color:var(--on-field)}
+.kit-field .kit-btn{
+  display:inline-flex; align-items:center; gap:8px; height:40px; padding:0 18px; margin-top:20px;
+  border-radius:10px; border:0; background:var(--on-field); color:var(--field);
+  font:inherit; font-weight:600; font-size:14px; cursor:pointer;
+}
+.kit-field .kit-btn.quiet{background:var(--on-field-well); color:var(--on-field); border:1px solid var(--on-field-line)}
+.kit-field input{
+  width:100%; height:40px; padding:0 12px; border-radius:10px; font:inherit; font-size:14px;
+  color:var(--on-field); background:var(--on-field-well); border:1px solid var(--on-field-line); outline:0;
+}
+.kit-field input::placeholder{color:var(--on-field-2)}
+.kit-field input:focus{border-color:var(--on-field); box-shadow:0 0 0 3px var(--on-field-well)}
+.kit-field .kit-helper{color:var(--on-field)}
+
+/* The morning line: one sentence, the helper first, on a thin field. */
+.kit-morning{
+  display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px;
+  background:var(--field); color:var(--on-field); font-size:15px; font-weight:500; line-height:1.4;
+}
+.kit-morning .kit-helper{flex:none; width:28px; height:28px}
+.kit-morning time{color:var(--on-field-2); font-weight:400; font-variant-numeric:tabular-nums}
+
+/* ---- 4. The accent word ------------------------------------------------- */
+/* One word per page head. "what you <em>actually</em> kept". The serif
+   italic sits 8% larger than the sans around it so the x-heights match.
+   Use <em class="kit-accent"> or <em> inside .kit-head. Never two in a head. */
+.kit-accent,
+.kit-head em{
+  font-family:var(--accent-serif); font-style:italic; font-weight:400;
+  font-size:1.08em; letter-spacing:0; line-height:1;
+  color:var(--field-ink);            /* on a surface: the product's colour   */
+}
+.kit-field .kit-accent,
+.kit-field .kit-head em{color:var(--on-field)}   /* on the field: white, like the rest */
+.kit-head{font-weight:650; letter-spacing:-.02em; line-height:1.15; text-wrap:balance}
+
+/* ---- 5. The helper ------------------------------------------------------- */
+/* The helper is an inline SVG (logo/<product>/direction-N-<state>.svg)
+   drawn in currentColor. Give it a colour by giving its box a colour. */
+.kit-helper{display:inline-block; width:var(--helper-md); height:var(--helper-md); color:var(--field); vertical-align:middle}
+.kit-helper svg{width:100%; height:100%; display:block}
+.kit-helper.sm{width:var(--helper-sm); height:var(--helper-sm)}
+.kit-helper.lg{width:var(--helper-lg); height:var(--helper-lg)}
+.kit-helper.on-field{color:var(--on-field)}
+/* States are separate drawings, not CSS. Asleep is drawn dim in the file.
+   A thinking helper may breathe; nothing else moves on its own. */
+@keyframes kit-think{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+.kit-helper.thinking svg{animation:kit-think 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.kit-helper.thinking svg{animation:none}}
+
+/* ---- 6. The nudge card and the ask bar ---------------------------------- */
+/* The tap on the shoulder: the helper, one sentence, one button. Nothing
+   else. Built on the Locus card (profit/DESIGN.md) with the kit's colour. */
+.kit-nudge{
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px;
+  padding:14px 16px; border-radius:14px;
+  background:var(--surface,#fff); border:1px solid var(--line,rgba(15,15,20,.07));
+  color:var(--ink,#111114);
+}
+.kit-nudge .kit-helper{width:36px; height:36px}
+.kit-nudge p{margin:0; font-size:14px; line-height:1.45; min-width:0}
+.kit-nudge p b{font-weight:600}
+.kit-nudge .kit-acts{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+.kit-nudge .kit-acts button{
+  font:inherit; font-size:13px; font-weight:550; height:32px; padding:0 12px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--line-strong,rgba(15,15,20,.12)); background:var(--surface,#fff); color:var(--ink,#111114);
+}
+.kit-nudge .kit-acts button.primary{background:var(--field); border-color:var(--field); color:var(--on-field)}
+@media (max-width:480px){.kit-nudge{grid-template-columns:auto 1fr} .kit-nudge .kit-acts{grid-column:1 / -1; justify-content:flex-start}}
+
+/* The ask bar carries the helper at --helper-sm, left of the text. */
+.kit-ask{
+  display:flex; align-items:center; gap:10px; height:36px; padding:0 10px 0 8px; border-radius:10px;
+  background:var(--surface,#fff); border:1px solid var(--line-strong,rgba(15,15,20,.12)); color:var(--ink,#111114);
+}
+.kit-ask .kit-helper{width:var(--helper-sm); height:var(--helper-sm)}
+.kit-ask input{flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; font-size:14px; color:inherit}
+.kit-ask input::placeholder{color:var(--muted,#71717A)}
+.kit-ask:focus-within{border-color:var(--field); box-shadow:0 0 0 3px var(--field-soft)}
+
+/* kit:end */
+
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.5; font-feature-settings:"tnum","cv11"; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px; margin:0 auto; padding-block:0 80px; padding-inline:20px}
+h1,h2,h3{margin:0; text-wrap:balance}
+p{margin:0}
+button{font:inherit}
+svg.m{display:block; width:100%; height:100%}
+.label{font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+
+/* top bar */
+.top{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; display:flex; align-items:center; gap:14px; padding:12px 0; margin-bottom:28px; background:color-mix(in srgb,var(--bg) 86%,transparent); backdrop-filter:blur(12px); border-bottom:1px solid var(--line)}
+.top .marks{display:flex; align-items:center; gap:10px}
+.top .marks .kit-helper{width:26px; height:26px}
+.top .sp{flex:1}
+.seg{display:inline-flex; gap:2px; padding:2px; border-radius:8px; background:var(--surface-2)}
+.seg button{font-size:12.5px; font-weight:550; padding:4px 10px; border-radius:6px; border:0; background:transparent; color:var(--muted); cursor:pointer}
+.seg button.on{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(15,15,20,.1)}
+.seg button:focus-visible,.pick:focus-visible,.btn:focus-visible{outline:2px solid var(--field); outline-offset:2px}
+
+/* head */
+.head{display:grid; grid-template-columns:1.3fr 1fr; gap:32px; align-items:end; margin-bottom:44px}
+.head h1{font-size:34px; font-weight:650; letter-spacing:-.025em; line-height:1.1}
+.head h1 em{font-size:1.1em}
+.head .lead{font-size:15px; color:var(--ink-2); max-width:56ch; margin-top:12px}
+.head .lead b{font-weight:600; color:var(--ink)}
+.pickbox{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
+.pickbox .row{display:flex; align-items:center; gap:10px; margin-top:8px; font-size:14px}
+.pickbox .row .kit-helper{width:28px; height:28px}
+.pickbox .row b{font-weight:600; min-width:46px}
+.pickbox .row span{color:var(--muted)}
+.btn{display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font-size:13px; font-weight:550; cursor:pointer}
+.btn.primary{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.pickbox .btn{margin-top:14px}
+.toast{font-size:12.5px; color:var(--muted); margin-left:8px}
+
+/* sections */
+section{margin-top:56px}
+.sec-h{display:flex; align-items:baseline; gap:14px; margin-bottom:6px}
+.sec-h h2{font-size:22px; font-weight:650; letter-spacing:-.02em}
+.sec-h h2 em{font-size:1.1em}
+.sec-h .n{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+.sec-p{color:var(--ink-2); max-width:70ch; margin-bottom:22px}
+
+/* direction cards */
+.dirs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.dir{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:16px; min-width:0}
+.dir.picked{border-color:var(--field); box-shadow:0 0 0 3px var(--field-soft)}
+.dir-h{display:flex; align-items:flex-start; gap:10px}
+.dir-h .num{font-size:11px; font-weight:600; letter-spacing:.08em; color:var(--muted)}
+.dir-h h3{font-size:15px; font-weight:600}
+.dir-h p{font-size:13px; color:var(--muted); margin-top:2px}
+.pick{margin-left:auto; flex:none; display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px 0 8px; border-radius:999px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink-2); font-size:12.5px; font-weight:550; cursor:pointer}
+.pick i{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--line-strong); display:grid; place-items:center}
+.pick i::after{content:""; width:7px; height:7px; border-radius:50%; background:transparent}
+.dir.picked .pick{border-color:var(--field); color:var(--field-ink)}
+.dir.picked .pick i{border-color:var(--field)} .dir.picked .pick i::after{background:var(--field)}
+.sizes{display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:end}
+.sizes .big{width:200px; height:200px; color:var(--field)}
+.sizes .small{display:flex; flex-direction:column; gap:12px; min-width:0}
+.sizes .r{display:flex; align-items:center; gap:14px}
+.sizes .r .kit-helper{color:var(--field)}
+.sizes .r .kit-helper.px48{width:48px; height:48px}
+.sizes .r .kit-helper.px20{width:20px; height:20px}
+.sizes .r small{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
+.onfield{display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; background:var(--field); color:var(--on-field)}
+.onfield .kit-helper{color:var(--on-field)}
+.onfield .kit-helper.px48{width:48px; height:48px}
+.onfield .kit-helper.px20{width:20px; height:20px}
+.onfield small{font-size:11px; color:var(--on-field-2)}
+.states{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding-top:14px; border-top:1px solid var(--line)}
+.state{display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center}
+.state .kit-helper{width:52px; height:52px; color:var(--field)}
+.state .kit-helper.px20{width:20px; height:20px}
+.state small{font-size:11px; color:var(--muted)}
+.dir .why{font-size:13px; color:var(--ink-2); line-height:1.5; padding-top:12px; border-top:1px solid var(--line)}
+.dir .why b{font-weight:600; color:var(--ink)}
+
+/* family */
+.family{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px}
+.family .row{display:flex; align-items:center; gap:28px; flex-wrap:wrap}
+.family .mob{height:40px; width:58px; color:var(--mobius)}
+.family .mob svg{width:100%; height:100%; display:block}
+.family .gap{width:1px; height:40px; background:var(--line-strong)}
+.family .kit-helper{width:44px; height:44px}
+.family .ink .kit-helper{color:var(--ink)}
+.family .row+.row{margin-top:18px}
+.family .cap{font-size:12px; color:var(--muted); margin-top:16px; max-width:70ch}
+
+/* fields */
+.fields{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.gate{border-radius:16px; padding:48px 24px; min-height:400px; display:grid; place-items:center; text-align:center}
+.gate .in{width:min(320px,100%)}
+.gate .kit-helper{width:96px; height:96px; margin:0 auto 18px}
+.gate h2{font-size:28px; font-weight:650; letter-spacing:-.02em; line-height:1.15}
+.gate h2 em{font-size:1.1em}
+.gate p{margin-top:8px}
+.gate input{margin-top:20px}
+.gate .kit-btn{width:100%; justify-content:center; margin-top:10px}
+.swatch{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px}
+.sw{border-radius:10px; padding:12px 14px; font-size:12px; line-height:1.45}
+.sw b{display:block; font-size:12.5px; font-weight:600}
+.sw code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; opacity:.85}
+.sw.f{color:var(--on-field)}
+.sw.s{background:var(--surface); border:1px solid var(--line); color:var(--ink)}
+.sw.s b{color:var(--field-ink)}
+.morning{margin-top:10px}
+
+/* accent */
+.accent{display:grid; grid-template-columns:1.1fr 1fr; gap:16px}
+.accent .ex{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px 24px; display:flex; flex-direction:column; gap:18px}
+.accent .ex .kit-head{font-size:24px}
+.accent .ex .kit-head em{font-size:1.08em}
+.accent .ex .sub{font-size:13px; color:var(--muted); margin-top:4px}
+.accent .rule{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px 24px}
+.accent .rule ul{margin:10px 0 0; padding-left:18px; color:var(--ink-2)}
+.accent .rule li{margin:6px 0}
+.accent .pair{display:flex; gap:20px; margin-top:16px; padding-top:16px; border-top:1px solid var(--line)}
+.accent .pair div{flex:1}
+.accent .pair .big{font-size:30px; line-height:1.1; color:var(--ink)}
+.accent .pair .big.serif{font-family:var(--accent-serif); font-style:italic; font-weight:400}
+.accent .pair small{display:block; font-size:11px; color:var(--muted); margin-top:6px}
+
+/* in use */
+.use{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.use .col{display:flex; flex-direction:column; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px}
+.use .col .kit-ask,.use .col .kit-nudge{background:var(--bg)}
+.use .col .kit-nudge{border-color:var(--line-strong)}
+.use .cap{font-size:12px; color:var(--muted)}
+.use .kit-morning{font-size:14px}
+
+/* phone */
+@media (max-width:900px){
+  .dirs{grid-template-columns:1fr}
+  .head,.fields,.accent,.use{grid-template-columns:1fr}
+}
+@media (max-width:480px){
+  .sizes{grid-template-columns:1fr}
+  .sizes .big{width:160px; height:160px}
+  .head h1{font-size:28px}
+  .top{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<!-- marks:start -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="locus-1" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.45 44.93A21 21 0 0 1 11.79 37.7" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M11.79 37.7A21 21 0 0 1 11.13 29.62" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M11.13 29.62A21 21 0 0 1 13.59 21.9" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M13.59 21.9A21 21 0 0 1 18.78 15.68" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M18.78 15.68A21 21 0 0 1 25.95 11.89" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M25.95 11.89A21 21 0 0 1 34.01 11.1" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M34.01 11.1A21 21 0 0 1 41.78 13.42" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M41.78 13.42A21 21 0 0 1 48.09 18.5" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="48.09" cy="18.5" r="10" fill="currentColor" stroke="none"/></symbol>
+<symbol id="locus-1-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1a" fill="#000" stroke="none">
+      <circle cx="32" cy="53" r="11" fill="#fff"/>
+      <path d="M27 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 56.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M51.73 39.18A21 21 0 0 1 50.41 42.1" opacity="0.1" stroke-linecap="butt"/>
+    <path d="M50.41 42.1A21 21 0 0 1 48.66 44.78" opacity="0.18" stroke-linecap="butt"/>
+    <path d="M48.66 44.78A21 21 0 0 1 46.52 47.17" opacity="0.27" stroke-linecap="butt"/>
+    <path d="M46.52 47.17A21 21 0 0 1 44.05 49.2" opacity="0.38" stroke-linecap="butt"/>
+    <path d="M44.05 49.2A21 21 0 0 1 41.29 50.83" opacity="0.5" stroke-linecap="butt"/>
+    <path d="M41.29 50.83A21 21 0 0 1 38.31 52.03" opacity="0.63" stroke-linecap="butt"/>
+    <path d="M38.31 52.03A21 21 0 0 1 35.19 52.76" opacity="0.77" stroke-linecap="butt"/>
+    <path d="M35.19 52.76A21 21 0 0 1 32 53" opacity="0.9" stroke-linecap="butt"/>
+    <circle cx="32" cy="53" r="10" fill="currentColor" stroke="none" mask="url(#l1a)"/>
+  </g></symbol>
+<symbol id="locus-1-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1t" fill="#000" stroke="none">
+      <circle cx="12.27" cy="24.82" r="11" fill="#fff"/>
+      <circle cx="7.27" cy="22.66" r="1.7" fill="#000"/>
+      <circle cx="14.07" cy="22.66" r="1.7" fill="#000"/>
+      <path d="M9.47 28.18h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M45.5 48.09A21 21 0 0 1 39.61 51.57" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M39.61 51.57A21 21 0 0 1 32.92 52.98" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M32.92 52.98A21 21 0 0 1 26.12 52.16" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M26.12 52.16A21 21 0 0 1 19.95 49.2" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M19.95 49.2A21 21 0 0 1 15.06 44.42" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M15.06 44.42A21 21 0 0 1 11.97 38.31" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M11.97 38.31A21 21 0 0 1 11 31.54" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M11 31.54A21 21 0 0 1 12.27 24.82" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="12.27" cy="24.82" r="10" fill="currentColor" stroke="none" mask="url(#l1t)"/></symbol>
+<symbol id="locus-1-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1f" fill="#000" stroke="none">
+      <circle cx="37.82" cy="10.27" r="11" fill="#fff"/>
+      <circle cx="34.02" cy="8.47" r="2.3" fill="#000"/>
+      <circle cx="41.62" cy="8.47" r="2.3" fill="#000"/>
+      <circle cx="37.82" cy="14.27" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M25.86 52.08A21 21 0 0 1 18.71 48.26" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M18.71 48.26A21 21 0 0 1 13.54 42.02" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M13.54 42.02A21 21 0 0 1 11.12 34.29" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M11.12 34.29A21 21 0 0 1 11.81 26.21" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M11.81 26.21A21 21 0 0 1 15.51 19" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M15.51 19A21 21 0 0 1 21.66 13.72" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M21.66 13.72A21 21 0 0 1 29.35 11.17" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M29.35 11.17A21 21 0 0 1 37.44 11.72" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="37.82" cy="10.27" r="10" fill="currentColor" stroke="none" mask="url(#l1f)"/></symbol>
+<symbol id="locus-1-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l1c" fill="#000" stroke="none">
+      <circle cx="48.09" cy="18.5" r="11" fill="#fff"/>
+      <path d="M42.99 17.5a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M49.79 17.5a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M45.49 21.5a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M15.45 44.93A21 21 0 0 1 11.79 37.7" opacity="0.1" stroke-linecap="butt"/>
+  <path d="M11.79 37.7A21 21 0 0 1 11.13 29.62" opacity="0.18" stroke-linecap="butt"/>
+  <path d="M11.13 29.62A21 21 0 0 1 13.59 21.9" opacity="0.27" stroke-linecap="butt"/>
+  <path d="M13.59 21.9A21 21 0 0 1 18.78 15.68" opacity="0.38" stroke-linecap="butt"/>
+  <path d="M18.78 15.68A21 21 0 0 1 25.95 11.89" opacity="0.5" stroke-linecap="butt"/>
+  <path d="M25.95 11.89A21 21 0 0 1 34.01 11.1" opacity="0.63" stroke-linecap="butt"/>
+  <path d="M34.01 11.1A21 21 0 0 1 41.78 13.42" opacity="0.77" stroke-linecap="butt"/>
+  <path d="M41.78 13.42A21 21 0 0 1 48.09 18.5" opacity="0.9" stroke-linecap="butt"/>
+  <circle cx="48.09" cy="18.5" r="10" fill="currentColor" stroke="none" mask="url(#l1c)"/></symbol>
+<symbol id="locus-2" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+  <circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none"/></symbol>
+<symbol id="locus-2-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2a" fill="#000" stroke="none">
+      <circle cx="32" cy="53" r="11" fill="#fff"/>
+      <path d="M27 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 51.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 56.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <path d="M20.56 49.61A21 21 0 1 1 43.44 49.61"/>
+    <circle cx="32" cy="53" r="10" fill="currentColor" stroke="none" mask="url(#l2a)"/>
+  </g></symbol>
+<symbol id="locus-2-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2t" fill="#000" stroke="none">
+      <circle cx="11" cy="32" r="11" fill="#fff"/>
+      <circle cx="9.2" cy="29.56" r="1.7" fill="#000"/>
+      <circle cx="16" cy="29.56" r="1.7" fill="#000"/>
+      <path d="M10.6 35.24h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M14.39 20.56A21 21 0 1 1 14.39 43.44"/>
+  <circle cx="11" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l2t)"/></symbol>
+<symbol id="locus-2-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2f" fill="#000" stroke="none">
+      <circle cx="48.26" cy="15.74" r="11" fill="#fff"/>
+      <circle cx="44.46" cy="13.94" r="2.3" fill="#000"/>
+      <circle cx="52.06" cy="13.94" r="2.3" fill="#000"/>
+      <circle cx="48.26" cy="19.74" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+  <circle cx="48.26" cy="15.74" r="10" fill="currentColor" stroke="none" mask="url(#l2f)"/></symbol>
+<symbol id="locus-2-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l2c" fill="#000" stroke="none">
+      <circle cx="46.85" cy="17.15" r="11" fill="#fff"/>
+      <path d="M41.75 16.15a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M48.55 16.15a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M44.25 20.15a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+  <circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none" mask="url(#l2c)"/></symbol>
+<symbol id="locus-3" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="21"/>
+  <path d="M39.07 24.93L46.85 17.15"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none"/></symbol>
+<symbol id="locus-3-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3a" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <path d="M27 30.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.8 30.6h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M30.6 35.6h2.8" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g opacity=".55">
+    <circle cx="32" cy="32" r="21"/>
+    <path d="M32 42L32 53"/>
+    <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3a)"/>
+  </g></symbol>
+<symbol id="locus-3-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3t" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <circle cx="27" cy="29.7" r="1.7" fill="#000"/>
+      <circle cx="33.8" cy="29.7" r="1.7" fill="#000"/>
+      <path d="M29.2 35.3h3.2" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M22.6 28.58L12.27 24.82"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3t)"/></symbol>
+<symbol id="locus-3-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3f" fill="#000" stroke="none">
+      <circle cx="32" cy="30.5" r="11" fill="#fff"/>
+      <circle cx="28.2" cy="28.7" r="2.3" fill="#000"/>
+      <circle cx="35.8" cy="28.7" r="2.3" fill="#000"/>
+      <circle cx="32" cy="34.5" r="1.6" fill="#000"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M32 20.5L32 11"/>
+  <circle cx="32" cy="30.5" r="10" fill="currentColor" stroke="none" mask="url(#l3f)"/></symbol>
+<symbol id="locus-3-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><defs>
+    <mask id="l3c" fill="#000" stroke="none">
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <path d="M26.9 31a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M33.7 31a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M29.4 35a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="21"/>
+  <path d="M39.07 24.93L46.85 17.15"/>
+  <circle cx="32" cy="32" r="10" fill="currentColor" stroke="none" mask="url(#l3c)"/></symbol>
+<symbol id="kept-1" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="29" r="20"/>
+  <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/></symbol>
+<symbol id="kept-1-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><g opacity=".55">
+    <circle cx="32" cy="29" r="20"/>
+    <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+    <path d="M27 27.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 27.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 32.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g></symbol>
+<symbol id="kept-1-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="29" r="20"/>
+  <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+  <circle cx="30.2" cy="26.56" r="1.7" fill="currentColor"/>
+  <circle cx="37" cy="26.56" r="1.7" fill="currentColor"/>
+  <path d="M31.6 32.24h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-1-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="27.5" r="20"/>
+  <path d="M12.16 30A20 20 0 1 0 51.84 30"/>
+  <circle cx="28.2" cy="25.7" r="2.3" fill="currentColor"/>
+  <circle cx="35.8" cy="25.7" r="2.3" fill="currentColor"/>
+  <circle cx="32" cy="31.5" r="1.6" fill="currentColor"/></symbol>
+<symbol id="kept-1-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="29" r="20"/>
+  <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+  <path d="M26.9 28a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M33.7 28a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M29.4 32a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-2" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="21" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/></symbol>
+<symbol id="kept-2-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><g opacity=".55">
+    <circle cx="32" cy="21" r="14"/>
+    <path d="M16 44h32"/>
+    <path d="M16 52h32"/>
+    <path d="M27 19.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 19.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 24.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g></symbol>
+<symbol id="kept-2-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="21" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/>
+  <circle cx="30.2" cy="18.56" r="1.7" fill="currentColor"/>
+  <circle cx="37" cy="18.56" r="1.7" fill="currentColor"/>
+  <path d="M31.6 24.24h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-2-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="19" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/>
+  <circle cx="28.2" cy="17.2" r="2.3" fill="currentColor"/>
+  <circle cx="35.8" cy="17.2" r="2.3" fill="currentColor"/>
+  <circle cx="32" cy="23" r="1.6" fill="currentColor"/></symbol>
+<symbol id="kept-2-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="21" r="14"/>
+  <path d="M16 44h32"/>
+  <path d="M16 52h32"/>
+  <path d="M16 60h32"/>
+  <path d="M26.9 20a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M33.7 20a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M29.4 24a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-3" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 11.5h16"/>
+  <circle cx="32" cy="34" r="20"/>
+  <path d="M14.5 40A18.5 18.5 0 0 0 49.5 40Z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="kept-3-asleep" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><g opacity=".55">
+    <path d="M24 11.5h16"/>
+    <circle cx="32" cy="34" r="20"/>
+    <path d="M14.5 40A18.5 18.5 0 0 0 49.5 40Z" fill="currentColor" stroke="none"/>
+    <path d="M27 25.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 25.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 30.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g></symbol>
+<symbol id="kept-3-thinking" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 11.5h16"/>
+  <circle cx="32" cy="34" r="20"/>
+  <path d="M14.5 40A18.5 18.5 0 0 0 49.5 40Z" fill="currentColor" stroke="none"/>
+  <circle cx="29.08" cy="26.8" r="1.7" fill="currentColor"/>
+  <circle cx="35.88" cy="26.8" r="1.7" fill="currentColor"/>
+  <path d="M30.76 31.2h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="kept-3-found" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 10h16"/>
+  <circle cx="32" cy="32.5" r="20"/>
+  <path d="M14.5 38.5A18.5 18.5 0 0 0 49.5 38.5Z" fill="currentColor" stroke="none"/>
+  <circle cx="28.2" cy="23.7" r="2.3" fill="currentColor"/>
+  <circle cx="35.8" cy="23.7" r="2.3" fill="currentColor"/>
+  <circle cx="32" cy="29.5" r="1.6" fill="currentColor"/></symbol>
+<symbol id="kept-3-clear" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 11.5h16"/>
+  <circle cx="32" cy="34" r="20"/>
+  <path d="M13.61 36A18.5 18.5 0 0 0 50.39 36Z" fill="currentColor" stroke="none"/>
+  <path d="M26.9 26a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M33.7 26a1.7 1.7 0 0 1 3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M29.4 30a2.6 2.6 0 0 0 5.2 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+<symbol id="mobius" viewBox="0 0 2400 1655"><path d="M221.200 1393.617 C120.000 1292.448 120.000 1126.895 221.200 1025.689 L1025.947 221.189 C1127.148 120.020 1292.751 120.020 1393.989 221.189 C1495.189 322.358 1495.189 487.911 1393.989 589.117 L589.241 1393.617 C488.041 1494.786 322.437 1494.786 221.200 1393.617 M2232.828 701.215 L1738.573 1195.317 L1738.573 1252.477 C1738.573 1395.581 1855.671 1512.642 1998.818 1512.642 C2141.966 1512.642 2259.063 1395.581 2259.063 1252.477 L2259.063 671.616 C2250.985 681.840 2242.277 691.768 2232.828 701.215 M1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 L2178.800 647.240 C2280.000 546.071 2280.000 380.518 2178.800 279.312 C2077.600 178.143 1911.996 178.143 1810.759 279.312 L1023.946 1065.883 C922.746 1167.052 922.746 1332.605 1023.946 1433.811 C1125.147 1534.980 1290.750 1534.980 1391.988 1433.811 Z" fill="currentColor"/></symbol>
+</svg>
+<!-- marks:end -->
+
+<div class="wrap">
+  <div class="top">
+    <div class="marks" id="topMarks"></div>
+    <div class="sp"></div>
+    <div class="seg" id="theme" role="group" aria-label="Theme">
+      <button type="button" data-t="light">Light</button>
+      <button type="button" data-t="system" class="on">System</button>
+      <button type="button" data-t="dark">Dark</button>
+    </div>
+  </div>
+
+  <div class="head">
+    <div>
+      <div class="label">Brand kit, 2026-10-11</div>
+      <h1 style="margin-top:8px">Two products, one <em class="kit-accent" style="color:var(--locus-ink)">voice</em>.</h1>
+      <p class="lead">Three directions for <b>Locus</b> (where a brand's growth gets run) and three for <b>Kept</b> (the money app, name provisional). Every mark is a ring on the same grid at the same stroke, in the product's colour, so the pair reads as a family next to the Mobius mark without copying it. Each direction brings its helper in four states. Tick one per product; the samples at the bottom redraw with your pick.</p>
+    </div>
+    <div class="pickbox">
+      <div class="label">Your pick</div>
+      <div class="row" id="pickLocus"><b>Locus</b><span>nothing ticked yet</span></div>
+      <div class="row" id="pickKept"><b>Kept</b><span>nothing ticked yet</span></div>
+      <button type="button" class="btn primary" id="copyPick">Copy the pick</button><span class="toast" id="toast"></span>
+    </div>
+  </div>
+
+  <section id="locus" data-product="locus" style="--field:var(--locus);--field-ink:var(--locus-ink);--field-soft:var(--locus-soft)">
+    <div class="sec-h"><h2>Locus, the <em class="kit-accent">dot</em></h2><span class="n">3 directions</span></div>
+    <p class="sec-p">A locus is a point moving along a path. The helper is the dot: it lives in the ask bar, looks aside while it thinks, lights up when it has a call for you, and goes dim when all is well. All three directions keep that one character and differ in what the path is.</p>
+    <div class="dirs" id="locusDirs"></div>
+  </section>
+
+  <section id="kept" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+    <div class="sec-h"><h2>Kept, the <em class="kit-accent">coin</em></h2><span class="n">3 directions</span></div>
+    <p class="sec-p">The money app tells you one number every night: what you actually kept. The helper is the coin. It sighs at a loss, nods at a clean close, and gets a little heavier when the month is good. The three directions differ in what the coin is doing.</p>
+    <div class="dirs" id="keptDirs"></div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Beside the Mobius mark</h2></div>
+    <p class="sec-p">The Mobius mark leaves the apps and stays on the agency site. The new marks should sit beside it like relatives, not copies: the same confident weight, a different shape. In ink first, then in colour.</p>
+    <div class="family">
+      <div class="row ink" id="famInk"></div>
+      <div class="row" id="famColor"></div>
+      <p class="cap">Mobius is a ribbon; Locus and Kept are rings. The ribbon's band is about 14% of its height, the rings' stroke is 8% of the box and 12% of the ring, so the three share a weight without sharing a shape. Each ring sits on a 64 grid, radius 21, stroke 5, round caps, currentColor.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>The two <em class="kit-accent" style="color:var(--kept-ink)">fields</em></h2></div>
+    <p class="sec-p">One bold colour field, borrowed from the video: the gate, the empty states and the morning line. Ink on a field is white in both themes; in dark the field itself goes a step deeper so a full screen of it does not glare. Below each gate, the colour as it is used on a surface: text, chips, the active pill.</p>
+    <div class="fields">
+      <div data-product="locus" style="--field:var(--locus);--field-ink:var(--locus-ink);--field-soft:var(--locus-soft)">
+        <div class="kit-field gate">
+          <div class="in">
+            <div class="kit-helper on-field" id="gateLocus"></div>
+            <h2 class="kit-head">Know what to <em>change</em> today.</h2>
+            <p>Every store, every ad account, every email, read before you wake up.</p>
+            <input type="email" id="gateLocusEmail" placeholder="you@brand.com" aria-label="Email">
+            <button type="button" class="kit-btn">Continue with Google</button>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="sw f" style="background:var(--locus)"><b>Locus blue</b><code>--locus #2F62D9</code><br>ink on it: white, 5.4:1</div>
+          <div class="sw f" style="background:var(--locus-deep)"><b>In the dark theme</b><code>--locus-deep #2451B8</code><br>the field, not the text</div>
+          <div class="sw s" style="--field-ink:var(--locus-ink)"><b>As text on a surface</b><code>--locus-ink</code><br>#2552BF light, #8FB3FF dark</div>
+          <div class="sw s" style="background:var(--locus-soft);border-color:transparent"><b style="color:var(--locus-ink)">The soft tint</b><code>--locus-soft</code><br>chips, the active rail pill</div>
+        </div>
+        <div class="kit-morning morning"><span class="kit-helper on-field" id="mornLocus"></span><span><time>7:02</time> &nbsp;Bonk is pacing 9% over plan. Nothing to change before coffee.</span></div>
+      </div>
+      <div data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+        <div class="kit-field gate">
+          <div class="in">
+            <div class="kit-helper on-field" id="gateKept"></div>
+            <h2 class="kit-head">Know what you <em>actually</em> kept.</h2>
+            <p>Every account, every sale, every bill. One real number, every night.</p>
+            <input type="email" id="gateKeptEmail" placeholder="you@business.com" aria-label="Email">
+            <button type="button" class="kit-btn">Continue with Google</button>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="sw f" style="background:var(--kept)"><b>Kept green</b><code>--kept #1E7A52</code><br>ink on it: white, 5.3:1</div>
+          <div class="sw f" style="background:var(--kept-deep)"><b>In the dark theme</b><code>--kept-deep #176443</code><br>the field, not the text</div>
+          <div class="sw s" style="--field-ink:var(--kept-ink)"><b>As text on a surface</b><code>--kept-ink</code><br>#1B6B48 light, #6FD0A4 dark</div>
+          <div class="sw s" style="background:var(--kept-soft);border-color:transparent"><b style="color:var(--kept-ink)">The soft tint</b><code>--kept-soft</code><br>chips, the active rail pill</div>
+        </div>
+        <div class="kit-morning morning"><span class="kit-helper on-field" id="mornKept"></span><span><time>Mon 7:02</time> &nbsp;You kept $3,120 last week. One bill did not arrive.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>The accent <em class="kit-accent" style="color:var(--locus-ink)">word</em></h2></div>
+    <p class="sec-p">One serif italic word per page head, the word that carries the sentence. Instrument Serif is already loaded by every Mobius tool and sits well against Inter: a narrow, high-contrast italic next to a plain sans. The rule is in logo/kit.css as the class kit-accent.</p>
+    <div class="accent">
+      <div class="ex">
+        <div><div class="kit-head" style="--field-ink:var(--locus-ink)">Yesterday you <em>kept</em> $1,284.</div><div class="sub">Locus, Home. The hero number is the money app's number when a brand uses both.</div></div>
+        <div><div class="kit-head" style="--field-ink:var(--locus-ink)">Today's <em>calls</em>.</div><div class="sub">Locus, Ads. Scale this, cut that, refresh this creative.</div></div>
+        <div><div class="kit-head" style="--field-ink:var(--kept-ink)">What you <em>actually</em> kept this month.</div><div class="sub">Kept, Home. Every other tile is a bite out of it.</div></div>
+        <div><div class="kit-head" style="--field-ink:var(--kept-ink)">The month is <em>closed</em>.</div><div class="sub">Kept, the close. The pack for the CPA is ready.</div></div>
+      </div>
+      <div class="rule">
+        <div class="label">The rule</div>
+        <ul>
+          <li>One accent word per page head. Never two, never a whole sentence.</li>
+          <li>The word that carries the meaning: actually, change, kept, paused. Not the product name.</li>
+          <li>Instrument Serif italic, regular weight, 8% larger than the sans so the x-heights line up.</li>
+          <li>On a surface the word takes the product's colour. On a field it stays white like the rest.</li>
+          <li>Numbers, buttons and labels never take the serif. It is a voice, not a style.</li>
+        </ul>
+        <div class="pair">
+          <div><div class="big" style="font-weight:650;letter-spacing:-.02em">Inter</div><small>the app face, 400 to 700, tabular numbers</small></div>
+          <div><div class="big serif">Instrument Serif</div><small>italic only, one word at a time</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>The helper in <em class="kit-accent" style="color:var(--kept-ink)">use</em></h2></div>
+    <p class="sec-p">The ask bar and the nudge card, drawn with the direction you ticked. The helper never talks in paragraphs: one sentence and one button, and it never blocks a screen.</p>
+    <div class="use">
+      <div class="col" data-product="locus" style="--field:var(--locus);--field-ink:var(--locus-ink);--field-soft:var(--locus-soft)">
+        <div class="label">Locus</div>
+        <div class="kit-ask"><span class="kit-helper thinking" id="askLocus"></span><input type="text" id="askLocusIn" placeholder="Ask Locus" aria-label="Ask Locus"></div>
+        <p class="cap">The ask bar at 20px, thinking. Enter sends; the dot looks aside while it works.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="nudgeLocus"></span><p><b>Dartee's Meta spend</b> is 31% over plan and the CPA crossed goal for the third day.</p><div class="kit-acts"><button type="button">Not now</button><button type="button" class="primary">Pause the set</button></div></div>
+        <p class="cap">The nudge card: found something. One sentence, one action, Not now.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="clearLocus"></span><p>Every brand is on plan. Nothing to change today.</p><div class="kit-acts"><button type="button">Open Home</button></div></div>
+        <p class="cap">All clear: the small nod.</p>
+      </div>
+      <div class="col" data-product="kept" style="--field:var(--kept);--field-ink:var(--kept-ink);--field-soft:var(--kept-soft)">
+        <div class="label">Kept</div>
+        <div class="kit-ask"><span class="kit-helper thinking" id="askKept"></span><input type="text" id="askKeptIn" placeholder="Ask Kept" aria-label="Ask Kept"></div>
+        <p class="cap">The ask bar at 20px, thinking.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="nudgeKept"></span><p><b>The Shopify payout</b> landed twice on Tuesday. $2,140 is counted two times.</p><div class="kit-acts"><button type="button">Not now</button><button type="button" class="primary">Book it</button></div></div>
+        <p class="cap">The nudge card: found something.</p>
+        <div class="kit-nudge"><span class="kit-helper" id="clearKept"></span><p>September is closed. The pack for your CPA is ready.</p><div class="kit-acts"><button type="button">Open the pack</button></div></div>
+        <p class="cap">All clear: the small nod.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var DIRS = {
+    locus: [
+      {n:1, name:'The trail', one:'A point and the path it has travelled.',
+       why:'<b>Strong:</b> the only mark that moves even when it is still; the trail is the story of the morning read. The helper has a built-in posture, the trail says where it has been. <b>Weak:</b> it is not symmetrical, so it fights a square app icon, and at 20px the fade is a smudge.'},
+      {n:2, name:'The bead', one:'A point sitting in its ring, where the path is whole.',
+       why:'<b>Strong:</b> the simplest of the three and the one that survives 16px. The bead sits in a gap it completes, and its place on the ring is the state: at the bottom asleep, at the left thinking, lifted off when it has found something. <b>Weak:</b> a ring with a dot is a shape other apps own too; the character carries the difference.'},
+      {n:3, name:'The heading', one:'A point at the centre with a needle to the ring.',
+       why:'<b>Strong:</b> it says what Locus sells, the call: where you are and which way to go. The needle is the posture, hanging down asleep, straight up when it has found something. <b>Weak:</b> at 20px it can read as a clock or a dial, and the needle crowds the face on a phone.'}
+    ],
+    kept: [
+      {n:1, name:'The coin', one:'A disc with its edge showing. The face lives on it.',
+       why:'<b>Strong:</b> the plainest reading of what the app is about, and the face has the most room of the three. The edge keeps it from being a plain circle. <b>Weak:</b> a coin is the oldest money symbol there is; it needs the character to be anyone.'},
+      {n:2, name:'The stack', one:'A coin standing on the coins already kept. It grows.',
+       why:'<b>Strong:</b> the mark carries the promise: what you kept, kept. The all-clear state adds a coin to the pile, so a good month shows. <b>Weak:</b> the tallest and busiest of the six; at 20px the bars thin to lines, and it is the one mark that does not fit a circle.'},
+      {n:3, name:'The jar', one:'A round jar with a lid, filled to what you kept.',
+       why:'<b>Strong:</b> the fill line is the hero number drawn as a shape, and it moves: fuller on a clean close, the face looks down at it while thinking. It pairs with the video\'s melting balance. <b>Weak:</b> a half-filled circle can read as a gauge or a contrast icon before it reads as a jar, and the lid adds a second shape to the construction.'}
+    ]
+  };
+  var STATES = ['asleep','thinking','found','clear'];
+  var pick = {locus:null, kept:null};
+  try{ var saved = JSON.parse(localStorage.getItem('kit_pick')||'{}'); pick.locus = saved.locus||null; pick.kept = saved.kept||null; }catch(e){}
+
+  function use(id, cls){ return '<svg class="m'+(cls?' '+cls:'')+'" role="img" aria-label="'+id+'"><use href="#'+id+'"/></svg>'; }
+  function helper(id, extra){ return '<span class="kit-helper '+(extra||'')+'">'+use(id)+'</span>'; }
+
+  function card(p, d){
+    var base = p+'-'+d.n;
+    var h = '<div class="dir" data-p="'+p+'" data-n="'+d.n+'">';
+    h += '<div class="dir-h"><div><div class="num">DIRECTION '+d.n+'</div><h3>'+d.name+'</h3><p>'+d.one+'</p></div>';
+    h += '<button type="button" class="pick" aria-pressed="false"><i></i>Pick</button></div>';
+    h += '<div class="sizes"><div class="kit-helper big">'+use(base)+'</div><div class="small">';
+    h += '<div class="r">'+helper(base,'px48')+'<small>48px</small></div>';
+    h += '<div class="r">'+helper(base,'px20')+'<small>20px</small></div>';
+    h += '<div class="onfield">'+helper(base,'px48')+helper(base,'px20')+'<small>on the field</small></div>';
+    h += '</div></div>';
+    h += '<div class="states">'+STATES.map(function(s){ return '<div class="state">'+helper(base+'-'+s)+helper(base+'-'+s,'px20')+'<small>'+s.replace('found','found something').replace('clear','all clear')+'</small></div>'; }).join('')+'</div>';
+    h += '<p class="why">'+d.why+'</p>';
+    return h+'</div>';
+  }
+  document.getElementById('locusDirs').innerHTML = DIRS.locus.map(function(d){ return card('locus', d); }).join('');
+  document.getElementById('keptDirs').innerHTML = DIRS.kept.map(function(d){ return card('kept', d); }).join('');
+
+  function fam(color){
+    var h = '<div class="mob">'+use('mobius')+'</div><div class="gap"></div>';
+    [1,2,3].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--locus)':'inherit')+'">'+use('locus-'+n)+'</span>'; });
+    h += '<div class="gap"></div>';
+    [1,2,3].forEach(function(n){ h += '<span class="kit-helper" style="color:'+(color?'var(--kept)':'inherit')+'">'+use('kept-'+n)+'</span>'; });
+    return h;
+  }
+  document.getElementById('famInk').innerHTML = fam(false);
+  document.getElementById('famColor').innerHTML = fam(true);
+
+  function nameOf(p, n){ var d = DIRS[p][n-1]; return 'direction '+n+', '+d.name.toLowerCase(); }
+  function setId(id, sym){ var el = document.getElementById(id); if(el) el.innerHTML = use(sym); }
+  function render(){
+    ['locus','kept'].forEach(function(p){
+      var n = pick[p] || 1;
+      document.querySelectorAll('.dir[data-p="'+p+'"]').forEach(function(c){
+        var on = String(c.dataset.n) === String(pick[p]);
+        c.classList.toggle('picked', on);
+        c.querySelector('.pick').setAttribute('aria-pressed', on ? 'true' : 'false');
+        c.querySelector('.pick').lastChild.nodeValue = on ? 'Picked' : 'Pick';
+      });
+      var row = document.getElementById(p === 'locus' ? 'pickLocus' : 'pickKept');
+      row.innerHTML = helper(p+'-'+n+'-clear') + '<b>'+(p==='locus'?'Locus':'Kept')+'</b><span>'+(pick[p] ? nameOf(p, pick[p]) : 'nothing ticked yet, showing direction 1')+'</span>';
+      var cap = p === 'locus' ? 'Locus' : 'Kept';
+      setId('gate'+cap, p+'-'+n+'-clear');
+      setId('morn'+cap, p+'-'+n+'-clear');
+      setId('ask'+cap, p+'-'+n+'-thinking');
+      setId('nudge'+cap, p+'-'+n+'-found');
+      setId('clear'+cap, p+'-'+n+'-clear');
+    });
+    document.getElementById('topMarks').innerHTML =
+      '<span class="kit-helper" style="color:var(--locus)">'+use('locus-'+(pick.locus||1))+'</span>' +
+      '<span class="kit-helper" style="color:var(--kept)">'+use('kept-'+(pick.kept||1))+'</span>';
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.pick'); if(!b) return;
+    var c = b.closest('.dir'); var p = c.dataset.p, n = Number(c.dataset.n);
+    pick[p] = pick[p] === n ? null : n;
+    try{ localStorage.setItem('kit_pick', JSON.stringify(pick)); }catch(err){}
+    render();
+  });
+  document.getElementById('copyPick').addEventListener('click', function(){
+    var t = 'Locus: '+(pick.locus ? nameOf('locus', pick.locus) : 'no pick')+'. Kept: '+(pick.kept ? nameOf('kept', pick.kept) : 'no pick')+'.';
+    var toast = document.getElementById('toast');
+    function done(ok){ toast.textContent = ok ? 'Copied: '+t : t; setTimeout(function(){ toast.textContent = ''; }, 6000); }
+    try{ navigator.clipboard.writeText(t).then(function(){ done(true); }, function(){ done(false); }); }catch(err){ done(false); }
+  });
+
+  var root = document.documentElement, seg = document.getElementById('theme');
+  function theme(t, save){
+    if(t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    seg.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.dataset.t === t); });
+    if(save){ try{ localStorage.setItem('kit_theme', t); }catch(err){} }
+  }
+  seg.addEventListener('click', function(e){ var b = e.target.closest('button'); if(b) theme(b.dataset.t, true); });
+  var t0 = 'system'; try{ t0 = localStorage.getItem('kit_theme') || (root.getAttribute('data-theme') || 'system'); }catch(err){}
+  theme(t0, false);
+  render();
+})();
+</script>
