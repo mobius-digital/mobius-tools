@@ -109,5 +109,29 @@
     host.querySelectorAll('[data-go]').forEach(el => el.onclick = () => H.show(el.dataset.go));
     host.querySelectorAll('.lx-hero-row').forEach(el => el.onclick = () => pickAct(H, el.dataset.act));
   }
-  window.LxHero = { mount, load, beforeNoon, drop: () => CACHE.clear() };
+  /* Settings > Your profile (everyone): the morning line as a Slack DM (prefs.js morning_dm, morning.js), and a button that
+     sends today's line now so the switch can be checked without waiting for 7am. Phone push is not built (no web push in
+     the app yet); Slack on the phone is the push for now. */
+  async function profileCard(host, H) {
+    if (!host || !H) return;
+    const el = document.createElement('div'); el.className = 'card set-card lx-prof'; host.appendChild(el);
+    const me = H.S.meEmail || '';
+    el.innerHTML = `<h3>The morning line</h3>
+      ${H.S.role !== 'client' && me ? `<p class="hint set-why">Signed in as <b>${esc(me)}</b>.</p>` : ''}
+      <p class="hint set-why">One sentence per brand every morning, the same line Home shows until noon: what was kept yesterday, ads as a share of sales, and whether there is anything to change. It comes as a Slack direct message from the Mobius app, to the Slack account with your email.</p>
+      <div class="row lx-prof-row"><label class="lx-sw-l" for="lxMornSw"><input type="checkbox" class="lx-sw" id="lxMornSw" disabled><span>Send me the morning line in Slack</span></label><button class="btn" id="lxMornNow" type="button">Send me today's line now</button><span class="tiny" id="lxMornMsg"></span></div>
+      <p class="hint" style="margin:10px 0 0">Goes out from 7am Central, once the numbers for yesterday have landed. A phone push is the next step; until then Slack on your phone is the push.</p>`;
+    const sw = el.querySelector('#lxMornSw'), msg = el.querySelector('#lxMornMsg'), now = el.querySelector('#lxMornNow');
+    try { const r = await H.apiAH('/api/me/prefs'); sw.checked = !!(r && r.prefs && r.prefs.morning_dm); } catch (e) { msg.textContent = `Could not read your settings: ${e.message}`; }
+    sw.disabled = false;
+    sw.onchange = async () => { sw.disabled = true; msg.textContent = 'Saving…';
+      try { const r = await H.apiAH('/api/me/prefs', { method: 'PUT', body: JSON.stringify({ morning_dm: sw.checked }) }); sw.checked = !!(r && r.prefs && r.prefs.morning_dm); msg.textContent = sw.checked ? 'On. The first one comes tomorrow morning.' : 'Off.'; }
+      catch (e) { sw.checked = !sw.checked; msg.textContent = `Could not save: ${e.message}`; }
+      sw.disabled = false; };
+    now.onclick = async () => { now.disabled = true; msg.textContent = 'Sending…';
+      try { const r = await H.apiAH('/api/me/morning', { method: 'POST', body: '{}' }); msg.textContent = `Sent to ${r.sent_to || me}: ${(r.lines || []).length} line${(r.lines || []).length === 1 ? '' : 's'}.`; }
+      catch (e) { msg.textContent = e.message; }
+      now.disabled = false; };
+  }
+  window.LxHero = { mount, load, beforeNoon, profileCard, drop: () => CACHE.clear() };
 })();
