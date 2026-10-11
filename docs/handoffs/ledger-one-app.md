@@ -95,7 +95,18 @@ books (same files, agency preset, blue accent per `/mobius.css` data-app rules),
   an `edition` setting), B (one worker on Lucky's base plus Mobius's seven audit migrations), C (Household),
   D (multi-tenant, only if sold).
 - **Waiting on Cole**: the four decisions in section 9 of `docs/one-ledger.md`. Step A starts on his word.
-- No Cloudflare token was found in the cloud environment (checked `env`); nothing was deployed from here.
+- **Lucky deploys now run from GitHub, not the laptop** (2026-10-11). `.github/workflows/deploy.yml` in the
+  Lucky repo runs on every push to main: `wrangler deploy` for the worker (which serves the app on workers.dev)
+  and `wrangler pages deploy app --project-name=lucky-ledger` for the Pages site behind ledger.luckygolf.com,
+  then checks both hosts serve the repo's `lg-core.js`. The token is the GitHub Actions secret
+  `CLOUDFLARE_API_TOKEN` (Lucky Golf account). Run 4 was green; the Caddie fold is live on both hosts.
+- **Cloud environments and Cloudflare**: the "Default" environment (this one) injects a Mobius Cloudflare token
+  for api.cloudflare.com; the "Lucky Golf" environment injects a Lucky Golf one. Wrangler works through the
+  proxy with `CLOUDFLARE_API_TOKEN=x NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`.
+  Limit: the proxy overwrites the Authorization header on every api.cloudflare.com request, so any deploy that
+  uploads assets (Workers assets, Pages) fails with 401 from the cloud; D1 queries and worker-only deploys work.
+  That is why Lucky ships through GitHub Actions. The Mobius worker has no assets block, so it can deploy from
+  this environment directly.
 
 ## Constraints the cloud must respect
 
