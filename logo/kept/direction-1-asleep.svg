@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Kept, the coin, asleep</title>
+  <g opacity=".55">
+    <circle cx="32" cy="29" r="20"/>
+    <path d="M12.16 31.5A20 20 0 1 0 51.84 31.5"/>
+    <path d="M27 27.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M33.8 27.6h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M30.6 32.6h2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </g>
+</svg>

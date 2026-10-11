@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Locus app icon</title>
+  <rect width="64" height="64" fill="#2F62D9"/>
+  <g transform="translate(10.22 12.69) scale(0.6421)" color="#fff" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52.54 27.63A21 21 0 1 1 36.37 11.46"/>
+    <circle cx="46.85" cy="17.15" r="10" fill="currentColor" stroke="none"/>
+  </g>
+</svg>
