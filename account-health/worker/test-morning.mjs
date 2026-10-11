@@ -55,7 +55,7 @@ await check('lines: a person gets only their brands, sorted by name; no numbers 
   assert.deepEqual(linesFor(KEPT, null).length, 2);
   assert.deepEqual(linesFor(KEPT, new Set(['brand_alpha'])), [KEPT.brands[0].line]);
   assert.equal(messageFor(KEPT, []), null);
-  const m = messageFor(KEPT, linesFor(KEPT, null)); assert.match(m.text, /Good morning\. Yesterday, Saturday, October 10:/); assert.match(m.text, /Alpha Golf kept/); assert.ok(!/—/.test(m.text), 'no em dash');
+  const m = messageFor(KEPT, linesFor(KEPT, null)); assert.match(m.text, /Good morning\. Yesterday, Saturday, October 10:/); assert.match(m.text, /Alpha Golf kept/); assert.ok(!/\u2014/.test(m.text), "no em dash");
 });
 await check('the tick: before the hour nothing; at the hour each opted-in person gets one DM with their lines, once a day; a client only its brand', async () => {
   await updatePrefs(env, 'ahsan@go-mobius-digital.com', { morning_dm: true });
