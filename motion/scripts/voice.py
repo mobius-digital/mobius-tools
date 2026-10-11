@@ -60,7 +60,7 @@ for spot in ('cashew', 'locus'):
         if args and key not in args:
             continue
         text = line['text']
-        if '—' in text or '–' in text:
+        if '\u2014' in text or '\u2013' in text:
             sys.exit(f'{key}: no dashes in the script, write it as two sentences')
         digest = hashlib.sha1(f'{voice}|{speed}|{text}'.encode()).hexdigest()[:12]
         wav = os.path.join(OUT, key + '.wav')
