@@ -1919,6 +1919,11 @@ Dartee's had five bot posts and ~60 lines before 9am on Oct 13. Tests: `node tes
 - **Locus** (`GET /api/morning-card/preview?act=`, admin, team only): Agency settings > Slack and sending: the hour picker,
   the card switch, "Preview this morning's card" (the card as words + what its thread will hold). The Today's calls
   switch is gone from that card.
+- **Checked on real data** (local `wrangler dev --remote`, preview only, nothing posted): Dartee's card matched the approved
+  page to the dollar (Yesterday $1,438 (plan $1,800) · MER 2.11x; cut 9 ad sets, scale 1 · $2.4K). Two rules came from it:
+  a Production card counts only when 30 days late or less (Lucky had one 123 days late in Brief), and tags match on the
+  FIRST name with roster prefixes (Asana gives "Nomaqhawe Molife"; she is the roster's Noma, U09PZ3ZV5HD). A line with
+  no owner falls back to the brand's strategist (calendar.js `teamOf`).
 - NOT tested live: the first 5am tick (2026-10-14 is the test: `lastHourly.morningCard`, `morningCardDone`), the invite
   through Cole's token into #daily-briefs, chat.update on a real card, ✅ on a card through the router, users.list for
   Radhesh / Hamza. Viktor's Monday Search Term Mining is not ours (Cole asked Viktor to stop it 2026-10-13): check Monday.

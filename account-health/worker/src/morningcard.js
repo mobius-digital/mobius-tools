@@ -44,7 +44,10 @@ const BOARD = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Read
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const clean = (s, n = 200) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/* Cut at a word, with an ellipsis, so a long line never ends mid-word. */
+const words = (s, n) => { const t = clean(s, 1000); if (t.length <= n) return t; const cut = t.slice(0, n - 1); return cut.slice(0, Math.max(cut.lastIndexOf(' '), Math.floor(n * 0.6))).replace(/[ ,;:.]+$/, '') + '…'; };
+const ago = n => (n <= 0 ? 'asked today' : n === 1 ? '1 day' : `${n} days`);
+const esc = s =>String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const addDays = (ymd, n) => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const daysBetween = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
 const centralToday = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })).toISOString().slice(0, 10);
@@ -93,7 +96,9 @@ export async function todaysCard(env, channel, date) {
 
 /* ---------- Slack ids: first name -> <@U...> ---------- */
 export async function slackIdOf(env, d, name) {
-  const k = clean(name, 40).toLowerCase();
+  /* By FIRST name: Asana gives "William Sampindi", the roster says "William"; "Nomaqhawe" is the roster's "Noma". */
+  const first = clean(name, 40).toLowerCase().split(' ')[0];
+  const k = (ROSTER.find(x => first === x.name.toLowerCase() || (x.name.length >= 4 && first.startsWith(x.name.toLowerCase()))) || {}).name?.toLowerCase() || first;
   if (!k || !d || !d.slackApi) return null;
   const today = dayOf(d);
   const cache = safe(await getSetting(env, 'slackIds'), {}) || {};
@@ -118,7 +123,7 @@ export async function slackIdOf(env, d, name) {
 }
 /** The tag that starts a line: <@U...> when Slack knows the person, the bold first name when it does not. */
 export async function tagOf(env, d, name) {
-  const n = clean(name, 40);
+  const n = clean(name, 40).split(' ')[0];
   if (!n) return null;
   const id = await slackIdOf(env, d, n);
   if (id) return `<@${id}>`;
@@ -195,18 +200,20 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
   for (const t of tasks) {
     const late = daysBetween(t.due, today);
-    items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${clean(t.text, 120)} · ${late > 0 ? `${late} day${late === 1 ? '' : 's'} late` : 'due today'}`, who: t.owner || '', ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
+    items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${words(t.text, 110)} · ${late > 0 ? `${late} day${late === 1 ? '' : 's'} late` : 'due today'}`, who: t.owner || '', ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
   }
   /* A date going live tomorrow with something still open. */
   for (const e of ((shared.calendar && shared.calendar.items) || []).filter(x => x.act === a.act_id && x.start === tomorrow)) {
     const open = (e.steps || []).filter(s => s.state !== 'done');
     if (!open.length) continue;
-    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Live tomorrow: ${clean(e.name, 80)} · not yet: ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: open[0].who || '', rank: 500 });
+    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Live tomorrow: ${clean(e.name, 80)} · not yet: ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), rank: 500 });
   }
-  /* Production cards that are late. */
+  /* Production cards that are late, by up to 30 days (Lucky had a Brief card 123 days late on 2026-10-13: an old card
+     nobody closed is not today's job, and it would push real work off the five lines). */
   for (const c of ((shared.board && shared.board.cards) || []).filter(x => x.act_id === a.act_id && x.late)) {
     const late = daysBetween(c.due, today);
-    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${c.num ? `${c.num} - ` : ''}${clean(c.title, 80)} · ${BOARD[c.board] || c.board} · ${late} day${late === 1 ? '' : 's'} late`, who: c.assignee || '', rank: late * 1000 });
+    if (late > 30) continue;
+    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${c.num ? `${c.num} - ` : ''}${clean(c.title, 80)} · ${BOARD[c.board] || c.board} · ${late} day${late === 1 ? '' : 's'} late`, who: c.assignee || team.strat || '', rank: late * 1000 });
   }
   /* The leak finder (2026-10-13, leaks.js): ONE line when a NEW leak over LEAK_FLOOR a month appeared since yesterday's
      card (leak ids are kept on the card), tagged to its owner from the brand's roster. The first day only records the
@@ -227,7 +234,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   for (const it of shown) { it.tag = await tagOf(env, d, it.who).catch(() => null); it.done = false; delete it.rank; }
   /* What the client owes us (Requests asks), one line. */
   const asks = (await env.DB.prepare(`SELECT id, title, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`).bind(a.act_id).all().catch(() => ({ results: [] }))).results || [];
-  const owes = asks.length ? `${clean(asks[0].title, 90)} · ${Math.max(0, daysBetween(String(asks[0].created_at || today).slice(0, 10), today))} days${asks.length > 1 ? ` (and ${asks.length - 1} more)` : ''}` : '';
+  const owes = asks.length ? `${words(asks[0].title, 80)} · ${ago(daysBetween(String(asks[0].created_at || today).slice(0, 10), today))}${asks.length > 1 ? ` (and ${asks.length - 1} more)` : ''}` : '';
   /* Monday: the weekly report line; the plan goes in this card's thread. */
   let weekly = '';
   if (monday) {
@@ -262,7 +269,7 @@ export function cardMessage(c) {
 }
 /** The card as plain words, for the Locus preview: tags shown as @Name, bold and italics dropped. */
 export function cardPlain(c) {
-  return (c.items || []).reduce((s, it) => s.split(it.tag || '\u0000').join(`@${clean(it.who, 40)}`), cardMessage(c).text)
+  return (c.items || []).reduce((s, it) => s.split(it.tag || '\u0000').join(`@${clean(it.who, 40).split(' ')[0]}`), cardMessage(c).text)
     .replace(/<@[A-Z0-9]+>/g, '@someone').replace(/\*([^*\n]+)\*/g, '$1').replace(/(^|\s)_([^_\n]+)_/g, '$1$2').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
 
