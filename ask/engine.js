@@ -263,6 +263,29 @@ export function routeAction({ name, description, input_schema, describe, done })
 
 /* Slack mrkdwn is not markdown, and a model reaches for ** by reflex. Also
  * strips headings and, per the house rule, em dashes. */
+/* Cut a Slack answer into messages short enough that Slack never folds them behind "Show more":
+ * whole blank-line blocks packed together up to ~650 characters / 9 lines; a block bigger than that
+ * is cut at line breaks. */
+export function slackPieces(text, maxChars = 650, maxLines = 9) {
+  const fits = t => t.length <= maxChars && t.split('\n').length <= maxLines;
+  const units = [];
+  for (const block of String(text || '').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean)) {
+    if (fits(block)) { units.push(block); continue; }
+    let cur = '';
+    for (const line of block.split('\n')) {
+      const next = cur ? cur + '\n' + line : line;
+      if (cur && !fits(next)) { units.push(cur); cur = line; } else cur = next;
+    }
+    if (cur) units.push(cur);
+  }
+  const out = [];
+  for (const u of units) {
+    const joined = out.length ? out[out.length - 1] + '\n\n' + u : null;
+    if (joined && fits(joined)) out[out.length - 1] = joined; else out.push(u.slice(0, 2900));
+  }
+  return out.length ? out : [''];
+}
+
 export const toSlackText = s => String(s || '').replace(/\*\*(.+?)\*\*/gs, '*$1*').replace(/^#{1,6}\s*/gm, '').replace(/\s*—\s*/g, ' - ').trim();
 
 /* ------------------------------------------------------------------ */
@@ -1095,7 +1118,7 @@ Plain English, no em dashes, lead with the answer.` }];
     const system = [...(await systemBlocks(env, h, extra)),
       { type: 'text', text: 'You are answering in Slack. Slack mrkdwn, NOT markdown: *bold* with single asterisks, _italic_, `code`. Bullets are "• ". Never use headings (#) or tables. ' +
         /* 2026-10-10 (Cole: "it always doesn't show the full message, just Show more"): Slack folds any long message. */
-        'LENGTH: Slack folds a long message behind "Show more", so keep the whole answer to about 8 short lines (under 700 characters): the answer first with its numbers, then at most 3 bullets. Offer the rest in one closing line ("Want the breakdown by ad set?") instead of writing it. Only go longer when they asked for a full review, a plan or a report (a report goes in make_report, which posts its own link).' }];
+        'LENGTH: Slack folds a long message behind "Show more", so keep the answer to about 8 short lines (under 700 characters): the answer first, then at most 3 bullets. Offer the rest in one closing line ("Want the breakdown by ad set?") instead of writing it. This holds for reviews and plans too. When the answer truly has several items (three briefs), separate them with a blank line and keep each under 8 lines: each block is posted as its own short message. A report goes in make_report, which posts its own link.' }];
     const prior = await threadTranscript(env, h, ev);
     const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q }];
     const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null,
@@ -1116,13 +1139,17 @@ Plain English, no em dashes, lead with the answer.` }];
       }, usage, choice.model, ctx, choice.effort || null);
       const text = toSlackText(r.answer);
       const foot = C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : '';
-      /* Long answers split into sections Slack will take (3000 characters each). */
-      const chunks = []; let rest = text;
-      while (rest.length) { let cut = rest.length <= 2900 ? rest.length : rest.lastIndexOf('\n', 2900); if (cut < 1000) cut = 2900; chunks.push(rest.slice(0, cut)); rest = rest.slice(cut).replace(/^\n+/, ''); }
-      const ansBlocks = [...chunks.slice(0, 45).map(c => ({ type: 'section', text: { type: 'mrkdwn', text: c } })), ...(foot ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: foot }] }] : [])];
+      /* 2026-10-13 (Cole: "I never want it to show the Show more"): Slack folds any tall message, so a long
+         answer goes out as several short messages, split at blank lines, each small enough to show whole.
+         The cost line rides on the last one. */
+      const msgs = slackPieces(text);
+      const blocksOf = (m, last) => [{ type: 'section', text: { type: 'mrkdwn', text: m } }, ...(last && foot ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: foot }] }] : [])];
       if (text) {
-        const u = work?.ts ? await update(text.slice(0, 3000), ansBlocks).catch(() => null) : null;
-        if (!u?.ok) await say(text, ansBlocks);
+        for (let i = 0; i < msgs.length; i++) {
+          const last = i === msgs.length - 1;
+          const u = !i && work?.ts ? await update(msgs[0], blocksOf(msgs[0], last)).catch(() => null) : null;
+          if (!u?.ok) await say(msgs[i], blocksOf(msgs[i], last));
+        }
         r.answered = true;
       } else if (work?.ts) {
         await update(r.stopped ? 'Stopped.' : 'Done.', [{ type: 'context', elements: [{ type: 'mrkdwn', text: (r.stopped ? '_Stopped._ ' : '') + foot }] }]).catch(() => {});
