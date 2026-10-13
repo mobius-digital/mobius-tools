@@ -2233,7 +2233,7 @@
           <button data-t="studio" data-grp="creative" title="AI ads, Creators, Library, Inspiration"><svg class="ic"><use href="#i-brush"/></svg><span>Creative</span></button>
           <button data-t="research" data-grp="brand" title="Client answers, Research, Voice"><svg class="ic"><use href="#i-bookmark"/></svg><span>Brand</span></button>
           <button data-t="calendar" data-grp="calendar" title="Drops, sales and emails for every client, and what is due for each"><svg class="ic"><use href="#i-cal"/></svg><span>Calendar</span></button>
-          <button data-t="actions" data-grp="work" id="railWork" title="What the team owes, and the calls waiting for your OK"><svg class="ic"><use href="#i-circle-check"/></svg><span>Action items</span></button>
+          <button data-t="tasks" data-grp="work" id="railWork" title="Calls waiting for your OK, what the team owes, and every ad from brief to live"><svg class="ic"><use href="#i-circle-check"/></svg><span>Work</span></button>
           <button data-t="brief" data-grp="reports" title="Daily Brief, Weekly and monthly, Dashboards"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
           <button data-t="warplan" data-grp="season" id="railSeason" hidden title="The War Room and the season plan"><svg class="ic"><use href="#i-flame"/></svg><span id="railSeasonLbl">Black Friday</span></button></div></div>
       <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
@@ -2310,6 +2310,9 @@
 <script src="clients.js?v=5"></script>
 <script src="requests.js?v=2"></script>
 <script src="actions.js?v=3"></script>
+<script src="calls.js?v=1"></script>
+<script src="tasks.js?v=1"></script>
+<script src="production.js?v=1"></script>
 <script src="sop.js?v=3"></script>
 <script src="expenses.js?v=1"></script>
 <script src="studio.js?v=33"></script>
@@ -2534,13 +2537,13 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['calls', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['calls', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
     if (open === 'calendar' && qs.get('ev')) window.CAL_OPEN = qs.get('ev');
-    /* A Slack note or reminder opens one action item (?open=actions&item=<id>); the old call page ids open Calls. */
-    if (open === 'actions' && qs.get('item')) window.ACT_OPEN = qs.get('item');
+    /* A Slack note or reminder opens one task (?open=actions|tasks&item=<id>); the old call page ids open Calls. */
+    if ((open === 'actions' || open === 'tasks') && qs.get('item')) window.ACT_OPEN = qs.get('item');
     if (qs.get('meeting')) window.ACT_MEETING = qs.get('meeting');   // a call from Slack (?open=actions|calls&meeting=<id>)
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
@@ -3064,6 +3067,9 @@ const PAGE_BRIEF = {
 Object.assign(PAGE_BRIEF, {
   warplan: { answers: 'The sale planned step by step: last year, goals and the ladder, the budget, the offers, Slack alerts, stock.', when: 'The weeks before the sale.', todo: 'Work down the steps until every one is ticked.' },
   warlive: { answers: 'Today against the plan, hour by hour: pace, MER, spend by channel, the desk, what fired.', when: 'Every sale day, at 8am, 4pm and midnight Central.', todo: 'Read the ladder, act, write the check-in.' },
+  calls: { answers: 'Every recorded call, judged: what was decided, the tasks, the new ads, what the client does and what they will read. Nothing lives here; approve and each item goes where it belongs.', when: 'After any call, and on the Monday call.', todo: 'Click anything that is wrong to change it, untick what should not happen, press Approve. Tasks land in Tasks, briefs in Production and Asana, asks in Requests.' },
+  tasks: { answers: 'What the team owes, from approved calls and quick adds, by brand, person, due date or area. Also what each client still owes us.', when: 'Every morning, and on the Monday call.', todo: 'Type a task in plain words in the box at the top. Tick what gets done (or press Done on the Slack reminder). Drag on the Board or Calendar to change who or when.' },
+  production: { answers: 'Every ad from brief to live: Brief, Making, Review, Ready, Live. Each card is a numbered brief, mirrored to Asana.', when: 'Whenever an ad moves.', todo: 'Drag a card to its new column; Asana follows and the brand channel gets one line. Review lives only in Locus. Ready cards launch to Meta from here.' },
   actions: { answers: 'Two things on one page. To approve: each call Locus read, with what was decided, the tasks, the briefs, what the client will read and what we ask them for. Below: everything the team owes, per brand, with who and by when. On Mondays each brand also shows last week\'s numbers and the strategist\'s plan.', when: 'After any call, and on the Monday call.', todo: 'Skim a call card, click anything that is wrong to change it, press Approve and send. Tick items as they get done (or press Done on the Slack reminder). Briefs land in Asana with a number.' },
   monday: { answers: 'The Monday call agenda, per brand, red brands first: last week\'s items done or not, the weekly numbers, the strategist\'s plan, new items with an owner and a due date.', when: 'Every Monday at 8am, on the call.', todo: 'Tick items as they are reported done, read the plan, add new items straight into Asana. The call notes fill in the rest afterwards.' },
   meetings: { answers: 'What was decided on each call, per brand: the team\'s action items, what the client will hear this week, and what we need from the client. Nothing leaves this page until you confirm it.', when: 'After the Monday call, and after any client call.', todo: 'Open the meeting, untick anything wrong, fix owners and dates, press Confirm. Team items go to Asana, client lines go into the weekly report, asks go to Requests.' },
@@ -3463,7 +3469,7 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  calendar: ['Calendar', 'Calendar'], actions: ['Action items', 'Action items'],
+  calendar: ['Calendar', 'Calendar'], actions: ['Work', 'Tasks'], calls: ['Work', 'Calls'], tasks: ['Work', 'Tasks'], production: ['Work', 'Production'],
   overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'Offers and dates'], war: ['Season', 'War Room'], warplan: ['Season', 'The Plan'], warlive: ['Season', 'Live'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], gads: ['Ads', 'Google &nbsp;/&nbsp; Ads'], gterms: ['Ads', 'Google &nbsp;/&nbsp; Search terms'], gchanges: ['Ads', 'Google &nbsp;/&nbsp; Changes'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Ads'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
@@ -3476,7 +3482,7 @@ const TAB_CRUMB = {
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { calls: 'everyone', actions: 'everyone', calendar: 'everyone', yesterday: 'everyone', today: 'buyer', war: 'everyone', warplan: 'everyone', warlive: 'everyone', pulse: 'everyone', answers: 'strategist', research: 'strategist', voice: 'strategist', overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', channels: 'buyer', campaigns: 'buyer', adcreative: 'everyone', changes: 'buyer', mtoday: 'buyer', mbrowser: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { calls: 'everyone', tasks: 'everyone', production: 'everyone', actions: 'everyone', calendar: 'everyone', yesterday: 'everyone', today: 'buyer', war: 'everyone', warplan: 'everyone', warlive: 'everyone', pulse: 'everyone', answers: 'strategist', research: 'strategist', voice: 'strategist', overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', channels: 'buyer', campaigns: 'buyer', adcreative: 'everyone', changes: 'buyer', mtoday: 'buyer', mbrowser: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
@@ -3551,7 +3557,7 @@ const TOURS = {
     { sel: '#hdModel', title: 'Whose credit?', body: 'On Ads screens this menu picks who gets credit for an order: a Triple Whale model or the platform itself. Spend and delivery are always the platform’s own.' },
     { sel: '#tabs [data-grp="creative"]', title: 'Creative', body: '<b>AI ads</b> makes a batch from a brief. <b>Creators</b> is the public link TRYBE creators film from. <b>Library</b> is every photo the brand has. <b>Inspiration</b> is the swipe file. Who buys and how the brand talks live under <b>Brand</b>.' },
     { sel: '#tabs [data-grp="reports"]', title: 'Reports', body: '<b>Daily Brief</b> and <b>Weekly and monthly</b> go to clients after review. <b>Dashboards</b> are yours: build one or ask Locus.' },
-    { sel: '#tabs [data-grp="work"]', title: 'Action items', body: 'Every call Locus read waits here for your OK: approve once and the tasks, briefs, report lines and client asks go where they belong. Below, everything the team owes, per brand; Slack reminds the owner the morning it is due.' },
+    { sel: '#tabs [data-grp="work"]', title: 'Work', body: 'Calls: every call Locus read waits for your OK, and one press sends the tasks, briefs, report lines and client asks where they belong. Tasks: what the team owes, as a list, a board or a calendar; Slack reminds the owner the morning it is due. Production: every ad from brief to live, mirrored to Asana.' },
     { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
@@ -4805,7 +4811,7 @@ const NAV = {
   /* The calendar (2026-10-09, Lineup moved in; calendar.js): one page, lanes for all clients, the month for one. */
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar']] },
   /* Work (2026-10-13, docs/handoffs/work-in-locus.md): the team's calls and action items, in Locus, not Asana. Team only (AGENCY_TABS). */
-  work: { label: 'Action items', tabs: [['actions', 'Action items']] },   // 2026-10-13 second pass: one page (calls to approve on top, the list below)
+  work: { label: 'Work', tabs: [['calls', 'Calls'], ['tasks', 'Tasks'], ['production', 'Production']] },   // 2026-10-13 fourth pass: calls.js, tasks.js, production.js
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
   season: { label: 'Black Friday', tabs: [['warplan', 'The Plan'], ['warlive', 'Live'], ['season', 'Offers and dates']] },   // 2026-10-13: one Season item, three pages; `war` still routes
   /* 2026-10-10: Agency economics (Cole only; hidden for everyone else) and Team workload (agency.js). */
@@ -4868,7 +4874,7 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
    Agency settings, which a client never opens. A NEW PAGE IS IN THE BRAND EDITION BY DEFAULT: add it to AGENCY_TABS
    only when it runs many brands at once, and add its routes to CLIENT_RULES in brandguard.js (both copies). */
 const isClient = () => S.role === 'client';
-const AGENCY_TABS = new Set(['economics', 'workload', 'calls', 'actions', 'meetings', 'monday']);   // actions (and the old ids that route to it): the team's page, never a client's
+const AGENCY_TABS = new Set(['economics', 'workload', 'calls', 'tasks', 'production', 'actions', 'meetings', 'monday']);   // actions (and the old ids that route to it): the team's page, never a client's
 /* Kept for older callers: every page that is not the agency's. */
 const CLIENT_TABS = { has: t => !AGENCY_TABS.has(t) };   // stock, buying and drops included (2026-10-12)
 /* The four access switches are gone (2026-10-10): everything is on. Kept for older callers. */
@@ -4906,7 +4912,7 @@ function applyClientMode() {
    the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { actions: 'Action items', warplan: 'The Plan', warlive: 'Live', monday: 'Calls', meetings: 'Calls', requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { actions: 'Tasks', calls: 'Calls', tasks: 'Tasks', production: 'Production', warplan: 'The Plan', warlive: 'Live', monday: 'Calls', meetings: 'Calls', requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', economics: 'Agency economics', workload: 'Team workload', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5155,13 +5161,15 @@ function openFixedCosts(act) {
 window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
-const SHOWABLE = new Set(["calls", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["calls", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
   const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
   /* Old ids that moved (2026-10-09): the Creative browser is Creative; 'brand' opens the brand view last used. */
   if (tab === 'mbrowser') tab = 'adcreative';
-  if (tab === 'monday' || tab === 'meetings' || tab === 'calls') tab = 'actions';   // 2026-10-13: all one page, Action items
+  /* 2026-10-13 fourth pass: Work is Calls, Tasks, Production. The old ids still land: a call link opens Calls, an item opens Tasks. */
+  if (tab === 'monday' || tab === 'meetings') tab = 'calls';
+  if (tab === 'actions') tab = window.ACT_MEETING ? 'calls' : 'tasks';
   if (tab === 'brand') tab = BRAND_VIEW_TAB[localStorage.getItem('br_view')] || 'research';
   /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of
      "This page didn't load" with a Try again that retries the same unknown id. */
@@ -5280,7 +5288,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -5445,6 +5453,9 @@ function renderModelMenu(tab) {
    are on, type to jump to any page or brand, Enter to ask Locus. Ctrl/Cmd+K focuses it. */
 const ASK_SUGGEST = {
   actions: ['What is overdue, and whose is it?', 'What did we agree on the last {b} call?', 'What does Ahsan owe this week?', 'Which items have no owner?'],
+  calls: ['What did we agree on the last {b} call?', 'Which calls are still waiting for an OK?', 'What did the client promise us this week?'],
+  tasks: ['What is overdue, and whose is it?', 'What does Ahsan owe this week?', 'Which items have no owner?', 'What is {b} still waiting on us for?'],
+  production: ['Which ads are late?', 'What is ready to launch for {b}?', 'What has William got in the studio?', 'How did the last ads that went live do?'],
   calendar: ['What goes live for {b} in the next two weeks?', 'What is late for Black Friday?', 'Which clients have nothing planned next month?', 'Did {b}’s last sale work?'],
   yesterday: ['Was yesterday a bad day on Meta?', 'How many bad Meta days this month?', 'Did our brands follow the market yesterday?', 'Should we hold changes today?'],
   today: ['What should I change first on {b} today?', 'Which ad set is wasting the most money?', 'Which ad set can take more budget?', 'Which ads are tiring?'],
@@ -5713,7 +5724,9 @@ const GUIDE = [
       ['Home', 'Overview, Day check, P&L and Goals: is the book making money, where is it leaking, will we hit the month.', 'overview'],
       ['Customers (under Store)', 'What a customer is worth over time against what we paid, and what they buy first and next.', 'customers'],
       ['Reports', 'What went to each client, and your dashboards.', 'reports'],
-      ['Action items', 'Approve each call Locus read (tasks, briefs, report lines, client asks in one press), then tick what gets done. On Mondays it carries each brand\'s numbers and plan.', 'actions'],
+      ['Calls (under Work)', 'Approve each call Locus read: tasks, briefs, report lines and client asks in one press. On Mondays it carries each brand\'s numbers and plan.', 'calls'],
+      ['Tasks (under Work)', 'What the team owes as a list, a board or a calendar. Type a task in plain words; tick it when it is done.', 'tasks'],
+      ['Production (under Work)', 'Every ad from brief to live. Drag a card and Asana follows.', 'production'],
     ]],
     ['End of the month', [
       ['Home, Goals', 'Set next month\u2019s revenue, spend and MER with the client, and the goal cost per sale.', 'plan'],

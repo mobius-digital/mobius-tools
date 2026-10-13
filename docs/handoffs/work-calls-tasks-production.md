@@ -1,5 +1,11 @@
 # Work in Locus, v3: Calls, Tasks, Production (handoff, 2026-10-13)
 
+> **Progress (2026-10-13): BUILT and deployed.** account-health: `p_action.area` + `judgeAreas` backfill, `/api/actions/quick`,
+> `src/production.js` (board over p_br_batch, `board_stage` etc., Asana section moves, one Slack line per move),
+> `makeBrief` for New ads, Ready cards carry `studio_ad`. profit: `calls.js`, `tasks.js`, `production.js`, the Work rail
+> item with three pages, old ids routed. Tests: actions, production, clients, smoke, today pass. Still for Cole: drag one
+> real brief through Production and check Asana followed; say when to cut the Asana mirror.
+
 Start a worktree. Read this whole file, then `docs/handoffs/work-in-locus.md` (stage 1 and stage 2 history),
 profit/CLAUDE.md and account-health/CLAUDE.md under 2026-10-13. Cole APPROVED the layout below on 2026-10-13. Build it
 top to bottom, deploy, commit, push, then report in short bullets (what changed, what Cole must do).

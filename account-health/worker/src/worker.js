@@ -15,6 +15,7 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleActions, actionTick, handleActionButton, handleReaction } from './actions.js';
+import { handleProduction } from './production.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
 import { todayTick } from './todaypost.js';
@@ -7486,6 +7487,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Action items: the team's to-do list in Locus, not Asana (actions.js, 2026-10-13). Team only. ---- */
     if (path === '/api/actions' || path.startsWith('/api/actions/')) {
       const r = await handleActions(request, env, url, path, json, actionDeps());
+      if (r) return r;
+    }
+    /* ---- Production: the brief-to-live board over p_br_batch, mirrored to Asana (production.js, 2026-10-13). Team only. ---- */
+    if (path === '/api/production' || path.startsWith('/api/production/')) {
+      const r = await handleProduction(request, env, url, path, json, actionDeps());
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {

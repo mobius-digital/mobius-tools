@@ -1810,3 +1810,25 @@ and the ✅ reaction, the routes' team-only gate). test-clients.mjs asserts a cl
   keeps them (240 chars). The page shows them per item; confirm ignores them.
 - `GET /api/actions` (status open) adds `waiting`: Requests asks (`p_request` kind 'ask') open, or updated in the last 7
   days, with `due` read from the body's "Needed by YYYY-MM-DD" (createAsk writes it). A missing table answers [].
+
+## 2026-10-13 (fourth pass): Calls, Tasks, Production (docs/handoffs/work-calls-tasks-production.md)
+
+Locus Work is now three pages (profit calls.js, tasks.js, production.js). What this worker added:
+- **`p_action.area`** (TEXT): ads | email | organic | site | ops | client; '' = Other; NULL = not judged yet. The call
+  extractor and quick add set it; `judgeAreas` (Haiku 5.5, judged from the words, no word lists) fills NULL rows from
+  the hourly `actionTick` (its result now carries `areas`) and from `POST /api/actions/areas` (the backfill).
+  `/api/actions/edit` accepts `area`. `GET /api/actions` items carry `area`. `ROSTER` and `AREAS` are exported.
+- **`POST /api/actions/quick {text, act}`**: one typed line; Haiku reads brand, owner, due and area out of it and the row
+  is made (`{ok, parsed, item}`). The page falls back to plain `POST /api/actions` if it fails.
+- **Production (`src/production.js`)**: a board over **p_br_batch**, not a new table. New columns `board_stage`,
+  `assignee_name`, `due_on`, `board_at` (`ensureBoard` adds them; they were also run on remote D1 by hand).
+  Columns brief > making > review > ready > live. `boardOf(section, stage)` (asana-brand.js) maps the Asana section:
+  Creative Brief(s) = brief, Creative Studio = making, Ready to Launch = ready, Analyze Results = live, Completed = done.
+  **Review is Locus only** (no Asana section; the task stays in Creative Studio). `syncTasks` now reads `due_on` and the
+  assignee name, and keeps a Locus column until the Asana section itself changes (so Review is not pulled back to
+  Making). The first sync after deploy is full once (`doc.board_v`).
+  Routes (team only, 403 for a client scope): `GET /api/production?act=`, `POST /api/production/move {id,to}` (moves the
+  Asana task to the matching section via `BOARD_SECTION`, writes the column, posts one line in the brand channel:
+  "<Name> moved *<num> - <title>* to <Column>"), `POST /api/production/brief {act,text,owner,due}` (meetings.js
+  `makeBrief`, now exported: the next numbered brief in Asana + its card).
+- Tests: `test-actions.mjs` (11) and `test-production.mjs` (7).

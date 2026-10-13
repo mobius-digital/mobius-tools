@@ -3042,3 +3042,36 @@ the words, show what was understood) and Fathom / Granola meeting action items (
 - No unread badge on the rail item (Cole's standing rule). Checked in the browser pane on the stub harness: menus, the
   calendar, quote, move between brands and sections, leave a brand out, the counts, Ctrl+Enter payload, quick add parse,
   the three groupings, views, an owner edit, 375px with no sideways scroll, light and dark.
+
+## 2026-10-13 (fourth pass): Calls, Tasks, Production. Supersedes the one Action items page.
+
+Cole: "the calls and the tasks should be separate", views like Asana and ClickUp, and ads as a pipeline. Handoff and the
+approved mock: `docs/handoffs/work-calls-tasks-production.md` (https://claude.ai/artifact/QFzWFes5eRwKNXNXm1xcPV).
+- **Rail item Work** (`#railWork`, `data-t="tasks"`) = three pages in `NAV.work`: **Calls** (`calls`, `profit/calls.js`,
+  `window.CallsTab`, CSS `#clcss`, classes `.cl-*`), **Tasks** (`tasks`, `profit/tasks.js`, `window.TasksTab`, `#tkcss`,
+  `.tk-*`), **Production** (`production`, `profit/production.js`, `window.ProductionTab`, `#pd-css`, `.pd-*`). All three in
+  AGENCY_TABS. Old ids: `monday` / `meetings` -> calls; `actions` -> calls when `window.ACT_MEETING` is set (a
+  `?meeting=` link), else tasks. `?open=actions|tasks&item=<id>` (Slack reminders, `itemUrl`) still opens the task
+  (`window.ACT_OPEN`). actions.js still loads but no page renders it any more.
+- **Calls** = an inbox. Monday block on top (Mon and Fri to Sun, or "Show them now": theme + each brand's numbers and plan,
+  red first). "Waiting on your OK" + count; the first call open as ONE table (Item / Goes to / Who / Due) grouped Mobius
+  does, New ads, Client does, Client reads, a tick per row (unticked = dropped), every cell changes in place (Goes to is a
+  menu: the task's area, another section, another brand); Approve N / Skip this call; Ctrl+Enter approves. Other calls
+  are one line with counts and Review. History table (Date, Brand, With, Length, What it made, Status, Open) from the
+  `made` / `with` / `brand_ids` the meetings list carries. The confirm body keeps the old shape plus `area` per team item.
+  The Brand filter is local (starts from the picker). The meeting's model is `notes` (never `extracted`).
+- **Tasks** = a workspace. Quick add (`/api/actions/quick`, falls back to plain `/api/actions`); View List / Board /
+  Calendar; Group by Brand / Person / Due / Area (one setting drives list sections and board columns); Only mine; Area
+  chips (Other shows only when a row has no area); all in localStorage `tk_prefs`. Board: drag a card to another column =
+  that field changes (`patchFor`); "+ Add" prefills the column's value; Late takes no drops. Calendar: Mon to Sun plus
+  Later / no date (overdue items sit there too), or the month; drag to a day = the due date. "Waiting on client" (Requests
+  asks) is the last group / column with a coral dashed tick and opens Requests. A click opens the edit window (words,
+  who, due, area, brand, Mark done, Drop it). Brief rows (`kind: 'brief'`) are left out: new ads live on Production.
+- **Production** = the pipeline over p_br_batch (account-health `/api/production`): Brief, Making, Review, Ready, Live.
+  Brand and Format chips (format colours: Static brand, Video bad, UGC `--c-tiktok`, Carousel `--c-email`), drag between
+  columns (`/api/production/move`; the toast says "Moved in Asana" or Asana's reason), "Open review" opens the file /
+  brief / Asana task, "Launch to Meta" opens `LaunchToMeta.open` when the Ready card carries `studio_ad` (newest
+  approved Studio ad of a batch tied to the test), else switches to the brand and opens Studio with a note. "+ New
+  brief" / "+ Brief" = an in-app window -> `/api/production/brief`. Live shows the newest 12 with "Show all N".
+- Checked on a stub harness (scratchpad, deleted): every write's request body, the menus, drag on all three surfaces,
+  light and dark, 375px with no page sideways scroll. NOT checked against the real workers in a browser.

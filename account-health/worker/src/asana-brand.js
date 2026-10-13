@@ -77,6 +77,28 @@ const stageOf = section => {
   if (s.includes('complete')) return 'done';
   return null;
 };
+/* The Production board's column (Work > Production, 2026-10-13 fourth pass): brief | making | review | ready | live | done.
+   The Asana section decides, by the names every project uses (Creative Brief(s), Creative Studio, Ready to Launch,
+   Analyze Results, Completed Tasks); the old stage is the fallback for a row synced before the board existed. Review has
+   no Asana section: it is Locus only, and the task stays in Creative Studio while it sits there. */
+export function boardOf(section, stage) {
+  const s = String(section || '').toLowerCase();
+  if (stage === 'done' || s.includes('complete')) return 'done';
+  if (s.includes('brief')) return 'brief';
+  if (s.includes('studio')) return 'making';
+  if (s.includes('review')) return 'review';
+  if (s.includes('ready')) return 'ready';
+  if (s.includes('analy')) return 'live';
+  return { idea: 'brief', production: 'making', live: 'live' }[stage] || null;
+}
+/* The section a board column moves an Asana task to. Review has none (Locus only). */
+export const BOARD_SECTION = { brief: /brief/i, making: /studio/i, ready: /ready/i, live: /analy/i, done: /complete/i };
+let boardCols = false;
+export async function ensureBoard(env) {
+  if (boardCols) return;
+  for (const c of ['board_stage TEXT', 'assignee_name TEXT', 'due_on TEXT', 'board_at TEXT']) await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
+  boardCols = true;
+}
 
 /* ---------------- Asana ---------------- */
 async function asana(env, path, init = {}) {
@@ -264,7 +286,7 @@ async function connect(env, act, projectGid) {
 }
 
 /* ---------------- 1. SYNC ---------------- */
-const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,permalink_url,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
+const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,permalink_url,due_on,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
 /* The brief, in the framework's shape. Dropped into a brand-new task in Creative Brief
    that has nothing written yet, so nobody has to find the template. The same layout
    lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
@@ -296,6 +318,9 @@ export const briefFor = name => /\b(ugc|video|vid|reel|creator)\b/i.test(name ||
 const sectionOf = (t, doc) => t.memberships?.find(m => m.project?.gid === doc.project_gid)?.section?.name || '';
 
 async function syncTasks(env, act, doc, { full = false } = {}) {
+  await ensureBoard(env);
+  /* The first sync after the board landed reads every task once, so old cards get their due date and assignee. */
+  if (!doc.board_v) full = true;
   const since = !full && doc.last_sync ? `&modified_since=${encodeURIComponent(doc.last_sync)}` : '';
   const started = new Date().toISOString();
   const tasks = await asanaAll(env, `/tasks?project=${doc.project_gid}&opt_fields=${TASK_FIELDS}${since}`);
@@ -387,6 +412,8 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
       angleFixes++;
     }
     const v = cancelled ? 'cancelled' : verdict;
+    /* A card moved in Locus keeps its column until the Asana section itself changes (Review lives only in Locus). */
+    const board = boardOf(section, stage);
     if (row) {
       if (stage === 'done' && v && !row.verdict) closed++;
       st.push(env.DB.prepare(`UPDATE p_br_batch SET title = ?3, stage = ?4, asana_gid = ?5, asana_url = ?6, asana_section = ?7,
@@ -395,21 +422,24 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
           verdict_by = CASE WHEN ?11 IS NOT NULL AND (?4 = 'done') THEN 'Asana' ELSE verdict_by END,
           verdict_at = CASE WHEN ?11 IS NOT NULL AND (?4 = 'done') AND verdict_at IS NULL THEN datetime('now') ELSE verdict_at END,
           learning = COALESCE(?12, learning), asana_result = ?13, check_again = ?14, keep_reason = ?15, brief_text = COALESCE(?16, brief_text),
+          board_stage = CASE WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END,
+          board_at = CASE WHEN board_stage IS (CASE WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END) THEN board_at ELSE datetime('now') END,
+          assignee_name = ?18, due_on = ?19,
           updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`)
         .bind(row.id, act, clip(titleOf(t.name), 300), stage, t.gid, t.permalink_url, clip(section, 80), brief, asset, t.assignee?.gid || null,
-          v, learning, resKey, checkAgain, keepReason, notes));
+          v, learning, resKey, checkAgain, keepReason, notes, board, clip(t.assignee?.name, 80) || null, t.due_on || null));
       updated++;
     } else {
-      st.push(env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, brief_url, asset_url, assignee_gid, verdict, verdict_by, learning, asana_result, check_again, keep_reason, brief_text, source, created_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 'asana', ?19)`)
+      st.push(env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, brief_url, asset_url, assignee_gid, verdict, verdict_by, learning, asana_result, check_again, keep_reason, brief_text, source, created_at, board_stage, assignee_name, due_on, board_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 'asana', ?19, ?20, ?21, ?22, datetime('now'))`)
         .bind(rid(), act, n, clip(titleOf(t.name), 300), stage, t.gid, t.permalink_url, clip(section, 80), brief, asset, t.assignee?.gid || null,
           stage === 'done' ? v : null, stage === 'done' && v ? 'Asana' : null, learning, resKey, checkAgain, keepReason, notes,
-          (t.created_at || '').replace('T', ' ').slice(0, 19) || null));
+          (t.created_at || '').replace('T', ' ').slice(0, 19) || null, board, clip(t.assignee?.name, 80) || null, t.due_on || null));
       created++;
     }
   }
   for (let i = 0; i < st.length; i += 80) await env.DB.batch(st.slice(i, i + 80));
-  await putDoc(env, act, 'asana', { ...doc, last_sync: started });
+  await putDoc(env, act, 'asana', { ...doc, last_sync: started, board_v: 1 });
   return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered };
 }
 

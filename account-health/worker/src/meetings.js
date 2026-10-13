@@ -22,6 +22,10 @@
  * it done); and one message per brand goes to its internal channel, each item linked to its row in Locus. The
  * agency channel (strategistChannel) gets the agency-wide entry. Asana is not written any more.
  *
+ * 2026-10-13 fourth pass (Work > Calls / Tasks / Production): every item carries an area (actions.js AREA_RULE) that
+ * Tasks groups by; a Brief item becomes the Asana task AND its p_br_batch card at once (Production draws it; no p_action
+ * row any more); each meeting in the list carries `made` (what the confirm wrote) and `counts` (what is waiting) for Calls.
+ *
  * Table `p_meeting` (created on first use). Routes (admin, team only; not on brandguard CLIENT_RULES):
  *   GET  /api/meetings            the last 60 days + open action items per brand (from p_action)
  *   GET  /api/meetings?id=        one meeting with its notes
@@ -34,8 +38,8 @@
  *   POST /api/meetings/ingest     {id} re-read one Fireflies transcript (or read one the poll missed)
  *   POST /api/meetings/poll       check Fireflies now
  */
-import { addAction, markDone, openItems as openActionItems, ROSTER } from './actions.js';
-import { briefFor } from './asana-brand.js';
+import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_RULE } from './actions.js';
+import { briefFor, ensureBoard } from './asana-brand.js';
 import { nextNumber } from './ideas.js';
 
 const MODEL = 'claude-sonnet-5-5';
@@ -112,7 +116,7 @@ const SCHEMA = obj({
   brands: arr(obj({
     brand_id: S,
     decisions: arr(S),
-    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] }, quote: S, at: S })),
+    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] }, area: { type: 'string', enum: [...AREAS, ''] }, quote: S, at: S })),
     this_week: arr(S),
     need_from_client: arr(S),
   })),
@@ -143,6 +147,7 @@ WHAT TO WRITE
   brief = new ads someone agreed to make (a batch, iterations of a winner, a new angle). The text says what to make in one line ("3 new hooks on the Burgundy launch video"); owner = the strategist who writes the brief. It becomes a numbered brief in Asana.
   client = something the client should hear we are doing this week (no owner needed).
   client_owes = something the client has to give or decide (photos, an offer, an approval).
+  Every team item also gets an ${AREA_RULE.replace(/^area = /, 'area: ')} Other kinds: area ''.
 - this_week: 2 to 4 lines the client reads in their weekly report under "This week". Say what we are doing and why, in the client's words. Never a team member's name, never a cost, never another brand, never "the AI".
 - need_from_client: what we are waiting on from them, one line each, polite and specific. Empty when nothing.
 - For every item, quote: the words that created it, VERBATIM from the transcript, at most 25 words; at: its [m:ss] mark (just m:ss). They let the reviewer check an item without rereading the call.
@@ -168,7 +173,7 @@ async function extract(env, d, m, text) {
   const ids = new Set(brands.map(b => b.act_id));
   out.brands = (out.brands || []).filter(b => b.brand_id === '' || ids.has(b.brand_id)).map(b => ({
     brand_id: b.brand_id, decisions: (b.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', quote: clean(i.quote, 240), at: /^\d{1,3}:\d{2}$/.test(i.at || '') ? i.at : '' })).filter(i => i.text),
+    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', area: AREAS.includes(i.area) ? i.area : '', quote: clean(i.quote, 240), at: /^\d{1,3}:\d{2}$/.test(i.at || '') ? i.at : '' })).filter(i => i.text),
     this_week: (b.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     need_from_client: (b.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
   }));
@@ -211,7 +216,7 @@ async function tellReady(env, d, m, notes) {
   const names = notes.brands.filter(b => b.brand_id).length;
   const line = `*Notes from "${sEsc(m.title)}" are ready to confirm.* ${items} item${items === 1 ? '' : 's'} across ${names} brand${names === 1 ? '' : 's'}. Nothing is on the list or with a client until you confirm.`;
   await d.slackPost(env, ch, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } },
-    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' });
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' });
 }
 
 /* ---------- the hourly poll and the webhook ---------- */
@@ -266,8 +271,10 @@ export async function handleFirefliesHook(request, env, ctx, d, json) {
 /* ---------- confirm: write the ticked items where they live ---------- */
 const KINDS = ['team', 'brief', 'client', 'client_owes'];
 /** A Brief item -> the next numbered task in the brand's Creative Brief section, the team's template underneath a line
- *  that says which call it came from. Assigned by the roster email, then by first name. Returns {num, gid, url}. */
-async function makeBrief(env, d, act, it, m, who) {
+ *  that says where it came from (the call `m`, or Production's "+ New brief" when m is null). Assigned by the roster email,
+ *  then by first name. The p_br_batch card is written at once (the hourly sync matches it by number), so Production shows
+ *  it before Asana is read again. Returns {num, gid, url, id}. */
+export async function makeBrief(env, d, act, it, m, who) {
   const doc = safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(act).first().catch(() => null))?.data_json, null);
   if (!doc?.project_gid) throw new Error('not connected to Asana');
   const secs = (await d.asana(env, `/projects/${doc.project_gid}/sections?opt_fields=name`).catch(() => [])) || [];
@@ -280,11 +287,17 @@ async function makeBrief(env, d, act, it, m, who) {
     const w = it.owner.toLowerCase(), mail = (ROSTER.find(x => x.name.toLowerCase() === w) || {}).email;
     assignee = (mail && users.find(u => String(u.email || '').toLowerCase() === mail)) || users.find(u => String(u.name || '').toLowerCase().startsWith(w)) || null;
   }
-  const from = `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}. Confirmed by ${sEsc(who)} in Locus.</em>\n`;
+  const from = m ? `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}. Confirmed by ${sEsc(who)} in Locus.</em>\n` : `<em>Added in Locus Production by ${sEsc(who)}.</em>\n`;
   const html = briefFor(it.text).replace('<body>', `<body>${from}`);
   const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });
   await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: t.gid } }).catch(() => {});
-  return { num, gid: t.gid, url: t.permalink_url || `https://app.asana.com/0/${doc.project_gid}/${t.gid}` };
+  const url = t.permalink_url || `https://app.asana.com/0/${doc.project_gid}/${t.gid}`;
+  await ensureBoard(env);
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  await env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, assignee_gid, assignee_name, due_on, board_stage, board_at, source, created_at)
+    VALUES (?1, ?2, ?3, ?4, 'idea', ?5, ?6, ?7, ?8, ?9, ?10, 'brief', datetime('now'), ?11, datetime('now'))`)
+    .bind(id, act, String(num), clean(it.text, 300), t.gid, url, clean(sec.name, 80), assignee?.gid || null, assignee?.name || (it.owner ? clean(it.owner, 40) : null), it.due || null, m ? 'meeting' : 'locus').run().catch(e => console.log('brief card: ' + e.message));
+  return { num, gid: t.gid, url, id };
 }
 /** The brand's open weekly report draft, if the week's draft exists (drafted Monday 6am, sent after the call). */
 async function openWeekly(env, act) {
@@ -306,7 +319,7 @@ export async function confirm(env, d, body, who) {
     if (act && !brands.some(b => b.act_id === act)) continue;
     const b = {
       brand_id: act, decisions: (raw.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-      items: (raw.items || []).filter(i => i && i.on !== false).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team' })).filter(i => i.text),
+      items: (raw.items || []).filter(i => i && i.on !== false).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', area: AREAS.includes(i.area) ? i.area : '' })).filter(i => i.text),
       this_week: (raw.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
       need_from_client: (raw.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     };
@@ -315,17 +328,18 @@ export async function confirm(env, d, body, who) {
     const r = { brand_id: act, name: act ? nameOf(act) : 'Agency', tasks: [], briefs: [], asks: [], report: null, slack: false };
     /* 1. Team items -> Locus action items (p_action). Nothing goes to Asana. */
     for (const it of b.items.filter(i => i.kind === 'team')) {
-      try { const row = await addAction(env, { act, text: it.text, owner: it.owner, due: it.due, kind: 'team', source: 'meeting', source_id: m.id, created_by: who }); r.tasks.push({ ...it, id: row.id, url: row.url, assigned: !!row.owner }); }
+      try { const row = await addAction(env, { act, text: it.text, owner: it.owner, due: it.due, kind: 'team', area: it.area, source: 'meeting', source_id: m.id, created_by: who }); r.tasks.push({ ...it, id: row.id, url: row.url, assigned: !!row.owner }); }
       catch (e) { r.tasks.push({ ...it, error: e.message }); result.warnings.push(`${r.name}: "${it.text}" was not added (${e.message}).`); }
     }
-    /* 1b. Briefs -> a numbered task in the brand's Asana Creative Brief section (the team's template), and a p_action row
-       (kind brief) that links it, so the list shows it beside the tasks and Slack reminds the owner. No Asana = the row only. */
+    /* 1b. Briefs -> a numbered task in the brand's Asana Creative Brief section (the team's template) and its card on
+       Production (makeBrief writes both). When no brief can be made (no brand, no Asana) it becomes a task to write one,
+       so it is never lost. */
     for (const it of b.items.filter(i => i.kind === 'brief')) {
-      let made = null;
-      if (act) { try { made = await makeBrief(env, d, act, it, m, who); } catch (e) { result.warnings.push(`${r.name}: the brief "${it.text}" was not made in Asana (${e.message}). It is on the list.`); } }
-      else result.warnings.push(`"${it.text}" has no brand, so no Asana brief was made. It is on the list.`);
-      try { const row = await addAction(env, { act, text: made ? `${made.num} - ${it.text}` : it.text, owner: it.owner, due: it.due, kind: 'brief', source: 'meeting', source_id: m.id, created_by: who, asana_gid: made?.gid, asana_url: made?.url });
-        r.briefs.push({ ...it, id: row.id, url: row.url, num: made?.num || null, asana_url: made?.url || null }); }
+      let made = null, why = act ? '' : 'no brand';
+      if (act) { try { made = await makeBrief(env, d, act, it, m, who); } catch (e) { why = e.message; } }
+      if (made) { r.briefs.push({ ...it, id: made.id, num: made.num, url: `${LOCUS}?open=production&act=${encodeURIComponent(act)}`, asana_url: made.url }); continue; }
+      try { const row = await addAction(env, { act, text: `Write a brief: ${it.text}`, owner: it.owner, due: it.due, kind: 'team', area: 'ads', source: 'meeting', source_id: m.id, created_by: who });
+        r.tasks.push({ ...it, kind: 'team', id: row.id, url: row.url, assigned: !!row.owner }); result.warnings.push(`${r.name}: the brief "${it.text}" was not made in Asana (${why}). It is a task to write it.`); }
       catch (e) { r.briefs.push({ ...it, error: e.message }); }
     }
     /* 2. What the client hears -> the open weekly draft. */
@@ -355,7 +369,7 @@ export async function confirm(env, d, body, who) {
       if (tell.length) L.push('*The client hears*', ...[...new Set(tell)].map(x => `• ${sEsc(x)}`));
       if (r.asks.length || b.need_from_client.length) L.push('*We need from the client*', ...[...new Set(r.asks.map(a => a.text).concat(b.need_from_client))].map(x => `• ${sEsc(x)}`));
       const text = L.join('\n');
-      try { await d.slackPost(env, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' }); r.slack = true; }
+      try { await d.slackPost(env, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' }); r.slack = true; }
       catch (e) { result.warnings.push(`${r.name}: the Slack note failed (${e.message}).`); }
     }
     if (act) result.brands.push(r); else result.agency = r;
@@ -414,6 +428,20 @@ async function addItem(env, d, body, who) {
   return { ok: true, id: row.id, url: row.url, assigned: !!row.owner, item: row };
 }
 
+/* One meeting as Work > Calls lists it: who was on it (not the team), the brands it touched, what is waiting
+ * (counts by where each item goes) and, once confirmed, what it made. The heavy JSON stays out of the list. */
+const TEAM_MAIL = new Set(ROSTER.map(r => r.email).filter(Boolean));
+export function callRow(m) {
+  const notes = safe(m.notes_json, null), res = safe(m.result_json, null);
+  const people = (safe(m.attendees_json, []) || []).filter(a => !TEAM_MAIL.has(String(a.email || '').toLowerCase()) && !/go-mobius-digital\.com$/i.test(a.email || ''));
+  const count = k => (notes?.brands || []).reduce((n, b) => n + (b.items || []).filter(i => i.kind === k).length, 0);
+  const counts = notes ? { team: count('team'), brief: count('brief'), client_owes: count('client_owes'), client: count('client') + (notes.brands || []).reduce((n, b) => n + (b.this_week || []).length, 0) } : null;
+  const all = res ? [...(res.brands || []), ...(res.agency ? [res.agency] : [])] : [];
+  const made = res ? { tasks: all.reduce((n, b) => n + (b.tasks || []).filter(t => !t.error).length, 0), briefs: all.reduce((n, b) => n + (b.briefs || []).filter(t => !t.error).length, 0), asks: all.reduce((n, b) => n + (b.asks || []).filter(t => !t.error).length, 0), report: all.filter(b => b.report).length } : null;
+  const { attendees_json, notes_json, result_json, ...rest } = m;
+  return { ...rest, with: people.map(a => a.displayName || String(a.email || '').split('@')[0]).filter(Boolean).slice(0, 4), brand_ids: [...new Set((notes?.brands || []).map(b => b.brand_id).filter(Boolean))], counts, made };
+}
+
 /* ---------- routes ---------- */
 export async function handleMeetings(request, env, url, path, json, d) {
   if (path !== '/api/meetings' && !path.startsWith('/api/meetings/')) return null;
@@ -428,11 +456,12 @@ export async function handleMeetings(request, env, url, path, json, d) {
         if (!m) return json({ error: 'not found' }, 404);
         return json({ ...m, attendees: safe(m.attendees_json, []), notes: safe(m.notes_json, null), result: safe(m.result_json, null), attendees_json: undefined, notes_json: undefined, result_json: undefined });
       }
-      const { results } = await env.DB.prepare(`SELECT id, title, date, at, duration, kind, status, error, cost, confirmed_by, confirmed_at, chars FROM p_meeting WHERE date >= ?1 ORDER BY at DESC LIMIT 100`).bind(ymd(Date.now() - 60 * 864e5)).all();
+      const { results } = await env.DB.prepare(`SELECT id, title, date, at, duration, kind, status, error, cost, confirmed_by, confirmed_at, chars, attendees_json, notes_json, result_json FROM p_meeting WHERE date >= ?1 ORDER BY at DESC LIMIT 100`).bind(ymd(Date.now() - 60 * 864e5)).all();
+      const meetings = (results || []).map(callRow);
       const open = url.searchParams.get('open') === '0' ? [] : await openItems(env, d).catch(() => []);
       const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })).toISOString().slice(0, 10);
       const brands = await d.listBrands(env);
-      return json({ meetings: results || [], open, today, monday: mondayOf(today), brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), webhook: `${new URL(request.url).origin}/fireflies/webhook`, connected: !!env.FIREFLIES_API_KEY, since: await getSetting(env, 'meetingsSince') });
+      return json({ meetings, open, today, monday: mondayOf(today), brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), webhook: `${new URL(request.url).origin}/fireflies/webhook`, connected: !!env.FIREFLIES_API_KEY, since: await getSetting(env, 'meetingsSince') });
     }
     if (path === '/api/meetings/monday' && request.method === 'GET') return json(await mondayScreen(env, d));
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
