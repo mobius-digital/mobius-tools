@@ -388,6 +388,57 @@ export async function openItems(env, d) {
   return out;
 }
 
+/* ---------- the Monday call screen (Reports > Monday) ----------
+ * Per brand, the four things the call walks through: last week's items (open Asana action items), the read (the
+ * weekly report draft's numbers and summary), the plan (the strategist's reply under the weekly report card in
+ * Slack, read from the Slack index), new items (added straight into Asana from the page). The agency-wide theme
+ * for the week is one settings row. Brands are ordered on the page by the command center's severity. */
+const mondayOf = ymd => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+export async function mondayScreen(env, d) {
+  const brands = await d.listBrands(env);
+  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })).toISOString().slice(0, 10);
+  const monday = mondayOf(today);
+  const open = await openItems(env, d).catch(() => []);
+  const theme = safe(await getSetting(env, 'mondayTheme'), null);
+  const out = [];
+  for (const b of brands) {
+    const rep = await env.DB.prepare(`SELECT period, period_start, period_end, status, summary, data_json, slack_ts, slack_channel, sent_at FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(b.act_id).first().catch(() => null);
+    let report = null, thread = [];
+    if (rep) {
+      const data = safe(rep.data_json, {}) || {};
+      const t = data.totals || {}, f = data.forecast || {}, p = data.previous || {};
+      report = { period_start: rep.period_start, period_end: rep.period_end, status: rep.status, sent_at: rep.sent_at || null, summary: String(rep.summary || '').slice(0, 2500),
+        totals: { sales: t.sales ?? null, spend: t.spend ?? null, mer: t.mer ?? null, cm: t.cm ?? null }, plan: { sales: f.sales ?? null, spend: f.spend ?? null, mer: f.mer ?? null }, prior: { sales: p.sales ?? null, spend: p.spend ?? null, mer: p.mer ?? null },
+        currency: data.account?.currency || 'USD', this_week: data.this_week || [], need_from_you: data.need_from_you || [], fresh: rep.period_end >= ymd(Date.parse(monday + 'T12:00:00Z') - 8 * 864e5) };
+      if (rep.slack_ts && rep.slack_channel) {
+        const rows = (await env.DB.prepare(`SELECT ts, name, user, text, bot FROM slack_msg WHERE channel = ?1 AND thread_ts = ?2 AND ts != ?2 ORDER BY ts`).bind(rep.slack_channel, rep.slack_ts).all().catch(() => ({ results: [] }))).results || [];
+        thread = rows.filter(r => !r.bot && String(r.text || '').trim()).map(r => ({ by: r.name || r.user || 'someone', text: String(r.text).slice(0, 4000), at: new Date(+String(r.ts).split('.')[0] * 1000).toISOString(), where: 'thread' }));
+      }
+      /* A plan posted in the channel itself on the Monday (not as a reply) still counts. */
+      if (!thread.length && b.slack_channel) {
+        const mon = rep.period_end ? ymd(Date.parse(rep.period_end + 'T12:00:00Z') + 864e5) : monday;
+        const rows = (await env.DB.prepare(`SELECT ts, name, user, text FROM slack_msg WHERE channel = ?1 AND day = ?2 AND bot = 0 AND (thread_ts IS NULL OR thread_ts = ts) AND length(text) > 120 ORDER BY ts LIMIT 6`).bind(b.slack_channel, mon).all().catch(() => ({ results: [] }))).results || [];
+        thread = rows.map(r => ({ by: r.name || r.user || 'someone', text: String(r.text).slice(0, 4000), at: new Date(+String(r.ts).split('.')[0] * 1000).toISOString(), where: 'channel' }));
+      }
+    }
+    out.push({ act_id: b.act_id, name: b.name, report, thread, open: (open.find(o => o.brand_id === b.act_id) || {}).items || [] });
+  }
+  return { monday, theme: theme && theme.date === monday ? theme.text : '', brands: out, agency_open: [] };
+}
+
+async function addItem(env, d, body, who) {
+  const act = String(body.act || '');
+  const item = { text: clean(body.text, 300), owner: clean(body.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(body.due || '') ? body.due : '' };
+  if (!item.text) throw Object.assign(new Error('Write the item first.'), { status: 400 });
+  const brands = await d.listBrands(env);
+  const brand = brands.find(b => b.act_id === act);
+  const proj = brand ? await asanaProjectOf(env, act) : (await getSetting(env, 'agencyAsanaProject') ? { project: await getSetting(env, 'agencyAsanaProject'), workspace: null } : null);
+  if (!proj) throw Object.assign(new Error(brand ? `${brand.name} is not connected to Asana (Brand settings > Integrations).` : 'Pick a brand, or set settings.agencyAsanaProject for agency-wide items.'), { status: 400 });
+  const sec = await actionSection(env, d, proj.project).catch(() => null);
+  const t = await makeTask(env, d, proj, sec, item, `Added from the Monday call by ${who} in Locus.`, {});
+  return { ok: true, url: t.url, gid: t.gid, assigned: t.assigned };
+}
+
 /* ---------- routes ---------- */
 export async function handleMeetings(request, env, url, path, json, d) {
   if (path !== '/api/meetings' && !path.startsWith('/api/meetings/')) return null;
@@ -407,10 +458,24 @@ export async function handleMeetings(request, env, url, path, json, d) {
       const brands = await d.listBrands(env);
       return json({ meetings: results || [], open, brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), webhook: `${new URL(request.url).origin}/fireflies/webhook`, connected: !!env.FIREFLIES_API_KEY, since: await getSetting(env, 'meetingsSince') });
     }
+    if (path === '/api/meetings/monday' && request.method === 'GET') return json(await mondayScreen(env, d));
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
     const body = await request.json().catch(() => ({}));
     const who = (await d.sessionEmail(env, request).catch(() => null)) || 'the team';
     if (path === '/api/meetings/confirm') return json({ ok: true, result: await confirm(env, d, body, who) });
+    /* The Monday call screen: tick an item done in Asana, add one, set the week's theme. */
+    if (path === '/api/meetings/done') {
+      const gid = String(body.gid || '').trim(); if (!/^\d{6,}$/.test(gid)) return json({ error: 'No task id.' }, 400);
+      await d.asana(env, `/tasks/${gid}`, { method: 'PUT', body: { completed: body.done !== false } });
+      await putSetting(env, 'meetingsOpen', '').catch(() => {});
+      return json({ ok: true });
+    }
+    if (path === '/api/meetings/add') { const r = await addItem(env, d, body, who); await putSetting(env, 'meetingsOpen', '').catch(() => {}); return json(r); }
+    if (path === '/api/meetings/theme') {
+      const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })).toISOString().slice(0, 10);
+      await putSetting(env, 'mondayTheme', JSON.stringify({ date: mondayOf(today), text: clean(body.text, 600), by: who }));
+      return json({ ok: true });
+    }
     if (path === '/api/meetings/skip') {
       await env.DB.prepare(`UPDATE p_meeting SET status = 'skipped', updated_at = ?2 WHERE id = ?1 AND status != 'confirmed'`).bind(String(body.id || ''), now()).run();
       return json({ ok: true });
