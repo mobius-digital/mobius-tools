@@ -2900,3 +2900,28 @@ the Monday review off, one agency channel for the daily drafts, the short client
 - Cole: "if something's there, we can make a call right then and there, or go into Ads Manager, or link to another part of Locus for more detail... it also sends a message into Slack." Every row on Ads > Today's calls now has: **Do it** on Scale / Cut / Trim (the SAME dry-run, modal, write-with-expect, Undo flow as the nudge card and Ads > Meta: nudge.js's pause / scale were factored into `window.LxMetaWrite = { pause(host, it, opts), budget(host, it, opts), undo, toast, metaLive }`, one code path, account-health `/api/meta/write`; Scale = +20% with the number shown first, Cut = pause the ad set, Trim = pause the one ad), **Open in Ads Manager**, **Open in Locus** (ad set rows: `window.V2PENDING = {campaign, adset}`, v2.js campaigns opens the campaign and lights the `tr[data-adset]` row; ad rows: `{ad}` on Ads > Meta > Ads; Fix rows: the Meta overview), **Something else** (in-app modal: one line, owner Cole / Ahsan / Noma / William / Ravo / Radhesh / Hamza / nobody, due date -> account-health `POST /api/meetings/add {act, text, owner, due}`, the toast links the Asana task), Done, Not now. hub.js buyerList rows carry `campaign_id` now (no judging change).
 - **Call rows are ONE ROW PER TEST** (`/api/brand/tests-overview` brands[].calls: id, num, title, spend, orders, cpa, roas, goal, suggest, ads, ads_manager, asana_url) with Winner / Keep running / Loser: a one-line learning (winner / loser) or a reason + check-again date (keep) in a small modal -> profit `POST /api/brand/verdict {act, id, verdict, learning | keep_reason + check_again, who, light: true}` (`verdict: 'keep'` is new: asana_result = keep, no verdict) AND account-health `POST /api/brand-asana/result` so Asana carries it and the hourly sync keeps it. The row disappears after the call (`CALLED`); "Open the test" opens the Test calls page for the brand. Today never opens a Meta job page; the "Make the calls" row and its breadcrumb are gone. The footer says what Do it does.
 - The 8am Slack post with the same rows: account-health todaypost.js (settings `todayPost`). Script versions to bump in index.html when this ships: nudge.js, desk.js, v2.js. NOT tested in a browser: every button (stubs only in the worker tests).
+## 2026-10-13: THE SEASON ITEM IS THREE PAGES (Cole: "the war room is super confusing, not sure if you did the plan or the live")
+
+- **One job each.** `warplan` = The Plan (desk.js `war('warplan')`: six steps, one per section, numbered 1..6 with no gap:
+  last year the same days, goals AND the ladder (plus start / Meta cap / November / December / season goals, all saved to
+  key `goals`), the paid budget, the offers, the Slack alert thresholds, stock on the heroes). `warlive` = Live (desk.js
+  `war('warlive')`: tiles, ONE stock line under them, hour by hour, the desk, spend by channel, alerts fired today with
+  a caption pointing at The Plan's step). `season` = Offers and dates (season.js: Offers / To-do / Call sheet; the Goals
+  and results tab and the Desk tab are GONE because the other two pages own them; All clients = The offers / This week /
+  Week by week). `war` still renders for old links and Slack buttons (mode from `window.WAR_MODE`, then the switch).
+- **The switch and the host.** index.html sets `window.WAR_MODE = {warplan:'plan', warlive:'live'}[tab] || null` before
+  `DeskTab.render`; the in-page The Plan / Live switch then calls `show('warplan'|'warlive')` so the rail follows. If
+  `WAR_MODE` is undefined (older host) the switch re-renders in place.
+- **One offer list, one editor.** season.js exports `dealsHtml(a, {ro, results})` and `editPhase({tok,url,act,phases,name}, key)`
+  (+ `injectCss`, `seasonLabel`); The Plan's Offers step renders the same `.se-deal` cards (wrapped in `<div class="se">`
+  for the tokens) and opens the same modal. The war payload's phases now carry `detail`, `tpl`, `hint`, `swipe`.
+- **Clients read.** `ro = isCl()` in the baseline, goals and budget sections (it was hard-coded false); no inputs render.
+  The server still accepts a client PUT on /api/season/war (2026-10-10 rule): the page just does not offer it.
+- **Labels.** Headings and verdicts use the season item's name (`seasonLabel()` in both files); real dates (the BF marker,
+  the last-year row, countdowns) stay "Black Friday".
+- Checked on a local harness (scratch two-root server + fixtures + headless Chrome over CDP, team and client, one brand and
+  all, legacy `war`, renamed label, light, 390px): no exceptions; not run against the real workers.
+- (Merge note, 2026-10-13.) The War Room merge first set `ro = isCl()` on the plan sections; that was reversed on merge:
+  a client EDITS its own plan (the brand edition, 2026-10-10), so `ro = false` stays and only notes, alerts and the
+  stock check are the team's. The Season item is three pages: `warplan` (The Plan), `warlive` (Live), `season`
+  (Offers and dates); `war` still routes. index.html sets `window.WAR_MODE` in `DR()` from the page id.
