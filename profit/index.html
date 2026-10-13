@@ -10939,6 +10939,10 @@ async function renderSettings() {
         <section data-sec="sending"${sec === 'sending' ? '' : ' hidden'}>${secHead('sending')}
           ${sCard('Daily Brief send time', 'When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> all year, so it never shifts an hour when the clocks change. It always covers yesterday.',
             '<div class="row" style="margin:0;gap:10px"><select id="btHour" style="max-width:200px"></select><span class="tiny" id="btMsg"></span></div>')}
+          ${sCard('Where the daily drafts post', 'Every brand\'s Daily Brief draft, with its Send, Edit and Rewrite buttons, goes to <b>one agency channel</b> so the brand channels stay conversation. Blank = each draft posts in its own brand\'s internal channel.',
+            '<div class="row" style="margin:0;gap:10px"><select id="dbChan" style="max-width:280px"></select><span class="tiny" id="dbMsg"></span></div>')}
+          ${sCard('What the client gets each day', 'Once a brand has a Locus login, the client\'s daily can be <b>three lines plus Open in Locus</b>; the whole brief is in their Locus. A brand with no client login always gets the whole brief in Slack.',
+            '<div class="row" style="margin:0;gap:10px"><select id="dbStyle" style="max-width:280px"><option value="short">Three lines and a link</option><option value="full">The whole brief</option></select><span class="tiny" id="dbStyleMsg"></span></div>')}
           ${sCard('Who client messages come from', 'Drafts and alerts in your <b>internal</b> channels post as the Mobius bot. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.',
             '<div id="slackWho"><span class="hint">Checking…</span></div>')}
           ${sCard('Acting on a draft from inside Slack', 'Every draft in an internal channel carries the same buttons as Locus: <b>Send to client</b>, <b>Edit the wording</b>, <b>Rewrite with AI</b> and <b>Don\'t send</b>. Use either place; the other keeps up.',
@@ -11740,6 +11744,27 @@ async function renderSettings() {
       try { await api('/api/brief-time', { method: 'PUT', body: JSON.stringify({ hour: +sel.value }) }); $('#btMsg').textContent = 'Saved ✓'; }
       catch (e) { $('#btMsg').textContent = e.message; }
     };
+  })();
+
+  /* ---- where the drafts post, and the short client daily (2026-10-12) ---- */
+  (async () => {
+    const sel = $('#dbChan'), st = $('#dbStyle'); if (!sel || !st) return;
+    try {
+      const [cfg, ch] = await Promise.all([apiAH('/api/settings'), api('/api/slack-channels').catch(() => ({ channels: [] }))]);
+      const list = ch.channels || [];
+      sel.innerHTML = '<option value="">Each brand\'s own internal channel</option>' + list.map(c =>
+        `<option value="${esc(c.id)}">#${esc(c.name)}${c.member ? '' : ' · the bot joins it on first post'}</option>`).join('');
+      if (cfg.dailyBriefsChannel && !list.some(c => c.id === cfg.dailyBriefsChannel)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cfg.dailyBriefsChannel)}">${esc(cfg.dailyBriefsChannel)}</option>`);
+      sel.value = cfg.dailyBriefsChannel || '';
+      st.value = cfg.briefClientStyle === 'full' ? 'full' : 'short';
+    } catch (e) { $('#dbMsg').textContent = e.message; }
+    const save = async (body, msg) => {
+      msg.textContent = 'Saving…';
+      try { await apiAH('/api/settings', { method: 'PUT', body: JSON.stringify(body) }); msg.textContent = 'Saved ✓'; }
+      catch (e) { msg.textContent = e.message; }
+    };
+    sel.onchange = () => save({ dailyBriefsChannel: sel.value }, $('#dbMsg'));
+    st.onchange = () => save({ briefClientStyle: st.value }, $('#dbStyleMsg'));
   })();
 }
 

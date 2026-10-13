@@ -1695,3 +1695,25 @@ block and tool group; ~2.5 characters a token, calibrated on strat_run; set ANTH
   everyone opted in, from `settings.morningHour` (7 Central) until noon, once a day; `GET/POST /api/me/morning` = the
   signed-in person's lines / send them now. `settings.morningDm = 'off'` stops it. Tests: `node test-morning.mjs`.
   Needs the bot scopes `users:read.email`, `im:write`, `chat:write` (not verified live).
+
+## 2026-10-12: the cadence reset (6am sends, Monday review off, one channel for drafts, the short client daily)
+
+Cole moved the Monday call to 8am Central and reset the team's week (audit and build order:
+`docs/operating-cadence-2026-10-12.md`). What changed in this worker:
+- **Every send is 6am Central.** `settings.briefHour` = 6 and `REPORT_HOUR_OFFSET` = 0 (review.js `REPORT_OFFSET` too), so
+  the daily, the weekly (Monday) and the monthly (the 1st) all run on the 6am tick, briefs first, reports after, each
+  stopping politely on the budget. Strategists write their Monday plan from the weekly before the 8am call.
+- **Monday review is OFF for good** (`settings.mondayReview` = 'off'). It ran once on 2026-10-12 (9 brands, ~$4, up to 8
+  Slack sections each); Cole: nobody reads that. The strategists' Monday plan replaces it. Do not turn it back on.
+- **One agency channel for every daily draft**: `settings.dailyBriefsChannel` (Slack `#daily-briefs`, C0C8UA53U3W, public).
+  `draftBrief` posts the card there (buttons and all); unset, or a post there failing, falls back to the brand's internal
+  channel. `slackPost` (bot path) answers `not_in_channel` by `conversations.join` once and resending (public channels
+  only; a private one still needs /invite). Locus: Agency settings > Slack and sending > "Where the daily drafts post".
+  Failure alerts and the weekly/monthly drafts stay in the brand internal channel: the weekly card is the Monday thread
+  anchor (plan + Google/Amazon updates as replies).
+- **The short client daily**: `sendBrief` posts `shortBriefText(text)` (opener, headline, Today line, the day's Net Sales
+  / Ad Spend / MER, "Open the full brief in Locus") when the brand has a Locus client login (`brandHasClientLogin`:
+  `settings.clientUsers`) and `settings.briefClientStyle` is not 'full'. No client login = the whole brief, as before.
+  The stored row always keeps the full text. Locus: the same settings card, "What the client gets each day".
+- NOT tested live: the bot's self-join (first real post is the next 6am tick; the fallback covers a failure) and the
+  short send (no brand with a client channel has a client login yet; Lucky has logins and no client channel).

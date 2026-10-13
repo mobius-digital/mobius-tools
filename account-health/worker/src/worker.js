@@ -3058,7 +3058,12 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
   }
 
   // Internal only, and deliberately never brief_channel - that is the client's.
-  const ch = acct.slack_channel;
+  /* ONE AGENCY CHANNEL FOR EVERY DRAFT (Cole, 2026-10-12: "the internal chats are just getting cluttered,
+     it's hard to find previous conversations with the team"). settings.dailyBriefsChannel, when set, takes
+     every brand's draft card, buttons and all, so the brand channels go back to being conversation. Unset,
+     or a post there failing (the bot not in it yet), falls back to the brand's own internal channel. */
+  const agencyCh = await getSetting(env, 'dailyBriefsChannel').catch(() => null);
+  const ch = agencyCh || acct.slack_channel;
   if (ch) {
     // The whole brief goes IN the message (Cole, 2026-08-28). It was a link for a
     // while, on the reasoning that review means opening it properly - but that was
@@ -3077,12 +3082,18 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
       status: draftStatus(acct), text: r.text, steer: steer ?? null,
       data_json: JSON.stringify({ health: r.health ?? null }),
     });
-    const posted = await slackPost(env, ch, card.text, card.blocks,
+    let to = ch;
+    let posted = await slackPost(env, ch, card.text, card.blocks,
       { username: 'Locus', icon: ':memo:' }).catch(() => null);
+    if (!posted?.ts && agencyCh && acct.slack_channel && acct.slack_channel !== agencyCh) {
+      to = acct.slack_channel;
+      posted = await slackPost(env, to, card.text, card.blocks,
+        { username: 'Locus', icon: ':memo:' }).catch(() => null);
+    }
     if (posted?.ts) {
       await env.DB.prepare(
         `UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`,
-      ).bind(acct.act_id, date, posted.ts, posted.channel || ch).run().catch(() => {});
+      ).bind(acct.act_id, date, posted.ts, posted.channel || to).run().catch(() => {});
     }
   }
   if (r.narrative_error) await alertClaudeFailure(env, `Daily Brief narrative for ${acct.name}`, r.narrative_error);
@@ -3135,9 +3146,17 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   // internal-only brand would destroy a handled brief the team had just read.
   const channel = acct.brief_channel;
   if (!channel) return { name: acct.name, error: 'no client channel set for this brand - it is handled internally; pick one in Settings if it should be sent', draft_intact: true };
+  /* THE CLIENT DAILY IS THREE LINES PLUS A DOOR (Cole, 2026-10-12: the client chats are cluttered too; the
+     report lives in Locus, Slack carries the headline). Once the brand has a Locus client login there is a door
+     to open, so the message shrinks to the opener, the headline, the day's three money lines and "Open the full
+     brief in Locus". A brand nobody can sign in for still gets the whole brief. settings.briefClientStyle =
+     'full' keeps the whole brief everywhere. The stored row keeps the full text either way. */
+  let out = text;
+  const style = (await getSetting(env, 'briefClientStyle').catch(() => null)) || 'short';
+  if (style !== 'full' && await brandHasClientLogin(env, acct.act_id)) out = shortBriefText(text);
   try {
     // Goes to the client, so it comes from Cole - not a bot wearing a name.
-    await slackPost(env, channel, text, null, { asUser: true });
+    await slackPost(env, channel, out, null, { asUser: true });
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
     // The review card in the internal channel still shows a live Send button
     // for a brief the client now has. Redraw it before anyone presses it again.
@@ -3162,6 +3181,29 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
        shows it) and to the internal channel via alertBriefFailure. */
     return { name: acct.name, error: e.message, draft_intact: true };
   }
+}
+
+/** Does anyone sign in to Locus for this brand? settings.clientUsers = {email: {brands: [...]}} (clients.js). */
+async function brandHasClientLogin(env, act_id) {
+  const users = safeJson(await getSetting(env, 'clientUsers').catch(() => null), {}) || {};
+  return Object.values(users).some(u => Array.isArray(u?.brands) && u.brands.includes(act_id));
+}
+
+/** The short client daily: the opener, the headline and the Today line (everything before the first blank
+ *  line), then the first day's date and its Net Sales / Ad Spend / MER lines, then the door into Locus.
+ *  Works on the stored text, so a headline Cole edited is the headline the client reads. */
+function shortBriefText(text) {
+  const lines = String(text || '').split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length && lines[i].trim() !== '') out.push(lines[i++]);
+  while (i < lines.length && lines[i].trim() === '') i++;
+  const day = [];
+  while (i < lines.length && lines[i].trim() !== '') day.push(lines[i++]);
+  const keep = day.filter((l, k) => k === 0 || /^(Net Sales|Ad Spend|MER:)/i.test(l.replace(/\*/g, '').trim()));
+  if (keep.length > 1) out.push('', ...keep);
+  out.push('', `<${DASHBOARD_URL}|Open the full brief in Locus>`);
+  return out.join('\n');
 }
 
 /** A brief that fails silently is worse than no brief - nobody notices for weeks.
@@ -5626,6 +5668,17 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
   const face = opts.username === 'Locus' ? { icon_url: 'https://tools.go-mobius-digital.com/favicon.png' } : { icon_emoji: opts.icon || ':bar_chart:' };
   let j = await send({ ...base, username: opts.username || 'Locus', ...face });
   if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
+  if (!j.ok && j.error === 'not_in_channel') {
+    /* A channel the bot was never added to (the agency #daily-briefs channel, 2026-10-12): join it once and
+       send again. Public channels only; a private one still needs /invite in Slack, and the error says so. */
+    const jr = await xfetch('https://slack.com/api/conversations.join', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel }),
+    }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+    if (jr.ok) j = await send({ ...base, username: opts.username || 'Mobius Account Health', ...face });
+    else j.error = `not_in_channel - add the Locus app to that channel in Slack (/invite @Locus)${jr.error ? `; join failed: ${jr.error}` : ''}`;
+  }
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
   return { ts: j.ts, channel: j.channel };
 }
@@ -9011,6 +9064,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           marketChatter: (await getSetting(env, 'marketChatter')) !== 'off',
           /* The seasonal rail item (Black Friday): its label and whether it shows (auto = in season). */
           seasonTab: seasonTabOf(await getSetting(env, 'seasonTab')),
+          /* 2026-10-12: one agency channel for every daily draft (blank = each brand's internal channel), and
+             whether a client with a Locus login gets the short daily or the whole brief. */
+          dailyBriefsChannel: (await getSetting(env, 'dailyBriefsChannel')) || '',
+          briefClientStyle: (await getSetting(env, 'briefClientStyle')) === 'full' ? 'full' : 'short',
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
@@ -9024,6 +9081,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('marketHandles' in b) await putSetting(env, 'marketHandles', String(b.marketHandles || '').slice(0, 400));
         if ('marketChatter' in b) await putSetting(env, 'marketChatter', b.marketChatter ? 'on' : 'off');
         if ('seasonTab' in b) await putSetting(env, 'seasonTab', JSON.stringify(seasonTabOf(b.seasonTab)));
+        if ('dailyBriefsChannel' in b) await putSetting(env, 'dailyBriefsChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.dailyBriefsChannel || '')) ? String(b.dailyBriefsChannel) : '');
+        if ('briefClientStyle' in b) await putSetting(env, 'briefClientStyle', b.briefClientStyle === 'full' ? 'full' : 'short');
         return json({ ok: true });
       }
       if (path === '/api/slack-channels') {
