@@ -2933,3 +2933,10 @@ the Monday review off, one agency channel for the daily drafts, the short client
   as `setup.from_ad.image` with `fresh: true`, and `specOf` sends it as `inspo` with `ref_use: 'own'`. The worker's
   `adPrompt` reads 'own' as "our own earlier ad: keep the product exactly, new scene, colours, camera, layout and type".
   The iterate step says which tests keep the picture (`ITER_TESTS[3]`, `keepsPic`). Batches made before keep their photos.
+- Same day, second pass (Cole: "none look the best": the first run threw away what made the winner work and drew a
+  generic belt). Now: (1) the product comes from the ad's link (`/products/<handle>`, `o.link` from ASSETS in v2.js),
+  is put on the batch with its Shopify photos, and is NAMED in the brief text (else the brand brain's best test, another
+  colourway, took over the lines); (2) 'own' in `adPrompt` = keep the winner's DESIGN LANGUAGE (boldness, title lettering,
+  one colour world, product as hero), change the idea; (3) the art director gets the winner as `own_ad`
+  (account-health studio-ai.js plan step) and may give each ad its own title art. Tested live on Dartee 376-3 (Bone Dry):
+  three designed graphics (LINE UP / TEXTURE / ON THE HIP), Bone Dry on all three, "Shop Bone Dry", $0.99.

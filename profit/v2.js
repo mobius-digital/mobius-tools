@@ -755,7 +755,7 @@
         `ITERATIONS OF A RUNNING AD for ${brand}. Lay out ONE batch with exactly 3 numbered lines; each line is one new ad.`,
         `The original ad: "${a.name}" (${video ? 'video' : a.media_type === 'carousel' ? 'carousel' : 'static image'}${a.age != null ? `, running ${a.age} days` : ''}). ${keepsPic(test)
           ? 'Its image is the base photo of every line: each new ad keeps that picture and replaces the words on it, so write each line as the words and the one change for that ad.'
-          : 'Each new ad keeps the same PRODUCT but is a completely new picture: a different scene, setting, colours, camera angle, layout and type. Never "the same ad with the text moved". Write each line as its words plus a one-sentence description of its own scene, and make the three scenes clearly different from each other and from the original.'}`,
+          : 'Each new ad keeps the same PRODUCT (the exact one this ad sells, same colourway) and the original\'s DESIGN LANGUAGE (if it is a bold designed graphic with big title lettering and one strong colour world, so is each new one), but a new IDEA: a new visual metaphor, colour world and composition. Never "the same ad with the text moved", never a plain photo ad if the original is a designed graphic. Write each line as its big 1 to 3 word title idea, its headline, and one sentence on its colour world and scene; make the three clearly different from each other and from the original. Any button text must name this product, not another one.'}`,
         `Results in ${H.rangeLabel ? H.rangeLabel() : 'the window'}: spend ${kmoney(a.spend, cur)}, ${a.purchases || 0} purchases, ${a.cpa == null ? 'no purchases yet' : `cost per purchase ${money(a.cpa, cur)}`}${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, ROAS ${x2(a.roas)}, CTR ${pct(a.ctr, 2)}${a.hook != null ? `, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}` : ''}.`,
         cx && cx.call ? `Locus's call on it: ${cx.call[0]}.${cx.why ? ` ${cx.why}` : ''}` : '',
         weak ? `Weakest step of its funnel against the brand's median ad: ${weak.l} (${Math.round((1 - weak.r) * 100)}% under). ${weak.fix}` : '',
@@ -767,7 +767,7 @@
       ].filter(Boolean).join('\n');
       go.disabled = true; body.querySelector('#itChange').disabled = true; msg.innerHTML = '<span class="ds-pulse"></span> Reading the brand brain and the ad…';
       try {
-        await window.StudioTab.iterate({ tok: H.S.tok, url: H.S.url, act: H.S.act, ad: a.id, name: a.name, text: lines, testing: test, change, n: 3, onStatus: t0 => { msg.innerHTML = `<span class="ds-pulse"></span> ${esc(t0)}…`; } });
+        await window.StudioTab.iterate({ tok: H.S.tok, url: H.S.url, act: H.S.act, ad: a.id, name: a.name, link: (ASSETS.get(a.id) || x).link || '', text: lines, testing: test, change, n: 3, onStatus: t0 => { msg.innerHTML = `<span class="ds-pulse"></span> ${esc(t0)}…`; } });
         msg.textContent = 'Written. Opening Studio…';
         if (panel.close) panel.close();
         H.show('studio');

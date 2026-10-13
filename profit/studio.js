@@ -1089,7 +1089,7 @@ async function planAds() {
     br.lines = br.lines.filter(l => (l.text || '').trim());
     await repairRefs(b);
     await saveCur();
-    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: false, cutouts: [] });
+    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: false, cutouts: [], own_ad: su.from_ad?.fresh ? su.from_ad.image || '' : '' });
     b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact }; b.status = 'planned';
     await saveCur();
   } catch (e) { S.err = `Planning: ${e.message}`; }
@@ -1648,8 +1648,20 @@ async function iterate(o) {
     if (!/^image\/(png|jpeg|webp)$/.test(blob.type)) blob = await asJpeg(blob);
     const url = await putRef(blob); refChecked.add(url); return url;
   })();
+  /* The product the ad sells, from its link (/products/<handle>), with its Shopify photos, so a new picture draws the
+     real product and not a guess from the old ad. No link or no match = the batch says "choose the product". */
+  const handle = (String(o.link || '').match(/\/products\/([^/?#]+)/) || [])[1];
+  let products = [], images = [];
+  if (handle) {
+    if (!S.products) { const rp = await api(`/api/studio/products?act=${encodeURIComponent(S.act)}`).catch(() => ({ products: [] })); S.products = rp.products || []; }
+    const p = S.products.find(z => z.handle === decodeURIComponent(handle));
+    if (p) { products = [{ title: p.title, handle: p.handle, type: p.type || '', all: p.images, dna: null }]; images = (p.images || []).slice(0, 6); }
+  }
+  /* Name it in the brief, or the brand brain's best test (another colourway) takes over the lines. */
+  const text = products.length ? `${o.text}
+THE PRODUCT IN THIS AD: "${products[0].title}". Every line shows this exact product and colourway, never another one, and any button names it.` : o.text;
   say('Reading the brand brain and the ad');
-  const r = await streamCall(AH_URL, '/api/studio-ai/brief', { text: o.text }, x => { if (x.type === 'status') say(x.text); });
+  const r = await streamCall(AH_URL, '/api/studio-ai/brief', { text }, x => { if (x.type === 'status') say(x.text); });
   const bt = (r.batches || [])[0];
   if (!bt || !(bt.lines || []).length) throw new Error('The brief came back empty. Try again.');
   say('Bringing the ad’s image into Studio');
@@ -1663,7 +1675,7 @@ async function iterate(o) {
   const name = `Iterations: ${String(o.name || 'ad').replace(/\s+/g, ' ').slice(0, 60)}`;
   const saved = (await post('/api/studio/batch/save', { batch: { name, num: '', br_batch_id: null,
     brief: { angle: bt.angle || '', why: bt.why || '', concept: bt.concept || '', post_copy: bt.post_copy || '', testing: o.testing || bt.testing || 'headlines', lines },
-    setup: { products: [], images: [], swipe: [], from_ad: { id: o.ad, name: o.name || '', change: o.change || '', at: new Date().toISOString(), image: base, fresh } }, status: 'draft' } })).batch;
+    setup: { products, images, swipe: [], from_ad: { id: o.ad, name: o.name || '', change: o.change || '', at: new Date().toISOString(), image: base, fresh } }, status: 'draft' } })).batch;
   S.openId = saved.id; S.autoPlan = saved.id; S.lastAct = S.act;
   return saved;
 }
