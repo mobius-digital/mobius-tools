@@ -108,7 +108,17 @@ wordmarks (Cashew 8), the close checklist (Cashew 10), the "?" beat (Locus 2), a
 
 ## 5. Renders
 
-RENDER_TABLE
+From `node scripts/render.mjs` on the cloud session (4 cores, software ANGLE), CRF 28, the master step included.
+The SVG characters and the grain cost a little per frame against v2.
+
+| Composition | Time | Size | Length | Before master | After master |
+| --- | --- | --- | --- | --- | --- |
+| CashewVertical | 129 s | 5.0 MB | 59.2 s, 1776 frames | -17.2 LUFS | -16.0 LUFS, -1.4 dBTP |
+| CashewLandscape | 113 s | 4.1 MB | 59.2 s | -17.2 LUFS | -16.0 LUFS, -1.4 dBTP |
+| LocusVertical | 97 s | 5.3 MB | 55.3 s, 1660 frames | -17.8 LUFS | -16.0 LUFS, -1.4 dBTP |
+| LocusLandscape | 85 s | 4.2 MB | 55.3 s | -17.8 LUFS | -16.0 LUFS, -1.4 dBTP |
+
+The posters are the circled $3,120 (Cashew, frame 1185) and Today's calls (Locus, frame 1129).
 
 ## Not verified
 
