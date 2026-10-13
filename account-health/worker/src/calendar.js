@@ -31,6 +31,7 @@ import { metaOf } from './brands.js';
 import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
 import { clientScope } from './brandguard.js';
+import { teamPost, cardOn } from './morningcard.js';
 
 let F = (...a) => fetch(...a);
 /** The worker hands in its counted fetch (xfetch), like every other module. */
@@ -72,7 +73,7 @@ async function ensure(env) {
 }
 
 /** Who is who on a brand: the season call sheet's strategist / buyer / email owner (first name), else the defaults. */
-async function teamOf(env, ids) {
+export async function teamOf(env, ids) {
   const out = {};
   const rows = ids.length ? (await env.DB.prepare(`SELECT act_id, key, value FROM p_season_answer WHERE key IN ('strategist','buyer','email_owner') AND act_id IN (${ids.map((_, i) => `?${i + 1}`).join(',')})`).bind(...ids).all().catch(() => ({ results: [] }))).results || [] : [];
   for (const id of ids) out[id] = { strat: 'Ahsan', buyer: 'Ahsan', email: 'the email owner', cole: 'Cole' };
@@ -458,11 +459,15 @@ export async function calendarTick(env, d) {
   const { results: logs } = await env.CAL.prepare(`SELECT * FROM changelog WHERE created_at > ?1 ORDER BY created_at LIMIT 50`).bind(cur).all().catch(() => ({ results: [] }));
   const brands = await brandsList(env, 'all');
   const chanOf = slug => (brands.find(b => b.act_id === idOfSlug(slug)) || {}).slack_channel || null;
+  /* 2026-10-13: team posts go under today's morning card in the brand channel (a reply, the strategist tagged);
+     with no card today they post top-level as before (morningcard.js teamPost). */
+  const leads = await teamOf(env, brands.map(b => b.act_id)).catch(() => ({}));
+  const leadOf = id => (leads[id] || {}).strat || null;
   for (const l of logs || []) {
     if (team.has(l.changed_by)) continue;
     const ch = chanOf(l.brand_id); if (!ch) continue;
     const text = `*${l.changed_by} changed a date: ${l.event_name}.* ${l.change_summary}.`;
-    try { await d.slackPost(env, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calendar&act=${idOfSlug(l.brand_id)}${l.event_id ? `&ev=${l.event_id}` : ''}` }] }], { username: 'Locus' }); out.posted.push(`change:${l.event_name}`); } catch {}
+    try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calendar&act=${idOfSlug(l.brand_id)}${l.event_id ? `&ev=${l.event_id}` : ''}` }] }], { username: 'Locus', tagName: leadOf(idOfSlug(l.brand_id)) }); out.posted.push(`change:${l.event_name}`); } catch {}
   }
   if (logs?.length) await d.putSetting(env, 'calLogCursor', logs[logs.length - 1].created_at);
   /* 2. Reminders, once a Central day from 8am. */
@@ -472,7 +477,9 @@ export async function calendarTick(env, d) {
   await d.putSetting(env, 'calRemindDay', today);
   const data = await calendarData(env, { act: 'all', from: add(today, -60), to: add(today, 30), today });
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
-  /* Internal: only what needs the team (something still open the day before or a week out; Mondays, a sale with no end). */
+  /* Internal: only what needs the team (something still open the day before or a week out; Mondays, a sale with no end).
+     "Live tomorrow" rides on the morning card while it is on (2026-10-13), so it is not posted twice. */
+  const carded = await cardOn(env).catch(() => false);
   for (const b of data.brands) {
     if (!b.channel) continue;
     const mine = data.items.filter(e => e.act === b.id);
@@ -481,13 +488,13 @@ export async function calendarTick(env, d) {
       const open = (e.steps || []).filter(s => s.state !== 'done');
       const ready = (e.steps || []).filter(s => s.state === 'done').map(s => s.label.toLowerCase());
       const notYet = open.map(s => `${s.label.toLowerCase()} (${s.state === 'late' ? `was due ${md(s.due)}` : md(s.due)}, ${s.who})`);
-      if (e.start === add(today, 1) && open.length) lines.push(`*Live tomorrow: ${e.name}.* Not yet: ${notYet.join('; ')}.`);
+      if (e.start === add(today, 1) && open.length && !carded) lines.push(`*Live tomorrow: ${e.name}.* Not yet: ${notYet.join('; ')}.`);
       if (e.start === add(today, 7) && open.length) lines.push(`*One week out: ${e.name}*, ${wd(e.start)} ${md(e.start)}.${ready.length ? ` Ready: ${ready.join(', ')}.` : ''} Not yet: ${notYet.join('; ')}.`);
       if (monday && e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7)) lines.push(`*Still running? ${e.name}* has no end date (${Math.round((Date.parse(today) - Date.parse(e.start)) / 864e5)} days in). Set the end in Locus, or tap "It ended today" on it.`);
     }
     if (!lines.length) continue;
     const text = lines.join('\n');
-    try { await d.slackPost(env, b.channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open the calendar' }, url: `${LOCUS}?open=calendar&act=${b.id}` }] }], { username: 'Locus' }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
+    try { await teamPost(env, d, b.channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open the calendar' }, url: `${LOCUS}?open=calendar&act=${b.id}` }] }], { username: 'Locus', tagName: leadOf(b.id) }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
   }
   /* External: the client's channel, two posts only (clientMessages). Off until settings calendarClient = 'on'. */
   if ((await d.getSetting(env, 'calendarClient').catch(() => null)) === 'on') {

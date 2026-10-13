@@ -1868,3 +1868,54 @@ offline checks: Google Ads, GA4, the model, Klaviyo, Meta's list and TikTok mock
 - Verified live on Lucky 2026-10-13 from the dev worker: every source answered, Google accepted a validateOnly negative.
   NOT done: a real negative write (Cole approves the first ones), TikTok (not connected), Shopify-app funnels (no store
   has the app), the morning card's new-leak line (that card is not live; see docs/handoffs/morning-card.md).
+
+## 2026-10-13 (fifth pass): THE MORNING CARD (`src/morningcard.js`, docs/handoffs/morning-card.md). Read before posting anything to a brand's internal channel.
+
+Cole approved "One Card a Day" (https://claude.ai/artifact/Fn8JrdMJnMNtYMpjBYSaWG): internal channels are for people, and
+Dartee's had five bot posts and ~60 lines before 9am on Oct 13. Tests: `node test-morningcard.mjs` (12 offline checks).
+- **One send hour**: `settings.morningHour` (Central, default 5; set to 5 in D1 on 2026-10-13). `briefHour()` now returns
+  morningcard.js `morningHour()` (morningHour, else the old briefHour, else 5), so the client daily, the weekly / monthly
+  drafts and the card all run on that tick. `/api/brief-time` PUT and `PUT /api/settings {morningHour}` write both keys.
+  morning.js DMs read the same key, so they moved to 5 too. Locus: Agency settings > Slack and sending > "Morning posts go out at".
+- **5am safety**: `dailyBriefs` re-pulls Triple Whale (3 days) when yesterday's `totalSales` row was synced before the
+  brand's OWN midnight (moved.js's freshness test), so a Pacific brand at 5am Central never writes from a running day.
+  Checked before switching: the stored 6am briefs Oct 6 to 12 match today's tw_daily totals for every brand-day except
+  three later restatements (Dartee 10-12 +$80, Bonk 10-07 / 10-09), which the hour does not change.
+- **The card** (`morningCardTick`, hourly, right after reportsPass inside the morning block; `cardDeps()`): from the morning
+  hour to noon, once per Central day per active brand (not paused, not The Golf Sock, not Harborline, not demo_; internal
+  channel set and not equal to brief_channel), one Block Kit post to `slack_channel`: name + day, yesterday vs plan + MER
+  from the stored brief's `data_json.day` (no new math) + the client daily's state (`posted_at` in Central), then at most 5
+  lines ranked by money then lateness, each starting with the person's tag: Today's calls as one line (todaypost.js
+  readToday, buyer from calendar.js `teamOf`), p_action due today / overdue, calendar dates live tomorrow with open steps
+  (`calendarData`), late Production cards (`listBoard`); "and N more in Locus"; "Client owes" (oldest open Requests ask +
+  days); Monday's weekly line. Buttons = one actions block each, action_id `noop_open`. A brand waits up to 2 hours for
+  its brief (and Monday's weekly row), then posts saying so. State `morningCardDone`; the card `morningCard:<act>:<date>`;
+  the channel index `morningCardIdx:<date>`; Slack ids cached in `slackIds` (roster email lookup, else one users.list
+  first-name match). Switch `settings.morningCard` ('off' = everything posts top-level as before).
+- **Its thread at post time**: the full calls list (todaypost.js `messageFor`, minus button and footer) and one
+  `reminderMessage` per owner (tagged, Done buttons); those p_action rows get `reminded_on` today + the reply's ts, so the
+  Done button and ✅ on a reply work as before and actionTick has nothing left to post for them.
+- **Kept up to date by chat.update**: actions.js `onActionDone` hook (registered in worker.js; every markDone, quiet for
+  bulk), `cardCallMade` after a non-dry `/api/meta/write` ("N of M made", all = struck), `cardProdDone` after
+  `/api/brand-asana/result` and a Production move (`d.onProdMoved`), `cardBriefState` after `sendBrief` succeeds, and
+  `cardReaction` (✅ on the card itself = every task line on it done, one redraw; reached from handleReaction when the
+  reacted message is no reminder line).
+- **Later posts go in the card's thread** (`teamPost(env, d, channel, text, blocks, {tag | tagName})`: a reply under today's
+  card in that channel with the person tagged, never reply_broadcast; no card = top-level): alerts.js `postTo` (the rule's
+  own mention; Locus "test" posts stay top-level), requests.js `tellTeam` (strategist tagged), meetings.js confirm notes
+  (owners tagged), calendar.js client changes and reminders (strategist), actionTick lines (owner), newclient.js internal
+  pings (`inThread`). Mondays: meetings.js `mondayScreen` reads the plan from the card's thread first, the weekly report's
+  own card second. `slackPost` now passes `opts.thread_ts`.
+- **Switched off while the card is on**: todayTick (`cardOn`; D1 `todayPost` = off too), calendar's "Live tomorrow" line,
+  the per-drag Slack line in production.js `moveCard` (removed for good), What moved (`movedPost` = off in D1: the
+  approved page lists it as off). The weekly / monthly DRAFT cards post to `dailyBriefsChannel` like the daily drafts.
+- **The draft bug (fixed)**: every daily draft since 10-12 fell back to the brand channel because the bot was never a
+  member of #daily-briefs (C0C8UA53U3W: only Cole and Ahsan) and `conversations.join` failed (no channels:join).
+  `slackPost` now invites the bot through Cole's user token (`conversations.invite`, auth.test for the bot id) when the
+  join fails; a fallback writes `settings.dailyBriefsError` {at, brand, error}, shown under "Where the drafts post".
+- **Locus** (`GET /api/morning-card/preview?act=`, admin, team only): Agency settings > Slack and sending: the hour picker,
+  the card switch, "Preview this morning's card" (the card as words + what its thread will hold). The Today's calls
+  switch is gone from that card.
+- NOT tested live: the first 5am tick (2026-10-14 is the test: `lastHourly.morningCard`, `morningCardDone`), the invite
+  through Cole's token into #daily-briefs, chat.update on a real card, ✅ on a card through the router, users.list for
+  Radhesh / Hamza. Viktor's Monday Search Term Mining is not ours (Cole asked Viktor to stop it 2026-10-13): check Monday.

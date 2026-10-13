@@ -24,11 +24,12 @@ add('c5', 'brand_beta', '7', 'Carousel of colors', 'production', 'Ready to Launc
 add('c6', 'brand_alpha', '50', 'Ancient live', 'live', 'Analyze Results', 'T6', '2026-01-01');
 
 const BRANDS = [{ act_id: 'brand_alpha', name: 'Alpha Golf', slack_channel: 'C_ALPHA' }, { act_id: 'brand_beta', name: 'Beta Socks', slack_channel: null }];
-let posts = [], calls = [], sections = [{ gid: 'S1', name: 'Creative Briefs' }, { gid: 'S2', name: 'Creative Studio' }, { gid: 'S3', name: 'Ready to Launch' }, { gid: 'S4', name: 'Analyze Results' }, { gid: 'S5', name: 'Completed Tasks' }];
+let posts = [], calls = [], moved = [], sections = [{ gid: 'S1', name: 'Creative Briefs' }, { gid: 'S2', name: 'Creative Studio' }, { gid: 'S3', name: 'Ready to Launch' }, { gid: 'S4', name: 'Analyze Results' }, { gid: 'S5', name: 'Completed Tasks' }];
 const d = {
   listBrands: async () => BRANDS, centralDate: () => '2026-10-14',
   asana: async (e, path, init) => { calls.push({ path, init }); if (path.includes('/sections?')) return sections; return {}; },
   slackPost: async (e, channel, text) => { posts.push({ channel, text }); return { ok: true }; },
+  onProdMoved: async (e, id) => { moved.push(id); },
   isAdmin: async req => req.headers.get('authorization') === 'Bearer team', sessionEmail: async () => 'ahsan@go-mobius-digital.com', clientScope: req => req.headers.get('x-client') ? { ids: ['brand_alpha'] } : null,
 };
 const json = (b, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } });
@@ -68,23 +69,21 @@ await check('listBoard: open cards in their columns, done ones gone, old live on
   const one = await listBoard(env, d, { act: 'brand_beta' });
   assert.deepEqual(one.cards.map(c => c.id), ['c5']);
 });
-await check('moveCard: Making moves the Asana task to Creative Studio and posts one line; Review leaves Asana alone', async () => {
-  calls = []; posts = [];
+await check('moveCard: Making moves the Asana task to Creative Studio, posts NOTHING in Slack (the board is the record) and tells the morning card; Review leaves Asana alone', async () => {
+  calls = []; posts = []; moved = [];
   const m = await moveCard(env, d, { id: 'c1', to: 'making' }, 'ahsan@go-mobius-digital.com');
   assert.equal(m.from, 'brief'); assert.equal(m.to, 'making'); assert.equal(m.asana.moved, true); assert.equal(m.asana.section, 'Creative Studio');
   assert.deepEqual(calls.map(c => c.path), ['/projects/P1/sections?opt_fields=name', '/sections/S2/addTask']);
   assert.deepEqual(calls[1].init.body, { task: 'T1' });
   const row = db.prepare(`SELECT board_stage, stage, asana_section FROM p_br_batch WHERE id = 'c1'`).get();
   assert.deepEqual({ ...row }, { board_stage: 'making', stage: 'production', asana_section: 'Creative Studio' });
-  assert.equal(posts.length, 1); assert.equal(posts[0].channel, 'C_ALPHA');
-  assert.match(posts[0].text, /^Ahsan moved \*101 - Hook test video\* to Making · <https:\/\/app\.asana\.com\/0\/P1\/T1\|Asana>$/);
-  assert.ok(!/—/.test(posts[0].text));
+  assert.equal(posts.length, 0, 'no Slack line per drag (2026-10-13)'); assert.deepEqual(moved, ['c1'], 'the morning card hears about it');
   calls = []; posts = [];
   const r = await moveCard(env, d, { id: 'c1', to: 'review' }, 'ahsan@go-mobius-digital.com');
   assert.equal(r.asana.moved, false); assert.match(r.asana.why, /Review lives only in Locus/); assert.equal(calls.length, 0);
   assert.equal(db.prepare(`SELECT asana_section FROM p_br_batch WHERE id = 'c1'`).get().asana_section, 'Creative Studio', 'the task stays in Creative Studio');
   assert.equal((await listBoard(env, d, { act: 'brand_alpha' })).cards.find(c => c.id === 'c1').board, 'review');
-  assert.equal(posts.length, 1);
+  assert.equal(posts.length, 0);
 });
 await check('moveCard: no Asana task = a reason, no section = a reason and the Asana section kept, bad column 400, unknown card 404', async () => {
   calls = []; posts = [];

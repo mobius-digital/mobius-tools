@@ -3097,3 +3097,13 @@ Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/
 - Checked on a stub harness with Lucky's real list (deleted): dark, light, 375px (no sideways scroll), the modal.
   index.html loads `leaks.js?v=1`, `v2.js?v=53`, `desk.js?v=21`. The modal and toast use index.html's `.modal-wrap`
   and mobius.css `.lx-toast`; every colour in leaks.js is a v2 token.
+
+## 2026-10-13 (fifth pass): the morning card's settings (account-health morningcard.js)
+
+- Agency settings > Slack and sending: **Morning posts go out at** (replaces "Daily Brief send time"; same `#btHour`,
+  `/api/brief-time`, now one hour for the client daily, the weekly / monthly drafts and the morning card, default 5am
+  Central), **The morning card** (switch `#mcOn` -> `PUT /api/settings {morningCard}`; brand picker `#mcAct` + "Preview
+  this morning's card" -> account-health `GET /api/morning-card/preview?act=`, shown in a noteModal as plain words with
+  @names and what its thread will hold; nothing posts), **Where the drafts post** (now also the weekly and monthly drafts
+  while the card is on; shows `dailyBriefsError` when the agency channel last refused a draft). The "Today's calls in
+  Slack" card is gone (the card carries it). Engine and rules: account-health/CLAUDE.md, same date.

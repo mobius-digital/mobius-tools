@@ -11,11 +11,12 @@ import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } fro
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
-import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
+import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam } from './calendar.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
-import { handleActions, actionTick, handleActionButton, handleReaction } from './actions.js';
-import { handleProduction } from './production.js';
+import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone } from './actions.js';
+import { handleProduction, listBoard } from './production.js';
+import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
 import { todayTick } from './todaypost.js';
@@ -3087,10 +3088,13 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
       status: draftStatus(acct), text: r.text, steer: steer ?? null,
       data_json: JSON.stringify({ health: r.health ?? null }),
     });
-    let to = ch;
+    let to = ch, firstErr = null;
     let posted = await slackPost(env, ch, card.text, card.blocks,
-      { username: 'Locus', icon: ':memo:' }).catch(() => null);
+      { username: 'Locus', icon: ':memo:' }).catch(e => { firstErr = e.message; return null; });
     if (!posted?.ts && agencyCh && acct.slack_channel && acct.slack_channel !== agencyCh) {
+      /* Write down WHY the agency channel refused, so the fallback is never silent again (2026-10-13: every draft
+         since 10-12 landed in the brand channels because the bot was never in #daily-briefs, and nothing said so). */
+      await putSetting(env, 'dailyBriefsError', JSON.stringify({ at: new Date().toISOString(), brand: acct.name, error: firstErr || 'no ts' })).catch(() => {});
       to = acct.slack_channel;
       posted = await slackPost(env, to, card.text, card.blocks,
         { username: 'Locus', icon: ':memo:' }).catch(() => null);
@@ -3166,6 +3170,8 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
     // The review card in the internal channel still shows a live Send button
     // for a brief the client now has. Redraw it before anyone presses it again.
     await slackSyncBrief(env, acct, date).catch(() => {});
+    // The morning card's numbers line says "client daily sent 7:40" once it goes after the card did.
+    await cardBriefState(env, cardDeps(), acct).catch(() => {});
     // The brief still went out with its numbers, which is right - but a missing
     // narrative is invisible to everyone unless it is said out loud. Usually
     // means the Anthropic key is out of credit.
@@ -3232,7 +3238,7 @@ async function alertBriefFailure(env, acct, date, result) {
 }
 
 const BRIEF_TZ = 'America/Chicago';           // Cole's timezone; the send hour is set in it
-const DEFAULT_BRIEF_HOUR = 9;                 // 9am Central
+const DEFAULT_BRIEF_HOUR = DEFAULT_MORNING_HOUR;   // 5am Central since 2026-10-13 (morningcard.js morningHour)
 /* Reports start this many hours after the brief hour. They share a budget with
    the briefs, and a report is the biggest single unit of work in this worker - 
    given the same tick it would be the thing deferred six times over while six
@@ -3277,11 +3283,11 @@ async function alertScheduleTrouble(env, label, payload) {
   ).catch(() => {});
 }
 
-/** The hour (0-23, Central) the Daily Brief should go out. */
+/** The hour (0-23, Central) every morning post goes out: the client daily, the weekly and monthly drafts and the
+ *  morning card. 2026-10-13: ONE setting, settings.morningHour (default 5, "there before I grab my coffee"); the old
+ *  briefHour is still read as a fallback so a deploy before the setting exists changes nothing. */
 async function briefHour(env) {
-  const raw = await getSetting(env, 'briefHour');
-  const h = raw == null || raw === '' ? NaN : +raw;
-  return Number.isInteger(h) && h >= 0 && h <= 23 ? h : DEFAULT_BRIEF_HOUR;
+  return morningHour(env);
 }
 /** Current hour in Central, so the send lands at the same WALL-CLOCK time all year
  *  rather than shifting by one at each daylight-saving boundary. */
@@ -3347,10 +3353,15 @@ async function dailyBriefs(env) {
            loop, and it is now usually redundant: syncPass refreshes TW on the
            hourly tick, so by brief time the data is normally already here. One
            cheap SELECT replaces a network call plus a batch write. */
+        /* 5AM IS EARLY FOR A PACIFIC BRAND (2026-10-13). Its yesterday ended at 2am Central, so a row synced on an
+           hourly tick before that is a day still running. Present is not enough: the row must have been written
+           after the brand's OWN midnight (the same test moved.js uses), else pull it again before writing. */
         const have = await env.DB.prepare(
-          `SELECT 1 AS x FROM tw_daily WHERE act_id = ?1 AND date = ?2 LIMIT 1`,
+          `SELECT synced_at FROM tw_daily WHERE act_id = ?1 AND date = ?2 AND metric = 'totalSales' LIMIT 1`,
         ).bind(a.act_id, date).first().catch(() => null);
-        if (!have) await syncTwDaily(env, a, 45).catch(() => {});
+        const s = have?.synced_at ? String(have.synced_at) : '';
+        const fresh = !!s && localDate(a.tz || BRIEF_TZ, new Date(s.replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z'))) > date;
+        if (!fresh) await syncTwDaily(env, a, have ? 3 : 45).catch(() => {});
         // Two modes per brand. Review-first parks a draft internally and waits for
         // a human; auto sends straight to the client. A daily deliverable can be
         // either, and forcing every brand through a morning approval is exactly
@@ -4851,7 +4862,11 @@ async function reportToken(env, actId) {
  *  internal channel and no global reportChannel setting = no post; the draft
  *  still exists in the Reports tab. */
 async function postReportDraft(env, acct, r) {
-  const channel = acct.slack_channel || await getSetting(env, 'reportChannel');
+  /* 2026-10-13: with the morning card on, the card is the Monday thread anchor in the brand channel, so the weekly and
+     monthly DRAFT cards (Send / Edit / Rewrite) go to the agency drafts channel with the daily drafts. A post there
+     failing falls back to the brand's internal channel, as before. */
+  const agency = (await cardOn(env)) ? await getSetting(env, 'dailyBriefsChannel').catch(() => null) : null;
+  const channel = agency || acct.slack_channel || await getSetting(env, 'reportChannel');
   if (!channel) return { skipped: 'no internal reports channel configured for this brand' };
   /* The card carries the summary and the buttons that act on it. It used to be
      a headline and a link, which meant reviewing a report always cost a tab. */
@@ -4860,8 +4875,10 @@ async function postReportDraft(env, acct, r) {
     status: draftStatus(acct), summary: r.summary, data_json: JSON.stringify(r.data), steer: r.steer ?? null,
   };
   const card = await reportCard(env, acct, row);
-  const posted = await slackPost(env, channel, card.text, card.blocks,
-    { username: 'Locus', icon: ':clipboard:' });
+  let posted = await slackPost(env, channel, card.text, card.blocks,
+    { username: 'Locus', icon: ':clipboard:' }).catch(e => { if (!agency || !acct.slack_channel) throw e; return null; });
+  if (!posted?.ts && agency && acct.slack_channel && acct.slack_channel !== agency)
+    posted = await slackPost(env, acct.slack_channel, card.text, card.blocks, { username: 'Locus', icon: ':clipboard:' });
   if (posted?.ts) {
     await env.DB.prepare(
       `UPDATE reports SET slack_ts = ?4, slack_channel = ?5 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
@@ -5663,7 +5680,8 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then(r => r.json().catch(() => ({})));
-  const base = { channel, text, ...(blocks ? { blocks } : {}) };
+  /* thread_ts: a reply (the morning card's thread, morningcard.js teamPost). Never reply_broadcast. */
+  const base = { channel, text, ...(blocks ? { blocks } : {}), ...(opts.thread_ts ? { thread_ts: opts.thread_ts } : {}) };
   if (asUser) {
     // A user token posts AS that user; overriding name or avatar is neither
     // possible nor wanted, so the identity fields are bot-only.
@@ -5691,8 +5709,17 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ channel }),
     }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
-    if (jr.ok) j = await send({ ...base, username: opts.username || 'Mobius Account Health', ...face });
-    else j.error = `not_in_channel - add the Locus app to that channel in Slack (/invite @Locus)${jr.error ? `; join failed: ${jr.error}` : ''}`;
+    /* THE JOIN FAILED FOR #daily-briefs (found 2026-10-13): the bot lacks channels:join, so every daily draft fell back
+       to its brand's internal channel. Cole's own token (SLACK_USER_TOKEN, a member of the channel) can invite the
+       bot instead, the same way newclient.js invites it into channels Cole made. */
+    let inv = null;
+    if (!jr.ok && env.SLACK_USER_TOKEN) {
+      const call = (m, b) => xfetch(`https://slack.com/api/${m}`, { method: 'POST', headers: { 'Authorization': `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+      const me = await xfetch('https://slack.com/api/auth.test', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+      if (me.user_id) inv = await call('conversations.invite', { channel, users: me.user_id });
+    }
+    if (jr.ok || inv?.ok || inv?.error === 'already_in_channel') j = await send({ ...base, username: opts.username || 'Mobius Account Health', ...face });
+    else j.error = `not_in_channel - add the Locus app to that channel in Slack (/invite @Locus)${jr.error ? `; join failed: ${jr.error}` : ''}${inv?.error ? `; invite as Cole failed: ${inv.error}` : ''}`;
   }
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
   return { ts: j.ts, channel: j.channel };
@@ -6820,17 +6847,31 @@ function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningP
 /* meetings.js: Fireflies in, Asana / the weekly report / Requests / Slack out. */
 function meetingDeps() {
   return {
-    xfetch, slackPost, isAdmin, sessionEmail, clientScope, asana, asanaAll,
+    xfetch, slackPost, slackApi, centralDate, isAdmin, sessionEmail, clientScope, asana, asanaAll,
     canAfford: n => subCanAfford(n),
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
     createAsk: (env, act, title, text, who) => createAsk(env, { slackPost }, act, title, text, who),
     slackSyncReport: async (env, act, start) => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, 'weekly', start); },
   };
 }
-/* actions.js: the team's action items; reminders to the brand's internal channel, a DM when it has none. */
-function actionDeps() { return { ...meetingDeps(), slackApi, centralHour, centralDate }; }
-/* todaypost.js: the 8am "Today's calls" post per brand, read from the profit worker as the owner. */
-function todayDeps() { return { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, mintSession, canAfford: n => subCanAfford(n) }; }
+/* actions.js: the team's action items; reminders under the brand's morning card (or its internal channel), a DM when it has none. */
+function actionDeps() {
+  const base = { ...meetingDeps(), slackApi, centralHour, centralDate };
+  return { ...base, teamPost: (env, ch, text, blocks, opts) => teamPost(env, base, ch, text, blocks, opts), tagOf: (env, name) => tagOf(env, base, name),
+    cardReaction: (env, ev) => cardReaction(env, base, ev), onProdMoved: (env, id) => cardProdDone(env, base, id) };
+}
+/* todaypost.js: the 8am "Today's calls" post per brand, read from the profit worker as the owner. The morning card
+   carries it since 2026-10-13, so it only runs when the card is switched off. */
+function todayDeps() { return { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, mintSession, canAfford: n => subCanAfford(n), cardOn }; }
+/* morningcard.js: the one morning post per brand, its thread, and keeping it up to date. */
+function cardDeps() {
+  const base = { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, slackApi, mintSession, canAfford: n => subCanAfford(n),
+    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
+    teamOf: calendarTeam };
+  return { ...base, calendarData, listBoard: (env, d, o) => listBoard(env, base, o) };
+}
+/* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
+onActionDone((env, row) => cardActionDone(env, cardDeps(), row));
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7207,6 +7248,9 @@ const AH_APP = {
           if (hour >= bh + REPORT_HOUR_OFFSET) {
             ran.reports = await reportsPass(env).catch(e => ({ error: e.message }));
           }
+          /* The morning card: one post per brand in its internal channel, after its brief (and Monday's weekly)
+             so it can say "client daily sent 5:12" (morningcard.js, 2026-10-13). */
+          ran.morningCard = await morningCardTick(env, cardDeps()).catch(e => ({ error: e.message }));
         }
         // Whatever budget survived goes to keeping the data fresh. This used to
         // live entirely in the 03:30 nightly, which meant one invocation tried to
@@ -7477,7 +7521,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     /* ---- Client requests and approvals (requests.js, 2026-10-10) ---- */
     if (path === '/api/requests' || path.startsWith('/api/requests/')) {
-      const r = await handleRequests(request, env, url, path, json, { isAdmin, sessionEmail, slackPost });
+      const r = await handleRequests(request, env, url, path, json, { isAdmin, sessionEmail, slackPost, slackApi, centralDate, teamOf: calendarTeam });
       if (r) return r;
     }
     /* ---- Meeting notes: Fireflies transcripts into action items (meetings.js, 2026-10-13). Team only. ---- */
@@ -7496,7 +7540,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {
+      /* A test judged from the page (Winner / Keep / Loser) strikes its late Production line on today's morning card. */
+      const judged = path === '/api/brand-asana/result' && request.method === 'POST' ? await request.clone().json().catch(() => null) : null;
       const r = await handleBrandAsana(request, env, path, json, isAdmin);
+      if (r && judged?.id && r.ok) await cardProdDone(env, cardDeps(), judged.id).catch(() => {});
       if (r) return r;
     }
     /* ---- The brand voice interview (public, token) + Locus's copy desk (admin) ---- */
@@ -7543,6 +7590,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         }
         const r = await metaLocusWrite(env, md, { ...body, act }, { who });
         if (r.ok && !r.dry && r.after && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.after);
+        /* A Today's call made on the page counts on the morning card's calls line (all made = struck through). */
+        if (r.ok && !r.dry && r.object) await cardCallMade(env, cardDeps(), act, r.object).catch(() => {});
         return json(r);
       } catch (e) { return json({ error: e.message }, 502); }
       async function syncedRow(level, id, vals) {
@@ -7919,13 +7968,20 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
 
 
+    /* Locus Agency settings > Slack and sending: "Preview this morning's card" for one brand. Nothing is posted. */
+    if (path === '/api/morning-card/preview' && request.method === 'GET') {
+      if (!(await isAdmin(request, env)) || clientScope(request)) return json({ error: 'unauthorized' }, 401);
+      try { return json(await previewCard(env, cardDeps(), String(url.searchParams.get('act') || ''))); }
+      catch (e) { return json({ error: e.message }, e.status || 500); }
+    }
     if (path === '/api/brief-time' && (request.method === 'GET' || request.method === 'PUT')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       if (request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         const h = +b.hour;
         if (!Number.isInteger(h) || h < 0 || h > 23) return json({ error: 'hour must be a whole number from 0 to 23' }, 400);
-        await putSetting(env, 'briefHour', String(h));
+        await putSetting(env, 'morningHour', String(h));
+        await putSetting(env, 'briefHour', String(h));   // kept in step for anything still reading the old key
       }
       return json({ hour: await briefHour(env), tz: BRIEF_TZ, now_hour: centralHour() });
     }
@@ -9139,6 +9195,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           todayPost: (await getSetting(env, 'todayPost')) !== 'off',
           /* Action item reminders to Slack the morning they are due (actions.js). On unless 'off'. */
           actionRemind: (await getSetting(env, 'actionRemind')) !== 'off',
+          /* 2026-10-13: one hour for every morning post (Central) and the morning card's switch (morningcard.js). */
+          morningHour: await morningHour(env),
+          morningCard: await cardOn(env),
+          /* Why the last daily draft could not post in the agency channel, if one could not (draftBrief). */
+          dailyBriefsError: safeJson(await getSetting(env, 'dailyBriefsError'), null),
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
@@ -9156,6 +9217,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('briefClientStyle' in b) await putSetting(env, 'briefClientStyle', b.briefClientStyle === 'full' ? 'full' : 'short');
         if ('todayPost' in b) await putSetting(env, 'todayPost', b.todayPost ? 'on' : 'off');
         if ('actionRemind' in b) await putSetting(env, 'actionRemind', b.actionRemind ? 'on' : 'off');
+        if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
+        if ('morningHour' in b) {
+          const h = +b.morningHour;
+          if (!Number.isInteger(h) || h < 0 || h > 23) return json({ error: 'The hour is a whole number from 0 to 23.' }, 400);
+          await putSetting(env, 'morningHour', String(h)); await putSetting(env, 'briefHour', String(h));
+        }
         return json({ ok: true });
       }
       if (path === '/api/slack-channels') {
