@@ -1,0 +1,272 @@
+<title>Leak Finder Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the Locus v2 graphite system (profit/v2.css tokens), three framed screens stacked: a page's Leaks card, the full list, the Apply modal. */
+:root{
+  --bg:#131316;--surface:#1A1A1E;--surface-2:#212126;--ink:#F2F2F4;--ink-2:#B4B4BE;--muted:#8E8E9A;--faint:#5E5E6A;
+  --line:#2A2A31;--line-strong:#3A3A43;--brand:#8FB3FF;--brand-soft:rgba(143,179,255,.14);--on-brand:#0E1420;
+  --good:#5FD292;--good-bg:rgba(95,210,146,.14);--warn:#EBBF63;--warn-bg:rgba(235,191,99,.14);--bad:#F09182;--bad-bg:rgba(240,145,130,.14);
+  --c-meta:#5B8DEF;--c-google:#B5761A;--c-tiktok:#27A392;--c-email:#8F72E8;--c-site:#2F93C2;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#F6F6F7;--surface:#FFFFFF;--surface-2:#F3F3F5;--ink:#151518;--ink-2:#45454F;--muted:#6B6B78;--faint:#9A9AA6;
+  --line:#E6E6EB;--line-strong:#D5D5DC;--brand:#2F62D9;--brand-soft:#EAF0FD;--on-brand:#FFFFFF;
+  --good:#1C7A46;--good-bg:#E4F2E9;--warn:#8F6412;--warn-bg:#F8EED6;--bad:#9C3A2E;--bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9;--c-google:#B87A14;--c-tiktok:#1E9C8C;--c-email:#7C5CE6;--c-site:#2A86B3;color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#F6F6F7;--surface:#FFFFFF;--surface-2:#F3F3F5;--ink:#151518;--ink-2:#45454F;--muted:#6B6B78;--faint:#9A9AA6;
+  --line:#E6E6EB;--line-strong:#D5D5DC;--brand:#2F62D9;--brand-soft:#EAF0FD;--on-brand:#FFFFFF;
+  --good:#1C7A46;--good-bg:#E4F2E9;--warn:#8F6412;--warn-bg:#F8EED6;--bad:#9C3A2E;--bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9;--c-google:#B87A14;--c-tiktok:#1E9C8C;--c-email:#7C5CE6;--c-site:#2A86B3;color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.5;font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:28px 60px;display:flex;flex-direction:column;gap:30px}
+h1{font-size:22px;font-weight:650;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.intro p{color:var(--ink-2);margin:6px 0 0;max-width:68ch}
+.frame-lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.frame-lbl b{color:var(--ink-2);font-weight:600;letter-spacing:.04em}
+.screen{border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:18px;display:flex;flex-direction:column;gap:14px}
+.ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.ph h2{font-size:18px;font-weight:650;margin:0}.ph span{color:var(--muted)}
+.segs{display:flex;gap:4px;flex-wrap:wrap}.segs span{padding:5px 10px;border-radius:7px;color:var(--muted);font-weight:500}.segs span.on{background:var(--surface-2);color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card.key{border-color:var(--line-strong)}
+.ch{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.ch h3{font-size:14.5px;font-weight:650;margin:0}.ch .cap{color:var(--muted);font-size:12px}
+.lead{margin:0;color:var(--ink-2);max-width:80ch}
+.lead b{color:var(--ink)}
+.ghost{opacity:.45;pointer-events:none}
+.ghost .card{min-height:70px}
+.leak{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:14px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
+.leak:first-of-type{border-top:0;padding-top:2px}
+.cost{font-weight:650;font-size:17px;letter-spacing:-.01em;line-height:1.2}
+.cost small{display:block;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0;margin-top:2px}
+.bar{height:4px;border-radius:2px;background:var(--surface-2);margin-top:7px;overflow:hidden}.bar i{display:block;height:100%;background:var(--bad);border-radius:2px}
+.body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.t{font-weight:600;color:var(--ink);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+.chip i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.kv{color:var(--ink-2);font-size:12.5px}.kv em{font-style:normal;color:var(--muted);margin-right:4px}
+.fix{font-size:12.5px;color:var(--ink)}.fix em{font-style:normal;color:var(--good);font-weight:600;margin-right:4px}
+.who{font-size:11.5px;color:var(--muted)}
+.act{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.btn{font:inherit;font-size:12.5px;font-weight:600;border-radius:8px;padding:6px 12px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.link{color:var(--brand);font-weight:600;font-size:12.5px;background:none;border:0;padding:0;cursor:pointer;font-family:inherit}
+.terms{border:1px solid var(--line);border-radius:8px;overflow-x:auto;margin-top:6px}
+.terms table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:520px}
+.terms th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:7px 10px;border-bottom:1px solid var(--line)}
+.terms td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}.terms tr:last-child td{border-bottom:0}
+.terms td.n{text-align:right;white-space:nowrap}.terms .why{color:var(--muted)}
+.more{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px;color:var(--muted);font-size:12.5px}
+.status{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.st{background:var(--surface-2);border-radius:8px;padding:9px 11px;font-size:12.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
+.st b{color:var(--ink);font-weight:600;display:flex;gap:6px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.overlay{position:relative;border-radius:12px;background:rgba(0,0,0,.45);padding:34px 16px;display:flex;justify-content:center}
+:root[data-theme="light"] .overlay{background:rgba(21,21,24,.25)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .overlay{background:rgba(21,21,24,.25)}}
+.modal{background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;max-width:520px;width:100%;padding:18px;display:flex;flex-direction:column;gap:12px}
+.modal h3{margin:0;font-size:16px;font-weight:650}
+.ba{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:12.5px}
+.ba div span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.ok{display:flex;gap:8px;align-items:center;color:var(--good);font-weight:600;font-size:12.5px}
+.row-btns{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.notes{color:var(--muted);font-size:12.5px;max-width:80ch}
+.notes li{margin:3px 0}
+@media (max-width:640px){
+  .leak{grid-template-columns:minmax(0,1fr);gap:8px}
+  .act{flex-direction:row;align-items:center;justify-content:flex-start}
+  .ba{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Leak finder, Lucky Golf</h1>
+    <p>Mock for Cole's OK, built on Lucky's live numbers (Sep 13 to Oct 12, read Oct 13). One engine finds where money or customers leak, prices each leak a month, and ranks them. Each page shows its own top 3 at the top; Home > Day check shows the whole list. Nothing shows when a page has no leak.</p>
+  </header>
+
+  <!-- ===== 1. the top of Ads > Google ===== -->
+  <section aria-labelledby="f1">
+    <p class="frame-lbl" id="f1"><b>1</b> Top of Ads > Google (same card on Meta, TikTok, Store > Website, Email, filtered to that page)</p>
+    <div class="screen">
+      <div class="ph"><h2>Google: Lucky Golf</h2><span>Ads</span></div>
+      <div class="segs" aria-hidden="true"><span class="on">Overview</span><span>Campaigns</span><span>Ads</span><span>Search terms</span><span>Changes</span></div>
+
+      <div class="card key">
+        <div class="ch"><h3>Where Google is leaking</h3><span class="cap">3 of 3 · ranked by money a month</span></div>
+        <p class="lead"><b>$5,280 a month</b> is going to Google spend over the brand's cut line or on searches Lucky does not sell to.</p>
+
+        <div class="leak">
+          <div class="cost">$4,543<small>a month, est.</small><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-google)"></i>Performance Max</span>"Pmax | Wedges" costs 3.1x the goal per sale</div>
+            <div class="kv"><em>Measured</em>$6,659 spent, 40.7 conversions, $164 each (Google Ads, its own count)</div>
+            <div class="kv"><em>Good looks like</em>$52 per sale, Lucky's goal. Cut line: 1.5x the goal after 2x spent (Ads rules, same as Meta)</div>
+            <div class="fix"><em>Fix</em>Cut the daily budget 20 to 30% and check the feed and asset groups.</div>
+            <div class="who">Google buyer · cost = spend beyond $52 x its conversions</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Campaigns ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$730<small>a month, est.</small><div class="bar"><i style="width:16%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-google)"></i>YouTube and Demand Gen</span>"DG | Prospecting" costs 5.7x the goal per sale</div>
+            <div class="kv"><em>Measured</em>$884 spent, 3 conversions, $298 each; 5,019 views, 6.7% view rate, $0.18 a view</div>
+            <div class="kv"><em>Good looks like</em>$52 per sale, Lucky's goal. No published view-rate benchmark is shown: none holds up.</div>
+            <div class="fix"><em>Fix</em>Cut the budget or move it; check Triple Whale first-click credit before switching it off.</div>
+            <div class="who">Google buyer</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Campaigns ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$7<small>a month</small><div class="bar"><i style="width:1%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-google)"></i>Search terms</span>5 searches that have nothing to do with Lucky Golf</div>
+            <div class="kv"><em>Measured</em>$7 in 30 days on the brand campaign, no conversion. Judged by the model reading Lucky's brain, never a word list.</div>
+            <div class="terms">
+              <table>
+                <thead><tr><th>Search</th><th>Why it is waste</th><th class="n">Spend</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>wildcat drivers</td><td class="why">another brand's driver</td><td class="n">$2.01</td><td class="n"><button class="link" type="button">Add negative</button></td></tr>
+                  <tr><td>uncrustable putter</td><td class="why">another brand's putter</td><td class="n">$1.73</td><td class="n"><button class="link" type="button">Add negative</button></td></tr>
+                  <tr><td>69 golf</td><td class="why">a different brand</td><td class="n">$1.42</td><td class="n"><button class="link" type="button">Add negative</button></td></tr>
+                  <tr><td>baseball golf club</td><td class="why">a novelty club, not Lucky's</td><td class="n">$1.22</td><td class="n"><button class="link" type="button">Add negative</button></td></tr>
+                  <tr><td>uncrustables golf putter</td><td class="why">another brand's putter</td><td class="n">$1.08</td><td class="n"><button class="link" type="button">Add negative</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="fix"><em>Fix</em>Exact negative on its campaign. Locus adds it in Google Ads after you confirm, with Undo.</div>
+            <div class="who">Google buyer · replaces Viktor's weekly Search Term Report</div>
+          </div>
+          <div class="act"><button class="btn pri" type="button">Add all 5</button></div>
+        </div>
+
+        <div class="more"><span>Performance Max search categories: none judged off-brand with 10+ clicks.</span><button class="link" type="button">All 13 leaks for Lucky ›</button></div>
+      </div>
+
+      <div class="ghost" aria-hidden="true"><div class="card"><div class="ch"><h3>Spend, purchases, ROAS (the page as it is today)</h3></div></div></div>
+    </div>
+  </section>
+
+  <!-- ===== 2. the full list, Home > Day check ===== -->
+  <section aria-labelledby="f2">
+    <p class="frame-lbl" id="f2"><b>2</b> Home > Day check, one brand: every area ranked together, under the day's verdict</p>
+    <div class="screen">
+      <div class="ph"><h2>Day check: Lucky Golf</h2><span>Home</span></div>
+      <div class="ghost" aria-hidden="true"><div class="card"><div class="ch"><h3>Yesterday: on plan · 1 of 4 signs</h3></div></div></div>
+
+      <div class="card key">
+        <div class="ch"><h3>Where Lucky Golf is losing money</h3><span class="cap">last 30 days · refreshed hourly</span></div>
+        <p class="lead">The biggest leak is <b>phones: carts are not reaching checkout</b>. Each leak is priced on its own; they overlap (a better cart page also lifts checkout), so do not add them up.</p>
+
+        <div class="leak">
+          <div class="cost">$22.6K<small>a month, est.</small><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-site)"></i>Funnel</span>Cart to checkout on phones: 26.4%, the benchmark is 45.0%</div>
+            <div class="kv"><em>Measured</em>26.4% of 1,012 carts (GA4 sessions); Lucky's own 90 days before: 28.9%</div>
+            <div class="kv"><em>Good looks like</em>45.0% on phones, estimated from Littledata medians, Oct 2026 (no one publishes this step)</div>
+            <div class="fix"><em>Fix</em>Check the cart page on phones: surprise shipping, a slow drawer, a discount box; add express checkout in the cart.</div>
+            <div class="who">Strategist (site) · 145 more orders a month at the benchmark x $155 phone AOV</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Website ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$15.3K<small>a month, est.</small><div class="bar"><i style="width:68%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-site)"></i>Funnel</span>Add to cart on phones: 3.6%, the benchmark is 5.4%</div>
+            <div class="kv"><em>Measured</em>3.6% of 27,735 sessions; own 90 days before: 4.2%</div>
+            <div class="kv"><em>Good looks like</em>5.4% on phones (Littledata, Oct 2026, median of 423 Shopify stores)</div>
+            <div class="fix"><em>Fix</em>Price, shipping and returns above the fold on the wedge pages; reviews by the button; sticky add to cart.</div>
+            <div class="who">Strategist (site)</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Website ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$4,543<small>a month, est.</small><div class="bar"><i style="width:20%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-google)"></i>Performance Max</span>"Pmax | Wedges" costs 3.1x the goal per sale</div>
+            <div class="kv"><em>Measured</em>$6,659 spent, 40.7 conversions, $164 each (Google Ads, its own count)</div>
+            <div class="who">Google buyer</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Campaigns ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$4,456<small>a month, est.</small><div class="bar"><i style="width:20%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-site)"></i>Funnel</span>Add to cart on desktop: 4.9%, the benchmark is 9.9%</div>
+            <div class="kv"><em>Measured</em>4.9% of 3,704 sessions; own 90 days before: 5.6% (Littledata, Oct 2026)</div>
+            <div class="who">Strategist (site)</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Website ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$3,871<small>a month, est.</small><div class="bar"><i style="width:17%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-site)"></i>Landing page</span>Paid visitors to /products/lucky-golf-lgw02-gold rarely buy</div>
+            <div class="kv"><em>Measured</em>0.41% of 10,814 paid sessions bought; the site's own paid rate is 0.65% (GA4)</div>
+            <div class="fix"><em>Fix</em>Send the ads that land here to the page that converts, or fix the page: offer and price above the fold, the ad's promise.</div>
+            <div class="who">Strategist (site)</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Website ›</button></div>
+        </div>
+
+        <div class="leak">
+          <div class="cost">$3,219<small>a month, est.</small><div class="bar"><i style="width:14%"></i></div></div>
+          <div class="body">
+            <div class="t"><span class="chip"><i style="background:var(--c-meta)"></i>Meta</span>Ad set "Black Wedges | Still" is on the cut line</div>
+            <div class="kv"><em>Measured</em>Cost per sale $115, 2.2x the $52 goal, on $1,375 spent (Triple Whale, last platform click, 7 days)</div>
+            <div class="fix"><em>Fix</em>Turn the ad set off or cut its budget. Make the call on Today's calls.</div>
+            <div class="who">Meta buyer · Today's calls' money at stake, as a month</div>
+          </div>
+          <div class="act"><button class="btn" type="button">Today's calls ›</button></div>
+        </div>
+
+        <div class="more"><span>7 more: a landing page ($916), Demand Gen ($730), no post-purchase flow ($484), three Meta ad sets ($1,210), 5 search negatives ($7).</span><button class="link" type="button">Show all 13</button></div>
+
+        <div class="status" aria-label="What was checked">
+          <div class="st"><b><i class="dot" style="background:var(--good)"></i>Google Ads</b>Read directly. 2 campaigns over the cut line, 5 negatives.</div>
+          <div class="st"><b><i class="dot" style="background:var(--good)"></i>Meta</b>From Today's calls, not recomputed.</div>
+          <div class="st"><b><i class="dot" style="background:var(--muted)"></i>TikTok</b>No TikTok spend.</div>
+          <div class="st"><b><i class="dot" style="background:var(--warn)"></i>Funnel, not enough data yet</b>Phone checkouts (267), desktop carts (180) and checkouts (83) are under the 300 floor.</div>
+          <div class="st"><b><i class="dot" style="background:var(--good)"></i>Email</b>Every core flow is live except post purchase. The Sep 18 welcome swap earns 96% of the old one: not a leak.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 3. the Apply modal ===== -->
+  <section aria-labelledby="f3">
+    <p class="frame-lbl" id="f3"><b>3</b> Add negative: the in-app modal, after Google has checked the change</p>
+    <div class="overlay">
+      <div class="modal" role="dialog" aria-labelledby="mt">
+        <h3 id="mt">Add a negative keyword in Google Ads</h3>
+        <p class="lead" style="margin:0">Add <b>"wildcat drivers"</b> as an exact negative keyword on <b>Branded Search | Sales | All Devices</b>.</p>
+        <div class="ba"><div><span>Now</span>The search can trigger your ads</div><div aria-hidden="true">→</div><div><span>After</span>Blocked on this campaign, exact match only</div></div>
+        <p class="kv" style="margin:0">It spent $2.01 on 1 click in 30 days, no conversion. Why it is waste: another brand's driver.</p>
+        <div class="ok"><i class="dot" style="background:var(--good)"></i>Google checked the change and accepts it.</div>
+        <p class="notes" style="margin:0">Written to the Change Log as you, in Locus. Undo stays on the page for 24 hours.</p>
+        <div class="row-btns"><button class="btn" type="button">Cancel</button><button class="btn pri" type="button">Add negative</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="notes" aria-label="How it works">
+    <ul>
+      <li><b>Benchmarks name their source and year</b> on every line: Littledata Oct 2026 (Shopify stores, by device) for add to cart, checkout completion and conversion; Klaviyo 2026 for flow revenue per recipient. A step under its floor (1,000 sessions, or 300 carts or checkouts) says "not enough data yet".</li>
+      <li><b>A funnel step is a leak</b> when it is more than 20% under its benchmark AND under the brand's own 90 days before. Cost = the orders it would add at the benchmark, carried down the brand's own funnel, x AOV.</li>
+      <li><b>Google, TikTok and video campaigns use the brand's own cut line</b> (Ads rules), the one Meta's calls already use, on each platform's own conversions.</li>
+      <li><b>Also built:</b> the Strategist reads the list (a leaks view) before any audit question. The morning card is not live yet, so its "new leak" line waits for it.</li>
+    </ul>
+  </section>
+</div>

@@ -141,7 +141,7 @@ const PAGE_ROUTES = [
   ['ah', '/api/google/ads-terms?act=brand_alpha'], ['ah', '/api/google/ads-changes?act=brand_alpha'], ['ah', '/api/tiktok/report?act=brand_alpha'], ['pf', '/api/brand/tests-overview'], ['ah', '/api/your-ads-link?act=brand_alpha'],
   // Email and SMS, Store
   ['pf', '/api/hub/email?act=brand_alpha'], ['ah', '/api/klaviyo?act=brand_alpha&what=overview'], ['pf', '/api/hub/store?act=brand_alpha'], ['pf', '/api/customers?act=brand_alpha'], ['pf', '/api/cohorts?act=brand_alpha'],
-  ['ah', '/api/survey?act=brand_alpha'], ['ah', '/api/google/website?act=brand_alpha'], ['ah', '/api/google/search?act=brand_alpha'], ['ah', '/api/clarity?act=brand_alpha'],
+  ['ah', '/api/survey?act=brand_alpha'], ['ah', '/api/leaks?act=brand_alpha'], ['ah', '/api/google/website?act=brand_alpha'], ['ah', '/api/google/search?act=brand_alpha'], ['ah', '/api/clarity?act=brand_alpha'],
   // Products, Creative, Brand
   ['pf', '/api/hub/stockads?act=brand_alpha'], ['pf', '/api/studio?act=brand_alpha'], ['pf', '/api/studio/asana?act=brand_alpha'], ['pf', '/api/amb?act=brand_alpha'], ['pf', '/api/amb/ads?act=brand_alpha'],
   ['ah', '/api/assets?act=brand_alpha'], ['pf', '/api/brand?act=brand_alpha'], ['pf', '/api/brand/rules?act=brand_alpha'],

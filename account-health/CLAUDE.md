@@ -1832,3 +1832,39 @@ Locus Work is now three pages (profit calls.js, tasks.js, production.js). What t
   "<Name> moved *<num> - <title>* to <Column>"), `POST /api/production/brief {act,text,owner,due}` (meetings.js
   `makeBrief`, now exported: the next numbered brief in Asana + its card).
 - Tests: `test-actions.mjs` (11) and `test-production.mjs` (7).
+
+## 2026-10-13: THE LEAK FINDER (`src/leaks.js`). Read before touching it, the negative keyword write or the judge.
+
+Handoff `docs/handoffs/leak-finder.md`, screens in profit/CLAUDE.md (same date). Tests: `node test-leaks.mjs` (16
+offline checks: Google Ads, GA4, the model, Klaviyo, Meta's list and TikTok mocked).
+- `leaksFor(env, d, act, {days, fresh})`, cached an hour in settings `leaks:<brand>:<days>`; routes `GET /api/leaks`,
+  `POST /api/leaks/apply {act, term, campaign_id, confirm}`, `POST /api/leaks/undo {act, resource}` (`handleLeaks`, mounted
+  above the Google block; admin + brandsFor; a client's `fresh=1` is ignored). Strategist view `leaks` + a CMO METHOD line
+  (read it before any audit question).
+- **Sources, nothing recomputed:** google.js `leakAds` (cache `gadlk:`: search terms with spend and under 0.5
+  conversions, top 200; every campaign; `campaign_search_term_insight` per PMax campaign, which has NO cost, so cost =
+  clicks x the campaign's CPC; video / Demand Gen `video_trueview_*` with a fallback to the old `video_*` fields) and
+  `leakFunnel` (cache `g4lk:`: GA4 SESSIONS with add_to_cart / begin_checkout / purchase by device, the window and the 90
+  days before, plus paid-channel landing pages and the paid total); Today's calls over the PROFIT binding (todaypost.js
+  `readToday`, Cut and Trim rows, stake x 30/7); `tiktokReport`; Klaviyo `flows_report` + `daily` (`by_flow`).
+- **The judge**: ONE Sonnet 5.5 call per brand per hour (`judge`, JSON schema, low effort) reads the short brand brain and
+  labels every non-converting search term and PMax category irrelevant / relevant / brand, says which CORE flows have no
+  live version, and which live flow replaced a switched-off one. No word list anywhere. Terms under $1 never reach it.
+- **Rules**: Google, video and TikTok campaigns use the brand's own cut line (`cr_cut_zero_x`, `cr_cut_spend_x`,
+  `cr_cut_cpa_x` from p_br_doc rules, goal = rules target_cpa or the brand's) on the platform's own conversions. A funnel
+  step is a leak when 20%+ under `BENCH` (Littledata Oct 2026 by device; cart to checkout is ESTIMATED from Littledata
+  medians and says so) AND under the brand's own 90 days, over the floors (1,000 sessions, 300 carts / checkouts); cost =
+  orders the step would add at the benchmark, carried down the brand's own funnel, x the device's AOV. Landing pages: 500+
+  paid sessions under 70% of the paid site rate. Email: missing welcome = sign-ups x $5.75, post purchase = orders x
+  $1.80 (Klaviyo 2026), the others "not priced"; a switched-off flow = max(its last 30 days before going off, a third of
+  its 90-day revenue) less its replacement's rate; a replacement earning 85%+ of it is not a leak. Floor $50 a month,
+  except search negatives and PMax categories (Viktor's report, kept at any size). Sources and dates:
+  docs/strategist-brain/knowledge/website-cro.md section 2.
+- **The write**: google.js `adsNegative` = `campaignCriteria:mutate` create `{campaign, negative: true, keyword: {text,
+  matchType: EXACT}}` (validateOnly for the propose), or remove by resource name (must start with the brand's own
+  `customers/<cid>/campaignCriteria/`). Apply files an `activities` row (event_type `google_write`, category `keywords`,
+  under the brand's Meta account like klaviyowrite) and drops the term from the cached list. PMax categories get no Apply
+  (a category is not a keyword; the fix names the account-level negative list in Google Ads).
+- Verified live on Lucky 2026-10-13 from the dev worker: every source answered, Google accepted a validateOnly negative.
+  NOT done: a real negative write (Cole approves the first ones), TikTok (not connected), Shopify-app funnels (no store
+  has the app), the morning card's new-leak line (that card is not live; see docs/handoffs/morning-card.md).

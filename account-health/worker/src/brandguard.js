@@ -244,6 +244,11 @@ export const CLIENT_RULES = [
   R('GET', '/api/google/ads-terms'),
   R('GET', '/api/google/ads-changes'),
   R('POST', '/api/google/write'),
+  /* The leak finder (2026-10-13, leaks.js): the brand's own ranked list, and the negative keyword Apply / Undo (a Google
+     write, the same reach as /api/google/write). A client's ?fresh=1 is ignored, so the hourly judge is never re-bought. */
+  R('GET', '/api/leaks'),
+  R('POST', '/api/leaks/apply'),
+  R('POST', '/api/leaks/undo'),
   R('GET', '/api/tiktok/report'),
   R('GET', '/api/brand/tests-overview', 'none'),
   R('POST', '/api/brand-asana/mins'),

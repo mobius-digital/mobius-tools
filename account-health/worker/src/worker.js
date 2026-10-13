@@ -66,6 +66,7 @@ import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProjec
 import { useFetch as surveyFetch, surveyReport, storeFairing, storeKno, forgetSurvey, setSurveyQuestion } from './survey.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
+import { handleLeaks } from './leaks.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 import { handleLaunch } from './launch.js';
@@ -8284,6 +8285,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const { handleSupplyProxy } = await import('./stock.js');
       return handleSupplyProxy(request, env, path, url, json, await sessionEmail(env, request).catch(() => ''), clientScope(request));
+    }
+    /* The leak finder (2026-10-13, src/leaks.js): where each brand loses money, ranked, with the fix; Apply adds a
+       negative keyword in Google Ads. Admin (clients for their own brand through brandguard) + brandsFor. */
+    {
+      const r = await handleLeaks(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r),
+        deps: () => ({ getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }) });
+      if (r) return r;
     }
     if (path.startsWith('/api/google/')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);

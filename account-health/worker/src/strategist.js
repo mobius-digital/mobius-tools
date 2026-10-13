@@ -1,4 +1,5 @@
 import { tiktokReport } from './tiktok.js';
+import { leaksFor } from './leaks.js';
 import { surveyReport } from './survey.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
@@ -273,6 +274,7 @@ THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of 
 - You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, post-purchase-survey, cross-channel, messaging). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
+- Before any audit, "where are we leaking" or "what do we fix first" question, read the leaks view for the brand first: it ranks every leak across Google, Meta, TikTok, the funnel, landing pages and email by money a month, each benchmark with its source. Start from its top line, then go deeper with the channel views.
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
 - Before cutting a channel that clicks under-credit (upper-funnel video, TikTok, YouTube, creators, podcasts), check the survey view when the brand has a post-purchase survey: what customers SAY is a reality check on Triple Whale, never a replacement for it (knowledge topic post-purchase-survey).
 
@@ -371,6 +373,7 @@ const VIEW_BLURBS = {
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   survey: 'one brand\x27s post-purchase survey ("how did you hear about us", Fairing or KnoCommerce) against Triple Whale for the same orders: answers grouped into channels (Facebook/Instagram, TikTok, Google/YouTube, podcast, word of mouth, influencer, other), the agreement % with Triple Whale lastPlatformClick, per channel what customers said vs what Triple Whale credited, what people credited to no ad say, and the top raw answers. Pass `brand`, optionally `days` or `from`/`to`. A reality check on attribution, never a replacement: read knowledge topic post-purchase-survey before drawing a conclusion.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
+  leaks: 'where one brand is losing money, ranked by dollars a month (the leak finder, the same list as Home > Day check): Google search terms judged irrelevant (negative keyword candidates), Performance Max search categories, Google / video / TikTok campaigns over the brand\'s cut line, Meta ad sets on the cut line (Today\'s calls), funnel steps under their published benchmark (Littledata, by device) AND under the brand\'s own 90 days, paid landing pages far under the site, missing or switched-off email flows. Each leak: number + source, benchmark + source, cost a month + how it was estimated, the fix, who owns it; `areas` says what could not be checked and why. Pass `brand`. Read it BEFORE any audit, "where are we leaking" or "what should we fix first" question.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
   search: 'one brand\'s organic Google search from Search Console: clicks, impressions, click rate, position, top queries flagged brand or not, top pages, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -651,6 +654,11 @@ function buildViews(d) {
       const acct = await need(env, a); const w = winOf(a);
       const r = await surveyReport(env, acct.act_id, { from: w.from, to: w.to });
       return { brand: acct.name, ...r, how_to_read: r.error === 'not_linked' ? 'No post-purchase survey is connected for this brand (Brand settings > Integrations > Post-purchase survey). Say so, and suggest Fairing if the brand runs upper-funnel video, podcasts or creators.' : `${r.how_to_read} ${VIEW_BLURBS.survey}` };
+    },
+    leaks: async (env, a) => {
+      const acct = await need(env, a);
+      const r = await leaksFor(env, { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession }, acct.act_id, { days: [7, 14, 30, 60, 90].includes(+a.days) ? +a.days : 30 });
+      return { ...r, how_to_read: VIEW_BLURBS.leaks + ' Costs overlap (a better cart page also lifts checkout): never add them up. A search term judged irrelevant can be blocked from Locus (Ads > Google, Add negative): point the person there.' };
     },
     google_ads: async (env, a) => {
       const acct = await need(env, a); const w = winOf(a);
