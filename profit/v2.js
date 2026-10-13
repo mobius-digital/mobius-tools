@@ -591,11 +591,63 @@
     return `<div class="v2grade">${scored.map(x => `<div class="gr g${gr(x.r)}"${tipAttr(`${x.l}: ${x.k === 'cvr' || x.k === 'ctr' ? pct(x.v, 2) : pct(x.v, 0)} against the brand median ${x.k === 'cvr' || x.k === 'ctr' ? pct(med[x.k], 2) : pct(med[x.k], 0)}`)}><b>${gr(x.r)}</b><span>${x.l}</span></div>`).join('')}</div>
       <p class="v2hint"><b>To iterate:</b> ${esc(FIX[weak.k])}</p>`;
   }
+  /* THE LANDING PAGE LINE (2026-10-13, Ahsan: "the ad has clicks and add-to-carts; is the product page doing its job?").
+     One line under the ad's numbers: the path the ad sends people to (the creative's link, read by account-health
+     adThumbnails) and, when the brand has GA4 linked, that page's add-to-cart rate over the last 30 days against the
+     site's own, coloured against it, with Open in Website and a Heatmap link when Clarity is connected. Nothing is
+     fetched until the sheet opens; every answer is kept in the page for the session (LP_CACHE), one entry per page. */
+  const LP_CACHE = new Map();
+  const lpWin = () => { const to = new Date(); to.setDate(to.getDate() - 1); const from = new Date(to); from.setDate(from.getDate() - 29); return { from: isoD(from), to: isoD(to) }; };
+  const lpCached = (key, fn) => { if (!LP_CACHE.has(key)) LP_CACHE.set(key, fn().catch(e => ({ error: e.message }))); return LP_CACHE.get(key); };
+  const lpPath = u => { try { return new URL(u).pathname.replace(/\/+$/, '') || '/'; } catch { return pagePath(String(u).split(/[?#]/)[0]).replace(/\/+$/, '') || '/'; } };
+  async function landingLine(a, body) {
+    if (!body.querySelector('#v2lp')) return;
+    const act = H.S.act, brand = H.S.accounts.find(z => z.act_id === act) || {};
+    const put = html => { const b = document.getElementById('v2lp'); if (b && body.contains(b)) { b.innerHTML = html; if (panel.refit) panel.refit(); } };
+    const line = (v, cls) => `<span class="v2lp-k">Landing page</span><span class="v2lp-v${cls ? ` ${cls}` : ''}">${v}</span>`;
+    /* 1. The link. A creative row read before the field existed is re-read once, for this one ad. */
+    let x = ASSETS.get(a.id) || {};
+    if (x.link === undefined) {
+      const r = await lpCached(`link:${a.id}`, () => H.apiAH(`/api/ad-creatives?act=${encodeURIComponent(act)}&ads=${encodeURIComponent(a.id)}`));
+      const y = r && r.assets && r.assets[a.id]; x = { ...x, ...(y || {}), link: (y && y.link) || null }; ASSETS.set(a.id, x);
+    }
+    if (!body.isConnected) return;
+    if (!x.link) return put(line('Meta gave no link for this ad.', 'faint'));
+    const path = lpPath(x.link);
+    const pathHtml = `<a href="${esc(x.link)}" target="_blank" rel="noopener" class="v2lp-path" title="${esc(x.link)}">${esc(path)}</a>`;
+    /* 2. GA4, only when the brand has it linked (the Website screen's own test is the same `not_linked` answer). */
+    if (!(Array.isArray(brand.conn_kinds) && brand.conn_kinds.includes('ga4'))) return put(line(`${pathHtml} <span class="v2lp-note faint">Link GA4 on Connections to see this page's add-to-cart rate.</span>`));
+    put(line(`${pathHtml} <span class="v2lp-note faint">Reading GA4…</span>`));
+    const w = lpWin(), q = `act=${encodeURIComponent(act)}&from=${w.from}&to=${w.to}`;
+    const [d, site, cl] = await Promise.all([
+      lpCached(`page:${act}|${path}`, () => H.apiAH(`/api/google/website-drill?${q}&kind=page&value=${encodeURIComponent(path)}`)),
+      lpCached(`site:${act}`, () => H.apiAH(`/api/google/website?${q}`)),
+      lpCached(`clarity:${act}`, () => H.apiAH(`/api/clarity?act=${encodeURIComponent(act)}`)),
+    ]);
+    if (!body.isConnected) return;
+    const rate = c => c && c.sessions ? (c.addToCarts || 0) / c.sessions : null;
+    const pr = d && !d.error ? rate(d.cur) : null, sr = site && !site.error ? rate(site.cur) : null;
+    let said, cls = '';
+    if (d && d.error) said = d.error === 'not_linked' ? "Link GA4 on Connections to see this page's add-to-cart rate." : `GA4: ${esc(d.error)}`;
+    else if (pr == null) said = 'GA4 saw no sessions landing on this page in the last 30 days.';
+    else {
+      const sess = `${int(d.cur.sessions)} session${d.cur.sessions === 1 ? '' : 's'}, last 30 days`;
+      if (sr != null && sr > 0) { cls = pr >= sr ? 'good' : pr >= sr * 0.8 ? 'warn' : 'bad'; said = `Add to cart <b class="${cls}">${pct(pr, 1)}</b> of sessions, the site's normal is ${pct(sr, 1)} (${sess}).`; }
+      else said = `Add to cart <b>${pct(pr, 1)}</b> of sessions (${sess}).`;
+    }
+    /* 3. Where to go next: the Website screen for the brand, and the page's heatmap in Clarity (the same link pattern
+          as the Website screen's Behaviour card; the `url` parameter is unverified against Clarity, as noted there). */
+    const heat = cl && !cl.error && cl.project ? ` <a href="https://clarity.microsoft.com/projects/view/${encodeURIComponent(cl.project)}/heatmaps?url=${encodeURIComponent(x.link.split(/[?#]/)[0])}" target="_blank" rel="noopener" class="v2link">Heatmap</a>` : '';
+    put(line(`${pathHtml} <span class="v2lp-note">${said}</span> <button type="button" class="v2link" data-lpweb="1">Open in Website</button>${heat}`));
+    const ob = body.querySelector('[data-lpweb]'); if (ob) ob.onclick = () => { if (panel.close) panel.close(); H.show('website'); };
+  }
+
   function previewAd(a, cur, goals, cx) {
     const g = goals || {}; const x = ASSETS.get(a.id) || {};
     /* The ad set scorecard: an ad is never judged alone (Cole, 2026-10-08). */
     const sc = a.adset || null;
-    const setCard = sc && sc.ads > 1 ? `<div class="v2setc"><div class="h"><b>Its ad set</b>${sc.name ? `<span>${esc(sc.name)}</span>` : ''}</div>
+    const scv = cx && cx.setCall && SET_VL[cx.setCall];   // the set's own verdict, the same words as the card chip
+    const setCard = sc && sc.ads > 1 ? `<div class="v2setc"><div class="h"><b>Its ad set</b>${scv ? `<span class="v2pill ${scv[1] === 'mute' ? '' : scv[1]}"${tipAttr('The set is judged first on its own totals; this ad\'s call follows from its role in the set.')}>${scv[0]}</span>` : ''}${sc.name ? `<span>${esc(sc.name)}</span>` : ''}</div>
       <div class="v2kv"><span>Set spend</span><b>${kmoney(sc.spend, cur)}</b><span>Set cost per purchase</span><b class="${!g.cpa || sc.cpa == null ? '' : sc.cpa <= g.cpa ? 'good' : 'bad'}">${money(sc.cpa, cur)}</b><span>Set ROAS</span><b>${x2(sc.roas)}</b><span>This ad's share</span><b>${pct(a.set_share, 0)} · #${a.set_rank} of ${sc.ads}</b></div>
       <div class="v2bar2"${tipAttr(`This ad: ${pct(a.set_share, 0)} of the set's spend`)}><i style="width:${Math.min(100, (a.set_share || 0) * 100).toFixed(1)}%"></i></div></div>` : '';
     const callLine = cx && cx.call ? `<div class="v2call"><span class="v2pill ${cx.call[1]}">${esc(cx.call[0])}</span>${cx.fr ? `<span class="v2pill"${tipAttr(esc(cx.fr[1]))}>${esc(cx.fr[0])}</span>` : ''}${cx.why ? `<p>${esc(cx.why)}</p>` : ''}</div>` : '';
@@ -607,6 +659,7 @@
     const body = panel(a.name || 'Ad', `<div class="v2pv sheet-2"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">${ICN('play', 14)} Play</button></div></div>
       <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat"><div><b>${kmoney(a.spend, cur)}</b><span>spend</span></div><div><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><span>cost per purchase${g.cpa ? ` · goal ${money(g.cpa, cur)}` : ''}</span></div><div><b>${x2(a.roas)}</b><span>ROAS</span></div></div>
       <div class="v2kv"><span>Purchases</span><b><button type="button" class="v2cell" data-orders="1">${int(a.purchases)}</button></b><span>Revenue</span><b>${kmoney(a.revenue, cur)}</b><span>Hook · hold</span><b>${pct(a.hook, 0)} · ${pct(a.hold, 0)}</b><span>CTR · CPM</span><b>${pct(a.ctr, 2)} · ${money2(a.cpm, cur)}</b>${a.frequency ? `<span>Frequency</span><b>${a.frequency.toFixed(2)}</b>` : ''}${a.age != null ? `<span>Running</span><b>${a.age} days</b>` : ''}${a.angle ? `<span>Angle</span><b>${esc(a.angle)}</b>` : ''}${a.ltv_n >= 5 ? `<span>90-day value</span><b>${money(a.ltv90, cur)} · ${x2(a.ltv_x)} first order · ${int(a.ltv_n)} customers</b>` : ''}</div>
+      <div class="v2lp" id="v2lp"><span class="v2lp-k">Landing page</span><span class="v2lp-v faint">Reading the ad's link…</span></div>
       ${callLine || setCard ? `<div data-sec="The call" data-ic="target" class="v2pv-sec">${callLine}${setCard}</div>` : ''}
       <div data-sec="Funnel" data-ic="activity" class="v2pv-sec">${gradeHtml(a, MED)}</div>
       ${a.n_ads > 1 ? `<p class="v2hint">The same ${a.media_type === 'video' ? 'video' : 'image'} runs in <b>${a.n_ads} ads</b>; the numbers above are all of them added up. Play, the breakdown and the Studio button use the one that spent most.</p>` : ''}
@@ -620,6 +673,7 @@
     body.querySelector('[data-more]').onclick = () => { const brand = (H.S.accounts.find(z => z.act_id === H.S.act) || {}).name || 'this brand'; H.AskUI.ask(`For ${brand}: draft an Asana brief for three iterations of the ad "${a.name}" (ad id ${a.id}). It spent ${kmoney(a.spend, cur)} at ${money(a.cpa, cur)} per purchase${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}. Keep what works, change one thing per iteration, and say which test it is.`); };
     loadThumbs(body, [a.id]).then(() => { const y = ASSETS.get(a.id) || {}; const lt = document.querySelector('#v2panel .plead-th'); if (lt && THUMBS.has(a.id)) lt.style.backgroundImage = `url('${THUMBS.get(a.id)}')`; const cp = body.querySelector('.v2copy'); if (cp && cp.querySelector('.v2hint')) cp.innerHTML = y.headline || y.body ? `${y.headline ? `<b>${esc(y.headline)}</b>` : ''}${y.body ? `<p>${esc(y.body)}</p>` : ''}` : '<p class="v2hint">Meta gave no copy for this ad.</p>'; if (panel.refit) panel.refit(); });
     body.querySelector('[data-orders]').onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`);
+    landingLine(a, body);
     const stu = body.querySelector('[data-studio]');
     if (stu) stu.onclick = () => iterateStep(a, cur, g, cx, x);
     const brk = body.querySelector('[data-brk]');
@@ -781,7 +835,7 @@
       const d = await H.api(`/api/hub/creative?act=${encodeURIComponent(b.act)}&${q}&model=lastPlatformClick`);
       const cur = d.currency, goal = d.goals?.cpa || null, bar = goal || 50;
       let L = b.group ? groupAds(d.ads || []) : (d.ads || []);
-      if (b.tag) L = L.filter(r => r.tags && r.tags[b.tag.k] === b.tag.v);
+      if (b.tag) L = L.filter(r => tagVal(r, b.tag.k) === b.tag.v);   // the same accessor as the Ads page (format = Meta's media type)
       if (b.ids && b.ids.length) L = L.filter(r => b.ids.includes(r.id) || (r.ids || []).some(x => b.ids.includes(x)));
       const list = sortAds(L, b.sort || 'spend', bar).list.slice(0, b.n || 8);
       el.innerHTML = `<div class="v2h"><h3>${esc(b.title || 'Ads')}</h3><span class="cap"><button type="button" class="v2link" data-opencr="1">Open in Creative ›</button></span></div>
@@ -1442,7 +1496,16 @@
     const pool = list.filter(r => s[2](r) != null && isFinite(s[2](r)) && (!s[4] || r.spend >= bar));
     return { s, list: pool.sort((p, q) => (s[2](p) - s[2](q)) * s[3] || q.spend - p.spend), left: list.length - pool.length };
   }
-  const TAG_DIMS = [['format', 'Format'], ['hook', 'Hook'], ['person', 'Who is on screen'], ['product', 'The product'], ['offer', 'Offer'], ['text_on_image', 'Words on the ad']];
+  /* ONE FORMAT SOURCE (2026-10-13). A creative's format is Meta's own `ads.media_type` (Video / Static / Carousel),
+     never the AI tag and never the ad name. The AI tags carry everything else. `tagVal` reads either, so the
+     ingredients card, the Tag menu, the gallery filter and saved dashboard views all go through one accessor. */
+  const FMT_LABEL = { video: 'Video', image: 'Static', carousel: 'Carousel' };
+  const fmtLabel = t => t ? (FMT_LABEL[t] || 'Static') : null;
+  const TAG_DIMS = [['media_type', 'Format'], ['hook', 'Hook'], ['person', 'Who is on screen'], ['product', 'The product'], ['offer', 'Offer'], ['text_on_image', 'Words on the ad']];
+  const tagVal = (r, k) => k === 'media_type' ? fmtLabel(r.media_type) : (r.tags && r.tags[k]) || null;
+  /* THE SET'S OWN VERDICT, VISIBLE (2026-10-13, Cole: "it says cut and I have to hover to see if it's winning at
+     the ad set"). The same words on the card chip and in the sheet's ad set box. */
+  const SET_VL = { scale: ['Set: on goal', 'good'], watch: ['Set: close to goal', 'warn'], cut: ['Set: missing goal', 'bad'], thin: ['Set: not judged yet', 'mute'] };
   /* ONE CARD PER CREATIVE: ads running the same video or image (ads.asset_key) add up into one card,
      led by the ad that spent most. Hook, hold and the drop-off curve are weighted by impressions. */
   function groupAds(ads) {
@@ -1521,7 +1584,12 @@
     const FR = { opener: ['Opener', 'Triple Whale credits it far more on first click: it starts journeys (top of funnel).'], closer: ['Closer', 'Triple Whale credits it more on the last click: it closes people already warmed up.'] };
     MED = medians(ads, goal || 50);
     const bar = (goal || 50) * K.jx;   // the judging bar; RULE below and the sort row both use it
-    const RULE = `<b>The ad set first.</b> A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>`;
+    /* THE SET'S VERDICT ON THE CARD (2026-10-13). Cole was reading "Cut" on an ad and hovering to find out whether its set
+       was winning. In a multi-ad set every card now carries "Set: on goal / close to goal / missing goal / not judged
+       yet" beside its role chip, the same words the sheet's ad set box shows. */
+    const setChip = r => { const sc = setCall(r.adset), x = r.adset; if (!sc || !SET_VL[sc] || !x) return '';
+      return `<span class="set-${SET_VL[sc][1]}"${tipAttr(esc(`The ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${x.cpa == null ? 'no purchases' : `${money(x.cpa, cur)} per purchase`} over its ${x.ads} ads. The set is judged first; this ad's call then follows from its role in it.`))}>${SET_VL[sc][0]}</span>`; };
+    const RULE = `<b>How a card gets its call:</b> the ad set is judged first on its own totals, then the ad by its role in it (anchor or support). A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button><br><span class="faint">Today's calls judge the last 7 days on last platform click, with these same numbers; this page judges the dates and attribution picked above.</span>`;
     const top = ads.slice(0, 60);
     const VCOL = { scale: '--good', keep: '--c-meta', watch: '--warn', trim: '--warn', cut: '--bad', thin: '--v2-cmp', new: '--v2-cmp', nogoal: '--v2-cmp' };
     const ctxOf = r => ({ call: VL[verdict(r)], why: whyOf(r), role: role(r), fr: funnelRole(r) && FR[funnelRole(r)], set: r.adset, setCall: setCall(r.adset) });
@@ -1631,14 +1699,14 @@
     const fatSay = !fat.length ? 'Not enough spend across ad ages yet.' : goal && fatJ.length >= 2 && fatJ.every(f => f.cpa > goal * 1.2) ? `Every age runs over the ${g.cpa ? 'goal' : 'account average'}, so this is not fatigue: purchases cost least at ${esc(fatLo.label.toLowerCase())} (${money(fatLo.cpa, cur)}) and most at ${esc(fatHi.label.toLowerCase())} (${money(fatHi.cpa, cur)}).` : firstFat ? `Cost per purchase rises past the ${g.cpa ? 'goal' : 'account average'} from ${esc(firstFat.label.toLowerCase())}: plan new ads before then.` : goal ? `No age runs more than 20% over the ${g.cpa ? 'goal' : 'account average'}: ads are not tiring yet.` : 'Set a goal CPA to see when ads tire.';
     const roll = (list, label) => { const mx = Math.max(...list.map(x => x.spend), 1); return `<div class="v2tbl"><table><thead><tr><th>${label}</th><th>Ads</th><th>Spend</th><th>ROAS</th><th>CPA</th><th>CTR</th><th>Hook</th></tr></thead><tbody>${list.slice(0, 10).map(x => `<tr><td><b>${esc(x.key)}</b></td><td>${x.ads}</td><td>${ib(x.spend, mx, null, kmoney(x.spend, cur))}</td><td>${x2(x.roas)}</td><td class="${!goal || x.cpa == null ? '' : x.cpa <= goal ? 'good' : x.cpa <= goal * 1.3 ? 'warn' : 'bad'}">${money(x.cpa, cur)}</td><td>${pct(x.ctr, 2)}</td><td>${pct(x.hook, 0)}</td></tr>`).join('')}</tbody></table></div>`; };
     /* A card whose conclusion is its own line under the title (never squeezed beside it). */
-    const ccard = (title, say, body, cap, id) => `<section class="v2card v2cc"${id ? ` id="${id}"` : ''}><div class="v2h"><h3>${esc(title)}</h3>${cap ? `<span class="cap">${cap}</span>` : ''}</div>${say ? `<p class="v2concl">${say}</p>` : ''}${body}</section>`;
+    const ccard = (title, say, body, cap, id, what) => `<section class="v2card v2cc"${id ? ` id="${id}"` : ''}><div class="v2h"><h3>${esc(title)}</h3>${cap ? `<span class="cap">${cap}</span>` : ''}</div>${what ? `<p class="v2what">${what}</p>` : ''}${say ? `<p class="v2concl">${say}</p>` : ''}${body}</section>`;
     const basis = g.cpa ? `: ${K.jx}x the ${money(g.cpa, cur)} goal CPA.`
       : goal ? `: ${K.jx}x this account's ${money(goal, cur)} average CPA, because no goal CPA is set.`
       : `. That is a placeholder: no goal CPA is set and nothing has sold yet.`;
     const barLine = `<p class="v2sortbar">An ad is judged, and ranked on ROAS, CPA, hook, hold and CTR, once it has spent <b>${money(bar, cur)}</b>${basis} <button type="button" class="v2link" data-goals="1">${g.cpa ? 'Change it' : 'Set the goal CPA'} ›</button></p>`;
     const SORTS = SORT_DEF;
     if (!SORTS.some(s0 => s0[0] === CR_SORT)) CR_SORT = 'spend';
-    const base = () => { let L = CR_GROUP ? groupAds(ads) : ads; if (CR_TAG) L = L.filter(r => r.tags && r.tags[CR_TAG.k] === CR_TAG.v); return L; };
+    const base = () => { let L = CR_GROUP ? groupAds(ads) : ads; if (CR_TAG) L = L.filter(r => tagVal(r, CR_TAG.k) === CR_TAG.v); return L; };
     const sorted = () => sortAds(base(), CR_SORT, bar);
     CR_WIN = d.window || null; CR_PICK.clear(); CR_TAG = null;
     CR_MEDC = (() => { const cs = ads.filter(r => r.curve && r.curve[0] && r.spend >= bar).map(r => { const pk = Math.max(...r.curve.map(v => v || 0)) || 1; return r.curve.map(v => (v || 0) / pk); }); return cs.length >= 3 ? [0, 1, 2, 3, 4].map(i => cs.reduce((x, c) => x + c[i], 0) / cs.length) : null; })();
@@ -1647,8 +1715,8 @@
        gallery wrapper serves every card, so a repaint never re-wires 24+ cards. */
     const galItem = r => { const v = verdict(r); const wy = v === 'nogoal' ? 'No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.' : whyOf(r);
       return `<div class="g${CR_PICK.has(r.id) ? ' picked' : ''}" data-ad="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Open ${esc(r.name)}"><div class="th" data-thumb="${esc(r.id)}"${THUMBS.has(r.id) ? ` style="background-image:url('${THUMBS.get(r.id)}')"` : ''}><span class="v2play-s">${window.icon ? window.icon('play', { size: 16 }) : ''}</span><label class="v2pick"${tipAttr('Pick up to 4 to compare')}><input type="checkbox" data-pick="${esc(r.id)}"${CR_PICK.has(r.id) ? ' checked' : ''} aria-label="Pick ${esc(r.name)} to compare"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8.5l2.6 2.6L12 5.6"/></svg></label><span class="v2pill ${VL[v][1]}"${wy ? tipAttr(esc(wy)) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
-      ${r.n_ads > 1 || r.tags ? `<div class="v2tags">${r.n_ads > 1 ? `<span class="n"${tipAttr(`The same ${r.media_type === 'video' ? 'video' : 'image'} runs in ${r.n_ads} ads; their numbers are added up here.`)}>In ${r.n_ads} ads</span>` : ''}${r.tags ? [r.tags.format, r.tags.hook].filter(Boolean).map(t0 => `<span>${esc(t0)}</span>`).join('') : ''}</div>` : ''}
-      ${role(r) !== 'solo' || funnelRole(r) || valTag(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${valTag(r) ? `<span class="${valTag(r) === 'more' ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>${valTag(r) === 'more' ? 'Customers come back' : 'Customers don’t come back'}</span>` : ''}</div>` : ''}
+      ${r.n_ads > 1 || (r.tags && r.tags.hook) ? `<div class="v2tags">${r.n_ads > 1 ? `<span class="n"${tipAttr(`The same ${r.media_type === 'video' ? 'video' : 'image'} runs in ${r.n_ads} ads; their numbers are added up here.`)}>In ${r.n_ads} ads</span>` : ''}${r.tags && r.tags.hook ? `<span>${esc(r.tags.hook)}</span>` : ''}</div>` : ''}
+      ${role(r) !== 'solo' || funnelRole(r) || valTag(r) ? `<div class="v2roles">${role(r) !== 'solo' ? `<span${tipAttr(esc(whyOf(r)))}>${role(r) === 'anchor' ? 'Anchor' : 'Support'} · ${pct(r.set_share, 0)} of set</span>${setChip(r)}` : ''}${funnelRole(r) ? `<span class="${funnelRole(r)}"${tipAttr(FR[funnelRole(r)][1])}>${FR[funnelRole(r)][0]}</span>` : ''}${valTag(r) ? `<span class="${valTag(r) === 'more' ? 'val' : 'lowval'}"${tipAttr(esc(valNote(r)))}>${valTag(r) === 'more' ? 'Customers come back' : 'Customers don’t come back'}</span>` : ''}</div>` : ''}
       <div class="kv"><span>Spend</span><b>${kmoney(r.spend, cur)}</b><span>CPA</span><b class="${r.cpa == null ? (r.spend > 0 && goal && r.spend >= bar ? 'bad' : '') : !goal ? '' : r.cpa <= goal ? 'good' : 'bad'}">${r.cpa == null && r.spend > 0 ? 'no sales' : money(r.cpa, cur)}</b><span>ROAS</span><b>${x2(r.roas)}</b><span>Hook</span><b>${pct(r.hook, 0)}</b><span>CTR</span><b>${pct(r.ctr, 2)}</b><span>Purch.</span><b>${int(r.purchases)}</b>${r.ltv_n >= 5 ? `<span${tipAttr(`${r.ltv_n} customers this ad started (first click, first order 90+ days ago) spent ${money(r.ltv90, cur)} each in their first 90 days: ${x2(r.ltv_x)} their first order.`)}>90-day value</span><b class="${r.ltv_x >= 1.3 ? 'good' : ''}">${money(r.ltv90, cur)}</b>` : ''}</div>${r.angle ? `<span class="ang">${esc(r.angle)}</span>` : ''}</div></div>`; };
     /* PAGES OF 24 (2026-10-09, "it's super laggy"): the gallery draws 24 cards and appends the next 24 on "Show more"
        (appended, never a full redraw; adding cards while the reader scrolls was itself a jank source). Covers load
@@ -1662,8 +1730,8 @@
     const tagName = k => (TAG_DIMS.find(x => x[0] === k) || [, k])[1];
     const SORT_SAYS = { spend: 'Biggest spenders first.', purchases: 'Most purchases first, under the attribution switch.', roas: 'Highest return first. Only ads past the judging bar.', cpa: 'Cheapest purchase first. Only ads past the judging bar.', hook: 'Most people stopping in the first 3 seconds. Video ads past the bar.', hold: 'Most people watching on after the hook. Video ads past the bar.', ctr: 'Most link clicks per impression. Ads past the bar.', ltv: 'Customers who spend the most in 90 days, as a multiple of their first order.', newest: 'Most recently launched first.' };
     const tagged0 = ads.some(r => r.tags);
-    const tagOpts = () => { const seen = new Map(); for (const r of ads) for (const [k] of TAG_DIMS) { const v = r.tags && r.tags[k]; if (!v) continue; const key = `${k}::${v}`; seen.set(key, (seen.get(key) || 0) + 1); }
-      return [['', 'All ads', 'No tag filter.'], ...[...seen.entries()].sort((p, q) => q[1] - p[1]).slice(0, 40).map(([key, n]) => { const [k, v] = key.split('::'); return [key, `${tagName(k)}: ${v}`, `${n} ad${n === 1 ? '' : 's'} tagged this way by the AI.`]; })]; };
+    const tagOpts = () => { const seen = new Map(); for (const r of ads) for (const [k] of TAG_DIMS) { const v = tagVal(r, k); if (!v) continue; const key = `${k}::${v}`; seen.set(key, (seen.get(key) || 0) + 1); }
+      return [['', 'All ads', 'No tag filter.'], ...[...seen.entries()].sort((p, q) => q[1] - p[1]).slice(0, 40).map(([key, n]) => { const [k, v] = key.split('::'); return [key, `${tagName(k)}: ${v}`, k === 'media_type' ? `${n} ad${n === 1 ? '' : 's'} of this format, as Meta reports it.` : `${n} ad${n === 1 ? '' : 's'} tagged this way by the AI.`]; })]; };
     const toolsRow = () => `<div class="v2tools v2menus">
       ${PM().html('crSort', 'Sort by', SORTS.map(([k, l]) => [k, l, SORT_SAYS[k] || '']), CR_SORT)}
       ${PM().html('crShow', 'Show', [['0', 'Each ad', 'Every ad on its own card.'], ['1', 'One card per creative', 'Ads running the same video or image become one card, their numbers added up.']], CR_GROUP ? '1' : '0')}
@@ -1675,14 +1743,19 @@
        is a button: it filters the gallery and scrolls to it. */
     const acctSpend = ads.reduce((s0, r) => s0 + r.spend, 0), acctPur = ads.reduce((s0, r) => s0 + (r.purchases || 0), 0), acctRev = ads.reduce((s0, r) => s0 + (r.revenue || 0), 0);
     const acctCpa = acctPur ? acctSpend / acctPur : null, acctRoas = acctSpend ? acctRev / acctSpend : null;
+    /* WHICH INGREDIENTS WORK (2026-10-13): ONE format source. The Format group is Meta's media type (Video / Static /
+       Carousel) through `tagVal`, never the AI's format tag and never the ad name; the name-based "By format" and the
+       separate "By type" cards are gone, so the page has one place that says which format works. */
+    const INGR_TITLE = 'Which ingredients work';
+    const INGR_WHAT = 'Each creative is read once by the AI and tagged: the hook, who is on screen, the product, the offer and the words on the ad. Format comes from Meta (video, static or carousel). Each value is ranked on what the ads carrying it spent and sold; click one to see only those ads.';
     const tagsCard = (() => {
       const assets = new Set(ads.map(r => r.asset_key || r.id)), tagged = new Set(ads.filter(r => r.tags).map(r => r.asset_key || r.id));
       const cov = `${tagged.size} of ${assets.size} creatives tagged by the AI${tagged.size < assets.size ? '; the rest fill in within the hour' : ''}.`;
-      if (!tagged.size) return ccard('What is working, by tag', 'Tags are being added now. This fills in within the hour.', '', cov);
+      if (!tagged.size) return ccard(INGR_TITLE, 'Tags are being added now. This fills in within the hour.', '', cov, 'v2ingr', INGR_WHAT);
       const groups = [], all = [];
       for (const [k, label] of TAG_DIMS) {
         const by = {};
-        for (const r of ads) { const v = r.tags && r.tags[k]; if (!v) continue; const b0 = by[v] ||= { k, v, keys: new Set(), spend: 0, pur: 0, rev: 0 }; b0.keys.add(r.asset_key || r.id); b0.spend += r.spend; b0.pur += r.purchases || 0; b0.rev += r.revenue || 0; }
+        for (const r of ads) { const v = tagVal(r, k); if (!v) continue; const b0 = by[v] ||= { k, v, keys: new Set(), spend: 0, pur: 0, rev: 0 }; b0.keys.add(r.asset_key || r.id); b0.spend += r.spend; b0.pur += r.purchases || 0; b0.rev += r.revenue || 0; }
         const rows = Object.values(by).filter(b0 => b0.spend > 0).sort((p, q) => q.spend - p.spend);
         if (rows.length < 2) continue;
         const tot = rows.reduce((s0, b0) => s0 + b0.spend, 0);
@@ -1695,7 +1768,7 @@
         groups.push({ k, label, rows: rows.slice(0, 6), more: rows.length - 6, best, worst: worst && worst !== best ? worst : null });
         all.push(...judged);
       }
-      if (!groups.length) return ccard('What is working, by tag', 'Not enough tagged creatives with spend to compare yet.', '', cov);
+      if (!groups.length) return ccard(INGR_TITLE, 'Not enough tagged creatives with spend to compare yet.', '', cov, 'v2ingr', INGR_WHAT);
       const vs = (v, a, lower) => { if (v == null || !a) return ''; const dd = v / a - 1; if (Math.abs(dd) < 0.05) return '<span class="v2vs flat">about the same</span>'; const good = lower ? dd < 0 : dd > 0; return `<span class="v2vs ${good ? 'good' : 'bad'}">${Math.round(Math.abs(dd) * 100)}% ${lower ? (dd < 0 ? 'under' : 'over') : (dd > 0 ? 'above' : 'below')}</span>`; };
       const bestAll = all.filter(b0 => b0.pur).sort((p, q) => p.cpa - q.cpa)[0], worstAll = all.slice().sort((p, q) => (q.cpa ?? Infinity) - (p.cpa ?? Infinity))[0];
       const say = bestAll ? `Best: <button type="button" class="v2tagx good" data-tag="${esc(bestAll.k)}" data-tv="${esc(bestAll.v)}">${esc(bestAll.label)}: ${esc(bestAll.v)}</button> at ${money(bestAll.cpa, cur)} a purchase${acctCpa ? `, ${vs(bestAll.cpa, acctCpa, true).replace(/<[^>]+>/g, '')} the account's ${money(acctCpa, cur)}` : ''}.${worstAll && worstAll !== bestAll ? ` Worst: <button type="button" class="v2tagx bad" data-tag="${esc(worstAll.k)}" data-tv="${esc(worstAll.v)}">${esc(worstAll.label)}: ${esc(worstAll.v)}</button> at ${worstAll.cpa == null ? 'no purchases' : `${money(worstAll.cpa, cur)} a purchase`} on ${kmoney(worstAll.spend, cur)}.` : ''}` : `Nothing tagged has spent the ${money(bar, cur)} judging bar yet.`;
@@ -1705,7 +1778,7 @@
             <td><span class="v2share"><i style="width:${Math.max(2, b0.share * 100).toFixed(0)}%"></i></span><span class="n">${pct(b0.share, 0)}</span></td>
             <td><b>${b0.cpa == null ? 'no sales' : money(b0.cpa, cur)}</b>${b0.judged ? vs(b0.cpa, acctCpa, true) : ''}</td>
             <td>${x2(b0.roas)}${b0.judged ? vs(b0.roas, acctRoas, false) : ''}</td></tr>`; }).join('')}</tbody></table>${gr.more > 0 ? `<p class="v2hint">${gr.more} smaller value${gr.more === 1 ? '' : 's'} not shown.</p>` : ''}</div>`;
-      return ccard('What is working, by tag', say, `<div class="v2tgrid">${groups.map(blk).join('')}</div><p class="v2hint">Best and worst are judged on cost per purchase, among values that spent the ${money(bar, cur)} judging bar. Click any value to show only those ads.</p>`, cov);
+      return ccard(INGR_TITLE, say, `<div class="v2tgrid">${groups.map(blk).join('')}</div><p class="v2hint">Best and worst are judged on cost per purchase, among values that spent the ${money(bar, cur)} judging bar. Click any value to show only those ads.</p>`, cov, 'v2ingr', INGR_WHAT);
     })();
     const gallery = `<div id="v2tools">${toolsRow()}</div>${barLine}<div id="v2galw">${galleryInner()}</div>`;
     const counts = ads.reduce((s0, r) => { s0[verdict(r)] = (s0[verdict(r)] || 0) + 1; return s0; }, {});
@@ -1720,8 +1793,7 @@
       ${(() => { const L = ads.filter(r => r.ltv_n >= 5).sort((p, q) => (q.ltv_x || 0) - (p.ltv_x || 0)); if (L.length < 3) return card('Which ads bring customers who come back', '', '<p class="v2hint">Needs customers whose first order is at least 90 days old and traced to an ad. The order history is filling in; this card lights up as it does.</p>'); const mx = Math.max(...L.map(r => r.ltv90 || 0), 1);
         return card('Which ads bring customers who come back', `For each ad: the people whose first order it started, and what they spent in their first 90 days. A higher multiple means they came back and bought again, so the ad is worth more than its cost per purchase shows. ${esc(L[0].name)} is best: ${x2(L[0].ltv_x)} their first order.`, `<div class="v2tbl wide"><table><thead><tr><th>Ad</th><th>Customers started</th><th>First order</th><th>90-day value</th><th>Multiple</th><th>CPA now</th></tr></thead><tbody>${L.slice(0, 12).map(r => `<tr class="link" data-prev="${esc(r.id)}"><td><span class="nm" title="${esc(r.name)}">${esc(r.name)}</span></td><td>${int(r.ltv_n)}</td><td>${money(r.ltv_first, cur)}</td><td>${ib(r.ltv90, mx, '--c-email', money(r.ltv90, cur))}</td><td class="${r.ltv_x >= 1.3 ? 'good' : ''}">${x2(r.ltv_x)}</td><td>${money(r.cpa, cur)}</td></tr>`).join('')}</tbody></table></div>`, 'Triple Whale first click · Shopify orders through Triple Whale'); })()}
       ${card('By angle', 'The argument each ad makes, from the test number at the start of its name.', roll(d.by_angle || [], 'Angle'))}
-      <div class="v2two">${card('By format', 'The tag after the last | in the ad name.', roll(d.by_format || [], 'Format tag'))}${card('By type', '', roll(d.by_type || [], 'Type'))}</div>
-      ${foot('Format comes from the tag after the last | in the ad name; angle from the test number at the start of the name, matched to the test library. Delivery numbers are Meta’s; purchases follow the attribution switch.')}`;
+      ${foot('Format is what Meta reports for the creative (video, static or carousel), shown in Which ingredients work; angle comes from the test number at the start of the name, matched to the test library. Delivery numbers are Meta’s; purchases follow the attribution switch.')}`;
     $('#main').innerHTML = shell('adcreative', title, body);
     const root = $('#main'); wireGo(root);
     wireScatter('v2quad', qPts, r => `<b>${esc(r.name)}</b><br>${kmoney(r.spend, cur)} spend · ${int(r.purchases)} purchases · CPA ${r.cpa == null ? 'no sales' : money(r.cpa, cur)} · ROAS ${x2(r.roas)}<br>Call: ${esc(VL[verdict(r)][0])}`);

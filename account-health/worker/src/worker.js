@@ -3988,6 +3988,9 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
       // 2026-10-09: covers moved to R2 (creative.js). An old base64 or Meta-link row is redone once.
       if (v && env.MEDIA && v.thumb && !/^https:\/\/mobius/.test(v.thumb)) continue;
       if (v && env.MEDIA && v.thumb && !v.asset_key) continue;
+      // 2026-10-13: a row saved before `link` existed is redone ONLY when one ad is asked for (the ad sheet opening),
+      // never on a gallery batch, so the landing page line fills in one creative at a time at no cost to the cards.
+      if (v && v.link === undefined && want.length === 1) continue;
       if (v) { out[r.ad_id] = v; fresh.add(r.ad_id); }
     }
     missing = want.filter(id => !fresh.has(id));
@@ -4046,6 +4049,9 @@ async function adThumbnails(env, adIds, { maxBytes = 190_000, budget = 1_100_000
         headline: vd?.title || ld?.name || afs.titles?.[0]?.text || c?.title || null,
         description: ld?.description || afs.descriptions?.[0]?.text || null,
         cta: vd?.call_to_action?.type || ld?.call_to_action?.type || afs.call_to_action_types?.[0] || null,
+        // Where the ad sends people (2026-10-13, the Landing page line in the ad sheet): link_data.link on a static,
+        // the call to action's link on a video, link_urls on an Advantage+ creative. null when Meta has none.
+        link: ld?.link || vd?.call_to_action?.value?.link || afs.link_urls?.[0]?.website_url || c?.object_story_spec?.template_data?.link || null,
         status: m.effective_status || null,
         created: m.created_time ? String(m.created_time).slice(0, 10) : null,
         campaign: m.campaign?.name || null,
