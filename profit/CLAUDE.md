@@ -2925,3 +2925,11 @@ the Monday review off, one agency channel for the daily drafts, the short client
   a client EDITS its own plan (the brand edition, 2026-10-10), so `ro = false` stays and only notes, alerts and the
   stock check are the team's. The Season item is three pages: `warplan` (The Plan), `warlive` (Live), `season`
   (Offers and dates); `war` still routes. index.html sets `window.WAR_MODE` in `DR()` from the page id.
+
+## 2026-10-13: Make iterations, New look / New ideas make NEW pictures
+- Cole: iterations of a winning ad came back as the same ad with the words moved. Cause: `StudioTab.iterate` put the
+  running ad on every line as `line.photo` (a photo line is kept as shot), whatever was being tested. Now only words
+  tests (headlines, hooks, offer) keep the picture. For visuals / concepts / format the lines get no photo; the ad rides
+  as `setup.from_ad.image` with `fresh: true`, and `specOf` sends it as `inspo` with `ref_use: 'own'`. The worker's
+  `adPrompt` reads 'own' as "our own earlier ad: keep the product exactly, new scene, colours, camera, layout and type".
+  The iterate step says which tests keep the picture (`ITER_TESTS[3]`, `keepsPic`). Batches made before keep their photos.

@@ -217,7 +217,12 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
   const lines = textLines(spec);
   const names = (spec.products || []).map(p => p.title).filter(Boolean);
   const many = names.length > 1;
-  const which = counts.prod && counts.inspo
+  /* ref_use 'own' = the reference is OUR OWN running ad (Make iterations, New look / New ideas): its product is ours
+     and must be kept exactly, everything else must be new, or the model hands back the same ad with the words moved. */
+  const own = spec.ref_use === 'own' && counts.inspo;
+  const which = own
+    ? `${counts.prod ? `The first ${counts.prod} attached image${counts.prod > 1 ? 's are' : ' is'} the real product${many ? 's' : ''}. ` : ''}The last attached image is OUR OWN earlier ad for this brand. It is a reference for the product only, never a layout to copy.`
+    : counts.prod && counts.inspo
     ? `The first ${counts.prod} attached image${counts.prod > 1 ? 's are' : ' is'} the real product${many ? 's' : ''}. The last ${counts.inspo} ${counts.inspo > 1 ? 'are' : 'is'} INSPIRATION ONLY.`
     : counts.inspo ? `All ${counts.inspo} attached image${counts.inspo > 1 ? 's are' : ' is'} INSPIRATION ONLY.` : '';
   return [
@@ -228,8 +233,10 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     spec.dna && !spec.exact ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
     spec.exact ? `The product is ${names.map(t => `"${t}"`).join(', ') || 'the one already in the image'}.` : names.length
       ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colours, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
+      : own ? 'Take the product from our earlier ad and reproduce it exactly: the same shape, colours, materials, logos and any words printed on it.'
       : 'There is no product photo: build the image from the description and the inspiration.',
-    counts.inspo ? (spec.ref_use === 'copy'
+    own ? 'THIS MUST BE A DIFFERENT AD, NOT A RE-EDIT of our earlier one. Use a new scene and background, a new colour palette, a new camera angle and product placement, a new layout and a new type treatment. Do not reuse its background, props, splashes, colours or composition. Someone scrolling should not mistake it for the earlier ad.'
+    : counts.inspo ? (spec.ref_use === 'copy'
       ? 'Recreate the inspiration CLOSELY: its layout, composition, camera angle, typography treatment and colour grade, with our product and our words in place of theirs. Never copy its brand, products, logos, people or words.'
       : spec.ref_use === 'vibe'
         ? 'Use the inspiration only as a loose mood reference (colour, light, energy). Make your own layout. Never copy its brand, products, logos, people or words.'
@@ -416,7 +423,7 @@ function cleanSpec(s = {}) {
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
-    ref_use: ['copy', 'vibe'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact,
+    ref_use: ['copy', 'vibe', 'own'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact,
     cut: s.cut && /^https?:\/\//.test(s.cut.url || '') ? { url: clip(s.cut.url, 1000), x: +s.cut.x || 0, y: +s.cut.y || 0, w: +s.cut.w || 0, h: +s.cut.h || 0 } : null,
   };
 }

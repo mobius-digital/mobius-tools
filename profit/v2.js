@@ -706,7 +706,10 @@
      changeable), an optional "What should change?" box, and one button. Studio's brief reader (account-health
      studio-ai.js with the brand brain, the same reader the Slack ideas pipeline uses) writes the batch from that, the
      ad's own image becomes the base of every line, and Studio opens on the batch, planned, with one Make button. */
-  const ITER_TESTS = [['headlines', 'New words', 'Same picture, three new headlines'], ['hooks', 'New opening', 'The first thing people read or hear'], ['offer', 'The offer', 'Same ad, the offer framed three ways'], ['visuals', 'New look', 'Same words, three new looks'], ['concepts', 'New ideas', 'Three different takes on the angle']];
+  /* The fourth field: does the original picture stay? Words tests keep it (only the words change); look and idea
+     tests make three new pictures with the same product. */
+  const ITER_TESTS = [['headlines', 'New words', 'Same picture, three new headlines', true], ['hooks', 'New opening', 'Same picture, the first thing people read or hear', true], ['offer', 'The offer', 'Same picture, the offer framed three ways', true], ['visuals', 'New look', 'Same product and message, three new pictures', false], ['concepts', 'New ideas', 'Three different ads on the angle, all new pictures', false]];
+  const keepsPic = t => (ITER_TESTS.find(z => z[0] === t) || [])[3] !== false;
   function weakOf(a, med) {
     if (!med) return null;
     const steps = [['hook', 'Hook', a.hook], ['hold', 'Hold', a.hold], ['ctr', 'Click', a.ctr], ['cvr', 'Purchase', cvrOf(a)]].filter(([k, , v]) => v != null && med[k]);
@@ -726,7 +729,7 @@
     const body = panel(a.name || 'Ad', `<div class="v2it">
       <p class="v2say lead">Locus writes <b>three new versions</b> of this ad with what it learned below and the ${esc(brand)} brand brain, then opens Studio on them with everything filled in. You check it and press <b>Make</b>.</p>
       <section class="v2it-c"><h4>What Locus learned about this ad</h4>
-        <div class="v2it-g"><div class="v2it-th" data-thumb="${esc(a.id)}"${th}><span>${video ? 'A frame of the video is the base' : 'This image is the base'}</span></div>
+        <div class="v2it-g"><div class="v2it-th" data-thumb="${esc(a.id)}"${th}><span id="itBase">${video ? 'A frame of the video is the base' : 'This image is the base'}</span></div>
         <div><dl class="v2it-kv">
           ${cx && cx.call ? `<dt>The call</dt><dd><span class="v2pill ${cx.call[1]}">${esc(cx.call[0])}</span>${cx.why ? ` ${esc(cx.why)}` : ''}</dd>` : ''}
           <dt>Results</dt><dd>${kmoney(a.spend, cur)} spent, ${a.cpa == null ? 'no purchases' : `${money(a.cpa, cur)} a purchase`}${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, ROAS ${x2(a.roas)}${a.hook != null ? `, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}` : ''}, CTR ${pct(a.ctr, 2)}.</dd>
@@ -740,7 +743,9 @@
       <div class="v2it-go"><button type="button" class="ds-btn primary" id="itGo">Write the three and open Studio</button><span class="v2hint" id="itMsg">About 10 cents to write. Nothing is spent on images until you press Make in Studio (about $1 for three).</span></div>
     </div>`);
     const back = document.querySelector('#v2panel [data-back]'); if (back) back.onclick = () => previewAd(a, cur, g, cx);
-    body.querySelectorAll('.v2it-t [data-t]').forEach(b => b.onclick = () => { test = b.dataset.t; body.querySelectorAll('.v2it-t [data-t]').forEach(z => { z.classList.toggle('on', z === b); z.setAttribute('aria-checked', String(z === b)); }); });
+    const baseLbl = () => { const el = body.querySelector('#itBase'); if (el) el.textContent = keepsPic(test) ? (video ? 'A frame of the video is the base' : 'This image is the base: only the words change') : 'Product from here, three new pictures'; };
+    body.querySelectorAll('.v2it-t [data-t]').forEach(b => b.onclick = () => { test = b.dataset.t; body.querySelectorAll('.v2it-t [data-t]').forEach(z => { z.classList.toggle('on', z === b); z.setAttribute('aria-checked', String(z === b)); }); baseLbl(); });
+    baseLbl();
     loadThumbs(body, [a.id]);
     const go = body.querySelector('#itGo'), msg = body.querySelector('#itMsg');
     go.onclick = async () => {
@@ -748,7 +753,9 @@
       const tl = (ITER_TESTS.find(t0 => t0[0] === test) || ITER_TESTS[0]);
       const lines = [
         `ITERATIONS OF A RUNNING AD for ${brand}. Lay out ONE batch with exactly 3 numbered lines; each line is one new ad.`,
-        `The original ad: "${a.name}" (${video ? 'video' : a.media_type === 'carousel' ? 'carousel' : 'static image'}${a.age != null ? `, running ${a.age} days` : ''}). Its image is the base photo of every line: each new ad keeps that picture and replaces the words on it, so write each line as the words and the one change for that ad.`,
+        `The original ad: "${a.name}" (${video ? 'video' : a.media_type === 'carousel' ? 'carousel' : 'static image'}${a.age != null ? `, running ${a.age} days` : ''}). ${keepsPic(test)
+          ? 'Its image is the base photo of every line: each new ad keeps that picture and replaces the words on it, so write each line as the words and the one change for that ad.'
+          : 'Each new ad keeps the same PRODUCT but is a completely new picture: a different scene, setting, colours, camera angle, layout and type. Never "the same ad with the text moved". Write each line as its words plus a one-sentence description of its own scene, and make the three scenes clearly different from each other and from the original.'}`,
         `Results in ${H.rangeLabel ? H.rangeLabel() : 'the window'}: spend ${kmoney(a.spend, cur)}, ${a.purchases || 0} purchases, ${a.cpa == null ? 'no purchases yet' : `cost per purchase ${money(a.cpa, cur)}`}${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, ROAS ${x2(a.roas)}, CTR ${pct(a.ctr, 2)}${a.hook != null ? `, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}` : ''}.`,
         cx && cx.call ? `Locus's call on it: ${cx.call[0]}.${cx.why ? ` ${cx.why}` : ''}` : '',
         weak ? `Weakest step of its funnel against the brand's median ad: ${weak.l} (${Math.round((1 - weak.r) * 100)}% under). ${weak.fix}` : '',

@@ -676,10 +676,11 @@ function batchView(b) {
   if (su.from_ad && !ads.length) {
     const fa = su.from_ad, busy = S.busy === 'plan';
     const linesHtml = (plan?.ads?.length ? plan.ads.map(a => [a.headline, a.subline].filter(Boolean).join(' · ') || a.note || '') : lines.map(l => l.text)).map((t, i) => `<li><span class="k">${i + 1}</span><span>${esc(t || '')}</span></li>`).join('');
-    const base = lines.find(l => l.photo)?.photo;
+    const base = lines.find(l => l.photo)?.photo, ref = !base && fa.fresh ? fa.image : '';
     const testName = (TESTING.find(t => t[0] === br.testing) || [, br.testing || ''])[1];
     const go = V2card('Ready to make', `Made from the ad <b>${esc(fa.name || '')}</b>. Locus read what it learned about the ad and the brand, and wrote this batch.`, `
-      <div class="st-fa">${base ? `<button class="st-fa-img" data-zu="${esc(base)}" title="The original ad: the base of every line"><img src="${esc(base)}" alt=""><span>The base</span></button>` : ''}
+      <div class="st-fa">${base ? `<button class="st-fa-img" data-zu="${esc(base)}" title="The original ad: the base of every line. Only the words change."><img src="${esc(base)}" alt=""><span>The base</span></button>`
+        : ref ? `<button class="st-fa-img" data-zu="${esc(ref)}" title="The original ad: Studio keeps the product from it and makes a new scene, layout and type for every line."><img src="${esc(ref)}" alt=""><span>Product from here, new look</span></button>` : ''}
         <div class="st-fa-b"><p class="st-lbl">The angle</p><p class="st-fa-a">${esc(br.angle || '')}</p>${br.why ? `<p class="hint" style="margin:4px 0 0">${esc(br.why)}</p>` : ''}
           <p class="st-lbl" style="margin-top:14px">Testing: ${esc(testName)}${fa.change ? ` · you asked: “${esc(fa.change)}”` : ''}</p>
           <ol class="st-fa-l">${linesHtml}</ol></div></div>
@@ -1269,14 +1270,16 @@ function specOf(b, a) {
   const su = b.setup, ref = a.ref_url && a.ref_use !== 'none' ? [a.ref_url] : [];
   const prods = lineProducts(b, a), own = prods.length < (su.products || []).length ? new Set(prods.flatMap(p => p.all || [])) : null;
   const images = own && su.images.some(u => own.has(u)) ? su.images.filter(u => own.has(u)) : su.images.slice();
-  return { products: prods.map(p => ({ title: p.title, handle: p.handle })), images, inspo: ref, ref_use: a.ref_use, base: a.photo_url || '',
+  /* Make iterations, New look / New ideas: the running ad is the reference for the product, never the layout. */
+  const fa = su.from_ad?.fresh && su.from_ad.image && !a.photo_url ? su.from_ad.image : '';
+  return { products: prods.map(p => ({ title: p.title, handle: p.handle })), images, inspo: fa ? [fa] : ref, ref_use: fa ? 'own' : a.ref_use, base: a.photo_url || '',
     headline: a.headline, subline: a.subline, callouts: a.callouts || [], cta: a.cta, art: a.art || '', look: a.look, style: a.style || 'auto', note: a.note,
     who: b.brief.why || '', dna: prods.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
 }
 async function makeBatch() {
   const b = S.cur, plan = b.plan;
   if (!plan?.ads?.length) return;
-  if (!b.setup.images.length && !plan.ads.some(a => a.ref_url || a.photo_url)) { S.err = 'Choose the product first (under the brief).'; return paint(); }
+  if (!b.setup.images.length && !(b.setup.from_ad?.fresh && b.setup.from_ad.image) && !plan.ads.some(a => a.ref_url || a.photo_url)) { S.err = 'Choose the product first (under the brief).'; return paint(); }
   S.err = '';
   const total = plan.ads.length; let done = 0, failed = 0;
   const tick = () => { S.making = `Made ${done} of ${total}${failed ? `, ${failed} failed` : ''}. Keep this page open.`; paint(); };
@@ -1652,11 +1655,15 @@ async function iterate(o) {
   say('Bringing the ad’s image into Studio');
   const base = await img;
   const n = Math.max(1, Math.min(6, o.n || 3));
-  const lines = bt.lines.slice(0, n).map(l => ({ text: l.text || '', inspo: [], photo: base }));
+  /* Words tests (headlines, hooks, offer) keep the ad's own picture as the photo of every line. Look and idea tests
+     must NOT: a photo line is kept as shot, so all three came back as the same ad with the words moved. There the
+     ad rides as setup.from_ad.image and specOf sends it as ref_use 'own' (keep the product, change everything else). */
+  const fresh = ['visuals', 'concepts', 'format'].includes(o.testing);
+  const lines = bt.lines.slice(0, n).map(l => ({ text: l.text || '', inspo: [], photo: fresh ? '' : base }));
   const name = `Iterations: ${String(o.name || 'ad').replace(/\s+/g, ' ').slice(0, 60)}`;
   const saved = (await post('/api/studio/batch/save', { batch: { name, num: '', br_batch_id: null,
     brief: { angle: bt.angle || '', why: bt.why || '', concept: bt.concept || '', post_copy: bt.post_copy || '', testing: o.testing || bt.testing || 'headlines', lines },
-    setup: { products: [], images: [], swipe: [], from_ad: { id: o.ad, name: o.name || '', change: o.change || '', at: new Date().toISOString() } }, status: 'draft' } })).batch;
+    setup: { products: [], images: [], swipe: [], from_ad: { id: o.ad, name: o.name || '', change: o.change || '', at: new Date().toISOString(), image: base, fresh } }, status: 'draft' } })).batch;
   S.openId = saved.id; S.autoPlan = saved.id; S.lastAct = S.act;
   return saved;
 }
