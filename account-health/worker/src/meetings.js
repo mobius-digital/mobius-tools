@@ -112,7 +112,7 @@ const SCHEMA = obj({
   brands: arr(obj({
     brand_id: S,
     decisions: arr(S),
-    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] } })),
+    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] }, quote: S, at: S })),
     this_week: arr(S),
     need_from_client: arr(S),
   })),
@@ -145,6 +145,7 @@ WHAT TO WRITE
   client_owes = something the client has to give or decide (photos, an offer, an approval).
 - this_week: 2 to 4 lines the client reads in their weekly report under "This week". Say what we are doing and why, in the client's words. Never a team member's name, never a cost, never another brand, never "the AI".
 - need_from_client: what we are waiting on from them, one line each, polite and specific. Empty when nothing.
+- For every item, quote: the words that created it, VERBATIM from the transcript, at most 25 words; at: its [m:ss] mark (just m:ss). They let the reviewer check an item without rereading the call.
 - Do not invent. If the call never touched a brand, leave it out. Dedupe: one item per commitment, even if it was said three times.`;
 }
 
@@ -167,7 +168,7 @@ async function extract(env, d, m, text) {
   const ids = new Set(brands.map(b => b.act_id));
   out.brands = (out.brands || []).filter(b => b.brand_id === '' || ids.has(b.brand_id)).map(b => ({
     brand_id: b.brand_id, decisions: (b.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team' })).filter(i => i.text),
+    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', quote: clean(i.quote, 240), at: /^\d{1,3}:\d{2}$/.test(i.at || '') ? i.at : '' })).filter(i => i.text),
     this_week: (b.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     need_from_client: (b.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
   }));

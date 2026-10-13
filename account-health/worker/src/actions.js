@@ -272,7 +272,11 @@ export async function handleActions(request, env, url, path, json, d) {
       const status = url.searchParams.get('status') || 'open';
       const items = await listActions(env, { act: act === '' ? '' : act || 'all', status: ['open', 'done', 'all'].includes(status) ? status : 'open' });
       const brands = await d.listBrands(env);
-      return json({ items, brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), team: ROSTER.map(r => r.name), remind: (await getSetting(env, 'actionRemind')) !== 'off' });
+      /* What the clients owe us (Requests asks): open ones, and ones done in the last 7 days, for "Waiting on the client". */
+      const since = new Date(Date.now() - 7 * 864e5).toISOString();
+      const waiting = status === 'open' ? (((await env.DB.prepare(`SELECT id, act_id, title, body, status, created_at, decided_at, updated_at FROM p_request WHERE kind = 'ask' AND (status = 'open' OR updated_at >= ?1) ORDER BY created_at`).bind(since).all().catch(() => ({ results: [] }))).results) || [])
+        .map(r => ({ id: r.id, act_id: r.act_id, title: r.title, status: r.status, created_at: r.created_at, done_at: r.status !== 'open' ? (r.decided_at || r.updated_at) : null, due: (String(r.body || '').match(/Needed by (\d{4}-\d{2}-\d{2})/) || [])[1] || '' })) : [];
+      return json({ items, waiting, brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), team: ROSTER.map(r => r.name), remind: (await getSetting(env, 'actionRemind')) !== 'off' });
     }
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
     const body = await request.json().catch(() => ({}));
