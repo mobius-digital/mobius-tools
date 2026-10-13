@@ -100,8 +100,8 @@
   function itemHTML(it, showBrand) {
     ITEMS.set(it.id, it);
     const [sl, sc] = STATUS[it.status] || [it.status, ''];
-    const kindL = it.kind === 'approval' ? `Approval: ${WHAT[it.what] || 'item'}` : 'Request';
-    const waitingOnMe = isClient() ? (it.kind === 'approval' && it.status === 'open') : ((it.kind === 'request' && it.status === 'open') || (it.kind === 'approval' && it.status === 'changes'));
+    const kindL = it.kind === 'approval' ? `Approval: ${WHAT[it.what] || 'item'}` : it.kind === 'ask' ? (isClient() ? 'We need this from you' : 'We need this from the client') : 'Request';
+    const waitingOnMe = isClient() ? ((it.kind === 'approval' || it.kind === 'ask') && it.status === 'open') : ((it.kind === 'request' && it.status === 'open') || (it.kind === 'approval' && it.status === 'changes'));
     let prev = '';
     if (it.what === 'studio') prev = it.ads && it.ads.length
       ? `<div class="rq-ads">${it.ads.map(a => `<figure><img loading="lazy" src="${esc(imgUrl(a))}" alt="${esc(a.headline || 'Ad')}" data-zoom="${esc(imgUrl(a))}">${a.headline || a.approved ? `<figcaption>${a.approved ? '<span class="v2pill good">Approved</span> ' : ''}${esc(a.headline || '')}</figcaption>` : ''}</figure>`).join('')}</div>`
@@ -116,6 +116,7 @@
       acts.push(`<button class="btn" data-dec="changes" data-id="${esc(it.id)}">Ask for changes</button>`);
       if (it.status === 'approved') acts.push(`<span class="hint">You approved this ${esc(ago(it.decided_at))}.</span>`);
     }
+    if (isClient() && it.kind === 'ask' && it.status === 'open') acts.push(`<button class="btn primary" data-done="1" data-id="${esc(it.id)}">Done, sent it</button>`);
     if (!isClient()) acts.push(it.status === 'done' ? `<button class="btn quiet" data-done="0" data-id="${esc(it.id)}">Open it again</button>` : `<button class="btn" data-done="1" data-id="${esc(it.id)}">Mark done</button>`);
     if (!isClient() && it.kind === 'approval' && it.status === 'approved') acts.push(`<span class="hint">${esc(it.decided_by || 'The client')} approved it ${esc(ago(it.decided_at))}.</span>`);
     return `<div class="rq-item${waitingOnMe ? ' key' : ''}" data-item="${esc(it.id)}">
@@ -153,12 +154,12 @@
     const open = items.filter(i => i.status !== 'done'), done = items.filter(i => i.status === 'done');
     let secs;
     if (isClient()) {
-      const forYou = open.filter(i => i.kind === 'approval' && i.status === 'open');
+      const forYou = open.filter(i => (i.kind === 'approval' || i.kind === 'ask') && i.status === 'open');
       const rest = open.filter(i => !forYou.includes(i));
       secs = [[`Waiting for you${forYou.length ? ` (${forYou.length})` : ''}`, forYou, 'Nothing to approve right now.'], ['Your requests and earlier approvals', rest, 'Nothing open. Ask the team for anything with the button above.']];
     } else {
       const us = open.filter(i => (i.kind === 'request' && i.status === 'open') || (i.kind === 'approval' && i.status === 'changes'));
-      const them = open.filter(i => i.kind === 'approval' && i.status === 'open');
+      const them = open.filter(i => (i.kind === 'approval' || i.kind === 'ask') && i.status === 'open');
       const ok = open.filter(i => !us.includes(i) && !them.includes(i));
       secs = [[`Waiting for us${us.length ? ` (${us.length})` : ''}`, us, 'Nothing waiting for the team.'], [`Waiting for the client${them.length ? ` (${them.length})` : ''}`, them, 'Nothing sent for approval right now.'], ['Approved, not closed yet', ok, null]];
     }

@@ -1717,3 +1717,30 @@ Cole moved the Monday call to 8am Central and reset the team's week (audit and b
   The stored row always keeps the full text. Locus: the same settings card, "What the client gets each day".
 - NOT tested live: the bot's self-join (first real post is the next 6am tick; the fallback covers a failure) and the
   short send (no brand with a client channel has a client login yet; Lucky has logins and no client channel).
+
+## 2026-10-13: MEETING NOTES (`src/meetings.js`). Fireflies transcript -> per-brand action items -> Asana, the weekly report, Requests, Slack.
+
+Cole, 2026-10-12: a note taker on every call, Locus writes the action items, the team's tasks go one way and the client
+hears something else. Page: Locus Reports > Meeting notes (`profit/meetings.js`, team only: `AGENCY_TABS`).
+- **In:** the PUBLIC `POST /fireflies/webhook` ({meetingId, eventType}; `x-hub-signature` HMAC checked only when
+  `FIREFLIES_WEBHOOK_SECRET` is set; the URL goes in Fireflies > Settings > Developer settings) and the hourly
+  `meetingsTick` (GraphQL `transcripts(fromDate)` from `settings.meetingsSince`, first run two days back, two reads a
+  tick, cursor moves only on a clean tick). Both call `ingest`: `transcript(id)` with sentences, thinned evenly over
+  140k chars, stored in `p_meeting` (created on first use), then ONE Sonnet 5.5 call (`SCHEMA`: kind, summary, per
+  brand decisions / items {text, owner, due, kind team|client|client_owes} / this_week / need_from_client) with the
+  brand list, the team's first names and the meeting date (relative days resolved in the prompt). About 5 cents an
+  hour of call. Status new -> extracted -> confirmed | skipped | error. The Strategist channel gets one line with an
+  Open in Locus button. Nothing is written anywhere by the read.
+- **Confirm** (`POST /api/meetings/confirm`, the edited notes from the page): team items -> Asana tasks in the brand
+  project's "Action items" section (made if missing; owner by roster email then name; agency-wide items go to
+  `settings.agencyAsanaProject` when set, else Slack only); this_week / need_from_client -> `reports.data_json
+  .this_week` / `need_from_you` on the brand's open weekly draft (the report page draws a "This week" card, `sendReport`
+  adds both lists to the client's Slack send; no open draft = a warning, the Slack note still carries it);
+  client_owes -> `p_request` kind `ask` (requests.js `createAsk`; the client sees it under "Waiting for you" and may
+  mark it done, the team is told in the internal channel); one Slack note per brand to its INTERNAL channel, agency
+  items to strategistChannel. Never a client channel. `openItems` reads every brand's "Action items" section (10 min
+  cache, `settings.meetingsOpen`) for the top of the page.
+- Routes (admin, refused for a client scope): `GET /api/meetings[?id=]`, `POST /api/meetings/confirm | skip | ingest
+  {id} | poll`. routes.js rebuilt. Secret `FIREFLIES_API_KEY` set by Cole 2026-10-13.
+- NOT tested live at build time: the Fireflies GraphQL field names (`meeting_attendees`, `sentences.start_time`, the
+  `date` ms timestamp) and the first real extraction; the hourly tick's first run is the test (see `lastHourly.meetings`).

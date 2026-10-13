@@ -12,7 +12,8 @@ import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
-import { handleRequests } from './requests.js';
+import { handleRequests, createAsk } from './requests.js';
+import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
 /**
@@ -47,7 +48,7 @@ import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
-import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch } from './asana-brand.js';
+import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll } from './asana-brand.js';
 import { ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
@@ -4880,7 +4881,11 @@ async function sendReport(env, acct, period, start) {
     ? `Hey Team :wave: Here's your Weekly Report covering ${prettyDate(start)} → ${prettyDate(row.period_end)} →`
     : `Hey Team :wave: Here's your ${MONTH_OF(monthOf(start))} report →`;
   // Client-facing, so it posts as the person, not the app.
-  await slackPost(env, channel, `${opener}\n${reportHeadline(data)}\n\n<${url}|Open the full report>`,
+  /* "This week" and "What we need from you" come from the confirmed Monday call notes (meetings.js), when the
+     call happened before the send. The archive page shows the same two lists. */
+  const wk = Array.isArray(data.this_week) && data.this_week.length ? `\n\n*This week*\n${data.this_week.map(x => `• ${x}`).join('\n')}` : '';
+  const need = Array.isArray(data.need_from_you) && data.need_from_you.length ? `\n\n*What we need from you*\n${data.need_from_you.map(x => `• ${x}`).join('\n')}` : '';
+  await slackPost(env, channel, `${opener}\n${reportHeadline(data)}${wk}${need}\n\n<${url}|Open the full report>`,
     null, { asUser: true });
   await env.DB.prepare(
     `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5
@@ -6799,6 +6804,16 @@ function smokeDeps() {
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 /* morning.js: the numbers as the owner over the PROFIT binding, filtered per person with brandsFor. */
 function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningPeople }; }
+/* meetings.js: Fireflies in, Asana / the weekly report / Requests / Slack out. */
+function meetingDeps() {
+  return {
+    xfetch, slackPost, isAdmin, sessionEmail, clientScope, asana, asanaAll,
+    canAfford: n => subCanAfford(n),
+    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
+    createAsk: (env, act, title, text, who) => createAsk(env, { slackPost }, act, title, text, who),
+    slackSyncReport: async (env, act, start) => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, 'weekly', start); },
+  };
+}
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7196,6 +7211,8 @@ const AH_APP = {
         ran.moved = await movedTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The morning line as a Slack DM to each person who switched it on (morning.js, 2026-10-11). */
         ran.morning = await morningTick(env, morningDeps()).catch(e => ({ error: e.message }));
+        /* Fireflies transcripts the webhook did not bring: read, extract, tell the Strategist channel (meetings.js). */
+        ran.meetings = await meetingsTick(env, meetingDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -7265,6 +7282,8 @@ const AH_APP = {
     if (path === '/calendly/webhook' && request.method === 'POST') return handleCalendly(request, env, onCallBooked);
     /* Stripe: the first retainer invoice was paid (signed with the endpoint secret, newclient.js). */
     if (path === '/stripe/webhook' && request.method === 'POST') return handleStripeWebhook(request, env);
+    /* Fireflies: a call's transcript is ready (meetings.js; signed when FIREFLIES_WEBHOOK_SECRET is set). */
+    if (path === '/fireflies/webhook' && request.method === 'POST') return handleFirefliesHook(request, env, ctx, meetingDeps(), json);
     if (path === '/slack/actions' && request.method === 'POST') {
       await ensureSlackColumns(env).catch(() => {});
       return handleSlackInteract(request, env, ctx);
@@ -7433,6 +7452,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Client requests and approvals (requests.js, 2026-10-10) ---- */
     if (path === '/api/requests' || path.startsWith('/api/requests/')) {
       const r = await handleRequests(request, env, url, path, json, { isAdmin, sessionEmail, slackPost });
+      if (r) return r;
+    }
+    /* ---- Meeting notes: Fireflies transcripts into action items (meetings.js, 2026-10-13). Team only. ---- */
+    if (path === '/api/meetings' || path.startsWith('/api/meetings/')) {
+      const r = await handleMeetings(request, env, url, path, json, meetingDeps());
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {

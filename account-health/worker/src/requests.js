@@ -116,11 +116,21 @@ export async function listRequests(env, act) {
     decided_by: r.decided_by || null, decided_at: r.decided_at || null, decision_note: r.decision_note || '', created_at: r.created_at, updated_at: r.updated_at,
     thread: (msgs.get(r.id) || []).slice(-50), ...(await previewOf(env, r)),
   });
-  /* "Waiting for you" (the client): approvals still open. "Waiting for us" (the team): client requests not done
-     and approvals the client answered with changes. */
-  const waiting_client = items.filter(i => i.kind === 'approval' && i.status === 'open').length;
+  /* "Waiting for you" (the client): approvals still open, and asks (what we need from them, meetings.js 2026-10-13).
+     "Waiting for us" (the team): client requests not done and approvals the client answered with changes. */
+  const waiting_client = items.filter(i => (i.kind === 'approval' || i.kind === 'ask') && i.status === 'open').length;
   const waiting_team = items.filter(i => (i.kind === 'request' && i.status === 'open') || (i.kind === 'approval' && i.status === 'changes')).length;
   return { items, waiting_client, waiting_team };
+}
+
+/** An ASK: something we need from the client (photos, an offer, a decision), agreed on a call and confirmed from
+ *  the meeting notes. The client sees it under "Waiting for you" and marks it done; the team can close it too. */
+export async function createAsk(env, deps, act, title, text, who) {
+  await ensureRequests(env);
+  const id = rid(), at = nowIso();
+  await env.DB.prepare(`INSERT INTO p_request (id, act_id, kind, what, ref, title, body, link, status, by_email, by_name, by_role, created_at, updated_at) VALUES (?1, ?2, 'ask', NULL, NULL, ?3, ?4, NULL, 'open', NULL, ?5, 'team', ?6, ?6)`)
+    .bind(id, act, clean(title, 140), clean(text, 4000), nameOfEmail(who), at).run();
+  return id;
 }
 
 /* ---------- Slack: one line to the brand's internal channel ---------- */
@@ -244,7 +254,9 @@ export async function handleRequests(request, env, url, path, json, deps) {
 
     /* The team closes an item (a request handled, an approval withdrawn or finished) or opens it again. */
     if (path === '/api/requests/done') {
-      if (cs) return json({ error: 'The team marks items done.' }, 403);
+      /* A client closes only an ask (what we needed from them); everything else is the team's to close. */
+      if (cs && it.kind !== 'ask') return json({ error: 'The team marks items done.' }, 403);
+      if (cs) { const slack = await tellTeam(env, deps, act, `*${who} marked "${it.title}" as done.*`); await env.DB.prepare(`UPDATE p_request SET status = 'done', updated_at = ?2 WHERE id = ?1`).bind(it.id, at).run(); return json({ ok: true, status: 'done', notified: !!slack }); }
       const reopen = body.done === false;
       const status = reopen ? 'open' : 'done';
       await env.DB.prepare(`UPDATE p_request SET status = ?2, updated_at = ?3 WHERE id = ?1`).bind(it.id, status, at).run();

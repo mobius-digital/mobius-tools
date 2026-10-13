@@ -2307,7 +2307,8 @@
 <script src="brand.js?v=23"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=5"></script>
-<script src="requests.js?v=1"></script>
+<script src="requests.js?v=2"></script>
+<script src="meetings.js?v=1"></script>
 <script src="expenses.js?v=1"></script>
 <script src="studio.js?v=30"></script>
 <script src="launch.js?v=2"></script>
@@ -2531,7 +2532,7 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -3056,6 +3057,7 @@ const PAGE_BRIEF = {
 /* Every page gets the same three lines in Help (2026-10-08: Cole found Help on most pages opened nothing
    but a link to Metrics, because only nine pages had a brief). Add a line here whenever a page is added. */
 Object.assign(PAGE_BRIEF, {
+  meetings: { answers: 'What was decided on each call, per brand: the team\'s action items, what the client will hear this week, and what we need from the client. Nothing leaves this page until you confirm it.', when: 'After the Monday call, and after any client call.', todo: 'Open the meeting, untick anything wrong, fix owners and dates, press Confirm. Team items go to Asana, client lines go into the weekly report, asks go to Requests.' },
   overview: { answers: 'How the brand (or every brand) is doing right now: revenue, spend, MER, new customers, against the plan.', when: 'Every morning, first thing.', todo: 'Read the summary at the top, check What moved yesterday, then click anything red to see why.' },
   meta: { answers: 'How the Meta ads are doing: spend, cost per purchase and ROAS against the goal.', when: 'Every day, after Overview.', todo: 'Check the verdict line, then open Campaigns or Ads for whatever is off.' },
   campaigns: { answers: 'Which Meta campaigns and ad sets are spending, and what each one brings back; and the place to change them.', when: 'When spend or results moved and you need to know where.', todo: 'Click any column to sort, add metrics from Columns, open a campaign for its ad sets and ads. The switch pauses or turns on, the budget changes it, the ⋯ menu renames or copies an ad set; every change asks first and can be undone for 24 hours.' },
@@ -4792,7 +4794,7 @@ const NAV = {
   brand: { label: 'Brand', tabs: [['answers', 'Client answers'], ['research', 'Research'], ['voice', 'Voice']] },
   /* The calendar (2026-10-09, Lineup moved in; calendar.js): one page, lanes for all clients, the month for one. */
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar']] },
-  reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
+  reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['meetings', 'Meeting notes'], ['dash', 'Dashboards']] },
   season: { label: 'Black Friday', tabs: [['war', 'War Room'], ['season', 'The Plan']] },
   /* 2026-10-10: Agency economics (Cole only; hidden for everyone else) and Team workload (agency.js). */
   tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status'], ['economics', 'Agency economics'], ['workload', 'Team workload']] },
@@ -4854,7 +4856,7 @@ function navGo(g) { const ok = t => !isClient() || clientTabOk(t); const last = 
    Agency settings, which a client never opens. A NEW PAGE IS IN THE BRAND EDITION BY DEFAULT: add it to AGENCY_TABS
    only when it runs many brands at once, and add its routes to CLIENT_RULES in brandguard.js (both copies). */
 const isClient = () => S.role === 'client';
-const AGENCY_TABS = new Set(['economics', 'workload']);
+const AGENCY_TABS = new Set(['economics', 'workload', 'meetings']);   // meetings: the team's call notes, never a client's page
 /* Kept for older callers: every page that is not the agency's. */
 const CLIENT_TABS = { has: t => !AGENCY_TABS.has(t) };   // stock, buying and drops included (2026-10-12)
 /* The four access switches are gone (2026-10-10): everything is on. Kept for older callers. */
@@ -4892,7 +4894,7 @@ function applyClientMode() {
    the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { meetings: 'Meeting notes', requests: 'Requests',gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', economics: 'Agency economics', workload: 'Team workload', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5141,7 +5143,7 @@ function openFixedCosts(act) {
 window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
-const SHOWABLE = new Set(["requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["meetings", "requests","gcampaigns", "gads", "gterms", "gchanges", "calendar", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
   const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
@@ -5265,7 +5267,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ meetings: f => window.MeetingsTab ? window.MeetingsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -8901,6 +8903,11 @@ function reportBodyHTML(d, summary, opts = {}) {
   };
   const CH_SHORT = { meta: 'Meta', google: 'Google', email: 'Email', tiktok: 'TikTok', amazon: 'Amazon', pinterest: 'Pinterest' };
   const sumSec = sec('summary', 'Summary', sumHtml);
+  /* "This week" and "What we need from you" come from the confirmed Monday call notes (Reports > Meeting notes);
+     the client's Slack send carries the same two lists. Drawn on both the internal page and the client archive. */
+  const weekHtml = ((d.this_week || []).length || (d.need_from_you || []).length)
+    ? `<div class="card rp-week"><h3 style="margin-bottom:6px">This week</h3>${(d.this_week || []).length ? `<ul class="rp-list">${d.this_week.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${(d.need_from_you || []).length ? `<h4 style="margin:12px 0 4px">What we need from you</h4><ul class="rp-list">${d.need_from_you.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : '';
+  const weekSec = sec('week', 'This week', weekHtml);
   const chartSec = sec('days', 'Day by day', chartHtml);
   // "Month" lands on where the month stands; on a report with no pacing card it
   // lands on the week-by-week table, which is the same question.
@@ -8914,7 +8921,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     jump.map(([id, label]) => `<button class="chip" type="button" data-jump="rpsec-${esc(id)}">${esc(label)}</button>`).join('')}</nav>` : '';
   return `${jumpHtml}<div class="v2tiles rp-kpis">${kpis}</div>
     <div class="two rp-two">
-      <div>${sumSec}${chartSec}</div>
+      <div>${sumSec}${weekSec}${chartSec}</div>
       <div>${paceSec}${splitSec}${weeksSec}</div>
     </div>
     ${attrHtml}${metaHtml}
