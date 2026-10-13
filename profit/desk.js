@@ -5,8 +5,9 @@
  *   Season > War Room  plan (7 steps) before the sale, live during it       GET /api/season/war (2026-10-09 rebuild)
  *   Tools > Platform status   Pulse, the ad-platform outage monitor          mobius-ad-status worker /api/status (public)
  * The host (index.html) passes the same helpers it gives v2.js: window.DeskTab.render(tab, host, first).
- * Nothing here changes an ad account: "Done" writes a manual line to the Change Log (which the Daily Brief's
- * "What we did" reads); "Not now" hides a row on this computer until tomorrow. */
+ * Today (2026-10-13) can change an ad account: "Do it" runs the shared Meta write (nudge.js window.LxMetaWrite, dry run,
+ * modal, write with expect, Undo). "Done" writes a manual line to the Change Log (which the Daily Brief's "What we did"
+ * reads); "Not now" hides a row on this computer until tomorrow. */
 (() => {
   let H = null;
   const $ = s => document.querySelector(s);
@@ -78,7 +79,11 @@
       .dk-need b{font-size:13.5px}.dk-need:hover{border-color:var(--brand)}
       .dk-form{display:flex;flex-direction:column;gap:12px}.dk-form label{display:flex;flex-direction:column;gap:4px;font-weight:550}
       .dk-form input[type=text]{padding:8px 10px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface-2);color:var(--ink)}
-      .dk-form .opt{display:flex;gap:8px;align-items:flex-start;font-weight:400}.dk-form .opt small{display:block;color:var(--muted)}`;
+      .dk-form .opt{display:flex;gap:8px;align-items:flex-start;font-weight:400}.dk-form .opt small{display:block;color:var(--muted)}
+      .dk-form select,.dk-form textarea,.dk-form input[type=date]{padding:8px 10px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface-2);color:var(--ink);font:inherit}
+      .dk-form label small{font-weight:400;color:var(--muted);font-size:11.5px}
+      .lx-toast.dk-t a{color:inherit;font-weight:600;margin-left:10px;text-decoration:underline}
+      .dk .dk-acts .v2btn{height:30px;font-size:12.5px;padding:0 11px}`;
     document.head.appendChild(st);
   }
 
@@ -196,10 +201,57 @@
   }
 
   /* =========================================================================================
-   * ADS > TODAY
+   * ADS > TODAY (rebuilt 2026-10-13, Cole: "if something's there, we can make a call right then and there, or go into
+   * Ads Manager, or link to another part of Locus for more detail"). Every row can be decided on the page:
+   *   Do it          Scale / Cut / Trim: the SAME dry-run, modal, write-with-expect, Undo flow the nudge card and Ads >
+   *                  Meta use (window.LxMetaWrite in nudge.js -> account-health /api/meta/write). Scale = the budget up
+   *                  20% (the modal shows the number first), Cut = pause the ad set, Trim = pause the one ad.
+   *   Open in Locus  the ad set opened on Ads > Meta > Campaigns (window.V2PENDING {campaign, adset}) or the ad's
+   *                  preview on Ads > Meta > Ads ({ad}); Fix rows open the Meta overview.
+   *   Something else an in-app modal (one line, owner, due date) -> account-health POST /api/meetings/add, an Asana task
+   *                  in the brand project's "Action items" section; the toast carries the link.
+   *   Done / Not now unchanged: a manual Change Log line (the Daily Brief's "What we did") / hidden until tomorrow.
+   *   Call rows      ONE ROW PER TEST that needs a call (/api/brand/tests-overview `calls`): Winner / Keep running /
+   *                  Loser -> profit POST /api/brand/verdict (a one-line learning, or a reason and a check-again date),
+   *                  mirrored to the Asana task through account-health POST /api/brand-asana/result so the hourly sync
+   *                  does not undo it. The row disappears after the call. Today never opens a Meta job page.
+   * The 8am Slack post with the same rows is account-health todaypost.js.
    * ======================================================================================= */
   let KIND = 'all';
   const OPEN = {};
+  const CALLED = {};
+  const OWNERS = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
+  const KEEP_WHY = [['tof', 'Top of funnel doing its job'], ['data', 'Not enough data yet'], ['scaling', 'Scaling'], ['waiting', 'Waiting on offer or landing page'], ['other', 'Other']];
+  const READ = { winner: 'Locus reads it as a winner', keep: 'Locus reads it as mixed: over the goal, under the account average', loser: 'Locus reads it as a loser', too_early: 'Past its judging days and Meta will not spend on it' };
+  const plusDays = n => { const x = new Date(); x.setDate(x.getDate() + n); return ymdL(x); };
+  const dtoast = (msg, bad, link) => {
+    document.querySelectorAll('.lx-toast.dk-t').forEach(x => x.remove());
+    const t = document.createElement('div'); t.className = `lx-toast dk-t${bad ? ' bad' : ''}`; t.setAttribute('role', 'status');
+    t.innerHTML = `<span>${esc(msg)}</span>${link ? `<a href="${esc(link.href)}" target="_blank" rel="noopener">${esc(link.label)}</a>` : ''}`;
+    document.body.appendChild(t); setTimeout(() => t.remove(), link ? 12000 : bad ? 6000 : 3000);
+  };
+  /* A small in-app form modal: fields = HTML, onYes(form) returns a promise; an error shows in the modal. */
+  function formModal(title, hint, fields, cta, onYes) {
+    const w = document.createElement('div'); w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal lx-nudge-m" role="dialog" aria-modal="true"><h3>${esc(title)}</h3>${hint ? `<p class="hint">${hint}</p>` : ''}<form class="dk-form lx-nudge-mb">${fields}</form><p class="lx-nudge-err" data-err hidden></p>
+      <div class="row lx-nudge-ma"><button class="btn" data-m="no" type="button">Cancel</button><button class="btn primary" data-m="yes" type="button">${esc(cta)}</button></div></div>`;
+    document.body.appendChild(w);
+    const form = w.querySelector('form'), yes = w.querySelector('[data-m="yes"]'), err = w.querySelector('[data-err]');
+    const close = () => { w.remove(); document.removeEventListener('keydown', key); };
+    const key = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', key);
+    w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+    w.querySelector('[data-m="no"]').onclick = close;
+    form.onsubmit = e => { e.preventDefault(); yes.click(); };
+    yes.onclick = async () => {
+      if (!form.reportValidity()) return;
+      yes.disabled = true; const was = yes.textContent; yes.textContent = 'Saving…'; err.hidden = true;
+      try { await onYes(form); close(); }
+      catch (e) { err.textContent = e.message || 'Could not save it.'; err.hidden = false; yes.disabled = false; yes.textContent = was; }
+    };
+    setTimeout(() => { const f = form.querySelector('input,select,textarea'); if (f) f.focus(); }, 30);
+    return { w, close };
+  }
   async function today(first) {
     css();
     const t = H.RUN(), one = H.S.act !== 'all' ? H.S.accounts.find(a => a.act_id === H.S.act) : null;
@@ -213,11 +265,17 @@
     const done = store('pf_today_done'), snooze = store('pf_today_snooze');
     const dn = done[todayKey] || {}, sn = snooze[todayKey] || {};
     const rows = (d.rows || []).map(r => ({ ...r, key: `${r.kind}:${r.adset_id || ''}:${r.ad_id || ''}:${r.act_id}` }));
-    /* Test calls: one row per brand with tests ready for a call (the Make a call box on the Test calls page). */
+    /* Test calls: one row per test that has spent enough to judge (brand.js testsOverview `calls`). */
     for (const b of (tests?.brands || [])) {
-      if (!b.call || (one && b.act_id !== one.act_id)) continue;
+      if (one && b.act_id !== one.act_id) continue;
       const acc = H.S.accounts.find(a => a.act_id === b.act_id); if (!acc) continue;
-      rows.push({ kind: 'call', act_id: b.act_id, brand: b.name, adset: `${b.call} test${b.call === 1 ? '' : 's'} ready for a call`, why: 'Spent enough to judge, or ran long enough. Keep, kill or give another week; the call posts to Asana.', stake: 5e5, key: `call:${b.act_id}` });
+      for (const c of (b.calls || [])) {
+        const key = `call:${b.act_id}:${c.id}`; if (CALLED[key]) continue;
+        const $ = v => U().money(v, acc.currency || 'USD');
+        const cpaLine = c.cpa != null ? `${$(c.cpa)} a sale${c.goal ? ` against the ${$(c.goal)} goal` : ''}` : `no sale${c.goal ? ` against a ${$(c.goal)} goal` : ''}`;
+        rows.push({ kind: 'call', act_id: b.act_id, brand: b.name, currency: acc.currency, test: c, key, stake: c.spend || 0,
+          adset: `Test ${c.num}: ${c.title || 'untitled'}`, why: `${READ[c.suggest] || 'Spent enough to judge'}: ${cpaLine} on ${$(c.spend)}.` });
+      }
     }
     const vis = rows.filter(r => !sn[r.key]);
     const kinds = [['all', 'All'], ['fix', 'Fix'], ['scale', 'Scale'], ['cut', 'Cut'], ['trim', 'Trim'], ['refresh', 'Refresh'], ['call', 'Call']];
@@ -226,43 +284,109 @@
     const shown = vis.filter(r => KIND === 'all' || r.kind === KIND);
     const by = {}; for (const r of shown) (by[r.act_id] ??= []).push(r);
     const order = Object.entries(by).sort((a, b) => b[1].reduce((s, r) => s + (r.stake || 0), 0) - a[1].reduce((s, r) => s + (r.stake || 0), 0));
-    const yv = () => '';
     const amLink = r => { const n = String(r.meta_act || '').replace(/^act_/, ''); return n ? `https://adsmanager.facebook.com/adsmanager/manage/${r.ad_id ? 'ads' : 'adsets'}?act=${n}${r.adset_id ? `&selected_adset_ids=${r.adset_id}` : ''}${r.ad_id ? `&selected_ad_ids=${r.ad_id}` : ''}` : null; };
-    const row = r => { const cur = r.currency || 'USD', am = amLink(r);
-      const meta = r.kind === 'call' ? 'From Asana' : r.spend != null ? `${U().money(r.spend, cur)} spent · ${U().int(r.orders)} sale${Math.round(r.orders) === 1 ? '' : 's'} · ${r.cpa ? U().money(r.cpa, cur) + ' per sale' : 'no sale'}${r.goal ? ` · goal ${U().money(r.goal, cur)}` : ''}${r.n_ads ? ` · ${r.n_ads} ad${r.n_ads === 1 ? '' : 's'}` : ''}` : '';
+    const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
+    const gb = (attr, label, extra = '') => `<button type="button" class="v2btn ghost" ${attr}${extra}>${label}</button>`;
+    const row = r => { const cur = r.currency || 'USD', am = amLink(r), k = esc(r.key);
+      if (r.kind === 'call') { const c = r.test, $ = v => U().money(v, cur);
+        const meta = `${$(c.spend)} spent · ${U().int(c.orders)} purchase${Math.round(c.orders) === 1 ? '' : 's'} · ${c.cpa != null ? `${$(c.cpa)} per sale` : 'no sale'}${c.goal ? ` · goal ${$(c.goal)}` : ''}${c.roas ? ` · ${U().x2(c.roas)} ROAS` : ''}${c.ads ? ` · ${c.ads} ad${c.ads === 1 ? '' : 's'}` : ''}`;
+        return `<div class="dk-row"><span class="dk-k call">CALL</span>
+          <div><div class="nm">${esc(r.adset)}</div><div class="meta">${meta}</div></div>
+          <div class="why">${esc(r.why || '')}</div>
+          <div class="dk-acts"><button type="button" class="v2btn dk-p" data-verdict="winner" data-key="${k}" title="Close the test as a winner. One line on what it taught us.">Winner</button><button type="button" class="v2btn ghost" data-verdict="keep" data-key="${k}" title="Leave it running with a reason and a date to check again.">Keep running</button><button type="button" class="v2btn ghost" data-verdict="loser" data-key="${k}" title="Close the test as a loser. One line on what it taught us.">Loser</button>${gb(`data-go="act:${esc(r.act_id)}:tests"`, 'Open the test')}${c.ads_manager ? `<a class="v2btn ghost" href="${esc(c.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; }
+      const meta = r.spend != null ? `${U().money(r.spend, cur)} spent · ${U().int(r.orders)} sale${Math.round(r.orders) === 1 ? '' : 's'} · ${r.cpa ? U().money(r.cpa, cur) + ' per sale' : 'no sale'}${r.goal ? ` · goal ${U().money(r.goal, cur)}` : ''}${r.n_ads ? ` · ${r.n_ads} ad${r.n_ads === 1 ? '' : 's'}` : ''}` : '';
       const anchor = (r.kind === 'cut' || r.kind === 'scale') && r.anchor && r.n_ads > 1 ? ` <span class="faint">Anchor: "${esc(r.anchor.name)}" (${Math.round((r.anchor.share || 0) * 100)}% of the set's spend).</span>` : '';
-      const btn = r.kind === 'call' ? `<button type="button" class="v2btn dk-p" data-go="act:${esc(r.act_id)}:tests">Make the calls</button>`
-        : r.kind === 'refresh' ? `<button type="button" class="v2btn dk-p" data-brief="${esc(r.key)}">Brief the iteration</button>`
-        : am ? `<a class="v2btn ghost" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : '';
+      const primary = DO_TIP[r.kind] ? `<button type="button" class="v2btn dk-p" data-do="${k}" title="${esc(DO_TIP[r.kind])}">Do it</button>`
+        : r.kind === 'refresh' ? `<button type="button" class="v2btn dk-p" data-brief="${k}" title="Ask Locus to brief three iterations of this ad as an Asana brief.">Brief the iteration</button>`
+        : am ? `<a class="v2btn dk-p" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : '';
       return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>
         <div><div class="nm">${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
         <div class="why">${esc(r.why || '')}${anchor}</div>
-        <div class="dk-acts">${btn}${r.kind === 'call' ? '' : `<button type="button" class="v2btn ghost" data-done="${esc(r.key)}">${dn[r.key] ? 'Undo' : 'Done'}</button>`}<button type="button" class="v2btn ghost" data-snooze="${esc(r.key)}">Not now</button></div></div>`; };
+        <div class="dk-acts">${primary}${am && r.kind !== 'fix' ? `<a class="v2btn ghost" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-locus="${k}"`, 'Open in Locus', ' title="See it on Ads > Meta with the numbers around it."')}${gb(`data-else="${k}"`, 'Something else', ' title="Give it to someone as an Asana task instead."')}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
-      return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b> &nbsp;${yv(id)}</span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
+      return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b></span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
     const sub = win ? `<b>What the media buyer changes today, ad set first.</b> Ranked by money at stake. Judged on Triple Whale last platform click, ${md(win.from)} to ${md(win.to)}, with each brand's Ads rules.` : '<b>What the media buyer changes today, ad set first.</b>';
     $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${counts}
-      ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule and nothing needs fixing.' : 'Nothing of this kind today.'}</p>`)}
+      ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
       ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day</button></p>` : ''}
-      ${U().foot(`${esc(d.rules_note || '')} Nothing here changes an ad account. Done writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
+      ${U().foot(`${esc(d.rules_note || '')} Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else makes an Asana task. Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
     const root = $('#main');
+    const find = k => rows.find(x => x.key === k);
+    const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
+    const unDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); };
     root.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { KIND = b.dataset.k; today(false); });
     root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { OPEN[b.dataset.more] = !OPEN[b.dataset.more]; today(false); });
     root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
     root.querySelectorAll('[data-snooze]').forEach(b => b.onclick = () => { const s2 = store('pf_today_snooze'); s2[todayKey] = { ...(s2[todayKey] || {}), [b.dataset.snooze]: 1 }; Object.keys(s2).forEach(k => { if (k !== todayKey) delete s2[k]; }); store('pf_today_snooze', s2); today(false); });
     root.querySelectorAll('[data-done]').forEach(b => b.onclick = async () => {
-      const k = b.dataset.done, r = rows.find(x => x.key === k); if (!r) return;
-      const d2 = store('pf_today_done'); const day = d2[todayKey] || {};
-      if (day[k]) { delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); return today(false); }
+      const k = b.dataset.done, r = find(k); if (!r) return;
+      if (dn[k]) { unDone(k); return today(false); }
       b.disabled = true; b.textContent = 'Logging…';
       const verb = { scale: 'Scaled', cut: 'Cut', trim: 'Switched off', fix: 'Fixed', refresh: 'Briefed an iteration of' }[r.kind] || 'Acted on';
       try {
         await H.apiAH('/api/activities', { method: 'POST', body: JSON.stringify({ act_id: r.act_id, category: 'manual', summary: `${verb} ${r.ad ? `"${r.ad}"` : `ad set "${r.adset}"`} (from Today)`, reason: r.why || null, actor: 'Locus Today' }) });
-        day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); today(false);
+        markDone(k); today(false);
       } catch (e) { b.disabled = false; b.textContent = 'Done'; H.confirmModal && H.confirmModal('Could not log it', esc(e.message), 'OK'); }
     });
-    root.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { const r = rows.find(x => x.key === b.dataset.brief); if (r && H.AskUI) H.AskUI.ask(`For ${r.brand}: the anchor ad "${r.ad}" in ad set "${r.adset}" is tiring (${r.why}). Brief three iterations of it as an Asana brief: same angle, new hooks.`); });
+    root.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { const r = find(b.dataset.brief); if (r && H.AskUI) H.AskUI.ask(`For ${r.brand}: the anchor ad "${r.ad}" in ad set "${r.adset}" is tiring (${r.why}). Brief three iterations of it as an Asana brief: same angle, new hooks.`); });
+    /* Do it: the shared Meta write (nudge.js). The write logs itself in the Change Log, so Done here only greys the row. */
+    root.querySelectorAll('[data-do]').forEach(b => b.onclick = () => {
+      const r = find(b.dataset.do); if (!r) return;
+      const W = window.LxMetaWrite; if (!W) { dtoast('The Meta write helper did not load. Hard-refresh (Ctrl+Shift+R).', true); return; }
+      const opts = { reason: 'From Today', onDone: () => { markDone(r.key); CACHE.delete(`/api/hub/today?act=${encodeURIComponent(H.S.act)}`); if (window.LxNudge) window.LxNudge.state.at = 0; today(false); }, onUndo: () => { unDone(r.key); today(false); },
+        onCampaign: () => openInLocus(r) };
+      if (r.kind === 'scale') W.budget(H, r, { ...opts, pct: 0.2, amount: r.suggested_budget > 0 ? r.suggested_budget : undefined });
+      else W.pause(H, r, opts);
+    });
+    root.querySelectorAll('[data-locus]').forEach(b => b.onclick = () => { const r = find(b.dataset.locus); if (r) openInLocus(r); });
+    root.querySelectorAll('[data-else]').forEach(b => b.onclick = () => { const r = find(b.dataset.else); if (r) somethingElse(r); });
+    root.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () => { const r = find(b.dataset.key); if (r) callTest(r, b.dataset.verdict, () => { CALLED[r.key] = 1; CACHE.delete('/api/brand/tests-overview'); today(false); }); });
+  }
+  /* The ad set on Campaigns (the campaign opened, the ad set row lit), the ad's preview on Ads, the overview for a Fix. */
+  function openInLocus(r) {
+    if (r.ad_id) { window.V2PENDING = { ad: r.ad_id }; return pickAct(r.act_id, 'adcreative'); }
+    if (r.adset_id) { window.V2PENDING = { ...(r.campaign_id ? { campaign: r.campaign_id } : {}), adset: r.adset_id }; return pickAct(r.act_id, 'campaigns'); }
+    pickAct(r.act_id, 'meta');
+  }
+  /* Something else: one line, an owner, a due date -> an Asana task in the brand's "Action items" (account-health meetings.js). */
+  function somethingElse(r) {
+    const what = r.ad ? `the ad "${r.ad}" in "${r.adset}"` : r.adset ? `ad set "${r.adset}"` : r.brand;
+    formModal(`Something else for ${r.brand}`, `About ${esc(what)}. This makes an Asana task in the brand's Action items.`,
+      `<label>What needs doing<input type="text" name="text" required maxlength="300" placeholder="e.g. Rebuild it with the new hook and a fresh audience"></label>
+       <label>Who does it<select name="owner">${OWNERS.map(o => `<option value="${o}">${o}</option>`).join('')}<option value="">Nobody yet</option></select><small>Assigned in Asana by first name.</small></label>
+       <label>Due<input type="date" name="due" value="${plusDays(2)}"></label>`, 'Add to Asana', async form => {
+        const f = new FormData(form);
+        const text = String(f.get('text') || '').trim(), owner = String(f.get('owner') || ''), due = String(f.get('due') || '');
+        const j = await H.apiAH('/api/meetings/add', { method: 'POST', body: JSON.stringify({ act: r.act_id, text: `${text} (${what}, from Today's calls: ${String(r.why || r.kind).slice(0, 120)})`, owner: owner || null, due: due || null }) });
+        if (!j || j.error) throw new Error(j && j.error || 'Asana did not answer.');
+        dtoast(`Added to Asana${owner ? ` for ${owner}` : ''}.`, false, j.url ? { href: j.url, label: 'Open the task' } : null);
+      });
+  }
+  /* Winner / Loser close the test with a one-line learning; Keep running parks it with a reason and a date. Both go to
+     the profit worker (/api/brand/verdict) and to the Asana task (/api/brand-asana/result) so the hourly sync keeps it. */
+  function callTest(r, verdict, after) {
+    const c = r.test, who = H.S.meEmail || 'Locus Today', name = `Test ${c.num}`;
+    const fields = verdict === 'keep'
+      ? `<label>Why keep it running<select name="reason">${KEEP_WHY.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+         <label>Check again on<input type="date" name="check" required value="${plusDays(7)}"><small>Locus brings it back here on that day.</small></label>`
+      : `<label>What this test taught us<input type="text" name="learning" required maxlength="300" placeholder="One line the next strategist should know"></label>`;
+    const title = verdict === 'winner' ? `${name}: call it a winner?` : verdict === 'loser' ? `${name}: call it a loser?` : `${name}: keep it running?`;
+    formModal(title, `${esc(c.title || '')}. ${esc(r.why || '')}${verdict === 'keep' ? '' : ' The test closes in Locus and the Asana task is completed with the result set.'}`, fields, verdict === 'keep' ? 'Keep it running' : verdict === 'winner' ? 'Winner' : 'Loser', async form => {
+      const f = new FormData(form);
+      const learning = String(f.get('learning') || '').trim(), reasonKey = String(f.get('reason') || 'other'), check = String(f.get('check') || '');
+      const reason = (KEEP_WHY.find(x => x[0] === reasonKey) || [])[1] || reasonKey;
+      const body = verdict === 'keep' ? { act: r.act_id, id: c.id, verdict: 'keep', keep_reason: reason, check_again: check, who, light: true }
+        : { act: r.act_id, id: c.id, verdict, learning, who, light: true };
+      const j = await H.api('/api/brand/verdict', { method: 'POST', body: JSON.stringify(body) });
+      if (!j || j.error) throw new Error(j && j.error || 'Could not save the call.');
+      let asana = null;
+      try { asana = await H.apiAH('/api/brand-asana/result', { method: 'POST', body: JSON.stringify({ act: r.act_id, id: c.id, result: verdict, learning, keep_reason: reasonKey, check_again: check, who }) }); }
+      catch (e) { asana = { error: e.message }; }
+      after();
+      if (asana && asana.error) dtoast(`Saved in Locus. Asana was not updated: ${asana.error}`, true, c.asana_url ? { href: c.asana_url, label: 'Open the task' } : null);
+      else dtoast(verdict === 'keep' ? `${name} keeps running. Back here on ${check}.` : `${name} closed as a ${verdict}${asana && asana.asana ? ', Asana updated' : ''}.`, false, c.asana_url ? { href: c.asana_url, label: 'Open the task' } : null);
+    });
   }
 
   /* =========================================================================================

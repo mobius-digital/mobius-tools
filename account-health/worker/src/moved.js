@@ -32,7 +32,7 @@ const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
 /* Paused brands and the test account never get a post (memory: paused-brands, golf-sock-paused). */
-const SKIP = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock/i;
+export const SKIP = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock/i;   // todaypost.js reads it too
 const num = v => (v == null || !isFinite(+v) ? 0 : +v);
 const IDS = ['totalSales', 'totalNetTaxes', 'blendedAds', 'totalOrders', 'newCustomersOrders'];
 

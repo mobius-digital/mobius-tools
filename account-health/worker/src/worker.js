@@ -16,6 +16,7 @@ import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
+import { todayTick } from './todaypost.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -6820,6 +6821,8 @@ function meetingDeps() {
     slackSyncReport: async (env, act, start) => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, 'weekly', start); },
   };
 }
+/* todaypost.js: the 8am "Today's calls" post per brand, read from the profit worker as the owner. */
+function todayDeps() { return { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, mintSession, canAfford: n => subCanAfford(n) }; }
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7219,6 +7222,8 @@ const AH_APP = {
         ran.morning = await morningTick(env, morningDeps()).catch(e => ({ error: e.message }));
         /* Fireflies transcripts the webhook did not bring: read, extract, tell the Strategist channel (meetings.js). */
         ran.meetings = await meetingsTick(env, meetingDeps()).catch(e => ({ error: e.message }));
+        /* Today's calls (Scale / Cut / Trim / Refresh) to each brand's internal channel, once a day from 8am (todaypost.js, 2026-10-13). */
+        ran.today = await todayTick(env, todayDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -9098,6 +9103,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
              whether a client with a Locus login gets the short daily or the whole brief. */
           dailyBriefsChannel: (await getSetting(env, 'dailyBriefsChannel')) || '',
           briefClientStyle: (await getSetting(env, 'briefClientStyle')) === 'full' ? 'full' : 'short',
+          /* The 8am "Today's calls" post to each brand's internal channel (todaypost.js). On unless 'off'. */
+          todayPost: (await getSetting(env, 'todayPost')) !== 'off',
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
@@ -9113,6 +9120,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('seasonTab' in b) await putSetting(env, 'seasonTab', JSON.stringify(seasonTabOf(b.seasonTab)));
         if ('dailyBriefsChannel' in b) await putSetting(env, 'dailyBriefsChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.dailyBriefsChannel || '')) ? String(b.dailyBriefsChannel) : '');
         if ('briefClientStyle' in b) await putSetting(env, 'briefClientStyle', b.briefClientStyle === 'full' ? 'full' : 'short');
+        if ('todayPost' in b) await putSetting(env, 'todayPost', b.todayPost ? 'on' : 'off');
         return json({ ok: true });
       }
       if (path === '/api/slack-channels') {
