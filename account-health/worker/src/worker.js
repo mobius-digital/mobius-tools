@@ -3295,6 +3295,15 @@ function centralHour(d = new Date()) {
   return +new Intl.DateTimeFormat('en-US', { timeZone: BRIEF_TZ, hour: 'numeric', hour12: false }).format(d) % 24;
 }
 
+/** The report that covers yesterday on this Central day, if one is on for the brand: 'monthly' on the 1st, 'weekly'
+ *  on a Monday, else null (the same days reportsPass drafts them). */
+function reportCovers(a, today) {
+  const cfg = safeJson(a.report_config_json, {}) || {};
+  if (today.slice(8) === '01' && cfg.monthly !== false) return 'monthly';
+  if (new Date(today + 'T12:00:00Z').getUTCDay() === 1 && cfg.weekly !== false) return 'weekly';
+  return null;
+}
+
 /** Morning cron: refresh TW data, then post yesterday's brief for every enabled brand. */
 async function dailyBriefs(env) {
   const accounts = (await listAccounts(env, true)).filter(a => a.brief_enabled);
@@ -3334,6 +3343,25 @@ async function dailyBriefs(env) {
     // trigger would re-sync 45 days of Triple Whale and rebuild the same draft
     // every hour until someone pressed send.
     if ((a.review_first || internalOnly(a)) && prior?.status === 'draft') { results.push({ name: a.name, awaiting_review: true, date }); continue; }
+
+    /* NO DAILY ON A REPORT DAY (Cole, 2026-10-13). On Monday the weekly report covers yesterday, on the 1st the monthly
+       does, so the client gets one message that morning instead of two, and #daily-briefs gets one draft per brand.
+       The day's numbers are still stored (status 'skipped', the reason as its text) so the morning card shows them;
+       nothing is written by the model, drafted or posted. Only when that report is on for the brand. */
+    const cover = reportCovers(a, localDate(BRIEF_TZ));
+    if (cover) {
+      if (!subCanAfford(40)) { results.push({ name: a.name, date, deferred: 'out of subrequest budget - next tick picks this up' }); continue; }
+      try {
+        const have = await env.DB.prepare(`SELECT synced_at FROM tw_daily WHERE act_id = ?1 AND date = ?2 AND metric = 'totalSales' LIMIT 1`).bind(a.act_id, date).first().catch(() => null);
+        const s = have?.synced_at ? String(have.synced_at) : '';
+        const fresh = !!s && localDate(a.tz || BRIEF_TZ, new Date(s.replace(' ', 'T') + (/Z$|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z'))) > date;
+        if (!fresh) await syncTwDaily(env, a, have ? 3 : 45).catch(() => {});
+        const data = await briefData(env, a, date);
+        await upsertBrief(env, a.act_id, date, 'skipped', null, `No daily today: the ${cover} report covers ${prettyDate(date)}.`, data);
+        results.push({ name: a.name, date, covered_by: cover }); didWork = true;
+      } catch (e) { results.push({ name: a.name, date, error: e.message }); }
+      continue;
+    }
 
     // Stop BEFORE starting a brand we cannot finish. Half a brief is worse than
     // none: the old behaviour ran until Cloudflare killed it, which could land

@@ -1955,3 +1955,9 @@ my Google guy goes, no, we shouldn't do that... is that true? Can we learn from 
 - Verified live on Lucky 2026-10-13: the review called the phone cart path the root, PMax "check first" (Google claims
   $19.4K vs Triple Whale's $14.6K), two Meta cut sets "not the cause" (CTR 2.6% and 2.5% against a 1.47% median), and a
   test lesson came back "partly" with a sensible rule (deleted after: it was not Cole's).
+- **No daily on a report day (Cole, 2026-10-13).** `dailyBriefs`: on a Monday (weekly on for the brand) or the 1st
+  (monthly on) the client daily is NOT written or posted; `reportCovers(a, today)` names the report, and the day's row is
+  stored as `skipped` with the text "No daily today: the <weekly|monthly> report covers <day>." plus its numbers
+  (`briefData`, after the same freshness re-pull), so the morning card says "no client daily today, the weekly report
+  covers it" and still shows yesterday against plan. #daily-briefs therefore holds one draft per brand per morning, and
+  only drafts (daily, weekly, monthly). Cole may rename the channel in Slack (the id stays C0C8UA53U3W).
