@@ -6,8 +6,9 @@ import { AbsoluteFill, interpolateColors, useCurrentFrame, useVideoConfig } from
 import { sansStack, serifStack } from '../lib/fonts';
 import { useStage } from '../lib/stage';
 
-// The field: a list of [frame, colour] stops; the colour eases between them over `fade` frames.
-export const Field: React.FC<{ stops: [number, string][]; fade?: number; children?: React.ReactNode }> = ({ stops, fade = 14, children }) => {
+// The field: a list of [frame, colour] stops; the colour eases between them over
+// `fade` frames, short, so a change reads as a cut and never as a grey dissolve.
+export const Field: React.FC<{ stops: [number, string][]; fade?: number; children?: React.ReactNode }> = ({ stops, fade = 6, children }) => {
   const f = useCurrentFrame();
   let colour = stops[0][1];
   for (let i = 1; i < stops.length; i++) {

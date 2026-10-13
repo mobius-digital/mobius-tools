@@ -88,10 +88,10 @@ const spots = [
   { x: 0.3, y: 1.0, r: 80 }, // the tax, from below
 ];
 const costHome = [
-  { x: 790, y: 620, from: [420, 0] }, // where each cost sits beside the pill, and the offset it enters from
-  { x: 50, y: 850, from: [-440, 0] },
-  { x: 610, y: 410, from: [120, -540] },
-  { x: 240, y: 970, from: [-80, 580] },
+  { x: 730, y: 520, from: [460, 0] }, // where each cost sits beside the pill, and the offset it enters from
+  { x: 10, y: 860, from: [-480, 0] },
+  { x: 560, y: 330, from: [120, -560] },
+  { x: 190, y: 960, from: [-80, 620] },
 ];
 const PILL = { x: 160, y: 690, w: 760, h: 270 };
 const FLOOR = PILL.y + PILL.h + 320;
@@ -175,15 +175,15 @@ const SceneBites: React.FC<{ len: number; biteAt: number[]; meltAt: number; sigh
         if (f < arrive - 2 || outP > 0.98) return null;
         const home = costHome[i];
         const lunge = bump(arrive + CHOMP - 6, 6, feel.snap);
-        const toward = [PILL.x + spots[i].x * PILL.w - (home.x + 115), PILL.y + spots[i].y * PILL.h - (home.y + 115)];
+        const toward = [PILL.x + spots[i].x * PILL.w - (home.x + 165), PILL.y + spots[i].y * PILL.h - (home.y + 165)];
         const squint = bump(arrive + CHOMP - 2, 10, feel.snap);
         const amountP = s(arrive + CHOMP + 3, feel.pop);
-        const dx = home.from[0] * (1 - inP) + toward[0] * 0.22 * lunge + home.from[0] * 0.5 * outP;
-        const dy = home.from[1] * (1 - inP) + toward[1] * 0.22 * lunge + 120 * outP;
+        const dx = home.from[0] * (1 - inP) + toward[0] * 0.32 * lunge + home.from[0] * 0.5 * outP;
+        const dy = home.from[1] * (1 - inP) + toward[1] * 0.32 * lunge + 120 * outP;
         return (
           <div key={b.who} style={{ position: 'absolute', left: home.x, top: home.y, transform: `translate(${dx}px, ${dy}px) rotate(${(1 - inP) * (i % 2 ? -14 : 14)}deg)`, opacity: Math.min(inP * 1.5, 1 - outP) }}>
-            <Cost who={b.who} size={240} squint={squint} />
-            <div style={{ position: 'absolute', left: i % 2 ? 230 : -60, top: 200, fontSize: 60, fontWeight: 800, letterSpacing: '-0.03em', color: costInk[b.who], whiteSpace: 'nowrap', transform: `scale(${0.5 + 0.5 * amountP}) translateY(${(1 - amountP) * 20}px)`, opacity: amountP, transformOrigin: i % 2 ? '0 50%' : '100% 50%', textShadow: '0 2px 0 rgba(255,255,255,.6)' }}>
+            <Cost who={b.who} size={330} squint={squint} />
+            <div style={{ position: 'absolute', left: i % 2 ? 320 : -40, top: 280, fontSize: 68, fontWeight: 800, letterSpacing: '-0.03em', color: costInk[b.who], whiteSpace: 'nowrap', transform: `scale(${0.5 + 0.5 * amountP}) translateY(${(1 - amountP) * 20}px)`, opacity: amountP, transformOrigin: i % 2 ? '0 50%' : '100% 50%', textShadow: '0 2px 0 rgba(255,255,255,.6)' }}>
               −{money(b.amount)}
             </div>
           </div>
@@ -225,7 +225,7 @@ const SceneTabs: React.FC<{ len: number; nameAt: number[]; restAt: number; colla
   return (
     <SceneBox opacity={out}>
       <Caption text="Or add it up *yourself*." y={330} p={s(0, feel.settle)} color={W} size={50} />
-      <TabsBeat tabs={cashewTabs} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} accent={colours.cashewBright} tail="Still no number." tailAt={restAt + 24} word="open." />
+      <TabsBeat tabs={cashewTabs} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} accent={colours.cashewBright} tail="Still no number." tailAt={restAt + 24} word="open." openAt={8} search="where did the money go" />
     </SceneBox>
   );
 };
@@ -362,13 +362,13 @@ const SceneNudge: React.FC<{ len: number; secondAt: number; shoulderAt: number; 
   const booked = s(tapAt + 14, feel.pop);
   const perk = s(shoulderAt, feel.pop);
   const hop = bump(tapAt + 10, 8, feel.pop);
-  const cam = s(shoulderAt - 20, feel.soft, 140);
+  const cam = interpolate(f, [0, len], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) * 0.5 + s(shoulderAt - 20, feel.soft, 140) * 0.5;
   const capText = f < shoulderAt ? 'The bill that did not come.' : 'Cashew taps you on the *shoulder*.';
   const capP = s(f < shoulderAt ? 0 : shoulderAt, feel.settle);
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={330} p={capP} color={W} size={50} />
-      <Camera p={cam} zoom={1.12} cx={540} cy={860}>
+      <Camera p={cam} zoom={1.2} cx={420} cy={820}>
         <div style={{ position: 'absolute', left: 50, top: 520, transform: `translateY(${(1 - win) * 140}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={1.75} w={560}>
             <CwWindow width={560} crumb={['Home', 'Overview']} tabs={['Overview', 'Transactions', 'Receipts', 'Close']} active={0} faceState={booked > 0.5 ? 'clear' : 'found'}>

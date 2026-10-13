@@ -77,6 +77,9 @@ const SceneArgue: React.FC<{ len: number; secondAt: number }> = ({ len, secondAt
           <PlatformCard name="Shopify" colour="#5E8E3E" metric="Total sales over ad spend" value={N.shopifyRoas} note="0.3" up={false} series={[2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3]} t={s(secondAt + 10, feel.settle, 50)} mark={<ShopifyMark size={14} />} />
         </Zoom>
       </div>
+      <div style={{ position: 'absolute', left: 20, top: 1330, transform: `translateY(${(1 - s(8, feel.pop)) * 300}px)` }}>
+        <Act app={app} size={420} from="rest" to="thinking" t={q} face={{ lookX: f < secondAt ? -1 + Math.min(1, f / 20) * -2 : 3.5 * (1 - q) + Math.sin(f / 6) * 2.5 * q, lookY: f < secondAt ? -4 : -1 }} tilt={shoveL * 5 - shoveR * 5} squash={bump(secondAt + 2, 4, feel.wobble) * 0.4} spin={(f / 70) % 1} seed={9} />
+      </div>
       <div style={{ position: 'absolute', left: 540 - 70, top: 980 - 70, width: 140, height: 140, borderRadius: '50%', background: W, color: B, display: 'grid', placeItems: 'center', fontSize: 100, fontWeight: 800, transform: `scale(${q}) rotate(${(1 - q) * 30}deg)`, opacity: q, boxShadow: '0 20px 50px rgba(0,0,0,.25)' }}>?</div>
     </SceneBox>
   );
@@ -191,7 +194,7 @@ const SceneRead: React.FC<{ len: number; waves: number[]; readAt: number; mornin
   const heroBar = s(heroAt + 14, feel.settle, 56);
   const heroCount = s(heroAt + 6, feel.settle, 50);
   const scrollUp = s(heroAt - 4, feel.settle, 40);
-  const cam = s(heroAt + 10, feel.soft, 150);
+  const cam = interpolate(f, [0, len], [0, 0.4], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) + s(heroAt + 10, feel.soft, 150) * 0.6;
   const charState = f < morningAt ? 'rest' : 'found';
   void charState;
   const capText = f < morningAt ? 'Every store. Every ad account. Every email.' : f < heroAt ? 'The morning *brief*.' : 'What you *actually* kept.';
@@ -201,7 +204,7 @@ const SceneRead: React.FC<{ len: number; waves: number[]; readAt: number; mornin
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={300} p={capP} color={W} size={46} />
-      <Camera p={cam} zoom={1.1} cx={540} cy={760}>
+      <Camera p={cam} zoom={1.14} cx={400} cy={760}>
         <div style={{ position: 'absolute', left: WIN.x, top: 470 - scrollUp * 60, transform: `translateY(${(1 - win) * 160}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={WIN.k} w={WIN.w}>
             <LxWindow width={WIN.w} crumb={['Home', 'Overview']} tabs={['Overview', 'Day check', 'P&L', 'Goals', 'Requests']} active={0} faceState={charState} badge={f < morningAt ? 'Locus' : '2 to do'}>
@@ -257,13 +260,13 @@ const SceneCalls: React.FC<{ len: number; rowAt: number[]; tapAt: number; paused
   const done = s(pausedAt, feel.pop);
   const hop = bump(tapAt + 8, 8, feel.pop);
   const perk = s(tapAt - 10, feel.pop);
-  const cam = s(rowAt[1], feel.soft, 160);
+  const cam = interpolate(f, [0, len], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) * 0.5 + s(rowAt[1], feel.soft, 160) * 0.5;
   const capText = f < tapAt - 12 ? "Today's *calls*." : f < pausedAt ? 'One tap.' : '*Paused.*';
   const capP = s(f < tapAt - 12 ? 2 : f < pausedAt ? tapAt - 12 : pausedAt, feel.settle);
   return (
     <SceneBox opacity={out}>
       <Caption text={capText} y={f < pausedAt ? 300 : 260} p={capP} color={W} size={f < pausedAt ? 50 : 110} />
-      <Camera p={cam} zoom={1.08} cx={540} cy={1080}>
+      <Camera p={cam} zoom={1.16} cx={420} cy={1000}>
         <div style={{ position: 'absolute', left: WIN.x, top: 470, transform: `translateY(${(1 - win) * 160}px) scale(${0.92 + 0.08 * win})`, opacity: win, transformOrigin: '50% 0' }}>
           <Zoom k={WIN.k} w={WIN.w}>
             <LxWindow width={WIN.w} crumb={['Ads', "Today's calls"]} tabs={["Today's calls", 'All channels', 'Meta', 'Google', 'TikTok']} active={0} faceState={done > 0.5 ? 'clear' : 'found'} badge={done > 0.5 ? '2 to do' : '3 to do'}>

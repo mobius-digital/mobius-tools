@@ -6,12 +6,12 @@ import { AbsoluteFill, interpolate, random, useCurrentFrame, useVideoConfig } fr
 
 // The backdrop. Put it under the scenes for the frames the field is paper;
 // `from` and `to` are the Field stops that turn paper on and off, so it fades
-// with the field (which eases over the 14 frames before each stop).
+// with the field (which eases over the 6 frames before each stop).
 export const PaperLife: React.FC<{ from: number; to: number; accent: string; seed?: string }> = ({ from, to, accent, seed = 'p' }) => {
   const f = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  if (f < from - 14 || f > to + 14) return null;
-  const op = interpolate(f, [from - 14, from, to - 16, to - 4], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  if (f < from - 6 || f > to) return null;
+  const op = interpolate(f, [from - 6, from, to - 8, to - 1], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const t = f - from;
   const frags = Array.from({ length: 16 }, (_, i) => {
     const depth = i % 3; // 0 far, 2 near

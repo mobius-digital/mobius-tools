@@ -41,6 +41,9 @@ const drawn: Record<string, React.FC> = {
     <svg viewBox="0 0 24 24" width="100%" height="100%"><rect x="1" y="1" width="22" height="22" rx="5" fill="#4285F4" /><rect x="5" y="12" width="3" height="7" rx="1" fill="#fff" /><rect x="10.5" y="8" width="3" height="11" rx="1" fill="#fff" /><rect x="16" y="5" width="3" height="14" rx="1" fill="#fff" /></svg>
   ),
   outlook: () => <Glyph bg="#0F6CBD">O</Glyph>,
+  search: () => (
+    <svg viewBox="0 0 24 24" width="100%" height="100%"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#C9CBD3" strokeWidth="2.4" /><path d="M15.5 15.5L21 21" stroke="#C9CBD3" strokeWidth="2.6" strokeLinecap="round" /></svg>
+  ),
 };
 
 export const Favicon: React.FC<{ name: string; size?: number }> = ({ name, size = 16 }) => {
