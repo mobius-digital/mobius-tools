@@ -17,6 +17,11 @@
 > - Client: no team board. A "Needs you" inbox (ideas to approve before making, finished ads) + "Coming up" list by
 >   launch date, Calendar toggle. Open for Cole: one approver per brand, and an auto-approve window (e.g. 3 days).
 > - Team: add a launch date to cards; Board stays, List and Calendar (launch date) reuse tasks.js views.
+> - **Then (same day) Cole questioned keeping Frame** ($75/mo for review). Open decision: build review into Locus (R2,
+>   pins/boxes via Annotorious, timestamp notes, versions, compare; about 1 to 1.5 weeks; MP4/JPG/PNG only unless a
+>   transcoder is added) vs keep Frame. The deciding question is the Premiere/After Effects panel. Cole asked the team:
+>   (1) notes read inside Premiere/AE or in the browser? (2) file types uploaded (MP4 only, or MOV/ProRes)? (3) do
+>   reviewers draw boxes or just write? Wait for his answer before building review or files.
 > - Profile photos: Google sign-in returns `picture` (worker.js googleLogin) but hq/index.html drops it; save it,
 >   Slack `users.info` profile image as fallback, show photos everywhere avatars are drawn (HUE circles today).
 
