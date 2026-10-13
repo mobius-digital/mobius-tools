@@ -1,5 +1,6 @@
 import { tiktokReport } from './tiktok.js';
-import { leaksFor } from './leaks.js';
+import { leaksFor, lessonFromLeak } from './leaks.js';
+import { addLesson } from './leakctx.js';
 import { surveyReport } from './survey.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
@@ -1506,6 +1507,31 @@ const ACTIONS = (d) => {
         return { ok: true, note: 'The creator link page is updated; creators see it on their next load.' };
       } },
 
+    { name: 'leak_lesson',
+      description: 'Teach the leak finder (the leaks view) what a teammate pushed back on, when someone says a leak or suggestion is wrong or should not be done ("our Google guy says never block competitor names in the brand campaign", "the web dev says that page is brand new, give it two weeks"). It is saved, judged once against the data and how the platform works (holds / partly / does not hold, with the why), and every later leak review follows it or shows both sides. Read the leaks view first so you can name the leak it is about.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string', description: 'The brand it is about. Leave empty only when it applies to every brand.' },
+        text: { type: 'string', description: 'What they said, in their words as closely as you have them.' },
+        author: { type: 'string', description: 'Who said it (first name).' },
+        role: { type: 'string', description: 'Their role: Google buyer, Meta buyer, web dev, strategist, email.' },
+        leak_id: { type: 'string', description: 'The id of the leak it is about, from the leaks view, when there is one.' },
+        summary: { type: 'string' } }, required: ['text', 'summary'] },
+      propose: async (env, input) => {
+        const acct = input.brand ? await resolve(env, input.brand) : null;
+        if (input.brand && !acct) return { error: `No brand called "${input.brand}".` };
+        if (String(input.text || '').trim().length < 8) return { error: 'Say what they said, in a sentence.' };
+        return { summary: input.summary, detail: `${input.author || 'A teammate'}${input.role ? ` (${input.role})` : ''} on ${acct ? acct.name : 'every brand'}: "${String(input.text).trim()}". Saved as a lesson for the leak finder, then judged against the data; every later review follows it or shows both sides.`,
+          patch: { act: acct ? acct.act_id : '', text: input.text, author: input.author || '', role: input.role || '', leak_id: input.leak_id || null, brand: acct ? acct.name : '' } };
+      },
+      apply: async (env, patch, h, ctx) => {
+        const by = (ctx && (ctx.who || ctx.email || ctx.user)) || null;
+        const dd = { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession };
+        const r = patch.act ? await lessonFromLeak(env, dd, patch.act, { ...patch, scope: 'brand' }, by ? `${by} via the Strategist` : 'the Strategist')
+          : await addLesson(env, dd, { act: '', text: patch.text, author: patch.author, role: patch.role, added_by: by ? `${by} via the Strategist` : 'the Strategist', brand: 'every brand' });
+        if (r.error && !r.id) return { error: r.error };
+        const word = { holds: 'It holds', partly: 'It partly holds', does_not_hold: 'It does not hold', open: 'Saved; not judged yet' }[r.status] || 'Saved';
+        return { ok: true, note: `${word}.${r.why ? ` ${r.why}` : ''}${r.rule ? ` From now on: ${r.rule}` : ''}` };
+      } },
     { name: 'set_writing_style',
       description: 'Change HOW Daily Briefs or weekly/monthly reports are written from now on, when Cole says he does not like how they read ("lead with profit", "shorter", "stop mentioning Google", "no hedging", "always end with one action for the client"). Standing direction, for every brand or for one. It changes emphasis, order, length, tone and what is left out; it can never add a number. Read writing_style first. Structural changes (a new section, a new number, a different layout) are a code change: use hand_to_claude_code for those.',
       input_schema: { type: 'object', properties: {

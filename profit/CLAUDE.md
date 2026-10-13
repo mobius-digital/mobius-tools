@@ -3107,3 +3107,10 @@ Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/
   @names and what its thread will hold; nothing posts), **Where the drafts post** (now also the weekly and monthly drafts
   while the card is on; shows `dailyBriefsError` when the agency channel last refused a draft). The "Today's calls in
   Slack" card is gone (the card carries it). Engine and rules: account-health/CLAUDE.md, same date.
+- **Second pass (2026-10-13): the cross-check and Push back** (`leaks.js?v=2`). Each row carries the review's verdict
+  chip (Real / Check first / Not the cause / Measurement), an "Across channels" line (the why, citing the other
+  channels) with "Same root: X", and "Before you act" (the one thing to rule out). Every row has **Push back**: an
+  in-app modal (who says so from the team list, their role preset from the area, what they said, "every brand" for the
+  team only) that saves a lesson, shows its verdict (Holds / Partly / Does not hold, the why, "From now on") and
+  re-reads the list. The Day check card adds the review's one-line summary as its lead and a "What the team taught it
+  (N)" fold with Remove. The top-of-page total leaves out Not the cause and Measurement. See account-health/CLAUDE.md.

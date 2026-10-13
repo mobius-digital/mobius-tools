@@ -249,6 +249,10 @@ export const CLIENT_RULES = [
   R('GET', '/api/leaks'),
   R('POST', '/api/leaks/apply'),
   R('POST', '/api/leaks/undo'),
+  /* Push back on a leak (leakctx.js lessons): a client's is always its own brand's, never every brand's. */
+  R('GET', '/api/leaks/lessons'),
+  R('POST', '/api/leaks/lesson'),
+  R('DELETE', '/api/leaks/lesson'),
   R('GET', '/api/tiktok/report'),
   R('GET', '/api/brand/tests-overview', 'none'),
   R('POST', '/api/brand-asana/mins'),

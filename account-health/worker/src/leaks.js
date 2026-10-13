@@ -40,9 +40,10 @@ import { tiktokReport } from './tiktok.js';
 import { brandBrain } from './brain.js';
 import { readToday } from './todaypost.js';
 import { teamOf } from './calendar.js';
+import { contextFor, review, mergeReview, lessonsFor, lessonsText, addLesson, deleteLesson } from './leakctx.js';
 
 const MODEL = 'claude-sonnet-5-5';
-const TTL = 3600e3;
+const TTL = 6 * 3600e3;   // six hours: the data under it lands daily, and each fresh read costs two Sonnet calls
 const SKIP = /golf sock|harborline/i;
 
 /* ---------- benchmarks: every number names its source and year ----------
@@ -87,7 +88,7 @@ const JUDGE_SCHEMA = {
         replaced: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['off', 'by'], properties: { off: { type: 'string' }, by: { type: 'string' } } } } } },
   },
 };
-export function judgeSystem(brand, brain) {
+export function judgeSystem(brand, brain, lessons = '') {
   return `You audit wasted money for ${brand}, a brand Mobius Digital runs ads for. Plain words, no em dashes.
 
 WHAT THE BRAND SELLS (its brain; judge every search from this, never from a word list):
@@ -102,9 +103,12 @@ TASK 1, search terms. Each line is a Google search that cost money and did not c
 TASK 2, Performance Max search categories (Google groups searches into categories). Same three labels, same care.
 
 TASK 3, email flows. From the flow list (name, trigger, status, revenue over 90 days), say which CORE flows the account has NO live version of: welcome (new subscriber), abandoned_cart (cart or checkout abandonment), browse_abandonment, post_purchase (thank you, cross-sell, review ask after an order), winback (lapsed customers). Judge from what each flow is for, not its exact words. Then for every flow that is NOT live but earned revenue, name the live flow that replaced it (its id) in "replaced", or leave it out when nothing replaced it.
-Return JSON only.`;
+${lessons ? `
+THE TEAM'S LESSONS (follow the ones marked HOLDS or PARTLY):
+${lessons}
+` : ''}Return JSON only.`;
 }
-export async function judge(env, d, brand, brain, terms, cats, flows) {
+export async function judge(env, d, brand, brain, terms, cats, flows, lessons = '') {
   if (!terms.length && !cats.length && !flows.length) return { terms: [], categories: [], flows: { missing: [], replaced: [] } };
   if (!env.ANTHROPIC_API_KEY) throw new Error('no model key');
   const user = [
@@ -115,7 +119,7 @@ export async function judge(env, d, brand, brain, terms, cats, flows) {
   const r = await d.xfetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, max_tokens: 8000, system: judgeSystem(brand, brain), output_config: { effort: 'low', format: { type: 'json_schema', schema: JUDGE_SCHEMA } }, messages: [{ role: 'user', content: user }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 8000, system: judgeSystem(brand, brain, lessons), output_config: { effort: 'low', format: { type: 'json_schema', schema: JUDGE_SCHEMA } }, messages: [{ role: 'user', content: user }] }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error?.message || `Claude HTTP ${r.status}`);
@@ -195,6 +199,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   const R = a.R;
   const team = (await teamOf(env, [act]).catch(() => ({})))[act] || {};
   const ownerOf = area => { const n = team[ROLE[area]]; return n && !/^the /.test(n) ? n : ''; };
+  const lessons = await lessonsFor(env, act).catch(() => []);
 
   /* Every read in parallel; a source that fails says so in `areas` and never sinks the rest. */
   const [g, f, kl, today, tt, store] = await Promise.all([
@@ -215,7 +220,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   try {
     if (d.canAfford && !d.canAfford(3)) throw new Error('out of budget this hour');
     const brain = (await brandBrain(env, act, { short: true, creator: false, voice: false }).catch(() => ({ md: '' }))).md || '';
-    J = await judge(env, d, a.name, brain.slice(0, 9000), terms, cats, flows);
+    J = await judge(env, d, a.name, brain.slice(0, 9000), terms, cats, flows, lessonsText(lessons, ['google_search', 'google_pmax', 'email']));
   } catch (e) { judgeErr = e.message; }
   const labelT = i => (J?.terms || []).find(x => x.i === i), labelC = i => (J?.categories || []).find(x => x.i === i);
 
@@ -269,7 +274,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   else {
     areas.meta = { state: 'ok' };
     const rows = (today.rows || []).filter(r => (r.kind === 'cut' || r.kind === 'trim') && r.act_id === act && r.stake > 0);
-    for (const r of rows) leaks.push({ id: `meta:${r.kind}:${r.ad_id || r.adset_id}`, area: 'meta',
+    for (const r of rows) leaks.push({ id: `meta:${r.kind}:${r.ad_id || r.adset_id}`, area: 'meta', adset_id: r.adset_id, ad_id: r.ad_id || null, meta_act: r.meta_act || null,
       title: r.kind === 'cut' ? `Ad set "${r.adset}" is on the cut line` : `The ad "${r.ad}" in "${r.adset}" is over the line`,
       number: `${r.why} (Triple Whale, last platform click, ${r.from} to ${r.to})`,
       benchmark: `${money(r.goal)} goal per sale; cut line from the brand's Ads rules, the same as Today's calls`,
@@ -348,11 +353,26 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
 
   /* Rank by money; unpriced leaks after the priced ones; drop the trivial ones (search negatives always stay: they
      are what Viktor's report used to post). */
-  const out = leaks.filter(l => l.cost == null || l.cost >= FLOOR.cost || l.apply || l.keep)
+  let out = leaks.filter(l => l.cost == null || l.cost >= FLOOR.cost || l.apply || l.keep)
     .map(l => { const owner = ownerOf(l.area); return { ...l, cost: l.cost == null ? null : Math.round(l.cost), owner, who: owner ? `${owner}, ${(WHO[l.area] || '').toLowerCase()}` : WHO[l.area], go: GO[l.area] }; })
     .sort((p, q) => (q.cost ?? -1) - (p.cost ?? -1));
+  /* THE CROSS-CHECK (leakctx.js): every leak read against the other channels, the tracking, the Change Log and the
+     team's lessons by one Sonnet call before anyone acts on it. A failed review leaves the list as found, marked so. */
+  let context = null, summary = '', reviewErr = null;
+  try {
+    if (!out.length) throw new Error('nothing to review');
+    if (d.canAfford && !d.canAfford(4)) throw new Error('out of budget this hour');
+    const metaActs = (await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta'`).bind(act).all().catch(() => ({ results: [] }))).results.map(r => r.external_id);
+    const ctx = await contextFor(env, act, { from, to, leaks: out, f: f && !f.error ? f : null, g: g && !g.error ? g : null, store, metaActs });
+    context = ctx.brand;
+    out = out.map(l => ({ ...l, ctx: ctx.per[l.id] || null }));
+    const rv = await (d.review || review)(env, d, a.name, out, ctx, lessons);
+    out = mergeReview(out, rv); summary = rv.summary || '';
+  } catch (e) { if (out.length) reviewErr = e.message; }
   const res = { act, brand: a.name, currency: cur, days, from, to, base_from: bfrom, base_to: bto, as_of: new Date().toISOString(), leaks: out, areas,
-    note: 'Each leak is priced on its own. They overlap (a better cart page also lifts checkout), so do not add them up.', judged: !judgeErr };
+    note: 'Each leak is priced on its own. They overlap (a better cart page also lifts checkout), so do not add them up.', judged: !judgeErr,
+    reviewed: !reviewErr && out.length > 0, review_error: reviewErr, summary, context,
+    lessons: lessons.map(l => ({ id: l.id, act_id: l.act_id, area: l.area, text: l.text, author: l.author, role: l.role, status: l.status, why: l.verdict_why, rule: l.rule, at: l.created_at })) };
   await d.putSetting(env, key, JSON.stringify(res)).catch(() => {});
   return res;
 }
@@ -395,7 +415,7 @@ async function logChange(env, act, summary, reason, who, objId, objName) {
 
 /* ---------- routes ---------- */
 export async function handleLeaks(request, env, url, path, json, h) {
-  if (path !== '/api/leaks' && path !== '/api/leaks/apply' && path !== '/api/leaks/undo') return null;
+  if (!['/api/leaks', '/api/leaks/apply', '/api/leaks/undo', '/api/leaks/lesson', '/api/leaks/lessons'].includes(path)) return null;
   if (!(await h.isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   const email = await h.sessionEmail(env, request).catch(() => null);
   const only = await h.brandsFor(env, email).catch(() => null);
@@ -409,10 +429,28 @@ export async function handleLeaks(request, env, url, path, json, h) {
       const days = [7, 14, 30, 60, 90].includes(+url.searchParams.get('days')) ? +url.searchParams.get('days') : 30;
       return json(await leaksFor(env, d, act, { days, fresh: url.searchParams.get('fresh') === '1' && !(h.isClient && h.isClient(request)) }));
     }
+    const client = !!(h.isClient && h.isClient(request));
+    if (path === '/api/leaks/lessons') return json({ lessons: (await lessonsFor(env, act)).map(l => ({ ...l, mine: l.act_id === act })) });
+    if (path === '/api/leaks/lesson' && request.method === 'DELETE') {
+      const r = await deleteLesson(env, String(url.searchParams.get('id') || body.id || ''), client ? act : null);
+      if (r.ok) await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(`leaks:${act}:%`).run().catch(() => {});
+      return json(r);
+    }
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
     const who = email || 'someone';
+    if (path === '/api/leaks/lesson') return json(await lessonFromLeak(env, d, act, body, who, client));
     if (path === '/api/leaks/apply') return json(await applyNegative(env, d, act, body, who));
     if (path === '/api/leaks/undo') return json(await undoNegative(env, d, act, String(body.resource || ''), who));
   } catch (e) { return json({ error: e.message }, 502); }
   return null;
+}
+
+/** A teammate's pushback on one leak (or on an area): saved, judged against the leak and its context, returned with the
+ *  verdict. Every brand (scope 'all') only for the team; a client's pushback is always its own brand's. */
+export async function lessonFromLeak(env, d, act, b, who, client = false) {
+  const L = safe(await d.getSetting(env, `leaks:${act}:${+b.days || 30}`), null);
+  const leak = b.leak_id ? (L?.leaks || []).find(x => x.id === b.leak_id) || null : null;
+  const all = b.scope === 'all' && !client;
+  return addLesson(env, d, { act: all ? '' : act, area: leak ? leak.area : String(b.area || ''), leak_id: leak ? leak.id : null, text: b.text, author: b.author, role: b.role, added_by: who,
+    brand: L?.brand || act, leak, context: { leak: leak ? leak.ctx : null, brand: L?.context || null } });
 }

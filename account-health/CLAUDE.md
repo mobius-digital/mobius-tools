@@ -1927,3 +1927,31 @@ Dartee's had five bot posts and ~60 lines before 9am on Oct 13. Tests: `node tes
 - NOT tested live: the first 5am tick (2026-10-14 is the test: `lastHourly.morningCard`, `morningCardDone`), the invite
   through Cole's token into #daily-briefs, chat.update on a real card, ✅ on a card through the router, users.list for
   Radhesh / Hamza. Viktor's Monday Search Term Mining is not ours (Cole asked Viktor to stop it 2026-10-13): check Monday.
+
+### 2026-10-13 (second pass): the CROSS-CHECK and the team's LESSONS (`src/leakctx.js`). Read before touching either.
+
+Cole: "if an ad has a really low ROAS, it doesn't necessarily mean turn that ad off... what if the CTR is great but it's
+going to a completely separate website, or that website's getting a lot of bounces... it's all context based." And: "if
+my Google guy goes, no, we shouldn't do that... is that true? Can we learn from it?" Tests: test-leaks.mjs 20/20.
+- **Context** (`contextFor`, D1 + what leaksFor already read, no new API calls): per Meta cut set its 7-day CTR against
+  the brand's median set, CPM, frequency, first- vs last-click credit with `role` (opener / closer / both at the 1.3x
+  line, WORKED OUT IN CODE: the model once read a closer as an opener) and where its ads land (`ad_creative.json.link`)
+  with that page's paid GA4 conversion and engagement; per Google campaign Google's own value vs Triple Whale's Google
+  credit and its landing pages (`leakAds` now reads PMax `asset_group.final_urls`, cache `gadlk2:`); per funnel step
+  engagement and sessions A DAY now vs before (never raw totals across 30 vs 90 days: that once read as a 74% drop);
+  per landing page who sends traffic there. Brand-wide: GA4 purchases vs Shopify orders, traffic and engagement, the
+  Change Log's last 21 days. GA4 reads gained `engagedSessions` (cache `g4lk2:`).
+- **Review** (`review`, ONE Sonnet 5.5 call, medium effort, after the leaks are built): per leak `verdict` real |
+  check_first | not_the_cause | measurement, `why_ctx`, `check`, `root` (a shared root names one problem behind
+  several leaks), plus one `summary`. `mergeReview` ranks not_the_cause and measurement after the leaks to act on. A
+  failed review leaves the list as found with `reviewed: false` and the reason. The cache is now SIX hours (two Sonnet
+  calls a fresh read, about 3 to 5 cents a brand).
+- **Lessons** (`p_leak_lesson`, created on first use): the Push back button (`POST /api/leaks/lesson {act, leak_id,
+  text, author, role, scope}`), the Strategist's Apply card `leak_lesson`, or Claude Code. Each is judged once
+  (`judgeLesson`: holds | partly | does_not_hold, why, a standing `rule`, the area) against the leak and its context, and
+  every later search-term judge and review reads them (`lessonsText`). A client's lesson is always its own brand's;
+  `scope: 'all'` (act_id '') is the team's. `GET /api/leaks/lessons`, `DELETE /api/leaks/lesson?id=&act=`; all three on
+  CLIENT_RULES (both copies). Saving drops the brand's cached list (or every brand's).
+- Verified live on Lucky 2026-10-13: the review called the phone cart path the root, PMax "check first" (Google claims
+  $19.4K vs Triple Whale's $14.6K), two Meta cut sets "not the cause" (CTR 2.6% and 2.5% against a 1.47% median), and a
+  test lesson came back "partly" with a sensible rule (deleted after: it was not Cole's).
