@@ -3078,7 +3078,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
       data_json: JSON.stringify({ health: r.health ?? null }),
     });
     const posted = await slackPost(env, ch, card.text, card.blocks,
-      { username: 'Mobius Reports', icon: ':memo:' }).catch(() => null);
+      { username: 'Locus', icon: ':memo:' }).catch(() => null);
     if (posted?.ts) {
       await env.DB.prepare(
         `UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`,
@@ -3670,7 +3670,7 @@ async function alertClaudeFailure(env, context, message) {
       ? '*This looks like an API credit problem.* Top up at <https://platform.claude.com/settings/billing|Console → Billing>, and turn on auto-reload so it cannot happen again.'
       : 'Check <https://platform.claude.com/settings/billing|Console → Billing> for credit, and the API key on the account-health worker.') +
     '\n_One alert per 12 hours, however many brands are affected._',
-    null, { username: 'Mobius Reports', icon: ':warning:' }).catch(() => {});
+    null, { username: 'Locus', icon: ':warning:' }).catch(() => {});
 }
 
 /** A sync that keeps failing must SAY SO. `syncAdDaily` writes its error to
@@ -3711,7 +3711,7 @@ async function alertSyncFailure(env, acct, message) {
       ? '*Meta has retired a field we ask for.* Creative stats (hook, hold, retention) will be stale or empty until the field list in `syncAdSlice` is updated.'
       : 'Ad-level spend, creative cards and the report ad table will be stale until this clears.') +
     '\n_One alert per 12 hours, however many brands are affected._',
-    null, { username: 'Mobius Reports', icon: ':rotating_light:' }).catch(() => {});
+    null, { username: 'Locus', icon: ':rotating_light:' }).catch(() => {});
 }
 
 /** Public, login-free preview links for the ads a report lists.
@@ -4808,7 +4808,7 @@ async function postReportDraft(env, acct, r) {
   };
   const card = await reportCard(env, acct, row);
   const posted = await slackPost(env, channel, card.text, card.blocks,
-    { username: 'Mobius Reports', icon: ':clipboard:' });
+    { username: 'Locus', icon: ':clipboard:' });
   if (posted?.ts) {
     await env.DB.prepare(
       `UPDATE reports SET slack_ts = ?4, slack_channel = ?5 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
@@ -5624,7 +5624,7 @@ async function slackPost(env, channel, text, blocks, opts = {}) {
   }
   /* Locus's own notes carry the Mobius mark, not the old chart emoji. */
   const face = opts.username === 'Locus' ? { icon_url: 'https://tools.go-mobius-digital.com/favicon.png' } : { icon_emoji: opts.icon || ':bar_chart:' };
-  let j = await send({ ...base, username: opts.username || 'Mobius Account Health', ...face });
+  let j = await send({ ...base, username: opts.username || 'Locus', ...face });
   if (!j.ok && /missing_scope|invalid_arg/i.test(j.error || '')) j = await send(base);
   if (!j.ok) throw new Error(`Slack: ${j.error || 'unknown error'}`);
   return { ts: j.ts, channel: j.channel };
@@ -7872,7 +7872,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           const ch = prior?.slack_channel || acct.slack_channel;
           if (!ch) { out.push({ name: acct.name, date, skipped: 'no internal channel set' }); continue; }
           if (prior?.slack_ts) await slackApi(env, 'chat.delete', { channel: ch, ts: prior.slack_ts }).catch(() => {});
-          const posted = await slackPost(env, ch, card.text, card.blocks, { username: 'Mobius Reports', icon: ':memo:' })
+          const posted = await slackPost(env, ch, card.text, card.blocks, { username: 'Locus', icon: ':memo:' })
             .catch(e => ({ error: e.message }));
           if (posted?.ts) {
             await env.DB.prepare(`UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`)
@@ -7971,7 +7971,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
                thing fresh at the bottom. Cole asked for the latter. */
             await slackApi(env, 'chat.delete', { channel: row.slack_channel, ts: row.slack_ts }).catch(() => {});
             const posted = await slackPost(env, row.slack_channel, card.text, card.blocks,
-              { username: 'Mobius Reports', icon: ':clipboard:' }).catch(e => ({ error: e.message }));
+              { username: 'Locus', icon: ':clipboard:' }).catch(e => ({ error: e.message }));
             if (posted?.ts) {
               await env.DB.prepare(
                 `UPDATE reports SET slack_ts = ?4, slack_channel = ?5 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
@@ -8013,7 +8013,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
             if (where) await slackApi(env, 'chat.delete', { channel, ts }).catch(() => {});
             if (!channel) { out.push({ name: acct.name, date, skipped: 'no internal channel set' }); continue; }
             const posted = await slackPost(env, channel, card.text, card.blocks,
-              { username: 'Mobius Reports', icon: ':memo:' });
+              { username: 'Locus', icon: ':memo:' });
             ts = posted.ts; channel = posted.channel || channel;
             out.push({ name: acct.name, date, reposted: true, replaced: !!where, ts });
           }
