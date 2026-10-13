@@ -4,6 +4,21 @@
 > canvas, four artboards: `project/Main.dc.html` brief sheet with Brief / Files / Comments tabs, `project/Review.dc.html`
 > file viewer with comments, Approve and Ask for changes, `project/Client.dc.html` the brand edition board,
 > `project/Mirror.dc.html` the Asana mirror switch). Sample data is made up. Build nothing until Cole approves it.
+> **Revised the same day after research Cole asked for** (Motion, Foreplay, Billo, Insense, Superside briefs; Frame.io V4,
+> Filestage, Ziflow, ClickUp and Asana proofing; agency client portals). Proposed changes, waiting on Cole:
+> - Brief: pick the kind first (New idea / Iteration of #X / Resize or cut / Something else), then the format; fields
+>   follow the format (Video: hooks + script table VO / on-screen text / shot / seconds; UGC: show / say + creator,
+>   do, don't; Carousel: card table; Static: headline, subhead, CTA, layout). Testing is one if/then. Sizes chips.
+>   Inspiration per line and per brief: upload to R2, or paste a link saved WITH a copy (Ad Library links die).
+> - Review: KEEP Frame (about $75/mo; replacing it is 3 to 4 weeks for pins, boxes, versions, compare). Finished
+>   files live in Frame; Locus streams them via the V4 API (signed URLs, fetch fresh, never store), lists Frame notes
+>   with time / pin, posts notes back, sets Frame status on Approve, and records every share it creates. Drawing
+>   and compare stay in Frame. No iframe embed (unsupported).
+> - Client: no team board. A "Needs you" inbox (ideas to approve before making, finished ads) + "Coming up" list by
+>   launch date, Calendar toggle. Open for Cole: one approver per brand, and an auto-approve window (e.g. 3 days).
+> - Team: add a launch date to cards; Board stays, List and Calendar (launch date) reuse tasks.js views.
+> - Profile photos: Google sign-in returns `picture` (worker.js googleLogin) but hq/index.html drops it; save it,
+>   Slack `users.info` profile image as fallback, show photos everywhere avatars are drawn (HUE circles today).
 
 Start a worktree. Read this file, then `docs/handoffs/work-calls-tasks-production.md` (Production v1, live 2026-10-13),
 profit/CLAUDE.md and account-health/CLAUDE.md (sections "Brand: research, angles and the creative roadmap", "ASANA IS
