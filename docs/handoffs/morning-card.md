@@ -95,4 +95,4 @@ Remove the now-dead switches (todayPost, What moved) from that card.
   configurable). Report to Cole: what changed, and that tomorrow's 5am card is the live test.
 
 ## Added 2026-10-13 by the leak finder session
-- The leak finder is LIVE (account-health `src/leaks.js`, `GET /api/leaks?act=`). When this card is built, add ONE line when a NEW leak over $500 a month appeared since yesterday's card, tagged to its owner (`who`: Google buyer, Meta buyer, Strategist (site), Email owner), linked to Home > Day check. Compare leak ids against the ids stored on yesterday's `morningCard:<brand>:<date>`. Never a separate Slack post.
+- BUILT the same day (morningcard.js `buildCard`, `LEAK_FLOOR`). The leak finder is LIVE (account-health `src/leaks.js`, `GET /api/leaks?act=`). The card adds ONE line when a NEW leak over $500 a month appeared since yesterday's card, tagged to its owner (`who`: Google buyer, Meta buyer, Strategist (site), Email owner), linked to Home > Day check. Compare leak ids against the ids stored on yesterday's `morningCard:<brand>:<date>`. Never a separate Slack post.

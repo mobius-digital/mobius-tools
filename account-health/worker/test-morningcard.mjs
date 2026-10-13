@@ -6,7 +6,7 @@
  *   node test-morningcard.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { morningCardTick, previewCard, teamPost, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, callsText, morningHour, MAX_LINES } from './src/morningcard.js';
+import { morningCardTick, previewCard, teamPost, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, callsText, morningHour, MAX_LINES, buildCard } from './src/morningcard.js';
 import { addAction, markDone, onActionDone, handleReaction, actionTick, ensureActions } from './src/actions.js';
 import { postTo as alertPost } from './src/alerts.js';
 
@@ -221,6 +221,22 @@ await check('preview: the card as words for one brand, nothing posted; the switc
 await check('callsText: nouns and money', () => {
   assert.equal(callsText([{ kind: 'cut', adset: 'a', stake: 100 }, { kind: 'trim', ad: 'x', stake: 20 }], 'USD'), 'Today\'s calls: cut 1 ad set, trim 1 · $120 at stake');
   assert.equal(callsText([{ kind: 'fix' }]), null);
+});
+
+await check('the leak finder: ONE line for the biggest NEW leak over $500, tagged; the first day only records the ids', async () => {
+  const L = { leaks: [{ id: 'old', cost: 900, title: 'Old one', owner: 'Ahsan' }, { id: 'new', cost: 4543, title: '"Pmax | Wedges" costs 3.1x the goal per sale', owner: 'Ahsan' }, { id: 'small', cost: 120, title: 'Small', owner: 'Ahsan' }] };
+  const dl = { ...d, leaks: async () => L };
+  const day = '2026-10-15', prev = '2026-10-14';
+  const first = await buildCard(env, dl, ACCTS[1], day, {});
+  assert.ok(!first.items.some(i => i.kind === 'leak'), 'no card yesterday = nothing announced as new');
+  assert.deepEqual(first.leaks, ['old', 'new']);
+  setSetting(`morningCard:brand_beta:${prev}`, JSON.stringify({ leaks: ['old'] }));
+  const c = await buildCard(env, dl, ACCTS[1], day, {});
+  const line = c.items.find(i => i.kind === 'leak');
+  assert.ok(line, 'a new leak line'); assert.match(line.text, /^New leak: "Pmax \| Wedges" costs 3\.1x the goal per sale · \$4\.5K a month, est\./);
+  assert.equal(line.tag, '<@U_AHSAN>'); assert.equal(c.items.filter(i => i.kind === 'leak').length, 1);
+  const quiet = await buildCard(env, { ...d, leaks: async () => ({ leaks: [{ id: 'old', cost: 900 }] }) }, ACCTS[1], day, {});
+  assert.ok(!quiet.items.some(i => i.kind === 'leak'), 'nothing new = no line');
 });
 
 console.log(`\n${n}/${n + bad} passed`);

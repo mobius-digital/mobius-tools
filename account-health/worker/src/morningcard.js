@@ -34,6 +34,7 @@ import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
 export const MAX_LINES = 5;
+export const LEAK_FLOOR = 500;   // dollars a month: a new leak under this never reaches the card
 const WAIT_HOURS = 2;     // wait up to two hours past the morning hour for the brief (and Monday's weekly) before posting anyway
 const LAST_HOUR = 12;
 const NOT_OURS = /harborline/i;
@@ -207,6 +208,20 @@ export async function buildCard(env, d, a, today, shared = {}) {
     const late = daysBetween(c.due, today);
     items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${c.num ? `${c.num} - ` : ''}${clean(c.title, 80)} · ${BOARD[c.board] || c.board} · ${late} day${late === 1 ? '' : 's'} late`, who: c.assignee || '', rank: late * 1000 });
   }
+  /* The leak finder (2026-10-13, leaks.js): ONE line when a NEW leak over LEAK_FLOOR a month appeared since yesterday's
+     card (leak ids are kept on the card), tagged to its owner from the brand's roster. The first day only records the
+     ids, so nothing is announced as new just because the finder is new. */
+  let leakIds = null;
+  if (d.leaks && (!d.canAfford || d.canAfford(30))) {
+    try {
+      const L = await d.leaks(env, a.act_id);
+      const big = ((L && L.leaks) || []).filter(l => (l.cost || 0) >= LEAK_FLOOR);
+      leakIds = big.map(l => l.id);
+      const prev = (await loadCard(env, a.act_id, yday))?.leaks;
+      const nw = Array.isArray(prev) ? big.find(l => !prev.includes(l.id)) : null;
+      if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `New leak: ${clean(nw.title, 90)} · ${moneyK(nw.cost, a.currency)} a month, est. (Home > Day check)`, who: nw.owner || '', rank: nw.cost });
+    } catch (e) { notes.push(`leaks: ${e.message}`); }
+  }
   items.sort((p, q) => q.rank - p.rank);
   const shown = items.slice(0, MAX_LINES);
   for (const it of shown) { it.tag = await tagOf(env, d, it.who).catch(() => null); it.done = false; delete it.rank; }
@@ -222,7 +237,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   return {
     act: a.act_id, name: a.name, date: today, channel: a.slack_channel || null, ts: null,
     nums: numbersLine(a, brief), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
-    owes, weekly, calls: calls.length > 0, notes,
+    owes, weekly, calls: calls.length > 0, notes, leaks: leakIds,
     /* For the thread only; never stored. */
     _rows: rows || [], _tasks: tasks,
   };

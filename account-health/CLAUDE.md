@@ -1856,8 +1856,8 @@ offline checks: Google Ads, GA4, the model, Klaviyo, Meta's list and TikTok mock
   medians and says so) AND under the brand's own 90 days, over the floors (1,000 sessions, 300 carts / checkouts); cost =
   orders the step would add at the benchmark, carried down the brand's own funnel, x the device's AOV. Landing pages: 500+
   paid sessions under 70% of the paid site rate. Email: missing welcome = sign-ups x $5.75, post purchase = orders x
-  $1.80 (Klaviyo 2026), the others "not priced"; a switched-off flow = max(its last 30 days before going off, a third of
-  its 90-day revenue) less its replacement's rate; a replacement earning 85%+ of it is not a leak. Floor $50 a month,
+  $1.80 (Klaviyo 2026), the others "not priced"; a switched-off flow = its last 30 days before going off (when those
+  were empty, a third of its 90-day revenue) less its replacement's rate; a replacement earning 85%+ of it is not a leak. Floor $50 a month,
   except search negatives and PMax categories (Viktor's report, kept at any size). Sources and dates:
   docs/strategist-brain/knowledge/website-cro.md section 2.
 - **The write**: google.js `adsNegative` = `campaignCriteria:mutate` create `{campaign, negative: true, keyword: {text,
@@ -1867,7 +1867,10 @@ offline checks: Google Ads, GA4, the model, Klaviyo, Meta's list and TikTok mock
   (a category is not a keyword; the fix names the account-level negative list in Google Ads).
 - Verified live on Lucky 2026-10-13 from the dev worker: every source answered, Google accepted a validateOnly negative.
   NOT done: a real negative write (Cole approves the first ones), TikTok (not connected), Shopify-app funnels (no store
-  has the app), the morning card's new-leak line (that card is not live; see docs/handoffs/morning-card.md).
+  has the app).
+- **The morning card** (morningcard.js `buildCard`, `d.leaks` = cardDeps): ONE line for the biggest leak over
+  `LEAK_FLOOR` ($500 a month) whose id was not on yesterday's card (`card.leaks` keeps the ids), tagged to its owner
+  from the brand's roster (`leak.owner`, calendar.js `teamOf`); the first day only records ids. test-morningcard.mjs 13/13.
 
 ## 2026-10-13 (fifth pass): THE MORNING CARD (`src/morningcard.js`, docs/handoffs/morning-card.md). Read before posting anything to a brand's internal channel.
 

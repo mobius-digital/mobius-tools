@@ -67,7 +67,7 @@ import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProjec
 import { useFetch as surveyFetch, surveyReport, storeFairing, storeKno, forgetSurvey, setSurveyQuestion } from './survey.js';
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
-import { handleLeaks } from './leaks.js';
+import { handleLeaks, leaksFor } from './leaks.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 import { handleLaunch } from './launch.js';
@@ -6868,7 +6868,9 @@ function cardDeps() {
   const base = { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, slackApi, mintSession, canAfford: n => subCanAfford(n),
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
     teamOf: calendarTeam };
-  return { ...base, calendarData, listBoard: (env, d, o) => listBoard(env, base, o) };
+  return { ...base, calendarData, listBoard: (env, d, o) => listBoard(env, base, o),
+    /* The leak finder's list (cached an hour) for the card's one "new leak" line. */
+    leaks: (env, act) => leaksFor(env, { getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }, act) };
 }
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));

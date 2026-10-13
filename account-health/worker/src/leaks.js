@@ -39,6 +39,7 @@ import { klaviyoView } from './klaviyo.js';
 import { tiktokReport } from './tiktok.js';
 import { brandBrain } from './brain.js';
 import { readToday } from './todaypost.js';
+import { teamOf } from './calendar.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const TTL = 3600e3;
@@ -63,6 +64,8 @@ const CORE = { welcome: 'welcome', abandoned_cart: 'abandoned cart', browse_aban
 export const FLOOR = { sessions: 1000, events: 300, lp_sessions: 500, term_spend: 1, pmax_clicks: 10, cost: 50 };
 
 const WHO = { google_search: 'Google buyer', google_pmax: 'Google buyer', google_video: 'Google buyer', meta: 'Meta buyer', tiktok: 'TikTok buyer', funnel: 'Strategist (site)', landing_page: 'Strategist (site)', email: 'Email owner' };
+/* Who owns it: the brand's own roster (the season call sheet: strategist, buyer, email owner; calendar.js teamOf). */
+const ROLE = { google_search: 'buyer', google_pmax: 'buyer', google_video: 'buyer', meta: 'buyer', tiktok: 'buyer', funnel: 'strat', landing_page: 'strat', email: 'email' };
 const GO = { google_search: 'gterms', google_pmax: 'gcampaigns', google_video: 'gcampaigns', meta: 'today', tiktok: 'tiktok', funnel: 'website', landing_page: 'website', email: 'email' };
 export const AREA_PAGE = { google: ['google_search', 'google_pmax', 'google_video'], meta: ['meta'], tiktok: ['tiktok'], website: ['funnel', 'landing_page'], email: ['email'] };
 
@@ -190,6 +193,8 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   const areas = {}, leaks = [];
   const link = await linkFor(env, act).catch(() => ({}));
   const R = a.R;
+  const team = (await teamOf(env, [act]).catch(() => ({})))[act] || {};
+  const ownerOf = area => { const n = team[ROLE[area]]; return n && !/^the /.test(n) ? n : ''; };
 
   /* Every read in parallel; a source that fails says so in `areas` and never sinks the rest. */
   const [g, f, kl, today, tt, store] = await Promise.all([
@@ -269,7 +274,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       number: `${r.why} (Triple Whale, last platform click, ${r.from} to ${r.to})`,
       benchmark: `${money(r.goal)} goal per sale; cut line from the brand's Ads rules, the same as Today's calls`,
       cost: r.stake * 30 / 7, cost_how: 'the money at stake on Today’s calls (7 days), as a month',
-      fix: r.kind === 'cut' ? 'Turn the ad set off or cut its budget. Make the call on Ads > Today’s calls.' : 'Turn off this ad only; the set keeps working. Make the call on Ads > Today’s calls.', who: WHO.meta });
+      fix: r.kind === 'cut' ? 'Turn the ad set off or cut its budget. Make the call on Ads > Today’s calls.' : 'Turn off this ad only; the set keeps working. Make the call on Ads > Today’s calls.' });
   }
 
   /* --- TikTok --- */
@@ -329,7 +334,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
     const repl = Object.fromEntries((J.flows?.replaced || []).map(x => [x.off, x.by]));
     for (const fw of flows.filter(x => x.status !== 'live' && (x.revenue || 0) > 0)) {
       const off = String(fw.updated || '').slice(0, 10) || to;
-      const before = Math.max(monthly(fw.id, addDays(off, -30), addDays(off, -1)) || 0, (fw.revenue || 0) / 3);   // its last 30 days before going off, or a third of its 90-day revenue, whichever is more
+      const before = monthly(fw.id, addDays(off, -30), addDays(off, -1)) || (fw.revenue || 0) / 3;   // its last 30 days before going off; when those were empty, a third of its 90-day revenue
       const by = flows.find(x => x.id === repl[fw.id]);
       const since = by ? monthly(by.id, off, to) ?? 0 : 0;
       const cost = Math.max(0, before - since);
@@ -344,7 +349,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   /* Rank by money; unpriced leaks after the priced ones; drop the trivial ones (search negatives always stay: they
      are what Viktor's report used to post). */
   const out = leaks.filter(l => l.cost == null || l.cost >= FLOOR.cost || l.apply || l.keep)
-    .map(l => ({ ...l, cost: l.cost == null ? null : Math.round(l.cost), who: l.who || WHO[l.area], go: GO[l.area] }))
+    .map(l => { const owner = ownerOf(l.area); return { ...l, cost: l.cost == null ? null : Math.round(l.cost), owner, who: owner ? `${owner}, ${(WHO[l.area] || '').toLowerCase()}` : WHO[l.area], go: GO[l.area] }; })
     .sort((p, q) => (q.cost ?? -1) - (p.cost ?? -1));
   const res = { act, brand: a.name, currency: cur, days, from, to, base_from: bfrom, base_to: bto, as_of: new Date().toISOString(), leaks: out, areas,
     note: 'Each leak is priced on its own. They overlap (a better cart page also lifts checkout), so do not add them up.', judged: !judgeErr };
