@@ -10953,6 +10953,8 @@ async function renderSettings() {
             '<div class="row" style="margin:0;gap:10px"><select id="dbChan" style="max-width:280px"></select><span class="tiny" id="dbMsg"></span></div>')}
           ${sCard('What the client gets each day', 'Once a brand has a Locus login, the client\'s daily can be <b>three lines plus Open in Locus</b>; the whole brief is in their Locus. A brand with no client login always gets the whole brief in Slack.',
             '<div class="row" style="margin:0;gap:10px"><select id="dbStyle" style="max-width:280px"><option value="short">Three lines and a link</option><option value="full">The whole brief</option></select><span class="tiny" id="dbStyleMsg"></span></div>')}
+          ${sCard('Today\'s calls in Slack', 'From 8am Central, once a day per brand, Locus posts what to scale, cut, trim or refresh to the brand\'s <b>internal</b> channel, with an Open in Locus button. Only when there is something to do; never to a client channel.',
+            '<label class="row" style="margin:0;gap:10px;align-items:center"><input type="checkbox" id="tpOn" class="lx-sw"><span>Post today\'s calls each morning</span><span class="tiny" id="tpMsg"></span></label>')}
           ${sCard('Who client messages come from', 'Drafts and alerts in your <b>internal</b> channels post as the Mobius bot. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.',
             '<div id="slackWho"><span class="hint">Checking…</span></div>')}
           ${sCard('Acting on a draft from inside Slack', 'Every draft in an internal channel carries the same buttons as Locus: <b>Send to client</b>, <b>Edit the wording</b>, <b>Rewrite with AI</b> and <b>Don\'t send</b>. Use either place; the other keeps up.',
@@ -11776,6 +11778,11 @@ async function renderSettings() {
     };
     sel.onchange = () => save({ dailyBriefsChannel: sel.value }, $('#dbMsg'));
     st.onchange = () => save({ briefClientStyle: st.value }, $('#dbStyleMsg'));
+    const tp = $('#tpOn');
+    if (tp) {
+      try { const cfg = await apiAH('/api/settings'); tp.checked = cfg.todayPost !== false && cfg.todayPost !== 'off'; } catch {}
+      tp.onchange = () => save({ todayPost: tp.checked }, $('#tpMsg'));
+    }
   })();
 }
 
