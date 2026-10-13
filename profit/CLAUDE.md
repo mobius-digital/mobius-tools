@@ -3008,3 +3008,37 @@ row, client lines badly spaced) and nothing said what approving would DO or wher
   art. Photo-as-the-ad lines stay 4:5. (2) The art director (account-health studio-ai.js plan) never plans an AI-drawn
   person wearing or holding the product; only a real photo line may show a person. Tested live on Dartee 376-3: ZERO
   BORING / TEXTURE / FIND YOUR STATEMENT, all words inside the square, no people.
+
+## 2026-10-13 (third pass): Action items built from the approved mock, after an audit. Supersedes the second pass's UI.
+
+Mock Cole approved: https://claude.ai/artifact/XtmEpeYQjhDjfywkq3DJSz. Audited against Linear's Triage (accept / decline
+fast, AI suggests and a person confirms), Asana's My Tasks (group by due), Todoist's quick add (parse owner and date from
+the words, show what was understood) and Fathom / Granola meeting action items (review before anything is sent).
+`profit/actions.js` (v=3) is the whole page; what changed from the second pass:
+- **No type pills, no browser dropdowns.** Items sit in labelled sections with column headers and one shared grid
+  (`.ai-grid`: words | owner | due | quote + ⋯), so every owner and date lines up: **Mobius does** (team jobs, list only,
+  never Asana), **New ads** (kind `brief`: numbered Asana briefs), **Client does** (kind `client_owes`: Requests asks; the
+  report's "What we need from you" is FILLED FROM THESE, never typed twice), **Client reads** (the "This week" lines). An
+  empty section is one "+ Add ..." line. Owner, due and ⋯ open Locus's own menus (`pop()` / `ownerMenu` with avatars and
+  roles / `dueMenu` with quick picks and a month calendar / `listMenu`), fixed-positioned, closed by Escape or a click away.
+- **Multi-brand calls:** each brand is a block you fold (`.ai-brand`, closed by default when a call has more than 3 brands
+  unless it has a flag) with a one-line count ("2 jobs · 1 new ad brief · 1 ask · 2 report lines") and "Leave this brand
+  out". ⋯ moves an item to another section, to another brand on the call, or to any brand (a new block), or leaves it out.
+- **Flags, not gates:** "N items need an owner · N need a date" under the summary; owner / due chips show "Needs an owner"
+  / "Add a date" dashed. Approving is still allowed.
+- **The quote:** each item's button shows the words from the call that created it and the m:ss mark (meetings.js SCHEMA
+  `quote`, `at`; older reads have none and the button is greyed).
+- **"Approving sends"** is one row of counted chips (jobs on the list, briefs to Asana, asks to the client, report lines,
+  Slack notes; each explains itself on hover) instead of a paragraph. Ctrl+Enter approves the card in focus.
+- **The card is a model** (`CARDS[id]` from `modelOf(meeting)`), drawn from data and redrawn on each structural change;
+  edits survive a list reload. Approve sends the same body shape as before.
+- **The list:** quick add parses the words as you type (`parse`: a team first name = owner; a brand's name or unique
+  first word = brand; today / tomorrow / weekday / next week / in N days / 10/16 / Oct 16 = due) into three chips you can
+  click to change (`QA`). Views Everyone / Mine / Late / Briefs with counts; Person filter and Group by Brand / Due date
+  (Late, Today, This week, Later, No date) / Person (`ai_group` in localStorage) as menus. Rows: tick, words edited in
+  place, Brief · Asana link, owner and due menus, ⋯ (open the call, change brand, drop). **Waiting on the client** =
+  account-health `/api/actions` `waiting` (Requests asks: open with days waiting, done in the last 7 days) inside each
+  brand group, or one "Waiting on clients" group. Monday numbers and the plan per brand as before.
+- No unread badge on the rail item (Cole's standing rule). Checked in the browser pane on the stub harness: menus, the
+  calendar, quote, move between brands and sections, leave a brand out, the counts, Ctrl+Enter payload, quick add parse,
+  the three groupings, views, an owner edit, 375px with no sideways scroll, light and dark.
