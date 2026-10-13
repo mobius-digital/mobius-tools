@@ -2971,3 +2971,10 @@ board in Locus, a one-way Locus -> Asana mirror, then cut Asana) is next, after 
   one colour world, product as hero), change the idea; (3) the art director gets the winner as `own_ad`
   (account-health studio-ai.js plan step) and may give each ad its own title art. Tested live on Dartee 376-3 (Bone Dry):
   three designed graphics (LINE UP / TEXTURE / ON THE HIP), Bone Dry on all three, "Shop Bone Dry", $0.99.
+- Same day, third pass (Cole: "on the hip looks AI, it doesn't match up on the person" and "these aren't in safe zones").
+  (1) Designed ads (not a photo line, not exact) are made SQUARE again (`makeOne`: `spec.square`, `SQUARE_LAYOUT`,
+  zone checked against `SQ_ZONE`), and the browser's existing `extend()` paints only the top and bottom bands, so every
+  word sits in the centre square by construction; the model ignored the 4:5 layout rule whenever it drew big title
+  art. Photo-as-the-ad lines stay 4:5. (2) The art director (account-health studio-ai.js plan) never plans an AI-drawn
+  person wearing or holding the product; only a real photo line may show a person. Tested live on Dartee 376-3: ZERO
+  BORING / TEXTURE / FIND YOUR STATEMENT, all words inside the square, no people.
