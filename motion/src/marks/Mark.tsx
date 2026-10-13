@@ -7,6 +7,7 @@
 import React from 'react';
 import { Img } from 'remotion';
 import type { App, CharacterState } from '../../brand';
+import { Toon, type ToonProps } from './Toon';
 
 type SvgModule = { default: React.FC<React.SVGProps<SVGSVGElement>> };
 
@@ -63,6 +64,7 @@ export const Character: React.FC<{
   style?: React.CSSProperties;
 }> = ({ app, state = 'rest', size = 300, color = 'currentColor', style }) => {
   const box: React.CSSProperties = { width: size, height: size, flex: 'none', color, ...style };
+  if (app.character.kind === 'toon') return <Toon kind={app.character.toon} from={state} size={size} style={style} />;
   if (app.character.kind === 'image') {
     return (
       <div style={box}>
@@ -88,9 +90,25 @@ export const CharacterBlend: React.FC<{
   size?: number;
   color?: string;
   style?: React.CSSProperties;
-}> = ({ app, from, to, t, size = 300, color = 'currentColor', style }) => (
+}> = ({ app, from, to, t, size = 300, color = 'currentColor', style }) => app.character.kind === 'toon' ? (
+  <Toon kind={app.character.toon} from={from} to={to} t={t} size={size} style={style} />
+) : (
   <div style={{ width: size, height: size, position: 'relative', flex: 'none', ...style }}>
     <Character app={app} state={from} size={size} color={color} style={{ position: 'absolute', inset: 0, opacity: 1 - t }} />
     <Character app={app} state={to} size={size} color={color} style={{ position: 'absolute', inset: 0, opacity: t }} />
   </div>
 );
+
+// The character acting: the SVG toon with its face, squash, tilt and lift; or,
+// with the PNG fallback, the two states blended with the body squashed and a
+// soft drop shadow so a large PNG reads as depth.
+export const Act: React.FC<{ app: App } & Omit<ToonProps, 'kind'>> = ({ app, ...p }) => {
+  if (app.character.kind === 'toon') return <Toon kind={app.character.toon} {...p} />;
+  const size = p.size ?? 300;
+  const sq = p.squash ?? 0;
+  return (
+    <div style={{ width: size, height: size, transform: `translateY(${-(p.lift ?? 0) * (size / 200)}px) rotate(${p.tilt ?? 0}deg) scale(${1 + sq * 0.16}, ${1 - sq * 0.22})`, transformOrigin: '50% 86%', filter: 'drop-shadow(0 18px 22px rgba(0,0,0,.22))', ...p.style }}>
+      <CharacterBlend app={app} from={p.from ?? 'rest'} to={p.to ?? p.from ?? 'rest'} t={p.t ?? 0} size={size} />
+    </div>
+  );
+};

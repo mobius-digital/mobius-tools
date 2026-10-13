@@ -41,7 +41,7 @@ if (rest[0]?.startsWith('every:')) {
   frames = rest.map(Number);
 }
 
-const scale = sheet ? 0.25 : 0.5;
+const scale = Number(process.env.STILL_SCALE ?? (sheet ? 0.25 : 0.5));
 const files = [];
 for (const frame of frames) {
   const output = join(outDir, `${id}-${String(frame).padStart(4, '0')}.png`);

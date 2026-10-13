@@ -5,6 +5,7 @@ import { Composition } from 'remotion';
 import { formats, fps } from '../brand';
 import { CashewSpot, cashewDuration } from './cashew/CashewSpot';
 import { LocusSpot, locusDuration } from './locus/LocusSpot';
+import { ToonSheet } from './ToonSheet';
 
 export const Root: React.FC = () => (
   <>
@@ -12,5 +13,6 @@ export const Root: React.FC = () => (
     <Composition id="CashewLandscape" component={CashewSpot} durationInFrames={cashewDuration} fps={fps} {...formats.landscape} />
     <Composition id="LocusVertical" component={LocusSpot} durationInFrames={locusDuration} fps={fps} {...formats.vertical} />
     <Composition id="LocusLandscape" component={LocusSpot} durationInFrames={locusDuration} fps={fps} {...formats.landscape} />
+    <Composition id="ToonSheet" component={ToonSheet} durationInFrames={1} fps={fps} width={1080} height={1400} />
   </>
 );

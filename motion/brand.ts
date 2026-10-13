@@ -13,21 +13,23 @@
 // character in the same style. Each spot sells one app and never names the other.
 export type CharacterState = 'rest' | 'thinking' | 'found' | 'asleep' | 'clear';
 export type Logo = { file: string; kind: 'wordmark' | 'mark' };
-export type Character = { kind: 'image'; dir: string } | { kind: 'vector'; base: string };
+// 'toon' is the SVG rebuild in src/marks/Toon.tsx (sharp at any size, the face
+// acts); `dir` keeps the PNG states as the fallback: set kind to 'image' to use them.
+export type Character = { kind: 'image'; dir: string } | { kind: 'vector'; base: string } | { kind: 'toon'; toon: 'cashew' | 'locus'; dir: string };
 export type App = { name: string; tagline: string; logo: Logo; character: Character };
 
 export const cashew: App = {
   name: 'Cashew',
   tagline: 'Know what you kept.',
   logo: { file: 'cashew/wordmark.svg', kind: 'wordmark' },
-  character: { kind: 'image', dir: 'cashew/character' },
+  character: { kind: 'toon', toon: 'cashew', dir: 'cashew/character' },
 };
 
 export const locus: App = {
   name: 'Locus',
   tagline: 'Know what to change.',
   logo: { file: 'locus/direction-2.svg', kind: 'mark' }, // the bead
-  character: { kind: 'image', dir: 'locus/character' },
+  character: { kind: 'toon', toon: 'locus', dir: 'locus/character' },
 };
 
 // ---- 2. The colours, from logo/kit.css ------------------------------------------
