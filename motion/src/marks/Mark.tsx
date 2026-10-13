@@ -5,7 +5,7 @@
 // vector mark with its four drawn states; which one each app uses is in
 // brand.ts, so a swap there needs no change here.
 import React from 'react';
-import { Img } from 'remotion';
+import { Img, useCurrentFrame } from 'remotion';
 import type { App, CharacterState } from '../../brand';
 import { Toon, type ToonProps } from './Toon';
 
@@ -102,7 +102,13 @@ export const CharacterBlend: React.FC<{
 // The character acting: the SVG toon with its face, squash, tilt and lift; or,
 // with the PNG fallback, the two states blended with the body squashed and a
 // soft drop shadow so a large PNG reads as depth.
-export const Act: React.FC<{ app: App } & Omit<ToonProps, 'kind'>> = ({ app, ...p }) => {
+// Unless `idle` is false it is never a sticker: it breathes and blinks on its own.
+export const Act: React.FC<{ app: App; idle?: boolean; seed?: number } & Omit<ToonProps, 'kind'>> = ({ app, idle = true, seed = 0, ...q }) => {
+  const frame = useCurrentFrame();
+  const breathe = idle ? Math.sin(((frame + seed * 17) / 30) * Math.PI * 2 * 0.5) * 0.045 : 0;
+  const ph = (frame + seed * 31) % 83;
+  const blinkIdle = idle && ph < 7 ? Math.sin((ph / 7) * Math.PI) : 0;
+  const p = { ...q, squash: (q.squash ?? 0) + breathe, blink: Math.max(q.blink ?? 0, blinkIdle) };
   if (app.character.kind === 'toon') return <Toon kind={app.character.toon} {...p} />;
   const size = p.size ?? 300;
   const sq = p.squash ?? 0;

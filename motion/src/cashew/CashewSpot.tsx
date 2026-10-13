@@ -21,8 +21,9 @@ import { buildTimeline, type Cue } from '../lib/timeline';
 import { Bed, Sfx, Voice } from '../lib/audio';
 import { feel, useBump, useExit, useSpring } from '../lib/motion';
 import { Big, Caption, Camera, Field, SceneBox, Words } from '../shared/scene';
-import { Character, CharacterBlend, Logo, svg } from '../marks/Mark';
-import { Crumbs, Phone } from '../shared/pieces';
+import { Act, Logo, svg } from '../marks/Mark';
+import { BiteBurst, PaperLife } from '../fx/Paper';
+import { Phone } from '../shared/pieces';
 import { BittenPill, MeltPill } from '../fx/Goo';
 import { Cost, costInk } from '../fx/Costs';
 import { BankCard, CwClose, CwFinding, CwForecast, CwHeroTile, CwKeptHero, CwNetByMonth, CwPack, CwTile, CwWhereItWent, CwWindow, Zoom, cwMoney as money } from '../ui/cashew';
@@ -129,9 +130,13 @@ const SceneBites: React.FC<{ len: number; biteAt: number[]; meltAt: number; sigh
   const capP = s(cap[0], feel.settle);
   // After the melt: the number above the puddle, the character out of it.
   const figIn = s(meltAt + 56, feel.pop);
-  const charIn = s(meltAt + 48, feel.pop);
-  const sigh = bump(sighAt, 12, feel.soft);
+  const charIn = s(meltAt + 40, feel.heavy);
+  const land = bump(meltAt + 62, 4, feel.wobble);
+  const sighIn = s(sighAt, feel.heavy);
+  const sighOut = s(sighAt + 40, feel.soft);
+  const sigh = sighIn - sighOut * 0.6; // it deflates, then half fills again
   const sighWord = s(sighAt + 4, feel.settle);
+  const peek = s(meltAt + 56, feel.settle); // the eyes go up to the number
   const valueText = money(melting ? Math.max(N.kept, value) : value);
   return (
     <SceneBox opacity={out}>
@@ -153,11 +158,11 @@ const SceneBites: React.FC<{ len: number; biteAt: number[]; meltAt: number; sigh
       {/* crumbs at each chomp */}
       {N.bites.map((_, i) => {
         const c = biteAt[i] + CHOMP;
-        const t = interpolate(f, [c, c + 26], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+        const t = interpolate(f, [c, c + 34], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
         const sp = spots[i];
         return (
           <div key={i} style={{ position: 'absolute', left: PILL.x + sp.x * PILL.w, top: PILL.y + sp.y * PILL.h }}>
-            <Crumbs t={t} color={G} seed={i + 2} />
+            <BiteBurst t={t} color={G} digits={money(N.bites[i].amount)} seed={i + 2} dir={sp.x > 0.5 ? 1 : -1} />
           </div>
         );
       })}
@@ -190,10 +195,20 @@ const SceneBites: React.FC<{ len: number; biteAt: number[]; meltAt: number; sigh
           <div style={{ position: 'absolute', left: 0, right: 0, top: 560, textAlign: 'center', transform: `scale(${0.7 + 0.3 * figIn}) translateY(${(1 - figIn) * 40}px)`, opacity: figIn, transformOrigin: '50% 50%' }}>
             <Big text={money(N.kept)} size={210} color={G} />
           </div>
-          <div style={{ position: 'absolute', left: 540 - 125, top: FLOOR - 230, transform: `scale(${charIn}, ${charIn * (1 - sigh * 0.1)}) translateY(${sigh * 14}px)`, transformOrigin: '50% 100%', opacity: Math.min(1, charIn * 2) }}>
-            <CharacterBlend app={app} from="asleep" to="rest" t={sighWord} size={250} />
+          <div style={{ position: 'absolute', left: 540 - 260, top: FLOOR - 456, clipPath: 'inset(-300px -300px 12px -300px)', opacity: Math.min(1, charIn * 3) }}>
+            <Act
+              app={app}
+              size={520}
+              from={sighIn > 0.3 ? 'asleep' : 'found'}
+              to={sighIn > 0.3 ? 'rest' : 'found'}
+              t={sighIn > 0.3 ? sighOut : 0}
+              face={{ lookY: -4 * peek * (1 - sighIn), lookX: 0, smile: sighIn > 0.3 ? -0.3 + sighOut * 0.3 : 0.1 }}
+              squash={-(1 - charIn) * 0.9 + land * 0.5 + sigh * 0.45}
+              lift={-(1 - charIn) * 150}
+              seed={2}
+            />
           </div>
-          <div style={{ position: 'absolute', left: 540 + 150, top: FLOOR - 250, fontFamily: serifStack, fontStyle: 'italic', fontSize: 44, color: colours.muted, opacity: sighWord * (1 - s(sighAt + 50, feel.soft)), transform: `translateY(${(1 - sighWord) * 10 - sighWord * 6}px)` }}>(sigh)</div>
+          <div style={{ position: 'absolute', left: 540 + 230, top: FLOOR - 400, fontFamily: serifStack, fontStyle: 'italic', fontSize: 44, color: colours.muted, opacity: sighWord * (1 - s(sighAt + 50, feel.soft)), transform: `translateY(${(1 - sighWord) * 10 - sighWord * 6}px)` }}>(sigh)</div>
         </>
       )}
       {landed === 0 && f > 20 && f < biteAt[0] && (
@@ -253,8 +268,8 @@ const SceneApril: React.FC<{ len: number; emailAt: number }> = ({ len, emailAt }
           <div style={{ fontSize: 21, color: colours.muted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Net income came to $37,400 for the year. Call me when you can, we should talk about the</div>
         </div>
       </div>
-      <div style={{ position: 'absolute', left: 60, top: 1500, transform: `scale(${charIn}) translateY(${(1 - charIn) * 60}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
-        <Character app={app} state="thinking" size={220} />
+      <div style={{ position: 'absolute', left: 10, top: 1290, transform: `scale(${charIn}) translateY(${(1 - charIn) * 60}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
+        <Act app={app} size={430} from="thinking" to="found" t={landed} face={{ lookX: 3.5 * (1 - landed) + Math.sin(f / 3.5) * 1.2 * (1 - landed), lookY: -3.5 }} squash={-useBump()(first + (months.length - 1) * FLIP, 4, feel.wobble) * 0.6} seed={3} />
       </div>
     </SceneBox>
   );
@@ -316,9 +331,20 @@ const SceneProduct: React.FC<{ len: number; logoAt: number; cardsAt: number; gat
           </div>
         )}
       </Camera>
-      <div style={{ position: 'absolute', left: 800, top: 1560, transform: `scale(${charIn}) translateY(${(1 - charIn) * 80 + nod * 12}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
-        <Character app={app} state="found" size={240} />
-      </div>
+      {(() => {
+        // In with the wordmark at centre, 380px, a hop; off to the corner when the cards come; a nod at the number.
+        const big = s(logoAt + 6, feel.pop);
+        const aside = s(cardsAt - 12, feel.settle, 30);
+        const hop = useBump()(logoAt + 10, 6, feel.pop);
+        const x = interpolate(aside, [0, 1], [540 - 240, 760]);
+        const y = interpolate(aside, [0, 1], [1030, 1470]);
+        const k = interpolate(aside, [0, 1], [1, 0.6]) * (gatherAt + 26 > f ? 1 : 1);
+        return (
+          <div style={{ position: 'absolute', left: x, top: y, transform: `scale(${k * Math.max(big, 0.001)})`, transformOrigin: '0 0', opacity: Math.min(1, big * 2) * (charIn > 0 ? 1 : 1) }}>
+            <Act app={app} size={480} from="rest" to="found" t={charIn} lift={hop * 40} squash={-hop * 0.5 + nod * 0.4} face={{ lookY: aside > 0.5 ? -2.5 : 0, lookX: aside > 0.5 ? -3 : 0 }} seed={4} />
+          </div>
+        );
+      })()}
     </SceneBox>
   );
 };
@@ -352,8 +378,8 @@ const SceneNudge: React.FC<{ len: number; secondAt: number; shoulderAt: number; 
         </div>
       </Camera>
       {/* the character at the edge, thinking, then it has found something */}
-      <div style={{ position: 'absolute', left: 800, top: 1470, transform: `translateY(${-hop * 26}px) rotate(${perk * -6}deg)`, transformOrigin: '50% 100%' }}>
-        <CharacterBlend app={app} from="thinking" to="found" t={perk} size={240} />
+      <div style={{ position: 'absolute', left: 640, top: 1330 + (1 - s(0, feel.pop)) * 200 }}>
+        <Act app={app} size={410} from={booked > 0.5 ? 'found' : 'thinking'} to={booked > 0.5 ? 'clear' : 'found'} t={booked > 0.5 ? booked : perk} tilt={-perk * 10 * (1 - booked) - bump(tapAt - 6, 6, feel.snap) * 8} lift={hop * 60} squash={-hop * 0.6 + bump(tapAt + 30, 5, feel.wobble) * 0.5} face={{ lookX: -3.5 * (1 - booked), lookY: -3 * (1 - booked) }} seed={5} />
       </div>
       {booked > 0 && (
         <div style={{ position: 'absolute', left: 0, right: 0, top: 1300, textAlign: 'center', opacity: booked, transform: `scale(${0.8 + 0.2 * booked})` }}>
@@ -395,8 +421,8 @@ const SceneMonday: React.FC<{ len: number; noteAt: number }> = ({ len, noteAt })
           </Phone>
         </div>
       </Camera>
-      <div style={{ position: 'absolute', left: 40, top: 1500, transform: `scale(${charIn}) translateY(${(1 - charIn) * 60}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
-        <Character app={app} state="clear" size={220} />
+      <div style={{ position: 'absolute', left: 0, top: 1390, transform: `scale(${charIn}) translateY(${(1 - charIn) * 60}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
+        <Act app={app} size={340} from="asleep" to="clear" t={s(noteAt + 26, feel.pop)} squash={-useBump()(noteAt + 26, 6, feel.pop) * 0.6} lift={useBump()(noteAt + 26, 6, feel.pop) * 30} seed={6} />
       </div>
     </SceneBox>
   );
@@ -431,8 +457,8 @@ const SceneClose: React.FC<{ len: number; tickAt: number[]; packAt: number }> = 
           </Zoom>
         </div>
       )}
-      <div style={{ position: 'absolute', left: 790, top: 1500, transform: `translateY(${nod * 14}px)`, transformOrigin: '50% 100%' }}>
-        <Character app={app} state="clear" size={230} />
+      <div style={{ position: 'absolute', left: 720, top: 1410 }}>
+        <Act app={app} size={340} from="rest" to="clear" t={s(packAt + 20, feel.pop)} squash={nod * 0.45} tilt={nod * 6} face={{ lookY: nod * 2 }} seed={7} />
       </div>
     </SceneBox>
   );
@@ -456,8 +482,8 @@ const SceneEnd: React.FC<{ len: number }> = ({ len }) => {
       <div style={{ position: 'absolute', left: 90, right: 90, top: 950, opacity: line, transform: `translateY(${(1 - line) * 24}px)` }}>
         <Words text="Know what you *kept*." size={72} color={W} weight={600} />
       </div>
-      <div style={{ position: 'absolute', left: 540 - 115, top: 1130, transform: `scale(${charIn}) translateY(${nod * 12}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
-        <Character app={app} state="clear" size={230} />
+      <div style={{ position: 'absolute', left: 540 - 270, top: 1030, transform: `scale(${charIn})`, transformOrigin: '50% 100%', opacity: Math.min(1, charIn * 2) }}>
+        <Act app={app} size={540} from="rest" to="clear" t={s(52, feel.pop)} squash={nod * 0.4 - useBump()(30, 4, feel.pop) * 0.4} face={{ lookY: nod * 2.5 }} seed={8} />
       </div>
       <div style={{ position: 'absolute', inset: -200, background: '#000', opacity: black }} />
     </SceneBox>
@@ -486,6 +512,8 @@ export const CashewSpot: React.FC = () => {
   const packAt = A('15') - close[0] + 74;
   return (
     <Field stops={[[0, G], [bites[0] + 4, PAPER], [tabs[0] + 6, NIGHT], [april[0] + 12, PAPER], [product[0] + 6, G], [monday[0] + 6, NIGHT], [close[0] + 6, G], [end[0] + 6, NIGHT]]}>
+      <PaperLife from={bites[0] + 4} to={tabs[0] + 6} accent={G} seed="bites" />
+      <PaperLife from={april[0] + 12} to={product[0] + 6} accent={G} seed="april" />
       <Sequence from={bank[0]} durationInFrames={bank[1] - bank[0]} name="bank"><SceneBank len={bank[1] - bank[0]} /></Sequence>
       <Sequence from={bites[0]} durationInFrames={bites[1] - bites[0]} name="bites"><SceneBites len={bites[1] - bites[0]} biteAt={biteAt} meltAt={meltAt} sighAt={sighAt} /></Sequence>
       <Sequence from={tabs[0]} durationInFrames={tabs[1] - tabs[0]} name="tabs"><SceneTabs len={tabs[1] - tabs[0]} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} /></Sequence>

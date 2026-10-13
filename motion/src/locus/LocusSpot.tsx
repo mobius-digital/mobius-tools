@@ -21,7 +21,8 @@ import { buildTimeline, type Cue } from '../lib/timeline';
 import { Bed, Sfx, Voice } from '../lib/audio';
 import { feel, useBump, useExit, useSpring } from '../lib/motion';
 import { Big, Caption, Camera, Field, SceneBox, Words } from '../shared/scene';
-import { Character, CharacterBlend, LogoLockup } from '../marks/Mark';
+import { Act, LogoLockup } from '../marks/Mark';
+import { PaperLife } from '../fx/Paper';
 import { LxAngle, LxCalls, LxDayCheck, LxHero, LxLanes, LxMorning, LxSpendBars, LxTile, LxWindow, PlatformCard, Zoom } from '../ui/locus';
 import { TabsBeat, locusTabs } from '../shared/tabsBeat';
 import { MetaMark, ShopifyMark } from '../ui/marks';
@@ -105,9 +106,18 @@ const SceneBleed: React.FC<{ len: number; bleedAt: number }> = ({ len, bleedAt }
           </Zoom>
         </div>
       </Camera>
-      <div style={{ position: 'absolute', left: 60, top: 1470, transform: `scale(${worry}) translateY(${(1 - worry) * 60}px)`, transformOrigin: '50% 100%', opacity: worry }}>
-        <Character app={app} state="thinking" size={220} />
-      </div>
+      {(() => {
+        // It watches the bars run down, then looks left and right: where did it go?
+        const look = f - (bleedAt + 60);
+        const lookX = look > 0 ? Math.sin(look / 9) * 4 : 1.5;
+        const lookY = look > 0 ? -1 : 3.5 * bleed;
+        const shiver = bleed > 0.1 && bleed < 0.95 ? Math.sin(f * 1.7) * 0.05 : 0;
+        return (
+          <div style={{ position: 'absolute', left: 0, top: 1310, transform: `scale(${worry}) translateY(${(1 - worry) * 60}px)`, transformOrigin: '50% 100%', opacity: worry }}>
+            <Act app={app} size={430} from="rest" to="thinking" t={worry} face={{ lookX, lookY, smile: -0.4 * bleed, mouthOpen: 0.3 * bleed, round: 0.8 }} squash={shiver} tilt={look > 0 ? Math.sin(look / 9) * 5 : 0} seed={1} />
+          </div>
+        );
+      })()}
     </SceneBox>
   );
 };
@@ -156,8 +166,8 @@ const SceneWake: React.FC<{ len: number; nameAt: number; wakeAt: number }> = ({ 
         <LogoLockup app={app} height={120} color={W} />
       </div>
       <Caption text="It wakes before *you* do." y={1010} p={line} color={W} size={50} />
-      <div style={{ position: 'absolute', left: 540 - 125, top: 1180, transform: `translateY(${(1 - lift) * 40 - lift * 10}px) scale(1, ${1 - blink * 0.08})`, transformOrigin: '50% 100%', opacity: Math.min(1, lockup * 2) }}>
-        <CharacterBlend app={app} from="asleep" to="found" t={wake} size={250} />
+      <div style={{ position: 'absolute', left: 540 - 280, top: 1050, transform: `translateY(${(1 - lift) * 40}px)`, opacity: Math.min(1, lockup * 2) }}>
+        <Act app={app} size={560} from="asleep" to="found" t={wake} blink={blink} squash={0.35 * (1 - lift) - useBump()(wakeAt, 8, feel.pop) * 0.7} lift={useBump()(wakeAt, 8, feel.pop) * 30} spin={wake > 0.05 ? (wake * 0.6 + useCurrentFrame() / 80) % 1 : -1} seed={2} />
       </div>
     </SceneBox>
   );
@@ -182,6 +192,7 @@ const SceneRead: React.FC<{ len: number; waves: number[]; readAt: number; mornin
   const scrollUp = s(heroAt - 4, feel.settle, 40);
   const cam = s(heroAt + 10, feel.soft, 150);
   const charState = f < morningAt ? 'rest' : 'found';
+  void charState;
   const capText = f < morningAt ? 'Every store. Every ad account. Every email.' : f < heroAt ? 'The morning *brief*.' : 'What you *actually* kept.';
   const capAt = f < morningAt ? waves[0] : f < heroAt ? morningAt : heroAt;
   const capP = s(capAt, feel.settle);
@@ -225,8 +236,8 @@ const SceneRead: React.FC<{ len: number; waves: number[]; readAt: number; mornin
           Read by <span style={{ fontFamily: serifStack, fontStyle: 'italic', fontWeight: 400, fontSize: 40 }}>7</span>.
         </div>
       )}
-      <div style={{ position: 'absolute', left: 820, top: 1540, transformOrigin: '50% 100%', transform: `translateY(${(1 - win) * 100}px)` }}>
-        <Character app={app} state={charState} size={220} />
+      <div style={{ position: 'absolute', left: 740, top: 1450, transformOrigin: '50% 100%', transform: `translateY(${(1 - win) * 100}px)` }}>
+        <Act app={app} size={330} from="rest" to="found" t={s(morningAt, feel.pop)} face={{ lookX: -3, lookY: -3.5 }} lift={useBump()(heroAt, 6, feel.pop) * 30} squash={-useBump()(heroAt, 6, feel.pop) * 0.5} spin={(f / 90) % 1} seed={3} />
       </div>
     </SceneBox>
   );
@@ -260,8 +271,8 @@ const SceneCalls: React.FC<{ len: number; rowAt: number[]; tapAt: number; paused
           </Zoom>
         </div>
       </Camera>
-      <div style={{ position: 'absolute', left: 820, top: 1540, transform: `translateY(${-hop * 26}px) rotate(${perk * -5}deg)`, transformOrigin: '50% 100%' }}>
-        <CharacterBlend app={app} from="rest" to="found" t={perk} size={220} />
+      <div style={{ position: 'absolute', left: 620, top: 1330 }}>
+        <Act app={app} size={440} from={done > 0.5 ? 'found' : 'rest'} to={done > 0.5 ? 'clear' : 'found'} t={done > 0.5 ? done : perk} tilt={-perk * 9 * (1 - done)} lift={hop * 70} squash={-hop * 0.6 + bump(tapAt + 34, 5, feel.wobble) * 0.5} face={{ lookX: -3.5 * (1 - done), lookY: -3.5 * (1 - done) }} spin={(f / 70) % 1} seed={4} />
       </div>
     </SceneBox>
   );
@@ -287,8 +298,8 @@ const SceneAngle: React.FC<{ len: number; pressAt: number }> = ({ len, pressAt }
           </LxWindow>
         </Zoom>
       </div>
-      <div style={{ position: 'absolute', left: 820, top: 1540, transformOrigin: '50% 100%' }}>
-        <Character app={app} state="clear" size={220} />
+      <div style={{ position: 'absolute', left: 740, top: 1450 }}>
+        <Act app={app} size={330} from="rest" to="found" t={s(pressAt, feel.pop)} face={{ lookX: -3, lookY: -3 }} lift={useBump()(pressAt + 4, 6, feel.pop) * 30} spin={(f / 80) % 1} seed={5} />
       </div>
     </SceneBox>
   );
@@ -313,8 +324,8 @@ const SceneAgency: React.FC<{ len: number }> = ({ len }) => {
           </LxWindow>
         </Zoom>
       </div>
-      <div style={{ position: 'absolute', left: 820, top: 1540, transform: `translateY(${nod * 12}px)`, transformOrigin: '50% 100%' }}>
-        <Character app={app} state="clear" size={220} />
+      <div style={{ position: 'absolute', left: 740, top: 1450 }}>
+        <Act app={app} size={330} from="rest" to="clear" t={s(60, feel.pop)} squash={nod * 0.45} face={{ lookY: nod * 2 }} spin={(useCurrentFrame() / 80) % 1} seed={6} />
       </div>
     </SceneBox>
   );
@@ -338,8 +349,8 @@ const SceneEnd: React.FC<{ len: number }> = ({ len }) => {
       <div style={{ position: 'absolute', left: 90, right: 90, top: 950, opacity: line, transform: `translateY(${(1 - line) * 24}px)` }}>
         <Words text="Know what to *change*." size={72} color={W} weight={600} />
       </div>
-      <div style={{ position: 'absolute', left: 540 - 115, top: 1130, transform: `scale(${charIn}) translateY(${nod * 12}px)`, transformOrigin: '50% 100%', opacity: charIn }}>
-        <Character app={app} state="clear" size={230} />
+      <div style={{ position: 'absolute', left: 540 - 280, top: 1020, transform: `scale(${charIn})`, transformOrigin: '50% 100%', opacity: Math.min(1, charIn * 2) }}>
+        <Act app={app} size={560} from="rest" to="clear" t={s(52, feel.pop)} squash={nod * 0.4 - useBump()(30, 4, feel.pop) * 0.4} face={{ lookY: nod * 2.5 }} spin={(f / 80) % 1} seed={7} />
       </div>
       <div style={{ position: 'absolute', inset: -200, background: '#000', opacity: black }} />
     </SceneBox>
@@ -369,6 +380,7 @@ export const LocusSpot: React.FC = () => {
   const pressAt = A('13') - angle[0] + 30;
   return (
     <Field stops={[[0, B], [bleed[0] + 6, PAPER], [night[0] + 6, NIGHT], [read[0] - 10, B], [end[0] + 6, NIGHT]]}>
+      <PaperLife from={bleed[0] + 6} to={night[0] + 6} accent={B} seed="bleed" />
       <Sequence from={argue[0]} durationInFrames={argue[1] - argue[0]} name="argue"><SceneArgue len={argue[1] - argue[0]} secondAt={A('02')} /></Sequence>
       <Sequence from={bleed[0]} durationInFrames={bleed[1] - bleed[0]} name="bleed"><SceneBleed len={bleed[1] - bleed[0]} bleedAt={bleedAt} /></Sequence>
       <Sequence from={night[0]} durationInFrames={night[1] - night[0]} name="night"><SceneNight len={night[1] - night[0]} nameAt={nameAt} restAt={restAt} collapseAt={collapseAt} /></Sequence>
