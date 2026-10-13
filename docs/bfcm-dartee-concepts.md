@@ -61,7 +61,7 @@ Last season (Meta's own numbers; Locus only holds Dartee from May 2026):
   a pale blue winter frame, 264-1 $414 at 4.76x and 264-2 $691 at 3.99x: the best statics of the whole season, and
   the same mechanic as this year's Early Bird.**
 
-Competitor references: added from the competitor sweep below each line where one fits (section at the end).
+Competitor references (Atria ad ids, m...) sit on the lines they fit; the full sweep is the last section.
 
 ---
 
@@ -117,16 +117,18 @@ Suggested ad sets (judged ad set first): A Offer (1, 2, 5, 6, 13, 15), B Gift (3
 1. **Angle:** The offer, plainly. **Why:** the plain two-belt BOGO graphic was the best static of the warehouse sale
    (357-13, 9.5x on Meta). **Concept:** two belts (one textured leather, one Raincheck) crossing on a dark field, big
    type: "Buy a belt. Get the second 50% off." Small: "Any belt. Nov 1 to 16." **Testing:** the control every other
-   line is read against. Format: Offer-first banner. Ref: 357-13 (120246489082880741).
+   line is read against. Format: Offer-first banner. Ref: 357-13 (120246489082880741); category: Anson two-offer split m1240775794544276.
 2. **Angle:** One for you, one for your buddy. **Why:** "One for you. One for your homie." was the best video of the
    warehouse sale (359-2, 3.8x on Meta); the buddy is who the second belt is for. **Concept:** two belts side by side
    on a cart seat, a hand-written tag on each: "Me" and "Mike". Headline: "One for you. Half off for your buddy."
    **Testing:** the buddy framing against the plain offer (1). Format: Sticky notes on product. Ref: 359-2
-   (120246488431680741).
+   (120246488431680741); category: Sunday Golf handwritten post-it on a course photo, early BF from Nov 2,
+   21 days (m1909897476240753).
 3. **Angle:** His belt and his dad's, one order. **Why:** gift shopping starts Nov 1; two golfers on one list is the
    most common gift-buyer problem, and the second belt at half solves it. **Concept:** phone Notes app, "Christmas
    list": "Jake: golf belt ✓" / "Dad: golf belt ✓ (half off)" over a photo of two boxed belts. **Testing:** gift-list
-   framing for the person buying, not the golfer. Format: Notes app.
+   framing for the person buying, not the golfer. Format: Notes app. Category: "Gift one for yourself / gift one to
+   someone you love" ran 275 days on this exact mechanic (m1634344711059710).
 4. **Angle:** One for the course, one for dinner. **Why:** the buckle comes off and swaps, and a textured leather and
    a Raincheck cover both; the self-buyer wants two looks, not two of one. **Concept:** split frame, left a Raincheck
    on a golf polo, right a dark textured leather with jeans; "Saturday morning. Saturday night." Sub: second belt 50%
@@ -135,11 +137,12 @@ Suggested ad sets (judged ad set first): A Offer (1, 2, 5, 6, 13, 15), B Gift (3
 5. **Angle:** The math. **Why:** "$300 for a golf belt?" (2503-7) was the best CPA in September: saying the price
    works when the answer is good. **Concept:** receipt layout: "Textured leather belt $99.99 / Second belt (50% off)
    $49.99 / Total for two $149.98". Headline: "Two belts. Do the math." **Testing:** price shown vs hidden.
-   Format: Value stack.
+   Format: Value stack. Category: Bad Birdie "Save 50%. Do the Math." (m712917008048011).
 6. **Angle:** Smart golfers shop early. **Why:** last year's best early static (Early BF C, 2.92x Meta, the most
    efficient early ad). Same layout, new offer, so we learn if the layout or last year's offer carried it.
    **Concept:** phone-frame card, belts across the middle, "Smart golfers shop early. Second belt 50% off."
-   **Testing:** last year's winning layout with this year's offer. Ref: Early BF C (Meta ad 120232805385170741).
+   **Testing:** last year's winning layout with this year's offer. Ref: Early BF C (Meta ad 120232805385170741);
+   category: Bogey Bros "PRE BLACK FRIDAY" kicker over three products with zoom circles, 15 days (m1746937035925437).
 7. **Angle:** The belt people notice, now two. **Why:** 353-1 Midnight Black Caiman is the best ROAS static in the
    account (5.39x TW, $21 CPA) and never got budget. **Concept:** that exact photo as the ad, name as the headline,
    a small round sticker: "2nd belt 50% off". **Testing:** a proven product image plus an offer sticker (the sticker
@@ -156,12 +159,14 @@ Suggested ad sets (judged ad set first): A Offer (1, 2, 5, 6, 13, 15), B Gift (3
 10. **Angle:** The golfer who has everything. **Why:** gift buyers' line: "There is nothing golf related he needs nor
     wants." A belt is the one thing he uses every round and never upgrades. **Concept:** open Dartee box on a kitchen
     counter, ribbon, the whole kit visible. "He has every club. He doesn't have this." Sub: and the second one's half
-    off. **Testing:** the gift-buyer objection as the hook. Ref: 250 A gift static (120232222230200741, 3.23x Meta).
+    off. **Testing:** the gift-buyer objection as the hook. Ref: 250 A gift static (120232222230200741, 3.23x Meta);
+    category: Buckley belts in an open magnetic gift box beside a waist shot, 401 days (m1342805034124596).
 11. **Angle:** No waist size needed. **Why:** the gift buyer's fear is the wrong size ("bought me a glove but thought I
     would wear a large"); the belt is cut once to fit and adjusts every 1/8 inch. **Concept:** belt with the sizing
     card and scissors, three small labels (cut once, fits up to 46 in, clicks every 1/8 in). "Don't know his size?
     Doesn't matter." **Testing:** removing the sizing objection. Ref: Dec 2025 264-1 labelled-belt layout
-    (Meta ad 120234356273280741, 4.76x Meta).
+    (Meta ad 120234356273280741, 4.76x Meta); category: SlideBelts "the belt GUARANTEED to fit" gift static, 362 days
+    (m1545599892992790), Anson "Make Gifting Easy with our Trim-to-Fit Belts" (m914808557287466).
 12. **Angle:** Retire both old belts. **Why:** killing the old belt is a proven villain (292 A "Ditch the dad belt",
     299 the toilet drop 2.36x TW ad set). **Concept:** two cracked old belts with stretched holes in a bin, two Dartees
     on the counter beside it. "Two old belts. Two new ones. Second one half off." **Testing:** the villain angle with
@@ -176,7 +181,7 @@ Suggested ad sets (judged ad set first): A Offer (1, 2, 5, 6, 13, 15), B Gift (3
 15. **Angle:** Is Dartee doing Black Friday? **Why:** people wait for Black Friday; meeting the search they would type
     tells them early is worth it. **Concept:** search bar typing "is dartee doing black friday", the answer card
     under it: "Early Bird is on now: second belt 50% off, Nov 1 to 16." **Testing:** native search format.
-    Format: Google search.
+    Format: Google search. Category: Buckley's search-bar headline static, 401 days (m1342805034124596).
 
 Copy notes for the batch: never "BOGO"; don't name a free-shipping amount; "textured leather", never real gator;
 350-1's body copy says "15,000+ golfers": don't carry that line into these ads (no counts).
@@ -208,3 +213,32 @@ Studio cost: about $0.34 an ad on Dartee so far, so 15 ads is about $5, up to ab
    Black Friday excludes both; if Early Bird does too, the ads say "any belt" only with a small exclusion line.
 3. Early Bird page: on darteegolf.com this time? The warehouse page on lovable.app made those ads invisible to
    Triple Whale.
+
+## Competitor sweep (Atria + web, Oct 13): what the category ran for BF and gifting
+
+Internal only: never name these brands in copy. Days running are Atria's.
+
+- **The magnetic-belt rival ran no Black Friday discount in 2025**, only gifting at full price: "BEST GIFT!" in quote
+  marks, belt cutout + waist shot, three proof points along the bottom, 57 days (GrooveLife m1816645318945761);
+  orange banner "VOTED #1 GIFT" (m1602360850930695). The holiday window is where that category spends.
+- **Belt BF offers were multi-buy, not percent:** "Buy 2 complete belts, get the 3rd free" split against a box set,
+  "TWO WAYS TO SAVE BIG", 3 days around Black Friday (Anson m1240775794544276); "up to 55% off" (SlideBelts).
+- **Longest-running gift statics:** belts on a hanger with string lights, "BIGGEST SALE OF THE YEAR", 362 days
+  (SlideBelts m1545599892992790); text-free belt flat lay on fake snow with pine and berries, headline "Your Dad Will
+  Thank You", 369 days (m1134326877977387); 3-pack in a magnetic gift box with a search-bar headline, 401 days (Buckley
+  m1342805034124596).
+- **Early Black Friday from Nov 1 to 2** (same timing as Early Bird): Sunday Golf post-it "OUR MOST PREMIUM BAG IS ON
+  SALE" (m1909897476240753); Bogey Bros "PRE BLACK FRIDAY / 15% OFF POLOS" (m1746937035925437).
+
+Saved for later batches:
+- Black Friday free Raincheck: "GET A FREE $270 GIFT BUNDLE", struck-through price, gift pins on each free item
+  (Montreal Weights m1594404591940591); a free gift framed as an exclusive "valued at $53" (Boody m824168010367455).
+- Early access list build: "Become a Black Friday VIP / SIGN UP NOW", buckle-style close-up, footer bar "UNLOCK ...
+  EARLY ACCESS" (Ekster m4075550462710006).
+- Early access 48 hours: solid brand colour, "BLACK FRIDAY" tiled faintly, "EARLY ACCESS" centred, 9:16
+  (TravisMathew m1536289957397810).
+- Cyber Monday Lizard drop: lifestyle left, two product angles stacked right, name + "New" line, 149 days (Ghost Golf
+  m1120577253577406).
+- Gifting + cutoffs: "Christmas Shipping Cut-Off", product centred, "Order by ..." footer, 42 days (Sofia & Spritz
+  m722341030461744); "PERFECT GIFT FOR THE GOLFER" bundle in a red bow, 30 days (Punters m800260186328997).
+- No golf brand ran a giveaway ad we could find; the giveaway lines lean on our own pile photo.
