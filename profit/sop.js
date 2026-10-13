@@ -9,7 +9,7 @@
     ['Monday, 6:00am', 'The weekly report draft posts in each brand’s internal channel. The monthly on the 1st, same hour.', 'Locus'],
     ['Monday, by 7:45am', 'The Monday plan, as a reply under the weekly report card: takeaways, this week’s batches (product, angle, why, how many, format, designer, due date), anything you need from Cole. Your own words, never a pasted AI report.', 'Ahsan, Noma'],
     ['Monday, by 7:45am', 'Google and Amazon update in the same thread: spend, results, what is changing, what you need from us.', 'Radhesh, Hamza'],
-    ['Monday, 8:00am', 'The Monday call (agenda below). Every action item goes on Work > Action items on the call.', 'Team'],
+    ['Monday, 8:00am', 'The Monday call (agenda below). Every action item goes on Action items on the call.', 'Team'],
     ['Monday, after the call', 'The client report goes out with “This week” and “What we need from you” added from the call notes.', 'Cole'],
     ['Monday afternoon', 'Briefs written. The batches were approved on the call, so the brief is the write-up.', 'Strategists'],
     ['Tuesday, end of day', 'Briefs in Asana with due dates. Wednesday is the latest, and only for a heavy brief.', 'Strategists'],
@@ -20,11 +20,11 @@
     ['Next Monday', 'Approved ads go live, or sooner when they are ready.', 'Strategists'],
   ];
   const CALL = [
-    ['Open, 5 minutes', 'The one thing every brand does this week. Anything that touches every brand. Saved on Work > Calls so the notes pick it up.'],
+    ['Open, 5 minutes', 'The one thing every brand does this week. Anything that touches every brand. Saved on Action items so the notes pick it up.'],
     ['Per brand, 6 to 8 minutes, red brands first', '1. Last week’s items: done or not. 2. The read: the strategist gives three numbers and the winners and losers in their own words; Cole does not read the report aloud. Creative drill-down happens on the Ads page, on screen. 3. The plan: approve, change or push back. 4. New items: owner, due date, on the list on the spot.'],
     ['Green brands, 2 minutes', 'Numbers on plan, nothing open, plan approved. Move on.'],
     ['Close, 5 minutes', 'Cross-brand items. Anything for Google or Amazon that was not per brand.'],
-    ['After', 'The call notes land on Work > Calls. Cole confirms them once: team items to Work > Action items, “This week” into the client report, what the client owes into Requests, one note per brand in Slack.'],
+    ['After', 'The call notes land on Action items as a card to approve. Cole approves it once: tasks on the list, briefs numbered in Asana, “This week” into the client report, what the client owes into Requests, one note per brand in Slack.'],
   ];
   const KICKOFF = [
     'The idea in one sentence, and why we are testing it (what the report said).',
@@ -39,7 +39,7 @@
     ['Revisions', 'Feedback is one numbered comment in Asana within 24 hours of delivery. One round. The designer turns a round in 24 hours. A second round on the same ad is a quick call.'],
     ['Due dates', 'The Asana due date is the deadline. If something is blocking you (assets, an unclear brief, too much on your plate), say so in the brand channel at least 24 hours before it is due.'],
     ['Creative', 'Last week’s winners and losers decide this week’s batches. More iterations on what works, kill what does not.'],
-    ['Where things live', 'Action items live in Locus (Work > Action items); briefs and creative production are still typed in Asana until the production board moves in. Locus is the memory: it reads Asana, Meta and Triple Whale and fills itself. Slack carries the headline, the reminders and the conversation; the report lives in Locus.'],
+    ['Where things live', 'Action items live in Locus; a brief agreed on a call is made in Asana with its number, and briefs and creative production are still worked in Asana until the production board moves in. Locus is the memory: it reads Asana, Meta and Triple Whale and fills itself. Slack carries the headline, the reminders and the conversation; the report lives in Locus.'],
   ];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function css() {
@@ -64,7 +64,7 @@
     return `<div class="sop">
       <div class="row" style="justify-content:flex-end;margin:0 0 12px"><button type="button" class="btn" onclick="window.print()">Print or save as PDF</button></div>
       ${card('The week', 'Set 2026-10-12. Every time is Central.', `<table class="sop-tbl"><tr><th>When</th><th>What</th><th>Who</th></tr>${WEEK.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</table>`)}
-      ${card('The Monday call', 'Same order every week, per brand, with a clock. Work > Calls draws it with the live numbers.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CALL.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
+      ${card('The Monday call', 'Same order every week, per brand, with a clock. Action items shows each brand’s numbers and plan on Mondays.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CALL.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
       ${card('The creative kickoff call', 'Required for every brief. A real conversation about the idea, not a read-through. 15 to 20 minutes for a group of briefs.', `<ol>${KICKOFF.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
       ${card('Revisions, due dates, creative', '', RULES.map(r => `<div class="sop-rule"><b>${esc(r[0])}</b>${esc(r[1])}</div>`).join(''))}
     </div>`;

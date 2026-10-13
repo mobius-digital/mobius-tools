@@ -5,9 +5,10 @@
  * team item from a call (meetings.js confirm), the Monday page's add box, Today's "Something else" and the Strategist
  * is one row in `p_action` on the shared D1. Locus Work > Action items draws them; Slack reminds the owner.
  *
- * Table p_action (created on first use):
+ * Table p_action (created on first use; asana_url added by a guarded ALTER):
  *   id, act_id ('' = agency-wide), text, owner (first name), owner_email, due (YYYY-MM-DD),
- *   kind team | client | client_owes, status open | done | dropped,
+ *   kind team | brief | client | client_owes (brief = a numbered task made in the brand's Asana Creative Brief
+ *   section on confirm; the row carries asana_gid + asana_url so the list links it), status open | done | dropped,
  *   source meeting | monday | today | strategist | manual, source_id (meeting id, today row key...),
  *   asana_gid (only while a mirror runs; nothing writes it today), done_at, done_by, done_how (tick | slack | auto:<signal>),
  *   reminded_on (the Central day the last reminder went), slack_channel + slack_ts (the reminder line, so a ✅ on it works),
@@ -52,7 +53,12 @@ const SQL = [
   `CREATE INDEX IF NOT EXISTS p_action_open ON p_action (status, act_id, due)`,
 ];
 let ensured = false;
-export async function ensureActions(env) { if (ensured) return; for (const s of SQL) await env.DB.prepare(s).run(); ensured = true; }
+export async function ensureActions(env) {
+  if (ensured) return;
+  for (const s of SQL) await env.DB.prepare(s).run();
+  await env.DB.prepare(`ALTER TABLE p_action ADD COLUMN asana_url TEXT`).run().catch(() => {});   // 2026-10-13: Brief items link their Asana task
+  ensured = true;
+}
 
 /* The team, by first name (the owner field) and the email Slack knows them by. */
 export const ROSTER = [
@@ -60,7 +66,7 @@ export const ROSTER = [
   { name: 'Noma', email: 'molifenomaqhawe36@gmail.com' }, { name: 'William', email: 'william@go-mobius-digital.com' },
   { name: 'Ravo', email: 'schubertchannel123@gmail.com' }, { name: 'Radhesh', email: '' }, { name: 'Hamza', email: '' },
 ];
-const KINDS = ['team', 'client', 'client_owes'];
+const KINDS = ['team', 'brief', 'client', 'client_owes'];
 const SOURCES = ['meeting', 'monday', 'today', 'strategist', 'manual'];
 const now = () => new Date().toISOString();
 const clean = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -81,11 +87,12 @@ export async function addAction(env, it) {
     id: newId(), act_id: String(it.act || it.act_id || ''), text: clean(it.text, 300), owner: ownerName(it.owner), due: ymdOk(it.due) ? it.due : '',
     kind: KINDS.includes(it.kind) ? it.kind : 'team', source: SOURCES.includes(it.source) ? it.source : 'manual', source_id: it.source_id ? clean(it.source_id, 120) : null,
     created_at: now(), created_by: it.created_by ? clean(it.created_by, 120) : null,
+    asana_gid: it.asana_gid ? String(it.asana_gid) : null, asana_url: it.asana_url ? String(it.asana_url).slice(0, 300) : null,
   };
   if (!row.text) throw Object.assign(new Error('Write the item first.'), { status: 400 });
   row.owner_email = emailOf(row.owner);
-  await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11)`)
-    .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by).run();
+  await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by, asana_gid, asana_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11, ?12, ?13)`)
+    .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by, row.asana_gid, row.asana_url).run();
   return { ...row, status: 'open', url: itemUrl(row) };
 }
 export const itemUrl = r => `${LOCUS}?open=actions${r.act_id ? `&act=${encodeURIComponent(r.act_id)}` : ''}&item=${encodeURIComponent(r.id)}`;
@@ -139,7 +146,7 @@ export async function openItems(env, d) {
   const by = new Map();
   for (const r of rows) {
     if (!by.has(r.act_id)) by.set(r.act_id, { brand_id: r.act_id, name: nameOf(r.act_id), items: [] });
-    by.get(r.act_id).items.push({ id: r.id, name: r.text, text: r.text, owner: r.owner, due: r.due, kind: r.kind, source: r.source, source_id: r.source_id, url: r.url, created: String(r.created_at || '').slice(0, 10) });
+    by.get(r.act_id).items.push({ id: r.id, name: r.text, text: r.text, owner: r.owner, due: r.due, kind: r.kind, source: r.source, source_id: r.source_id, url: r.url, asana_url: r.asana_url || null, created: String(r.created_at || '').slice(0, 10) });
   }
   return [...by.values()].sort((a, b) => (a.brand_id ? 1 : 0) - (b.brand_id ? 1 : 0) || a.name.localeCompare(b.name));
 }
@@ -151,7 +158,7 @@ export function reminderMessage(brandName, owner, items, today) {
   const late = items.filter(i => i.due < today), due = items.filter(i => i.due === today);
   const who = owner || 'Nobody owns these';
   const head = `*${sEsc(who)}*, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}.`;
-  const lines = items.map(i => `• ${sEsc(i.text)}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`);
+  const lines = items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.asana_url ? ` <${i.asana_url}|Asana>` : ''}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`);
   const text = [head, ...lines].join('\n');
   const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }];
   const btns = items.slice(0, 4).map((r, n) => DONE_BTN(r, n));
