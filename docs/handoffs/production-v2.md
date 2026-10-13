@@ -1,5 +1,10 @@
 # Production v2: everything Asana still does for ad production, built into Locus, so Asana can go (handoff, 2026-10-13)
 
+> **Progress (2026-10-13): mock published, waiting on Cole's OK.** https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (Design
+> canvas, four artboards: `project/Main.dc.html` brief sheet with Brief / Files / Comments tabs, `project/Review.dc.html`
+> file viewer with comments, Approve and Ask for changes, `project/Client.dc.html` the brand edition board,
+> `project/Mirror.dc.html` the Asana mirror switch). Sample data is made up. Build nothing until Cole approves it.
+
 Start a worktree. Read this file, then `docs/handoffs/work-calls-tasks-production.md` (Production v1, live 2026-10-13),
 profit/CLAUDE.md and account-health/CLAUDE.md (sections "Brand: research, angles and the creative roadmap", "ASANA IS
 THE ONLY PLACE ANYONE TYPES" (2026-09-24, now being reversed on purpose), Studio v2 batches, the ideas bot, CLIENT
