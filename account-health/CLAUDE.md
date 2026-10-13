@@ -1803,3 +1803,10 @@ and the ✅ reaction, the routes' team-only gate). test-clients.mjs asserts a cl
   the row only; an agency-wide brief = the row only. The Slack note gains a "*Briefs*" block with the Asana links; result
   `brands[].briefs`. Links in the note and the ready line now open `?open=actions&meeting=`.
 - NOT tested: makeBrief against the real Asana API (tests mock nothing there yet); the first approved Brief item is the test.
+
+## 2026-10-13 (third pass): quotes on extracted items, client asks on the list
+
+- meetings.js SCHEMA items carry `quote` (verbatim, at most 25 words) and `at` (m:ss); the prompt asks for both; `extract`
+  keeps them (240 chars). The page shows them per item; confirm ignores them.
+- `GET /api/actions` (status open) adds `waiting`: Requests asks (`p_request` kind 'ask') open, or updated in the last 7
+  days, with `due` read from the body's "Needed by YYYY-MM-DD" (createAsk writes it). A missing table answers [].
