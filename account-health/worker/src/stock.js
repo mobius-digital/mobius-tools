@@ -6,8 +6,10 @@
  * this worker's ADMIN_TOKEN), so Slack questions and scheduled runs work without a person's session.
  *
  *   stockView(env, acct, what)   the Strategist's `stock` view: summary | products | orders | drops
- *   handleSupplyProxy(...)       /api/supply/* for the Strategist's actions (log an order, mark a
- *                                product, add a design): the same Supply routes the Locus screens call
+ *   handleSupplyProxy(...)       /api/supply/* for the Strategist's actions AND a client login's own brand (since
+ *                                2026-10-12): the same Supply routes the Locus screens call, pinned to one brand
+ *   supplyClient(...)            GET /api/supply/client: one brand's state for a client login (the agency's Slack
+ *                                and Asana wiring left out, everything of the brand's kept)
  *
  * The ad side copies profit/worker/src/hub.js stockAds (shared D1): which products each Meta ad sells,
  * from Triple Whale orders, never from ad names. Keep the two in step. The judgement (ease off, safe to
@@ -107,58 +109,75 @@ export async function stockView(env, acct, what = 'summary') {
     ...(b.buys ? { to_order: st.products.filter(p => ['out', 'order', 'gap'].includes(p.status)).map(prod), on_the_way: st.orders.filter(o => ['sent', 'confirmed', 'production', 'shipped', 'partial'].includes(o.status)).map(o => ({ id: o.id, factory: o.factoryName, lands: o.expected_at, units: o.units, products: o.productTitles })) } : {}) };
 }
 
-/* CLIENT STOCK AND DROPS (2026-10-10, Cole: "why doesn't the client have access to drops?").
+/* CLIENT STOCK, BUYING AND DROPS (2026-10-10 read only; 2026-10-12 the brand owns it. Cole: "the brand itself is
+ * the owner of the brand; buying and stock changes is literally a brand thing").
  * GET /api/supply/client?act=<brand>&what=brands|state. A client login (brandguard CLIENT_RULES, its own brand
- * only) or the team reads ONE brand's stock and drops through here; Supply is called server side with
- * SUPPLY_TOKEN, so the client never holds a Supply session and never reaches a Supply write.
- * The answer is an ALLOWLIST of fields (a new field Supply adds stays out until it is named here).
- * Kept: products, stock on hand, sold per day, days left, run-out dates, restocks landing (dates and units),
- * drops and designs with dates, stages and images, keep or cut. Out: factory, unit and landed costs, prices,
- * supplier names and contacts, order money and ids, notes, Asana links, settings, suggested orders, buying. */
-const pickK = (o, keys) => { const r = {}; if (!o) return r; for (const k of keys) if (o[k] !== undefined) r[k] = o[k]; return r; };
-const BUY_STATUS = new Set(['order', 'soon', 'nofactory']);   // order-timing statuses: to a client the product is simply fine
-const OPEN_ORDER = new Set(['sent', 'confirmed', 'production', 'shipped', 'partial', 'landed']);
+ * only) or the team reads ONE brand's stock, buying and drops through here; Supply is called server side with
+ * SUPPLY_TOKEN, so the client never holds a Supply session.
+ * A brand owner sees its own factories, costs, prices, order money, suggested orders and notes: nothing of the
+ * brand's is held back any more. Out: the agency's wiring only, which is Slack (the brand's Slack channel, the
+ * digest switches) and which Mobius Asana project the designs file into (the Asana card links themselves stay). */
+const AGENCY_SETTINGS = new Set(['asana_project', 'asana_project_name', 'digest_monday', 'digest_alerts', 'slack_channel']);
+const omit = (o, keys) => { const r = {}; for (const [k, v] of Object.entries(o || {})) if (!keys.has(k)) r[k] = v; return r; };
 export function clientSupplyState(st, b, act) {
-  /* Factory ids can carry a supplier's name: every one becomes f1, f2... */
-  const fid = new Map(); const fOf = id => { if (!id) return null; if (!fid.has(id)) fid.set(id, 'f' + (fid.size + 1)); return fid.get(id); };
-  const variant = v => ({ ...pickK(v, ['id', 'sku', 'title', 'axis', 'sizeKey', 'onHand', 'velocity', 'isCore', 'isNew', 'runOutDays', 'runOutDate', 'incoming', 'incomingLands', 'gapDays',
-    'sold14', 'sold30', 'sold90', 'trend', 'series', 'curveBased', 'capped', 'plainRate']), incomingOrders: (v.incomingOrders || []).map(o => ({ qty: o.qty, lands: o.lands || null })) });
-  const products = (st.products || []).map(p => ({ ...pickK(p, ['id', 'title', 'image', 'lineId', 'lineName', 'lifecycle', 'decision', 'onHand', 'oversold', 'incoming', 'incomingLands',
-    'velocity', 'perWeek', 'trend', 'runOutDays', 'runOutDate', 'weeksOfCover', 'sold14', 'sold30', 'sold90', 'coreCount', 'sizeGap', 'thin', 'ageDays', 'axis']),
-    status: BUY_STATUS.has(p.status) ? 'ok' : p.status, variants: (p.variants || []).map(variant) }));
-  const makes = !!b.makes;
-  const lines = makes ? (st.lines || []).map(l => ({ ...pickK(l, ['id', 'name', 'axis', 'target', 'cutRulePct', 'planned', 'designs', 'sold90', 'sold30', 'onHand', 'perWeek', 'weeksOfCover',
-    'keep', 'decide', 'cut', 'openSlots', 'sizeCurve', 'cutCandidates']), factoryId: fOf(l.factoryId), plan: (l.plan || []).map(x => pickK(x, ['productId', 'rank', 'band', 'near', 'state', 'decided'])) })) : [];
-  const slots = makes ? (st.slots || []).map(s => ({ ...pickK(s, ['id', 'name', 'line_id', 'lineName', 'collection_id', 'collectionName', 'status', 'on_site_at', 'dropAt', 'dates', 'next', 'late', 'lateParts', 'product_id']),
-    factoryId: fOf(s.factoryId), made: s.made ? pickK(s.made, ['status', 'label', 'expected_at']) : null,
-    sample: s.sample ? pickK(s.sample, ['state', 'label', 'on', 'late']) : null })) : [];
-  const collections = makes ? (st.collections || []).map(c => pickK(c, ['id', 'name', 'drop_at', 'designs', 'lines', 'late', 'byStatus', 'done', 'orderBy'])) : [];
-  /* Restocks: placed orders only (never drafts or cancelled), dates and units, no id, factory or money. */
-  const orders = (st.orders || []).filter(o => OPEN_ORDER.has(o.status)).map((o, i) => ({ id: 'restock_' + (i + 1), status: o.status === 'confirmed' ? 'sent' : o.status,
-    expected_at: o.expected_at || null, landed_at: o.landed_at || null, overdue: !!o.overdue, units: o.units || 0, received: o.received || 0 }));
-  const factories = makes ? (st.factories || []).filter(f => fid.has(f.id) || (f.closures || []).length).map(f => ({ id: fOf(f.id), closures: (f.closures || []).map(c => pickK(c, ['from', 'to', 'label'])) })) : [];
-  return { client: true, act, brand: b.id, brandName: st.brandName || null, tz: st.tz, today: st.today, generatedAt: st.generatedAt, lastRun: st.lastRun || null,
-    historyDays: st.historyDays, historyStart: st.historyStart, products, lines, slots, collections, orders, factories,
-    db: { lines: makes ? ((st.db && st.db.lines) || []).map(l => ({ id: l.id, target_designs: l.target_designs ?? null })) : [] } };
+  const db = st.db ? { ...st.db, brand: st.db.brand ? omit(st.db.brand, new Set(['slack_channel'])) : st.db.brand, settings: st.db.settings ? omit(st.db.settings, AGENCY_SETTINGS) : st.db.settings } : st.db;
+  return { ...st, client: true, act, brand: b.id, settings: omit(st.settings, AGENCY_SETTINGS), db };
 }
 export async function supplyClient(env, act, what) {
   const b = await supplyBrandOf(env, act);
-  if (what === 'brands') return { brands: b ? [{ id: b.id, act_id: act, name: b.name || null, makes: !!b.makes, buys: false, active: true }] : [] };
+  if (what === 'brands') return { brands: b ? [{ id: b.id, act_id: act, name: b.name || null, makes: !!b.makes, buys: !!b.buys, active: true }] : [] };
   if (!b) return { error: 'This brand has no stock feed yet.', status: 404 };
   return clientSupplyState(await supplyFetch(env, '/api/state', { brand: b.id, actor: 'a client login' }), b, act);
 }
 
-/** /api/supply/<route>?brand=: the Strategist's actions write through here, behind this worker's auth. */
-export async function handleSupplyProxy(request, env, path, url, json, actor) {
-  const rest = path.slice('/api/supply'.length);   // '/orders', '/orders/PO-0001', '/products/123', '/slots', '/collections'
-  if (!/^\/(orders|orders\/[\w-]+|slots|collections|products\/[\w-]+)$/.test(rest) || !['POST', 'PUT'].includes(request.method)) return json({ error: 'not a stock route the Strategist can use' }, 404);
-  const body = await request.json().catch(() => ({}));
-  const brand = (url.searchParams.get('brand') || 'lucky').replace(/[^a-z0-9-]/g, ''), who = `${actor || 'someone'} (via the Strategist)`;
+/* /api/supply/<route>?brand= (the team, the Strategist's actions) or ?act= (a client login): every Supply write the
+ * Locus screens make, behind this worker's auth, forwarded with SUPPLY_TOKEN and X-Actor = who did it.
+ * A CLIENT is pinned to the Supply brand mapped from its own Locus brand (resolved here from `act`; a `brand` it
+ * sends is ignored), may change only its own stock rules on /settings and only buys/makes on /brand (never the Slack
+ * channel, the Asana project or the brand's act_id), and may delete only an order carrying its brand's prefix (Supply
+ * deletes order lines by id alone). brandguard already refused any route not listed in CLIENT_RULES. */
+const ID = '[\\w%.:-]+';
+const SUPPLY_ROUTES = [
+  ['POST', /^\/orders$/], ['PUT', new RegExp(`^\\/orders\\/${ID}$`)], ['DELETE', new RegExp(`^\\/orders\\/${ID}$`)],
+  ['PUT', /^\/products\/\d+$/],
+  ['POST', /^\/slots$/], ['PUT', /^\/slots$/], ['DELETE', new RegExp(`^\\/slots\\/${ID}$`)], ['GET', new RegExp(`^\\/slots\\/${ID}\\/asana$`)], ['POST', new RegExp(`^\\/slots\\/${ID}\\/asana$`)],
+  ['POST', /^\/collections$/], ['PUT', /^\/collections$/], ['DELETE', new RegExp(`^\\/collections\\/${ID}$`)],
+  ['POST', /^\/shopify\/snapshot$/], ['POST', /^\/shopify\/backfill$/],
+  ['PUT', /^\/settings$/], ['PUT', /^\/brand$/],
+  ['PUT', /^\/factories$/], ['DELETE', new RegExp(`^\\/factories\\/${ID}$`)],
+  ['PUT', /^\/lines$/], ['DELETE', new RegExp(`^\\/lines\\/${ID}$`)],
+  ['PUT', /^\/type-map$/], ['PUT', /^\/categories$/], ['DELETE', new RegExp(`^\\/categories\\/${ID}$`)],
+];
+export const CLIENT_STOCK_RULES = ['buffer_days', 'cover_days', 'site_prep_days', 'dead_days', 'design_days', 'sample_make_days', 'slack_days'];
+export const CLIENT_BRAND_FIELDS = ['buys', 'makes'];
+export async function handleSupplyProxy(request, env, path, url, json, actor, client = null) {
+  const rest = path.slice('/api/supply'.length);   // '/orders', '/orders/PO-0001', '/products/123', '/slots', '/collections'...
+  if (!SUPPLY_ROUTES.some(([m, re]) => m === request.method && re.test(rest))) return json({ error: 'not a stock route Locus can use' }, 404);
+  const body = request.method === 'GET' ? null : await request.json().catch(() => ({}));
+  let brand, who;
+  if (client) {
+    const act = url.searchParams.get('act') || (body && (body.act || body.act_id)) || '';
+    if (!act || act === 'all' || !client.ids.has(act)) return json({ error: 'You do not have access to that brand.' }, 403);
+    const b = await supplyBrandOf(env, act).catch(() => null);
+    if (!b) return json({ error: 'This brand has no stock feed yet.' }, 404);
+    brand = b.id;
+    who = `${client.name && client.name !== client.email ? client.name + ' ' : ''}<${client.email}> (brand login)`;
+    if (body) { delete body.act; delete body.act_id; }
+    if (rest === '/settings') { const extra = Object.keys(body || {}).filter(k => !CLIENT_STOCK_RULES.includes(k)); if (extra.length) return json({ error: `Your login sets the stock rules here. ${extra.join(', ').replace(/_/g, ' ')} is set by the Mobius team.` }, 403); }
+    if (rest === '/brand') { const extra = Object.keys(body || {}).filter(k => !CLIENT_BRAND_FIELDS.includes(k)); if (extra.length) return json({ error: `Your login switches Buying and Drops here. ${extra.join(', ').replace(/_/g, ' ')} is set by the Mobius team.` }, 403); }
+    if (request.method === 'DELETE' && rest.startsWith('/orders/')) {
+      const id = decodeURIComponent(rest.slice('/orders/'.length)), prefix = brand === 'lucky' ? 'PO-' : `${brand.toUpperCase()}-PO-`;
+      if (!id.startsWith(prefix)) return json({ error: 'That order belongs to another brand.' }, 403);
+    }
+  } else {
+    brand = (url.searchParams.get('brand') || 'lucky').replace(/[^a-z0-9-]/g, '');
+    who = `${actor || 'someone'} (via the Strategist)`;
+  }
   try {
     /* add_design asks for N designs in one approval: one POST per design, numbered on from the last. */
-    const n = rest === '/slots' && request.method === 'POST' ? Math.min(10, Math.max(1, Math.round(+body._count || 1))) : 1;
-    delete body._count;
-    if (n === 1) return json(await supplyFetch(env, '/api' + rest, { method: request.method, body, brand, actor: who }));
+    const n = rest === '/slots' && request.method === 'POST' ? Math.min(10, Math.max(1, Math.round(+(body && body._count) || 1))) : 1;
+    if (body) delete body._count;
+    if (n === 1) return json(await supplyFetch(env, '/api' + rest, { method: request.method, body: body || undefined, brand, actor: who }));
     const m = /^(.*?)(\d+)$/.exec(body.name || ''); const made = [];
     for (let k = 0; k < n; k++) made.push(await supplyFetch(env, '/api/slots', { method: 'POST', body: { ...body, name: m ? `${m[1]}${+m[2] + k}` : `${body.name} ${k + 1}` }, brand, actor: who }));
     return json({ ok: true, made: made.length });

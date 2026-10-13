@@ -1072,8 +1072,8 @@ What broke on Ahsan's Grunk thread and what changed (commits e7ca76a, 4f4b44e an
   per product (copy of profit hub.js `stockAds`: Triple Whale orders, never ad names), first_size_out, to order and on
   the way on brands we buy for, drops and keep-or-cut on brands that design. Not connected = says so. Lucky ~15KB.
 - Actions `log_order`, `set_product`, `add_design` (proposals, applied through `/api/supply/*` on this worker, which
-  forwards only orders, slots, collections and products/<id> POST/PUT to Supply with the token; `add_design` with
-  `_count` makes N designs). PLAYBOOK has a STOCK section; THE CMO METHOD lists the `stock` knowledge topic
+  forwards the routes in stock.js `SUPPLY_ROUTES` to Supply with the token; `add_design` with `_count` makes N
+  designs; since 2026-10-12 the same proxy serves a client login's own brand, see CLIENT LOGINS). PLAYBOOK has a STOCK section; THE CMO METHOD lists the `stock` knowledge topic
   (`docs/strategist-brain/knowledge/stock.md`, rebuilt into knowledge.js).
 
 ## 2026-10-09: paid orders only, the Day check, integrations rebuilt
@@ -1441,8 +1441,7 @@ four access switches (P&L, Strategist, Changes, Creators are gone; `CLIENT_SWITC
   work steps or make Asana tasks. **Season**: the War Room hides only `notes`; a client's PUT never writes notes or alerts.
   **Inspiration**: `/api/atria/board` takes `act` and only the brand's board or the shared season boards
   (`swipeBoardsFor`, profit season.js).
-- **Still the team's, and why**: Buying and Supply writes (the Supply worker's own sign-in knows no client); research runs,
-  skill and speaker builds (long Opus jobs); Drive sync of the Library; Asana sync and results; TikTok connect; data repairs
+- **Still the team's, and why**: research runs, skill and speaker builds (long Opus jobs); Drive sync of the Library; Asana sync and results; TikTok connect; data repairs
   (Meta sync, Triple Whale attribution re-pull); everything in the agency list.
 - **Routes** (clients.js): `GET /api/clients?act=` (team), `GET /api/clients/draft`, `POST /api/clients/invite {emails,
   brands, name, send, approved, subject, body}` (OWNER; the email from Cole's Gmail only with send + approved),
@@ -1453,10 +1452,21 @@ four access switches (P&L, Strategist, Changes, Creators are gone; `CLIENT_SWITC
 - **Tests:** `node test-clients.mjs` (24 checks: every page route answers a client for its brand on both workers, another
   brand / an old Meta id / "all" refused on all of them, every agency-only route 403, own-brand writes only, the scrub,
   sent-only briefs and reports, the assistant's client mode with a mocked model, the daily caps, calendar, War Room,
-  survey, ads, Inspiration boards, invites, Stock and Drops).
-- **2026-10-10: Stock and Drops** (read only, never Buying): `GET /api/supply/client?act=<brand>&what=brands|state`
-  (stock.js `supplyClient` + `clientSupplyState`) returns an ALLOWLIST of fields; the handler re-checks
-  `clientScope(request).ids`. Every `/api/supply/*` write stays off the list. Tested with a mocked SUPPLY binding.
+  survey, ads, Inspiration boards, invites, Stock, Buying and Drops through the Supply proxy).
+- **2026-10-12: Stock, Buying and Drops are the brand's** (Cole: "the brand itself is the owner of the brand; buying and
+  stock changes is literally a brand thing"; this replaces the 2026-10-10 read-only Stock and Drops). `GET
+  /api/supply/client?act=<brand>&what=brands|state` (stock.js `supplyClient` + `clientSupplyState`) returns the WHOLE
+  state of one brand (costs, factories, suppliers, order money, suggested orders, notes, Asana card links); only the
+  agency's wiring is left out (`AGENCY_SETTINGS`: the Slack channel, the digest switches, which Mobius Asana project).
+  Every Supply change the team has is on CLIENT_RULES as `/api/supply/<route>` (orders POST/PUT/DELETE,
+  products/<id> PUT, slots POST/PUT/DELETE and slots/<id>/asana GET/POST, collections POST/PUT/DELETE,
+  shopify/snapshot and backfill, settings, brand, factories, lines, type-map, categories). worker.js hands
+  `clientScope(request)` to `handleSupplyProxy`, which for a client RESOLVES the Supply brand from the client's own Locus
+  brand (`supplyBrandOf(act)`), ignores any `?brand=` it sent, forwards with SUPPLY_TOKEN and X-Actor =
+  `Name <email> (brand login)`, holds `/settings` to `CLIENT_STOCK_RULES` and `/brand` to buys/makes (brandguard
+  `fields` says the same), and refuses a DELETE of an order whose id does not carry the brand's prefix (Supply deletes
+  order lines by id alone). The team's calls are unchanged (`?brand=`, actor "(via the Strategist)"). Tested with a
+  mocked SUPPLY binding that records method, brand, token, actor and body.
 - **The 'dev' signing key is gone** (2026-10-09): neither worker verifies anything locally without a key; the profit worker
   asks this worker (`delegateWho`, cached a minute).
 

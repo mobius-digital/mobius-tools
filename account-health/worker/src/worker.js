@@ -8165,11 +8165,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return r && r.status && r.error ? json({ error: r.error }, r.status) : json(r);
       } catch (e) { return json({ error: e.message }, 502); }
     }
-    /* Stock writes from the Strategist's actions (stock.js): forwarded to the Supply worker. */
+    /* Stock writes from the Strategist's actions and from a client login's own brand (stock.js handleSupplyProxy):
+       forwarded to the Supply worker with SUPPLY_TOKEN. A client (brandguard cleared it for a route on CLIENT_RULES)
+       is pinned to the Supply brand of its own Locus brand and named in X-Actor. */
     if (path.startsWith('/api/supply/')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const { handleSupplyProxy } = await import('./stock.js');
-      return handleSupplyProxy(request, env, path, url, json, await sessionEmail(env, request).catch(() => ''));
+      return handleSupplyProxy(request, env, path, url, json, await sessionEmail(env, request).catch(() => ''), clientScope(request));
     }
     if (path.startsWith('/api/google/')) {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
