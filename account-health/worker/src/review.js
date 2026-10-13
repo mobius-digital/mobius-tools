@@ -32,7 +32,7 @@ export const MAX_PER_TICK = 2;    // an Opus answer takes a minute or two; two a
 export const MAX_BRANDS = 12;     // a Monday never reviews more brands than this
 const MAX_TRIES = 2;              // a brand whose answer failed is tried once more, then left
 export const MAX_CARDS = 4;       // at most this many Apply cards per brand
-const REPORT_OFFSET = 2;          // same as worker.js REPORT_HOUR_OFFSET: runs once the weekly reports have had their hour
+const REPORT_OFFSET = 0;          // same as worker.js REPORT_HOUR_OFFSET (0 since 2026-10-12)
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const CH = /^[CG][A-Z0-9]{6,}$/;
 

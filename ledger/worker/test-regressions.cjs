@@ -471,8 +471,8 @@ async function main(){
       const spin={content:[{type:'tool_use',id:'t',name:'query_ledger',input:{sql:'SELECT 1 AS a FROM transactions'}}],usage:{}};
       const {posts,seen}=await askRun([spin,spin,spin,spin,spin,
         {content:[{type:'text',text:'Here is what I found.'}],usage:{}}],{text:'<@BOT> dig into everything'});
-      // the final pass must offer no tools, or it would spin again
-      assert.equal(seen[seen.length-1].tools,undefined);
+      // the final pass keeps the tool list (dropping it made answers come back empty) but turns tool use off, so it must answer
+      assert.equal(seen[seen.length-1].tool_choice?.type,'none');
       assert.equal(posts[0].text,'Here is what I found.');
     });
     await check('Ask stops at the daily cap',async()=>{
