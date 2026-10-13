@@ -2875,3 +2875,24 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
   `<em class="lx-accent">` (Instrument Serif italic, token `--font-accent` in v2.css). A title without its word gets none.
 - Tests: `node test-morning.mjs` (7), test-clients covers the new routes. Checked with Playwright against stubbed routes
   only; nothing ran against real data or was deployed.
+
+## 2026-10-13: Meeting notes, the Monday call page, How we work (the cadence reset of 2026-10-12)
+
+Cole reset the team's week (docs/operating-cadence-2026-10-12.md): 8am Monday call, every Locus send at 6am Central,
+the Monday review off, one agency channel for the daily drafts, the short client daily. Three team-only pages followed:
+- **Reports > Meeting notes** (`profit/meetings.js` `render`, page id `meetings`, in `AGENCY_TABS` so a client never
+  sees it): every Fireflies call Locus read (account-health meetings.js), the open Asana action items per brand at the
+  top, and the confirm screen: summary, per brand decisions, items as tick boxes (text, owner, due, kind: team task /
+  tell the client / client owes us), "This week" lines and what we need from the client. Confirm = Asana tasks in the
+  brand project's "Action items" section, this_week + need_from_you on the open weekly draft (reportBodyHTML draws a
+  "This week" card; the client send carries both lists), Requests kind `ask` (the client can mark it done; requests.js
+  shows "We need this from you" with a Done button), one Slack note per brand internal channel. `?open=meetings&meeting=<id>`.
+- **Reports > Monday call** (`renderMonday`, page id `monday`, team only): the week's theme (settings `mondayTheme`,
+  picked up by the notes), then per brand, red brands first (sorted by profit `/api/hub/command` reasons' `sev`): 1 last
+  week's open items (tick = `POST /api/meetings/done`, Asana completed), 2 the read (the weekly report draft's revenue,
+  spend, MER vs plan and prior, the summary, Open the report), 3 the plan (the strategist's reply under the weekly report
+  card, read from the Slack index `slack_msg` by thread_ts; or a long non-bot message in the channel on the Monday), 4
+  add an item (`POST /api/meetings/add` makes the Asana task now). Data: `GET /api/meetings/monday`.
+- **Agency settings > How we work** (`profit/sop.js`, section `sop` in SET_SECS / SET_GROUPS): the week, the Monday
+  call, the kickoff call agenda, revisions and due dates, with Print. Static words; change them in sop.js.
+- The start tour's Home / Ads / Creative / Reports steps describe the rail as it is now.
