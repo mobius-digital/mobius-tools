@@ -3190,7 +3190,7 @@ const DEFAULT_BRIEF_HOUR = 9;                 // 9am Central
    the briefs, and a report is the biggest single unit of work in this worker - 
    given the same tick it would be the thing deferred six times over while six
    briefs went first. Its own tick, its own allowance. */
-const REPORT_HOUR_OFFSET = 2;
+const REPORT_HOUR_OFFSET = 0;   // 2026-10-12: Cole wants the weekly and monthly on the same 6am tick as the brief, before the 8am Monday call
 
 /* ------------------------------------------------------------------ */
 /*  A scheduled job that fails must SAY SO                             */
