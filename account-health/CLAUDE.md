@@ -1832,3 +1832,98 @@ Locus Work is now three pages (profit calls.js, tasks.js, production.js). What t
   "<Name> moved *<num> - <title>* to <Column>"), `POST /api/production/brief {act,text,owner,due}` (meetings.js
   `makeBrief`, now exported: the next numbered brief in Asana + its card).
 - Tests: `test-actions.mjs` (11) and `test-production.mjs` (7).
+
+## 2026-10-13: THE LEAK FINDER (`src/leaks.js`). Read before touching it, the negative keyword write or the judge.
+
+Handoff `docs/handoffs/leak-finder.md`, screens in profit/CLAUDE.md (same date). Tests: `node test-leaks.mjs` (16
+offline checks: Google Ads, GA4, the model, Klaviyo, Meta's list and TikTok mocked).
+- `leaksFor(env, d, act, {days, fresh})`, cached an hour in settings `leaks:<brand>:<days>`; routes `GET /api/leaks`,
+  `POST /api/leaks/apply {act, term, campaign_id, confirm}`, `POST /api/leaks/undo {act, resource}` (`handleLeaks`, mounted
+  above the Google block; admin + brandsFor; a client's `fresh=1` is ignored). Strategist view `leaks` + a CMO METHOD line
+  (read it before any audit question).
+- **Sources, nothing recomputed:** google.js `leakAds` (cache `gadlk:`: search terms with spend and under 0.5
+  conversions, top 200; every campaign; `campaign_search_term_insight` per PMax campaign, which has NO cost, so cost =
+  clicks x the campaign's CPC; video / Demand Gen `video_trueview_*` with a fallback to the old `video_*` fields) and
+  `leakFunnel` (cache `g4lk:`: GA4 SESSIONS with add_to_cart / begin_checkout / purchase by device, the window and the 90
+  days before, plus paid-channel landing pages and the paid total); Today's calls over the PROFIT binding (todaypost.js
+  `readToday`, Cut and Trim rows, stake x 30/7); `tiktokReport`; Klaviyo `flows_report` + `daily` (`by_flow`).
+- **The judge**: ONE Sonnet 5.5 call per brand per hour (`judge`, JSON schema, low effort) reads the short brand brain and
+  labels every non-converting search term and PMax category irrelevant / relevant / brand, says which CORE flows have no
+  live version, and which live flow replaced a switched-off one. No word list anywhere. Terms under $1 never reach it.
+- **Rules**: Google, video and TikTok campaigns use the brand's own cut line (`cr_cut_zero_x`, `cr_cut_spend_x`,
+  `cr_cut_cpa_x` from p_br_doc rules, goal = rules target_cpa or the brand's) on the platform's own conversions. A funnel
+  step is a leak when 20%+ under `BENCH` (Littledata Oct 2026 by device; cart to checkout is ESTIMATED from Littledata
+  medians and says so) AND under the brand's own 90 days, over the floors (1,000 sessions, 300 carts / checkouts); cost =
+  orders the step would add at the benchmark, carried down the brand's own funnel, x the device's AOV. Landing pages: 500+
+  paid sessions under 70% of the paid site rate. Email: missing welcome = sign-ups x $5.75, post purchase = orders x
+  $1.80 (Klaviyo 2026), the others "not priced"; a switched-off flow = its last 30 days before going off (when those
+  were empty, a third of its 90-day revenue) less its replacement's rate; a replacement earning 85%+ of it is not a leak. Floor $50 a month,
+  except search negatives and PMax categories (Viktor's report, kept at any size). Sources and dates:
+  docs/strategist-brain/knowledge/website-cro.md section 2.
+- **The write**: google.js `adsNegative` = `campaignCriteria:mutate` create `{campaign, negative: true, keyword: {text,
+  matchType: EXACT}}` (validateOnly for the propose), or remove by resource name (must start with the brand's own
+  `customers/<cid>/campaignCriteria/`). Apply files an `activities` row (event_type `google_write`, category `keywords`,
+  under the brand's Meta account like klaviyowrite) and drops the term from the cached list. PMax categories get no Apply
+  (a category is not a keyword; the fix names the account-level negative list in Google Ads).
+- Verified live on Lucky 2026-10-13 from the dev worker: every source answered, Google accepted a validateOnly negative.
+  NOT done: a real negative write (Cole approves the first ones), TikTok (not connected), Shopify-app funnels (no store
+  has the app).
+- **The morning card** (morningcard.js `buildCard`, `d.leaks` = cardDeps): ONE line for the biggest leak over
+  `LEAK_FLOOR` ($500 a month) whose id was not on yesterday's card (`card.leaks` keeps the ids), tagged to its owner
+  from the brand's roster (`leak.owner`, calendar.js `teamOf`); the first day only records ids. test-morningcard.mjs 13/13.
+
+## 2026-10-13 (fifth pass): THE MORNING CARD (`src/morningcard.js`, docs/handoffs/morning-card.md). Read before posting anything to a brand's internal channel.
+
+Cole approved "One Card a Day" (https://claude.ai/artifact/Fn8JrdMJnMNtYMpjBYSaWG): internal channels are for people, and
+Dartee's had five bot posts and ~60 lines before 9am on Oct 13. Tests: `node test-morningcard.mjs` (12 offline checks).
+- **One send hour**: `settings.morningHour` (Central, default 5; set to 5 in D1 on 2026-10-13). `briefHour()` now returns
+  morningcard.js `morningHour()` (morningHour, else the old briefHour, else 5), so the client daily, the weekly / monthly
+  drafts and the card all run on that tick. `/api/brief-time` PUT and `PUT /api/settings {morningHour}` write both keys.
+  morning.js DMs read the same key, so they moved to 5 too. Locus: Agency settings > Slack and sending > "Morning posts go out at".
+- **5am safety**: `dailyBriefs` re-pulls Triple Whale (3 days) when yesterday's `totalSales` row was synced before the
+  brand's OWN midnight (moved.js's freshness test), so a Pacific brand at 5am Central never writes from a running day.
+  Checked before switching: the stored 6am briefs Oct 6 to 12 match today's tw_daily totals for every brand-day except
+  three later restatements (Dartee 10-12 +$80, Bonk 10-07 / 10-09), which the hour does not change.
+- **The card** (`morningCardTick`, hourly, right after reportsPass inside the morning block; `cardDeps()`): from the morning
+  hour to noon, once per Central day per active brand (not paused, not The Golf Sock, not Harborline, not demo_; internal
+  channel set and not equal to brief_channel), one Block Kit post to `slack_channel`: name + day, yesterday vs plan + MER
+  from the stored brief's `data_json.day` (no new math) + the client daily's state (`posted_at` in Central), then at most 5
+  lines ranked by money then lateness, each starting with the person's tag: Today's calls as one line (todaypost.js
+  readToday, buyer from calendar.js `teamOf`), p_action due today / overdue, calendar dates live tomorrow with open steps
+  (`calendarData`), late Production cards (`listBoard`); "and N more in Locus"; "Client owes" (oldest open Requests ask +
+  days); Monday's weekly line. Buttons = one actions block each, action_id `noop_open`. A brand waits up to 2 hours for
+  its brief (and Monday's weekly row), then posts saying so. State `morningCardDone`; the card `morningCard:<act>:<date>`;
+  the channel index `morningCardIdx:<date>`; Slack ids cached in `slackIds` (roster email lookup, else one users.list
+  first-name match). Switch `settings.morningCard` ('off' = everything posts top-level as before).
+- **Its thread at post time**: the full calls list (todaypost.js `messageFor`, minus button and footer) and one
+  `reminderMessage` per owner (tagged, Done buttons); those p_action rows get `reminded_on` today + the reply's ts, so the
+  Done button and ✅ on a reply work as before and actionTick has nothing left to post for them.
+- **Kept up to date by chat.update**: actions.js `onActionDone` hook (registered in worker.js; every markDone, quiet for
+  bulk), `cardCallMade` after a non-dry `/api/meta/write` ("N of M made", all = struck), `cardProdDone` after
+  `/api/brand-asana/result` and a Production move (`d.onProdMoved`), `cardBriefState` after `sendBrief` succeeds, and
+  `cardReaction` (✅ on the card itself = every task line on it done, one redraw; reached from handleReaction when the
+  reacted message is no reminder line).
+- **Later posts go in the card's thread** (`teamPost(env, d, channel, text, blocks, {tag | tagName})`: a reply under today's
+  card in that channel with the person tagged, never reply_broadcast; no card = top-level): alerts.js `postTo` (the rule's
+  own mention; Locus "test" posts stay top-level), requests.js `tellTeam` (strategist tagged), meetings.js confirm notes
+  (owners tagged), calendar.js client changes and reminders (strategist), actionTick lines (owner), newclient.js internal
+  pings (`inThread`). Mondays: meetings.js `mondayScreen` reads the plan from the card's thread first, the weekly report's
+  own card second. `slackPost` now passes `opts.thread_ts`.
+- **Switched off while the card is on**: todayTick (`cardOn`; D1 `todayPost` = off too), calendar's "Live tomorrow" line,
+  the per-drag Slack line in production.js `moveCard` (removed for good), What moved (`movedPost` = off in D1: the
+  approved page lists it as off). The weekly / monthly DRAFT cards post to `dailyBriefsChannel` like the daily drafts.
+- **The draft bug (fixed)**: every daily draft since 10-12 fell back to the brand channel because the bot was never a
+  member of #daily-briefs (C0C8UA53U3W: only Cole and Ahsan) and `conversations.join` failed (no channels:join).
+  `slackPost` now invites the bot through Cole's user token (`conversations.invite`, auth.test for the bot id) when the
+  join fails; a fallback writes `settings.dailyBriefsError` {at, brand, error}, shown under "Where the drafts post".
+- **Locus** (`GET /api/morning-card/preview?act=`, admin, team only): Agency settings > Slack and sending: the hour picker,
+  the card switch, "Preview this morning's card" (the card as words + what its thread will hold). The Today's calls
+  switch is gone from that card.
+- **Checked on real data** (local `wrangler dev --remote`, preview only, nothing posted): Dartee's card matched the approved
+  page to the dollar (Yesterday $1,438 (plan $1,800) · MER 2.11x; cut 9 ad sets, scale 1 · $2.4K). Two rules came from it:
+  a Production card counts only when 30 days late or less (Lucky had one 123 days late in Brief), and tags match on the
+  FIRST name with roster prefixes (Asana gives "Nomaqhawe Molife"; she is the roster's Noma, U09PZ3ZV5HD). A line with
+  no owner falls back to the brand's strategist (calendar.js `teamOf`).
+- NOT tested live: the first 5am tick (2026-10-14 is the test: `lastHourly.morningCard`, `morningCardDone`), the invite
+  through Cole's token into #daily-briefs, chat.update on a real card, ✅ on a card through the router, users.list for
+  Radhesh / Hamza. Viktor's Monday Search Term Mining is not ours (Cole asked Viktor to stop it 2026-10-13): check Monday.

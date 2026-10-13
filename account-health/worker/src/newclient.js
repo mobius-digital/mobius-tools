@@ -35,6 +35,9 @@ import { frameProject, frameStatus } from './frame.js';
 import { sendMail } from './mail.js';
 import { ensureCalendlyHook } from './calendly.js';
 import { createBrand, addConnection, resolveBrandId, setTripleWhale } from './brands.js';
+import { todaysCard } from './morningcard.js';
+/* 2026-10-13: a ping about a brand that already has today's morning card goes in the card's thread. */
+const inThread = async (env, ch) => { const c = await todaysCard(env, ch).catch(() => null); return c ? { thread_ts: c.ts } : {}; };
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -560,7 +563,7 @@ async function markPaid(env, r, subId, inv) {
   await setStep(env, r.id, 'stripe', next);
   if (!st.paid) {
     await tickForm(env, r.token, 'st_invoice');
-    if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: `*${r.name} paid their first invoice.* ${next.autopay ? 'The retainer is on autopay from here.' : 'Autopay did NOT switch on: see Locus > New client.'} Work can start.` }).catch(() => {});
+    if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, text: `*${r.name} paid their first invoice.* ${next.autopay ? 'The retainer is on autopay from here.' : 'Autopay did NOT switch on: see Locus > New client.'} Work can start.` }).catch(() => {});
   }
   return next;
 }
@@ -594,7 +597,7 @@ async function stepSummary(env, r) {
     `• Team: strategist ${team.strategist || 'not picked'}, media buyer ${team.buyer || 'not picked'}, editor ${team.editor || 'not picked'}, designer ${team.designer || 'not picked'}`,
     `Their onboarding answers show up in Locus > Brand > ${r.name} > Client answers as they fill the form in (a call sheet builds itself). Locus posts here when they send it.`,
   ].filter(Boolean);
-  const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text: lines.join('\n'), unfurl_links: false });
+  const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, text: lines.join('\n'), unfurl_links: false });
   if (!j.ok) throw new Error(`Slack: ${j.error}`);
   /* New Biz (#mobius-newbiz, made in the 2026-09-05 Slack restructure): the news, the people, never money. */
   const ids = await slackIds(env, teamList(team));
@@ -857,7 +860,7 @@ export async function onCallBooked(env, r, info) {
   const team = safeJson(r.team_json, {});
   const ids = await slackIds(env, roleList(team.strategist)).catch(() => ({}));
   const tag = Object.values(ids).map(id => `<@${id}>`).join(' ');
-  if (r.slack_internal) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
+  if (r.slack_internal) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false,
     text: info.canceled ? `*${r.name} cancelled the strategy call* (${when}). Their form's "book the call" box is open again.` : `*${r.name} booked the strategy call: ${when}.* ${tag ? `${tag} ` : ''}Review their answers and run Research in Locus before it.${answersLink(r) ? `
 ${answersLink(r)}` : ''}` });
 }
@@ -879,7 +882,7 @@ async function nudges(env) {
     if (st.email?.status === 'done' && r.ob_status !== 'submitted' && Date.now() - Date.parse(st.email.at || 0) > 5 * DAY && !st.nudge.form) due.push(['form', 'has not sent the onboarding form', 'Send them a reminder']);
     for (const [kind, what, label] of due) {
       const text = `<@U06C37MDWD7> *${r.name}* ${what} yet.`;
-      const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, text, blocks: [
+      const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, text, blocks: [
         { type: 'section', text: { type: 'mrkdwn', text } },
         { type: 'actions', elements: [{ type: 'button', style: 'primary', text: { type: 'plain_text', text: label }, action_id: 'nc_remind', value: JSON.stringify({ id: r.id, kind }) }] },
         { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sends a short, friendly reminder as you. Nothing goes out unless you press it.' }] }] });
@@ -959,7 +962,7 @@ async function shopifyHeadsUp(env) {
     const store = `${m[1].toLowerCase()}.myshopify.com`;
     const code = String(ans.shopify_code || '').trim();
     const text = `<@U06C37MDWD7> *${r.name}* gave their Shopify store. Send the collaborator request, then press the button and Locus tells them to approve it.`;
-    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false, text, blocks: [
+    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false, text, blocks: [
       { type: 'section', text: { type: 'mrkdwn', text } },
       { type: 'section', fields: [{ type: 'mrkdwn', text: `*Store*\n\`${store}\`` }, { type: 'mrkdwn', text: `*Request code*\n${code ? `\`${code}\`` : 'none needed'}` }] },
       { type: 'context', elements: [{ type: 'mrkdwn', text: 'Partner dashboard > *Stores* > *Add store* > *Request access to a store* > paste the store address' + (code ? ' and the code' : '') + ' > pick the permissions > *Request access*.' }] },
@@ -1000,7 +1003,7 @@ export async function newClientTick(env) {
     const steps = safeJson(r.steps_json, {});
     if (steps.form_ping) continue;
     const team = safeJson(r.team_json, {});
-    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: r.slack_internal, unfurl_links: false,
+    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false,
       text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.${answersLink(r, 'research') ? `
 ${answersLink(r, 'research')}` : ''}` });
     if (j.ok) { await setStep(env, r.id, 'form_ping', { status: 'done', at: new Date().toISOString() }); told++; }

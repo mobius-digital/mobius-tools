@@ -27,6 +27,7 @@ import { brandsFor } from './brandguard.js';
 import { resolveBrandId, metaOf } from './brands.js';
 import { routeAction } from '../../../ask/engine.js';
 import { stockView } from './stock.js';
+import { todaysCard } from './morningcard.js';
 
 export const ALERT_SQL = `CREATE TABLE IF NOT EXISTS p_alert (
   id              TEXT PRIMARY KEY,
@@ -250,9 +251,13 @@ export function alertBlocks(row, fired, { test = false, brandName } = {}) {
   };
 }
 
-async function postTo(env, d, channel, msg) {
-  const r = await d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false, username: 'Locus' });
-  if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || ''))) return d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false });
+/* 2026-10-13: a fired alert goes in the THREAD of today's morning card in that channel (morningcard.js), the rule's
+   mention still in the line so the person is notified; no card today = a top-level post as before. */
+export async function postTo(env, d, channel, msg, { thread = true } = {}) {
+  const card = thread ? await todaysCard(env, channel, d.centralDate ? d.centralDate() : undefined).catch(() => null) : null;
+  const t = card ? { thread_ts: card.ts } : {};
+  const r = await d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false, username: 'Locus', ...t });
+  if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || ''))) return d.slackApi(env, 'chat.postMessage', { channel, text: msg.text, blocks: msg.blocks, unfurl_links: false, ...t });
   return r;
 }
 
@@ -416,7 +421,7 @@ export async function handleAlerts(request, env, path, json, d) {
     if (b.post && r.fired.length) {
       const ch = await channelOf(env, d, row);
       if (!ch) return json({ ...res, error: 'No channel to post to.' }, 400);
-      const p = await postTo(env, d, ch, alertBlocks(row, r.fired, { test: true, brandName: name }));
+      const p = await postTo(env, d, ch, alertBlocks(row, r.fired, { test: true, brandName: name }), { thread: false });
       res.posted = !!p?.ok; if (p?.ok === false) res.error = `Slack: ${p.error}`;
     }
     return json(res);

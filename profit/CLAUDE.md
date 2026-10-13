@@ -3075,3 +3075,35 @@ approved mock: `docs/handoffs/work-calls-tasks-production.md` (https://claude.ai
   brief" / "+ Brief" = an in-app window -> `/api/production/brief`. Live shows the newest 12 with "Show all N".
 - Checked on a stub harness (scratchpad, deleted): every write's request body, the menus, drag on all three surfaces,
   light and dark, 375px with no page sideways scroll. NOT checked against the real workers in a browser.
+
+## 2026-10-13: THE LEAK FINDER (`profit/leaks.js`, account-health `src/leaks.js`). Read before touching it.
+
+Cole: "where things are leaking... Google Ads, PMax search terms, YouTube, TikTok, Meta, the general funnel, landing pages,
+conversion rate drop-offs against the industry... at the top of each thing." It replaces Viktor's weekly Search Term
+Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/artifact/BiKJGU8QkUFmCEMr1q5PFz
+(`docs/locus-hub/leak-finder-mock.html`).
+- **One list per brand** from account-health `GET /api/leaks?act=&days=30` (the engine lives there because Google Ads,
+  GA4, Klaviyo and the model all live there; the handoff's `/api/hub/leaks` was not built as a second path). Each leak:
+  area, title, number + source, benchmark + source, cost a month + how, fix, who, go (a page id), items (search terms /
+  PMax categories), apply (negatives). `areas` says per source ok / not_linked / thin / error with the note.
+- **Where it shows** (`window.LeaksCard`): `top(host, H, page)` right under the page head on Ads > Google (`google`,
+  and Search terms = `gterms`), Ads > Meta Overview (`meta`), Ads > TikTok, Store > Website, Email (v2.js `mountLeaks`
+  after each screen's render). That page's top 3 by money; NOTHING is drawn when the page has no leak. `full(host, H)`
+  on Home > Day check for one brand (desk.js `#dkLeaks`, under the day's verdict): 6 rows + "Show all N" + what was
+  checked per source + the benchmark sources line. Cached in the page 5 minutes (`CACHE`), the server an hour.
+- **Add negative** (one term) and **Add all N**: in-app modal; account-health `POST /api/leaks/apply` without confirm =
+  Google `validateOnly` (nothing written), with confirm = the write; toast Undo = `POST /api/leaks/undo`. Clients have
+  the same routes for their own brand (brandguard CLIENT_RULES, both copies), like `/api/google/write`.
+- Checked on a stub harness with Lucky's real list (deleted): dark, light, 375px (no sideways scroll), the modal.
+  index.html loads `leaks.js?v=1`, `v2.js?v=53`, `desk.js?v=21`. The modal and toast use index.html's `.modal-wrap`
+  and mobius.css `.lx-toast`; every colour in leaks.js is a v2 token.
+
+## 2026-10-13 (fifth pass): the morning card's settings (account-health morningcard.js)
+
+- Agency settings > Slack and sending: **Morning posts go out at** (replaces "Daily Brief send time"; same `#btHour`,
+  `/api/brief-time`, now one hour for the client daily, the weekly / monthly drafts and the morning card, default 5am
+  Central), **The morning card** (switch `#mcOn` -> `PUT /api/settings {morningCard}`; brand picker `#mcAct` + "Preview
+  this morning's card" -> account-health `GET /api/morning-card/preview?act=`, shown in a noteModal as plain words with
+  @names and what its thread will hold; nothing posts), **Where the drafts post** (now also the weekly and monthly drafts
+  while the card is on; shows `dailyBriefsError` when the agency channel last refused a draft). The "Today's calls in
+  Slack" card is gone (the card carries it). Engine and rules: account-health/CLAUDE.md, same date.
