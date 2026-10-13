@@ -270,10 +270,38 @@ export const CLIENT_RULES = [
   R('DELETE', '/api/clarity'),
   R('GET', '/api/store-view'),
 
-  /* ---- PRODUCTS: Stock and Drops, read only through this door (stock.js supplyClient keeps an allowlist of
-     fields). Buying and every Supply write stay off: the Supply worker has its own sign-in that knows no client. */
+  /* ---- PRODUCTS: Stock, Buying and Drops (2026-10-12, Cole: "the brand itself is the owner of the brand; buying and
+     stock changes is literally a brand thing"). The brand reads its whole stock state through /api/supply/client
+     (stock.js supplyClient: its own factories, costs and notes included; only the agency's Slack and Asana wiring is
+     left out) and makes every Supply change the team can, through the account-health proxy (stock.js
+     handleSupplyProxy), which resolves the Supply brand from the client's OWN Locus brand and ignores any `brand` it
+     sends, forwards with SUPPLY_TOKEN and names the client in X-Actor. The proxy also holds /settings to the stock
+     rules and /brand to buys and makes (never the Slack channel, the Asana project or the brand's act_id). ---- */
   R('GET', '/api/supply/client'),
   R('GET', '/api/hub/stockads'),
+  R('POST', '/api/supply/orders'),
+  RX('PUT', /^\/api\/supply\/orders\/[\w%.:-]+$/, 'need'),
+  RX('DELETE', /^\/api\/supply\/orders\/[\w%.:-]+$/, 'need'),
+  RX('PUT', /^\/api\/supply\/products\/\d+$/, 'need'),
+  R('POST', '/api/supply/slots'),
+  R('PUT', '/api/supply/slots'),
+  RX('DELETE', /^\/api\/supply\/slots\/[\w%.:-]+$/, 'need'),
+  RX('GET', /^\/api\/supply\/slots\/[\w%.:-]+\/asana$/, 'need'),
+  RX('POST', /^\/api\/supply\/slots\/[\w%.:-]+\/asana$/, 'need'),
+  R('POST', '/api/supply/collections'),
+  R('PUT', '/api/supply/collections'),
+  RX('DELETE', /^\/api\/supply\/collections\/[\w%.:-]+$/, 'need'),
+  R('POST', '/api/supply/shopify/snapshot'),
+  R('POST', '/api/supply/shopify/backfill'),
+  R('PUT', '/api/supply/settings', 'need', { fields: ['buffer_days', 'cover_days', 'site_prep_days', 'dead_days', 'design_days', 'sample_make_days', 'slack_days'] }),
+  R('PUT', '/api/supply/brand', 'need', { fields: ['buys', 'makes'] }),
+  R('PUT', '/api/supply/factories'),
+  RX('DELETE', /^\/api\/supply\/factories\/[\w%.:-]+$/, 'need'),
+  R('PUT', '/api/supply/lines'),
+  RX('DELETE', /^\/api\/supply\/lines\/[\w%.:-]+$/, 'need'),
+  R('PUT', '/api/supply/type-map'),
+  R('PUT', '/api/supply/categories'),
+  RX('DELETE', /^\/api\/supply\/categories\/[\w%.:-]+$/, 'need'),
 
   /* ---- CREATIVE: AI ads (Studio + Words), Creators, Library, Inspiration ---- */
   R('GET', '/api/studio'),
