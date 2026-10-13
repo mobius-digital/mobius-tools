@@ -1,6 +1,6 @@
 /* Offline security checks for CLIENT LOGINS (2026-10-09) and THE BRAND EDITION (2026-10-10, docs/locus-hub/editions.md):
  * brandguard.js (both workers), clients.js, the client mode of the assistant engine, the calendar's client rules, the
- * daily caps, and the auth changes in both workers. Drives the REAL account-health and profit
+ * daily caps, the Supply proxy for a brand's own stock changes, and the auth changes in both workers. Drives the REAL account-health and profit
  * workers in node against an in-memory SQLite (node:sqlite), the profit worker's AUTH binding wired to the
  * account-health worker exactly as in production (no SESSION_SECRET on profit), Google and Gmail mocked.
  *   node test-clients.mjs      (from account-health/worker)
@@ -188,7 +188,7 @@ await check('the agency edition stays the agency\'s: every agency-only route is 
     ['ah', 'POST', '/api/calendar/asana', { id: 'ev_a' }], ['pf', 'POST', '/api/studio/key', { key: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx' }], ['pf', 'POST', '/api/studio/canva/setup', { act: 'brand_alpha' }],
     ['ah', 'POST', '/api/research/step', { act: 'brand_alpha', step: 'market' }], ['ah', 'POST', '/api/research/prefill', { act: 'brand_alpha' }], ['ah', 'POST', '/api/voice/staff/build-skill', { act: 'brand_alpha' }],
     ['ah', 'POST', '/api/discover'], ['ah', 'POST', '/api/sync?act=brand_alpha'], ['ah', 'PUT', '/api/agency/settings', { x: 1 }], ['ah', 'POST', '/api/brand-asana/sync', { act: 'brand_alpha' }],
-    ['ah', 'POST', '/api/supply/orders?brand=alpha', { act: 'brand_alpha' }], ['ah', 'PUT', '/api/meta-business', { id: '1' }], ['ah', 'POST', '/api/brands', { name: 'Mine' }],
+    ['ah', 'POST', '/api/supply/reseed?act=brand_alpha', {}], ['ah', 'PUT', '/api/meta-business', { id: '1' }], ['ah', 'POST', '/api/brands', { name: 'Mine' }],
     ['ah', 'POST', '/api/tiktok/start'], ['pf', 'POST', '/api/connections/map', { act: 'brand_alpha', shop: 'x.myshopify.com' }], ['ah', 'POST', '/api/assets/sync?act=brand_alpha'],
   ]) { const r = await ran(w, CLIENT, m, p, b); if (r.status !== 403) open.push(`${w} ${m} ${p} -> ${r.status}`); }
   assert.deepEqual(open, [], 'open to a client:\n' + open.join('\n'));
@@ -490,74 +490,132 @@ await check('Inspiration: a client reads its own brand\'s Atria board and the sh
   assert.ok(passed(await ran('ah', OWNER, 'GET', `/api/atria/board?board_id=${swipeBoardsFor('brand_lucky_golf').pop()}`)), 'the team reads any board');
 });
 
-/* Products > Stock and Drops for clients (2026-10-10): read only, own brand, costs and suppliers stripped. Supply is mocked
-   behind the SUPPLY binding; every request it gets is recorded so the test can prove nothing but GETs reached it. */
-await check('Stock and Drops (2026-10-10): a client reads its own brand, costs and suppliers stripped; never another brand, Buying or a Supply write', async () => {
+/* Products > Stock, Buying and Drops for clients (2026-10-10 read only; 2026-10-12 the brand owns it: Cole, "buying and
+   stock changes is literally a brand thing"). Supply is mocked behind the SUPPLY binding; every request it gets is
+   recorded (method, path, brand, token, actor, body) so the test can prove what reached it and as whom. */
+await check('Stock, Buying and Drops (2026-10-12): a client reads its whole brand, costs and factories included, and makes every Supply change for its own brand through the proxy; never another brand, "all" or the agency\'s wiring', async () => {
   const seen = [];
   const FIX = {
     brandName: 'Alpha Golf', tz: 'America/Chicago', today: '2026-10-10', generatedAt: '2026-10-10T12:00:00Z', lastRun: '2026-10-10T11:00:00Z', historyDays: 400, historyStart: '2025-09-01',
-    settings: { buffer_days: 10, cover_days: 180, asana_project: 'ASANA-SECRET' }, headline: { revenueAtRisk: 9999 }, decisions: [{ title: 'Order Polo by Oct 20', body: 'about $4.2k at cost' }],
+    settings: { buffer_days: 10, cover_days: 180, asana_project: '1200000000000001', asana_project_name: 'Lucky designs', digest_monday: true, digest_alerts: false }, headline: { revenueAtRisk: 9999 }, decisions: [{ title: 'Order Polo by Oct 20', body: 'about $4.2k at cost' }],
     products: [{ id: '101', title: 'Polo Navy', image: 'https://cdn/p.png', lineId: 'l_polo', lineName: 'Polos', status: 'order', lifecycle: 'core', decision: 'keep', onHand: 40, velocity: 1.2, perWeek: 8.4,
       runOutDays: 33, runOutDate: '2026-11-12', incoming: 100, incomingLands: '2026-12-01', weeksOfCover: 5, sold90: 108, cost: 11.5, price: 65, factoryId: 'fac_wst_golf', factoryName: 'WST Golf Ltd',
       leadDays: 75, moq: 100, suggested: 220, atCost: 2530, revenueAtRisk: 1400, deadCost: 50, notes: 'Factory rep is Mr Chen, 20% deposit',
       variants: [{ id: 'v1', sku: 'PN-M', axis: 'M', onHand: 20, velocity: 0.7, isCore: true, runOutDays: 28, cost: 11.5, price: 65, suggested: 120, series: [1, 2], incomingOrders: [{ orderId: 'PO-0007', qty: 60, lands: '2026-12-01', status: 'production' }] }] }],
-    lines: [{ id: 'l_polo', name: 'Polos', target: 12, cutRulePct: 25, planned: true, keep: 9, decide: 2, cut: 1, openSlots: 1, weeksOfCover: 5, onHand: 400, factoryId: 'fac_wst_golf', factoryName: 'WST Golf Ltd', moq: 100,
-      dead: { units: 3, cost: 35, retail: 195 }, revenueAtRisk: 1400, plan: [{ productId: '101', rank: 1, band: false, near: false, state: 'keep', decided: true }] }],
+    lines: [{ id: 'l_polo', name: 'Polos', target: 12, cutRulePct: 25, planned: true, keep: 9, decide: 2, cut: 1, openSlots: 1, weeksOfCover: 5, onHand: 400, factoryId: 'fac_wst_golf', factoryName: 'WST Golf Ltd', moq: 100, plan: [{ productId: '101', rank: 1, band: false, near: false, state: 'keep', decided: true }] }],
     slots: [{ id: 's1', name: 'Spring 2027 · Polo 1', line_id: 'l_polo', lineName: 'Polos', collection_id: 'c1', collectionName: 'Spring 2027', status: 'sampling', factoryId: 'fac_wst_golf', dates: { briefDue: '2026-09-01', onSite: '2027-03-01' },
-      next: { what: 'Sample approved', on: '2026-11-01', days: 22, late: false }, asana_task: 'https://app.asana.com/0/1/2', asana_gid: '2', notes: 'Use the cheaper thread, saves $0.40', sample_tracking: 'DHL 123',
-      made: { orderId: 'PO-0007', status: 'production', label: 'In production', expected_at: '2026-12-01' }, sample: { state: 'coming', label: 'Sample due Oct 30', on: '2026-10-30' } }],
-    collections: [{ id: 'c1', name: 'Spring 2027', drop_at: '2027-03-01', designs: 1, notes: 'Budget $12k', withTask: 1 }],
-    orders: [{ id: 'PO-0007', status: 'production', factory_id: 'fac_wst_golf', factoryName: 'WST Golf Ltd', expected_at: '2026-12-01', units: 100, received: 0, atCost: 1150, deposit: '50% paid', tracking: 'DHL 999', notes: 'pay balance on ship',
-      lines: [{ unit_cost: 11.5 }] }, { id: 'PO-0008', status: 'draft', units: 50, atCost: 575 }],
+      next: { what: 'Sample approved', on: '2026-11-01', days: 22, late: false }, asana_task: 'https://app.asana.com/0/1/2', asana_gid: '2', notes: 'Use the cheaper thread, saves $0.40' }],
+    collections: [{ id: 'c1', name: 'Spring 2027', drop_at: '2027-03-01', designs: 1, notes: 'Budget $12k' }],
+    orders: [{ id: 'ALPHA-PO-0007', status: 'production', factory_id: 'fac_wst_golf', factoryName: 'WST Golf Ltd', expected_at: '2026-12-01', units: 100, received: 0, atCost: 1150, deposit: '50% paid', notes: 'pay balance on ship' }, { id: 'ALPHA-PO-0008', status: 'draft', units: 50, atCost: 575 }],
     factories: [{ id: 'fac_wst_golf', name: 'WST Golf Ltd', contact: 'chen@wst.example', moq_default: 100, closures: [{ from: '2027-02-06', to: '2027-02-20', label: 'Chinese New Year' }] }],
-    asanaLoose: [{ name: 'Loose card', url: 'https://app.asana.com/0/9/9' }], db: { lines: [{ id: 'l_polo', target_designs: 12, factory_id: 'fac_wst_golf' }], factories: [{ name: 'WST Golf Ltd' }] },
+    asanaLoose: [{ name: 'Loose card', url: 'https://app.asana.com/0/9/9' }],
+    db: { brand: { id: 'alpha', name: 'Alpha', slack_channel: 'C0ALPHA12345', act_id: 'brand_alpha', buys: 1, makes: 1 }, settings: { buffer_days: 10, asana_project: '1200000000000001', digest_monday: true }, lines: [{ id: 'l_polo', target_designs: 12, factory_id: 'fac_wst_golf' }], factories: [{ name: 'WST Golf Ltd' }] },
   };
   ahEnv.SUPPLY = { fetch: async req => {
-    const u = new URL(req.url); seen.push(`${req.method} ${u.pathname} ${u.searchParams.get('brand') || ''} ${req.headers.get('Authorization')}`);
-    if (req.method !== 'GET') return new Response(JSON.stringify({ error: 'no writes in this test' }), { status: 500 });
-    if (u.pathname === '/api/brands') return new Response(JSON.stringify({ brands: [{ id: 'alpha', name: 'Alpha', act_id: 'brand_alpha', makes: true, buys: true, active: true }, { id: 'beta', name: 'Beta', act_id: 'brand_beta', makes: true, buys: true, active: true }] }));
-    if (u.pathname === '/api/state') return new Response(JSON.stringify({ ...FIX, brandName: u.searchParams.get('brand') }));
-    return new Response('{}', { status: 404 });
+    const u = new URL(req.url); const body = req.method === 'GET' ? null : await req.json().catch(() => null);
+    seen.push({ m: req.method, path: u.pathname, brand: u.searchParams.get('brand') || '', auth: req.headers.get('Authorization'), actor: req.headers.get('X-Actor') || '', body });
+    const ok = (j = { ok: true }) => new Response(JSON.stringify(j));
+    if (u.pathname === '/api/brands') return ok({ brands: [{ id: 'alpha', name: 'Alpha', act_id: 'brand_alpha', makes: true, buys: true, active: true }, { id: 'beta', name: 'Beta', act_id: 'brand_beta', makes: true, buys: true, active: true }] });
+    if (u.pathname === '/api/state') return ok({ ...FIX, brandName: u.searchParams.get('brand') });
+    if (req.method === 'POST' && u.pathname === '/api/orders') return ok({ ok: true, id: 'ALPHA-PO-0009' });
+    if ((req.method === 'POST' || req.method === 'PUT') && u.pathname === '/api/slots') return ok({ ok: true, id: 'slot-' + seen.length, asanaTask: 'https://app.asana.com/0/1/' + seen.length });
+    if (req.method === 'POST' && u.pathname === '/api/collections') return ok({ ok: true, id: 'col-new' });
+    if (/^\/api\/(orders\/[\w-]+|products\/\d+|collections|settings|brand|factories|lines\/[\w%.:-]+|lines|type-map|shopify\/snapshot)$/.test(u.pathname) && req.method !== 'GET') return ok();
+    if (/^\/api\/slots\/[\w-]+\/asana$/.test(u.pathname)) return ok({ task: { completed: false, section: 'Sampling' } });
+    return new Response('{"error":"no such route in the mock"}', { status: 404 });
   } };
   ahEnv.SUPPLY_TOKEN = 'supply-token';
+  const writes = () => seen.filter(x => x.m !== 'GET');
   try {
-    /* the client's own brand: the brand list (Drops on, Buying never) and the stripped state */
+    /* the client's own brand: the brand list (Buying AND Drops on) and the whole state */
     const br = await ah(CLIENT, 'GET', '/api/supply/client?act=brand_alpha&what=brands');
-    assert.equal(br.status, 200, JSON.stringify(br.j)); assert.deepEqual(br.j.brands, [{ id: 'alpha', act_id: 'brand_alpha', name: 'Alpha', makes: true, buys: false, active: true }]);
+    assert.equal(br.status, 200, JSON.stringify(br.j)); assert.deepEqual(br.j.brands, [{ id: 'alpha', act_id: 'brand_alpha', name: 'Alpha', makes: true, buys: true, active: true }]);
     const r = await ah(CLIENT, 'GET', '/api/supply/client?act=brand_alpha&what=state');
     assert.equal(r.status, 200, JSON.stringify(r.j));
-    const p = r.j.products[0], s = r.j.slots[0];
-    assert.equal(p.onHand, 40); assert.equal(p.runOutDate, '2026-11-12'); assert.equal(p.incomingLands, '2026-12-01'); assert.equal(p.incoming, 100); assert.equal(p.image, 'https://cdn/p.png');
-    assert.equal(p.status, 'ok', 'an order-timing status reads as fine'); assert.equal(p.decision, 'keep');
-    assert.deepEqual(p.variants[0].incomingOrders, [{ qty: 60, lands: '2026-12-01' }]);
-    assert.equal(s.status, 'sampling'); assert.equal(s.next.on, '2026-11-01'); assert.equal(s.made.label, 'In production'); assert.equal(r.j.collections[0].drop_at, '2027-03-01');
-    assert.equal(r.j.lines[0].plan[0].state, 'keep'); assert.equal(r.j.lines[0].cut, 1);
-    assert.deepEqual(r.j.orders, [{ id: 'restock_1', status: 'production', expected_at: '2026-12-01', landed_at: null, overdue: false, units: 100, received: 0 }], 'placed restocks only, dates and units');
-    assert.deepEqual(r.j.factories, [{ id: 'f1', closures: [{ from: '2027-02-06', to: '2027-02-20', label: 'Chinese New Year' }] }]);
+    assert.equal(r.j.client, true); assert.equal(r.j.brand, 'alpha'); assert.equal(r.j.act, 'brand_alpha');
+    const p = r.j.products[0];
+    assert.equal(p.status, 'order', 'the order-timing status is the brand\'s to see'); assert.equal(p.cost, 11.5); assert.equal(p.factoryName, 'WST Golf Ltd'); assert.equal(p.atCost, 2530); assert.equal(p.suggested, 220); assert.equal(p.notes, 'Factory rep is Mr Chen, 20% deposit');
+    assert.equal(r.j.orders.length, 2, 'drafts too'); assert.equal(r.j.orders[0].id, 'ALPHA-PO-0007'); assert.equal(r.j.orders[0].atCost, 1150); assert.equal(r.j.orders[0].deposit, '50% paid');
+    assert.equal(r.j.factories[0].name, 'WST Golf Ltd'); assert.equal(r.j.factories[0].contact, 'chen@wst.example');
+    assert.equal(r.j.slots[0].asana_task, 'https://app.asana.com/0/1/2', 'the Asana card link stays'); assert.equal(r.j.slots[0].notes, 'Use the cheaper thread, saves $0.40');
+    assert.deepEqual(r.j.headline, { revenueAtRisk: 9999 }); assert.equal(r.j.decisions.length, 1); assert.equal(r.j.asanaLoose.length, 1);
+    assert.equal(r.j.settings.buffer_days, 10); assert.equal(r.j.db.lines[0].target_designs, 12); assert.equal(r.j.db.brand.id, 'alpha');
+    /* only the agency's wiring is out: the Slack channel, the digest switches, which Mobius Asana project */
     const raw = JSON.stringify(r.j);
-    for (const bad of ['"cost"', '"price"', 'atCost', 'unit_cost', 'WST', 'wst', 'chen', 'Mr Chen', 'deposit', 'DHL', 'asana', 'ASANA', 'PO-000', 'Budget', 'cheaper thread', 'suggested', 'revenueAtRisk', 'deadCost', '"moq"', 'leadDays', 'settings', 'decisions', 'headline', 'asanaLoose', 'notes', 'factoryName', 'draft'])
-      assert.ok(!raw.includes(bad), `client answer leaks ${bad}`);
+    for (const bad of ['C0ALPHA12345', 'slack_channel', 'asana_project', 'Lucky designs', 'digest_monday', 'digest_alerts']) assert.ok(!raw.includes(bad), `client answer leaks ${bad}`);
     /* Ad spend per product (the Stock page's Ads column): their brand only */
     { const sa = await pf(CLIENT, 'GET', '/api/hub/stockads?act=brand_alpha'); assert.equal(sa.status, 200, 'stockads ' + JSON.stringify(sa.j)); }
     assert.equal((await pf(CLIENT, 'GET', '/api/hub/stockads?act=brand_beta')).status, 403);
     /* another brand, "all", no brand: refused before Supply is asked */
-    const before = seen.length;
+    let before = seen.length;
     for (const q of ['act=brand_beta&what=state', 'act=act_222&what=brands', 'act=all&what=state', 'what=state'])
       assert.equal((await ah(CLIENT, 'GET', '/api/supply/client?' + q)).status, 403, q);
     assert.equal(seen.length, before, 'Supply never asked for another brand');
-    /* Buying and every Supply write: the proxy's write routes and anything else under /api/supply are off the list */
-    for (const [m, p2, b] of [['POST', '/api/supply/orders?brand=alpha', { act: 'brand_alpha', lines: [] }], ['PUT', '/api/supply/products/101?brand=alpha', { act: 'brand_alpha', decision: 'cut' }],
-      ['POST', '/api/supply/slots?brand=alpha', { act: 'brand_alpha', name: 'x' }], ['PUT', '/api/supply/collections?brand=alpha', { act: 'brand_alpha' }], ['GET', '/api/supply/orders?act=brand_alpha'], ['GET', '/api/supply/state?act=brand_alpha'],
-      ['POST', '/api/supply/client?act=brand_alpha', { act: 'brand_alpha' }]])
-      assert.equal((await ah(CLIENT, m, p2, b)).status, 403, `${m} ${p2}`);
-    assert.ok(seen.every(x => x.startsWith('GET ')), 'only reads reached Supply: ' + seen.join(' | '));
-    assert.ok(seen.every(x => x.endsWith('Bearer supply-token')), 'Supply is called with the Supply token, never the client session');
-    /* the team: same read for any brand; the Strategist's write proxy still answers the team */
+
+    /* EVERY Supply change the team has, for its own brand, through the proxy. The `brand` the client sends is ignored:
+       the proxy resolves the Supply brand from the client's own Locus brand. */
+    const lines = [{ variant_id: 'v1', product_id: '101', qty: 120, unit_cost: 11.5 }];
+    let w = await ah(CLIENT, 'POST', '/api/supply/orders?act=brand_alpha&brand=beta', { factory_id: 'fac_wst_golf', status: 'sent', lines, notes: 'ship by sea' });
+    assert.equal(w.status, 200, 'place an order ' + JSON.stringify(w.j)); assert.equal(w.j.id, 'ALPHA-PO-0009');
+    let last = writes().at(-1);
+    assert.equal(last.path, '/api/orders'); assert.equal(last.brand, 'alpha', 'pinned to the client\'s brand, not the one it sent'); assert.deepEqual(last.body.lines, lines); assert.equal(last.body.status, 'sent'); assert.equal(last.body.act, undefined);
+    w = await ah(CLIENT, 'PUT', '/api/supply/orders/ALPHA-PO-0009?act=brand_alpha', { status: 'production', expected_at: '2026-12-20' });
+    assert.equal(w.status, 200, 'mark a stage'); last = writes().at(-1); assert.equal(last.path, '/api/orders/ALPHA-PO-0009'); assert.equal(last.body.status, 'production');
+    w = await ah(CLIENT, 'PUT', '/api/supply/products/101?act=brand_alpha', { lifecycle: 'drop' });
+    assert.equal(w.status, 200, 'set a kind'); last = writes().at(-1); assert.equal(last.path, '/api/products/101'); assert.equal(last.body.lifecycle, 'drop');
+    w = await ah(CLIENT, 'PUT', '/api/supply/products/101?act=brand_alpha', { decision: 'cut' });
+    assert.equal(w.status, 200, 'keep or cut'); assert.equal(writes().at(-1).body.decision, 'cut');
+    w = await ah(CLIENT, 'PUT', '/api/supply/products/101?act=brand_alpha', { moq: 150, notes: 'ask for 90 day terms' });
+    assert.equal(w.status, 200, 'minimum and notes'); assert.equal(writes().at(-1).body.moq, 150);
+    w = await ah(CLIENT, 'POST', '/api/supply/collections?act=brand_alpha', { name: 'Fall 2027', drop_at: '2027-09-01' });
+    assert.equal(w.status, 200, 'new drop'); assert.equal(w.j.id, 'col-new'); assert.equal(writes().at(-1).body.name, 'Fall 2027');
+    w = await ah(CLIENT, 'PUT', '/api/supply/collections?act=brand_alpha', { id: 'c1', name: 'Spring 2027', drop_at: '2027-03-15' });
+    assert.equal(w.status, 200, 'edit a drop');
+    before = writes().length;
+    w = await ah(CLIENT, 'POST', '/api/supply/slots?act=brand_alpha', { line_id: 'l_polo', collection_id: 'c1', name: 'Spring 2027 · Polo 2', status: 'needs_brief', _count: 2 });
+    assert.equal(w.status, 200, 'add designs ' + JSON.stringify(w.j)); assert.equal(w.j.made, 2);
+    const added = writes().slice(before); assert.deepEqual(added.map(x => x.body.name), ['Spring 2027 · Polo 2', 'Spring 2027 · Polo 3']); assert.ok(added.every(x => x.path === '/api/slots' && x.body._count === undefined));
+    w = await ah(CLIENT, 'PUT', '/api/supply/slots?act=brand_alpha', { id: 's1', line_id: 'l_polo', name: 'Spring 2027 · Polo 1', status: 'approved', collection_id: 'c1', notes: 'sample is in' });
+    assert.equal(w.status, 200, 'edit a design'); assert.equal(writes().at(-1).body.status, 'approved');
+    w = await ah(CLIENT, 'GET', '/api/supply/slots/s1/asana?act=brand_alpha'); assert.equal(w.status, 200, 'read the Asana card'); assert.equal(w.j.task.section, 'Sampling');
+    w = await ah(CLIENT, 'POST', '/api/supply/slots/s1/asana?act=brand_alpha', {}); assert.equal(w.status, 200, 'make the Asana card');
+    w = await ah(CLIENT, 'POST', '/api/supply/shopify/snapshot?act=brand_alpha', {}); assert.equal(w.status, 200, 'Refresh'); assert.equal(writes().at(-1).path, '/api/shopify/snapshot');
+    w = await ah(CLIENT, 'PUT', '/api/supply/factories?act=brand_alpha', { id: 'fac_wst_golf', name: 'WST Golf Ltd', production_days: 60, shipping_days: 30, moq_default: 100, closures: [], contact: 'chen@wst.example' });
+    assert.equal(w.status, 200, 'its own factory'); assert.equal(writes().at(-1).path, '/api/factories');
+    w = await ah(CLIENT, 'PUT', '/api/supply/lines?act=brand_alpha', { id: 'l_polo', name: 'Polos', category_id: 'alpha:apparel', target_designs: 14 }); assert.equal(w.status, 200, 'a product group');
+    w = await ah(CLIENT, 'PUT', '/api/supply/type-map?act=brand_alpha', { Polo: 'l_polo' }); assert.equal(w.status, 200, 'sort Shopify types');
+    w = await ah(CLIENT, 'PUT', '/api/supply/settings?act=brand_alpha', { buffer_days: 12, cover_days: 150 }); assert.equal(w.status, 200, 'its stock rules');
+    w = await ah(CLIENT, 'PUT', '/api/supply/brand?act=brand_alpha', { buys: true, makes: true }); assert.equal(w.status, 200, 'Buying and Drops switches');
+    w = await ah(CLIENT, 'DELETE', `/api/supply/orders/${encodeURIComponent('ALPHA-PO-0008')}?act=brand_alpha`); assert.equal(w.status, 200, 'delete its own draft');
+    w = await ah(CLIENT, 'DELETE', `/api/supply/lines/${encodeURIComponent('alpha:old')}?act=brand_alpha`); assert.equal(w.status, 200, 'a colon in an id still matches the rule');
+    /* every write that reached Supply: the client's brand, the Supply token, the client named as the actor */
+    for (const x of writes()) { assert.equal(x.brand, 'alpha', `${x.m} ${x.path} brand`); assert.equal(x.auth, 'Bearer supply-token'); assert.ok(x.actor.includes('nick@alpha.com') && x.actor.includes('brand login') && x.actor.includes('Nick'), `actor "${x.actor}"`); }
+
+    /* the agency's wiring is not the brand's to set: the Slack channel, the digest, which Asana project, the brand's Locus id */
+    before = writes().length;
+    for (const [m2, p2, b2] of [['PUT', '/api/supply/settings?act=brand_alpha', { digest_monday: false }], ['PUT', '/api/supply/settings?act=brand_alpha', { asana_project: '1200000000000002', asana_project_name: 'x' }],
+      ['PUT', '/api/supply/settings?act=brand_alpha', { buffer_days: 5, slack_channel: 'C0123456789' }], ['PUT', '/api/supply/brand?act=brand_alpha', { slack_channel: 'C0123456789' }], ['PUT', '/api/supply/brand?act=brand_alpha', { act_id: 'brand_beta' }],
+      ['PUT', '/api/supply/brand?act=brand_alpha', { buys: false, name: 'Mine now' }]])
+      { const x = await ah(CLIENT, m2, p2, b2); assert.equal(x.status, 403, `${m2} ${p2} ${JSON.stringify(b2)} -> ${x.status} ${JSON.stringify(x.j)}`); }
+    /* another brand's order, another brand, "all", no brand, a route not on the list: refused before Supply is asked */
+    for (const [m2, p2, b2] of [['DELETE', '/api/supply/orders/BETA-PO-0001?act=brand_alpha'], ['POST', '/api/supply/orders?act=brand_beta', { lines }], ['POST', '/api/supply/orders?brand=alpha', { act: 'brand_beta', lines }],
+      ['PUT', '/api/supply/products/101?act=all', { lifecycle: 'core' }], ['POST', '/api/supply/orders?brand=alpha', { lines }], ['PUT', '/api/supply/products/101?act=brand_alpha&brand=beta', { act_id: 'brand_beta', lifecycle: 'core' }],
+      ['POST', '/api/supply/reseed?act=brand_alpha', {}], ['POST', '/api/supply/shopify/password?act=brand_alpha', { password: 'x' }], ['PUT', '/api/supply/shopify/settings?act=brand_alpha', { stores: {} }], ['POST', '/api/supply/digest?act=brand_alpha', {}],
+      ['GET', '/api/supply/orders?act=brand_alpha'], ['GET', '/api/supply/asana/projects?act=brand_alpha'], ['GET', '/api/supply/changelog?act=brand_alpha'], ['POST', '/api/supply/client?act=brand_alpha', {}]])
+      { const x = await ah(CLIENT, m2, p2, b2); assert.equal(x.status, 403, `${m2} ${p2} -> ${x.status} ${JSON.stringify(x.j)}`); }
+    assert.equal(writes().length, before, 'nothing refused reached Supply');
+    assert.ok(seen.every(x => x.auth === 'Bearer supply-token'), 'Supply is called with the Supply token, never the client session');
+
+    /* the team: unchanged. The same read for any brand; the Strategist's proxy honours ?brand= and names the person */
     const t = await ah(TEAM, 'GET', '/api/supply/client?act=brand_beta&what=state');
     assert.equal(t.status, 200, 'team ' + JSON.stringify(t.j)); assert.equal(t.j.brand, 'beta');
-    const tw = await ah(TEAM, 'PUT', '/api/supply/products/101?brand=alpha', { decision: 'keep' });
-    assert.equal(tw.status, 502, 'team write still reaches the proxy (the mock refuses writes)');
+    const tw = await ah(TEAM, 'PUT', '/api/supply/products/101?brand=beta', { decision: 'keep' });
+    assert.equal(tw.status, 200, 'team write ' + JSON.stringify(tw.j)); last = writes().at(-1); assert.equal(last.brand, 'beta'); assert.equal(last.actor, 'ahsan@go-mobius-digital.com (via the Strategist)');
+    const to = await ah(TEAM, 'POST', '/api/supply/orders?brand=beta', { status: 'sent', lines });
+    assert.equal(to.status, 200); assert.equal(writes().at(-1).brand, 'beta');
+    assert.equal((await ah(TEAM, 'POST', '/api/supply/reseed?brand=beta', {})).status, 404, 'a route the proxy does not forward');
     assert.equal((await ah(null, 'GET', '/api/supply/client?act=brand_alpha&what=state')).status, 401, 'no login, no stock');
+    assert.equal((await ah(null, 'POST', '/api/supply/orders?act=brand_alpha', { lines })).status, 401, 'no login, no order');
   } finally { delete ahEnv.SUPPLY; delete ahEnv.SUPPLY_TOKEN; }
 });
 

@@ -2150,17 +2150,20 @@ Plan, audit and mocks: `docs/handoffs/supply-into-locus-plan.md` (progress log a
     and stubbed fetch, headless Chrome at 1440 and 375, light and dark.
 - Old app `supply/index.html` carries a "moved to Locus" banner and forwards `?slot=`; retire it to a redirect after
   Lucky has used Locus for a week (plan step 5). The worker, engine and D1 stay.
-- **2026-10-10: clients see Stock and Drops** (Cole: "why doesn't the client have access to drops?"). A client login gets
-  Products > Stock (brand with a feed) and Products > Drops (brand that makes), READ ONLY; Buying never (`tabOk('buying')`
-  is false for a client, `renderBuying` says it is the team's). `CLIENT_TABS` has stock and drops; `clientTabOk` asks
-  `SupplyTab.tabOk`; the rail's Products button is no longer forced hidden for clients. supply.js `isClient()` reads
-  through account-health `GET /api/supply/client?act=&what=brands|state` (`capi`; anything else throws "read only"), never
-  Supply directly. That route returns an ALLOWLIST of fields (stock.js `clientSupplyState`): no costs, prices, supplier
-  names or contacts, factory ids (renamed f1, f2), order ids or money, notes, Asana, settings or suggested orders; restocks
-  are placed orders only, dates and units. Hidden for clients: Refresh, How we treat it, Add to an order, Shopify link,
-  New / Edit drop, add designs, Asana buttons, keep or cut buttons (shows the call as a chip), the next-order hint; a design
-  opens `slotView` (read only). Push to clear shows products and units instead of dollars at cost. Ad spend per product
-  (`/api/hub/stockads`) is on CLIENT_RULES too. Tests: account-health `test-clients.mjs` (the Stock and Drops check).
+- **2026-10-12: a client owns its stock, buying and drops** (Cole: "the brand itself is the owner of the brand; buying and
+  stock changes is literally a brand thing"; replaces the 2026-10-10 read-only Stock and Drops). A client login gets
+  Products > Stock, Buying and Drops for its own brand with EVERY control the team has: build, save and place factory
+  orders, mark their stages, Kind of product, minimum, lead time and notes, keep or cut, New / Edit drop, add and edit
+  designs, Make the Asana task, Refresh, Add to an order, the Shopify link, and Brand settings > Stock and factories
+  (the Buying and Drops switches, factories, groups, sorting Shopify types, the stock rules, Read Shopify now and the
+  2-year re-pull). `clientTabOk` lets buying through (`CLIENT_TABS` covers it); `BSECS` keeps the `stock` section for a
+  client. supply.js `isClient()` never calls Supply directly: `capi` reads through account-health `GET /api/supply/client
+  ?act=&what=brands|state` (the whole state, costs and factories included; the Slack and Asana-project wiring left out
+  there) and sends every write to `/api/supply/<route>?act=` on account-health, which pins the Supply brand to the
+  client's own Locus brand, forwards with its Supply token and names the client in X-Actor. The only things hidden for
+  a client are the agency's two cards on Stock and factories (Stock in Slack, Asana design project). The read-only
+  `slotView` is gone: a client opens the same design sheet. Ad spend per product (`/api/hub/stockads`) is on
+  CLIENT_RULES too. Tests: account-health `test-clients.mjs` (the Stock, Buying and Drops check).
 
 ## 2026-10-09: THE RESTRUCTURE (Cole signed off the audit). Read before touching the rail, settings or integrations.
 

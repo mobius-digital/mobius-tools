@@ -40,7 +40,7 @@ run multiple brands at once."
 | Ads > Tests and angles | yes | Asana sync and results judging are the team's (Mobius's Asana) |
 | Email and SMS | yes, Klaviyo changes through the same propose and confirm | nothing |
 | Store > Sales, Customers, Website, Search | yes, own survey and Clarity keys | nothing |
-| Products > Stock, Drops | yes, read only | Buying and every Supply write (the Supply worker's own sign-in knows no client) |
+| Products > Stock, Buying, Drops | yes, every change the team can make: build, save and place factory orders, mark their stages, set a product's kind and keep or cut, new and edited drops, designs, Refresh, its own factories, groups and stock rules; Asana cards where the team has them | the agency's wiring only: Stock in Slack and which Mobius Asana project the designs file into |
 | Creative > AI ads (Studio, Words) | yes, $3 a day of AI work | Canva and the OpenAI key setup; building a whole skill or speaker |
 | Creative > Creators | yes, edits its creator link | Atria clip import |
 | Creative > Library, Inspiration | yes | Drive sync; other brands' Atria boards |
@@ -51,8 +51,20 @@ run multiple brands at once."
 | Season > War Room, The Plan | yes, edits its plan | War Room notes and alert setup; the season item's name |
 | Tools > Scenarios, Platform status | yes | nothing |
 | Tools > Agency economics, Team workload | no | agency-only |
-| Settings | Brand settings: About, Integrations (its own keys), Ads rules, Data and costs, Client access (read only), Your profile | Slack and sending, Stock and factories, Archive, data repairs |
+| Settings | Brand settings: About, Integrations (its own keys), Ads rules, Data and costs, Stock and factories (its factories, groups, Buying and Drops switches, stock rules), Client access (read only), Your profile | Slack and sending, Archive, data repairs; on Stock and factories the Stock in Slack and Asana project cards |
 | Ask Locus | yes, the same engine pinned to the brand, $2 a day | SQL, app views, agency memory, skills, Slack, actions from the chat |
+
+## Supply (Products) for a client
+
+Cole, 2026-10-12: "the brand itself is the owner of the brand; buying and stock changes is literally a brand thing."
+The Supply worker's own sign-in knows no client, so a client never calls it. Every read goes through account-health
+`GET /api/supply/client?act=&what=brands|state` (the whole state of one brand, its costs, factories, order money and
+notes included; only the Slack channel, the digest switches and the Asana project id are left out) and every change
+through `/api/supply/<route>?act=` on account-health (stock.js `handleSupplyProxy`), which resolves the Supply brand
+from the client's own Locus brand, ignores any `brand` the client sends, forwards with `SUPPLY_TOKEN` and names the
+client in `X-Actor` so Supply's change log says who did it. The routes a client may call are on `CLIENT_RULES`;
+`/settings` is held to the stock rules and `/brand` to the Buying and Drops switches. The team's screens still call
+Supply directly; the Strategist's stock actions use the same proxy with `?brand=`.
 
 ## The rule for a new page
 
