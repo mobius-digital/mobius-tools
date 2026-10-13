@@ -199,6 +199,11 @@ function textLines(spec) {
    is kept and only the words, and whatever small change the plan asks for, go on. Realism comes free,
    because nothing is rendered. */
 const FEED_LAYOUT = 'LAYOUT: the image is a 4:5 portrait feed ad, and Meta crops it to a centred SQUARE in some placements. Compose for the whole frame, but every word, badge and button sits inside that centre square: between 12% and 88% of the height from the top, and at least 5% in from each side. The top 12% and the bottom 12% hold NO words or buttons, only scene or background. The whole product sits fully inside the frame, ideally inside the centre square too; nothing important touches or crosses an edge. A phone screen, sign, poster, painting or frame in the ad is shown whole with space around it. People are shown as the scene needs, never cut awkwardly at the knees or the top of the head.';
+/* 2026-10-13 (Cole: "these aren't in safe zones"). The model ignored the 4:5 layout rule whenever it drew big title
+   lettering. Designed ads are now made SQUARE, and the browser's extend() paints only the top and bottom bands, so
+   every word sits inside the centre square by construction. Photo-as-the-ad lines stay 4:5 (the photo is real). */
+const SQUARE_LAYOUT = 'LAYOUT: the image is a SQUARE feed ad. Background only will later be added above and below it. Keep every word, badge and button at least 4% in from every edge. The product, any person, phone screen, sign or frame sits fully inside the square with space around it; nothing important touches or crosses an edge.';
+const SQ_ZONE = { top: 25, bottom: 975, left: 30, right: 970 };
 const STORY_LAYOUT = 'LAYOUT: TALL 9:16 for Instagram and Facebook Stories and Reels. The scene fills the whole frame top to bottom. Every word, badge and button sits between 20% and 62% of the height from the top and at least 6% in from each side; the headline near the top of that band. The top 15% and the bottom 35% hold NO words or buttons (the app draws its own there): fill them with scene, sky, floor, table or background. The whole product sits between 18% and 85% of the height, never cut by an edge.';
 function basePrompt(spec, brand) {
   const lines = textLines(spec);
@@ -227,7 +232,7 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     : counts.inspo ? `All ${counts.inspo} attached image${counts.inspo > 1 ? 's are' : ' is'} INSPIRATION ONLY.` : '';
   return [
     `Create a finished, scroll-stopping Meta ad for ${brand}.`,
-    FEED_LAYOUT,
+    spec.square ? SQUARE_LAYOUT : FEED_LAYOUT,
     which,
     spec.exact ? 'THE PRODUCT IS ALREADY IN THE IMAGE, placed exactly where it must stay: a real photograph of the real product. Build the whole ad around it. Never redraw, move, resize, rotate, recolour, cover, crop or duplicate it. Give it a natural contact shadow and reflections that match the scene light, so it sits in the scene rather than on top of it.' : '',
     spec.dna && !spec.exact ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
@@ -350,10 +355,12 @@ async function zoneCheck(key, m, bytes, spec, Z = FEED_ZONE, where = 'outside th
   return { ok: !out.length, issue: out.length ? `Words ${where}: ${out.map(l => `"${l.text}"`).join(', ')}` : '' };
 }
 async function makeOne(env, key, m, act, brand, spec, refs, k, n, parent, counts, where = {}) {
+  const sq = !counts.base && !spec.exact;
+  if (sq) spec = { ...spec, square: true };
   const prompt = counts.base ? basePrompt(spec, brand) : adPrompt(spec, brand, k, n, counts);
-  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: FEED });
-  let cost = COST.feed + COST.vision, check = null;
-  const zone = await zoneCheck(key, m, out.bytes, spec);
+  let out = await imageCall(key, m.image, { prompt, images: refs, fidelity: true, size: sq ? '1024x1024' : FEED });
+  let cost = (sq ? COST.image : COST.feed) + COST.vision, check = null;
+  const zone = await zoneCheck(key, m, out.bytes, spec, sq ? SQ_ZONE : FEED_ZONE);
   /* The photo IS the ad: the product in it is real, so there is nothing to score. */
   if (counts.base) return saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, exact: true, issue: '', zone }, parent, ...where });
   /* One image per ad, no automatic retries (Cole: retries waste credits). The product is scored
