@@ -1977,3 +1977,10 @@ doing this before anything else", and "we do need an end call whether we go with
   does not hold, a person picks Go with the team (every prompt then reads "THE TEAM'S FINAL CALL: follow it, even where
   the data disagreed") or Go with Locus ("SETTLED: keep showing the leak, mention their view in one line"). The
   Strategist's `leak_lesson` takes `final: true` ("go with ours regardless"), recorded at once. On CLIENT_RULES (both).
+
+- **No daily on a report day (Cole, 2026-10-13).** `dailyBriefs`: on a Monday (weekly on for the brand) or the 1st
+  (monthly on) the client daily is NOT written or posted; `reportCovers(a, today)` names the report, and the day's row is
+  stored as `skipped` with the text "No daily today: the <weekly|monthly> report covers <day>." plus its numbers
+  (`briefData`, after the same freshness re-pull), so the morning card says "no client daily today, the weekly report
+  covers it" and still shows yesterday against plan. #daily-briefs therefore holds one draft per brand per morning, and
+  only drafts (daily, weekly, monthly). Cole may rename the channel in Slack (the id stays C0C8UA53U3W).

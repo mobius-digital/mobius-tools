@@ -218,6 +218,12 @@ await check('preview: the card as words for one brand, nothing posted; the switc
   setSetting('briefHour', '6'); db.prepare(`DELETE FROM settings WHERE key = 'morningHour'`).run(); assert.equal(await morningHour(env), 6, 'falls back to briefHour');
 });
 
+await check('a report day: the skipped daily reads "no client daily today, the weekly report covers it", numbers still shown', async () => {
+  db.prepare(`UPDATE briefs SET status = 'skipped', text = 'No daily today: the weekly report covers Mon, Oct 12.' WHERE act_id = 'brand_beta' AND date = '2026-10-12'`).run();
+  const p = await previewCard(env, d, 'brand_beta');
+  assert.match(p.text.split('\n')[1], /^Yesterday \$900 \(plan \$1,000\) · MER 3\.00x · no client daily today, the weekly report covers it$/);
+});
+
 await check('callsText: nouns and money', () => {
   assert.equal(callsText([{ kind: 'cut', adset: 'a', stake: 100 }, { kind: 'trim', ad: 'x', stake: 20 }], 'USD'), 'Today\'s calls: cut 1 ad set, trim 1 · $120 at stake');
   assert.equal(callsText([{ kind: 'fix' }]), null);

@@ -152,7 +152,7 @@ function dailyState(a, row) {
   if (row.status === 'sent') return `client daily sent ${hm(row.posted_at)}`.trim();
   if (row.status === 'draft') return 'client daily waiting for your OK';
   if (row.status === 'handled') return 'daily brief written (no client channel)';
-  if (row.status === 'skipped') return 'client daily skipped';
+  if (row.status === 'skipped') { const m = String(row.text || '').match(/^No daily today: the (\w+) report/); return m ? `no client daily today, the ${m[1]} report covers it` : 'client daily skipped'; }
   return `client daily ${row.status}`;
 }
 function numbersLine(a, row) {
@@ -185,7 +185,7 @@ export function callsText(rows, cur) {
 export async function buildCard(env, d, a, today, shared = {}) {
   const yday = addDays(today, -1), tomorrow = addDays(today, 1);
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
-  const brief = await env.DB.prepare(`SELECT status, posted_at, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, yday).first().catch(() => null);
+  const brief = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, yday).first().catch(() => null);
   const items = [], notes = [];
   /* Today's calls: one line, the media buyer tagged. */
   let rows = null;
@@ -432,7 +432,7 @@ export async function cardBriefState(env, d, a) {
   const today = dayOf(d);
   const c = await loadCard(env, a.act_id, today);
   if (!c) return false;
-  const row = await env.DB.prepare(`SELECT status, posted_at, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, addDays(today, -1)).first().catch(() => null);
+  const row = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, addDays(today, -1)).first().catch(() => null);
   const daily = dailyState(a, row), nums = numbersLine(a, row);
   if (daily === c.daily && nums === c.nums) return false;
   c.daily = daily; c.nums = nums;
