@@ -46,8 +46,10 @@ export async function sourcesFor(env, act) {
   /* The brand's Drive folder is its `drive` connection (brands.js phase 5); extra library folders stay in p_br_doc 'assets'. */
   const drive = await connGet(env, act, 'drive').catch(() => null);
   const row = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'assets'`).bind(act).first().catch(() => null);
-  const folders = (safeJson(row?.data_json, {}) || {}).folders || [];
-  const ids = [folderId(drive?.external_id), ...folders.map(folderId)].filter(Boolean);
+  const doc = safeJson(row?.data_json, {}) || {}, folders = doc.folders || [];
+  /* `drive: false` = the brand's Drive folder is not its photo library (Lucky and Grunk keep their real photos in Air;
+     their Drive is old ads and inspiration). The next sync then marks every Drive row gone. */
+  const ids = [doc.drive === false ? null : folderId(drive?.external_id), ...folders.map(folderId)].filter(Boolean);
   return [...new Set(ids)];
 }
 export async function airSourcesFor(env, act) {
