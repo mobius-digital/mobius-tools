@@ -29,7 +29,7 @@ export const TabsBeat: React.FC<{
   const win = s(opens, feel.pop);
   // The camera creeps in the whole beat, so the window never sits still.
   const creep = interpolate(f, [opens, collapseAt], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const typed = Math.floor(interpolate(f, [opens + 8, opens + 8 + search.length * 1.6], [0, search.length], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }));
+  const typed = search ? Math.floor(interpolate(f, [opens + 8, opens + 8 + search.length * 1.6], [0, search.length], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })) : 0;
   const before = f < nameAt[0];
   const collapse = s(collapseAt, feel.settle, 28);
   const point = s(collapseAt + 12, feel.pop);
