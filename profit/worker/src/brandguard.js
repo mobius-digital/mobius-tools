@@ -253,6 +253,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/leaks/lessons'),
   R('POST', '/api/leaks/lesson'),
   R('DELETE', '/api/leaks/lesson'),
+  R('POST', '/api/leaks/decide'),
   R('GET', '/api/tiktok/report'),
   R('GET', '/api/brand/tests-overview', 'none'),
   R('POST', '/api/brand-asana/mins'),

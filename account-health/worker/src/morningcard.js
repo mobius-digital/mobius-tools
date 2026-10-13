@@ -221,7 +221,9 @@ export async function buildCard(env, d, a, today, shared = {}) {
   let leakIds = null;
   if (d.leaks && (!d.canAfford || d.canAfford(30))) {
     try {
-      const L = await d.leaks(env, a.act_id);
+      /* Monday's card runs the AI check for the brand (the weekly check that replaced Viktor's report, ~6 cents a brand);
+         every other day reads the list with the last check's verdicts, at no AI cost. */
+      const L = await d.leaks(env, a.act_id, { ai: monday });
       const big = ((L && L.leaks) || []).filter(l => (l.cost || 0) >= LEAK_FLOOR);
       leakIds = big.map(l => l.id);
       const prev = (await loadCard(env, a.act_id, yday))?.leaks;

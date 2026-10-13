@@ -3114,3 +3114,10 @@ Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/
   team only) that saves a lesson, shows its verdict (Holds / Partly / Does not hold, the why, "From now on") and
   re-reads the list. The Day check card adds the review's one-line summary as its lead and a "What the team taught it
   (N)" fold with Remove. The top-of-page total leaves out Not the cause and Measurement. See account-health/CLAUDE.md.
+- **Third pass (2026-10-13)** (`leaks.js?v=3`): chips read Worth doing / Check first / Look elsewhere first / Check the
+  numbers, the fix line is labelled **Suggestion**; the Day check card has an AI bar (when the last check ran, what it
+  cost, what each chip means, "the calls stay yours") with **Run the AI check (about 6 cents)** for the team
+  (`load(act, 'ai')` = `?ai=1`, through the card's own redraw); top-of-page cards say "AI check <date>" or "Not
+  cross-checked yet". Lessons show the **final call** (Go with the team / Go with Locus, in the fold and in the Saved
+  modal after a pushback Locus does not fully agree with). The page Cole reviews: https://claude.ai/artifact/BiKJGU8QkUFmCEMr1q5PFz
+  (`docs/locus-hub/leak-finder-mock.html`, the real leaks.js inlined on Lucky's Oct 13 data).

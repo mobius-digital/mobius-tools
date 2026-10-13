@@ -1515,22 +1515,23 @@ const ACTIONS = (d) => {
         author: { type: 'string', description: 'Who said it (first name).' },
         role: { type: 'string', description: 'Their role: Google buyer, Meta buyer, web dev, strategist, email.' },
         leak_id: { type: 'string', description: 'The id of the leak it is about, from the leaks view, when there is one.' },
+        final: { type: 'boolean', description: 'true only when Cole (or the person making the call) says to go with the team view no matter what Locus thinks. Then it is recorded as the final call of the team at once.' },
         summary: { type: 'string' } }, required: ['text', 'summary'] },
       propose: async (env, input) => {
         const acct = input.brand ? await resolve(env, input.brand) : null;
         if (input.brand && !acct) return { error: `No brand called "${input.brand}".` };
         if (String(input.text || '').trim().length < 8) return { error: 'Say what they said, in a sentence.' };
         return { summary: input.summary, detail: `${input.author || 'A teammate'}${input.role ? ` (${input.role})` : ''} on ${acct ? acct.name : 'every brand'}: "${String(input.text).trim()}". Saved as a lesson for the leak finder, then judged against the data; every later review follows it or shows both sides.`,
-          patch: { act: acct ? acct.act_id : '', text: input.text, author: input.author || '', role: input.role || '', leak_id: input.leak_id || null, brand: acct ? acct.name : '' } };
+          patch: { act: acct ? acct.act_id : '', text: input.text, author: input.author || '', role: input.role || '', leak_id: input.leak_id || null, brand: acct ? acct.name : '', final: !!input.final } };
       },
       apply: async (env, patch, h, ctx) => {
         const by = (ctx && (ctx.who || ctx.email || ctx.user)) || null;
         const dd = { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession };
         const r = patch.act ? await lessonFromLeak(env, dd, patch.act, { ...patch, scope: 'brand' }, by ? `${by} via the Strategist` : 'the Strategist')
-          : await addLesson(env, dd, { act: '', text: patch.text, author: patch.author, role: patch.role, added_by: by ? `${by} via the Strategist` : 'the Strategist', brand: 'every brand' });
+          : await addLesson(env, dd, { act: '', text: patch.text, author: patch.author, role: patch.role, added_by: by ? `${by} via the Strategist` : 'the Strategist', brand: 'every brand', final: !!patch.final });
         if (r.error && !r.id) return { error: r.error };
         const word = { holds: 'It holds', partly: 'It partly holds', does_not_hold: 'It does not hold', open: 'Saved; not judged yet' }[r.status] || 'Saved';
-        return { ok: true, note: `${word}.${r.why ? ` ${r.why}` : ''}${r.rule ? ` From now on: ${r.rule}` : ''}` };
+        return { ok: true, note: `${word}.${r.why ? ` ${r.why}` : ''}${r.decision === 'team' ? ' Recorded as the final call of the team: the leak finder follows it.' : r.status === 'does_not_hold' || r.status === 'partly' ? ' Locus does not fully agree, so the final call is yours: Go with the team or Go with Locus, on the lesson in Home > Day check (What the team taught it).' : r.rule ? ` From now on: ${r.rule}` : ''}` };
       } },
     { name: 'set_writing_style',
       description: 'Change HOW Daily Briefs or weekly/monthly reports are written from now on, when Cole says he does not like how they read ("lead with profit", "shorter", "stop mentioning Google", "no hedging", "always end with one action for the client"). Standing direction, for every brand or for one. It changes emphasis, order, length, tone and what is left out; it can never add a number. Read writing_style first. Structural changes (a new section, a new number, a different layout) are a code change: use hand_to_claude_code for those.',

@@ -63,15 +63,18 @@
 .lk-form .chk{flex-direction:row;align-items:center;gap:8px;font-weight:500}
 .lk-form select,.lk-form textarea{font:inherit;font-weight:400;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:7px 9px}
 @media (max-width:640px){.lk-form{grid-template-columns:1fr}}
+.lk-ai{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;background:var(--surface-2);border-radius:8px;padding:9px 11px}.lk-ai p{flex:1 1 320px;min-width:0}
+.lk-call{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .lk-list{margin:6px 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);max-height:220px;overflow:auto}
 @media (max-width:640px){.lk-row{grid-template-columns:minmax(0,1fr);gap:8px}.lk-act{flex-direction:row;align-items:center;justify-content:flex-start}.lk-ba{grid-template-columns:1fr}}`;
     document.head.appendChild(s);
   }
 
+  /* fresh = true re-reads the plain list; fresh = 'ai' runs the AI check (about 6 cents a brand, the button). */
   async function load(act, fresh) {
     const hit = CACHE.get(act);
     if (!fresh && hit && Date.now() - hit.at < 5 * 60e3) return hit.p;
-    const p = H.apiAH(`/api/leaks?act=${encodeURIComponent(act)}&days=30${fresh ? '&fresh=1' : ''}`);
+    const p = H.apiAH(`/api/leaks?act=${encodeURIComponent(act)}&days=30${fresh === 'ai' ? '&ai=1' : fresh ? '&fresh=1' : ''}`);
     CACHE.set(act, { at: Date.now(), p });
     p.catch(() => CACHE.delete(act));
     return p;
@@ -95,7 +98,7 @@
         <div class="lk-kv"><em>Measured</em>${esc(l.number)}</div>
         <div class="lk-kv"><em>Good looks like</em>${esc(l.benchmark)}</div>
         ${terms}
-        <div class="lk-fix"><em>Fix</em>${esc(l.fix)}</div>
+        <div class="lk-fix"><em>Suggestion</em>${esc(l.fix)}</div>
         <div class="lk-who">${esc(l.who || '')}${l.cost_how ? ` · cost = ${esc(l.cost_how)}` : ''}</div>
       </div>
       <div class="lk-act">${btn}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
@@ -103,15 +106,32 @@
   }
 
   /* The cross-check's verdict on a leak (account-health leakctx.js review). */
-  const VERDICT = { real: ['Real', 'bad'], check_first: ['Check first', 'warn'], not_the_cause: ['Not the cause', 'off'], measurement: ['Measurement', 'warn'] };
+  const VERDICT = { real: ['Worth doing', 'bad'], check_first: ['Check first', 'warn'], not_the_cause: ['Look elsewhere first', 'off'], measurement: ['Check the numbers', 'warn'] };
   const LSTAT = { holds: ['Holds', 'good'], partly: ['Partly', 'warn'], does_not_hold: ['Does not hold', 'bad'], open: ['Not judged yet', 'off'] };
   const TEAM = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
   const ROLES = ['Google buyer', 'Meta buyer', 'Web dev', 'Strategist', 'Email', 'The client'];
   const roleFor = area => /^google_/.test(area) ? 'Google buyer' : area === 'meta' ? 'Meta buyer' : area === 'funnel' || area === 'landing_page' ? 'Web dev' : area === 'email' ? 'Email' : 'Strategist';
+  /* THE FINAL CALL: Locus judges a pushback once and never argues again. When it does not fully agree, a person decides
+     whose view stands; the lists follow that. */
+  const needsCall = x => (x.status === 'partly' || x.status === 'does_not_hold') && !x.decision;
+  const callButtons = id => `<span class="lk-call"><button type="button" class="btn" data-lkdec="team" data-id="${esc(id)}">Go with the team</button><button type="button" class="btn" data-lkdec="locus" data-id="${esc(id)}">Go with Locus</button></span>`;
+  function finalCall(x) {
+    if (x.decision) return `<span class="lk-kv"><em>Final call</em>${x.decision === 'team' ? 'the team’s view stands; the leak finder follows it' : 'Locus’s view stands; the leak keeps showing, with the team’s view beside it'}${x.decided_by ? ` (${esc(String(x.decided_by).split('@')[0])}${x.decided_at ? `, ${esc(new Date(x.decided_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}` : ''})` : ''}</span>`;
+    return needsCall(x) ? `<span class="lk-kv"><em>Final call needed</em>Locus does not fully agree. Whose view stands?</span>${callButtons(x.id)}` : '';
+  }
+  function aiBar(d) {
+    const c = d.ai_check, client = H.S.role === 'client';
+    const when = c && c.at ? new Date(c.at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : null;
+    const cost = c && c.usd != null ? ` (${Math.max(1, Math.round(c.usd * 100))} cents)` : '';
+    const btn = client ? '' : `<button type="button" class="btn" data-lkai="1">${c ? 'Run the AI check again' : 'Run the AI check'} (about 6 cents)</button>`;
+    return `<div class="lk-ai"><p class="v2hint" style="margin:0">${when
+      ? `AI check: ${esc(when)} Central${cost}. It read each leak against the other channels, the tracking, the Change Log and the team’s lessons. Worth doing = a good next step. Check first = rule one thing out before acting. Look elsewhere first = the number is true, but I’d suggest fixing what it points to first. Check the numbers = the number itself may be off. These are suggestions; the calls stay yours.${d.reviewed ? '' : ' Leaks that came in since are not cross-checked yet.'}`
+      : 'Not cross-checked yet. This list is the plain rules, free. The AI check reads every leak against the other channels and judges new search terms, about 6 cents a brand; it also runs on its own every Monday.'}</p>${btn}</div>`;
+  }
   function lessons(d) {
     const L = d.lessons || [];
     if (!L.length) return `<details class="lk-ls"><summary>What the team taught it (0)</summary><p class="v2hint" style="margin:6px 0 0">Nothing yet. When someone disagrees with a leak, press Push back on it: Locus saves what they said, checks it against the data, and every later list follows it or shows both sides.</p></details>`;
-    return `<details class="lk-ls"><summary>What the team taught it (${L.length})</summary><ul>${L.map(x => { const [t, c] = LSTAT[x.status] || LSTAT.open; return `<li><span><span class="lk-chip lk-v ${c}">${t}</span> <b>${esc(x.author || 'The team')}${x.role ? `, ${esc(x.role)}` : ''}</b>${x.act_id ? '' : ' <span class="faint">(every brand)</span>'}: "${esc(x.text)}"</span>${x.why ? `<span class="lk-kv">${esc(x.why)}</span>` : ''}${x.rule ? `<span class="lk-kv"><em>From now on</em>${esc(x.rule)}</span>` : ''}<button type="button" class="lk-link lk-ldel" data-lkdel="${esc(x.id)}">Remove</button></li>`; }).join('')}</ul></details>`;
+    return `<details class="lk-ls"><summary>What the team taught it (${L.length})</summary><ul>${L.map(x => { const [t, c] = LSTAT[x.status] || LSTAT.open; return `<li><span><span class="lk-chip lk-v ${c}">${t}</span> <b>${esc(x.author || 'The team')}${x.role ? `, ${esc(x.role)}` : ''}</b>${x.act_id ? '' : ' <span class="faint">(every brand)</span>'}: "${esc(x.text)}"</span>${x.why ? `<span class="lk-kv">${esc(x.why)}</span>` : ''}${x.rule ? `<span class="lk-kv"><em>Locus's rule</em>${esc(x.rule)}</span>` : ''}${finalCall(x)}<button type="button" class="lk-link lk-ldel" data-lkdel="${esc(x.id)}">Remove</button></li>`; }).join('')}</ul></details>`;
   }
   function pushBack(a, d, l, redraw) {
     const client = H.S.role === 'client', role = roleFor(l.area);
@@ -130,12 +150,24 @@
       if (r.error && !r.id) { msg(r.error, true); return; }
       close();
       const [t, c] = LSTAT[r.status] || LSTAT.open;
-      modal('Saved', `<p style="margin:0 0 8px"><span class="lk-chip lk-v ${c}">${t}</span></p>${r.why ? `<p style="margin:0 0 8px">${esc(r.why)}</p>` : ''}${r.rule ? `<p class="lk-kv" style="margin:0"><em>From now on</em>${esc(r.rule)}</p>` : ''}${r.error ? `<p class="v2hint">Not checked yet: ${esc(r.error)}. It is saved and will be weighed anyway.</p>` : ''}<p class="v2hint" style="margin:10px 0 0">The list is being read again with it.</p>`, null);
+      const ask = r.status === 'partly' || r.status === 'does_not_hold';
+      const sm = modal('Saved', `<p style="margin:0 0 8px"><span class="lk-chip lk-v ${c}">${t}</span></p>${r.why ? `<p style="margin:0 0 8px">${esc(r.why)}</p>` : ''}${r.rule ? `<p class="lk-kv" style="margin:0"><em>Locus's rule</em>${esc(r.rule)}</p>` : ''}${r.error ? `<p class="v2hint">Not checked yet: ${esc(r.error)}. It is saved and will be weighed anyway.</p>` : ''}
+        ${ask ? `<p style="margin:12px 0 6px"><b>Locus does not fully agree. Whose view stands?</b></p><p class="v2hint" style="margin:0 0 8px">Locus says its piece once and never argues again. Go with the team: every later list follows the team. Go with Locus: the leak keeps showing, with the team's view beside it. You can also decide later in What the team taught it.</p>${callButtons(r.id)}` : '<p class="v2hint" style="margin:10px 0 0">Every later list follows it.</p>'}`, null);
+      wireCalls(document.querySelector('.modal-wrap:last-of-type'), a, () => { sm.close(); CACHE.delete(a.act_id); redraw(true); });
       CACHE.delete(a.act_id); redraw(true);
     });
     return m;
   }
 
+  function wireCalls(root, a, after) {
+    (root || document).querySelectorAll('[data-lkdec]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      const r = await post('/api/leaks/decide', { act: a.act_id, id: b.dataset.id, decision: b.dataset.lkdec }).catch(e => ({ error: e.message }));
+      if (r.error) { b.disabled = false; toast(r.error); return; }
+      toast(b.dataset.lkdec === 'team' ? 'Final call recorded: the team’s view stands.' : 'Final call recorded: Locus’s view stands.');
+      after();
+    });
+  }
   function status(d) {
     const A = d.areas || {}, out = [];
     const tone = st => st === 'ok' ? 'var(--good)' : st === 'error' ? 'var(--bad)' : st === 'thin' || st === 'not_linked' ? 'var(--warn)' : 'var(--muted)';
@@ -156,6 +188,11 @@
     host.querySelectorAll('[data-lkall]').forEach(b => b.onclick = () => { host.dataset.all = '1'; redraw(); });
     host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('yesterday'));
     host.querySelectorAll('[data-lkpb]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkpb); if (l) pushBack(a, d, l, redraw); });
+    wireCalls(host, a, () => { CACHE.delete(a.act_id); redraw(true); });
+    host.querySelectorAll('[data-lkai]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Checking every leak against the other channels (about 30 seconds)...';
+      await redraw('ai');
+    });
     host.querySelectorAll('[data-lkdel]').forEach(b => b.onclick = () => modal('Remove this lesson?', '<p style="margin:0">The leak finder stops following it from the next read.</p>', 'Remove', async ({ close, msg }) => {
       const r = await H.apiAH(`/api/leaks/lesson?act=${encodeURIComponent(a.act_id)}&id=${encodeURIComponent(b.dataset.lkdel)}`, { method: 'DELETE' }).catch(e => ({ error: e.message }));
       if (r.error) { msg(r.error, true); return; }
@@ -238,14 +275,14 @@
     let d; try { d = await load(a.act_id); } catch { host.innerHTML = ''; return; }
     if (t !== H.RUN() || !d || d.error) { if (d && d.error && t === H.RUN()) host.innerHTML = ''; return; }
     const draw = fresh => {
-      if (fresh) return load(a.act_id, true).then(x => { d = x; draw(); }).catch(() => {});
+      if (fresh) return load(a.act_id, fresh).then(x => { d = x; draw(); }).catch(e => toast(e.message));
       const mine = (d.leaks || []).filter(l => PAGE[page].includes(l.area));
       if (!mine.length) { host.innerHTML = ''; return; }
       const list = mine.slice(0, 3), sum = mine.filter(l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement').reduce((s, l) => s + (l.cost || 0), 0), max = Math.max(...list.map(l => l.cost || 0), 1);
       host.innerHTML = `<section class="v2card lk-card"><div class="v2h"><h3>${esc(PAGE_TITLE[page])}</h3><span class="cap">${list.length} of ${mine.length} · ranked by money a month</span></div>
         <p class="lx-lead" style="margin:0">${sum ? `<b>${km(sum, d.currency)} a month</b> by Locus's estimate, last ${d.days} days.` : ''} ${esc(mine.length > 1 ? 'Each leak is priced on its own; they can overlap.' : '')}</p>
         <div class="lk-rows">${list.map(l => row(l, d.currency, max)).join('')}</div>
-        <div class="lk-more"><span>${mine.length > 3 ? `${mine.length - 3} more on this page's list. ` : ''}${(d.leaks || []).length} leak${(d.leaks || []).length === 1 ? '' : 's'} across ${esc(d.brand)}.</span><button type="button" class="lk-link" data-lkhome="1">Every leak for ${esc(d.brand)} ›</button></div></section>`;
+        <div class="lk-more"><span>${mine.length > 3 ? `${mine.length - 3} more on this page's list. ` : ''}${(d.leaks || []).length} leak${(d.leaks || []).length === 1 ? '' : 's'} across ${esc(d.brand)}. ${d.ai_check && d.ai_check.at ? `AI check ${esc(new Date(d.ai_check.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}.` : 'Not cross-checked yet.'}</span><button type="button" class="lk-link" data-lkhome="1">Every leak for ${esc(d.brand)} ›</button></div></section>`;
       wire(host, d, a, draw);
     };
     draw();
@@ -263,13 +300,13 @@
     if (t !== H.RUN()) return;
     if (!d || d.error) { host.innerHTML = `<section class="v2card lk-card"><div class="v2h"><h3>Where ${esc(a.name)} is losing money</h3></div><p class="v2bad">${esc(d?.error || 'No answer.')}</p></section>`; return; }
     const draw = fresh => {
-      if (fresh) return load(a.act_id, true).then(x => { d = x; draw(); }).catch(() => {});
+      if (fresh) return load(a.act_id, fresh).then(x => { d = x; draw(); }).catch(e => toast(e.message));
       const all = d.leaks || [], open = host.dataset.all === '1', list = open ? all : all.slice(0, 6), max = Math.max(...all.map(l => l.cost || 0), 1);
       const rest = all.slice(6);
       const first = all[0];
-      host.innerHTML = `<section class="v2card lk-card"><div class="v2h"><h3>Where ${esc(d.brand)} is losing money</h3><span class="cap">last ${d.days} days · refreshed hourly</span></div>
+      host.innerHTML = `<section class="v2card lk-card"><div class="v2h"><h3>Where ${esc(d.brand)} is losing money</h3><span class="cap">last ${d.days} days · numbers refresh hourly</span></div>
         <p class="lx-lead" style="margin:0">${d.summary ? `<b>${esc(d.summary)}</b> ` : first ? `The biggest leak: <b>${esc(first.title)}</b>. ` : 'Nothing is leaking over the floors Locus uses. What was checked is below.'}${first ? esc(d.note) : ''}</p>
-        ${first ? (d.reviewed ? '<p class="v2hint" style="margin:0">Each leak was checked against the other channels, the tracking, the Change Log and the team’s lessons before it was called. Real = act on it. Check first = rule one thing out. Not the cause = the number is true but the problem is elsewhere. Measurement = the number itself is unreliable.</p>' : `<p class="v2hint" style="margin:0">Not cross-checked yet${d.review_error ? ` (${esc(d.review_error)})` : ''}: read each leak against the other channels before acting.</p>`) : ''}
+        ${first ? aiBar(d) : ''}
         ${list.length ? `<div class="lk-rows">${list.map(l => row(l, d.currency, max)).join('')}</div>` : ''}
         ${!open && rest.length ? `<div class="lk-more"><span>${rest.length} more: ${esc(rest.slice(0, 4).map(l => `${l.title.length > 48 ? l.title.slice(0, 46) + '…' : l.title} (${l.cost == null ? 'not priced' : km(l.cost, d.currency)})`).join('; '))}${rest.length > 4 ? '…' : ''}</span><button type="button" class="lk-link" data-lkall="1">Show all ${all.length}</button></div>` : ''}
         ${status(d)}

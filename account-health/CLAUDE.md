@@ -1955,3 +1955,25 @@ my Google guy goes, no, we shouldn't do that... is that true? Can we learn from 
 - Verified live on Lucky 2026-10-13: the review called the phone cart path the root, PMax "check first" (Google claims
   $19.4K vs Triple Whale's $14.6K), two Meta cut sets "not the cause" (CTR 2.6% and 2.5% against a 1.47% median), and a
   test lesson came back "partly" with a sensible rule (deleted after: it was not Cole's).
+
+### 2026-10-13 (third pass): the AI check is ON DEMAND, suggestions not orders, the FINAL CALL. Supersedes the six-hour cache above.
+
+Cole: "make it a button... that way we don't have to waste money", "it's not saying don't cut them... it's I would suggest
+doing this before anything else", and "we do need an end call whether we go with ours or the AI's". Tests 24/24.
+- **Measured cost** (usage from the API, `meter` in leakctx.js, monthly tally in settings `aiSpend:leaks:<YYYY-MM>` =
+  {calls, in, out, usd, by: {judge, review, lesson}}): one AI check = judge ~7K in / 1.5K out + review ~6K in / 1.8K out
+  on Sonnet 5.5 ($2 / $10 per M) = Lucky 5.65 to 5.8 cents, Bonk 6.3 cents. A pushback answer ~1 to 2 cents.
+- **`leaksFor(..., {ai})`**: ai = the judge + the review, stored in settings `leaksAI:<brand>:<days>` = {at, usd, labels
+  {terms by "term|campaign_id", cats by "label|campaign_id", flows}, review {leaks, summary}}. Without ai (every page,
+  the Strategist view, the morning card Tuesday to Sunday) the plain list re-applies the LAST check's labels and
+  verdicts at no AI cost; terms the check never saw are counted in the Google note; a brand never checked reads
+  `review_error: 'not checked yet'` and shows no negatives. The plain list caches an hour. `GET /api/leaks?ai=1` (never
+  for a client). **Monday's morning card runs `ai: true` for every brand** (the weekly check that replaced Viktor's
+  report): about $2.40 a month for 9 brands.
+- **Voice**: the review prompt says SUGGESTIONS to a team that makes the calls ("I'd suggest fixing X first", never
+  "don't cut"); every rule's fix line opens "Worth...", "One option is...", "the call is yours".
+- **The final call** (`decideLesson`, `POST /api/leaks/decide {act, id, decision: team|locus}`, columns `decision`,
+  `decided_by`, `decided_at` by guarded ALTERs): Locus judges a pushback ONCE and never re-argues; when it says partly or
+  does not hold, a person picks Go with the team (every prompt then reads "THE TEAM'S FINAL CALL: follow it, even where
+  the data disagreed") or Go with Locus ("SETTLED: keep showing the leak, mention their view in one line"). The
+  Strategist's `leak_lesson` takes `final: true` ("go with ours regardless"), recorded at once. On CLIENT_RULES (both).

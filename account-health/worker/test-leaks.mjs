@@ -40,7 +40,7 @@ for (let i = 0; i < 30; i++) run(`INSERT INTO tw_daily (act_id, date, metric, va
 
 /* ---------- the mocked outside world ---------- */
 const seen = { mutate: [], gaql: [], ga4: 0, model: 0 };
-let JUDGE = null;
+let JUDGE = null, JUDGE_LESSON_STATUS = 'holds';
 const REVIEW = { summary: 'Page a is the problem: PMax and the paid page both land there.', leaks: [
   { id: 'google_pmax:camp:222', verdict: 'not_the_cause', why: 'It lands on /products/a, which converts 0.2% against 0.8% for the site.', check: 'Fix page a first.', root: 'page a' },
   { id: 'landing_page:/products/a', verdict: 'real', why: 'The page itself.', check: '', root: 'page a' }] };
@@ -99,7 +99,7 @@ globalThis.fetch = async (url, init = {}) => {
     seen.model++;
     const sys = String(body.system), usr = body.messages[0].content;
     if (/reviewing an automatic leak list/.test(sys)) { seen.reviews = (seen.reviews || 0) + 1; seen.reviewSys = sys; seen.reviewUser = usr; return R({ content: [{ type: 'text', text: JSON.stringify(REVIEW) }] }); }
-    if (/pushed back on something/.test(sys)) { seen.lessonUser = usr; return R({ content: [{ type: 'text', text: JSON.stringify(LESSON) }] }); }
+    if (/pushed back on something/.test(sys)) { seen.lessonUser = usr; return R({ content: [{ type: 'text', text: JSON.stringify({ ...LESSON, status: JUDGE_LESSON_STATUS }) }] }); }
     seen.system = sys; seen.user = usr;
     return R({ content: [{ type: 'text', text: JSON.stringify(JUDGE) }] });
   }
@@ -132,7 +132,7 @@ JUDGE = { terms: [{ i: 0, label: 'irrelevant', why: "another brand's driver" }, 
   categories: [{ i: 0, label: 'irrelevant', why: 'another brand’s hats' }], flows: { missing: ['post_purchase', 'winback'], replaced: [] } };
 let res;
 await check('one read: every source, one judge call and one cross-check call, the leaks to act on ranked by money a month', async () => {
-  res = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true });
+  res = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
   assert.equal(res.error, undefined, res.error);
   assert.equal(seen.model, 2, 'one search-term judge call, one cross-check call');
   const act = res.leaks.filter(l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement');
@@ -207,7 +207,7 @@ await check('a teammate pushes back: saved, judged against the leak and its cont
   assert.equal(S.has('leaks:brand_x:30'), true, 'settings mock keeps its own cache');
   const row = db.prepare(`SELECT * FROM p_leak_lesson WHERE id = ?`).get(r.id);
   assert.equal(row.act_id, 'brand_x'); assert.equal(row.status, 'holds'); assert.equal(row.area, 'google_search');
-  const again = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true });
+  const again = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
   assert.match(seen.system, /THE TEAM'S LESSONS[\s\S]*HOLDS, follow it[\s\S]*Never block competitor/, 'the search-term judge reads it');
   assert.match(seen.reviewUser, /Never block competitor/, 'the cross-check reads it');
   assert.equal(again.lessons.length, 1); assert.equal(again.lessons[0].author, 'Ahsan');
@@ -222,6 +222,47 @@ await check('a client\u2019s pushback is its own brand\u2019s only; Remove delet
   assert.equal((await C.deleteLesson(env, r.id, 'brand_y')).error, 'That lesson belongs to another brand.');
   assert.equal((await C.deleteLesson(env, r.id, 'brand_x')).ok, true);
 });
+await check('the AI check is on demand: a plain read reuses the last check’s labels and verdicts with NO model call', async () => {
+  const m0 = seen.model;
+  TERMS.push({ term: 'brand new search', spend: 5, clicks: 2 });
+  db.exec(`DELETE FROM settings WHERE key LIKE 'gadlk2:%'`);   // Google's own hourly cache, so the new term is read
+  const plain = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true });
+  assert.equal(seen.model, m0, 'no AI on a plain read');
+  assert.deepEqual(plain.leaks.find(l => l.id === 'google_search:negatives').items.map(x => x.term), ['wildcat drivers'], 'last check’s labels reused');
+  assert.equal(plain.leaks.find(l => l.id === 'google_pmax:camp:222').verdict, 'not_the_cause', 'last check’s verdict reused');
+  assert.match(plain.areas.google.note, /1 search term with spend came in since the last AI check/);
+  assert.ok(plain.ai_check && plain.ai_check.at, 'says when the last check ran'); assert.equal(plain.ai, null);
+  TERMS.pop();
+  const ran = res.ai_check; assert.ok(ran.usd >= 0 && ran.ok, 'the button’s run says what it cost');
+});
+await check('a brand never checked shows the plain list, says it is not cross-checked, and costs nothing', async () => {
+  S.delete('leaksAI:brand_x:30'); const m0 = seen.model;
+  const r = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true });
+  assert.equal(seen.model, m0); assert.equal(r.reviewed, false); assert.equal(r.review_error, 'not checked yet');
+  assert.ok(!r.leaks.some(l => l.id === 'google_search:negatives'), 'no negatives until a check has judged the terms');
+  assert.match(r.areas.google.note, /judged by the AI check/);
+  await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
+});
+await check('suggestions, never orders: the review is told the team makes the calls; fix lines suggest', async () => {
+  assert.match(seen.reviewSys, /SUGGESTIONS to a team that makes the calls, never orders or bans/);
+  const m = res.leaks.find(l => l.area === 'meta');
+  assert.match(m.fix, /^One option is/); assert.match(m.fix, /the call is yours/);
+});
+await check('the final call: Locus judges a pushback once; when it disagrees a person decides, and the lists follow that call', async () => {
+  JUDGE_LESSON_STATUS = 'does_not_hold';
+  const r = await L.lessonFromLeak(env, d, 'brand_x', { leak_id: 'landing_page:/products/a', text: 'That page is brand new, give it two weeks before calling it a leak.', author: 'William', role: 'Web dev' }, 'cole@go-mobius-digital.com');
+  assert.equal(r.status, 'does_not_hold'); assert.equal(r.decision, null, 'no decision until a person makes it');
+  const C = await import('./src/leakctx.js');
+  assert.equal((await C.decideLesson(env, 'brand_y', r.id, 'team', 'x')).error, 'That lesson belongs to another brand.');
+  assert.equal((await C.decideLesson(env, 'brand_x', r.id, 'team', 'cole@go-mobius-digital.com')).ok, true);
+  const row = db.prepare(`SELECT decision, decided_by FROM p_leak_lesson WHERE id = ?`).get(r.id);
+  assert.equal(row.decision, 'team'); assert.equal(row.decided_by, 'cole@go-mobius-digital.com');
+  await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
+  assert.match(seen.reviewUser, /THE TEAM'S FINAL CALL: follow it, even where the data disagreed[^\n]*William/);
+  const t = await L.lessonFromLeak(env, d, 'brand_x', { text: 'Never judge a creator ad set before 10 days.', final: true }, 'cole@go-mobius-digital.com');
+  assert.equal(t.decision, 'team', '"go with ours" said up front is recorded at once');
+  JUDGE_LESSON_STATUS = 'holds';
+});
 await check('the answer is cached; the next read makes no call', async () => {
   const before = seen.model + seen.gaql.length + seen.ga4;
   const again = await L.leaksFor(env, d, 'brand_x', { days: 30 });
@@ -230,11 +271,11 @@ await check('the answer is cached; the next read makes no call', async () => {
 await check('a replaced flow that earns about as much is not a leak', async () => {
   JUDGE = { ...JUDGE, flows: { missing: [], replaced: [{ off: 'F3', by: 'F1' }] } };
   BYF.F1 = Array.from({ length: 120 }, (_, i) => (i >= 97 ? 40 : 0));
-  const r = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true });
+  const r = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
   assert.ok(!r.leaks.some(l => l.id === 'email:off:F3'));
 });
 await check('Apply: propose = validateOnly (nothing written), then the write, a Change Log row, the term leaves the list', async () => {
-  await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true });
+  await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
   seen.mutate.length = 0;
   const pv = await L.applyNegative(env, d, 'brand_x', { term: 'wildcat drivers', campaign_id: '111' }, 'cole@go-mobius-digital.com');
   assert.equal(pv.propose, true); assert.equal(seen.mutate.length, 1); assert.equal(seen.mutate[0].validateOnly, true);
@@ -260,7 +301,7 @@ await check('a Google refusal comes back in Google’s words, never thrown', asy
 });
 await check('a brand with no links and no Klaviyo says what is missing, with no model call', async () => {
   const m0 = seen.model;
-  const r = await L.leaksFor(env, { ...d, klaviyo: async () => ({ error: 'Klaviyo is not connected' }), profit: null }, 'brand_y', { fresh: true });
+  const r = await L.leaksFor(env, { ...d, klaviyo: async () => ({ error: 'Klaviyo is not connected' }), profit: null }, 'brand_y', { fresh: true, ai: true });
   assert.equal(r.leaks.length, 0); assert.equal(r.areas.google.state, 'not_linked'); assert.equal(r.areas.funnel.state, 'not_linked'); assert.equal(r.areas.email.state, 'not_linked');
   assert.equal(seen.model, m0, 'nothing to judge, so no model call');
 });
