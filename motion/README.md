@@ -4,7 +4,7 @@ Two spots, Cashew and Locus, 59 and 55 seconds, built with Remotion so they can 
 a number, a logo, a character or a spoken line changes. Each spot sells one app and never names the other. The
 screens are the apps' own cards rebuilt in React with the apps' tokens, the picture follows a voice generated per
 line, and every sound is synthesized here. The reference and what Cole asked for are in `../motion-reference/` and
-`../docs/handoffs/motion-v2.md`.
+`../docs/handoffs/motion-v2.md` and `motion-v3.md`.
 
 ## What is here
 
@@ -23,7 +23,11 @@ line, and every sound is synthesized here. The reference and what Cole asked for
 | `src/fx/Goo.tsx` | the liquid: the melt, the bitten pill, the drips and the puddle under one goo filter |
 | `src/fx/Costs.tsx` | the four cost characters: rent, the factory, ads, the tax, filled and lit |
 | `src/ui/browser.tsx`, `src/shared/tabsBeat.tsx` | the browser and its tab strip, the platform marks from `../profit/logos/`, the tabs beat both spots share |
-| `src/marks/Mark.tsx` | the logos (SVG as React components) and the characters (PNG states) from `../logo/` |
+| `src/marks/Mark.tsx` | the logos (SVG as React components) and the characters; `Act` is the character acting (idle breath and blink) |
+| `src/marks/Toon.tsx` | the two characters rebuilt in SVG from the PNGs, with faces that act; `ToonSheet` renders them beside the PNGs |
+| `src/fx/Paper.tsx` | the paper scenes' light, drifting UI fragments and grain, and the burst a bite throws |
+| `scripts/trace-character.py` | traces a character PNG's outline into the SVG path Toon uses |
+| `scripts/mix.mjs` | renders each spot's audio and its stems and measures them with ebur128 |
 | `src/shared/scene.tsx` | the colour field, the scene box for both formats, captions, the slow camera |
 | `scripts/render.mjs`, `scripts/stills.mjs` | render everything; render frames or a one-frame-a-second contact sheet |
 | `out/` | the renders (gitignored except the four MP4s and the two posters) |
@@ -78,14 +82,17 @@ and plain; a picture event gets its own line. No dashes in the script, the gener
 
 `brand.ts`. The Cashew bites must add up to the balance minus the kept number and the Locus bites to sales minus
 kept, or the spot refuses to render with a message saying by how much. A logo is an SVG in `logo/` drawn in
-currentColor; a character is a folder of PNG states (rest, thinking, found, asleep, clear). The 200px PNGs are kept
-at 260px or smaller on screen; drop 1024px files in under the same names and nothing else changes.
+currentColor; a character is the SVG toon (`kind: 'toon'`), with its folder of PNG states (rest, thinking, found,
+asleep, clear) as the fallback (`kind: 'image'`). The toon is sharp at any size; the PNGs are 200px, so with the
+fallback keep large sizes to short beats.
 
 ## Change a sound
 
 `scripts/make-sfx.mjs`, then `npm run sfx`. Each sound is a few lines of sine, noise and envelope. The beds are a
-slow chord progression with a quiet pulse, low passed; `src/lib/audio.tsx` ducks the bed to 38% under every spoken
-line and fades it out over the last second and a half.
+slow chord progression with a quiet pulse, low passed, written near full scale; `src/lib/audio.tsx` plays it at
+0.76, ducks it to half under every spoken line and fades it out over the last second and a half. `render.mjs`
+masters every MP4 to -16 LUFS integrated with the true peak under -1 dBTP. To check levels after a change:
+`node scripts/mix.mjs` prints the whole, the voice, the bed (under speech and between lines) and the sounds.
 
 ## How the spots are put together
 
@@ -98,5 +105,6 @@ line and fades it out over the last second and a half.
   so a 13.5px label is the app's 13.5px label, 1.75 times larger.
 - The orchestrated moment: Cashew's balance melts into a puddle and the character rises out of it; Locus's
   fourteen tabs collapse into one point and the field floods out of it.
-- The character reacts and never talks: it sighs at the melt, thinks at the bleeding bars, wakes before you,
-  perks at the tap, nods at the close and on the tagline.
+- The character reacts and never talks, and at the beats it is the scene, centre stage at 400 to 560: it rises out
+  of the melt and sighs, watches the numbers argue and the bars bleed, wakes under the logo, leans into the tap
+  and hops, and nods on the tagline. Elsewhere it sits smaller and still breathes and blinks.
