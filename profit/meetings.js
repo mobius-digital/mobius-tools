@@ -1,12 +1,15 @@
-/* MEETING NOTES (2026-10-13). Reports > Meeting notes, the team's page (never a client's).
- *   Open action items   what is still open per brand (the "Action items" section of each Asana project),
- *                       read at the top of the Monday call.
- *   Meetings            every Fireflies transcript Locus read in the last 60 days. Open one: the summary and,
+/* CALLS (2026-10-13). Work > Calls, the team's page (never a client's). Page id `calls` (`monday` and `meetings` route here).
+ *   The Monday agenda   on top on Mondays (and from Friday, as next Monday's prep; any other day on request): the week's
+ *                       theme, then per brand, red brands first: 1 last week's open action items (tick = done),
+ *                       2 the read (the weekly report's numbers), 3 the plan (the strategist's reply in Slack),
+ *                       4 new items (a p_action row, on the list at once). Data: /api/meetings/monday.
+ *   Calls               every Fireflies transcript Locus read in the last 60 days. Open one: the summary and,
  *                       per brand, decisions, the items as tick boxes you can edit (text, owner, due, kind),
- *                       what the client will hear and what we need from them. Confirm writes it all out.
- * Engine: account-health src/meetings.js (GET /api/meetings, POST /api/meetings/confirm | skip | ingest | poll).
- * Classic script, own closure; the host hands in S, api, apiAH, show, pageHead, RUN.
- * Exports window.MeetingsTab = { render(host, first) }.
+ *                       what the client will hear and what we need from them. Confirm writes it all out:
+ *                       team items to Work > Action items, client lines to the weekly report, asks to Requests, Slack.
+ * Engine: account-health src/meetings.js + actions.js (GET /api/meetings, POST /api/meetings/confirm | skip | ingest | poll,
+ * /api/meetings/done {id}, /api/actions). Classic script, own closure; the host hands in S, api, apiAH, show, pageHead, RUN.
+ * Exports window.MeetingsTab = { render(host, first), renderMonday (the same page) }.
  */
 (() => {
   let H = null;
@@ -16,7 +19,7 @@
   const KIND = { team: 'Team task', client: 'Tell the client', client_owes: 'Client owes us' };
   const ST = { new: ['Reading', ''], extracted: ['Ready to confirm', 'warn'], confirmed: ['Confirmed', 'good'], skipped: ['Skipped', ''], error: ['Failed', 'bad'] };
   const md = iso => iso ? new Date(String(iso).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-  let DATA = null, OPEN = null;
+  let DATA = null, OPEN = null, MON = null, SEV = {}, AGENDA = null;   // AGENDA: null = by the day of the week, true/false = the person's choice
 
   function css() {
     if (document.getElementById('mtcss')) return;
@@ -66,13 +69,6 @@
       <span class="v2pill ${sc}">${esc(sl)}</span></button>`; }).join('');
   }
 
-  function openHtml(d) {
-    const act = H.S.act || 'all';
-    const list = (d.open || []).filter(b => act === 'all' || b.brand_id === act);
-    if (!list.length) return `<p class="v2hint">Nothing open${act === 'all' ? '' : ' for this brand'}. Confirmed team items show here until they are completed in Asana.</p>`;
-    return list.map(b => `<div style="margin:0 0 10px"><b>${esc(b.name)}</b><ul class="mt-open" style="margin:4px 0 0;padding:0 0 0 18px">${b.items.map(i => `<li>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.name)}</a>` : esc(i.name)} <small>${esc(i.owner || 'nobody')}${i.due ? ` · due ${esc(md(i.due))}` : ''}</small></li>`).join('')}</ul></div>`).join('');
-  }
-
   /* ---------- one meeting, editable ---------- */
   const nameOf = id => (DATA.brands.find(b => b.act_id === id) || {}).name || (id ? id : 'Agency-wide');
   function itemRow(it, bi, ii) {
@@ -103,11 +99,11 @@
       ${b.brand_id ? `<div class="mt-lbl" style="margin-top:14px">The client reads, under "This week"</div>${done ? `<ul class="mt-res">${b.this_week.map(x => `<li>${esc(x)}</li>`).join('') || '<li class="v2hint">Nothing.</li>'}</ul>` : linesHtml(b.this_week, bi, 'this_week', 'Add a line')}
       <div class="mt-lbl" style="margin-top:14px">What we need from the client</div>${done ? `<ul class="mt-res">${b.need_from_client.map(x => `<li>${esc(x)}</li>`).join('') || '<li class="v2hint">Nothing.</li>'}</ul>` : linesHtml(b.need_from_client, bi, 'need_from_client', 'Add one')}` : ''}
     </div>`).join('');
-    const resHtml = r ? `<div class="v2card"><h3>What happened</h3>${[...(r.brands || []), ...(r.agency ? [r.agency] : [])].map(b => `<div style="margin:0 0 8px"><b>${esc(b.name)}</b><ul class="mt-res" style="margin:4px 0 0;padding:0 0 0 18px">${b.tasks.map(t => `<li>${t.url ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.text)}</a>` : esc(t.text)} ${t.error ? `<small class="v2bad">${esc(t.error)}</small>` : t.assigned ? '' : '<small class="v2hint">(nobody assigned)</small>'}</li>`).join('')}${b.asks.map(a => `<li>Ask: ${esc(a.text)} ${a.error ? `<small class="v2bad">${esc(a.error)}</small>` : '<small class="v2hint">in Requests</small>'}</li>`).join('')}${b.report ? `<li><small class="v2hint">"This week" added to the weekly report draft of ${esc(md(b.report.period_start))}.</small></li>` : ''}${b.slack ? '' : '<li><small class="v2hint">No Slack note (no channel).</small></li>'}</ul></div>`).join('')}${(r.warnings || []).map(w => `<p class="mt-warn">${esc(w)}</p>`).join('')}</div>` : '';
+    const resHtml = r ? `<div class="v2card"><h3>What happened</h3>${[...(r.brands || []), ...(r.agency ? [r.agency] : [])].map(b => `<div style="margin:0 0 8px"><b>${esc(b.name)}</b><ul class="mt-res" style="margin:4px 0 0;padding:0 0 0 18px">${b.tasks.map(t => `<li>${t.url ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.text)}</a>` : esc(t.text)} ${t.error ? `<small class="v2bad">${esc(t.error)}</small>` : t.assigned ? '<small class="v2hint">on the list</small>' : '<small class="v2hint">on the list, nobody owns it yet</small>'}</li>`).join('')}${b.asks.map(a => `<li>Ask: ${esc(a.text)} ${a.error ? `<small class="v2bad">${esc(a.error)}</small>` : '<small class="v2hint">in Requests</small>'}</li>`).join('')}${b.report ? `<li><small class="v2hint">"This week" added to the weekly report draft of ${esc(md(b.report.period_start))}.</small></li>` : ''}${b.slack ? '' : '<li><small class="v2hint">No Slack note (no channel).</small></li>'}</ul></div>`).join('')}${(r.warnings || []).map(w => `<p class="mt-warn">${esc(w)}</p>`).join('')}</div>` : '';
     return `<div class="v2card"><h3 style="margin:0 0 2px">${esc(m.title)}</h3><p class="v2hint" style="margin:0 0 10px">${esc(md(m.date))}${m.duration ? ` · ${Math.round(m.duration)} min` : ''} · ${(m.attendees || []).map(a => a.displayName || a.email).filter(Boolean).slice(0, 8).join(', ') || 'attendees unknown'}${m.cost ? ` · read for $${(+m.cost).toFixed(2)}` : ''}${done ? ` · confirmed by ${esc(m.confirmed_by || 'the team')}` : ''}</p>
       <div class="mt-lbl">Summary</div>${done ? `<p style="margin:0;font-size:14px;line-height:1.55">${esc(n.summary)}</p>` : `<textarea id="mtSummary">${esc(n.summary)}</textarea>`}</div>
       ${brands || '<div class="v2card"><p class="v2hint">The call did not land on any brand.</p></div>'}
-      ${done ? resHtml : `<div class="v2card"><p class="v2hint" style="margin:0 0 10px">Confirm writes the ticked team items to Asana (an "Action items" section in each brand's project), puts "This week" and "What we need from you" on the brand's open weekly report draft, files what the client owes under Requests, and posts one note per brand in its internal channel. Nothing goes to a client channel.</p>
+      ${done ? resHtml : `<div class="v2card"><p class="v2hint" style="margin:0 0 10px">Confirm puts the ticked team items on Work > Action items (Slack reminds the owner the morning each is due), puts "This week" and "What we need from you" on the brand's open weekly report draft, files what the client owes under Requests, and posts one note per brand in its internal channel. Nothing goes to a client channel.</p>
         <div class="mt-foot"><button class="btn primary" id="mtConfirm">Confirm and send</button><button class="btn" id="mtSkip">Skip this call</button><span class="mt-err" id="mtErr"></span></div></div>`}`;
   }
 
@@ -135,7 +131,7 @@
     root.querySelectorAll('[data-additem]').forEach(b => b.onclick = () => { const bi = b.dataset.additem; const box = b.previousElementSibling; box.insertAdjacentHTML('beforeend', itemRow({ text: '', owner: '', due: '', kind: 'team' }, bi, box.children.length)); const row = box.lastElementChild; row.querySelector('[data-f=on]').onchange = e => row.classList.toggle('off', !e.target.checked); row.querySelector('[data-f=text]').focus(); });
     root.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { const ul = b.previousElementSibling; ul.insertAdjacentHTML('beforeend', `<li><input type="text" value=""><button class="btn quiet" data-rm title="Remove">×</button></li>`); ul.lastElementChild.querySelector('[data-rm]').onclick = e => e.target.closest('li').remove(); ul.lastElementChild.querySelector('input').focus(); });
     root.querySelectorAll('.mt-lines [data-rm]').forEach(b => b.onclick = () => b.closest('li').remove());
-    const c = $('#mtConfirm'); if (c) c.onclick = () => busy(c, async () => { const body = collect(); const r = await post('/api/meetings/confirm', body); await reload(body.id); toast(`Confirmed. ${(r.result.warnings || []).length ? r.result.warnings[0] : 'Asana, the report and Slack are updated.'}`); }, $('#mtErr'), 'Sending…');
+    const c = $('#mtConfirm'); if (c) c.onclick = () => busy(c, async () => { const body = collect(); const r = await post('/api/meetings/confirm', body); await reload(body.id); toast(`Confirmed. ${(r.result.warnings || []).length ? r.result.warnings[0] : 'The action items, the report and Slack are updated.'}`); }, $('#mtErr'), 'Sending…');
     const s = $('#mtSkip'); if (s) s.onclick = () => busy(s, async () => { await post('/api/meetings/skip', { id: OPEN.id }); await reload(null); }, $('#mtErr'));
   }
   const toast = msg => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--on-ink,#fff);padding:10px 16px;border-radius:12px;font-size:13.5px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 6000); };
@@ -152,17 +148,24 @@
     if (openId) OPEN = await H.apiAH(`/api/meetings?id=${encodeURIComponent(openId)}`).catch(() => null); else OPEN = null;
     paint();
   }
+  /* The agenda shows by itself on Monday, and from Friday as next Monday's prep. */
+  const agendaDay = () => { const d = DATA && DATA.today ? new Date(DATA.today + 'T12:00:00Z').getUTCDay() : new Date().getDay(); return d === 1 || d === 5 || d === 6 || d === 0; };
+  const agendaOn = () => AGENDA === null ? agendaDay() : AGENDA;
   function paint() {
     const d = DATA;
-    const head = H.pageHead('meetings', 'Meeting notes', 'Every call read by Locus: what was decided, who does what, and what the client hears. Confirm once; it goes everywhere.');
+    const head = H.pageHead('calls', 'Calls', 'The Monday agenda with live numbers, and every call Locus read: what was decided, who does what, what the client hears. Confirm once; it goes everywhere.');
     const setup = d.connected ? `<p class="v2hint" style="margin:8px 0 0">Fireflies is connected. New transcripts arrive within the hour (or at once if Fireflies posts to <code>${esc(d.webhook)}</code>, set in Fireflies > Settings > Developer settings).</p>` : `<p class="v2bad" style="margin:8px 0 0">FIREFLIES_API_KEY is not set on the worker.</p>`;
-    $('#main').innerHTML = `<div class="v2 mt">${head}
-      <div class="v2card"><div class="v2h"><h3>Open action items</h3><span class="find">From every brand's Asana "Action items" section. Read these first on the Monday call.</span></div>${openHtml(d)}</div>
+    const on = agendaOn();
+    $('#main').innerHTML = `<div class="v2 mt mon">${head}
+      ${on ? (MON ? mondayHtml() : '<div class="v2card"><p class="v2hint">Loading the Monday agenda…</p></div>') : `<p class="v2hint" style="margin:0 0 14px">The Monday agenda shows here on Mondays (and from Friday, to prepare). <button class="btn quiet" id="monShow">Show it now</button></p>`}
       <div class="mt-grid">
         <div><div class="v2card"><div class="v2h"><h3>Calls</h3><button class="btn quiet" id="mtPoll" title="Ask Fireflies for anything new">Check now</button></div>${listHtml(d)}${setup}</div></div>
         <div id="mtOpen">${OPEN ? meetingHtml(OPEN) : '<div class="v2card"><p class="v2hint">Pick a call on the left.</p></div>'}</div>
       </div></div>`;
     wire($('#main'));
+    if (on && MON) wireMonday($('#main'));
+    const ms = $('#monShow'); if (ms) ms.onclick = async () => { AGENDA = true; paint(); await loadMonday(); paint(); };
+    const mh = $('#monHide'); if (mh) mh.onclick = () => { AGENDA = false; paint(); };
   }
 
   async function render(host, first) {
@@ -178,13 +181,13 @@
     else if (!OPEN) { const firstReady = DATA.meetings.find(m => m.status === 'extracted'); if (firstReady) OPEN = await H.apiAH(`/api/meetings?id=${encodeURIComponent(firstReady.id)}`).catch(() => null); }
     if (t !== H.RUN()) return;
     paint();
+    if (agendaOn() && !MON) { await loadMonday(); if (t !== H.RUN()) return; paint(); }
   }
 
-  /* ================= THE MONDAY CALL (Reports > Monday) =================
-   * The same agenda every week, per brand, red brands first: 1 last week's items (tick = done in Asana),
+  /* ================= THE MONDAY AGENDA (the top of Work > Calls) =================
+   * The same agenda every week, per brand, red brands first: 1 last week's open action items (tick = done),
    * 2 the read (the weekly report's numbers and summary), 3 the plan (the strategist's reply under the report
-   * card in Slack), 4 new items (straight into Asana). The week's theme at the top. Data: /api/meetings/monday. */
-  let MON = null;
+   * card in Slack), 4 new items (on the list at once). The week's theme at the top. Data: /api/meetings/monday. */
   const money = (n, cur) => n == null ? '–' : new Intl.NumberFormat('en-US', { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
   const x2 = n => n == null ? '–' : `${(+n).toFixed(2)}x`;
   const pct = (a, b) => (a == null || !b) ? null : Math.round((a / b - 1) * 100);
@@ -228,47 +231,50 @@
       </div>${r.summary ? `<div class="mon-sum">${esc(r.summary)}</div>` : ''}
       <p class="v2hint" style="margin:6px 0 0">Week of ${esc(md(r.period_start))} to ${esc(md(r.period_end))} · ${r.status === 'sent' ? 'sent to the client' : r.status === 'handled' ? 'internal only' : 'draft, not sent yet'}${r.fresh ? '' : ' · <b>this is an older week</b>'} · <button class="btn quiet" data-report="${esc(b.act_id)}">Open the report</button></p>`;
     const plan = b.thread.length ? b.thread.map(m => `<div class="mon-plan"><small>${esc(m.by)}${m.where === 'channel' ? ', posted in the channel' : ''} · ${esc(md(m.at))}</small>${esc(m.text)}</div>`).join('') : `<p class="v2hint">No plan posted yet. The strategist replies under the weekly report card in the brand's internal channel.</p>`;
-    const open = b.open.length ? b.open.map(i => `<label class="mon-item"><input type="checkbox" data-gid="${esc((i.url || '').match(/(\d{10,})/)?.[1] || '')}" aria-label="Done"> <span>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.name)}</a>` : esc(i.name)} <small>${esc(i.owner || 'nobody')}${i.due ? ` · due ${esc(md(i.due))}` : ''}</small></span></label>`).join('') : '<p class="v2hint">Nothing open from last week.</p>';
+    const open = b.open.length ? b.open.map(i => monItem(i)).join('') : '<p class="v2hint">Nothing open from last week.</p>';
     const hear = r && (r.this_week.length || r.need_from_you.length) ? `<div class="mon-t" style="margin-top:8px">The client will hear</div><ul class="mon-hear" style="margin:0;padding:0 0 0 18px">${r.this_week.map(x => `<li>${esc(x)}</li>`).join('')}${r.need_from_you.map(x => `<li>We need: ${esc(x)}</li>`).join('')}</ul>` : '';
     return `<div class="mon-brand" data-act="${esc(b.act_id)}">
       <div class="mon-h"><span class="mon-dot ${sev || ''}"></span><h3>${esc(b.name)}</h3><button class="btn quiet" data-ads="${esc(b.act_id)}">Ads this week</button></div>
       <div class="mon-step"><div class="mon-n">1</div><div><div class="mon-t">Last week's items: done or not</div>${open}</div></div>
       <div class="mon-step"><div class="mon-n">2</div><div><div class="mon-t">The read: the strategist gives the numbers and the winners and losers</div>${read}</div></div>
       <div class="mon-step"><div class="mon-n">3</div><div><div class="mon-t">This week's plan: approve, change, or push back</div>${plan}${hear}</div></div>
-      <div class="mon-step"><div class="mon-n">4</div><div><div class="mon-t">New items: owner and due date, into Asana now</div>
-        <div class="mon-add"><input type="text" placeholder="What has to happen" aria-label="The item"><select aria-label="Owner">${TEAM.map(n => `<option value="${n}">${n || 'Nobody yet'}</option>`).join('')}</select><input type="date" aria-label="Due date"><button class="btn" data-add="${esc(b.act_id)}">Add to Asana</button></div>
+      <div class="mon-step"><div class="mon-n">4</div><div><div class="mon-t">New items: owner and due date, on the list now</div>
+        <div class="mon-add"><input type="text" placeholder="What has to happen" aria-label="The item"><select aria-label="Owner">${TEAM.map(n => `<option value="${n}">${n || 'Nobody yet'}</option>`).join('')}</select><input type="date" aria-label="Due date"><button class="btn" data-add="${esc(b.act_id)}">Add to the list</button></div>
         <div class="mt-err" data-err="${esc(b.act_id)}"></div></div></div>
     </div>`;
   }
-  async function renderMonday(host, first) {
-    H = host; css(); monCss();
-    const t = H.RUN();
-    const head = H.pageHead('monday', 'Monday call', 'The same four things for every brand, red brands first. Tick what is done, read the plan, add new items straight into Asana.');
-    if (first) $('#main').innerHTML = `<div class="v2 mon">${head}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
-    let sev = {};
+  const monItem = i => `<label class="mon-item" data-item="${esc(i.id)}"><input type="checkbox" data-id="${esc(i.id)}" aria-label="Done"> <span>${esc(i.name || i.text)} <small>${esc(i.owner || 'nobody')}${i.due ? ` · due ${esc(md(i.due))}` : ''}</small></span></label>`;
+  async function loadMonday() {
+    monCss();
     try {
       const [m, cmd] = await Promise.all([H.apiAH('/api/meetings/monday'), H.api('/api/hub/command').catch(() => null)]);
-      MON = m;
-      if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) { const worst = (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good'); sev[b.act_id] = b.paused ? undefined : worst; }
-    } catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 mon">${head}<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div></div>`; return; }
-    if (t !== H.RUN()) return;
+      MON = m; SEV = {};
+      if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) { const worst = (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good'); SEV[b.act_id] = b.paused ? undefined : worst; }
+    } catch (e) { MON = { error: e.message, brands: [], agency_open: [] }; }
+  }
+  function mondayHtml() {
+    monCss();
+    if (MON.error) return `<div class="v2card"><p class="v2bad">${esc(MON.error)}</p></div>`;
     const act = H.S.act || 'all';
     const rank = { bad: 0, warn: 1, good: 3, undefined: 2 };
-    const brands = MON.brands.filter(b => act === 'all' || b.act_id === act).sort((a, b) => (rank[sev[a.act_id]] ?? 2) - (rank[sev[b.act_id]] ?? 2) || a.name.localeCompare(b.name));
-    $('#main').innerHTML = `<div class="v2 mon">${head}
-      <div class="v2card"><div class="v2h"><h3>Monday ${esc(md(MON.monday))}</h3><span class="find">Open with the one thing every brand does this week. It is saved for the week and the notes pick it up.</span></div>
+    const brands = MON.brands.filter(b => act === 'all' || b.act_id === act).sort((a, b) => (rank[SEV[a.act_id]] ?? 2) - (rank[SEV[b.act_id]] ?? 2) || a.name.localeCompare(b.name));
+    const agency = act === 'all' && (MON.agency_open || []).length ? `<div class="mon-brand"><div class="mon-h"><span class="mon-dot"></span><h3>Agency-wide</h3></div><div class="mon-step" style="border-top:0;padding-top:0"><div class="mon-n">1</div><div><div class="mon-t">Open items for everyone</div>${MON.agency_open.map(monItem).join('')}</div></div></div>` : '';
+    return `<div class="v2card"><div class="v2h"><h3>Monday ${esc(md(MON.monday))}</h3><span class="find">Open with the one thing every brand does this week. It is saved for the week and the notes pick it up.</span><button class="btn quiet" id="monHide" title="Hide the agenda until Friday">Hide</button></div>
         <div class="mon-theme"><textarea id="monTheme" placeholder="This week, every brand: ...">${esc(MON.theme || '')}</textarea><button class="btn" id="monThemeSave">Save</button></div>
-        <p class="v2hint" style="margin:8px 0 0">After the call, the notes land on <button class="btn quiet" data-go-meetings>Meeting notes</button>. Confirm them there and the items below update.</p></div>
-      ${brands.map(b => monBrand(b, sev[b.act_id])).join('') || '<div class="v2card"><p class="v2hint">No brands.</p></div>'}</div>`;
-    const root = $('#main');
-    $('#monThemeSave').onclick = () => busy($('#monThemeSave'), async () => { await post('/api/meetings/theme', { text: $('#monTheme').value }); toast('Saved for this week.'); }, null, 'Saving…');
-    root.querySelectorAll('[data-go-meetings]').forEach(b => b.onclick = () => H.show('meetings'));
+        <p class="v2hint" style="margin:8px 0 0">After the call, the notes land in the Calls list below. Confirm them there and the items here update. Every open item is on <button class="btn quiet" data-go-actions>Action items</button>.</p></div>
+      ${agency}${brands.map(b => monBrand(b, SEV[b.act_id])).join('') || '<div class="v2card"><p class="v2hint">No brands.</p></div>'}`;
+  }
+  function wireMonday(root) {
+    const ts = $('#monThemeSave'); if (ts) ts.onclick = () => busy(ts, async () => { await post('/api/meetings/theme', { text: $('#monTheme').value }); toast('Saved for this week.'); }, null, 'Saving…');
+    root.querySelectorAll('[data-go-actions]').forEach(b => b.onclick = () => H.show('actions'));
     root.querySelectorAll('[data-report]').forEach(b => b.onclick = () => { if (H.S.act !== b.dataset.report) { const s = document.getElementById('clientPick'); if (s) { s.value = b.dataset.report; s.dispatchEvent(new Event('change')); } } H.show('reports'); });
     root.querySelectorAll('[data-ads]').forEach(b => b.onclick = () => { const s = document.getElementById('clientPick'); if (s && H.S.act !== b.dataset.ads) { s.value = b.dataset.ads; s.dispatchEvent(new Event('change')); } H.show('adcreative'); });
-    root.querySelectorAll('[data-gid]').forEach(c => c.onchange = async () => { if (!c.dataset.gid) return; c.disabled = true; try { await post('/api/meetings/done', { gid: c.dataset.gid, done: c.checked }); c.closest('.mon-item').style.opacity = c.checked ? .5 : 1; } catch (e) { toast(e.message); c.checked = !c.checked; } c.disabled = false; });
-    root.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { const row = b.closest('.mon-add'); const [txt, , due] = row.querySelectorAll('input'); const owner = row.querySelector('select').value; const err = root.querySelector(`[data-err="${b.dataset.add}"]`); err.textContent = '';
-      busy(b, async () => { const r = await post('/api/meetings/add', { act: b.dataset.add, text: txt.value, owner, due: due.value }); const card = b.closest('.mon-brand'); const list = card.querySelector('.mon-step .v2hint, .mon-step .mon-item'); const html = `<label class="mon-item"><input type="checkbox" data-gid="${esc(r.gid || '')}" aria-label="Done"> <span><a href="${esc(r.url || '#')}" target="_blank" rel="noopener">${esc(txt.value)}</a> <small>${esc(owner || 'nobody')}${due.value ? ` · due ${esc(md(due.value))}` : ''}</small></span></label>`; const step1 = card.querySelector('.mon-step'); const hint = step1.querySelector('.v2hint'); if (hint) hint.outerHTML = html; else step1.querySelector('div > div').insertAdjacentHTML('beforeend', html); txt.value = ''; due.value = ''; toast(r.assigned || !owner ? 'Added to Asana.' : 'Added to Asana, but that name is not an Asana user: assign it there.'); }, err, 'Adding…'); });
+    root.querySelectorAll('.mon-item [data-id]').forEach(c => c.onchange = async () => { c.disabled = true; try { await post('/api/meetings/done', { id: c.dataset.id, done: c.checked }); c.closest('.mon-item').style.opacity = c.checked ? .5 : 1; } catch (e) { toast(e.message); c.checked = !c.checked; } c.disabled = false; });
+    root.querySelectorAll('.mon-add [data-add]').forEach(b => b.onclick = () => { const row = b.closest('.mon-add'); const [txt, , due] = row.querySelectorAll('input'); const owner = row.querySelector('select').value; const err = root.querySelector(`[data-err="${b.dataset.add}"]`); err.textContent = '';
+      busy(b, async () => { const r = await post('/api/actions', { act: b.dataset.add, text: txt.value, owner, due: due.value, kind: 'team', source: 'monday' }); const card = b.closest('.mon-brand'); const html = monItem({ id: r.item.id, name: txt.value, owner, due: due.value }); const step1 = card.querySelector('.mon-step'); const hint = step1.querySelector('.v2hint'); if (hint) hint.outerHTML = html; else step1.querySelector('div > div').insertAdjacentHTML('beforeend', html); const c = step1.querySelector(`[data-id="${r.item.id}"]`); if (c) c.onchange = async () => { c.disabled = true; try { await post('/api/meetings/done', { id: c.dataset.id, done: c.checked }); c.closest('.mon-item').style.opacity = c.checked ? .5 : 1; } catch (e) { toast(e.message); c.checked = !c.checked; } c.disabled = false; }; txt.value = ''; due.value = ''; toast(owner ? `On the list for ${owner}.` : 'On the list, nobody owns it yet.'); }, err, 'Adding…'); });
   }
+  /* The old Monday page id routes to Calls; the agenda is shown whatever the day. */
+  async function renderMonday(host, first) { AGENDA = true; return render(host, first); }
 
   window.MeetingsTab = { render, renderMonday };
 })();

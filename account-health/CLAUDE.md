@@ -1720,6 +1720,8 @@ Cole moved the Monday call to 8am Central and reset the team's week (audit and b
 
 ## 2026-10-13: MEETING NOTES (`src/meetings.js`). Fireflies transcript -> per-brand action items -> Asana, the weekly report, Requests, Slack.
 
+(AMENDED the same day, see "ACTION ITEMS IN LOCUS" at the end: Confirm writes team items to `p_action` (actions.js), never Asana; `openItems`, `/api/meetings/done {id}` and `/api/meetings/add` read and write p_action; the page is Work > Calls, links are `?open=calls&meeting=`. The weekly report `this_week` write and the Requests `ask` are unchanged.)
+
 Cole, 2026-10-12: a note taker on every call, Locus writes the action items, the team's tasks go one way and the client
 hears something else. Page: Locus Reports > Meeting notes (`profit/meetings.js`, team only: `AGENCY_TABS`).
 - **In:** the PUBLIC `POST /fireflies/webhook` ({meetingId, eventType}; `x-hub-signature` HMAC checked only when
@@ -1747,3 +1749,44 @@ hears something else. Page: Locus Reports > Meeting notes (`profit/meetings.js`,
 ## 2026-10-13: TODAY'S CALLS IN SLACK (`src/todaypost.js`) and the calls made from the page
 - `todayTick` (hourly tick, right after `meetingsTick`, `todayDeps()`): once per Central day from 8am to 1pm, for every active brand that is not paused (moved.js `SKIP`, now exported), reads profit `/api/hub/today?act=<brand>` as the owner over PROFIT and posts ONE message to `brand_accounts.slack_channel` (never `brief_channel`; a brand whose internal channel is its client channel is skipped) ONLY when there are Scale / Cut / Trim / Refresh rows: header, one line per row (the call, the ad set or ad, the money at stake, the why), button "Open in Locus" (`?open=today&act=`). `d.canAfford(40)` before each brand; state `settings.todayDone` = {date, acts, tries} (a failed read is retried once next hour); switch `settings.todayPost` ('off' stops it; in GET/PUT /api/settings next to `briefClientStyle`). Tests: `node test-today.mjs` (3 offline checks, PROFIT and Slack mocked). NOT tested live: the first 8am tick.
 - The page's buttons: Do it = `POST /api/meta/write` (locusWrite, unchanged); Something else = `POST /api/meetings/add` (meetings.js, built in a parallel session); a test's Winner / Keep running / Loser = profit `/api/brand/verdict` AND `POST /api/brand-asana/result {act, id, result, learning, keep_reason, check_again, who}` (asana-brand.js `setResult`: Result + Learning + complete the task, or Result + "Keep running because" + "Check again"; one story; p_br_batch updated), because the hourly Asana sync writes `asana_result` from Asana and would otherwise bring the test back. NOT tested live: the Asana PUT with `completed` and custom fields together.
+
+## 2026-10-13: ACTION ITEMS IN LOCUS (`src/actions.js`). The team's to-do list is a Locus table, not Asana. Read before touching meetings.js, the Monday screen or Slack reactions.
+
+Cole (docs/handoffs/work-in-locus.md): "if there are tasks inside Locus, why aren't we moving everything inside Locus." Stage 1
+built 2026-10-13: every team item is a `p_action` row; the Asana "Action items" section is not written or read any more.
+Tests: `node test-actions.mjs` (6 offline checks: rows, the grouped open list, the reminder message, the tick, the Done button
+and the ✅ reaction, the routes' team-only gate). test-clients.mjs asserts a client gets 403 on `/api/actions` and `/api/meetings`.
+- **Table `p_action`** (created on first use by `ensureActions`): id `ac_<12 hex>`, act_id ('' = agency-wide), text, owner (first
+  name, normalised to the `ROSTER` spelling), owner_email (from ROSTER; Radhesh and Hamza have none yet), due (YYYY-MM-DD or ''),
+  kind team | client | client_owes, status open | done | dropped, source meeting | monday | today | strategist | manual,
+  source_id (the meeting id, the Today row key), asana_gid (unused; for a mirror if ever), done_at / done_by / done_how (tick |
+  slack), reminded_on (the Central day of the last reminder), slack_channel + slack_ts (the reminder line), created_at, created_by.
+- **Routes** (worker.js, next to /api/meetings; admin + `clientScope` refused; NOT on brandguard CLIENT_RULES): `GET /api/actions?act=
+  <brand>|all|''&status=open|done|all` -> {items (each with `url` = `profit/?open=actions&act=&item=`), brands, team, remind};
+  `POST /api/actions {act, text, owner, due, kind, source, source_id}` (an unknown brand is 400); `POST /api/actions/done {id,
+  done}`; `POST /api/actions/edit {id, text, owner, due, kind, act, status: 'dropped'}` (a changed due date clears `reminded_on`).
+  routes.js rebuilt. meetings.js keeps `POST /api/meetings/done {id}` and `/api/meetings/add` as thin wrappers (older callers).
+- **Who writes rows:** meetings.js `confirm` (kind team, source meeting, the Slack note links each item `<url|Locus>` and its
+  "Open in Locus" button goes to `?open=calls&meeting=`), the Monday agenda's add box (source monday), Today's "Something else"
+  (source today, source_id = the row key), the Action items page (manual). The Strategist has no tool yet: it can reach the
+  route through `locus_get` / `locus_write` (routes.js). `openItems(env, d)` = open rows grouped per brand, agency-wide first
+  (the shape the Calls page and `mondayScreen` read; `agency_open` is filled now).
+- **Reminders** (`actionTick`, hourly tick right after todayTick, `actionDeps()` = meetingDeps + slackApi + centralHour +
+  centralDate): from `settings.actionHour` (7 Central) until noon, every open item with `due <= today` and `reminded_on != today`
+  is grouped per (brand, owner) and posted as ONE line: "*Ahsan*, Alpha Golf: 1 due today, 1 overdue." + a bullet per item
+  (overdue ones say when they were due), a Done button per item (`act_done_<n>`, value {id}, 4 at most) and Open in Locus.
+  Where: the brand's INTERNAL `slack_channel`; agency-wide items to `strategistChannel`; neither = a DM to the owner through
+  `users.lookupByEmail` on the roster email; no way to reach them = skipped and reported. An overdue item gets one line a day,
+  never more. Switch `settings.actionRemind` ('off' stops it; `actionRemind` in GET/PUT /api/settings next to todayPost).
+  `d.canAfford(30)` before the tick, 10 per post.
+- **Done from Slack:** the button is routed by slack-router (`IDEA_ID` now matches `act_done`) to `/slack/actions` here, where
+  `handleActionButton` marks the row done (`done_how 'slack'`, `done_by` = the tapper's Slack name) and rewrites the line
+  through `response_url` (done items struck through, buttons only for what is still open, "✓ All done"). A **✅ reaction**
+  (`white_check_mark` / `heavy_check_mark` / `ballot_box_with_check`) on the reminder line marks every open item behind that
+  `slack_channel + slack_ts` done: `handleSlackEvent` answers `reaction_added` first thing (`handleReaction`), and slack-router
+  forwards reactions by `ev.item.channel` (a reaction event has no `ev.channel`). Other reactions and other messages are ignored.
+  **Needs the Slack app subscribed to the `reaction_added` bot event and the `reactions:read` scope** (not verified live).
+- **Not built (on purpose, handoff says do not over-build):** auto-done from Meta or brief signals (`done_how 'auto:*'`), the
+  optional Asana mirror. Stage 2 (briefs, the production board, `p_work`) is a separate build after a week of use.
+- NOT tested live: the first morning tick (reminder lines in real channels), a real Done tap and ✅ through the router, the DM
+  path, the slack-router deploy. The first Monday is the test; `lastHourly.actions` says what the tick did.

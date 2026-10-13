@@ -14,6 +14,7 @@ import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch } from './calendar.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
+import { handleActions, actionTick, handleActionButton, handleReaction } from './actions.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
 import { todayTick } from './todaypost.js';
@@ -6148,6 +6149,9 @@ async function handleSlackInteract(request, env, ctx) {
       ctx.waitUntil(runMondayPlan(env, payload).catch(() => {}));
       return ACK();
     }
+    /* An action item's Done button on its reminder line (actions.js, 2026-10-13). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^act_done/.test(a.action_id || '')))
+      return await handleActionButton(env, ctx, payload, actionDeps(), { ACK, xfetch });
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
       return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
@@ -6821,6 +6825,8 @@ function meetingDeps() {
     slackSyncReport: async (env, act, start) => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, 'weekly', start); },
   };
 }
+/* actions.js: the team's action items; reminders to the brand's internal channel, a DM when it has none. */
+function actionDeps() { return { ...meetingDeps(), slackApi, centralHour, centralDate }; }
 /* todaypost.js: the 8am "Today's calls" post per brand, read from the profit worker as the owner. */
 function todayDeps() { return { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, mintSession, canAfford: n => subCanAfford(n) }; }
 function hubDeps() {
@@ -6884,6 +6890,11 @@ async function handleSlackEvent(request, env, ctx) {
     /* One minute later (Cole), on the queue: waitUntil would be cut off long before that. */
     const job = { kind: 'welcome', channel: ev.channel };
     ctx.waitUntil((env.IDEA_Q ? env.IDEA_Q.send(job, { delaySeconds: 60 }) : new Promise(r => setTimeout(r, 8000)).then(() => welcomeOnJoinByChannel(env, ev.channel))).catch(e => console.log('welcome on join: ' + e.message)));
+    return ACK();
+  }
+  /* A ✅ on an action item's reminder line marks every item in it done (actions.js, 2026-10-13). Other reactions are ignored. */
+  if (body?.type === 'event_callback' && ev?.type === 'reaction_added') {
+    ctx.waitUntil(handleReaction(env, actionDeps(), ev).catch(e => console.log('action reaction: ' + e.message)));
     return ACK();
   }
   /* A message that uploads a clip or image arrives with subtype file_share; the ideas bot wants those,
@@ -7224,6 +7235,8 @@ const AH_APP = {
         ran.meetings = await meetingsTick(env, meetingDeps()).catch(e => ({ error: e.message }));
         /* Today's calls (Scale / Cut / Trim / Refresh) to each brand's internal channel, once a day from 8am (todaypost.js, 2026-10-13). */
         ran.today = await todayTick(env, todayDeps()).catch(e => ({ error: e.message }));
+        /* Action items due today (and overdue, once a day): one line per owner per brand with Done buttons (actions.js, 2026-10-13). */
+        ran.actions = await actionTick(env, actionDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -7468,6 +7481,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Meeting notes: Fireflies transcripts into action items (meetings.js, 2026-10-13). Team only. ---- */
     if (path === '/api/meetings' || path.startsWith('/api/meetings/')) {
       const r = await handleMeetings(request, env, url, path, json, meetingDeps());
+      if (r) return r;
+    }
+    /* ---- Action items: the team's to-do list in Locus, not Asana (actions.js, 2026-10-13). Team only. ---- */
+    if (path === '/api/actions' || path.startsWith('/api/actions/')) {
+      const r = await handleActions(request, env, url, path, json, actionDeps());
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {
@@ -9105,6 +9123,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           briefClientStyle: (await getSetting(env, 'briefClientStyle')) === 'full' ? 'full' : 'short',
           /* The 8am "Today's calls" post to each brand's internal channel (todaypost.js). On unless 'off'. */
           todayPost: (await getSetting(env, 'todayPost')) !== 'off',
+          /* Action item reminders to Slack the morning they are due (actions.js). On unless 'off'. */
+          actionRemind: (await getSetting(env, 'actionRemind')) !== 'off',
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
         });
@@ -9121,6 +9141,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('dailyBriefsChannel' in b) await putSetting(env, 'dailyBriefsChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.dailyBriefsChannel || '')) ? String(b.dailyBriefsChannel) : '');
         if ('briefClientStyle' in b) await putSetting(env, 'briefClientStyle', b.briefClientStyle === 'full' ? 'full' : 'short');
         if ('todayPost' in b) await putSetting(env, 'todayPost', b.todayPost ? 'on' : 'off');
+        if ('actionRemind' in b) await putSetting(env, 'actionRemind', b.actionRemind ? 'on' : 'off');
         return json({ ok: true });
       }
       if (path === '/api/slack-channels') {

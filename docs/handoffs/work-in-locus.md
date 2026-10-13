@@ -1,5 +1,12 @@
 # Work in Locus: action items, calls, then briefs (handoff, 2026-10-13)
 
+> **Progress (2026-10-13): stage 1 BUILT and deployed.** `p_action` + `/api/actions` (account-health actions.js), meetings.js
+> confirm / openItems / add / done on p_action, the hourly `actionTick` reminders with Done buttons and the ✅ reaction (router
+> patched for `act_done` and reaction events), Work rail item (Calls = meetings.js, Action items = profit/actions.js), Today's
+> "Something else" -> /api/actions, How we work inside How to use Locus. Tests: test-actions.mjs (6), test-clients (24), smoke
+> (113), today (3). Not built: auto-done signals, the Asana mirror. Open for Cole: subscribe the Slack app to `reaction_added`
+> (+ `reactions:read`) so a ✅ works; stage 2 after a week. Details in both CLAUDE.md files under 2026-10-13.
+
 Start a worktree. Read this, then profit/CLAUDE.md "2026-10-13: Meeting notes, the Monday call page, How we work"
 and account-health/CLAUDE.md "2026-10-13: MEETING NOTES". Cole's decisions are final; the design below is the plan.
 
