@@ -274,10 +274,9 @@ const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,pe
    text is the examples line, alone on its line so one triple-click deletes it. No Frame.io,
    no crop line, no subtasks. Ideas bot's briefHtml (ideas.js) uses the same layout. */
 const BRIEF_TEST = eg => `<h2>The test</h2><strong>Angle:</strong>
-<strong>Why:</strong>
-<strong>Problem (want / villain / layer):</strong>
 <strong>What we're testing:</strong>
 <em>What changes, and on which ad. Like: ${eg}</em>
+<strong>Why:</strong>
 <strong>1.</strong>
 <strong>2.</strong>
 <strong>3.</strong>`;

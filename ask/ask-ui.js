@@ -11,7 +11,10 @@
  *   })
  *
  *   AskUI.open(prefill)            the panel (also Ctrl/Cmd+K unless init({hotkey:false}))
- *   AskUI.ask(question)            open the panel and send the question at once
+ *   AskUI.ask(question, {fresh})   open the panel and send the question at once; fresh = a new chat
+ *   init({ scope: () => key })     chats belong to a scope (Locus: the brand). Opening the panel on a
+ *                                  different scope shows that scope's latest chat, and Chats lists
+ *                                  only that scope's chats.
  *   AskUI.card()                   -> HTML: what it found, for the home screen
  *   AskUI.settingsCard()           -> HTML: what it knows + the controls
  *   AskUI.afterSettings()          wires the settings card after it is in the DOM
@@ -35,7 +38,7 @@ window.AskUI = (() => {
     if (cfg.flash) flash = cfg.flash;
     if (cfg.confirm) confirm = cfg.confirm;
     if (cfg.cardH) cardH = cfg.cardH;
-    try { const saved = JSON.parse(localStorage.getItem(LS()) || 'null'); if (saved?.chat) { A.chat = saved.chat; A.id = saved.id; } } catch (e) {}
+    try { const saved = JSON.parse(localStorage.getItem(LS()) || 'null'); if (saved?.chat && !A.scope) { A.chat = saved.chat; A.id = saved.id; } } catch (e) {}
     document.addEventListener('keydown', e => {
       if (A.hotkey !== false && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open(); }
       if (e.key === 'Escape' && $('#ask')?.classList.contains('on')) close();
@@ -142,7 +145,19 @@ window.AskUI = (() => {
     } catch (e) { flash('Could not read that file'); }
   }
   function drop() { A.file = null; const el = $('#askFile'); if (el) { el.hidden = true; el.innerHTML = ''; } }
+  /* 2026-10-13 (Cole: "every time I change a client it has the previous convo loaded"): a chat
+     belongs to the brand it was asked on. When the brand moved, show that brand's latest chat. */
+  const scopeNow = () => { try { return A.scope ? String(A.scope() ?? '') : null; } catch (e) { return null; } };
+  function syncScope() {
+    const k = scopeNow(); if (k == null || k === A.chatScope) return;
+    if (A.busy) return;
+    A.chatScope = k; loadChats();
+    const c = (A.chats || []).find(x => x.scope === k);
+    A.chat = c ? c.messages.slice() : []; A.id = c ? c.id : null;
+    const l = $('#askList'); if (l) l.hidden = true;
+  }
   function open(prefill) {
+    syncScope();
     panel().classList.add('on'); $('#askScrim').classList.add('on');
     render(A.chat.length ? '' : (A.intro || 'Ask me anything about what is in this app.'));
     const el = $('#askIn');
@@ -313,8 +328,8 @@ window.AskUI = (() => {
   function save() {
     if (!A.chat.length) return;
     const title = (A.chat.find(m => m.role === 'user')?.text || 'Chat').slice(0, 70);
-    const cur = { id: A.id || (A.id = Math.random().toString(36).slice(2, 9)), title, at: new Date().toISOString(), messages: A.chat };
-    A.chats = [cur, ...(A.chats || []).filter(c => c.id !== cur.id)].slice(0, 20);
+    const cur = { id: A.id || (A.id = Math.random().toString(36).slice(2, 9)), title, at: new Date().toISOString(), messages: A.chat, ...(A.chatScope != null ? { scope: A.chatScope } : {}) };
+    A.chats = [cur, ...(A.chats || []).filter(c => c.id !== cur.id)].slice(0, 40);
     try { localStorage.setItem(LS(), JSON.stringify({ chat: A.chat, id: A.id })); localStorage.setItem(LS() + 's', JSON.stringify(A.chats)); } catch (e) {}
   }
   function loadChats() { try { A.chats = JSON.parse(localStorage.getItem(LS() + 's') || '[]'); } catch (e) { A.chats = []; } }
@@ -323,8 +338,9 @@ window.AskUI = (() => {
     const el = $('#askList'); if (!el) return;
     if (!el.hidden && el.dataset.kind !== 'reports') { el.hidden = true; return; }
     loadChats(); el.hidden = false; el.dataset.kind = 'chats';
-    el.innerHTML = (A.chats || []).length
-      ? A.chats.map(c => `<button class="chatrow ${c.id === A.id ? 'on' : ''}" onclick="AskUI.openChat('${c.id}')"><span>${esc(c.title)}</span><small>${esc(new Date(c.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} · ${c.messages.length} message${c.messages.length === 1 ? '' : 's'}</small></button>`).join('')
+    const mine = (A.chats || []).filter(c => A.chatScope == null || c.scope === A.chatScope);
+    el.innerHTML = mine.length
+      ? mine.map(c => `<button class="chatrow ${c.id === A.id ? 'on' : ''}" onclick="AskUI.openChat('${c.id}')"><span>${esc(c.title)}</span><small>${esc(new Date(c.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} · ${c.messages.length} message${c.messages.length === 1 ? '' : 's'}</small></button>`).join('')
       : '<div class="hint" style="padding:10px 20px">No earlier chats yet.</div>';
   }
   function openChat(id) {
@@ -455,6 +471,12 @@ window.AskUI = (() => {
     catch (e) { flash(e.message); } finally { btn.disabled = false; }
   }
 
-  function ask(q) { open(); const el = $('#askIn'); if (!el || !q) return; el.value = q; send(); }
+  /* fresh: start a new chat for this question (Locus's top bar: "why wouldn't it just start a new
+     thread?"). Follow-ups typed in the panel stay in that chat; Chats reopens older ones. */
+  function ask(q, o = {}) {
+    syncScope();
+    if (o.fresh && A.chat.length && !A.busy) { A.chat = []; A.id = null; }
+    open(); const el = $('#askIn'); if (!el || !q) return; el.value = q; send();
+  }
   return { init, open, close, send, fresh, history, openChat, card, mount, mountIn, mark, applyProposal, openReport, closeReport, reports, pick, drop, settingsCard, afterSettings, saveBrief, forget, run, briefing, state: A, ask, pin, chartHTML, stop, download, mediaAction };
 })();
