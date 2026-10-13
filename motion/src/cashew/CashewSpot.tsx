@@ -530,6 +530,13 @@ export const CashewSpot: React.FC = () => {
       {biteAt.map((b, i) => <Sfx key={i} name="pop" at={bites[0] + b + CHOMP} volume={0.7} rate={1 - i * 0.06} />)}
       <Sfx name="whoosh" at={bites[0] + meltAt} volume={0.6} />
       <Sfx name="wake" at={bites[0] + meltAt + 48} volume={0.3} />
+      <Sfx name="land" at={bites[0] + meltAt + 62} volume={0.55} />
+      <Sfx name="sigh" at={bites[0] + sighAt} volume={0.6} />
+      <Sfx name="hop" at={april[0] + 8 + 7 * 7} volume={0.4} />
+      <Sfx name="hop" at={A('09') + 10} volume={0.4} rate={1.1} />
+      <Sfx name="hop" at={nudge[0] + tapAt + 10} volume={0.4} rate={1.15} />
+      <Sfx name="hop" at={A('14') + 22 + 26} volume={0.3} />
+      <Sfx name="land" at={end[0] + 32} volume={0.4} />
       {nameAt.map((t, i) => <Sfx key={`n${i}`} name="tick" at={tabs[0] + t} volume={0.4} rate={1.1 + (i % 3) * 0.08} />)}
       {Array.from({ length: 7 }, (_, i) => <Sfx key={`r${i}`} name="tick" at={tabs[0] + restAt + i * 3} volume={0.25} rate={1.3 + (i % 3) * 0.1} />)}
       <Sfx name="whoosh" at={tabs[0] + collapseAt} volume={0.4} rate={1.3} />

@@ -9,6 +9,9 @@
 //   riser.wav    into the product reveal
 //   drip.wav     a bar bleeds
 //   wake.wav     the character wakes, a card lands
+//   sigh.wav     the character deflates
+//   hop.wav      the character springs up
+//   land.wav     the character lands, squashed
 //   bed-cashew.wav, bed-locus.wav   the music beds, 64 s each, quiet
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -182,6 +185,47 @@ const wake = () => {
   return b;
 };
 
+// A sigh: breath noise through a band that falls, a slow swell and a long let go.
+const sigh = () => {
+  const len = 1.4;
+  const n = buf(len);
+  for (let i = 0; i < n.length; i++) n[i] = rnd();
+  const band = highpass(lowpass(n, (t) => 1500 * Math.exp(-t * 1.4) + 350), 180);
+  const o = buf(len);
+  let ph = 0;
+  for (let i = 0; i < o.length; i++) {
+    const t = i / SR;
+    const f = 210 * Math.exp(-t * 0.6);
+    ph += (TAU * f) / SR;
+    o[i] = (band[i] * 0.9 + Math.sin(ph) * 0.08) * env(t, 0.18, 0.2, 1.0);
+  }
+  return o;
+};
+// A hop: a quick rising sine with a rubbery wobble.
+const hop = () => {
+  const b = buf(0.32);
+  let ph = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / SR;
+    const f = 240 + 520 * (1 - Math.exp(-t * 16)) + 30 * Math.sin(TAU * 22 * t);
+    ph += (TAU * f) / SR;
+    b[i] = Math.sin(ph) * exp(t, 11) * Math.min(1, t / 0.004);
+  }
+  return b;
+};
+// A landing: a soft low thud and a little squish of noise.
+const land = () => {
+  const b = buf(0.3);
+  let ph = 0;
+  for (let i = 0; i < b.length; i++) {
+    const t = i / SR;
+    const f = 150 * Math.exp(-t * 12) + 55;
+    ph += (TAU * f) / SR;
+    b[i] = Math.sin(ph) * exp(t, 14) + rnd() * exp(t, 60) * 0.25;
+  }
+  return lowpass(b, () => 1800);
+};
+
 // ---- the music beds --------------------------------------------------------
 // A slow pad on four chords, a quiet pulse on the beat, low passed so it sits
 // under a voice. Each bed is 64 s; the spot fades it out before the end.
@@ -241,5 +285,10 @@ wav('chime-low.wav', chime(660), 0.6);
 wav('riser.wav', riser(), 0.75);
 wav('drip.wav', drip(), 0.55);
 wav('wake.wav', wake(), 0.6);
-wav('bed-cashew.wav', bed(174.61, false, 72), 0.5); // F major, warm
-wav('bed-locus.wav', bed(146.83, true, 78), 0.5); // D minor, awake
+wav('sigh.wav', sigh(), 0.6);
+wav('hop.wav', hop(), 0.55);
+wav('land.wav', land(), 0.8);
+// The beds are written near full scale; their level is set in src/lib/audio.tsx
+// from a loudness measurement (scripts/mix.mjs), not here.
+wav('bed-cashew.wav', bed(174.61, false, 72), 0.95); // F major, warm
+wav('bed-locus.wav', bed(146.83, true, 78), 0.95); // D minor, awake

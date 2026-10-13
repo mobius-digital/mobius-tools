@@ -11,7 +11,8 @@
 import { bundle } from '@remotion/bundler';
 import { renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { ConfigInternals } from '@remotion/cli/config';
-import { mkdirSync, statSync } from 'node:fs';
+import { mkdirSync, renameSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
@@ -49,6 +50,25 @@ if (args.length === 0) {
   }
 }
 
+// The master: bring the spot to -16 LUFS integrated, then a limiter run at 4x
+// the sample rate holds the true peak under -1 dBTP. The picture is copied.
+const loud = (file) => {
+  const e = spawnSync('ffmpeg', ['-hide_banner', '-nostats', '-i', file, '-vn', '-af', 'ebur128=peak=true', '-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 1 << 26 }).stderr;
+  const sum = e.split('Summary:')[1] ?? '';
+  return { I: Number(/I:\s+(-?[\d.]+)/.exec(sum)?.[1]), TP: Number(/Peak:\s+(-?[\d.]+)/.exec(sum)?.[1]) };
+};
+const master = (file) => {
+  const before = loud(file);
+  const gain = -16 - before.I;
+  const tmp = file.replace(/\.mp4$/, '.master.mp4');
+  const af = `volume=${gain.toFixed(2)}dB,aresample=192000,alimiter=limit=0.85:attack=1:release=60:level=false,aresample=48000`;
+  const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', file, '-c:v', 'copy', '-af', af, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', tmp], { encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(r.stderr);
+  renameSync(tmp, file);
+  const after = loud(file);
+  console.log(`  master: ${before.I} LUFS -> ${after.I} LUFS integrated, true peak ${after.TP} dBTP (gain ${gain.toFixed(1)} dB)`);
+};
+
 const t0 = Date.now();
 console.log(`Bundling src/index.ts ...`);
 const serveUrl = await bundle({
@@ -84,6 +104,7 @@ for (const id of toRender) {
       }
     },
   });
+  master(outputLocation);
   const secs = (Date.now() - t) / 1000;
   const mb = statSync(outputLocation).size / 1024 / 1024;
   console.log(`${id} -> out/${fileName(id)}  ${mb.toFixed(1)} MB  ${secs.toFixed(0)}s  (${composition.durationInFrames} frames, ${(composition.durationInFrames / composition.fps).toFixed(1)}s)`);

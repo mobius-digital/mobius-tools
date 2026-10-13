@@ -159,6 +159,7 @@ const SceneWake: React.FC<{ len: number; nameAt: number; wakeAt: number }> = ({ 
   const blink = useBump()(wakeAt + 26, 3, feel.snap);
   const lift = s(wakeAt, feel.pop);
   const line = s(wakeAt + 10, feel.settle);
+  const frame = useCurrentFrame();
   return (
     <SceneBox opacity={out}>
       <div style={{ position: 'absolute', left: 540 - 1400, top: 940 - 1400, width: 2800, height: 2800, borderRadius: '50%', background: B, transform: `scale(${flood})` }} />
@@ -167,7 +168,7 @@ const SceneWake: React.FC<{ len: number; nameAt: number; wakeAt: number }> = ({ 
       </div>
       <Caption text="It wakes before *you* do." y={1010} p={line} color={W} size={50} />
       <div style={{ position: 'absolute', left: 540 - 280, top: 1050, transform: `translateY(${(1 - lift) * 40}px)`, opacity: Math.min(1, lockup * 2) }}>
-        <Act app={app} size={560} from="asleep" to="found" t={wake} blink={blink} squash={0.35 * (1 - lift) - useBump()(wakeAt, 8, feel.pop) * 0.7} lift={useBump()(wakeAt, 8, feel.pop) * 30} spin={wake > 0.05 ? (wake * 0.6 + useCurrentFrame() / 80) % 1 : -1} seed={2} />
+        <Act app={app} size={560} from="asleep" to="found" t={wake} blink={blink} squash={0.35 * (1 - lift) - useBump()(wakeAt, 8, feel.pop) * 0.7} lift={useBump()(wakeAt, 8, feel.pop) * 30} spin={wake > 0.05 ? (wake * 0.6 + frame / 80) % 1 : -1} seed={2} />
       </div>
     </SceneBox>
   );
@@ -406,6 +407,10 @@ export const LocusSpot: React.FC = () => {
       <Sfx name="riser" at={A('06') - 46} volume={0.5} />
       <Sfx name="chime-low" at={A('06')} volume={0.35} />
       <Sfx name="wake" at={A('07') + 4} volume={0.5} />
+      <Sfx name="hop" at={wake[0] + A('07') - wake[0]} volume={0.4} />
+      <Sfx name="hop" at={calls[0] + tapAt + 8} volume={0.4} rate={1.15} />
+      <Sfx name="hop" at={read[0] + A('10') - read[0]} volume={0.3} rate={1.1} />
+      <Sfx name="land" at={end[0] + 32} volume={0.4} />
       {[0, 8, 28, 36, 56].map((d, i) => <Sfx key={i} name="wake" at={A('08') + d} volume={0.16} rate={1.3 + i * 0.05} />)}
       <Sfx name="pop" at={read[0] + readAt} volume={0.35} rate={1.2} />
       <Sfx name="wake" at={A('10')} volume={0.3} />
