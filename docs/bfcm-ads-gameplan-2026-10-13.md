@@ -9,14 +9,21 @@ decisions made Oct 6 to 13.
 
 1. **No offer ad before the offer is locked.** Brands still waiting on a client answer only get
    offer-free ads (product, list signup, gift guide) until they answer.
-2. **Statics first.** Statics beat video on 6 of 7 brands (creative-templates, Oct 9). Build
-   statics in Studio; video comes from creators and Ravo.
-3. **One ad per numbered line** in a Studio batch (Mobius framework: Angle, Why, Concept, What
+2. **Statics first.** Statics beat video on 6 of 7 brands (creative-templates, Oct 9). Video comes
+   from creators and Ravo.
+3. **No AI-generated products (Cole, Oct 13, after GPT Image and ChatGPT both got Lucky's clubs
+   wrong: grip and shaft colors, the logo, proportions).** Real cutouts and real photography only.
+   In Studio that means "Use as the ad" on a real photo (the model only adds words) or a layout
+   built around real cutouts; never let the model draw the product. Lucky's look facts: Carver 02
+   gold head, gold shaft, white grip; Stryker black shaft with a gold band, black grip; putter gold
+   shaft, thick white grip; logo L + four-leaf clover + CKY. Lucky photos: Air library (Products >
+   By SKU). Ask Cole whether the rule covers every brand; until he says, apply it to Lucky for sure
+   and check with him before drawing any other brand's product.
+4. **One ad per numbered line** in a Studio batch (Mobius framework: Angle, Why, Concept, What
    we're testing). Variations of one idea are not separate ads.
-4. **Dates work backwards from "live":** briefs 23 days before, ads built 9 days before,
+5. **Dates work backwards from "live":** briefs 23 days before, ads built 9 days before,
    loaded 4 days before. Asana due dates are the brief dates.
-5. Product accuracy: tick 5 or 6 clean studio shots per product, keep the fingerprint, check
-   the score on each card. Copy: the brand's skill (Lucky = lucky-golf-copy, never edited),
+6. Copy: the brand's skill (Lucky = lucky-golf-copy, never edited),
    no em dashes, never name competitors.
 
 ## The waves
@@ -24,7 +31,7 @@ decisions made Oct 6 to 13.
 ### Wave 0: live now (build today)
 | Brand | Batch | Ads | Live | State |
 |---|---|---|---|---|
-| Lucky | Foursome giveaway (name TBD) | 15 | Wed Oct 14 | Offer locked. Briefs were due Oct 7. Shots 1 to 4 were due Oct 12. Keep black putters covered until Nov 9. |
+| Lucky | Fit Your Foursome giveaway | 15 | Wed Oct 14 | Locked Oct 13. READ C:/Users/wetzl/Lucky Golf/Website/v9/giveaway/CREATIVE-BRIEF.md. Winner + 3 buddies each get 3 Carver 02 Gold, a gold Eclipse (mallet or blade), the Stryker, 2 Classic Polos, 2 hats (~$3,700). Entries to Nov 16, draw Nov 17. Code FOURSOME = free hat with any club. Four starter ads (real pixels) in Website/v9/giveaway/ads/out; hero shot not shot yet. Black Eclipse out of frame until Nov 9. |
 | Dartee | October giveaway | 8 | Fri Oct 9 (should already run) | Check it is live. Justin sent finished ads + raw giveaway photos/video in #dartee Oct 12 (Drive). Headline question: Slack says "every belt to you and your favorite playing partner, $4,500 value", Locus says "foursome". |
 
 ### Wave 1: live Nov 1 to 6 (briefs were due Oct 9 to 14: build this week)
@@ -78,7 +85,7 @@ batches are built.
 | 4 (weekend + Cyber Monday) | 180 | 85 (Lucky, Dartee, Grunk + both Cyber Monday) |
 
 ## The build order
-1. **Lucky giveaway, 15** (live tomorrow).
+1. **Lucky Fit Your Foursome, 15** (live Oct 14): start from the four starter ads and the creative brief; real product pixels only.
 2. **Dartee giveaway, 8**: confirm it runs; add statics from Justin's Drive assets.
 3. **Dartee Early Bird, 15** and **Grunk lead list, 15** and **Lucky Early Bird, 3** (Nov 1).
 4. **Lucky Eclipse Black reveal, 10** (Nov 9; briefs due Oct 17).
