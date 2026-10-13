@@ -119,8 +119,8 @@
     if (k === 'done') return done(it);
     if (k === 'look') { toggle(false); return pickAct(act(it), MOVED_TAB[it.metric] || 'overview'); }
     if (k === 'brief') { toggle(false); if (H.AskUI) H.AskUI.ask(`For ${it.brand}: the anchor ad "${it.ad}" in ad set "${it.adset}" is tiring (${it.why}). Brief three iterations of it as an Asana brief: same angle, new hooks.`); return; }
-    if (k === 'pause') return pause(it);
-    if (k === 'scale') return scale(it);
+    if (k === 'pause') return pause(H, it, { reason: 'From the nudge', onDone: () => setPref(it, 'done', Date.now() + 7 * DAY).then(dropCaches), onUndo: () => setPref(it, null) });
+    if (k === 'scale') return budget(H, it, { reason: 'From the nudge', onDone: () => setPref(it, 'done', Date.now() + 7 * DAY).then(dropCaches), onUndo: () => setPref(it, null), onCampaign: () => { toggle(false); pickAct(it.act_id, 'campaigns'); } });
   }
   async function setPref(it, state, until) {
     ST.prefs = ST.prefs || { morning_dm: false, nudge: {} }; ST.prefs.nudge[it.key] = { state, until };
@@ -140,7 +140,13 @@
     toast('Done, and in the Change Log.');
   }
 
-  /* ---------- the writes: propose, confirm, write, undo (the Ads > Meta path, one code path on the server) ---------- */
+  /* ---------- the writes: propose, confirm, write, undo (the Ads > Meta path, one code path on the server) ----------
+   * Shared with Ads > Today (desk.js, 2026-10-13) as window.LxMetaWrite, so the nudge card and Today's calls run the SAME
+   * dry-run, modal, write-with-expect and Undo flow. `host` is the page's helpers (apiAH), `it` is a buyerList row
+   * ({act_id, brand, currency, adset_id, adset, ad_id, ad, why, campaign_id}) or a nudge group ({group, rows, text}).
+   * opts: reason (the Change Log prefix, "From the nudge" / "From Today"), pct (budget rise, default 0.2), amount (a
+   * fixed new budget), onDone(writes) after a successful write, onUndo() after a successful undo, onCampaign() when the
+   * ad set runs on its campaign's budget (the caller opens Campaigns). */
   function modal(title, body, cta) {
     const w = document.createElement('div'); w.className = 'modal-wrap';
     w.innerHTML = `<div class="modal lx-nudge-m" role="dialog" aria-modal="true"><h3>${esc(title)}</h3><div class="lx-nudge-mb">${body}</div><p class="lx-nudge-err" data-err hidden></p>
@@ -153,15 +159,15 @@
     w.querySelector('[data-m="no"]').onclick = close;
     return { w, close, yes: w.querySelector('[data-m="yes"]'), err: w.querySelector('[data-err]'), body: w.querySelector('.lx-nudge-mb') };
   }
-  const write = body => H.apiAH('/api/meta/write', { method: 'POST', body: JSON.stringify(body) });
+  const write = (host, body) => host.apiAH('/api/meta/write', { method: 'POST', body: JSON.stringify(body) });
   const step = s => (s || []).map(x => `<span class="lx-ba"><span>${esc(x.from ?? 'none')}</span><i>→</i><b>${esc(x.to ?? 'none')}</b></span>`).join('');
-  async function pause(it) {
-    const targets = it.group ? it.rows : [it];
+  async function pause(host, it, opts = {}) {
+    const targets = it.group ? it.rows : [it], from = opts.reason || 'From the nudge';
     const m = modal(it.group ? `Pause ${targets.length} ad sets on ${it.brand}?` : `Pause this ${it.ad_id ? 'ad' : 'ad set'}?`, targets.map((r, i) => `<div class="lx-nudge-t1" data-i="${i}"><b>${esc(r.ad || r.adset)}</b><span class="faint">Checking with Meta…</span></div>`).join(''), it.group ? 'Pause them' : 'Pause it');
     const plans = [];
     for (const [i, r] of targets.entries()) {
-      const body = { act: r.act_id, kind: 'pause', level: r.ad_id ? 'ad' : 'adset', object: r.ad_id || r.adset_id, reason: `From the nudge: ${r.why || it.text}` };
-      let d; try { d = await write({ ...body, dry: true }); } catch (e) { d = { error: e.message }; }
+      const body = { act: r.act_id, kind: 'pause', level: r.ad_id ? 'ad' : 'adset', object: r.ad_id || r.adset_id, reason: `${from}: ${r.why || it.text || ''}` };
+      let d; try { d = await write(host, { ...body, dry: true }); } catch (e) { d = { error: e.message }; }
       const el = m.w.querySelector(`[data-i="${i}"] span`); if (!el) return;
       if (!d || d.error) { el.className = 'v2bad'; el.textContent = d && d.error ? d.error : 'Meta did not answer.'; continue; }
       el.className = ''; el.innerHTML = `${step(d.step)} <span class="faint">${esc(d.detail || '')}</span>`;
@@ -172,53 +178,52 @@
     m.yes.onclick = async () => {
       m.yes.disabled = true; m.yes.textContent = 'Writing to Meta…'; m.err.hidden = true;
       const writes = [], fails = [];
-      for (const p of plans) { let r; try { r = await write({ ...p.body, expect: p.expect }); } catch (e) { r = { error: e.message }; } if (!r || r.error) fails.push(`${p.name || ''}: ${r && r.error || 'no answer'}`); else writes.push(r); }
+      for (const p of plans) { let r; try { r = await write(host, { ...p.body, expect: p.expect }); } catch (e) { r = { error: e.message }; } if (!r || r.error) fails.push(`${p.name || ''}: ${r && r.error || 'no answer'}`); else writes.push(r); }
       if (fails.length && !writes.length) { m.err.textContent = fails.join(' '); m.err.hidden = false; m.yes.disabled = false; m.yes.textContent = it.group ? 'Pause them' : 'Pause it'; return; }
-      m.close(); await setPref(it, 'done', Date.now() + 7 * DAY);
-      toast(`Paused${writes.length > 1 ? ` ${writes.length} ad sets` : ''}.${fails.length ? ` ${fails.length} failed: ${fails.join(' ')}` : ''}`, false, writes.some(w => w.write) ? () => undo(writes, it) : null);
-      dropCaches();
+      m.close(); if (opts.onDone) await opts.onDone(writes);
+      toast(`Paused${writes.length > 1 ? ` ${writes.length} ad sets` : ''}.${fails.length ? ` ${fails.length} failed: ${fails.join(' ')}` : ''}`, false, writes.some(w => w.write) ? () => undo(host, writes, it, opts.onUndo) : null);
     };
   }
-  async function scale(it) {
+  async function budget(host, it, opts = {}) {
+    const pct = opts.pct ?? 0.2, label = `+${Math.round(pct * 100)}%`;
     const m = modal(`Raise the budget on "${it.adset}"?`, `<p class="faint">Reading the live budget from Meta…</p>`, 'Raise it');
-    let live; try { live = await metaLive(it.act_id); } catch (e) { m.err.textContent = e.message; m.err.hidden = false; return; }
+    let live; try { live = await metaLive(host, it.act_id); } catch (e) { m.err.textContent = e.message; m.err.hidden = false; return; }
     const o = live && live.adsets && live.adsets[it.adset_id];
     if (!o) { m.err.textContent = 'Meta did not return this ad set; it may have been removed.'; m.err.hidden = false; return; }
     if (!o.daily && !o.lifetime) {
-      m.body.innerHTML = `<p>This ad set runs on its campaign's budget, so the 20% goes on the campaign. Raise it on Ads &gt; Meta &gt; Campaigns, where the campaign budget is editable.</p>`;
-      m.yes.disabled = false; m.yes.textContent = 'Open Campaigns'; m.yes.onclick = () => { m.close(); toggle(false); pickAct(it.act_id, 'campaigns'); }; return;
+      m.body.innerHTML = `<p>This ad set runs on its campaign's budget, so the ${label} goes on the campaign. Raise it on Ads &gt; Meta &gt; Campaigns, where the campaign budget is editable.</p>`;
+      m.yes.disabled = false; m.yes.textContent = 'Open Campaigns'; m.yes.onclick = () => { m.close(); if (opts.onCampaign) opts.onCampaign(); }; return;
     }
     const daily = !!o.daily, from = o.daily || o.lifetime, cur = it.currency, keyB = daily ? 'daily_budget' : 'lifetime_budget';
-    const to = Math.round(from * 1.2);
-    m.body.innerHTML = `<label class="lx-nudge-in"><span>New ${daily ? 'daily' : 'lifetime'} budget</span><span class="v2in"><i>${esc(sym(cur))}</i><input type="number" min="1" step="1" inputmode="decimal" value="${to}"></span></label><div data-ba><span class="lx-ba"><span>${money(from, cur)}${daily ? '/day' : ' total'}</span><i>→</i><b>${money(to, cur)}${daily ? '/day' : ' total'}</b> <em>+20%</em></span></div><p class="faint" data-note>Meta's rule of thumb is 20 to 50% a step, or it may restart learning.</p>`;
-    const inp = m.body.querySelector('input'), ba = m.body.querySelector('[data-ba]');
-    inp.oninput = () => { const v = +inp.value; const ok = v > 0 && Math.abs(v - from) >= 1; ba.innerHTML = ok ? `<span class="lx-ba"><span>${money(from, cur)}${daily ? '/day' : ' total'}</span><i>→</i><b>${money(v, cur)}${daily ? '/day' : ' total'}</b> <em>${v >= from ? '+' : ''}${Math.round((v - from) / from * 100)}%</em></span>` : '<span class="faint">Type the new amount.</span>'; m.yes.disabled = !ok; };
+    const to = opts.amount > 0 ? Math.round(opts.amount) : Math.round(from * (1 + pct));
+    const ba = (v, tag) => `<span class="lx-ba"><span>${money(from, cur)}${daily ? '/day' : ' total'}</span><i>→</i><b>${money(v, cur)}${daily ? '/day' : ' total'}</b> <em>${tag}</em></span>`;
+    m.body.innerHTML = `<label class="lx-nudge-in"><span>New ${daily ? 'daily' : 'lifetime'} budget</span><span class="v2in"><i>${esc(sym(cur))}</i><input type="number" min="1" step="1" inputmode="decimal" value="${to}"></span></label><div data-ba>${ba(to, `${to >= from ? '+' : ''}${Math.round((to - from) / from * 100)}%`)}</div><p class="faint" data-note>Meta's rule of thumb is 20 to 50% a step, or it may restart learning.</p>`;
+    const inp = m.body.querySelector('input'), bab = m.body.querySelector('[data-ba]');
+    inp.oninput = () => { const v = +inp.value; const ok = v > 0 && Math.abs(v - from) >= 1; bab.innerHTML = ok ? ba(v, `${v >= from ? '+' : ''}${Math.round((v - from) / from * 100)}%`) : '<span class="faint">Type the new amount.</span>'; m.yes.disabled = !ok; };
     m.yes.disabled = false;
     m.yes.onclick = async () => {
       const amount = +inp.value; if (!(amount > 0)) return;
       m.yes.disabled = true; m.yes.textContent = 'Checking…'; m.err.hidden = true;
-      const body = { act: it.act_id, kind: 'budget', level: 'adset', object: it.adset_id, amount, reason: `From the nudge: ${it.why}` };
-      let d; try { d = await write({ ...body, dry: true }); } catch (e) { d = { error: e.message }; }
+      const body = { act: it.act_id, kind: 'budget', level: 'adset', object: it.adset_id, amount, reason: `${opts.reason || 'From the nudge'}: ${it.why || ''}` };
+      let d; try { d = await write(host, { ...body, dry: true }); } catch (e) { d = { error: e.message }; }
       if (!d || d.error) { m.err.textContent = d && d.error || 'Meta did not answer.'; m.err.hidden = false; m.yes.disabled = false; m.yes.textContent = 'Raise it'; return; }
       m.yes.textContent = 'Writing to Meta…';
-      let r; try { r = await write({ ...body, expect: d.before && d.before[keyB] != null ? { [keyB]: d.before[keyB] } : undefined }); } catch (e) { r = { error: e.message }; }
+      let r; try { r = await write(host, { ...body, expect: d.before && d.before[keyB] != null ? { [keyB]: d.before[keyB] } : undefined }); } catch (e) { r = { error: e.message }; }
       if (!r || r.error) { m.err.textContent = r && r.error || 'Meta did not answer.'; m.err.hidden = false; m.yes.disabled = false; m.yes.textContent = 'Raise it'; return; }
-      m.close(); await setPref(it, 'done', Date.now() + 7 * DAY);
-      toast(String(r.summary || 'Budget raised.').replace(/^[^:]+:\s*/, ''), false, r.write ? () => undo([r], it) : null);
-      dropCaches();
+      m.close(); if (opts.onDone) await opts.onDone([r]);
+      toast(String(r.summary || 'Budget raised.').replace(/^[^:]+:\s*/, ''), false, r.write ? () => undo(host, [r], it, opts.onUndo) : null);
     };
   }
-  async function undo(writes, it) {
+  async function undo(host, writes, it, onUndo) {
     toast('Undoing…', false, null, 1500);
     const fails = [];
-    for (const w of writes.filter(w => w.write)) { let r; try { r = await H.apiAH('/api/meta/undo', { method: 'POST', body: JSON.stringify({ act: it.act_id, write: w.write }) }); } catch (e) { r = { error: e.message }; } if (!r || r.error) fails.push(r && r.error || 'no answer'); }
-    if (!fails.length) await setPref(it, null);
+    for (const w of writes.filter(w => w.write)) { let r; try { r = await host.apiAH('/api/meta/undo', { method: 'POST', body: JSON.stringify({ act: it.act_id, write: w.write }) }); } catch (e) { r = { error: e.message }; } if (!r || r.error) fails.push(r && r.error || 'no answer'); }
+    if (!fails.length && onUndo) await onUndo();
     toast(fails.length ? `Could not undo: ${fails.join(' ')}` : 'Undone. Meta has the old value back.', fails.length > 0);
-    dropCaches();
   }
-  async function metaLive(actId) {
+  async function metaLive(host, actId) {
     if (ST.live && ST.liveAct === actId && Date.now() - ST.liveAt < 5 * 60e3) return ST.live;
-    const r = await H.apiAH(`/api/meta/live?act=${encodeURIComponent(actId)}`); if (r && r.error) throw new Error(r.error);
+    const r = await host.apiAH(`/api/meta/live?act=${encodeURIComponent(actId)}`); if (r && r.error) throw new Error(r.error);
     ST.live = r; ST.liveAct = actId; ST.liveAt = Date.now(); return r;
   }
   const dropCaches = () => { ST.at = 0; };
@@ -229,6 +234,7 @@
     if (undoFn) t.querySelector('button').onclick = () => { t.remove(); undoFn(); };
     document.body.appendChild(t); setTimeout(() => t.remove(), ms || (undoFn ? 12000 : bad ? 6000 : 3000));
   }
+  window.LxMetaWrite = { pause, budget, undo, toast, metaLive };
 
   /* ---------- refresh: on every show(), for the brand on screen ---------- */
   async function refresh(host2) {

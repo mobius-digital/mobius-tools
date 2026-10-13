@@ -1408,6 +1408,35 @@ export async function handleAsanaHook(request, env, ctx) {
 }
 
 /* ---------------- routes (admin) ---------------- */
+/* A call made in Locus (Ads > Today's calls, 2026-10-13) goes to the Asana task too, else the hourly sync (asana_result =
+   what Asana says) would bring the test back within the hour. Winner / Loser set Result and Learning and complete the task
+   (the buyer's old "set Result and move to Completed"); Keep running sets Result, "Keep running because" and "Check again".
+   One story says who called it. p_br_batch gets the same fields the sync would write. */
+async function setResult(env, act, b) {
+  const result = ['winner', 'keep', 'loser'].includes(b.result) ? b.result : null;
+  if (!result) throw Object.assign(new Error('result must be winner, keep or loser'), { status: 400 });
+  const r = await env.DB.prepare(`SELECT id, num, asana_gid FROM p_br_batch WHERE id = ?1 AND act_id = ?2`).bind(String(b.id || ''), act).first();
+  if (!r) throw Object.assign(new Error('unknown test'), { status: 404 });
+  if (!r.asana_gid) return { asana: false, why: 'This test has no Asana task.' };
+  const fields = (await getSetting(env, 'brandAsanaFields')) || {};
+  const learning = clip(b.learning, 300);
+  const check = /^\d{4}-\d{2}-\d{2}$/.test(b.check_again || '') ? b.check_again : addDays(today(), 7);
+  const KR = Object.fromEntries(KEEP_OPTS.map(([k, l]) => [k, l]));
+  const reason = result === 'keep' ? (KR[b.keep_reason] ? b.keep_reason : 'other') : null;
+  const cf = {};
+  if (fields.result_opts?.[result]) cf[fields.result] = fields.result_opts[result];
+  if (learning && fields.learning) cf[fields.learning] = learning;
+  if (result === 'keep') { if (fields.keep_reason_opts?.[reason]) cf[fields.keep_reason] = fields.keep_reason_opts[reason]; if (fields.check_again) cf[fields.check_again] = { date: check }; }
+  const body = { ...(Object.keys(cf).length ? { custom_fields: cf } : {}), ...(result === 'keep' ? {} : { completed: true }) };
+  await asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body });
+  const L = { winner: 'Winner', keep: 'Keep running', loser: 'Loser' };
+  const who = clip(b.who, 120) || 'the team';
+  const html = `<body><strong>Test ${parseInt(r.num, 10) || r.num}: ${L[result]}</strong>, called from Locus by ${esc(who)}.${learning ? `\n<strong>Learning:</strong> ${esc(learning)}` : ''}${result === 'keep' ? `\n<strong>Why keep it:</strong> ${esc(KR[reason])}. Locus checks again on ${check}.` : ''}</body>`;
+  await asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { html_text: html } }).catch(() => {});
+  await env.DB.prepare(`UPDATE p_br_batch SET asana_result = ?2, check_again = ?3, keep_reason = ?4, result_posted = COALESCE(result_posted, ?2), updated_at = datetime('now') WHERE id = ?1`)
+    .bind(r.id, result, result === 'keep' ? check : null, result === 'keep' ? KR[reason] : null).run();
+  return { asana: true, completed: result !== 'keep', check_again: result === 'keep' ? check : null };
+}
 export async function handleBrandAsana(request, env, path, json, isAdmin) {
   if (!path.startsWith('/api/brand-asana')) return null;
   if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -1450,6 +1479,8 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
     if (path === '/api/brand-asana/refresh-angles') return json({ ok: true, updated: await refreshAngleNames(env, b.act) });
     if (path === '/api/brand-asana/tidy-angles') return json({ ok: true, ...(await tidyAngles(env, b.act)) });
     if (path === '/api/brand-asana/pause') { await putDoc(env, b.act, 'asana', { ...doc, paused: !!b.paused }); return json({ ok: true }); }
+    /* Today's calls (profit/desk.js, 2026-10-13): the buyer's Winner / Keep running / Loser, written to the Asana task. */
+    if (path === '/api/brand-asana/result') return json({ ok: true, ...(await setResult(env, b.act, b)) });
     return json({ error: 'not found' }, 404);
   } catch (e) {
     return json({ error: e.message }, e.status && e.status < 600 ? e.status : 500);

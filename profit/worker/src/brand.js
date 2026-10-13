@@ -304,12 +304,12 @@ async function overview(env) {
 /* The Tests tab with no brand picked: per brand, how many tests sit in each box.
    Same boxOf as a single brand, so the counts always match what the brand shows. */
 async function testsOverview(env) {
-  const accts = (await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas FROM brand_accounts a
+  const accts = (await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas, a.meta_act FROM brand_accounts a
     WHERE a.active = 1 AND EXISTS (SELECT 1 FROM p_br_batch b WHERE b.act_id = a.act_id) ORDER BY a.name`).all()).results || [];
   const brands = await Promise.all(accts.map(async acct => {
     const A = acct.act_id;
     const [batches, doc, ads] = await Promise.all([
-      env.DB.prepare(`SELECT id, num, stage, verdict, asana_result, created_at FROM p_br_batch WHERE act_id = ?1`).bind(A).all().then(r => r.results || []),
+      env.DB.prepare(`SELECT id, num, title, stage, verdict, asana_result, asana_url, created_at FROM p_br_batch WHERE act_id = ?1`).bind(A).all().then(r => r.results || []),
       env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'rules'`).bind(A).first().catch(() => null),
       adUniverse(env, A),
     ]);
@@ -319,11 +319,18 @@ async function testsOverview(env) {
     const stats = {};
     for (const a of ads) {
       const bid = (a.tag && byId[a.tag]) ? a.tag : (a.num ? byNum[a.num] : null);
-      if (bid) addAd(stats[bid] ||= blank(), a);
+      if (bid) { addAd(stats[bid] ||= blank(), a); (stats[bid].list ||= []).push(a.ad_id); }
     }
-    const n = { call: 0, running: 0, making: 0, done: 0 };
-    for (const b of batches) { const st = finish(stats[b.id] || blank()); n[boxOf(b, st, suggest(st, rules), rules)]++; }
-    return { act_id: A, name: acct.name, total: batches.length, ...n };
+    const n = { call: 0, running: 0, making: 0, done: 0 }, calls = [];
+    for (const b of batches) {
+      const st = finish(stats[b.id] || blank()), sug = suggest(st, rules), box = boxOf(b, st, sug, rules);
+      n[box]++;
+      /* Today's calls (profit/desk.js, 2026-10-13): one row per test that needs a call, with the numbers the buyer judges on. */
+      if (box === 'call') calls.push({ id: b.id, num: parseInt(b.num, 10) || b.num, title: b.title, asana_url: b.asana_url || null, suggest: sug, spend: st.spend, orders: st.orders, cpa: st.cpa, roas: st.roas,
+        goal: rules.target_cpa || null, ads: st.ads, first: st.first,
+        ads_manager: st.list?.length && acct.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${acct.meta_act.replace(/^act_/, '')}&selected_ad_ids=${st.list.slice(0, 30).join(',')}` : null });
+    }
+    return { act_id: A, name: acct.name, total: batches.length, ...n, calls: calls.sort((p, q) => (q.spend || 0) - (p.spend || 0)) };
   }));
   return { brands };
 }
@@ -518,11 +525,20 @@ export async function handleStaff(request, env, url, path, json) {
     }
     if (path === '/api/brand/verdict' && request.method === 'POST') {
       const v = body.verdict || null;
+      const reply = () => body.light ? json({ ok: true }) : back();
+      /* Keep running (Today's calls, 2026-10-13): parked with a reason and a check-again date, no verdict. The Asana task
+         gets the same through account-health /api/brand-asana/result, so the hourly Asana sync does not undo it. */
+      if (v === 'keep') {
+        const ca = /^\d{4}-\d{2}-\d{2}$/.test(body.check_again || '') ? body.check_again : addDays(today(), 7);
+        await env.DB.prepare(`UPDATE p_br_batch SET asana_result = 'keep', keep_reason = ?3, check_again = ?4, verdict_note = COALESCE(?5, verdict_note), updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`)
+          .bind(body.id, A, clip(body.keep_reason, 200) || null, ca, clip(body.note, 1000) || null).run();
+        return reply();
+      }
       if (v && !VERDICTS.has(v)) return json({ error: 'bad verdict' }, 400);
       await env.DB.prepare(`UPDATE p_br_batch SET verdict = ?3, verdict_note = ?4, verdict_by = ?5, verdict_at = CASE WHEN ?3 IS NULL THEN NULL ELSE datetime('now') END,
           learning = COALESCE(?6, learning), stage = CASE WHEN ?3 IS NULL THEN stage ELSE 'done' END, updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`)
         .bind(body.id, A, v, clip(body.note, 1000), clip(body.who, 120) || 'staff', clip(body.learning, 3000)).run();
-      return back();
+      return reply();
     }
     if (path === '/api/brand/tag' && request.method === 'POST') {
       const ids = (body.ad_ids || [body.ad_id]).filter(Boolean).slice(0, 100);

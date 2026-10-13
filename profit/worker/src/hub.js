@@ -316,7 +316,7 @@ async function buyerList(env, ctx, accts) {
     const lo = W.map(w => w.pf).sort()[0], hi = W.map(w => w.t).sort().pop();
     const CTE = `WITH w0(brand, t) AS (VALUES ${vals}), w AS (SELECT brand, t, date(t, '-6 day') f, date(t, '-1 day') l2, date(t, '-13 day') pf, date(t, '-7 day') pt FROM w0)`;
     [adRows, attrRows] = await Promise.all([
-      env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget,
+      env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget, s.campaign_id,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.spend ELSE 0 END) spend,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.impressions ELSE 0 END) impr,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.link_clicks ELSE 0 END) clicks,
@@ -351,7 +351,7 @@ async function buyerList(env, ctx, accts) {
     for (const r of adRows.filter(r => r.act_id === a.act_id)) {
       if (!r.adset_id || !(num(r.spend) > 0)) continue;
       const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0 };
-      const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, meta_act: r.meta_act, spend: 0, s2: 0, orders: 0, revenue: 0, ads: [] };
+      const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, campaign: r.campaign_id || null, meta_act: r.meta_act, spend: 0, s2: 0, orders: 0, revenue: 0, ads: [] };
       s.spend += num(r.spend); s.s2 += num(r.s2); s.orders += at.ord; s.revenue += at.rev;
       s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, spend: num(r.spend), orders: at.ord, revenue: at.rev, impr: num(r.impr), clicks: num(r.clicks), p_impr: num(r.p_impr), p_clicks: num(r.p_clicks) });
     }
@@ -371,7 +371,7 @@ async function buyerList(env, ctx, accts) {
       const top = s.ads[0], share = top ? top.spend / s.spend : 0;
       const anchor = top && share >= R.cr_anchor_pct / 100 ? { ad_id: top.id, name: top.name, share } : null;
       const working = cpa != null && cpa <= 1.3 * goal;
-      const setRow = { ...base, meta_act: s.meta_act, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, goal, roas, n_ads: s.ads.length, anchor,
+      const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, goal, roas, n_ads: s.ads.length, anchor,
         set: { spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, status: s.status, budget: s.budget } };
       const sales = n => `${n} sale${n === 1 ? '' : 's'}`;
       if (s.orders >= R.cr_scale_buys && cpa <= goal) rows.push({ kind: 'scale', ...setRow, stake: 0.2 * s.spend,
