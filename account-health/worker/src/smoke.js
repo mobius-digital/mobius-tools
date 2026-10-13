@@ -58,7 +58,7 @@ export const SMOKE_ROUTES = [
   R('Home > Overview', 'overview', 'ah', '/api/command/work', 'all'),
   R('Top bar (today live)', 'overview', 'profit', '/api/hub/live?act={act}', 'brand', 'tw'),
   R('Home > Day check', 'yesterday', 'profit', '/api/hub/yesterday?act={act}', 'both'),
-  R('Home > Day check', 'yesterday', 'ah', '/api/daycheck/now?act={act}', 'both'),
+  R('Home > Day check', 'yesterday', 'ah', '/api/daycheck/now?act={act}', 'brand'),   /* per brand: the all-brands live read is 9 Triple Whale + Meta reads, ~25s cold (2026-10-12) */
   R('Home > P&L', 'profit', 'profit', '/api/client?act={act}&days=30', 'brand'),
   R('Home > P&L', 'profit', 'profit', '/api/hub/drill?act={act}&days=30', 'both'),
   R('Home > P&L', 'profit', 'profit', '/api/rhythm?act={act}', 'brand'),
@@ -332,7 +332,7 @@ export function slackText(s, dayLabel) {
   if (!n) return `Locus check, ${dayLabel}: all ${s.total} checks passed.`;
   const head = `*Locus check, ${dayLabel}: ${n} of ${s.total} ${s.total === 1 ? 'check' : 'checks'} failed*`;
   const e = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const lines = s.failed.slice(0, 25).map(f => `• ${e(f.brand)}, ${e(f.page)}: ${e(f.error)} <${f.link}|Open>`);
+  const lines = s.failed.slice(0, 25).map(f => `• ${e(f.brand)}, ${e(f.page)}: ${e(f.error)}${f.path ? ` (${e(f.path.split("?")[0])})` : ""} <${f.link}|Open>`);
   const more = n > 25 ? [`and ${n - 25} more: <${LOCUS}?open=pulse|Tools, Platform status>`] : [];
   const gap = s.not_checked ? [`${s.not_checked} checks did not fit in the subrequest budget and were not run.`] : [];
   return [head, ...lines, ...more, ...gap].join('\n');
