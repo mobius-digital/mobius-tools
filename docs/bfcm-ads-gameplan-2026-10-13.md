@@ -9,14 +9,21 @@ decisions made Oct 6 to 13.
 
 1. **No offer ad before the offer is locked.** Brands still waiting on a client answer only get
    offer-free ads (product, list signup, gift guide) until they answer.
-2. **Statics first.** Statics beat video on 6 of 7 brands (creative-templates, Oct 9). Build
-   statics in Studio; video comes from creators and Ravo.
-3. **One ad per numbered line** in a Studio batch (Mobius framework: Angle, Why, Concept, What
+2. **Statics first.** Statics beat video on 6 of 7 brands (creative-templates, Oct 9). Video comes
+   from creators and Ravo.
+3. **No AI-generated products (Cole, Oct 13, after GPT Image and ChatGPT both got Lucky's clubs
+   wrong: grip and shaft colors, the logo, proportions).** Real cutouts and real photography only.
+   In Studio that means "Use as the ad" on a real photo (the model only adds words) or a layout
+   built around real cutouts; never let the model draw the product. Lucky's look facts: Carver 02
+   gold head, gold shaft, white grip; Stryker black shaft with a gold band, black grip; putter gold
+   shaft, thick white grip; logo L + four-leaf clover + CKY. Lucky photos: Air library (Products >
+   By SKU). Lucky only (Cole, Oct 13): other brands may use Studio's AI product drawing with the
+   usual accuracy checks.
+4. **One ad per numbered line** in a Studio batch (Mobius framework: Angle, Why, Concept, What
    we're testing). Variations of one idea are not separate ads.
-4. **Dates work backwards from "live":** briefs 23 days before, ads built 9 days before,
+5. **Dates work backwards from "live":** briefs 23 days before, ads built 9 days before,
    loaded 4 days before. Asana due dates are the brief dates.
-5. Product accuracy: tick 5 or 6 clean studio shots per product, keep the fingerprint, check
-   the score on each card. Copy: the brand's skill (Lucky = lucky-golf-copy, never edited),
+6. Copy: the brand's skill (Lucky = lucky-golf-copy, never edited),
    no em dashes, never name competitors.
 
 ## The waves
@@ -24,7 +31,7 @@ decisions made Oct 6 to 13.
 ### Wave 0: live now (build today)
 | Brand | Batch | Ads | Live | State |
 |---|---|---|---|---|
-| Lucky | Foursome giveaway (name TBD) | 15 | Wed Oct 14 | Offer locked. Briefs were due Oct 7. Shots 1 to 4 were due Oct 12. Keep black putters covered until Nov 9. |
+| Lucky | Fit Your Foursome giveaway | 15 | Wed Oct 14 | Locked Oct 13. READ C:/Users/wetzl/Lucky Golf/Website/v9/giveaway/CREATIVE-BRIEF.md. Winner + 3 buddies each get 3 Carver 02 Gold, a gold Eclipse (mallet or blade), the Stryker, 2 Classic Polos, 2 hats (~$3,700). Entries to Nov 16, draw Nov 17. Code FOURSOME = free hat with any club. Four starter ads (real pixels) in Website/v9/giveaway/ads/out; hero shot not shot yet. Black Eclipse out of frame until Nov 9. |
 | Dartee | October giveaway | 8 | Fri Oct 9 (should already run) | Check it is live. Justin sent finished ads + raw giveaway photos/video in #dartee Oct 12 (Drive). Headline question: Slack says "every belt to you and your favorite playing partner, $4,500 value", Locus says "foursome". |
 
 ### Wave 1: live Nov 1 to 6 (briefs were due Oct 9 to 14: build this week)
@@ -78,7 +85,7 @@ batches are built.
 | 4 (weekend + Cyber Monday) | 180 | 85 (Lucky, Dartee, Grunk + both Cyber Monday) |
 
 ## The build order
-1. **Lucky giveaway, 15** (live tomorrow).
+1. **Lucky Fit Your Foursome, 15** (live Oct 14): start from the four starter ads and the creative brief; real product pixels only.
 2. **Dartee giveaway, 8**: confirm it runs; add statics from Justin's Drive assets.
 3. **Dartee Early Bird, 15** and **Grunk lead list, 15** and **Lucky Early Bird, 3** (Nov 1).
 4. **Lucky Eclipse Black reveal, 10** (Nov 9; briefs due Oct 17).
@@ -101,3 +108,64 @@ Open the brand, read its Season page in Locus and its Asana batch task, then in 
 New batch from the Asana brief (or paste the brief) > product + swipe file > plan > Make >
 review (Approve / Change with AI / Redo) > Send to Canva or Launch to Meta. One batch per Asana
 task, named with the task's batch number.
+
+## Build calendar (every batch, every brand)
+
+"Done by" is two weeks before the batch goes live (a week ahead of the 9-day rule), except the Black Friday batches
+for the three locked brands, pulled to Nov 6 so the week of Nov 9 is not 180 ads. Each row is also an action item in
+Locus (Work > Action items, owner Cole), so the morning reminder lands in the brand's internal channel when it is due.
+
+| Done by | Start | Brand | Batch | Ads | Live | Note |
+|---|---|---|---|---|---|---|
+| Oct 13 | Oct 13 | Lucky | Fit Your Foursome giveaway | 15 | Oct 14 |  |
+| Oct 14 | Oct 13 | Dartee | October giveaway (check it is live) | 8 | Oct 9 |  |
+| Oct 18 | Oct 13 | Bonk | Early Black Friday | 15 | Nov 1 | waiting on Floyd |
+| Oct 18 | Oct 13 | Dartee | Early Bird (second belt 50% off) | 15 | Nov 1 |  |
+| Oct 18 | Oct 13 | Grunk | Lead list | 15 | Nov 1 |  |
+| Oct 18 | Oct 13 | Lucky | Early Bird (towel any club, divot at 2+) | 3 | Nov 1 |  |
+| Oct 18 | Oct 13 | Party Patch | Early Black Friday | 15 | Nov 1 | waiting on an offer |
+| Oct 19 | Oct 13 | Ice & Gold | Gift list + early access signup | 15 | Nov 2 | waiting on Fela |
+| Oct 23 | Oct 16 | Yak | Early Black Friday | 15 | Nov 6 | waiting on Rob |
+| Oct 26 | Oct 19 | Lucky | Eclipse Black reveal (join the list) | 10 | Nov 9 |  |
+| Nov 3 | Oct 27 | Dartee | Early access list build | 3 | Nov 17 |  |
+| Nov 6 | Oct 26 | Dartee | Black Friday (free Raincheck + up to 50% off) | 25 | Nov 26 |  |
+| Nov 6 | Oct 26 | Dartee | Cyber Monday + Lizard drop | 5 | Nov 30 |  |
+| Nov 6 | Oct 26 | Grunk | 24-hour deal (polos 3 for $99, hats $89) | 5 | Nov 26 |  |
+| Nov 6 | Oct 26 | Grunk | Black Friday (sitewide BOGO) | 25 | Nov 27 |  |
+| Nov 6 | Oct 26 | Grunk | Cyber Monday (polo flash sale) | 5 | Nov 30 |  |
+| Nov 6 | Oct 26 | Lucky | Black Friday to Cyber Monday | 25 | Nov 26 |  |
+| Nov 10 | Nov 3 | Dartee | Early access, 48 hours | 3 | Nov 24 |  |
+| Nov 10 | Nov 3 | Lucky | Early access, 48 hours | 3 | Nov 24 |  |
+| Nov 12 | Nov 5 | Ice & Gold | Early access | 3 | Nov 26 | waiting on Fela |
+| Nov 13 | Nov 6 | Bonk | Black Friday | 25 | Nov 27 | waiting on Floyd |
+| Nov 13 | Nov 6 | Ice & Gold | Black Friday | 25 | Nov 27 | waiting on Fela |
+| Nov 13 | Nov 6 | Party Patch | Black Friday | 25 | Nov 27 | waiting on an offer |
+| Nov 13 | Nov 6 | Yak | Black Friday | 20 | Nov 27 | waiting on Rob |
+| Nov 20 | Nov 13 | Bonk | December | 20 | Dec 4 | waiting on Floyd |
+| Nov 20 | Nov 13 | Grunk | December drops | 10 | Dec 4 | drops TBD |
+| Nov 20 | Nov 13 | Ice & Gold | Holiday sets + order by Christmas | 20 | Dec 4 | waiting on Fela |
+| Nov 20 | Nov 13 | Lucky | Apparel drop + order by Christmas | 10 | Dec 4 |  |
+| Nov 20 | Nov 13 | Party Patch | December | 20 | Dec 4 | waiting on an offer |
+| Nov 21 | Nov 14 | Dartee | Gifting + shipping cutoffs | 10 | Dec 5 | dates TBD |
+| Nov 23 | Nov 16 | Yak | Order by Christmas | 10 | Dec 7 | waiting on Rob |
+| Dec 3 | Nov 26 | Ice & Gold | Gift cards | 5 | Dec 17 | waiting on Fela |
+| Dec 3 | Nov 26 | Lucky | Gift cards | 5 | Dec 17 | structure TBD |
+| Dec 7 | Nov 30 | Dartee | Gift cards (matched) | 3 | Dec 21 |  |
+| Dec 12 | Dec 5 | Dartee | Dec 26 to New Year (mechanic TBD) | 10 | Dec 26 | mechanic TBD |
+| Dec 12 | Dec 5 | Lucky | Run-back to non-buyers | 10 | Dec 26 |  |
+| Dec 15 | Dec 8 | Yak | 2027 line tease | 5 | Dec 29 | waiting on Rob |
+| Dec 23 | Dec 16 | Lucky | Havoc driver launch | 5 | Jan 6 |  |
+| Dec 31 | Dec 24 | Ice & Gold | Valentine's | 10 | Jan 14 | waiting on Fela |
+
+### By week
+
+| Week | Ready to build | Waiting on a client |
+|---|---|---|
+| Oct 13 to 18 | 56 (both giveaways, Dartee Early Bird, Grunk lead list, Lucky Early Bird) | 30 (Bonk, Party Patch early) |
+| Oct 19 to 25 | 10 (Lucky Eclipse Black reveal) | 30 (Ice & Gold, Yak early) |
+| Oct 26 to Nov 6 | 93 (Lucky, Dartee, Grunk Black Friday + Grunk 24-hour + both Cyber Mondays + Dartee list build) | none |
+| Nov 9 to 13 | 6 (Lucky + Dartee early access) | 98 (Bonk, Party Patch, Ice & Gold, Yak Black Friday + I&G early access) |
+| Nov 16 to 21 | 30 (Lucky Christmas, Grunk drops, Dartee gifting) | 70 (Bonk, Party Patch, I&G, Yak December) |
+| Dec 1 to Dec 31 | gift cards, run-backs, Havoc, Valentine's (about 53) | |
+
+Desk dry run Nov 14 to 15. Everything waiting on a client moves into the first open week the day they answer.
