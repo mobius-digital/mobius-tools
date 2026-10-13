@@ -2878,6 +2878,8 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
 
 ## 2026-10-13: Meeting notes, the Monday call page, How we work (the cadence reset of 2026-10-12)
 
+(SUPERSEDED the same day by "WORK IN LOCUS, stage 1" at the end of this file: Meeting notes + Monday call are ONE page, Work > Calls; team items go to Work > Action items, not Asana; How we work lives in How to use Locus. The notes below are the first shape.)
+
 Cole reset the team's week (docs/operating-cadence-2026-10-12.md): 8am Monday call, every Locus send at 6am Central,
 the Monday review off, one agency channel for the daily drafts, the short client daily. Three team-only pages followed:
 - **Reports > Meeting notes** (`profit/meetings.js` `render`, page id `meetings`, in `AGENCY_TABS` so a client never
@@ -2933,3 +2935,32 @@ the Monday review off, one agency channel for the daily drafts, the short client
   as `setup.from_ad.image` with `fresh: true`, and `specOf` sends it as `inspo` with `ref_use: 'own'`. The worker's
   `adPrompt` reads 'own' as "our own earlier ad: keep the product exactly, new scene, colours, camera, layout and type".
   The iterate step says which tests keep the picture (`ITER_TESTS[3]`, `keepsPic`). Batches made before keep their photos.
+
+## 2026-10-13: WORK IN LOCUS, stage 1. The Work rail item (Calls, Action items); action items live in Locus, not Asana.
+
+Cole's decisions and the design: `docs/handoffs/work-in-locus.md`. Stage 1 is LIVE; stage 2 (briefs and the production
+board in Locus, a one-way Locus -> Asana mirror, then cut Asana) is next, after a week of use.
+- **Rail item Work** (`NAV.work`, button `#railWork` after Calendar, icon `#i-circle-check`): pages `calls` and `actions`,
+  both in `AGENCY_TABS` (team only; the rail group hides itself for a client through `applyClientMode`). The old page
+  ids `monday` and `meetings` route to `calls` in `show()` and stay in SHOWABLE / the `?open=` list, so every Slack button
+  and bookmark still opens. Reports is Daily Brief, Weekly and monthly, Dashboards again. TAB_TITLE / TAB_CRUMB /
+  TAB_WHO / PAGE_BRIEF / ASK_SUGGEST / the start tour have `calls` and `actions` rows.
+- **Work > Calls** (`profit/meetings.js`, `window.MeetingsTab.render`; `renderMonday` is the same page with the agenda forced
+  on): the Monday agenda on top on Mondays and from Friday (next Monday's prep; "Show it now" any other day, "Hide" to
+  fold it; `AGENDA` null = by the day, from `GET /api/meetings` `today`), then the calls list and the confirm screen as
+  before. Agenda step 1 ticks `POST /api/meetings/done {id}` (a p_action row); step 4 "Add to the list" is
+  `POST /api/actions {source: 'monday'}` and the item appears in step 1 at once. The "Open action items" card is gone
+  (it is the Action items page). Confirm's result lists each team item as "on the list" with its Locus link.
+- **Work > Action items** (`profit/actions.js`, `window.ActionsTab.render`): add box (text, brand when All clients, owner by
+  first name, due), owner chips, open items grouped per brand (agency-wide first) with tick / due pill (overdue red,
+  today amber) / kind / where it came from ("From the <title> call, <date>" opens that call on Calls; Today's calls; the
+  Monday call; the Strategist; by hand) / Edit (in-app modal: text, owner, due, kind, brand, Drop), and "Done in the
+  last 60 days" folded (tick again = back on the list). `?open=actions&act=<brand>&item=<id>` (`window.ACT_OPEN`) rings
+  and scrolls to one item; a done item opens the done fold. Data: account-health `/api/actions` (see its CLAUDE.md).
+- **Ads > Today's "Something else"** (desk.js `somethingElse`) now posts `POST /api/actions {source: 'today', source_id: row key}`
+  and the toast opens the list. No Asana task is made anywhere by these pages any more.
+- **How we work** (`profit/sop.js`, `SopPage.html()`) is a section of How to use Locus (`renderGuide`, `#gdSop`), after the
+  roles and before the tours. The `sop` section is gone from SET_SECS / SET_GROUPS; a saved `pf_set_sec` of 'sop' falls back
+  to Clients. Its wording now says action items live in Locus and briefs are still typed in Asana until stage 2.
+- Script versions: meetings.js?v=3, actions.js?v=1, sop.js?v=2, desk.js?v=20. NOT tested in a browser (no sign-in here):
+  the Calls page with the agenda, the Action items page, the Today modal; worker tests cover the data and the routes.

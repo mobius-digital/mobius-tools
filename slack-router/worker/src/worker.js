@@ -65,7 +65,7 @@ const LOCUS_ID = /^(brief|report)_|^noop_open$/;
 
 /* The ideas bot's buttons (account-health ideas.js). Checked FIRST and by action id only, so
    no value shape of Ledger's can ever be mistaken for one, and none of these can reach Ledger. */
-const IDEA_ID = /^(idea_|nc_)/;   // nc_ = Locus's New client buttons (2026-10-03)
+const IDEA_ID = /^(idea_|nc_|act_done)/;   // nc_ = Locus's New client buttons (2026-10-03); act_done = an action item's Done button (2026-10-13)
 
 function ownerOf(payload) {
   const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
@@ -157,7 +157,8 @@ export default {
       if (body?.type === 'url_verification') return Response.json({ challenge: body.challenge });
       const ev = body?.event || {};
       const dm = ev.channel_type === 'im';
-      const who = dm || await locusOwns(env, ev.channel) ? 'locus' : 'ledger';
+      /* A reaction names its channel under item (reaction_added); Locus reads a ✅ on its action item reminders (2026-10-13). */
+      const who = dm || await locusOwns(env, ev.channel || ev.item?.channel) ? 'locus' : 'ledger';
       const [bindingName, target] = EVENT_TARGETS[who];
       const binding = env[bindingName];
       if (!binding) return new Response('', { status: 200 });

@@ -173,7 +173,7 @@ await check('the agency edition stays the agency\'s: every agency-only route is 
   const open = [];
   for (const [w, m, p, b] of [
     ['ah', 'GET', '/api/settings'], ['ah', 'GET', '/api/team'], ['ah', 'GET', '/api/clients'], ['ah', 'GET', '/api/schedule-health'], ['ah', 'GET', '/api/command/work'],
-    ['ah', 'GET', '/api/agency/economics'], ['ah', 'GET', '/api/agency/workload'], ['ah', 'GET', '/api/ask/settings'], ['ah', 'GET', '/api/ask/memory'], ['ah', 'GET', '/api/ask/skills'],
+    ['ah', 'GET', '/api/agency/economics'], ['ah', 'GET', '/api/agency/workload'], ['ah', 'GET', '/api/actions?act=brand_alpha'], ['ah', 'POST', '/api/actions', { act: 'brand_alpha', text: 'x' }], ['ah', 'GET', '/api/meetings'], ['ah', 'GET', '/api/ask/settings'], ['ah', 'GET', '/api/ask/memory'], ['ah', 'GET', '/api/ask/skills'],
     ['ah', 'GET', '/api/ask/usage'], ['ah', 'GET', '/api/ask/findings'], ['ah', 'GET', '/api/ask/schedules'], ['ah', 'GET', '/api/ask/review'], ['ah', 'GET', '/api/ask/reports'], ['ah', 'GET', '/api/alerts'],
     ['ah', 'GET', '/api/new-client/options'], ['pf', 'GET', '/api/brief-note?act=brand_alpha'], ['ah', 'GET', '/api/calendar/client-preview'], ['ah', 'GET', '/api/smoke'], ['ah', 'GET', '/api/meta-access'],
     ['ah', 'GET', '/api/google/ads-accounts'], ['ah', 'GET', '/api/tiktok/status'], ['ah', 'GET', '/api/atria/status'], ['ah', 'GET', '/api/frame/status'], ['pf', 'GET', '/api/slack-channels'],

@@ -210,7 +210,7 @@
    *                  20% (the modal shows the number first), Cut = pause the ad set, Trim = pause the one ad.
    *   Open in Locus  the ad set opened on Ads > Meta > Campaigns (window.V2PENDING {campaign, adset}) or the ad's
    *                  preview on Ads > Meta > Ads ({ad}); Fix rows open the Meta overview.
-   *   Something else an in-app modal (one line, owner, due date) -> account-health POST /api/meetings/add, an Asana task
+   *   Something else an in-app modal (one line, owner, due date) -> account-health POST /api/actions, a Locus action item (Work > Action items)
    *                  in the brand project's "Action items" section; the toast carries the link.
    *   Done / Not now unchanged: a manual Change Log line (the Daily Brief's "What we did") / hidden until tomorrow.
    *   Call rows      ONE ROW PER TEST that needs a call (/api/brand/tests-overview `calls`): Winner / Keep running /
@@ -304,7 +304,7 @@
       return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>
         <div><div class="nm">${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
         <div class="why">${esc(r.why || '')}${anchor}</div>
-        <div class="dk-acts">${primary}${am && r.kind !== 'fix' ? `<a class="v2btn ghost" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-locus="${k}"`, 'Open in Locus', ' title="See it on Ads > Meta with the numbers around it."')}${gb(`data-else="${k}"`, 'Something else', ' title="Give it to someone as an Asana task instead."')}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; };
+        <div class="dk-acts">${primary}${am && r.kind !== 'fix' ? `<a class="v2btn ghost" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-locus="${k}"`, 'Open in Locus', ' title="See it on Ads > Meta with the numbers around it."')}${gb(`data-else="${k}"`, 'Something else', ' title="Give it to someone as an action item instead."')}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
       return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b></span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
@@ -312,7 +312,7 @@
     $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${counts}
       ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
       ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day</button></p>` : ''}
-      ${U().foot(`${esc(d.rules_note || '')} Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else makes an Asana task. Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
+      ${U().foot(`${esc(d.rules_note || '')} Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Action items (Slack reminds the owner when it is due). Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
     const root = $('#main');
     const find = k => rows.find(x => x.key === k);
     const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
@@ -351,18 +351,18 @@
     if (r.adset_id) { window.V2PENDING = { ...(r.campaign_id ? { campaign: r.campaign_id } : {}), adset: r.adset_id }; return pickAct(r.act_id, 'campaigns'); }
     pickAct(r.act_id, 'meta');
   }
-  /* Something else: one line, an owner, a due date -> an Asana task in the brand's "Action items" (account-health meetings.js). */
+  /* Something else: one line, an owner, a due date -> a Locus action item (account-health actions.js, Work > Action items). */
   function somethingElse(r) {
     const what = r.ad ? `the ad "${r.ad}" in "${r.adset}"` : r.adset ? `ad set "${r.adset}"` : r.brand;
-    formModal(`Something else for ${r.brand}`, `About ${esc(what)}. This makes an Asana task in the brand's Action items.`,
+    formModal(`Something else for ${r.brand}`, `About ${esc(what)}. This puts an action item on the list; Slack reminds the owner the morning it is due.`,
       `<label>What needs doing<input type="text" name="text" required maxlength="300" placeholder="e.g. Rebuild it with the new hook and a fresh audience"></label>
-       <label>Who does it<select name="owner">${OWNERS.map(o => `<option value="${o}">${o}</option>`).join('')}<option value="">Nobody yet</option></select><small>Assigned in Asana by first name.</small></label>
-       <label>Due<input type="date" name="due" value="${plusDays(2)}"></label>`, 'Add to Asana', async form => {
+       <label>Who does it<select name="owner">${OWNERS.map(o => `<option value="${o}">${o}</option>`).join('')}<option value="">Nobody yet</option></select><small>By first name. Slack reminds them when it is due.</small></label>
+       <label>Due<input type="date" name="due" value="${plusDays(2)}"></label>`, 'Add to the list', async form => {
         const f = new FormData(form);
         const text = String(f.get('text') || '').trim(), owner = String(f.get('owner') || ''), due = String(f.get('due') || '');
-        const j = await H.apiAH('/api/meetings/add', { method: 'POST', body: JSON.stringify({ act: r.act_id, text: `${text} (${what}, from Today's calls: ${String(r.why || r.kind).slice(0, 120)})`, owner: owner || null, due: due || null }) });
-        if (!j || j.error) throw new Error(j && j.error || 'Asana did not answer.');
-        dtoast(`Added to Asana${owner ? ` for ${owner}` : ''}.`, false, j.url ? { href: j.url, label: 'Open the task' } : null);
+        const j = await H.apiAH('/api/actions', { method: 'POST', body: JSON.stringify({ act: r.act_id, text: `${text} (${what}, from Today's calls: ${String(r.why || r.kind).slice(0, 120)})`, owner: owner || null, due: due || null, kind: 'team', source: 'today', source_id: r.key }) });
+        if (!j || j.error) throw new Error(j && j.error || 'Locus did not answer.');
+        dtoast(`On the list${owner ? ` for ${owner}` : ''}.`, false, j.item && j.item.url ? { href: j.item.url, label: 'Open the list' } : null);
       });
   }
   /* Winner / Loser close the test with a one-line learning; Keep running parks it with a reason and a date. Both go to
