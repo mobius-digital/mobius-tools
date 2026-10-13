@@ -1790,3 +1790,16 @@ and the ✅ reaction, the routes' team-only gate). test-clients.mjs asserts a cl
   optional Asana mirror. Stage 2 (briefs, the production board, `p_work`) is a separate build after a week of use.
 - NOT tested live: the first morning tick (reminder lines in real channels), a real Done tap and ✅ through the router, the DM
   path, the slack-router deploy. The first Monday is the test; `lastHourly.actions` says what the tick did.
+
+## 2026-10-13 (second pass): Brief items from a call go to Asana
+
+- `p_action.kind` adds `brief`; `asana_url` column added by a guarded ALTER in `ensureActions`. The extraction SCHEMA and
+  prompt offer `brief` ("new ads someone agreed to make"; owner = the strategist who writes it).
+- `confirm` (meetings.js): each Brief item -> `makeBrief`: the next number (`nextNumber`, ideas.js) as a task
+  `<num> - <text>` in the brand's Creative Brief section, html = asana-brand.js `briefFor(text)` (now exported) with a first
+  line "From the "<call>" call on <date>: <text>. Confirmed by <who> in Locus.", assignee by roster email then first name,
+  due_on = the due date. Then a p_action row (kind brief, text `<num> - <text>`, asana_gid, asana_url) so it sits on the list
+  and gets the Slack reminder (the reminder line links "Asana"). No Asana project or no Creative Brief section = a warning and
+  the row only; an agency-wide brief = the row only. The Slack note gains a "*Briefs*" block with the Asana links; result
+  `brands[].briefs`. Links in the note and the ready line now open `?open=actions&meeting=`.
+- NOT tested: makeBrief against the real Asana API (tests mock nothing there yet); the first approved Brief item is the test.

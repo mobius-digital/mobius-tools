@@ -6,6 +6,9 @@
 > "Something else" -> /api/actions, How we work inside How to use Locus. Tests: test-actions.mjs (6), test-clients (24), smoke
 > (113), today (3). Not built: auto-done signals, the Asana mirror. Open for Cole: subscribe the Slack app to `reaction_added`
 > (+ `reactions:read`) so a ✅ works; stage 2 after a week. Details in both CLAUDE.md files under 2026-10-13.
+> **Second pass (same day, Cole: "Work" meant nothing, the confirm screen was clunky):** one rail item **Action items** (calls to
+> approve on top as skim-and-approve cards with an "Approving will" summary, the list below, Monday numbers on Mondays);
+> Brief items from a call become numbered Asana briefs. meetings.js (front end) deleted.
 
 Start a worktree. Read this, then profit/CLAUDE.md "2026-10-13: Meeting notes, the Monday call page, How we work"
 and account-health/CLAUDE.md "2026-10-13: MEETING NOTES". Cole's decisions are final; the design below is the plan.

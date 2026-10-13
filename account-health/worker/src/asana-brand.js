@@ -292,7 +292,7 @@ const BRIEF_VIDEO = `<body>${BRIEF_TEST('3 new concepts · 3 hooks on 290-1 · 2
 <h2>Video</h2><strong>Creator:</strong>
 <strong>Script:</strong>
 ${BRIEF_COPY}</body>`;
-const briefFor = name => /\b(ugc|video|vid|reel|creator)\b/i.test(name || '') ? BRIEF_VIDEO : BRIEF_STATIC;
+export const briefFor = name => /\b(ugc|video|vid|reel|creator)\b/i.test(name || '') ? BRIEF_VIDEO : BRIEF_STATIC;   // exported 2026-10-13: a Brief item from a call (meetings.js) starts from the same template
 const sectionOf = (t, doc) => t.memberships?.find(m => m.project?.gid === doc.project_gid)?.section?.name || '';
 
 async function syncTasks(env, act, doc, { full = false } = {}) {

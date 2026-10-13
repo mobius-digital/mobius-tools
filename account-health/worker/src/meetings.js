@@ -34,7 +34,9 @@
  *   POST /api/meetings/ingest     {id} re-read one Fireflies transcript (or read one the poll missed)
  *   POST /api/meetings/poll       check Fireflies now
  */
-import { addAction, markDone, openItems as openActionItems } from './actions.js';
+import { addAction, markDone, openItems as openActionItems, ROSTER } from './actions.js';
+import { briefFor } from './asana-brand.js';
+import { nextNumber } from './ideas.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
@@ -110,7 +112,7 @@ const SCHEMA = obj({
   brands: arr(obj({
     brand_id: S,
     decisions: arr(S),
-    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'client', 'client_owes'] } })),
+    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] } })),
     this_week: arr(S),
     need_from_client: arr(S),
   })),
@@ -138,6 +140,7 @@ WHAT TO WRITE
 - decisions: what was agreed, one line each. Not the discussion, the outcome.
 - items: only real commitments someone has to do. Each has a kind:
   team = a task for someone on the team (owner, due). Specific enough to tick off.
+  brief = new ads someone agreed to make (a batch, iterations of a winner, a new angle). The text says what to make in one line ("3 new hooks on the Burgundy launch video"); owner = the strategist who writes the brief. It becomes a numbered brief in Asana.
   client = something the client should hear we are doing this week (no owner needed).
   client_owes = something the client has to give or decide (photos, an offer, an approval).
 - this_week: 2 to 4 lines the client reads in their weekly report under "This week". Say what we are doing and why, in the client's words. Never a team member's name, never a cost, never another brand, never "the AI".
@@ -164,7 +167,7 @@ async function extract(env, d, m, text) {
   const ids = new Set(brands.map(b => b.act_id));
   out.brands = (out.brands || []).filter(b => b.brand_id === '' || ids.has(b.brand_id)).map(b => ({
     brand_id: b.brand_id, decisions: (b.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: ['team', 'client', 'client_owes'].includes(i.kind) ? i.kind : 'team' })).filter(i => i.text),
+    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team' })).filter(i => i.text),
     this_week: (b.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     need_from_client: (b.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
   }));
@@ -207,7 +210,7 @@ async function tellReady(env, d, m, notes) {
   const names = notes.brands.filter(b => b.brand_id).length;
   const line = `*Notes from "${sEsc(m.title)}" are ready to confirm.* ${items} item${items === 1 ? '' : 's'} across ${names} brand${names === 1 ? '' : 's'}. Nothing is on the list or with a client until you confirm.`;
   await d.slackPost(env, ch, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } },
-    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' });
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' });
 }
 
 /* ---------- the hourly poll and the webhook ---------- */
@@ -260,6 +263,28 @@ export async function handleFirefliesHook(request, env, ctx, d, json) {
 }
 
 /* ---------- confirm: write the ticked items where they live ---------- */
+const KINDS = ['team', 'brief', 'client', 'client_owes'];
+/** A Brief item -> the next numbered task in the brand's Creative Brief section, the team's template underneath a line
+ *  that says which call it came from. Assigned by the roster email, then by first name. Returns {num, gid, url}. */
+async function makeBrief(env, d, act, it, m, who) {
+  const doc = safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(act).first().catch(() => null))?.data_json, null);
+  if (!doc?.project_gid) throw new Error('not connected to Asana');
+  const secs = (await d.asana(env, `/projects/${doc.project_gid}/sections?opt_fields=name`).catch(() => [])) || [];
+  const sec = secs.find(s => /creative\s*brief/i.test(s.name)) || secs.find(s => /brief/i.test(s.name));
+  if (!sec) throw new Error('no Creative Brief section');
+  const num = await nextNumber(env, act, doc.project_gid);
+  let assignee = null;
+  if (it.owner && doc.workspace) {
+    const users = (await d.asanaAll(env, `/users?workspace=${doc.workspace}&opt_fields=name,email`).catch(() => [])) || [];
+    const w = it.owner.toLowerCase(), mail = (ROSTER.find(x => x.name.toLowerCase() === w) || {}).email;
+    assignee = (mail && users.find(u => String(u.email || '').toLowerCase() === mail)) || users.find(u => String(u.name || '').toLowerCase().startsWith(w)) || null;
+  }
+  const from = `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}. Confirmed by ${sEsc(who)} in Locus.</em>\n`;
+  const html = briefFor(it.text).replace('<body>', `<body>${from}`);
+  const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });
+  await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: t.gid } }).catch(() => {});
+  return { num, gid: t.gid, url: t.permalink_url || `https://app.asana.com/0/${doc.project_gid}/${t.gid}` };
+}
 /** The brand's open weekly report draft, if the week's draft exists (drafted Monday 6am, sent after the call). */
 async function openWeekly(env, act) {
   return env.DB.prepare(`SELECT act_id, period, period_start, data_json, status FROM reports WHERE act_id = ?1 AND period = 'weekly' AND status IN ('draft', 'handled') ORDER BY period_start DESC LIMIT 1`).bind(act).first().catch(() => null);
@@ -280,17 +305,27 @@ export async function confirm(env, d, body, who) {
     if (act && !brands.some(b => b.act_id === act)) continue;
     const b = {
       brand_id: act, decisions: (raw.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-      items: (raw.items || []).filter(i => i && i.on !== false).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: ['team', 'client', 'client_owes'].includes(i.kind) ? i.kind : 'team' })).filter(i => i.text),
+      items: (raw.items || []).filter(i => i && i.on !== false).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team' })).filter(i => i.text),
       this_week: (raw.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
       need_from_client: (raw.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     };
     if (!b.decisions.length && !b.items.length && !b.this_week.length && !b.need_from_client.length) continue;
     notes.brands.push(b);
-    const r = { brand_id: act, name: act ? nameOf(act) : 'Agency', tasks: [], asks: [], report: null, slack: false };
+    const r = { brand_id: act, name: act ? nameOf(act) : 'Agency', tasks: [], briefs: [], asks: [], report: null, slack: false };
     /* 1. Team items -> Locus action items (p_action). Nothing goes to Asana. */
     for (const it of b.items.filter(i => i.kind === 'team')) {
       try { const row = await addAction(env, { act, text: it.text, owner: it.owner, due: it.due, kind: 'team', source: 'meeting', source_id: m.id, created_by: who }); r.tasks.push({ ...it, id: row.id, url: row.url, assigned: !!row.owner }); }
       catch (e) { r.tasks.push({ ...it, error: e.message }); result.warnings.push(`${r.name}: "${it.text}" was not added (${e.message}).`); }
+    }
+    /* 1b. Briefs -> a numbered task in the brand's Asana Creative Brief section (the team's template), and a p_action row
+       (kind brief) that links it, so the list shows it beside the tasks and Slack reminds the owner. No Asana = the row only. */
+    for (const it of b.items.filter(i => i.kind === 'brief')) {
+      let made = null;
+      if (act) { try { made = await makeBrief(env, d, act, it, m, who); } catch (e) { result.warnings.push(`${r.name}: the brief "${it.text}" was not made in Asana (${e.message}). It is on the list.`); } }
+      else result.warnings.push(`"${it.text}" has no brand, so no Asana brief was made. It is on the list.`);
+      try { const row = await addAction(env, { act, text: made ? `${made.num} - ${it.text}` : it.text, owner: it.owner, due: it.due, kind: 'brief', source: 'meeting', source_id: m.id, created_by: who, asana_gid: made?.gid, asana_url: made?.url });
+        r.briefs.push({ ...it, id: row.id, url: row.url, num: made?.num || null, asana_url: made?.url || null }); }
+      catch (e) { r.briefs.push({ ...it, error: e.message }); }
     }
     /* 2. What the client hears -> the open weekly draft. */
     if (act && (b.this_week.length || b.need_from_client.length)) {
@@ -314,11 +349,12 @@ export async function confirm(env, d, body, who) {
       const L = [`*Notes from "${sEsc(m.title)}"* (${m.date})${act ? '' : ' · agency-wide'}`];
       if (b.decisions.length) L.push('*Decided*', ...b.decisions.map(x => `• ${sEsc(x)}`));
       if (r.tasks.length) L.push('*To do*', ...r.tasks.map(t => `• ${sEsc(t.text)}${t.owner ? ` · ${sEsc(t.owner)}` : ''}${t.due ? ` · due ${t.due}` : ''}${t.url ? ` · <${t.url}|Locus>` : t.error ? ' · _not added_' : ''}`));
+      if (r.briefs.length) L.push('*Briefs*', ...r.briefs.map(t => `• ${t.num ? `${t.num} - ` : ''}${sEsc(t.text)}${t.owner ? ` · ${sEsc(t.owner)}` : ''}${t.due ? ` · due ${t.due}` : ''}${t.asana_url ? ` · <${t.asana_url}|Asana>` : ''}`));
       const tell = b.items.filter(i => i.kind === 'client').map(i => i.text).concat(b.this_week);
       if (tell.length) L.push('*The client hears*', ...[...new Set(tell)].map(x => `• ${sEsc(x)}`));
       if (r.asks.length || b.need_from_client.length) L.push('*We need from the client*', ...[...new Set(r.asks.map(a => a.text).concat(b.need_from_client))].map(x => `• ${sEsc(x)}`));
       const text = L.join('\n');
-      try { await d.slackPost(env, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' }); r.slack = true; }
+      try { await d.slackPost(env, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' }); r.slack = true; }
       catch (e) { result.warnings.push(`${r.name}: the Slack note failed (${e.message}).`); }
     }
     if (act) result.brands.push(r); else result.agency = r;

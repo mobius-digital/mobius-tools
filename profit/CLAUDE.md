@@ -2971,6 +2971,36 @@ board in Locus, a one-way Locus -> Asana mirror, then cut Asana) is next, after 
   one colour world, product as hero), change the idea; (3) the art director gets the winner as `own_ad`
   (account-health studio-ai.js plan step) and may give each ad its own title art. Tested live on Dartee 376-3 (Bone Dry):
   three designed graphics (LINE UP / TEXTURE / ON THE HIP), Bone Dry on all three, "Shop Bone Dry", $0.99.
+
+## 2026-10-13 (second pass): ONE PAGE, "Action items". Supersedes the Work / Calls split above.
+
+Cole: "Work" meant nothing, the Calls confirm screen was clunky (expand to read the summary, check boxes, three dropdowns per
+row, client lines badly spaced) and nothing said what approving would DO or where a brief goes. Now:
+- **One rail item, Action items** (`NAV.work` = `[['actions', 'Action items']]`, button `#railWork` data-t `actions`). Old ids
+  `calls`, `monday`, `meetings` route to `actions` in `show()`. `profit/meetings.js` is DELETED; `profit/actions.js` is the page
+  (`window.ActionsTab.render`, CSS `#aicss`, classes `.ai-*`, tokens only). `?open=actions&meeting=<id>` (index sets
+  `window.ACT_MEETING`) rings that call's card or opens it under Past calls; `&item=<id>` rings an item (`window.ACT_OPEN`).
+- **To approve** (top, only when Locus read calls): one card per `extracted` meeting (`/api/meetings` then `?id=` for each,
+  8 max). The summary is full text, editable in place. Per brand: Decided (bullets), To do = one row per item: a TYPE pill
+  (Task / Brief / Ask the client = kind team / brief / client_owes), the words (contenteditable, Enter commits, Escape
+  reverts), an owner chip (select styled as a chip; hidden on Ask rows), a due chip (opens the browser's own date picker via
+  `showPicker`), and x to leave it out (strikes through, ↺ puts it back). The model's `client` items are moved into the
+  client block on load. The client block is a quote block: "<Brand> reads this in the weekly report, under This week" and
+  "And under What we need from you", lines editable, + Add a line. **"Approving will"** above the button is counted from the
+  card each time anything changes (tasks per owner, briefs per brand into Asana, asks in Requests, report lines, the Slack
+  notes) and ends "The client only sees the report lines and the asks." One button: Approve and send; Skip this call asks first
+  (`window.confirmModal`). After approving the card becomes a one-line receipt with the Asana links.
+- **The list**: owner chips (Everyone, each person, "(you)" on the signed-in name), one add row (text, brand on All clients,
+  owner, due, Add; Enter adds), groups per brand (agency-wide first). Rows: round tick, words (click to edit, saved on blur),
+  Brief rows link "Brief · Asana ↗", owner and due chips save on change, x drops (confirm). Meta line: where it came from.
+  **On Mondays and Friday to Sunday** (or "Show them now") each brand group also shows last week's revenue / spend / MER vs
+  plan (from `/api/meetings/monday`) and "<name>'s plan for this week" folded, red brands first (`/api/hub/command`), and the
+  week's theme card sits above the list.
+- Folded at the bottom: Done in the last 60 days (tick to put back) and Past calls (each opens to its summary and what
+  happened; skipped or failed ones have Read it again; Check Fireflies now).
+- Checked in the browser pane against a stub harness (scratchpad, not committed): approve flow payload (type change, drop,
+  in-place edit, client lines), every list action's request, done and past folds, 375px with no sideways scroll, light and
+  dark. NOT checked against the real workers (no sign-in here). actions.js?v=2, sop.js?v=3.
 - Same day, third pass (Cole: "on the hip looks AI, it doesn't match up on the person" and "these aren't in safe zones").
   (1) Designed ads (not a photo line, not exact) are made SQUARE again (`makeOne`: `spec.square`, `SQUARE_LAYOUT`,
   zone checked against `SQ_ZONE`), and the browser's existing `extend()` paints only the top and bottom bands, so every
