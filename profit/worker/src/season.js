@@ -394,7 +394,7 @@ async function warBrand(env, a, today, deps, { withLive, client }) {
     /* The brand edition (2026-10-10): a client sees the whole plan, its ladder and every check-in; only the team's notes stay out. */
     war: client ? Object.fromEntries(Object.entries(war).filter(([k]) => k !== 'notes')) : war, goals_list: goals.list, goals_saved: goals.saved, ladder: a.goals,
     budget: bud, baseline: base, plan, steps: warSteps(a, war),
-    phases: (a.phases || []).filter(p => p.status !== 'skip').map(p => ({ key: p.key, name: p.name, start: p.start, end: p.end, grp: p.grp, offer: p.offer, status: p.status, who: p.who })),
+    phases: (a.phases || []).filter(p => p.status !== 'skip').map(p => ({ key: p.key, name: p.name, start: p.start, end: p.end, grp: p.grp, offer: p.offer, detail: p.detail, status: p.status, who: p.who, tpl: p.tpl, hint: p.hint, swipe: p.swipe })),
     checkins: a.checkins || [],
     metrics: WAR_METRICS, channel_names: WAR_CHANNELS,
   };

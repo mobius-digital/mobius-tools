@@ -2875,3 +2875,25 @@ TW / BeProfit / Lifetimely comparison: `docs/locus-hub/expenses-research.md`.
   `<em class="lx-accent">` (Instrument Serif italic, token `--font-accent` in v2.css). A title without its word gets none.
 - Tests: `node test-morning.mjs` (7), test-clients covers the new routes. Checked with Playwright against stubbed routes
   only; nothing ran against real data or was deployed.
+
+## 2026-10-13: THE SEASON ITEM IS THREE PAGES (Cole: "the war room is super confusing, not sure if you did the plan or the live")
+
+- **One job each.** `warplan` = The Plan (desk.js `war('warplan')`: six steps, one per section, numbered 1..6 with no gap:
+  last year the same days, goals AND the ladder (plus start / Meta cap / November / December / season goals, all saved to
+  key `goals`), the paid budget, the offers, the Slack alert thresholds, stock on the heroes). `warlive` = Live (desk.js
+  `war('warlive')`: tiles, ONE stock line under them, hour by hour, the desk, spend by channel, alerts fired today with
+  a caption pointing at The Plan's step). `season` = Offers and dates (season.js: Offers / To-do / Call sheet; the Goals
+  and results tab and the Desk tab are GONE because the other two pages own them; All clients = The offers / This week /
+  Week by week). `war` still renders for old links and Slack buttons (mode from `window.WAR_MODE`, then the switch).
+- **The switch and the host.** index.html sets `window.WAR_MODE = {warplan:'plan', warlive:'live'}[tab] || null` before
+  `DeskTab.render`; the in-page The Plan / Live switch then calls `show('warplan'|'warlive')` so the rail follows. If
+  `WAR_MODE` is undefined (older host) the switch re-renders in place.
+- **One offer list, one editor.** season.js exports `dealsHtml(a, {ro, results})` and `editPhase({tok,url,act,phases,name}, key)`
+  (+ `injectCss`, `seasonLabel`); The Plan's Offers step renders the same `.se-deal` cards (wrapped in `<div class="se">`
+  for the tokens) and opens the same modal. The war payload's phases now carry `detail`, `tpl`, `hint`, `swipe`.
+- **Clients read.** `ro = isCl()` in the baseline, goals and budget sections (it was hard-coded false); no inputs render.
+  The server still accepts a client PUT on /api/season/war (2026-10-10 rule): the page just does not offer it.
+- **Labels.** Headings and verdicts use the season item's name (`seasonLabel()` in both files); real dates (the BF marker,
+  the last-year row, countdowns) stay "Black Friday".
+- Checked on a local harness (scratch two-root server + fixtures + headless Chrome over CDP, team and client, one brand and
+  all, legacy `war`, renamed label, light, 390px): no exceptions; not run against the real workers.

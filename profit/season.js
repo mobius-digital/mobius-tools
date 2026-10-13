@@ -2,13 +2,19 @@
  * 2026-10-05 built; 2026-10-06 goals, results, desk, swipe; same night rebuilt twice after Cole:
  * "I still don't see what our offers are", "it's a long scroll", "the season bar looks like Canva".
  *
+ * 2026-10-13: ONE JOB. The season item is three pages: The Plan (desk.js warplan: baseline, goals and
+ * ladder, budget, offers, alerts, stock), Live (desk.js warlive: today against the plan, the desk) and
+ * this file = OFFERS AND DATES. The Goals and results tab and the Desk tab were removed from here
+ * because the other two pages own them; the offer list and the offer editor are shared with The Plan
+ * (window.SeasonTab.dealsHtml / editPhase).
+ *
  * Shape now:
- *   All clients   The offers (default): one card per brand, Black Friday deal in big type,
- *                 November and December beside it, a season bar with hover. Then This week,
- *                 Week by week, Desk as segments.
+ *   All clients   The offers (default): one card per brand, the key deal in big type,
+ *                 November and December beside it, a season bar with hover. Then This week
+ *                 and Week by week as segments.
  *   One brand     Strip, then THE PLAN IN ONE READ (numbered sentences + "why this offer"),
- *                 the season timeline (one row per phase, hover for the deal), then five
- *                 in-page tabs: Offers, Goals and results, Desk, To-do, Call sheet. No long scroll.
+ *                 the season timeline (one row per phase, hover for the deal), then three
+ *                 in-page tabs: Offers, To-do, Call sheet. No long scroll.
  *   Swipe file    Opens as a modal, never injected into the page.
  *   Client link   ?season=<token>: plan, timeline, offers, results and what we did, read only.
  *
@@ -21,8 +27,11 @@
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'offers', btab: 'offers', deskDate: null, live: {} };
+const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'offers', btab: 'offers' };
 const LS_VIEW = 'se_view3', LS_BTAB = 'se_btab';
+/* The season item's name (settings.seasonTab, kept by index.html). Headings use it; real dates stay Black Friday. */
+const seasonLabel = () => { try { return (window.SEASON_TAB && window.SEASON_TAB().label) || 'Black Friday'; } catch { return 'Black Friday'; } };
+const ALL_VIEWS = ['offers', 'now', 'cal'], BRAND_TABS = ['offers', 'todo', 'sheet'];
 const AH = 'https://mobius-account-health.mobius-digital.workers.dev';
 
 async function api(path, opts = {}, base) {
@@ -49,7 +58,6 @@ const daysBetween = (a, b) => Math.round((toD(b) - toD(a)) / 86400000);
 const money = n => n == null ? ' - ' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 const moneyK = n => n == null ? ' - ' : Math.abs(n) >= 10000 ? '$' + (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k' : money(n);
 const x2 = n => n == null ? ' - ' : n.toFixed(2) + 'x';
-const clock = iso => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return String(iso); return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }).format(d) + ' CT'; };
 
 const GRP = { nov: ['November', 'var(--se-nov)'], bf: ['Black Friday', 'var(--se-bf)'], dec: ['December', 'var(--se-dec)'], late: ['After Christmas', 'var(--se-late)'], vday: ['Valentine\'s', 'var(--se-vday)'] };
 const STATUS = { locked: ['Locked', 'good'], draft: ['Draft', 'warn'], missing: ['Missing', 'bad'], skip: ['Skipped', 'unk'] };
@@ -62,21 +70,9 @@ const toneOf = st => st === 'ok' ? 'good' : st;
 const tile = o => UI() ? UI().tile(o) : `<div class="v2tile"><div class="l"><span>${esc(o.label)}</span></div><div class="v">${o.value}</div>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}</div>`;
 const tone = (cls, v) => cls ? `<span class="${cls}">${v}</span>` : v;
 const SLOTS = [['8am', '8:00 AM'], ['4pm', '4:00 PM'], ['12am', 'Midnight']];
-const DESK_DAYS = ['2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30'];
 const BF = '2026-11-27';
 
-/* The scaling ladder, the 2025 sheet's rule in code. A verdict needs real spend behind it. */
-function spendFloor(goals) { return Math.max(100, ((goals && goals.start) || 0) * 3 / 24 * 0.5); }
-function ladderOf(goals, mer, spent) {
-  if (!goals || goals.be == null || goals.target == null) return { ok: false, text: 'Set the ladder on the brand page', cls: 'unk' };
-  if (mer == null) return { ok: true, text: 'No spend yet', cls: 'unk' };
-  if (spent != null && spent < spendFloor(goals)) return { ok: false, text: `Too early to grade: ${money(spent)} spent in 3 hours (needs ${money(spendFloor(goals))})`, cls: 'unk' };
-  if (goals.s100 != null && mer >= goals.s100) return { ok: true, text: 'Scale by 100%', cls: 'good', key: 'scale100' };
-  if (goals.s50 != null && mer >= goals.s50) return { ok: true, text: 'Scale by 50%', cls: 'good', key: 'scale50' };
-  if (mer >= goals.target) return { ok: true, text: 'Hold', cls: 'unk', key: 'hold' };
-  if (mer >= goals.be) return { ok: true, text: 'Pull back', cls: 'warn', key: 'pull' };
-  return { ok: true, text: 'Rework the offer, consider turning ads off', cls: 'bad', key: 'off' };
-}
+/* The scaling ladder itself (grading, the desk) lives on the Live page (desk.js ladderOf). Here only: is it set. */
 const ladderDone = g => g && g.be != null && g.target != null && g.s50 != null && g.s100 != null;
 
 /* ---------- css ---------- */
@@ -319,25 +315,6 @@ function miniBar(a, today) {
   }).join('');
   return `<div class="se-gantt mini"><div class="gr"><div class="trk">${MONTHS_TL.map(([d, l]) => `<i class="grid" style="left:${tlPct(d)}%"></i><span class="ml" style="left:${tlPct(d)}%">${l}</span>`).join('')}${segs}<div class="mk" style="left:${tlPct(BF)}%;--m:var(--se-bf)"${tipAttr('Black Friday, Fri Nov 27')}></div>${today >= TL_FROM && today <= TL_TO ? `<div class="mk dim" style="left:${tlPct(today)}%;--m:var(--brand)"></div>` : ''}</div></div></div>`;
 }
-/* The ladder as a strip: five zones between the brand's MER lines, the last three hours marked on it.
-   Same thresholds as ladderOf(); empty when the four lines are not all set or are out of order. */
-function ladderStrip(g, mer) {
-  if (!ladderDone(g) || !(g.be < g.target && g.target <= g.s50 && g.s50 <= g.s100)) return '';
-  const lo = Math.min(g.be * 0.75, mer != null ? mer * 0.92 : Infinity), hi = Math.max(g.s100 * 1.2, mer != null ? mer * 1.08 : 0);
-  const X = v => (v - lo) / (hi - lo) * 100;
-  const zones = [
-    ['off', 'Rework', lo, g.be, `Under ${x2(g.be)}: below breakeven. Rework the offer, consider turning ads off.`],
-    ['pull', 'Pull back', g.be, g.target, `${x2(g.be)} to ${x2(g.target)}: making money, under target. Pull back.`],
-    ['hold', 'Hold', g.target, g.s50, `${x2(g.target)} to ${x2(g.s50)}: at target. Hold the budget.`],
-    ['s50', 'Scale 50%', g.s50, g.s100, `${x2(g.s50)} to ${x2(g.s100)}: add half to the budget.`],
-    ['s100', 'Scale 100%', g.s100, hi, `${x2(g.s100)} and up: double the budget.`],
-  ].filter(z => z[3] > z[2]);
-  const at = v => Math.max(4, Math.min(96, X(v)));
-  return `<div class="se-lad">${mer != null ? `<div class="nw"><b style="left:${at(mer)}%">Last 3 hours ${x2(mer)}</b></div>` : ''}
-    <div class="zw"><div class="z">${zones.map(z => `<i class="${z[0]}" style="flex:${(z[3] - z[2]).toFixed(4)} 1 0"${tipAttr(z[4])}>${z[1]}</i>`).join('')}</div>${mer != null ? `<span class="mk" style="left:${X(mer).toFixed(2)}%"></span>` : ''}</div>
-    <div class="ax">${[g.be, g.target, g.s50, g.s100].filter((v, i, a) => a.indexOf(v) === i).map(v => `<span style="left:${X(v).toFixed(2)}%">${x2(v)}</span>`).join('')}</div></div>`;
-}
-
 /* ---------- small modal: fields in, object out (or null) ---------- */
 function formModal({ title, hint, fields, cta = 'Save', danger }) {
   return new Promise(resolve => {
@@ -481,82 +458,6 @@ function weekBox(wk, today, showBrand) {
   </div>`;
 }
 
-/* ---------- the desk ---------- */
-function deskDates(brands, today) {
-  const set = new Set([today, ...DESK_DAYS]);
-  brands.forEach(a => (a.checkins || []).forEach(c => set.add(c.date)));
-  return [...set].sort();
-}
-function deskCard(a, date, today) {
-  const live = S.live[a.act_id];
-  const isToday = date === today;
-  const lad = live && !live.error ? ladderOf(a.goals, live.last3?.mer, live.last3?.spend) : null;
-  const liveErr = e => /400|unknown|no shop|tw_shop/i.test(e) ? 'No Triple Whale store connected for this brand yet (Settings > Brands).' : e;
-  const liveHtml = !isToday ? `<span>Live numbers show on today only. The log below is what was done.</span>`
-    : !live ? `<span>Loading live numbers…</span>`
-    : live.error ? `<span>${esc(liveErr(live.error))}</span>`
-    : `<span${tipAttr('Blended MER (Triple Whale revenue over all ad spend) for the last three hours that have data. This is what the ladder grades.')}>Last 3 hours <b>${x2(live.last3?.mer)}</b> on ${money(live.last3?.spend)}</span><span>Today so far <b>${x2(live.today?.mer)}</b> · ${money(live.today?.sales)} revenue · ${money(live.today?.spend)} spend</span><span>as of ${esc(clock(live.as_of))}</span>`;
-  const g = a.goals || {};
-  const lines = `Breakeven ${g.be != null ? x2(g.be) : 'not set'} · target ${g.target != null ? x2(g.target) : 'not set'} · scale 50% at ${g.s50 != null ? x2(g.s50) : 'not set'} · scale 100% at ${g.s100 != null ? x2(g.s100) : 'not set'}`;
-  const verdict = isToday && lad ? `<span class="se-call ${lad.cls}"${tipAttr(`The ladder on the last 3 hours. ${lines}`)}>${esc(lad.text)}</span>` : (isToday && !ladderDone(g) ? `<span class="se-call">Set the ladder on the brand page</span>` : '');
-  const strip = isToday && live && !live.error ? ladderStrip(g, live.last3?.mer ?? null) : '';
-  const slots = SLOTS.map(([key, label]) => {
-    const c = (a.checkins || []).find(x => x.date === date && x.slot === key);
-    const saved = c && c.action;
-    return `<div class="se-slot" data-act="${esc(a.act_id)}" data-slot="${key}">
-      <div class="s">${label}</div>
-      ${saved ? `<div class="did">${esc(c.action)}<small>${c.roas != null ? `3h ${x2(c.roas)} · ` : ''}${c.verdict ? `ladder said ${esc(c.verdict)} · ` : ''}${esc(c.by || '')} ${esc(clock(c.at))}</small></div><div><button class="btn se-mini" data-redo="1">Change</button></div>`
-        : `<input class="se-in" placeholder="What you did, one line (e.g. Scaled 100%, new budget $8k)"><div><button class="btn primary se-mini" data-save="1">Save</button></div>`}
-    </div>`;
-  }).join('');
-  return `<div class="se-desk"><div class="h"><b class="nm" data-pick="${esc(a.act_id)}">${esc(a.name)}</b>${verdict}<div class="live">${liveHtml}</div></div>${strip}${slots}</div>`;
-}
-function wireDesk(root, date, today) {
-  root.querySelectorAll('.se-slot [data-save]').forEach(b => b.onclick = async () => {
-    const row = b.closest('.se-slot'); const inp = row.querySelector('input'); const act = row.dataset.act; const slot = row.dataset.slot;
-    const text = inp.value.trim(); if (!text) return toast('Write what you did first', true);
-    const a = brandOf(act); const live = S.live[act]; const lad = live && !live.error ? ladderOf(a.goals, live.last3?.mer, live.last3?.spend) : null;
-    try {
-      const r = await put('/api/season/checkin', { act, date, slot, action: text, roas: live?.last3?.mer ?? null, mer_day: live?.today?.mer ?? null, revenue: live?.today?.sales ?? null, spend: live?.today?.spend ?? null, verdict: lad?.ok ? lad.text : null });
-      a.checkins = (a.checkins || []).filter(c => !(c.date === date && c.slot === slot)).concat([{ date, slot, action: text, roas: live?.last3?.mer ?? null, verdict: lad?.ok ? lad.text : null, by: r.by, at: r.at }]);
-      const host = root.querySelector(`.se-desk [data-pick="${act}"]`)?.closest('.se-desk');
-      if (host) { host.outerHTML = deskCard(a, date, today); wireDesk(root, date, today); }
-    } catch (e) { toast(e.message, true); }
-  });
-  root.querySelectorAll('.se-slot input.se-in').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') i.closest('.se-slot').querySelector('[data-save]')?.click(); });
-  root.querySelectorAll('.se-slot [data-redo]').forEach(b => b.onclick = () => {
-    const row = b.closest('.se-slot'); const a = brandOf(row.dataset.act); const c = (a.checkins || []).find(x => x.date === date && x.slot === row.dataset.slot);
-    row.innerHTML = `<div class="s">${esc(SLOTS.find(s => s[0] === row.dataset.slot)[1])}</div><input class="se-in" value="${esc(c?.action || '')}"><div><button class="btn primary se-mini" data-save="1">Save</button></div>`;
-    wireDesk(root, date, today);
-  });
-  root.querySelectorAll('.se-desk [data-pick]').forEach(el => el.onclick = () => S.pick && S.pick(el.dataset.pick));
-}
-async function loadLive(brands, after) {
-  await Promise.all(brands.map(async a => {
-    try { S.live[a.act_id] = await api('/api/season/live?act=' + encodeURIComponent(a.act_id)); }
-    catch (e) { S.live[a.act_id] = { error: e.message || 'no live numbers' }; }
-  }));
-  after();
-}
-function deskSection(brands, today, title) {
-  const dates = deskDates(brands, today);
-  if (!S.deskDate || !dates.includes(S.deskDate)) S.deskDate = today;
-  const date = S.deskDate;
-  return `<section class="v2card se-desk-wrap"><div class="v2h"><h3>${esc(title)}</h3><span class="find">Three check-ins a day: 8am, 4pm and midnight Central. The ladder grades the last three hours of blended MER against each brand's lines; whoever acts writes one line.</span><span class="cap">The client link shows the lines, never the numbers</span></div>
-    <div class="v2jobs se-days" style="margin-bottom:12px">${dates.map(d => `<button data-day="${d}" class="${d === date ? 'on' : ''}">${d === today ? 'Today · ' : ''}${esc(fmtDow(d))}</button>`).join('')}</div>
-    <div id="seDesk" class="se-desks">${brands.map(a => deskCard(a, date, today)).join('')}</div></section>`;
-}
-function wireDeskSection(root, brands, today, repaint) {
-  root.querySelectorAll('.se-days button').forEach(b => b.onclick = () => { S.deskDate = b.dataset.day; repaint(); });
-  const host = root.querySelector('#seDesk');
-  if (!host) return;
-  wireDesk(host, S.deskDate, today);
-  if (S.deskDate === today) {
-    const missing = brands.filter(a => !S.live[a.act_id]);
-    if (missing.length) loadLive(missing, () => { const h = root.querySelector('#seDesk'); if (!h) return; h.innerHTML = brands.map(a => deskCard(a, S.deskDate, today)).join(''); wireDesk(h, S.deskDate, today); });
-  }
-}
-
 /* ---------- formats to steal (Cole's TikTok drop, @marketingmei "Black Friday ad formats", 2026-10-05) ----------
  * The format is the vehicle; the deal rides in it. Each line: the format, then how it reads for a
  * brand that does not cut the price (Lucky), since that is the hard case. */
@@ -633,6 +534,7 @@ async function renderAll() {
   main.innerHTML = `<div class="se v2"><section class="v2card"><p class="v2hint">Loading the season…</p></section></div>`;
   await load('all');
   S.view = localStorage.getItem(LS_VIEW) || 'offers';
+  if (!ALL_VIEWS.includes(S.view)) S.view = 'offers';   // 'desk' moved to the Live page (2026-10-13)
   paintAll();
 }
 function paintAll() {
@@ -653,7 +555,7 @@ function paintAll() {
   const names = list => esc(list.map(a => a.name).join(', '));
   /* Conclusion first: is every offer locked, what is due, what is slipping. */
   const verdict = noOffer.length || drafts.length
-    ? `<b>${lockedN} of ${brands.length} brands have a locked Black Friday offer.</b> ${drafts.length ? `${names(drafts)} ${drafts.length === 1 ? 'has' : 'have'} a proposal waiting on the client. ` : ''}${noOffer.length ? `${names(noOffer)} ${noOffer.length === 1 ? 'has' : 'have'} nothing written yet. ` : ''}${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, <b class="bad">${overdue.length} overdue</b>` : ''}.`
+    ? `<b>${lockedN} of ${brands.length} brands have a locked ${esc(seasonLabel())} offer.</b> ${drafts.length ? `${names(drafts)} ${drafts.length === 1 ? 'has' : 'have'} a proposal waiting on the client. ` : ''}${noOffer.length ? `${names(noOffer)} ${noOffer.length === 1 ? 'has' : 'have'} nothing written yet. ` : ''}${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, <b class="bad">${overdue.length} overdue</b>` : ''}.`
     : `<b>Every brand is locked.</b> ${thisWeek.length} thing${thisWeek.length === 1 ? '' : 's'} due this week${overdue.length ? `, <b class="bad">${overdue.length} overdue</b>` : ''}.`;
 
   const tiles = `<div class="v2tiles se-tiles">
@@ -664,7 +566,7 @@ function paintAll() {
     ${tile({ label: 'Overdue', value: tone(overdue.length ? 'bad' : 'good', String(overdue.length)), sub: overdue.length ? `Oldest: ${esc(overdue.slice().sort((x, y) => x.t.due.localeCompare(y.t.due))[0].a.name)}, ${esc(fmtD(overdue.slice().sort((x, y) => x.t.due.localeCompare(y.t.due))[0].t.due))}` : 'Nothing slipping.' })}
   </div>`;
 
-  const seg = jobs([['offers', 'The offers'], ['now', 'This week', thisWeek.length + overdue.length || '', overdue.length > 0], ['cal', 'Week by week'], ['desk', 'Desk']], 'v', S.view);
+  const seg = jobs([['offers', 'The offers'], ['now', 'This week', thisWeek.length + overdue.length || '', overdue.length > 0], ['cal', 'Week by week']], 'v', S.view);
 
   let body = '';
   if (S.view === 'offers') {
@@ -687,14 +589,12 @@ function paintAll() {
           <td>${grpCell('nov')}</td><td>${kp(keyPhase(a, 'access'))}</td><td>${kp(keyPhase(a, 'bf'))}</td><td>${grpCell('dec')}</td>
           <td><span class="need">${c.over ? `<b class="bad">${c.over} overdue</b><br>` : ''}${a.goals.bf == null && a.goals.total == null ? `<b class="warn">no goal</b><br>` : ''}${!ladderDone(a.goals) ? `no ladder<br>` : ''}${c.week} due this week</span></td></tr>`;
       }).join('')}</tbody></table></div>`, 'Click a row to open it');
-  } else if (S.view === 'cal') {
+  } else {
     const wks = weeksOf(brands, today);
     body += sCard('Week by week, every brand', 'Each box is a week; the outlined one is now.', `<div class="se-weeks">${wks.map(w => weekBox(w, today, true)).join('')}</div>`, 'Briefs 23 days before a launch, built 9, loaded 4');
-  } else {
-    body += deskSection(brands, today, 'The desk: every brand, three times a day');
   }
 
-  main.innerHTML = `<div class="se v2">${head('Season', 'What every brand is offering from Black Friday to Valentine\'s, when it runs, and what is due this week.')}
+  main.innerHTML = `<div class="se v2">${head(`${esc(seasonLabel())}: offers and dates`, 'What every brand is offering, when it runs, and what is due this week. Goals, the budget and the ladder are on The Plan; the sale itself is on Live.')}
     <p class="v2say lead">${verdict}</p>${tiles}${seg}${body}</div>`;
   main.querySelectorAll('.se-seg button[data-v]').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paintAll(); window.scrollTo(0, 0); });
   main.querySelectorAll('.se-off, tr.rowlink').forEach(el => {
@@ -702,7 +602,6 @@ function paintAll() {
     el.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); S.pick && S.pick(el.dataset.pick); } };
   });
   wireTasks(main);
-  if (S.view === 'desk') wireDeskSection(main, brands, today, paintAll);
   if (typeof window.pageActions === 'function') window.pageActions('');
 }
 
@@ -713,6 +612,7 @@ async function renderBrand() {
   main.innerHTML = `<div class="se v2"><section class="v2card"><p class="v2hint">Loading the season…</p></section></div>`;
   await load(S.act);
   S.btab = localStorage.getItem(LS_BTAB) || 'offers';
+  if (!BRAND_TABS.includes(S.btab)) S.btab = 'offers';   // 'goals' and 'desk' moved to The Plan and Live (2026-10-13)
   paintBrand();
 }
 const SHEET = [
@@ -731,10 +631,6 @@ const SETUP = [
   ['strategist', 'Who briefs the ads', 'text'],
   ['buyer', 'Who runs the ads', 'text'],
   ['email_owner', 'Who runs email and SMS', 'text'],
-];
-const GOAL_FIELDS = [
-  ['early', 'November revenue goal', 'money'], ['bf', 'Black Friday weekend goal', 'money'], ['dec', 'December goal', 'money'], ['total', 'Nov + Dec total', 'money'],
-  ['be', 'Breakeven MER', 'x'], ['target', 'Target MER', 'x'], ['s50', 'Scale 50% at', 'x'], ['s100', 'Scale 100% at', 'x'], ['start', 'Starting daily budget', 'money'], ['cap', 'Meta daily limit', 'money'],
 ];
 /* The plan as sentences a new person can read in 20 seconds. */
 function planLines(a) {
@@ -773,14 +669,15 @@ function paintBrand() {
   const drafts = a.phases.filter(p => p.status === 'draft');
   if (drafts.length === 1) need.push([`${drafts[0].name}: lock it with ${a.answers.approver || 'the client'}`, fmtRange(drafts[0].start, drafts[0].end)]);
   else if (drafts.length > 1) need.push([`${drafts.length} phases are proposals, not agreed: ${drafts.map(p => p.name).join('; ')}`, `lock with ${a.answers.approver || 'the client'}`]);
-  if (g.bf == null && g.total == null) need.push(['A revenue goal for the weekend or the season', 'Goals tab']);
-  if (!ladderDone(g)) need.push(['The ladder: breakeven, target, scale 50 and 100 lines', 'by Nov 13']);
+  if (g.bf == null && g.total == null) need.push(['A revenue goal for the weekend or the season', 'on The Plan']);
+  if (!ladderDone(g)) need.push(['The ladder: breakeven, target, scale 50 and 100 lines', 'on The Plan, by Nov 13']);
   if (!a.answers.cutoffs) need.push(['Shipping cutoffs from the client', 'sets December']);
   if (!a.answers.gift_cards) need.push(['Gift cards: set up and tested?', 'by Dec 1']);
 
   /* Conclusion first: is the offer locked, what is slipping, how the season is doing so far. */
   const bfP = keyPhase(a, 'bf');
-  const stateSay = st[0] === 'ok' ? 'The Black Friday offer is locked.' : st[1] === 'Draft' ? 'Black Friday is still a proposal.' : st[0] === 'warn' ? 'The Black Friday weekend is locked; November is still open.' : bfP?.offer ? 'The Black Friday offer is written but not agreed.' : 'There is no Black Friday offer yet.';
+  const L = esc(seasonLabel());
+  const stateSay = st[0] === 'ok' ? `The ${L} offer is locked.` : st[1] === 'Draft' ? `The ${L} offer is still a proposal.` : st[0] === 'warn' ? 'The weekend is locked; November is still open.' : bfP?.offer ? `The ${L} offer is written but not agreed.` : `There is no ${L} offer yet.`;
   const slipSay = overdue.length ? `<b class="bad">${overdue.length} overdue</b>, starting with ${esc(overdue[0].name)} (${esc(fmtD(overdue[0].due))}).` : 'Nothing overdue.';
   const progKey = ['bf', 'early', 'dec'].find(k => prog[k] && g[k]);
   const progSay = progKey ? ` So far ${moneyK(prog[progKey].sales)} against the ${moneyK(g[progKey])} ${progKey === 'bf' ? 'Black Friday' : progKey === 'early' ? 'November' : 'December'} goal (${Math.round(prog[progKey].sales / g[progKey] * 100)}%${prog[progKey].running ? ', still running' : ''}).` : '';
@@ -807,7 +704,7 @@ function paintBrand() {
   const timeline = sCard('The season', 'One row per phase. Hover a bar or a name for the deal.', `${ganttLegend(a.phases)}${gantt(a.phases, today)}`, 'Oct to Feb');
 
   /* Tabs */
-  const seg = jobs([['offers', 'Offers', need.length || '', need.length > 0], ['goals', 'Goals and results'], ['desk', 'Desk'], ['todo', 'To-do', open.length || ''], ['sheet', 'Call sheet']], 'b', S.btab);
+  const seg = jobs([['offers', 'Offers', need.length || '', need.length > 0], ['todo', 'To-do', open.length || ''], ['sheet', 'Call sheet']], 'b', S.btab);
 
   let body = '';
   if (S.btab === 'offers') {
@@ -823,38 +720,8 @@ function paintBrand() {
       ? sCard(`Still needed ${vpill('warn', String(need.length))}`, 'What stands between this plan and a locked season.', `<div class="se-need">${need.map(n => `<div><span>${esc(n[0])}</span><span>${esc(n[1])}</span></div>`).join('')}</div>`)
       : `<div class="v2note">${vpill('good', 'Nothing missing')} Every phase has an offer, the goal and ladder are set, and the dates that drive December are in.</div>`;
     body += `<div class="se-stack"><div class="se-bar"><h3>Each offer, in order</h3><div class="se-acts"><button class="btn se-mini" id="seLeadMath"${tipAttr('Opens Scenarios: what a lead can cost, what a plan returns')}>Lead math</button><button class="btn se-mini" id="seFormats">Ad formats to steal</button>${a.swipe_brand ? `<button class="btn se-mini" id="seBrandSwipe">This brand's swipe file</button>` : ''}<button class="btn se-mini" id="seAddPhase">+ Add a phase</button></div></div>`;
-    body += `<div class="se-deals">${live.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
-      <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
-      <div><div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">${pill(p.status)}${p.goal_key && g[p.goal_key] != null ? `<span class="se-m">goal ${moneyK(g[p.goal_key])}</span>` : ''}</div>
-        <div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || (p.hint || 'No offer written yet.'))}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}${resLine(p)}</div>
-      <div class="act"><button class="btn primary se-mini" data-edit-phase="${esc(p.key)}">Edit</button>${p.swipe ? `<button class="btn se-mini" data-swipe="${esc(p.key)}">Swipe file</button>` : ''}</div>
-    </div>`).join('')}</div>`;
-    if (skipped.length) body += `<p class="se-quiet">Not running: ${skipped.map(p => `${esc(p.name)} <button class="se-link se-mini" data-edit-phase="${esc(p.key)}">edit</button>`).join(' · ')}</p>`;
+    body += dealsList(a, g, { results: true });
     body += `</div>`;
-  } else if (S.btab === 'goals') {
-    const started = a.phases.filter(p => p.results);
-    let lk = null; try { lk = JSON.parse(a.answers.lead_kpi || 'null'); } catch {}
-    const gTiles = GOAL_FIELDS.slice(0, 4).map(([k, l]) => {
-      const pr = prog[k];
-      return tile({ compact: true, label: l, value: g[k] == null ? `<span class="se-m">not set</span>` : moneyK(g[k]),
-        sub: pr && g[k] ? `${moneyK(pr.sales)} so far${pr.running ? ', still running' : ''}` : '',
-        bullet: pr && g[k] && UI() ? `<div${tipAttr(`${moneyK(pr.sales)} from ${esc(pr.phases.join(', '))}, through yesterday. Progress, not a grade: a running phase is not pro-rated.`)}>${UI().ib(pr.sales, g[k], '--brand', `${Math.round(pr.sales / g[k] * 100)}%`)}</div>` : '' });
-    }).join('');
-    const strip = ladderStrip(g, null);
-    body += sCard('Goals and the ladder', 'The revenue each phase is graded against, and the MER lines the desk uses.', `<div class="v2tiles four se-tiles four">${gTiles}</div>
-      ${strip ? `<div style="margin-top:16px">${strip}</div>` : `<p class="v2hint" style="margin-top:12px">The ladder is not set. It needs breakeven, target, scale 50% and scale 100%, in that order.</p>`}
-      <div class="se-ladchips">${[['be', 'Breakeven'], ['target', 'Target'], ['s50', 'Scale 50% at'], ['s100', 'Scale 100% at']].map(([k, l]) => `<span>${l}: <b>${g[k] == null ? 'not set' : x2(g[k])}</b></span>`).join('')}<span>Start: <b>${g.start == null ? 'not set' : money(g.start)}/day</b></span><span>Meta cap: <b>${g.cap == null ? 'not set' : money(g.cap)}/day</b></span>${g.start && g.cap ? `<span>Headroom <b>${(g.cap / g.start).toFixed(1)}x</b>${g.cap / g.start < 4 ? ' (tight: ask Meta for a higher limit)' : ''}</span>` : ''}</div>
-      ${lk ? `<div class="se-ladchips"><span>Lead KPI (${esc(lk.name || 'scenario')}): pay up to <b>${money(lk.cpl_target)}</b> a lead for ${lk.target}x</span><span>breakeven <b>${money(lk.cpl_breakeven)}</b></span><span>${lk.cvr}% buy at ${money(lk.aov)}</span><span>${money(lk.spend)} buys about <b>${Number(lk.leads).toLocaleString()}</b> leads</span><span>set ${esc(lk.set_at || '')} on Scenarios</span></div>` : ''}
-      ${g.note ? `<p class="v2foot" style="margin-top:10px">${esc(g.note)}</p>` : ''}
-      <div style="margin-top:12px"><button class="btn primary se-mini" id="seGoals">Edit goals and ladder</button></div>`, 'At or above 100% we double, above 50% add half, at target hold, under target pull back, under breakeven rework');
-    const maxPct = Math.max(1, ...started.map(p => p.results.goal ? p.results.sales / p.results.goal : 0));
-    const first = a.phases.filter(p => p.start && p.status !== 'skip').sort((x, y) => x.start.localeCompare(y.start))[0];
-    body += sCard('Results so far', started.length ? `${started.length} phase${started.length === 1 ? ' has' : 's have'} started; ${moneyK(started.reduce((s, p) => s + (+p.results.sales || 0), 0))} revenue on ${moneyK(started.reduce((s, p) => s + (+p.results.spend || 0), 0))} spend.` : '',
-      started.length ? `<div class="v2tbl"><table><thead><tr><th>Phase</th><th>Days</th><th>Revenue</th><th>Spend</th><th>MER</th><th>Orders</th><th>Against goal</th></tr></thead><tbody>
-        ${started.map(p => { const r = p.results; const pc = r.goal ? r.sales / r.goal : null; return `<tr><td><b>${esc(p.name)}</b><span class="sub">${esc(fmtD(r.from))} to ${esc(fmtD(r.to))}</span></td><td>${r.days}</td><td>${money(r.sales)}</td><td>${money(r.spend)}</td><td>${x2(r.mer)}</td><td>${r.orders ? Math.round(r.orders) : '-'}</td><td>${pc != null && UI() ? UI().ib(pc, maxPct, '--brand', `${Math.round(pc * 100)}% of ${moneyK(r.goal)}`, `${money(r.sales)} of the ${money(r.goal)} goal, through ${fmtD(r.to)}`) : '-'}</td></tr>`; }).join('')}</tbody></table></div>`
-      : `<p class="v2hint">Nothing has started yet. The first phase opens ${esc(fmtDow((first || {}).start))}.</p>`, 'Same revenue line as P&L, through yesterday');
-  } else if (S.btab === 'desk') {
-    body += deskSection([a], today, 'The desk');
   } else if (S.btab === 'todo') {
     const wks = weeksOf([a], today).filter(w => w.items.length || w.lives.length);
     const upcoming = wks.filter(w => !w.past), past = wks.filter(w => w.past);
@@ -870,7 +737,7 @@ function paintBrand() {
     body += `<p class="se-quiet"><button class="se-link" id="seToggleSeason">${a.in_season ? 'This brand is not running a season this year' : 'Put this brand back on the season board'}</button></p>`;
   }
 
-  main.innerHTML = `<div class="se v2">${head(`${esc(a.name)}: the season`, 'The plan in one read, the season on one timeline, then the offers, goals, desk, to-dos and call sheet as tabs.')}
+  main.innerHTML = `<div class="se v2">${head(`${esc(a.name)}: offers and dates`, 'The plan in one read, the season on one timeline, then the offers, to-dos and call sheet as tabs. Goals, the budget and the ladder are on The Plan; the sale itself is on Live.')}
     <p class="v2say lead">${verdict}</p>${tiles}${plan}${timeline}${seg}${body}</div>`;
 
   if (typeof window.pageActions === 'function') window.pageActions(`<button class="btn" id="seCopy">Copy offer sheet</button><button class="btn primary" id="seShare">Client link</button>`);
@@ -894,7 +761,6 @@ function paintBrand() {
   const lm = document.getElementById('seLeadMath'); if (lm) lm.onclick = () => { if (typeof window.show === 'function') window.show('calc'); };
   const ap = document.getElementById('seAddPhase'); if (ap) ap.onclick = () => editPhase(a, null);
   const at = document.getElementById('seAddTask'); if (at) at.onclick = () => editTask(a.act_id, null);
-  const eg = document.getElementById('seGoals'); if (eg) eg.onclick = () => editGoals(a);
   main.querySelectorAll('[data-edit-answer]').forEach(b => b.onclick = () => editAnswer(a, b.dataset.editAnswer));
   const tg = document.getElementById('seToggleSeason'); if (tg) tg.onclick = async () => {
     const ok = typeof window.confirmModal === 'function' ? await window.confirmModal(a.in_season ? 'Take this brand off the season board?' : 'Put this brand on the season board?', a.in_season ? 'It disappears from All clients and the calendar. Nothing is deleted.' : 'It shows on the board again with everything it had.', a.in_season ? 'Take it off' : 'Put it on') : true;
@@ -902,24 +768,39 @@ function paintBrand() {
     try { await put('/api/season/answer', { act: a.act_id, key: 'in_season', value: a.in_season ? 'no' : 'yes' }); await refresh(); } catch (e) { toast(e.message, true); }
   };
   wireTasks(main);
-  if (S.btab === 'desk') wireDeskSection(main, [a], today, paintBrand);
 }
-async function editGoals(a) {
-  const g = a.goals || {};
-  const r = await formModal({
-    title: `${a.name}: goals and ladder`, hint: 'Money in dollars, lines as blended MER (revenue divided by ad spend, Triple Whale). Leave a box empty if it is not set.',
-    fields: [
-      ...GOAL_FIELDS.map(([k, l, t]) => ({ k, label: l, type: 'number', step: t === 'x' ? '0.01' : '1', value: g[k] ?? '', half: 1 })),
-      { k: 'note', label: 'Where these came from', value: g.note || '', ph: 'e.g. Goals from the Aug 25 call; ladder from last year, confirm by Nov 13' },
-    ], cta: 'Save',
-  });
-  if (!r) return;
-  const out = {};
-  for (const [k] of GOAL_FIELDS) out[k] = r[k] === '' ? null : +r[k];
-  out.note = r.note;
-  try { await put('/api/season/answer', { act: a.act_id, key: 'goals', value: out }); await refresh(); } catch (e) { toast(e.message, true); }
+/* The offer list, one card per phase in order (the Offers tab here and the Offers step on The Plan use the same one).
+   `phases` may carry results (this page) or not (The Plan). ro = no Edit buttons (a client login). */
+function dealsList(a, g, { ro = false, results = true } = {}) {
+  normPhases(a.phases);
+  const resLine = p => {
+    if (!results || !p.results) return '';
+    const r = p.results; const goal = r.goal;
+    const vs = goal ? ` · ${Math.round(r.sales / goal * 100)}% of the ${moneyK(goal)} goal` : '';
+    return `<div class="res"><b>${money(r.sales)}</b> revenue so far on ${money(r.spend)} spend${r.mer != null ? ` · ${x2(r.mer)}` : ''}${r.orders ? ` · ${Math.round(r.orders)} orders` : ''}${vs}<br><span class="se-m">${esc(fmtD(r.from))} to ${esc(fmtD(r.to))}, same revenue line as P&L.</span></div>`;
+  };
+  const live = a.phases.filter(p => p.status !== 'skip');
+  const skipped = a.phases.filter(p => p.status === 'skip');
+  let out = `<div class="se-deals">${live.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'}">
+      <div class="n"><span class="num">${i + 1}</span><div><div class="nm">${esc(p.name)}</div><div class="dt">${esc(fmtRange(p.start, p.end))}${p.who ? `<br>${esc(p.who)}` : ''}</div></div></div>
+      <div><div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">${pill(p.status)}${p.goal_key && g && g[p.goal_key] != null ? `<span class="se-m">goal ${moneyK(g[p.goal_key])}</span>` : ''}</div>
+        <div class="big ${p.offer ? '' : 'none'}">${esc(p.offer || (p.hint || 'No offer written yet.'))}</div>${p.detail ? `<div class="x">${esc(p.detail)}</div>` : ''}${resLine(p)}</div>
+      ${ro ? '<div></div>' : `<div class="act"><button class="btn primary se-mini" data-edit-phase="${esc(p.key)}">Edit</button>${p.swipe ? `<button class="btn se-mini" data-swipe="${esc(p.key)}">Swipe file</button>` : ''}</div>`}
+    </div>`).join('')}</div>`;
+  if (skipped.length) out += `<p class="se-quiet">Not running: ${skipped.map(p => `${esc(p.name)}${ro ? '' : ` <button class="se-link se-mini" data-edit-phase="${esc(p.key)}">edit</button>`}`).join(' · ')}</p>`;
+  return out;
 }
-async function editPhase(a, key) {
+/* For The Plan (desk.js): the same list from the war payload's phases, and the same editor, without this page's state. */
+function dealsHtml(a, opts) { return dealsList({ ...a, phases: (a.phases || []).map(p => ({ ...p })) }, a.goals || {}, opts); }
+async function editPhaseFor({ tok, url, act, phases, name }, key) {
+  if (tok) S.tok = tok; if (url) S.url = url;
+  const a = { act_id: act, name, phases: (phases || []).map(p => ({ ...p })) };
+  normPhases(a.phases);
+  return editPhaseCore(a, key);
+}
+async function editPhase(a, key) { if (await editPhaseCore(a, key)) await refresh(); }
+/** The offer editor. Returns true when something was saved or deleted, false when cancelled. */
+async function editPhaseCore(a, key) {
   const p = key ? a.phases.find(x => x.key === key) : null;
   const r = await formModal({
     title: p ? p.name : 'Add a phase', hint: p?.hint || 'Something this brand runs that is not on the standard list, like a creator launch or a second drop.',
@@ -934,16 +815,16 @@ async function editPhase(a, key) {
       ...(p ? [] : [{ k: 'grp', label: 'Part of the season', type: 'select', value: 'bf', options: Object.entries(GRP).map(([k, v]) => [k, v[0]]) }]),
     ], cta: 'Save', danger: p && p.tpl === 0 && !['early', 'access', 'bf', 'planb', 'drop', 'xmas', 'gift', 'boxing', 'ny', 'vday'].includes(p.key) ? 'Delete phase' : null,
   });
-  if (!r) return;
+  if (!r) return false;
   try {
     if (r.__delete) await put('/api/season/phase', { act: a.act_id, key: p.key }, 'DELETE');
     else {
-      if (!r.name) return toast('Give it a name', true);
+      if (!r.name) { toast('Give it a name', true); return false; }
       const k = p ? p.key : ('x' + Date.now().toString(36));
       await put('/api/season/phase', { act: a.act_id, key: k, name: r.name, start: r.start || null, end: r.end || null, who: r.who, offer: r.offer, detail: r.detail, status: r.status, grp: p ? p.grp : r.grp, sort: p ? p.sort : 500 });
     }
-    await refresh();
-  } catch (e) { toast(e.message, true); }
+    return true;
+  } catch (e) { toast(e.message, true); return false; }
 }
 async function editAnswer(a, key) {
   if (key === 'strategy_note') {
@@ -1006,5 +887,5 @@ async function render({ tok, url, act, accounts, pick }) {
   if (act === 'all') return renderAll();
   return renderBrand();
 }
-window.SeasonTab = { render, renderShare };
+window.SeasonTab = { render, renderShare, dealsHtml, editPhase: editPhaseFor, injectCss, seasonLabel };
 })();
