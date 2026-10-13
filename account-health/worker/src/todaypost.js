@@ -9,7 +9,8 @@
  * rows (tests) are on the page. Nothing is written to Meta by this post: the buttons on the page do that.
  *   todayTick(env, d): inside the hourly cron, right after meetingsTick. State: settings `todayDone` =
  *   {date, acts: {brand: status}, tries: {brand: n}}; a brand whose read failed is tried once more next hour.
- *   Budget: d.canAfford(40) BEFORE each brand (never mid-brand). Switch: settings `todayPost` ('off' stops it). */
+ *   Budget: d.canAfford(40) BEFORE each brand (never mid-brand). Switch: settings `todayPost` ('off' stops it).
+ *   2026-10-13: OFF while the morning card is on (settings.morningCard); the card reuses readToday and messageFor. */
 import { SKIP as PAUSED } from './moved.js';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
@@ -55,6 +56,8 @@ export function messageFor(brand, rows) {
 
 export async function todayTick(env, d) {
   if ((await d.getSetting(env, 'todayPost')) === 'off') return { skipped: 'off' };
+  /* 2026-10-13: the morning card (morningcard.js) carries today's calls as one line and this list in its thread. */
+  if (d.cardOn && await d.cardOn(env)) return { skipped: 'the morning card carries it' };
   const hour = d.centralHour();
   if (hour < TODAY_HOUR) return { skipped: `before ${TODAY_HOUR}am Central` };
   if (hour > TODAY_LAST_HOUR) return { skipped: 'after 1pm Central' };

@@ -10,7 +10,7 @@
  *
  * Routes (admin, team only; refused for a client scope):
  *   GET  /api/production?act=<brand|all>   {cards, live, brands, team, synced_at}
- *   POST /api/production/move   {id, to}    to = brief | making | review | ready | live; Asana follows; one Slack line
+ *   POST /api/production/move   {id, to}    to = brief | making | review | ready | live; Asana follows (no Slack line since 2026-10-13)
  *   POST /api/production/brief  {act, text, owner, due}  the next numbered brief in Asana + its card (meetings.js makeBrief)
  */
 import { boardOf, BOARD_SECTION, ensureBoard } from './asana-brand.js';
@@ -101,14 +101,10 @@ export async function moveCard(env, d, { id, to }, who) {
   /* The Asana section is written only when the move landed there, so a failed move is put right by the next sync. */
   await env.DB.prepare(`UPDATE p_br_batch SET board_stage = ?2, board_at = datetime('now'), stage = ?3, asana_section = ?4, updated_at = datetime('now') WHERE id = ?1`)
     .bind(r.id, to, STAGE_OF[to], asana.moved ? section : r.asana_section).run();
-  const brands = await d.listBrands(env);
-  const ch = brands.find(b => b.act_id === r.act_id)?.slack_channel;
-  let slack = false;
-  if (ch && from !== to && d.slackPost) {
-    const line = `${sEsc(nameOfEmail(who))} moved *${r.num} - ${sEsc(clean(r.title, 90))}* to ${LABEL[to]}${r.asana_url ? ` · <${r.asana_url}|Asana>` : ''}`;
-    try { await d.slackPost(env, ch, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } }], { username: 'Locus' }); slack = true; } catch { /* the move still stands */ }
-  }
-  return { id: r.id, from, to, asana, slack };
+  /* No Slack line per drag any more (2026-10-13, the morning card): the board is the record. A late card that moves
+     on is struck through on today's morning card instead. */
+  if (from !== to && d.onProdMoved) await d.onProdMoved(env, r.id).catch(() => {});
+  return { id: r.id, from, to, asana, slack: false };
 }
 
 export async function handleProduction(request, env, url, path, json, d) {

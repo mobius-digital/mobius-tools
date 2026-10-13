@@ -3075,3 +3075,13 @@ approved mock: `docs/handoffs/work-calls-tasks-production.md` (https://claude.ai
   brief" / "+ Brief" = an in-app window -> `/api/production/brief`. Live shows the newest 12 with "Show all N".
 - Checked on a stub harness (scratchpad, deleted): every write's request body, the menus, drag on all three surfaces,
   light and dark, 375px with no page sideways scroll. NOT checked against the real workers in a browser.
+
+## 2026-10-13 (fifth pass): the morning card's settings (account-health morningcard.js)
+
+- Agency settings > Slack and sending: **Morning posts go out at** (replaces "Daily Brief send time"; same `#btHour`,
+  `/api/brief-time`, now one hour for the client daily, the weekly / monthly drafts and the morning card, default 5am
+  Central), **The morning card** (switch `#mcOn` -> `PUT /api/settings {morningCard}`; brand picker `#mcAct` + "Preview
+  this morning's card" -> account-health `GET /api/morning-card/preview?act=`, shown in a noteModal as plain words with
+  @names and what its thread will hold; nothing posts), **Where the drafts post** (now also the weekly and monthly drafts
+  while the card is on; shows `dailyBriefsError` when the agency channel last refused a draft). The "Today's calls in
+  Slack" card is gone (the card carries it). Engine and rules: account-health/CLAUDE.md, same date.

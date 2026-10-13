@@ -41,6 +41,7 @@
 import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_RULE } from './actions.js';
 import { briefFor, ensureBoard } from './asana-brand.js';
 import { nextNumber } from './ideas.js';
+import { teamPost, tagOf, loadCard } from './morningcard.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
@@ -369,7 +370,11 @@ export async function confirm(env, d, body, who) {
       if (tell.length) L.push('*The client hears*', ...[...new Set(tell)].map(x => `• ${sEsc(x)}`));
       if (r.asks.length || b.need_from_client.length) L.push('*We need from the client*', ...[...new Set(r.asks.map(a => a.text).concat(b.need_from_client))].map(x => `• ${sEsc(x)}`));
       const text = L.join('\n');
-      try { await d.slackPost(env, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' }); r.slack = true; }
+      /* 2026-10-13: a brand's note goes under today's morning card (a reply, the owners tagged); agency-wide ones and a
+         day with no card post top-level as before. */
+      const owners = [...new Set(r.tasks.concat(r.briefs).map(t => t.owner).filter(Boolean))];
+      const tags = act ? (await Promise.all(owners.map(o => tagOf(env, d, o).catch(() => null)))).filter(Boolean).join(' ') : '';
+      try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus', tag: tags || null }); r.slack = true; }
       catch (e) { result.warnings.push(`${r.name}: the Slack note failed (${e.message}).`); }
     }
     if (act) result.brands.push(r); else result.agency = r;
@@ -404,8 +409,12 @@ export async function mondayScreen(env, d) {
       report = { period_start: rep.period_start, period_end: rep.period_end, status: rep.status, sent_at: rep.sent_at || null, summary: String(rep.summary || '').slice(0, 2500),
         totals: { sales: t.sales ?? null, spend: t.spend ?? null, mer: t.mer ?? null, cm: t.cm ?? null }, plan: { sales: f.sales ?? null, spend: f.spend ?? null, mer: f.mer ?? null }, prior: { sales: p.sales ?? null, spend: p.spend ?? null, mer: p.mer ?? null },
         currency: data.account?.currency || 'USD', this_week: data.this_week || [], need_from_you: data.need_from_you || [], fresh: rep.period_end >= ymd(Date.parse(monday + 'T12:00:00Z') - 8 * 864e5) };
-      if (rep.slack_ts && rep.slack_channel) {
-        const rows = (await env.DB.prepare(`SELECT ts, name, user, text, bot FROM slack_msg WHERE channel = ?1 AND thread_ts = ?2 AND ts != ?2 ORDER BY ts`).bind(rep.slack_channel, rep.slack_ts).all().catch(() => ({ results: [] }))).results || [];
+      /* The plan is the strategist's reply under the Monday MORNING CARD (2026-10-13, morningcard.js); the weekly
+         report's own card was the anchor before that and is still read when the card's thread has nothing. */
+      const mondayCard = await loadCard(env, b.act_id, rep.period_end ? ymd(Date.parse(rep.period_end + 'T12:00:00Z') + 864e5) : monday).catch(() => null);
+      for (const [ch, ts] of [[mondayCard?.channel, mondayCard?.ts], [rep.slack_channel, rep.slack_ts]]) {
+        if (thread.length || !ch || !ts) continue;
+        const rows = (await env.DB.prepare(`SELECT ts, name, user, text, bot FROM slack_msg WHERE channel = ?1 AND thread_ts = ?2 AND ts != ?2 ORDER BY ts`).bind(ch, ts).all().catch(() => ({ results: [] }))).results || [];
         thread = rows.filter(r => !r.bot && String(r.text || '').trim()).map(r => ({ by: r.name || r.user || 'someone', text: String(r.text).slice(0, 4000), at: new Date(+String(r.ts).split('.')[0] * 1000).toISOString(), where: 'thread' }));
       }
       /* A plan posted in the channel itself on the Monday (not as a reply) still counts. */

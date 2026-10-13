@@ -120,13 +120,19 @@ export async function listActions(env, { act = 'all', status = 'open', since = 6
   return (results || []).map(r => ({ ...r, url: itemUrl(r) }));
 }
 
-export async function markDone(env, id, done, { by, how } = {}) {
+/* Anything that wants to know a row was done or opened again (the morning card strikes its line, morningcard.js).
+   Registered once by worker.js; a failing hook never fails the tick or the tap. */
+const DONE_HOOKS = [];
+export function onActionDone(fn) { if (typeof fn === 'function') DONE_HOOKS.push(fn); }
+export async function markDone(env, id, done, { by, how, quiet } = {}) {
   await ensureActions(env);
   const r = await env.DB.prepare(`SELECT * FROM p_action WHERE id = ?1`).bind(String(id || '')).first();
   if (!r) throw Object.assign(new Error('No such item.'), { status: 404 });
   if (done === false) await env.DB.prepare(`UPDATE p_action SET status = 'open', done_at = NULL, done_by = NULL, done_how = NULL WHERE id = ?1`).bind(r.id).run();
   else await env.DB.prepare(`UPDATE p_action SET status = 'done', done_at = ?2, done_by = ?3, done_how = ?4 WHERE id = ?1`).bind(r.id, now(), clean(by, 120) || null, clean(how, 40) || 'tick').run();
-  return { ...r, status: done === false ? 'open' : 'done' };
+  const out = { ...r, status: done === false ? 'open' : 'done' };
+  if (!quiet) for (const h of DONE_HOOKS) await Promise.resolve().then(() => h(env, out)).catch(() => {});
+  return out;
 }
 
 export async function editAction(env, id, patch) {
@@ -221,11 +227,12 @@ export async function judgeAreas(env, d, { limit = 60 } = {}) {
 
 /* ---------- the reminders ---------- */
 const DONE_BTN = (r, n) => ({ type: 'button', action_id: `act_done_${n}`, text: { type: 'plain_text', text: `Done: ${clean(r.text, 28)}${r.text.length > 28 ? '…' : ''}` }, value: JSON.stringify({ id: r.id }) });
-/** One owner's line for one brand: the items due today and the ones overdue, a Done button each (5 at most, Slack's limit). */
-export function reminderMessage(brandName, owner, items, today) {
+/** One owner's line for one brand: the items due today and the ones overdue, a Done button each (5 at most, Slack's limit).
+ *  tag (optional) = the owner's Slack tag (<@U...>), so a line in the morning card's thread notifies them. */
+export function reminderMessage(brandName, owner, items, today, tag) {
   const late = items.filter(i => i.due < today), due = items.filter(i => i.due === today);
   const who = owner || 'Nobody owns these';
-  const head = `*${sEsc(who)}*, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}.`;
+  const head = `${tag || `*${sEsc(who)}*`}, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}.`;
   const lines = items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.asana_url ? ` <${i.asana_url}|Asana>` : ''}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`);
   const text = [head, ...lines].join('\n');
   const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }];
@@ -264,9 +271,11 @@ export async function actionTick(env, d) {
       if (email && d.slackApi) { const u = await d.slackApi(env, 'users.lookupByEmail', { email }).catch(() => null); if (u?.ok && u.user?.id && !u.user.is_bot) channel = u.user.id; }
     }
     if (!channel) { out.skipped.push({ act, owner, why: 'no channel' }); continue; }
-    const msg = reminderMessage(brand ? brand.name : (act ? act : ''), owner, items, today);
+    /* A brand's line goes under today's morning card when there is one (teamPost: a reply, the owner tagged). */
+    const tag = d.teamPost && act && d.tagOf ? await d.tagOf(env, owner).catch(() => null) : null;
+    const msg = reminderMessage(brand ? brand.name : (act ? act : ''), owner, items, today, tag);
     try {
-      const r = await d.slackPost(env, channel, msg.text, msg.blocks, { username: 'Locus' });
+      const r = d.teamPost && act ? await d.teamPost(env, channel, msg.text, msg.blocks, { username: 'Locus' }) : await d.slackPost(env, channel, msg.text, msg.blocks, { username: 'Locus' });
       const ts = r && (r.ts || r.message?.ts) || null;
       for (const it of items) await env.DB.prepare(`UPDATE p_action SET reminded_on = ?2, slack_channel = ?3, slack_ts = ?4 WHERE id = ?1`).bind(it.id, today, channel, ts).run();
       out.posted++;
@@ -317,7 +326,7 @@ export async function handleReaction(env, d, ev) {
   if (!ch || !ts) return { ignored: 'no item' };
   await ensureActions(env);
   const { results } = await env.DB.prepare(`SELECT * FROM p_action WHERE slack_channel = ?1 AND slack_ts = ?2 AND status = 'open'`).bind(ch, ts).all();
-  if (!results || !results.length) return { ignored: 'not a reminder' };
+  if (!results || !results.length) return d.cardReaction ? d.cardReaction(env, ev) : { ignored: 'not a reminder' };
   const who = await slackName(env, d, ev.user);
   for (const r of results) await markDone(env, r.id, true, { by: who, how: 'slack' });
   /* Redraw the line so it reads done (chat.update needs the bot's own message, which a reminder is). */
