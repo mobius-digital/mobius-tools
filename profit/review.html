@@ -32,7 +32,7 @@
 </head>
 <body>
 <div class="wrap"><div class="card" id="box"><small>Ad review</small><h1>Loading...</h1></div><footer>Locus by Mobius Digital</footer></div>
-<script src="review-ui.js?v=2"></script>
+<script src="review-ui.js?v=3"></script>
 <script>
 (() => {
   const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -47,31 +47,38 @@
   };
   const fail = msg => { box.innerHTML = `<small>Ad review</small><h1>This link does not open</h1><p>${esc(msg)}</p>`; };
   if (!/^[a-f0-9]{32}$/.test(t)) { fail('The link is not complete. Copy the whole link from the message.'); return; }
-  let D = null;
+  let D = null, AD = null;
+  /* versions are per ad (48-1, 48-2): the viewer shows one ad at a time, newest first; a card with several ads gets a button each */
+  const ads = () => [...new Set(D.files.map(f => f.ad || ''))].sort((a, b) => Date.parse(newest(b).created_at.replace(' ', 'T')) - Date.parse(newest(a).created_at.replace(' ', 'T')));
+  const newest = ad => D.files.filter(f => (f.ad || '') === ad).sort((a, b) => b.version - a.version)[0];
+  const ofAd = (list, ad) => list.filter(f => (f.ad || '') === ad);
   const intro = () => {
     const k = D.card;
+    const many = ads().length > 1;
     box.innerHTML = `<small>${esc(k.brand)} · ad review</small><h1>${esc(k.title || 'Your ad')}</h1>
       <p>${k.needs_client ? 'Mobius would like your OK on this ad. Watch it, draw on anything you want changed, then approve it or ask for changes.' : 'Leave notes on the ad. Draw a box or an arrow on the part you mean, and write what should change.'}</p>
-      <button type="button" id="go">Open the ad</button>`;
-    document.getElementById('go').onclick = view;
+      ${many ? `<p>${ads().length} ads on this test. Open one:</p><div style="display:flex;gap:8px;flex-wrap:wrap">${ads().map(a => `<button type="button" data-ad="${esc(a)}">${esc(a ? `Ad ${a}` : 'The ad')} · v${newest(a).version}</button>`).join('')}</div>` : '<button type="button" id="go">Open the ad</button>'}`;
+    const go = document.getElementById('go'); if (go) go.onclick = () => view(ads()[0] || '');
+    box.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => view(b.dataset.ad));
   };
-  const view = () => {
+  const view = ad => {
     const k = D.card;
+    AD = ad || '';
     window.ReviewUI.open({
-      title: k.title, num: k.brand, format: D.brief && D.brief.format, files: D.files, comments: D.comments, mode: 'guest', needsName: true,
+      title: `${k.title}${AD ? ` · ad ${AD}` : ''}`, num: k.brand, format: D.brief && D.brief.format, files: ofAd(D.files, AD), comments: D.comments, mode: 'guest', needsName: true,
       canDecide: !!k.needs_client,
       decideHint: 'Approve tells Mobius it is ready to run. Ask for changes needs a note and sends it back to them.',
       waitHint: 'Leave notes on the ad. Mobius sees them right away.',
       api: {
         note: (fid, body, shape, at, name) => call('/note', { name, file_id: fid, body, shape, at }),
-        decide: (ok, body, name) => call('/decide', { name, ok, body }),
+        decide: (ok, body, name) => call('/decide', { name, ok, body, file_id: (newest(AD) || {}).id }),
         fixed: async () => {},
-        reload: async () => { D = await call(''); return { files: D.files, comments: D.comments, canDecide: !!D.card.needs_client }; },
+        reload: async () => { D = await call(''); return { files: ofAd(D.files, AD), comments: D.comments, canDecide: !!D.card.needs_client }; },
       },
       onClose: intro,
     });
   };
-  call('').then(d => { D = d; intro(); view(); }).catch(e => fail(e.message));
+  call('').then(d => { D = d; intro(); if (ads().length <= 1) view(ads()[0] || ''); }).catch(e => fail(e.message));
 })();
 </script>
 </body>

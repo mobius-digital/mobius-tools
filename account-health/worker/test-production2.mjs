@@ -1,20 +1,22 @@
-/* Offline checks for PRODUCTION V2 (2026-10-14, src/prodwork.js + the routes in src/production.js): the brief's fields
- * round trip to brief_text, AI fill never overwrites a typed field, comments and @mentions (Slack DM mocked), notes
- * with drawings, uploads to R2 and the signed file link, approve / ask for changes moving the card and telling the
- * maker, the client's scope (own brand only, no drag / new brief / upload), the review link with no login, the Asana
- * mirror switch stopping every Asana write, and the 60-day prune. In-memory SQLite (node:sqlite), R2 a Map.
+/* Offline checks for PRODUCTION V2 (2026-10-14, src/prodwork.js + the routes in src/production.js): the brief is one
+ * written page (sanitizer, text, Asana html both ways, templates, old briefs read as a page), AI fill keeps every typed
+ * sentence, comments and @mentions (Slack DM mocked), notes with drawings, uploads to R2 with versions PER AD (from the
+ * file name) and in parts (R2 multipart mocked), the signed file link, approve / ask for changes moving the card and
+ * telling the maker, the client's scope (own brand only, no drag / new brief / upload), the review link with no login,
+ * the Asana mirror switch stopping every Asana write, and the 60-day prune per ad. In-memory SQLite, R2 a Map.
  *   node test-production2.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { handleProduction, moveCard, formatOf } from './src/production.js';
-import { briefText, fieldsFromText, normBrief, mergeAi, aiFill, saveCard, addComment, decide, getCard, uploadFile, sendToClient,
-  serveFile, fileUrl, handleReviewLink, shareLink, pruneFiles, setMirror, mirrorOn, normShape, clientBoard, briefHtml, savePhoto, teamPhotos } from './src/prodwork.js';
+import { briefText, normBrief, aiFill, saveCard, addComment, decide, getCard, uploadFile, sendToClient, serveFile, handleReviewLink, shareLink,
+  pruneFiles, setMirror, mirrorOn, normShape, briefHtml, savePhoto, teamPhotos, sanitizeHtml, htmlToText, textToHtml, asanaToHtml, templateHtml, briefFromAsana, adOf, fillSrc } from './src/prodwork.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => { let hi = 0; return sql.replace(/\?(\d*)/g, (_, n) => { if (n) { hi = Math.max(hi, +n); return ':p' + n; } hi++; return ':p' + hi; }); };
 const vals = (a, sql) => { const used = new Set([...bindSql(sql).matchAll(/:p(\d+)/g)].map(m => 'p' + m[1])); return Object.fromEntries(a.map((v, i) => ['p' + (i + 1), v === undefined ? null : typeof v === 'boolean' ? +v : v]).filter(([k]) => used.has(k))); };
 const stmt = sql => { let args = []; const st = () => db.prepare(bindSql(sql)); return { bind(...a) { args = a; return this; }, async first() { return st().get(vals(args, sql)) || null; }, async all() { return { results: st().all(vals(args, sql)) }; }, async run() { const r = st().run(vals(args, sql)); return { meta: { changes: r.changes } }; } }; };
 const R2 = new Map();
+const MP = new Map();   // multipart uploads in flight: key -> {parts: Map}
 const MEDIA = {
   async put(key, body) { const buf = Buffer.from(await new Response(body).arrayBuffer()); R2.set(key, buf); return { size: buf.length }; },
   async get(key, opts) {
@@ -23,6 +25,14 @@ const MEDIA = {
     return { body: buf, size: buf.length };
   },
   async delete(key) { R2.delete(key); },
+  async createMultipartUpload(key) { const uploadId = 'mp' + (MP.size + 1); MP.set(key + '|' + uploadId, new Map()); return { key, uploadId }; },
+  resumeMultipartUpload(key, uploadId) {
+    const parts = MP.get(key + '|' + uploadId);
+    return {
+      async uploadPart(n, body) { if (!parts) throw new Error('no such upload'); const buf = Buffer.from(await new Response(body).arrayBuffer()); parts.set(n, buf); return { partNumber: n, etag: 'e' + n + '-' + buf.length }; },
+      async complete(list) { if (!parts) throw new Error('no such upload'); for (const p of list) if (!parts.has(p.partNumber) || !p.etag.startsWith('e' + p.partNumber)) throw new Error('bad part'); const buf = Buffer.concat(list.map(p => parts.get(p.partNumber))); R2.set(key, buf); MP.delete(key + '|' + uploadId); return { size: buf.length }; },
+    };
+  },
 };
 const env = { DB: { prepare: stmt, async batch(list) { for (const s of list) await s.run(); } }, MEDIA, SESSION_SECRET: 'sek', ANTHROPIC_API_KEY: 'k' };
 db.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`);
@@ -44,10 +54,19 @@ Inspo: https://example.com/ref' WHERE id = 'c2'`);
 
 const BRANDS = [{ act_id: 'brand_alpha', name: 'Alpha Golf', slack_channel: 'C_ALPHA' }, { act_id: 'brand_beta', name: 'Beta Socks', slack_channel: 'C_BETA' }];
 let asanaCalls = [], slack = [], posts = [];
+const ASANA_T2 = `<body><h2>The test</h2><strong>Angle:</strong> Winter hands\n<strong>What we're testing:</strong> 3 hooks on 45-1\n<em>What changes, and on which ad. Like: 3 new concepts</em>\n<strong>Why:</strong> Searches doubled\n<ol><li>45-1 red knuckles then the glove</li><li>45-2 the frosty grip</li></ol>\n<h2>Copy</h2><strong>Headline:</strong> Warm grip\n<strong>Inspo:</strong> <a href="https://a.com/x">https://a.com/x</a></body>`;
 const sections = [{ gid: 'S1', name: 'Creative Briefs' }, { gid: 'S2', name: 'Creative Studio' }, { gid: 'S3', name: 'Ready to Launch' }, { gid: 'S4', name: 'Analyze Results' }];
 const d = {
   listBrands: async () => BRANDS, centralDate: () => '2026-10-14',
-  asana: async (e, path, init) => { asanaCalls.push({ path, init }); if (path.includes('/sections?')) return sections; if (path.includes('/stories')) return { gid: 'ST' + asanaCalls.length }; if (init && init.method === 'PUT' && path.startsWith('/tasks/')) return { gid: 'T', notes: 'ASANA PLAIN ' + (init.body.html_notes || '').replace(/<[^>]+>/g, '') }; return {}; },
+  asana: async (e, path, init) => {
+    asanaCalls.push({ path, init });
+    if (path.includes('/sections?')) return sections;
+    if (path.includes('/stories')) return { gid: 'ST' + asanaCalls.length };
+    if (init && init.method === 'PUT' && path.startsWith('/tasks/')) return { gid: 'T', notes: 'ASANA PLAIN ' + (init.body.html_notes || '').replace(/<[^>]+>/g, '') };
+    if (path.startsWith('/tasks/T2?')) return { gid: 'T2', html_notes: ASANA_T2, notes: ASANA_T2.replace(/<[^>]+>/g, '') };
+    if (path.startsWith('/tasks/T1?')) return { gid: 'T1', html_notes: '<body></body>', notes: '' };
+    return {};
+  },
   slackApi: async (e, method, args) => { slack.push({ method, args }); if (method === 'users.lookupByEmail') return { ok: true, user: { id: 'U_' + args.email.split('@')[0].toUpperCase() } }; if (method === 'users.info') return { ok: true, user: { profile: { image_192: 'https://slack/p/' + args.user } } }; return { ok: true }; },
   slackPost: async (e, ch, text) => { posts.push({ ch, text }); return { ok: true }; },
   isAdmin: async req => !!req.headers.get('authorization'),
@@ -65,68 +84,82 @@ const call = async (path, { method = 'GET', body, client, raw, type, email } = {
   return r && { status: r.status, body: await r.json() };
 };
 let n = 0, bad = 0;
-const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', e.stack.split('\n').slice(0, 3).join('\n    ')); } };
+const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', String(e.message).slice(0, 1600), '\n   ', (e.stack.split('\n').find(l => /test-production2/.test(l)) || '')); } };
 
-await check('brief fields round trip to brief_text and back (Video: hooks + script table; Iteration; Resize)', async () => {
-  const b = normBrief({ kind: 'new', format: 'Video', angle: 'Cold hands, not bad swings.', why: 'Hands-in-frame beat product-only 2 to 1.', concept: 'Red knuckles, then the glove.', testing: 'If we show the cold first, then CTR beats glove-only.',
-    hooks: ['Cold hands = bad golf?', 'POV: 38 degrees at 7am'], rows: [{ vo: 'Cold hands = bad golf?', text: 'COLD HANDS?', shot: 'Breath in the air', sec: '2' }, { vo: 'Your swing is fine.', shot: 'Frosty grip', sec: '3', insp: [{ type: 'link', url: 'https://www.tiktok.com/@a/video/1' }] }],
-    length: '15s', copy: 'Warm hands.\nSame feel.', sizes: ['9:16', '4:5', 'bogus'] });
-  assert.deepEqual(b.sizes, ['9:16', '4:5'], 'unknown sizes dropped');
-  const t = briefText(b);
-  assert.match(t, /^Kind: New idea · Format: Video/); assert.match(t, /Hook A: Cold hands = bad golf\?/); assert.match(t, /1\. VO: Cold hands = bad golf\? \| On screen: COLD HANDS\? \| Shot: Breath in the air \| 2s/);
-  assert.ok(!t.includes(String.fromCharCode(8212)), 'no em dashes');
-  const back = fieldsFromText(t);
-  for (const k of ['kind', 'format', 'angle', 'why', 'concept', 'testing', 'length']) assert.equal(back[k], b[k], k);
-  assert.deepEqual(back.hooks.filter(Boolean), b.hooks);
-  assert.equal(back.rows.length, 2); assert.equal(back.rows[0].text, 'COLD HANDS?'); assert.equal(back.rows[1].sec, '3'); assert.equal(back.rows[1].insp[0].url, 'https://www.tiktok.com/@a/video/1');
-  const it = fieldsFromText(briefText({ kind: 'iter', format: 'Static', iter: { of: '43', change: 'Hook', value: 'It got cold.' } }));
-  assert.equal(it.kind, 'iter'); assert.deepEqual(it.iter, { of: '43', change: 'Hook', value: 'It got cold.' });
-  const rz = fieldsFromText(briefText({ kind: 'resize', format: 'Static', resize: { of: '44', note: 'Logo out of the bottom 20%.' }, sizes: ['9:16'] }));
-  assert.equal(rz.kind, 'resize'); assert.equal(rz.resize.of, '44'); assert.equal(rz.resize.note, 'Logo out of the bottom 20%.'); assert.deepEqual(rz.sizes, ['9:16']);
-  const html = briefHtml(b, 'https://x/?card=1');
-  assert.match(html, /^<body><em>Written in Locus/); assert.match(html, /<strong>Angle:<\/strong> Cold hands/); assert.match(html, /<a href="https:\/\/www.tiktok.com\/@a\/video\/1">/);
+await check('the page: the sanitizer keeps the allowed tags only, closes what is open, drops scripts and styles, keeps data-file and hints', async () => {
+  const h = sanitizeHtml(`<div><b>Angle:</b> Cold <script>alert(1)</script>hands <span style="color:red" onclick="x()">plain</span> <span data-ph>a hint</span><img src="data:image/png;base64,xx" onerror="x()"><img data-file="abcdefabcdefabcd" src="https://signed/x"><a href="javascript:alert(1)">bad</a> <a href="https://a.com/x" target="_blank">ok</a><ul><li>one<li>two</ul><p>unclosed <em>em`);
+  assert.equal(h, `<p><strong>Angle:</strong> Cold hands plain <span data-ph>a hint</span><img data-file="abcdefabcdefabcd">bad <a href="https://a.com/x">ok</a></p><ul><li>one</li><li>two</li></ul><p>unclosed <em>em</em></p>`);
+  assert.equal(sanitizeHtml('a < b & c &amp; d'), 'a &lt; b &amp; c &amp; d');
+  assert.equal(htmlToText('<h2>The test</h2><p><strong>Angle:</strong> Cold hands</p><p><span data-ph>a hint</span></p><ol><li>first</li><li>second</li></ol><p>x<br>y</p>'), 'The test\nAngle: Cold hands\n\n1. first\n2. second\nx\ny');
+  const t = textToHtml(`The test\nAngle: Winter hands\n1. Line one\n2. Line two\n- a bullet\nInspo: https://a.com/x https://b.com/y\nSomething odd`);
+  assert.equal(t, `<h2>The test</h2><p><strong>Angle:</strong> Winter hands</p><ol><li>Line one</li><li>Line two</li></ol><ul><li>a bullet</li></ul><p><strong>Inspo:</strong> <a href="https://a.com/x">https://a.com/x</a> <a href="https://b.com/y">https://b.com/y</a></p><p>Something odd</p>`);
+  const tpl = templateHtml('new', 'Static', '48');
+  assert.match(tpl, /<h2>The test<\/h2><p><strong>Angle:<\/strong> <span data-ph>The argument this ad makes<\/span><\/p>/); assert.match(tpl, /<li><strong>48-1<\/strong> <span data-ph>/); assert.match(tpl, /<h2>Copy<\/h2>/);
+  assert.match(templateHtml('new', 'Video', '48'), /<h2>Video<\/h2>/); assert.match(templateHtml('iter', 'Static', '48'), /Iterating on/); assert.equal(templateHtml('blank'), '<p><br></p>');
+  assert.equal(fillSrc('<p><img data-file="abcdefabcdefabcd"> and <a href="https://a.com">x</a></p>', { abcdefabcdefabcd: { url: 'https://s/x?e=1' } }), '<p><img data-file="abcdefabcdefabcd" src="https://s/x?e=1"> and <a target="_blank" rel="noopener" href="https://a.com">x</a></p>');
+  const b = normBrief({ v: 2, html: '<p><strong>Angle:</strong> x</p>', format: 'UGC', sizes: ['9:16', 'bogus', '9:16'] });
+  assert.deepEqual(b, { v: 2, html: '<p><strong>Angle:</strong> x</p>', format: 'UGC', sizes: ['9:16'] });
+  assert.equal(briefText(b), 'Format: UGC · Sizes: 9:16\nAngle: x');
 });
 
-await check('an old Asana brief is read into fields once; what no label claims lands in Other notes', async () => {
-  const f = fieldsFromText(`<em>ignored</em>\nAngle: Winter hands\nWhat we're testing: Hooks\nWhy: Searches doubled\n1. Line one\n2. Line two\nHeadline: Warm grip\nPrimary text: Shop now\nOffer: 20% off\nInspo: https://a.com/x https://b.com/y\nSomething odd`, { format: 'Static' });
-  assert.equal(f.angle, 'Winter hands'); assert.equal(f.testing, 'Hooks'); assert.equal(f.why, 'Searches doubled'); assert.equal(f.headline, 'Warm grip'); assert.equal(f.copy, 'Shop now');
-  assert.deepEqual(f.rows.map(r => r.headline), ['Line one', 'Line two']); assert.equal(f.insp.length, 2);
-  assert.match(f.notes, /Offer: 20% off/); assert.match(f.notes, /Something odd/);
+await check('Asana both ways: html_notes becomes a page (hint kept as a hint), the page goes back as Asana tags only, valid XML, pictures as a link', async () => {
+  const page = asanaToHtml(ASANA_T2);
+  assert.equal(page, `<h2>The test</h2><p><strong>Angle:</strong> Winter hands</p><p><strong>What we're testing:</strong> 3 hooks on 45-1</p><p><span data-ph>What changes, and on which ad. Like: 3 new concepts</span></p><p><strong>Why:</strong> Searches doubled</p><ol><li>45-1 red knuckles then the glove</li><li>45-2 the frosty grip</li></ol><h2>Copy</h2><p><strong>Headline:</strong> Warm grip</p><p><strong>Inspo:</strong> <a href="https://a.com/x">https://a.com/x</a></p>`);
+  const back = briefHtml({ v: 2, html: page + '<p>Tom &amp; Jerry&nbsp;<img data-file="abcdefabcdefabcd"></p><h3>Launch</h3><p>Nov 3<br>early</p>', format: 'Static', sizes: [] }, 'https://x/?card=1', { abcdefabcdefabcd: { name: 'ref.jpg' } });
+  assert.match(back, /^<body><em>Written in Locus/);
+  assert.ok(!/<p>|<br>|<span|<img|&nbsp;|<h3>/.test(back), 'only Asana tags: ' + back);
+  assert.match(back, /<h2>The test<\/h2>\n<strong>Angle:<\/strong> Winter hands\n/); assert.ok(!back.includes('What changes, and on which ad'), 'hints left out');
+  assert.match(back, /<ol><li>45-1 red knuckles then the glove<\/li><li>45-2 the frosty grip<\/li><\/ol>\n/);
+  assert.match(back, /Tom &amp; Jerry <a href="https:\/\/x\/\?card=1">\[ref\.jpg: see it in Locus\]<\/a>\n<strong>Launch<\/strong>\nNov 3\nearly/);
+  const synced = briefFromAsana({ v: 2, format: 'Video', sizes: ['9:16'] }, ASANA_T2, '');
+  assert.equal(synced.format, 'Video'); assert.deepEqual(synced.sizes, ['9:16']); assert.equal(synced.html, page);
+  assert.match(briefFromAsana({}, '', 'Angle: plain only\n1. one').html, /<p><strong>Angle:<\/strong> plain only<\/p><ol><li>one<\/li><\/ol>/);
+  assert.equal(adOf('45-2 v2.png', '45'), '45-2'); assert.equal(adOf('LG_440-2 final.mov', '440'), '440-2'); assert.equal(adOf('48_3.mp4', '48'), '48-3'); assert.equal(adOf('hero final.png', '48'), ''); assert.equal(adOf('1080x1350 45-1.png', '45'), '45-1');
+});
+
+await check('first open of an old card: the Asana page comes in as the page (mirror on); a card with nothing in Asana uses its text; a blank card gets the starting pages', async () => {
   const card = await getCard(env, dd, 'https://ah.test', 'c2', null);
-  assert.equal(card.brief_from, 'asana'); assert.equal(card.brief.angle, 'old angle'); assert.equal(card.card.brand, 'Alpha Golf'); assert.equal(card.mirror, true);
-  assert.ok(card.team.includes('William'));
+  assert.equal(card.brief_from, 'asana'); assert.equal(card.brief.v, 2); assert.match(card.brief.html, /<strong>Angle:<\/strong> Winter hands/); assert.equal(card.brief.blank, false); assert.equal(card.templates, undefined);
+  assert.equal(card.card.brand, 'Alpha Golf'); assert.equal(card.mirror, true); assert.ok(card.team.includes('William'));
+  const blank = await getCard(env, dd, 'https://ah.test', 'c1', null);
+  assert.equal(blank.brief.blank, true); assert.match(blank.templates.new, /<strong>48-1<\/strong>/); assert.match(blank.templates.iter, /Iteration/); assert.equal(blank.templates.blank, '<p><br></p>');
+  const t = (await call('/api/production/template?id=c1&kind=resize')).body; assert.match(t.html, /Resize or cut/);
 });
 
-await check('AI fill only fills EMPTY fields and marks them; a typed field is never overwritten', async () => {
-  const typed = { kind: 'new', format: 'Static', angle: 'TYPED ANGLE', why: '', headline: 'TYPED HEADLINE' };
-  const out = { angle: 'AI ANGLE', why: 'AI why ' + String.fromCharCode(8212) + ' with a dash', concept: 'AI concept', testing: 'If we, then', headline: 'AI HEADLINE', subhead: 'AI sub', cta: 'Shop', layout: 'Split', hooks: ['x'], length: '', music: '', creator: '', dos: '', donts: '', endcta: '', rows: [{ headline: 'row', visual: 'v', vo: '', text: '', shot: '', sec: '', show: '', say: '' }], copy: 'AI copy' };
-  const r = mergeAi(typed, out);
-  assert.equal(r.brief.angle, 'TYPED ANGLE'); assert.equal(r.brief.headline, 'TYPED HEADLINE');
-  assert.equal(r.brief.concept, 'AI concept'); assert.equal(r.brief.why, 'AI why, with a dash', 'em dash replaced');
-  assert.ok(!r.filled.includes('angle') && !r.filled.includes('headline')); assert.ok(r.filled.includes('concept') && r.filled.includes('copy'));
-  assert.deepEqual(r.brief.ai.sort(), r.filled.sort()); assert.equal(r.brief.rows, undefined, 'Static rows are not AI-filled');
-  /* End to end with the model mocked: it is told only the empty fields. */
+await check('AI fill: the hints get the AI words (marked), a typed sentence is never changed; a page with no hints and words is left alone', async () => {
+  const typed = { v: 2, html: '<h2>The test</h2><p><strong>Angle:</strong> TYPED ANGLE that stays exactly as it is</p><p><strong>Why:</strong> <span data-ph>the data</span></p><p><strong>Offer:</strong></p>', format: 'Static', sizes: [] };
   let sent = null;
-  const dx = { ...dd, xfetch: async (u, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(out) }] }), { status: 200 }); } };
-  const e2e = await aiFill(env, dx, { act_id: 'brand_alpha', num: '48', title: 'Cold hands', brand: 'Alpha Golf' }, typed);
-  assert.match(sent.system, /Fill ONLY these fields: why, concept, testing, subhead, cta, layout, copy/); assert.equal(sent.model, 'claude-sonnet-5-5');
-  assert.equal(e2e.brief.angle, 'TYPED ANGLE'); assert.equal(e2e.brief.subhead, 'AI sub');
-  const full = await aiFill(env, dx, { act_id: 'brand_alpha' }, { ...typed, why: 'w', concept: 'c', testing: 't', subhead: 's', cta: 'c', layout: 'l', copy: 'c' });
-  assert.deepEqual(full.filled, [], 'nothing empty = no call result');
+  const answer = html => ({ ...dd, xfetch: async (u, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ content: [{ type: 'text', text: html }] }), { status: 200 }); } });
+  const good = '```html\n<h2>The test</h2><p><strong>Angle:</strong> TYPED ANGLE that stays exactly as it is</p><p><strong>Why:</strong> <span data-ai>Hands-in-frame beat product-only 2 to 1 ' + String.fromCharCode(8212) + ' last winter</span></p><p><strong>Offer:</strong> <span data-ai>Free glove on orders over $100</span></p>\n```';
+  const r = await aiFill(env, answer(good), { act_id: 'brand_alpha', num: '48', title: 'Cold hands', brand: 'Alpha Golf' }, typed);
+  assert.equal(r.filled, 2); assert.match(r.brief.html, /TYPED ANGLE that stays exactly as it is/); assert.match(r.brief.html, /<span data-ai>Hands-in-frame beat product-only 2 to 1, last winter<\/span>/, 'em dash replaced, mark kept');
+  assert.ok(!r.brief.html.includes('data-ph'), 'hints gone'); assert.equal(sent.model, 'claude-sonnet-5-5'); assert.match(sent.messages[0].content, /THE PAGE:\n<h2>The test<\/h2>/); assert.match(sent.system, /Never change, cut or reword a sentence a person wrote/);
+  const lossy = '<h2>The test</h2><p><strong>Angle:</strong> A DIFFERENT ANGLE</p><p><strong>Why:</strong> <span data-ai>x</span></p><p><strong>Offer:</strong> <span data-ai>y</span></p>';
+  await assert.rejects(aiFill(env, answer(lossy), { act_id: 'brand_alpha' }, typed), e => /changed what someone typed/.test(e.message));
+  const full = await aiFill(env, answer(good), { act_id: 'brand_alpha' }, { v: 2, html: '<p><strong>Angle:</strong> everything here is written by a person already, nothing to fill</p>', format: 'Static', sizes: [] });
+  assert.equal(full.filled, 0); assert.match(full.why, /Every line already has words/);
+  const v1 = await aiFill(env, answer(good), { act_id: 'brand_alpha', num: '48' }, { kind: 'new', format: 'Static' });
+  assert.equal(v1.filled, 2, 'an empty v1 brief is read as a page, the AI gets the starting page'); assert.match(sent.messages[0].content, /<strong>48-1<\/strong>/);
+  const v1w = await aiFill(env, answer(good), { act_id: 'brand_alpha', num: '48' }, { kind: 'new', format: 'Static', angle: 'TYPED ANGLE that stays exactly as it is, long enough to count' });
+  assert.equal(v1w.filled, 0, 'a v1 brief with words and no empty label is left alone');
 });
 
-await check('save: brief_json + brief_text stored, the Asana task gets the brief (mirror on) and the hash of what Asana kept', async () => {
+await check('save: the page is stored with its text, the Asana task gets it (mirror on) and the hash of what Asana kept; a v1 brief converts on read', async () => {
   asanaCalls = [];
-  const brief = { kind: 'new', format: 'Static', angle: 'Winter hands', headline: 'Warm grip', insp: [{ type: 'file', id: 'abcdefabcdefabcd', name: 'ref.jpg' }] };
+  const brief = { v: 2, html: '<h2>The test</h2><p><strong>Angle:</strong> Winter hands</p><ol><li><strong>48-1</strong> red knuckles</li></ol><p><strong>Headline:</strong> Warm grip <span data-ph>leftover hint</span></p>', format: 'Static', sizes: ['4:5'] };
   const r = await saveCard(env, dd, { id: 'c1', title: 'Cold hands v2', owner: 'William', due: '2026-10-16', launch_on: '2026-10-20', brief }, 'ahsan@go-mobius-digital.com');
-  assert.equal(r.asana.written, true);
-  const put = asanaCalls.find(c => c.path.startsWith('/tasks/T1'));
-  assert.match(put.init.body.html_notes, /<strong>Angle:<\/strong> Winter hands/); assert.equal(put.init.body.name, '48 - Cold hands v2'); assert.equal(put.init.body.due_on, '2026-10-16');
+  assert.equal(r.asana.written, true); assert.equal(r.brief.v, 2);
+  const put = asanaCalls.find(c => c.path.startsWith('/tasks/T1') && c.init && c.init.method === 'PUT');
+  assert.match(put.init.body.html_notes, /<strong>Angle:<\/strong> Winter hands\n<ol><li><strong>48-1<\/strong> red knuckles<\/li><\/ol>/); assert.ok(!put.init.body.html_notes.includes('leftover hint')); assert.equal(put.init.body.name, '48 - Cold hands v2'); assert.equal(put.init.body.due_on, '2026-10-16');
   const row = db.prepare(`SELECT brief_json, brief_text, brief_hash, title, assignee_name, due_on, launch_on FROM p_br_batch WHERE id = 'c1'`).get();
-  assert.equal(JSON.parse(row.brief_json).angle, 'Winter hands'); assert.match(row.brief_text, /Angle: Winter hands/); assert.match(row.brief_text, /Inspiration: ref\.jpg \(uploaded in Locus\)/);
+  assert.equal(JSON.parse(row.brief_json).v, 2); assert.equal(row.brief_text, 'Format: Static · Sizes: 4:5\nThe test\nAngle: Winter hands\n1. 48-1 red knuckles\nHeadline: Warm grip');
   assert.ok(row.brief_hash && row.brief_hash.length === 24); assert.equal(row.title, 'Cold hands v2'); assert.equal(row.assignee_name, 'William'); assert.equal(row.launch_on, '2026-10-20');
   const c = await getCard(env, dd, 'https://ah.test', 'c1', null);
-  assert.equal(c.brief_from, 'locus'); assert.equal(c.brief.insp[0].name, 'ref.jpg');
+  assert.equal(c.brief_from, 'locus'); assert.equal(c.brief.blank, false); assert.match(c.brief.html, /leftover hint/, 'a hint the writer left stays on the page');
+  db.exec(`UPDATE p_br_batch SET brief_json = '${JSON.stringify({ v: 1, kind: 'new', format: 'Video', angle: 'v1 angle', hooks: ['Cold?'], rows: [{ vo: 'say', shot: 'see', sec: '2' }] }).replace(/'/g, "''")}' WHERE id = 'c3'`);
+  const v1 = await getCard(env, dd, 'https://ah.test', 'c3', null);
+  assert.equal(v1.brief.v, 2); assert.equal(v1.brief.format, 'Video'); assert.match(v1.brief.html, /<p><strong>Angle:<\/strong> v1 angle<\/p>/); assert.match(v1.brief.html, /<p><strong>Hook A:<\/strong> Cold\?<\/p>/); assert.match(v1.brief.html, /<ol><li>VO: say \| Shot: see \| 2s<\/li><\/ol>/);
+  const b = (await call('/api/production?act=brand_beta')).body; assert.equal(b.cards.find(x => x.id === 'c3').format, 'Video', 'the board reads the stored format');
 });
 
 await check('comments: @William gets a Slack DM with the card link (never a channel post); the mirror copies it to Asana', async () => {
@@ -141,11 +174,15 @@ await check('comments: @William gets a Slack DM with the card link (never a chan
   await assert.rejects(addComment(env, dd, { id: 'c1', body: '  ' }, 'x', null), e => e.status === 400);
 });
 
-await check('upload a version: R2, version numbers, the card moves to Review, the signed link serves it (and a range), a bad link 403', async () => {
-  const up = await call('/api/production/upload?id=c2&name=dg45 v1.png', { method: 'POST', raw: Buffer.from('PNGDATA-ONE'), type: 'image/png' });
-  assert.equal(up.status, 200); assert.equal(up.body.file.version, 1); assert.equal(up.body.moved, 'review');
-  const up2 = await call('/api/production/upload?id=c2&name=dg45 v2.png', { method: 'POST', raw: Buffer.from('PNGDATA-TWO'), type: 'image/png' });
-  assert.equal(up2.body.file.version, 2);
+await check('uploads: versions count PER AD from the file name, the card moves to Review, a picture for the page is kind inline, the signed link serves it (and a range), a bad link 403', async () => {
+  const up = await call('/api/production/upload?id=c2&name=45-1 v1.png', { method: 'POST', raw: Buffer.from('PNGDATA-ONE'), type: 'image/png' });
+  assert.equal(up.status, 200); assert.equal(up.body.file.version, 1); assert.equal(up.body.file.ad, '45-1'); assert.equal(up.body.moved, 'review');
+  const up2 = await call('/api/production/upload?id=c2&name=45-1 final.png', { method: 'POST', raw: Buffer.from('PNGDATA-TWO'), type: 'image/png' });
+  assert.equal(up2.body.file.version, 2, 'same ad: v2');
+  const other = await call('/api/production/upload?id=c2&name=45_2.mov', { method: 'POST', raw: Buffer.from('MOV'), type: 'application/octet-stream' });
+  assert.equal(other.body.file.version, 1, 'another ad starts at v1'); assert.equal(other.body.file.ad, '45-2'); assert.equal(other.body.file.mime, 'video/quicktime', 'mime from the name when the browser sends none');
+  const inl = await call('/api/production/upload?id=c2&kind=inline&name=ref.jpg', { method: 'POST', raw: Buffer.from('JPG'), type: 'image/jpeg' });
+  assert.equal(inl.body.file.kind, 'inline'); assert.equal(inl.body.file.version, null); assert.equal(inl.body.moved, null);
   assert.equal(db.prepare(`SELECT board_stage FROM p_br_batch WHERE id = 'c2'`).get().board_stage, 'review');
   const bad = await call('/api/production/upload?id=c2&name=x.pdf', { method: 'POST', raw: Buffer.from('x'), type: 'application/pdf' });
   assert.equal(bad.status, 400);
@@ -156,16 +193,35 @@ await check('upload a version: R2, version numbers, the card moves to Review, th
   assert.equal(rr.status, 206); assert.equal(await rr.text(), 'PNGDATA'); assert.equal(rr.headers.get('content-range'), 'bytes 0-6/11');
   u.searchParams.set('s', 'forged'); assert.equal((await serveFile(new Request(u), env, u, u.pathname.split('/').pop())).status, 403);
   const card = await getCard(env, dd, 'https://ah.test', 'c2', null);
-  assert.deepEqual(card.files.filter(f => f.kind === 'version').map(f => f.version), [1, 2]);
+  assert.deepEqual(card.files.filter(f => f.kind === 'version').map(f => [f.ad, f.version]), [['45-1', 1], ['45-1', 2], ['45-2', 1]]);
+  /* the page shows the inline picture with its signed address */
+  await saveCard(env, dd, { id: 'c2', brief: { v: 2, html: `<p>look <img data-file="${inl.body.file.id}" src="https://stale/x"></p>`, format: 'Static' } }, 'x');
+  const again = await getCard(env, dd, 'https://ah.test', 'c2', null);
+  assert.match(again.brief.html, new RegExp(`<img data-file="${inl.body.file.id}" src="https://ah.test/api/production/f/${inl.body.file.id}\\?e=`));
   /* The board carries the newest picture and the open notes. */
   const b = (await call('/api/production?act=brand_alpha')).body;
-  const c2 = b.cards.find(c => c.id === 'c2'); assert.equal(c2.versions, 2); assert.ok(c2.thumb.includes('/api/production/f/'));
+  const c2 = b.cards.find(c => c.id === 'c2'); assert.equal(c2.versions, 3); assert.ok(c2.thumb.includes('/api/production/f/'));
+});
+
+await check('a big file comes in parts: start, parts (any order, retried), finish; the parts must belong to the card', async () => {
+  const st = await call('/api/production/upload/start?id=c2&name=45-1 v3.mp4&type=video/mp4&size=50', { method: 'POST' });
+  assert.equal(st.status, 200); assert.ok(st.body.uploadId && st.body.key.startsWith('work/brand_alpha/c2/')); assert.equal(st.body.part, 24 * 1024 * 1024);
+  const part = (n, data) => call(`/api/production/upload/part?id=c2&key=${encodeURIComponent(st.body.key)}&uploadId=${st.body.uploadId}&n=${n}`, { method: 'PUT', raw: Buffer.from(data), type: 'application/octet-stream' });
+  const p2 = await part(2, 'SECOND'); const p1 = await part(1, 'FIRST-'); const p1again = await part(1, 'FIRST-');
+  assert.equal(p2.body.partNumber, 2); assert.equal(p1again.body.etag, p1.body.etag);
+  assert.equal((await call(`/api/production/upload/part?id=c3&key=${encodeURIComponent(st.body.key)}&uploadId=${st.body.uploadId}&n=1`, { method: 'PUT', raw: Buffer.from('x') })).status, 400, 'another card cannot write into it');
+  const fin = await call('/api/production/upload/finish', { method: 'POST', body: { id: 'c2', key: st.body.key, uploadId: st.body.uploadId, parts: [p2.body, p1.body], name: '45-1 v3.mp4', type: 'video/mp4', size: 12 } });
+  assert.equal(fin.status, 200); assert.equal(fin.body.file.version, 3, 'the third version of 45-1'); assert.equal(fin.body.file.ad, '45-1'); assert.equal(fin.body.file.size, 12); assert.equal(fin.body.file.video, true);
+  const u = new URL(fin.body.file.url);
+  assert.equal(await (await serveFile(new Request(u), env, u, u.pathname.split('/').pop())).text(), 'FIRST-SECOND');
+  assert.equal((await call('/api/production/upload/finish', { method: 'POST', body: { id: 'c2', key: 'work/brand_alpha/c2/zz', uploadId: 'nope', parts: [] } })).status, 400);
+  assert.equal((await call('/api/production/upload/start?id=c2&name=x.pdf&type=application/pdf', { method: 'POST' })).status, 400);
 });
 
 await check('a note on a version keeps its drawing (0..1) and its second; fixed / unfixed', async () => {
   assert.equal(normShape({ tool: 'box', x: 0.1, y: 1.5, w: 0.2, h: -1, color: 'purple' }).y, 1); assert.equal(normShape({ tool: 'box', x: 0.1, y: 0.1, w: 0.2, h: 0.3, color: 'purple' }).color, 'coral');
   assert.equal(normShape({ tool: 'laser' }), null); assert.equal(normShape({ tool: 'pen', pts: [[0, 0]] }), null);
-  const f = db.prepare(`SELECT id FROM p_work_file WHERE batch_id = 'c2' AND version = 2`).get();
+  const f = db.prepare(`SELECT id FROM p_work_file WHERE batch_id = 'c2' AND ad = '45-1' AND version = 2`).get();
   const r = await call('/api/production/comment', { method: 'POST', body: { id: 'c2', file_id: f.id, body: 'Logo bigger here', shape: { tool: 'box', x: 0.5, y: 0.7, w: 0.3, h: 0.1, color: 'yellow' }, at: 4.27 } });
   assert.equal(r.status, 200);
   const nt = (await getCard(env, dd, 'https://ah.test', 'c2', null)).comments.find(c => c.body === 'Logo bigger here');
@@ -187,12 +243,13 @@ await check('ask for changes needs a note, moves the card back to Making and DMs
   const ok = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true }, email: 'cole@go-mobius-digital.com' });
   assert.equal(ok.body.moved, 'ready');
   const row = db.prepare(`SELECT board_stage, approved_by FROM p_br_batch WHERE id = 'c2'`).get(); assert.equal(row.board_stage, 'ready'); assert.equal(row.approved_by, 'cole@go-mobius-digital.com');
-  assert.match((await getCard(env, dd, 'https://ah.test', 'c2', null)).comments.find(c => c.kind === 'approval').body, /^Approved v2\./);
+  assert.match((await getCard(env, dd, 'https://ah.test', 'c2', null)).comments.find(c => c.kind === 'approval').body, /^Approved 45-1 v3\./, 'the newest ad and its version');
 });
 
 await check('the client: its own brand only, Needs you + Coming up (never the board), team names as Mobius, no Asana; no drag / new brief / upload / save', async () => {
   assert.equal((await call('/api/production/send', { method: 'POST', body: { id: 'c3', what: 'ad' } })).status, 400, 'no file yet');
-  await call('/api/production/upload?id=c2&name=v3.png', { method: 'POST', raw: Buffer.from('V3'), type: 'image/png' });
+  const un = await call('/api/production/upload?id=c2&name=hero final.png', { method: 'POST', raw: Buffer.from('V3'), type: 'image/png' });
+  assert.equal(un.body.file.ad, ''); assert.equal(un.body.file.version, 1, 'a file with no ad number is its own ad');
   const s = await call('/api/production/send', { method: 'POST', body: { id: 'c2', what: 'ad' } }); assert.equal(s.body.needs_client, 'ad'); assert.equal(s.body.client_due, '2026-10-19', '3 business days (Wed + 3 = Mon)');
   await call('/api/production/send', { method: 'POST', body: { id: 'c1', what: 'idea' } });
   const board = await call('/api/production?act=brand_alpha', { client: true });
@@ -216,6 +273,7 @@ await check('the client: its own brand only, Needs you + Coming up (never the bo
   const again = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true }, client: true }); assert.equal(again.status, 403, 'nothing waiting any more');
   const idea = await call('/api/production/decide', { method: 'POST', body: { id: 'c1', ok: true }, client: true });
   assert.equal(idea.body.moved, null, 'an approved idea stays in Brief');
+  assert.equal((await call('/api/production/upload/start?id=c2&name=x.png&type=image/png', { method: 'POST', client: true })).status, 403, 'no parts upload for a client');
 });
 
 await check('the review link: no login, needs a name, notes and a decision when the card waits for the client', async () => {
@@ -236,7 +294,7 @@ await check('the Asana mirror switch: off stops every Asana write (move, save, c
   await setMirror(env, false, 'cole@go-mobius-digital.com'); assert.equal(await mirrorOn(env), false);
   asanaCalls = [];
   const m = await moveCard(env, dd, { id: 'c1', to: 'making' }, 'x'); assert.equal(m.asana.why, 'The Asana mirror is off.');
-  const s = await saveCard(env, dd, { id: 'c1', brief: { angle: 'x' } }, 'x'); assert.equal(s.asana.written, false);
+  const s = await saveCard(env, dd, { id: 'c1', brief: { v: 2, html: '<p>x</p>' } }, 'x'); assert.equal(s.asana.written, false);
   const c = await addComment(env, dd, { id: 'c1', body: 'no story please' }, 'ahsan@go-mobius-digital.com', null); assert.equal(c.asana, false);
   const b = await call('/api/production/brief', { method: 'POST', body: { act: 'brand_alpha', text: 'Belt as a gift', owner: 'Ravo' } });
   assert.equal(b.body.local, true); assert.equal(b.body.num, 49);
@@ -245,13 +303,13 @@ await check('the Asana mirror switch: off stops every Asana write (move, save, c
   await setMirror(env, true, 'cole@go-mobius-digital.com');
 });
 
-await check('prune: 60 days after Live only the final version stays; photos: Google first, Slack after', async () => {
+await check('prune: 60 days after Live only the final version OF EACH AD stays; photos: Google first, Slack after', async () => {
   db.exec(`UPDATE p_br_batch SET board_stage = 'live', board_at = '2026-07-01 10:00:00' WHERE id = 'c2'`);
   const before = db.prepare(`SELECT COUNT(*) AS n FROM p_work_file WHERE batch_id = 'c2' AND deleted_at IS NULL AND kind = 'version'`).get().n;
   const pruned = await pruneFiles(env);
-  assert.equal(pruned, before - 1);
-  const left = db.prepare(`SELECT version FROM p_work_file WHERE batch_id = 'c2' AND deleted_at IS NULL AND kind = 'version'`).all();
-  assert.deepEqual(left.map(r => r.version), [3]);
+  assert.equal(pruned, before - 3, 'three ads keep one version each');
+  const left = db.prepare(`SELECT ad, version FROM p_work_file WHERE batch_id = 'c2' AND deleted_at IS NULL AND kind = 'version' ORDER BY ad, version`).all();
+  assert.deepEqual(left.map(r => [r.ad || '', r.version]), [['', 1], ['45-1', 3], ['45-2', 1]]);
   await savePhoto(env, 'cole@go-mobius-digital.com', 'https://lh3.googleusercontent.com/a/cole');
   await savePhoto(env, 'x@y.com', 'javascript:alert(1)');
   slack = [];

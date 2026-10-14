@@ -123,7 +123,7 @@ function open(o) {
   css();
   const S = { v: null, tool: 'pin', color: 'coral', pending: null, asking: false, hi: null, busy: false, err: '', files: o.files || [], comments: o.comments || [], canDecide: !!o.canDecide, name: o.name || '' };
   const versions = () => S.files.filter(f => f.kind !== 'insp').sort((a, b) => a.version - b.version);
-  S.v = (versions().slice(-1)[0] || {}).id || null;
+  S.v = o.start === 'compare' && versions().length > 1 ? 'compare' : (o.start && versions().some(f => f.id === o.start)) ? o.start : (versions().slice(-1)[0] || {}).id || null;   // o.start: a version id, or 'compare'
   const w = document.createElement('div'); w.className = 'rv-scrim';
   document.body.appendChild(w);
   const close = () => { w.remove(); document.removeEventListener('keydown', key); o.onClose && o.onClose(); };

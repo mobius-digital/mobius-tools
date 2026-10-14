@@ -3157,3 +3157,30 @@ CLAUDE.md, same date.
 - Checked on a stub harness in the browser pane (deleted): sheet edits, AI fill, kind/format switches, a drawn box posted
   as a note, compare, ask for changes, client list/calendar/read-only idea, mirror toggle, 375px no sideways scroll, light
   and dark. NOT checked against the real workers in a browser.
+
+### 2026-10-14 (afternoon): THE BRIEF IS ONE WRITTEN PAGE (mock v9). Supersedes the Brief tab above.
+
+Cole: "did you really research how these briefs should be made? ... Asana lets you bold, bullet, number, add images, link
+anything". The team's real briefs are one flowing description, so the 17-field form is gone (prodsheet.js?v=3,
+review-ui.js?v=3, production.js?v=3; backend in account-health/CLAUDE.md, same date).
+- **Brief tab** = starting-page chips (New test / Iteration / Resize or cut / Blank page; a page with no words opens on
+  New test with the card's own ad numbers, nothing saved until someone types; once words exist the row reads "Start again
+  from" and asks first), a toolbar (B I U S | Heading, bullet list, numbered list, Quote | Link, Picture, @ | Write it
+  with AI), the page (`.ps-doc`, contenteditable, `document.execCommand`), then Format (seg) and Sizes (chips) under it.
+  Grey hints (`[data-ph]`) vanish the moment they are typed over: `beforeinput` replaces the span with the typed letters
+  as PLAIN text (never inside the bold label before it; on delete a zero-width space holds the caret, the worker strips
+  it). AI words are tinted (`[data-ai]`) until edited. Pictures and videos: the Picture button, paste, or drop onto the
+  page (kind `inline`, inserted as `<img data-file src>` at the caret with a progress hint while it uploads). Links: the
+  Link button (selection or pasted), Ctrl+click opens. Ctrl+B/I/U/S. The model follows every keystroke (`sync`), no
+  repaint while typing; Format / Sizes / a starting page repaint. Clients see the page read only, hints stripped.
+- **Files tab** = a drop zone ("Drop the finished ads here", pick files, several at once, no size limit, name files with
+  the ad number), uploading cards with a per-file progress bar, then ONE GROUP PER AD ("Ad 48-3", versions newest first,
+  "Compare v1 and v2" when there are two or more; a file with no number is "The ad"). `upload(H, id, file, kind,
+  onProgress)`: up to 20MB = one XHR POST; bigger = `upload/start`, 24MB parts three at a time with retries (XHR for
+  progress), `upload/finish`. Review and Compare open `ProdSheet.review(H, id, {version, compare})`, which shows ONLY that
+  ad's versions (`ReviewUI.open` gained `start`: a version id or 'compare'); decide sends the ad's newest `file_id`.
+  `review.html` (the public link) shows one ad at a time and lists a button per ad when a test has several.
+- Checked on a stub harness in the browser pane (deleted; mocked API + XMLHttpRequest): the starting page, typing over a
+  hint, Backspace on a hint then typing, Bold, autosave, Start again label, AI fill marks, the written page with an inline
+  picture and a link, the Files groups, a drop of a small PNG and a 25MB MOV (parts) with progress, Compare opening the
+  review viewer on v1 and v2. NOT checked against the real workers in a browser.
