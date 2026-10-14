@@ -22,7 +22,8 @@ returns are 14 days; no 15% codes. Ads are 4:5 with the words in the 1:1 centre,
 
 **Batch 1 BUILT Oct 14** as 10 statics from real iceandgold.com photos (eb-01 to eb-10, `docs/bfcm-ice-and-gold/ads/out/`,
 source `build.py`), loaded into Locus Studio as draft batch `0e80356a58a0544c346e93fd` "Early Bird: free studs over $125
-(real photos)" on brand_ice_and_gold. No image cost. eb-10 (early access sign-up) needs a signup page to point at.
+(real photos)" on brand_ice_and_gold. No image cost. **No list-building ads (Cole, Oct 14):** the list hears about early
+access by email and SMS only, so eb-10 (join the list) was removed and the batch is 9 ads. Batch 1 lines tagged List are out.
 The 5 creator video lines wait for creators: studs go to them to film by about Oct 27 (Season note).
 
 Sources: build calendar (docs/bfcm-ads-gameplan-2026-10-13.md), Locus Season (p_season_phase, brand_ice_and_gold),

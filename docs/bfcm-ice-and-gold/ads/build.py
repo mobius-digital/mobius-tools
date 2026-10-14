@@ -130,15 +130,6 @@ ADS['eb-09'] = dict(logo=False, bg='#EFE6D8', body=NOTE + THUMBS +
     '<div class="center" style="bottom:150px;font-size:26px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#4A3F33">'
     'Free studs over $125 &middot; Nov 2 to 25</div>')
 
-# 10. Early access sign-up (template 3): the list gets Black Friday a day early
-ADS['eb-10'] = dict(logo_cls='l', body=
-    '<img class="bleed" src="assets/spiral-earring-and-necklace-set-2.jpg" style="object-position:50% 25%">'
-    '<div class="band"><div class="date" style="margin:0 0 14px;color:#F3D9A4">Thursday, Nov 26</div>'
-    '<h1 style="font-size:66px">Black Friday opens a day early for our list.</h1>'
-    '<div class="sub">First pick of the gift sets, 24 hours before everyone else.</div>'
-    '<div class="pill light">Join the list</div></div>')
-
-
 def main():
     for name, a in ADS.items():
         page(name, a['body'], bg=a.get('bg', '#F6F0E6'), logo=a.get('logo', True), logo_cls=a.get('logo_cls', ''))
