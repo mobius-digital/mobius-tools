@@ -53,6 +53,7 @@ function css() {
 .ps-b{padding:18px 0 28px;display:flex;flex-direction:column;gap:16px}
 .ps-f{display:flex;flex-direction:column;gap:6px;min-width:0}
 .ps-f textarea,.ps-f input,.ps-in{font:inherit;font-size:13px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
+.ps textarea{resize:none;overflow:hidden;field-sizing:content;min-height:38px}
 .ps-f textarea.ai,.ps-in.ai{border-color:var(--brand-line);background:var(--brand-tint)}
 .ps-ai{color:var(--brand);font-weight:600}
 .ps-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -152,6 +153,9 @@ function av(name, size = 24) {
   if (p) return `<img class="ps-av" src="${esc(p)}" alt="" title="${esc(name)}" style="width:${size}px;height:${size}px" referrerpolicy="no-referrer">`;
   return `<span class="ps-av" title="${esc(name)}" style="background:${HUE[n] || 'var(--line-strong)'};width:${size}px;height:${size}px">${esc(n[0])}</span>`;
 }
+
+/** A text box as tall as its words (Asana and ClickUp descriptions): no inner scrollbar, nothing to drag. */
+const grow = t => { if (!t || (window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'))) return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
 
 /* ---------- a small in-app modal (text or link) ---------- */
 function ask(title, label, { placeholder = '', value = '', ok = 'Add', multi = false, hint = '' } = {}) {
@@ -292,7 +296,7 @@ async function open(H, id, opts = {}) {
       const showTable = B.format !== 'Static' || rows.length;
       if (showTable) {
         body += `${B.format === 'Static' ? `<span class="ps-lab">${esc(R.title)}</span>` : ''}<div class="ps-tbl"><div class="hd" style="grid-template-columns:${R.tpl}"><span>#</span>${R.cols.map(x => `<span>${esc(x[1])}</span>`).join('')}<span>Inspiration</span><span></span></div>
-          ${rows.map((r, i) => `<div class="rw" style="grid-template-columns:${R.tpl}"><span class="n">${i + 1}</span>${R.cols.map(([k, l, ph]) => `<input class="ps-in" aria-label="${esc(l)} ${i + 1}" data-row="${i}" data-k="${k}" value="${esc(r[k] || '')}" placeholder="${esc(ph)}">`).join('')}${inspHtml(r.insp, 'r' + i)}<button class="ps-x" data-row-rm="${i}" aria-label="Remove line ${i + 1}">×</button></div>`).join('')}</div>`;
+          ${rows.map((r, i) => `<div class="rw" style="grid-template-columns:${R.tpl}"><span class="n">${i + 1}</span>${R.cols.map(([k, l, ph]) => `<textarea rows="1" class="ps-in" aria-label="${esc(l)} ${i + 1}" data-row="${i}" data-k="${k}" placeholder="${esc(ph)}">${esc(r[k] || '')}</textarea>`).join('')}${inspHtml(r.insp, 'r' + i)}<button class="ps-x" data-row-rm="${i}" aria-label="Remove line ${i + 1}">×</button></div>`).join('')}</div>`;
       }
       body += `<div><button class="ps-btn g" data-row-add>${esc(R.add)}</button>${isAi('rows') ? ' <span class="ps-hint">Lines filled by AI, edit freely.</span>' : ''}</div>`;
       if (B.format === 'Video') body += `<div class="ps-2">${fld('length', 'Length', 1, '15s')}${fld('music', 'Music or sound', 1, 'VO only')}</div>`;
@@ -374,6 +378,7 @@ async function open(H, id, opts = {}) {
     wire(); paintSaved();
   }
   function wire() {
+    $$('textarea', host).forEach(t => { grow(t); t.addEventListener('input', () => grow(t)); });
     $$('[data-tab]', host).forEach(b => b.onclick = () => { T.tab = b.dataset.tab; paint(); });
     const sv = $('[data-save]', host); if (sv) sv.onclick = () => { T.dirty = true; save(); };
     $$('.ps-title,[data-meta]', host).forEach(i => { i.oninput = touch; i.onchange = touch; });
@@ -575,5 +580,5 @@ async function mirrorCard(el, H) {
 }
 
 const photoOf = n => (PHOTOS && PHOTOS[String(n || '').split(' ')[0]]) || null;
-window.ProdSheet = { open, review, client, mirrorCard, photos, photoOf, av, css };
+window.ProdSheet = { grow, open, review, client, mirrorCard, photos, photoOf, av, css };
 })();

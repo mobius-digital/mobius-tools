@@ -76,6 +76,7 @@ function css() {
 .rv-at{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer}
 .rv-sys{font-size:12px;color:var(--muted);font-style:italic}
 .rv-box{padding:14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.rv-box textarea{resize:none;overflow:hidden;field-sizing:content;min-height:72px;max-height:40vh;overflow-y:auto}
 .rv-box textarea,.rv-box input{font:inherit;font-size:13px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical}
 .rv-box .row{display:flex;gap:8px;align-items:center}.rv-box .row .rv-hint{flex:1}
 .rv-err{color:var(--bad);font-size:12.5px}
@@ -203,8 +204,10 @@ function open(o) {
     const share = q('[data-share]'); if (share) share.onclick = async () => { try { const u = await o.api.share(); await navigator.clipboard.writeText(u).catch(() => {}); share.textContent = 'Link copied'; setTimeout(() => { share.textContent = 'Copy client link'; }, 2500); } catch (e) { share.textContent = e.message || 'Could not make the link'; } };
     const nameIn = q('[data-name]'); if (nameIn) nameIn.oninput = () => { S.name = nameIn.value; try { localStorage.setItem('rv_name', S.name); } catch {} };
     const body = q('[data-body]');
-    if (body) body.oninput = () => { S.draft = body.value; };
+    const fit = () => { if (!body || (window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'))) return; body.style.height = 'auto'; body.style.height = Math.min(body.scrollHeight + 2, innerHeight * 0.4) + 'px'; };
+    if (body) body.oninput = () => { S.draft = body.value; fit(); };
     if (body && S.draft) body.value = S.draft;
+    fit();
     const post = q('[data-post]');
     if (post) post.onclick = () => {
       const text = (body.value || '').trim();
