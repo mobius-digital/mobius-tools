@@ -19,8 +19,9 @@
   const ICN = n => window.icon ? window.icon(n, { size: 16 }) : '';
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* Pages whose cards get an Export menu: the v2 screens, the Daily Brief, Reports, P&L, Customers, Dashboards. */
-  const SHARE_TABS = new Set(['overview', 'meta', 'campaigns', 'adcreative', 'google', 'gcampaigns', 'tiktok', 'channels', 'store', 'email', 'website', 'search', 'brief', 'reports', 'profit', 'customers', 'dash', 'yesterday', 'today']);
+  /* Pages whose cards get an Export menu: the v2 screens, the Daily Brief, Reports, P&L, Customers, Dashboards, and the
+     season item (War Room: The Plan, Live, Offers and dates; `war` is the old id). */
+  const SHARE_TABS = new Set(['overview', 'meta', 'campaigns', 'adcreative', 'google', 'gcampaigns', 'tiktok', 'channels', 'store', 'email', 'website', 'search', 'brief', 'reports', 'profit', 'customers', 'dash', 'yesterday', 'today', 'war', 'warplan', 'warlive', 'season']);
   /* Pages that read the period picker (dates on the picture come from it); the rest name their own window. */
   const RANGE = new Set(['gcampaigns', 'website', 'search', 'overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store', 'meta', 'campaigns', 'adcreative', 'channels']);
 
