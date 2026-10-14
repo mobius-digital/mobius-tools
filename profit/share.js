@@ -274,6 +274,9 @@
       <div class="lx-shot-f"><span class="l"><img src="${esc(mark)}" width="20" height="13" alt=""><span><b>Locus</b> <span class="by">by Mobius Digital</span></span></span>${meta.attr ? `<span class="r">${esc(meta.attr)}</span>` : ''}</div>`;
     const c = el.cloneNode(true);
     c.querySelectorAll('.lx-exp, .v2tip, .v2pick, .v2tbar, .v2rm').forEach(x => x.remove());
+    /* 2026-10-14 (Cole, War Room offers): Edit / Swipe file / Add a phase buttons are noise in a picture. Only action
+       buttons and links go; status chips and sortable headers stay. */
+    c.querySelectorAll('button.btn, button.v2btn, button.ds-btn, button.se-link, button.v2link, a.v2link, [data-edit-phase], [data-edit-answer], [data-swipe]').forEach(x => x.remove());
     c.classList.remove('lx-flash', 'lx-more', 'busy');
     c.querySelectorAll('.lx-more').forEach(x => x.classList.remove('lx-more'));
     /* Ids are made unique so a chart's gradient in the copy points at its own copy, not the dark-themed original. */
@@ -298,7 +301,16 @@
     try {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
       await Promise.all([...fr.querySelectorAll('img')].map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r; })));
-      const blob = await lib.domToBlob(fr, { scale: 2, type: 'image/png', backgroundColor: lightTokens()['--bg'] || '#F7F7F8', timeout: 15000 });
+      /* A tall, narrow card (the War Room's offers ran 3,000px+) makes a strip that Slack and chat apps shrink until it
+         blurs and crop to the top. Widen it up to 1200px so the text reflows shorter, and keep the scale under 16,000px
+         of height (browsers cut a canvas taller than that). */
+      const c = fr.querySelector('.lx-shot-b > *');
+      if (c && fr.offsetHeight > fr.offsetWidth * 1.8 && c.offsetWidth < 1200) {
+        const w = Math.min(1200, Math.round(c.offsetWidth * 1.6));
+        c.style.width = `${w}px`; fr.style.width = `${w + 64}px`;
+      }
+      const scale = Math.max(1, Math.min(2, 16000 / Math.max(1, fr.offsetHeight)));
+      const blob = await lib.domToBlob(fr, { scale, type: 'image/png', backgroundColor: lightTokens()['--bg'] || '#F7F7F8', timeout: 15000 });
       if (!blob) throw new Error('The picture came out empty.');
       return blob;
     } finally { host.remove(); }
