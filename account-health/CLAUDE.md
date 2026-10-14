@@ -1955,6 +1955,29 @@ my Google guy goes, no, we shouldn't do that... is that true? Can we learn from 
 - Verified live on Lucky 2026-10-13: the review called the phone cart path the root, PMax "check first" (Google claims
   $19.4K vs Triple Whale's $14.6K), two Meta cut sets "not the cause" (CTR 2.6% and 2.5% against a 1.47% median), and a
   test lesson came back "partly" with a sensible rule (deleted after: it was not Cole's).
+
+### 2026-10-13 (third pass): the AI check is ON DEMAND, suggestions not orders, the FINAL CALL. Supersedes the six-hour cache above.
+
+Cole: "make it a button... that way we don't have to waste money", "it's not saying don't cut them... it's I would suggest
+doing this before anything else", and "we do need an end call whether we go with ours or the AI's". Tests 24/24.
+- **Measured cost** (usage from the API, `meter` in leakctx.js, monthly tally in settings `aiSpend:leaks:<YYYY-MM>` =
+  {calls, in, out, usd, by: {judge, review, lesson}}): one AI check = judge ~7K in / 1.5K out + review ~6K in / 1.8K out
+  on Sonnet 5.5 ($2 / $10 per M) = Lucky 5.65 to 5.8 cents, Bonk 6.3 cents. A pushback answer ~1 to 2 cents.
+- **`leaksFor(..., {ai})`**: ai = the judge + the review, stored in settings `leaksAI:<brand>:<days>` = {at, usd, labels
+  {terms by "term|campaign_id", cats by "label|campaign_id", flows}, review {leaks, summary}}. Without ai (every page,
+  the Strategist view, the morning card Tuesday to Sunday) the plain list re-applies the LAST check's labels and
+  verdicts at no AI cost; terms the check never saw are counted in the Google note; a brand never checked reads
+  `review_error: 'not checked yet'` and shows no negatives. The plain list caches an hour. `GET /api/leaks?ai=1` (never
+  for a client). **Monday's morning card runs `ai: true` for every brand** (the weekly check that replaced Viktor's
+  report): about $2.40 a month for 9 brands.
+- **Voice**: the review prompt says SUGGESTIONS to a team that makes the calls ("I'd suggest fixing X first", never
+  "don't cut"); every rule's fix line opens "Worth...", "One option is...", "the call is yours".
+- **The final call** (`decideLesson`, `POST /api/leaks/decide {act, id, decision: team|locus}`, columns `decision`,
+  `decided_by`, `decided_at` by guarded ALTERs): Locus judges a pushback ONCE and never re-argues; when it says partly or
+  does not hold, a person picks Go with the team (every prompt then reads "THE TEAM'S FINAL CALL: follow it, even where
+  the data disagreed") or Go with Locus ("SETTLED: keep showing the leak, mention their view in one line"). The
+  Strategist's `leak_lesson` takes `final: true` ("go with ours regardless"), recorded at once. On CLIENT_RULES (both).
+
 - **No daily on a report day (Cole, 2026-10-13).** `dailyBriefs`: on a Monday (weekly on for the brand) or the 1st
   (monthly on) the client daily is NOT written or posted; `reportCovers(a, today)` names the report, and the day's row is
   stored as `skipped` with the text "No daily today: the <weekly|monthly> report covers <day>." plus its numbers
@@ -1964,3 +1987,6 @@ my Google guy goes, no, we shouldn't do that... is that true? Can we learn from 
 - **Quiet when empty (2026-10-14):** a brand with no numbers, no lines, nothing owed and no weekly line gets no card that
   day (`morningCardDone` 'nothing to say'). First live run 2026-10-14 5am: 9 cards posted, every daily draft landed in
   #daily-briefs (C0C8UA53U3W); SpeedIn (not launched) got an empty card, which this stops.
+- **2026-10-14:** the morning card's leak line: MONDAY = one "Weekly leak check: N leaks; I'd look at <biggest to act
+  on> first (<$ a month>) · N searches to block · full list on Overview" tagged to that leak's owner (the AI check runs
+  for it); Tuesday to Sunday = a line only for a NEW leak over $500 a month. The full list moved to Home > Overview.

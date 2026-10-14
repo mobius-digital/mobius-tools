@@ -243,6 +243,13 @@ await check('the leak finder: ONE line for the biggest NEW leak over $500, tagge
   assert.equal(line.tag, '<@U_AHSAN>'); assert.equal(c.items.filter(i => i.kind === 'leak').length, 1);
   const quiet = await buildCard(env, { ...d, leaks: async () => ({ leaks: [{ id: 'old', cost: 900 }] }) }, ACCTS[1], day, {});
   assert.ok(!quiet.items.some(i => i.kind === 'leak'), 'nothing new = no line');
+  /* Monday: the weekly check's one summary line, the biggest leak to act on, never a "not the cause" one. */
+  let asked = null;
+  const mon = await buildCard(env, { ...d, leaks: async (e, act, o) => { asked = o; return { leaks: [{ id: 'x', cost: 3000, title: 'Black Wedges is on the cut line', verdict: 'not_the_cause', owner: 'Ahsan' }, { id: 'y', cost: 21700, title: 'Cart to checkout on phones: 26.9%', verdict: 'real', owner: 'Noma' }, { id: 'z', cost: 9, title: '6 searches', apply: { kind: 'negative' }, items: [1, 2, 3, 4, 5, 6], verdict: 'real' }] }; } }, ACCTS[1], '2026-10-19', {});
+  assert.equal(asked && asked.ai, true, 'Monday runs the AI check');
+  const w = mon.items.find(i => i.key === 'leak:weekly');
+  assert.ok(w, 'the weekly line'); assert.match(w.text, /^Weekly leak check: 3 leaks; I'd look at Cart to checkout on phones: 26\.9% first \(\$21\.7K a month, est\.\) · 6 searches to block · full list on Overview$/);
+  assert.equal(mon.items.filter(i => i.kind === 'leak').length, 1);
 });
 
 console.log(`\n${n}/${n + bad} passed`);

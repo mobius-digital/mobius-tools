@@ -990,7 +990,7 @@
       </tbody></table></div>`) : '';
 
     /* The hero number (2026-10-11, hero.js): the page opens on what was kept yesterday; every tile below stays where it was. */
-    $('#main').innerHTML = shell('overview', title, `<div id="v2hero"></div><div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2hero"></div><div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2leaks"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
@@ -999,6 +999,8 @@
     movedCard(scope);
     if (cmdOn) window.CommandCenter.render(document.getElementById('v2cmd'), H, all);
     if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
+    /* The leak finder (2026-10-14, leaks.js): one brand = its full list, top 3 first; All clients = each brand's biggest leak. */
+    if (window.LeaksCard) { if (one) window.LeaksCard.full(document.getElementById('v2leaks'), H); else if (all.length > 1) window.LeaksCard.brands(document.getElementById('v2leaks'), H, all, pickAct); }
     /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
     if (window.CalendarTab) {
       window.CalendarTab.homeCard(document.getElementById('v2cal'), H);

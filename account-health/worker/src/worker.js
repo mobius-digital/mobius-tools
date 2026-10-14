@@ -6898,7 +6898,7 @@ function cardDeps() {
     teamOf: calendarTeam };
   return { ...base, calendarData, listBoard: (env, d, o) => listBoard(env, base, o),
     /* The leak finder's list (cached an hour) for the card's one "new leak" line. */
-    leaks: (env, act) => leaksFor(env, { getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }, act) };
+    leaks: (env, act, o = {}) => leaksFor(env, { getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }, act, o) };
 }
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));

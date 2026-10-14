@@ -3114,3 +3114,18 @@ Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/
   team only) that saves a lesson, shows its verdict (Holds / Partly / Does not hold, the why, "From now on") and
   re-reads the list. The Day check card adds the review's one-line summary as its lead and a "What the team taught it
   (N)" fold with Remove. The top-of-page total leaves out Not the cause and Measurement. See account-health/CLAUDE.md.
+- **Third pass (2026-10-13)** (`leaks.js?v=3`): chips read Worth doing / Check first / Look elsewhere first / Check the
+  numbers, the fix line is labelled **Suggestion**; the Day check card has an AI bar (when the last check ran, what it
+  cost, what each chip means, "the calls stay yours") with **Run the AI check (about 6 cents)** for the team
+  (`load(act, 'ai')` = `?ai=1`, through the card's own redraw); top-of-page cards say "AI check <date>" or "Not
+  cross-checked yet". Lessons show the **final call** (Go with the team / Go with Locus, in the fold and in the Saved
+  modal after a pushback Locus does not fully agree with). The page Cole reviews: https://claude.ai/artifact/BiKJGU8QkUFmCEMr1q5PFz
+  (`docs/locus-hub/leak-finder-mock.html`, the real leaks.js inlined on Lucky's Oct 13 data).
+- **Fourth pass (2026-10-14): the full list lives on Home > Overview, not Day check** (Cole: "it's not on the
+  overview? ... it only shows one suggestion?"). One brand: `LeaksCard.full` under Needs you today, opens on the top 3
+  to act on, "Show all N leaks" opens every leak in place (then "Look elsewhere first, or check the numbers" as its own
+  group, What was checked, the lessons, Show fewer). All clients: `LeaksCard.brands` = one row per brand with its
+  biggest leak to act on, a month, how many, when its AI check ran (each brand a plain read, three at a time; click =
+  that brand's Overview via v2.js `pickAct`). The "Across channels" line says which AI check wrote it ("AI check,
+  Oct 13"), since the numbers beside it refresh hourly. Top-of-page cards' "Every leak" link opens Overview. Day check
+  is only about yesterday again. leaks.js?v=4, v2.js?v=54, desk.js?v=22.

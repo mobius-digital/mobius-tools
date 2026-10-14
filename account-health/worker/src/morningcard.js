@@ -221,12 +221,21 @@ export async function buildCard(env, d, a, today, shared = {}) {
   let leakIds = null;
   if (d.leaks && (!d.canAfford || d.canAfford(30))) {
     try {
-      const L = await d.leaks(env, a.act_id);
+      /* Monday's card runs the AI check for the brand (the weekly check that replaced Viktor's report, ~6 cents a brand);
+         every other day reads the list with the last check's verdicts, at no AI cost. */
+      const L = await d.leaks(env, a.act_id, { ai: monday });
       const big = ((L && L.leaks) || []).filter(l => (l.cost || 0) >= LEAK_FLOOR);
       leakIds = big.map(l => l.id);
       const prev = (await loadCard(env, a.act_id, yday))?.leaks;
+      /* Monday (2026-10-14, Cole: "when does it show up in Slack, and what?"): the weekly check's ONE summary line, the
+         biggest leak to act on and how many there are, tagged to its owner. Tuesday to Sunday: a line only when a NEW
+         leak over LEAK_FLOOR appeared since yesterday's card. Both point at the brand's Overview, where the list lives. */
+      const actOn = ((L && L.leaks) || []).filter(l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement');
       const nw = Array.isArray(prev) ? big.find(l => !prev.includes(l.id)) : null;
-      if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `New leak: ${clean(nw.title, 90)} · ${moneyK(nw.cost, a.currency)} a month, est. (Home > Day check)`, who: nw.owner || '', rank: nw.cost });
+      if (monday && actOn.length) {
+        const top = actOn[0], n = (L.leaks || []).length, neg = (L.leaks || []).find(l => l.apply && l.apply.kind === 'negative');
+        items.push({ key: 'leak:weekly', kind: 'leak', text: `Weekly leak check: ${n} leak${n === 1 ? '' : 's'}; I'd look at ${clean(top.title, 80)} first (${moneyK(top.cost || 0, a.currency)} a month, est.)${neg ? ` · ${neg.items.length} search${neg.items.length === 1 ? '' : 'es'} to block` : ''} · full list on Overview`, who: top.owner || '', rank: top.cost || 0 });
+      } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `New leak: ${clean(nw.title, 90)} · ${moneyK(nw.cost, a.currency)} a month, est. (full list on Overview)`, who: nw.owner || '', rank: nw.cost });
     } catch (e) { notes.push(`leaks: ${e.message}`); }
   }
   items.sort((p, q) => q.rank - p.rank);

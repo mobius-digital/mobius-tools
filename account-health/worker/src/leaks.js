@@ -40,10 +40,16 @@ import { tiktokReport } from './tiktok.js';
 import { brandBrain } from './brain.js';
 import { readToday } from './todaypost.js';
 import { teamOf } from './calendar.js';
-import { contextFor, review, mergeReview, lessonsFor, lessonsText, addLesson, deleteLesson } from './leakctx.js';
+import { contextFor, review, mergeReview, lessonsFor, lessonsText, addLesson, deleteLesson, decideLesson, meter } from './leakctx.js';
 
 const MODEL = 'claude-sonnet-5-5';
-const TTL = 6 * 3600e3;   // six hours: the data under it lands daily, and each fresh read costs two Sonnet calls
+const TTL = 3600e3;   // the plain list: no AI, so an hour (the Google and GA4 reads under it cache an hour too)
+/* THE AI CHECK IS ON DEMAND (Cole, 2026-10-13: "make it a button... that way we don't have to waste money"). Measured on
+   Lucky and Bonk the same day: one AI check = the search-term judge (~3 cents) + the cross-check (~3 cents), about 6 cents
+   a brand. It runs when someone presses "Run the AI check" (ai=1), and on Monday's morning card for every brand (the
+   weekly check that replaces Viktor's report). Every other read is the plain list plus the LAST check's labels and
+   verdicts, stored in `leaksAI:<brand>:<days>`, at no AI cost. A search term or a leak the last check never saw is shown
+   as not checked yet. */
 const SKIP = /golf sock|harborline/i;
 
 /* ---------- benchmarks: every number names its source and year ----------
@@ -125,6 +131,7 @@ export async function judge(env, d, brand, brain, terms, cats, flows, lessons = 
   if (!r.ok) throw new Error(j.error?.message || `Claude HTTP ${r.status}`);
   const out = safe((j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), null);
   if (!out) throw new Error('The judge came back empty.');
+  out.usd = await meter(env, j.usage, 'judge'); out.usage = j.usage || null;
   return out;
 }
 
@@ -176,9 +183,9 @@ export function funnelLeaks(f, days, money, cur) {
         number: `${pc(rate)} of ${n.toLocaleString('en-US')} ${den === 'sessions' ? 'sessions' : den === 'atc' ? 'carts' : 'checkouts'} (GA4, last ${days} days); your own 90 days before: ${pc(base)}`,
         benchmark: `${pc(bench)} on ${DEV_LABEL[dev]} (${BENCH[k].src})`,
         cost, cost_how: `${Math.round(orders * scale)} more orders a month if this step hit ${pc(bench)}, carried down your own funnel, x ${money(aov)} AOV on ${DEV_LABEL[dev]}`,
-        fix: k === 'atc' ? `Fix the product pages people land on from ${DEV_LABEL[dev]}: price, shipping and returns above the fold, reviews near the button, a sticky add to cart.`
-          : k === 'checkout' ? `Carts are not reaching checkout on ${DEV_LABEL[dev]}: check the cart page (surprise shipping cost, a slow drawer, a discount box that sends people looking for codes) and add express checkout buttons in the cart.`
-            : `Checkouts are not finishing on ${DEV_LABEL[dev]}: compare shipping cost and delivery time at checkout with the product page, and check that Shop Pay and Apple Pay show.`,
+        fix: k === 'atc' ? `Worth a look at the product pages people land on from ${DEV_LABEL[dev]}: price, shipping and returns above the fold, reviews near the button, a sticky add to cart.`
+          : k === 'checkout' ? `Worth a look at the cart on ${DEV_LABEL[dev]}: a surprise shipping cost, a slow cart drawer, or a discount box that sends people looking for codes; express checkout buttons in the cart often help.`
+            : `Worth comparing shipping cost and delivery time at checkout with what the product page promised on ${DEV_LABEL[dev]}, and checking that Shop Pay and Apple Pay show.`,
         rate, base, bench, device: dev, step: k });
     }
   }
@@ -186,9 +193,9 @@ export function funnelLeaks(f, days, money, cur) {
 }
 
 /* ---------- the list for one brand ---------- */
-export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
-  const key = `leaks:${act}:${days}`;
-  if (!fresh) { const hit = safe(await d.getSetting(env, key), null); if (hit && Date.now() - Date.parse(hit.as_of) < TTL) return { ...hit, cached: true }; }
+export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = false } = {}) {
+  const key = `leaks:${act}:${days}`, aiKey = `leaksAI:${act}:${days}`;
+  if (!fresh && !ai) { const hit = safe(await d.getSetting(env, key), null); if (hit && Date.now() - Date.parse(hit.as_of) < TTL) return { ...hit, cached: true }; }
   const a = await brandRow(env, act);
   if (!a) return { error: 'unknown brand' };
   const to = yesterday(), from = addDays(to, -(days - 1)), bto = addDays(from, -1), bfrom = addDays(bto, -89);
@@ -200,6 +207,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   const team = (await teamOf(env, [act]).catch(() => ({})))[act] || {};
   const ownerOf = area => { const n = team[ROLE[area]]; return n && !/^the /.test(n) ? n : ''; };
   const lessons = await lessonsFor(env, act).catch(() => []);
+  const last = ai ? null : safe(await d.getSetting(env, aiKey), null);   // the last AI check (labels and verdicts)
 
   /* Every read in parallel; a source that fails says so in `areas` and never sinks the rest. */
   const [g, f, kl, today, tt, store] = await Promise.all([
@@ -216,13 +224,22 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   const terms = g && !g.error ? (g.terms || []).filter(t => t.spend >= FLOOR.term_spend).slice(0, 150) : [];
   const cats = g && !g.error ? (g.pmax || []).flatMap(p => (p.categories || []).filter(c => c.clicks >= FLOOR.pmax_clicks && c.conversions < 0.5).map(c => ({ ...c, campaign: p.campaign, campaign_id: p.campaign_id, cpc: p.clicks ? p.spend / p.clicks : null }))) : [];
   const flows = flowsR ? (flowsR.flows || []) : [];
-  let J = null, judgeErr = null;
-  try {
-    if (d.canAfford && !d.canAfford(3)) throw new Error('out of budget this hour');
-    const brain = (await brandBrain(env, act, { short: true, creator: false, voice: false }).catch(() => ({ md: '' }))).md || '';
-    J = await judge(env, d, a.name, brain.slice(0, 9000), terms, cats, flows, lessonsText(lessons, ['google_search', 'google_pmax', 'email']));
-  } catch (e) { judgeErr = e.message; }
-  const labelT = i => (J?.terms || []).find(x => x.i === i), labelC = i => (J?.categories || []).find(x => x.i === i);
+  let J = null, judgeErr = null, aiUsd = 0, aiUse = {};
+  const tKey = t => `${t.term}|${t.campaign_id}`, cKey = c => `${c.label}|${c.campaign_id}`;
+  let labels = last && last.labels ? last.labels : null;
+  if (ai) {
+    try {
+      if (d.canAfford && !d.canAfford(3)) throw new Error('out of budget this hour');
+      const brain = (await brandBrain(env, act, { short: true, creator: false, voice: false }).catch(() => ({ md: '' }))).md || '';
+      J = await judge(env, d, a.name, brain.slice(0, 9000), terms, cats, flows, lessonsText(lessons, ['google_search', 'google_pmax', 'email']));
+      labels = { terms: {}, cats: {}, flows: J.flows || { missing: [], replaced: [] } };
+      for (const x of J.terms || []) if (terms[x.i]) labels.terms[tKey(terms[x.i])] = { label: x.label, why: x.why };
+      for (const x of J.categories || []) if (cats[x.i]) labels.cats[cKey(cats[x.i])] = { label: x.label, why: x.why };
+    } catch (e) { judgeErr = e.message; }
+  } else if (!labels) judgeErr = 'not checked yet';
+  const labelT = i => labels && labels.terms[tKey(terms[i])], labelC = i => labels && labels.cats[cKey(cats[i])];
+  const unseen = labels ? terms.filter(t => !labels.terms[tKey(t)]).length : terms.length;
+  if (!J && labels) J = { flows: labels.flows };
 
   /* --- Google --- */
   if (!link.ads) areas.google = { state: 'not_linked', note: 'Google Ads is not linked for this brand (Brand settings > Integrations).' };
@@ -230,7 +247,9 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
   else {
     areas.google = { state: 'ok' };
     /* Search terms: the irrelevant ones become ONE leak with a negative keyword per term. */
-    if (judgeErr) areas.google.note = `Search terms were not judged: ${judgeErr}. Try again in an hour.`;
+    if (judgeErr === 'not checked yet') areas.google.note = 'Search terms are judged by the AI check (every Monday, or Run the AI check on the Overview page).';
+    else if (judgeErr) areas.google.note = `Search terms were not judged: ${judgeErr}.`;
+    else if (unseen && !ai) areas.google.note = `${unseen} search term${unseen === 1 ? '' : 's'} with spend came in since the last AI check; the next check judges ${unseen === 1 ? 'it' : 'them'}.`;
     const bad = terms.map((t, i) => ({ t, l: labelT(i) })).filter(x => x.l && x.l.label === 'irrelevant').map(({ t, l }) => ({ term: t.term, campaign: t.campaign, campaign_id: t.campaign_id, campaign_type: t.campaign_type, ad_group: t.ad_group, spend: r2(t.spend), clicks: t.clicks, why: l.why, status: t.status }))
       .filter(x => x.status !== 'excluded' && x.status !== 'added excluded');
     if (bad.length) {
@@ -238,7 +257,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       leaks.push({ id: 'google_search:negatives', area: 'google_search', title: `${bad.length} search${bad.length === 1 ? '' : 'es'} that ${bad.length === 1 ? 'has' : 'have'} nothing to do with ${a.name}`,
         number: `${money(sp)} spent on them in the last ${days} days, no conversion (Google Ads)`, benchmark: 'Any spend on a search for something the brand does not sell is waste.',
         cost: sp * scale, cost_how: `what they cost in the last ${days} days, as a month`,
-        fix: 'Add each as an exact negative keyword on its campaign. Apply does it in Google Ads after you confirm.', apply: { kind: 'negative', count: bad.length }, items: bad.slice(0, 40) });
+        fix: 'Worth blocking each as an exact negative keyword on its campaign. Add negative does it in Google Ads after you confirm; leave any you want to keep.', apply: { kind: 'negative', count: bad.length }, items: bad.slice(0, 40) });
     }
     /* PMax search categories with clicks and no sale, judged irrelevant: no API write for a category, so the fix
        names the account-level negative list in Google Ads. */
@@ -248,7 +267,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       leaks.push({ id: 'google_pmax:categories', area: 'google_pmax', title: `Performance Max shows up for ${pbad.length} search${pbad.length === 1 ? '' : 'es'} the brand does not sell`,
         number: `${pbad.reduce((s, x) => s + x.clicks, 0)} clicks, no conversion (Google Ads search categories, last ${days} days)`, benchmark: 'Any spend on a search for something the brand does not sell is waste.',
         cost: sp * scale, cost_how: 'Google gives no cost per category, so clicks x the campaign’s own cost per click',
-        fix: 'Add these to the account-level negative keyword list in Google Ads (Tools > Shared library > Negative keyword lists). Google does not let Locus add negatives to Performance Max by API.', items: pbad.slice(0, 30), keep: true });
+        fix: 'Worth adding these to the account-level negative keyword list in Google Ads (Tools > Shared library > Negative keyword lists). Google does not let Locus add negatives to Performance Max by API.', items: pbad.slice(0, 30), keep: true });
     }
     /* Campaigns over the brand's cut line on Google's own conversions: PMax, video and Demand Gen, Search. */
     for (const c of g.campaigns || []) {
@@ -260,8 +279,8 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
         number: `${money(c.spend)} spent, ${c.conversions.toFixed(1)} conversions${over.cpa ? `, ${money(over.cpa)} each` : ''} (Google Ads, its own count, last ${days} days)${v && v.views ? `; ${v.views.toLocaleString('en-US')} views, ${pc(v.view_rate)} view rate, ${sym(cur)}${(v.cpv || 0).toFixed(2)} per view` : ''}`,
         benchmark: `${a.name}'s goal: ${money(R.goal)} per sale. Cut line: ${over.why === 'no_sale' ? `${R.cr_cut_zero_x}x the goal spent with no sale` : `${R.cr_cut_cpa_x}x the goal per sale after ${R.cr_cut_spend_x}x the goal spent`} (Brand settings > Ads rules, the same line Meta's calls use)`,
         cost: over.excess * scale, cost_how: over.why === 'no_sale' ? 'everything it spent, as a month' : `spend beyond ${money(R.goal)} x its conversions, as a month`,
-        fix: area === 'google_video' ? 'Cut the budget or move it to what converts; video that never converts on Google’s own count is not paying back. Check Triple Whale first-click credit before switching it off.'
-          : area === 'google_pmax' ? 'Cut the daily budget 20 to 30% and check the product feed and asset groups; if the brand’s Shopping searches convert, split them out.' : 'Lower the bids or the budget, and read its search terms.',
+        fix: area === 'google_video' ? 'Worth considering a smaller budget, or moving it to what converts. Video often opens journeys others close, so it is worth checking its Triple Whale first-click credit first.'
+          : area === 'google_pmax' ? 'Worth considering a 20 to 30% lower daily budget, and a look at the product feed and asset groups; if the brand’s Shopping searches convert, they could be split out.' : 'Worth considering lower bids or budget, and a read of its search terms.',
         go_id: c.id });
     }
     if (!R.goal) areas.google.note = `${areas.google.note ? areas.google.note + ' ' : ''}No goal cost per sale is set, so Google campaigns are not judged (Brand settings > Goals).`;
@@ -279,7 +298,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       number: `${r.why} (Triple Whale, last platform click, ${r.from} to ${r.to})`,
       benchmark: `${money(r.goal)} goal per sale; cut line from the brand's Ads rules, the same as Today's calls`,
       cost: r.stake * 30 / 7, cost_how: 'the money at stake on Today’s calls (7 days), as a month',
-      fix: r.kind === 'cut' ? 'Turn the ad set off or cut its budget. Make the call on Ads > Today’s calls.' : 'Turn off this ad only; the set keeps working. Make the call on Ads > Today’s calls.' });
+      fix: r.kind === 'cut' ? 'One option is turning the ad set off or lowering its budget; the call is yours on Ads > Today’s calls.' : 'One option is turning off this ad only, since the set keeps working; the call is yours on Ads > Today’s calls.' });
   }
 
   /* --- TikTok --- */
@@ -289,7 +308,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       const over = overCutLine(R, c.spend, c.purchases || 0);
       if (over) leaks.push({ id: `tiktok:camp:${c.id}`, area: 'tiktok', title: `TikTok campaign "${c.name}" ${over.why === 'no_sale' ? 'spends with no sale' : `costs ${(over.cpa / R.goal).toFixed(1)}x the goal per sale`}`,
         number: `${money(c.spend)} spent, ${c.purchases || 0} purchases (TikTok, its own count, last ${days} days)`, benchmark: `${money(R.goal)} goal per sale, the brand's cut line`,
-        cost: over.excess * scale, cost_how: 'spend beyond the goal x purchases, as a month', fix: 'Cut it or replace the creative; check Triple Whale first-click credit before switching it off.' });
+        cost: over.excess * scale, cost_how: 'spend beyond the goal x purchases, as a month', fix: 'Worth considering a smaller budget or new creative; checking its Triple Whale first-click credit first is a good idea.' });
     }
   } else areas.tiktok = +(store?.tt_spend || 0) > 0 ? { state: 'not_linked', note: `TikTok spent ${money(store.tt_spend)} in ${days} days (Triple Whale), but it is not connected directly, so Locus cannot judge its campaigns. Connect TikTok (Ads > TikTok).` } : { state: 'off', note: 'No TikTok spend.' };
 
@@ -310,14 +329,14 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       for (const x of lp) leaks.push({ id: `landing_page:${x.page}`, area: 'landing_page', title: `Paid visitors to ${x.page} rarely buy`,
         number: `${pc(x.rate, 2)} of ${x.sessions.toLocaleString('en-US')} paid sessions bought (GA4, last ${days} days)`, benchmark: `${pc(site, 2)}, the site's own paid sessions (GA4)`,
         cost: x.cost, cost_how: `sessions x the gap to the site's paid rate x ${money(aov)} paid AOV, as a month`,
-        fix: 'Send the ads that land here to the page that converts, or fix this page: the offer and price above the fold, the same promise the ad made.', page: x.page });
+        fix: 'Worth trying: point the ads that land here at a page that converts, or improve this page (the offer and price above the fold, the same promise the ad made).', page: x.page });
     }
   }
 
   /* --- email (Klaviyo) --- */
   if (a.email_tool === 'attentive') areas.email = { state: 'off', note: 'This brand runs Attentive; Locus reads Klaviyo only.' };
   else if (!flowsR) areas.email = { state: /not connected/i.test(kl?.[0]?.error || '') ? 'not_linked' : 'error', note: kl?.[0]?.error || 'Klaviyo did not answer.' };
-  else if (judgeErr) areas.email = { state: 'error', note: `Flows were not judged: ${judgeErr}.` };
+  else if (judgeErr) areas.email = { state: judgeErr === 'not checked yet' ? 'thin' : 'error', note: judgeErr === 'not checked yet' ? 'Flows are read by the AI check (every Monday, or Run the AI check).' : `Flows were not judged: ${judgeErr}.` };
   else {
     areas.email = { state: 'ok' };
     const gained = daily ? (daily.days || []).filter(x => x.date >= from && x.date <= to).reduce((s, x) => s + (x.gained || 0), 0) : null;
@@ -329,7 +348,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
         number: k === 'welcome' && gained != null ? `${gained.toLocaleString('en-US')} people joined the list in ${days} days (Klaviyo)` : k === 'post_purchase' ? `${orders.toLocaleString('en-US')} orders in ${days} days (Shopify through Triple Whale)` : 'Klaviyo, the flow list',
         benchmark: `${sym(cur)}${FLOW_RPR[k].toFixed(2)} per recipient (${FLOW_SRC})`,
         cost, cost_how: cost != null ? `${k === 'welcome' ? 'new subscribers' : 'orders'} a month x the benchmark revenue per recipient` : 'not priced: Locus cannot count who would enter this flow',
-        fix: `Build and switch on a ${CORE[k]} flow in Klaviyo.` });
+        fix: `Worth building and switching on a ${CORE[k]} flow in Klaviyo.` });
     }
     /* A flow switched off that earned, with no live replacement: what it earned a month before it went off, less what
        the replacement earns since (by_flow, 120 days of Klaviyo's own attribution). */
@@ -347,7 +366,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
       leaks.push({ id: `email:off:${fw.id}`, area: 'email', title: `"${fw.name}" is ${fw.status} but it earned`,
         number: `${money(before)} a month before it went ${fw.status} on ${off}${by ? `; "${by.name}" took its place and earns ${money(since)} a month` : ''} (Klaviyo, its own attribution)`,
         benchmark: 'What this flow itself earned before it stopped.', cost, cost_how: by ? 'what it earned a month, less what its replacement earns' : 'what it earned a month before it stopped',
-        fix: by ? `Compare the two flows, or switch "${fw.name}" back on.` : `Switch "${fw.name}" back on, or replace it, unless it was switched off on purpose.` });
+        fix: by ? `Worth comparing the two flows, or switching "${fw.name}" back on.` : `Worth switching "${fw.name}" back on, or replacing it, unless it was switched off on purpose.` });
     }
   }
 
@@ -358,21 +377,30 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false } = {}) {
     .sort((p, q) => (q.cost ?? -1) - (p.cost ?? -1));
   /* THE CROSS-CHECK (leakctx.js): every leak read against the other channels, the tracking, the Change Log and the
      team's lessons by one Sonnet call before anyone acts on it. A failed review leaves the list as found, marked so. */
-  let context = null, summary = '', reviewErr = null;
+  let context = null, summary = '', reviewErr = null, stored = null;
   try {
     if (!out.length) throw new Error('nothing to review');
-    if (d.canAfford && !d.canAfford(4)) throw new Error('out of budget this hour');
     const metaActs = (await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta'`).bind(act).all().catch(() => ({ results: [] }))).results.map(r => r.external_id);
     const ctx = await contextFor(env, act, { from, to, leaks: out, f: f && !f.error ? f : null, g: g && !g.error ? g : null, store, metaActs });
     context = ctx.brand;
     out = out.map(l => ({ ...l, ctx: ctx.per[l.id] || null }));
-    const rv = await (d.review || review)(env, d, a.name, out, ctx, lessons);
-    out = mergeReview(out, rv); summary = rv.summary || '';
+    if (ai) {
+      if (d.canAfford && !d.canAfford(4)) throw new Error('out of budget this hour');
+      const rv = await (d.review || review)(env, d, a.name, out, ctx, lessons);
+      out = mergeReview(out, rv); summary = rv.summary || ''; aiUsd += rv.usd || 0; aiUse.review = rv.usage || null;
+      stored = { leaks: rv.leaks || [], summary };
+    } else if (last && last.review) {
+      /* The last check's verdicts, for the leaks it saw; a new leak reads "not checked yet". */
+      out = mergeReview(out, last.review); summary = last.review.summary || '';
+    } else throw new Error('not checked yet');
   } catch (e) { if (out.length) reviewErr = e.message; }
+  const check = ai ? { at: new Date().toISOString(), usd: Math.round((aiUsd + (J?.usd || 0)) * 10000) / 10000, ok: !reviewErr && !judgeErr }
+    : last ? { at: last.at, usd: last.usd, ok: true } : null;
+  if (ai && (labels || stored)) await d.putSetting(env, aiKey, JSON.stringify({ at: check.at, usd: check.usd, labels: labels || (last && last.labels) || null, review: stored })).catch(() => {});
   const res = { act, brand: a.name, currency: cur, days, from, to, base_from: bfrom, base_to: bto, as_of: new Date().toISOString(), leaks: out, areas,
     note: 'Each leak is priced on its own. They overlap (a better cart page also lifts checkout), so do not add them up.', judged: !judgeErr,
-    reviewed: !reviewErr && out.length > 0, review_error: reviewErr, summary, context,
-    lessons: lessons.map(l => ({ id: l.id, act_id: l.act_id, area: l.area, text: l.text, author: l.author, role: l.role, status: l.status, why: l.verdict_why, rule: l.rule, at: l.created_at })) };
+    reviewed: !reviewErr && out.length > 0, review_error: reviewErr, summary, context, ai_check: check, ai: ai ? { usd: check.usd, judge: J?.usage || null, review: aiUse.review || null } : null,
+    lessons: lessons.map(l => ({ id: l.id, act_id: l.act_id, area: l.area, text: l.text, author: l.author, role: l.role, status: l.status, why: l.verdict_why, rule: l.rule, at: l.created_at, decision: l.decision || null, decided_by: l.decided_by || null, decided_at: l.decided_at || null })) };
   await d.putSetting(env, key, JSON.stringify(res)).catch(() => {});
   return res;
 }
@@ -415,7 +443,7 @@ async function logChange(env, act, summary, reason, who, objId, objName) {
 
 /* ---------- routes ---------- */
 export async function handleLeaks(request, env, url, path, json, h) {
-  if (!['/api/leaks', '/api/leaks/apply', '/api/leaks/undo', '/api/leaks/lesson', '/api/leaks/lessons'].includes(path)) return null;
+  if (!['/api/leaks', '/api/leaks/apply', '/api/leaks/undo', '/api/leaks/lesson', '/api/leaks/lessons', '/api/leaks/decide'].includes(path)) return null;
   if (!(await h.isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   const email = await h.sessionEmail(env, request).catch(() => null);
   const only = await h.brandsFor(env, email).catch(() => null);
@@ -427,7 +455,8 @@ export async function handleLeaks(request, env, url, path, json, h) {
   try {
     if (path === '/api/leaks') {
       const days = [7, 14, 30, 60, 90].includes(+url.searchParams.get('days')) ? +url.searchParams.get('days') : 30;
-      return json(await leaksFor(env, d, act, { days, fresh: url.searchParams.get('fresh') === '1' && !(h.isClient && h.isClient(request)) }));
+      const cl = !!(h.isClient && h.isClient(request));
+      return json(await leaksFor(env, d, act, { days, fresh: url.searchParams.get('fresh') === '1' && !cl, ai: url.searchParams.get('ai') === '1' && !cl }));
     }
     const client = !!(h.isClient && h.isClient(request));
     if (path === '/api/leaks/lessons') return json({ lessons: (await lessonsFor(env, act)).map(l => ({ ...l, mine: l.act_id === act })) });
@@ -439,6 +468,7 @@ export async function handleLeaks(request, env, url, path, json, h) {
     if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
     const who = email || 'someone';
     if (path === '/api/leaks/lesson') return json(await lessonFromLeak(env, d, act, body, who, client));
+    if (path === '/api/leaks/decide') return json(await decideLesson(env, act, String(body.id || ''), body.decision, who, client));
     if (path === '/api/leaks/apply') return json(await applyNegative(env, d, act, body, who));
     if (path === '/api/leaks/undo') return json(await undoNegative(env, d, act, String(body.resource || ''), who));
   } catch (e) { return json({ error: e.message }, 502); }
@@ -451,6 +481,6 @@ export async function lessonFromLeak(env, d, act, b, who, client = false) {
   const L = safe(await d.getSetting(env, `leaks:${act}:${+b.days || 30}`), null);
   const leak = b.leak_id ? (L?.leaks || []).find(x => x.id === b.leak_id) || null : null;
   const all = b.scope === 'all' && !client;
-  return addLesson(env, d, { act: all ? '' : act, area: leak ? leak.area : String(b.area || ''), leak_id: leak ? leak.id : null, text: b.text, author: b.author, role: b.role, added_by: who,
+  return addLesson(env, d, { final: !!b.final && !client, act: all ? '' : act, area: leak ? leak.area : String(b.area || ''), leak_id: leak ? leak.id : null, text: b.text, author: b.author, role: b.role, added_by: who,
     brand: L?.brand || act, leak, context: { leak: leak ? leak.ctx : null, brand: L?.context || null } });
 }

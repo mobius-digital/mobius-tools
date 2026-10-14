@@ -22,6 +22,22 @@
  *    one that does not hold is shown beside the leak with the counter-evidence, so the team sees both sides.
  */
 const MODEL = 'claude-sonnet-5-5';
+/* What one call cost, from the API's own usage (Sonnet 5.5: $2 in, $10 out, $0.20 cache reads per million tokens). Every
+   leak-finder call adds to settings `aiSpend:leaks:<YYYY-MM>` = {calls, in, out, usd}, so the monthly bill for this
+   feature is a number, not a guess. */
+const PRICE = { in: 2 / 1e6, out: 10 / 1e6, read: 0.2 / 1e6 };
+export function costOf(u) { u = u || {}; return (u.input_tokens || 0) * PRICE.in + (u.cache_creation_input_tokens || 0) * PRICE.in * 1.25 + (u.cache_read_input_tokens || 0) * PRICE.read + (u.output_tokens || 0) * PRICE.out; }
+export async function meter(env, u, what) {
+  const usd = costOf(u), month = new Date().toISOString().slice(0, 7), key = `aiSpend:leaks:${month}`;
+  try {
+    const r = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first();
+    const t = safe(r?.value, {}) || {};
+    t.calls = (t.calls || 0) + 1; t.in = (t.in || 0) + (u?.input_tokens || 0); t.out = (t.out || 0) + (u?.output_tokens || 0); t.usd = Math.round(((t.usd || 0) + usd) * 10000) / 10000;
+    (t.by ||= {})[what] = Math.round(((t.by[what] || 0) + usd) * 10000) / 10000;
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify(t)).run();
+  } catch {}
+  return usd;
+}
 const safe = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const clip = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const pathOf = u => { try { const x = new URL(u, 'https://x.invalid'); return (x.pathname || '/').replace(/\/+$/, '') || '/'; } catch { return String(u || '').split('?')[0]; } };
@@ -33,7 +49,25 @@ const LESSON_SQL = `CREATE TABLE IF NOT EXISTS p_leak_lesson (id TEXT PRIMARY KE
   leak_id TEXT, text TEXT NOT NULL, author TEXT, role TEXT, added_by TEXT, status TEXT NOT NULL DEFAULT 'open', verdict_why TEXT, rule TEXT,
   created_at TEXT NOT NULL, judged_at TEXT)`;
 export const AREAS = ['google_search', 'google_pmax', 'google_video', 'meta', 'tiktok', 'funnel', 'landing_page', 'email', ''];
-async function ensure(env) { await env.DB.prepare(LESSON_SQL).run().catch(() => {}); }
+async function ensure(env) {
+  await env.DB.prepare(LESSON_SQL).run().catch(() => {});
+  /* The final call (second pass): when Locus does not agree with a pushback, a person decides once whose view stands. */
+  for (const c of ['decision TEXT', 'decided_by TEXT', 'decided_at TEXT']) await env.DB.prepare(`ALTER TABLE p_leak_lesson ADD COLUMN ${c}`).run().catch(() => {});
+}
+/** THE FINAL CALL. Locus judges a pushback once (holds / partly / does not hold); it never argues again. When it did not
+ *  fully agree, a person makes the call: 'team' = the team's view stands and every later list follows it, even where the
+ *  data disagreed; 'locus' = the data stands, the leak keeps showing, and the lesson stays on record. A client decides
+ *  only its own brand's lessons. */
+export async function decideLesson(env, act, id, decision, who, client = false) {
+  await ensure(env);
+  if (!['team', 'locus'].includes(decision)) return { error: 'Pick the team or Locus.' };
+  const r = await env.DB.prepare(`SELECT act_id FROM p_leak_lesson WHERE id = ?1`).bind(id).first().catch(() => null);
+  if (!r) return { error: 'No such lesson.' };
+  if (r.act_id ? r.act_id !== act : client) return { error: 'That lesson belongs to another brand.' };
+  await env.DB.prepare(`UPDATE p_leak_lesson SET decision = ?2, decided_by = ?3, decided_at = ?4 WHERE id = ?1`).bind(id, decision, clip(who, 120), new Date().toISOString()).run();
+  await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(r.act_id ? `leaks:${r.act_id}:%` : 'leaks:%').run().catch(() => {});
+  return { ok: true, id, decision };
+}
 /** The lessons that apply to a brand: its own and the agency-wide ones (act_id ''). */
 export async function lessonsFor(env, act) {
   await ensure(env);
@@ -66,12 +100,13 @@ Never invent a number: use only the facts given. "rule" = the lesson rewritten a
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error?.message || `Claude HTTP ${r.status}`);
+  await meter(env, j.usage, 'lesson');
   const out = safe((j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), null);
   if (!out) throw new Error('The judge came back empty.');
   return out;
 }
 /** Save a lesson, judge it, return it with the verdict. A failed judgement still saves it ('open'), so nothing is lost. */
-export async function addLesson(env, d, { act = '', area = '', leak_id = null, text, author, role, added_by, brand, leak, context }) {
+export async function addLesson(env, d, { act = '', area = '', leak_id = null, text, author, role, added_by, brand, leak, context, final = false }) {
   await ensure(env);
   const t = clip(text, 1200);
   if (t.length < 8) return { error: 'Say what they said, in a sentence.' };
@@ -82,16 +117,19 @@ export async function addLesson(env, d, { act = '', area = '', leak_id = null, t
   try { v = await judgeLesson(env, d, { brand, text: t, author, role, leak, context }); } catch (e) { err = e.message; }
   if (v) await env.DB.prepare(`UPDATE p_leak_lesson SET status = ?2, verdict_why = ?3, rule = ?4, area = CASE WHEN area = '' THEN ?5 ELSE area END, judged_at = ?6 WHERE id = ?1`)
     .bind(id, v.status, clip(v.why, 1500), clip(v.rule, 600), v.area || '', new Date().toISOString()).run();
+  /* "Go with ours regardless" said up front (the Strategist's `final`): recorded as the team's final call at once. */
+  if (final) await env.DB.prepare(`UPDATE p_leak_lesson SET decision = 'team', decided_by = ?2, decided_at = ?3 WHERE id = ?1`).bind(id, clip(added_by, 120), new Date().toISOString()).run();
   /* Every cached list for the brand (or every brand) is dropped, so the next read follows the lesson. */
   await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(act ? `leaks:${act}:%` : 'leaks:%').run().catch(() => {});
-  return { ok: true, id, status: v ? v.status : 'open', why: v ? v.why : null, rule: v ? v.rule : null, error: err };
+  return { ok: true, id, status: v ? v.status : 'open', why: v ? v.why : null, rule: v ? v.rule : null, error: err, decision: final ? 'team' : null };
 }
 /** The lessons as the prompts read them. */
 export function lessonsText(list, area) {
   const rows = (list || []).filter(l => !area || !l.area || l.area === area || (Array.isArray(area) && area.includes(l.area)));
   if (!rows.length) return '';
   const tag = { holds: 'HOLDS, follow it', partly: 'PARTLY, follow it where it applies', does_not_hold: 'DOES NOT HOLD, show both sides', open: 'NOT JUDGED YET, weigh it' };
-  return rows.map(l => `- [${tag[l.status] || l.status}] ${l.author ? `${l.author}${l.role ? `, ${l.role}` : ''}` : 'The team'}${l.act_id ? '' : ' (every brand)'}${l.area ? ` on ${l.area}` : ''}: "${clip(l.text, 400)}"${l.rule ? ` Rule: ${clip(l.rule, 300)}` : ''}${l.status === 'does_not_hold' && l.verdict_why ? ` Evidence: ${clip(l.verdict_why, 300)}` : ''}`).join('\n');
+  const final = l => l.decision === 'team' ? "THE TEAM'S FINAL CALL: follow it, even where the data disagreed; you may note the data once, never argue" : l.decision === 'locus' ? 'SETTLED: the team agreed the data stands; keep showing the leak and mention their view in one line' : null;
+  return rows.map(l => `- [${final(l) || tag[l.status] || l.status}] ${l.author ? `${l.author}${l.role ? `, ${l.role}` : ''}` : 'The team'}${l.act_id ? '' : ' (every brand)'}${l.area ? ` on ${l.area}` : ''}: "${clip(l.text, 400)}"${l.rule ? ` Rule: ${clip(l.rule, 300)}` : ''}${l.status === 'does_not_hold' && l.verdict_why ? ` Evidence: ${clip(l.verdict_why, 300)}` : ''}`).join('\n');
 }
 
 /* ---------- context: the other channels' facts for every leak (D1 + what leaksFor already read; no new API calls) ---------- */
@@ -186,7 +224,8 @@ How to think (Cole's rule): never blame a platform from its own number alone. Be
 - Several leaks landing on the same page or step are ONE problem: give them the same short "root" (e.g. "the gold wedge page"), and leave root '' when a leak stands alone.
 Verdicts: real (act on it as written) | check_first (likely real, but one named thing must be ruled out first) | not_the_cause (the number is true but the problem is elsewhere; say where) | measurement (the number itself is unreliable; say why).
 "why" = two sentences at most, plain words, citing only the facts given (never invent a number). "check" = the one thing to look at before acting ('' when real). Follow the team's lessons marked HOLDS or PARTLY; where a lesson DOES NOT HOLD and it touches a leak, say in "why" what the teammate believes and what the data says.
-"summary" = one sentence: the single most important thing for this brand, across channels. No em dashes.`;
+- Voice: these are SUGGESTIONS to a team that makes the calls, never orders or bans. Write "I'd suggest fixing X first", "worth checking Y before cutting", never "don't cut", "never", "you must". Cutting, scaling and pausing always stay the team's call; when something else should come first, say you would do it first and why.
+"summary" = one sentence in that voice: the single most important thing for this brand, across channels. No em dashes.`;
 }
 export async function review(env, d, brand, leaks, ctx, lessons) {
   if (!leaks.length) return { leaks: [], summary: '' };
@@ -201,6 +240,7 @@ export async function review(env, d, brand, leaks, ctx, lessons) {
   if (!r.ok) throw new Error(j.error?.message || `Claude HTTP ${r.status}`);
   const out = safe((j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), null);
   if (!out || !Array.isArray(out.leaks)) throw new Error('The review came back empty.');
+  out.usd = await meter(env, j.usage, 'review'); out.usage = j.usage || null;
   return out;
 }
 /** Merge the review into the leaks: verdict, the cross-channel why, the check, the root. not_the_cause and measurement
