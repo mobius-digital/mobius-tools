@@ -2152,3 +2152,7 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   on brandguard's client rules. Tests: test-launch.mjs 18 (briefCopy shapes incl. Ice & Gold #5's real brief, prep,
   refusal, create with the brief's words, per-row duplicate, routes). NOT tested live: a real batch create (the dry
   run was run against Ice & Gold #5 on the local pair: 5 ads, the brief's own lines per ad, nothing written).
+- **metawrite `fetchImage` reads a Production picture from R2 itself (2026-10-14, night)**: `serveFile` with the same
+  signature check, no network. The worker cannot fetch its own workers.dev address (the same refusal the 2026-10-10
+  live launch hit on the profit origin); the first batch dry run read it as a 404 on every ad, and the single Launch
+  to Meta on a Production file had the same hole. Checked: the dry run on Ice & Gold #5 proposes both ads cleanly.
