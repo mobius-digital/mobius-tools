@@ -546,6 +546,14 @@ async function guardClient(request, env, client, handle, CORS) {
     const ct = request.headers.get('Content-Type') || '';
     if (!/multipart\/form-data|octet-stream|^image\/|^video\/|^audio\//i.test(ct)) {
       try { const t = await request.clone().text(); body = t && /^\s*[{[]/.test(t) ? JSON.parse(t) : null; } catch { body = null; }
+    } else if (request.body) {
+      /* An upload is never read whole (it can be 95MB), but its first bytes are: JSON dressed up as an upload would
+         reach a handler that calls request.json() without any of the checks above. */
+      try {
+        const rd = request.clone().body.getReader(); const { value } = await rd.read(); rd.cancel().catch(() => {});
+        const head = value ? new TextDecoder().decode(value.slice(0, 64)) : '';
+        if (/^\s*[{[]/.test(head)) return out(403, 'Send that as JSON.');
+      } catch {}
     }
     if (body && typeof body === 'object') {
       const vals = [body.act, body.act_id, body.screen && body.screen.act_id].filter(v => v !== undefined && v !== null && v !== '');

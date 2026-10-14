@@ -283,6 +283,8 @@ await check('the 2026-10-14 audit: every brand field is checked (array act, a se
   assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: ['brand_beta'], summary: 'x' }), 'application/json'), 403);
   assert.equal(await raw('ah', 'POST', '/api/activities', JSON.stringify({ act: 'brand_alpha', act_id: 'brand_beta', summary: 'x' }), 'application/json'), 403);
   assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: 'brand_beta', summary: 'x' }), 'text/plain'), 403);
+  assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: 'brand_beta', summary: 'x' }), 'application/octet-stream'), 403);
+  assert.equal(await raw('pf', 'POST', '/api/profit-share?act=brand_alpha', JSON.stringify({ act: 'brand_beta' }), 'text/plain'), 403);
   assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha&act=brand_beta', JSON.stringify({ act: 'brand_alpha', summary: 'x' }), 'application/json'), 403);
   /* Brand docs that point a sync somewhere, or hold keys, are the team's. */
   for (const key of ['asana', 'assets', 'klaviyo', 'survey_fairing']) assert.equal((await pf(CLIENT, 'PUT', '/api/brand/doc', { act: 'brand_alpha', line_id: '', key, data: { project_gid: '1' } })).status, 403, key);
