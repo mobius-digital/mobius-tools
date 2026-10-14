@@ -332,6 +332,29 @@ await check('the Asana mirror switch: off stops every Asana write (move, save, c
   await setMirror(env, true, 'cole@go-mobius-digital.com');
 });
 
+await check('comments: saved at once (Slack and Asana after, waitUntil), deleted by their author or the owner only, never a decision; files carry a download link', async () => {
+  const later = [];
+  const d2 = { ...d, waitUntil: p => later.push(p) };
+  const url = new URL('https://ah.test/api/production/comment');
+  const mk = (path, body, email, client) => { const h = new Headers({ authorization: 'Bearer x', 'x-email': email }); if (client) h.set('x-client', '1'); const u = new URL('https://ah.test' + path); return handleProduction(new Request(u, { method: 'POST', headers: h, body: JSON.stringify(body) }), env, u, u.pathname, json, d2).then(async r => ({ status: r.status, body: await r.json() })); };
+  const mine = await mk('/api/production/comment', { id: 'c2', body: 'Mine to delete @William' }, 'ahsan@go-mobius-digital.com');
+  assert.equal(mine.status, 200); assert.equal(mine.body.later, true, 'answered before the Slack DM'); assert.ok(later.length >= 1, 'the DM runs in waitUntil');
+  await Promise.all(later);
+  const theirs = await mk('/api/production/comment', { id: 'c2', body: 'Not yours' }, 'william@go-mobius-digital.com');
+  const reply = await mk('/api/production/comment', { id: 'c2', parent_id: mine.body.id, body: 'a reply' }, 'william@go-mobius-digital.com');
+  assert.equal((await mk('/api/production/comment/delete', { comment_id: theirs.body.id }, 'ahsan@go-mobius-digital.com')).status, 403, 'not the author');
+  const del = await mk('/api/production/comment/delete', { comment_id: mine.body.id }, 'ahsan@go-mobius-digital.com');
+  assert.equal(del.status, 200); assert.equal(del.body.deleted, 2, 'its reply goes with it');
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_work_comment WHERE id IN (?, ?)`).get(mine.body.id, reply.body.id).n, 0);
+  assert.equal((await mk('/api/production/comment/delete', { comment_id: theirs.body.id }, 'cole@go-mobius-digital.com')).status, 200, 'the owner can');
+  const call1 = db.prepare(`SELECT id FROM p_work_comment WHERE batch_id = 'c2' AND kind = 'approval' LIMIT 1`).get();
+  if (call1) assert.equal((await mk('/api/production/comment/delete', { comment_id: call1.id }, 'cole@go-mobius-digital.com')).status, 400, 'a decision stays');
+  const card = (await call('/api/production/card?id=c2', { email: 'william@go-mobius-digital.com' })).body;
+  assert.ok(card.files.every(f => /&dl=1$/.test(f.download)), 'download links');
+  const own = card.comments.find(c => c.mine); if (own) assert.equal(own.can_delete, true);
+  assert.ok(card.comments.filter(c => !c.mine).every(c => !c.can_delete), 'not someone else\'s');
+});
+
 await check('prune: 60 days after Live only the final version OF EACH AD stays; photos: Google first, Slack after', async () => {
   db.exec(`UPDATE p_br_batch SET board_stage = 'live', board_at = '2026-07-01 10:00:00' WHERE id = 'c2'`);
   const before = db.prepare(`SELECT COUNT(*) AS n FROM p_work_file WHERE batch_id = 'c2' AND deleted_at IS NULL AND kind = 'version'`).get().n;

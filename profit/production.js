@@ -100,10 +100,11 @@ function css() {
 .pd-more{font:inherit;font-size:12px;color:var(--brand);background:none;border:0;padding:4px 2px;cursor:pointer;text-align:left}
 .pd-empty{font-size:12px;color:var(--faint);padding:6px 2px}
 .pd-sk{height:84px;border-radius:8px;background:var(--surface);opacity:.6}
-.pd-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9500;padding:16px}
-.pd-modal{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 44px rgba(0,0,0,.35)}
-.pd-modal h3{margin:0;font-size:17px}
-.pd-modal p{margin:0;font-size:12.5px;color:var(--muted)}
+.pd-scrim{position:fixed;inset:0;background:rgba(10,10,12,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9850;padding:16px;animation:pd-fade var(--t,.2s) var(--ease,ease) both}
+.pd-modal{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-xl,18px);padding:22px 22px 18px;width:min(440px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:var(--sh-sheet,0 30px 70px -20px rgba(0,0,0,.6));animation:pd-pop var(--t,.2s) var(--ease,ease) both}
+@keyframes pd-fade{from{opacity:0}to{opacity:1}}@keyframes pd-pop{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+.pd-modal h3{margin:0;font-size:16px;font-weight:650;letter-spacing:-.005em}
+.pd-modal p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
 .pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2)}
 .pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box}
 .pd-modal textarea{min-height:56px;resize:vertical}

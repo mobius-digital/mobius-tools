@@ -64,8 +64,13 @@ function css() {
 .ps-chip.on{background:var(--brand);border-color:var(--brand);color:var(--surface);font-weight:600}
 .ps-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);flex-wrap:wrap}
 .ps-bar span{flex:1;min-width:200px;color:var(--ink-2);font-size:13px}
-.ps-btn{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.ps-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--surface)}
+.ps-btn{height:32px;padding:0 12px;border-radius:var(--r-sm,8px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;transition:background var(--t-fast,.15s) var(--ease,ease),border-color var(--t-fast,.15s) var(--ease,ease),filter var(--t-fast,.15s)}
+.ps-btn:hover{border-color:var(--ink-2)}
+.ps-btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}.ps-btn.ghost:hover{background:var(--surface-2);color:var(--ink)}
+.ps-btn:disabled{opacity:.5;cursor:default}
+.ps-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ps-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand,var(--surface))}
+.ps-btn.pri:hover,.ps-btn.ok:hover{filter:brightness(1.06)}
 .ps-btn.ok{background:var(--good);border-color:var(--good);color:var(--surface)}
 .ps-btn.g{background:transparent;border-color:transparent;color:var(--brand);padding:0 4px}
 .ps-btn:disabled{opacity:.5;cursor:default}
@@ -159,6 +164,19 @@ function css() {
 /* a Copy button beside the line under the pointer (the media buyer copies a headline in one click) */
 .ps-cpy{position:fixed;z-index:1000;height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .ps-cpy:hover{color:var(--ink);border-color:var(--ink-2)}
+/* the modal look, also here so a confirm works wherever the sheet opens (same rules as production.js) */
+.pd-scrim{position:fixed;inset:0;background:rgba(10,10,12,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9850;padding:16px;animation:pd-fade var(--t,.2s) var(--ease,ease) both}
+.pd-modal{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-xl,18px);padding:22px 22px 18px;width:min(440px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:var(--sh-sheet,0 30px 70px -20px rgba(0,0,0,.6));animation:pd-pop var(--t,.2s) var(--ease,ease) both}
+@keyframes pd-fade{from{opacity:0}to{opacity:1}}@keyframes pd-pop{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+.pd-modal h3{margin:0;font-size:16px;font-weight:650;letter-spacing:-.005em}
+.pd-modal p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
+.pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2)}
+.pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box}
+.pd-modal textarea{min-height:56px;resize:vertical}
+.pd-modal .pd-hint{font-size:11.5px;color:var(--ink-3)}
+.pd-modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pd-modal .ft{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+.pd-modal .err{color:var(--bad);font-size:12.5px}
 @media (max-width:760px){.ps-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-2,.ps-3,.ps-st3{grid-template-columns:minmax(0,1fr)}}
 /* the client's page and the mirror card */
 .pc{display:flex;flex-direction:column;gap:22px;max-width:1080px;min-width:0}
@@ -190,7 +208,7 @@ function css() {
 
 const api = (H, path, opts = {}) => H.apiAH(path, opts.method && opts.method !== 'GET' ? { method: opts.method, body: JSON.stringify(opts.body || {}) } : { fresh: true });
 const post = (H, path, body) => api(H, path, { method: 'POST', body });
-const toast = msg => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.className = 'lx-toast'; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:12px;font-size:13.5px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4500); };
+const toast = (msg, bad) => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.className = 'lx-toast' + (bad ? ' bad' : ''); t.style.zIndex = '9900'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4000); };
 const isClient = H => H.S && (H.S.role === 'client' || !!H.S.client);
 
 /** The team's photos by first name, loaded once a session (team only). */
@@ -209,6 +227,23 @@ function av(name, size = 24) {
 
 /** A text box as tall as its words (Asana and ClickUp descriptions): no inner scrollbar, nothing to drag. */
 const grow = t => { if (!t || (window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'))) return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
+
+/* ---------- a confirm that sits above the sheet (Locus's own confirmModal opened behind it, 2026-10-14) ---------- */
+function confirmBox(title, text, ok = 'OK') {
+  return new Promise(res => {
+    const w = document.createElement('div'); w.className = 'pd-scrim';
+    w.innerHTML = `<div class="pd-modal" role="alertdialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ''}
+      <div class="ft"><button type="button" class="ps-btn" data-x>Cancel</button><button type="button" class="ps-btn pri" data-ok>${esc(ok)}</button></div></div>`;
+    document.body.appendChild(w);
+    const done = v => { w.remove(); document.removeEventListener('keydown', key, true); res(v); };
+    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } if (e.key === 'Enter') { e.preventDefault(); done(true); } };
+    document.addEventListener('keydown', key, true);
+    w.querySelector('[data-x]').onclick = () => done(false);
+    w.querySelector('[data-ok]').onclick = () => done(true);
+    w.addEventListener('mousedown', e => { if (e.target === w) done(false); });
+    w.querySelector('[data-ok]').focus();
+  });
+}
 
 /* ---------- a small in-app modal (text or link) ---------- */
 function ask(title, label, { placeholder = '', value = '', ok = 'Add', multi = false, hint = '' } = {}) {
@@ -395,6 +430,7 @@ async function open(H, id, opts = {}) {
     const bar = `<div class="ps-fbar">${chips}<span style="flex:1"></span>
       ${T.client ? '' : '<button type="button" class="ps-btn" data-upload>Upload</button>'}
       ${!T.client && ads.length ? (sentAd ? '<button type="button" class="ps-btn" data-send="">Take it back from the client</button>' : '<button type="button" class="ps-btn" data-send="ad">Send to the client</button>') + '<button type="button" class="ps-btn" data-share>Copy client link</button>' : ''}
+      ${n('approved') ? `<button type="button" class="ps-btn" data-dlall>Download approved (${n('approved')})</button>` : ''}
       ${n('review') && canCall ? `<button type="button" class="ps-btn pri" data-allrev>${n('review') === 1 ? 'Review it' : `Review all ${n('review')}`}</button>` : ads.length ? '<button type="button" class="ps-btn" data-allrev>Open the review</button>' : ''}</div>`;
     const ups = UP.length ? `<div class="ps-ups">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : '';
     const STAT = { review: [T.client ? 'Waiting for you' : 'Needs review', 'var(--warn)'], changes: ['Changes asked', 'var(--bad)'], approved: ['Approved', 'var(--good)'] };
@@ -415,6 +451,10 @@ async function open(H, id, opts = {}) {
       } else if (a.status !== 'review' && canCall) {
         acts = `<div class="row" style="justify-content:space-between"><span class="ps-hint">${esc(by)}</span><button type="button" class="ps-btn" data-dec="reopen" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Change</button></div>`;
       }
+      /* what the media buyer does with an approved ad: download it, or launch it to Meta paused */
+      const dl = `<a class="ps-btn ghost" href="${esc(top.download || top.url)}" download title="Download v${top.version}" style="flex:0 0 auto">${'<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>'}Download</a>`;
+      const ship = a.status === 'approved' && !T.client && window.LaunchToMeta ? `<button type="button" class="ps-btn pri" data-launchf="${esc(top.id)}" style="flex:1 1 auto">Launch to Meta</button>` : '';
+      acts += `<div class="row">${ship}${dl}</div>`;
       return `<article class="ps-ad">
         <button type="button" class="ps-pv" data-open="${esc(top.id)}" aria-label="Open ${esc(adLabel(a.ad))} to review">${media}
           <span class="ov" style="top:10px;left:10px">${esc(adLabel(a.ad))}</span>
@@ -441,11 +481,11 @@ async function open(H, id, opts = {}) {
     const rows = T.data.comments.map(x => {
       if (x.kind === 'system') return `<div class="ps-sys">${esc(x.who)}: ${esc(x.body)} ${esc(when(x.created_at))}</div>`;
       const tag = x.kind === 'change_request' ? ['Changes asked', 'var(--bad)'] : x.kind === 'approval' ? ['Approved', 'var(--good)'] : x.file_id ? [`Note on v${vOf(x.file_id) || '?'}${x.at != null ? ` at ${mmss(x.at)}` : ''}`, 'var(--c-tiktok)'] : x.from_asana ? ['From Asana', 'var(--muted)'] : x.role === 'client' ? ['Client', 'var(--c-tiktok)'] : null;
-      return `<div class="ps-c">${av(x.who)}<div class="bd"><div class="hd"><b>${esc(x.who)}</b><span>${esc(when(x.created_at))}</span>${tag ? `<span class="ps-tag" style="--tc:${tag[1]}">${esc(tag[0])}</span>` : ''}</div><div class="tx">${esc(x.body)}</div></div></div>`;
+      return `<div class="ps-c">${av(x.who)}<div class="bd"><div class="hd"><b>${esc(x.who)}</b><span>${esc(when(x.created_at))}</span>${tag ? `<span class="ps-tag" style="--tc:${tag[1]}">${esc(tag[0])}</span>` : ''}</div><div class="tx">${esc(x.body)}</div>${x.pending ? '<span class="ps-hint">Posting...</span>' : x.can_delete ? `<button type="button" class="ps-lnk" data-cdel="${esc(x.id)}" style="color:var(--muted)">Delete</button>` : ''}</div></div>`;
     }).join('');
     return `${rows || '<p class="ps-hint">No comments yet.</p>'}
       <label class="ps-f" style="padding-top:6px"><span class="ps-lab">Comment</span><textarea rows="3" data-cbody placeholder="${T.client ? 'Ask Mobius anything about this ad.' : '@William can the glove be on the left side instead?'}"></textarea></label>
-      <div style="display:flex;align-items:center;gap:8px"><span class="ps-hint" style="flex:1">${T.client ? 'Mobius sees it right away.' : '@Name sends that person a Slack DM with a link to this card.'}</span><button class="ps-btn pri" data-cpost>Post</button></div>`;
+      <div style="display:flex;align-items:center;gap:8px"><span class="ps-hint" style="flex:1">${T.client ? 'Mobius sees it right away.' : 'Enter to post, Shift+Enter for a new line. @Name sends that person a Slack DM with a link to this card.'}</span><button class="ps-btn pri" data-cpost>Post</button></div>`;
   }
 
   /* ---------- paint + wire ---------- */
@@ -576,7 +616,7 @@ async function open(H, id, opts = {}) {
     }
     $$('[data-start]', host).forEach(b => b.onclick = async () => {
       const kind = b.dataset.start;
-      if (!T.fresh && H.confirmModal && !(await H.confirmModal('Start the page again?', 'What is on the page now is replaced by the starting page. Pictures already uploaded stay on the card.', 'Start again'))) return;
+      if (!T.fresh && !(await confirmBox('Start the page again?', 'What is on the page now is replaced by the starting page. Pictures already uploaded stay on the card.', 'Start again'))) return;
       T.B.html = (T.data.templates || {})[kind] || '<p><br></p>'; T.fresh = kind; if (kind !== 'blank') touch(); paint();
     });
     /* structural changes: repaint */
@@ -594,7 +634,7 @@ async function open(H, id, opts = {}) {
     };
     $$('[data-send]', host).forEach(b => b.onclick = async () => {
       const what = b.dataset.send;
-      if (what && H.confirmModal && !(await H.confirmModal(what === 'idea' ? 'Send the idea to the client?' : 'Send the ad to the client?', what === 'idea' ? 'It shows under "Needs you" on their Production page. They approve the idea or ask for changes.' : 'The newest version shows under "Needs you" on their Production page. They can draw notes on it, approve it or ask for changes.', 'Send it'))) return;
+      if (what && !(await confirmBox(what === 'idea' ? 'Send the idea to the client?' : 'Send the ad to the client?', what === 'idea' ? 'It shows under "Needs you" on their Production page. They approve the idea or ask for changes.' : 'The newest version shows under "Needs you" on their Production page. They can draw notes on it, approve it or ask for changes.', 'Send it'))) return;
       if (T.dirty) await save();
       b.disabled = true;
       try { const r = await post(H, '/api/production/send', { id, what }); if (r.error) throw new Error(r.error); await reload(); paint(); changed(); toast(what ? 'Sent. It is waiting on the client.' : 'Taken back from the client.'); }
@@ -658,6 +698,13 @@ async function open(H, id, opts = {}) {
     $$('[data-open]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.open, onChange: afterRev }));
     $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev }));
     const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev }); };
+    $$('[data-launchf]', host).forEach(b => b.onclick = () => window.LaunchToMeta.open({ act: c().act_id, tok: H.S.tok, workFile: b.dataset.launchf, onDone: afterRev }));
+    const dla = $('[data-dlall]', host); if (dla) dla.onclick = async () => {
+      const files = (T.data.ads || []).filter(a => a.status === 'approved').map(a => T.data.files.find(f => f.id === a.file_id)).filter(Boolean);
+      for (const f of files) { const x = document.createElement('a'); x.href = f.download || f.url; x.download = f.name || ''; document.body.appendChild(x); x.click(); x.remove(); await new Promise(r => setTimeout(r, 400)); }
+      toast(`${files.length} file${files.length === 1 ? '' : 's'} downloading.`);
+    };
+    const askBody = $('[data-askbody]', host); if (askBody) askBody.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); const sb = $('[data-dec="send"]', host); if (sb) sb.click(); } };
     $$('[data-dec]', host).forEach(b => b.onclick = async () => {
       const what = b.dataset.dec, fid = b.dataset.file;
       if (what === 'ask') { T.asking = fid; paint(); const t = $('[data-askbody]', host); if (t) t.focus(); return; }
@@ -673,8 +720,18 @@ async function open(H, id, opts = {}) {
         await afterRev();
       } catch (e) { toast(e.message || 'That did not save.'); b.disabled = false; }
     });
+    const cbody = $('[data-cbody]', host); if (cbody) cbody.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); const b = $('[data-cpost]', host); if (b) b.click(); } };
+    $$('[data-cdel]', host).forEach(b => b.onclick = async () => {
+      if (!(await confirmBox('Delete this comment?', 'It is removed for everyone.', 'Delete'))) return;
+      const keep = T.data.comments; T.data.comments = keep.filter(x => x.id !== b.dataset.cdel && x.parent_id !== b.dataset.cdel); paint();
+      try { const r = await post(H, '/api/production/comment/delete', { comment_id: b.dataset.cdel }); if (r.error) throw new Error(r.error); toast('Deleted.'); await reload(); paint(); }
+      catch (e) { T.data.comments = keep; paint(); toast(e.message || 'Could not delete it.', true); }
+    });
     const cp = $('[data-cpost]', host); if (cp) cp.onclick = async () => {
       const t = $('[data-cbody]', host), body = t.value.trim(); if (!body) { t.focus(); return; }
+      /* shown at once, saved behind */
+      T.data.comments = [...T.data.comments, { id: 'tmp' + Date.now(), who: 'You', role: T.client ? 'client' : 'team', body, kind: 'comment', created_at: new Date().toISOString(), pending: true }];
+      paint(); const nt = $('[data-cbody]', host); if (nt) nt.focus();
       cp.disabled = true;
       try { const r = await post(H, '/api/production/comment', { id, body }); if (r.error) throw new Error(r.error); await reload(); paint(); changed(); if (r.mentions && r.mentions.length) toast(`Sent to ${r.mentions.filter(m => m.sent).map(m => m.name).join(', ') || 'nobody (Slack did not find them)'} in Slack.`); }
       catch (e) { toast(e.message || 'Could not post.'); cp.disabled = false; }
@@ -715,6 +772,7 @@ async function review(H, id, opts = {}) {
       note: (fid, body, shape, at, name, parentId) => post(H, '/api/production/comment', { id, file_id: fid, body, shape, at, parent_id: parentId || undefined }).then(fail),
       decide: (ok, body, fid, name, reset) => post(H, '/api/production/decide', { id, ok: !!ok, reset: !!reset, body, file_id: fid }).then(fail).then(r => { toast(reset ? 'Open for review again.' : ok ? (r.all_approved ? (client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.') : 'Approved.') : (client ? 'Sent to Mobius.' : 'Sent back to be fixed.')); return r; }),
       fixed: (cid, on) => post(H, '/api/production/fixed', { comment_id: cid, fixed: on }).then(fail),
+      del: cid => post(H, '/api/production/comment/delete', { comment_id: cid }).then(fail),
       share: client ? null : () => post(H, '/api/production/share', { id }).then(r => r.url),
       reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); return { ads: adsOf(d), comments: d.comments, canDecide: canDecide(d) }; },
     },
@@ -800,7 +858,7 @@ async function mirrorCard(el, H) {
       ${M.changed_at ? `<p class="hint" style="margin:8px 0 0">Turned ${M.on ? 'on' : 'off'} ${esc(when(M.changed_at))}${M.changed_by ? ` by ${esc(M.changed_by)}` : ''}</p>` : ''}</div>`;
     $$('[data-m]', el).forEach(b => b.onclick = async () => {
       const on = b.dataset.m === 'on'; if (on === M.on) return;
-      if (H.confirmModal && !(await H.confirmModal(on ? 'Turn the Asana mirror back on?' : 'Turn the Asana mirror off?', on ? 'Locus starts moving Asana tasks, copying comments and syncing briefs again.' : 'Locus stops writing to Asana and stops the hourly sync. New briefs are made in Locus only. Nothing in Asana is deleted.', on ? 'Turn it on' : 'Turn it off'))) return;
+      if (!(await confirmBox(on ? 'Turn the Asana mirror back on?' : 'Turn the Asana mirror off?', on ? 'Locus starts moving Asana tasks, copying comments and syncing briefs again.' : 'Locus stops writing to Asana and stops the hourly sync. New briefs are made in Locus only. Nothing in Asana is deleted.', on ? 'Turn it on' : 'Turn it off'))) return;
       try { const r = await api(H, '/api/production/mirror', { method: 'PUT', body: { on } }); M.on = r.on; M.changed_at = new Date().toISOString(); paint(); } catch (e) { toast(e.message); }
     });
     const see = $('[data-see]', el); if (see) see.onclick = () => { const l = $('[data-list]', el); l.hidden = !l.hidden; see.textContent = l.hidden ? 'See them' : 'Hide them'; };

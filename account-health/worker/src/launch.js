@@ -24,10 +24,12 @@
  *   GET  /api/launch/list     ?act=&refresh=1            -> launches (refresh = live status from Meta); files learnings
  * Table p_launch is created on first use.
  */
-import { metaActions, metaCan, gget, gall, metaActs } from './metawrite.js';
+import { metaActions, metaCan, gget, gall, gpost, metaActs } from './metawrite.js';
+import { fileUrl, ensureWork } from './prodwork.js';
 import { numOf } from './asana-brand.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
+const AH_ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
 const MAX_ADS = 6;   // the team's rule: up to 6 ads per test ad set
 const CTAS = ['SHOP_NOW', 'LEARN_MORE', 'ORDER_NOW', 'BUY_NOW', 'GET_OFFER', 'SIGN_UP', 'SUBSCRIBE', 'CONTACT_US', 'SEE_MORE', 'NO_BUTTON'];
 const clip = (s, n) => String(s ?? '').slice(0, n);
@@ -76,7 +78,39 @@ async function testFor(env, act, { batchId, num }) {
   if (!n || n === 'NaN') return null;
   return await env.DB.prepare(`SELECT id, num, title, angle_id, verdict, learning FROM p_br_batch WHERE act_id = ?1 AND num = ?2`).bind(act, n).first().catch(() => null);
 }
-async function sourceOf(env, act, b) {
+/* A finished ad from Production (2026-10-14): the version file itself. A picture goes to Meta by its signed link; a video
+   is handed to Meta once (advideos with file_url, the id kept on the file) and launches when Meta has processed it. The
+   headline and primary text come from the brief's own "Headline" / "Primary text" lines when it has them. */
+const lineAfter = (html, label) => {
+  const m = new RegExp(`<p><strong>${label}:?</strong></p>\\s*<p>([\\s\\S]*?)</p>`, 'i').exec(String(html || ''));
+  return m ? m[1].replace(/<span data-ph>[\s\S]*?<\/span>/g, '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim() : '';
+};
+async function workFileSource(env, d, act, fid) {
+  await ensureWork(env);
+  await env.DB.prepare(`ALTER TABLE p_work_file ADD COLUMN meta_video_id TEXT`).run().catch(() => {});
+  const f = await env.DB.prepare(`SELECT * FROM p_work_file WHERE id = ?1 AND kind = 'version' AND deleted_at IS NULL`).bind(String(fid)).first().catch(() => null);
+  if (!f || f.act_id !== act) return { error: 'That file is not one of this brand\'s ads.' };
+  const test = await env.DB.prepare(`SELECT id, num, title, angle_id, verdict, learning, brief_json FROM p_br_batch WHERE id = ?1 AND act_id = ?2`).bind(f.batch_id, act).first().catch(() => null);
+  const html = (() => { try { return JSON.parse(test?.brief_json || '{}').html || ''; } catch { return ''; } })();
+  const line = Math.max(0, (parseInt(String(f.ad || '').split('-')[1], 10) || 1) - 1);
+  const base = { kind: 'asset', studio_ad: null, studio_batch: null, line, handle: null, num: test?.num ? String(parseInt(test.num, 10)) : null, test,
+    headline: lineAfter(html, 'Headline'), primary_text: lineAfter(html, 'Primary text'), product: null, link: null, work_file: f.id };
+  if (!/^video\//.test(f.mime || '')) return { ...base, format: 'Still', image_url: await fileUrl(env, AH_ORIGIN, f.id, 48), video_id: null };
+  let vid = f.meta_video_id;
+  if (!vid) {
+    const meta = (await metaActs(env, act))[0];
+    if (!meta) return { error: 'This brand has no Meta ad account connected in Locus.' };
+    try {
+      const r = await gpost(d, env, `${meta.act}/advideos`, { file_url: await fileUrl(env, AH_ORIGIN, f.id, 6), name: String(f.name || `${base.num || ''} ${f.ad || ''}`).slice(0, 100) });
+      vid = r && r.id ? String(r.id) : null;
+    } catch (e) { return { error: `Meta did not take the video: ${e.message}` }; }
+    if (!vid) return { error: 'Meta did not return a video id. Try again.' };
+    await env.DB.prepare(`UPDATE p_work_file SET meta_video_id = ?2 WHERE id = ?1`).bind(f.id, vid).run().catch(() => {});
+  }
+  return { ...base, format: 'Video', image_url: null, video_id: vid };
+}
+async function sourceOf(env, act, b, d) {
+  if (b.work_file) return workFileSource(env, d, act, b.work_file);
   if (b.studio_ad) {
     const row = await env.DB.prepare(`SELECT * FROM p_studio_ad WHERE id = ?1`).bind(String(b.studio_ad)).first().catch(() => null);
     if (!row || row.act_id !== act) return { error: 'That Studio ad is not this brand\'s.' };
@@ -163,7 +197,7 @@ const productLink = (link, handle) => { if (!handle || !link) return link; try {
 
 /* ---------------- prep, preview, create ---------------- */
 export async function launchPrep(env, d, act, b) {
-  const src = await sourceOf(env, act, b); if (src.error) return src;
+  const src = await sourceOf(env, act, b, d); if (src.error) return src;
   const { metas, sets } = await adsetsOf(env, d, act);
   if (!metas.length) return { error: 'This brand has no Meta ad account connected in Locus.' };
   const can = await metaCan(env, metas[0].act, d, metas[0].name);
@@ -207,7 +241,7 @@ function checkInput(b, src) {
   return null;
 }
 async function proposeFor(env, d, act, b, ctx) {
-  const src = await sourceOf(env, act, b); if (src.error) return { error: src.error };
+  const src = await sourceOf(env, act, b, d); if (src.error) return { error: src.error };
   const bad = checkInput(b, src); if (bad) return { error: bad };
   const action = metaActions(d).find(a => a.name === 'meta_create_ad');
   const c = { ...ctx, via: 'locus', screen: { act_id: act } };

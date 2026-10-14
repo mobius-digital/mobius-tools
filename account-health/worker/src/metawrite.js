@@ -84,7 +84,7 @@ async function gall(d, env, path, params = {}, maxPages = 3) {
   }
   return out;
 }
-async function gpost(d, env, path, params = {}) {
+export async function gpost(d, env, path, params = {}) {
   if (!env.META_TOKEN) throw new Error('META_TOKEN is not set on the worker.');
   const body = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v != null) body.set(k, typeof v === 'string' ? v : typeof v === 'number' ? String(v) : JSON.stringify(v));

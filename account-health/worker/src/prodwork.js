@@ -45,6 +45,7 @@ const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const err = (status, message) => Object.assign(new Error(message), { status });
 const firstName = s => clean(s, 40).split(' ')[0];
 const nameOfEmail = e => ROSTER.find(r => r.email && r.email === String(e || '').toLowerCase())?.name || String(e || 'Someone').split('@')[0];
+const OWNER_EMAIL = 'cole@go-mobius-digital.com';
 const isTeamEmail = e => /@go-mobius-digital\.com$/i.test(String(e || '')) || ROSTER.some(r => r.email && r.email === String(e || '').toLowerCase());
 
 /* ================================================================================================================ */
@@ -620,7 +621,7 @@ export async function serveFile(request, env, url, fid, CORS = {}) {
   h.set('Content-Type', f.mime || 'application/octet-stream');
   h.set('Accept-Ranges', 'bytes');
   h.set('Cache-Control', 'private, max-age=3600');
-  h.set('Content-Disposition', `inline; filename="${String(f.name || 'file').replace(/[^\w.-]+/g, '_')}"`);
+  h.set('Content-Disposition', `${url.searchParams.get('dl') === '1' ? 'attachment' : 'inline'}; filename="${String(f.name || 'file').replace(/[^\w.-]+/g, '_')}"`);
   if (range && obj.range) {
     const off = obj.range.offset ?? 0, len = obj.range.length ?? (obj.size - off);
     h.set('Content-Range', `bytes ${off}-${off + len - 1}/${obj.size}`); h.set('Content-Length', String(len));
@@ -636,13 +637,14 @@ async function filesOf(env, origin, ids) {
   const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
   const rows = (await env.DB.prepare(`SELECT * FROM p_work_file WHERE batch_id IN (${ph}) AND deleted_at IS NULL ORDER BY kind, ad, version, created_at`).bind(...ids).all()).results || [];
   return Promise.all(rows.map(async f => ({ id: f.id, batch_id: f.batch_id, kind: f.kind, version: f.version, ad: f.ad || '', name: f.name, mime: f.mime, size: f.size, by: f.by_name, created_at: f.created_at,
-    url: f.play_url || await fileUrl(env, origin, f.id), video: /^video\//.test(f.mime || ''), plays: !!f.play_url || playable(f.mime) })));
+    url: f.play_url || await fileUrl(env, origin, f.id), download: `${await fileUrl(env, origin, f.id)}&dl=1`, video: /^video\//.test(f.mime || ''), plays: !!f.play_url || playable(f.mime) })));
 }
 
 /** The client sees the team as "Mobius", and its own people by name. */
 const shownName = (c, client) => !client ? (c.author_name || nameOfEmail(c.author_email)) : (c.author_role === 'team' ? 'Mobius' : (c.author_name || 'You'));
-function commentOut(c, client) {
-  return { id: c.id, who: shownName(c, client), role: c.author_role, mine: false, body: c.body, kind: c.kind, file_id: c.file_id || null, shape: safe(c.shape_json, null), at: c.at_sec == null ? null : +c.at_sec,
+function commentOut(c, client, me) {
+  const mine = !!me && !!c.author_email && String(c.author_email).toLowerCase() === String(me).toLowerCase();
+  return { id: c.id, who: shownName(c, client), role: c.author_role, mine, can_delete: !!me && !['approval', 'change_request', 'reopen', 'system'].includes(c.kind) && (mine || (!client && String(me).toLowerCase() === OWNER_EMAIL)), body: c.body, kind: c.kind, file_id: c.file_id || null, shape: safe(c.shape_json, null), at: c.at_sec == null ? null : +c.at_sec,
     fixed: !!c.fixed_at, fixed_by: client ? null : c.fixed_by || null, created_at: c.created_at, from_asana: !!c.asana_story_gid && /^asana:/.test(c.id), parent_id: c.parent_id || null };
 }
 
@@ -666,7 +668,7 @@ export function adsOf(files, comments) {
 }
 
 /** The card's sheet: the brief (one page), the versions, inspiration and inline files, every comment and note. */
-export async function getCard(env, d, origin, id, scope) {
+export async function getCard(env, d, origin, id, scope, me = null) {
   const r = await rowOf(env, id);
   mustOwn(scope, r);
   const client = !!scope;
@@ -694,7 +696,7 @@ export async function getCard(env, d, origin, id, scope) {
   const files = await filesOf(env, origin, [r.id]);
   const byId = Object.fromEntries(files.map(f => [f.id, f]));
   brief = { ...brief, html: fillSrc(brief.html, byId), blank: htmlBlank(brief.html) };
-  const comments = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, client));
+  const comments = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, client, me));
   const board = r.board_stage || boardOf(r.asana_section, r.stage);
   const brand = brands.find(b => b.act_id === r.act_id);
   const card = {
@@ -787,6 +789,11 @@ export async function addComment(env, d, body, who, scope, opts = {}) {
     .bind(id, r.id, r.act_id, who && /@/.test(who) ? String(who).toLowerCase() : null, name, role, text, kind, fileId, parent ? null : shape ? JSON.stringify(shape) : null, parent ? parent.at_sec : at, parent ? parent.id : null).run();
   const out = { id, mentions: [], asana: false, slack: false };
   if (opts.quiet) return out;
+  /* the comment is saved: answer now, tell people after (2026-10-14, Cole: "adding comments takes too long") */
+  if (d && d.waitUntil && !opts.wait) { d.waitUntil(notifyComment(env, d, r, { id, text, kind, fileId, at, name, role }, out).catch(() => {})); return { ...out, later: true }; }
+  return notifyComment(env, d, r, { id, text, kind, fileId, at, name, role }, out);
+}
+async function notifyComment(env, d, r, { id, text, kind, fileId, at, name, role }, out) {
   const label = `${r.num ? `#${r.num} ` : ''}"${clean(r.title, 60)}"`;
   /* @Name: a Slack DM to that person, never a channel post. */
   const named = [...new Set([...text.matchAll(/@([A-Za-z][A-Za-z'-]{1,20})/g)].map(m => m[1].toLowerCase()))];
@@ -840,6 +847,27 @@ async function dm(env, d, name, text) {
   if (!id) return false;
   const r = await d.slackApi(env, 'chat.postMessage', { channel: id, text, unfurl_links: false }).catch(() => null);
   return !!(r && r.ok);
+}
+
+/** Delete a comment or note: its author, or the owner. Replies go with it; the Asana copy is removed after. */
+export async function deleteComment(env, d, body, who, scope) {
+  await ensureWork(env);
+  const c = await env.DB.prepare(`SELECT id, batch_id, act_id, author_email, kind, asana_story_gid FROM p_work_comment WHERE id = ?1`).bind(String(body.comment_id || '')).first();
+  if (!c) throw err(404, 'That comment is already gone.');
+  const r = await rowOf(env, c.batch_id);
+  mustOwn(scope, r);
+  if (['approval', 'change_request', 'reopen', 'system'].includes(c.kind)) throw err(400, 'A decision stays in the history. Use Change to reopen the ad instead.');
+  const me = String(who || '').toLowerCase();
+  const mine = !!c.author_email && String(c.author_email).toLowerCase() === me;
+  if (!mine && (scope || me !== OWNER_EMAIL)) throw err(403, 'Only the person who wrote it can delete it.');
+  const kids = (await env.DB.prepare(`SELECT id, asana_story_gid FROM p_work_comment WHERE parent_id = ?1`).bind(c.id).all()).results || [];
+  await env.DB.prepare(`DELETE FROM p_work_comment WHERE id = ?1 OR parent_id = ?1`).bind(c.id).run();
+  const stories = [c, ...kids].map(x => x.asana_story_gid).filter(g => g && !/^asana:/.test(g));
+  if (stories.length && d && d.asana) {
+    const gone = Promise.all(stories.map(g => d.asana(env, `/stories/${g}`, { method: 'DELETE' }).catch(() => null)));
+    if (d.waitUntil) d.waitUntil(gone); else await gone;
+  }
+  return { ok: true, deleted: 1 + kids.length };
 }
 
 /** Tick a note as fixed (the team), or untick it. */
@@ -1164,7 +1192,7 @@ export async function pruneFiles(env) {
 /* ================================================================================================================ */
 /*  ROUTES (called from production.js handleProduction)                                                              */
 /* ================================================================================================================ */
-const WORK_PATHS = new Set(['card', 'comment', 'decide', 'save', 'ai', 'send', 'fixed', 'upload', 'upload/start', 'upload/part', 'upload/finish', 'template', 'share', 'photos', 'mirror'].map(p => `/api/production/${p}`));
+const WORK_PATHS = new Set(['card', 'comment', 'comment/delete', 'decide', 'save', 'ai', 'send', 'fixed', 'upload', 'upload/start', 'upload/part', 'upload/finish', 'template', 'share', 'photos', 'mirror'].map(p => `/api/production/${p}`));
 export async function workRoutes(request, env, url, path, json, d, who, scope) {
   if (!WORK_PATHS.has(path)) return null;   // before the body is read: move and brief read it themselves
   const origin = url.origin;
@@ -1173,9 +1201,10 @@ export async function workRoutes(request, env, url, path, json, d, who, scope) {
   if (path === '/api/production/card' && request.method === 'GET') {
     const id = url.searchParams.get('id');
     await pendingConversions(env, id).catch(() => {});
-    return json(await getCard(env, d, origin, id, scope));
+    return json(await getCard(env, d, origin, id, scope, scope ? scope.email || who : who));
   }
   if (path === '/api/production/comment' && request.method === 'POST') return json({ ok: true, ...(await addComment(env, d, body, who, scope ? { ...scope, name: scope.name || await clientName(env, who) } : null)) });
+  if (path === '/api/production/comment/delete' && request.method === 'POST') return json(await deleteComment(env, d, body, who, scope));
   if (path === '/api/production/decide' && request.method === 'POST') return json(await decide(env, d, body, who, scope ? { ...scope, name: scope.name || await clientName(env, who) } : null));
   teamOnly();
   if (path === '/api/production/save' && request.method === 'POST') return json(await saveCard(env, d, body, who));

@@ -241,6 +241,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/production'),
   R('GET', '/api/production/card', 'none', { own: [{ in: 'query', key: 'id', table: 'p_br_batch' }] }),
   R('POST', '/api/production/comment', 'none', { own: [{ in: 'body', key: 'id', table: 'p_br_batch' }] }),
+  R('POST', '/api/production/comment/delete', 'none', { own: [{ in: 'body', key: 'comment_id', table: 'p_work_comment' }] }),
   R('POST', '/api/production/decide', 'none', { own: [{ in: 'body', key: 'id', table: 'p_br_batch' }] }),
 
   /* ---- ADS: Today, All channels, Meta (every job), Google (every job), TikTok, Tests and angles ---- */

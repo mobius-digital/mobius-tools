@@ -13,7 +13,8 @@
  * classes .rv-*, tokens only. */
 (() => {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const COLOR = { coral: 'var(--bad)', yellow: 'var(--warn)', blue: 'var(--brand)', green: 'var(--good)' };
+const COLOR = { coral: 'var(--ann-red)', yellow: 'var(--ann-yellow)', blue: 'var(--ann-blue)', green: 'var(--ann-green)' };   // vivid on purpose: drawn on the ad, not theme colours
+const INK = { coral: 'var(--ann-on)', yellow: 'var(--ann-on-light)', blue: 'var(--ann-on)', green: 'var(--ann-on-light)' };
 const TOOLS = [['pin', 'Note (click the ad)', 'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z'], ['box', 'Box', 'M4 5h16v14H4z'],
   ['arrow', 'Arrow', 'M5 19 19 5M9 5h10v10'], ['pen', 'Pen', 'M3 17c3-6 6 2 9-4s6-2 9-6'], ['mark', 'Highlight', 'M4 15h16']];
 const ic = (d, w = 18, sw = 1.8) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
@@ -27,20 +28,33 @@ function css() {
   const s = document.createElement('style'); s.id = 'rv-css';
   s.textContent = `
 .rv-scrim{position:fixed;inset:0;z-index:9600;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;font-size:13px}
-.rv-h{height:60px;flex:0 0 60px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--surface);min-width:0}
+.rv-h{height:56px;flex:0 0 56px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--surface);min-width:0}
 .rv-h .sp{flex:1;min-width:8px}
 .rv-who{display:flex;flex-direction:column;min-width:0;padding:0 6px}
 .rv-who b{font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap}
 .rv-who span{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
-.rv-btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px}
-.rv-btn:hover{border-color:var(--muted)}
-.rv-btn.ic{width:34px;padding:0}
+.rv-btn{height:32px;padding:0 12px;border-radius:var(--r-sm,8px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;transition:background .15s,border-color .15s,filter .15s}
+.rv-btn:hover{border-color:var(--ink-2)}
+.rv-btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}.rv-btn.ghost:hover{background:var(--surface-2);color:var(--ink)}
+.rv-btn.ic{width:32px;padding:0}
 .rv-btn.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.rv-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--surface)}
+.rv-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand,var(--surface))}
 .rv-btn.ok{background:var(--good);border-color:var(--good);color:var(--surface)}
+.rv-btn.pri:hover,.rv-btn.ok:hover{filter:brightness(1.06)}
+.rv-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-sm,8px);background:var(--surface-2)}
+.rv-seg button{font:inherit;font-size:12.5px;font-weight:550;height:28px;padding:0 11px;border-radius:6px;border:0;background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.rv-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.rv-toast{position:fixed;left:50%;bottom:28px;z-index:9800;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:min(520px,calc(100vw - 32px));padding:10px 14px 10px 12px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:500;line-height:1.4;box-shadow:0 12px 32px -10px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.12);animation:rv-in .26s cubic-bezier(.23,1,.32,1) both}
+.rv-toast::before{content:'';flex:none;width:8px;height:8px;border-radius:50%;background:var(--good)}
+.rv-toast.bad::before{background:var(--bad)}
+@keyframes rv-in{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+.rv-num{position:absolute;min-width:18px;height:18px;padding:0 5px;margin:-22px 0 0 -2px;border-radius:5px;background:var(--pc);color:var(--pi,#fff);font-size:10.5px;font-weight:800;line-height:18px;text-align:center;pointer-events:auto;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.rv-num.hi{box-shadow:0 0 0 2px var(--ink)}
+.rv-del{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)}
+.rv-note.pend{opacity:.65}
 .rv-btn:disabled{opacity:.5;cursor:default}
 .rv-btn:focus-visible,.rv-tool:focus-visible,.rv-thumb:focus-visible,.rv-chip:focus-visible,.rv-link:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-.rv-st{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;font-size:12px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);white-space:nowrap}
+.rv-st{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;letter-spacing:.01em;border-radius:999px;font-size:12px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);white-space:nowrap}
 .rv-st i{width:7px;height:7px;border-radius:50%;background:currentColor}
 .rv-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap;color:var(--tc,var(--muted));background:color-mix(in srgb,var(--tc,var(--muted)) 14%,transparent)}
 .rv-b{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 380px}
@@ -54,7 +68,7 @@ function css() {
 .rv-ov{position:absolute;inset:0;touch-action:none}
 .rv-ov.draw{cursor:crosshair}
 .rv-ov svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.rv-pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 4px;color:var(--surface);background:var(--pc);font-size:11px;font-weight:800;line-height:24px;text-align:center;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.rv-pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 4px;color:var(--pi,#fff);background:var(--pc);font-size:11px;font-weight:800;line-height:24px;text-align:center;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .rv-pin.hi{box-shadow:0 0 0 3px var(--ink)}
 .rv-bar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:5px;border-radius:12px;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 10px 30px rgba(0,0,0,.3)}
 .rv-tool{width:38px;height:38px;border-radius:8px;border:0;background:transparent;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -66,7 +80,7 @@ function css() {
 .rv-play{display:flex;align-items:center;gap:12px;padding:0 24px 14px}
 .rv-track{flex:1;height:6px;background:var(--line-strong);border-radius:3px;position:relative;cursor:pointer}
 .rv-track b{position:absolute;top:0;left:0;height:6px;border-radius:3px;background:var(--brand)}
-.rv-track i{position:absolute;top:-5px;width:16px;height:16px;margin-left:-8px;border-radius:50% 50% 50% 4px;background:var(--pc,var(--warn));color:var(--surface);font-size:9px;font-weight:800;font-style:normal;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.rv-track i{position:absolute;top:-5px;width:16px;height:16px;margin-left:-8px;border-radius:50% 50% 50% 4px;background:var(--pc,var(--warn));color:var(--pi,#fff);font-size:9px;font-weight:800;font-style:normal;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .rv-time{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;min-width:86px}
 .rv-strip{flex:0 0 108px;border-top:1px solid var(--line);background:var(--surface);display:flex;align-items:center;gap:10px;padding:0 16px;overflow-x:auto}
 .rv-thumb{width:64px;height:80px;flex:0 0 64px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0;position:relative;overflow:hidden;background:var(--surface-2)}
@@ -90,7 +104,8 @@ function css() {
 .rv-note .hd{display:flex;align-items:center;gap:8px;min-width:0}
 .rv-note .hd b{color:var(--ink);font-weight:600}
 .rv-note .hd .w{font-size:12px;color:var(--muted)}
-.rv-note .n{width:20px;height:20px;flex:0 0 20px;border-radius:50% 50% 50% 4px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--surface);background:var(--pc)}
+.rv-note .n{width:20px;height:20px;flex:0 0 20px;border-radius:50% 50% 50% 4px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--pi,#fff);background:var(--pc)}
+.rv-note .n.sq{border-radius:5px}
 .rv-note .tx{color:var(--ink);line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .rv-note .acts{display:flex;gap:14px}
 .rv-rep{display:flex;gap:8px;padding-left:12px;border-left:2px solid var(--line-strong);flex-direction:column}
@@ -135,16 +150,16 @@ function shapeSvg(sh, n, on) {
   if (!sh) return '';
   const c = COLOR[sh.color] || COLOR.coral, op = on ? 1 : .35;
   const st = `stroke="${c}" fill="none" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" opacity="${op}"`;
-  if (sh.tool === 'box') return `<rect x="${sh.x}" y="${sh.y}" width="${sh.w}" height="${sh.h}" ${st} stroke-width="3"/>`;
+  if (sh.tool === 'box') return `<rect x="${sh.x}" y="${sh.y}" width="${sh.w}" height="${sh.h}" rx=".006" ${st} stroke-width="4"/>`;
   if (sh.tool === 'arrow') {
     const ang = Math.atan2(sh.y2 - sh.y, sh.x2 - sh.x);
-    return `<line x1="${sh.x}" y1="${sh.y}" x2="${sh.x2}" y2="${sh.y2}" ${st} stroke-width="3"/>`
-      + `<line x1="${sh.x2}" y1="${sh.y2}" x2="${sh.x2 - .035 * Math.cos(ang - .5)}" y2="${sh.y2 - .035 * Math.sin(ang - .5)}" ${st} stroke-width="3"/>`
-      + `<line x1="${sh.x2}" y1="${sh.y2}" x2="${sh.x2 - .035 * Math.cos(ang + .5)}" y2="${sh.y2 - .035 * Math.sin(ang + .5)}" ${st} stroke-width="3"/>`;
+    return `<line x1="${sh.x}" y1="${sh.y}" x2="${sh.x2}" y2="${sh.y2}" ${st} stroke-width="4"/>`
+      + `<line x1="${sh.x2}" y1="${sh.y2}" x2="${sh.x2 - .035 * Math.cos(ang - .5)}" y2="${sh.y2 - .035 * Math.sin(ang - .5)}" ${st} stroke-width="4"/>`
+      + `<line x1="${sh.x2}" y1="${sh.y2}" x2="${sh.x2 - .035 * Math.cos(ang + .5)}" y2="${sh.y2 - .035 * Math.sin(ang + .5)}" ${st} stroke-width="4"/>`;
   }
   if (sh.tool === 'pen' || sh.tool === 'mark') {
     const pts = (sh.pts || []).map(p => p.join(',')).join(' ');
-    return `<polyline points="${pts}" ${st} stroke-width="${sh.tool === 'mark' ? 18 : 3}" ${sh.tool === 'mark' ? 'stroke-opacity=".38"' : ''}/>`;
+    return `<polyline points="${pts}" ${st} stroke-width="${sh.tool === 'mark' ? 20 : 4}" ${sh.tool === 'mark' ? 'stroke-opacity=".42"' : ''}/>`;
   }
   return '';
 }
@@ -154,6 +169,8 @@ function anchorOf(sh) {
   if (sh.tool === 'pin' || sh.tool === 'box' || sh.tool === 'arrow') return { x: sh.x, y: sh.y };
   const p = (sh.pts || [])[0]; return p ? { x: p[0], y: p[1] } : null;
 }
+
+function toast(msg, bad) { const t = document.createElement('div'); t.className = 'rv-toast' + (bad ? ' bad' : ''); t.setAttribute('role', 'status'); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3800); }
 
 function open(o) {
   css();
@@ -184,7 +201,11 @@ function open(o) {
   const typing = e => e.target.closest && e.target.closest('textarea,input,[contenteditable]');
   const key = e => {
     if (e.key === 'Escape') { if (typing(e)) { e.target.blur(); return; } close(); return; }
-    if (typing(e)) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { const b = w.querySelector(e.target.closest('.rv-rbox') ? '[data-rsend]' : '[data-post]'); if (b) { e.preventDefault(); b.click(); } } return; }
+    if (typing(e)) {
+      /* Enter posts, Shift+Enter is a new line (2026-10-14, Cole). The name box is left alone. */
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target.matches('textarea')) { const b = w.querySelector(e.target.closest('.rv-rbox') ? '[data-rsend]' : '[data-post]'); if (b) { e.preventDefault(); b.click(); } }
+      return;
+    }
     if (e.key === 'ArrowRight' && S.ads.length > 1) { e.preventDefault(); goAd(S.i + 1); paint(); }
     else if (e.key === 'ArrowLeft' && S.ads.length > 1) { e.preventDefault(); goAd(S.i - 1); paint(); }
     else if (e.key === 'n' || e.key === 'N') { const t = w.querySelector('[data-body]'); if (t) { e.preventDefault(); t.focus(); } }
@@ -200,7 +221,9 @@ function open(o) {
   const media = (f, notes, draw) => {
     if (!f) return `<div class="rv-empty">No version yet. ${team ? 'Upload it on the card\'s Files tab.' : 'Mobius has not uploaded this ad yet.'}</div>`;
     const el = f.video ? `<video src="${esc(f.url)}" preload="metadata" playsinline data-v></video>` : `<img src="${esc(f.url)}" alt="${esc(f.name || 'The ad')}" draggable="false">`;
-    const pins = notes.map((c, k) => { const a = anchorOf(c.shape); return a && !c.fixed ? `<span class="rv-pin${S.hi === c.id ? ' hi' : ''}" data-pin="${esc(c.id)}" data-at="${c.at ?? ''}" style="left:${a.x * 100}%;top:${a.y * 100}%;--pc:${COLOR[c.shape.color] || COLOR.coral}">${k + 1}</span>` : ''; }).join('');
+    const pins = notes.map((c, k) => { const a = anchorOf(c.shape); if (!a || c.fixed) return ''; const col = c.shape.color || 'coral';
+      const cls = c.shape.tool === 'pin' ? 'rv-pin' : 'rv-num';
+      return `<span class="${cls}${S.hi === c.id ? ' hi' : ''}" data-pin="${esc(c.id)}" data-at="${c.at ?? ''}" style="left:${a.x * 100}%;top:${a.y * 100}%;--pc:${COLOR[col] || COLOR.coral};--pi:${INK[col] || INK.coral}">${k + 1}</span>`; }).join('');
     const svgs = notes.filter(c => !c.fixed).map(c => `<g data-sh="${esc(c.id)}" data-at="${c.at ?? ''}">${shapeSvg(c.shape, 0, true)}</g>`).join('');
     return `<div class="rv-media" data-file="${esc(f.id)}">${el}<div class="rv-ov${draw ? ' draw' : ''}"><svg viewBox="0 0 1 1" preserveAspectRatio="none">${svgs}<g data-pending></g></svg>${pins}</div></div>`;
   };
@@ -208,8 +231,8 @@ function open(o) {
   const headHtml = () => {
     const a = AD(), f = cur(), vs = vers(), L = latest();
     const st = STATUS[(a && a.status) || 'review'];
-    const seg = vs.map(x => `<button type="button" class="rv-btn${!S.cmp && f && x.id === f.id ? ' on' : ''}" data-ver="${esc(x.id)}">v${x.version}${x === L ? ' (latest)' : ''}</button>`).join('')
-      + (vs.length > 1 ? `<button type="button" class="rv-btn${S.cmp ? ' on' : ''}" data-cmp>Compare</button>` : '');
+    const seg = vs.map(x => `<button type="button" class="${!S.cmp && f && x.id === f.id ? 'on' : ''}" data-ver="${esc(x.id)}" aria-pressed="${!S.cmp && f && x.id === f.id}">v${x.version}${x === L ? ' (latest)' : ''}</button>`).join('')
+      + (vs.length > 1 ? `<button type="button" class="${S.cmp ? 'on' : ''}" data-cmp aria-pressed="${S.cmp}">Compare</button>` : '');
     const oldVersion = f && L && f.id !== L.id;
     const call = !a || !L ? '' : a.status === 'review'
       ? (canDecide() && !S.cmp && !oldVersion ? `<button type="button" class="rv-btn" data-ask${S.busy ? ' disabled' : ''}>Ask for changes</button><button type="button" class="rv-btn ok" data-approve${S.busy ? ' disabled' : ''}>Approve v${L.version}</button>` : `<span class="rv-st" style="--sc:${st[1]}"><i></i>${st[0]}</span>`)
@@ -220,9 +243,10 @@ function open(o) {
       <div class="rv-who"><b>${esc(a ? a.label : 'The ad')}</b><span>${S.ads.length > 1 ? `${S.i + 1} of ${S.ads.length} · ` : ''}${esc(o.title || '')}</span></div>
       ${S.ads.length > 1 ? `<button type="button" class="rv-btn ic" data-next aria-label="Next ad">${ic(I.right, 15, 2.2)}</button>` : ''}
       ${o.format ? `<span class="rv-tag" style="--tc:${o.formatColor || 'var(--brand)'}">${esc(o.format)}</span>` : ''}
-      ${vs.length ? `<div role="group" aria-label="Version" style="display:flex;gap:4px;margin-left:6px">${seg}</div>` : ''}
+      ${vs.length ? `<div class="rv-seg" role="group" aria-label="Version" style="margin-left:6px">${seg}</div>` : ''}
       <span class="sp"></span>
-      ${team && o.api.share ? '<button type="button" class="rv-btn" data-share>Copy client link</button>' : ''}
+      ${f ? `<a class="rv-btn ghost" href="${esc(f.download || f.url)}" download title="Download v${f.version}">${ic('M12 4v12M7 11l5 5 5-5M5 20h14', 16, 2)}Download</a>` : ''}
+      ${team && o.api.share ? '<button type="button" class="rv-btn ghost" data-share>Copy client link</button>' : ''}
       ${call}
       <button type="button" class="rv-btn ic" data-close aria-label="Close">${ic(I.x, 15, 2.2)}</button>
     </div>`;
@@ -241,7 +265,7 @@ function open(o) {
         <span class="rv-sep"></span><button type="button" class="rv-tool" data-clear aria-label="Remove the drawing"${S.pending ? '' : ' disabled'}>${ic(I.undo)}</button></div>` : ''}
     </div>
     ${f && f.video ? `<div class="rv-play"><button type="button" class="rv-btn ic" data-play aria-label="Play or pause">${ic(I.play, 14, 2)}</button><span class="rv-time" data-time>0:00 / 0:00</span>
-      <div class="rv-track" data-track><b data-prog></b>${notes.filter(c => c.at != null && !c.fixed).map((c, k) => `<i data-tick="${c.at}" data-seek="${c.at}" style="--pc:${c.shape ? COLOR[c.shape.color] : 'var(--warn)'}" title="Note ${k + 1} at ${mmss(c.at)}">${k + 1}</i>`).join('')}</div></div>` : ''}`;
+      <div class="rv-track" data-track><b data-prog></b>${notes.filter(c => c.at != null && !c.fixed).map((c, k) => `<i data-tick="${c.at}" data-seek="${c.at}" style="--pc:${c.shape ? COLOR[c.shape.color] : 'var(--ann-yellow)'};--pi:${c.shape ? INK[c.shape.color] : 'var(--ann-on-light)'}" title="Note ${k + 1} at ${mmss(c.at)}">${k + 1}</i>`).join('')}</div></div>` : ''}`;
   };
 
   const stripHtml = () => `<div class="rv-strip" role="group" aria-label="Every ad in this test">
@@ -258,12 +282,13 @@ function open(o) {
     const noteHtml = c => {
       const k = all.indexOf(c) + 1;
       const reps = repliesOf(c.id);
-      return `<div class="rv-note${S.hi === c.id ? ' hi' : ''}${c.fixed ? ' res' : ''}" data-note="${esc(c.id)}">
-        <div class="hd"><span class="n" style="--pc:${c.shape ? COLOR[c.shape.color] || COLOR.coral : 'var(--muted)'}">${k}</span><b>${esc(c.who)}</b><span class="w">${esc(when(c.created_at))}</span>${c.kind === 'change_request' ? '<span class="rv-tag" style="--tc:var(--bad)">Changes asked</span>' : ''}${c.at != null ? `<button type="button" class="rv-at" data-seek="${c.at}">${mmss(c.at)}</button>` : ''}</div>
+      return `<div class="rv-note${S.hi === c.id ? ' hi' : ''}${c.fixed ? ' res' : ''}${c.pending ? ' pend' : ''}" data-note="${esc(c.id)}">
+        <div class="hd"><span class="n${c.shape && c.shape.tool !== 'pin' ? ' sq' : ''}" style="--pc:${c.shape ? COLOR[c.shape.color] || COLOR.coral : 'var(--muted)'};--pi:${c.shape ? INK[c.shape.color] || INK.coral : 'var(--surface)'}">${k}</span><b>${esc(c.who)}</b><span class="w">${esc(when(c.created_at))}</span>${c.kind === 'change_request' ? '<span class="rv-tag" style="--tc:var(--bad)">Changes asked</span>' : ''}${c.at != null ? `<button type="button" class="rv-at" data-seek="${c.at}">${mmss(c.at)}</button>` : ''}</div>
         <div class="tx">${esc(c.body)}</div>
-        ${reps.map(r => `<div class="rv-rep"><div class="hd"><b>${esc(r.who)}</b> <span class="w">${esc(when(r.created_at))}</span></div><div class="tx">${esc(r.body)}</div></div>`).join('')}
+        ${reps.map(r => `<div class="rv-rep"><div class="hd"><b>${esc(r.who)}</b> <span class="w">${r.pending ? 'Posting...' : esc(when(r.created_at))}</span>${r.can_delete && !r.pending ? `<button type="button" class="rv-link" data-del="${esc(r.id)}" style="margin-left:auto">Delete</button>` : ''}</div><div class="tx">${esc(r.body)}</div></div>`).join('')}
+        ${S.delAsk === c.id ? `<div class="rv-del">Delete this note${reps.length ? ' and its replies' : ''}? <button type="button" class="rv-btn" data-delno style="height:26px">Keep it</button><button type="button" class="rv-btn" data-delyes="${esc(c.id)}" style="height:26px;color:var(--bad)">Delete</button></div>` : ''}
         ${S.reply === c.id ? `<div class="rv-rbox"><textarea rows="2" data-rbody aria-label="Reply" placeholder="Reply to ${esc(c.who)}"></textarea><div class="row"><button type="button" class="rv-btn" data-rcancel>Cancel</button><button type="button" class="rv-btn pri" data-rsend="${esc(c.id)}">Reply</button></div></div>`
-          : `<div class="acts"><button type="button" class="rv-link" data-reply="${esc(c.id)}">Reply</button>${team ? `<button type="button" class="rv-link" data-fix="${esc(c.id)}" data-on="${c.fixed ? '0' : '1'}">${c.fixed ? 'Open again' : 'Resolve'}</button>` : c.fixed ? '<span class="rv-hint">Resolved</span>' : ''}</div>`}
+          : c.pending ? '<div class="acts"><span class="rv-hint">Posting...</span></div>' : `<div class="acts"><button type="button" class="rv-link" data-reply="${esc(c.id)}">Reply</button>${c.can_delete ? `<button type="button" class="rv-link" data-del="${esc(c.id)}">Delete</button>` : ''}${team ? `<button type="button" class="rv-link" data-fix="${esc(c.id)}" data-on="${c.fixed ? '0' : '1'}">${c.fixed ? 'Open again' : 'Resolve'}</button>` : c.fixed ? '<span class="rv-hint">Resolved</span>' : ''}</div>`}
       </div>`;
     };
     const calls = f ? callsOf(f.id).map(c => `<div class="rv-sys">${esc(c.body)} ${esc(c.who)}, ${esc(when(c.created_at))}</div>`).join('') : '';
@@ -275,7 +300,7 @@ function open(o) {
       <label>${S.asking ? `What needs to change on ${esc(a ? a.label : 'the ad')} (required)` : `Note on ${esc(a ? a.ad || 'the ad' : 'the ad')} v${f.version}${S.pendingAt != null ? ` at ${mmss(S.pendingAt)}` : ''}`}<textarea data-body rows="3" placeholder="${S.pending ? 'Say what to change here.' : 'Click the ad to place a note, or just type'}"></textarea></label>
       ${S.err ? `<div class="rv-err">${esc(S.err)}</div>` : ''}
       <div class="row">${S.pending ? `<span class="rv-pend" style="--pc:${COLOR[S.pending.color]}">${S.pending.tool === 'pin' ? 'Pin' : S.pending.tool === 'mark' ? 'Highlight' : S.pending.tool[0].toUpperCase() + S.pending.tool.slice(1)} attached <button type="button" data-clear>Remove</button></span>` : ''}
-        <span style="flex:1"></span><span class="rv-hint">Ctrl+Enter</span>
+        <span style="flex:1"></span><span class="rv-hint">Enter to post, Shift+Enter for a new line</span>
         ${S.asking ? '<button type="button" class="rv-btn" data-cancel>Cancel</button>' : ''}<button type="button" class="rv-btn pri" data-post${S.busy ? ' disabled' : ''}>${S.asking ? 'Send back' : 'Post'}</button></div></div>`;
     return `<aside class="rv-side" aria-label="Notes">
       <div class="rv-tabs" role="tablist"><button type="button" role="tab" class="rv-tab${S.tab === 'notes' ? ' on' : ''}" aria-selected="${S.tab === 'notes'}" data-tab="notes">Notes <span class="rv-hint">${open.length}</span></button><button type="button" role="tab" class="rv-tab${S.tab === 'versions' ? ' on' : ''}" aria-selected="${S.tab === 'versions'}" data-tab="versions">Versions <span class="rv-hint">${vers().length}</span></button></div>
@@ -307,6 +332,32 @@ function open(o) {
     catch (e) { S.err = e.message || 'That did not save. Try again.'; }
     S.busy = false; paint();
   };
+  /* A note shows the moment it is posted and saves behind; a failure takes it back out and says so. */
+  const quick = (c, save) => {
+    const tmp = { id: 'tmp' + Date.now(), who: o.me || S.name || 'You', role: o.mode === 'team' ? 'team' : 'client', kind: c.kind || 'note', fixed: false, created_at: new Date().toISOString(), mine: true, can_delete: false, pending: true, ...c };
+    S.comments = [...S.comments, tmp];
+    S.pending = null; S.pendingAt = null; S.reply = null; S.draft = ''; S.err = ''; if (!c.parent_id) S.filter = S.filter === 'resolved' ? 'open' : S.filter;
+    paint();
+    Promise.resolve().then(save).then(async r => {
+      const real = r && r.id;
+      S.comments = S.comments.map(x => x.id === tmp.id ? { ...x, id: real || x.id, pending: false, can_delete: !!real } : x);
+      paint();
+      try { await reload(); paint(); } catch {}
+    }).catch(e => {
+      S.comments = S.comments.filter(x => x.id !== tmp.id);
+      if (!c.parent_id) S.draft = c.body;
+      S.err = e.message || 'That did not save. Try again.';
+      paint(); toast(S.err, true);
+    });
+  };
+  /* Delete: gone at once, back if the server says no. */
+  const gone = id => {
+    if (!o.api.del) return;
+    const keep = S.comments;
+    S.comments = S.comments.filter(x => x.id !== id && x.parent_id !== id); S.delAsk = null; if (S.hi === id) S.hi = null;
+    paint();
+    Promise.resolve().then(() => o.api.del(id)).then(() => toast('Deleted.')).catch(e => { S.comments = keep; paint(); toast(e.message || 'Could not delete it.', true); });
+  };
   const needName = () => { if (o.needsName && !String(S.name || '').trim()) { S.err = 'Add your name so the team knows who wrote it.'; paint(); const n = w.querySelector('[data-name]'); if (n) n.focus(); return true; } return false; };
 
   function wire() {
@@ -321,7 +372,7 @@ function open(o) {
     qa('[data-color]').forEach(b => b.onclick = () => { S.color = b.dataset.color; paint(); });
     qa('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; paint(); });
     qa('[data-filter]').forEach(b => b.onclick = () => { S.filter = b.dataset.filter; paint(); });
-    const share = q('[data-share]'); if (share) share.onclick = async () => { try { const u = await o.api.share(); await navigator.clipboard.writeText(u).catch(() => {}); share.textContent = 'Link copied'; setTimeout(() => { share.textContent = 'Copy client link'; }, 2500); } catch (e) { share.textContent = e.message || 'Could not make the link'; } };
+    const share = q('[data-share]'); if (share) share.onclick = async () => { try { const u = await o.api.share(); await navigator.clipboard.writeText(u).catch(() => {}); toast('Client link copied. It opens with no login.'); } catch (e) { toast(e.message || 'Could not make the link.', true); } };
     const nameIn = q('[data-name]'); if (nameIn) nameIn.oninput = () => { S.name = nameIn.value; try { localStorage.setItem('rv_name', S.name); } catch {} };
     const body = q('[data-body]');
     if (body) { body.value = S.draft || ''; body.oninput = () => { S.draft = body.value; }; }
@@ -334,7 +385,8 @@ function open(o) {
         return act(async () => { if (S.pending) await o.api.note(f.id, text, S.pending, S.pendingAt, S.name); await o.api.decide(false, S.pending ? 'See the note on the ad: ' + text : text, (latest() || {}).id, S.name); }, () => { if (o.onDecide) o.onDecide(false); });
       }
       if (!text && !S.pending) { S.err = 'Write the note first.'; paint(); return; }
-      act(() => o.api.note(f.id, text, S.pending, S.pendingAt, S.name));
+      const sh = S.pending, at = S.pendingAt, nm = S.name;   // read now: quick() clears the drawing before the save runs
+      quick({ file_id: f.id, body: text, shape: sh, at, parent_id: null }, () => o.api.note(f.id, text, sh, at, nm));
     };
     const cancel = q('[data-cancel]'); if (cancel) cancel.onclick = () => { S.asking = false; S.err = ''; paint(); };
     qa('[data-clear]').forEach(b => b.onclick = () => { S.pending = null; S.pendingAt = null; paint(); });
@@ -344,7 +396,11 @@ function open(o) {
     qa('[data-fix]').forEach(b => b.onclick = e => { e.stopPropagation(); act(() => o.api.fixed(b.dataset.fix, b.dataset.on === '1')); });
     qa('[data-reply]').forEach(b => b.onclick = e => { e.stopPropagation(); S.reply = b.dataset.reply; paint(); const t = q('[data-rbody]'); if (t) t.focus(); });
     const rc = q('[data-rcancel]'); if (rc) rc.onclick = e => { e.stopPropagation(); S.reply = null; paint(); };
-    const rs = q('[data-rsend]'); if (rs) rs.onclick = e => { e.stopPropagation(); const t = (q('[data-rbody]') || {}).value || ''; if (!t.trim()) return; if (needName()) return; const pid = rs.dataset.rsend; act(() => o.api.note(cur().id, t.trim(), null, null, S.name, pid)); };
+    const rs = q('[data-rsend]'); if (rs) rs.onclick = e => { e.stopPropagation(); const t = (q('[data-rbody]') || {}).value || ''; if (!t.trim()) return; if (needName()) return; const pid = rs.dataset.rsend; const par = S.comments.find(c => c.id === pid) || {}; const fid = cur().id, nm = S.name; quick({ file_id: par.file_id || fid, body: t.trim(), shape: null, at: par.at ?? null, parent_id: pid, kind: 'reply' }, () => o.api.note(fid, t.trim(), null, null, nm, pid)); };
+    /* a reply goes at once; a note asks first (its replies go with it) */
+    qa('[data-del]').forEach(b => b.onclick = e => { e.stopPropagation(); const c = S.comments.find(x => x.id === b.dataset.del); if (c && c.parent_id) { gone(c.id); return; } S.delAsk = b.dataset.del; paint(); });
+    const dn = q('[data-delno]'); if (dn) dn.onclick = e => { e.stopPropagation(); S.delAsk = null; paint(); };
+    const dy = q('[data-delyes]'); if (dy) dy.onclick = e => { e.stopPropagation(); gone(dy.dataset.delyes); };
     qa('[data-note]').forEach(n => n.onclick = e => { if (e.target.closest('button,textarea,input')) return; S.hi = S.hi === n.dataset.note ? null : n.dataset.note; const c = S.comments.find(x => x.id === S.hi); paint(); if (c && c.at != null) seek(c.at); });
     qa('[data-pin]').forEach(p => p.onclick = () => { S.hi = p.dataset.pin; S.tab = 'notes'; const c = S.comments.find(x => x.id === S.hi); if (c && c.fixed) S.filter = 'all'; paint(); const n = q(`[data-note="${CSS.escape(S.hi)}"]`); if (n) n.scrollIntoView({ block: 'nearest' }); });
     qa('[data-seek]').forEach(b => b.onclick = e => { e.stopPropagation(); seek(+b.dataset.seek); });
@@ -367,7 +423,7 @@ function open(o) {
     if (ov) {
       const g = ov.querySelector('[data-pending]');
       if (S.pending) g.innerHTML = shapeSvg(S.pending, 0, true);
-      if (S.pending && anchorOf(S.pending)) ov.insertAdjacentHTML('beforeend', `<span class="rv-pin" style="left:${anchorOf(S.pending).x * 100}%;top:${anchorOf(S.pending).y * 100}%;--pc:${COLOR[S.pending.color]}">+</span>`);
+      if (S.pending && S.pending.tool === 'pin') ov.insertAdjacentHTML('beforeend', `<span class="rv-pin" style="left:${S.pending.x * 100}%;top:${S.pending.y * 100}%;--pc:${COLOR[S.pending.color]};--pi:${INK[S.pending.color]}">+</span>`);
       let d = null;
       const pt = e => { const r = ov.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))].map(n => Math.round(n * 10000) / 10000); };
       ov.onpointerdown = e => {

@@ -16,7 +16,8 @@
      on it (Approve / Ask for changes / Change), their name asked once, a progress line, and the same full-screen viewer
      Locus uses (review-ui.js) to mark up. Light or dark by the device. */
   :root{--bg:#F5F5F3;--surface:#FFFFFF;--surface-2:#F0F0EC;--ink:#16161A;--ink-2:#45454F;--muted:#5F5F68;--line:#E4E4E0;--line-strong:#D2D2CC;
-    --brand:#2F62D9;--brand-soft:#EAF0FD;--good:#1C7A46;--warn:#8F6412;--bad:#9C3A2E;color-scheme:light}
+    --brand:#2F62D9;--brand-soft:#EAF0FD;--good:#1C7A46;--warn:#8F6412;--bad:#9C3A2E;color-scheme:light;
+    --ann-red:#FF453A;--ann-yellow:#FFD60A;--ann-blue:#0A84FF;--ann-green:#30D158;--ann-on:#FFFFFF;--ann-on-light:#141416;--on-brand:#FFFFFF}
   @media (prefers-color-scheme:dark){:root{--bg:#131316;--surface:#1A1A1E;--surface-2:#212126;--ink:#F2F2F4;--ink-2:#B4B4BE;--muted:#8E8E9A;--line:#2A2A31;--line-strong:#3A3A43;
     --brand:#8FB3FF;--brand-soft:rgba(143,179,255,.14);--good:#5FD292;--warn:#EBBF63;--bad:#F09182;color-scheme:dark}}
   *{box-sizing:border-box}
@@ -70,7 +71,7 @@
 <body>
 <header class="top"><b id="brand">Ad review</b><span class="muted" style="font-size:13px">from Mobius Digital</span><span class="who" id="who"></span></header>
 <main id="main"><p class="muted">Loading...</p></main>
-<script src="review-ui.js?v=6"></script>
+<script src="review-ui.js?v=7"></script>
 <script>
 (() => {
   const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -116,7 +117,7 @@
       let acts = '';
       if (canCall()) {
         if (a.status === 'review') acts = ASK === a.file_id
-          ? `<label style="display:flex;flex-direction:column;gap:6px;font-size:12.5px" class="muted">What should change?<textarea rows="3" data-askbody placeholder="Make the product bigger, it gets lost"></textarea></label>${ERR ? `<span class="err">${esc(ERR)}</span>` : ''}<div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-dec="cancel">Cancel</button><button type="button" class="btn sm pri" data-dec="send" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Send to the team</button></div>`
+          ? `<label style="display:flex;flex-direction:column;gap:6px;font-size:12.5px" class="muted">What should change?<textarea rows="3" data-askbody placeholder="Make the product bigger, it gets lost"></textarea><span style="font-size:11.5px">Enter sends, Shift+Enter for a new line.</span></label>${ERR ? `<span class="err">${esc(ERR)}</span>` : ''}<div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-dec="cancel">Cancel</button><button type="button" class="btn sm pri" data-dec="send" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Send to the team</button></div>`
           : `<div class="row split"><button type="button" class="btn sm ok" data-dec="ok" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Approve</button><button type="button" class="btn sm" data-dec="ask" data-file="${esc(a.file_id)}">Ask for changes</button></div>`;
         else acts = `<div class="row"><span class="muted" style="flex:1;font-size:12.5px">${a.status === 'approved' ? 'Approved' : 'Sent back'}${a.by ? ` by ${esc(a.by)}` : ''}${a.at ? `, ${esc(short(a.at))}` : ''}</span><button type="button" class="btn sm" data-dec="reopen" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Change</button></div>`;
       }
@@ -137,6 +138,7 @@
     const f = document.querySelector('[data-nameform]'); if (f) f.onsubmit = e => { e.preventDefault(); const v = f.querySelector('[data-namein]').value; if (v.trim()) { setName(v); paint(); } };
     const rn = document.querySelector('[data-rename]'); if (rn) rn.onclick = () => { setName(''); paint(); const i = document.querySelector('[data-namein]'); if (i) i.focus(); };
     document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openViewer(b.dataset.open));
+    const ab = document.querySelector('[data-askbody]'); if (ab) ab.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); const b = document.querySelector('[data-dec="send"]'); if (b) b.click(); } };
     document.querySelectorAll('[data-dec]').forEach(b => b.onclick = async () => {
       const what = b.dataset.dec;
       if (what === 'cancel') { ASK = null; ERR = ''; paint(); return; }

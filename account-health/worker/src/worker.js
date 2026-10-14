@@ -7467,7 +7467,7 @@ const AH_APP = {
        link a client opens with no login (an unguessable token per card). */
     if (path.startsWith('/api/production/f/') && request.method === 'GET') return prodFile(request, env, url, path.slice('/api/production/f/'.length), CORS);
     if (path.startsWith('/api/review/')) {
-      const r = await handleReviewLink(request, env, url, path, json, { ...actionDeps(), moveCard: prodMove, formatOf: prodFormat, readDoc: brandReadDoc });
+      const r = await handleReviewLink(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), moveCard: prodMove, formatOf: prodFormat, readDoc: brandReadDoc });
       if (r) return r;
     }
     /* Ad covers (creative.js): public by a signed ad id, cached by the browser for a year. */
@@ -7596,7 +7596,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     /* ---- Production: the brief-to-live board over p_br_batch, mirrored to Asana (production.js, 2026-10-13). Team only. ---- */
     if (path === '/api/production' || path.startsWith('/api/production/')) {
-      const r = await handleProduction(request, env, url, path, json, actionDeps());
+      const r = await handleProduction(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p) });
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {

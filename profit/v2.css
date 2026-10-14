@@ -15,6 +15,8 @@
   --bad:#F09182; --bad-bg:rgba(240,145,130,.14); --bad-on:#F09182;
   --unk:#8E8E9A; --unk-bg:#26262C; --wash:transparent;
   --c-meta:#5B8DEF; --c-google:#B5761A; --c-tiktok:#27A392; --c-email:#8F72E8; --c-amazon:#E3653D; --c-else:#2F93C2;
+  /* review mark-up colours: drawn ON the ad, so vivid in both themes (2026-10-14, Cole: "so bland") */
+  --ann-red:#FF453A; --ann-yellow:#FFD60A; --ann-blue:#0A84FF; --ann-green:#30D158; --ann-on:#FFFFFF; --ann-on-light:#141416;
   --v2-cmp:#6A6A76; --v2-grid:#26262D; --v2-tip-bg:#F2F2F4; --v2-tip-ink:#131316;
   --rail-bg:#0F0F12; --rail-ink:#C9C9D2; --rail-muted:#6E6E7A; --rail-hover:#1C1C21; --rail-on:rgba(143,179,255,.14); --rail-on-ink:#FFFFFF;
   --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif; --serif:'Inter',system-ui,sans-serif; --display:'Inter',system-ui,sans-serif;

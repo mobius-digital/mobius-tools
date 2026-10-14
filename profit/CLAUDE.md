@@ -3211,3 +3211,16 @@ Mock: https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (page Review redesign: A
 - Checked on a stub harness in the browser pane (deleted): cards, every viewer action (draw + post, reply, resolve,
   arrows, approve then next, ask for changes, reopen, compare, close refreshes the cards), the copy button, the client
   page (name step, inline ask, error line, viewer as guest), 375px without overlap. NOT checked against the real workers.
+- **Review fixes (2026-10-14, night, Cole's list):** notes and replies show the moment they are posted and save behind
+  (the worker answers before Slack DMs and the Asana story, which run in waitUntil); Delete on your own notes, replies
+  and Comments-tab comments (the owner can delete any; a decision cannot be deleted); a pin only for the Note tool,
+  every other drawing gets a small square number tag at its corner; mark-up colours are vivid tokens `--ann-red /
+  -yellow / -blue / -green` (v2.css and review.html, the same in both themes) with `--ann-on` / `--ann-on-light` for the
+  number; Enter posts and Shift+Enter is a new line (viewer, replies, card ask box, Comments tab, client page);
+  Download on every card, in the viewer, and "Download approved (N)" (files come with a `download` link, `&dl=1`);
+  Launch to Meta on an approved card (`LaunchToMeta.open({ act, tok, workFile })`: account-health launch.js takes a
+  Production file, a picture by its signed link, a video handed to Meta once via advideos `file_url`, the id kept in
+  `p_work_file.meta_video_id`; headline and primary text read from the brief's own lines); the Send to the client confirm
+  is the sheet's own `confirmBox` (Locus's confirmModal opened behind the sheet); toasts are Locus's `.lx-toast` (the
+  viewer has its own `.rv-toast` in the same style); buttons follow the design system (`ds-btn` sizes, radius, weight),
+  versions are a segmented control, the modal has the Locus radius, shadow and a short fade.

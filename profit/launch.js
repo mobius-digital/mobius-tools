@@ -132,7 +132,7 @@ const msg = (root, t, tone) => { const m = root.querySelector('[data-ln="msg"]')
 /* ---------------- the Launch window ---------------- */
 function open(o) {
   if (o.tok) L.tok = o.tok;
-  const src = o.studioAd ? { studio_ad: o.studioAd } : { asset: o.asset };
+  const src = o.studioAd ? { studio_ad: o.studioAd } : o.workFile ? { work_file: o.workFile } : { asset: o.asset };   // workFile: a finished ad from Production (2026-10-14)
   const { box, close } = sheet(`<h3>Launch to Meta</h3><p class="ln-say">Reading the brand's ad sets and the test. A few seconds.</p>`);
   const done = changed => { close(); if (changed && o.onDone) o.onDone(); };
   postAH('/api/launch/prep', { act: o.act, ...src }).then(p => form(p)).catch(e => {

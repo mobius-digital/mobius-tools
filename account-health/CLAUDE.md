@@ -2109,3 +2109,9 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   in their own paragraph (sanitizeHtml runs it, so every read and save). Templates use the same shape; the ads of a new
   test are their own section ("The ads", Ad 48-1 bold, the words below).
 - Tests: test-production2 14 (per-ad calls, reopen, replies, take back).
+- **2026-10-14 (night):** `addComment` answers as soon as the row is written; mentions, the Asana story and the client
+  line run in `d.waitUntil` (worker.js passes `waitUntil` to handleProduction and handleReviewLink; without it, as in
+  tests, they are awaited). `POST /api/production/comment/delete {comment_id}` (`deleteComment`): the author, or the
+  owner; replies go too; decisions refuse; the Asana copy is deleted after. Comments carry `mine` / `can_delete`.
+  Files carry `download` (`&dl=1` = attachment). launch.js `sourceOf(..., d)` takes `work_file` (see profit/CLAUDE.md).
+  brandguard: client rule for comment/delete (owned record). Tests: test-production2 15.
