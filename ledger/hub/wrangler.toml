@@ -1,0 +1,12 @@
+# Cashew, one link: the hub that proxies whichever set of books the cookie picks.
+# Mobius Cloudflare account. Deploy from this folder:  npx wrangler deploy
+# Live: https://cashew.mobius-digital.workers.dev   (a custom domain needs the zone moved; see memory mobius-domains)
+# It holds no data and no secrets: every set of books stays its own worker and database.
+name = "cashew"
+account_id = "9de398454c0670e665485f4e4426a630"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+workers_dev = true
+
+[observability]
+enabled = true

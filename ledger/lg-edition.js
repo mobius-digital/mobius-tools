@@ -173,6 +173,7 @@ const BOOKS_DEFAULT = [
 ];
 /* Which entry is this deployment: the one whose host (and path, when it has one) matches where we are. */
 function booksHere(list) {
+  const hub = hubBooks(); if (hub) return (list || []).find(b => b.id === hub) || null;
   const here = location.host.toLowerCase(), path = location.pathname.toLowerCase();
   return (list || []).find(b => { try { const u = new URL(b.url); return u.host.toLowerCase() === here && path.startsWith(u.pathname.replace(/\/$/, '').toLowerCase()); } catch (e) { return false; } }) || null;
 }
@@ -180,4 +181,7 @@ function booksList() {
   const l = (window.S && S.boot && Array.isArray(S.boot.books) && S.boot.books.length) ? S.boot.books : BOOKS_DEFAULT;
   return l.filter(b => b && b.url && b.name);
 }
-
+/* On the hub (one link for every set of books) the hub's cookie says which books this page is,
+   and switching is /switch?to=<id> on the same address instead of a hop to another origin. */
+function hubBooks() { const m = document.cookie.match(/(?:^|;\s*)cashew_books=([a-z]+)/); return m ? m[1] : null; }
+function booksLink(b) { return hubBooks() ? '/switch?to=' + encodeURIComponent(b.id) : b.url; }

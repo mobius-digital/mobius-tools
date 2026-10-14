@@ -23,6 +23,18 @@
   binding), rewrite the suite against it, and deploy only after Cole walks the live app with the admin token.
 - **C the household edition: waits on B.4.**
 
+**Cole's call on the link (2026-10-14):** one link now, the full SaaS (one database with accounts inside)
+later. **BUILT AND LIVE the same evening: the hub.** `ledger/hub` (worker `cashew`, Mobius account):
+https://cashew.mobius-digital.workers.dev proxies the whole app and `/api/*` of whichever books the
+`cashew_books` cookie says (Mobius: the Pages app plus mobius-ledger; Lucky: lucky-ledger serves both; Home:
+tally); `/switch?to=mobius|lucky|home` sets the cookie and reloads. Each set of books keeps its own worker,
+database, sign-in list and token, so a person sees only the books that invited them. The pickers in all three
+apps switch on the hub (and still hop between origins on the separate sites). Verified: all three gates
+render at the one link, Lucky's and Tally's APIs answer through it. Sign-in through the hub works once the hub
+origin is on each Google client's authorized JavaScript origins (Cole: the Mobius client used by HQ and
+Tally, and Lucky's own client). A custom domain (cashew.go-mobius-digital.com) needs the zone moved (memory
+mobius-domains). Option 3, one database with accounts inside, stays on the docket until Cashew is sold.
+
 The product pass (`docs/cashew-editions.md`) built the picker and the per-edition helper. What it did not do, on
 purpose, is touch the three live databases. This file is the first task one-ledger.md section 6 asks for before
 anything merges: the column-by-column diff of the schemas, the route diff, and the order of work. Start the next
