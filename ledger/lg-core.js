@@ -235,7 +235,7 @@ function booksMenuHTML() {
   const edLabel = id => (EDITIONS[id] || {}).label || '';
   const rows = list.map(b => b === here
     ? `<button type="button" class="on" onclick="closeMenus()"><span class="bk"><b>${esc(b.name)}</b><small>${esc(edLabel(b.edition))} · these books</small></span></button>`
-    : `<a href="${esc(b.url)}" class="bk-link"><span class="bk"><b>${esc(b.name)}</b><small>${esc(edLabel(b.edition))}</small></span>${icon('external-link', 13)}</a>`).join('');
+    : `<a href="${esc(booksLink(b))}" class="bk-link"><span class="bk"><b>${esc(b.name)}</b><small>${esc(edLabel(b.edition))}</small></span>${icon(hubBooks() ? 'chevrons-up-down' : 'external-link', 13)}</a>`).join('');
   return `<div class="pm books" id="pmBooks"><button type="button" class="pm-btn" onclick="toggleMenu('pmBooks')" title="Switch books">${icon('chevrons-up-down', 14)}</button>
     <div class="pm-menu" hidden role="menu"><div class="lb">Your books</div>${rows}<div class="lb">Each set of books is separate</div><button type="button" onclick="closeMenus();SET.sec='access';show('settings')">Manage the list ›</button></div></div>`;
 }

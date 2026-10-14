@@ -106,7 +106,8 @@ function css() {
 .pd-modal p{margin:0;font-size:12.5px;color:var(--muted)}
 .pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2)}
 .pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box}
-.pd-modal textarea{min-height:80px;resize:vertical}
+.pd-modal textarea{min-height:56px;resize:vertical}
+.pd-modal .pd-hint{font-size:11.5px;color:var(--ink-3)}
 .pd-modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pd-modal .ft{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 .pd-modal .err{color:var(--bad);font-size:12.5px}
@@ -247,9 +248,9 @@ function newBrief() {
   const w = document.createElement('div'); w.className = 'pd-scrim';
   w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pdNbT">
     <h3 id="pdNbT">New brief</h3>
-    <p>${D.mirror === false ? 'Locus makes the next numbered brief and its card lands in Brief.' : "Locus makes the next numbered brief in the brand's Asana project, in Creative Brief(s), and its card lands in Brief."} Then you write it on the card.</p>
+    <p>${D.mirror === false ? 'Locus makes the next numbered brief and its card lands in Brief.' : "Locus makes the next numbered brief in the brand's Asana project, in Creative Brief(s), and its card lands in Brief."} Then you write the brief on the page that opens.</p>
     <label>Brand<select id="pdNbAct"><option value="">Pick the brand</option>${brands.map(b => `<option value="${esc(b.act_id)}"${b.act_id === act0 ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select></label>
-    <label>What to make<textarea id="pdNbText" maxlength="300" placeholder="Three UGC hooks for the fall polo"></textarea></label>
+    <label>Name of the brief<textarea id="pdNbText" maxlength="300" placeholder="Fall polo UGC hooks"></textarea><span class="pd-hint">Short, like a test title. Locus adds the number in front (48 - Fall polo UGC hooks).</span></label>
     <div class="row"><label>Who makes it<select id="pdNbOwner"><option value="">Nobody yet</option>${team.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
       <label>Due<input type="date" id="pdNbDue"></label></div>
     <div class="err" id="pdNbErr" hidden></div>
@@ -266,7 +267,7 @@ function newBrief() {
     const act = $('#pdNbAct', w).value, text = $('#pdNbText', w).value.trim(), err = $('#pdNbErr', w), go = $('#pdNbGo', w);
     err.hidden = true;
     if (!act) { err.textContent = 'Pick the brand.'; err.hidden = false; return; }
-    if (!text) { err.textContent = 'Say what to make.'; err.hidden = false; return; }
+    if (!text) { err.textContent = 'Name the brief.'; err.hidden = false; return; }
     go.disabled = true; go.textContent = 'Making it...';
     try {
       const r = await post('/api/production/brief', { act, text, owner: $('#pdNbOwner', w).value, due: $('#pdNbDue', w).value });
