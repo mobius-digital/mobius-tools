@@ -259,6 +259,44 @@ await check('the scrub: Slack channel ids, report config and the team\'s notes n
   db.exec(`UPDATE brands SET internal_channel = NULL, client_channel = NULL WHERE id = 'brand_alpha'`);
 });
 
+await check('Integrations: a client never gets the pick lists (other clients Google Ads, GA4, Search Console, TikTok, Meta) or an id paste box', async () => {
+  const { CLIENT_RULES } = await import('./src/brandguard.js');
+  const rule = CLIENT_RULES.find(r => r.p === '/api/integrations');
+  const body = { agency: [{ id: 'x' }], brands: [{ act_id: 'brand_alpha', name: 'Alpha', items: [
+    { id: 'google_ads', input: { key: 'google_ads' }, options: [{ value: '111', label: 'Beta Golf (111)', linked_to: 'Beta Golf' }], levels: [{ name: 'Direct', on: false, note: 'manager 556' }] },
+    { id: 'ga4', input: { key: 'ga4' }, options: [{ value: '9', label: 'Beta GA4', linked_to: 'Beta Golf' }] },
+    { id: 'klaviyo', input: { key: 'klaviyo_key', secret: true }, options: [] }] }] };
+  const out = rule.post(body);
+  const s = JSON.stringify(out);
+  assert.ok(!s.includes('Beta'), 'another brand leaks: ' + s);
+  assert.deepEqual(out.agency, []);
+  assert.equal(out.brands[0].items[0].input, null, 'no Google Ads id box for a client');
+  assert.equal(out.brands[0].items[2].input.key, 'klaviyo_key', 'its own key box stays');
+});
+
+await check('the 2026-10-14 audit: every brand field is checked (array act, a second act_id, a text/plain body), team-only docs and labels refused', async () => {
+  const raw = async (w, m, p, bodyText, ct) => {
+    const res = await (w === 'ah' ? AH : PF).fetch(new Request(`https://${w}.test${p}`, { method: m, headers: { Authorization: 'Bearer ' + CLIENT, ...(ct ? { 'Content-Type': ct } : {}) }, body: bodyText }), w === 'ah' ? ahEnv : pfEnv, ctx);
+    return res.status;
+  };
+  /* An act sent as an array, or an act_id beside a matching act, or a JSON body labelled text/plain: all refused. */
+  assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: ['brand_beta'], summary: 'x' }), 'application/json'), 403);
+  assert.equal(await raw('ah', 'POST', '/api/activities', JSON.stringify({ act: 'brand_alpha', act_id: 'brand_beta', summary: 'x' }), 'application/json'), 403);
+  assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: 'brand_beta', summary: 'x' }), 'text/plain'), 403);
+  assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha&act=brand_beta', JSON.stringify({ act: 'brand_alpha', summary: 'x' }), 'application/json'), 403);
+  /* Brand docs that point a sync somewhere, or hold keys, are the team's. */
+  for (const key of ['asana', 'assets', 'klaviyo', 'survey_fairing']) assert.equal((await pf(CLIENT, 'PUT', '/api/brand/doc', { act: 'brand_alpha', line_id: '', key, data: { project_gid: '1' } })).status, 403, key);
+  /* The war plan is edited on its own page; the weekly summary needs the client's own act. */
+  assert.equal((await pf(CLIENT, 'PUT', '/api/season/answer', { act: 'brand_alpha', key: 'war', value: '{}' })).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/summarise', { act_id: 'brand_alpha', from: '2026-10-01', to: '2026-10-07' })).status, 403);
+  /* Day check: the agency count is reduced to bad-or-not. */
+  const { CLIENT_RULES } = await import('./src/brandguard.js');
+  const md = CLIENT_RULES.find(r => r.p === '/api/metaday').post({ days: [{ signs: { ours: { high: true, brands: 9, worse: 5, score: 1.2, cpm_change: 0.3 } } }] });
+  assert.deepEqual(md.days[0].signs.ours, { high: true });
+  const dv = CLIENT_RULES.find(r => r.p === '/api/daycheck').post({ headline: 'Bad day on Meta', why: '5 of our 9 brands', todo: 'hold', client_line: 'Meta was expensive for everyone.' });
+  assert.equal(dv.why, 'Meta was expensive for everyone.'); assert.equal(dv.todo, undefined);
+});
+
 await check('reports and briefs: a client reads what was SENT, never a draft, the review or the send', async () => {
   const list = await pf(CLIENT, 'GET', '/api/reports?act=brand_alpha');
   assert.equal(list.status, 200);

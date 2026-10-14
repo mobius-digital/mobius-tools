@@ -17,6 +17,7 @@
  */
 
 import { metaOf, storagePrefix } from './brandids.js';
+import { clientScope } from './brandguard.js';
 
 /* Brand-first phase 3 (2026-10-08): act_id in p_amb_* is the BRAND id. Meta's ads / ad_daily stay on
    the Meta ad account id: read them with `act_id IN ${metaOf(n)}`. Uploads go under the brand's
@@ -27,6 +28,38 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const MAX_UPLOAD = 95 * 1024 * 1024;   // Workers cap a request body at 100MB on this plan
 const clip = (s, n) => (s == null ? null : String(s).slice(0, n));
+/* Section icons are drawn as raw SVG on Locus and on the public creator page (same site as the Locus session), so an
+   icon is rebuilt from an allowlist: only drawing tags and drawing attributes, nothing that can run (2026-10-14 audit:
+   "onerror =" with a space got past the old filter). Applied on write AND on read, so an old row cannot carry script. */
+const SVG_TAGS = new Set(['svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'g']);
+const SVG_ATTRS = new Set(['xmlns', 'viewbox', 'width', 'height', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'transform', 'class', 'opacity', 'fill-rule', 'clip-rule']);
+export function cleanSvg(raw) {
+  if (!raw) return null;
+  let out = '', depth = 0;
+  for (const m of String(raw).slice(0, 4000).matchAll(/<\s*(\/?)\s*([a-zA-Z][\w-]*)([^>]*?)(\/?)\s*>/g)) {
+    const [, close, tag0, attrs, self] = m; const tag = tag0.toLowerCase();
+    if (!SVG_TAGS.has(tag)) continue;
+    if (close) { if (depth > 0) { out += `</${tag}>`; depth--; } continue; }
+    let a = '';
+    for (const am of attrs.matchAll(/([a-zA-Z][\w:-]*)\s*=\s*("([^"]*)"|'([^']*)')/g)) {
+      const name = am[1].toLowerCase(), val = am[3] != null ? am[3] : am[4];
+      if (!SVG_ATTRS.has(name) || /[<>]|javascript:|url\s*\(|expression/i.test(val)) continue;
+      a += ` ${name === 'viewbox' ? 'viewBox' : name}="${val.replace(/"/g, '&quot;')}"`;
+    }
+    out += `<${tag}${a}${self ? '/' : ''}>`; if (!self) depth++;
+  }
+  while (depth-- > 0) out += '</g>';
+  return /^<svg[\s>]/.test(out) ? out : null;
+}
+/* An uploaded proof's file must live under this brand's own creator-page folder (2026-10-14 audit: a client could
+   point a proof at any key in the shared bucket, then read or delete it). The team may also file the ideas bot's clips. */
+async function ownFileKey(env, request, act, key) {
+  const k = String(key || '');
+  if (!k || k.includes('..')) return false;
+  const mine = [`amb/${await storagePrefix(env, act)}/`, `amb/${act}/`];
+  if (mine.some(p => k.startsWith(p))) return true;
+  return !clientScope(request) && k.startsWith('amb/');
+}
 const arr = (v, n, m) => (Array.isArray(v) ? v : []).map(x => (typeof x === 'string' ? x.trim().slice(0, m) : x)).filter(Boolean).slice(0, n);
 const addDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -191,9 +224,9 @@ async function publicPayload(env, slug, preview = false) {
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; x.hooks = hooks; return x; })(),
     season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
       || await seasonShape(env, b.act_id).catch(() => null),
-    hot: pinned ? { id: pinned.id, name: pinned.name, line: pinned.line, icon_svg: pinned.icon_svg, color: pinned.color, angles: hot } : null,
+    hot: pinned ? { id: pinned.id, name: pinned.name, line: pinned.line, icon_svg: cleanSvg(pinned.icon_svg), color: pinned.color, angles: hot } : null,
     sections: onSecs.filter(s => !s.pinned).map(s => ({
-      id: s.id, name: s.name, line: s.line, icon_svg: s.icon_svg, color: s.color,
+      id: s.id, name: s.name, line: s.line, icon_svg: cleanSvg(s.icon_svg), color: s.color,
       angles: liveAngles.filter(a => a.section_id === s.id).map(pub),
     })).filter(s => s.angles.length),
   };
@@ -329,7 +362,7 @@ export async function handleStaff(request, env, url, path, json) {
         for (const s of DEFAULT_SECTIONS) {
           await env.DB.prepare(
             `INSERT INTO p_amb_section (id, act_id, name, line, icon, icon_svg, color, pinned, sort) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`,
-          ).bind(rid(), acct.act_id, s.name, s.line, s.icon, body.icons?.[s.icon] || null, s.color, s.pinned, i++).run();
+          ).bind(rid(), acct.act_id, s.name, s.line, s.icon, cleanSvg(body.icons?.[s.icon]), s.color, s.pinned, i++).run();
         }
       }
       return json(await staffPayload(env, acct));
@@ -388,8 +421,8 @@ export async function handleStaff(request, env, url, path, json) {
       const acct = await mustAccount(env, act);
       if (!String(body.name || '').trim()) return json({ error: 'Give the section a name.' }, 400);
       if (body.color && !HEX_RE.test(body.color)) return json({ error: 'Colour must be a hex value.' }, 400);
-      const svg = body.icon_svg ? String(body.icon_svg).slice(0, 4000) : null;
-      if (svg && /<script|on\w+=|javascript:|<foreignObject/i.test(svg)) return json({ error: 'That icon could not be used.' }, 400);
+      const svg = body.icon_svg ? cleanSvg(body.icon_svg) : null;
+      if (body.icon_svg && !svg) return json({ error: 'That icon could not be used.' }, 400);
       if (body.id) {
         const cur = await env.DB.prepare(`SELECT * FROM p_amb_section WHERE id = ?1 AND act_id = ?2`).bind(body.id, acct.act_id).first();
         if (!cur) return json({ error: 'section not found' }, 404);
@@ -480,7 +513,7 @@ export async function handleStaff(request, env, url, path, json) {
         env.DB.prepare(`DELETE FROM p_amb_proof WHERE angle_id = ?1 AND act_id = ?2`).bind(id, acct.act_id),
         env.DB.prepare(`DELETE FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id),
       ]);
-      if (env.MEDIA) for (const f of files.results || []) await env.MEDIA.delete(f.file_key).catch(() => {});
+      if (env.MEDIA) for (const f of files.results || []) if (await ownFileKey(env, request, acct.act_id, f.file_key)) await env.MEDIA.delete(f.file_key).catch(() => {});
       return json(await staffPayload(env, acct));
     }
 
@@ -498,6 +531,7 @@ export async function handleStaff(request, env, url, path, json) {
         if (dup && !body.id) return json(await staffPayload(env, acct));
       } else if (body.kind === 'upload') {
         if (!body.file_key && !body.id) return json({ error: 'Upload the file first.' }, 400);
+        if (body.file_key && !(await ownFileKey(env, request, acct.act_id, body.file_key))) return json({ error: 'That file is not in this brand’s uploads.' }, 400);
       } else if (!body.url && !body.id) {
         return json({ error: 'Paste a link to the video.' }, 400);
       }
@@ -525,7 +559,7 @@ export async function handleStaff(request, env, url, path, json) {
       const id = url.searchParams.get('id');
       const p = await env.DB.prepare(`SELECT file_key FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id).first();
       await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id).run();
-      if (p?.file_key && env.MEDIA) await env.MEDIA.delete(p.file_key).catch(() => {});
+      if (p?.file_key && env.MEDIA && await ownFileKey(env, request, acct.act_id, p.file_key)) await env.MEDIA.delete(p.file_key).catch(() => {});
       return json(await staffPayload(env, acct));
     }
 

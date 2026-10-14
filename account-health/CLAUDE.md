@@ -2059,3 +2059,38 @@ Cole asked for; the team does not use Frame's Premiere panel, so review moved in
   /api/production/photos` = roster name -> Google photo, else Slack's (users.info, cached a week in `slackPhotos`).
 - NOT tested live: Asana html_notes / stories / the hash round trip, Slack DMs, R2 upload of a real 90MB video, Stream,
   the morning card line for unanswered mentions (not built).
+
+## 2026-10-14: CLIENT ISOLATION AUDIT (read before adding a client route or a brand field)
+
+Cole saw other clients' Google Ads accounts in a client's Integrations. A full audit of every client-reachable route
+(both workers, Supply, the AI routes) followed. Fixed and tested (`test-clients.mjs` 27, `test-morning.mjs` 7):
+- **The guard checks EVERY brand field** (brandguard.js `guardClient`, both copies identical): the query's `act` and
+  `act_id` (every copy), and the body's `act`, `act_id`, `screen.act_id`, each a string that is the client's, or 403.
+  The body is read whatever the Content-Type (handlers call `request.json()` on text/plain too); only multipart,
+  octet-stream and media bodies are skipped. Before this, an `act` sent as an array, an `act_id` beside a matching
+  `act`, or a text/plain body opened another brand on the voice desk, Studio AI, Change Log and more. `brand` in the
+  query is NOT checked: it is the Supply proxy's own slug, overridden there.
+- **Integrations for a client** (`clientIntegrations`): no agency card, no pick lists (they hold every account Mobius's
+  logins reach and the brand each is linked to), no paste box for an id outside `LINK_FIELDS`, levels without notes.
+- **Rules added:** Studio `base_id` is an owned record; `PUT /api/brand/doc` refuses `DOC_TEAM` keys (asana, assets,
+  google, tiktok, klaviyo, clarity, survey_*, voice_skill, rules); `GET /api/brand` drops stored keys from `docs`;
+  `PUT /api/season/answer` refuses key `war`; Studio batch save checks `batch.br_batch_id`; leak lessons are the
+  client's own brand's only, without team emails, and a client cannot delete an every-brand lesson; `/api/accounts`
+  drops `lastDiscover`; `/api/metaday` keeps only `ours.high`; `/api/daycheck` gives a client `client_line` as `why`
+  and no `todo`; `/api/summarise` needs the client's `act`; caps on `/api/brand-asana/tested`, tw-sync (70 days) and
+  the Supply backfill (400 days).
+- **Handlers:** a client or review-link guest comment is always `comment` / `note` (never approval / system, prodwork);
+  creator page uploads must live under the brand's own `amb/<prefix>/` and only those are deleted; section icons go
+  through `cleanSvg` (an allowlist of drawing tags and attributes) on write AND read; ad share links keep only the
+  brand's own ads at mint and re-check at read, video read from the ad, never from the stored snapshot; Supply upserts
+  (`categories`, `lines`, `factories`, `collections`, `slots`) never update another brand's row
+  (`WHERE <table>.brand_id = excluded.brand_id`); the morning DM fails closed (no brand limit = every brand only for
+  someone `emailAllowed` says is the team); the hub and `/api/overview` build only a client's own brands; order
+  lookups by ad set or campaign are scoped to the brand; search rows carry `act_id` so the filter can see them.
+- **Also fixed:** `suggestGoals` read an undefined `win` (the goal suggestion 500'd every time).
+- **The rule for new code:** anything a client can reach must either name the brand in `act` / `act_id` (checked) or
+  return objects that carry `act_id` (filtered). Lists of ids Mobius can see, totals across brands, names of other
+  brands in text, or a stored id written by the browser are leaks the filter cannot catch: strip them in a `post`.
+- Not changed (plausible, left for later): Launch to Meta accepts any `video_id` the system user can read for an ad in
+  the client's own account; Google `from` / `to` go into the query unvalidated (stays inside the brand's own account);
+  a brand brain may mention a competitor that is also a client.

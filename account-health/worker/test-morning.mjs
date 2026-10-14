@@ -22,6 +22,7 @@ const deps = {
   getSetting: async (e, k) => settings.get(k) ?? null, putSetting: async (e, k, v) => { settings.set(k, v); },
   centralHour: () => hour, centralDate: () => '2026-10-11', subCanAfford: () => true, morningPeople,
   mintSession: async (e, email) => ({ token: 'tok-' + email, email }),
+  emailAllowed: async (e, email) => /@go-mobius-digital\.com$/.test(String(email)),
   brandsFor: async (e, email) => email === 'nick@alpha.com' ? new Set(['brand_alpha', 'act_111']) : email === 'ahsan@go-mobius-digital.com' ? new Set(['brand_beta']) : null,
   profit: async (path, tok) => { profitCalls++; assert.equal(path, '/api/hub/kept?act=all'); assert.equal(tok, 'tok-cole@go-mobius-digital.com'); return KEPT; },
   slackApi: async (e, method, body) => { slackCalls.push({ method, body }); if (method === 'users.lookupByEmail') return lookups[body.email] ? { ok: true, user: { id: lookups[body.email] } } : { ok: false, error: 'users_not_found' }; if (method === 'chat.postMessage') return { ok: true, ts: '1.2' }; return { ok: false, error: 'unknown' }; },

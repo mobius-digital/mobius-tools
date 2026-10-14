@@ -78,7 +78,7 @@ export async function deleteLesson(env, id, act) {
   await ensure(env);
   const r = await env.DB.prepare(`SELECT act_id FROM p_leak_lesson WHERE id = ?1`).bind(id).first().catch(() => null);
   if (!r) return { error: 'No such lesson.' };
-  if (r.act_id && act && r.act_id !== act) return { error: 'That lesson belongs to another brand.' };
+  if (act && r.act_id !== act) return { error: r.act_id ? 'That lesson belongs to another brand.' : 'That lesson is the team’s, for every brand.' }; /* a client (act set) removes only its own brand's */
   await env.DB.prepare(`DELETE FROM p_leak_lesson WHERE id = ?1`).bind(id).run();
   return { ok: true };
 }

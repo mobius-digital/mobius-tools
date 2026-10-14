@@ -90,7 +90,7 @@ export async function handleHub(ctx) {
       const IN = ids.map((_, i) => `?${i + 2}`).join(',');
       const { results: ads } = await env.DB.prepare(`SELECT x.ad_id, x.name, c.brand_id act_id FROM ads x JOIN connections c ON c.kind = 'meta' AND c.external_id = x.act_id WHERE c.brand_id IN (${IN}) AND x.name LIKE ?1 ORDER BY COALESCE(x.first_spend_date, x.created_time) DESC LIMIT 8`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
       const { results: cs } = await env.DB.prepare(`SELECT m.campaign_id, m.name, c.brand_id act_id FROM meta_campaigns m JOIN connections c ON c.kind = 'meta' AND c.external_id = m.act_id WHERE c.brand_id IN (${IN}) AND m.name LIKE ?1 ORDER BY m.created_time DESC LIMIT 5`).bind(`%${q}%`, ...ids).all().catch(() => ({ results: [] }));
-      return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, brand: nm[a.act_id] }))] });
+      return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, act_id: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, act_id: a.act_id, brand: nm[a.act_id] }))] });
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
     if (path === '/api/hub/command') return json(await commandMany(env, ctx, accts));
@@ -893,8 +893,8 @@ async function ordersFor(env, a, w, model, url) {
   const ad = url.searchParams.get('ad'), adset = url.searchParams.get('adset'), campaign = url.searchParams.get('campaign'), platform = url.searchParams.get('platform');
   let filter = '', bind = [a.act_id, m, w.from, w.to];
   if (ad) { filter = 'AND t.ad_id = ?5'; bind.push(ad); }
-  else if (adset) { filter = 'AND t.ad_id IN (SELECT ad_id FROM ads WHERE adset_id = ?5)'; bind.push(adset); }
-  else if (campaign) { filter = 'AND t.ad_id IN (SELECT ad_id FROM ads WHERE campaign_id = ?5)'; bind.push(campaign); }
+  else if (adset) { filter = `AND t.ad_id IN (SELECT ad_id FROM ads WHERE adset_id = ?5 AND act_id IN (SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta'))`; bind.push(adset); }
+  else if (campaign) { filter = `AND t.ad_id IN (SELECT ad_id FROM ads WHERE campaign_id = ?5 AND act_id IN (SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta'))`; bind.push(campaign); }
   else if (platform) { filter = 'AND t.platform = ?5'; bind.push(platform); }
   const { results } = await env.DB.prepare(`SELECT t.order_id, t.date, t.ad_id, t.weight, t.click_date, o.total, o.customer_id, o.products_json, x.name ad_name,
       (SELECT COUNT(*) FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date) prior

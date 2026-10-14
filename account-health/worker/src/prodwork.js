@@ -741,7 +741,7 @@ export async function addComment(env, d, body, who, scope, opts = {}) {
   }
   const role = scope ? 'client' : opts.guest ? 'client' : 'team';
   const name = opts.name || (role === 'team' ? nameOfEmail(who) : (scope && scope.name) || clean(String(who || '').split('@')[0], 40) || 'Client');
-  const kind = ['comment', 'note', 'change_request', 'approval', 'system'].includes(body.kind) ? body.kind : fileId ? 'note' : 'comment';
+  const kind = role === 'team' && ['comment', 'note', 'change_request', 'approval', 'system'].includes(body.kind) ? body.kind : fileId ? 'note' : 'comment'; /* a client or a review-link guest decides through decide(), never by labelling a comment */
   const at = body.at != null && isFinite(+body.at) && +body.at >= 0 ? Math.round(+body.at * 10) / 10 : null;
   const id = rid();
   await env.DB.prepare(`INSERT INTO p_work_comment (id, batch_id, act_id, author_email, author_name, author_role, body, kind, file_id, shape_json, at_sec) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)

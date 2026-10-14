@@ -2098,7 +2098,9 @@ export default {
 
       /* All clients, store-level. The blended view Account Health deliberately lacks. */
       if (path === '/api/overview') {
-        const accounts = await accountsFor();
+        /* A client: only its own brands are built (2026-10-14 audit; the guard's filter then has nothing to drop). */
+        const cScope = clientScope(request);
+        const accounts = (await accountsFor()).filter(a => !cScope || cScope.ids.has(a.act_id));
         const { results: healthRows } = await env.DB.prepare(`SELECT * FROM p_cost_health`).all();
         const byAct = Object.fromEntries(healthRows.map(r => [r.act_id, r]));
         /* The compare period (Home, 2026-10-07): `cmp=prev` is the same number of days
@@ -2442,7 +2444,16 @@ export default {
         const clean = { ...b.data };
         delete clean.account; delete clean.floor; delete clean.matched; delete clean.acct_cpa;
         delete clean.total_spend; delete clean.shown_spend; delete clean.timing;
-        clean.ads = (clean.ads || []).map(a => { const c = { ...a }; delete c.share; delete c.material; delete c.status; return c; });
+        clean.ads = (clean.ads || []).map(a => { const c = { ...a }; delete c.share; delete c.material; delete c.status; delete c.video_id; delete c.page_id; return c; });
+        /* Only this brand's ads go into the link (2026-10-14 audit: the list comes from the browser). */
+        const askedIds = clean.ads.map(a => String(a.ad_id || '')).filter(Boolean).slice(0, 400);
+        const ownIds = new Set();
+        for (let i = 0; i < askedIds.length; i += 90) {
+          const part = askedIds.slice(i, i + 90);
+          const r = await env.DB.prepare(`SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id IN (${part.map((_, j) => '?' + (j + 2)).join(',')})`).bind(acct.act_id, ...part).all().catch(() => ({ results: [] }));
+          for (const x of r.results || []) ownIds.add(x.ad_id);
+        }
+        clean.ads = clean.ads.filter(a => ownIds.has(String(a.ad_id || '')));
         await env.DB.prepare(
           `INSERT INTO p_ad_share (token, act_id, label, data_json) VALUES (?1,?2,?3,?4)`,
         ).bind(token, b.act, String(b.label || '').slice(0, 120), JSON.stringify(clean)).run();
@@ -2757,7 +2768,7 @@ export default {
       }
       /* Locus v2 data layer (2026-10-07). Routes live in hub.js. */
       if (path.startsWith('/api/hub/')) {
-        const hr = await handleHub({ path, url, request, env, json, accountsFor: () => accountsFor(), windowFor, addDays, localDate,
+        const hr = await handleHub({ path, url, request, env, json, accountsFor: async () => { const cs = clientScope(request); const all = await accountsFor(); return cs ? all.filter(a => cs.ids.has(a.act_id)) : all; }, windowFor, addDays, localDate,
           twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids),
           /* The tile drill-downs (2026-10-09) price contribution margin exactly like /api/overview. */
           econ: dayEconomics, totals, marginOverride, monthOf, loadExpenses, spread, applyAdSpend });

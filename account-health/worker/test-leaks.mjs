@@ -219,7 +219,8 @@ await check('a client\u2019s pushback is its own brand\u2019s only; Remove delet
   const t = await L.lessonFromLeak(env, d, 'brand_x', { text: 'Every brand: give a new page two weeks.', scope: 'all' }, 'cole@go-mobius-digital.com', false);
   assert.equal(db.prepare(`SELECT act_id FROM p_leak_lesson WHERE id = ?`).get(t.id).act_id, '', 'the team can teach every brand');
   const C = await import('./src/leakctx.js');
-  assert.match(String((await C.deleteLesson(env, t.id, 'brand_y')).error || ''), /^$/, 'an every-brand lesson has no owner brand to clash with');
+  /* 2026-10-14 audit: a client (act set) cannot remove the team's every-brand lesson; the team (no act) can. */
+  assert.match(String((await C.deleteLesson(env, t.id, 'brand_y')).error || ''), /every brand/, 'a client cannot remove an every-brand lesson');
   assert.equal((await C.deleteLesson(env, r.id, 'brand_y')).error, 'That lesson belongs to another brand.');
   assert.equal((await C.deleteLesson(env, r.id, 'brand_x')).ok, true);
 });

@@ -150,6 +150,19 @@ const sentOnlyOne = b => (b && b.status === 'sent' ? b : { __deny: 404, error: '
 const briefSent = b => { if (b && Array.isArray(b.history)) b.history = b.history.filter(r => r && r.status === 'sent'); return b; };
 const ownDash = (ids) => b => { if (b && Array.isArray(b.dashboards)) b.dashboards = b.dashboards.filter(d => d && d.act && ids.has(d.act)); return b; };
 const noAgency = b => { if (b && typeof b === 'object') b.agency = []; return b; };
+/* Integrations for a client (2026-10-14, Cole saw other clients' Google Ads accounts in the pick list): no agency card,
+   no pick lists (they hold every account Mobius's logins reach, with the brand each is linked to), and no paste box for
+   an id the client may not save (LINK_FIELDS below decides; the PUT refuses the rest anyway). */
+const clientIntegrations = b => {
+  noAgency(b);
+  for (const br of (b && Array.isArray(b.brands) ? b.brands : [])) for (const it of (Array.isArray(br.items) ? br.items : [])) {
+    if (!it || typeof it !== 'object') continue;
+    it.options = [];
+    if (Array.isArray(it.levels)) it.levels = it.levels.map(l => ({ name: l.name, on: l.on }));
+    if (it.input && !LINK_FIELDS.includes(it.input.key)) it.input = null;
+  }
+  return b;
+};
 const studioCost = { make: b => 0.32 * Math.max(1, Math.min(4, +b?.n || 1)), 'make-exact': 0.55, vary: 0.3, change: 0.3, dress: 0.35, story: 0.45, art: 0.3, lift: 0.05, read: 0.02, extend: 0.1, harmonize: 0.1, finalize: 0.05, dna: 0.03 };
 const AD = { table: 'p_studio_ad' }, BATCH = { table: 'p_studio_batch' };
 /* Brand settings (PUT /api/accounts/<brand>): what the brand's own people may change. Never the status, the Slack
@@ -158,10 +171,24 @@ const BRAND_FIELDS = ['name', 'monthly_budget', 'budgets', 'tz', 'target_cpa', '
 /* Integrations (PUT /api/brand-links): the brand's OWN keys and links. Never an id that Mobius's access reaches
    (Meta account, Triple Whale shop, GA4, Search Console, Google Ads): pasting another brand's id would read its data. */
 const LINK_FIELDS = ['drive', 'frame', 'klaviyo_key', 'clarity_token', 'survey_key', 'fairing_key', 'kno_key'];
+/* Brand docs a client may not write (2026-10-14 audit): `asana` and `assets` point the hourly sync at a project or
+   Drive folder (another brand's, if the id is known); the rest hold keys that only Integrations sets, checked. */
+const DOC_TEAM = /^(asana|assets|google|tiktok|klaviyo|clarity|survey_.*|voice_skill|rules)$/;
+const docDeny = b => (b && DOC_TEAM.test(String(b.key || '')) ? 'That part is set from Integrations or by the Mobius team.' : null);
+/* GET /api/brand for a client: never the stored keys (Klaviyo, Clarity, survey) or the Asana webhook. */
+const noDocSecrets = b => { const d = b && b.docs; if (d && typeof d === 'object') for (const line of Object.values(d)) if (line && typeof line === 'object') for (const k of Object.keys(line)) if (/^(klaviyo|clarity|survey_.*|asana|google|tiktok)$/.test(k)) delete line[k]; return b; };
+/* Leak finder lessons for a client: its own brand's only, no team emails. */
+const ownLessons = ids => b => { const L = b && (b.lessons || b.rows); if (Array.isArray(L)) { const kept = L.filter(x => x && x.act_id && ids.has(x.act_id)).map(x => { const { added_by, decided_by, ...rest } = x; return rest; }); if (b.lessons) b.lessons = kept; else b.rows = kept; } return b; };
+/* /api/accounts for a client: no count of the Meta accounts Mobius reaches. */
+/* Day check for a client: the "our brands" sign keeps only bad-or-not, never how many brands Mobius runs or how
+   many had a bad day; the AI verdict's own why / todo can repeat those counts, so a client gets the client line. */
+const oursHighOnly = b => { const walk = o => { if (!o || typeof o !== 'object') return; if (Array.isArray(o)) { o.forEach(walk); return; } for (const k of Object.keys(o)) { if (k === 'ours' && o[k] && typeof o[k] === 'object' && !Array.isArray(o[k])) o[k] = { high: !!o[k].high }; else walk(o[k]); } }; walk(b); return b; };
+const verdictForClient = b => { if (b && typeof b === 'object' && 'headline' in b) { b.why = b.client_line || ''; delete b.todo; } return b; };
+const noDiscover = b => { if (b && typeof b === 'object') delete b.lastDiscover; return b; };
 
 const R = (m, p, act = 'need', more = {}) => ({ m, p, act, ...more });
 const RX = (m, re, act, more = {}) => ({ m, re, act, ...more });
-const S_ = (p, more = {}) => R('POST', '/api/studio/' + p, 'opt', { own: [{ in: 'body', key: 'id', ...AD }, { in: 'body', key: 'parent_id', ...AD }, { in: 'body', key: 'batch_id', ...BATCH }], ...(studioCost[p] ? { cap: ['clientStudio', studioCost[p]] } : {}), ...more });
+const S_ = (p, more = {}) => R('POST', '/api/studio/' + p, 'opt', { own: [{ in: 'body', key: 'id', ...AD }, { in: 'body', key: 'parent_id', ...AD }, { in: 'body', key: 'base_id', ...AD }, { in: 'body', key: 'batch_id', ...BATCH }], ...(studioCost[p] ? { cap: ['clientStudio', studioCost[p]] } : {}), ...more });
 
 export const CLIENT_RULES = [
   /* ---- who am I, my own profile ---- */
@@ -188,11 +215,11 @@ export const CLIENT_RULES = [
   R('PUT', '/api/expenses'),
   R('POST', '/api/profit-share'),
   R('GET', '/api/data-health'),
-  R('POST', '/api/tw-sync'),
+  R('POST', '/api/tw-sync', 'need', { deny: (b, url) => (+url.searchParams.get('days') > 70 ? 'Your login re-reads up to 70 days; ask us for a longer re-pull.' : null) }),
   /* Day check: a market-level answer ("was it a bad day on Meta"); its brand rows are filtered to theirs. */
-  R('GET', '/api/metaday', 'none'),
+  R('GET', '/api/metaday', 'none', { post: oursHighOnly }),
   R('GET', '/api/daycheck/now'),
-  R('POST', '/api/daycheck', 'opt', { cap: ['clientAsk', 0.02] }),
+  R('POST', '/api/daycheck', 'opt', { cap: ['clientAsk', 0.02], post: verdictForClient }),
   /* The AI read at the top of a screen (never the command center's). */
   R('POST', '/api/read', 'opt', { deny: b => (b && b.screen === 'command' ? 'The command center is the agency view.' : null), cap: ['clientAsk', 0.02] }),
   R('GET', '/api/plan'),
@@ -240,7 +267,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/activities'),
   R('POST', '/api/activities'),
   RX('PATCH', /^\/api\/activities\/([^/]+)$/, 'none', { own: [{ in: 'path', table: 'activities' }] }),
-  R('POST', '/api/summarise', 'need', { cap: ['clientAsk', 0.05] }),
+  R('POST', '/api/summarise', 'need', { cap: ['clientAsk', 0.05], deny: b => (!b || typeof b.act !== 'string' || !b.act ? 'Pick your brand first.' : null) }),
   R('GET', '/api/ad-creatives', 'need', { ads: 'ads' }),
   R('GET', '/api/ad-video', 'none', { ads: 'ad' }),
   R('GET', '/api/ad-breakdown', 'none', { ads: 'ad' }),
@@ -257,14 +284,14 @@ export const CLIENT_RULES = [
   R('POST', '/api/leaks/apply'),
   R('POST', '/api/leaks/undo'),
   /* Push back on a leak (leakctx.js lessons): a client's is always its own brand's, never every brand's. */
-  R('GET', '/api/leaks/lessons'),
+  R('GET', '/api/leaks/lessons', 'need', { postIds: ownLessons }),
   R('POST', '/api/leaks/lesson'),
-  R('DELETE', '/api/leaks/lesson'),
+  R('DELETE', '/api/leaks/lesson', 'need'),
   R('POST', '/api/leaks/decide'),
   R('GET', '/api/tiktok/report'),
   R('GET', '/api/brand/tests-overview', 'none'),
   R('POST', '/api/brand-asana/mins'),
-  R('POST', '/api/brand-asana/tested'),
+  R('POST', '/api/brand-asana/tested', 'need', { cap: ['clientAsk', 0.02] }),
 
   /* ---- EMAIL AND SMS ---- */
   R('GET', '/api/hub/email'),
@@ -309,7 +336,7 @@ export const CLIENT_RULES = [
   R('PUT', '/api/supply/collections'),
   RX('DELETE', /^\/api\/supply\/collections\/[\w%.:-]+$/, 'need'),
   R('POST', '/api/supply/shopify/snapshot'),
-  R('POST', '/api/supply/shopify/backfill'),
+  R('POST', '/api/supply/shopify/backfill', 'need', { deny: (b, url) => (+(url.searchParams.get('days') || (b && b.days)) > 400 ? 'Your login re-reads up to 400 days; ask us for a longer re-pull.' : null) }),
   R('PUT', '/api/supply/settings', 'need', { fields: ['buffer_days', 'cover_days', 'site_prep_days', 'dead_days', 'design_days', 'sample_make_days', 'slack_days'] }),
   R('PUT', '/api/supply/brand', 'need', { fields: ['buys', 'makes'] }),
   R('PUT', '/api/supply/factories'),
@@ -327,7 +354,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/studio/upload', 'none'),
   S_('status'), S_('save'), S_('revert'), S_('make', { act: 'need' }), S_('make-exact', { act: 'need' }), S_('dress', { act: 'need' }), S_('read'), S_('lift'), S_('art'),
   S_('vary'), S_('change'), S_('extend'), S_('story'), S_('finalize'), S_('harmonize'), S_('dna', { act: 'need' }),
-  R('POST', '/api/studio/batch/save', 'need', { own: [{ in: 'body', key: 'batch.id', ...BATCH }] }),
+  R('POST', '/api/studio/batch/save', 'need', { own: [{ in: 'body', key: 'batch.id', ...BATCH }, { in: 'body', key: 'batch.br_batch_id', table: 'p_br_batch' }] }),
   R('POST', '/api/studio-ai/plan', 'need', { cap: ['clientStudio', 0.3] }),
   R('POST', '/api/studio-ai/brief', 'need', { cap: ['clientStudio', 0.2] }),
   R('POST', '/api/studio-ai/video-shot', 'need', { cap: ['clientStudio', 0.05] }),
@@ -368,7 +395,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/assets/remove'),
 
   /* ---- BRAND: Client answers, Research, Voice (research runs and skill builds stay the team's: long AI jobs) ---- */
-  R('GET', '/api/brand'),
+  R('GET', '/api/brand', 'need', { post: noDocSecrets }),
   R('GET', '/api/brand/ads'),
   R('GET', '/api/brand/rules'),
   R('PUT', '/api/brand/rules'),
@@ -378,7 +405,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/brand/merge'),
   R('POST', '/api/brand/tag'),
   R('POST', '/api/brand/verdict'),
-  R('PUT', '/api/brand/doc'),
+  R('PUT', '/api/brand/doc', 'need', { deny: docDeny }),
   R('POST', '/api/brand/onboard'),
   R('PUT', '/api/brand/onboard'),
 
@@ -414,7 +441,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/season/war'),
   R('PUT', '/api/season/war'),
   R('GET', '/api/season/live'),
-  R('PUT', '/api/season/answer'),
+  R('PUT', '/api/season/answer', 'need', { deny: b => (String(b && b.key || '').toLowerCase() === 'war' ? 'Edit the plan on The Plan page.' : null) }),
   R('PUT', '/api/season/checkin'),
   R('PUT', '/api/season/phase'),
   R('DELETE', '/api/season/phase'),
@@ -430,9 +457,9 @@ export const CLIENT_RULES = [
   R('POST', '/api/scenario-parse', 'none', { cap: ['clientAsk', 0.01] }),
 
   /* ---- BRAND SETTINGS for their own brand: About, Ads rules, Data and costs, Integrations (their own keys) ---- */
-  R('GET', '/api/accounts', 'none'),
+  R('GET', '/api/accounts', 'none', { post: noDiscover }),
   RX('PUT', /^\/api\/accounts\/(brand_[a-z0-9_]+|act_\d+)$/, 'path', { fields: BRAND_FIELDS }),
-  R('GET', '/api/integrations', 'none', { post: noAgency }),
+  R('GET', '/api/integrations', 'none', { post: clientIntegrations }),
   R('PUT', '/api/brand-links', 'need', { fields: LINK_FIELDS }),
 
   /* ---- the assistant: the SAME engine as the team (clients.js clientAsk), pinned to the brand, $2 a day ---- */
@@ -504,12 +531,28 @@ async function guardClient(request, env, client, handle, CORS) {
   if (!client.brands.length) return out(401, 'unauthorized');
   const ids = await clientIds(env, client);
   /* The brand named by the request: the query's act, the JSON body's act / act_id / screen.act_id, or the path. */
-  let act = url.searchParams.get('act');
+  /* EVERY brand field the request carries must be one of the client's brands (2026-10-14 audit): a body act sent as
+     an array slipped past a string-only check and resolveBrandId turned it into another brand; a body act_id beside
+     a matching act was never checked; a JSON body sent as text/plain was never read. So: the query's act / act_id
+     (every copy; `brand` is the Supply proxy's own slug, overridden there), and the body's act / act_id /
+     screen.act_id whatever the Content-Type, each a string
+     that is theirs, or the request is refused. */
+  const deniedAct = 'You do not have access to that brand.';
+  const qActs = ['act', 'act_id'].flatMap(k => url.searchParams.getAll(k)).filter(v => v !== '');
+  for (const v of qActs) if (v === 'all' || !ids.all.has(v)) return out(403, deniedAct);
+  let act = url.searchParams.get('act') || url.searchParams.get('act_id') || null;
   let body = null;
-  if (m !== 'GET' && (request.headers.get('Content-Type') || '').includes('json')) {
-    try { body = await request.clone().json(); } catch { body = null; }
-    const bAct = body && (typeof body.act === 'string' ? body.act : typeof body.act_id === 'string' ? body.act_id : typeof body.screen?.act_id === 'string' ? body.screen.act_id : null);
-    if (bAct) { if (act && act !== bAct) return out(403, CLIENT_NO); act = bAct; }
+  if (m !== 'GET' && m !== 'HEAD') {
+    const ct = request.headers.get('Content-Type') || '';
+    if (!/multipart\/form-data|octet-stream|^image\/|^video\/|^audio\//i.test(ct)) {
+      try { const t = await request.clone().text(); body = t && /^\s*[{[]/.test(t) ? JSON.parse(t) : null; } catch { body = null; }
+    }
+    if (body && typeof body === 'object') {
+      const vals = [body.act, body.act_id, body.screen && body.screen.act_id].filter(v => v !== undefined && v !== null && v !== '');
+      for (const v of vals) if (typeof v !== 'string' || v === 'all' || !ids.all.has(v)) return out(403, deniedAct);
+      const bAct = vals[0] || null;
+      if (bAct) { if (act && !ids.all.has(bAct)) return out(403, CLIENT_NO); act = act || bAct; }
+    }
   }
   if (rule.act === 'path') { const pa = match && match[1]; if (act && act !== pa) return out(403, CLIENT_NO); act = pa; }
   if (act === 'all' || (act && !ids.all.has(act))) return out(403, 'You do not have access to that brand.');
@@ -569,7 +612,7 @@ export async function guardBrands(request, env, sessionEmail, handle, CORS = {})
   const q = url.searchParams.get('act');
   if (q && q !== 'all' && !only.has(q)) return deny();
   if (request.method !== 'GET' && (request.headers.get('Content-Type') || '').includes('json')) {
-    try { const b = await request.clone().json(); if (b && typeof b.act === 'string' && b.act !== 'all' && !only.has(b.act)) return deny(); } catch {}
+    try { const b = await request.clone().json(); if (b && typeof b === 'object') for (const v of [b.act, b.act_id]) if (v !== undefined && v !== null && v !== '' && v !== 'all' && (typeof v !== 'string' || !only.has(v))) return deny(); } catch {}
   }
   const res = await handle(request);
   if (!(res.headers.get('Content-Type') || '').includes('application/json')) return res;

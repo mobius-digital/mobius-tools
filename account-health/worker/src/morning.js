@@ -74,7 +74,11 @@ export async function morningTick(env, deps) {
   const out = { date: today, sent: [], skipped: [], failed: [] };
   for (const p of todo) {
     if (deps.subCanAfford && !deps.subCanAfford(8)) { out.deferred = 'budget'; break; }
-    const only = await deps.brandsFor(env, p.email).catch(() => null);
+    /* Fail closed (2026-10-14 audit): "no limit" from brandsFor means every brand, which is right only for the team.
+       A removed client keeps its morning switch in userPrefs and would otherwise get every brand's line. */
+    let only;
+    try { only = await deps.brandsFor(env, p.email); } catch { only = new Set(); }
+    if (only == null && !(deps.emailAllowed && await deps.emailAllowed(env, p.email).catch(() => false))) only = new Set();
     const lines = linesFor(kept, only), msg = messageFor(kept, lines);
     let st;
     if (!msg) st = 'no brands with numbers';

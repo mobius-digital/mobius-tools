@@ -1899,7 +1899,7 @@ async function suggestGoals(env, acct) {
   const { results } = await env.DB.prepare(
     `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3
      AND metric IN ('netSales','totalSales','newCustomerSales','blendedAds','ga_adCost','grossProfit','totalProductCosts','totalPaymentGatewayCosts','totalNetTaxes')`,
-  ).bind(acct.act_id, from, addDays(win ? win.to : today, 1)).all();
+  ).bind(acct.act_id, from, today).all();
   const piv = {};
   for (const r of results) (piv[r.metric] ??= {})[r.date] = r.value;
   const dates = Object.keys(piv.netSales || piv.totalSales || {}).sort();
@@ -6874,7 +6874,7 @@ function smokeDeps() {
 }
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 /* morning.js: the numbers as the owner over the PROFIT binding, filtered per person with brandsFor. */
-function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningPeople }; }
+function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningPeople, emailAllowed, isClientEmail }; }
 /* meetings.js: Fireflies in, Asana / the weekly report / Requests / Slack out. */
 function meetingDeps() {
   return {
@@ -7868,10 +7868,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/ad-creatives' && url.searchParams.get('share')) {
       const tok = url.searchParams.get('share');
       if (!/^[a-f0-9]{16,}$/.test(tok)) return json({ error: 'bad token' }, 400);
-      const row = await env.DB.prepare(`SELECT data_json FROM p_ad_share WHERE token = ?1`).bind(tok).first();
+      const row = await env.DB.prepare(`SELECT act_id, data_json FROM p_ad_share WHERE token = ?1`).bind(tok).first();
       if (!row) return json({ error: 'this link is no longer valid' }, 404);
       const allowed = new Set((safeJson(row.data_json, {}).ads || []).map(a => a.ad_id));
-      const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(id => allowed.has(id)).slice(0, 40);
+      const asked = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(id => allowed.has(id)).slice(0, 40);
+      /* Only ads that really are the link's brand's (2026-10-14 audit: the snapshot is written by the browser, so its
+         ad list is not proof on its own). */
+      const ids = asked.length ? ((await env.DB.prepare(`SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id IN (${asked.map((_, i) => '?' + (i + 2)).join(',')})`).bind(await resolveBrandId(env, row.act_id), ...asked).all().catch(() => ({ results: [] }))).results || []).map(r => r.ad_id) : [];
       if (!ids.length) return json({ assets: {} });
       let assets = {};
       try { assets = await adThumbnails(env, ids, LIVE_THUMBS); } catch (e) { return json({ assets: {}, error: e.message }); }
@@ -7944,11 +7947,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            Anything looser turns this into an open proxy for arbitrary Meta
            video ids, which is the one thing this endpoint must never be. */
         if (!/^[a-f0-9]{16,}$/.test(adsTok)) return json({ error: 'bad token' }, 400);
-        const row = await env.DB.prepare(`SELECT data_json FROM p_ad_share WHERE token = ?1`).bind(adsTok).first();
+        const row = await env.DB.prepare(`SELECT act_id, data_json FROM p_ad_share WHERE token = ?1`).bind(adsTok).first();
         if (!row) return json({ error: 'this link is no longer valid' }, 404);
         const hit = (safeJson(row.data_json, {}).ads || []).find(a => a.ad_id === adId);
         if (!hit) return json({ error: 'not in this set of ads' }, 404);
-        hint = { video_id: hit.video_id, page_id: hit.page_id };
+        /* The ad must be the link's brand's, and the video is read from the ad itself, never from the stored snapshot
+           (which the browser wrote: a video id there could be anyone's). */
+        const own = await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(await resolveBrandId(env, row.act_id), adId).first().catch(() => null);
+        if (!own) return json({ error: 'not in this set of ads' }, 404);
+        hint = {};
       } else if (url.searchParams.get('yours')) {
         /* The client's own Your ads page plays only that brand's ads. */
         const actId = await resolveBrandId(env, safeJson(await getSetting(env, 'reportTokens'), {})?.[url.searchParams.get('yours')]?.act_id);
