@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><title>bf-17</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1350px;overflow:hidden}
+body{background:var(--bg,#fff);font-family:Inter,Arial,sans-serif;color:#111;position:relative}
+.logo{position:absolute;top:150px;left:50%;transform:translateX(-50%);height:56px;mix-blend-mode:multiply}
+.head{position:absolute;top:236px;left:80px;right:80px;text-align:center}
+h1{font-family:Anton,Impact,sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.5px;line-height:1.02;font-size:92px}
+h1.s{font-size:76px}
+.sub{margin-top:18px;font-size:34px;font-weight:600;line-height:1.28;color:#333}
+.eyebrow{display:inline-block;font-size:24px;font-weight:800;letter-spacing:4px;text-transform:uppercase;background:#111;color:#fff;padding:9px 18px;border-radius:6px;margin-bottom:20px}
+.photo{position:absolute;left:50%;transform:translateX(-50%);mix-blend-mode:multiply;-webkit-mask-image:radial-gradient(ellipse 88% 88% at 50% 50%,#000 72%,transparent 100%);mask-image:radial-gradient(ellipse 88% 88% at 50% 50%,#000 72%,transparent 100%)}
+.photo.soft{-webkit-mask-image:radial-gradient(ellipse 66% 66% at 50% 50%,#000 58%,transparent 100%);mask-image:radial-gradient(ellipse 66% 66% at 50% 50%,#000 58%,transparent 100%)}
+.foot{position:absolute;bottom:150px;left:80px;right:80px;text-align:center;font-size:27px;font-weight:700;letter-spacing:.3px;color:#222}
+.btn{display:inline-block;background:#111;color:#fff;font-weight:800;font-size:30px;letter-spacing:1.5px;text-transform:uppercase;padding:20px 46px;border-radius:999px}
+.quote{font-family:Inter,Arial,sans-serif;font-weight:800;font-size:52px;line-height:1.18;letter-spacing:-.5px;text-transform:none}
+.stars{font-size:38px;letter-spacing:6px;color:#111;margin-bottom:16px}
+.who{margin-top:18px;font-size:26px;font-weight:600;color:#555}
+.callouts{position:absolute;bottom:150px;left:80px;right:80px;display:flex;flex-direction:column;gap:14px}
+.callouts div{display:flex;align-items:center;gap:20px;font-size:31px;font-weight:700;background:#fff;border:2px solid #111;border-radius:14px;padding:16px 22px}
+.callouts b{flex:none;width:46px;height:46px;border-radius:50%;background:#111;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center}
+.three{position:absolute;top:500px;left:0;right:0;display:flex;justify-content:center;gap:0}
+.three figure{width:360px;text-align:center}
+.three img{width:360px;margin:0;mix-blend-mode:multiply}
+.three figcaption{font-size:30px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-top:-40px}
+
+body.dark{color:#fff}
+body.dark .logo{filter:invert(1);mix-blend-mode:screen}
+body.dark .sub,body.dark .foot,body.dark .who{color:#e6e6e6}
+.lime{color:#c8f031}
+.tag{display:inline-block;font-family:Anton,Impact,sans-serif;font-size:40px;letter-spacing:1px;background:#c8f031;color:#111;padding:8px 22px;border-radius:8px;margin-top:22px}
+.card{position:absolute;left:50%;transform:translateX(-50%);background:#fff;border-radius:28px;overflow:hidden}
+.card img{display:block;width:100%}
+.price{font-family:Anton,Impact,sans-serif;font-size:120px;line-height:1}
+.strike{text-decoration:line-through;color:#888}
+.rcpt{position:absolute;top:400px;left:110px;right:110px;background:#fff;border-radius:22px;border:2px solid #111;padding:26px 34px}
+.rcpt .row{display:flex;align-items:center;gap:18px;padding:8px 0;border-bottom:1.5px dashed #bbb;font-size:30px;font-weight:700}
+.rcpt .row img{width:78px;height:78px;object-fit:cover;mix-blend-mode:multiply}
+.rcpt .row span{flex:1}
+.rcpt .tot{display:flex;justify-content:space-between;font-size:32px;font-weight:800;padding-top:16px}
+.rcpt .pay{display:flex;justify-content:space-between;font-family:Anton,Impact,sans-serif;font-size:58px;padding-top:6px}
+.rcpt .pay em{font-style:normal;background:#c8f031;padding:0 14px;border-radius:8px}
+.cols{position:absolute;top:470px;left:70px;right:70px;display:flex;gap:26px}
+.cols>div{flex:1;border-radius:22px;padding:26px 22px;text-align:center}
+.cols .a{background:#f1f1f1}
+.cols .b{background:#111;color:#fff}
+.cols .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:16px 0}
+.cols .grid img{width:100%;mix-blend-mode:multiply}
+.cols h3{font-size:30px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px}
+.cols .big{font-family:Anton,Impact,sans-serif;font-size:84px;margin-top:10px}
+.label{position:absolute;font-size:28px;font-weight:800;letter-spacing:2px;text-transform:uppercase;background:#111;color:#fff;padding:8px 18px;border-radius:999px;transform:translateX(-50%)}
+.sticker{position:absolute;top:420px;right:90px;width:270px;height:270px;border-radius:50%;background:#c8f031;color:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transform:rotate(10deg);font-weight:800;font-size:26px;line-height:1.15;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.sticker b{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:52px;line-height:1}
+.split{position:absolute;top:400px;left:70px;right:70px;bottom:150px;display:flex;flex-direction:column;gap:22px}
+.split>div{flex:1;border-radius:24px;display:flex;align-items:center;gap:22px;padding:20px 30px;background:#fff;border:2px solid #111}
+.split img{width:300px;mix-blend-mode:multiply}
+.three img{-webkit-mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,#000 70%,transparent 100%)}
+.split h2{font-family:Anton,Impact,sans-serif;font-weight:400;font-size:58px;line-height:1.05;text-transform:uppercase}
+.split p{font-size:28px;font-weight:700;margin-top:8px;color:#333}
+</style></head><body class="" style="--bg:#fefefe"><img class="logo" src="assets/logo.png"><div class="head"><h1 class="s">Lefties count too.</h1><p class="sub">Southpaw Snapbacks are in the deal. Buy 2 hats. Get 1 free.</p></div><img class="photo " src="assets/smoke-show-southpaw-1.jpg" style="top:480px;width:720px"></body></html>
