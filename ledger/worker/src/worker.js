@@ -3411,6 +3411,8 @@ const LEDGER = {
           })),
           buckets: BUCKETS_OUT,
           edition: (await getSetting(env, 'edition')) || 'service',
+          /* The owner's other sets of books (the picker at the top of the rail). Links only; nothing is shared. */
+          books: safeJson(await getSetting(env, 'books'), null),
         });
       }
 
@@ -4371,8 +4373,19 @@ const LEDGER = {
         /* The edition: which business the books are for. It picks the rail,
            the Settings sections and the words; it never hides data. */
         if (EDITIONS.includes(b.edition)) await putSetting(env, 'edition', b.edition);
+        /* The books list: the separate sets of books this owner keeps, as links
+           for the picker. Name, https address and edition only; at most twelve. */
+        if (Array.isArray(b.books)) {
+          const books = b.books.map(x => ({
+            id: String(x?.id || x?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24),
+            name: String(x?.name || '').trim().slice(0, 40),
+            edition: EDITIONS.includes(x?.edition) ? x.edition : 'service',
+            url: String(x?.url || '').trim().slice(0, 200),
+          })).filter(x => x.name && /^https:\/\/[^\s]+$/.test(x.url)).slice(0, 12);
+          await putSetting(env, 'books', JSON.stringify(books));
+        }
         return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []), notify: await getNotify(env),
-          edition: (await getSetting(env, 'edition')) || 'service' });
+          edition: (await getSetting(env, 'edition')) || 'service', books: safeJson(await getSetting(env, 'books'), null) });
       }
 
       if (path === '/api/password' && request.method === 'POST') {

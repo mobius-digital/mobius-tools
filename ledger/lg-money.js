@@ -1,5 +1,5 @@
 /* Mobius Ledger v6: Money (Profit and loss, Balance sheet, Costs, Taxes) and
-   Reports > Business health. The period and compare live in the top bar (the
+   (Business health was cut 2026-10-14: every one of its numbers already sits on Home, Profit and loss or Retainers; the old id routes to Profit and loss). The period and compare live in the top bar (the
    engine's RP). The P&L keeps the engine's arithmetic (getSeries, addUp,
    groupRows, compareRange, exportPnl, downloadPdf); Taxes hosts the engine's
    own tab. */
@@ -163,63 +163,3 @@ async function renderTaxes() {
   await hostReport('Taxes', `What to set aside, what was paid toward the year, and what is due next. The set-aside is ${S.boot.money.taxPct}% of ${word('netLow')}, a planning number the CPA replaces with the real one.`, reportTaxes, my);
 }
 SCREENS.taxes = renderTaxes;
-
-/* ---- Business health: the lender and CPA view, the trailing twelve months ---- */
-async function renderHealth() {
-  const m = $('#main'), my = S.rt, cur = nowMonth();
-  const range = presetRange('12m', RP);
-  m.innerHTML = pageHead('Business health', 'How the business reads to someone deciding to lend.') + skPage({ tiles: 4 });
-  let ser, bal; try { [ser, bal] = await Promise.all([getSeries(range[0], range[1]), getBalances()]); } catch (e) { if (!stale(my)) m.innerHTML = errorCard(e, 'renderHealth()'); return; }
-  if (stale(my)) return;
-  const months = ser.months.filter(x => x.month >= firstMonth());
-  if (!months.length) { m.innerHTML = pageHead('Business health', 'Nothing to score yet.') + `<div class="v2"><section class="card">${empty('chart-line', 'No months in the books yet.')}</section></div>`; return; }
-  const full = months.filter(x => x.month < cur), T = addUp(months), F = addUp(full), n = full.length || 1;
-  const revs = full.map(x => x.revenue), mean = revs.length ? sumOf(revs, v => v) / revs.length : 0;
-  const cv = mean ? Math.sqrt(sumOf(revs, v => (v - mean) ** 2) / revs.length) / mean : 0;
-  const profitable = full.filter(x => x.net > 0).length;
-  const last3 = full.slice(-3), prev3 = full.slice(-6, -3);
-  const growth = prev3.length === 3 && sumOf(prev3, 'revenue') ? (sumOf(last3, 'revenue') / sumOf(prev3, 'revenue') - 1) * 100 : null;
-  const ranked = Object.entries(F.byClient).sort((p, q) => q[1] - p[1]);
-  const topShare = ranked[0] && F.revenue ? ranked[0][1] / F.revenue * 100 : 0;
-  const labor = (F.byTax['Contract labor (1099)'] || 0) / (F.revenue || 1) * 100;
-  const margin = F.revenue ? F.net / F.revenue * 100 : 0;
-  const avgSpend = last3.length ? sumOf(last3, expOf) / last3.length : 0;
-  const cash = bal?.connected ? (bal.cash || 0) - (bal.cards || 0) : null;
-  const runway = cash != null && avgSpend ? cash / avgSpend : null;
-  const score = (lvl, title, value, text) => lnRow(`<b>${title}</b>`, text, `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:3px"><span style="font-size:17px;font-weight:650">${value}</span><span class="flag ${lvl}">${{ good: 'Healthy', warn: 'Watch', bad: 'Weak' }[lvl]}</span></span>`);
-  const scores = [
-    ['margin', margin >= 25 ? 'good' : margin >= 10 ? 'warn' : 'bad', 'Profit margin', `${Math.round(margin)}%`, 'Net income as a share of revenue over the last twelve finished months. Service businesses that keep 20% or more have room to absorb a bad month.'],
-    ['months', profitable >= n * .8 ? 'good' : profitable >= n * .6 ? 'warn' : 'bad', 'Profitable months', `${profitable} of ${full.length}`, 'How often the business made money. Lenders like to see it most months, not just on average.'],
-    ['steady', cv <= .2 ? 'good' : cv <= .35 ? 'warn' : 'bad', 'Revenue consistency', cv <= .2 ? 'Steady' : cv <= .35 ? 'Uneven' : 'Lumpy', `Monthly revenue moves about ${Math.round(cv * 100)}% around its average of ${money0(mean)}. Retainers make this steady.`],
-    ['conc', topShare <= 25 ? 'good' : topShare <= 40 ? 'warn' : 'bad', `${word('payer')[0].toUpperCase() + word('payer').slice(1)} concentration`, `${Math.round(topShare)}%`, `${ranked[0] ? esc(ranked[0][0]) : 'The top ' + word('payer')} is this share of revenue. Past about 25%, a lender sees one relationship as a risk.`],
-    ['labor', labor <= 45 ? 'good' : labor <= 60 ? 'warn' : 'bad', 'Team cost', `${Math.round(labor)}%`, 'Contract labor as a share of revenue. Agencies usually aim to keep delivery labor under about half of revenue.'],
-    growth == null ? null : ['growth', growth >= 0 ? 'good' : growth >= -10 ? 'warn' : 'bad', 'Recent growth', `${growth >= 0 ? '+' : ''}${Math.round(growth)}%`, 'Revenue in the last three finished months against the three before.'],
-    runway == null ? null : ['cash', runway >= 3 ? 'good' : runway >= 1.5 ? 'warn' : 'bad', 'Cash cushion', `${runway.toFixed(1)} mo`, `Cash after the card is paid (${money0(cash)}) covers this many months of spending. Three or more is comfortable.`],
-  ].filter(Boolean);
-  const weak = scores.filter(s => s[1] === 'bad'), watch = scores.filter(s => s[1] === 'warn');
-  const lead = `Over the last twelve months the business made <b class="${T.net >= 0 ? 'good' : 'bad'}">${money0(T.net)}</b> on <b>${money0(T.revenue)}</b> of revenue, a ${Math.round(margin)}% margin. ${weak.length ? `<b class="bad">Weak: ${weak.map(s => s[2].toLowerCase()).join(', ')}.</b>` : watch.length ? `Worth watching: ${watch.map(s => s[2].toLowerCase()).join(', ')}.` : '<b class="good">Every score reads healthy.</b>'}`;
-  const avg3 = months.map((x, i) => { const w = months.slice(Math.max(0, i - 2), i + 1); return w.length < 3 ? null : Math.round(sumOf(w, 'revenue') / 3); });
-  const rows = months.map((x, i) => ({ x: moShort(x.month) + (x.month.slice(5) === '01' ? ' ' + x.month.slice(2, 4) : ''), v: x.revenue, m: x.month }));
-  m.innerHTML = pageHead('Business health', lead) + `
-    <div class="v2">
-      <div class="tiles">
-        ${tile({ label: 'Revenue, last 12 months', value: money0(T.revenue), sub: `about <b>${money0(mean)}</b> a finished month` })}
-        ${tile({ label: 'Net income, last 12 months', value: money0(T.net), tone: T.net >= 0 ? 'good' : 'bad', sub: 'what the business earned for its owner, before income tax' })}
-        ${tile({ label: 'Owner earnings a month', value: money0(F.net / n), sub: 'average net across finished months' })}
-        ${tile({ label: 'Cash after the card', value: cash != null ? money0(cash) : '·', sub: cash != null ? 'from the bank feed' : 'connect a bank to see this' })}
-      </div>
-      <div class="two">
-        ${card('Scorecard', 'Each line is scored against common rules of thumb for small service businesses. They are guides, not verdicts.', scores.map(s => score(s[1], s[2], s[3], s[4])).join(''))}
-        <div class="stack">
-          ${card('Revenue trend', 'Monthly revenue with its three-month average dashed behind it. The line smooths out timing: a client paying late or early moves a bar, not the line.', lineChart('cTrend', rows, { ghost: avg3.map(v => ({ v })), h: 220 }))}
-          ${card('What a lender will ask for', 'Everything below comes out of Ledger.', `
-            ${lnRow('Profit and loss, last full year', 'Money › Profit and loss › Last year', '<span class="linky">Open ›</span>', '', '').replace('class="ln"', `class="ln click" onclick="RP.preset='lastyear';RP.layout='summary';show('pnl')"`)}
-            ${lnRow('Profit and loss, this year to date', 'with the same period last year beside it', '<span class="linky">Open ›</span>').replace('class="ln"', `class="ln click" onclick="RP.preset='ytd';RP.compare='year';show('pnl')"`)}
-            ${lnRow('Full ledger and receipts', 'CSV and ZIP for the CPA or the underwriter', '<span class="linky">Open ›</span>').replace('class="ln"', `class="ln click" onclick="show('pack')"`)}
-            ${lnRow('Business tax returns and bank statements', 'not in Ledger: from the CPA and the bank', '<span class="muted">outside</span>')}`)}
-        </div>
-      </div>
-    </div>`;
-  wireLine('cTrend', rows, { ghost: avg3.map(v => ({ v })), tip: (r, i, g) => `<b>${esc(r.x)}</b> · ${money0(r.v)}${g && g.v != null ? `<br><span class="faint">three-month average ${money0(g.v)}</span>` : ''}` });
-}
-SCREENS.health = renderHealth;

@@ -24,7 +24,6 @@ LINES = [
     ('eb-07', 'Review over product: "The packaging was as impressive as the necklace itself." (Zaylee, iceandgold.com). Testing: packaging as the gift reason.'),
     ('eb-08', 'His chain is on your list. 12mm Diamond Clasps Gold Cuban Set $249, the free studs are for you. Testing: a men2019s gift to the woman buying it.'),
     ('eb-09', 'Native Notes app: Christmas list (Mom, Sis, Auntie, Me: the free studs). Testing: native format, never tested on this account.'),
-    ('eb-10', 'LIST ONLY, needs the signup page: Black Friday opens a day early for our list. Thu Nov 26, first pick of the gift sets. Testing: early access signup.'),
 ]
 
 
@@ -52,7 +51,7 @@ def main():
                 json.dump(done, open(MAP, 'w'), indent=1)
     lines = [{'text': f'{name}: {text}', 'inspo': [], 'photo': done.get(name, '')} for name, text in LINES]
     brief = {
-        'angle': 'Early Bird (Nov 2 to 25): free studs on any order over $125, everything else full price; the list gets Black Friday 24 hours early.',
+        'angle': 'Early Bird (Nov 2 to 25): free studs on any order over $125, everything else full price; no list-building ads (the list hears about early access by email and SMS).',
         'why': 'Locked with Fela Oct 13 (her AOV is ~$125). Offer statics were the account best ads on TW (summer sale 6.5x, catalog 3.75x); plain product statics lost (0.07x). 60% of customers come back, so the list is the asset.',
         'concept': 'Real iceandgold.com photos only (Fela). Product leads, the studs are the second line. Every line already has its finished image. Studs are not pictured (new listing in about 2 weeks).',
         'post_copy': 'Free studs on any order over $125, Nov 2 to 25. 18K gold over stainless steel, made to wear every day. 1-year warranty.',

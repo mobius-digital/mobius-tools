@@ -33,7 +33,7 @@ const EDITIONS = {
       { id: 'cash', label: 'Cash', icon: 'dollar', pages: [['forecast', 'Forecast'], ['plan', 'Plan']] },
       { id: 'books', label: 'Books', icon: 'receipt', pages: [['txns', 'Transactions'], ['receipts', 'Receipts'], ['close', 'Close']] },
       { id: 'clients', label: 'Clients', icon: 'users', pages: [['retainers', 'Retainers'], ['invoices', 'Invoices and Stripe'], ['contractors', 'Contractors']] },
-      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Cashew reports'], ['health', 'Business health']] },
+      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Cashew reports']] },
     ],
     phone: ['home', 'money', 'cash', 'books'],
     settings: [
@@ -66,7 +66,7 @@ const EDITIONS = {
       { id: 'cash', label: 'Cash', icon: 'dollar', pages: [['forecast', 'Forecast'], ['plan', 'Plan'], ['debts', 'Debts']] },
       { id: 'books', label: 'Books', icon: 'receipt', pages: [['txns', 'Transactions'], ['receipts', 'Receipts'], ['close', 'Close']] },
       { id: 'store', label: 'Store', icon: 'store', pages: [['products', 'Products'], ['inventory', 'Inventory'], ['orders', 'Orders']] },
-      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Caddie reports'], ['health', 'Business health']] },
+      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Caddie reports']] },
     ],
     phone: ['home', 'money', 'cash', 'books'],
     settings: [
@@ -96,36 +96,40 @@ const EDITIONS = {
   },
   household: {
     id: 'household', label: 'Household',
-    hint: 'A person or a couple. Spending limits, bills, savings goals and who spent it, in everyday words.',
+    hint: 'A person or a couple. What came in, what went out, what is left, bills and savings goals, in everyday words.',
     assistant: 'Tally', by: 'Household', business: 'Household',
+    /* Four destinations, by the question: how are we doing this month (Home),
+       where is it going (Spending), what are we putting away (Save), how did
+       the month or the year go (Review). "Who spent it" is a person on every
+       row and a filter on Transactions, not a destination; "safe to spend" is
+       the hero number on This month, not a page. People is a Settings section. */
     nav: [
       { id: 'home', label: 'Home', icon: 'home', pages: [['overview', 'This month']] },
-      { id: 'spending', label: 'Spending', icon: 'receipt', pages: [['txns', 'Transactions'], ['limits', 'Limits'], ['bills', 'Bills']] },
-      { id: 'save', label: 'Save', icon: 'dollar', pages: [['goals', 'Goals'], ['safe', 'Safe to spend']] },
-      { id: 'people', label: 'People', icon: 'users', pages: [['people', 'People']] },
-      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Month in review'], ['pnl', 'Year']] },
+      { id: 'spending', label: 'Spending', icon: 'receipt', pages: [['txns', 'Transactions'], ['limits', 'Buckets'], ['bills', 'Bills']] },
+      { id: 'save', label: 'Save', icon: 'dollar', pages: [['goals', 'Goals']] },
+      { id: 'reports', label: 'Review', icon: 'file-chart', pages: [['statements', 'Month in review'], ['pnl', 'Year']] },
     ],
     phone: ['home', 'spending', 'save', 'reports'],
     settings: [
-      ['business', 'Household', 'building'], ['categories', 'Categories', 'tag'], ['limits', 'Limits', 'sliders'], ['people', 'People', 'users'],
-      ['banks', 'Banks and cards', 'landmark'], ['slack', 'Slack and Tally', 'message'], ['access', 'Access', 'key'], ['data', 'Data', 'refresh'],
+      ['business', 'Household', 'building'], ['categories', 'Buckets', 'tag'], ['people', 'People', 'users'],
+      ['banks', 'Banks and cards', 'landmark'], ['slack', 'Tally', 'message'], ['access', 'Access', 'key'], ['data', 'Data', 'refresh'],
     ],
     stub: {
-      limits: 'Spending limits by category come with the Household edition in Step C. Until then the Transactions page shows where the money went.',
-      bills: 'Bills and their due dates come with the Household edition in Step C.',
-      goals: 'Savings goals come with the Household edition in Step C.',
-      safe: 'Safe to spend (what is left after bills and goals) comes with the Household edition in Step C.',
-      people: 'Who spent it, a person on every row, comes with the Household edition in Step C.',
+      limits: 'Buckets with a monthly limit each (groceries, eating out, gas and car, kids) come with the Household edition in Step C. Until then the Transactions page shows where the money went.',
+      bills: 'Bills and their due dates, found in the bank feed or added by hand, come with the Household edition in Step C.',
+      goals: 'Savings goals (what you want, what you have, by when) come with the Household edition in Step C.',
+      people: 'Who spent it, a person on every row by the card that paid, comes with the Household edition in Step C.',
     },
     words: {
       revenue: 'Money in', revenueLow: 'money in', net: 'Left over', netLow: 'left over', spend: 'Spent', spendLow: 'spending',
       payer: 'payer', payers: 'payers', moneyIn: 'Money in', moneyOut: 'Money out', close: 'Month in review', statement: 'Month in review',
-      pack: 'Year end', fees: 'Fees', homeTitle: 'This month', homeLead: 'what came in, what went out, what is left',
+      pack: 'Year end', fees: 'Fees', homeTitle: 'This month', homeLead: 'what came in, what went out, what is safe to spend',
       thisMonth: 'This month', report: 'Review',
     },
     ask: {
-      overview: ['What did we spend on food this month?', 'What is left to spend this month?', 'Which bills are due next?'],
-      txns: ['What is still uncategorized?', 'What was the biggest purchase this month?'],
+      overview: ['What did we spend on food this month?', 'What is safe to spend this month?', 'Which bills are due next?'],
+      txns: ['What is still uncategorized?', 'What was the biggest purchase this month?', 'What did Skylar spend this week?'],
+      limits: ['Which bucket is running hot?'],
       pnl: ['How much did we save this year?', 'Which month did we spend the most?'],
     },
   },
@@ -151,3 +155,29 @@ function notConnectedCard(id, title) {
     <span><b>${title} is not connected in this edition yet.</b><br>${why}</span>
     <span class="row" style="justify-content:center"><button class="btn" onclick="show('overview')">Back to Home</button><button class="btn ghost" onclick="SET.sec='business';show('settings')">Change the edition</button></span></div></section>`;
 }
+
+/* ================= the books (the account model, step 2 of the Cashew pass) =================
+   Cashew is one product; a person keeps several completely separate sets of
+   books ("accounts"): a business, a store, a household. Each set is its own
+   deployment (its own Cloudflare account, D1, bank links, invites, Slack
+   channel, categories, rules). Nothing is shared and nothing carries over:
+   switching books is a link to another origin, and that origin asks its own
+   sign-in list who you are. The list below is the owner's own list of the
+   books they keep, kept with this set's settings (PUT /api/settings { books })
+   and returned by /api/boot; these three are the default for Cole. A per-person
+   list across deployments (Step D) only exists once Cashew is sold. */
+const BOOKS_DEFAULT = [
+  { id: 'mobius', name: 'Mobius Digital', edition: 'service', url: 'https://tools.go-mobius-digital.com/ledger/' },
+  { id: 'lucky', name: 'Lucky Golf', edition: 'product', url: 'https://ledger.luckygolf.com/' },
+  { id: 'tally', name: 'Home', edition: 'household', url: 'https://tally.scwetzler.workers.dev/' },
+];
+/* Which entry is this deployment: the one whose host (and path, when it has one) matches where we are. */
+function booksHere(list) {
+  const here = location.host.toLowerCase(), path = location.pathname.toLowerCase();
+  return (list || []).find(b => { try { const u = new URL(b.url); return u.host.toLowerCase() === here && path.startsWith(u.pathname.replace(/\/$/, '').toLowerCase()); } catch (e) { return false; } }) || null;
+}
+function booksList() {
+  const l = (window.S && S.boot && Array.isArray(S.boot.books) && S.boot.books.length) ? S.boot.books : BOOKS_DEFAULT;
+  return l.filter(b => b && b.url && b.name);
+}
+
