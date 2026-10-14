@@ -64,6 +64,7 @@ export async function ensureWork(env) {
     r2_key TEXT NOT NULL, name TEXT, mime TEXT, size INTEGER, by_email TEXT, by_name TEXT, stream_uid TEXT, play_url TEXT, deleted_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_work_file_batch ON p_work_file (batch_id, kind, version)`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE p_work_file ADD COLUMN ad TEXT`).run().catch(() => {});   // 2026-10-14: which ad of the test a version belongs to (48-3)
+  await env.DB.prepare(`ALTER TABLE p_work_comment ADD COLUMN parent_id TEXT`).run().catch(() => {});   // 2026-10-14: a reply to a note
   ensured = true;
 }
 
@@ -342,6 +343,7 @@ export function sanitizeHtml(html) {
   while (stack.length) out += `</${stack.pop()}>`;
   out = out.replace(/<p>\s*<\/p>/g, '<p><br></p>').replace(/(<p><br><\/p>\s*){3,}/g, '<p><br></p><p><br></p>').replace(/([^>\s])\s*<br>\s*(?=<\/(p|li|h[123]|blockquote)>)/g, '$1');
   out = out.replace(/\s*<span data-ph>\s*<\/span>/g, '').replace(/<span data-ai>\s*<\/span>/g, '');
+  out = splitLabels(out);
   return out.trim().slice(0, HTML_MAX);
 }
 /** True when the page has no words of its own (only hints, blank lines). */
@@ -483,7 +485,18 @@ export function asanaToHtml(notes) {
 
 /** The starting pages. kind = new | iter | resize | blank; the ads are numbered from the card's number. */
 const PH = t => `<span data-ph>${esc(t)}</span>`;
-const LAB = (l, hint) => `<p><strong>${esc(l)}:</strong> ${PH(hint)}</p>`;
+/* A bold label on its OWN line and the words under it (2026-10-14, Cole: the media buyer triple-clicks a line to copy
+   it, so "Headline: Milled. Not cast." on one line copied the label too). Every page is normalised this way when it is
+   read or saved: <p><strong>Headline:</strong> words</p> becomes <p><strong>Headline</strong></p><p>words</p>. */
+export function splitLabels(html) {
+  /* only a label that ends in a colon ("Headline:" or "Headline</strong>:"), with words after it in the same paragraph */
+  return String(html || '').replace(/<p><strong>([^<]{1,60}?)(:?)\s*<\/strong>(:?)((?:(?!<\/p>)[\s\S])*)<\/p>/g, (m, label, c1, c2, rest) => {
+    const words = rest.replace(/^(\s|&nbsp;| )+/, '').trim();
+    if (!(c1 || c2) || !words || /^<br\s*\/?>$/.test(words)) return m;
+    return `<p><strong>${label.trim()}</strong></p><p>${words}</p>`;
+  });
+}
+const LAB = (l, hint) => `<p><strong>${esc(l)}</strong></p><p>${PH(hint)}</p>`;
 export function templateHtml(kind, format, num) {
   const n = String(parseInt(num, 10) || '').trim();
   const ad = i => n ? `${n}-${i}` : `Ad ${i}`;
@@ -493,7 +506,7 @@ export function templateHtml(kind, format, num) {
   if (kind === 'iter') return sanitizeHtml(`<h2>Iteration</h2>${LAB('Iterating on', 'the ad it starts from, like 43-2')}${LAB('The one thing that changes', 'hook, visual, copy, CTA or format')}${LAB('What it becomes', 'say the change in one line')}<p>${PH('Everything else stays as it was: angle, lines, visuals, post copy.')}</p>${tail}`);
   if (kind === 'resize') return sanitizeHtml(`<h2>Resize or cut</h2>${LAB('Source ad', 'the ad to resize, like 44-1')}${LAB('Sizes needed', 'also tick them under the page')}${LAB('Note', 'like: keep the logo out of the bottom 20% for Reels')}${tail}`);
   const video = format === 'Video' || format === 'UGC' ? `<h2>Video</h2>${LAB('Creator', 'who films it, or in-house')}${LAB('Hook', 'the first line, the first second on screen')}${LAB('Script', 'what is said and shown, beat by beat')}` : '';
-  return sanitizeHtml(`<h2>The test</h2>${LAB('Angle', 'The argument this ad makes')}${LAB('Why', 'The data or insight behind it, one sentence')}${LAB("What we're testing", 'One thing: if we ..., then ...')}<ol>${[1, 2, 3].map(i => `<li><strong>${esc(ad(i))}</strong> ${PH('What this ad shows and says')}</li>`).join('')}</ol>${video}${copy}${tail}`);
+  return sanitizeHtml(`<h2>The test</h2>${LAB('Angle', 'The argument this ad makes')}${LAB('Why', 'The data or insight behind it, one sentence')}${LAB("What we're testing", 'One thing: if we ..., then ...')}<h2>The ads</h2>${[1, 2, 3].map(i => `<p><strong>${esc(n ? `Ad ${ad(i)}` : ad(i))}</strong></p><p>${PH('What this ad shows and says')}</p>`).join('')}${video}${copy}${tail}`);
 }
 
 /** Pictures and videos in the page get their signed address (an <img> cannot send the Bearer header). */
@@ -630,7 +643,26 @@ async function filesOf(env, origin, ids) {
 const shownName = (c, client) => !client ? (c.author_name || nameOfEmail(c.author_email)) : (c.author_role === 'team' ? 'Mobius' : (c.author_name || 'You'));
 function commentOut(c, client) {
   return { id: c.id, who: shownName(c, client), role: c.author_role, mine: false, body: c.body, kind: c.kind, file_id: c.file_id || null, shape: safe(c.shape_json, null), at: c.at_sec == null ? null : +c.at_sec,
-    fixed: !!c.fixed_at, fixed_by: client ? null : c.fixed_by || null, created_at: c.created_at, from_asana: !!c.asana_story_gid && /^asana:/.test(c.id) };
+    fixed: !!c.fixed_at, fixed_by: client ? null : c.fixed_by || null, created_at: c.created_at, from_asana: !!c.asana_story_gid && /^asana:/.test(c.id), parent_id: c.parent_id || null };
+}
+
+/** Each ad of the test (48-1, 48-2...) with its newest version and ITS OWN call (2026-10-14 review redesign): the last
+ *  approval / change request / reopen on the newest version decides it, so a new upload after a change request is back
+ *  to "review". `open` = notes on that version not marked fixed (replies not counted). */
+export function adsOf(files, comments) {
+  const vs = files.filter(f => f.kind === 'version');
+  const ads = [...new Set(vs.map(f => f.ad || ''))];
+  const out = ads.map(ad => {
+    const mine = vs.filter(f => (f.ad || '') === ad).sort((a, b) => (a.version || 0) - (b.version || 0));
+    const top = mine[mine.length - 1];
+    const calls = comments.filter(c => c.file_id === top.id && ['approval', 'change_request', 'reopen'].includes(c.kind));
+    const last = calls[calls.length - 1];
+    const status = !last || last.kind === 'reopen' ? 'review' : last.kind === 'approval' ? 'approved' : 'changes';
+    const notes = comments.filter(c => c.file_id === top.id && !c.parent_id && ['note', 'change_request'].includes(c.kind));
+    return { ad, file_id: top.id, version: top.version, versions: mine.length, status, by: last && status !== 'review' ? last.who : null, at: last && status !== 'review' ? last.created_at : null,
+      open: notes.filter(c => !c.fixed).length, notes: notes.length, created_at: top.created_at };
+  });
+  return out.sort((a, b) => String(a.ad).localeCompare(String(b.ad), undefined, { numeric: true }));
 }
 
 /** The card's sheet: the brief (one page), the versions, inspiration and inline files, every comment and note. */
@@ -673,7 +705,7 @@ export async function getCard(env, d, origin, id, scope) {
     asana_url: client ? null : r.asana_url || null, brief_url: client ? null : r.brief_url || null, asset_url: client ? null : r.asset_url || null,
     share: !client && r.share_token ? `${LOCUS}review.html?t=${r.share_token}` : null,
   };
-  return { card, brief, brief_from: from, files, comments, team: client ? [] : ROSTER.map(x => x.name), mirror: client ? null : await mirrorOn(env), client,
+  return { card, brief, brief_from: from, files, comments, ads: adsOf(files, comments), team: client ? [] : ROSTER.map(x => x.name), mirror: client ? null : await mirrorOn(env), client,
     templates: client || !brief.blank ? undefined : { new: templateHtml('new', brief.format, r.num), iter: templateHtml('iter', brief.format, r.num), resize: templateHtml('resize', brief.format, r.num), blank: templateHtml('blank') } };
 }
 
@@ -736,19 +768,23 @@ export async function addComment(env, d, body, who, scope, opts = {}) {
   const text = keep(body.body, 4000);
   const shape = normShape(body.shape);
   if (!text && !shape) throw err(400, 'Write the note first.');
-  let fileId = null;
-  if (body.file_id) {
+  let fileId = null, parent = null;
+  if (body.parent_id) {
+    parent = await env.DB.prepare(`SELECT id, file_id, at_sec FROM p_work_comment WHERE id = ?1 AND batch_id = ?2`).bind(String(body.parent_id), r.id).first();
+    if (!parent) throw err(400, 'That note is not on this card.');
+    fileId = parent.file_id || null;
+  } else if (body.file_id) {
     const f = await env.DB.prepare(`SELECT id FROM p_work_file WHERE id = ?1 AND batch_id = ?2 AND deleted_at IS NULL`).bind(String(body.file_id), r.id).first();
     if (!f) throw err(400, 'That file is not on this card.');
     fileId = f.id;
   }
   const role = scope ? 'client' : opts.guest ? 'client' : 'team';
   const name = opts.name || (role === 'team' ? nameOfEmail(who) : (scope && scope.name) || clean(String(who || '').split('@')[0], 40) || 'Client');
-  const kind = role === 'team' && ['comment', 'note', 'change_request', 'approval', 'system'].includes(body.kind) ? body.kind : fileId ? 'note' : 'comment'; /* a client or a review-link guest decides through decide(), never by labelling a comment */
+  const kind = parent ? 'reply' : role === 'team' && ['comment', 'note', 'change_request', 'approval', 'system', 'reopen'].includes(body.kind) ? body.kind : fileId ? 'note' : 'comment'; /* a client or a review-link guest decides through decide(), never by labelling a comment */
   const at = body.at != null && isFinite(+body.at) && +body.at >= 0 ? Math.round(+body.at * 10) / 10 : null;
   const id = rid();
-  await env.DB.prepare(`INSERT INTO p_work_comment (id, batch_id, act_id, author_email, author_name, author_role, body, kind, file_id, shape_json, at_sec) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)
-    .bind(id, r.id, r.act_id, who && /@/.test(who) ? String(who).toLowerCase() : null, name, role, text, kind, fileId, shape ? JSON.stringify(shape) : null, at).run();
+  await env.DB.prepare(`INSERT INTO p_work_comment (id, batch_id, act_id, author_email, author_name, author_role, body, kind, file_id, shape_json, at_sec, parent_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`)
+    .bind(id, r.id, r.act_id, who && /@/.test(who) ? String(who).toLowerCase() : null, name, role, text, kind, fileId, parent ? null : shape ? JSON.stringify(shape) : null, parent ? parent.at_sec : at, parent ? parent.id : null).run();
   const out = { id, mentions: [], asana: false, slack: false };
   if (opts.quiet) return out;
   const label = `${r.num ? `#${r.num} ` : ''}"${clean(r.title, 60)}"`;
@@ -820,27 +856,58 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   const r = await rowOf(env, body.id);
   mustOwn(scope, r);
   const client = !!scope || !!opts.guest;
-  if (client && !r.needs_client) throw err(403, 'This card is not waiting for your OK.');
-  const ok = body.ok === true || body.ok === 'true';
+  /* A client decides what was sent to them; once sent, they may also change a call they made (2026-10-14). */
+  if (client && !r.needs_client && !r.client_sent_at) throw err(403, 'This card is not waiting for your OK.');
+  const reset = body.reset === true || body.reset === 'true';
+  const ok = !reset && (body.ok === true || body.ok === 'true');
   const text = keep(body.body, 4000);
-  if (!ok && !text) throw err(400, 'Say what needs to change.');
+  if (!ok && !reset && !text) throw err(400, 'Say what needs to change.');
   const board = r.board_stage || boardOf(r.asana_section, r.stage);
   const idea = r.needs_client === 'idea' || board === 'brief';
   const latest = body.file_id ? await env.DB.prepare(`SELECT id, version, ad FROM p_work_file WHERE id = ?1 AND batch_id = ?2 AND kind = 'version' AND deleted_at IS NULL`).bind(String(body.file_id), r.id).first()
     : await env.DB.prepare(`SELECT id, version, ad FROM p_work_file WHERE batch_id = ?1 AND kind = 'version' AND deleted_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1`).bind(r.id).first();
+  if (body.file_id && !latest) throw err(400, 'That file is not on this card.');
   const what = idea ? 'the idea' : latest ? `${latest.ad ? latest.ad + ' ' : ''}v${latest.version}` : 'the ad';
   const name = opts.name || (client ? (scope && scope.name) || clean(String(who || '').split('@')[0], 40) || 'Client' : nameOfEmail(who));
-  await addComment(env, d, { id: r.id, body: ok ? `Approved ${what}.${text ? ` ${text}` : ''}` : text, kind: ok ? 'approval' : 'change_request', file_id: !idea && latest ? latest.id : null }, who, scope, { name, guest: opts.guest });
-  let moved = null;
-  if (ok) {
-    await env.DB.prepare(`UPDATE p_br_batch SET approved_by = ?2, approved_at = ?3, needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, who && /@/.test(who) ? String(who).toLowerCase() : name, new Date().toISOString()).run();
-    if (!idea && d.moveCard) moved = await d.moveCard(env, d, { id: r.id, to: 'ready' }, who).catch(e => ({ error: e.message }));
-  } else {
-    await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
-    if (!idea && d.moveCard) moved = await d.moveCard(env, d, { id: r.id, to: 'making' }, who).catch(e => ({ error: e.message }));
-    if (r.assignee_name) await dm(env, d, r.assignee_name, `${name} asked for changes on #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`).catch(() => false);
+  const kind = reset ? 'reopen' : ok ? 'approval' : 'change_request';
+  const line = reset ? `Reopened ${what} for review.` : ok ? `Approved ${what}.${text ? ` ${text}` : ''}` : text;
+  /* the call is written straight in (a client cannot label a comment, so addComment would turn it into a note) */
+  const cid = rid();
+  await env.DB.prepare(`INSERT INTO p_work_comment (id, batch_id, act_id, author_email, author_name, author_role, body, kind, file_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
+    .bind(cid, r.id, r.act_id, who && /@/.test(who) ? String(who).toLowerCase() : null, name, client ? 'client' : 'team', line, kind, !idea && latest ? latest.id : null).run();
+  if (!client && !reset && r.asana_gid && d.asana && await mirrorOn(env)) await d.asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { text: `From Locus, ${name}: ${line}` } }).catch(() => null);
+  if (client && !reset && d.listBrands && (d.teamPost || d.slackPost)) {
+    const brand = (await d.listBrands(env)).find(b => b.act_id === r.act_id);
+    if (brand && brand.slack_channel) {
+      const msg = `${name} (client) ${ok ? 'approved' : 'asked for changes on'} ${what} of #${r.num} "${clean(r.title, 60)}"${ok ? '' : `: "${clean(text, 300)}"`} <${cardUrl(r.id)}|Open the card>`;
+      try { if (d.teamPost) await d.teamPost(env, brand.slack_channel, msg, null, { tagName: r.assignee_name || undefined }); else await d.slackPost(env, brand.slack_channel, msg); } catch { /* the call is saved */ }
+    }
   }
-  return { ok: true, approved: ok, moved: moved && !moved.error ? moved.to : null };
+  /* Where the card goes now, from every ad's own call. */
+  let ads = [];
+  if (!idea) {
+    const files = (await env.DB.prepare(`SELECT id, kind, version, ad, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
+    const cs = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, false));
+    ads = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs);
+  }
+  const all = ads.length > 0 && ads.every(a => a.status === 'approved');
+  const waiting = ads.some(a => a.status === 'review');
+  let moved = null;
+  const move = to => d.moveCard ? d.moveCard(env, d, { id: r.id, to }, who).catch(e => ({ error: e.message })) : null;
+  if (reset) {
+    await env.DB.prepare(`UPDATE p_br_batch SET approved_by = NULL, approved_at = NULL${client ? `, needs_client = 'ad'` : ''}, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
+    if (!idea && board === 'ready') moved = await move('review');
+  } else if (ok) {
+    if (idea || all) {
+      await env.DB.prepare(`UPDATE p_br_batch SET approved_by = ?2, approved_at = ?3, needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, who && /@/.test(who) ? String(who).toLowerCase() : name, new Date().toISOString()).run();
+      if (!idea) moved = await move('ready');
+    } else if (!waiting) await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
+  } else {
+    if (idea || !waiting) await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
+    if (!idea) moved = await move('making');
+    if (r.assignee_name) await dm(env, d, r.assignee_name, `${name} asked for changes on ${what} of #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`).catch(() => false);
+  }
+  return { ok: true, approved: ok, reopened: reset, all_approved: all, ads, moved: moved && !moved.error ? moved.to : null };
 }
 
 /** Which ad of the test a file is: "48-3 v2.png", "48_3.mp4", "LG_440-2 final.mov" (the card's number first when
@@ -1011,7 +1078,7 @@ export async function handleReviewLink(request, env, url, path, json, d) {
   try {
     if (!m[2] && request.method === 'GET') {
       const out = await getCard(env, d, origin, r.id, { ids: [r.act_id] });
-      return json({ card: { ...out.card, needs_client: out.card.needs_client || '' }, brief: out.brief, files: out.files.filter(f => f.kind === 'version'), comments: out.comments });
+      return json({ card: { ...out.card, needs_client: out.card.needs_client || '' }, brief: out.brief, files: out.files.filter(f => f.kind === 'version'), comments: out.comments, ads: out.ads });
     }
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
     const body = await request.json().catch(() => ({}));

@@ -9,35 +9,73 @@
 <link rel="icon" type="image/png" sizes="32x32" href="../logo/locus/icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* The public review link (Production v2, 2026-10-14). One card's ad, opened with no login by an unguessable token
-     (account-health /api/review/<token>). The viewer leaves notes and drawings and, when Mobius asked for their OK,
-     approves or asks for changes. The review viewer itself is review-ui.js, the same one Locus uses. */
-  :root{--bg:#F4F5F7;--surface:#FFFFFF;--surface-2:#F3F3F5;--ink:#151518;--ink-2:#45454F;--muted:#6B6B78;--line:#E6E6EB;--line-strong:#D5D5DC;
+  /* The public review link (rebuilt 2026-10-14 from the approved "Review redesign" mock, artboard C). One test's ads, opened
+     with no login by an unguessable token (account-health /api/review/<token>): every ad as a card with the client's call
+     on it (Approve / Ask for changes / Change), their name asked once, a progress line, and the same full-screen viewer
+     Locus uses (review-ui.js) to mark up. Light or dark by the device. */
+  :root{--bg:#F5F5F3;--surface:#FFFFFF;--surface-2:#F0F0EC;--ink:#16161A;--ink-2:#45454F;--muted:#5F5F68;--line:#E4E4E0;--line-strong:#D2D2CC;
     --brand:#2F62D9;--brand-soft:#EAF0FD;--good:#1C7A46;--warn:#8F6412;--bad:#9C3A2E;color-scheme:light}
   @media (prefers-color-scheme:dark){:root{--bg:#131316;--surface:#1A1A1E;--surface-2:#212126;--ink:#F2F2F4;--ink-2:#B4B4BE;--muted:#8E8E9A;--line:#2A2A31;--line-strong:#3A3A43;
     --brand:#8FB3FF;--brand-soft:rgba(143,179,255,.14);--good:#5FD292;--warn:#EBBF63;--bad:#F09182;color-scheme:dark}}
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink)}
   body{font:14px/1.5 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:720px;margin:0 auto;padding:40px 16px}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:12px}
-  small{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  h1{margin:0;font-size:22px;line-height:1.25}
-  p{margin:0;color:var(--ink-2)}
-  button{font:inherit;font-size:14px;font-weight:600;height:40px;padding:0 16px;border-radius:8px;border:1px solid var(--brand);background:var(--brand);color:var(--surface);cursor:pointer;align-self:flex-start}
-  footer{margin-top:18px;font-size:12px;color:var(--muted)}
+  .top{height:64px;display:flex;align-items:center;gap:12px;padding:0 max(16px,calc((100vw - 1240px)/2));background:var(--surface);border-bottom:1px solid var(--line)}
+  .top b{font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .top .who{margin-left:auto;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  main{max-width:1240px;margin:0 auto;padding:32px 16px 40px;display:flex;flex-direction:column;gap:24px}
+  .muted{color:var(--muted)}
+  h1{margin:0;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+  .btn{height:38px;padding:0 16px;border-radius:9px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+  .btn:hover{border-color:var(--muted)}
+  .btn.ok{background:var(--good);border-color:var(--good);color:var(--surface)}
+  .btn.pri{background:var(--brand);border-color:var(--brand);color:var(--surface)}
+  .btn.sm{height:32px;padding:0 12px;font-size:12.5px}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn:focus-visible,.pv:focus-visible,.lnk:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
+  .head .l{flex:1;min-width:280px;display:flex;flex-direction:column;gap:8px}
+  .prog{width:min(360px,100%);display:flex;flex-direction:column;gap:10px}
+  .bars{display:flex;gap:4px;height:8px}.bars span{flex:1;border-radius:4px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .name{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;align-items:flex-end;gap:12px;max-width:620px;flex-wrap:wrap}
+  .name label{flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px;font-weight:600}
+  input,textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;padding:9px 11px;width:100%;resize:vertical;line-height:1.45}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px;align-items:start}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .pv{position:relative;display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2);border:0;padding:0;cursor:pointer;overflow:hidden}
+  .pv img,.pv video{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+  .pv .ov{position:absolute;display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
+  .pv:hover .open,.pv:focus-visible .open{opacity:1}
+  .pv .open span{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--surface);font-weight:700;font-size:13px;display:inline-flex;align-items:center}
+  .cb{padding:14px;display:flex;flex-direction:column;gap:10px}
+  .st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent)}
+  .st i{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .row{display:flex;gap:8px;align-items:center}.row.split .btn{flex:1}
+  .done{background:color-mix(in srgb,var(--good) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--good) 35%,var(--line));border-radius:14px;padding:16px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .brief{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 20px}
+  .brief summary{cursor:pointer;font-weight:600;padding:12px 0}
+  .brief .doc{padding:0 0 16px;line-height:1.6}
+  .brief .doc p{margin:0 0 6px}.brief .doc h2{font-size:15px;margin:14px 0 6px}
+  .brief .doc img{max-width:min(100%,360px);border-radius:8px;display:block;margin:8px 0}
+  .lnk{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+  footer{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding-top:12px;border-top:1px solid var(--line)}
+  .err{color:var(--bad);font-size:12.5px}
+  @media (max-width:600px){h1{font-size:24px}.top{height:auto;padding:12px 16px;flex-wrap:wrap}}
 </style>
 </head>
 <body>
-<div class="wrap"><div class="card" id="box"><small>Ad review</small><h1>Loading...</h1></div><footer>Locus by Mobius Digital</footer></div>
-<script src="review-ui.js?v=5"></script>
+<header class="top"><b id="brand">Ad review</b><span class="muted" style="font-size:13px">from Mobius Digital</span><span class="who" id="who"></span></header>
+<main id="main"><p class="muted">Loading...</p></main>
+<script src="review-ui.js?v=6"></script>
 <script>
 (() => {
   const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
   const t = new URLSearchParams(location.search).get('t') || '';
-  const box = document.getElementById('box');
+  const main = document.getElementById('main');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const call = async (path, body) => {
     const r = await fetch(`${AH}/api/review/${t}${path}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -45,40 +83,88 @@
     if (!r.ok || j.error) throw new Error(j.error || `Something went wrong (${r.status}).`);
     return j;
   };
-  const fail = msg => { box.innerHTML = `<small>Ad review</small><h1>This link does not open</h1><p>${esc(msg)}</p>`; };
+  const fail = msg => { main.innerHTML = `<h1>This link does not open</h1><p class="muted">${esc(msg)}</p>`; };
   if (!/^[a-f0-9]{32}$/.test(t)) { fail('The link is not complete. Copy the whole link from the message.'); return; }
-  let D = null, AD = null;
-  /* versions are per ad (48-1, 48-2): the viewer shows one ad at a time, newest first; a card with several ads gets a button each */
-  const ads = () => [...new Set(D.files.map(f => f.ad || ''))].sort((a, b) => Date.parse(newest(b).created_at.replace(' ', 'T')) - Date.parse(newest(a).created_at.replace(' ', 'T')));
-  const newest = ad => D.files.filter(f => (f.ad || '') === ad).sort((a, b) => b.version - a.version)[0];
-  const ofAd = (list, ad) => list.filter(f => (f.ad || '') === ad);
-  const intro = () => {
+  let D = null, NAME = '', ASK = null, BUSY = false, ERR = '';
+  try { NAME = localStorage.getItem('rv_name') || ''; } catch {}
+  const short = iso => { if (!iso) return ''; if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) { const [y, m, dd] = iso.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } const d = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : String(iso).replace(' ', 'T') + 'Z'); return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  const label = ad => ad ? `Ad ${ad}` : 'The ad';
+  const STAT = { review: ['Waiting for you', 'var(--warn)'], changes: ['Changes asked', 'var(--bad)'], approved: ['Approved', 'var(--good)'] };
+  const filesOf = ad => D.files.filter(f => (f.ad || '') === ad).sort((a, b) => (a.version || 0) - (b.version || 0));
+  const canCall = () => !!(D.card.needs_client === 'ad' || D.card.client_sent_at);
+  const ads = () => D.ads || [];
+  const viewerAds = () => ads().map(a => ({ ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: filesOf(a.ad) }));
+  const setName = v => { NAME = String(v || '').trim(); try { localStorage.setItem('rv_name', NAME); } catch {} };
+
+  const paint = () => {
     const k = D.card;
-    const many = ads().length > 1;
-    box.innerHTML = `<small>${esc(k.brand)} · ad review</small><h1>${esc(k.title || 'Your ad')}</h1>
-      <p>${k.needs_client ? 'Mobius would like your OK on this ad. Watch it, draw on anything you want changed, then approve it or ask for changes.' : 'Leave notes on the ad. Draw a box or an arrow on the part you mean, and write what should change.'}</p>
-      ${many ? `<p>${ads().length} ads on this test. Open one:</p><div style="display:flex;gap:8px;flex-wrap:wrap">${ads().map(a => `<button type="button" data-ad="${esc(a)}">${esc(a ? `Ad ${a}` : 'The ad')} · v${newest(a).version}</button>`).join('')}</div>` : '<button type="button" id="go">Open the ad</button>'}`;
-    const go = document.getElementById('go'); if (go) go.onclick = () => view(ads()[0] || '');
-    box.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => view(b.dataset.ad));
+    document.getElementById('brand').textContent = k.brand || 'Ad review';
+    document.title = `${k.title || 'Ad review'} · ${k.brand || 'Locus'}`;
+    document.getElementById('who').innerHTML = NAME ? `Reviewing as <b style="color:var(--ink)">${esc(NAME)}</b> <button type="button" class="btn sm" data-rename>Not you?</button>` : '';
+    const all = ads(), n = st => all.filter(a => a.status === st).length;
+    const decided = n('approved') + n('changes');
+    const head = `<section class="head"><div class="l"><span class="muted" style="font-size:13px;font-weight:600">${k.num ? `Test #${esc(k.num)}` : 'Ads'}${k.launch_on ? ` · launches ${esc(short(k.launch_on))}` : ''}</span><h1>${esc(k.title || 'Your ads')}</h1>
+        <p class="muted" style="margin:0;max-width:640px">${canCall() ? `${all.length === 1 ? 'One ad' : `${all.length} ads`} for your OK. Approve each one, or ask for changes. Click an ad to see it full size and draw on anything you want changed.` : 'Click an ad to see it full size and leave notes. Mobius will ask for your OK here when it is ready.'}</p></div>
+      ${all.length ? `<div class="prog"><div><b style="font-size:20px">${decided} of ${all.length}</b> <span class="muted">decided</span></div>
+        <div class="bars" role="img" aria-label="${decided} of ${all.length} ads decided">${all.map(a => `<span style="background:${a.status === 'review' ? 'var(--line-strong)' : STAT[a.status][1]}"></span>`).join('')}</div>
+        <div class="legend"><span><b style="color:var(--good)">${n('approved')}</b> approved</span><span><b style="color:var(--bad)">${n('changes')}</b> changes asked</span><span><b style="color:var(--warn)">${n('review')}</b> waiting</span></div></div>` : ''}</section>`;
+    const nameBox = !NAME && canCall() ? `<form class="name" data-nameform><label>Your name<span class="muted" style="font-size:12.5px;font-weight:400">So the team knows who approved. Asked once on this device.</span><input data-namein autocomplete="name" maxlength="60" required></label><button class="btn pri" type="submit">Start reviewing</button></form>` : '';
+    const card = a => {
+      const vs = filesOf(a.ad), top = vs[vs.length - 1]; if (!top) return '';
+      const st = STAT[a.status] || STAT.review;
+      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.url)}" alt="" loading="lazy">`;
+      let acts = '';
+      if (canCall()) {
+        if (a.status === 'review') acts = ASK === a.file_id
+          ? `<label style="display:flex;flex-direction:column;gap:6px;font-size:12.5px" class="muted">What should change?<textarea rows="3" data-askbody placeholder="Make the product bigger, it gets lost"></textarea></label>${ERR ? `<span class="err">${esc(ERR)}</span>` : ''}<div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-dec="cancel">Cancel</button><button type="button" class="btn sm pri" data-dec="send" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Send to the team</button></div>`
+          : `<div class="row split"><button type="button" class="btn sm ok" data-dec="ok" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Approve</button><button type="button" class="btn sm" data-dec="ask" data-file="${esc(a.file_id)}">Ask for changes</button></div>`;
+        else acts = `<div class="row"><span class="muted" style="flex:1;font-size:12.5px">${a.status === 'approved' ? 'Approved' : 'Sent back'}${a.by ? ` by ${esc(a.by)}` : ''}${a.at ? `, ${esc(short(a.at))}` : ''}</span><button type="button" class="btn sm" data-dec="reopen" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Change</button></div>`;
+      }
+      return `<article class="card"><button type="button" class="pv" data-open="${esc(top.id)}" aria-label="Open ${esc(label(a.ad))} full size to leave notes">${media}
+          <span class="ov" style="top:10px;left:10px">${esc(label(a.ad))}</span>${top.video ? '<span class="ov" style="bottom:10px;left:10px">Video</span>' : ''}<span class="open"><span>View full size and mark up</span></span></button>
+        <div class="cb"><div class="row"><span class="st" style="--sc:${canCall() ? st[1] : 'var(--muted)'}"><i></i>${canCall() ? st[0] : 'For your notes'}</span><span style="flex:1"></span><span class="muted" style="font-size:12px">${a.notes ? `${a.notes} note${a.notes === 1 ? '' : 's'}` : 'No notes'}</span></div>${acts}</div></article>`;
+    };
+    const finished = all.length && canCall() && !n('review') ? `<div class="done"><b style="color:var(--good)">All ${all.length === 1 ? 'decided' : `${all.length} decided`}. Thank you${NAME ? `, ${esc(NAME)}` : ''}.</b><span class="muted">The team has it in Locus and Slack.</span></div>` : '';
+    const briefHtml = D.brief && D.brief.html && D.brief.html.replace(/<span data-ph>[\s\S]*?<\/span>/g, '').replace(/<p><br><\/p>/g, '').trim();
+    const brief = briefHtml ? `<details class="brief"><summary>Read the brief</summary><div class="doc">${briefHtml.replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')}</div></details>` : '';
+    main.innerHTML = `${nameBox}${head}${ERR && !ASK ? `<p class="err" role="alert" style="margin:0;font-size:14px">${esc(ERR)} Try again.</p>` : ''}${all.length ? `<div class="grid">${all.map(card).join('')}</div>` : '<p class="muted">Mobius has not uploaded the ads yet.</p>'}${finished}${brief}
+      <footer><span>Questions? Leave a note on any ad, or message the team in your Slack channel.</span><span style="margin-left:auto">Review in Locus by Mobius Digital</span></footer>`;
+    wire();
   };
-  const view = ad => {
-    const k = D.card;
-    AD = ad || '';
-    window.ReviewUI.open({
-      title: `${k.title}${AD ? ` · ad ${AD}` : ''}`, num: k.brand, format: D.brief && D.brief.format, files: ofAd(D.files, AD), comments: D.comments, mode: 'guest', needsName: true,
-      canDecide: !!k.needs_client,
-      decideHint: 'Approve tells Mobius it is ready to run. Ask for changes needs a note and sends it back to them.',
-      waitHint: 'Leave notes on the ad. Mobius sees them right away.',
-      api: {
-        note: (fid, body, shape, at, name) => call('/note', { name, file_id: fid, body, shape, at }),
-        decide: (ok, body, name) => call('/decide', { name, ok, body, file_id: (newest(AD) || {}).id }),
-        fixed: async () => {},
-        reload: async () => { D = await call(''); return { files: ofAd(D.files, AD), comments: D.comments, canDecide: !!D.card.needs_client }; },
-      },
-      onClose: intro,
+  const reload = async () => { D = await call(''); };
+  const needName = () => { if (NAME) return false; const i = document.querySelector('[data-namein]'); if (i) { i.focus(); i.reportValidity && i.reportValidity(); } return true; };
+  const wire = () => {
+    const f = document.querySelector('[data-nameform]'); if (f) f.onsubmit = e => { e.preventDefault(); const v = f.querySelector('[data-namein]').value; if (v.trim()) { setName(v); paint(); } };
+    const rn = document.querySelector('[data-rename]'); if (rn) rn.onclick = () => { setName(''); paint(); const i = document.querySelector('[data-namein]'); if (i) i.focus(); };
+    document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openViewer(b.dataset.open));
+    document.querySelectorAll('[data-dec]').forEach(b => b.onclick = async () => {
+      const what = b.dataset.dec;
+      if (what === 'cancel') { ASK = null; ERR = ''; paint(); return; }
+      if (needName()) return;
+      if (what === 'ask') { ASK = b.dataset.file; ERR = ''; paint(); const t = document.querySelector('[data-askbody]'); if (t) t.focus(); return; }
+      const body = what === 'send' ? ((document.querySelector('[data-askbody]') || {}).value || '').trim() : '';
+      if (what === 'send' && !body) { ERR = 'Say what should change.'; paint(); return; }
+      BUSY = true; paint();
+      try { await call('/decide', { name: NAME, file_id: b.dataset.file, ok: what === 'ok', reset: what === 'reopen', body }); ASK = null; ERR = ''; await reload(); }
+      catch (e) { ERR = e.message; }
+      BUSY = false; paint();
     });
   };
-  call('').then(d => { D = d; intro(); if (ads().length <= 1) view(ads()[0] || ''); }).catch(e => fail(e.message));
+  const openViewer = fid => {
+    const k = D.card, f = D.files.find(x => x.id === fid);
+    window.ReviewUI.open({
+      title: k.title, num: k.brand || 'Back', format: D.brief && D.brief.format, ads: viewerAds(), comments: D.comments, mode: 'guest', needsName: true, name: NAME,
+      startAd: f ? f.ad || '' : undefined, start: fid, canDecide: canCall(),
+      api: {
+        note: (fid2, body, shape, at, name, parentId) => { setName(name); return call('/note', { name, file_id: fid2, body, shape, at, parent_id: parentId || undefined }); },
+        decide: (ok, body, fid2, name, reset) => { setName(name); return call('/decide', { name, ok: !!ok, reset: !!reset, body, file_id: fid2 }); },
+        fixed: async () => {},
+        reload: async () => { await reload(); return { ads: viewerAds(), comments: D.comments, canDecide: canCall() }; },
+      },
+      onClose: paint,
+    });
+  };
+  reload().then(paint).catch(e => fail(e.message));
 })();
 </script>
 </body>

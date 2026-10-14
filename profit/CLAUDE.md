@@ -3184,3 +3184,30 @@ review-ui.js?v=3, production.js?v=3; backend in account-health/CLAUDE.md, same d
   hint, Backspace on a hint then typing, Bold, autosave, Start again label, AI fill marks, the written page with an inline
   picture and a link, the Files groups, a drop of a small PNG and a 25MB MOV (parts) with progress, Compare opening the
   review viewer on v1 and v2. NOT checked against the real workers in a browser.
+
+### 2026-10-14 (evening): REVIEW REDESIGN (mock "Review redesign" page, approved). Supersedes the Files tab and viewer above.
+
+Mock: https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (page Review redesign: A Files, B Viewer, C client link).
+- **Files tab = cards** (prodsheet.js `filesHtml`): one card per ad from the worker's `ads` (newest version large,
+  4:5, the whole picture is a button that opens the viewer at that ad), status chip (Needs review / Changes asked /
+  Approved; a client sees "Waiting for you"), v badge, open-note count, Approve / Ask for changes on the card (an inline
+  note box), a decided ad shows who and Change (reopen), "Compare vN-1 and vN". Filter chips (All / To review / Changes
+  asked / Approved), Upload, Send to the client, Copy client link, Review all N (opens the viewer at the first ad
+  waiting). Files drop anywhere on the tab (or the dashed line). The tab is labelled "Ads N".
+- **Viewer** (review-ui.js, rewritten): full screen. Top bar = back, previous / next ad, "Ad 48-2, 2 of 4", format,
+  version buttons + Compare, Copy client link (team), the call for THAT ad (Ask for changes / Approve vN, or the call made
+  with Change). The ad in the middle with a floating toolbar (Note = click to pin, Box, Arrow, Pen, Highlight, 4 colours,
+  remove drawing). Strip of every ad at the bottom with a status dot; keys: arrows = ads, N = note, Space = play, Esc.
+  Right panel: Notes (Open / Resolved / All, numbered like the pins, replies threaded, Reply, Resolve for the team) and
+  Versions. Approving jumps to the next ad still waiting. API: `ReviewUI.open({ ads: [{ad, label, status, by, files}],
+  startAd, start, comments, canDecide, api: { note(fid, body, shape, at, name, parentId), decide(ok, body, fid, name,
+  reset), fixed, share, reload } })`.
+- **Client link** (review.html, rewritten): brand header, name asked once (localStorage `rv_name`), "N of M decided"
+  progress, the same cards with Approve / Ask for changes / Change, the same viewer in guest mode, "Read the brief",
+  a thank-you when all are decided. Light or dark by the device.
+- **Brief labels on their own line** (Cole: the media buyer triple-clicks a line to copy it): templates and every saved
+  page put `Headline` bold on one line and the words under it (worker `splitLabels`), and a Copy button appears beside
+  the line under the pointer in the brief (written or read only), copying the words without hints.
+- Checked on a stub harness in the browser pane (deleted): cards, every viewer action (draw + post, reply, resolve,
+  arrows, approve then next, ask for changes, reopen, compare, close refreshes the cards), the copy button, the client
+  page (name step, inline ask, error line, viewer as guest), 375px without overlap. NOT checked against the real workers.

@@ -2094,3 +2094,18 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
 - Not changed (plausible, left for later): Launch to Meta accepts any `video_id` the system user can read for an ad in
   the client's own account; Google `from` / `to` go into the query unvalidated (stays inside the brand's own account);
   a brand brain may mention a competitor that is also a client.
+
+### 2026-10-14 (evening): a call per AD, replies, labels on their own line (prodwork.js)
+- `adsOf(files, comments)`: every ad of the test with its newest version and its OWN status from the last approval /
+  change request / reopen on that version (a new upload after a change request is back to review); `open` = unfixed
+  notes on it (replies not counted). Returned as `ads` by getCard, `/api/production/card` and the review link.
+- `decide` records the call on ONE file (`file_id`, else the newest upload). `reset: true` = kind `reopen`. The card goes
+  to Ready only when EVERY ad is approved; a change request moves it to Making and DMs the maker; `needs_client` clears
+  only when no ad is still waiting; a client may decide while the card is sent (`needs_client`) or was sent and not taken
+  back (`client_sent_at`), and a client's reopen sends it back to them. A client's call posts one line in the internal
+  channel. Returns `{ads, all_approved, moved}`.
+- Replies: `p_work_comment.parent_id` (ALTER on ensure); a reply takes its parent's file and second, kind `reply`.
+- `splitLabels`: a paragraph that starts with a bold label ending in a colon becomes the label alone, then the words
+  in their own paragraph (sanitizeHtml runs it, so every read and save). Templates use the same shape; the ads of a new
+  test are their own section ("The ads", Ad 48-1 bold, the words below).
+- Tests: test-production2 14 (per-ad calls, reopen, replies, take back).

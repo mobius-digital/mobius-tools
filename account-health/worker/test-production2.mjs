@@ -88,41 +88,41 @@ const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', 
 
 await check('the page: the sanitizer keeps the allowed tags only, closes what is open, drops scripts and styles, keeps data-file and hints', async () => {
   const h = sanitizeHtml(`<div><b>Angle:</b> Cold <script>alert(1)</script>hands <span style="color:red" onclick="x()">plain</span> <span data-ph>a hint</span><img src="data:image/png;base64,xx" onerror="x()"><img data-file="abcdefabcdefabcd" src="https://signed/x"><a href="javascript:alert(1)">bad</a> <a href="https://a.com/x" target="_blank">ok</a><ul><li>one<li>two</ul><p>unclosed <em>em`);
-  assert.equal(h, `<p><strong>Angle:</strong> Cold hands plain <span data-ph>a hint</span><img data-file="abcdefabcdefabcd">bad <a href="https://a.com/x">ok</a></p><ul><li>one</li><li>two</li></ul><p>unclosed <em>em</em></p>`);
+  assert.equal(h, `<p><strong>Angle</strong></p><p>Cold hands plain <span data-ph>a hint</span><img data-file="abcdefabcdefabcd">bad <a href="https://a.com/x">ok</a></p><ul><li>one</li><li>two</li></ul><p>unclosed <em>em</em></p>`);
   assert.equal(sanitizeHtml('a < b & c &amp; d'), 'a &lt; b &amp; c &amp; d');
   assert.equal(htmlToText('<h2>The test</h2><p><strong>Angle:</strong> Cold hands</p><p><span data-ph>a hint</span></p><ol><li>first</li><li>second</li></ol><p>x<br>y</p>'), 'The test\nAngle: Cold hands\n\n1. first\n2. second\nx\ny');
   const t = textToHtml(`The test\nAngle: Winter hands\n1. Line one\n2. Line two\n- a bullet\nInspo: https://a.com/x https://b.com/y\nSomething odd`);
-  assert.equal(t, `<h2>The test</h2><p><strong>Angle:</strong> Winter hands</p><ol><li>Line one</li><li>Line two</li></ol><ul><li>a bullet</li></ul><p><strong>Inspo:</strong> <a href="https://a.com/x">https://a.com/x</a> <a href="https://b.com/y">https://b.com/y</a></p><p>Something odd</p>`);
+  assert.equal(t, `<h2>The test</h2><p><strong>Angle</strong></p><p>Winter hands</p><ol><li>Line one</li><li>Line two</li></ol><ul><li>a bullet</li></ul><p><strong>Inspo</strong></p><p><a href="https://a.com/x">https://a.com/x</a> <a href="https://b.com/y">https://b.com/y</a></p><p>Something odd</p>`);
   const tpl = templateHtml('new', 'Static', '48');
-  assert.match(tpl, /<h2>The test<\/h2><p><strong>Angle:<\/strong> <span data-ph>The argument this ad makes<\/span><\/p>/); assert.match(tpl, /<li><strong>48-1<\/strong> <span data-ph>/); assert.match(tpl, /<h2>Copy<\/h2>/);
+  assert.match(tpl, /<h2>The test<\/h2><p><strong>Angle<\/strong><\/p><p><span data-ph>The argument this ad makes<\/span><\/p>/); assert.match(tpl, /<p><strong>Ad 48-1<\/strong><\/p><p><span data-ph>/); assert.match(tpl, /<h2>Copy<\/h2>/);
   assert.match(templateHtml('new', 'Video', '48'), /<h2>Video<\/h2>/); assert.match(templateHtml('iter', 'Static', '48'), /Iterating on/); assert.equal(templateHtml('blank'), '<p><br></p>');
   assert.equal(fillSrc('<p><img data-file="abcdefabcdefabcd"> and <a href="https://a.com">x</a></p>', { abcdefabcdefabcd: { url: 'https://s/x?e=1' } }), '<p><img data-file="abcdefabcdefabcd" src="https://s/x?e=1"> and <a target="_blank" rel="noopener" href="https://a.com">x</a></p>');
   const b = normBrief({ v: 2, html: '<p><strong>Angle:</strong> x</p>', format: 'UGC', sizes: ['9:16', 'bogus', '9:16'] });
-  assert.deepEqual(b, { v: 2, html: '<p><strong>Angle:</strong> x</p>', format: 'UGC', sizes: ['9:16'] });
-  assert.equal(briefText(b), 'Format: UGC · Sizes: 9:16\nAngle: x');
+  assert.deepEqual(b, { v: 2, html: '<p><strong>Angle</strong></p><p>x</p>', format: 'UGC', sizes: ['9:16'] });
+  assert.equal(briefText(b), 'Format: UGC · Sizes: 9:16\nAngle\nx');
 });
 
 await check('Asana both ways: html_notes becomes a page (hint kept as a hint), the page goes back as Asana tags only, valid XML, pictures as a link', async () => {
   const page = asanaToHtml(ASANA_T2);
-  assert.equal(page, `<h2>The test</h2><p><strong>Angle:</strong> Winter hands</p><p><strong>What we're testing:</strong> 3 hooks on 45-1</p><p><span data-ph>What changes, and on which ad. Like: 3 new concepts</span></p><p><strong>Why:</strong> Searches doubled</p><ol><li>45-1 red knuckles then the glove</li><li>45-2 the frosty grip</li></ol><h2>Copy</h2><p><strong>Headline:</strong> Warm grip</p><p><strong>Inspo:</strong> <a href="https://a.com/x">https://a.com/x</a></p>`);
+  assert.equal(page, `<h2>The test</h2><p><strong>Angle</strong></p><p>Winter hands</p><p><strong>What we're testing</strong></p><p>3 hooks on 45-1</p><p><span data-ph>What changes, and on which ad. Like: 3 new concepts</span></p><p><strong>Why</strong></p><p>Searches doubled</p><ol><li>45-1 red knuckles then the glove</li><li>45-2 the frosty grip</li></ol><h2>Copy</h2><p><strong>Headline</strong></p><p>Warm grip</p><p><strong>Inspo</strong></p><p><a href="https://a.com/x">https://a.com/x</a></p>`);
   const back = briefHtml({ v: 2, html: page + '<p>Tom &amp; Jerry&nbsp;<img data-file="abcdefabcdefabcd"></p><h3>Launch</h3><p>Nov 3<br>early</p>', format: 'Static', sizes: [] }, 'https://x/?card=1', { abcdefabcdefabcd: { name: 'ref.jpg' } });
   assert.match(back, /^<body><em>Written in Locus/);
   assert.ok(!/<p>|<br>|<span|<img|&nbsp;|<h3>/.test(back), 'only Asana tags: ' + back);
-  assert.match(back, /<h2>The test<\/h2>\n<strong>Angle:<\/strong> Winter hands\n/); assert.ok(!back.includes('What changes, and on which ad'), 'hints left out');
+  assert.match(back, /<h2>The test<\/h2>\n<strong>Angle<\/strong>\nWinter hands\n/); assert.ok(!back.includes('What changes, and on which ad'), 'hints left out');
   assert.match(back, /<ol><li>45-1 red knuckles then the glove<\/li><li>45-2 the frosty grip<\/li><\/ol>\n/);
   assert.match(back, /Tom &amp; Jerry <a href="https:\/\/x\/\?card=1">\[ref\.jpg: see it in Locus\]<\/a>\n<strong>Launch<\/strong>\nNov 3\nearly/);
   const synced = briefFromAsana({ v: 2, format: 'Video', sizes: ['9:16'] }, ASANA_T2, '');
   assert.equal(synced.format, 'Video'); assert.deepEqual(synced.sizes, ['9:16']); assert.equal(synced.html, page);
-  assert.match(briefFromAsana({}, '', 'Angle: plain only\n1. one').html, /<p><strong>Angle:<\/strong> plain only<\/p><ol><li>one<\/li><\/ol>/);
+  assert.match(briefFromAsana({}, '', 'Angle: plain only\n1. one').html, /<p><strong>Angle<\/strong><\/p><p>plain only<\/p><ol><li>one<\/li><\/ol>/);
   assert.equal(adOf('45-2 v2.png', '45'), '45-2'); assert.equal(adOf('LG_440-2 final.mov', '440'), '440-2'); assert.equal(adOf('48_3.mp4', '48'), '48-3'); assert.equal(adOf('hero final.png', '48'), ''); assert.equal(adOf('1080x1350 45-1.png', '45'), '45-1');
 });
 
 await check('first open of an old card: the Asana page comes in as the page (mirror on); a card with nothing in Asana uses its text; a blank card gets the starting pages', async () => {
   const card = await getCard(env, dd, 'https://ah.test', 'c2', null);
-  assert.equal(card.brief_from, 'asana'); assert.equal(card.brief.v, 2); assert.match(card.brief.html, /<strong>Angle:<\/strong> Winter hands/); assert.equal(card.brief.blank, false); assert.equal(card.templates, undefined);
+  assert.equal(card.brief_from, 'asana'); assert.equal(card.brief.v, 2); assert.match(card.brief.html, /<strong>Angle<\/strong><\/p><p>Winter hands/); assert.equal(card.brief.blank, false); assert.equal(card.templates, undefined);
   assert.equal(card.card.brand, 'Alpha Golf'); assert.equal(card.mirror, true); assert.ok(card.team.includes('William'));
   const blank = await getCard(env, dd, 'https://ah.test', 'c1', null);
-  assert.equal(blank.brief.blank, true); assert.match(blank.templates.new, /<strong>48-1<\/strong>/); assert.match(blank.templates.iter, /Iteration/); assert.equal(blank.templates.blank, '<p><br></p>');
+  assert.equal(blank.brief.blank, true); assert.match(blank.templates.new, /<strong>Ad 48-1<\/strong>/); assert.match(blank.templates.iter, /Iteration/); assert.equal(blank.templates.blank, '<p><br></p>');
   const t = (await call('/api/production/template?id=c1&kind=resize')).body; assert.match(t.html, /Resize or cut/);
 });
 
@@ -139,7 +139,7 @@ await check('AI fill: the hints get the AI words (marked), a typed sentence is n
   const full = await aiFill(env, answer(good), { act_id: 'brand_alpha' }, { v: 2, html: '<p><strong>Angle:</strong> everything here is written by a person already, nothing to fill</p>', format: 'Static', sizes: [] });
   assert.equal(full.filled, 0); assert.match(full.why, /Every line already has words/);
   const v1 = await aiFill(env, answer(good), { act_id: 'brand_alpha', num: '48' }, { kind: 'new', format: 'Static' });
-  assert.equal(v1.filled, 2, 'an empty v1 brief is read as a page, the AI gets the starting page'); assert.match(sent.messages[0].content, /<strong>48-1<\/strong>/);
+  assert.equal(v1.filled, 2, 'an empty v1 brief is read as a page, the AI gets the starting page'); assert.match(sent.messages[0].content, /<strong>Ad 48-1<\/strong>/);
   const v1w = await aiFill(env, answer(good), { act_id: 'brand_alpha', num: '48' }, { kind: 'new', format: 'Static', angle: 'TYPED ANGLE that stays exactly as it is, long enough to count' });
   assert.equal(v1w.filled, 0, 'a v1 brief with words and no empty label is left alone');
 });
@@ -150,15 +150,15 @@ await check('save: the page is stored with its text, the Asana task gets it (mir
   const r = await saveCard(env, dd, { id: 'c1', title: 'Cold hands v2', owner: 'William', due: '2026-10-16', launch_on: '2026-10-20', brief }, 'ahsan@go-mobius-digital.com');
   assert.equal(r.asana.written, true); assert.equal(r.brief.v, 2);
   const put = asanaCalls.find(c => c.path.startsWith('/tasks/T1') && c.init && c.init.method === 'PUT');
-  assert.match(put.init.body.html_notes, /<strong>Angle:<\/strong> Winter hands\n<ol><li><strong>48-1<\/strong> red knuckles<\/li><\/ol>/); assert.ok(!put.init.body.html_notes.includes('leftover hint')); assert.equal(put.init.body.name, '48 - Cold hands v2'); assert.equal(put.init.body.due_on, '2026-10-16');
+  assert.match(put.init.body.html_notes, /<strong>Angle<\/strong>\nWinter hands\n<ol><li><strong>48-1<\/strong> red knuckles<\/li><\/ol>/); assert.ok(!put.init.body.html_notes.includes('leftover hint')); assert.equal(put.init.body.name, '48 - Cold hands v2'); assert.equal(put.init.body.due_on, '2026-10-16');
   const row = db.prepare(`SELECT brief_json, brief_text, brief_hash, title, assignee_name, due_on, launch_on FROM p_br_batch WHERE id = 'c1'`).get();
-  assert.equal(JSON.parse(row.brief_json).v, 2); assert.equal(row.brief_text, 'Format: Static · Sizes: 4:5\nThe test\nAngle: Winter hands\n1. 48-1 red knuckles\nHeadline: Warm grip');
+  assert.equal(JSON.parse(row.brief_json).v, 2); assert.equal(row.brief_text, 'Format: Static · Sizes: 4:5\nThe test\nAngle\nWinter hands\n1. 48-1 red knuckles\nHeadline\nWarm grip');
   assert.ok(row.brief_hash && row.brief_hash.length === 24); assert.equal(row.title, 'Cold hands v2'); assert.equal(row.assignee_name, 'William'); assert.equal(row.launch_on, '2026-10-20');
   const c = await getCard(env, dd, 'https://ah.test', 'c1', null);
   assert.equal(c.brief_from, 'locus'); assert.equal(c.brief.blank, false); assert.match(c.brief.html, /leftover hint/, 'a hint the writer left stays on the page');
   db.exec(`UPDATE p_br_batch SET brief_json = '${JSON.stringify({ v: 1, kind: 'new', format: 'Video', angle: 'v1 angle', hooks: ['Cold?'], rows: [{ vo: 'say', shot: 'see', sec: '2' }] }).replace(/'/g, "''")}' WHERE id = 'c3'`);
   const v1 = await getCard(env, dd, 'https://ah.test', 'c3', null);
-  assert.equal(v1.brief.v, 2); assert.equal(v1.brief.format, 'Video'); assert.match(v1.brief.html, /<p><strong>Angle:<\/strong> v1 angle<\/p>/); assert.match(v1.brief.html, /<p><strong>Hook A:<\/strong> Cold\?<\/p>/); assert.match(v1.brief.html, /<ol><li>VO: say \| Shot: see \| 2s<\/li><\/ol>/);
+  assert.equal(v1.brief.v, 2); assert.equal(v1.brief.format, 'Video'); assert.match(v1.brief.html, /<p><strong>Angle<\/strong><\/p><p>v1 angle<\/p>/); assert.match(v1.brief.html, /<p><strong>Hook A<\/strong><\/p><p>Cold\?<\/p>/); assert.match(v1.brief.html, /<ol><li>VO: say \| Shot: see \| 2s<\/li><\/ol>/);
   const b = (await call('/api/production?act=brand_beta')).body; assert.equal(b.cards.find(x => x.id === 'c3').format, 'Video', 'the board reads the stored format');
 });
 
@@ -238,10 +238,14 @@ await check('ask for changes needs a note, moves the card back to Making and DMs
   const ch = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: false, body: 'Headline under the Reels caption.' }, email: 'cole@go-mobius-digital.com' });
   assert.equal(ch.status, 200); assert.equal(ch.body.moved, 'making');
   assert.ok(asanaCalls.some(c => c.path === '/sections/S2/addTask'), 'Asana followed to Creative Studio');
-  const dm = slack.filter(s => s.method === 'chat.postMessage').pop(); assert.equal(dm.args.channel, 'U_WILLIAM'); assert.match(dm.args.text, /Cole asked for changes on #45/);
+  const dm = slack.filter(s => s.method === 'chat.postMessage').pop(); assert.equal(dm.args.channel, 'U_WILLIAM'); assert.match(dm.args.text, /Cole asked for changes on 45-\d v\d of #45/);
   const cr = (await getCard(env, dd, 'https://ah.test', 'c2', null)).comments.find(c => c.kind === 'change_request'); assert.equal(cr.kind, 'change_request'); assert.ok(cr.file_id, 'tied to the newest version');
+  /* One approval is one ad (the newest upload when no file is named); the card moves to Ready when EVERY ad is approved. */
   const ok = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true }, email: 'cole@go-mobius-digital.com' });
-  assert.equal(ok.body.moved, 'ready');
+  assert.equal(ok.body.moved, null, 'the other ads still wait'); assert.equal(ok.body.all_approved, false);
+  let last = ok;
+  for (const a of ok.body.ads.filter(a => a.status !== 'approved')) last = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true, file_id: a.file_id }, email: 'cole@go-mobius-digital.com' });
+  assert.equal(last.body.moved, 'ready'); assert.equal(last.body.all_approved, true);
   const row = db.prepare(`SELECT board_stage, approved_by FROM p_br_batch WHERE id = 'c2'`).get(); assert.equal(row.board_stage, 'ready'); assert.equal(row.approved_by, 'cole@go-mobius-digital.com');
   assert.match((await getCard(env, dd, 'https://ah.test', 'c2', null)).comments.find(c => c.kind === 'approval').body, /^Approved 45-1 v3\./, 'the newest ad and its version');
 });
@@ -268,8 +272,32 @@ await check('the client: its own brand only, Needs you + Coming up (never the bo
   posts = [];
   const cm = await call('/api/production/comment', { method: 'POST', body: { id: 'c2', body: 'Love slide 3' }, client: true, email: 'nick@alpha.com' });
   assert.equal(cm.body.slack, true); assert.equal(posts[0].ch, 'C_ALPHA'); assert.match(posts[0].text, /Nick \(client\) on #45/);
-  const ok = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true }, client: true, email: 'nick@alpha.com' });
-  assert.equal(ok.status, 200); assert.equal(db.prepare(`SELECT needs_client FROM p_br_batch WHERE id = 'c2'`).get().needs_client, null);
+  /* Each ad is its own call (2026-10-14): the test waits until every ad is decided. */
+  const cardNow = (await call('/api/production/card?id=c2', { client: true })).body;
+  assert.ok(cardNow.ads.length >= 2, 'several ads on the test');
+  /* the team approved everything earlier: reopen two, then the client's first approval leaves the test waiting */
+  for (const a of cardNow.ads.slice(0, 2)) await call('/api/production/decide', { method: 'POST', body: { id: 'c2', reset: true, file_id: a.file_id }, client: true, email: 'nick@alpha.com' });
+  const first = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true, file_id: cardNow.ads[0].file_id }, client: true, email: 'nick@alpha.com' });
+  assert.equal(first.status, 200); assert.equal(first.body.ads.find(x => x.file_id === cardNow.ads[0].file_id).status, 'approved');
+  assert.equal(db.prepare(`SELECT needs_client FROM p_br_batch WHERE id = 'c2'`).get().needs_client, 'ad', 'still waiting on the second ad');
+  const second = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true, file_id: cardNow.ads[1].file_id }, client: true, email: 'nick@alpha.com' });
+  assert.equal(second.status, 200); assert.equal(db.prepare(`SELECT needs_client FROM p_br_batch WHERE id = 'c2'`).get().needs_client, null, 'all decided');
+  const after = (await call('/api/production/card?id=c2', { client: true })).body;
+  assert.ok(after.ads.every(a => a.status === 'approved')); assert.equal(after.ads[0].by, 'Nick');
+  /* Changing a call: the client reopens an ad and the test waits for them again. */
+  const re = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', reset: true, file_id: after.ads[0].file_id }, client: true, email: 'nick@alpha.com' });
+  assert.equal(re.status, 200); assert.equal(re.body.ads[0].status, 'review'); assert.equal(db.prepare(`SELECT needs_client FROM p_br_batch WHERE id = 'c2'`).get().needs_client, 'ad');
+  await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true, file_id: after.ads[0].file_id }, client: true, email: 'nick@alpha.com' });
+  /* Replies hang under their note and are not counted as open notes. */
+  const note = cardNow.comments.find(c => c.file_id);
+  if (note) {
+    const rp = await call('/api/production/comment', { method: 'POST', body: { id: 'c2', parent_id: note.id, body: 'Fixed in the next one.' }, email: 'william@go-mobius-digital.com' });
+    assert.equal(rp.status, 200);
+    const got = (await call('/api/production/card?id=c2', {})).body.comments.find(c => c.id === rp.body.id);
+    assert.equal(got.parent_id, note.id); assert.equal(got.kind, 'reply'); assert.equal(got.file_id, note.file_id);
+  }
+  /* Taken back by the team: the client cannot decide any more. */
+  await sendToClient(env, dd, { id: 'c2', what: '' }, 'ahsan@go-mobius-digital.com');
   const again = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true }, client: true }); assert.equal(again.status, 403, 'nothing waiting any more');
   const idea = await call('/api/production/decide', { method: 'POST', body: { id: 'c1', ok: true }, client: true });
   assert.equal(idea.body.moved, null, 'an approved idea stays in Brief');
@@ -285,6 +313,7 @@ await check('the review link: no login, needs a name, notes and a decision when 
   assert.equal((await rq(`/api/review/${t}/note`, 'POST', { body: 'hi' })).status, 400, 'no name');
   assert.equal((await rq(`/api/review/${t}/note`, 'POST', { name: 'Mike', body: 'Text too small' })).status, 200);
   assert.equal((await rq(`/api/review/${t}/decide`, 'POST', { name: 'Mike', ok: true })).status, 403, 'not waiting');
+  assert.ok(Array.isArray(g.body.ads) && g.body.ads.length >= 2, 'the link carries every ad with its call');
   await sendToClient(env, dd, { id: 'c2', what: 'ad' }, 'ahsan@go-mobius-digital.com');
   const dec = await rq(`/api/review/${t}/decide`, 'POST', { name: 'Mike', ok: false, body: 'Say magnetic.' });
   assert.equal(dec.status, 200); assert.equal(db.prepare(`SELECT board_stage FROM p_br_batch WHERE id = 'c2'`).get().board_stage, 'making');

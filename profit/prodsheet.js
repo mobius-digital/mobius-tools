@@ -128,6 +128,37 @@ function css() {
 .ps-prog i{display:block;height:100%;background:var(--brand);width:0;transition:width .2s}
 .ps-grp{display:flex;flex-direction:column;gap:8px}
 .ps-grp .gh{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--ink)}
+/* Files tab as cards (2026-10-14 review redesign, artboard A): every ad big enough to judge, the whole picture opens the
+   review, the call is made on the card. */
+.ps-fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ps-fchip{height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ps-fchip .n{opacity:.7;font-weight:500}
+.ps-fchip.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.ps-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;align-items:start}
+.ps-ad{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.ps-ad:hover{border-color:var(--line-strong)}
+.ps-pv{position:relative;display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2);border:0;padding:0;cursor:pointer;overflow:hidden}
+.ps-pv img,.ps-pv video{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.ps-pv:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.ps-pv .ov{position:absolute;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.ps-pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
+.ps-pv:hover .open,.ps-pv:focus-visible .open{opacity:1}
+.ps-pv .open span{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--surface);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px}
+.ps-adb{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.ps-st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);white-space:nowrap}
+.ps-st i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.ps-adb .row{display:flex;gap:8px;align-items:center}
+.ps-adb .row .ps-btn{flex:1 1 auto;justify-content:center;min-width:0;padding:0 10px}
+.ps-adb .row{flex-wrap:wrap}
+.ps-adb textarea{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
+.ps-lnk{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.ps-dropline{display:flex;align-items:center;gap:10px;border:1px dashed var(--line-strong);border-radius:10px;padding:12px 14px;color:var(--muted);font-size:12.5px;cursor:pointer;background:transparent;font-family:inherit;text-align:left;width:100%}
+.ps-dropline:hover,.ps-dropline:focus-visible{border-color:var(--ink-2);outline:none}
+.ps-b.over{outline:2px dashed var(--brand);outline-offset:-6px;border-radius:10px}
+.ps-ups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+/* a Copy button beside the line under the pointer (the media buyer copies a headline in one click) */
+.ps-cpy{position:fixed;z-index:1000;height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.ps-cpy:hover{color:var(--ink);border-color:var(--ink-2)}
 @media (max-width:760px){.ps-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-2,.ps-3,.ps-st3{grid-template-columns:minmax(0,1fr)}}
 /* the client's page and the mirror card */
 .pc{display:flex;flex-direction:column;gap:22px;max-width:1080px;min-width:0}
@@ -306,7 +337,7 @@ async function open(H, id, opts = {}) {
       <label class="ps-kv"><span>Owner</span><select data-meta="owner"><option value="">Nobody yet</option>${[...new Set([...team, k.owner].filter(Boolean))].map(n => `<option${n === k.owner ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="ps-kv"><span>Due</span><input type="date" data-meta="due" value="${esc(k.due || '')}"></label>
       <label class="ps-kv"><span>Launch</span><input type="date" data-meta="launch" value="${esc(k.launch_on || '')}"></label>`;
-    const tabs = [['brief', 'Brief'], ['files', `Files ${versions().length}`], ['comments', `Comments ${T.data.comments.filter(x => x.kind !== 'system').length}`]];
+    const tabs = [['brief', 'Brief'], ['files', `${(T.data.ads || []).length === 1 ? 'Ad' : 'Ads'} ${(T.data.ads || []).length}`], ['comments', `Comments ${T.data.comments.filter(x => x.kind !== 'system').length}`]];
     return `<div class="ps-h">
       <div class="ps-top"><span class="ps-tag" style="--tc:${FMT[fmt] || 'var(--brand)'}">${esc(fmt)}</span><span class="sp"></span>
         ${T.client ? '' : `<span class="saved" data-saved aria-live="polite"></span><button class="ps-btn pri" data-save>Save</button>`}
@@ -352,26 +383,56 @@ async function open(H, id, opts = {}) {
   const adLabel = ad => ad ? `Ad ${ad}` : 'The ad';
   function filesHtml() {
     const k = c();
-    const vs = versions();
+    const ads = T.data.ads || [];
     const sentAd = k.needs_client === 'ad';
-    const groups = [...new Set(vs.map(f => f.ad))].map(ad => ({ ad, files: vs.filter(f => f.ad === ad).sort((a, b) => b.version - a.version) }));
-    groups.sort((a, b) => Date.parse(b.files[0].created_at.replace(' ', 'T')) - Date.parse(a.files[0].created_at.replace(' ', 'T')));
-    const top = T.client ? '' : `<div class="ps-drop" data-drop tabindex="0" role="button" aria-label="Upload the finished ads"><b>Drop the finished ads here</b><span class="ps-hint">or <u>pick files</u> · any image or video · several at once · no size limit</span>
-        <span class="ps-hint">Name a file with its ad number (${esc(k.num ? `${k.num}-1, ${k.num}-2` : '48-1, 48-2')}) and it files itself under that ad. A second upload of the same ad becomes its v2, with v1 kept to compare.</span></div>
-      ${UP.length ? `<div class="ps-grp">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `Uploading, ${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : ''}
-      ${vs.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${sentAd ? '<button class="ps-btn" data-send="">Take it back from the client</button>' : '<button class="ps-btn" data-send="ad">Send the ad to the client</button>'}<button class="ps-btn" data-share>Copy client link</button><span class="ps-hint" style="flex:1;min-width:200px">The client link opens the newest version with no login. Notes stay on their version.</span></div>` : ''}`;
-    const list = groups.map(g => `<div class="ps-grp"><div class="gh"><span>${esc(adLabel(g.ad))}</span><span class="ps-hint" style="font-weight:500">${g.files.length} version${g.files.length === 1 ? '' : 's'}</span>${g.files.length > 1 ? `<button class="ps-btn g" data-cmp="${esc(g.files[0].id)}">Compare v${g.files[1].version} and v${g.files[0].version}</button>` : ''}</div>
-      ${g.files.map((f, i) => {
-        const open = T.data.comments.filter(x => x.file_id === f.id && ['note', 'change_request'].includes(x.kind) && !x.fixed).length;
-        const total = T.data.comments.filter(x => x.file_id === f.id && ['note', 'change_request'].includes(x.kind)).length;
-        const latest = i === 0;
-        const st = latest ? (k.board === 'ready' || k.board === 'live' ? ['Approved', 'var(--good)'] : ['Needs review', 'var(--warn)']) : ['Replaced', 'var(--muted)'];
-        return `<div class="ps-card"><div class="ps-thumb">${f.video ? 'video' : `<img src="${esc(f.url)}" alt="">`}</div>
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><b style="font-weight:500">v${f.version} · ${esc(f.name || '')}</b><span class="ps-hint">${esc(T.client ? short(f.created_at) : `${f.by || 'Someone'}, ${short(f.created_at)}`)}${f.size ? ` · ${fmtMB(f.size)}` : ''} · ${total ? `${total} note${total === 1 ? '' : 's'}${open ? `, ${open} open` : ', all fixed'}` : 'no notes'}</span></div>
-          <span class="ps-tag" style="--tc:${st[1]}">${st[0]}</span><button class="ps-btn" data-rev="${esc(f.id)}">Review</button></div>`;
-      }).join('')}</div>`).join('');
-    const who = T.client ? '' : `<p class="ps-hint" style="margin:0">Who uploads: whoever made the ad (designer, editor, creator with a Locus login). A new version moves the card to Review and the reviewer sees it under Files.</p>`;
-    return top + (list || `<p class="ps-hint">${T.client ? 'No version of this ad yet.' : 'Nothing uploaded yet.'}</p>`) + who;
+    const canCall = !T.client || k.needs_client === 'ad' || !!k.client_sent_at;
+    const ff = T.ff || 'all';
+    const n = st => ads.filter(a => st === 'all' || a.status === st).length;
+    const shown = ads.filter(a => ff === 'all' || a.status === ff);
+    const filesOfAd = ad => T.data.files.filter(f => f.kind === 'version' && (f.ad || '') === ad).sort((x, y) => (x.version || 0) - (y.version || 0));
+    const chips = ads.length > 1 ? [['all', 'All'], ['review', T.client ? 'Waiting for you' : 'To review'], ['changes', 'Changes asked'], ['approved', 'Approved']].filter(([st]) => st === 'all' || n(st))
+      .map(([st, l]) => `<button type="button" class="ps-fchip${ff === st ? ' on' : ''}" data-ff="${st}">${l} <span class="n">${n(st)}</span></button>`).join('') : '';
+    const bar = `<div class="ps-fbar">${chips}<span style="flex:1"></span>
+      ${T.client ? '' : '<button type="button" class="ps-btn" data-upload>Upload</button>'}
+      ${!T.client && ads.length ? (sentAd ? '<button type="button" class="ps-btn" data-send="">Take it back from the client</button>' : '<button type="button" class="ps-btn" data-send="ad">Send to the client</button>') + '<button type="button" class="ps-btn" data-share>Copy client link</button>' : ''}
+      ${n('review') && canCall ? `<button type="button" class="ps-btn pri" data-allrev>${n('review') === 1 ? 'Review it' : `Review all ${n('review')}`}</button>` : ads.length ? '<button type="button" class="ps-btn" data-allrev>Open the review</button>' : ''}</div>`;
+    const ups = UP.length ? `<div class="ps-ups">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : '';
+    const STAT = { review: [T.client ? 'Waiting for you' : 'Needs review', 'var(--warn)'], changes: ['Changes asked', 'var(--bad)'], approved: ['Approved', 'var(--good)'] };
+    const card = a => {
+      const vs = filesOfAd(a.ad), top = vs[vs.length - 1];
+      if (!top) return '';
+      const st = STAT[a.status] || STAT.review;
+      const asking = T.asking === a.file_id;
+      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.url)}" alt="" loading="lazy">`;
+      const by = a.status !== 'review' && a.by ? `${a.status === 'approved' ? 'Approved' : 'Sent back'} by ${a.by}${a.at ? `, ${short(a.at)}` : ''}` : `${T.client ? '' : `${top.by || 'Someone'}, `}${short(top.created_at)}`;
+      const owner = !T.client && k.owner ? ` ${esc(k.owner.split(' ')[0])} gets it in Slack.` : '';
+      let acts = '';
+      if (a.status === 'review' && canCall) {
+        acts = asking
+          ? `<label class="ps-f" style="gap:6px"><span class="ps-hint">What needs to change?${owner}</span><textarea rows="2" data-askbody placeholder="Headline bigger, logo bottom right"></textarea></label>
+             <div class="row" style="justify-content:flex-end"><button type="button" class="ps-btn" data-dec="cancel" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Cancel</button><button type="button" class="ps-btn pri" data-dec="send" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Send back</button></div>`
+          : `<div class="row"><button type="button" class="ps-btn ok" data-dec="ok" data-file="${esc(a.file_id)}">Approve</button><button type="button" class="ps-btn" data-dec="ask" data-file="${esc(a.file_id)}">Ask for changes</button></div>`;
+      } else if (a.status !== 'review' && canCall) {
+        acts = `<div class="row" style="justify-content:space-between"><span class="ps-hint">${esc(by)}</span><button type="button" class="ps-btn" data-dec="reopen" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Change</button></div>`;
+      }
+      return `<article class="ps-ad">
+        <button type="button" class="ps-pv" data-open="${esc(top.id)}" aria-label="Open ${esc(adLabel(a.ad))} to review">${media}
+          <span class="ov" style="top:10px;left:10px">${esc(adLabel(a.ad))}</span>
+          <span class="ov" style="top:10px;right:10px" title="${vs.length} version${vs.length === 1 ? '' : 's'}">v${top.version}</span>
+          ${a.open ? `<span class="ov" style="bottom:10px;right:10px">${a.open} open note${a.open === 1 ? '' : 's'}</span>` : ''}
+          ${top.video ? '<span class="ov" style="bottom:10px;left:10px">Video</span>' : ''}
+          <span class="open"><span>Open review</span></span></button>
+        <div class="ps-adb">
+          <div style="display:flex;align-items:center;gap:8px"><span class="ps-st" style="--sc:${st[1]}"><i></i>${st[0]}</span><span style="flex:1"></span>${a.status === 'review' || !canCall ? `<span class="ps-hint">${esc(by)}</span>` : ''}</div>
+          ${acts}
+          ${vs.length > 1 ? `<button type="button" class="ps-lnk" data-cmp="${esc(top.id)}">Compare v${vs[vs.length - 2].version} and v${top.version}</button>` : ''}
+        </div></article>`;
+    };
+    const grid = shown.length ? `<div class="ps-ads">${shown.map(card).join('')}</div>` : ads.length ? '<p class="ps-hint">Nothing here with this filter.</p>' : '';
+    const drop = T.client ? '' : `<button type="button" class="ps-dropline" data-drop><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>
+      <span>${ads.length ? 'Drop files anywhere on this tab, or click to pick them.' : '<b style="color:var(--ink)">Drop the finished ads here</b>, or click to pick them.'} Name them ${esc(k.num ? `${k.num}-1, ${k.num}-2` : '48-1, 48-2')} and each lands on its ad as the next version. Any size, images or video.</span></button>`;
+    const empty = !ads.length && T.client ? '<p class="ps-hint">Mobius has not uploaded this ad yet.</p>' : '';
+    return bar + ups + grid + drop + empty;
   }
   /* ---------- comments ---------- */
   function commentsHtml() {
@@ -390,6 +451,7 @@ async function open(H, id, opts = {}) {
   /* ---------- paint + wire ---------- */
   function paint() {
     const keep = host.scrollTop;
+    document.querySelectorAll('.ps-cpy').forEach(x => x.remove());
     host.innerHTML = `<div class="ps">${headHtml()}<div class="ps-b">${T.tab === 'brief' ? briefHtml() : T.tab === 'files' ? filesHtml() : commentsHtml()}</div></div>`;
     const hb = $('#v2panel .ph b'); if (hb) hb.textContent = `${c().num ? `#${c().num} · ` : ''}${c().brand}`;
     host.scrollTop = keep;
@@ -538,30 +600,79 @@ async function open(H, id, opts = {}) {
       try { const r = await post(H, '/api/production/send', { id, what }); if (r.error) throw new Error(r.error); await reload(); paint(); changed(); toast(what ? 'Sent. It is waiting on the client.' : 'Taken back from the client.'); }
       catch (e) { toast(e.message || 'Could not send it.'); b.disabled = false; }
     });
-    const drop = $('[data-drop]', host); if (drop) {
-      const take = async fs => {
-        fs = fs.filter(f => /^(image|video)\//.test(f.type || '') || /\.(mov|mp4|webm|png|jpe?g|gif|webp|avif)$/i.test(f.name || ''));
-        if (!fs.length) { toast('Drop an image or a video.'); return; }
-        const slots = fs.map(f => { const u = { name: f.name, size: f.size, pct: 0, err: '' }; UP.push(u); return u; });
-        paint();
-        let moved = false, n = 0;
-        await Promise.all(fs.map(async (f, i) => {
-          const u = slots[i];
-          try { const r = await upload(H, id, f, 'version', pct => { u.pct = pct; paintProg(); }); n++; if (r.moved) moved = true; UP.splice(UP.indexOf(u), 1); }
-          catch (e) { u.err = e.message || 'Upload failed.'; }
-          await reload(); paint(); changed();
-        }));
-        if (n) toast(`${n === 1 ? 'The ad is up.' : `${n} files are up.`}${moved ? ' The card moved to Review.' : ''}`);
-        setTimeout(() => { for (let i = UP.length - 1; i >= 0; i--) if (UP[i].err) UP.splice(i, 1); paint(); }, 6000);
-      };
-      drop.onclick = async () => take(await pickFiles('image/*,video/*', true));
-      drop.onkeydown = async e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); take(await pickFiles('image/*,video/*', true)); } };
-      drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
-      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-      drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); take([...(e.dataTransfer.files || [])]); });
+    /* Files tab: upload (button, the drop line, or a drop anywhere on the tab), the filters, the call on each card. */
+    const take = async fs => {
+      fs = fs.filter(f => /^(image|video)\//.test(f.type || '') || /\.(mov|mp4|webm|png|jpe?g|gif|webp|avif)$/i.test(f.name || ''));
+      if (!fs.length) { toast('Drop an image or a video.'); return; }
+      const slots = fs.map(f => { const u = { name: f.name, size: f.size, pct: 0, err: '' }; UP.push(u); return u; });
+      paint();
+      let moved = false, n = 0;
+      await Promise.all(fs.map(async (f, i) => {
+        const u = slots[i];
+        try { const r = await upload(H, id, f, 'version', pct => { u.pct = pct; paintProg(); }); n++; if (r.moved) moved = true; UP.splice(UP.indexOf(u), 1); }
+        catch (e) { u.err = e.message || 'Upload failed.'; }
+        await reload(); paint(); changed();
+      }));
+      if (n) toast(`${n === 1 ? 'The ad is up.' : `${n} files are up.`}${moved ? ' The card moved to Review.' : ''}`);
+      setTimeout(() => { for (let i = UP.length - 1; i >= 0; i--) if (UP[i].err) UP.splice(i, 1); paint(); }, 6000);
+    };
+    if (T.tab === 'files' && !T.client) {
+      const fbody = $('.ps-b', host);
+      $$('[data-upload],[data-drop]', host).forEach(b => b.onclick = async () => take(await pickFiles('image/*,video/*', true)));
+      if (fbody) {
+        fbody.ondragover = e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); fbody.classList.add('over'); } };
+        fbody.ondragleave = e => { if (!fbody.contains(e.relatedTarget)) fbody.classList.remove('over'); };
+        fbody.ondrop = e => { if (![...(e.dataTransfer.files || [])].length) return; e.preventDefault(); fbody.classList.remove('over'); take([...e.dataTransfer.files]); };
+      }
     }
+    /* Copy beside the line under the pointer, in the brief (written or read only): one click copies that line's words,
+       hints left out. The label sits on its own line above (splitLabels), so a triple-click works too. */
+    const cdoc = $('.ps-doc', host);
+    if (cdoc) {
+      let cb = null, tgt = null;
+      const hideCb = () => { if (cb) cb.remove(); cb = null; tgt = null; };
+      const wordsOf = el => { const x = el.cloneNode(true); x.querySelectorAll('[data-ph]').forEach(n => n.remove()); return (x.innerText || x.textContent || '').replace(/​/g, '').trim(); };
+      cdoc.addEventListener('mousemove', e => {
+        const blk = e.target.closest && e.target.closest('p,li,h2,h3,blockquote');
+        if (!blk || !cdoc.contains(blk) || blk === tgt) return;
+        hideCb();
+        const words = wordsOf(blk);
+        if (!words) return;
+        tgt = blk;
+        cb = document.createElement('button'); cb.type = 'button'; cb.className = 'ps-cpy'; cb.textContent = 'Copy'; cb.setAttribute('aria-label', 'Copy this line');
+        const r = blk.getBoundingClientRect(), d = cdoc.getBoundingClientRect();
+        document.body.appendChild(cb);
+        cb.style.left = `${Math.max(d.left, Math.min(d.right, window.innerWidth - 8) - cb.offsetWidth - 6)}px`;
+        cb.style.top = `${r.top + Math.max(0, (Math.min(r.height, 28) - cb.offsetHeight) / 2)}px`;
+        cb.onmousedown = ev => ev.preventDefault();
+        cb.onclick = async () => { try { await navigator.clipboard.writeText(words); cb.textContent = 'Copied'; setTimeout(hideCb, 900); } catch { toast('Could not copy. Select the line and press Ctrl+C.'); } };
+        cb.onmouseleave = ev => { if (!cdoc.contains(ev.relatedTarget)) hideCb(); };
+      });
+      cdoc.addEventListener('mouseleave', e => { if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.ps-cpy'))) hideCb(); });
+      cdoc.addEventListener('keydown', hideCb);
+      if (!host.dataset.cpy) { host.dataset.cpy = '1'; host.addEventListener('scroll', () => document.querySelectorAll('.ps-cpy').forEach(x => x.remove()), { passive: true }); }
+    }
+    $$('[data-ff]', host).forEach(b => b.onclick = () => { T.ff = b.dataset.ff; paint(); });
     const sh = $('[data-share]', host); if (sh) sh.onclick = async () => { try { const r = await post(H, '/api/production/share', { id }); await navigator.clipboard.writeText(r.url).catch(() => {}); toast('Client link copied. It opens with no login.'); } catch (e) { toast(e.message); } };
-    $$('[data-rev],[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.rev || b.dataset.cmp, compare: !!b.dataset.cmp, onChange: async () => { await reload(); paint(); changed(); } }));
+    const afterRev = async () => { await reload(); paint(); changed(); };
+    $$('[data-open]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.open, onChange: afterRev }));
+    $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev }));
+    const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev }); };
+    $$('[data-dec]', host).forEach(b => b.onclick = async () => {
+      const what = b.dataset.dec, fid = b.dataset.file;
+      if (what === 'ask') { T.asking = fid; paint(); const t = $('[data-askbody]', host); if (t) t.focus(); return; }
+      if (what === 'cancel') { T.asking = null; paint(); return; }
+      const body = what === 'send' ? (($('[data-askbody]', host) || {}).value || '').trim() : '';
+      if (what === 'send' && !body) { const t = $('[data-askbody]', host); if (t) t.focus(); toast('Say what needs to change.'); return; }
+      b.disabled = true;
+      try {
+        const r = await post(H, '/api/production/decide', { id, file_id: fid, ok: what === 'ok', reset: what === 'reopen', body });
+        if (r.error) throw new Error(r.error);
+        T.asking = null;
+        toast(what === 'ok' ? (r.all_approved ? (T.client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.') : 'Approved.') : what === 'send' ? (T.client ? 'Sent to Mobius.' : 'Sent back to be fixed.') : 'Open for review again.');
+        await afterRev();
+      } catch (e) { toast(e.message || 'That did not save.'); b.disabled = false; }
+    });
     const cp = $('[data-cpost]', host); if (cp) cp.onclick = async () => {
       const t = $('[data-cbody]', host), body = t.value.trim(); if (!body) { t.focus(); return; }
       cp.disabled = true;
@@ -590,27 +701,25 @@ async function review(H, id, opts = {}) {
   try { data = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); } catch (e) { toast(e.message || 'Could not open the card.'); return; }
   const client = isClient(H);
   const k = data.card;
-  /* one ad at a time: the file asked for (or the newest) names the ad; every version of that ad goes in */
-  const all = data.files.filter(f => f.kind === 'version');
-  const pick = (opts.version && all.find(f => f.id === opts.version)) || all.slice().sort((a, b) => Date.parse(b.created_at.replace(' ', 'T')) - Date.parse(a.created_at.replace(' ', 'T')))[0];
-  const ad = pick ? pick.ad || '' : '';
-  const ofAd = list => list.filter(f => f.kind === 'version' && (f.ad || '') === ad);
-  const files = ofAd(all);
-  const ui = window.ReviewUI.open({
-    title: `${k.title}${ad ? ` · ad ${ad}` : ''}`, num: `${k.num ? `#${k.num} · ` : ''}${k.brand}`, format: data.brief.format, formatColor: FMT[data.brief.format],
-    files, comments: data.comments, mode: client ? 'client' : 'team', start: opts.compare ? 'compare' : opts.version || null,
-    canDecide: client ? k.needs_client === 'ad' : true,
-    decideHint: client ? 'Approve tells Mobius it is ready to run. Ask for changes needs a note and sends it back.' : `Approve moves it to Ready and records you. Ask for changes needs a note, moves it back to Making${k.owner ? ` and DMs ${k.owner.split(' ')[0]}` : ''}.`,
+  const label = ad => ad ? `Ad ${ad}` : 'The ad';
+  /* every ad of the test goes in (the strip along the bottom); the file asked for picks where it opens */
+  const adsOf = d => (d.ads || []).map(a => ({ ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: d.files.filter(f => f.kind === 'version' && (f.ad || '') === a.ad) }));
+  const canDecide = d => client ? (d.card.needs_client === 'ad' || !!d.card.client_sent_at) : true;
+  const startFile = opts.version && data.files.find(f => f.id === opts.version);
+  const fail = r => { if (r && r.error) throw new Error(r.error); return r; };
+  return window.ReviewUI.open({
+    title: k.title, num: `${k.num ? `#${k.num}` : k.brand}`, format: data.brief.format, formatColor: FMT[data.brief.format],
+    ads: adsOf(data), comments: data.comments, mode: client ? 'client' : 'team', startAd: startFile ? startFile.ad || '' : undefined,
+    start: opts.compare ? 'compare' : opts.version || null, canDecide: canDecide(data),
     api: {
-      note: (fid, body, shape, at) => post(H, '/api/production/comment', { id, file_id: fid, body, shape, at }).then(r => { if (r.error) throw new Error(r.error); return r; }),
-      decide: (ok, body) => post(H, '/api/production/decide', { id, ok, body, file_id: (files.slice().sort((a, b) => a.version - b.version).pop() || {}).id }).then(r => { if (r.error) throw new Error(r.error); toast(ok ? (client ? 'Approved. Thank you.' : 'Approved. The card moved to Ready.') : (client ? 'Sent to Mobius.' : 'Sent back to Making.')); return r; }),
-      fixed: (cid, on) => post(H, '/api/production/fixed', { comment_id: cid, fixed: on }),
+      note: (fid, body, shape, at, name, parentId) => post(H, '/api/production/comment', { id, file_id: fid, body, shape, at, parent_id: parentId || undefined }).then(fail),
+      decide: (ok, body, fid, name, reset) => post(H, '/api/production/decide', { id, ok: !!ok, reset: !!reset, body, file_id: fid }).then(fail).then(r => { toast(reset ? 'Open for review again.' : ok ? (r.all_approved ? (client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.') : 'Approved.') : (client ? 'Sent to Mobius.' : 'Sent back to be fixed.')); return r; }),
+      fixed: (cid, on) => post(H, '/api/production/fixed', { comment_id: cid, fixed: on }).then(fail),
       share: client ? null : () => post(H, '/api/production/share', { id }).then(r => r.url),
-      reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); return { files: ofAd(d.files), comments: d.comments, canDecide: client ? d.card.needs_client === 'ad' : true }; },
+      reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); return { ads: adsOf(d), comments: d.comments, canDecide: canDecide(d) }; },
     },
     onClose: () => { if (opts.onChange) opts.onChange(); },
   });
-  return ui;
 }
 
 /* ================================================================================================================ */
