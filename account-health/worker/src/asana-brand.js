@@ -1,4 +1,4 @@
-import { mirrorOn, pullStories, pruneFiles, fieldsFromText, briefHash, ensureWork } from './prodwork.js';
+import { mirrorOn, pullStories, pruneFiles, briefFromAsana, briefHash, ensureWork } from './prodwork.js';
 import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
@@ -287,7 +287,7 @@ async function connect(env, act, projectGid) {
 }
 
 /* ---------------- 1. SYNC ---------------- */
-const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,permalink_url,due_on,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
+const TASK_FIELDS = 'name,notes,html_notes,completed,completed_at,created_at,modified_at,permalink_url,due_on,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
 /* The brief, in the framework's shape. Dropped into a brand-new task in Creative Brief
    that has nothing written yet, so nobody has to find the template. The same layout
    lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
@@ -402,13 +402,13 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     let notes = clip(t.notes, 8000) || null;
     const row = have.get(n);
     /* Production v2: a brief written in Locus (brief_json) is never overwritten by the text Locus itself put in Asana.
-       Only a real edit of the text in Asana (its hash moved) wins, and then the fields are read back from it. */
+       Only a real edit of the text in Asana (its hash moved) wins, and then the page is read back from Asana's html. */
     if (row && row.brief_json && notes != null) {
       const h = await briefHash(t.notes || '');
       if (h === row.brief_hash) notes = null;
       else {
         let old = null; try { old = JSON.parse(row.brief_json); } catch {}
-        const back = fieldsFromText(t.notes || '', { kind: old?.kind, format: old?.format, insp: old?.insp, sizes: old?.sizes });
+        const back = briefFromAsana(old, t.html_notes, t.notes || '');
         st.push(env.DB.prepare(`UPDATE p_br_batch SET brief_json = ?2, brief_hash = ?3, brief_at = ?4 WHERE id = ?1`).bind(row.id, JSON.stringify(back), h, new Date().toISOString()));
       }
     }

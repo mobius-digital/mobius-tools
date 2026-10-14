@@ -1,5 +1,28 @@
 # Handoff: one Cashew engine for three sets of books (Step B and C), written 2026-10-14
 
+**Status, later the same day (Cole said "do everything"):**
+
+- **B.1 Lucky gets the audit layer: BUILT, pushed to Lucky main (commit 078d3bd), NOT LIVE.** The seven
+  migrations sit in `worker/migrations/`; the deploy workflow applies them before the worker goes up; the worker
+  code has the leases (the nightly and the receipts poll), jobs and `/api/exceptions`, bank provenance on ingest,
+  the revision-guarded close, and the vendor rule that never reaches a closed month. Every existing Lucky suite
+  passes and the new `worker/test-closed.cjs` (12 checks) passes. The deploy run failed closed at the migration
+  step: the repo's `CLOUDFLARE_API_TOKEN` has no D1 permission (Cloudflare code 7403). **Cole:** in the Lucky
+  Golf Cloudflare account, give that token (or a new one in the repo secret) "D1: Edit", then rerun the failed
+  workflow (`gh run rerun 38576071905 --repo LuckyGolfCo/lucky-golf-ledger`). Until then the live Lucky worker is the
+  previous deploy, untouched.
+- **B.2 Mobius gets `acct` and the drill route: LIVE** (migration 0008 applied, worker deployed).
+- **B.3 one engine file: DONE in the Lucky repo.** `worker/src/engine.js` is a byte-for-byte copy of
+  `mobius-tools/ask/engine.js` (which now exports `runAction`), `worker/src/cashew-playbook.js` likewise, the
+  Caddie reads the product playbook from it, and `node worker/shared-check.cjs` says when the copies drift.
+  The Lucky repo stays where it is; the copy is checked, not a subtree. (Goes live with B.1's rerun.)
+- **B.4 one worker, three environments: NOT STARTED.** Reason: a merged worker on the Mobius books cannot be
+  walked end to end from here (Google sign-in), and the Mobius regression suite is written against the Mobius
+  worker's own functions. Next session: build it on a branch in `ledger/worker` from the Lucky base, port the
+  Mobius-only routes (ask/*, gmail, receipt-hunt and match, exceptions replay, Stripe jobs, the AUTH service
+  binding), rewrite the suite against it, and deploy only after Cole walks the live app with the admin token.
+- **C the household edition: waits on B.4.**
+
 The product pass (`docs/cashew-editions.md`) built the picker and the per-edition helper. What it did not do, on
 purpose, is touch the three live databases. This file is the first task one-ledger.md section 6 asks for before
 anything merges: the column-by-column diff of the schemas, the route diff, and the order of work. Start the next
