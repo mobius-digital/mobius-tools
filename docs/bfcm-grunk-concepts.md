@@ -227,6 +227,24 @@ plus White Neon Rose (today's top polo). Real photos from Air wherever possible.
    - Template: product grid.
    - Reference: 287 series (print named big).
 
+### BUILT 2026-10-14 (Cole: yes, name the price)
+
+All 15 made in Locus Studio, Grunk Dolfer, batches "Lead list A, name the price" (1 to 3), "Lead list B, keep it
+secret" (4, 5), "Lead list C, who it is for" (6 to 10), "Lead list D, Grunk voice" (11 to 14), "Hats on the list" (15).
+Image AI about $6. Copies + contact sheet in docs/grunk-bfcm-2026/lead-list/ (not committed, too big).
+
+Changes from the plan: Studio takes at most 4 products a batch, so line 3 is a 2 by 2 grid (Red ChunkMan, Blue
+ChunkMan, The Black Drinko, White Neon Rose), line 10 uses Happy Hour, Desert Gamo, Red ChunkMan, and the hats
+line is its own batch with no price ("Hats are in on it too"; the $89 hat deal wording is still open). Line 7 is
+four polos hanging on four golf bags (no AI people). In-image buttons removed.
+
+Fixes made with Change with AI: the AI wrote other brands' names on collar labels three times (lines 2, 6, 9) and
+a golfer logo on line 9; all changed to Grunk Dolfer and the Chunkman. Next Grunk batches: put "any collar label
+reads Grunk Dolfer, no other brand names" in every look.
+
+Watch: line 14 (and the second polo on line 7) is the real Desert Gamo print, which is rifle silhouettes. Meta may
+flag weapons imagery; swap the polo if it gets rejected.
+
 **Post copy (all 15):** "Thanksgiving, 24 hours, list only: polos 3 for $99. Join the Grunk list and we'll
 send it to you first." Headline field: "Join the Grunk list." CTA: Sign Up.
 
