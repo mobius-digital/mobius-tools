@@ -2,15 +2,13 @@
 
 **Status, later the same day (Cole said "do everything"):**
 
-- **B.1 Lucky gets the audit layer: BUILT, pushed to Lucky main (commit 078d3bd), NOT LIVE.** The seven
-  migrations sit in `worker/migrations/`; the deploy workflow applies them before the worker goes up; the worker
-  code has the leases (the nightly and the receipts poll), jobs and `/api/exceptions`, bank provenance on ingest,
-  the revision-guarded close, and the vendor rule that never reaches a closed month. Every existing Lucky suite
-  passes and the new `worker/test-closed.cjs` (12 checks) passes. The deploy run failed closed at the migration
-  step: the repo's `CLOUDFLARE_API_TOKEN` has no D1 permission (Cloudflare code 7403). **Cole:** in the Lucky
-  Golf Cloudflare account, give that token (or a new one in the repo secret) "D1: Edit", then rerun the failed
-  workflow (`gh run rerun 38576071905 --repo LuckyGolfCo/lucky-golf-ledger`). Until then the live Lucky worker is the
-  previous deploy, untouched.
+- **B.1 Lucky gets the audit layer: LIVE (Lucky commit 1f4184a, 2026-10-14 evening).** The repo's deploy token
+  has no D1 permission, so the worker applies the layer itself: `worker/src/audit-layer.js` (generated from the
+  seven `.sql` files, every statement safe to run twice) runs once on the first `/api/*` request or cron after a
+  deploy and remembers in `settings.auditLayer`; the public `/api/config` shows the version
+  (`"auditLayer":"2026-10-14.1"` on the live worker). No token was needed, nothing for Cole. The deploy workflow
+  no longer has a migrations step. The leases, jobs, `/api/exceptions`, provenance, the revision-guarded close
+  and the vendor rule are all live with it. Watch the first nightly.
 - **B.2 Mobius gets `acct` and the drill route: LIVE** (migration 0008 applied, worker deployed).
 - **B.3 one engine file: DONE in the Lucky repo.** `worker/src/engine.js` is a byte-for-byte copy of
   `mobius-tools/ask/engine.js` (which now exports `runAction`), `worker/src/cashew-playbook.js` likewise, the
