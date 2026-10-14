@@ -1,5 +1,10 @@
 # Handoff: Cashew, the whole product, through the eyes of who is using it (2026-10-14)
 
+**Status, end of 2026-10-14:** steps 1, 2 and 4 are built and live (`docs/cashew-editions.md` is the record:
+the cuts, the books picker in all three apps, the per-edition helper playbook in `ask/cashew-playbook.js`).
+Step 3 (one engine) was not started on purpose: three live databases with real money; the column diff and the
+exact order are in `docs/handoffs/cashew-one-engine.md`. Start the next session from that file.
+
 Start a fresh chat from this file. It is the product pass Cole asked for, in his words, with the state of
 everything already built, so the next session does not re-ask what is settled.
 

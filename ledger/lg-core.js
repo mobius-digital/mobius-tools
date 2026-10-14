@@ -18,9 +18,9 @@ let NAV = ED.nav, PAGE_TITLE = edTitles();
 /* Every page title any edition knows, so a page outside the current rail still has a name. */
 const ALL_TITLES = (() => { const t = {}; for (const e of Object.values(EDITIONS)) for (const g of e.nav) for (const p of g.pages) t[p[0]] = t[p[0]] || p[1]; t.settings = 'Settings'; return t; })();
 /* Old ids still route. The engine's Reports and Dashboards tabs map onto pages of their own. */
-const LEGACY = { dash: 'overview', caddie: 'overview', forecast: 'forecast', cashflow: 'forecast', exports: 'pack', statement: 'statements', performance: 'pnl', spending: 'costs', clients: 'retainers' };
+const LEGACY = { dash: 'overview', caddie: 'overview', health: 'pnl', forecast: 'forecast', cashflow: 'forecast', exports: 'pack', statement: 'statements', performance: 'pnl', spending: 'costs', clients: 'retainers' };
 const REPORT_TAB_PAGE = { pnl: 'pnl', statement: 'statements', cash: 'forecast', taxes: 'taxes', exports: 'pack' };
-const DASH_TAB_PAGE = { performance: 'pnl', clients: 'retainers', spending: 'costs', health: 'health' };
+const DASH_TAB_PAGE = { performance: 'pnl', clients: 'retainers', spending: 'costs', health: 'pnl' };
 function rebuildNav() { NAV = ED.nav; PAGE_TITLE = edTitles(); }
 function navOf(view) { return NAV.find(g => g.pages.some(p => p[0] === view)) || null; }
 const NAV_LAST = (() => { try { return JSON.parse(localStorage.getItem('ledger_navlast') || '{}'); } catch (e) { return {}; } })();
@@ -226,6 +226,19 @@ function pillMenu(id, label, items, cur, onPick, extra = '') {
   return `<div class="pm" id="${id}"><button type="button" class="pm-btn" onclick="toggleMenu('${id}')">${esc(label)}<svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
     <div class="pm-menu" hidden role="menu">${items.map(([v, l]) => `<button type="button" class="${v === cur ? 'on' : ''}" onclick="${onPick.replace('%v', v)}">${esc(l)}</button>`).join('')}${extra}</div></div>`;
 }
+/* The books picker: which set of books this is, and the owner's other sets, each
+   a link to its own deployment. Nothing carries over on purpose (a different
+   origin, a different sign-in list). The current one is marked; the edition
+   under each name says what kind of books it is. */
+function booksMenuHTML() {
+  const list = booksList(), here = booksHere(list);
+  const edLabel = id => (EDITIONS[id] || {}).label || '';
+  const rows = list.map(b => b === here
+    ? `<button type="button" class="on" onclick="closeMenus()"><span class="bk"><b>${esc(b.name)}</b><small>${esc(edLabel(b.edition))} · these books</small></span></button>`
+    : `<a href="${esc(b.url)}" class="bk-link"><span class="bk"><b>${esc(b.name)}</b><small>${esc(edLabel(b.edition))}</small></span>${icon('external-link', 13)}</a>`).join('');
+  return `<div class="pm books" id="pmBooks"><button type="button" class="pm-btn" onclick="toggleMenu('pmBooks')" title="Switch books">${icon('chevrons-up-down', 14)}</button>
+    <div class="pm-menu" hidden role="menu"><div class="lb">Your books</div>${rows}<div class="lb">Each set of books is separate</div><button type="button" onclick="closeMenus();SET.sec='access';show('settings')">Manage the list ›</button></div></div>`;
+}
 function toggleMenu(id) { const m = document.querySelector(`#${id} .pm-menu`); if (!m) return; const open = m.hidden; closeMenus(); m.hidden = !open; }
 function closeMenus() { document.querySelectorAll('.pm-menu').forEach(m => m.hidden = true); const p = $('#askPop'); if (p) p.hidden = true; }
 document.addEventListener('click', e => { if (!e.target.closest('.pm') && !e.target.closest('.askbar')) closeMenus(); });
@@ -283,6 +296,7 @@ paintNav = function () {
   const nm = $('#meName'); if (nm) nm.textContent = whoName();
   const av = $('#meAv'); if (av) av.textContent = whoName().slice(0, 1).toUpperCase();
   const by = $('#brandBy'); if (by) by.textContent = ED.by;
+  const bp = $('#booksPick'); if (bp) bp.innerHTML = booksMenuHTML();
   const ab = $('#askIn2'); if (ab) ab.placeholder = `Ask the ${ED.assistant}, or jump to a page`;
 };
 setChip = function (t, s) {

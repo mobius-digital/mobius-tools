@@ -78,7 +78,38 @@ function secSlack() {
     ${AskUI.settingsCard()}`;
 }
 function secAccessV6() {
-  return `<h2>Access</h2><p class="hint">Who can sign in, how the app looks on this device, and where it reads the books from.</p>${setAccess()}`;
+  return `<h2>Access</h2><p class="hint">Who can sign in to these books, the other sets of books you keep, how the app looks on this device, and where it reads the books from.</p>${booksCard()}${setAccess()}`;
+}
+/* ---- Your books: the owner's list of the separate sets of books they keep ---- */
+function booksCard() {
+  const list = booksList(), here = booksHere(list), edLabel = id => (EDITIONS[id] || {}).label || '';
+  const rows = list.map((b, i) => srow(`${esc(b.name)}${b === here ? ' <span class="pill good">these books</span>' : ''}`, `${esc(edLabel(b.edition))} · <span class="mono">${esc(b.url.replace(/^https?:\/\//, ''))}</span>`,
+    b === here ? '' : `<a class="btn sm ghost" href="${esc(b.url)}">Open</a><button class="btn sm ghost danger" onclick="removeBooks(${i})">Remove</button>`)).join('');
+  return card('Your books', 'Each set of books is its own app, its own sign-in list, its own bank links and Slack channel. Nothing here is shared with them; this list is only the picker at the top of the rail.', rows + `<div class="row" style="margin-top:12px"><button class="btn" onclick="addBooksModal()">${icon('plus', 14)} Add a set of books</button></div>`);
+}
+function addBooksModal() {
+  openModal(`<h3>Add a set of books</h3>
+    <label>Name</label><input id="bkName" placeholder="e.g. Lucky Golf" maxlength="40">
+    <label>Address</label><input id="bkUrl" type="url" placeholder="https://ledger.example.com/">
+    <label>What kind of books</label><select id="bkEd">${EDITION_ORDER.map(id => `<option value="${id}">${esc(EDITIONS[id].label)}</option>`).join('')}</select>
+    <div class="hint" style="margin-top:8px">Adds a link to the picker. You still sign in there with whatever that set of books allows.</div>
+    <div class="acts"><span class="spacer"></span><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="addBooks()">Add</button></div><div class="msg" id="bkMsg"></div>`);
+}
+async function saveBooks(list) {
+  const r = await api('/api/settings', { method: 'PUT', body: JSON.stringify({ books: list }) });
+  if (S.boot) S.boot.books = r.books || list;
+  paintNav(); renderSettings();
+}
+async function addBooks() {
+  const name = $('#bkName').value.trim(), url = $('#bkUrl').value.trim(), edition = $('#bkEd').value;
+  const msg = $('#bkMsg');
+  if (!name || !/^https:\/\//.test(url)) { msg.className = 'msg bad'; msg.textContent = 'A name and an https address are needed.'; return; }
+  try { await saveBooks([...booksList(), { id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24), name, url, edition }]); closeModal(); flash('Added to the picker.'); }
+  catch (e) { msg.className = 'msg bad'; msg.textContent = e.message; }
+}
+async function removeBooks(i) {
+  const list = booksList().slice(); const [gone] = list.splice(i, 1);
+  try { await saveBooks(list); flash(`${gone.name} removed from the picker. Its books are untouched.`); } catch (e) { flash(e.message); }
 }
 /* ---- Data: the tools for when something looks thin or wrong ---- */
 function secData() {
@@ -94,7 +125,7 @@ Object.assign(SCREEN_NAMES, {
   overview: 'Overview (the month at a glance, with the findings and briefing)', pnl: 'Profit and loss', balance: 'Balance sheet', costs: 'Costs (what repeats every month)', taxes: 'Taxes',
   forecast: 'Cash forecast', plan: 'Cash plan', txns: 'Transactions', receipts: 'Receipts', close: 'Close the month',
   retainers: 'Retainers (clients and concentration)', invoices: 'Invoices and Stripe', contractors: 'Contractors and 1099s',
-  statements: 'Statements (the monthly report card)', pack: 'CPA pack', creports: 'Reports the helper built, and earlier chats', health: 'Business health', settings: 'Settings',
+  statements: 'Statements (the monthly report card)', pack: 'CPA pack', creports: 'Reports the helper built, and earlier chats', settings: 'Settings',
 });
 AskUI.state.name = ED.assistant;
 AskUI.state.screen = () => {

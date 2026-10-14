@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Inter is the app face; Instrument Serif italic is the accent word on the gate (logo/kit.css). -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ledger.css?v=8">
+<link rel="stylesheet" href="ledger.css?v=9">
 <!-- The brand kit (logo/kit.css): the green field, the accent word and the gate. ledger.css carries fallbacks for the same tokens. -->
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="../ask/ask.css?v=10">
@@ -36,7 +36,7 @@
      Spec: docs/one-ledger.md section 6, docs/handoffs/ledger-shell-a.md. -->
 <div class="app">
   <aside class="side no-print" id="side">
-    <a class="side-brand" href="./" onclick="show('overview');return false"><img src="../logo/cashew/icons/favicon.svg" alt=""><span><span class="nm">Cashew</span><span class="by" id="brandBy">Mobius Digital</span></span></a>
+    <div class="side-top"><a class="side-brand" href="./" onclick="show('overview');return false"><img src="../logo/cashew/icons/favicon.svg" alt=""><span><span class="nm">Cashew</span><span class="by" id="brandBy">Mobius Digital</span></span></a><span id="booksPick"></span></div>
     <div class="side-scroll"><nav class="tabs" id="nav" aria-label="Primary"></nav></div>
     <div class="side-foot">
       <button type="button" class="vsettings" id="railSettings" onclick="show('settings')"><svg viewBox="0 0 24 24"><use href="#i-settings"/></svg><span>Settings</span></button>
@@ -3478,12 +3478,12 @@ renderOverview = async function(){
 boot();
 </script>
 <!-- The v6 shell: loaded after the engine and overriding it by name. -->
-<script src="lg-edition.js?v=1"></script>
-<script src="lg-core.js?v=1"></script>
+<script src="lg-edition.js?v=2"></script>
+<script src="lg-core.js?v=2"></script>
 <script src="lg-home.js?v=1"></script>
-<script src="lg-money.js?v=1"></script>
+<script src="lg-money.js?v=2"></script>
 <script src="lg-cash.js?v=1"></script>
 <script src="lg-books.js?v=1"></script>
-<script src="lg-settings.js?v=1"></script>
+<script src="lg-settings.js?v=2"></script>
 </body>
 </html>
