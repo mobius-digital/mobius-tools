@@ -108,7 +108,12 @@ function css() {
 .ps-doc p{margin:0 0 6px}.ps-doc ol,.ps-doc ul{margin:0 0 8px;padding-left:24px}.ps-doc li{margin:2px 0}
 .ps-doc blockquote{margin:6px 0;padding:4px 12px;border-left:3px solid var(--line-strong);color:var(--ink-2)}
 .ps-doc pre,.ps-doc code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-2);border-radius:4px;padding:1px 4px;white-space:pre-wrap}
-.ps-doc a{color:var(--brand)}
+.ps-doc a{color:var(--brand);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.ps-lb{position:fixed;z-index:1000;display:flex;align-items:center;gap:4px;max-width:min(440px,calc(100vw - 24px));background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:4px 4px 4px 10px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:12.5px}
+.ps-lb .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.ps-lb button,.ps-lb a{font:inherit;font-size:12.5px;font-weight:600;color:var(--brand);background:none;border:0;padding:4px 8px;border-radius:6px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.ps-lb button:hover,.ps-lb a:hover{background:var(--surface-2)}
+.ps-lb .x{color:var(--muted)}
 .ps-doc img{max-width:min(100%,420px);max-height:360px;border-radius:8px;display:block;margin:8px 0;border:1px solid var(--line)}
 .ps-doc video{max-width:min(100%,480px);border-radius:8px;display:block;margin:8px 0;background:var(--ink)}
 .ps-doc [data-ph]{color:var(--muted);font-style:italic}
@@ -338,7 +343,7 @@ async function open(H, id, opts = {}) {
     const B = T.B, k = c();
     const decide = k.needs_client === 'idea' ? `<div class="ps-wait"><span>Mobius would like your OK on this idea before they make it${k.client_due ? `, by ${short(k.client_due)}` : ''}.</span><button class="ps-btn ok" data-decide="yes">Approve the idea</button><button class="ps-btn" data-decide="no">Ask for changes</button></div>` : '';
     const page = noHints(B.html).replace(/<span data-ai>|<\/span>/g, '');
-    const body = page.replace(/<p><br><\/p>/g, '').trim() ? `<div class="ps-doc ro">${page}</div>` : '<p class="ps-hint">The brief is still being written.</p>';
+    const body = page.replace(/<p><br><\/p>/g, '').trim() ? `<div class="ps-doc ro">${page.replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')}</div>` : '<p class="ps-hint">The brief is still being written.</p>';
     return `${decide}${body}<p class="ps-hint" style="margin:0">${esc(B.format)}${B.sizes && B.sizes.length ? ` · ${esc(B.sizes.join(', '))}` : ''}</p>`;
   }
 
@@ -422,13 +427,47 @@ async function open(H, id, opts = {}) {
       doc.addEventListener('paste', async e => {
         const items = [...((e.clipboardData && e.clipboardData.items) || [])].filter(x => x.kind === 'file');
         if (items.length) { e.preventDefault(); for (const it of items) { const f = it.getAsFile(); if (f) await putInline(f); } return; }
+        /* A pasted web address goes in as a link: over selected words it links them, on its own it is the link. */
+        const plain = ((e.clipboardData && e.clipboardData.getData('text/plain')) || '').trim();
+        if (/^https?:\/\/\S+$/.test(plain)) {
+          e.preventDefault();
+          const sel = window.getSelection();
+          if (sel && sel.toString().trim()) document.execCommand('createLink', false, plain);
+          else document.execCommand('insertHTML', false, `<a href="${esc(plain)}">${esc(plain)}</a>&nbsp;`);
+          sync(); return;
+        }
         const html = e.clipboardData && e.clipboardData.getData('text/html');
         if (html) { e.preventDefault(); document.execCommand('insertHTML', false, html.replace(/<meta[^>]*>|<!--[\s\S]*?-->/g, '').replace(/ style="[^"]*"| class="[^"]*"/g, '')); sync(); }
       });
       doc.addEventListener('dragover', e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); doc.classList.add('over'); } });
       doc.addEventListener('dragleave', () => doc.classList.remove('over'));
       doc.addEventListener('drop', async e => { doc.classList.remove('over'); const fs = [...(e.dataTransfer.files || [])]; if (!fs.length) return; e.preventDefault(); for (const f of fs) await putInline(f); });
-      doc.addEventListener('click', e => { const a = e.target.closest('a[href]'); if (a && (e.ctrlKey || e.metaKey)) { window.open(a.href, '_blank', 'noopener'); e.preventDefault(); } });
+      /* A link in an editable page cannot open on a plain click (the click places the cursor), so a click shows a bubble
+         under it: the address, Open, Edit, Remove. Ctrl / Cmd + click still opens it straight away. */
+      const closeLb = () => { const b = document.querySelector('.ps-lb'); if (b) b.remove(); document.removeEventListener('mousedown', lbAway, true); };
+      const lbAway = e => { if (!e.target.closest('.ps-lb')) closeLb(); };
+      doc.addEventListener('click', e => {
+        const a = e.target.closest('a[href]'); closeLb();
+        if (!a || !doc.contains(a)) return;
+        if (e.ctrlKey || e.metaKey) { window.open(a.href, '_blank', 'noopener'); e.preventDefault(); return; }
+        const r = a.getBoundingClientRect(), lb = document.createElement('div');
+        lb.className = 'ps-lb'; lb.setAttribute('role', 'dialog'); lb.setAttribute('aria-label', 'Link');
+        lb.innerHTML = `<span class="u" title="${esc(a.href)}">${esc(a.href.replace(/^https?:\/\//, ''))}</span><a href="${esc(a.href)}" target="_blank" rel="noopener">Open ↗</a><button type="button" data-lb="edit">Edit</button><button type="button" class="x" data-lb="rm">Remove</button>`;
+        document.body.appendChild(lb);
+        const w = lb.offsetWidth; lb.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + 'px'; lb.style.top = (r.bottom + 6 + lb.offsetHeight > window.innerHeight ? r.top - lb.offsetHeight - 6 : r.bottom + 6) + 'px';
+        lb.querySelector('a').onclick = () => setTimeout(closeLb, 0);
+        lb.querySelector('[data-lb="rm"]').onclick = () => { closeLb(); a.replaceWith(...a.childNodes); sync(); };
+        lb.querySelector('[data-lb="edit"]').onclick = async () => {
+          closeLb();
+          const url = await ask('Edit the link', 'Link', { value: a.getAttribute('href') || '', ok: 'Save' });
+          if (!url) return;
+          if (!/^https?:\/\/\S+$/.test(url)) { toast('That is not a link. It should start with https://'); return; }
+          if (a.textContent === a.getAttribute('href')) a.textContent = url;
+          a.setAttribute('href', url); sync();
+        };
+        setTimeout(() => document.addEventListener('mousedown', lbAway, true), 0);
+      });
+      doc.addEventListener('keydown', closeLb); host.addEventListener('scroll', closeLb, true);
       let savedRange = null;
       const keepSel = () => { const s = window.getSelection(); if (s && s.rangeCount && doc.contains(s.anchorNode)) savedRange = s.getRangeAt(0).cloneRange(); };
       const backSel = () => { doc.focus(); const s = window.getSelection(); if (savedRange) { s.removeAllRanges(); s.addRange(savedRange); } };

@@ -300,7 +300,10 @@ export function sanitizeHtml(html) {
     if (tok.startsWith('<!--')) continue;
     if (!m[1]) {
       if (skip) continue;
-      out += tok === '<' ? '&lt;' : tok.replace(/&(?!(#x[0-9a-f]+|#\d+|[a-z]+);)/gi, '&amp;').replace(/\r?\n/g, ' ').replace(/​/g, '');
+      const txt = tok === '<' ? '&lt;' : tok.replace(/&(?!(#x[0-9a-f]+|#\d+|[a-z]+);)/gi, '&amp;').replace(/\r?\n/g, ' ').replace(/​/g, '');
+      /* A typed web address becomes a link (2026-10-14, Cole: "why can't links be clicked in the briefs?"); one already
+         inside a link is left alone. Trailing punctuation stays outside the link. */
+      out += stack.includes('a') ? txt : txt.replace(/https?:\/\/[^\s<>"']+/g, u => { const t = (u.match(/[.,;:!?)\]]+$/) || [''])[0]; const h = t ? u.slice(0, -t.length) : u; return `<a href="${h.replace(/"/g, '&quot;')}">${h}</a>${t}`; });
       continue;
     }
     const closing = tok[1] === '/';
