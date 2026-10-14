@@ -3306,3 +3306,12 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   a one-column grid row is `minmax(0,1fr)`, never `1fr`, or a long word still widens it.
 - Tasks under 600 is a two-line grid (`grid-template-areas`); the How we work tables scroll inside their card at every
   width (they were cut off on the desktop too).
+- **Everything comes from the bottom on a phone (same day, Cole: "like a native app").** `profit/phone.js` (deferred,
+  after the boot script) owns one bottom-sheet primitive, `#lxSheet` (`window.LxPhone.open/close/more/client`). Under
+  720: More in the phone bar opens the sheet (client row, the destinations not in the bar, Tools, Brand settings,
+  theme, profile items; every row clicks the REAL rail / profile button), the client picker is the same sheet hosting
+  the real `#pfPick` menu node (moved in and back, so index.html's handlers keep working), every `.hd-period.open
+  .hd-per-menu` is fixed to the bottom by phone.css with `#lxMenuScrim` behind it, `#v2panel` and the card sheet slide
+  up full screen, the brief toolbar is one scrolling row. The rail drawer is iPad-only now. The helper's face is full
+  opacity on a phone and the ask bar has none (the two faded faces read as blur). A new popover anywhere in Locus
+  should be a `.hd-period` menu or use `LxPhone.open` so it lands at the bottom on a phone.

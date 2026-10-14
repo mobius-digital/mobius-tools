@@ -57,6 +57,28 @@ Overview, Plan, P&L, Day check, Today, Production, Tasks, Google campaigns and M
 a real iPhone or iPad (the pane emulates size, touch points and user agent, not Safari), and the Daily Brief / Reports
 bodies, which 401 on the local pair and were audited as shells only.
 
+## Second pass, the same day: everything comes from the bottom (Cole: "like a native app")
+
+Cole's read of the first pass on his phone: the top looked "almost blurry" by the search bar, More and the client
+picker slid in from the side, and the brief looked clunky. He also asked whether every part had been audited: no,
+the audit measured page bodies only, never the sheets, menus or the brief editor.
+
+- **The blur** was the helper's face at 35% opacity (the "asleep" state, right for the 10px desktop dot, wrong for
+  the character picture) drawn twice side by side, in the badge and in the ask bar. On a phone the badge face is
+  full opacity and the ask bar has no face.
+- **`profit/phone.js`** (deferred, after the boot script): one bottom-sheet primitive (`#lxSheet`: scrim, grab
+  handle, slide up, swipe down or Escape or scrim to close). More in the phone bar opens it with the client row,
+  the destinations not in the bar, Tools and Brand settings, Dark/Light, and the profile items; every row clicks
+  the REAL rail or profile button, so nothing in index.html changed. The client picker is the same sheet hosting
+  the real `#pfPick` menu node (moved in, moved back on close), so its search and the document click handlers
+  keep working. A scrim (`#lxMenuScrim`) sits behind any open `.hd-period` menu and closes it on tap.
+- **phone.css**: under 720 every `.hd-period.open .hd-per-menu` (period, attribution, PillMenu, Columns, Export)
+  is fixed to the bottom with a handle and 46px rows; `#v2panel` and the card sheet slide UP full screen instead
+  of in from the right; the card sheet's inset is 14px, the brief toolbar is one row that scrolls sideways with
+  36px tools. Modals already sat at the bottom (index.html, 720 block). The rail drawer is now iPad-only.
+- Checked at 375 on the local pair: More sheet, client sheet (pick All clients: page switched, node moved back),
+  the period menu with its scrim, the card sheet's Brief and Ads tabs.
+
 ## Still open
 
 - Page tabs (`#v2seg`) scroll sideways on a phone with no hint that more exist (Reports cut to "Re").

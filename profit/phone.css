@@ -12,7 +12,7 @@
   [data-ui="v2"] .lx-nudge-host{order:-1}
   /* the ask bar shares row 1 with the badge: the 44px phone rule in index.html had pushed its input and
      Chats button out of the 38px box, so the bar itself is the 44px target and its parts stay inside */
-  [data-ui="v2"] .v2ask{order:0;flex:1 1 0;min-width:0;height:44px}
+  [data-ui="v2"] .v2ask{order:0;flex:1 1 calc(100% - 60px);min-width:0;height:44px}
   [data-ui="v2"] .v2ask input{min-height:0}
   [data-ui="v2"] .v2chats{min-height:0;height:30px}
   [data-ui="v2"] #hdToday,[data-ui="v2"] #hdPeriod,[data-ui="v2"] #hdModel{order:1}
@@ -76,6 +76,71 @@
   .tk .tk-row > .t{grid-area:t}
   .tk .tk-row > :nth-last-child(2){grid-area:w;justify-self:start}
   .tk .tk-row > :last-child{grid-area:d;text-align:left;justify-self:start;align-self:center}
+}
+/* ==========================================================================
+   FROM THE BOTTOM (2026-10-15, Cole: "should everything come from the bottom of the screen, like a native app?").
+   Under 720 nothing slides in from the side: More and the client picker are a bottom sheet (phone.js, #lxSheet),
+   every top-bar menu is drawn at the bottom, the side panel and the card sheet slide up, modals already did.
+   ========================================================================== */
+@keyframes lxs-up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+#lxSheet{position:fixed;inset:0;z-index:90}
+#lxSheet[hidden]{display:none}
+#lxSheet .lxs-scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);opacity:0;transition:opacity 220ms var(--ease,ease)}
+#lxSheet.on .lxs-scrim{opacity:1}
+#lxSheet .lxs-box{position:absolute;left:0;right:0;bottom:0;max-height:min(86dvh,720px);display:flex;flex-direction:column;background:var(--surface);color:var(--ink);border-radius:18px 18px 0 0;box-shadow:var(--sh-sheet,0 -12px 40px rgba(0,0,0,.25));transform:translateY(100%);transition:transform 240ms var(--ease,ease);padding-bottom:env(safe-area-inset-bottom,0px)}
+#lxSheet.on .lxs-box{transform:none}
+#lxSheet .lxs-grab{display:flex;justify-content:center;padding:10px 0 2px;touch-action:none;cursor:grab}
+#lxSheet .lxs-grab i{width:40px;height:5px;border-radius:999px;background:var(--line-strong)}
+#lxSheet .lxs-h{display:flex;align-items:center;justify-content:space-between;padding:4px 10px 6px 18px;touch-action:none}
+#lxSheet .lxs-h b{font-size:16px;font-weight:650;letter-spacing:-.01em}
+#lxSheet .lxs-h.bare b{display:none}
+#lxSheet .lxs-x{margin-left:auto;font:inherit;font-size:22px;line-height:1;width:40px;height:40px;border:0;border-radius:50%;background:var(--surface-2);color:var(--muted);cursor:pointer;min-height:0}
+#lxSheet .lxs-b{overflow-y:auto;padding:0 10px 12px;-webkit-overflow-scrolling:touch}
+#lxSheet .lxs-sec{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+#lxSheet .lxs-row{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:6px 10px;border:0;border-radius:var(--r-md,10px);background:transparent;color:var(--ink);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+#lxSheet .lxs-row:active{background:var(--surface-2)}
+#lxSheet .lxs-row[aria-current="page"]{background:var(--brand-soft);font-weight:600}
+#lxSheet .lxs-ic{width:28px;height:28px;display:inline-grid;place-items:center;color:var(--muted);flex:none}
+#lxSheet .lxs-ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+#lxSheet .lxs-row[aria-current="page"] .lxs-ic{color:var(--brand)}
+#lxSheet .lxs-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+#lxSheet .lxs-t small{font-size:12.5px;color:var(--muted);font-weight:400}
+#lxSheet .lxs-chev{width:8px;height:13px;color:var(--faint);flex:none}
+#lxSheet .lxs-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 10px;border-radius:var(--r-md,10px);background:var(--surface-2)}
+#lxSheet .lxs-seg button{min-height:40px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+#lxSheet .lxs-seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-card,0 1px 2px rgba(0,0,0,.12))}
+/* the real client menu, hosted in the sheet */
+#lxSheet .hd-per-menu{display:block;position:static;box-shadow:none;border:0;border-radius:0;animation:none;max-height:none;min-width:0;width:auto;padding:0;background:transparent}
+#lxSheet .lc-pick-menu input{width:100%;box-sizing:border-box;min-height:44px;margin:4px 0 8px;border-radius:var(--r-md,10px)}
+#lxSheet .lc-pick-menu [data-act],#lxSheet .lc-pick-add{display:flex;align-items:center;width:100%;min-height:48px;padding:6px 12px;border:0;border-radius:var(--r-md,10px);background:transparent;color:var(--ink);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+#lxSheet .lc-pick-menu [data-act].on{background:var(--brand-soft);font-weight:600}
+#lxSheet .lc-pick-add{color:var(--brand);font-weight:600}
+body.lxs-open{overflow:hidden}
+/* top-bar menus at the bottom */
+#lxMenuScrim{position:fixed;inset:0;z-index:79;background:rgba(0,0,0,.42)}
+#lxMenuScrim[hidden]{display:none}
+@media (max-width:720px){
+  body.lxm-open{overflow:hidden}
+  [data-ui="v2"] .hd-period.open .hd-per-menu{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;min-width:0;max-width:none;max-height:min(80dvh,640px);overflow-y:auto;z-index:80;border-radius:18px 18px 0 0;border:0;box-shadow:var(--sh-sheet,0 -12px 40px rgba(0,0,0,.25));padding:14px 10px calc(12px + env(safe-area-inset-bottom,0px));animation:lxs-up 220ms var(--ease,ease) both;transform-origin:bottom center}
+  [data-ui="v2"] .hd-period.open .hd-per-menu::before{content:"";display:block;width:40px;height:5px;border-radius:999px;background:var(--line-strong);margin:-4px auto 10px}
+  [data-ui="v2"] .hd-period.open .hd-per-menu button{min-height:46px;font-size:15px}
+  /* the side panel and the card sheet rise from the bottom */
+  [data-ui="v2"] #v2panel{top:0;right:0;bottom:0;left:0;width:100vw;border:0;border-radius:0;transform:translateY(100%);transition:transform 260ms var(--ease,ease),opacity 260ms var(--ease,ease)}
+  [data-ui="v2"] #v2panel.on{transform:none}
+  [data-ui="v2"] #v2panel.sheet{top:0;bottom:0;left:0;right:0;width:100vw;transform:translateY(100%);opacity:1}
+  [data-ui="v2"] #v2panel.sheet.on{transform:none;opacity:1}
+  /* the card sheet on a phone: tighter inset, the meta as a compact two-column grid, the brief toolbar one row
+     that scrolls sideways (it wrapped into two ragged rows), thumb-sized tools */
+  [data-ui="v2"] #v2panel.sheet .pb{padding:14px 14px 48px}
+  [data-ui="v2"] #v2panel.sheet .ps-meta{gap:10px 12px}
+  [data-ui="v2"] .ps-tb{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;gap:4px}
+  [data-ui="v2"] .ps-tb::-webkit-scrollbar{display:none}
+  [data-ui="v2"] .ps-tb button[data-tool]{height:36px;min-height:0;flex:none;font-size:13px}
+  [data-ui="v2"] .ps-tb .sep{flex:none}
+  [data-ui="v2"] .ps-doc{padding:14px}
+  /* the top: one character (the badge), a plain search bar, no faded face */
+  [data-ui="v2"] .topbar .lx-face{opacity:1}
+  [data-ui="v2"] .v2ask .lx-ask-face{display:none}
 }
 /* touch: hit areas (the look stays; a pseudo element takes the tap) */
 @media (pointer:coarse){
