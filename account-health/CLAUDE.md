@@ -93,6 +93,7 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   closed with no `SLACK_SIGNING_SECRET`. Slack allows three seconds: buttons ack
   immediately and work in `ctx.waitUntil`, EXCEPT `views.open` which must happen
   inside the ack because a `trigger_id` expires.
+- **(2026-10-14: the Ledger is now Cashew on ITS OWN Slack app, A0C99FUDBA8, events and interactivity straight to mobius-ledger; slack-router serves Locus and Pulse only. The paragraph below is history.)**
 - **One Slack app, one interactivity URL, three tools.** The URL points at the
   LEDGER worker, which classifies and forwards: `{id, tax}` values are Ledger's,
   `brief_*` / `report_*` / `noop_open` action ids and modal callback ids come
@@ -1275,7 +1276,7 @@ Strategist's tools and cards, scheduled task / check / dashboard / report, route
   before) | task (the Strategist runs the instruction; each proposal is posted as an Apply card in the thread under the
   answer, never applied) | report (make_report text posted) | check (checkNow posted, no model) | dashboard
   (`postDashboard` to the schedule's channel, no model). Only question / task / report count toward the 10 a day.
-- **DMs go to the Strategist** (slack-router: `dm || locusOwns`). `handleSlackEvent` DM path: `dmGate` = Slack users.info,
+- **DMs go to the Strategist** (slack-router: `dm || locusOwns`; since 2026-10-14 a group DM (mpim) too, and `/slack/owns` says yes for a group DM because an app_mention carries no channel_type, `isGroupDm` caches conversations.info per channel; a channel nobody owns is dropped, the Ledger has its own app). `handleSlackEvent` DM path: `dmGate` = Slack users.info,
   full members only (no guests, strangers, bots), a Mobius email (`emailAllowed`) or a userBrands person (ACCESS RULE in
   the note); the brand comes from the words. The Ledger lost nothing: it only answered TEXT asks in DMs (a DM with a file
   was ignored there) and reads receipts from #receipts by its own poll. **`ask_ledger`** (Cole only: Slack user

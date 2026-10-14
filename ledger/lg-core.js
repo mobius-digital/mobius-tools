@@ -374,9 +374,9 @@ boot = async function () {
 /* ---- the helper in the ask bar ----
    The Cashew character (logo/cashew/character/<state>.png, a rendered
    image, 200px cut-outs), one picture per state:
-   asleep when signed out, thinking while the Controller works, found when it
+   asleep when signed out, thinking while Cashew works, found when it
    has open findings, clear when the checks ran clean, rest while it has not
-   looked yet. The Controller's own state (AskUI.state) drives it. */
+   looked yet. Cashew's own state (AskUI.state) drives it. */
 const HELPER_STATES = new Set(['rest', 'asleep', 'thinking', 'found', 'clear']);
 function setHelper(state) {
   if (!HELPER_STATES.has(state)) state = 'rest';

@@ -26,19 +26,19 @@ const EDITIONS = {
   service: {
     id: 'service', label: 'Service business',
     hint: 'An agency, a consultant, a studio. Clients and retainers, Stripe, contractors, the owner split and the tax set-aside.',
-    assistant: 'Controller', by: 'Mobius Digital', business: 'Business',
+    assistant: 'Cashew', by: 'Mobius Digital', business: 'Business',
     nav: [
       { id: 'home', label: 'Home', icon: 'home', pages: [['overview', 'Overview']] },
       { id: 'money', label: 'Money', icon: 'chart-line', pages: [['pnl', 'Profit and loss'], ['balance', 'Balance sheet'], ['costs', 'Costs'], ['taxes', 'Taxes']] },
       { id: 'cash', label: 'Cash', icon: 'dollar', pages: [['forecast', 'Forecast'], ['plan', 'Plan']] },
       { id: 'books', label: 'Books', icon: 'receipt', pages: [['txns', 'Transactions'], ['receipts', 'Receipts'], ['close', 'Close']] },
       { id: 'clients', label: 'Clients', icon: 'users', pages: [['retainers', 'Retainers'], ['invoices', 'Invoices and Stripe'], ['contractors', 'Contractors']] },
-      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Controller reports'], ['health', 'Business health']] },
+      { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Cashew reports'], ['health', 'Business health']] },
     ],
     phone: ['home', 'money', 'cash', 'books'],
     settings: [
       ['business', 'Business', 'building'], ['money', 'Money rules', 'sliders'], ['clients', 'Clients', 'users'], ['categories', 'Categories', 'tag'],
-      ['vendors', 'Vendors', 'store'], ['banks', 'Banks and cards', 'landmark'], ['slack', 'Slack and the Controller', 'message'], ['access', 'Access', 'key'], ['data', 'Data', 'refresh'],
+      ['vendors', 'Vendors', 'store'], ['banks', 'Banks and cards', 'landmark'], ['slack', 'Slack and Cashew', 'message'], ['access', 'Access', 'key'], ['data', 'Data', 'refresh'],
     ],
     stub: {},
     words: {

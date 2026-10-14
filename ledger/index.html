@@ -50,7 +50,7 @@
     <div class="topbar no-print">
       <button class="nav-toggle" id="navToggle" aria-label="Open navigation" onclick="navToggle()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="hd-title" id="hdTitle"></div>
-      <div class="askbar"><img class="askmark" id="askMark" src="../logo/cashew/character/rest.png" alt="" data-state="rest" title="The helper"><input id="askIn2" type="text" autocomplete="off" spellcheck="false" placeholder="Ask the Controller, or jump to a page"><kbd>Ctrl K</kbd><div class="askpop" id="askPop" hidden></div></div>
+      <div class="askbar"><img class="askmark" id="askMark" src="../logo/cashew/character/rest.png" alt="" data-state="rest" title="The helper"><input id="askIn2" type="text" autocomplete="off" spellcheck="false" placeholder="Ask Cashew, or jump to a page"><kbd>Ctrl K</kbd><div class="askpop" id="askPop" hidden></div></div>
       <div class="hd-right" id="hdRight"></div>
     </div>
     <div class="seg-row no-print" id="seg" hidden></div>
@@ -258,7 +258,7 @@ function sheetHTML(){
   return [['receipts','Receipts'],['close','Close month'],['settings','Settings']].map(([id,l]) =>
     `<button class="${on===id?'on':''}" onclick="show('${id}')">${TAB_ICONS[id]}${l}</button>`).join('')
     + `<button onclick="toggleTheme();openSheet()">${dark?TAB_ICONS.sun:TAB_ICONS.moon}${dark?'Light mode':'Dark mode'}</button>`
-    + `<button onclick="closeSheet();AskUI.open()">${TAB_ICONS.more}Ask the Controller</button>`
+    + `<button onclick="closeSheet();AskUI.open()">${TAB_ICONS.more}Ask Cashew</button>`
     + `<button onclick="signOut()">${TAB_ICONS.out}Sign out</button>`;
 }
 /* Phones: adding things lives under the thumb, not at the top of the page. */
@@ -2771,7 +2771,7 @@ const SET_SECS = [
   ['connections', 'Connections', 'plug', 'Bank, card, Stripe, Slack and Drive'],
   ['notifications', 'Notifications', 'bell', 'How Slack reaches you'],
   ['access', 'Appearance & access', 'shield', 'Theme, sign-in and sign out'],
-  ['controller', 'The Controller', 'bell', 'What it knows, what it watches, when it speaks'],
+  ['controller', 'Cashew', 'bell', 'What it knows, what it watches, when it speaks'],
 ];
 function setSec(k){ SET.sec = k; lsSet('ledger_set', k); renderSettings(); }
 function renderSettings(){
@@ -2871,7 +2871,7 @@ function setConnections(){
         : 'Paste the Slack bot token into <code>ledger/worker/.env</code> and have it pushed.'}</div>
       <span class="msg" id="spMsg"></span></div>
     <div class="card" id="gmailCard">${cardH('Receipts from Gmail', 'Ledger goes and finds them for you')}
-      <div class="hint">For every charge missing a receipt, Ledger searches your email for that exact amount around that date, reads the email or its PDF, and attaches it when the total matches to the cent. Read-only: it can never send, delete or change mail. Runs by itself once a day; ask the Controller to run it any time.</div>
+      <div class="hint">For every charge missing a receipt, Ledger searches your email for that exact amount around that date, reads the email or its PDF, and attaches it when the total matches to the cent. Read-only: it can never send, delete or change mail. Runs by itself once a day; ask Cashew to run it any time.</div>
       <div id="gmailBody" class="hint" style="margin-top:12px">Loading…</div></div>
     <div class="card" id="driveCard">${cardH('Import receipts from Google Drive', 'For years already filed in Taxes / 2026 / …')}
       <div class="hint">Ledger reads each PDF, works out the amount and attaches it to the matching transaction. It never creates a transaction and never changes Drive.</div>
@@ -3454,7 +3454,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 const SCREEN_NAMES = { overview: 'Overview (the month at a glance)', txns: 'Transactions', receipts: 'Receipts',
   dashboards: 'Dashboards (charts over time)', reports: 'Reports (the P&L report card)', close: 'Close the month', settings: 'Settings' };
 AskUI.init({
-  name: 'Controller', api, esc, flash, confirm: ask, cardH,
+  name: 'Cashew', api, esc, flash, confirm: ask, cardH,
   intro: 'Ask me anything about the books. Try: "who has not paid this month?", "what did we spend on contractors in August?", "why was last month a loss?", "keep an eye on software spend over $2,000 a month".',
   screen: () => {
     try {
@@ -3468,7 +3468,7 @@ AskUI.init({
     } catch (e) { return null; }
   },
 });
-/* The Overview leads with what the Controller found, then the numbers. */
+/* The Overview leads with what Cashew found, then the numbers. */
 const _renderOverviewBase = renderOverview;
 renderOverview = async function(){
   await _renderOverviewBase();
