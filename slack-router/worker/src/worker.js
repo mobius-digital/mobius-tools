@@ -156,7 +156,9 @@ export default {
       const body = safeJson(raw, null);
       if (body?.type === 'url_verification') return Response.json({ challenge: body.challenge });
       const ev = body?.event || {};
-      const dm = ev.channel_type === 'im';
+      /* A group DM (mpim) is a DM too (2026-10-14: Cole's "Locus, Noma" group chat went to the Ledger,
+         which answered as Controller). The Ledger never answers there. */
+      const dm = ev.channel_type === 'im' || ev.channel_type === 'mpim';
       /* A reaction names its channel under item (reaction_added); Locus reads a ✅ on its action item reminders (2026-10-13). */
       const who = dm || await locusOwns(env, ev.channel || ev.item?.channel) ? 'locus' : 'ledger';
       const [bindingName, target] = EVENT_TARGETS[who];

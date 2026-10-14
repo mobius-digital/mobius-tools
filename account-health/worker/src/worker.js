@@ -6904,6 +6904,9 @@ async function handleSlackEvent(request, env, ctx) {
   const okSubtype = !ev?.subtype || /^(file_share|thread_broadcast)$/.test(ev.subtype);
   if (body?.type !== 'event_callback' || !ev || ev.bot_id || !okSubtype) return ACK();
   const dm = ev.channel_type === 'im';
+  /* A group DM (Cole + Noma + the app, 2026-10-14) is gated like a DM (who is asking) but answers like a
+     channel: only when tagged, or a reply in a thread it already answered, never every message. */
+  const group = ev.channel_type === 'mpim';
   /* A mention inside a channel thread arrives TWICE: as app_mention and as a plain message whose
      text carries <@bot>. Both count as a mention; the claim below keeps one. */
   const botId = body?.authorizations?.[0]?.user_id || null;
@@ -6927,7 +6930,7 @@ async function handleSlackEvent(request, env, ctx) {
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
   if (!claim.meta?.changes) return ACK();
   let brandRow = null, agencyCh = false;
-  if (!dm) {
+  if (!dm && !group) {
     /* The brand comes from brands (brands.js), so a brand with no Meta account (Speedin) is still a
        brand. brand_accounts is the fallback (an active or demo brand's internal channel). */
     const b = await brandByChannel(env, ev.channel).catch(() => null);
@@ -6941,10 +6944,11 @@ async function handleSlackEvent(request, env, ctx) {
      Team members only (the numbers are the team's); the brand comes from the words; the Ledger is one tool
      away (ask_ledger, Cole only). */
   let dmScreen = null;
-  if (dm || agencyCh) {
+  if (dm || group || agencyCh) {
     const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
     if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Locus' }).catch(() => {})); return ACK(); }
-    dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '') };
+    dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '')
+      + (group ? ' This is a GROUP DM: other teammates read this thread and may ask you follow-ups. Answer whoever tagged you, by name; talk to the people the asker names.' : '') };
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
      brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
