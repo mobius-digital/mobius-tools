@@ -153,7 +153,7 @@ export async function handleProduction(request, env, url, path, json, d) {
       const act = String(body.act || '');
       if (!(await d.listBrands(env)).some(b => b.act_id === act)) return json({ error: 'Pick the brand.' }, 400);
       const text = clean(body.text, 300);
-      if (!text) return json({ error: 'Say what to make.' }, 400);
+      if (!text) return json({ error: 'Name the brief.' }, 400);
       const it = { text, owner: clean(body.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(body.due || '') ? body.due : '' };
       /* With the Asana mirror off, or a brand with no Asana project, the brief is made in Locus only. */
       if (!(await mirrorOn(env)) || !(await hasAsana(env, act))) return json({ ok: true, ...(await localBrief(env, act, it, nameOfEmail(who))) });
