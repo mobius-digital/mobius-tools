@@ -18,8 +18,8 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const short = iso => iso ? new Date(String(iso).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const when = iso => { if (!iso) return ''; const t = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : String(iso).replace(' ', 'T') + 'Z'); return t ? new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; };
-const HUE = { Cole: 'var(--brand)', Ahsan: 'var(--good)', Noma: 'var(--warn)', William: 'var(--c-email)', Ravo: 'var(--bad)', Radhesh: 'var(--c-tiktok)', Hamza: 'var(--c-amazon)', Mobius: 'var(--muted)' };
-const FMT = { Static: 'var(--brand)', Video: 'var(--bad)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-email)' };
+const HUE = { Cole: 'var(--brand)', Ahsan: 'var(--c-tiktok)', Noma: 'var(--c-email)', William: 'var(--c-google)', Ravo: 'var(--c-else)', Radhesh: 'var(--c-meta)', Hamza: 'var(--c-amazon)', Mobius: 'var(--muted)' }; /* never good / warn / bad: those mean status */
+const FMT = {}; /* formats are neutral grey: colour on this board means status only (late, waiting, approved) */
 const FORMATS = ['Static', 'Video', 'UGC', 'Carousel'];
 const SIZES = ['1:1', '4:5', '9:16', '1.91:1', '15s cut', '6s cut'];
 const STAGE = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', live: 'Live', done: 'Done' };
@@ -303,7 +303,7 @@ async function open(H, id, opts = {}) {
       <label class="ps-kv"><span>Launch</span><input type="date" data-meta="launch" value="${esc(k.launch_on || '')}"></label>`;
     const tabs = [['brief', 'Brief'], ['files', `Files ${versions().length}`], ['comments', `Comments ${T.data.comments.filter(x => x.kind !== 'system').length}`]];
     return `<div class="ps-h">
-      <div class="ps-top"><span class="ps-tag" style="--tc:${FMT[fmt] || 'var(--brand)'}">${esc(fmt)}</span><span class="sp"></span>
+      <div class="ps-top"><span class="ps-tag">${esc(fmt)}</span><span class="sp"></span>
         ${T.client ? '' : `<span class="saved" data-saved aria-live="polite"></span><button class="ps-btn pri" data-save>Save</button>`}
         ${k.asana_url ? `<a class="ps-btn" href="${esc(k.asana_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Asana</a>` : ''}</div>
       ${T.client ? `<div style="font-size:18px;font-weight:700">${esc(k.title || 'Untitled brief')}</div>` : `<input class="ps-title" aria-label="Title" value="${esc(k.title || '')}" placeholder="Name this brief">`}
