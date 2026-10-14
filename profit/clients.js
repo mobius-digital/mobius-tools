@@ -170,13 +170,17 @@ const brandOf = (act = S.act) => (S.client && S.client.brands || []).find(b => b
 /** "N waiting for you" on a client's Home (2026-10-10, requests.js): approvals the team sent that are still open. */
 async function waitingLine(main) {
   if (!main || !window.RequestsTab || !S.act || S.act === 'all') return;
-  const act = S.act, n = await window.RequestsTab.waiting(act, apiAH);
+  const act = S.act;
+  /* Requests approvals plus Production cards the team sent for their OK (2026-10-14, prodsheet.js). */
+  const [nReq, nProd] = await Promise.all([window.RequestsTab.waiting(act, apiAH), apiAH(`/api/production?act=${encodeURIComponent(act)}`).then(r => (r && r.needs || []).length).catch(() => 0)]);
+  const n = (nReq || 0) + (nProd || 0);
   if (!n || S.tab !== 'overview' || S.act !== act || main.querySelector('.cl-wait')) return;
   const el = document.createElement('div'); el.className = 'cl-wel cl-wait';
   el.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:inset 0 0 0 1px var(--brand)';
-  el.innerHTML = `<div style="flex:1;min-width:200px"><b>${n} waiting for you</b><div class="hint" style="margin:2px 0 0">${n === 1 ? 'Something the team needs you to approve.' : 'Things the team needs you to approve.'} It takes a tap: Approve, or Ask for changes.</div></div>
-    <button class="btn primary" type="button">Open Requests</button>`;
-  el.querySelector('button').onclick = () => show('requests');
+  const go = nProd && !nReq ? 'production' : 'requests';
+  el.innerHTML = `<div style="flex:1;min-width:200px"><b>${n} waiting for you</b><div class="hint" style="margin:2px 0 0">${nProd ? `${nProd} ad${nProd === 1 ? '' : 's'} or idea${nProd === 1 ? '' : 's'} in Production${nReq ? `, ${nReq} in Requests` : ''}. ` : ''}It takes a tap: Approve, or Ask for changes.</div></div>
+    <button class="btn primary" type="button">${go === 'production' ? 'Open Production' : 'Open Requests'}</button>`;
+  el.querySelector('button').onclick = () => show(go);
   const head = main.querySelector('.ph'); if (head && head.parentElement) head.parentElement.insertBefore(el, head.nextSibling); else main.prepend(el);
 }
 

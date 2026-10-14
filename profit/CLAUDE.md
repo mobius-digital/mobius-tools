@@ -3129,3 +3129,31 @@ Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/
   that brand's Overview via v2.js `pickAct`). The "Across channels" line says which AI check wrote it ("AI check,
   Oct 13"), since the numbers beside it refresh hourly. Top-of-page cards' "Every leak" link opens Overview. Day check
   is only about yesterday again. leaks.js?v=4, v2.js?v=54, desk.js?v=22.
+
+## 2026-10-14: PRODUCTION V2 (prodsheet.js, review-ui.js, review.html). Supersedes "Open review" opening Asana / Frame.
+
+Approved mock https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (Cole OK'd v7 after research). Backend: account-health
+CLAUDE.md, same date.
+- **Board** (production.js v2): a card click opens its SHEET (`ProdSheet.open`, V2UI.panel wide): title, owner, due, launch,
+  client approval, tabs **Brief** (kind New idea / Iteration / Resize or cut / Something else; format Static / Video / UGC /
+  Carousel; fields follow: Video hooks + script table, UGC show/say + creator/do/don't, Carousel card table, Static
+  headline/subhead/CTA/layout + optional more ads; inspiration per line and per brief = upload or paste a link; sizes; post
+  copy; "Write it with AI" fills empty fields only, marked "filled by AI"; autosave 2.5s after a change, Save now; "Send the
+  idea to the client"), **Files** (upload a new version, Review per version, send the ad to the client, copy client link),
+  **Comments** (@Name DMs). "Open review" = the review viewer when the card has versions. `?card=<id>` opens a card.
+  "+ New brief" opens the new card's sheet. The header says "Asana mirror off" when it is.
+- **Review viewer** (`review-ui.js`, `window.ReviewUI.open`): versions v1, v2, Compare (side by side); tools Pin, Box,
+  Arrow, Pen, Mark in four colours (coral, yellow, blue, green = bad, warn, brand, good tokens); the drawing is attached to
+  the next note, stored 0..1; on video the note keeps the second and the drawings show near that second; notes numbered,
+  team ticks Fixed ("Fixed in v2" on older versions); Approve / Ask for changes (a note required). Shared by Locus and the
+  public `review.html?t=` (no login, asks the viewer's name, light/dark by the device; its own tokens like s.html).
+- **Client** (brand edition): `production` left AGENCY_TABS; Work shows Production only. `ProdSheet.client` = Needs you
+  (ideas and finished ads sent for their OK) + Coming up as a list or a month calendar by launch date; an idea opens the
+  sheet read only with Approve the idea / Ask for changes, an ad opens the review viewer. Home's "N waiting for you"
+  (clients.js waitingLine) counts these too.
+- **Agency settings > Integrations**: "Asana mirror for Production" card (`#pdMirror`, `ProdSheet.mirrorCard`): On / Off
+  (confirm), what stops, "Cards not yet in Locus: N" with the list. Cole flips it; nothing in Asana is archived by code.
+- **Photos**: Production, Tasks and Calls avatars use `ProdSheet.photoOf(name)` (Google sign-in photo, else Slack) when known.
+- Checked on a stub harness in the browser pane (deleted): sheet edits, AI fill, kind/format switches, a drawn box posted
+  as a note, compare, ask for changes, client list/calendar/read-only idea, mirror toggle, 375px no sideways scroll, light
+  and dark. NOT checked against the real workers in a browser.

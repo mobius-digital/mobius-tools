@@ -15,7 +15,8 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone } from './actions.js';
-import { handleProduction, listBoard } from './production.js';
+import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
+import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
@@ -52,7 +53,7 @@ import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
-import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll } from './asana-brand.js';
+import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll, readDoc as brandReadDoc } from './asana-brand.js';
 import { ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
@@ -6711,6 +6712,8 @@ async function googleLogin(env, credential) {
   if (!team && !client) return { error: `${info.email} has no Locus login. Ask Mobius Digital to invite this email.`, status: 403 };
   const s = await mintSession(env, info.email);
   if (client) await touchClient(env, info.email, 'login').catch(() => {});
+  /* Production v2: the Google photo shows on the person's comments and cards instead of their initial. */
+  if (info.picture) await savePhoto(env, info.email, info.picture).catch(() => {});
   return { ...s, name: info.name || '', picture: info.picture || '', role: client ? 'client' : 'team' };
 }
 
@@ -7459,6 +7462,13 @@ const AH_APP = {
     if (path === '/tiktok/callback' && request.method === 'GET') {
       try { const r = await tiktokCallback(env, url); return new Response(`<p style="font:16px system-ui;padding:40px">TikTok is connected: ${r.advertisers.length} ad account${r.advertisers.length === 1 ? '' : 's'}. You can close this tab and go back to Locus.</p>`, { headers: { 'Content-Type': 'text/html' } }); }
       catch (e) { return new Response(`<p style="font:16px system-ui;padding:40px">TikTok did not connect: ${String(e.message).replace(/</g, '&lt;')}</p>`, { status: 400, headers: { 'Content-Type': 'text/html' } }); }
+    }
+    /* Production v2 (prodwork.js): a card's file by a signed link (an <img> or <video> sends no header), and the review
+       link a client opens with no login (an unguessable token per card). */
+    if (path.startsWith('/api/production/f/') && request.method === 'GET') return prodFile(request, env, url, path.slice('/api/production/f/'.length), CORS);
+    if (path.startsWith('/api/review/')) {
+      const r = await handleReviewLink(request, env, url, path, json, { ...actionDeps(), moveCard: prodMove, formatOf: prodFormat, readDoc: brandReadDoc });
+      if (r) return r;
     }
     /* Ad covers (creative.js): public by a signed ad id, cached by the browser for a year. */
     if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);

@@ -1,12 +1,15 @@
 /* Work > Production (2026-10-13 fourth pass). Every ad from brief to live: one card per numbered brief, five columns
  * Brief > Making > Review > Ready > Live. A view over p_br_batch served by account-health /api/production; a drag moves the
  * card in Locus and the task in Asana (Review lives only in Locus), and posts one line in the brand channel.
- * Approved mock: docs/handoffs/work-calls-tasks-production.md. Own closure, CSS #pd-css, classes .pd-*, tokens only. */
+ * Approved mock: docs/handoffs/work-calls-tasks-production.md. Own closure, CSS #pd-css, classes .pd-*, tokens only.
+ * Production v2 (2026-10-14): a card opens its sheet (prodsheet.js: the brief, files, comments), "Open review" opens the
+ * ad's versions in the review viewer (review-ui.js), a client login gets its own Needs you + Coming up page instead of
+ * the board, and ?card=<id> opens a card (the Slack DM links). */
 (() => {
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const HUE = { Cole: '#8FB3FF', Ahsan: '#5FD292', Noma: '#EBBF63', William: '#C9A2FF', Ravo: '#F09182', Radhesh: '#7FD7E0', Hamza: '#F2A65A' };
+let OPENED = false;   // the ?card= link is opened once per page load
 const dt = iso => new Date(String(iso).slice(0, 10) + 'T12:00:00Z');
 const short = iso => iso ? dt(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 
@@ -25,7 +28,8 @@ const post = (path, body) => H.apiAH(path, { method: 'POST', body: JSON.stringif
 const toast = msg => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:12px;font-size:13.5px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4500); };
 const today = () => (D && D.today) || new Date().toISOString().slice(0, 10);
 const initials = name => String(name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 3).toUpperCase();
-const av = n => n ? `<span class="pd-av" title="${esc(n)}" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="pd-av pd-none" title="Nobody yet">?</span>';
+const av = n => window.ProdSheet ? window.ProdSheet.av(n, 22) : (n ? `<span class="pd-av" title="${esc(n)}">${esc(n[0])}</span>` : '<span class="pd-av pd-none" title="Nobody yet">?</span>');
+const openCard = (id, tab) => window.ProdSheet && window.ProdSheet.open(H, id, { tab, onChange: () => render(H, false) });
 const ago = iso => {
   if (!iso) return '';
   const t = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : String(iso).replace(' ', 'T') + 'Z');
@@ -85,7 +89,11 @@ function css() {
 .pd-r3 .m.late{color:var(--bad)}
 .pd-r3 .sp{flex:1}
 .pd-act{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
-.pd-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#131316;flex:none}
+.pd-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--surface);background:var(--line-strong);flex:none}
+.pd-card .pd-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:var(--surface-2);display:block}
+.pd-t button{font:inherit;color:inherit;background:none;border:0;padding:0;text-align:left;cursor:pointer}
+.pd-t button:hover{text-decoration:underline}
+.pd-need{font-size:11px;font-weight:600;color:var(--warn)}
 .pd-av.pd-none{background:var(--line-strong);color:var(--ink)}
 .pd-add{height:30px;border:1px dashed var(--line-strong);border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
 .pd-add:hover{color:var(--ink);border-color:var(--ink-2)}
@@ -120,6 +128,7 @@ function skeleton() {
 }
 
 function metaOf(c) {
+  if (c.board === 'review' && c.open_notes) return `${c.open_notes} open note${c.open_notes === 1 ? '' : 's'}`;
   if (c.board === 'live') return `Live ${short(c.since)}${c.result ? ` · ${esc(c.result)}` : ''}`;
   if (c.board === 'ready') return c.since ? `Approved ${short(c.since)}` : 'Approved';
   if (!c.due) return 'No due date';
@@ -131,10 +140,12 @@ function metaOf(c) {
 function cardHtml(c) {
   const act = c.board === 'review' ? `<button class="pd-act" data-review="${esc(c.id)}">Open review</button>`
     : c.board === 'ready' ? `<button class="pd-act" data-launch="${esc(c.id)}">Launch to Meta</button>` : '';
-  const title = c.asana_url ? `<a href="${esc(c.asana_url)}" target="_blank" rel="noopener" draggable="false">${esc(c.title || 'Untitled brief')}</a>` : esc(c.title || 'Untitled brief');
+  const title = `<button type="button" data-open="${esc(c.id)}" draggable="false">${esc(c.title || 'Untitled brief')}</button>`;
   return `<div class="pd-card${c.late ? ' late' : ''}" draggable="true" data-id="${esc(c.id)}">
+    ${c.thumb && (c.board === 'review' || c.board === 'ready') ? `<img class="pd-img" src="${esc(c.thumb)}" alt="" loading="lazy" draggable="false">` : ''}
     <div class="pd-r1"><span class="num">${esc(initials(c.brand))} #${esc(c.num)}</span><span class="br">${esc(c.brand)}</span><span class="sp"></span><span class="pd-fmt" style="--fc:${FMT[c.format] || 'var(--brand)'}">${esc(c.format || 'Static')}</span></div>
     <div class="pd-t">${title}</div>
+    ${c.needs_client ? `<span class="pd-need">Waiting on the client${c.needs_client === 'idea' ? ' (the idea)' : ''}</span>` : ''}
     <div class="pd-r3">${av(c.assignee)}<span class="m${c.late ? ' late' : ''}">${metaOf(c)}</span><span class="sp"></span>${act}</div>
   </div>`;
 }
@@ -164,9 +175,9 @@ function paint() {
     </div>`;
   };
   $('#main').innerHTML = `<div class="pd">
-    <div class="pd-head"><div><h1>Production</h1><p>Every ad from brief to live. Cards are the numbered briefs; drag one to move it. ${nWork} ads in progress, ${nReady} ready to launch.</p></div>
-      <div class="pd-r"><span class="pd-sync">Mirrored to Asana${D.synced_at ? ` · synced ${ago(D.synced_at)}` : ''}</span><button class="pd-btn pri" data-newbrief>+ New brief</button></div></div>
-    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><span class="note">Late cards show in coral. Review cards carry Cole's notes.</span></div>
+    <div class="pd-head"><div><h1>Production</h1><p>Every ad from brief to live. Click a card to write its brief, drag it to move it. ${nWork} ads in progress, ${nReady} ready to launch.</p></div>
+      <div class="pd-r"><span class="pd-sync">${D.mirror === false ? 'Asana mirror off' : `Mirrored to Asana${D.synced_at ? ` · synced ${ago(D.synced_at)}` : ''}`}</span><button class="pd-btn pri" data-newbrief>+ New brief</button></div></div>
+    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><span class="note">Click a card to write its brief. Late cards show in coral.</span></div>
     <div class="pd-wrap"><div class="pd-grid">${COLS.map(col).join('')}</div></div>
   </div>`;
   wire();
@@ -178,7 +189,15 @@ function wire() {
   $$('[data-fmt]', root).forEach(b => b.onclick = () => { FORMAT = b.dataset.fmt; paint(); });
   $$('[data-newbrief]', root).forEach(b => b.onclick = () => newBrief());
   const all = $('#pdAllLive', root); if (all) all.onclick = () => { ALL_LIVE = true; paint(); };
-  $$('[data-review]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const c = D.cards.find(x => x.id === b.dataset.review); const u = c && (c.asset_url || c.brief_url || c.asana_url); if (u) window.open(u, '_blank', 'noopener'); else toast('This card has no file or brief link yet. Add it on the Asana task.'); });
+  $$('[data-review]', root).forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const c = D.cards.find(x => x.id === b.dataset.review);
+    if (c && c.versions && window.ProdSheet) { window.ProdSheet.review(H, c.id, { onChange: () => render(H, false) }); return; }
+    if (c && c.asset_url) { window.open(c.asset_url, '_blank', 'noopener'); return; }
+    openCard(c.id, 'files');
+  });
+  $$('[data-open]', root).forEach(b => b.onclick = e => { e.stopPropagation(); openCard(b.dataset.open); });
+  $$('.pd-card', root).forEach(el => el.addEventListener('click', e => { if (e.target.closest('button,a')) return; openCard(el.dataset.id); }));
   $$('[data-launch]', root).forEach(b => b.onclick = e => { e.stopPropagation(); launch(D.cards.find(x => x.id === b.dataset.launch)); });
   $$('.pd-card', root).forEach(el => {
     el.addEventListener('dragstart', e => { DRAG = el.dataset.id; el.classList.add('drag'); try { e.dataTransfer.setData('text/plain', DRAG); e.dataTransfer.effectAllowed = 'move'; } catch { /* old browsers */ } });
@@ -224,11 +243,11 @@ function launch(c) {
 function newBrief() {
   const brands = D.brands || [];
   const act0 = D.act !== 'all' ? D.act : (BRAND !== 'all' ? BRAND : '');
-  const team = D.team && D.team.length ? D.team : Object.keys(HUE);
+  const team = D.team && D.team.length ? D.team : ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo'];
   const w = document.createElement('div'); w.className = 'pd-scrim';
   w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pdNbT">
     <h3 id="pdNbT">New brief</h3>
-    <p>Locus makes the next numbered brief in the brand's Asana project, in Creative Brief(s), and its card lands in Brief.</p>
+    <p>${D.mirror === false ? 'Locus makes the next numbered brief and its card lands in Brief.' : "Locus makes the next numbered brief in the brand's Asana project, in Creative Brief(s), and its card lands in Brief."} Then you write it on the card.</p>
     <label>Brand<select id="pdNbAct"><option value="">Pick the brand</option>${brands.map(b => `<option value="${esc(b.act_id)}"${b.act_id === act0 ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select></label>
     <label>What to make<textarea id="pdNbText" maxlength="300" placeholder="Three UGC hooks for the fall polo"></textarea></label>
     <div class="row"><label>Who makes it<select id="pdNbOwner"><option value="">Nobody yet</option>${team.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
@@ -253,20 +272,28 @@ function newBrief() {
       const r = await post('/api/production/brief', { act, text, owner: $('#pdNbOwner', w).value, due: $('#pdNbDue', w).value });
       if (r.error) throw new Error(r.error);
       close();
-      toast(r.num ? `Brief #${r.num} is in Asana and on the board.` : 'The brief is in Asana and on the board.');
-      render(H, false);
+      toast(r.local ? `Brief #${r.num} is on the board. Write it now.` : r.num ? `Brief #${r.num} is in Asana and on the board. Write it now.` : 'The brief is on the board.');
+      await render(H, false);
+      if (r.id) openCard(r.id);
     } catch (e) { err.textContent = e.message || 'Could not make the brief.'; err.hidden = false; go.disabled = false; go.textContent = 'Make the brief'; }
   };
 }
 
 async function render(host, first) {
   H = host; css();
+  if (window.ProdSheet && (H.S.role === 'client' || H.S.client)) return window.ProdSheet.client(H);
+  if (window.ProdSheet) { window.ProdSheet.css(); await window.ProdSheet.photos(H); }
   const t = H.RUN();
   if (first || !D || D.act !== (H.S.act || 'all')) { ALL_LIVE = false; skeleton(); }
   await load();
   if (t !== H.RUN()) return;
   paint();
+  if (!OPENED) {
+    OPENED = true;
+    const id = new URLSearchParams(location.search).get('card') || window.PD_CARD;
+    if (id) openCard(id);
+  }
 }
 
-window.ProductionTab = { render };
+window.ProductionTab = { render, mirrorCard: (el, h) => window.ProdSheet && window.ProdSheet.mirrorCard(el, h) };
 })();

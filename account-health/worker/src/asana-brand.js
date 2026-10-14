@@ -1,3 +1,4 @@
+import { mirrorOn, pullStories, pruneFiles, fieldsFromText, briefHash, ensureWork } from './prodwork.js';
 import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
@@ -324,7 +325,8 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
   const started = new Date().toISOString();
   const tasks = await asanaAll(env, `/tasks?project=${doc.project_gid}&opt_fields=${TASK_FIELDS}${since}`);
   const fields = (await ensureProjectFields(env, doc).catch(() => null)) || (await getSetting(env, 'brandAsanaFields')) || {};
-  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  await ensureWork(env);
+  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle, brief_json, brief_hash FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
   let nextFree = Math.max(0, ...existing.map(b => parseInt(b.num, 10) || 0), ...tasks.map(t => +numOf(t.name) || 0)) + 1;
 
   /* AUTO-NUMBER: a task in a creative section with no number gets the next one. */
@@ -397,8 +399,19 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     }
     const learning = cf[fields.learning]?.text_value || null;
     const cancelled = /cancel/i.test(status || '');
-    const notes = clip(t.notes, 8000) || null;
+    let notes = clip(t.notes, 8000) || null;
     const row = have.get(n);
+    /* Production v2: a brief written in Locus (brief_json) is never overwritten by the text Locus itself put in Asana.
+       Only a real edit of the text in Asana (its hash moved) wins, and then the fields are read back from it. */
+    if (row && row.brief_json && notes != null) {
+      const h = await briefHash(t.notes || '');
+      if (h === row.brief_hash) notes = null;
+      else {
+        let old = null; try { old = JSON.parse(row.brief_json); } catch {}
+        const back = fieldsFromText(t.notes || '', { kind: old?.kind, format: old?.format, insp: old?.insp, sizes: old?.sizes });
+        st.push(env.DB.prepare(`UPDATE p_br_batch SET brief_json = ?2, brief_hash = ?3, brief_at = ?4 WHERE id = ?1`).bind(row.id, JSON.stringify(back), h, new Date().toISOString()));
+      }
+    }
     const angleText = (cf[fields.angle]?.text_value || '').trim();
     if (row && angleText && angleText !== (row.asana_angle || '') && !/^no angle/i.test(angleText)) {
       let aid = angleByName.get(angleText.toLowerCase());
@@ -438,8 +451,10 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     }
   }
   for (let i = 0; i < st.length; i += 80) await env.DB.batch(st.slice(i, i + 80));
+  /* Comments typed in Asana on open cards come into the card's thread in Locus (the mirror, prodwork.js). */
+  const comments = full ? 0 : await pullStories(env, asana, act, tasks.filter(t => !t.completed && numOf(t.name))).catch(e => { console.log('stories: ' + e.message); return 0; });
   await putDoc(env, act, 'asana', { ...doc, last_sync: started, board_v: 1 });
-  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered };
+  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered, comments };
 }
 
 /* ---------------- 2. TAG (+ 3. WARN) ---------------- */
@@ -1149,13 +1164,16 @@ export async function brandAsanaTick(env, canAfford = () => true) {
   if (!env.ASANA_TOKEN) return { skipped: 'no ASANA_TOKEN' };
   const docs = (await env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'asana'`).all().catch(() => ({ results: [] }))).results || [];
   const out = {};
+  /* The Asana mirror switch (Agency settings > Integrations): off = no task sync; the tagger and results still run. */
+  const mirror = await mirrorOn(env);
+  out.pruned = await pruneFiles(env).catch(() => 0);
   for (const d of docs) {
     const doc = safeJson(d.data_json, {});
     if (!doc.project_gid || doc.paused) continue;
     if (!canAfford(30)) { out[d.act_id] = 'deferred'; continue; }
     try {
       const hooked = await ensureHook(env, d.act_id, doc).catch(e => `hook: ${e.message}`);
-      const s = await syncTasks(env, d.act_id, doc);
+      const s = mirror ? await syncTasks(env, d.act_id, doc) : { skipped: 'the Asana mirror is off' };
       if (hooked) s.hook = hooked;
       const t = await tagPass(env, d.act_id, { limit: 8 });
       const r = await resultsPass(env, d.act_id, { limit: 4 });
@@ -1400,7 +1418,7 @@ async function hookRun(env, act) {
   for (let i = 0; i < 3; i++) {
     await putSetting(env, key, { running: Date.now() });
     const doc = await getDoc(env, act, 'asana');
-    if (!doc?.project_gid || doc.paused) break;
+    if (!doc?.project_gid || doc.paused || !(await mirrorOn(env))) break;
     await syncTasks(env, act, doc);
     if (!((await getSetting(env, key)) || {}).again) break;
   }

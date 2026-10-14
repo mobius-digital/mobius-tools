@@ -133,7 +133,7 @@ const PAGE_ROUTES = [
   // Home: Overview, Day check, P&L, Goals, Requests
   ['pf', '/api/overview?days=30&series=0'], ['pf', '/api/hub/live?act=brand_alpha'], ['pf', '/api/hub/kept?act=brand_alpha'], ['pf', '/api/client?act=brand_alpha&days=30'], ['pf', '/api/forecast?act=brand_alpha'],
   ['pf', '/api/costs?act=brand_alpha'], ['pf', '/api/expenses?act=brand_alpha'], ['pf', '/api/plan?act=brand_alpha&month=2026-10'], ['pf', '/api/quarter?act=brand_alpha'], ['pf', '/api/rhythm?act=brand_alpha'],
-  ['ah', '/api/metaday?days=30'], ['ah', '/api/daycheck/now?act=brand_alpha'], ['ah', '/api/requests?act=brand_alpha'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
+  ['ah', '/api/metaday?days=30'], ['ah', '/api/daycheck/now?act=brand_alpha'], ['ah', '/api/requests?act=brand_alpha'], ['ah', '/api/production?act=brand_alpha'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
   // Ads: Today, All channels, Meta and its jobs, Google and its jobs, TikTok, Tests and angles
   ['pf', '/api/hub/today?act=brand_alpha'], ['pf', '/api/hub/paid?platform=all&act=brand_alpha'], ['pf', '/api/hub/paid?platform=meta&act=brand_alpha'], ['pf', '/api/hub/drill?act=brand_alpha'],
   ['pf', '/api/hub/orders?act=brand_alpha'], ['pf', '/api/hub/creative?act=brand_alpha'], ['ah', '/api/meta/live?act=brand_alpha'], ['ah', '/api/activities?act=brand_alpha'], ['ah', '/api/series?act=brand_alpha&days=45'],
@@ -617,6 +617,25 @@ await check('Stock, Buying and Drops (2026-10-12): a client reads its whole bran
     assert.equal((await ah(null, 'GET', '/api/supply/client?act=brand_alpha&what=state')).status, 401, 'no login, no stock');
     assert.equal((await ah(null, 'POST', '/api/supply/orders?act=brand_alpha', { lines })).status, 401, 'no login, no order');
   } finally { delete ahEnv.SUPPLY; delete ahEnv.SUPPLY_TOKEN; }
+});
+
+await check("Production (2026-10-14): a client reads its own brand (Needs you + Coming up), opens and comments on its own cards, never another brand's, never the team's controls", async () => {
+  for (const c of ['asana_section', 'asana_gid', 'asana_url', 'brief_url', 'asset_url', 'brief_text', 'verdict', 'asana_result']) { try { db.exec(`ALTER TABLE p_br_batch ADD COLUMN ${c} TEXT`); } catch { /* already there */ } }
+  db.exec(`INSERT OR REPLACE INTO p_br_batch (id, act_id, num, title, stage) VALUES ('pa1', 'brand_alpha', '48', 'Alpha brief', 'idea'), ('pb1', 'brand_beta', '7', 'Beta brief', 'idea')`);
+  const own = await ah(CLIENT, 'GET', '/api/production?act=brand_alpha');
+  assert.equal(own.status, 200); assert.equal(own.j.client, true); assert.equal(own.j.cards, undefined, 'never the team board');
+  assert.ok(own.j.coming.some(x => x.id === 'pa1') && !own.j.coming.some(x => x.id === 'pb1'));
+  assert.equal((await ah(CLIENT, 'GET', '/api/production?act=brand_beta')).status, 403);
+  assert.equal((await ah(CLIENT, 'GET', '/api/production/card?id=pa1')).status, 200);
+  assert.equal((await ah(CLIENT, 'GET', '/api/production/card?id=pb1')).status, 403, "another brand's card");
+  assert.equal((await ah(CLIENT, 'POST', '/api/production/comment', { id: 'pb1', body: 'hi' })).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/production/comment', { id: 'pa1', body: 'Looks good' })).status, 200);
+  assert.equal((await ah(CLIENT, 'POST', '/api/production/decide', { id: 'pa1', ok: true })).status, 403, 'nothing was sent for their OK');
+  for (const [m, p, b] of [['POST', '/api/production/move', { id: 'pa1', to: 'live' }], ['POST', '/api/production/brief', { act: 'brand_alpha', text: 'x' }], ['POST', '/api/production/save', { id: 'pa1', brief: {} }],
+    ['POST', '/api/production/send', { id: 'pa1', what: 'idea' }], ['POST', '/api/production/share', { id: 'pa1' }], ['PUT', '/api/production/mirror', { on: false }], ['GET', '/api/production/mirror'], ['GET', '/api/production/photos']])
+    assert.equal((await ah(CLIENT, m, p, b)).status, 403, `${m} ${p}`);
+  const team = await ah(TEAM, 'GET', '/api/production?act=brand_alpha');
+  assert.equal(team.status, 200); assert.ok(Array.isArray(team.j.cards), 'the team gets the board');
 });
 
 globalThis.fetch = realFetch;

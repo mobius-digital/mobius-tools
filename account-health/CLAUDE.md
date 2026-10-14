@@ -1991,3 +1991,44 @@ doing this before anything else", and "we do need an end call whether we go with
 - **2026-10-14:** the morning card's leak line: MONDAY = one "Weekly leak check: N leaks; I'd look at <biggest to act
   on> first (<$ a month>) · N searches to block · full list on Overview" tagged to that leak's owner (the AI check runs
   for it); Tuesday to Sunday = a line only for a NEW leak over $500 a month. The full list moved to Home > Overview.
+
+## 2026-10-14: PRODUCTION V2 (`src/prodwork.js`). Asana and Frame's production jobs, inside Locus. Read before touching production.
+
+Handoff `docs/handoffs/production-v2.md`; approved mock https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (v7, after research
+Cole asked for; the team does not use Frame's Premiere panel, so review moved into Locus and Frame can go). Tests:
+`node test-production2.mjs` (12), test-clients has a Production check.
+- **Tables** (created on first use by `ensureWork`, called by every route and by `syncTasks`): p_br_batch gains `brief_json`,
+  `brief_at`, `brief_hash`, `launch_on`, `needs_client` (idea | ad), `client_sent_at`, `client_due` (+3 business days),
+  `approved_by`, `approved_at`, `share_token`. `p_work_comment` (comments AND notes: `file_id`, `shape_json` in 0..1 of the
+  picture, `at_sec`, `fixed_at/by`, `kind` comment | note | change_request | approval | system, `asana_story_gid`).
+  `p_work_file` (R2 `work/<act>/<card>/<id>-<name>`, `kind` version | insp, `version`, `stream_uid` / `play_url`, `deleted_at`).
+- **The brief**: `normBrief` is the only shape (kind new | iter | resize | free, format Static | Video | UGC | Carousel, the
+  framework fields, hooks, `rows` keyed per format `ROWCOLS`, sizes, insp, iter, resize, notes, ai = fields AI filled).
+  `briefText` renders it to brief_text (labels per line), `briefHtml` to Asana html_notes, `fieldsFromText` reads it back
+  (our text, the old Asana template, a Google Doc; unlabelled text lands in notes). An old card is read once into fields on
+  first open. `aiFill` = one Sonnet 5.5 call with the short brand brain + SPECIFICITY, told ONLY the empty fields;
+  `mergeAi` never overwrites a typed field and replaces model dashes with commas.
+- **Asana sync never overwrites a Locus brief**: `saveCard` PUTs html_notes with `opt_fields=notes` and keeps a hash of what
+  Asana stored (`brief_hash`); `syncTasks` skips brief_text when the incoming notes hash the same, and when the text really
+  changed in Asana it re-reads the fields from it (Asana wins). New Asana comments come into the card (`pullStories`, open
+  tasks the sync saw, 25 a run); a team comment in Locus is copied as a story "From Locus, <name>:".
+- **The mirror switch**: `settings.asanaMirror` {on, at, by}; on unless false. Off = no Asana write anywhere (move, save,
+  comment, a new brief is made locally by `localBrief`), `brandAsanaTick` and `hookRun` skip `syncTasks` (the tagger and
+  results still run). `GET/PUT /api/production/mirror` (team) also counts "cards not yet in Locus" per brand.
+- **Files**: `POST /api/production/upload?id=&kind=version|insp&name=` (raw body, image or video, 95MB); a version moves a
+  Brief / Making card to Review. Served by `GET /api/production/f/<id>?e=&s=` (public, HMAC of id.exp with SESSION_SECRET,
+  12h, Range for video). Video a browser cannot play: `convert` copies it to Cloudflare Stream when `CF_ACCOUNT_ID` +
+  `CF_STREAM_TOKEN` are set (not set yet), the card read stores the MP4 download URL once ready. `pruneFiles` (hourly tick):
+  60 days after Live only the last version stays.
+- **Decide**: `POST /api/production/decide {id, ok, body}`: approve = Ready (an idea stays in Brief) + approved_by; ask for
+  changes needs a note, Making, DM to the owner. A client may decide only while `needs_client` is set
+  (`POST /api/production/send {id, what: idea|ad|''}`, team). Mentions: `@Name` in a comment = a Slack DM (slackIdOf), the card
+  link `profit/?open=production&card=<id>`. A client comment = one line in the brand's internal channel (teamPost, tagged owner).
+- **Client** (brandguard, both copies): GET /api/production (act need) answers `clientBoard` (needs + coming, never the
+  board), GET /card, POST /comment and /decide with `own` p_br_batch. Everything else 403. Team names read "Mobius".
+- **Review link** (no login): `POST /api/production/share` makes `share_token`; `profit/review.html?t=` reads
+  `GET /api/review/<token>` and posts `/note` and `/decide` with a typed name (worker.js, before the auth gate).
+- **Photos**: `savePhoto` in googleLogin keeps each person's Google picture (`settings.userPhotos`); `GET
+  /api/production/photos` = roster name -> Google photo, else Slack's (users.info, cached a week in `slackPhotos`).
+- NOT tested live: Asana html_notes / stories / the hash round trip, Slack DMs, R2 upload of a real 90MB video, Stream,
+  the morning card line for unanswered mentions (not built).

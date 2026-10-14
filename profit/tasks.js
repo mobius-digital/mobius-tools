@@ -165,7 +165,8 @@
   const toast = msg => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:12px;font-size:13.5px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4500); };
   const brandName = id => id ? ((D.brands.find(b => b.act_id === id) || {}).name || id) : 'Agency-wide';
   const today = () => D.today || new Date().toISOString().slice(0, 10);
-  const av = n => n ? `<span class="tk-av" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="tk-av" style="background:var(--line-strong);color:var(--ink)">?</span>';
+  const pic = n => (window.ProdSheet && window.ProdSheet.photoOf(n)) || null;   // the person's photo (Google sign-in, else Slack), 2026-10-14
+  const av = n => n && pic(n) ? `<img class="tk-av" src="${esc(pic(n))}" alt="" referrerpolicy="no-referrer" style="object-fit:cover">` : n ? `<span class="tk-av" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="tk-av" style="background:var(--line-strong);color:var(--ink)">?</span>';
   const ICON = {
     chev: '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
     cal: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
@@ -275,7 +276,7 @@
     return `<span class="tk-due${b === 'late' ? ' late' : b === 'today' ? ' now' : ''}">${b === 'today' ? 'Today' : `${esc(short(due))}${b === 'late' ? ', late' : ''}`}</span>`;
   }
   const areaTag = i => { const [l, c] = AREA[areaOf(i)]; return `<span class="tk-tag" style="--ac:${c}">${l}</span>`; };
-  const tav = n => n ? `<span class="tk-av" title="${esc(n)}" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="tk-av" title="Nobody yet" style="background:var(--line-strong);color:var(--ink)">?</span>';
+  const tav = n => n && window.ProdSheet && window.ProdSheet.photoOf(n) ? `<img class="tk-av" title="${esc(n)}" src="${esc(window.ProdSheet.photoOf(n))}" alt="" referrerpolicy="no-referrer" style="object-fit:cover">` : n ? `<span class="tk-av" title="${esc(n)}" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="tk-av" title="Nobody yet" style="background:var(--line-strong);color:var(--ink)">?</span>';
 
   /* ---------- List ---------- */
   function rowHtml(i, done) {
@@ -505,6 +506,7 @@
   }
   async function reload() { try { await load(); } catch (e) { toast(e.message); } if ($('#main .tk')) paint(); }
   async function render(host, first) {
+    if (window.ProdSheet && !(host.S && host.S.client)) await window.ProdSheet.photos(host).catch(() => {});
     H = host; css();
     const t = H.RUN();
     if (first || !D) $('#main').innerHTML = '<div class="v2 tk"><header class="tk-head"><div><h1>Tasks</h1><p>Loading the tasks...</p></div></header></div>';

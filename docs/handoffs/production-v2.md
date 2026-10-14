@@ -1,5 +1,15 @@
 # Production v2: everything Asana still does for ad production, built into Locus, so Asana can go (handoff, 2026-10-13)
 
+> **Progress (2026-10-14): BUILT and deployed (both workers).** Cole approved mock v7. account-health `src/prodwork.js`
+> (brief fields + AI fill, notes with drawings, files in R2 with signed links, approve / ask for changes, client view,
+> review link `/api/review/<token>`, mirror switch, Google / Slack photos), routes in `production.js`, sync changes in
+> `asana-brand.js`, CLIENT_RULES in both brandguards. profit `prodsheet.js` (sheet, client page, mirror card),
+> `review-ui.js` (the review viewer), `review.html` (public link). Tests: test-production2 12/12, production, actions,
+> clients 25/25, smoke, morningcard, strategist, today, requests pass. Not built: unanswered mentions on the morning card;
+> Cloudflare Stream needs Cole (turn Stream on, then CF_ACCOUNT_ID + CF_STREAM_TOKEN on account-health). Defaults chosen
+> while Cole's two answers are open: no auto-approve (the client sees "please answer by" = 3 business days), any client
+> login on the brand may approve.
+
 > **Progress (2026-10-13): mock published, waiting on Cole's OK.** https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (Design
 > canvas, four artboards: `project/Main.dc.html` brief sheet with Brief / Files / Comments tabs, `project/Review.dc.html`
 > file viewer with comments, Approve and Ask for changes, `project/Client.dc.html` the brand edition board,

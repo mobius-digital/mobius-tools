@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ad review · Locus</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" sizes="32x32" href="../logo/locus/icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* The public review link (Production v2, 2026-10-14). One card's ad, opened with no login by an unguessable token
+     (account-health /api/review/<token>). The viewer leaves notes and drawings and, when Mobius asked for their OK,
+     approves or asks for changes. The review viewer itself is review-ui.js, the same one Locus uses. */
+  :root{--bg:#F4F5F7;--surface:#FFFFFF;--surface-2:#F3F3F5;--ink:#151518;--ink-2:#45454F;--muted:#6B6B78;--line:#E6E6EB;--line-strong:#D5D5DC;
+    --brand:#2F62D9;--brand-soft:#EAF0FD;--good:#1C7A46;--warn:#8F6412;--bad:#9C3A2E;color-scheme:light}
+  @media (prefers-color-scheme:dark){:root{--bg:#131316;--surface:#1A1A1E;--surface-2:#212126;--ink:#F2F2F4;--ink-2:#B4B4BE;--muted:#8E8E9A;--line:#2A2A31;--line-strong:#3A3A43;
+    --brand:#8FB3FF;--brand-soft:rgba(143,179,255,.14);--good:#5FD292;--warn:#EBBF63;--bad:#F09182;color-scheme:dark}}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink)}
+  body{font:14px/1.5 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:40px 16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:12px}
+  small{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  h1{margin:0;font-size:22px;line-height:1.25}
+  p{margin:0;color:var(--ink-2)}
+  button{font:inherit;font-size:14px;font-weight:600;height:40px;padding:0 16px;border-radius:8px;border:1px solid var(--brand);background:var(--brand);color:var(--surface);cursor:pointer;align-self:flex-start}
+  footer{margin-top:18px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card" id="box"><small>Ad review</small><h1>Loading...</h1></div><footer>Locus by Mobius Digital</footer></div>
+<script src="review-ui.js?v=2"></script>
+<script>
+(() => {
+  const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
+  const t = new URLSearchParams(location.search).get('t') || '';
+  const box = document.getElementById('box');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const call = async (path, body) => {
+    const r = await fetch(`${AH}/api/review/${t}${path}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) throw new Error(j.error || `Something went wrong (${r.status}).`);
+    return j;
+  };
+  const fail = msg => { box.innerHTML = `<small>Ad review</small><h1>This link does not open</h1><p>${esc(msg)}</p>`; };
+  if (!/^[a-f0-9]{32}$/.test(t)) { fail('The link is not complete. Copy the whole link from the message.'); return; }
+  let D = null;
+  const intro = () => {
+    const k = D.card;
+    box.innerHTML = `<small>${esc(k.brand)} · ad review</small><h1>${esc(k.title || 'Your ad')}</h1>
+      <p>${k.needs_client ? 'Mobius would like your OK on this ad. Watch it, draw on anything you want changed, then approve it or ask for changes.' : 'Leave notes on the ad. Draw a box or an arrow on the part you mean, and write what should change.'}</p>
+      <button type="button" id="go">Open the ad</button>`;
+    document.getElementById('go').onclick = view;
+  };
+  const view = () => {
+    const k = D.card;
+    window.ReviewUI.open({
+      title: k.title, num: k.brand, format: D.brief && D.brief.format, files: D.files, comments: D.comments, mode: 'guest', needsName: true,
+      canDecide: !!k.needs_client,
+      decideHint: 'Approve tells Mobius it is ready to run. Ask for changes needs a note and sends it back to them.',
+      waitHint: 'Leave notes on the ad. Mobius sees them right away.',
+      api: {
+        note: (fid, body, shape, at, name) => call('/note', { name, file_id: fid, body, shape, at }),
+        decide: (ok, body, name) => call('/decide', { name, ok, body }),
+        fixed: async () => {},
+        reload: async () => { D = await call(''); return { files: D.files, comments: D.comments, canDecide: !!D.card.needs_client }; },
+      },
+      onClose: intro,
+    });
+  };
+  call('').then(d => { D = d; intro(); view(); }).catch(e => fail(e.message));
+})();
+</script>
+</body>
+</html>
