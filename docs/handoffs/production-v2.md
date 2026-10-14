@@ -22,6 +22,12 @@
 >   transcoder is added) vs keep Frame. The deciding question is the Premiere/After Effects panel. Cole asked the team:
 >   (1) notes read inside Premiere/AE or in the browser? (2) file types uploaded (MP4 only, or MOV/ProRes)? (3) do
 >   reviewers draw boxes or just write? Wait for his answer before building review or files.
+> - **2026-10-14: team does not use the Premiere/AE panel, so review moves INTO Locus and Frame goes** (mock v7):
+>   R2 storage, Pin / Box / Arrow / Pen / Mark tools in 4 colors tied to each note (Annotorious or own SVG layer),
+>   video notes keep the time, versions stack, Compare side by side, client link without login, any video plays via
+>   a converter (Cloudflare Stream, about $5/mo, Cole OK'd), keep only the final version 60 days after Live. Run
+>   both a few weeks, then Cole cancels Frame. Still waiting on Cole's OK of the mock and his two answers
+>   (auto-approve days, one approver per brand).
 > - Profile photos: Google sign-in returns `picture` (worker.js googleLogin) but hq/index.html drops it; save it,
 >   Slack `users.info` profile image as fallback, show photos everywhere avatars are drawn (HUE circles today).
 
