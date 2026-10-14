@@ -47,7 +47,7 @@ export function cardOf(r, brands, today) {
   return {
     id: r.id, act_id: r.act_id, brand: brand?.name || r.act_id, num: r.num, title: r.title || '', board,
     format: (safe(r.brief_json, null) || {}).format || formatOf(r.title, r.brief_text), assignee: r.assignee_name || '', due,
-    late: !!due && due < today && board !== 'live' && board !== 'done',
+    late: !!due && due < today && board !== 'ready' && board !== 'live' && board !== 'done', /* approved work is never late */
     asana_url: r.asana_url || null, asset_url: r.asset_url || null, brief_url: r.brief_url || null,
     since: String(r.board_at || r.updated_at || r.created_at || '').slice(0, 10), verdict: r.verdict || null, result: r.asana_result || null,
     launch_on: r.launch_on || '', needs_client: r.needs_client || '', approved_by: r.approved_by || null,

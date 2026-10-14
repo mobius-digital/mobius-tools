@@ -20,7 +20,7 @@ const COLS = [
   { k: 'ready', label: 'Ready', hint: 'approved, not launched', dot: 'var(--good)' },
   { k: 'live', label: 'Live', hint: 'in the account', dot: 'var(--c-email)' },
 ];
-const FMT = { Static: 1, Video: 1, UGC: 1, Carousel: 1 }; /* neutral: colour on this board means status only */
+const FMT = { Static: 'var(--brand)', Video: 'var(--c-email)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-google)' }; /* never good / warn / bad: those mean status */
 
 let H = null, D = null, LOADING = null, BRAND = 'all', FORMAT = 'all', ALL_LIVE = false, DRAG = null;
 
@@ -80,7 +80,7 @@ function css() {
 .pd-r1 .num{font-weight:700}
 .pd-r1 .br{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-r1 .sp{flex:1}
-.pd-fmt{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);white-space:nowrap}
+.pd-fmt{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;color:var(--fc);background:color-mix(in srgb,var(--fc) 14%,transparent);white-space:nowrap}
 .pd-t{color:var(--ink);line-height:1.35;font-size:13.5px;overflow-wrap:anywhere}
 .pd-t a{color:inherit;text-decoration:none}
 .pd-t a:hover{text-decoration:underline}
@@ -144,7 +144,7 @@ function cardHtml(c) {
   const title = `<button type="button" data-open="${esc(c.id)}" draggable="false">${esc(c.title || 'Untitled brief')}</button>`;
   return `<div class="pd-card${c.late ? ' late' : ''}" draggable="true" data-id="${esc(c.id)}">
     ${c.thumb && (c.board === 'review' || c.board === 'ready') ? `<img class="pd-img" src="${esc(c.thumb)}" alt="" loading="lazy" draggable="false">` : ''}
-    <div class="pd-r1"><span class="num">${esc(initials(c.brand))} #${esc(c.num)}</span><span class="br">${esc(c.brand)}</span><span class="sp"></span><span class="pd-fmt">${esc(c.format || 'Static')}</span></div>
+    <div class="pd-r1"><span class="num">${esc(initials(c.brand))} #${esc(c.num)}</span><span class="br">${esc(c.brand)}</span><span class="sp"></span><span class="pd-fmt" style="--fc:${FMT[c.format] || 'var(--brand)'}">${esc(c.format || 'Static')}</span></div>
     <div class="pd-t">${title}</div>
     ${c.needs_client ? `<span class="pd-need">Waiting on the client${c.needs_client === 'idea' ? ' (the idea)' : ''}</span>` : ''}
     <div class="pd-r3">${av(c.assignee)}<span class="m${c.late ? ' late' : ''}">${metaOf(c)}</span><span class="sp"></span>${act}</div>
@@ -157,7 +157,7 @@ function paint() {
   const nWork = D.cards.filter(c => c.board !== 'live').length, nReady = D.cards.filter(c => c.board === 'ready').length;
   const brandChips = D.act === 'all' && D.brands.length > 1
     ? `<span class="lb">Brand</span><button class="pd-chip${BRAND === 'all' ? ' on' : ''}" data-brand="all">All</button>${D.brands.filter(b => D.cards.some(c => c.act_id === b.act_id)).map(b => `<button class="pd-chip${BRAND === b.act_id ? ' on' : ''}" data-brand="${esc(b.act_id)}">${esc(b.name)}</button>`).join('')}<span class="gap"></span>` : '';
-  const fmtChips = `<span class="lb">Format</span><button class="pd-chip${FORMAT === 'all' ? ' on' : ''}" data-fmt="all">All</button>${Object.keys(FMT).map(f => `<button class="pd-chip${FORMAT === f ? ' on' : ''}" data-fmt="${f}">${f}</button>`).join('')}`;
+  const fmtChips = `<span class="lb">Format</span><button class="pd-chip${FORMAT === 'all' ? ' on' : ''}" data-fmt="all">All</button>${Object.keys(FMT).map(f => `<button class="pd-chip${FORMAT === f ? ' on' : ''}" style="--cc:${FMT[f]}" data-fmt="${f}">${f}</button>`).join('')}`;
   const col = c => {
     let list = shown.filter(x => x.board === c.k);
     let more = '';
@@ -178,7 +178,7 @@ function paint() {
   $('#main').innerHTML = `<div class="pd">
     <div class="pd-head"><div><h1>Production</h1><p>Every ad from brief to live. Click a card to write its brief, drag it to move it. ${nWork} ads in progress, ${nReady} ready to launch.</p></div>
       <div class="pd-r"><span class="pd-sync">${D.mirror === false ? 'Asana mirror off' : `Mirrored to Asana${D.synced_at ? ` · synced ${ago(D.synced_at)}` : ''}`}</span><button class="pd-btn pri" data-newbrief>+ New brief</button></div></div>
-    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><span class="note">Red outline = past its due date · amber = waiting on the client · green = approved</span></div>
+    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><span class="note">Red outline = past its due date and not approved yet · amber = waiting on the client · green = approved</span></div>
     <div class="pd-wrap"><div class="pd-grid">${COLS.map(col).join('')}</div></div>
   </div>`;
   wire();
@@ -216,7 +216,7 @@ async function move(id, to) {
   if (!c || c.board === to) return;
   const from = c.board, t0 = today();
   c.board = to; c.since = t0;
-  if (to === 'live') c.late = false; else c.late = !!c.due && c.due < t0;
+  if (to === 'live' || to === 'ready') c.late = false; else c.late = !!c.due && c.due < t0;
   paint();
   try {
     const r = await post('/api/production/move', { id, to });

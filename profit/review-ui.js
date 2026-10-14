@@ -163,7 +163,7 @@ function open(o) {
         <span class="rv-hint">${o.decideHint || 'Approve moves it to Ready and records you. Ask for changes needs a note and sends it back to be fixed.'}</span></div>`
       : (!team && !cmp ? `<div class="rv-call"><span class="rv-hint">${o.waitHint || 'Leave notes on the ad. Mobius will ask for your OK here when it is ready.'}</span></div>` : '');
     w.innerHTML = `<div class="rv" role="dialog" aria-modal="true" aria-label="Review ${esc(o.title || '')}">
-      <div class="rv-h"><span class="num">${esc(o.num || '')}</span><span class="t">${esc(o.title || 'Review')}</span>${o.format ? `<span class="rv-tag" style="--tc:var(--muted)">${esc(o.format)}</span>` : ''}
+      <div class="rv-h"><span class="num">${esc(o.num || '')}</span><span class="t">${esc(o.title || 'Review')}</span>${o.format ? `<span class="rv-tag" style="--tc:${o.formatColor || 'var(--brand)'}">${esc(o.format)}</span>` : ''}
         ${vs.length ? `<div class="rv-seg" role="group" aria-label="Version">${seg}</div>` : ''}<span class="sp"></span>
         ${team && o.api.share ? '<button class="rv-btn" data-share>Copy client link</button>' : ''}<button class="rv-btn" data-close>Close</button></div>
       <div class="rv-b">
