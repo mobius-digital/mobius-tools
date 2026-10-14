@@ -93,6 +93,7 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   closed with no `SLACK_SIGNING_SECRET`. Slack allows three seconds: buttons ack
   immediately and work in `ctx.waitUntil`, EXCEPT `views.open` which must happen
   inside the ack because a `trigger_id` expires.
+- **(2026-10-14: the Ledger is now Cashew on ITS OWN Slack app, A0C99FUDBA8; its events and interactivity go to the `cashew-slack` router (`ledger/slack`), which forwards by channel to mobius-ledger or the Lucky worker; slack-router serves Locus and Pulse only. The paragraph below is history.)**
 - **One Slack app, one interactivity URL, three tools.** The URL points at the
   LEDGER worker, which classifies and forwards: `{id, tax}` values are Ledger's,
   `brief_*` / `report_*` / `noop_open` action ids and modal callback ids come
@@ -1275,7 +1276,7 @@ Strategist's tools and cards, scheduled task / check / dashboard / report, route
   before) | task (the Strategist runs the instruction; each proposal is posted as an Apply card in the thread under the
   answer, never applied) | report (make_report text posted) | check (checkNow posted, no model) | dashboard
   (`postDashboard` to the schedule's channel, no model). Only question / task / report count toward the 10 a day.
-- **DMs go to the Strategist** (slack-router: `dm || locusOwns`). `handleSlackEvent` DM path: `dmGate` = Slack users.info,
+- **DMs go to the Strategist** (slack-router: `dm || locusOwns`; since 2026-10-14 a group DM (mpim) too, and `/slack/owns` says yes for a group DM because an app_mention carries no channel_type, `isGroupDm` caches conversations.info per channel; a channel nobody owns is dropped, the Ledger has its own app). `handleSlackEvent` DM path: `dmGate` = Slack users.info,
   full members only (no guests, strangers, bots), a Mobius email (`emailAllowed`) or a userBrands person (ACCESS RULE in
   the note); the brand comes from the words. The Ledger lost nothing: it only answered TEXT asks in DMs (a DM with a file
   was ignored there) and reads receipts from #receipts by its own poll. **`ask_ledger`** (Cole only: Slack user
@@ -1810,3 +1811,224 @@ and the ✅ reaction, the routes' team-only gate). test-clients.mjs asserts a cl
   keeps them (240 chars). The page shows them per item; confirm ignores them.
 - `GET /api/actions` (status open) adds `waiting`: Requests asks (`p_request` kind 'ask') open, or updated in the last 7
   days, with `due` read from the body's "Needed by YYYY-MM-DD" (createAsk writes it). A missing table answers [].
+
+## 2026-10-13 (fourth pass): Calls, Tasks, Production (docs/handoffs/work-calls-tasks-production.md)
+
+Locus Work is now three pages (profit calls.js, tasks.js, production.js). What this worker added:
+- **`p_action.area`** (TEXT): ads | email | organic | site | ops | client; '' = Other; NULL = not judged yet. The call
+  extractor and quick add set it; `judgeAreas` (Haiku 5.5, judged from the words, no word lists) fills NULL rows from
+  the hourly `actionTick` (its result now carries `areas`) and from `POST /api/actions/areas` (the backfill).
+  `/api/actions/edit` accepts `area`. `GET /api/actions` items carry `area`. `ROSTER` and `AREAS` are exported.
+- **`POST /api/actions/quick {text, act}`**: one typed line; Haiku reads brand, owner, due and area out of it and the row
+  is made (`{ok, parsed, item}`). The page falls back to plain `POST /api/actions` if it fails.
+- **Production (`src/production.js`)**: a board over **p_br_batch**, not a new table. New columns `board_stage`,
+  `assignee_name`, `due_on`, `board_at` (`ensureBoard` adds them; they were also run on remote D1 by hand).
+  Columns brief > making > review > ready > live. `boardOf(section, stage)` (asana-brand.js) maps the Asana section:
+  Creative Brief(s) = brief, Creative Studio = making, Ready to Launch = ready, Analyze Results = live, Completed = done.
+  **Review is Locus only** (no Asana section; the task stays in Creative Studio). `syncTasks` now reads `due_on` and the
+  assignee name, and keeps a Locus column until the Asana section itself changes (so Review is not pulled back to
+  Making). The first sync after deploy is full once (`doc.board_v`).
+  Routes (team only, 403 for a client scope): `GET /api/production?act=`, `POST /api/production/move {id,to}` (moves the
+  Asana task to the matching section via `BOARD_SECTION`, writes the column, posts one line in the brand channel:
+  "<Name> moved *<num> - <title>* to <Column>"), `POST /api/production/brief {act,text,owner,due}` (meetings.js
+  `makeBrief`, now exported: the next numbered brief in Asana + its card).
+- Tests: `test-actions.mjs` (11) and `test-production.mjs` (7).
+
+## 2026-10-13: THE LEAK FINDER (`src/leaks.js`). Read before touching it, the negative keyword write or the judge.
+
+Handoff `docs/handoffs/leak-finder.md`, screens in profit/CLAUDE.md (same date). Tests: `node test-leaks.mjs` (16
+offline checks: Google Ads, GA4, the model, Klaviyo, Meta's list and TikTok mocked).
+- `leaksFor(env, d, act, {days, fresh})`, cached an hour in settings `leaks:<brand>:<days>`; routes `GET /api/leaks`,
+  `POST /api/leaks/apply {act, term, campaign_id, confirm}`, `POST /api/leaks/undo {act, resource}` (`handleLeaks`, mounted
+  above the Google block; admin + brandsFor; a client's `fresh=1` is ignored). Strategist view `leaks` + a CMO METHOD line
+  (read it before any audit question).
+- **Sources, nothing recomputed:** google.js `leakAds` (cache `gadlk:`: search terms with spend and under 0.5
+  conversions, top 200; every campaign; `campaign_search_term_insight` per PMax campaign, which has NO cost, so cost =
+  clicks x the campaign's CPC; video / Demand Gen `video_trueview_*` with a fallback to the old `video_*` fields) and
+  `leakFunnel` (cache `g4lk:`: GA4 SESSIONS with add_to_cart / begin_checkout / purchase by device, the window and the 90
+  days before, plus paid-channel landing pages and the paid total); Today's calls over the PROFIT binding (todaypost.js
+  `readToday`, Cut and Trim rows, stake x 30/7); `tiktokReport`; Klaviyo `flows_report` + `daily` (`by_flow`).
+- **The judge**: ONE Sonnet 5.5 call per brand per hour (`judge`, JSON schema, low effort) reads the short brand brain and
+  labels every non-converting search term and PMax category irrelevant / relevant / brand, says which CORE flows have no
+  live version, and which live flow replaced a switched-off one. No word list anywhere. Terms under $1 never reach it.
+- **Rules**: Google, video and TikTok campaigns use the brand's own cut line (`cr_cut_zero_x`, `cr_cut_spend_x`,
+  `cr_cut_cpa_x` from p_br_doc rules, goal = rules target_cpa or the brand's) on the platform's own conversions. A funnel
+  step is a leak when 20%+ under `BENCH` (Littledata Oct 2026 by device; cart to checkout is ESTIMATED from Littledata
+  medians and says so) AND under the brand's own 90 days, over the floors (1,000 sessions, 300 carts / checkouts); cost =
+  orders the step would add at the benchmark, carried down the brand's own funnel, x the device's AOV. Landing pages: 500+
+  paid sessions under 70% of the paid site rate. Email: missing welcome = sign-ups x $5.75, post purchase = orders x
+  $1.80 (Klaviyo 2026), the others "not priced"; a switched-off flow = its last 30 days before going off (when those
+  were empty, a third of its 90-day revenue) less its replacement's rate; a replacement earning 85%+ of it is not a leak. Floor $50 a month,
+  except search negatives and PMax categories (Viktor's report, kept at any size). Sources and dates:
+  docs/strategist-brain/knowledge/website-cro.md section 2.
+- **The write**: google.js `adsNegative` = `campaignCriteria:mutate` create `{campaign, negative: true, keyword: {text,
+  matchType: EXACT}}` (validateOnly for the propose), or remove by resource name (must start with the brand's own
+  `customers/<cid>/campaignCriteria/`). Apply files an `activities` row (event_type `google_write`, category `keywords`,
+  under the brand's Meta account like klaviyowrite) and drops the term from the cached list. PMax categories get no Apply
+  (a category is not a keyword; the fix names the account-level negative list in Google Ads).
+- Verified live on Lucky 2026-10-13 from the dev worker: every source answered, Google accepted a validateOnly negative.
+  NOT done: a real negative write (Cole approves the first ones), TikTok (not connected), Shopify-app funnels (no store
+  has the app).
+- **The morning card** (morningcard.js `buildCard`, `d.leaks` = cardDeps): ONE line for the biggest leak over
+  `LEAK_FLOOR` ($500 a month) whose id was not on yesterday's card (`card.leaks` keeps the ids), tagged to its owner
+  from the brand's roster (`leak.owner`, calendar.js `teamOf`); the first day only records ids. test-morningcard.mjs 13/13.
+
+## 2026-10-13 (fifth pass): THE MORNING CARD (`src/morningcard.js`, docs/handoffs/morning-card.md). Read before posting anything to a brand's internal channel.
+
+Cole approved "One Card a Day" (https://claude.ai/artifact/Fn8JrdMJnMNtYMpjBYSaWG): internal channels are for people, and
+Dartee's had five bot posts and ~60 lines before 9am on Oct 13. Tests: `node test-morningcard.mjs` (12 offline checks).
+- **One send hour**: `settings.morningHour` (Central, default 5; set to 5 in D1 on 2026-10-13). `briefHour()` now returns
+  morningcard.js `morningHour()` (morningHour, else the old briefHour, else 5), so the client daily, the weekly / monthly
+  drafts and the card all run on that tick. `/api/brief-time` PUT and `PUT /api/settings {morningHour}` write both keys.
+  morning.js DMs read the same key, so they moved to 5 too. Locus: Agency settings > Slack and sending > "Morning posts go out at".
+- **5am safety**: `dailyBriefs` re-pulls Triple Whale (3 days) when yesterday's `totalSales` row was synced before the
+  brand's OWN midnight (moved.js's freshness test), so a Pacific brand at 5am Central never writes from a running day.
+  Checked before switching: the stored 6am briefs Oct 6 to 12 match today's tw_daily totals for every brand-day except
+  three later restatements (Dartee 10-12 +$80, Bonk 10-07 / 10-09), which the hour does not change.
+- **The card** (`morningCardTick`, hourly, right after reportsPass inside the morning block; `cardDeps()`): from the morning
+  hour to noon, once per Central day per active brand (not paused, not The Golf Sock, not Harborline, not demo_; internal
+  channel set and not equal to brief_channel), one Block Kit post to `slack_channel`: name + day, yesterday vs plan + MER
+  from the stored brief's `data_json.day` (no new math) + the client daily's state (`posted_at` in Central), then at most 5
+  lines ranked by money then lateness, each starting with the person's tag: Today's calls as one line (todaypost.js
+  readToday, buyer from calendar.js `teamOf`), p_action due today / overdue, calendar dates live tomorrow with open steps
+  (`calendarData`), late Production cards (`listBoard`); "and N more in Locus"; "Client owes" (oldest open Requests ask +
+  days); Monday's weekly line. Buttons = one actions block each, action_id `noop_open`. A brand waits up to 2 hours for
+  its brief (and Monday's weekly row), then posts saying so. State `morningCardDone`; the card `morningCard:<act>:<date>`;
+  the channel index `morningCardIdx:<date>`; Slack ids cached in `slackIds` (roster email lookup, else one users.list
+  first-name match). Switch `settings.morningCard` ('off' = everything posts top-level as before).
+- **Its thread at post time**: the full calls list (todaypost.js `messageFor`, minus button and footer) and one
+  `reminderMessage` per owner (tagged, Done buttons); those p_action rows get `reminded_on` today + the reply's ts, so the
+  Done button and ✅ on a reply work as before and actionTick has nothing left to post for them.
+- **Kept up to date by chat.update**: actions.js `onActionDone` hook (registered in worker.js; every markDone, quiet for
+  bulk), `cardCallMade` after a non-dry `/api/meta/write` ("N of M made", all = struck), `cardProdDone` after
+  `/api/brand-asana/result` and a Production move (`d.onProdMoved`), `cardBriefState` after `sendBrief` succeeds, and
+  `cardReaction` (✅ on the card itself = every task line on it done, one redraw; reached from handleReaction when the
+  reacted message is no reminder line).
+- **Later posts go in the card's thread** (`teamPost(env, d, channel, text, blocks, {tag | tagName})`: a reply under today's
+  card in that channel with the person tagged, never reply_broadcast; no card = top-level): alerts.js `postTo` (the rule's
+  own mention; Locus "test" posts stay top-level), requests.js `tellTeam` (strategist tagged), meetings.js confirm notes
+  (owners tagged), calendar.js client changes and reminders (strategist), actionTick lines (owner), newclient.js internal
+  pings (`inThread`). Mondays: meetings.js `mondayScreen` reads the plan from the card's thread first, the weekly report's
+  own card second. `slackPost` now passes `opts.thread_ts`.
+- **Switched off while the card is on**: todayTick (`cardOn`; D1 `todayPost` = off too), calendar's "Live tomorrow" line,
+  the per-drag Slack line in production.js `moveCard` (removed for good), What moved (`movedPost` = off in D1: the
+  approved page lists it as off). The weekly / monthly DRAFT cards post to `dailyBriefsChannel` like the daily drafts.
+- **The draft bug (fixed)**: every daily draft since 10-12 fell back to the brand channel because the bot was never a
+  member of #daily-briefs (C0C8UA53U3W: only Cole and Ahsan) and `conversations.join` failed (no channels:join).
+  `slackPost` now invites the bot through Cole's user token (`conversations.invite`, auth.test for the bot id) when the
+  join fails; a fallback writes `settings.dailyBriefsError` {at, brand, error}, shown under "Where the drafts post".
+- **Locus** (`GET /api/morning-card/preview?act=`, admin, team only): Agency settings > Slack and sending: the hour picker,
+  the card switch, "Preview this morning's card" (the card as words + what its thread will hold). The Today's calls
+  switch is gone from that card.
+- **Checked on real data** (local `wrangler dev --remote`, preview only, nothing posted): Dartee's card matched the approved
+  page to the dollar (Yesterday $1,438 (plan $1,800) · MER 2.11x; cut 9 ad sets, scale 1 · $2.4K). Two rules came from it:
+  a Production card counts only when 30 days late or less (Lucky had one 123 days late in Brief), and tags match on the
+  FIRST name with roster prefixes (Asana gives "Nomaqhawe Molife"; she is the roster's Noma, U09PZ3ZV5HD). A line with
+  no owner falls back to the brand's strategist (calendar.js `teamOf`).
+- NOT tested live: the first 5am tick (2026-10-14 is the test: `lastHourly.morningCard`, `morningCardDone`), the invite
+  through Cole's token into #daily-briefs, chat.update on a real card, ✅ on a card through the router, users.list for
+  Radhesh / Hamza. Viktor's Monday Search Term Mining is not ours (Cole asked Viktor to stop it 2026-10-13): check Monday.
+
+### 2026-10-13 (second pass): the CROSS-CHECK and the team's LESSONS (`src/leakctx.js`). Read before touching either.
+
+Cole: "if an ad has a really low ROAS, it doesn't necessarily mean turn that ad off... what if the CTR is great but it's
+going to a completely separate website, or that website's getting a lot of bounces... it's all context based." And: "if
+my Google guy goes, no, we shouldn't do that... is that true? Can we learn from it?" Tests: test-leaks.mjs 20/20.
+- **Context** (`contextFor`, D1 + what leaksFor already read, no new API calls): per Meta cut set its 7-day CTR against
+  the brand's median set, CPM, frequency, first- vs last-click credit with `role` (opener / closer / both at the 1.3x
+  line, WORKED OUT IN CODE: the model once read a closer as an opener) and where its ads land (`ad_creative.json.link`)
+  with that page's paid GA4 conversion and engagement; per Google campaign Google's own value vs Triple Whale's Google
+  credit and its landing pages (`leakAds` now reads PMax `asset_group.final_urls`, cache `gadlk2:`); per funnel step
+  engagement and sessions A DAY now vs before (never raw totals across 30 vs 90 days: that once read as a 74% drop);
+  per landing page who sends traffic there. Brand-wide: GA4 purchases vs Shopify orders, traffic and engagement, the
+  Change Log's last 21 days. GA4 reads gained `engagedSessions` (cache `g4lk2:`).
+- **Review** (`review`, ONE Sonnet 5.5 call, medium effort, after the leaks are built): per leak `verdict` real |
+  check_first | not_the_cause | measurement, `why_ctx`, `check`, `root` (a shared root names one problem behind
+  several leaks), plus one `summary`. `mergeReview` ranks not_the_cause and measurement after the leaks to act on. A
+  failed review leaves the list as found with `reviewed: false` and the reason. The cache is now SIX hours (two Sonnet
+  calls a fresh read, about 3 to 5 cents a brand).
+- **Lessons** (`p_leak_lesson`, created on first use): the Push back button (`POST /api/leaks/lesson {act, leak_id,
+  text, author, role, scope}`), the Strategist's Apply card `leak_lesson`, or Claude Code. Each is judged once
+  (`judgeLesson`: holds | partly | does_not_hold, why, a standing `rule`, the area) against the leak and its context, and
+  every later search-term judge and review reads them (`lessonsText`). A client's lesson is always its own brand's;
+  `scope: 'all'` (act_id '') is the team's. `GET /api/leaks/lessons`, `DELETE /api/leaks/lesson?id=&act=`; all three on
+  CLIENT_RULES (both copies). Saving drops the brand's cached list (or every brand's).
+- Verified live on Lucky 2026-10-13: the review called the phone cart path the root, PMax "check first" (Google claims
+  $19.4K vs Triple Whale's $14.6K), two Meta cut sets "not the cause" (CTR 2.6% and 2.5% against a 1.47% median), and a
+  test lesson came back "partly" with a sensible rule (deleted after: it was not Cole's).
+
+### 2026-10-13 (third pass): the AI check is ON DEMAND, suggestions not orders, the FINAL CALL. Supersedes the six-hour cache above.
+
+Cole: "make it a button... that way we don't have to waste money", "it's not saying don't cut them... it's I would suggest
+doing this before anything else", and "we do need an end call whether we go with ours or the AI's". Tests 24/24.
+- **Measured cost** (usage from the API, `meter` in leakctx.js, monthly tally in settings `aiSpend:leaks:<YYYY-MM>` =
+  {calls, in, out, usd, by: {judge, review, lesson}}): one AI check = judge ~7K in / 1.5K out + review ~6K in / 1.8K out
+  on Sonnet 5.5 ($2 / $10 per M) = Lucky 5.65 to 5.8 cents, Bonk 6.3 cents. A pushback answer ~1 to 2 cents.
+- **`leaksFor(..., {ai})`**: ai = the judge + the review, stored in settings `leaksAI:<brand>:<days>` = {at, usd, labels
+  {terms by "term|campaign_id", cats by "label|campaign_id", flows}, review {leaks, summary}}. Without ai (every page,
+  the Strategist view, the morning card Tuesday to Sunday) the plain list re-applies the LAST check's labels and
+  verdicts at no AI cost; terms the check never saw are counted in the Google note; a brand never checked reads
+  `review_error: 'not checked yet'` and shows no negatives. The plain list caches an hour. `GET /api/leaks?ai=1` (never
+  for a client). **Monday's morning card runs `ai: true` for every brand** (the weekly check that replaced Viktor's
+  report): about $2.40 a month for 9 brands.
+- **Voice**: the review prompt says SUGGESTIONS to a team that makes the calls ("I'd suggest fixing X first", never
+  "don't cut"); every rule's fix line opens "Worth...", "One option is...", "the call is yours".
+- **The final call** (`decideLesson`, `POST /api/leaks/decide {act, id, decision: team|locus}`, columns `decision`,
+  `decided_by`, `decided_at` by guarded ALTERs): Locus judges a pushback ONCE and never re-argues; when it says partly or
+  does not hold, a person picks Go with the team (every prompt then reads "THE TEAM'S FINAL CALL: follow it, even where
+  the data disagreed") or Go with Locus ("SETTLED: keep showing the leak, mention their view in one line"). The
+  Strategist's `leak_lesson` takes `final: true` ("go with ours regardless"), recorded at once. On CLIENT_RULES (both).
+
+- **No daily on a report day (Cole, 2026-10-13).** `dailyBriefs`: on a Monday (weekly on for the brand) or the 1st
+  (monthly on) the client daily is NOT written or posted; `reportCovers(a, today)` names the report, and the day's row is
+  stored as `skipped` with the text "No daily today: the <weekly|monthly> report covers <day>." plus its numbers
+  (`briefData`, after the same freshness re-pull), so the morning card says "no client daily today, the weekly report
+  covers it" and still shows yesterday against plan. #daily-briefs therefore holds one draft per brand per morning, and
+  only drafts (daily, weekly, monthly). Cole may rename the channel in Slack (the id stays C0C8UA53U3W).
+- **Quiet when empty (2026-10-14):** a brand with no numbers, no lines, nothing owed and no weekly line gets no card that
+  day (`morningCardDone` 'nothing to say'). First live run 2026-10-14 5am: 9 cards posted, every daily draft landed in
+  #daily-briefs (C0C8UA53U3W); SpeedIn (not launched) got an empty card, which this stops.
+- **2026-10-14:** the morning card's leak line: MONDAY = one "Weekly leak check: N leaks; I'd look at <biggest to act
+  on> first (<$ a month>) · N searches to block · full list on Overview" tagged to that leak's owner (the AI check runs
+  for it); Tuesday to Sunday = a line only for a NEW leak over $500 a month. The full list moved to Home > Overview.
+
+## 2026-10-14: PRODUCTION V2 (`src/prodwork.js`). Asana and Frame's production jobs, inside Locus. Read before touching production.
+
+Handoff `docs/handoffs/production-v2.md`; approved mock https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (v7, after research
+Cole asked for; the team does not use Frame's Premiere panel, so review moved into Locus and Frame can go). Tests:
+`node test-production2.mjs` (12), test-clients has a Production check.
+- **Tables** (created on first use by `ensureWork`, called by every route and by `syncTasks`): p_br_batch gains `brief_json`,
+  `brief_at`, `brief_hash`, `launch_on`, `needs_client` (idea | ad), `client_sent_at`, `client_due` (+3 business days),
+  `approved_by`, `approved_at`, `share_token`. `p_work_comment` (comments AND notes: `file_id`, `shape_json` in 0..1 of the
+  picture, `at_sec`, `fixed_at/by`, `kind` comment | note | change_request | approval | system, `asana_story_gid`).
+  `p_work_file` (R2 `work/<act>/<card>/<id>-<name>`, `kind` version | insp, `version`, `stream_uid` / `play_url`, `deleted_at`).
+- **The brief**: `normBrief` is the only shape (kind new | iter | resize | free, format Static | Video | UGC | Carousel, the
+  framework fields, hooks, `rows` keyed per format `ROWCOLS`, sizes, insp, iter, resize, notes, ai = fields AI filled).
+  `briefText` renders it to brief_text (labels per line), `briefHtml` to Asana html_notes, `fieldsFromText` reads it back
+  (our text, the old Asana template, a Google Doc; unlabelled text lands in notes). An old card is read once into fields on
+  first open. `aiFill` = one Sonnet 5.5 call with the short brand brain + SPECIFICITY, told ONLY the empty fields;
+  `mergeAi` never overwrites a typed field and replaces model dashes with commas.
+- **Asana sync never overwrites a Locus brief**: `saveCard` PUTs html_notes with `opt_fields=notes` and keeps a hash of what
+  Asana stored (`brief_hash`); `syncTasks` skips brief_text when the incoming notes hash the same, and when the text really
+  changed in Asana it re-reads the fields from it (Asana wins). New Asana comments come into the card (`pullStories`, open
+  tasks the sync saw, 25 a run); a team comment in Locus is copied as a story "From Locus, <name>:".
+- **The mirror switch**: `settings.asanaMirror` {on, at, by}; on unless false. Off = no Asana write anywhere (move, save,
+  comment, a new brief is made locally by `localBrief`), `brandAsanaTick` and `hookRun` skip `syncTasks` (the tagger and
+  results still run). `GET/PUT /api/production/mirror` (team) also counts "cards not yet in Locus" per brand.
+- **Files**: `POST /api/production/upload?id=&kind=version|insp&name=` (raw body, image or video, 95MB); a version moves a
+  Brief / Making card to Review. Served by `GET /api/production/f/<id>?e=&s=` (public, HMAC of id.exp with SESSION_SECRET,
+  12h, Range for video). Video a browser cannot play: `convert` copies it to Cloudflare Stream when `CF_ACCOUNT_ID` +
+  `CF_STREAM_TOKEN` are set (not set yet), the card read stores the MP4 download URL once ready. `pruneFiles` (hourly tick):
+  60 days after Live only the last version stays.
+- **Decide**: `POST /api/production/decide {id, ok, body}`: approve = Ready (an idea stays in Brief) + approved_by; ask for
+  changes needs a note, Making, DM to the owner. A client may decide only while `needs_client` is set
+  (`POST /api/production/send {id, what: idea|ad|''}`, team). Mentions: `@Name` in a comment = a Slack DM (slackIdOf), the card
+  link `profit/?open=production&card=<id>`. A client comment = one line in the brand's internal channel (teamPost, tagged owner).
+- **Client** (brandguard, both copies): GET /api/production (act need) answers `clientBoard` (needs + coming, never the
+  board), GET /card, POST /comment and /decide with `own` p_br_batch. Everything else 403. Team names read "Mobius".
+- **Review link** (no login): `POST /api/production/share` makes `share_token`; `profit/review.html?t=` reads
+  `GET /api/review/<token>` and posts `/note` and `/decide` with a typed name (worker.js, before the auth gate).
+- **Photos**: `savePhoto` in googleLogin keeps each person's Google picture (`settings.userPhotos`); `GET
+  /api/production/photos` = roster name -> Google photo, else Slack's (users.info, cached a week in `slackPhotos`).
+- NOT tested live: Asana html_notes / stories / the hash round trip, Slack DMs, R2 upload of a real 90MB video, Stream,
+  the morning card line for unanswered mentions (not built).

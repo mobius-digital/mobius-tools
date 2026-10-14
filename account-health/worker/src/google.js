@@ -423,3 +423,100 @@ export async function adsCampaignWrite(env, act, b) {
   await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(`gads2:${act}:%`).run().catch(() => {});
   return { ok: true, summary, name, before, after };
 }
+
+/* ---------- The leak finder's Google reads and the negative keyword write (2026-10-13, src/leaks.js) ----------
+   leakAds: ONE cached read (prefix gadlk:) for the leak list: every search term with spend and under half a conversion
+   (Search and Shopping, top 200 by cost, with campaign and ad group ids so a negative can be added), Performance Max
+   search categories per PMax campaign (campaign_search_term_insight: no cost per category, so cost is estimated from
+   the campaign's own cost per click), and video / Demand Gen campaigns with their views. A part Google refuses comes
+   back as `<part>_error` and never sinks the rest. */
+export async function leakAds(env, act, from, to) {
+  return adsRead(env, act, 'gadlk2', from, to, async cid => {
+    const W = `segments.date BETWEEN '${from}' AND '${to}'`;
+    const [terms, camps] = await Promise.all([
+      adsSearch(env, cid, `SELECT search_term_view.search_term, search_term_view.status, campaign.id, campaign.name, campaign.advertising_channel_type, ad_group.id, ad_group.name, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value FROM search_term_view WHERE ${W} AND metrics.cost_micros > 0 AND metrics.conversions < 0.5 ORDER BY metrics.cost_micros DESC LIMIT 200`).catch(e => ({ error: gaqlErr(e) })),
+      adsSearch(env, cid, `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign WHERE ${W} AND metrics.cost_micros > 0`).catch(e => ({ error: gaqlErr(e) })),
+    ]);
+    const campaigns = (camps.results || []).map(r => ({ id: String(r.campaign.id), name: r.campaign.name, status: lc(r.campaign.status), type: r.campaign.advertisingChannelType, ...M_(r) }));
+    const pmax = campaigns.filter(c => c.type === 'PERFORMANCE_MAX').sort((a, b) => b.spend - a.spend).slice(0, 4);
+    const ins = await Promise.all(pmax.map(c => adsSearch(env, cid, `SELECT campaign_search_term_insight.category_label, campaign_search_term_insight.id, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM campaign_search_term_insight WHERE ${W} AND campaign_search_term_insight.campaign_id = '${c.id}' ORDER BY metrics.clicks DESC LIMIT 60`)
+      .then(j => ({ campaign: c, rows: j.results || [] })).catch(e => ({ campaign: c, error: gaqlErr(e) }))));
+    /* Where each Performance Max campaign sends people (its asset groups' final URLs), so the leak finder can check the
+       page they land on before blaming the campaign. */
+    const fu = pmax.length ? await adsSearch(env, cid, `SELECT campaign.id, asset_group.final_urls, metrics.cost_micros FROM asset_group WHERE ${W} AND metrics.cost_micros > 0 ORDER BY metrics.cost_micros DESC LIMIT 40`).catch(() => ({ results: [] })) : { results: [] };
+    const final_urls = {};
+    for (const r of fu.results || []) { const k = String(r.campaign?.id || ''); for (const u of r.assetGroup?.finalUrls || []) { (final_urls[k] ||= []); if (!final_urls[k].includes(u) && final_urls[k].length < 5) final_urls[k].push(u); } }
+    const video = campaigns.filter(c => c.type === 'VIDEO' || c.type === 'DEMAND_GEN');
+    let views = {}, video_error = null;
+    if (video.length) {
+      const j = await adsSearch(env, cid, `SELECT campaign.id, metrics.video_trueview_views, metrics.video_trueview_view_rate, metrics.trueview_average_cpv FROM campaign WHERE ${W} AND campaign.advertising_channel_type IN ('VIDEO', 'DEMAND_GEN') AND metrics.cost_micros > 0`)
+        .catch(() => adsSearch(env, cid, `SELECT campaign.id, metrics.video_views, metrics.video_view_rate, metrics.average_cpv FROM campaign WHERE ${W} AND campaign.advertising_channel_type IN ('VIDEO', 'DEMAND_GEN') AND metrics.cost_micros > 0`))
+        .catch(e => ({ error: gaqlErr(e) }));
+      if (j.error) video_error = j.error;
+      for (const r of j.results || []) { const m = r.metrics || {}; views[String(r.campaign.id)] = { views: +(m.videoTrueviewViews ?? m.videoViews) || 0, view_rate: m.videoTrueviewViewRate ?? m.videoViewRate ?? null, cpv: (m.trueviewAverageCpv ?? m.averageCpv) != null ? +(m.trueviewAverageCpv ?? m.averageCpv) / 1e6 : null }; }
+    }
+    return {
+      terms: terms.error ? [] : (terms.results || []).map(r => ({ term: r.searchTermView?.searchTerm || '', status: lc(r.searchTermView?.status), campaign_id: String(r.campaign?.id || ''), campaign: r.campaign?.name || '', campaign_type: r.campaign?.advertisingChannelType || '', ad_group_id: String(r.adGroup?.id || ''), ad_group: r.adGroup?.name || '', ...M_(r) })),
+      terms_error: terms.error || null,
+      campaigns, camps_error: camps.error || null,
+      pmax: ins.map(x => ({ campaign_id: x.campaign.id, campaign: x.campaign.name, spend: x.campaign.spend, clicks: x.campaign.clicks, conversions: x.campaign.conversions, error: x.error || null,
+        categories: (x.rows || []).map(r => ({ label: r.campaignSearchTermInsight?.categoryLabel || '(uncategorized)', id: String(r.campaignSearchTermInsight?.id || ''), ...M_(r) })) })),
+      video: video.map(c => ({ ...c, ...(views[c.id] || {}) })), video_error, final_urls,
+    };
+  });
+}
+
+/** Add (or, for undo, remove) an exact-match negative keyword on one campaign. `validate` asks Google to check it
+ *  without making it (the propose step); a refusal comes back as { error } in Google's words. Drops the leak and
+ *  search term caches for the brand so the screens re-read. */
+export async function adsNegative(env, act, b) {
+  const link = await linkFor(env, act);
+  if (!link.ads) return { error: 'This brand has no Google Ads customer ID.' };
+  const cid = String(link.ads).replace(/\D/g, '');
+  let op;
+  if (b.remove) {
+    const rn = String(b.remove);
+    if (!rn.startsWith(`customers/${cid}/campaignCriteria/`)) return { error: 'That negative keyword is not in this brand\u2019s account.' };
+    op = { remove: rn };
+  } else {
+    const camp = String(b.campaign_id || '').replace(/\D/g, ''), text = String(b.text || '').trim().toLowerCase().slice(0, 80);
+    if (!camp || !text) return { error: 'Which search term, and which campaign?' };
+    op = { create: { campaign: `customers/${cid}/campaigns/${camp}`, negative: true, keyword: { text, matchType: 'EXACT' } } };
+  }
+  let j;
+  try { j = await gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${cid}/campaignCriteria:mutate`, { body: { operations: [op], ...(b.validate ? { validateOnly: true } : {}) }, headers: adsHeaders(env) }); }
+  catch (e) { return { error: `Google Ads refused it: ${gaqlErr(e)}`, refused: true }; }
+  if (b.validate) return { ok: true, validated: true };
+  for (const p of ['gadlk2', 'gadst']) await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(`${p}:${act}:%`).run().catch(() => {});
+  return { ok: true, resource: (j.results || [])[0]?.resourceName || null };
+}
+
+/** The leak finder's GA4 read (cache g4lk:): the shopping funnel as SESSIONS (sessions with an add_to_cart,
+ *  begin_checkout, purchase event, which is what the published benchmarks count; GA4's addToCarts metric is an event
+ *  count) by device for the window and for the baseline before it, plus paid landing pages (paid channel groups only)
+ *  with the paid site total they are judged against. Three GA4 requests. */
+const PAID_GROUPS = ['Paid Social', 'Paid Search', 'Paid Shopping', 'Paid Video', 'Paid Other', 'Cross-network', 'Display'];
+export async function leakFunnel(env, act, from, to, bfrom, bto) {
+  const link = await linkFor(env, act);
+  if (!link.ga4) return { error: 'not_linked', what: 'ga4' };
+  return cached(env, `g4lk2:${act}:${link.ga4}:${from}:${to}:${bfrom}`, 3600e3, async () => {
+    const P = link.ga4, ranges = [{ startDate: from, endDate: to, name: 'cur' }, { startDate: bfrom, endDate: bto, name: 'base' }];
+    const paid = { filter: { fieldName: 'sessionDefaultChannelGroup', inListFilter: { values: PAID_GROUPS } } };
+    const [ev, dev, lp, lpTot] = await Promise.all([
+      ga4(env, P, { dateRanges: ranges, dimensions: [{ name: 'deviceCategory' }, { name: 'eventName' }], metrics: [{ name: 'sessions' }], dimensionFilter: { filter: { fieldName: 'eventName', inListFilter: { values: ['add_to_cart', 'begin_checkout', 'purchase'] } } } }),
+      ga4(env, P, { dateRanges: ranges, dimensions: [{ name: 'deviceCategory' }], metrics: [{ name: 'sessions' }, { name: 'ecommercePurchases' }, { name: 'purchaseRevenue' }, { name: 'engagedSessions' }] }),
+      ga4(env, P, { dateRanges: [ranges[0]], dimensions: [{ name: 'landingPage' }], metrics: [{ name: 'sessions' }, { name: 'ecommercePurchases' }, { name: 'purchaseRevenue' }, { name: 'engagedSessions' }], dimensionFilter: paid, orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 40 }).catch(e => ({ error: e.message })),
+      ga4(env, P, { dateRanges: [ranges[0]], metrics: [{ name: 'sessions' }, { name: 'ecommercePurchases' }, { name: 'purchaseRevenue' }], dimensionFilter: paid }).catch(e => ({ error: e.message })),
+    ]);
+    const devices = {};
+    const slot = (d, r) => ((devices[d] ||= { cur: {}, base: {} })[r]);
+    for (const r of rowsOf(dev, ['device', 'range'], ['sessions', 'ecommercePurchases', 'purchaseRevenue', 'engagedSessions'])) Object.assign(slot(r.device, r.range), { sessions: r.sessions, purchases: r.ecommercePurchases, revenue: r.purchaseRevenue, engaged: r.engagedSessions });
+    const EV = { add_to_cart: 'atc', begin_checkout: 'checkout', purchase: 'purchase' };
+    for (const r of rowsOf(ev, ['device', 'event', 'range'], ['sessions'])) slot(r.device, r.range)[EV[r.event]] = r.sessions;
+    const t = rowsOf(lpTot, [], ['sessions', 'ecommercePurchases', 'purchaseRevenue'])[0] || {};
+    return { property: P, from, to, base_from: bfrom, base_to: bto, devices,
+      paid: lpTot.error ? null : { sessions: t.sessions || 0, purchases: t.ecommercePurchases || 0, revenue: t.purchaseRevenue || 0 },
+      landing: lp.error ? [] : rowsOf(lp, ['page'], ['sessions', 'ecommercePurchases', 'purchaseRevenue', 'engagedSessions']).map(r => ({ page: r.page, sessions: r.sessions, purchases: r.ecommercePurchases, revenue: r.purchaseRevenue, engaged: r.engagedSessions })),
+      landing_error: lp.error || null };
+  });
+}

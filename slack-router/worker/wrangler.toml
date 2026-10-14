@@ -15,13 +15,9 @@ compatibility_date = "2026-07-01"
 # No cron, no D1, no KV: this worker stores nothing and remembers nothing. It
 # verifies a signature, decides whose payload it is, and passes it along.
 
-# The three tools it fans out to. Service bindings rather than public fetches:
+# The two tools it fans out to (the Ledger left for its own Slack app, Cashew, 2026-10-14). Service bindings rather than public fetches:
 # a worker-to-worker fetch over the public workers.dev URL fails silently from
 # inside a Worker (that shipped once elsewhere in this repo and cost a day).
-[[services]]
-binding = "LEDGER"
-service = "mobius-ledger"
-
 [[services]]
 binding = "AUTH"
 service = "mobius-account-health"
@@ -32,6 +28,6 @@ service = "mobius-ad-status"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put SLACK_SIGNING_SECRET
-# The SAME value as the other three workers hold — it is one Slack app, so
+# The SAME value Locus and Pulse hold — it is one Slack app, so
 # there is one signing secret. This worker verifies it, and each tool verifies
 # it again on the forwarded request, so this can never be a way around anything.

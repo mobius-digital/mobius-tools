@@ -12,13 +12,17 @@
  *   source meeting | monday | today | strategist | manual, source_id (meeting id, today row key...),
  *   asana_gid (only while a mirror runs; nothing writes it today), done_at, done_by, done_how (tick | slack | auto:<signal>),
  *   reminded_on (the Central day the last reminder went), slack_channel + slack_ts (the reminder line, so a ✅ on it works),
- *   created_at, created_by.
+ *   created_at, created_by, area (2026-10-13 fourth pass: ads | email | organic | site | ops | client, '' = Other, NULL = not
+ *   judged yet; the call extractor sets it, quick add sets it, and actionTick has Haiku judge any open row still NULL).
  *
  * Routes (admin, team only; not on brandguard CLIENT_RULES, and refused for a client scope here too):
  *   GET  /api/actions?act=<brand|all|''>&status=open|done|all
  *   POST /api/actions        {act, text, owner, due, kind, source, source_id}
  *   POST /api/actions/done   {id, done}
- *   POST /api/actions/edit   {id, text, owner, due, kind, act}
+ *   POST /api/actions/edit   {id, text, owner, due, kind, act, area}
+ *   POST /api/actions/quick  {text, act?} one line typed in Work > Tasks; Haiku reads brand, owner, due and area out of it,
+ *                            and any failure keeps the raw words as the task (never lost, never blocked)
+ *   POST /api/actions/areas  judge the area of open rows that have none (the hourly tick does this too)
  *
  * Reminders (actionTick, hourly, from settings.actionHour (7 Central) until noon, switch settings.actionRemind = 'off'):
  * the morning an item is due (and every morning it is overdue, never more than once a day) one Slack line per owner per
@@ -57,6 +61,7 @@ export async function ensureActions(env) {
   if (ensured) return;
   for (const s of SQL) await env.DB.prepare(s).run();
   await env.DB.prepare(`ALTER TABLE p_action ADD COLUMN asana_url TEXT`).run().catch(() => {});   // 2026-10-13: Brief items link their Asana task
+  await env.DB.prepare(`ALTER TABLE p_action ADD COLUMN area TEXT`).run().catch(() => {});        // 2026-10-13 fourth pass: Tasks groups by it
   ensured = true;
 }
 
@@ -67,6 +72,11 @@ export const ROSTER = [
   { name: 'Ravo', email: 'schubertchannel123@gmail.com' }, { name: 'Radhesh', email: '' }, { name: 'Hamza', email: '' },
 ];
 const KINDS = ['team', 'brief', 'client', 'client_owes'];
+/* The part of the business a task touches. The model judges it from the words; nothing here matches keywords. */
+export const AREAS = ['ads', 'email', 'organic', 'site', 'ops', 'client'];
+export const AREA_RULE = `area = the part of the business the task touches: ads (paid ads: budgets, launches, naming, audiences, creative in the account), email (flows, campaigns, Klaviyo, SMS), organic (social posts, creators, community), site (discounts, pages, offers, the theme, checkout), ops (admin, setup, docs, billing, Amazon listings, anything internal), client (sending or sharing something with the client, a call with them). '' when none fits.`;
+const areaOf = a => AREAS.includes(a) ? a : (a === '' ? '' : null);
+const HAIKU = 'claude-haiku-5-5';
 const SOURCES = ['meeting', 'monday', 'today', 'strategist', 'manual'];
 const now = () => new Date().toISOString();
 const clean = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -88,11 +98,12 @@ export async function addAction(env, it) {
     kind: KINDS.includes(it.kind) ? it.kind : 'team', source: SOURCES.includes(it.source) ? it.source : 'manual', source_id: it.source_id ? clean(it.source_id, 120) : null,
     created_at: now(), created_by: it.created_by ? clean(it.created_by, 120) : null,
     asana_gid: it.asana_gid ? String(it.asana_gid) : null, asana_url: it.asana_url ? String(it.asana_url).slice(0, 300) : null,
+    area: areaOf(it.area),
   };
   if (!row.text) throw Object.assign(new Error('Write the item first.'), { status: 400 });
   row.owner_email = emailOf(row.owner);
-  await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by, asana_gid, asana_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11, ?12, ?13)`)
-    .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by, row.asana_gid, row.asana_url).run();
+  await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by, asana_gid, asana_url, area) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11, ?12, ?13, ?14)`)
+    .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by, row.asana_gid, row.asana_url, row.area).run();
   return { ...row, status: 'open', url: itemUrl(row) };
 }
 export const itemUrl = r => `${LOCUS}?open=actions${r.act_id ? `&act=${encodeURIComponent(r.act_id)}` : ''}&item=${encodeURIComponent(r.id)}`;
@@ -109,13 +120,19 @@ export async function listActions(env, { act = 'all', status = 'open', since = 6
   return (results || []).map(r => ({ ...r, url: itemUrl(r) }));
 }
 
-export async function markDone(env, id, done, { by, how } = {}) {
+/* Anything that wants to know a row was done or opened again (the morning card strikes its line, morningcard.js).
+   Registered once by worker.js; a failing hook never fails the tick or the tap. */
+const DONE_HOOKS = [];
+export function onActionDone(fn) { if (typeof fn === 'function') DONE_HOOKS.push(fn); }
+export async function markDone(env, id, done, { by, how, quiet } = {}) {
   await ensureActions(env);
   const r = await env.DB.prepare(`SELECT * FROM p_action WHERE id = ?1`).bind(String(id || '')).first();
   if (!r) throw Object.assign(new Error('No such item.'), { status: 404 });
   if (done === false) await env.DB.prepare(`UPDATE p_action SET status = 'open', done_at = NULL, done_by = NULL, done_how = NULL WHERE id = ?1`).bind(r.id).run();
   else await env.DB.prepare(`UPDATE p_action SET status = 'done', done_at = ?2, done_by = ?3, done_how = ?4 WHERE id = ?1`).bind(r.id, now(), clean(by, 120) || null, clean(how, 40) || 'tick').run();
-  return { ...r, status: done === false ? 'open' : 'done' };
+  const out = { ...r, status: done === false ? 'open' : 'done' };
+  if (!quiet) for (const h of DONE_HOOKS) await Promise.resolve().then(() => h(env, out)).catch(() => {});
+  return out;
 }
 
 export async function editAction(env, id, patch) {
@@ -129,12 +146,13 @@ export async function editAction(env, id, patch) {
     kind: 'kind' in patch && KINDS.includes(patch.kind) ? patch.kind : r.kind,
     act_id: 'act' in patch ? String(patch.act || '') : r.act_id,
     status: patch.status === 'dropped' ? 'dropped' : r.status,
+    area: 'area' in patch ? (areaOf(patch.area) ?? '') : r.area,
   };
   if (!next.text) throw Object.assign(new Error('The item needs words.'), { status: 400 });
   /* A new due date is a new reminder. */
   const remind = next.due !== r.due ? null : r.reminded_on;
-  await env.DB.prepare(`UPDATE p_action SET text = ?2, owner = ?3, owner_email = ?4, due = ?5, kind = ?6, act_id = ?7, status = ?8, reminded_on = ?9 WHERE id = ?1`)
-    .bind(r.id, next.text, next.owner, emailOf(next.owner), next.due, next.kind, next.act_id, next.status, remind).run();
+  await env.DB.prepare(`UPDATE p_action SET text = ?2, owner = ?3, owner_email = ?4, due = ?5, kind = ?6, act_id = ?7, status = ?8, reminded_on = ?9, area = ?10 WHERE id = ?1`)
+    .bind(r.id, next.text, next.owner, emailOf(next.owner), next.due, next.kind, next.act_id, next.status, remind, next.area ?? null).run();
   return { ...r, ...next, url: itemUrl({ ...r, ...next }) };
 }
 
@@ -146,18 +164,75 @@ export async function openItems(env, d) {
   const by = new Map();
   for (const r of rows) {
     if (!by.has(r.act_id)) by.set(r.act_id, { brand_id: r.act_id, name: nameOf(r.act_id), items: [] });
-    by.get(r.act_id).items.push({ id: r.id, name: r.text, text: r.text, owner: r.owner, due: r.due, kind: r.kind, source: r.source, source_id: r.source_id, url: r.url, asana_url: r.asana_url || null, created: String(r.created_at || '').slice(0, 10) });
+    by.get(r.act_id).items.push({ id: r.id, name: r.text, text: r.text, owner: r.owner, due: r.due, kind: r.kind, area: r.area || '', source: r.source, source_id: r.source_id, url: r.url, asana_url: r.asana_url || null, created: String(r.created_at || '').slice(0, 10) });
   }
   return [...by.values()].sort((a, b) => (a.brand_id ? 1 : 0) - (b.brand_id ? 1 : 0) || a.name.localeCompare(b.name));
 }
 
+/* ---------- quick add and the area judge (Haiku 5.5, a fraction of a cent each) ---------- */
+async function haiku(env, d, system, user, schema, max = 800) {
+  if (!env.ANTHROPIC_API_KEY || !d.xfetch) throw new Error('no model');
+  const r = await d.xfetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: HAIKU, max_tokens: max, system, output_config: { format: { type: 'json_schema', schema } }, messages: [{ role: 'user', content: user }] }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error?.message || `Claude HTTP ${r.status}`);
+  const out = safe((j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''));
+  if (!out) throw new Error('empty');
+  return out;
+}
+const QUICK_SCHEMA = { type: 'object', additionalProperties: false, required: ['act', 'text', 'owner', 'due', 'area'],
+  properties: { act: { type: 'string' }, text: { type: 'string' }, owner: { type: 'string' }, due: { type: 'string' }, area: { type: 'string', enum: [...AREAS, ''] } } };
+/** One typed line -> {act, text, owner, due, area}. Any failure (no key, budget, a bad answer) = the raw words as the task,
+ *  with the brand the page was on. Never throws. */
+export async function parseQuick(env, d, raw, { act = '', today } = {}) {
+  const text = clean(raw, 300);
+  const fallback = { act: String(act || ''), text, owner: '', due: '', area: null, parsed: false };
+  if (!text) return fallback;
+  try {
+    if (d.canAfford && !d.canAfford(2)) return fallback;
+    const brands = await d.listBrands(env);
+    const day = today || (d.centralDate ? d.centralDate() : centralToday());
+    const dow = new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    const system = `You read one line a Mobius Digital team member typed into their task list and split it into fields. Plain words, no em dashes.
+BRANDS (act = the id, '' when no brand is named or meant): ${brands.map(b => `${b.act_id} = ${b.name}`).join('; ')}.
+TEAM (owner = one of these first names when the line names or clearly means them, else ''): ${ROSTER.map(r => r.name).join(', ')}.
+TODAY is ${day} (${dow}). due = YYYY-MM-DD when the line gives a day ("by Wed", "tomorrow", "Friday", "end of week" = this Friday), else ''.
+text = the task itself, short and specific, without the brand name, the owner or the date words.
+${AREA_RULE}`;
+    const o = await haiku(env, d, system, text, QUICK_SCHEMA, 400);
+    const ids = new Set(brands.map(b => b.act_id));
+    const owner = ROSTER.find(r => r.name.toLowerCase() === String(o.owner || '').toLowerCase())?.name || '';
+    return { act: ids.has(o.act) ? o.act : String(act || ''), text: clean(o.text, 300) || text, owner, due: ymdOk(o.due) ? o.due : '', area: areaOf(o.area) ?? '', parsed: true };
+  } catch { return fallback; }
+}
+
+const AREA_SCHEMA = { type: 'object', additionalProperties: false, required: ['items'],
+  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['id', 'area'], properties: { id: { type: 'string' }, area: { type: 'string', enum: [...AREAS, ''] } } } } } };
+/** Open rows with no area yet (older rows, Today's "Something else", the Strategist) get one, 60 at a time. */
+export async function judgeAreas(env, d, { limit = 60 } = {}) {
+  await ensureActions(env);
+  const { results } = await env.DB.prepare(`SELECT id, text FROM p_action WHERE status = 'open' AND area IS NULL AND kind != 'brief' ORDER BY created_at LIMIT ?1`).bind(limit).all();
+  const rows = results || [];
+  if (!rows.length) return { judged: 0 };
+  if (d.canAfford && !d.canAfford(3)) return { deferred: 'budget' };
+  const o = await haiku(env, d, `You sort a digital marketing agency's tasks. For each task give its area. ${AREA_RULE}`, rows.map(r => `${r.id}: ${r.text}`).join('\n'), AREA_SCHEMA, 3000);
+  const ids = new Set(rows.map(r => r.id));
+  let n = 0;
+  for (const it of o.items || []) if (ids.has(it.id)) { await env.DB.prepare(`UPDATE p_action SET area = ?2 WHERE id = ?1 AND area IS NULL`).bind(it.id, areaOf(it.area) ?? '').run(); n++; }
+  return { judged: n };
+}
+
 /* ---------- the reminders ---------- */
 const DONE_BTN = (r, n) => ({ type: 'button', action_id: `act_done_${n}`, text: { type: 'plain_text', text: `Done: ${clean(r.text, 28)}${r.text.length > 28 ? '…' : ''}` }, value: JSON.stringify({ id: r.id }) });
-/** One owner's line for one brand: the items due today and the ones overdue, a Done button each (5 at most, Slack's limit). */
-export function reminderMessage(brandName, owner, items, today) {
+/** One owner's line for one brand: the items due today and the ones overdue, a Done button each (5 at most, Slack's limit).
+ *  tag (optional) = the owner's Slack tag (<@U...>), so a line in the morning card's thread notifies them. */
+export function reminderMessage(brandName, owner, items, today, tag) {
   const late = items.filter(i => i.due < today), due = items.filter(i => i.due === today);
   const who = owner || 'Nobody owns these';
-  const head = `*${sEsc(who)}*, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}.`;
+  const head = `${tag || `*${sEsc(who)}*`}, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}.`;
   const lines = items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.asana_url ? ` <${i.asana_url}|Asana>` : ''}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`);
   const text = [head, ...lines].join('\n');
   const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }];
@@ -169,7 +244,8 @@ export function reminderMessage(brandName, owner, items, today) {
 }
 
 export async function actionTick(env, d) {
-  if ((await getSetting(env, 'actionRemind')) === 'off') return { skipped: 'off' };
+  const areas = await judgeAreas(env, d).catch(e => ({ error: e.message }));
+  if ((await getSetting(env, 'actionRemind')) === 'off') return { skipped: 'off', areas };
   const hour = d.centralHour();
   const from = +(await getSetting(env, 'actionHour')) || 7;
   if (hour < from || hour > 12) return { skipped: 'not the morning' };
@@ -195,9 +271,11 @@ export async function actionTick(env, d) {
       if (email && d.slackApi) { const u = await d.slackApi(env, 'users.lookupByEmail', { email }).catch(() => null); if (u?.ok && u.user?.id && !u.user.is_bot) channel = u.user.id; }
     }
     if (!channel) { out.skipped.push({ act, owner, why: 'no channel' }); continue; }
-    const msg = reminderMessage(brand ? brand.name : (act ? act : ''), owner, items, today);
+    /* A brand's line goes under today's morning card when there is one (teamPost: a reply, the owner tagged). */
+    const tag = d.teamPost && act && d.tagOf ? await d.tagOf(env, owner).catch(() => null) : null;
+    const msg = reminderMessage(brand ? brand.name : (act ? act : ''), owner, items, today, tag);
     try {
-      const r = await d.slackPost(env, channel, msg.text, msg.blocks, { username: 'Locus' });
+      const r = d.teamPost && act ? await d.teamPost(env, channel, msg.text, msg.blocks, { username: 'Locus' }) : await d.slackPost(env, channel, msg.text, msg.blocks, { username: 'Locus' });
       const ts = r && (r.ts || r.message?.ts) || null;
       for (const it of items) await env.DB.prepare(`UPDATE p_action SET reminded_on = ?2, slack_channel = ?3, slack_ts = ?4 WHERE id = ?1`).bind(it.id, today, channel, ts).run();
       out.posted++;
@@ -248,7 +326,7 @@ export async function handleReaction(env, d, ev) {
   if (!ch || !ts) return { ignored: 'no item' };
   await ensureActions(env);
   const { results } = await env.DB.prepare(`SELECT * FROM p_action WHERE slack_channel = ?1 AND slack_ts = ?2 AND status = 'open'`).bind(ch, ts).all();
-  if (!results || !results.length) return { ignored: 'not a reminder' };
+  if (!results || !results.length) return d.cardReaction ? d.cardReaction(env, ev) : { ignored: 'not a reminder' };
   const who = await slackName(env, d, ev.user);
   for (const r of results) await markDone(env, r.id, true, { by: who, how: 'slack' });
   /* Redraw the line so it reads done (chat.update needs the bot's own message, which a reminder is). */
@@ -288,6 +366,13 @@ export async function handleActions(request, env, url, path, json, d) {
     }
     if (path === '/api/actions/done') return json({ ok: true, item: await markDone(env, body.id, body.done !== false, { by: who, how: 'tick' }) });
     if (path === '/api/actions/edit') return json({ ok: true, item: await editAction(env, body.id, body) });
+    if (path === '/api/actions/quick') {
+      const brands = await d.listBrands(env);
+      const p = await parseQuick(env, d, body.text, { act: brands.some(b => b.act_id === body.act) ? body.act : '' });
+      if (!p.text) return json({ error: 'Write the task first.' }, 400);
+      return json({ ok: true, parsed: p.parsed, item: await addAction(env, { ...p, kind: 'team', source: 'manual', created_by: who }) });
+    }
+    if (path === '/api/actions/areas') return json({ ok: true, ...(await judgeAreas(env, d)) });
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status || 500); }
 }

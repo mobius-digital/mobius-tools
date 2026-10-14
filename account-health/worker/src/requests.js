@@ -22,6 +22,7 @@
  */
 import { clientScope } from './brandguard.js';
 import { resolveBrandId } from './brands.js';
+import { teamPost } from './morningcard.js';
 
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const WHAT = ['studio', 'link', 'offer', 'date'];
@@ -139,9 +140,11 @@ async function tellTeam(env, deps, act, text) {
   const b = await env.DB.prepare(`SELECT name, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!b || !b.slack_channel) return false;
   const line = text;
+  /* 2026-10-13: under today's morning card when there is one, the brand's strategist tagged (morningcard.js teamPost). */
+  const lead = deps.teamOf ? ((await deps.teamOf(env, [act]).catch(() => ({})))[act] || {}).strat : null;
   try {
-    await deps.slackPost(env, b.slack_channel, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } },
-      { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=requests&act=${act}` }] }], { username: 'Locus' });
+    await teamPost(env, deps, b.slack_channel, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } },
+      { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=requests&act=${act}` }] }], { username: 'Locus', tagName: lead || null });
     return true;
   } catch { return false; }
 }

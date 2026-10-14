@@ -1,5 +1,8 @@
 # Work in Locus: action items, calls, then briefs (handoff, 2026-10-13)
 
+> **NEXT (approved 2026-10-13): `docs/handoffs/work-calls-tasks-production.md`.** Action items splits into Calls, Tasks
+> (List / Board / Calendar, area tags) and Production (the ad pipeline, which is stage 2 below). Build from that file.
+
 > **Progress (2026-10-13): stage 1 BUILT and deployed.** `p_action` + `/api/actions` (account-health actions.js), meetings.js
 > confirm / openItems / add / done on p_action, the hourly `actionTick` reminders with Done buttons and the ✅ reaction (router
 > patched for `act_done` and reaction events), Work rail item (Calls = meetings.js, Action items = profit/actions.js), Today's

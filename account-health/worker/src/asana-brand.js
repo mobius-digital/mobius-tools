@@ -1,3 +1,4 @@
+import { mirrorOn, pullStories, pruneFiles, fieldsFromText, briefHash, ensureWork } from './prodwork.js';
 import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
@@ -77,6 +78,28 @@ const stageOf = section => {
   if (s.includes('complete')) return 'done';
   return null;
 };
+/* The Production board's column (Work > Production, 2026-10-13 fourth pass): brief | making | review | ready | live | done.
+   The Asana section decides, by the names every project uses (Creative Brief(s), Creative Studio, Ready to Launch,
+   Analyze Results, Completed Tasks); the old stage is the fallback for a row synced before the board existed. Review has
+   no Asana section: it is Locus only, and the task stays in Creative Studio while it sits there. */
+export function boardOf(section, stage) {
+  const s = String(section || '').toLowerCase();
+  if (stage === 'done' || s.includes('complete')) return 'done';
+  if (s.includes('brief')) return 'brief';
+  if (s.includes('studio')) return 'making';
+  if (s.includes('review')) return 'review';
+  if (s.includes('ready')) return 'ready';
+  if (s.includes('analy')) return 'live';
+  return { idea: 'brief', production: 'making', live: 'live' }[stage] || null;
+}
+/* The section a board column moves an Asana task to. Review has none (Locus only). */
+export const BOARD_SECTION = { brief: /brief/i, making: /studio/i, ready: /ready/i, live: /analy/i, done: /complete/i };
+let boardCols = false;
+export async function ensureBoard(env) {
+  if (boardCols) return;
+  for (const c of ['board_stage TEXT', 'assignee_name TEXT', 'due_on TEXT', 'board_at TEXT']) await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
+  boardCols = true;
+}
 
 /* ---------------- Asana ---------------- */
 async function asana(env, path, init = {}) {
@@ -264,7 +287,7 @@ async function connect(env, act, projectGid) {
 }
 
 /* ---------------- 1. SYNC ---------------- */
-const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,permalink_url,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
+const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,permalink_url,due_on,assignee.gid,assignee.name,memberships.project.gid,memberships.section.name,custom_fields.gid,custom_fields.name,custom_fields.display_value,custom_fields.text_value,custom_fields.enum_value.gid,custom_fields.date_value';
 /* The brief, in the framework's shape. Dropped into a brand-new task in Creative Brief
    that has nothing written yet, so nobody has to find the template. The same layout
    lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
@@ -274,10 +297,9 @@ const TASK_FIELDS = 'name,notes,completed,completed_at,created_at,modified_at,pe
    text is the examples line, alone on its line so one triple-click deletes it. No Frame.io,
    no crop line, no subtasks. Ideas bot's briefHtml (ideas.js) uses the same layout. */
 const BRIEF_TEST = eg => `<h2>The test</h2><strong>Angle:</strong>
-<strong>Why:</strong>
-<strong>Problem (want / villain / layer):</strong>
 <strong>What we're testing:</strong>
 <em>What changes, and on which ad. Like: ${eg}</em>
+<strong>Why:</strong>
 <strong>1.</strong>
 <strong>2.</strong>
 <strong>3.</strong>`;
@@ -296,11 +318,15 @@ export const briefFor = name => /\b(ugc|video|vid|reel|creator)\b/i.test(name ||
 const sectionOf = (t, doc) => t.memberships?.find(m => m.project?.gid === doc.project_gid)?.section?.name || '';
 
 async function syncTasks(env, act, doc, { full = false } = {}) {
+  await ensureBoard(env);
+  /* The first sync after the board landed reads every task once, so old cards get their due date and assignee. */
+  if (!doc.board_v) full = true;
   const since = !full && doc.last_sync ? `&modified_since=${encodeURIComponent(doc.last_sync)}` : '';
   const started = new Date().toISOString();
   const tasks = await asanaAll(env, `/tasks?project=${doc.project_gid}&opt_fields=${TASK_FIELDS}${since}`);
   const fields = (await ensureProjectFields(env, doc).catch(() => null)) || (await getSetting(env, 'brandAsanaFields')) || {};
-  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  await ensureWork(env);
+  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle, brief_json, brief_hash FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
   let nextFree = Math.max(0, ...existing.map(b => parseInt(b.num, 10) || 0), ...tasks.map(t => +numOf(t.name) || 0)) + 1;
 
   /* AUTO-NUMBER: a task in a creative section with no number gets the next one. */
@@ -373,8 +399,19 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     }
     const learning = cf[fields.learning]?.text_value || null;
     const cancelled = /cancel/i.test(status || '');
-    const notes = clip(t.notes, 8000) || null;
+    let notes = clip(t.notes, 8000) || null;
     const row = have.get(n);
+    /* Production v2: a brief written in Locus (brief_json) is never overwritten by the text Locus itself put in Asana.
+       Only a real edit of the text in Asana (its hash moved) wins, and then the fields are read back from it. */
+    if (row && row.brief_json && notes != null) {
+      const h = await briefHash(t.notes || '');
+      if (h === row.brief_hash) notes = null;
+      else {
+        let old = null; try { old = JSON.parse(row.brief_json); } catch {}
+        const back = fieldsFromText(t.notes || '', { kind: old?.kind, format: old?.format, insp: old?.insp, sizes: old?.sizes });
+        st.push(env.DB.prepare(`UPDATE p_br_batch SET brief_json = ?2, brief_hash = ?3, brief_at = ?4 WHERE id = ?1`).bind(row.id, JSON.stringify(back), h, new Date().toISOString()));
+      }
+    }
     const angleText = (cf[fields.angle]?.text_value || '').trim();
     if (row && angleText && angleText !== (row.asana_angle || '') && !/^no angle/i.test(angleText)) {
       let aid = angleByName.get(angleText.toLowerCase());
@@ -387,6 +424,8 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
       angleFixes++;
     }
     const v = cancelled ? 'cancelled' : verdict;
+    /* A card moved in Locus keeps its column until the Asana section itself changes (Review lives only in Locus). */
+    const board = boardOf(section, stage);
     if (row) {
       if (stage === 'done' && v && !row.verdict) closed++;
       st.push(env.DB.prepare(`UPDATE p_br_batch SET title = ?3, stage = ?4, asana_gid = ?5, asana_url = ?6, asana_section = ?7,
@@ -395,22 +434,27 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
           verdict_by = CASE WHEN ?11 IS NOT NULL AND (?4 = 'done') THEN 'Asana' ELSE verdict_by END,
           verdict_at = CASE WHEN ?11 IS NOT NULL AND (?4 = 'done') AND verdict_at IS NULL THEN datetime('now') ELSE verdict_at END,
           learning = COALESCE(?12, learning), asana_result = ?13, check_again = ?14, keep_reason = ?15, brief_text = COALESCE(?16, brief_text),
+          board_stage = CASE WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END,
+          board_at = CASE WHEN board_stage IS (CASE WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END) THEN board_at ELSE datetime('now') END,
+          assignee_name = ?18, due_on = ?19,
           updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`)
         .bind(row.id, act, clip(titleOf(t.name), 300), stage, t.gid, t.permalink_url, clip(section, 80), brief, asset, t.assignee?.gid || null,
-          v, learning, resKey, checkAgain, keepReason, notes));
+          v, learning, resKey, checkAgain, keepReason, notes, board, clip(t.assignee?.name, 80) || null, t.due_on || null));
       updated++;
     } else {
-      st.push(env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, brief_url, asset_url, assignee_gid, verdict, verdict_by, learning, asana_result, check_again, keep_reason, brief_text, source, created_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 'asana', ?19)`)
+      st.push(env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, brief_url, asset_url, assignee_gid, verdict, verdict_by, learning, asana_result, check_again, keep_reason, brief_text, source, created_at, board_stage, assignee_name, due_on, board_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 'asana', ?19, ?20, ?21, ?22, datetime('now'))`)
         .bind(rid(), act, n, clip(titleOf(t.name), 300), stage, t.gid, t.permalink_url, clip(section, 80), brief, asset, t.assignee?.gid || null,
           stage === 'done' ? v : null, stage === 'done' && v ? 'Asana' : null, learning, resKey, checkAgain, keepReason, notes,
-          (t.created_at || '').replace('T', ' ').slice(0, 19) || null));
+          (t.created_at || '').replace('T', ' ').slice(0, 19) || null, board, clip(t.assignee?.name, 80) || null, t.due_on || null));
       created++;
     }
   }
   for (let i = 0; i < st.length; i += 80) await env.DB.batch(st.slice(i, i + 80));
-  await putDoc(env, act, 'asana', { ...doc, last_sync: started });
-  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered };
+  /* Comments typed in Asana on open cards come into the card's thread in Locus (the mirror, prodwork.js). */
+  const comments = full ? 0 : await pullStories(env, asana, act, tasks.filter(t => !t.completed && numOf(t.name))).catch(e => { console.log('stories: ' + e.message); return 0; });
+  await putDoc(env, act, 'asana', { ...doc, last_sync: started, board_v: 1 });
+  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered, comments };
 }
 
 /* ---------------- 2. TAG (+ 3. WARN) ---------------- */
@@ -1120,13 +1164,16 @@ export async function brandAsanaTick(env, canAfford = () => true) {
   if (!env.ASANA_TOKEN) return { skipped: 'no ASANA_TOKEN' };
   const docs = (await env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'asana'`).all().catch(() => ({ results: [] }))).results || [];
   const out = {};
+  /* The Asana mirror switch (Agency settings > Integrations): off = no task sync; the tagger and results still run. */
+  const mirror = await mirrorOn(env);
+  out.pruned = await pruneFiles(env).catch(() => 0);
   for (const d of docs) {
     const doc = safeJson(d.data_json, {});
     if (!doc.project_gid || doc.paused) continue;
     if (!canAfford(30)) { out[d.act_id] = 'deferred'; continue; }
     try {
       const hooked = await ensureHook(env, d.act_id, doc).catch(e => `hook: ${e.message}`);
-      const s = await syncTasks(env, d.act_id, doc);
+      const s = mirror ? await syncTasks(env, d.act_id, doc) : { skipped: 'the Asana mirror is off' };
       if (hooked) s.hook = hooked;
       const t = await tagPass(env, d.act_id, { limit: 8 });
       const r = await resultsPass(env, d.act_id, { limit: 4 });
@@ -1371,7 +1418,7 @@ async function hookRun(env, act) {
   for (let i = 0; i < 3; i++) {
     await putSetting(env, key, { running: Date.now() });
     const doc = await getDoc(env, act, 'asana');
-    if (!doc?.project_gid || doc.paused) break;
+    if (!doc?.project_gid || doc.paused || !(await mirrorOn(env))) break;
     await syncTasks(env, act, doc);
     if (!((await getSetting(env, key)) || {}).again) break;
   }

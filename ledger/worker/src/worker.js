@@ -372,7 +372,7 @@ async function controllerNightly(env) {
 async function controllerBriefing(env, force = false) {
   const { engine, h } = controller();
   const text = await engine.briefing(env, h(), { force });
-  if (text) await alertSlack(env, `*Monday briefing from the Controller*\n\n${text}`).catch(() => {});
+  if (text) await alertSlack(env, `*Monday briefing from Cashew*\n\n${text}`).catch(() => {});
   return text;
 }
 
@@ -629,11 +629,11 @@ async function notifyStyle(env, kind) {
 }
 
 async function slack(env, method, params = {}, post = false) {
-  // The Slack app is the shared "Mobius Digital" one; posts should still read
-  // as this tool. Needs chat:write.customize — falls back plain if not granted.
+  // Cashew has its own Slack app since 2026-10-14 (it shared "Mobius Digital" with Locus before,
+  // and answered as Controller in group DMs meant for Locus). Name and face stay explicit.
   if (method === 'chat.postMessage')
-    params = { username: 'Mobius Ledger',
-               icon_url: 'https://tools.go-mobius-digital.com/icons/ledger-512.png', ...params };
+    params = { username: 'Cashew',
+               icon_url: 'https://tools.go-mobius-digital.com/logo/cashew/icons/icon-512.png', ...params };
   const send = async p => {
     const r = post
       ? await fetch(`https://slack.com/api/${method}`, {
@@ -3179,50 +3179,21 @@ const LEDGER = {
         raw, request.headers.get('x-slack-signature'));
       if (!ok) return json({ error: 'bad signature' }, 401);
       const payload = safeJson(new URLSearchParams(raw).get('payload'), {}) || {};
-      /* One Slack app ("Mobius Digital") serves every Mobius tool, and Slack
-       * allows a single interactivity URL — this worker is it. THREE tools now
-       * answer behind it, so the payload has to be classified rather than
-       * split in two:
-       *   Ledger — a block action whose value carries {id, tax}, {skip} (the
-       *            month-end "no receipt" button) or {undo} ("not a match")
-       *   Locus  — the Daily Brief / Reports cards: every action_id and every
-       *            modal callback_id is prefixed brief_ / report_ (plus the
-       *            noop_open link buttons Slack reports anyway). Modal
-       *            submissions carry NO actions array at all, which is why
-       *            this cannot stay a block_actions-only test.
-       *   Pulse  — everything else, which is what it was before.
-       * Forwarding keeps the raw body and both signature headers, so each
-       * worker verifies the signature itself against the same app secret. */
+      /* Cashew has its own Slack app (2026-10-14), so everything that lands here
+       * is ours: a block action whose value carries {id, tax}, {skip}, {undo},
+       * {file} or {ask}, or a led_ / ask_ link button. Until then this worker
+       * was the shared app's one interactivity URL and forwarded Locus and
+       * Pulse taps on; anything unrecognised now gets a quiet 200 (Slack paints
+       * a red banner on any other status). */
       const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
       const mine = acts.some(x => {
-        // led_-prefixed ids are Ledger's link buttons — Slack reports the click
-        // but nothing needs doing; claiming them keeps them off Pulse's desk
         if (/^(led_|ask_)/.test(x.action_id || '')) return true;
         const v = safeJson(x.selected_option?.value || x.value, null);
         return v && ((v.id !== undefined && v.tax !== undefined)
                      || v.skip !== undefined || v.undo !== undefined || v.file !== undefined
                      || v.ask !== undefined);
       });
-      const LOCUS_ID = /^(brief|report)_|^noop_open$/;
-      const locus = !mine && (
-        acts.some(x => LOCUS_ID.test(x.action_id || '')) ||
-        (payload.type === 'view_submission' && LOCUS_ID.test(payload.view?.callback_id || '')));
-      if (!mine) {
-        const hand = (binding, target) => binding
-          ? binding.fetch(new Request(target, {
-            method: 'POST',
-            headers: {
-              'Content-Type': request.headers.get('content-type') || 'application/x-www-form-urlencoded',
-              'x-slack-request-timestamp': request.headers.get('x-slack-request-timestamp') || '',
-              'x-slack-signature': request.headers.get('x-slack-signature') || '',
-            },
-            body: raw }))
-          // No binding is not an error worth showing a human: Slack renders any
-          // non-200 as a red banner over the card. Stay quiet and drop it.
-          : new Response('', { status: 200 });
-        if (locus) return hand(env.AUTH, 'https://mobius-account-health.mobius-digital.workers.dev/slack/actions');
-        return hand(env.PULSE, 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact');
-      }
+      if (!mine) return new Response('', { status: 200 });
       const handleAction = async () => {
       const who = await slack(env, 'auth.test');
       const owner = await slack(env, 'users.lookupByEmail', { email: env.OWNER_EMAIL });

@@ -131,6 +131,7 @@
     root.querySelectorAll('.dk-day').forEach(el => el.onclick = () => { MDSEL = el.dataset.d; yesterday(false); });
     if (isLatest) fillVerdict(m, t, agency);
     fillNow(t);
+    /* The leak finder's full list moved to Home > Overview on 2026-10-14 (Cole: "it's not on the overview?"). */
   }
 
   /* RIGHT NOW (2026-10-09, account-health checknow.js): today so far against a normal day by this hour, the signs,

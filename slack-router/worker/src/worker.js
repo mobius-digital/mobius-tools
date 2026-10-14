@@ -24,8 +24,12 @@
  * token beyond the signing secret.
  *
  * Deploy:  npx wrangler deploy   (from this folder)
- * Secret:  npx wrangler secret put SLACK_SIGNING_SECRET   (same value as the
- *          other three workers — it is one Slack app)
+ * Secret:  npx wrangler secret put SLACK_SIGNING_SECRET   (the "Mobius Digital"
+ *          app's; Locus and Pulse hold the same one)
+ *
+ * 2026-10-14: the Ledger (Cashew) moved to ITS OWN Slack app, with its event and
+ * interactivity URLs pointed straight at mobius-ledger. Nothing here goes to the
+ * Ledger any more; a Ledger-shaped payload or an unowned channel's event is dropped.
  */
 
 /* Slack signs every interaction: HMAC-SHA256 of "v0:<timestamp>:<raw body>".
@@ -82,6 +86,8 @@ function ownerOf(payload) {
     return v && ((v.id !== undefined && v.tax !== undefined)
                  || v.skip !== undefined || v.undo !== undefined || v.file !== undefined);
   });
+  /* Cashew (the Ledger) has its OWN Slack app since 2026-10-14, so its taps never arrive here.
+     A tap on a card the old shared app posted is dropped quietly (Slack shows nothing). */
   if (ledger) return 'ledger';
   if (acts.some(x => LOCUS_ID.test(x.action_id || ''))) return 'locus';
   if (payload.type === 'view_submission' && LOCUS_ID.test(payload.view?.callback_id || '')) return 'locus';
@@ -89,7 +95,7 @@ function ownerOf(payload) {
 }
 
 const TARGETS = {
-  ledger: ['LEDGER', 'https://mobius-ledger.mobius-digital.workers.dev/api/slack-interact'],
+  ledger: null,
   locus: ['AUTH', 'https://mobius-account-health.mobius-digital.workers.dev/slack/actions'],
   pulse: ['PULSE', 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact'],
 };
@@ -121,7 +127,7 @@ async function locusOwns(env, channel) {
   return owns;
 }
 const EVENT_TARGETS = {
-  ledger: ['LEDGER', 'https://mobius-ledger.mobius-digital.workers.dev/api/slack-events'],
+  ledger: null,   // Cashew listens on its own app; a channel Locus does not own is nobody's here
   locus: ['AUTH', 'https://mobius-account-health.mobius-digital.workers.dev/slack/events'],
 };
 
@@ -156,11 +162,13 @@ export default {
       const body = safeJson(raw, null);
       if (body?.type === 'url_verification') return Response.json({ challenge: body.challenge });
       const ev = body?.event || {};
-      const dm = ev.channel_type === 'im';
+      /* A group DM (mpim) is a DM too (2026-10-14: Cole's "Locus, Noma" group chat went to the Ledger,
+         which answered as Controller). The Ledger never answers there. */
+      const dm = ev.channel_type === 'im' || ev.channel_type === 'mpim';
       /* A reaction names its channel under item (reaction_added); Locus reads a ✅ on its action item reminders (2026-10-13). */
       const who = dm || await locusOwns(env, ev.channel || ev.item?.channel) ? 'locus' : 'ledger';
-      const [bindingName, target] = EVENT_TARGETS[who];
-      const binding = env[bindingName];
+      const [bindingName, target] = EVENT_TARGETS[who] || [];
+      const binding = bindingName && env[bindingName];
       if (!binding) return new Response('', { status: 200 });
       return binding.fetch(new Request(target, {
         method: 'POST',
@@ -184,8 +192,8 @@ export default {
        we were never going to act on. */
     if (!payload) return new Response('', { status: 200 });
 
-    const [bindingName, target] = TARGETS[ownerOf(payload)];
-    const binding = env[bindingName];
+    const [bindingName, target] = TARGETS[ownerOf(payload)] || [];
+    const binding = bindingName && env[bindingName];
     if (!binding) return new Response('', { status: 200 });
 
     return binding.fetch(new Request(target, {

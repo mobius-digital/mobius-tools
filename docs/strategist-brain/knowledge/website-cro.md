@@ -72,6 +72,24 @@ CVR by traffic source (session to purchase), so mix changes are not mistaken for
 - Desktop CVR is usually 1.8 to 2.2x mobile. Mobile under 40% of desktop = a mobile-specific problem.
 - AOV scales CVR down: a $150+ AOV store converting 1.2% cold is fine; a $35 AOV store at 1.2% is weak.
 
+### Published benchmarks the leak finder uses, by device (checked 2026-10-13)
+
+The leak finder (Home > Day check, and the top of Ads > Google, Meta, TikTok, Store > Website, Email) flags a funnel step only when it is more than 20% under the benchmark below AND under the brand's own 90 days before the window. Every number on screen names its source. Floors: 1,000 sessions for the add to cart step, 300 carts or checkouts for the later steps; under a floor the screen says "not enough data yet". All three Littledata figures share one denominator (sessions), one 90-day window (Jul 6 to Oct 3, 2026) and Shopify stores only, which is why they are used together; Dynamic Yield measures items per product page view and must not be mixed in.
+
+| Step (GA4 sessions with the event) | All | Mobile | Desktop | Source |
+|---|---|---|---|---|
+| Session to add to cart | 6.8% | 5.4% | 9.9% | Littledata add to cart rate benchmark, generated 2026-10-07, median of 423 Shopify stores on GA4 (top 20% over 12%). littledata.io/benchmarks/add-to-cart-rate |
+| Add to cart to checkout | about 40% | about 45% | about 38% | No publisher puts this step out (checked 2026-10-13). Estimated from the Littledata medians: conversion / (add to cart x checkout completion). Labelled "estimated" on screen. |
+| Checkout to purchase | 52% | 62% | 40% | Littledata checkout completion rate, 2026-10-07, median of 425 stores (top 20% over 68%). littledata.io/benchmarks/checkout-completion-rate |
+| Session to purchase | 1.4% | 1.5% | 1.5% | Littledata ecommerce conversion rate, 2026-10-07, median of 426 stores (top 20% over 2.7%). littledata.io/ecommerce-conversion-rate |
+| Cart abandonment | 70.22% | | | Baymard Institute, updated 2025-09-22, average of 50 studies. baymard.com/lists/cart-abandonment-rate |
+
+Email flows, revenue per recipient (Klaviyo 2026 Omnichannel Benchmark Report, published 2026-10-02, 110,000+ customers; Klaviyo's own attribution): abandoned cart $6.77, welcome $5.75, browse abandonment $2.08, post purchase $1.80, win-back $0.82. Flows are nearly 41% of email revenue from 5.3% of sends (Klaviyo 2026 email benchmarks). The often quoted $3.65 abandoned cart figure is the 2024 report (2023 data) and is out of date.
+
+Google Search (WordStream / LocaliQ 2026 report, 2026-05-19, Apr 2025 to Mar 2026): all industries CPC $5.42, conversion rate 8.18% (any tracked action, mostly leads); Shopping, Collectibles and Gifts CPC $4.14, conversion 4.01%; Apparel CPC $4.44, conversion 4.50%; Sports and Recreation CPC $2.77, conversion 7.69%. There is NO defensible published YouTube view-rate benchmark (vendor claims run 15% to 60%+; Google publishes none), so the leak finder judges video on the brand's own cut line, never a view rate.
+
+Where sources disagree: desktop beats mobile at adding to cart in Littledata (9.9% vs 5.4%) but Dynamic Yield has mobile ahead, because Dynamic Yield counts items per product page view. Contentsquare 2026 has retail desktop converting 3.7% and mobile about 2.0%. Statista (Q2 2026) puts session to purchase at 1.3% worldwide.
+
 Cart abandonment is around 70% across studies (Baymard). Top stated reason is extra costs shown late (shipping, tax, fees), then forced account creation, slow delivery, distrust of payment, long or complex checkout.
 
 ---
@@ -265,4 +283,5 @@ Numbers below are illustrative; the shape is the rule. Every suggestion names th
 - Meta landing page and Andromeda (no published LP score; post-click signals in ad quality): https://www.maker.co/meta-ad-landing-page and https://segwise.ai/blog/meta-andromeda-roas-drop
 - Meta ad auction (bid, estimated action rate, ad quality): https://www.facebook.com/business/help/430291176997542 (not fetched in this session)
 - Google Quality Score and landing page experience: https://support.google.com/google-ads/answer/6167118 (not fetched in this session)
+- Leak finder benchmarks, read on the publishers' own pages 2026-10-13: Littledata https://www.littledata.io/benchmarks/add-to-cart-rate , https://www.littledata.io/benchmarks/checkout-completion-rate , https://www.littledata.io/ecommerce-conversion-rate (vendor data: Shopify stores using Littledata with GA4, rolling 90 days, record the capture date); Baymard https://baymard.com/lists/cart-abandonment-rate (2025-09-22); Klaviyo https://www.klaviyo.com/marketing-resources/abandoned-cart-benchmarks (2026-10-02) and https://www.klaviyo.com/products/email-marketing/benchmarks ; WordStream https://www.wordstream.com/blog/2026-google-ads-benchmarks ; Dynamic Yield https://marketing.dynamicyield.com/benchmarks/add-to-cart-rate/ (different denominator, not used on screen); Contentsquare https://contentsquare.com/guides/retail-digital-experience/conversions/ (2026-02-12).
 - Sample size rule of thumb (16 x p(1-p)/delta²) is the standard two-proportion approximation at 80% power, alpha 0.05.

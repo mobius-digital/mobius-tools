@@ -1,4 +1,6 @@
 import { tiktokReport } from './tiktok.js';
+import { leaksFor, lessonFromLeak } from './leaks.js';
+import { addLesson } from './leakctx.js';
 import { surveyReport } from './survey.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
@@ -242,11 +244,19 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
   and money keep their own buttons.
 - Files: post_file for a CSV of rows you read, or a document (a brief, a plan, a script). make_report for a
   laid-out page with charts.
-- HOW AN ANSWER LOOKS. Lead with the answer or what you did. When you did work, say plainly what is DONE,
-  what is NOT DONE and anything you COULD NOT REACH (and why, in one line each). Every task, brief, file,
-  page, ad and thread you mention is a link. Numbers to the dollar, sourced (Triple Whale or Meta-reported).
-  Ask questions only AFTER doing everything you can, each with your default ("say go with defaults").
-  End with one offer of the obvious next step. Short: no preamble, no recap of the question, no sign-off.
+- HOW AN ANSWER LOOKS (Cole, 2026-10-13: "it over explains... a wall of text... they want quick answers").
+  Think as long as you need; SAY little. Talk like a sharp colleague in a chat, not a report.
+  * First line = the answer or the call, in one plain sentence. Then at most 3 short bullets, one line each.
+  * Give the decision and the one reason that matters, not everything you found. Leave out what does not
+    change what they do. Offer the rest in one closing line ("Want the full rewrite?") instead of writing it.
+  * No section headers, no "Verdict:", no stacked bold labels, no sub-bullets, no restating their message.
+  * Normal English a customer would say out loud: full sentences, everyday words. No clipped slogans
+    ("One belt is just a belt."), no fragments joined by colons and slashes, no invented labels.
+  * Several items (three briefs, three batches): one short block each, separated by a blank line; each
+    block is a few lines a person reads in five seconds.
+  * When you did work: what is done, and anything you could not do, one line each. Every task, brief, file
+    and ad you mention is a link. Numbers to the dollar, sourced (Triple Whale or Meta-reported).
+  * Ask questions only after doing everything you can, each with your default.
 
 WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
 - Home: Overview (open=overview, the central dashboard with Needs you today), Day check (open=yesterday: was yesterday a bad day ON META for advertisers in general; bad when 2+ of 4 signs agree: our brands' Meta cost per sale, Breezeway's panel, Meta's status page, advertisers online), P&L (open=profit), Goals (open=plan: the month's revenue, spend and MER plus the goal cost per sale and goal ROAS).
@@ -265,6 +275,7 @@ THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of 
 - You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, post-purchase-survey, cross-channel, messaging). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
+- Before any audit, "where are we leaking" or "what do we fix first" question, read the leaks view for the brand first: it ranks every leak across Google, Meta, TikTok, the funnel, landing pages and email by money a month, each benchmark with its source. Start from its top line, then go deeper with the channel views.
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
 - Before cutting a channel that clicks under-credit (upper-funnel video, TikTok, YouTube, creators, podcasts), check the survey view when the brand has a post-purchase survey: what customers SAY is a reality check on Triple Whale, never a replacement for it (knowledge topic post-purchase-survey).
 
@@ -285,19 +296,25 @@ THINKING LIKE A STRATEGIST (every answer, not only the creative ones)
 - Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used. Where the evidence is missing, say so and name what would settle it.
 - Gaps are findings. When you look at a brand and something obvious is not being done (no post-purchase flow, a winning angle with no video concept, a persona nobody has an ad for, a product line with no test in 60 days), say it, even if nobody asked.
 - Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A QUESTION to be asked again on a schedule ("ask this every Monday", "post the answer in #lucky-internal every morning") = schedule_question (read the schedules view first so you do not make a twin). A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
-- Every problem has three layers (Donald Miller, StoryBrand): EXTERNAL (the thing they would search for), INTERNAL (how it makes them feel), PHILOSOPHICAL (why nobody should have to put up with it), plus one VILLAIN, all starting from the customer's WANT. Brands sell the external fix, people buy relief from the feeling. Read the brand's known problems (brain view, The problem) before writing or judging anything and say which layer a piece argues; they are a map, not a rule. Cold audiences: lead internal, anchored to a concrete moment in the customer's words; warm and product-aware: layer one proof and offer. Fun and gift products often sell on a social want and have no layer three: never force one. The full method (which want, when a new layer is a new angle, Miller's seven parts as concepts, the five testimonial questions) is knowledge topic messaging: read it before any creative review, brief or angle work.
+- Problem layers are YOUR thinking tool, never output: do not write want / villain / layer / external / internal into a brief, a review or a reply unless someone asks about layers. Every problem has three layers (Donald Miller, StoryBrand): EXTERNAL (the thing they would search for), INTERNAL (how it makes them feel), PHILOSOPHICAL (why nobody should have to put up with it), plus one VILLAIN, all starting from the customer's WANT. Brands sell the external fix, people buy relief from the feeling. Read the brand's known problems (brain view, The problem) before writing or judging anything and say which layer a piece argues; they are a map, not a rule. Cold audiences: lead internal, anchored to a concrete moment in the customer's words; warm and product-aware: layer one proof and offer. Fun and gift products often sell on a social want and have no layer three: never force one. The full method (which want, when a new layer is a new angle, Miller's seven parts as concepts, the five testimonial questions) is knowledge topic messaging: read it before any creative review, brief or angle work.
 - Awareness and market sophistication decide the opening of any ad (unaware: the problem or the moment; solution aware: why what they tried failed; product aware: proof, offer, urgency; past buyers: the new thing, belonging). Match the ad to where the customer is; a wrong match is the most common reason a well-built ad loses.
 
 BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "execution" or "variation" in anything sent to the team)
-- ANGLE = the argument: the reason to buy, said in one sentence to a specific person, with stakes, something you could say at a bar and they could disagree with. Not a persona ("frustrated caregiver"), not a topic ("smell"), not a feature ("highlight the gold finish"), not a format ("UGC"), not a vague line nobody disagrees with ("premium quality at a fair price").
+- ANGLE = the reason to buy. The test: finish "You should buy this because..." in one plain sentence a customer would say to a friend (under 15 words). If what is written is an offer, a headline, a picture, an audience, a giveaway or a format, it is not the angle. Good (Dartee): "Wearing the same belt every round gets old." "A belt should match the outfit, so you need more than one." Bad: "Early Bird BOGO" (an offer), "Men 25-45" (an audience), "Embossed leather up close" (a picture). Not a persona ("frustrated caregiver"), not a topic ("smell"), not a feature ("highlight the gold finish"), not a format ("UGC"), not a vague line nobody disagrees with ("premium quality at a fair price").
 - ONE WORDING PER ARGUMENT. The angle library (p_br_angle) holds each argument once. Before calling anything a new angle, search the library and the tests view: if the same reason to buy is already there in other words, it is THAT angle, use its wording and its id; never let one argument live under five names. Different reason to buy = new angle.
 - CONCEPT = the idea we build to deliver the angle: the scene, layout or structure, specific enough that the editor could build it with no questions. Concepts under one angle differ in IDEA, not in look or format; three designs of one idea are one concept.
 - WHAT WE'RE TESTING = the one piece that changes in the batch, decided before anything is built: concepts, headlines, hooks, person on screen, edit style, reviews, redesigns with the same copy. Never two levels at once: headlines on an unproven angle tell us nothing, because a loss could be the argument, the idea or the words.
 - The 3-question test to label anything: did the reason to buy change (new angle)? same reason, different idea (new concept)? same idea, one piece changed (testing inside the concept)? Price, a new demographic with a new reason: new angle. Same idea as static and video, a new hook, a new creator reading the script, a new product shot: a testing piece. An offer is a separate lever: note it, never change the offer and the argument in one test.
+- OFFER AND PROMO BATCHES (a sale, BOGO, Black Friday, a giveaway): the offer IS the reason to buy, so do not invent a story angle on top. Write the angle as the offer in plain words ("Second belt 50% off, any belt." / "Win belts for your whole foursome, free to enter."), and the concepts are different ways to show it. A story angle only when the offer will run to cold people who do not know the product yet.
 - WHY are we testing this: every batch states the reason, from the data. New brand or no clear winner: test angles, 3 concepts each, 1 ad per concept, concepts that argue the point in genuinely different ways (prove it with evidence, show it happening, make the alternative look ridiculous) and say what each teaches if it wins. Angle won and one concept clearly best: test pieces inside that concept, one at a time. Angle won and concepts close: more concepts under it. Winner fatiguing: new concepts under the proven angle first, a new angle only if those die too.
 - Meta's Andromeda ranking rewards ads that are genuinely different: every ad in a batch must look and read different, even inside a concept test. Near-duplicates are wasted spend.
-- The brief shape (the Asana template): ANGLE (one sentence) / WHY (a belief about the customer, not a description of the copy) / PROBLEM (want / villain / layer, one line) / WHAT WE'RE TESTING (one line: "3 new concepts", "3 headlines on 412-3", "2 hooks on 290-1"; the number names the winning ad) / numbered ads, one line each the editor can build from / Copy: headline, primary text, offer, landing page, inspo / for video: creator, script. Ads are named "<batch>-<n> | <format>" so results join back to the test.
-- Reviewing a batch someone sent: 1) read the brand brain and the test library first; 2) relabel what they sent with the correct words (strategists mislabel: an angle called a concept, a format called a concept, three designs called three concepts, a persona written as an angle, no Testing line); 3) check: angle is an argument, concepts are buildable and different, one level changes, the level fits the account state, the angle fits the brand's rules and the customer's awareness, it argues the right problem layer for who will see it (layer one features to a cold audience is the most common miss; an internal line must be tied to a concrete moment, never "feel confident"), it is not a claim a competitor owns, it has not been tested and lost without a reason to retest, the headline would stop the right person, it sounds like the customer and the brand, every claim is true; 4) VERDICT: Good as is / Fix and send back / Redo, then WHAT'S WRONG (most important first, 5 max), then the FIXED VERSION in brief shape using their own ideas, then a short Slack message to the strategist (what is working in one line if true, numbered fixes, 4 max, a clear next step, under 150 words). Name the psychological lever each angle pulls (loss, status, social proof, relief, contrarian, proof, belonging, curiosity, real urgency); no lever, weak angle.
+- The brief shape (the Asana template; Cole 2026-10-13: "simpler"). Three lines and the ads, nothing else:
+  Angle: the reason to buy, one plain sentence (for an offer batch, the offer).
+  Testing: what changes, one line ("3 new concepts", "3 headlines on 412-3"; the number names the winning ad).
+  Why: why we test this now, one sentence from the data ("new angle, nothing proven yet", "376-3 sold at $62 a sale").
+  1. 2. 3.: one line per concept or ad, the picture and the words on it, buildable with no questions.
+  Copy lines (headline, primary text, offer, landing page) only when they are set. No target, funnel stage, persona or problem line. Ads are named "<batch>-<n> | <format>" so results join back to the test.
+- Reviewing a batch someone sent: 1) read the brand brain and the test library first; 2) relabel what they sent with the correct words (strategists mislabel: an angle called a concept, a format called a concept, three designs called three concepts, a persona written as an angle, no Testing line); 3) check: angle is an argument, concepts are buildable and different, one level changes, the level fits the account state, the angle fits the brand's rules and the customer's awareness, it argues the right problem layer for who will see it (layer one features to a cold audience is the most common miss; an internal line must be tied to a concrete moment, never "feel confident"), it is not a claim a competitor owns, it has not been tested and lost without a reason to retest, the headline would stop the right person, it sounds like the customer and the brand, every claim is true; 4) REPLY SHORT: per batch, one line with the call (good / fix / redo) and the single biggest fix, plus at most 2 more one-line fixes. Write the fixed brief only when asked, in the brief shape above. Think about the lever each angle pulls (loss, status, social proof, relief, belonging, curiosity, real urgency; no lever, weak angle) but do not list it.
 - Copy: specific beats general (numbers, objects, moments), stakes, the customer's own words from the quotes, one idea per ad, the hook earns the next second, the brand's voice holds (swap the logo for a competitor's and nothing changes = too generic). Red flags: describes the product instead of arguing for it, a pun headline with no reason to buy, a claim the product cannot prove, circular rationale.
 
 HOW ACCOUNTS ARE RUN (Cole's post-Andromeda doctrine, set on Lucky Golf 2026-10-04; the default for every brand, a brand's own rules in the brain win)
@@ -357,6 +374,7 @@ const VIEW_BLURBS = {
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   survey: 'one brand\x27s post-purchase survey ("how did you hear about us", Fairing or KnoCommerce) against Triple Whale for the same orders: answers grouped into channels (Facebook/Instagram, TikTok, Google/YouTube, podcast, word of mouth, influencer, other), the agreement % with Triple Whale lastPlatformClick, per channel what customers said vs what Triple Whale credited, what people credited to no ad say, and the top raw answers. Pass `brand`, optionally `days` or `from`/`to`. A reality check on attribution, never a replacement: read knowledge topic post-purchase-survey before drawing a conclusion.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
+  leaks: 'where one brand is losing money, ranked by dollars a month (the leak finder, the same list as Home > Overview): Google search terms judged irrelevant (negative keyword candidates), Performance Max search categories, Google / video / TikTok campaigns over the brand\'s cut line, Meta ad sets on the cut line (Today\'s calls), funnel steps under their published benchmark (Littledata, by device) AND under the brand\'s own 90 days, paid landing pages far under the site, missing or switched-off email flows. Each leak: number + source, benchmark + source, cost a month + how it was estimated, the fix, who owns it; `areas` says what could not be checked and why. Pass `brand`. Read it BEFORE any audit, "where are we leaking" or "what should we fix first" question.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
   search: 'one brand\'s organic Google search from Search Console: clicks, impressions, click rate, position, top queries flagged brand or not, top pages, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -638,6 +656,11 @@ function buildViews(d) {
       const r = await surveyReport(env, acct.act_id, { from: w.from, to: w.to });
       return { brand: acct.name, ...r, how_to_read: r.error === 'not_linked' ? 'No post-purchase survey is connected for this brand (Brand settings > Integrations > Post-purchase survey). Say so, and suggest Fairing if the brand runs upper-funnel video, podcasts or creators.' : `${r.how_to_read} ${VIEW_BLURBS.survey}` };
     },
+    leaks: async (env, a) => {
+      const acct = await need(env, a);
+      const r = await leaksFor(env, { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession }, acct.act_id, { days: [7, 14, 30, 60, 90].includes(+a.days) ? +a.days : 30 });
+      return { ...r, how_to_read: VIEW_BLURBS.leaks + ' Costs overlap (a better cart page also lifts checkout): never add them up. A search term judged irrelevant can be blocked from Locus (Ads > Google, Add negative): point the person there.' };
+    },
     google_ads: async (env, a) => {
       const acct = await need(env, a); const w = winOf(a);
       const r = await adsReport(env, acct.act_id, w.from, w.to);
@@ -849,7 +872,7 @@ function briefNotesHtml(a, { num, by, inspo = [] }) {
   const ads = (a.ads || []).length ? a.ads : ['', '', ''];
   const parts = [`<body><em>${xesc(by || 'Filled in by the Strategist')}.</em>`, `<h2>The test</h2>${line('Angle', a.angle)}`];
   if (a.concept) parts.push(line('Concept', a.concept));
-  parts.push(line('Why', a.why), line('Problem (want / villain / layer)', a.problem), line("What we're testing", a.testing), ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${xesc(String(t || '').replace(/^\s*\d+[.)]\s*/, ''))}`));
+  parts.push(line("What we're testing", a.testing), line('Why', a.why), ...ads.map((t, i) => `<strong>${i + 1}.</strong> ${xesc(String(t || '').replace(/^\s*\d+[.)]\s*/, ''))}`));
   if (a.guardrails && a.guardrails.length) parts.push(`<strong>Keep in mind:</strong> ${xesc(a.guardrails.join(' · '))}`);
   if (a.kind === 'video') parts.push(`<h2>Video</h2>${line('Creator', a.creator)}`, line('Script', a.script));
   parts.push(`<h2>Copy</h2>${line('Headline', a.headline)}`, line('Primary text', a.primary_text), line('Offer', a.offer), line('Landing page', a.landing_page),
@@ -859,7 +882,7 @@ function briefNotesHtml(a, { num, by, inspo = [] }) {
 function briefNotesText(a, { by, inspo = [] }) {
   const l = (k, v) => `${k}: ${v || ''}`;
   const ads = (a.ads || []).length ? a.ads : ['', '', ''];
-  return [by || '', 'THE TEST', l('Angle', a.angle), a.concept ? l('Concept', a.concept) : null, l('Why', a.why), l('Problem (want / villain / layer)', a.problem), l("What we're testing", a.testing),
+  return [by || '', 'THE TEST', l('Angle', a.angle), a.concept ? l('Concept', a.concept) : null, l("What we're testing", a.testing), l('Why', a.why),
     ...ads.map((t, i) => `${i + 1}. ${String(t || '').replace(/^\s*\d+[.)]\s*/, '')}`), a.guardrails?.length ? `Keep in mind: ${a.guardrails.join(' · ')}` : null,
     a.kind === 'video' ? `VIDEO\n${l('Creator', a.creator)}\n${l('Script', a.script)}` : null,
     'COPY', l('Headline', a.headline), l('Primary text', a.primary_text), l('Offer', a.offer), l('Landing page', a.landing_page), `Inspo: ${inspo.join(' ')}`].filter(x => x != null).join('\n');
@@ -873,8 +896,7 @@ const BRIEF_PROPS = {
   test_type: { type: 'string', enum: ['angle', 'concept', 'variation'], description: 'What this batch tests: a new angle, new concepts on a proven angle, or one piece inside a proven concept.' },
   angle: { type: 'string', description: 'The argument, one sentence, as approved.' },
   concept: { type: 'string', description: 'Only when testing inside a proven concept: the concept, naming the winning ad.' },
-  why: { type: 'string', description: 'One sentence: the belief about the customer.' },
-  problem: { type: 'string', description: 'One line: what they want / the villain in the way / the layer the ads argue (external, internal, philosophical, or success for status and fun products). Take it from the brand\'s known problems when one fits; a new one is fine.' },
+  why: { type: 'string', description: 'One plain sentence: why we are testing this now, from the data ("new angle, nothing proven yet", "376-3 sold at $62 a sale, so we test words on it").' },
   testing: { type: 'string', description: 'One line: what changes and on which ad. "3 new concepts", "3 headlines on 412-3".' },
   ads: { type: 'array', items: { type: 'string' }, description: 'One line per ad, in order, as approved, each buildable with no questions. Include the headline on a line when the thread gave one.' },
   guardrails: { type: 'array', items: { type: 'string' }, description: 'Rules from the thread the editor must keep (e.g. "nothing that hints tour players use it"). Short.' },
@@ -1485,6 +1507,32 @@ const ACTIONS = (d) => {
         return { ok: true, note: 'The creator link page is updated; creators see it on their next load.' };
       } },
 
+    { name: 'leak_lesson',
+      description: 'Teach the leak finder (the leaks view) what a teammate pushed back on, when someone says a leak or suggestion is wrong or should not be done ("our Google guy says never block competitor names in the brand campaign", "the web dev says that page is brand new, give it two weeks"). It is saved, judged once against the data and how the platform works (holds / partly / does not hold, with the why), and every later leak review follows it or shows both sides. Read the leaks view first so you can name the leak it is about.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string', description: 'The brand it is about. Leave empty only when it applies to every brand.' },
+        text: { type: 'string', description: 'What they said, in their words as closely as you have them.' },
+        author: { type: 'string', description: 'Who said it (first name).' },
+        role: { type: 'string', description: 'Their role: Google buyer, Meta buyer, web dev, strategist, email.' },
+        leak_id: { type: 'string', description: 'The id of the leak it is about, from the leaks view, when there is one.' },
+        final: { type: 'boolean', description: 'true only when Cole (or the person making the call) says to go with the team view no matter what Locus thinks. Then it is recorded as the final call of the team at once.' },
+        summary: { type: 'string' } }, required: ['text', 'summary'] },
+      propose: async (env, input) => {
+        const acct = input.brand ? await resolve(env, input.brand) : null;
+        if (input.brand && !acct) return { error: `No brand called "${input.brand}".` };
+        if (String(input.text || '').trim().length < 8) return { error: 'Say what they said, in a sentence.' };
+        return { summary: input.summary, detail: `${input.author || 'A teammate'}${input.role ? ` (${input.role})` : ''} on ${acct ? acct.name : 'every brand'}: "${String(input.text).trim()}". Saved as a lesson for the leak finder, then judged against the data; every later review follows it or shows both sides.`,
+          patch: { act: acct ? acct.act_id : '', text: input.text, author: input.author || '', role: input.role || '', leak_id: input.leak_id || null, brand: acct ? acct.name : '', final: !!input.final } };
+      },
+      apply: async (env, patch, h, ctx) => {
+        const by = (ctx && (ctx.who || ctx.email || ctx.user)) || null;
+        const dd = { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession };
+        const r = patch.act ? await lessonFromLeak(env, dd, patch.act, { ...patch, scope: 'brand' }, by ? `${by} via the Strategist` : 'the Strategist')
+          : await addLesson(env, dd, { act: '', text: patch.text, author: patch.author, role: patch.role, added_by: by ? `${by} via the Strategist` : 'the Strategist', brand: 'every brand', final: !!patch.final });
+        if (r.error && !r.id) return { error: r.error };
+        const word = { holds: 'It holds', partly: 'It partly holds', does_not_hold: 'It does not hold', open: 'Saved; not judged yet' }[r.status] || 'Saved';
+        return { ok: true, note: `${word}.${r.why ? ` ${r.why}` : ''}${r.decision === 'team' ? ' Recorded as the final call of the team: the leak finder follows it.' : r.status === 'does_not_hold' || r.status === 'partly' ? ' Locus does not fully agree, so the final call is yours: Go with the team or Go with Locus, on the lesson in Home > Overview (What the team taught it, under Show all).' : r.rule ? ` From now on: ${r.rule}` : ''}` };
+      } },
     { name: 'set_writing_style',
       description: 'Change HOW Daily Briefs or weekly/monthly reports are written from now on, when Cole says he does not like how they read ("lead with profit", "shorter", "stop mentioning Google", "no hedging", "always end with one action for the client"). Standing direction, for every brand or for one. It changes emphasis, order, length, tone and what is left out; it can never add a number. Read writing_style first. Structural changes (a new section, a new number, a different layout) are a code change: use hand_to_claude_code for those.',
       input_schema: { type: 'object', properties: {

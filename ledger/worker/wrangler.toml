@@ -56,17 +56,14 @@ bucket_name = "mobius-ledger-receipts"
 binding = "AUTH"
 service = "mobius-account-health"
 
-# The AUTH binding doubles as the Slack route to Locus: a Daily Brief or Reports
-# card action (action_id / callback_id prefixed brief_ / report_) is handed to
-# mobius-account-health at /slack/actions, signature headers intact.
-#
-# Slack interactivity router: the shared "Mobius Digital" Slack app allows ONE
-# interactivity Request URL, and this worker holds it. Button clicks that are
-# not Ledger category actions (i.e. Pulse's "Send to client channels") are
-# forwarded to the Pulse worker over this binding, signature headers intact.
-[[services]]
-binding = "PULSE"
-service = "mobius-ad-status"
+# Slack: Cashew is its OWN Slack app since 2026-10-14 (api.slack.com/apps/A0C99FUDBA8),
+# one bot in front of SEVERAL separate sets of books. Slack's one Events URL
+# and one Interactivity URL point at the cashew-slack router (../slack), which
+# hands each request to the books its channel belongs to: here for Mobius
+# (/api/slack-events, /api/slack-interact, over a service binding) or the
+# Lucky worker for #lucky-finance. SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET
+# are the Cashew app's (the same values on every books worker), not the
+# "Mobius Digital" app's that Locus and Pulse share.
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put ADMIN_TOKEN         master/recovery key for the API

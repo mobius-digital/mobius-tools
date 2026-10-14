@@ -4,7 +4,7 @@
  *   node test-actions.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { addAction, listActions, markDone, editAction, openItems, actionTick, reminderMessage, handleActionButton, handleReaction, handleActions } from './src/actions.js';
+import { addAction, listActions, markDone, editAction, openItems, actionTick, reminderMessage, handleActionButton, handleReaction, handleActions, parseQuick, judgeAreas } from './src/actions.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -73,7 +73,7 @@ await check('the tick: nothing before the hour; then one post per owner per bran
   assert.equal(row.reminded_on, '2026-10-14'); assert.equal(row.slack_channel, 'C_ALPHA'); assert.ok(row.slack_ts);
   /* tomorrow: the still-open item is overdue and gets one line again */
   posts = []; const d2 = { ...d, centralDate: () => '2026-10-15' }; r = await actionTick(env, d2); assert.equal(r.posted, 3); assert.match(posts.find(p => p.channel === 'C_ALPHA').text, /1 overdue/);
-  setSetting('actionRemind', 'off'); assert.deepEqual(await actionTick(env, d2), { skipped: 'off' }); setSetting('actionRemind', 'on');
+  setSetting('actionRemind', 'off'); assert.equal((await actionTick(env, d2)).skipped, 'off'); setSetting('actionRemind', 'on');
 });
 await check('the Done button: marks the item done by the tapper and redraws the line; the ✅ reaction marks every item behind the message done', async () => {
   const row = db.prepare(`SELECT slack_channel, slack_ts FROM p_action WHERE id = ?`).get(a1.id);
@@ -104,6 +104,50 @@ await check('routes: team only (401 without a session, 403 for a client scope), 
   const ed = await call('POST', '/api/actions/edit', { id: add.body.item.id, text: 'New brief for the mallet' }); assert.equal(ed.body.item.text, 'New brief for the mallet');
   assert.equal((await call('GET', '/api/actions?act=&status=open')).body.items.every(i => i.act_id === ''), true, 'act= empty = agency-wide only');
   assert.equal((await handleActions(new Request('https://ah/api/other'), env, new URL('https://ah/api/other'), '/api/other', json, d)), null);
+});
+await check('area: stored on add, changed on edit (a bad area = Other), carried on the open list', async () => {
+  const x = await addAction(env, { act: 'brand_alpha', text: 'Area test', area: 'ads' });
+  assert.equal(x.area, 'ads');
+  assert.equal((await addAction(env, { act: 'brand_alpha', text: 'No area yet' })).area, null, 'unjudged = NULL');
+  assert.equal((await editAction(env, x.id, { area: 'email' })).area, 'email');
+  assert.equal((await editAction(env, x.id, { area: 'bogus' })).area, '');
+  const it = (await openItems(env, d)).flatMap(g => g.items).find(i => i.id === x.id);
+  assert.equal(it.area, '');
+  await markDone(env, x.id, true);
+});
+const model = reply => async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(reply) }] }) });
+const envK = { ...env, ANTHROPIC_API_KEY: 'k' };
+await check('quick add: no model = the raw words as the task, with the page brand; never throws', async () => {
+  const f = await parseQuick(env, d, '  rebuild  the hook for alpha by wed ', { act: 'brand_alpha' });
+  assert.deepEqual(f, { act: 'brand_alpha', text: 'rebuild the hook for alpha by wed', owner: '', due: '', area: null, parsed: false });
+  assert.equal((await parseQuick(envK, { ...d, xfetch: async () => ({ ok: false, status: 529, json: async () => ({}) }) }, 'x y', {})).parsed, false, 'a model error falls back');
+  assert.equal((await parseQuick(envK, { ...d, xfetch: async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: 'not json' }] }) }) }, 'x y', {})).parsed, false, 'bad JSON falls back');
+  assert.equal((await parseQuick(envK, { ...d, canAfford: () => false, xfetch: model({}) }, 'x y', {})).parsed, false, 'over budget falls back');
+  assert.equal((await parseQuick(env, d, '   ', {})).text, '');
+});
+await check('quick add: the model\'s fields are checked (roster owner, a real date, a known brand, a known area)', async () => {
+  const p = await parseQuick(envK, { ...d, xfetch: model({ act: 'brand_alpha', text: 'Rebuild hook', owner: 'ahsan', due: '2026-10-16', area: 'ads' }) }, 'ahsan rebuild the alpha hook by friday', {});
+  assert.deepEqual(p, { act: 'brand_alpha', text: 'Rebuild hook', owner: 'Ahsan', due: '2026-10-16', area: 'ads', parsed: true });
+  const q = await parseQuick(envK, { ...d, xfetch: model({ act: 'brand_zeta', text: '', owner: 'Bob', due: 'Friday', area: 'nope' }) }, 'raw words here', { act: 'brand_beta' });
+  assert.deepEqual(q, { act: 'brand_beta', text: 'raw words here', owner: '', due: '', area: '', parsed: true });
+});
+await check('quick add route: empty = 400, the fallback still files the task, a client is refused', async () => {
+  const call = async (body, headers = { authorization: 'Bearer team' }) => { const req = new Request('https://ah/api/actions/quick', { method: 'POST', headers, body: JSON.stringify(body) }); const u = new URL(req.url); const r = await handleActions(req, env, u, u.pathname, json, d); return { status: r.status, body: await r.json() }; };
+  const e = await call({ text: '  ' }); assert.equal(e.status, 400); assert.equal(e.body.error, 'Write the task first.');
+  const r = await call({ text: 'Check the beta offer page', act: 'brand_beta' });
+  assert.equal(r.status, 200); assert.equal(r.body.parsed, false); assert.equal(r.body.item.text, 'Check the beta offer page');
+  assert.equal(r.body.item.act_id, 'brand_beta'); assert.equal(r.body.item.source, 'manual'); assert.equal(r.body.item.kind, 'team');
+  assert.equal((await call({ text: 'x', act: 'brand_zeta' })).body.item.act_id, '', 'an unknown brand files agency-wide');
+  assert.equal((await call({ text: 'x' }, { authorization: 'Bearer team', 'x-client': '1' })).status, 403);
+});
+await check('the area judge: every open unjudged non-brief row gets one, once; no rows = no call', async () => {
+  const ids = db.prepare(`SELECT id FROM p_action WHERE status = 'open' AND area IS NULL AND kind != 'brief'`).all().map(r => r.id);
+  assert.ok(ids.length > 0);
+  let calls = 0;
+  const dK = { ...d, xfetch: async (u, init) => { calls++; const sent = JSON.parse(init.body); assert.equal(sent.model, 'claude-haiku-5-5'); return model({ items: [...ids.map(id => ({ id, area: 'ops' })), { id: 'ac_stranger', area: 'ads' }] })(); } };
+  assert.deepEqual(await judgeAreas(envK, dK), { judged: ids.length });
+  assert.equal(db.prepare(`SELECT COUNT(*) AS c FROM p_action WHERE area = 'ops'`).get().c, ids.length);
+  assert.deepEqual(await judgeAreas(envK, dK), { judged: 0 }); assert.equal(calls, 1);
 });
 console.log(`\n${n} passed, ${bad} failed`);
 process.exit(bad ? 1 : 0);

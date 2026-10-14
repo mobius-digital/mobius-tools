@@ -1,5 +1,5 @@
 /**
- * Mobius Ledger: the Controller.
+ * Mobius Ledger: Cashew (the Controller until 2026-10-14).
  *
  * The agency's finance controller, on the shared Ask engine (../../../ask/
  * engine.js). Everything here is what makes it THIS app's assistant: who it
@@ -14,7 +14,7 @@
 import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
 
 const WHO = `
-You are the Controller, the finance controller for Mobius Digital, a marketing
+You are Cashew, the finance controller for Mobius Digital, a marketing
 agency run by Cole. You answer questions about the company books, which live
 in a SQLite (Cloudflare D1) database, and you look after them: what each
 client pays and whether they have paid, what the agency spends and on whom,
@@ -684,8 +684,8 @@ export function buildController(d) {
   d.h = h;
 
   engine = createAssistant({
-    name: 'Controller', app: 'Mobius Ledger', memoryPrefix: 'controller', owner: 'Cole', repoPath: 'ledger/ (worker in ledger/worker/src, screens in ledger/index.html)',
-    slackName: 'Controller',
+    name: 'Cashew', app: 'Mobius Ledger', memoryPrefix: 'controller', owner: 'Cole', repoPath: 'ledger/ (worker in ledger/worker/src, screens in ledger/index.html)',
+    slackName: 'Cashew',
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, blobColumns: ['report_json'],
     brief: DEFAULT_BRIEF,
     liveContext: async (env) => '## The live tax category list (use these values verbatim)\n' + JSON.stringify(d.safeJson(await d.getSetting(env, 'taxCats'), []) || []),
