@@ -1,5 +1,38 @@
 # Handoff: one Cashew engine for three sets of books (Step B and C), written 2026-10-14
 
+**Status, later the same day (Cole said "do everything"):**
+
+- **B.1 Lucky gets the audit layer: LIVE (Lucky commit 1f4184a, 2026-10-14 evening).** The repo's deploy token
+  has no D1 permission, so the worker applies the layer itself: `worker/src/audit-layer.js` (generated from the
+  seven `.sql` files, every statement safe to run twice) runs once on the first `/api/*` request or cron after a
+  deploy and remembers in `settings.auditLayer`; the public `/api/config` shows the version
+  (`"auditLayer":"2026-10-14.1"` on the live worker). No token was needed, nothing for Cole. The deploy workflow
+  no longer has a migrations step. The leases, jobs, `/api/exceptions`, provenance, the revision-guarded close
+  and the vendor rule are all live with it. Watch the first nightly.
+- **B.2 Mobius gets `acct` and the drill route: LIVE** (migration 0008 applied, worker deployed).
+- **B.3 one engine file: DONE in the Lucky repo.** `worker/src/engine.js` is a byte-for-byte copy of
+  `mobius-tools/ask/engine.js` (which now exports `runAction`), `worker/src/cashew-playbook.js` likewise, the
+  Caddie reads the product playbook from it, and `node worker/shared-check.cjs` says when the copies drift.
+  The Lucky repo stays where it is; the copy is checked, not a subtree. (Goes live with B.1's rerun.)
+- **B.4 one worker, three environments: NOT STARTED.** Reason: a merged worker on the Mobius books cannot be
+  walked end to end from here (Google sign-in), and the Mobius regression suite is written against the Mobius
+  worker's own functions. Next session: build it on a branch in `ledger/worker` from the Lucky base, port the
+  Mobius-only routes (ask/*, gmail, receipt-hunt and match, exceptions replay, Stripe jobs, the AUTH service
+  binding), rewrite the suite against it, and deploy only after Cole walks the live app with the admin token.
+- **C the household edition: waits on B.4.**
+
+**Cole's call on the link (2026-10-14):** one link now, the full SaaS (one database with accounts inside)
+later. **BUILT AND LIVE the same evening: the hub.** `ledger/hub` (worker `cashew`, Mobius account):
+https://cashew.mobius-digital.workers.dev proxies the whole app and `/api/*` of whichever books the
+`cashew_books` cookie says (Mobius: the Pages app plus mobius-ledger; Lucky: lucky-ledger serves both; Home:
+tally); `/switch?to=mobius|lucky|home` sets the cookie and reloads. Each set of books keeps its own worker,
+database, sign-in list and token, so a person sees only the books that invited them. The pickers in all three
+apps switch on the hub (and still hop between origins on the separate sites). Verified: all three gates
+render at the one link, Lucky's and Tally's APIs answer through it. Sign-in through the hub works once the hub
+origin is on each Google client's authorized JavaScript origins (Cole: the Mobius client used by HQ and
+Tally, and Lucky's own client). A custom domain (cashew.go-mobius-digital.com) needs the zone moved (memory
+mobius-domains). Option 3, one database with accounts inside, stays on the docket until Cashew is sold.
+
 The product pass (`docs/cashew-editions.md`) built the picker and the per-edition helper. What it did not do, on
 purpose, is touch the three live databases. This file is the first task one-ledger.md section 6 asks for before
 anything merges: the column-by-column diff of the schemas, the route diff, and the order of work. Start the next

@@ -84,7 +84,7 @@ function secAccessV6() {
 function booksCard() {
   const list = booksList(), here = booksHere(list), edLabel = id => (EDITIONS[id] || {}).label || '';
   const rows = list.map((b, i) => srow(`${esc(b.name)}${b === here ? ' <span class="pill good">these books</span>' : ''}`, `${esc(edLabel(b.edition))} · <span class="mono">${esc(b.url.replace(/^https?:\/\//, ''))}</span>`,
-    b === here ? '' : `<a class="btn sm ghost" href="${esc(b.url)}">Open</a><button class="btn sm ghost danger" onclick="removeBooks(${i})">Remove</button>`)).join('');
+    b === here ? '' : `<a class="btn sm ghost" href="${esc(booksLink(b))}">Open</a><button class="btn sm ghost danger" onclick="removeBooks(${i})">Remove</button>`)).join('');
   return card('Your books', 'Each set of books is its own app, its own sign-in list, its own bank links and Slack channel. Nothing here is shared with them; this list is only the picker at the top of the rail.', rows + `<div class="row" style="margin-top:12px"><button class="btn" onclick="addBooksModal()">${icon('plus', 14)} Add a set of books</button></div>`);
 }
 function addBooksModal() {

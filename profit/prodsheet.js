@@ -1,7 +1,12 @@
 /* PRODUCTION V2 (2026-10-14; approved mock https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj, boards 1, 3 and 4).
- *   ProdSheet.open(H, id, opts)   the card's sheet: Brief / Files / Comments. The brief's fields follow its kind (New idea,
- *                                 Iteration, Resize or cut, Something else) and its format (Static, Video, UGC, Carousel).
- *   ProdSheet.review(H, id, opts) the ad's versions in the review viewer (review-ui.js): drawing, notes, Approve.
+ *   ProdSheet.open(H, id, opts)   the card's sheet: Brief / Files / Comments. The brief is ONE WRITTEN PAGE (v9 of the
+ *                                 mock, after Cole read the team's real Asana briefs): a toolbar (bold, italic, underline,
+ *                                 strike, heading, lists, quote, link, picture, @), grey hints that vanish when typed over,
+ *                                 pictures and videos in the flow, starting pages (new test / iteration / resize / blank),
+ *                                 "Write it with AI" fills the hints and tints its words; Format and Sizes under the page.
+ *                                 Files: a drop zone (several files, no size limit, parts for big ones with a progress
+ *                                 bar), versions automatic per ad from the file name (48-3), Compare v1 and v2.
+ *   ProdSheet.review(H, id, opts) one ad's versions in the review viewer (review-ui.js): drawing, notes, Approve.
  *   ProdSheet.client(H)           a client login's Production: Needs you, then Coming up (list or calendar).
  *   ProdSheet.mirrorCard(el, H)   Agency settings > Integrations: the Asana mirror switch and the cards not in Locus yet.
  *   ProdSheet.photos(H)           the team's photos by first name (Google sign-in, else Slack).
@@ -13,20 +18,11 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const short = iso => iso ? new Date(String(iso).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const when = iso => { if (!iso) return ''; const t = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : String(iso).replace(' ', 'T') + 'Z'); return t ? new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; };
-const HUE = { Cole: 'var(--brand)', Ahsan: 'var(--good)', Noma: 'var(--warn)', William: 'var(--c-email)', Ravo: 'var(--bad)', Radhesh: 'var(--c-tiktok)', Hamza: 'var(--c-amazon)', Mobius: 'var(--muted)' };
-const FMT = { Static: 'var(--brand)', Video: 'var(--bad)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-email)' };
-const KINDS = [['new', 'New idea'], ['iter', 'Iteration'], ['resize', 'Resize or cut'], ['free', 'Something else']];
+const HUE = { Cole: 'var(--brand)', Ahsan: 'var(--c-tiktok)', Noma: 'var(--c-email)', William: 'var(--c-google)', Ravo: 'var(--c-else)', Radhesh: 'var(--c-meta)', Hamza: 'var(--c-amazon)', Mobius: 'var(--muted)' }; /* never good / warn / bad: those mean status */
+const FMT = { Static: 'var(--brand)', Video: 'var(--c-email)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-google)' }; /* never good / warn / bad: those mean status */
 const FORMATS = ['Static', 'Video', 'UGC', 'Carousel'];
 const SIZES = ['1:1', '4:5', '9:16', '1.91:1', '15s cut', '6s cut'];
-const CHANGES = ['Hook', 'Visual', 'Copy', 'CTA', 'Format'];
 const STAGE = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', live: 'Live', done: 'Done' };
-/* The row table per format: [key, column label, placeholder]. Mirrors ROWCOLS in account-health prodwork.js. */
-const ROWS = {
-  Static: { title: 'More ads in this test', add: '+ Add an ad', cols: [['headline', 'Headline', 'The words on this ad'], ['visual', 'Visual', 'What the picture is']], tpl: '28px minmax(0,1fr) minmax(0,1.3fr) 120px 28px' },
-  Video: { title: 'The script', add: '+ Add a line', cols: [['vo', 'Voiceover', 'What is said'], ['text', 'On-screen text', 'Words on screen'], ['shot', 'Shot', 'What we see'], ['sec', 'Sec', '2']], tpl: '28px minmax(0,2fr) minmax(0,1.4fr) minmax(0,2fr) 56px 120px 28px' },
-  UGC: { title: 'Scenes and mentions', add: '+ Add a scene', cols: [['show', 'Show (scene)', 'What the creator films'], ['say', 'Say (talking point, not a script)', 'What they get across']], tpl: '28px minmax(0,1fr) minmax(0,1fr) 120px 28px' },
-  Carousel: { title: 'The cards', add: '+ Add a card', cols: [['headline', 'Headline', 'Card words'], ['visual', 'Visual', 'What the card shows']], tpl: '28px minmax(0,1fr) minmax(0,1.3fr) 120px 28px' },
-};
 let PHOTOS = null, PHOTOS_P = null;
 
 function css() {
@@ -77,16 +73,8 @@ function css() {
 .ps-card{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:12px;display:flex;gap:12px;align-items:center}
 .ps-thumb{width:56px;height:56px;border-radius:6px;background:var(--surface-2);flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);overflow:hidden}
 .ps-thumb img{width:100%;height:100%;object-fit:cover}
-.ps-tbl{display:flex;flex-direction:column;gap:8px}
-.ps-tbl .hd{display:grid;gap:8px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.ps-tbl .rw{display:grid;gap:8px;align-items:start}
-.ps-tbl .n{font-weight:700;color:var(--muted);padding-top:8px}
 .ps-x{width:28px;height:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;border-radius:6px}
 .ps-x:hover{color:var(--bad);background:var(--surface-2)}
-.ps-insp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.ps-ic{position:relative;width:44px;height:44px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);text-decoration:none}
-.ps-ic img{width:100%;height:100%;object-fit:cover}
-.ps-ic .rm{position:absolute;top:0;right:0;width:16px;height:16px;border:0;background:var(--surface);color:var(--ink);font-size:11px;line-height:16px;cursor:pointer;padding:0;border-radius:0 0 0 4px}
 .ps-add{height:34px;border:1px dashed var(--line-strong);border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;padding:0 8px}
 .ps-add:hover{color:var(--ink);border-color:var(--ink-2)}
 .ps-hint{font-size:12px;color:var(--muted)}
@@ -105,8 +93,73 @@ function css() {
 .ps-err{color:var(--bad);font-size:12.5px}
 .ps-wait{border:1px solid var(--warn);border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .ps-wait span{flex:1;min-width:200px;font-size:13px;color:var(--ink-2)}
-@media (max-width:760px){.ps-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-2,.ps-3,.ps-st3{grid-template-columns:minmax(0,1fr)}
-  .ps-tbl .hd{display:none}.ps-tbl .rw{grid-template-columns:28px minmax(0,1fr) 28px!important}.ps-tbl .rw>*:not(.n):not(.ps-x){grid-column:2}}
+/* the page */
+.ps-start{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
+.ps-tb{display:flex;gap:2px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px;background:var(--surface-2)}
+.ps-tb button[data-tool]{height:28px;min-width:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.ps-tb button[data-tool]:hover{background:var(--surface);color:var(--ink)}
+.ps-tb .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
+.ps-doc{border:1px solid var(--line);border-radius:0 0 8px 8px;padding:16px 18px;min-height:320px;background:var(--surface);color:var(--ink);line-height:1.55;font-size:14px;outline:none;overflow-wrap:anywhere}
+.ps-doc:focus{border-color:var(--line-strong)}
+.ps-doc.over{border-color:var(--brand);background:var(--brand-tint)}
+.ps-doc.ro{border-radius:8px;min-height:0}
+.ps-doc h1{font-size:20px;margin:14px 0 6px;font-weight:700}.ps-doc h2{font-size:16px;margin:18px 0 6px;font-weight:700}.ps-doc h3{font-size:14px;margin:12px 0 4px;font-weight:700}
+.ps-doc>h1:first-child,.ps-doc>h2:first-child{margin-top:0}
+.ps-doc p{margin:0 0 6px}.ps-doc ol,.ps-doc ul{margin:0 0 8px;padding-left:24px}.ps-doc li{margin:2px 0}
+.ps-doc blockquote{margin:6px 0;padding:4px 12px;border-left:3px solid var(--line-strong);color:var(--ink-2)}
+.ps-doc pre,.ps-doc code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-2);border-radius:4px;padding:1px 4px;white-space:pre-wrap}
+.ps-doc a{color:var(--brand);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.ps-lb{position:fixed;z-index:1000;display:flex;align-items:center;gap:4px;max-width:min(440px,calc(100vw - 24px));background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:4px 4px 4px 10px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:12.5px}
+.ps-lb .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.ps-lb button,.ps-lb a{font:inherit;font-size:12.5px;font-weight:600;color:var(--brand);background:none;border:0;padding:4px 8px;border-radius:6px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.ps-lb button:hover,.ps-lb a:hover{background:var(--surface-2)}
+.ps-lb .x{color:var(--muted)}
+.ps-doc img{max-width:min(100%,420px);max-height:360px;border-radius:8px;display:block;margin:8px 0;border:1px solid var(--line)}
+.ps-doc video{max-width:min(100%,480px);border-radius:8px;display:block;margin:8px 0;background:var(--ink)}
+.ps-doc [data-ph]{color:var(--muted);font-style:italic}
+.ps-doc [data-ai]{background:var(--brand-tint);border-radius:3px;box-shadow:0 0 0 2px var(--brand-tint)}
+.ps-doc hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+/* files */
+.ps-drop{border:1.5px dashed var(--line-strong);border-radius:10px;padding:22px 16px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center;background:var(--surface-2);cursor:pointer}
+.ps-drop:hover,.ps-drop:focus{border-color:var(--ink-2);outline:none}
+.ps-drop.over{border-color:var(--brand);background:var(--brand-tint)}
+.ps-drop b{font-size:14px;color:var(--ink)}
+.ps-prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden;width:100%}
+.ps-prog i{display:block;height:100%;background:var(--brand);width:0;transition:width .2s}
+.ps-grp{display:flex;flex-direction:column;gap:8px}
+.ps-grp .gh{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--ink)}
+/* Files tab as cards (2026-10-14 review redesign, artboard A): every ad big enough to judge, the whole picture opens the
+   review, the call is made on the card. */
+.ps-fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ps-fchip{height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ps-fchip .n{opacity:.7;font-weight:500}
+.ps-fchip.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.ps-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;align-items:start}
+.ps-ad{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.ps-ad:hover{border-color:var(--line-strong)}
+.ps-pv{position:relative;display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2);border:0;padding:0;cursor:pointer;overflow:hidden}
+.ps-pv img,.ps-pv video{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.ps-pv:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.ps-pv .ov{position:absolute;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.ps-pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
+.ps-pv:hover .open,.ps-pv:focus-visible .open{opacity:1}
+.ps-pv .open span{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--surface);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px}
+.ps-adb{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.ps-st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);white-space:nowrap}
+.ps-st i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.ps-adb .row{display:flex;gap:8px;align-items:center}
+.ps-adb .row .ps-btn{flex:1 1 auto;justify-content:center;min-width:0;padding:0 10px}
+.ps-adb .row{flex-wrap:wrap}
+.ps-adb textarea{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
+.ps-lnk{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.ps-dropline{display:flex;align-items:center;gap:10px;border:1px dashed var(--line-strong);border-radius:10px;padding:12px 14px;color:var(--muted);font-size:12.5px;cursor:pointer;background:transparent;font-family:inherit;text-align:left;width:100%}
+.ps-dropline:hover,.ps-dropline:focus-visible{border-color:var(--ink-2);outline:none}
+.ps-b.over{outline:2px dashed var(--brand);outline-offset:-6px;border-radius:10px}
+.ps-ups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+/* a Copy button beside the line under the pointer (the media buyer copies a headline in one click) */
+.ps-cpy{position:fixed;z-index:1000;height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.ps-cpy:hover{color:var(--ink);border-color:var(--ink-2)}
+@media (max-width:760px){.ps-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.ps-2,.ps-3,.ps-st3{grid-template-columns:minmax(0,1fr)}}
 /* the client's page and the mirror card */
 .pc{display:flex;flex-direction:column;gap:22px;max-width:1080px;min-width:0}
 .pc h1{font-size:22px;font-weight:700;margin:0 0 4px;color:var(--ink)}
@@ -175,10 +228,44 @@ function ask(title, label, { placeholder = '', value = '', ok = 'Add', multi = f
   });
 }
 
-/** Upload one file to the card (a version or inspiration). Raw body, like Studio and the creator link. */
-async function upload(H, id, file, kind) {
-  if (file.size > 95 * 1024 * 1024) throw new Error('That file is over 95MB. Export a smaller one.');
-  const res = await fetch(`${H.AH_URL}/api/production/upload?id=${encodeURIComponent(id)}&kind=${kind}&name=${encodeURIComponent(file.name || kind)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + H.S.tok, 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+/** Upload one file to the card: a version, inspiration or a picture for the page. Under 20MB it is one request;
+ *  above that it goes up in parts (R2 multipart, three parts at a time, every part retried), so there is no size limit
+ *  and a bad second does not restart the file. onProgress(0..1). */
+const ONE_SHOT = 20 * 1024 * 1024;
+const fmtMB = n => n >= 1024 * 1024 * 1024 ? `${(n / 1024 / 1024 / 1024).toFixed(2)} GB` : n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const xhrJson = (method, url, body, { type, tok, onProgress } = {}) => new Promise((res, rej) => {
+  const x = new XMLHttpRequest();
+  x.open(method, url);
+  x.setRequestHeader('Authorization', 'Bearer ' + tok);
+  if (type) x.setRequestHeader('Content-Type', type);
+  if (onProgress) x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+  x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText || '{}'); } catch {} if (x.status >= 200 && x.status < 300 && !j.error) res(j); else rej(new Error(j.error || `Upload failed (${x.status}).`)); };
+  x.onerror = () => rej(new Error('The connection dropped. Try again.'));
+  x.send(body);
+});
+async function upload(H, id, file, kind, onProgress = () => {}) {
+  const tok = H.S.tok;
+  const type = file.type || ({ mov: 'video/quicktime', mp4: 'video/mp4', webm: 'video/webm', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif' }[(file.name || '').split('.').pop().toLowerCase()] || 'application/octet-stream');
+  const q = `id=${encodeURIComponent(id)}&kind=${kind}&name=${encodeURIComponent(file.name || kind)}`;
+  if (file.size <= ONE_SHOT) return xhrJson('POST', `${H.AH_URL}/api/production/upload?${q}`, file, { type, tok, onProgress: (l, t) => onProgress(l / Math.max(1, t)) });
+  const st = await xhrJson('POST', `${H.AH_URL}/api/production/upload/start?${q}&type=${encodeURIComponent(type)}&size=${file.size}`, null, { tok });
+  const PART = st.part || 24 * 1024 * 1024, total = Math.ceil(file.size / PART);
+  const sent = new Array(total).fill(0), parts = [];
+  const tick = () => onProgress(Math.min(0.999, sent.reduce((a, b) => a + b, 0) / file.size));
+  let next = 1;
+  const worker = async () => {
+    while (next <= total) {
+      const n = next++;
+      const chunk = file.slice((n - 1) * PART, Math.min(file.size, n * PART));
+      for (let tries = 0; ; tries++) {
+        try { const r = await xhrJson('PUT', `${H.AH_URL}/api/production/upload/part?id=${encodeURIComponent(id)}&key=${encodeURIComponent(st.key)}&uploadId=${encodeURIComponent(st.uploadId)}&n=${n}`, chunk, { type: 'application/octet-stream', tok, onProgress: l => { sent[n - 1] = l; tick(); } }); parts.push({ partNumber: r.partNumber, etag: r.etag }); sent[n - 1] = chunk.size; tick(); break; }
+        catch (e) { if (tries >= 4) throw e; await new Promise(r => setTimeout(r, 1500 * (tries + 1))); }
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, total) }, worker));
+  onProgress(1);
+  const res = await fetch(`${H.AH_URL}/api/production/upload/finish`, { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ id, key: st.key, uploadId: st.uploadId, parts, name: file.name, type, size: file.size, kind }) });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.error) throw new Error(j.error || `Upload failed (${res.status}).`);
   return j;
@@ -196,13 +283,21 @@ async function open(H, id, opts = {}) {
   P.wide = true;
   const pb = P('Loading the card...', '<p class="ps-hint" style="padding:12px 0">Loading the card...</p>');
   const host = pb && pb.closest ? pb : $('#v2panel .pb');
-  const T = { id, tab: opts.tab || 'brief', data: null, B: null, dirty: false, saving: false, savedAt: null, err: '', client: isClient(H) };
-  const reload = async () => { T.data = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); if (!T.dirty) T.B = JSON.parse(JSON.stringify(T.data.brief || {})); };
+  const T = { id, tab: opts.tab || 'brief', data: null, B: null, dirty: false, saving: false, savedAt: null, err: '', client: isClient(H), fresh: null };
+  const reload = async () => {
+    T.data = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`);
+    if (!T.dirty) {
+      T.B = JSON.parse(JSON.stringify(T.data.brief || { v: 2, html: '', format: 'Static', sizes: [] }));
+      /* a page with no words yet opens on the "new test" starting page; nothing is saved until someone types */
+      if (!T.client && T.data.brief && T.data.brief.blank && T.data.templates) { T.B.html = T.data.templates.new; T.fresh = 'new'; }
+    }
+  };
   try { await reload(); } catch (e) { host.innerHTML = `<p class="ps-err">${esc(e.message || 'Could not open the card.')}</p>`; return; }
   const changed = () => { if (opts.onChange) opts.onChange(); };
   const c = () => T.data.card;
   const fileUrl = fid => (T.data.files.find(f => f.id === fid) || {}).url || '';
   const versions = () => T.data.files.filter(f => f.kind === 'version');
+  const paintProg = () => { UP.forEach((u, i) => { const bar = $$('.ps-prog i', host)[i]; if (bar) bar.style.width = `${Math.round(u.pct * 100)}%`; const t = $$('.ps-thumb', host)[i]; if (t && !u.err) t.textContent = `${Math.round(u.pct * 100)}%`; }); };
 
   /* ---------- save (debounced; Save does it now) ---------- */
   let timer = null;
@@ -242,7 +337,7 @@ async function open(H, id, opts = {}) {
       <label class="ps-kv"><span>Owner</span><select data-meta="owner"><option value="">Nobody yet</option>${[...new Set([...team, k.owner].filter(Boolean))].map(n => `<option${n === k.owner ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="ps-kv"><span>Due</span><input type="date" data-meta="due" value="${esc(k.due || '')}"></label>
       <label class="ps-kv"><span>Launch</span><input type="date" data-meta="launch" value="${esc(k.launch_on || '')}"></label>`;
-    const tabs = [['brief', 'Brief'], ['files', `Files ${versions().length}`], ['comments', `Comments ${T.data.comments.filter(x => x.kind !== 'system').length}`]];
+    const tabs = [['brief', 'Brief'], ['files', `${(T.data.ads || []).length === 1 ? 'Ad' : 'Ads'} ${(T.data.ads || []).length}`], ['comments', `Comments ${T.data.comments.filter(x => x.kind !== 'system').length}`]];
     return `<div class="ps-h">
       <div class="ps-top"><span class="ps-tag" style="--tc:${FMT[fmt] || 'var(--brand)'}">${esc(fmt)}</span><span class="sp"></span>
         ${T.client ? '' : `<span class="saved" data-saved aria-live="polite"></span><button class="ps-btn pri" data-save>Save</button>`}
@@ -252,109 +347,93 @@ async function open(H, id, opts = {}) {
       <div class="ps-tabs" role="tablist">${tabs.map(([key, l]) => `<button class="ps-tab${T.tab === key ? ' on' : ''}" role="tab" aria-selected="${T.tab === key}" data-tab="${key}">${esc(l)}</button>`).join('')}</div></div>`;
   }
 
-  /* ---------- the brief ---------- */
-  const isAi = k => (T.B.ai || []).includes(k);
-  const fld = (k, label, rows = 2, ph = '') => `<label class="ps-f"><span class="ps-lab">${esc(label)}${isAi(k) ? ' <span class="ps-ai">· filled by AI, edit freely</span>' : ''}</span>${rows === 1
-    ? `<input class="ps-in${isAi(k) ? ' ai' : ''}" data-f="${k}" value="${esc(T.B[k] || '')}" placeholder="${esc(ph)}">`
-    : `<textarea rows="${rows}" class="${isAi(k) ? 'ai' : ''}" data-f="${k}" placeholder="${esc(ph)}">${esc(T.B[k] || '')}</textarea>`}</label>`;
-  const inspHtml = (list, where) => `<div class="ps-insp">${(list || []).map((x, i) => {
-    const url = x.type === 'file' ? fileUrl(x.id) : x.url;
-    const img = x.type === 'file' ? (/^image\//.test(x.mime || '') && url ? `<img src="${esc(url)}" alt="">` : esc((x.mime || '').startsWith('video') ? 'video' : 'file')) : (x.thumb ? `<img src="${esc(x.thumb)}" alt="" referrerpolicy="no-referrer">` : 'link');
-    return `<a class="ps-ic" href="${esc(url || '#')}" target="_blank" rel="noopener" title="${esc(x.name || x.url || '')}">${img}${T.client ? '' : `<button class="rm" data-insp-rm="${where}:${i}" aria-label="Remove">×</button>`}</a>`;
-  }).join('')}${T.client ? '' : `<button class="ps-add" data-insp-add="${where}">+ Add</button>`}</div>`;
-
+  /* ---------- the brief: one written page ---------- */
+  const STARTS = [['new', 'New test'], ['iter', 'Iteration'], ['resize', 'Resize or cut'], ['blank', 'Blank page']];
+  const TOOLS = [['bold', 'B', 'Bold (Ctrl+B)'], ['italic', 'I', 'Italic (Ctrl+I)'], ['underline', 'U', 'Underline (Ctrl+U)'], ['strike', 'S', 'Strike through'], null,
+    ['h2', 'Heading', 'Heading'], ['ul', '• List', 'Bullet list'], ['ol', '1. List', 'Numbered list'], ['quote', 'Quote', 'Quote block'], null,
+    ['link', 'Link', 'Add a link'], ['pic', 'Picture', 'Put a picture or video in the page'], ['at', '@', 'Mention someone']];
+  const noHints = html => String(html || '').replace(/<span data-ph>[\s\S]*?<\/span>/g, '');
   function briefHtml() {
     const B = T.B;
     if (T.client) return briefRo();
     const seg = (list, cur, attr) => `<div class="ps-seg" role="group">${list.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-${attr}="${esc(v)}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
-    let body = '';
-    if (B.kind === 'new') {
-      body += `<div class="ps-bar"><span>AI fills only empty fields from the ${esc(c().brand)} brain. It never touches what someone typed.</span><button class="ps-btn" data-ai>Write it with AI</button></div>
-        <div class="ps-2">${fld('angle', 'Angle', 2, 'The argument this ad makes')}${fld('why', 'Why (the data or insight)', 2, 'What makes us think it will work')}</div>
-        ${fld('concept', 'Concept', 2, 'What the ad shows')}
-        ${fld('testing', "What we're testing (one thing: if we..., then...)", 1, 'If we ..., then ...')}`;
-    }
-    if (B.kind === 'iter') {
-      const it = B.iter || {};
-      body += `<div class="ps-card"><div style="flex:1;display:flex;flex-direction:column;gap:6px"><span class="ps-lab">Iterating on test number</span><input class="ps-in" data-iter="of" value="${esc(it.of || '')}" placeholder="43" style="max-width:120px"></div></div>
-        <div class="ps-f"><span class="ps-lab">The one thing that changes</span><div class="ps-chips">${CHANGES.map(x => `<button type="button" class="ps-chip${it.change === x ? ' on' : ''}" data-change="${x}">${x}</button>`).join('')}</div></div>
-        <label class="ps-f"><span class="ps-lab">${esc(it.change ? `New ${it.change.toLowerCase()}` : 'What it becomes')}</span><textarea rows="2" data-iter="value">${esc(it.value || '')}</textarea></label>
-        <span class="ps-hint">Everything else comes from #${esc(it.of || '?')}: angle, lines, visuals, post copy.</span>`;
-    }
-    if (B.kind === 'resize') {
-      const rz = B.resize || {};
-      body += `<div class="ps-card"><div style="flex:1;display:flex;flex-direction:column;gap:6px"><span class="ps-lab">Source ad (test number)</span><input class="ps-in" data-rz="of" value="${esc(rz.of || '')}" placeholder="44" style="max-width:120px"></div></div>
-        <label class="ps-f"><span class="ps-lab">Note</span><textarea rows="2" data-rz="note" placeholder="Keep the logo out of the bottom 20% for Reels.">${esc(rz.note || '')}</textarea></label>`;
-    }
-    if (B.kind === 'free') body += fld('free', "What's needed", 6, 'Say what to make, in your own words.');
-    if (B.kind === 'new') {
-      const R = ROWS[B.format] || ROWS.Static;
-      body += `<h3 class="ps-sec">${B.format === 'Static' ? 'The static' : esc(R.title)}</h3>`;
-      if (B.format === 'Static') body += `<div class="ps-st3">${fld('headline', 'Headline', 1)}${fld('subhead', 'Subhead', 1)}${fld('cta', 'CTA', 1, 'Shop now')}</div>${fld('layout', 'Layout and visual', 2, 'Where things sit, what the picture is')}`;
-      if (B.format === 'Video') body += `<div class="ps-3">${[0, 1, 2].map(i => `<label class="ps-f"><span class="ps-lab">Hook ${'ABC'[i]}${isAi('hooks') ? ' <span class="ps-ai">· AI</span>' : ''}</span><input class="ps-in" data-hook="${i}" value="${esc((B.hooks || [])[i] || '')}" placeholder="${i === 2 ? 'optional' : ''}"></label>`).join('')}</div>`;
-      const rows = B.rows || [];
-      const showTable = B.format !== 'Static' || rows.length;
-      if (showTable) {
-        body += `${B.format === 'Static' ? `<span class="ps-lab">${esc(R.title)}</span>` : ''}<div class="ps-tbl"><div class="hd" style="grid-template-columns:${R.tpl}"><span>#</span>${R.cols.map(x => `<span>${esc(x[1])}</span>`).join('')}<span>Inspiration</span><span></span></div>
-          ${rows.map((r, i) => `<div class="rw" style="grid-template-columns:${R.tpl}"><span class="n">${i + 1}</span>${R.cols.map(([k, l, ph]) => `<textarea rows="1" class="ps-in" aria-label="${esc(l)} ${i + 1}" data-row="${i}" data-k="${k}" placeholder="${esc(ph)}">${esc(r[k] || '')}</textarea>`).join('')}${inspHtml(r.insp, 'r' + i)}<button class="ps-x" data-row-rm="${i}" aria-label="Remove line ${i + 1}">×</button></div>`).join('')}</div>`;
-      }
-      body += `<div><button class="ps-btn g" data-row-add>${esc(R.add)}</button>${isAi('rows') ? ' <span class="ps-hint">Lines filled by AI, edit freely.</span>' : ''}</div>`;
-      if (B.format === 'Video') body += `<div class="ps-2">${fld('length', 'Length', 1, '15s')}${fld('music', 'Music or sound', 1, 'VO only')}</div>`;
-      if (B.format === 'UGC') body += `<div class="ps-3">${fld('creator', 'Creator', 3, 'Who should film it')}${fld('dos', 'Do', 3)}${fld('donts', "Don't", 3)}</div>`;
-      if (B.format === 'Carousel') body += fld('endcta', 'End card CTA', 1, 'Shop the winter glove');
-    }
-    body += `<div class="ps-2"><div class="ps-f"><span class="ps-lab">Sizes</span><div class="ps-chips">${SIZES.map(sz => `<button type="button" class="ps-chip${(B.sizes || []).includes(sz) ? ' on' : ''}" data-size="${esc(sz)}">${esc(sz)}</button>`).join('')}</div></div>
-        <div class="ps-f"><span class="ps-lab">Inspiration for the whole brief</span>${inspHtml(B.insp, 'b')}</div></div>
-      <span class="ps-hint" style="margin-top:-8px">Uploads are saved in Locus. A pasted link stays a link.</span>
-      ${B.kind !== 'resize' ? fld('copy', 'Post copy', 2, 'Primary text. Empty: AI can fill it.') : ''}
-      ${B.notes ? fld('notes', 'Other notes (from the old brief)', 3) : ''}`;
+    const start = T.data.templates ? `<div class="ps-start"><span>${T.fresh ? 'Starting page:' : 'Start again from:'}</span>${STARTS.map(([k, l]) => `<button type="button" class="ps-chip${T.fresh === k ? ' on' : ''}" data-start="${k}">${esc(l)}</button>`).join('')}<span style="flex:1"></span><span>Grey words are hints: they vanish when you type over them.</span></div>` : '';
+    const tb = `<div class="ps-tb" role="toolbar" aria-label="Formatting">${TOOLS.map(t => t ? `<button type="button" data-tool="${t[0]}" title="${esc(t[2])}" aria-label="${esc(t[2])}"${t[0] === 'bold' ? ' style="font-weight:800"' : t[0] === 'italic' ? ' style="font-style:italic"' : t[0] === 'underline' ? ' style="text-decoration:underline"' : t[0] === 'strike' ? ' style="text-decoration:line-through"' : ''}>${esc(t[1])}</button>` : '<span class="sep"></span>').join('')}
+      <span style="flex:1"></span><button type="button" class="ps-btn" data-ai style="height:28px">Write it with AI</button></div>`;
+    const doc = `<div class="ps-doc" contenteditable="true" data-doc spellcheck="true" aria-label="The brief">${B.html || '<p><br></p>'}</div>`;
     const k = c();
     const sent = k.needs_client === 'idea';
     const foot = `<div class="ps-foot">${sent ? `<span class="ps-hint">Sent to the client for their OK${k.client_due ? `, by ${short(k.client_due)}` : ''}. They answer on their Production page.</span><button class="ps-btn" data-send="">Take it back</button>`
       : `<button class="ps-btn" data-send="idea">Send the idea to the client</button><span class="ps-hint">Optional: the client approves the idea before it is made, so review notes are about the ad, not the idea.</span>`}</div>`;
-    return `<div class="ps-2"><div class="ps-f"><span class="ps-lab">What kind of brief</span>${seg(KINDS, B.kind, 'kind')}</div>
-      <div class="ps-f"><span class="ps-lab">Format</span>${seg(FORMATS.map(f => [f, f]), B.format, 'format')}</div></div>${body}${foot}`;
+    return `${start}<div>${tb}${doc}</div>
+      <div class="ps-2"><div class="ps-f"><span class="ps-lab">Format</span>${seg(FORMATS.map(f => [f, f]), B.format, 'format')}</div>
+        <div class="ps-f"><span class="ps-lab">Sizes</span><div class="ps-chips">${SIZES.map(sz => `<button type="button" class="ps-chip${(B.sizes || []).includes(sz) ? ' on' : ''}" data-size="${esc(sz)}">${esc(sz)}</button>`).join('')}</div></div></div>
+      <span class="ps-hint" style="margin-top:-8px">Pictures and videos in the page are kept in Locus. A pasted link stays a link. ${T.data.mirror ? 'The same page is written into the Asana task.' : ''}</span>${foot}`;
   }
   function briefRo() {
-    const B = T.B, out = [];
-    const p = (label, v) => { if (v) out.push(`<div class="ps-ro"><span class="ps-lab">${esc(label)}</span><p>${esc(v)}</p></div>`); };
-    p('Kind', `${(KINDS.find(x => x[0] === B.kind) || [])[1] || ''} · ${B.format}`);
-    p('Angle', B.angle); p('Why', B.why); p('Concept', B.concept); p("What we're testing", B.testing);
-    if (B.iter) p('Iterating on', `#${B.iter.of || '?'}${B.iter.change ? `, change the ${B.iter.change.toLowerCase()}` : ''}${B.iter.value ? `: ${B.iter.value}` : ''}`);
-    if (B.resize) p('Resize', `${B.resize.of ? `#${B.resize.of}. ` : ''}${B.resize.note || ''}`);
-    p("What's needed", B.free);
-    (B.hooks || []).forEach((h, i) => p(`Hook ${'ABC'[i]}`, h));
-    p('Headline', B.headline); p('Subhead', B.subhead); p('CTA', B.cta); p('Layout', B.layout);
-    if (B.rows && B.rows.length) { const R = ROWS[B.format] || ROWS.Static; out.push(`<div class="ps-ro"><span class="ps-lab">${esc(R.title)}</span>${B.rows.map((r, i) => `<p>${i + 1}. ${esc(R.cols.map(([k, l]) => r[k] ? `${l}: ${r[k]}` : '').filter(Boolean).join(' · '))}</p>`).join('')}</div>`); }
-    p('Length', B.length); p('Creator', B.creator); p('Do', B.dos); p("Don't", B.donts); p('End card', B.endcta);
-    p('Sizes', (B.sizes || []).join(', ')); p('Post copy', B.copy);
-    if (B.insp && B.insp.length) out.push(`<div class="ps-ro"><span class="ps-lab">Inspiration</span>${inspHtml(B.insp, 'b')}</div>`);
-    const k = c();
+    const B = T.B, k = c();
     const decide = k.needs_client === 'idea' ? `<div class="ps-wait"><span>Mobius would like your OK on this idea before they make it${k.client_due ? `, by ${short(k.client_due)}` : ''}.</span><button class="ps-btn ok" data-decide="yes">Approve the idea</button><button class="ps-btn" data-decide="no">Ask for changes</button></div>` : '';
-    return decide + (out.join('') || '<p class="ps-hint">The brief is still being written.</p>');
+    const page = noHints(B.html).replace(/<span data-ai>|<\/span>/g, '');
+    const body = page.replace(/<p><br><\/p>/g, '').trim() ? `<div class="ps-doc ro">${page.replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')}</div>` : '<p class="ps-hint">The brief is still being written.</p>';
+    return `${decide}${body}<p class="ps-hint" style="margin:0">${esc(B.format)}${B.sizes && B.sizes.length ? ` · ${esc(B.sizes.join(', '))}` : ''}</p>`;
   }
 
-  /* ---------- files ---------- */
+  /* ---------- files: drop zone, one group per ad, versions automatic ---------- */
+  const UP = [];   // files on their way up: {name, size, pct, err}
+  const adLabel = ad => ad ? `Ad ${ad}` : 'The ad';
   function filesHtml() {
-    const vs = versions().slice().reverse();
     const k = c();
+    const ads = T.data.ads || [];
     const sentAd = k.needs_client === 'ad';
-    const top = T.client ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="ps-btn pri" data-upver>Upload a new version</button>
-        ${vs.length ? (sentAd ? '<button class="ps-btn" data-send="">Take it back from the client</button>' : '<button class="ps-btn" data-send="ad">Send the ad to the client</button>') : ''}
-        ${vs.length ? '<button class="ps-btn" data-share>Copy client link</button>' : ''}<span class="ps-hint" style="flex:1;min-width:220px">Any image or video. A new upload stacks on top as the next version and the card moves to Review. Old notes stay on their version.</span></div>
-        <div data-upmsg class="ps-hint"></div>`;
-    const list = vs.map(f => {
-      const open = T.data.comments.filter(x => x.file_id === f.id && ['note', 'change_request'].includes(x.kind) && !x.fixed).length;
-      const total = T.data.comments.filter(x => x.file_id === f.id && ['note', 'change_request'].includes(x.kind)).length;
-      const latest = f === vs[0];
-      const st = latest ? (k.board === 'ready' || k.board === 'live' ? ['Approved', 'var(--good)'] : ['Needs review', 'var(--warn)']) : ['Replaced', 'var(--muted)'];
-      return `<div class="ps-card"><div class="ps-thumb">${f.video ? 'video' : `<img src="${esc(f.url)}" alt="">`}</div>
-        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><b style="font-weight:500">v${f.version} · ${esc(f.name || '')}</b><span class="ps-hint">${esc(T.client ? short(f.created_at) : `${f.by || 'Someone'}, ${short(f.created_at)}`)} · ${total ? `${total} note${total === 1 ? '' : 's'}${open ? `, ${open} open` : ', all fixed'}` : 'no notes'}</span></div>
-        <span class="ps-tag" style="--tc:${st[1]}">${st[0]}</span><button class="ps-btn" data-rev="${esc(f.id)}">Review</button></div>`;
-    }).join('');
-    return top + (list || `<p class="ps-hint">${T.client ? 'No version of this ad yet.' : 'No version yet. Upload the ad here; the card moves to Review.'}</p>`);
+    const canCall = !T.client || k.needs_client === 'ad' || !!k.client_sent_at;
+    const ff = T.ff || 'all';
+    const n = st => ads.filter(a => st === 'all' || a.status === st).length;
+    const shown = ads.filter(a => ff === 'all' || a.status === ff);
+    const filesOfAd = ad => T.data.files.filter(f => f.kind === 'version' && (f.ad || '') === ad).sort((x, y) => (x.version || 0) - (y.version || 0));
+    const chips = ads.length > 1 ? [['all', 'All'], ['review', T.client ? 'Waiting for you' : 'To review'], ['changes', 'Changes asked'], ['approved', 'Approved']].filter(([st]) => st === 'all' || n(st))
+      .map(([st, l]) => `<button type="button" class="ps-fchip${ff === st ? ' on' : ''}" data-ff="${st}">${l} <span class="n">${n(st)}</span></button>`).join('') : '';
+    const bar = `<div class="ps-fbar">${chips}<span style="flex:1"></span>
+      ${T.client ? '' : '<button type="button" class="ps-btn" data-upload>Upload</button>'}
+      ${!T.client && ads.length ? (sentAd ? '<button type="button" class="ps-btn" data-send="">Take it back from the client</button>' : '<button type="button" class="ps-btn" data-send="ad">Send to the client</button>') + '<button type="button" class="ps-btn" data-share>Copy client link</button>' : ''}
+      ${n('review') && canCall ? `<button type="button" class="ps-btn pri" data-allrev>${n('review') === 1 ? 'Review it' : `Review all ${n('review')}`}</button>` : ads.length ? '<button type="button" class="ps-btn" data-allrev>Open the review</button>' : ''}</div>`;
+    const ups = UP.length ? `<div class="ps-ups">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : '';
+    const STAT = { review: [T.client ? 'Waiting for you' : 'Needs review', 'var(--warn)'], changes: ['Changes asked', 'var(--bad)'], approved: ['Approved', 'var(--good)'] };
+    const card = a => {
+      const vs = filesOfAd(a.ad), top = vs[vs.length - 1];
+      if (!top) return '';
+      const st = STAT[a.status] || STAT.review;
+      const asking = T.asking === a.file_id;
+      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.url)}" alt="" loading="lazy">`;
+      const by = a.status !== 'review' && a.by ? `${a.status === 'approved' ? 'Approved' : 'Sent back'} by ${a.by}${a.at ? `, ${short(a.at)}` : ''}` : `${T.client ? '' : `${top.by || 'Someone'}, `}${short(top.created_at)}`;
+      const owner = !T.client && k.owner ? ` ${esc(k.owner.split(' ')[0])} gets it in Slack.` : '';
+      let acts = '';
+      if (a.status === 'review' && canCall) {
+        acts = asking
+          ? `<label class="ps-f" style="gap:6px"><span class="ps-hint">What needs to change?${owner}</span><textarea rows="2" data-askbody placeholder="Headline bigger, logo bottom right"></textarea></label>
+             <div class="row" style="justify-content:flex-end"><button type="button" class="ps-btn" data-dec="cancel" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Cancel</button><button type="button" class="ps-btn pri" data-dec="send" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Send back</button></div>`
+          : `<div class="row"><button type="button" class="ps-btn ok" data-dec="ok" data-file="${esc(a.file_id)}">Approve</button><button type="button" class="ps-btn" data-dec="ask" data-file="${esc(a.file_id)}">Ask for changes</button></div>`;
+      } else if (a.status !== 'review' && canCall) {
+        acts = `<div class="row" style="justify-content:space-between"><span class="ps-hint">${esc(by)}</span><button type="button" class="ps-btn" data-dec="reopen" data-file="${esc(a.file_id)}" style="flex:0 0 auto">Change</button></div>`;
+      }
+      return `<article class="ps-ad">
+        <button type="button" class="ps-pv" data-open="${esc(top.id)}" aria-label="Open ${esc(adLabel(a.ad))} to review">${media}
+          <span class="ov" style="top:10px;left:10px">${esc(adLabel(a.ad))}</span>
+          <span class="ov" style="top:10px;right:10px" title="${vs.length} version${vs.length === 1 ? '' : 's'}">v${top.version}</span>
+          ${a.open ? `<span class="ov" style="bottom:10px;right:10px">${a.open} open note${a.open === 1 ? '' : 's'}</span>` : ''}
+          ${top.video ? '<span class="ov" style="bottom:10px;left:10px">Video</span>' : ''}
+          <span class="open"><span>Open review</span></span></button>
+        <div class="ps-adb">
+          <div style="display:flex;align-items:center;gap:8px"><span class="ps-st" style="--sc:${st[1]}"><i></i>${st[0]}</span><span style="flex:1"></span>${a.status === 'review' || !canCall ? `<span class="ps-hint">${esc(by)}</span>` : ''}</div>
+          ${acts}
+          ${vs.length > 1 ? `<button type="button" class="ps-lnk" data-cmp="${esc(top.id)}">Compare v${vs[vs.length - 2].version} and v${top.version}</button>` : ''}
+        </div></article>`;
+    };
+    const grid = shown.length ? `<div class="ps-ads">${shown.map(card).join('')}</div>` : ads.length ? '<p class="ps-hint">Nothing here with this filter.</p>' : '';
+    const drop = T.client ? '' : `<button type="button" class="ps-dropline" data-drop><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>
+      <span>${ads.length ? 'Drop files anywhere on this tab, or click to pick them.' : '<b style="color:var(--ink)">Drop the finished ads here</b>, or click to pick them.'} Name them ${esc(k.num ? `${k.num}-1, ${k.num}-2` : '48-1, 48-2')} and each lands on its ad as the next version. Any size, images or video.</span></button>`;
+    const empty = !ads.length && T.client ? '<p class="ps-hint">Mobius has not uploaded this ad yet.</p>' : '';
+    return bar + ups + grid + drop + empty;
   }
-
   /* ---------- comments ---------- */
   function commentsHtml() {
     const vOf = fid => (T.data.files.find(f => f.id === fid) || {}).version;
@@ -372,6 +451,7 @@ async function open(H, id, opts = {}) {
   /* ---------- paint + wire ---------- */
   function paint() {
     const keep = host.scrollTop;
+    document.querySelectorAll('.ps-cpy').forEach(x => x.remove());
     host.innerHTML = `<div class="ps">${headHtml()}<div class="ps-b">${T.tab === 'brief' ? briefHtml() : T.tab === 'files' ? filesHtml() : commentsHtml()}</div></div>`;
     const hb = $('#v2panel .ph b'); if (hb) hb.textContent = `${c().num ? `#${c().num} · ` : ''}${c().brand}`;
     host.scrollTop = keep;
@@ -382,28 +462,134 @@ async function open(H, id, opts = {}) {
     $$('[data-tab]', host).forEach(b => b.onclick = () => { T.tab = b.dataset.tab; paint(); });
     const sv = $('[data-save]', host); if (sv) sv.onclick = () => { T.dirty = true; save(); };
     $$('.ps-title,[data-meta]', host).forEach(i => { i.oninput = touch; i.onchange = touch; });
-    /* brief inputs: update the model, no repaint */
-    $$('[data-f]', host).forEach(i => i.oninput = () => { T.B[i.dataset.f] = i.value; if (isAi(i.dataset.f)) { T.B.ai = T.B.ai.filter(x => x !== i.dataset.f); i.classList.remove('ai'); } touch(); });
-    $$('[data-hook]', host).forEach(i => i.oninput = () => { T.B.hooks = T.B.hooks || ['', '', '']; T.B.hooks[+i.dataset.hook] = i.value; touch(); });
-    $$('[data-row]', host).forEach(i => i.oninput = () => { const r = T.B.rows[+i.dataset.row]; if (r) { r[i.dataset.k] = i.value; touch(); } });
-    $$('[data-iter]', host).forEach(i => i.oninput = () => { T.B.iter = T.B.iter || {}; T.B.iter[i.dataset.iter] = i.value; touch(); });
-    $$('[data-rz]', host).forEach(i => i.oninput = () => { T.B.resize = T.B.resize || {}; T.B.resize[i.dataset.rz] = i.value; touch(); });
+    /* the page: the model follows every keystroke, no repaint while typing */
+    const doc = $('[data-doc]', host);
+    if (doc) {
+      const sync = () => { T.B.html = doc.innerHTML; if (T.fresh) { T.fresh = null; const l = $('.ps-start span', host); if (l) l.textContent = 'Start again from:'; $$('[data-start].on', host).forEach(b => b.classList.remove('on')); } touch(); };
+      const inside = (sel, node) => { let n = sel.anchorNode; while (n && n !== doc) { if (n.nodeType === 1 && n.matches(sel.sel || node)) return n; n = n.parentNode; } return null; };
+      /* a grey hint vanishes the moment someone types over it: the typed letters take its place as plain text (never
+         inside the bold label before it); the AI tint goes when its words are edited */
+      doc.addEventListener('beforeinput', e => {
+        const s = window.getSelection(); if (!s || !s.anchorNode || !doc.contains(s.anchorNode)) return;
+        let n = s.anchorNode; let ph = null, ai = null;
+        while (n && n !== doc) { if (n.nodeType === 1) { if (n.hasAttribute('data-ph')) ph = n; if (n.hasAttribute('data-ai')) ai = n; } n = n.parentNode; }
+        if (ph) {
+          const typed = e.inputType === 'insertText' && e.data ? e.data : '​';   // a zero-width space keeps the caret out of the bold label; the worker strips it
+          const t = document.createTextNode(typed);
+          ph.replaceWith(t);
+          const r = document.createRange(); r.setStart(t, typed.length); r.collapse(true); s.removeAllRanges(); s.addRange(r);
+          if (typed !== '​' || /^delete/.test(e.inputType || '')) { e.preventDefault(); if (typed !== '​') sync(); }
+        }
+        if (ai) ai.replaceWith(...ai.childNodes);
+      });
+      doc.addEventListener('input', sync);
+      doc.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey) { const k = e.key.toLowerCase(); if (k === 'b' || k === 'i' || k === 'u') { e.preventDefault(); document.execCommand({ b: 'bold', i: 'italic', u: 'underline' }[k]); sync(); } if (k === 's') { e.preventDefault(); T.dirty = true; save(); } }
+      });
+      doc.addEventListener('paste', async e => {
+        const items = [...((e.clipboardData && e.clipboardData.items) || [])].filter(x => x.kind === 'file');
+        if (items.length) { e.preventDefault(); for (const it of items) { const f = it.getAsFile(); if (f) await putInline(f); } return; }
+        /* A pasted web address goes in as a link: over selected words it links them, on its own it is the link. */
+        const plain = ((e.clipboardData && e.clipboardData.getData('text/plain')) || '').trim();
+        if (/^https?:\/\/\S+$/.test(plain)) {
+          e.preventDefault();
+          const sel = window.getSelection();
+          if (sel && sel.toString().trim()) document.execCommand('createLink', false, plain);
+          else document.execCommand('insertHTML', false, `<a href="${esc(plain)}">${esc(plain)}</a>&nbsp;`);
+          sync(); return;
+        }
+        const html = e.clipboardData && e.clipboardData.getData('text/html');
+        if (html) { e.preventDefault(); document.execCommand('insertHTML', false, html.replace(/<meta[^>]*>|<!--[\s\S]*?-->/g, '').replace(/ style="[^"]*"| class="[^"]*"/g, '')); sync(); }
+      });
+      doc.addEventListener('dragover', e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); doc.classList.add('over'); } });
+      doc.addEventListener('dragleave', () => doc.classList.remove('over'));
+      doc.addEventListener('drop', async e => { doc.classList.remove('over'); const fs = [...(e.dataTransfer.files || [])]; if (!fs.length) return; e.preventDefault(); for (const f of fs) await putInline(f); });
+      /* A link in an editable page cannot open on a plain click (the click places the cursor), so a click shows a bubble
+         under it: the address, Open, Edit, Remove. Ctrl / Cmd + click still opens it straight away. */
+      const closeLb = () => { const b = document.querySelector('.ps-lb'); if (b) b.remove(); document.removeEventListener('mousedown', lbAway, true); };
+      const lbAway = e => { if (!e.target.closest('.ps-lb')) closeLb(); };
+      doc.addEventListener('click', e => {
+        const a = e.target.closest('a[href]'); closeLb();
+        if (!a || !doc.contains(a)) return;
+        if (e.ctrlKey || e.metaKey) { window.open(a.href, '_blank', 'noopener'); e.preventDefault(); return; }
+        const r = a.getBoundingClientRect(), lb = document.createElement('div');
+        lb.className = 'ps-lb'; lb.setAttribute('role', 'dialog'); lb.setAttribute('aria-label', 'Link');
+        lb.innerHTML = `<span class="u" title="${esc(a.href)}">${esc(a.href.replace(/^https?:\/\//, ''))}</span><a href="${esc(a.href)}" target="_blank" rel="noopener">Open ↗</a><button type="button" data-lb="edit">Edit</button><button type="button" class="x" data-lb="rm">Remove</button>`;
+        document.body.appendChild(lb);
+        const w = lb.offsetWidth; lb.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + 'px'; lb.style.top = (r.bottom + 6 + lb.offsetHeight > window.innerHeight ? r.top - lb.offsetHeight - 6 : r.bottom + 6) + 'px';
+        lb.querySelector('a').onclick = () => setTimeout(closeLb, 0);
+        lb.querySelector('[data-lb="rm"]').onclick = () => { closeLb(); a.replaceWith(...a.childNodes); sync(); };
+        lb.querySelector('[data-lb="edit"]').onclick = async () => {
+          closeLb();
+          const url = await ask('Edit the link', 'Link', { value: a.getAttribute('href') || '', ok: 'Save' });
+          if (!url) return;
+          if (!/^https?:\/\/\S+$/.test(url)) { toast('That is not a link. It should start with https://'); return; }
+          if (a.textContent === a.getAttribute('href')) a.textContent = url;
+          a.setAttribute('href', url); sync();
+        };
+        setTimeout(() => document.addEventListener('mousedown', lbAway, true), 0);
+      });
+      doc.addEventListener('keydown', closeLb); host.addEventListener('scroll', closeLb, true);
+      let savedRange = null;
+      const keepSel = () => { const s = window.getSelection(); if (s && s.rangeCount && doc.contains(s.anchorNode)) savedRange = s.getRangeAt(0).cloneRange(); };
+      const backSel = () => { doc.focus(); const s = window.getSelection(); if (savedRange) { s.removeAllRanges(); s.addRange(savedRange); } };
+      $$('[data-tool]', host).forEach(b => b.onmousedown = e => e.preventDefault());
+      $$('[data-tool]', host).forEach(b => b.onclick = async () => {
+        const t = b.dataset.tool;
+        keepSel(); backSel();
+        if (t === 'bold' || t === 'italic' || t === 'underline') document.execCommand(t);
+        else if (t === 'strike') document.execCommand('strikeThrough');
+        else if (t === 'h2') { const cur = inside({ sel: 'h2' }); document.execCommand('formatBlock', false, cur ? 'p' : 'h2'); }
+        else if (t === 'quote') { const cur = inside({ sel: 'blockquote' }); document.execCommand('formatBlock', false, cur ? 'p' : 'blockquote'); }
+        else if (t === 'ul') document.execCommand('insertUnorderedList');
+        else if (t === 'ol') document.execCommand('insertOrderedList');
+        else if (t === 'at') document.execCommand('insertText', false, '@');
+        else if (t === 'link') {
+          const sel = window.getSelection(); const picked = sel ? sel.toString() : '';
+          const url = await ask('Add a link', 'Link', { placeholder: 'https://www.facebook.com/ads/library/?id=...', value: /^https?:\/\//.test(picked) ? picked : '' });
+          if (!url) return;
+          if (!/^https?:\/\/\S+$/.test(url)) { toast('That is not a link. It should start with https://'); return; }
+          backSel();
+          if (picked) document.execCommand('createLink', false, url); else document.execCommand('insertHTML', false, `<a href="${esc(url)}">${esc(url)}</a>&nbsp;`);
+        }
+        else if (t === 'pic') { const fs = await pickFiles('image/*,video/*', true); backSel(); for (const f of fs) await putInline(f); }
+        sync();
+      });
+      async function putInline(f) {
+        if (!/^(image|video)\//.test(f.type || '')) { toast('Only a picture or a video goes in the page. Links go in as links.'); return; }
+        const ph = document.createElement('span'); ph.setAttribute('data-ph', ''); ph.textContent = `Uploading ${f.name}...`;
+        backSel();
+        const s = window.getSelection();
+        if (s && s.rangeCount && doc.contains(s.anchorNode)) { const r = s.getRangeAt(0); r.collapse(false); r.insertNode(ph); } else doc.appendChild(ph);
+        try {
+          const r = await upload(H, id, f, 'inline', pct => { ph.textContent = `Uploading ${f.name} ${Math.round(pct * 100)}%`; });
+          T.data.files.push({ ...r.file, kind: 'inline' });
+          const el = document.createElement(r.file.video ? 'video' : 'img');
+          el.setAttribute('data-file', r.file.id); el.src = r.file.url; if (r.file.video) el.controls = true;
+          ph.replaceWith(el);
+          const after = document.createElement('p'); after.innerHTML = '<br>'; el.after(after);
+          const range = document.createRange(); range.setStart(after, 0); range.collapse(true); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        } catch (e) { ph.remove(); toast(e.message || 'Upload failed.'); }
+        sync();
+      }
+      if (T.fresh) { const first = $('[data-ph]', doc); if (first) { const r = document.createRange(); r.setStartBefore(first); r.collapse(true); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } }
+    }
+    $$('[data-start]', host).forEach(b => b.onclick = async () => {
+      const kind = b.dataset.start;
+      if (!T.fresh && H.confirmModal && !(await H.confirmModal('Start the page again?', 'What is on the page now is replaced by the starting page. Pictures already uploaded stay on the card.', 'Start again'))) return;
+      T.B.html = (T.data.templates || {})[kind] || '<p><br></p>'; T.fresh = kind; if (kind !== 'blank') touch(); paint();
+    });
     /* structural changes: repaint */
-    $$('[data-kind]', host).forEach(b => b.onclick = () => { T.B.kind = b.dataset.kind; touch(); paint(); });
     $$('[data-format]', host).forEach(b => b.onclick = () => { T.B.format = b.dataset.format; touch(); paint(); });
-    $$('[data-change]', host).forEach(b => b.onclick = () => { T.B.iter = { ...(T.B.iter || {}), change: b.dataset.change }; touch(); paint(); });
     $$('[data-size]', host).forEach(b => b.onclick = () => { const s = new Set(T.B.sizes || []); s.has(b.dataset.size) ? s.delete(b.dataset.size) : s.add(b.dataset.size); T.B.sizes = SIZES.filter(x => s.has(x)); touch(); paint(); });
-    const ra = $('[data-row-add]', host); if (ra) ra.onclick = () => { T.B.rows = [...(T.B.rows || []), {}]; touch(); paint(); const last = $$('[data-row]', host).filter(i => +i.dataset.row === T.B.rows.length - 1)[0]; if (last) last.focus(); };
-    $$('[data-row-rm]', host).forEach(b => b.onclick = () => { T.B.rows.splice(+b.dataset.rowRm, 1); touch(); paint(); });
-    $$('[data-insp-rm]', host).forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); const [w, i] = b.dataset.inspRm.split(':'); const list = w === 'b' ? T.B.insp : (T.B.rows[+w.slice(1)] || {}).insp; if (list) { list.splice(+i, 1); touch(); paint(); } });
-    $$('[data-insp-add]', host).forEach(b => b.onclick = () => inspMenu(b, b.dataset.inspAdd));
     const ai = $('[data-ai]', host); if (ai) ai.onclick = async () => {
       ai.disabled = true; ai.textContent = 'Writing...';
       try {
         const r = await post(H, '/api/production/ai', { id, title: ($('.ps-title', host) || {}).value, brief: T.B });
         if (r.error) throw new Error(r.error);
-        T.B = r.brief; touch(); paint();
-        toast(r.filled && r.filled.length ? `Filled ${r.filled.length} field${r.filled.length === 1 ? '' : 's'}. Edit anything; nothing you typed changed.` : 'Every field already has words. Nothing changed.');
+        if (!r.filled) { toast(r.why || 'Nothing to fill.'); ai.disabled = false; ai.textContent = 'Write it with AI'; return; }
+        T.B = { ...T.B, html: r.brief.html }; T.fresh = null; touch(); paint();
+        toast(`Filled ${r.filled} spot${r.filled === 1 ? '' : 's'}. Tinted words are the AI's; edit anything, nothing you typed changed.`);
       } catch (e) { toast(e.message || 'The AI did not answer. Try again.'); ai.disabled = false; ai.textContent = 'Write it with AI'; }
     };
     $$('[data-send]', host).forEach(b => b.onclick = async () => {
@@ -414,14 +600,79 @@ async function open(H, id, opts = {}) {
       try { const r = await post(H, '/api/production/send', { id, what }); if (r.error) throw new Error(r.error); await reload(); paint(); changed(); toast(what ? 'Sent. It is waiting on the client.' : 'Taken back from the client.'); }
       catch (e) { toast(e.message || 'Could not send it.'); b.disabled = false; }
     });
-    const up = $('[data-upver]', host); if (up) up.onclick = async () => {
-      const [f] = await pickFiles('image/*,video/*'); if (!f) return;
-      const msg = $('[data-upmsg]', host); msg.textContent = `Uploading ${f.name}...`; up.disabled = true;
-      try { const r = await upload(H, id, f, 'version'); await reload(); paint(); changed(); toast(`v${r.file.version} is up.${r.moved ? ' The card moved to Review.' : ''}`); }
-      catch (e) { msg.textContent = e.message; msg.style.color = 'var(--bad)'; up.disabled = false; }
+    /* Files tab: upload (button, the drop line, or a drop anywhere on the tab), the filters, the call on each card. */
+    const take = async fs => {
+      fs = fs.filter(f => /^(image|video)\//.test(f.type || '') || /\.(mov|mp4|webm|png|jpe?g|gif|webp|avif)$/i.test(f.name || ''));
+      if (!fs.length) { toast('Drop an image or a video.'); return; }
+      const slots = fs.map(f => { const u = { name: f.name, size: f.size, pct: 0, err: '' }; UP.push(u); return u; });
+      paint();
+      let moved = false, n = 0;
+      await Promise.all(fs.map(async (f, i) => {
+        const u = slots[i];
+        try { const r = await upload(H, id, f, 'version', pct => { u.pct = pct; paintProg(); }); n++; if (r.moved) moved = true; UP.splice(UP.indexOf(u), 1); }
+        catch (e) { u.err = e.message || 'Upload failed.'; }
+        await reload(); paint(); changed();
+      }));
+      if (n) toast(`${n === 1 ? 'The ad is up.' : `${n} files are up.`}${moved ? ' The card moved to Review.' : ''}`);
+      setTimeout(() => { for (let i = UP.length - 1; i >= 0; i--) if (UP[i].err) UP.splice(i, 1); paint(); }, 6000);
     };
+    if (T.tab === 'files' && !T.client) {
+      const fbody = $('.ps-b', host);
+      $$('[data-upload],[data-drop]', host).forEach(b => b.onclick = async () => take(await pickFiles('image/*,video/*', true)));
+      if (fbody) {
+        fbody.ondragover = e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); fbody.classList.add('over'); } };
+        fbody.ondragleave = e => { if (!fbody.contains(e.relatedTarget)) fbody.classList.remove('over'); };
+        fbody.ondrop = e => { if (![...(e.dataTransfer.files || [])].length) return; e.preventDefault(); fbody.classList.remove('over'); take([...e.dataTransfer.files]); };
+      }
+    }
+    /* Copy beside the line under the pointer, in the brief (written or read only): one click copies that line's words,
+       hints left out. The label sits on its own line above (splitLabels), so a triple-click works too. */
+    const cdoc = $('.ps-doc', host);
+    if (cdoc) {
+      let cb = null, tgt = null;
+      const hideCb = () => { if (cb) cb.remove(); cb = null; tgt = null; };
+      const wordsOf = el => { const x = el.cloneNode(true); x.querySelectorAll('[data-ph]').forEach(n => n.remove()); return (x.innerText || x.textContent || '').replace(/​/g, '').trim(); };
+      cdoc.addEventListener('mousemove', e => {
+        const blk = e.target.closest && e.target.closest('p,li,h2,h3,blockquote');
+        if (!blk || !cdoc.contains(blk) || blk === tgt) return;
+        hideCb();
+        const words = wordsOf(blk);
+        if (!words) return;
+        tgt = blk;
+        cb = document.createElement('button'); cb.type = 'button'; cb.className = 'ps-cpy'; cb.textContent = 'Copy'; cb.setAttribute('aria-label', 'Copy this line');
+        const r = blk.getBoundingClientRect(), d = cdoc.getBoundingClientRect();
+        document.body.appendChild(cb);
+        cb.style.left = `${Math.max(d.left, Math.min(d.right, window.innerWidth - 8) - cb.offsetWidth - 6)}px`;
+        cb.style.top = `${r.top + Math.max(0, (Math.min(r.height, 28) - cb.offsetHeight) / 2)}px`;
+        cb.onmousedown = ev => ev.preventDefault();
+        cb.onclick = async () => { try { await navigator.clipboard.writeText(words); cb.textContent = 'Copied'; setTimeout(hideCb, 900); } catch { toast('Could not copy. Select the line and press Ctrl+C.'); } };
+        cb.onmouseleave = ev => { if (!cdoc.contains(ev.relatedTarget)) hideCb(); };
+      });
+      cdoc.addEventListener('mouseleave', e => { if (!(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.ps-cpy'))) hideCb(); });
+      cdoc.addEventListener('keydown', hideCb);
+      if (!host.dataset.cpy) { host.dataset.cpy = '1'; host.addEventListener('scroll', () => document.querySelectorAll('.ps-cpy').forEach(x => x.remove()), { passive: true }); }
+    }
+    $$('[data-ff]', host).forEach(b => b.onclick = () => { T.ff = b.dataset.ff; paint(); });
     const sh = $('[data-share]', host); if (sh) sh.onclick = async () => { try { const r = await post(H, '/api/production/share', { id }); await navigator.clipboard.writeText(r.url).catch(() => {}); toast('Client link copied. It opens with no login.'); } catch (e) { toast(e.message); } };
-    $$('[data-rev]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.rev, onChange: async () => { await reload(); paint(); changed(); } }));
+    const afterRev = async () => { await reload(); paint(); changed(); };
+    $$('[data-open]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.open, onChange: afterRev }));
+    $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev }));
+    const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev }); };
+    $$('[data-dec]', host).forEach(b => b.onclick = async () => {
+      const what = b.dataset.dec, fid = b.dataset.file;
+      if (what === 'ask') { T.asking = fid; paint(); const t = $('[data-askbody]', host); if (t) t.focus(); return; }
+      if (what === 'cancel') { T.asking = null; paint(); return; }
+      const body = what === 'send' ? (($('[data-askbody]', host) || {}).value || '').trim() : '';
+      if (what === 'send' && !body) { const t = $('[data-askbody]', host); if (t) t.focus(); toast('Say what needs to change.'); return; }
+      b.disabled = true;
+      try {
+        const r = await post(H, '/api/production/decide', { id, file_id: fid, ok: what === 'ok', reset: what === 'reopen', body });
+        if (r.error) throw new Error(r.error);
+        T.asking = null;
+        toast(what === 'ok' ? (r.all_approved ? (T.client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.') : 'Approved.') : what === 'send' ? (T.client ? 'Sent to Mobius.' : 'Sent back to be fixed.') : 'Open for review again.');
+        await afterRev();
+      } catch (e) { toast(e.message || 'That did not save.'); b.disabled = false; }
+    });
     const cp = $('[data-cpost]', host); if (cp) cp.onclick = async () => {
       const t = $('[data-cbody]', host), body = t.value.trim(); if (!body) { t.focus(); return; }
       cp.disabled = true;
@@ -435,31 +686,6 @@ async function open(H, id, opts = {}) {
       try { const r = await post(H, '/api/production/decide', { id, ok, body }); if (r.error) throw new Error(r.error); await reload(); paint(); changed(); toast(ok ? 'Approved. Mobius can make it.' : 'Sent to Mobius.'); }
       catch (e) { toast(e.message || 'Could not send it.'); }
     });
-  }
-  async function inspMenu(btn, where) {
-    const list = () => where === 'b' ? (T.B.insp = T.B.insp || []) : ((T.B.rows[+where.slice(1)] || {}).insp = (T.B.rows[+where.slice(1)] || {}).insp || []);
-    const choice = await new Promise(res => {
-      const m = document.createElement('div'); m.className = 'pd-scrim';
-      m.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-label="Add inspiration"><h3>Add inspiration</h3><p>An image or video you upload is kept in Locus. A pasted link (Meta Ad Library, TikTok, any page) stays a link.</p>
-        <div class="ft" style="justify-content:flex-start"><button class="pd-btn pri" data-c="up">Upload a file</button><button class="pd-btn" data-c="link">Paste a link</button><span style="flex:1"></span><button class="pd-btn" data-c="">Cancel</button></div></div>`;
-      document.body.appendChild(m);
-      $$('[data-c]', m).forEach(b => b.onclick = () => { m.remove(); res(b.dataset.c); });
-      m.addEventListener('mousedown', e => { if (e.target === m) { m.remove(); res(''); } });
-    });
-    if (choice === 'link') {
-      const url = await ask('Paste a link', 'Link', { placeholder: 'https://www.facebook.com/ads/library/?id=...' });
-      if (!url) return;
-      if (!/^https?:\/\/\S+$/.test(url)) { toast('That is not a link. It should start with https://'); return; }
-      list().push({ type: 'link', url }); touch(); paint();
-    }
-    if (choice === 'up') {
-      const fs = await pickFiles('image/*,video/*', true);
-      for (const f of fs.slice(0, 6)) {
-        try { const r = await upload(H, id, f, 'insp'); T.data.files.push({ ...r.file, kind: 'insp' }); list().push({ type: 'file', id: r.file.id, name: r.file.name, mime: r.file.mime }); }
-        catch (e) { toast(e.message); }
-      }
-      touch(); paint();
-    }
   }
   paint();
   if (opts.tab === 'review' && versions().length) review(H, id, { onChange: async () => { await reload(); paint(); changed(); } });
@@ -475,22 +701,25 @@ async function review(H, id, opts = {}) {
   try { data = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); } catch (e) { toast(e.message || 'Could not open the card.'); return; }
   const client = isClient(H);
   const k = data.card;
-  const files = data.files.filter(f => f.kind === 'version');
-  const ui = window.ReviewUI.open({
-    title: k.title, num: `${k.num ? `#${k.num} · ` : ''}${k.brand}`, format: data.brief.format, formatColor: FMT[data.brief.format],
-    files, comments: data.comments, mode: client ? 'client' : 'team',
-    canDecide: client ? k.needs_client === 'ad' : true,
-    decideHint: client ? 'Approve tells Mobius it is ready to run. Ask for changes needs a note and sends it back.' : `Approve moves it to Ready and records you. Ask for changes needs a note, moves it back to Making${k.owner ? ` and DMs ${k.owner.split(' ')[0]}` : ''}.`,
+  const label = ad => ad ? `Ad ${ad}` : 'The ad';
+  /* every ad of the test goes in (the strip along the bottom); the file asked for picks where it opens */
+  const adsOf = d => (d.ads || []).map(a => ({ ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: d.files.filter(f => f.kind === 'version' && (f.ad || '') === a.ad) }));
+  const canDecide = d => client ? (d.card.needs_client === 'ad' || !!d.card.client_sent_at) : true;
+  const startFile = opts.version && data.files.find(f => f.id === opts.version);
+  const fail = r => { if (r && r.error) throw new Error(r.error); return r; };
+  return window.ReviewUI.open({
+    title: k.title, num: `${k.num ? `#${k.num}` : k.brand}`, format: data.brief.format, formatColor: FMT[data.brief.format],
+    ads: adsOf(data), comments: data.comments, mode: client ? 'client' : 'team', startAd: startFile ? startFile.ad || '' : undefined,
+    start: opts.compare ? 'compare' : opts.version || null, canDecide: canDecide(data),
     api: {
-      note: (fid, body, shape, at) => post(H, '/api/production/comment', { id, file_id: fid, body, shape, at }).then(r => { if (r.error) throw new Error(r.error); return r; }),
-      decide: (ok, body) => post(H, '/api/production/decide', { id, ok, body }).then(r => { if (r.error) throw new Error(r.error); toast(ok ? (client ? 'Approved. Thank you.' : 'Approved. The card moved to Ready.') : (client ? 'Sent to Mobius.' : 'Sent back to Making.')); return r; }),
-      fixed: (cid, on) => post(H, '/api/production/fixed', { comment_id: cid, fixed: on }),
+      note: (fid, body, shape, at, name, parentId) => post(H, '/api/production/comment', { id, file_id: fid, body, shape, at, parent_id: parentId || undefined }).then(fail),
+      decide: (ok, body, fid, name, reset) => post(H, '/api/production/decide', { id, ok: !!ok, reset: !!reset, body, file_id: fid }).then(fail).then(r => { toast(reset ? 'Open for review again.' : ok ? (r.all_approved ? (client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.') : 'Approved.') : (client ? 'Sent to Mobius.' : 'Sent back to be fixed.')); return r; }),
+      fixed: (cid, on) => post(H, '/api/production/fixed', { comment_id: cid, fixed: on }).then(fail),
       share: client ? null : () => post(H, '/api/production/share', { id }).then(r => r.url),
-      reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); return { files: d.files.filter(f => f.kind === 'version'), comments: d.comments, canDecide: client ? d.card.needs_client === 'ad' : true }; },
+      reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); return { ads: adsOf(d), comments: d.comments, canDecide: canDecide(d) }; },
     },
     onClose: () => { if (opts.onChange) opts.onChange(); },
   });
-  return ui;
 }
 
 /* ================================================================================================================ */

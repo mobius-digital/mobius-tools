@@ -1996,7 +1996,34 @@ doing this before anything else", and "we do need an end call whether we go with
 
 Handoff `docs/handoffs/production-v2.md`; approved mock https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (v7, after research
 Cole asked for; the team does not use Frame's Premiere panel, so review moved into Locus and Frame can go). Tests:
-`node test-production2.mjs` (12), test-clients has a Production check.
+`node test-production2.mjs` (14), test-clients has a Production check.
+- **2026-10-14 (afternoon): THE BRIEF IS ONE WRITTEN PAGE, not a form** (mock v9, after Cole asked whether I had researched
+  how the team writes briefs: Ice & Gold 3/4/5, Lucky 440-2, Party Patch 437 and Grunk 370 are all one flowing Asana
+  description with headings, bold labels, numbered ads, pictures and links). `brief_json = {v: 2, html, format, sizes}`.
+  `sanitizeHtml` is the only door in (allowlist p br strong em u s code pre blockquote ol ul li a h1 h2 h3 hr img video span;
+  only href / data-file / data-ph / data-ai survive; b/i/div are aliased; scripts and styles are dropped with their content;
+  unclosed tags are closed; 80k cap). `<span data-ph>` = a grey hint that vanishes when typed over, `<span data-ai>` = words
+  the AI wrote (tinted until edited), `<img data-file>` / `<video data-file>` = a file uploaded on the card (kind `inline`;
+  the signed src is filled at read time by `fillSrc`, never stored). `htmlToText` makes brief_text (lists number themselves,
+  hints left out). `templateHtml(kind new|iter|resize|blank, format, num)` seeds a page with the card's own ad numbers
+  (48-1, 48-2, 48-3); `getCard` returns `brief.blank` and `templates` for a page with no words. Old cards: first open reads
+  `html_notes` live from Asana (`asanaToHtml`: top-level newlines become paragraphs, Asana's tags pass, the template's
+  example line becomes a hint), else `textToHtml` of brief_text or the Google Doc. A v1 form brief converts on read
+  (`toPage` / `v1ToHtml`). Asana export `briefHtml` = Asana's tags only (p/br to newlines, h3 to strong, pictures as a link
+  to the card, hints left out, named entities decoded, valid XML with `<hr/>`). The sync (asana-brand.js, `TASK_FIELDS` now
+  carries `html_notes`) stores `briefFromAsana(old, html_notes, notes)` when the Asana text really changed. `aiFill`
+  sends the whole page and gets the whole page back: every hint and every empty label gets `<span data-ai>` words; a typed
+  sentence that went missing makes it refuse (502), nothing is kept; a page with words and nothing to fill returns
+  `filled: 0` with a why. Route `GET /api/production/template?id=&kind=`.
+- **Versions are per ad and automatic; no size limit** (Cole: "like Frame"). `adOf(name, num)` reads the ad from the file
+  name ("48-3 v2.png", "LG_440-2 final.mov", "48_3.mp4"; the card's own number wins when several pairs appear; no pair =
+  "" = the ad itself); `p_work_file.ad`; version = MAX per (card, ad) + 1. `POST /api/production/upload` stays for files
+  one request can carry; bigger ones use R2 multipart: `POST upload/start?id=&kind=&name=&type=&size=` ->
+  `{id, key, uploadId, part: 24MB}`, `PUT upload/part?id=&key=&uploadId=&n=` (body = the part, key must be the card's),
+  `POST upload/finish {id, key, uploadId, parts, name, type, size, kind}`. A mime of application/octet-stream is read
+  from the extension (.mov). `pruneFiles` keeps the last version OF EACH AD. `decide` names the ad ("Approved 45-1 v3.") and
+  takes `file_id`. `filesOf` orders by ad then version; the board thumb and the client thumb are the newest PICTURE of any ad.
+  Not tested live: a real multipart upload against R2 (the Node test mocks createMultipartUpload / uploadPart / complete).
 - **Tables** (created on first use by `ensureWork`, called by every route and by `syncTasks`): p_br_batch gains `brief_json`,
   `brief_at`, `brief_hash`, `launch_on`, `needs_client` (idea | ad), `client_sent_at`, `client_due` (+3 business days),
   `approved_by`, `approved_at`, `share_token`. `p_work_comment` (comments AND notes: `file_id`, `shape_json` in 0..1 of the
@@ -2032,3 +2059,53 @@ Cole asked for; the team does not use Frame's Premiere panel, so review moved in
   /api/production/photos` = roster name -> Google photo, else Slack's (users.info, cached a week in `slackPhotos`).
 - NOT tested live: Asana html_notes / stories / the hash round trip, Slack DMs, R2 upload of a real 90MB video, Stream,
   the morning card line for unanswered mentions (not built).
+
+## 2026-10-14: CLIENT ISOLATION AUDIT (read before adding a client route or a brand field)
+
+Cole saw other clients' Google Ads accounts in a client's Integrations. A full audit of every client-reachable route
+(both workers, Supply, the AI routes) followed. Fixed and tested (`test-clients.mjs` 27, `test-morning.mjs` 7):
+- **The guard checks EVERY brand field** (brandguard.js `guardClient`, both copies identical): the query's `act` and
+  `act_id` (every copy), and the body's `act`, `act_id`, `screen.act_id`, each a string that is the client's, or 403.
+  The body is read whatever the Content-Type (handlers call `request.json()` on text/plain too); only multipart,
+  octet-stream and media bodies are skipped. Before this, an `act` sent as an array, an `act_id` beside a matching
+  `act`, or a text/plain body opened another brand on the voice desk, Studio AI, Change Log and more. `brand` in the
+  query is NOT checked: it is the Supply proxy's own slug, overridden there.
+- **Integrations for a client** (`clientIntegrations`): no agency card, no pick lists (they hold every account Mobius's
+  logins reach and the brand each is linked to), no paste box for an id outside `LINK_FIELDS`, levels without notes.
+- **Rules added:** Studio `base_id` is an owned record; `PUT /api/brand/doc` refuses `DOC_TEAM` keys (asana, assets,
+  google, tiktok, klaviyo, clarity, survey_*, voice_skill, rules); `GET /api/brand` drops stored keys from `docs`;
+  `PUT /api/season/answer` refuses key `war`; Studio batch save checks `batch.br_batch_id`; leak lessons are the
+  client's own brand's only, without team emails, and a client cannot delete an every-brand lesson; `/api/accounts`
+  drops `lastDiscover`; `/api/metaday` keeps only `ours.high`; `/api/daycheck` gives a client `client_line` as `why`
+  and no `todo`; `/api/summarise` needs the client's `act`; caps on `/api/brand-asana/tested`, tw-sync (70 days) and
+  the Supply backfill (400 days).
+- **Handlers:** a client or review-link guest comment is always `comment` / `note` (never approval / system, prodwork);
+  creator page uploads must live under the brand's own `amb/<prefix>/` and only those are deleted; section icons go
+  through `cleanSvg` (an allowlist of drawing tags and attributes) on write AND read; ad share links keep only the
+  brand's own ads at mint and re-check at read, video read from the ad, never from the stored snapshot; Supply upserts
+  (`categories`, `lines`, `factories`, `collections`, `slots`) never update another brand's row
+  (`WHERE <table>.brand_id = excluded.brand_id`); the morning DM fails closed (no brand limit = every brand only for
+  someone `emailAllowed` says is the team); the hub and `/api/overview` build only a client's own brands; order
+  lookups by ad set or campaign are scoped to the brand; search rows carry `act_id` so the filter can see them.
+- **Also fixed:** `suggestGoals` read an undefined `win` (the goal suggestion 500'd every time).
+- **The rule for new code:** anything a client can reach must either name the brand in `act` / `act_id` (checked) or
+  return objects that carry `act_id` (filtered). Lists of ids Mobius can see, totals across brands, names of other
+  brands in text, or a stored id written by the browser are leaks the filter cannot catch: strip them in a `post`.
+- Not changed (plausible, left for later): Launch to Meta accepts any `video_id` the system user can read for an ad in
+  the client's own account; Google `from` / `to` go into the query unvalidated (stays inside the brand's own account);
+  a brand brain may mention a competitor that is also a client.
+
+### 2026-10-14 (evening): a call per AD, replies, labels on their own line (prodwork.js)
+- `adsOf(files, comments)`: every ad of the test with its newest version and its OWN status from the last approval /
+  change request / reopen on that version (a new upload after a change request is back to review); `open` = unfixed
+  notes on it (replies not counted). Returned as `ads` by getCard, `/api/production/card` and the review link.
+- `decide` records the call on ONE file (`file_id`, else the newest upload). `reset: true` = kind `reopen`. The card goes
+  to Ready only when EVERY ad is approved; a change request moves it to Making and DMs the maker; `needs_client` clears
+  only when no ad is still waiting; a client may decide while the card is sent (`needs_client`) or was sent and not taken
+  back (`client_sent_at`), and a client's reopen sends it back to them. A client's call posts one line in the internal
+  channel. Returns `{ads, all_approved, moved}`.
+- Replies: `p_work_comment.parent_id` (ALTER on ensure); a reply takes its parent's file and second, kind `reply`.
+- `splitLabels`: a paragraph that starts with a bold label ending in a colon becomes the label alone, then the words
+  in their own paragraph (sanitizeHtml runs it, so every read and save). Templates use the same shape; the ads of a new
+  test are their own section ("The ads", Ad 48-1 bold, the words below).
+- Tests: test-production2 14 (per-ad calls, reopen, replies, take back).

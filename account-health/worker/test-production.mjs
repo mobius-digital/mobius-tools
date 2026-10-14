@@ -115,7 +115,7 @@ await check('routes: team only (401, 403 for a client), GET the board, POST move
   const mv = await call('/api/production/move', { method: 'POST', body: { id: 'c2', to: 'making' } }); assert.equal(mv.status, 200); assert.equal(mv.body.asana.moved, true);
   assert.equal((await call('/api/production/move', { method: 'POST', body: { id: 'c2', to: 'x' } })).status, 400);
   const b1 = await call('/api/production/brief', { method: 'POST', body: { act: 'brand_zeta', text: 'x' } }); assert.equal(b1.status, 400); assert.equal(b1.body.error, 'Pick the brand.');
-  const b2 = await call('/api/production/brief', { method: 'POST', body: { act: 'brand_alpha', text: '  ' } }); assert.equal(b2.status, 400); assert.equal(b2.body.error, 'Say what to make.');
+  const b2 = await call('/api/production/brief', { method: 'POST', body: { act: 'brand_alpha', text: '  ' } }); assert.equal(b2.status, 400); assert.equal(b2.body.error, 'Name the brief.');
   assert.equal((await call('/api/production/move')).status, 404);
 });
 

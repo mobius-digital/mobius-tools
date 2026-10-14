@@ -24,7 +24,7 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ROLE = { Cole: 'Owner', Ahsan: 'Strategist', Noma: 'Strategist', William: 'Designer', Ravo: 'Video', Radhesh: 'Google', Hamza: 'Amazon' };
-  const HUE = { Cole: '#8FB3FF', Ahsan: '#5FD292', Noma: '#EBBF63', William: '#C9A2FF', Ravo: '#F09182', Radhesh: '#7FD7E0', Hamza: '#F2A65A' };
+  const HUE = { Cole: 'var(--brand)', Ahsan: 'var(--c-tiktok)', Noma: 'var(--c-email)', William: 'var(--c-google)', Ravo: 'var(--c-else)', Radhesh: 'var(--c-meta)', Hamza: 'var(--c-amazon)', Mobius: 'var(--muted)' }; /* never good / warn / bad: those mean status */
   const SEC = {
     team: { title: 'Mobius does', mark: 'M', c: 'good', sub: 'Jobs for our team. On the list; Slack reminds the owner the morning it is due.', cols: ['Job', 'Owner', 'Due'], add: 'Add a job' },
     brief: { title: 'New ads', mark: 'A', c: 'brand', sub: 'Each becomes a numbered brief in the brand’s Asana, Creative Brief column, with our template.', cols: ['What to make', 'Writes the brief', 'Brief due'], add: 'Add new ads' },

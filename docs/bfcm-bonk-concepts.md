@@ -74,6 +74,19 @@ it in five words over real hats. So: keep the proven heroes running through the 
 - Written into Locus Season (`p_season_phase` key `bf`). Still open: the Early BF warm-up offer (lines 12 to 15).
 - Note: the Smoke Show Golf Gift Set (same five pieces) is $102.80 on the site; worth retiring or matching it.
 
+## Floyd style (Cole, Oct 14): AI scene + AI 3D lettering, REAL hat on top
+Cole: the white-background set is "too safe". The direction is Floyd's own Breakfast Ball concepts (#bonk-email,
+Sep 30) and Viktor's 3D pilot: the AI makes the photo-real background and the 3D lettering that plays off the hat's
+name; the hat is Bonk's real photo, cut out; prices and buttons are set in code. The AI never draws a hat, person or
+logo. Pipeline (all in docs/bfcm-bonk/ads):
+1. Locus Studio `make-exact` (browser pane, Cole's login): the scene with the product spot EMPTY (~26c).
+2. Studio `change`: add the 3D headline (~25c). 3. Studio `extend` to 4:5 (~8c). About $0.60 an ad.
+4. `cutout.py`: real hat cut-out (u2netp + GrabCut, model in %TEMP%/u2). 5. `ai_build.py` + `render.ps1`: hat in the
+   spot with a contact shadow, original square back over the extend, offer bar in code.
+Pilot Oct 14 (out/ai-01..04, $2.86): Smoke Show "Heads are gonna turn." (chrome + smoke), Breakfast Ball "Everybody
+gets one." (icing + sprinkles), Dunes Day "Retire his old cap." (sand), the five-piece set "Everything a golfer
+needs." (chrome, $125.75 of gear for $92.95).
+
 ## Cost heads-up
 - Bonk statics are HTML around real photos: **$0 image spend**. Uploading them to Studio as photo-is-the-ad lines costs
   nothing either. Studio's image model is only needed if Cole wants a "Change with AI" pass, which Floyd's rule makes a

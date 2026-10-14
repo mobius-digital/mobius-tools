@@ -1309,7 +1309,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     answerSlack, answerWeb, nightly, briefing,
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
-    applyProposal, pendingList, proposalBlocks, actions: ACTIONS.map(a => a.name), reportsList,
+    applyProposal, pendingList, proposalBlocks, runAction, actions: ACTIONS.map(a => a.name), reportsList,
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },

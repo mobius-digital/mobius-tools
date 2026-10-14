@@ -553,7 +553,7 @@ const app = {
         const c = body || {};
         const id = c.id || `${brand}:${slug(c.name)}`;
         if (!c.name) return bad('name required');
-        await env.DB.prepare(`INSERT INTO categories (id, brand_id, name, sort) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(id) DO UPDATE SET name = excluded.name, sort = excluded.sort`).bind(id, brand, str(c.name, 60), int(c.sort) ?? 0).run();
+        await env.DB.prepare(`INSERT INTO categories (id, brand_id, name, sort) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(id) DO UPDATE SET name = excluded.name, sort = excluded.sort WHERE categories.brand_id = excluded.brand_id`).bind(id, brand, str(c.name, 60), int(c.sort) ?? 0).run();
         await log(env, brand, actor, 'category', id, 'upsert', c);
         return json({ ok: true, id });
       }
@@ -572,7 +572,7 @@ const app = {
         await env.DB.prepare(`INSERT INTO lines (id, brand_id, category_id, name, variant_axis, factory_id, lead_override_days, moq, target_designs, cut_rule_pct, size_curve, sort)
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, COALESCE(?12, 0))
           ON CONFLICT(id) DO UPDATE SET category_id = excluded.category_id, name = excluded.name, variant_axis = excluded.variant_axis, factory_id = excluded.factory_id,
-            lead_override_days = excluded.lead_override_days, moq = excluded.moq, target_designs = excluded.target_designs, cut_rule_pct = excluded.cut_rule_pct, size_curve = excluded.size_curve, sort = COALESCE(excluded.sort, lines.sort)`)
+            lead_override_days = excluded.lead_override_days, moq = excluded.moq, target_designs = excluded.target_designs, cut_rule_pct = excluded.cut_rule_pct, size_curve = excluded.size_curve, sort = COALESCE(excluded.sort, lines.sort) WHERE lines.brand_id = excluded.brand_id`)
           .bind(id, brand, str(l.category_id, 80), str(l.name, 60), ['none', 'size', 'hand', 'loft_hand', 'hand_size'].includes(l.variant_axis) ? l.variant_axis : 'none',
             str(l.factory_id, 80), int(l.lead_override_days, 0, 730), int(l.moq, 0, 100000), int(l.target_designs, 0, 1000), int(l.cut_rule_pct, 0, 90),
             curveJson(l.size_curve), int(l.sort)).run();
@@ -608,7 +608,7 @@ const app = {
         await env.DB.prepare(`INSERT INTO factories (id, brand_id, name, production_days, shipping_days, order_cycle_days, moq_default, moq_basis, closures, contact, notes)
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
           ON CONFLICT(id) DO UPDATE SET name = excluded.name, production_days = excluded.production_days, shipping_days = excluded.shipping_days, order_cycle_days = excluded.order_cycle_days,
-            moq_default = excluded.moq_default, moq_basis = excluded.moq_basis, closures = excluded.closures, contact = excluded.contact, notes = excluded.notes`)
+            moq_default = excluded.moq_default, moq_basis = excluded.moq_basis, closures = excluded.closures, contact = excluded.contact, notes = excluded.notes WHERE factories.brand_id = excluded.brand_id`)
           .bind(id, brand, str(f.name, 60), int(f.production_days, 0, 730) ?? 30, int(f.shipping_days, 0, 365) ?? 30, int(f.order_cycle_days, 1, 365) ?? 90,
             int(f.moq_default, 0, 100000), f.moq_basis === 'variant' ? 'variant' : 'product', JSON.stringify(Array.isArray(f.closures) ? f.closures.filter(c => ymd(c.from) && ymd(c.to)).map(c => ({ from: c.from, to: c.to, label: str(c.label, 60) || '' })) : []),
             str(f.contact, 200), str(f.notes, 1000)).run();
@@ -703,7 +703,7 @@ const app = {
         const id = c.id || `col-${Date.now().toString(36)}`;
         if (!c.name || !ymd(c.drop_at)) return bad('a name and a drop date are required');
         await env.DB.prepare(`INSERT INTO collections (id, brand_id, name, drop_at, notes) VALUES (?1, ?2, ?3, ?4, ?5)
-          ON CONFLICT(id) DO UPDATE SET name = excluded.name, drop_at = excluded.drop_at, notes = excluded.notes, updated_at = datetime('now')`)
+          ON CONFLICT(id) DO UPDATE SET name = excluded.name, drop_at = excluded.drop_at, notes = excluded.notes, updated_at = datetime('now') WHERE collections.brand_id = excluded.brand_id`)
           .bind(id, brand, str(c.name, 80), c.drop_at, str(c.notes, 2000)).run();
         await log(env, brand, actor, 'collection', id, request.method === 'POST' ? 'create' : 'update', c);
         /* the drop date is the drop date: every task in it is due against the new one */
@@ -735,7 +735,7 @@ const app = {
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, datetime('now'))
           ON CONFLICT(id) DO UPDATE SET line_id = excluded.line_id, name = excluded.name, season = excluded.season, status = excluded.status, on_site_at = excluded.on_site_at, collection_id = excluded.collection_id,
             brief_due = excluded.brief_due, sample_due = excluded.sample_due, order_by = excluded.order_by, lands_at = excluded.lands_at, asana_task = COALESCE(excluded.asana_task, asana_task), lineup_event = excluded.lineup_event, product_id = excluded.product_id, notes = excluded.notes,
-            sample_requested_at = excluded.sample_requested_at, sample_expected_at = excluded.sample_expected_at, sample_tracking = excluded.sample_tracking, sample_in_hand_at = excluded.sample_in_hand_at, updated_at = datetime('now')`)
+            sample_requested_at = excluded.sample_requested_at, sample_expected_at = excluded.sample_expected_at, sample_tracking = excluded.sample_tracking, sample_in_hand_at = excluded.sample_in_hand_at, updated_at = datetime('now') WHERE slots.brand_id = excluded.brand_id`)
           .bind(id, brand, str(s.line_id, 80), str(s.name, 80), str(s.season, 40), status, s.on_site_at, ymd(s.brief_due), ymd(s.sample_due), ymd(s.order_by), ymd(s.lands_at), str(s.asana_task, 300), str(s.lineup_event, 80), s.product_id ? String(s.product_id).replace(/\D/g, '') : null, str(s.notes, 2000), col ? col.id : null, ymd(s.sample_requested_at), ymd(s.sample_expected_at), str(s.sample_tracking, 120), ymd(s.sample_in_hand_at)).run();
         /* a task link typed or pasted by hand is as good as one Supply made: take its gid so the status shows */
         const pasted = taskGid(s.asana_task);
