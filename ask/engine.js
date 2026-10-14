@@ -797,7 +797,11 @@ export function createAssistant(config) {
     return bits.join('\n\n');
   }
   async function getBrief(env, h) { return (await h.getSetting(env, K.brief)) || C.brief || ''; }
-  async function getPlaybook(env, h) { return (await h.getSetting(env, K.playbook)) || C.playbook || ''; }
+  /* The playbook may be a string or a function of (env, h): Cashew picks its
+     playbook by the books' edition (service, product, household) at answer time.
+     The stored copy (edited in Settings) still wins over either. */
+  async function basePlaybook(env, h) { return typeof C.playbook === 'function' ? (await C.playbook(env, h)) || '' : (C.playbook || ''); }
+  async function getPlaybook(env, h) { return (await h.getSetting(env, K.playbook)) || (await basePlaybook(env, h)); }
 
   async function runMemoryTool(env, name, input, h) {
     const now = new Date().toISOString().slice(0, 10);
@@ -855,7 +859,7 @@ export function createAssistant(config) {
        3. Everything that moves: the date, live context, the company brief, memory, the screen.
        It used to be schema [cached], date, live, brief, playbook..., so the playbook sat after the date and
        live context and was rewritten on every cold question. */
-    const playbook = (await h.getSetting(env, K.playbook)) || C.playbook || '';
+    const playbook = await getPlaybook(env, h);
     const stable = [schemaDoc(h)];
     if (playbook) stable.push('## How you think (your playbook)\n' + playbook);
     stable.push('## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.');

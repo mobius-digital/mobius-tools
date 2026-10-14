@@ -100,6 +100,21 @@ label{font-size:12.5px;font-weight:500;color:var(--ink-2)}
 .side-brand img{width:28px;height:28px;border-radius:8px;display:block;flex:none}
 .side-brand .nm{display:block;font-weight:650;font-size:15px;letter-spacing:-.01em;line-height:1.1}
 .side-brand .by{display:block;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--rail-muted);margin-top:2px}
+/* the books picker beside the brand: a small chevron, a menu of the owner's sets of books */
+.side-top{display:flex;align-items:flex-start;justify-content:space-between;gap:4px}
+.side-top .side-brand{flex:1;min-width:0}
+.pm.books{margin:4px 2px 0 0}
+.pm.books .pm-btn{width:28px;height:28px;padding:0;justify-content:center;border-radius:8px;color:var(--rail-muted);background:transparent;border:1px solid transparent}
+.pm.books .pm-btn:hover{color:var(--rail-on-ink);background:var(--rail-hover,rgba(255,255,255,.08))}
+.pm.books .pm-btn svg{width:14px;height:14px;stroke:currentColor}
+.pm.books .pm-menu{left:0;right:auto;transform-origin:top left;min-width:240px}
+.pm.books .pm-menu .bk{display:flex;flex-direction:column;gap:1px;min-width:0}
+.pm.books .pm-menu .bk small{font-size:11px;color:var(--muted);font-weight:500}
+.pm.books .pm-menu a.bk-link{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border-radius:7px;font-size:13px;color:var(--ink-2);text-decoration:none}
+.pm.books .pm-menu a.bk-link:hover{background:var(--surface-2);color:var(--ink)}
+.pm.books .pm-menu a.bk-link svg{margin-left:auto;flex:none;color:var(--muted)}
+.pm.books .pm-menu button.on::after{background:var(--brand)}
+.pm.books .pm-menu .lb+.lb{margin-top:4px;border-top:1px solid var(--line);padding-top:10px}
 .side-scroll{flex:1;overflow-y:auto;scrollbar-width:none}
 .side-scroll::-webkit-scrollbar{display:none}
 nav.tabs{display:flex;flex-direction:column;gap:2px}
@@ -852,3 +867,6 @@ body.gated footer{display:none}
   #cpaPrint table{page-break-inside:auto}
   .rpt{border:none;padding:0;max-width:none}
 }
+
+/* a plain address or id in a settings row */
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted)}
