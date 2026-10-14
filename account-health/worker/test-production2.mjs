@@ -192,6 +192,19 @@ await check('uploads: versions count PER AD from the file name, the card moves t
   const rr = await serveFile(new Request(u, { headers: { Range: 'bytes=0-6' } }), env, u, u.pathname.split('/').pop());
   assert.equal(rr.status, 206); assert.equal(await rr.text(), 'PNGDATA'); assert.equal(rr.headers.get('content-range'), 'bytes 0-6/11');
   u.searchParams.set('s', 'forged'); assert.equal((await serveFile(new Request(u), env, u, u.pathname.split('/').pop())).status, 403);
+  /* sized copies (2026-10-14): a picture carries thumb (600) and view (1600) links; the copy is made once by the Images binding and kept in R2 */
+  assert.match(up2.body.file.thumb, /&w=600$/); assert.match(up2.body.file.view, /&w=1600$/);
+  assert.equal(new URL(up2.body.file.thumb).searchParams.get('s'), new URL(up2.body.file.url).searchParams.get('s'), 'the same signed link, one more parameter');
+  let made = 0;
+  const IMAGES = { input: () => ({ transform: () => ({ output: () => ({ response: () => { made++; return new Response('WEBP-SMALL'); } }) }) }) };
+  const tu = new URL(up2.body.file.thumb);
+  const t1 = await serveFile(new Request(tu), { ...env, IMAGES }, tu, tu.pathname.split('/').pop());
+  assert.equal(t1.status, 200); assert.equal(t1.headers.get('content-type'), 'image/webp'); assert.equal(await t1.text(), 'WEBP-SMALL'); assert.match(t1.headers.get('cache-control'), /immutable/);
+  const t2 = await serveFile(new Request(tu), env, tu, tu.pathname.split('/').pop());
+  assert.equal(await t2.text(), 'WEBP-SMALL', 'the second read comes from R2, no Images binding needed'); assert.equal(made, 1);
+  const du = new URL(up2.body.file.thumb); du.searchParams.set('dl', '1');
+  assert.equal(await (await serveFile(new Request(du), env, du, du.pathname.split('/').pop())).text(), 'PNGDATA-TWO', 'a download is always the original');
+  assert.equal((await serveFile(new Request(u.href.replace('s=forged', 's=' + new URL(up2.body.file.url).searchParams.get('s'))), env, u, u.pathname.split('/').pop())).status, 403, 'forged url object still forged');
   const card = await getCard(env, dd, 'https://ah.test', 'c2', null);
   assert.deepEqual(card.files.filter(f => f.kind === 'version').map(f => [f.ad, f.version]), [['45-1', 1], ['45-1', 2], ['45-2', 1]]);
   /* the page shows the inline picture with its signed address */
@@ -244,8 +257,11 @@ await check('ask for changes needs a note, moves the card back to Making and DMs
   const ok = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true }, email: 'cole@go-mobius-digital.com' });
   assert.equal(ok.body.moved, null, 'the other ads still wait'); assert.equal(ok.body.all_approved, false);
   let last = ok;
-  for (const a of ok.body.ads.filter(a => a.status !== 'approved')) last = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', ok: true, file_id: a.file_id }, email: 'cole@go-mobius-digital.com' });
-  assert.equal(last.body.moved, 'ready'); assert.equal(last.body.all_approved, true);
+  const waiting = ok.body.ads.filter(a => a.status !== 'approved').length; assert.ok(waiting >= 1);
+  /* Approve all (2026-10-14): one request approves every ad still waiting */
+  last = await call('/api/production/decide', { method: 'POST', body: { id: 'c2', all: true }, email: 'cole@go-mobius-digital.com' });
+  assert.equal(last.body.count, waiting, 'one call per waiting ad'); assert.equal(last.body.moved, 'ready'); assert.equal(last.body.all_approved, true);
+  assert.equal((await call('/api/production/decide', { method: 'POST', body: { id: 'c2', all: true }, email: 'cole@go-mobius-digital.com' })).status, 400, 'nothing left to approve');
   const row = db.prepare(`SELECT board_stage, approved_by FROM p_br_batch WHERE id = 'c2'`).get(); assert.equal(row.board_stage, 'ready'); assert.equal(row.approved_by, 'cole@go-mobius-digital.com');
   assert.match((await getCard(env, dd, 'https://ah.test', 'c2', null)).comments.find(c => c.kind === 'approval').body, /^Approved 45-1 v3\./, 'the newest ad and its version');
 });

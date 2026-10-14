@@ -220,7 +220,7 @@ function open(o) {
 
   const media = (f, notes, draw) => {
     if (!f) return `<div class="rv-empty">No version yet. ${team ? 'Upload it on the card\'s Files tab.' : 'Mobius has not uploaded this ad yet.'}</div>`;
-    const el = f.video ? `<video src="${esc(f.url)}" preload="metadata" playsinline data-v></video>` : `<img src="${esc(f.url)}" alt="${esc(f.name || 'The ad')}" draggable="false">`;
+    const el = f.video ? `<video src="${esc(f.url)}" preload="metadata" playsinline data-v></video>` : `<img src="${esc(f.view || f.url)}" alt="${esc(f.name || 'The ad')}" draggable="false" decoding="async">`;
     const pins = notes.map((c, k) => { const a = anchorOf(c.shape); if (!a || c.fixed) return ''; const col = c.shape.color || 'coral';
       const cls = c.shape.tool === 'pin' ? 'rv-pin' : 'rv-num';
       return `<span class="${cls}${S.hi === c.id ? ' hi' : ''}" data-pin="${esc(c.id)}" data-at="${c.at ?? ''}" style="left:${a.x * 100}%;top:${a.y * 100}%;--pc:${COLOR[col] || COLOR.coral};--pi:${INK[col] || INK.coral}">${k + 1}</span>`; }).join('');
@@ -270,7 +270,7 @@ function open(o) {
 
   const stripHtml = () => `<div class="rv-strip" role="group" aria-label="Every ad in this test">
     ${S.ads.map((a, k) => { const L = a.files.slice().sort((x, y) => (x.version || 0) - (y.version || 0)).slice(-1)[0]; const st = STATUS[a.status] || STATUS.review;
-      return `<button type="button" class="rv-thumb${k === S.i ? ' on' : ''}" data-ad="${k}" aria-label="${esc(a.label)}, ${st[0].toLowerCase()}" title="${esc(a.label)}: ${st[0]}">${L ? (L.video ? `<video src="${esc(L.url)}#t=0.5" muted preload="metadata"></video>` : `<img src="${esc(L.url)}" alt="" loading="lazy">`) : ''}<span class="l">${esc(a.ad || 'Ad')}</span><i style="--sc:${st[1]}"></i></button>`; }).join('')}
+      return `<button type="button" class="rv-thumb${k === S.i ? ' on' : ''}" data-ad="${k}" aria-label="${esc(a.label)}, ${st[0].toLowerCase()}" title="${esc(a.label)}: ${st[0]}">${L ? (L.video ? `<video src="${esc(L.url)}#t=0.5" muted preload="metadata"></video>` : `<img src="${esc(L.thumb || L.url)}" alt="" loading="lazy">`) : ''}<span class="l">${esc(a.ad || 'Ad')}</span><i style="--sc:${st[1]}"></i></button>`; }).join('')}
     <div class="rv-keys">${S.ads.length > 1 ? '<span class="rv-kbd">&#8592;</span><span class="rv-kbd">&#8594;</span> ads' : ''}<span class="rv-kbd" style="margin-left:8px">N</span> note${vers().some(f => f.video) ? '<span class="rv-kbd" style="margin-left:8px">Space</span> play' : ''}<span class="rv-kbd" style="margin-left:8px">Esc</span> close</div>
   </div>`;
 
@@ -294,7 +294,7 @@ function open(o) {
     const calls = f ? callsOf(f.id).map(c => `<div class="rv-sys">${esc(c.body)} ${esc(c.who)}, ${esc(when(c.created_at))}</div>`).join('') : '';
     const notesTab = `<div class="rv-chips" role="group" aria-label="Show">${[['open', `Open ${open.length}`], ['resolved', `Resolved ${res.length}`], ['all', 'All']].map(([k, l]) => `<button type="button" class="rv-chip${S.filter === k ? ' on' : ''}" data-filter="${k}">${l}</button>`).join('')}</div>
       <div class="rv-list">${S.cmp ? '<div class="rv-empty">Comparing the last two versions. Pick a version to read or add notes.</div>' : shown.map(noteHtml).join('') || `<div class="rv-empty">${all.length ? 'Nothing here with this filter.' : f ? 'No notes on this version yet. Pick a tool and draw on the ad, or click it to drop a note.' : ''}</div>`}${S.cmp ? '' : calls}</div>`;
-    const versTab = `<div class="rv-list">${vers().slice().reverse().map(x => `<button type="button" class="rv-ver${f && x.id === f.id && !S.cmp ? ' on' : ''}" data-ver="${esc(x.id)}"><span class="th">${x.video ? '' : `<img src="${esc(x.url)}" alt="" loading="lazy">`}</span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-weight:600">v${x.version}${x === latest() ? ' (latest)' : ''}</b><span class="rv-hint">${esc([x.by, when(x.created_at)].filter(Boolean).join(', '))}</span><span class="rv-hint">${notesOf(x.id).length} note${notesOf(x.id).length === 1 ? '' : 's'}</span></span></button>`).join('')}</div>`;
+    const versTab = `<div class="rv-list">${vers().slice().reverse().map(x => `<button type="button" class="rv-ver${f && x.id === f.id && !S.cmp ? ' on' : ''}" data-ver="${esc(x.id)}"><span class="th">${x.video ? '' : `<img src="${esc(x.thumb || x.url)}" alt="" loading="lazy">`}</span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-weight:600">v${x.version}${x === latest() ? ' (latest)' : ''}</b><span class="rv-hint">${esc([x.by, when(x.created_at)].filter(Boolean).join(', '))}</span><span class="rv-hint">${notesOf(x.id).length} note${notesOf(x.id).length === 1 ? '' : 's'}</span></span></button>`).join('')}</div>`;
     const box = S.cmp || !f ? '' : `<div class="rv-box">
       ${o.needsName ? `<label>Your name<input data-name maxlength="60" value="${esc(S.name)}" autocomplete="name"></label>` : ''}
       <label>${S.asking ? `What needs to change on ${esc(a ? a.label : 'the ad')} (required)` : `Note on ${esc(a ? a.ad || 'the ad' : 'the ad')} v${f.version}${S.pendingAt != null ? ` at ${mmss(S.pendingAt)}` : ''}`}<textarea data-body rows="3" placeholder="${S.pending ? 'Say what to change here.' : 'Click the ad to place a note, or just type'}"></textarea></label>
@@ -309,7 +309,11 @@ function open(o) {
 
   const paint = () => {
     const keepList = (w.querySelector('.rv-list') || {}).scrollTop || 0;
+    /* the ad on the stage is kept across a repaint (same src = same node): no blank, no re-decode, a video keeps its place */
+    const oldStage = w.querySelector('.rv-media > img, .rv-media > video');
     w.innerHTML = `${headHtml()}<div class="rv-b"><div class="rv-main">${stageHtml()}${S.ads.length ? stripHtml() : ''}</div>${sideHtml()}</div>`;
+    const nuStage = w.querySelector('.rv-media > img, .rv-media > video');
+    if (oldStage && nuStage && oldStage.tagName === nuStage.tagName && oldStage.getAttribute('src') === nuStage.getAttribute('src')) nuStage.replaceWith(oldStage);
     const l = w.querySelector('.rv-list'); if (l) l.scrollTop = keepList;
     wire();
   };
@@ -341,8 +345,8 @@ function open(o) {
     Promise.resolve().then(save).then(async r => {
       const real = r && r.id;
       S.comments = S.comments.map(x => x.id === tmp.id ? { ...x, id: real || x.id, pending: false, can_delete: !!real } : x);
+      S.ads = S.ads.map(a => { const n = S.comments.filter(c => c.file_id === a.file_id && !c.parent_id && ['note', 'change_request'].includes(c.kind)); return { ...a, open: n.filter(c => !c.fixed).length, notes: n.length }; });
       paint();
-      try { await reload(); paint(); } catch {}
     }).catch(e => {
       S.comments = S.comments.filter(x => x.id !== tmp.id);
       if (!c.parent_id) S.draft = c.body;

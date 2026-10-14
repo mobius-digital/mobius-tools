@@ -228,6 +228,18 @@ function av(name, size = 24) {
 /** A text box as tall as its words (Asana and ClickUp descriptions): no inner scrollbar, nothing to drag. */
 const grow = t => { if (!t || (window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'))) return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
 
+/* ---------- repaint without blanking the pictures: a media node whose src did not change is kept (2026-10-14) ---------- */
+function keepMedia(root, repaint) {
+  const old = new Map();
+  if (root) root.querySelectorAll('img[src], video[src]').forEach(n => { if (!old.has(n.getAttribute('src'))) old.set(n.getAttribute('src'), n); });
+  repaint();
+  if (!root || !old.size) return;
+  root.querySelectorAll('img[src], video[src]').forEach(n => {
+    const o = old.get(n.getAttribute('src'));
+    if (o && o !== n && o.tagName === n.tagName && !n.isSameNode(o)) { for (const a of n.attributes) if (a.name !== 'src') o.setAttribute(a.name, a.value); n.replaceWith(o); }
+  });
+}
+
 /* ---------- a confirm that sits above the sheet (Locus's own confirmModal opened behind it, 2026-10-14) ---------- */
 function confirmBox(title, text, ok = 'OK') {
   return new Promise(res => {
@@ -312,7 +324,7 @@ const pickFiles = (accept, multi = false) => new Promise(res => { const i = docu
 /* ================================================================================================================ */
 async function open(H, id, opts = {}) {
   css();
-  await photos(H);
+  const photosP = photos(H);
   const P = window.V2UI && window.V2UI.panel;
   if (!P) { toast('This page did not load. Hard-refresh (Ctrl+Shift+R).'); return; }
   P.wide = true;
@@ -327,7 +339,7 @@ async function open(H, id, opts = {}) {
       if (!T.client && T.data.brief && T.data.brief.blank && T.data.templates) { T.B.html = T.data.templates.new; T.fresh = 'new'; }
     }
   };
-  try { await reload(); } catch (e) { host.innerHTML = `<p class="ps-err">${esc(e.message || 'Could not open the card.')}</p>`; return; }
+  try { await Promise.all([reload(), photosP]); } catch (e) { host.innerHTML = `<p class="ps-err">${esc(e.message || 'Could not open the card.')}</p>`; return; }
   const changed = () => { if (opts.onChange) opts.onChange(); };
   const c = () => T.data.card;
   const fileUrl = fid => (T.data.files.find(f => f.id === fid) || {}).url || '';
@@ -430,7 +442,8 @@ async function open(H, id, opts = {}) {
     const bar = `<div class="ps-fbar">${chips}<span style="flex:1"></span>
       ${T.client ? '' : '<button type="button" class="ps-btn" data-upload>Upload</button>'}
       ${!T.client && ads.length ? (sentAd ? '<button type="button" class="ps-btn" data-send="">Take it back from the client</button>' : '<button type="button" class="ps-btn" data-send="ad">Send to the client</button>') + '<button type="button" class="ps-btn" data-share>Copy client link</button>' : ''}
-      ${n('approved') ? `<button type="button" class="ps-btn" data-dlall>Download approved (${n('approved')})</button>` : ''}
+      ${ads.length ? `<button type="button" class="ps-btn" data-dlall>Download all (${ads.length})</button>` : ''}
+      ${n('review') > 1 && canCall ? `<button type="button" class="ps-btn" data-allok>Approve all ${n('review')}</button>` : ''}
       ${n('review') && canCall ? `<button type="button" class="ps-btn pri" data-allrev>${n('review') === 1 ? 'Review it' : `Review all ${n('review')}`}</button>` : ads.length ? '<button type="button" class="ps-btn" data-allrev>Open the review</button>' : ''}</div>`;
     const ups = UP.length ? `<div class="ps-ups">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : '';
     const STAT = { review: [T.client ? 'Waiting for you' : 'Needs review', 'var(--warn)'], changes: ['Changes asked', 'var(--bad)'], approved: ['Approved', 'var(--good)'] };
@@ -439,7 +452,7 @@ async function open(H, id, opts = {}) {
       if (!top) return '';
       const st = STAT[a.status] || STAT.review;
       const asking = T.asking === a.file_id;
-      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.url)}" alt="" loading="lazy">`;
+      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.thumb || top.url)}" alt="" loading="lazy" decoding="async">`;
       const by = a.status !== 'review' && a.by ? `${a.status === 'approved' ? 'Approved' : 'Sent back'} by ${a.by}${a.at ? `, ${short(a.at)}` : ''}` : `${T.client ? '' : `${top.by || 'Someone'}, `}${short(top.created_at)}`;
       const owner = !T.client && k.owner ? ` ${esc(k.owner.split(' ')[0])} gets it in Slack.` : '';
       let acts = '';
@@ -492,7 +505,7 @@ async function open(H, id, opts = {}) {
   function paint() {
     const keep = host.scrollTop;
     document.querySelectorAll('.ps-cpy').forEach(x => x.remove());
-    host.innerHTML = `<div class="ps">${headHtml()}<div class="ps-b">${T.tab === 'brief' ? briefHtml() : T.tab === 'files' ? filesHtml() : commentsHtml()}</div></div>`;
+    keepMedia(host, () => { host.innerHTML = `<div class="ps">${headHtml()}<div class="ps-b">${T.tab === 'brief' ? briefHtml() : T.tab === 'files' ? filesHtml() : commentsHtml()}</div></div>`; });
     const hb = $('#v2panel .ph b'); if (hb) hb.textContent = `${c().num ? `#${c().num} · ` : ''}${c().brand}`;
     host.scrollTop = keep;
     wire(); paintSaved();
@@ -605,7 +618,7 @@ async function open(H, id, opts = {}) {
           const r = await upload(H, id, f, 'inline', pct => { ph.textContent = `Uploading ${f.name} ${Math.round(pct * 100)}%`; });
           T.data.files.push({ ...r.file, kind: 'inline' });
           const el = document.createElement(r.file.video ? 'video' : 'img');
-          el.setAttribute('data-file', r.file.id); el.src = r.file.url; if (r.file.video) el.controls = true;
+          el.setAttribute('data-file', r.file.id); el.src = r.file.view || r.file.url; if (r.file.video) el.controls = true;
           ph.replaceWith(el);
           const after = document.createElement('p'); after.innerHTML = '<br>'; el.after(after);
           const range = document.createRange(); range.setStart(after, 0); range.collapse(true); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
@@ -695,12 +708,22 @@ async function open(H, id, opts = {}) {
     $$('[data-ff]', host).forEach(b => b.onclick = () => { T.ff = b.dataset.ff; paint(); });
     const sh = $('[data-share]', host); if (sh) sh.onclick = async () => { try { const r = await post(H, '/api/production/share', { id }); await navigator.clipboard.writeText(r.url).catch(() => {}); toast('Client link copied. It opens with no login.'); } catch (e) { toast(e.message); } };
     const afterRev = async () => { await reload(); paint(); changed(); };
-    $$('[data-open]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.open, onChange: afterRev }));
-    $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev }));
-    const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev }); };
+    /* the card shows the call the moment it is clicked (the server confirms it a moment later) */
+    const guess = (fid, status) => { T.data.ads = (T.data.ads || []).map(a => a.file_id === fid ? { ...a, status, by: status === 'review' ? null : 'You', at: status === 'review' ? null : new Date().toISOString() } : a); paint(); };
+    /* a call answers with every ad's state: the cards change at once, the comment list catches up behind */
+    const applyDecision = r => {
+      if (Array.isArray(r.ads)) T.data.ads = r.ads;
+      if (r.moved) T.data.card.board = r.moved;
+      if (r.all_approved && !T.client) T.data.card.needs_client = '';
+      paint(); changed();
+      reload().then(paint).catch(() => {});
+    };
+    $$('[data-open]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.open, onChange: afterRev, data: T.data }));
+    $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev, data: T.data }));
+    const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev, data: T.data }); };
     $$('[data-launchf]', host).forEach(b => b.onclick = () => window.LaunchToMeta.open({ act: c().act_id, tok: H.S.tok, workFile: b.dataset.launchf, onDone: afterRev }));
     const dla = $('[data-dlall]', host); if (dla) dla.onclick = async () => {
-      const files = (T.data.ads || []).filter(a => a.status === 'approved').map(a => T.data.files.find(f => f.id === a.file_id)).filter(Boolean);
+      const files = (T.data.ads || []).map(a => T.data.files.find(f => f.id === a.file_id)).filter(Boolean);
       for (const f of files) { const x = document.createElement('a'); x.href = f.download || f.url; x.download = f.name || ''; document.body.appendChild(x); x.click(); x.remove(); await new Promise(r => setTimeout(r, 400)); }
       toast(`${files.length} file${files.length === 1 ? '' : 's'} downloading.`);
     };
@@ -712,14 +735,28 @@ async function open(H, id, opts = {}) {
       const body = what === 'send' ? (($('[data-askbody]', host) || {}).value || '').trim() : '';
       if (what === 'send' && !body) { const t = $('[data-askbody]', host); if (t) t.focus(); toast('Say what needs to change.'); return; }
       b.disabled = true;
+      const keep = T.data.ads;
+      T.asking = null; guess(fid, what === 'ok' ? 'approved' : what === 'reopen' ? 'review' : 'changes');
       try {
         const r = await post(H, '/api/production/decide', { id, file_id: fid, ok: what === 'ok', reset: what === 'reopen', body });
         if (r.error) throw new Error(r.error);
-        T.asking = null;
         toast(what === 'ok' ? (r.all_approved ? (T.client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.') : 'Approved.') : what === 'send' ? (T.client ? 'Sent to Mobius.' : 'Sent back to be fixed.') : 'Open for review again.');
-        await afterRev();
-      } catch (e) { toast(e.message || 'That did not save.'); b.disabled = false; }
+        applyDecision(r);
+      } catch (e) { T.data.ads = keep; paint(); toast(e.message || 'That did not save.', true); }
     });
+    const allOk = $('[data-allok]', host); if (allOk) allOk.onclick = async () => {
+      const n = (T.data.ads || []).filter(a => a.status === 'review').length;
+      if (!(await confirmBox(`Approve all ${n} ads?`, T.client ? 'Mobius is told at once.' : 'Every ad still waiting is approved and the card moves to Ready.', 'Approve all'))) return;
+      allOk.disabled = true;
+      const keep = T.data.ads;
+      (T.data.ads || []).filter(a => a.status === 'review').forEach(a => guess(a.file_id, 'approved'));
+      try {
+        const r = await post(H, '/api/production/decide', { id, all: true });
+        if (r.error) throw new Error(r.error);
+        toast(T.client ? 'All approved. Thank you.' : 'Every ad is approved. The card moved to Ready.');
+        applyDecision(r);
+      } catch (e) { T.data.ads = keep; paint(); toast(e.message || 'That did not save.', true); }
+    };
     const cbody = $('[data-cbody]', host); if (cbody) cbody.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); const b = $('[data-cpost]', host); if (b) b.click(); } };
     $$('[data-cdel]', host).forEach(b => b.onclick = async () => {
       if (!(await confirmBox('Delete this comment?', 'It is removed for everyone.', 'Delete'))) return;
@@ -753,9 +790,11 @@ async function open(H, id, opts = {}) {
 /* ================================================================================================================ */
 async function review(H, id, opts = {}) {
   if (!window.ReviewUI) { toast('This page did not load. Hard-refresh (Ctrl+Shift+R).'); return; }
-  await photos(H);
-  let data;
-  try { data = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); } catch (e) { toast(e.message || 'Could not open the card.'); return; }
+  let data = opts.data && opts.data.card && opts.data.card.id === id ? opts.data : null;   /* the sheet's own copy: the viewer opens at once */
+  if (!data) {
+    await photos(H);
+    try { data = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); } catch (e) { toast(e.message || 'Could not open the card.'); return; }
+  }
   const client = isClient(H);
   const k = data.card;
   const label = ad => ad ? `Ad ${ad}` : 'The ad';
@@ -774,7 +813,7 @@ async function review(H, id, opts = {}) {
       fixed: (cid, on) => post(H, '/api/production/fixed', { comment_id: cid, fixed: on }).then(fail),
       del: cid => post(H, '/api/production/comment/delete', { comment_id: cid }).then(fail),
       share: client ? null : () => post(H, '/api/production/share', { id }).then(r => r.url),
-      reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); return { ads: adsOf(d), comments: d.comments, canDecide: canDecide(d) }; },
+      reload: async () => { const d = await api(H, `/api/production/card?id=${encodeURIComponent(id)}`); if (opts.data && opts.data.card && opts.data.card.id === id) Object.assign(opts.data, d); return { ads: adsOf(d), comments: d.comments, canDecide: canDecide(d) }; },
     },
     onClose: () => { if (opts.onChange) opts.onChange(); },
   });

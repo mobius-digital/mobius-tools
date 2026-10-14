@@ -3224,3 +3224,14 @@ Mock: https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (page Review redesign: A
   is the sheet's own `confirmBox` (Locus's confirmModal opened behind the sheet); toasts are Locus's `.lx-toast` (the
   viewer has its own `.rv-toast` in the same style); buttons follow the design system (`ds-btn` sizes, radius, weight),
   versions are a segmented control, the modal has the Locus radius, shadow and a short fade.
+- **Instant (2026-10-14, late).** Cards and strips draw `f.thumb` (600px WebP), the viewer `f.view` (1600), Download and
+  Launch keep `f.url`. `keepMedia(host, repaint)` in prodsheet.js and the viewer's `paint()` keep a picture or video
+  node whose src did not change across a repaint (no blank, no re-decode, a video keeps its place). A call (Approve /
+  Change / Ask) flips the card's chip the moment it is clicked (`guess`), the answer's `ads` confirms it
+  (`applyDecision`: cards at once, the comment list catches up behind), an error puts it back with the reason; no
+  `afterRev()` reload after a call. "Approve all N" (two or more waiting; the sheet's own confirm) = one request
+  `{all: true}`. "Download all (N)" = every ad's newest version, approved or not. The viewer opens from the sheet's own
+  copy of the card (`review(H, id, {data: T.data})`, 56ms instead of a second read) and a posted note updates the strip
+  counts locally. The sheet loads the photos and the card together. Measured on the local pair against the real
+  workers: sheet open 347ms, viewer open 56ms, note on screen in 61ms, a call's chip in 11 to 48ms, no picture node
+  replaced on any repaint. index.html: review-ui.js?v=8, prodsheet.js?v=9.

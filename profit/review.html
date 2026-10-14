@@ -113,7 +113,7 @@
     const card = a => {
       const vs = filesOf(a.ad), top = vs[vs.length - 1]; if (!top) return '';
       const st = STAT[a.status] || STAT.review;
-      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.url)}" alt="" loading="lazy">`;
+      const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.thumb || top.url)}" alt="" loading="lazy" decoding="async">`;
       let acts = '';
       if (canCall()) {
         if (a.status === 'review') acts = ASK === a.file_id

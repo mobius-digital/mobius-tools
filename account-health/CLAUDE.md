@@ -2115,3 +2115,20 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   owner; replies go too; decisions refuse; the Asana copy is deleted after. Comments carry `mine` / `can_delete`.
   Files carry `download` (`&dl=1` = attachment). launch.js `sourceOf(..., d)` takes `work_file` (see profit/CLAUDE.md).
   brandguard: client rule for comment/delete (owned record). Tests: test-production2 15.
+- **2026-10-14 (late): everything instant (Cole: "Frame is instant").** Measured on Ice & Gold #5 (5 ads, 10 versions):
+  every card on the Files tab loaded the ORIGINAL 2.4MB PNG, every read of the card minted a new signed link (so the
+  browser could never reuse a picture and each repaint re-downloaded them all), approve waited for Asana before
+  answering, and `ensureWork` ran 16 statements on every cold isolate. Now: `fileUrl` puts the expiry on a 12-hour
+  grid (the same link for 12 hours, valid 12 to 24), `serveFile` answers `private, max-age=86400, immutable`, and
+  `?w=600` / `?w=1600` serve a WebP copy made ONCE by the Images binding and kept in R2 beside the original
+  (`<r2_key>.w600.webp`; `PIC_SIZES`; pruned with the file; 39 to 72KB against 2,452KB). `filesOf` and an upload
+  answer carry `thumb` (600, cards and strips), `view` (1600, the viewer; notes are stored 0..1 so a resized
+  picture lines up) and `url` (the original: Download, Launch to Meta, videos). `ensureWork` is one probe SELECT on a
+  warm schema. `getCard` reads files, comments, the mirror and the brand list together. `decide` writes the call and
+  the column, answers, and runs the Asana story, the client's Slack line, the maker's DM and `moveCard` (Asana
+  section, morning card) in `waitUntil` (`later: true`). `POST /api/production/decide {id, all: true}` (or
+  `file_ids`) = `decideMany`, one call per ad still waiting, the last answer carries the card (`count`); the review
+  link takes it too. `serveFile` keeps file rows in the isolate for 10 minutes (`FILE_ROWS`) so a warm worker answers
+  a picture with one R2 read. **The edge cache (caches.default) is a no-op on a workers.dev address**: tried and
+  removed the same day; the browser cache carries it. Tests: test-production2 15 (approve all, sized copies with a
+  mocked Images binding, a download is always the original).

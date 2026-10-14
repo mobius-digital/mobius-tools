@@ -54,6 +54,9 @@ const isTeamEmail = e => /@go-mobius-digital\.com$/i.test(String(e || '')) || RO
 let ensured = false;
 export async function ensureWork(env) {
   if (ensured) return;
+  /* one read says whether every column is there (2026-10-14, Cole: opening a card felt slow); the ALTERs run only when it is not */
+  const probe = await env.DB.prepare(`SELECT (SELECT share_token FROM p_br_batch LIMIT 1) a, (SELECT parent_id FROM p_work_comment LIMIT 1) b, (SELECT ad FROM p_work_file LIMIT 1) c, (SELECT board_at FROM p_br_batch LIMIT 1) d`).first().then(() => true).catch(() => false);
+  if (probe) { ensured = true; return; }
   await ensureBoard(env);
   for (const c of ['brief_json TEXT', 'brief_at TEXT', 'brief_hash TEXT', 'launch_on TEXT', 'needs_client TEXT', 'client_sent_at TEXT', 'client_due TEXT', 'approved_by TEXT', 'approved_at TEXT', 'share_token TEXT'])
     await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
@@ -515,7 +518,7 @@ export function fillSrc(html, files) {
   return String(html || '').replace(/<(img|video) data-file="([a-f0-9]{16})"( controls)?>/g, (m, tag, fid) => {
     const f = files[fid];
     if (!f) return tag === 'img' ? `<img data-file="${fid}" alt="picture no longer on the card">` : `<video data-file="${fid}" controls>`;
-    return tag === 'img' ? `<img data-file="${fid}" src="${esc(f.url)}">` : `<video data-file="${fid}" controls src="${esc(f.url)}">`;
+    return tag === 'img' ? `<img data-file="${fid}" src="${esc(f.view || f.url)}">` : `<video data-file="${fid}" controls src="${esc(f.url)}">`;
   }).replace(/<a href="/g, '<a target="_blank" rel="noopener" href="');
 }
 
@@ -604,23 +607,66 @@ async function hmac(env, s) {
   return [...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(s)))].slice(0, 16).map(x => x.toString(16).padStart(2, '0')).join('');
 }
 export async function fileUrl(env, origin, fid, hours = 12) {
-  const e = Math.floor(Date.now() / 1000) + hours * 3600;
+  /* the expiry sits on a 12-hour grid (valid 12 to 24 hours), so every read of a card gives the SAME link and the
+     browser serves the picture from its cache instead of downloading it again on each repaint (2026-10-14) */
+  const step = Math.max(1, Math.round(hours / 12)) * 12 * 3600;
+  const e = (Math.floor(Date.now() / 1000 / step) + 2) * step;
   return `${origin}/api/production/f/${fid}?e=${e}&s=${await hmac(env, `${fid}.${e}`)}`;
 }
 /** GET /api/production/f/<id>?e=&s=: the file itself, with Range so a video seeks. No login; the signature is the key. */
+/** The sizes a picture is served at besides the original: 600 wide for cards and strips, 1600 for the viewer.
+ *  Made once from the original by the Images binding, kept in R2 next to it as WebP (2026-10-14: a 2.8MB PNG per
+ *  card is why the Files tab felt slow). The original is what Download and Launch to Meta use. */
+export const PIC_SIZES = [600, 1600];
+const sizable = mime => /^image\/(png|jpe?g|webp|avif)$/i.test(mime || '');
+async function sizedPic(env, f, w) {
+  const key = `${f.r2_key}.w${w}.webp`;
+  const have = await env.MEDIA.get(key).catch(() => null);
+  if (have) return have;
+  if (!env.IMAGES) return null;
+  const orig = await env.MEDIA.get(f.r2_key);
+  if (!orig) return null;
+  try {
+    const r = (await env.IMAGES.input(orig.body).transform({ width: w, fit: 'scale-down' }).output({ format: 'image/webp', quality: w > 1000 ? 84 : 80 })).response();
+    const buf = await r.arrayBuffer();
+    if (!buf.byteLength) return null;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType: 'image/webp' } }).catch(() => {});
+    return { body: new Response(buf).body, size: buf.byteLength, webp: true };
+  } catch { return null; }
+}
+/* a file row read once per isolate (10 minutes): a warm worker answers a picture with one R2 read and no D1 query */
+const FILE_ROWS = new Map();
+async function fileRowOf(env, fid) {
+  const c = FILE_ROWS.get(fid);
+  if (c && c.t > Date.now() - 600000) return c.row;
+  const row = await env.DB.prepare(`SELECT r2_key, mime, name, deleted_at FROM p_work_file WHERE id = ?1`).bind(fid).first();
+  if (row && !row.deleted_at) FILE_ROWS.set(fid, { row, t: Date.now() }); else FILE_ROWS.delete(fid);
+  return row;
+}
 export async function serveFile(request, env, url, fid, CORS = {}) {
   const e = +url.searchParams.get('e') || 0, s = url.searchParams.get('s') || '';
   if (!/^[a-f0-9]{16}$/.test(fid) || e < Date.now() / 1000 || s !== await hmac(env, `${fid}.${e}`)) return new Response('This link has expired. Open the card again.', { status: 403, headers: CORS });
-  await ensureWork(env);
-  const f = await env.DB.prepare(`SELECT r2_key, mime, name, deleted_at FROM p_work_file WHERE id = ?1`).bind(fid).first();
-  if (!f || f.deleted_at || !env.MEDIA) return new Response('Not found', { status: 404, headers: CORS });
+  /* no edge cache on purpose: the Cache API is a no-op on a workers.dev address (checked 2026-10-14); the browser
+     keeps the file for a day instead (the link is the same for 12 hours, see fileUrl) */
   const range = request.headers.get('Range');
+  await ensureWork(env);
+  const f = await fileRowOf(env, fid);
+  if (!f || f.deleted_at || !env.MEDIA) return new Response('Not found', { status: 404, headers: CORS });
+  const w = +url.searchParams.get('w') || 0;
+  if (PIC_SIZES.includes(w) && sizable(f.mime) && url.searchParams.get('dl') !== '1') {
+    const pic = await sizedPic(env, f, w);
+    if (pic) {
+      const h = new Headers(CORS);
+      h.set('Content-Type', 'image/webp'); h.set('Content-Length', String(pic.size)); h.set('Cache-Control', 'private, max-age=86400, immutable');
+      return new Response(pic.body, { status: 200, headers: h });
+    }
+  }
   const obj = await env.MEDIA.get(f.r2_key, range ? { range: request.headers } : undefined);
   if (!obj) return new Response('Not found', { status: 404, headers: CORS });
   const h = new Headers(CORS);
   h.set('Content-Type', f.mime || 'application/octet-stream');
   h.set('Accept-Ranges', 'bytes');
-  h.set('Cache-Control', 'private, max-age=3600');
+  h.set('Cache-Control', 'private, max-age=86400, immutable');
   h.set('Content-Disposition', `${url.searchParams.get('dl') === '1' ? 'attachment' : 'inline'}; filename="${String(f.name || 'file').replace(/[^\w.-]+/g, '_')}"`);
   if (range && obj.range) {
     const off = obj.range.offset ?? 0, len = obj.range.length ?? (obj.size - off);
@@ -636,8 +682,12 @@ async function filesOf(env, origin, ids) {
   if (!ids.length) return [];
   const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
   const rows = (await env.DB.prepare(`SELECT * FROM p_work_file WHERE batch_id IN (${ph}) AND deleted_at IS NULL ORDER BY kind, ad, version, created_at`).bind(...ids).all()).results || [];
-  return Promise.all(rows.map(async f => ({ id: f.id, batch_id: f.batch_id, kind: f.kind, version: f.version, ad: f.ad || '', name: f.name, mime: f.mime, size: f.size, by: f.by_name, created_at: f.created_at,
-    url: f.play_url || await fileUrl(env, origin, f.id), download: `${await fileUrl(env, origin, f.id)}&dl=1`, video: /^video\//.test(f.mime || ''), plays: !!f.play_url || playable(f.mime) })));
+  return Promise.all(rows.map(async f => {
+    const u = await fileUrl(env, origin, f.id), pic = sizable(f.mime);
+    /* thumb = 600 wide for cards and strips, view = 1600 wide for the viewer (notes are stored 0..1, so a resized picture lines up), url = the original */
+    return { id: f.id, batch_id: f.batch_id, kind: f.kind, version: f.version, ad: f.ad || '', name: f.name, mime: f.mime, size: f.size, by: f.by_name, created_at: f.created_at,
+      url: f.play_url || u, thumb: pic ? `${u}&w=600` : null, view: pic ? `${u}&w=1600` : (f.play_url || u), download: `${u}&dl=1`, video: /^video\//.test(f.mime || ''), plays: !!f.play_url || playable(f.mime) };
+  }));
 }
 
 /** The client sees the team as "Mobius", and its own people by name. */
@@ -672,7 +722,7 @@ export async function getCard(env, d, origin, id, scope, me = null) {
   const r = await rowOf(env, id);
   mustOwn(scope, r);
   const client = !!scope;
-  const brands = d.listBrands ? await d.listBrands(env) : [];
+  const brandsP = d.listBrands ? d.listBrands(env) : Promise.resolve([]);
   let brief = safe(r.brief_json, null);
   let from = brief ? 'locus' : '';
   if (!brief) {
@@ -693,12 +743,16 @@ export async function getCard(env, d, origin, id, scope, me = null) {
   }
   brief = toPage(brief);
   await ensureWork(env);
-  const files = await filesOf(env, origin, [r.id]);
+  const [files, rows, mirror] = await Promise.all([
+    filesOf(env, origin, [r.id]),
+    env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all().then(x => x.results || []),
+    client ? Promise.resolve(null) : mirrorOn(env),
+  ]);
   const byId = Object.fromEntries(files.map(f => [f.id, f]));
   brief = { ...brief, html: fillSrc(brief.html, byId), blank: htmlBlank(brief.html) };
-  const comments = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, client, me));
+  const comments = rows.map(c => commentOut(c, client, me));
   const board = r.board_stage || boardOf(r.asana_section, r.stage);
-  const brand = brands.find(b => b.act_id === r.act_id);
+  const brand = (await brandsP).find(b => b.act_id === r.act_id);
   const card = {
     id: r.id, act_id: r.act_id, brand: brand?.name || r.act_id, num: r.num, title: r.title || '', board,
     owner: client ? (r.assignee_name ? 'Mobius' : '') : (r.assignee_name || ''), due: r.due_on || '', launch_on: r.launch_on || '',
@@ -707,7 +761,7 @@ export async function getCard(env, d, origin, id, scope, me = null) {
     asana_url: client ? null : r.asana_url || null, brief_url: client ? null : r.brief_url || null, asset_url: client ? null : r.asset_url || null,
     share: !client && r.share_token ? `${LOCUS}review.html?t=${r.share_token}` : null,
   };
-  return { card, brief, brief_from: from, files, comments, ads: adsOf(files, comments), team: client ? [] : ROSTER.map(x => x.name), mirror: client ? null : await mirrorOn(env), client,
+  return { card, brief, brief_from: from, files, comments, ads: adsOf(files, comments), team: client ? [] : ROSTER.map(x => x.name), mirror, client,
     templates: client || !brief.blank ? undefined : { new: templateHtml('new', brief.format, r.num), iter: templateHtml('iter', brief.format, r.num), resize: templateHtml('resize', brief.format, r.num), blank: templateHtml('blank') } };
 }
 
@@ -903,14 +957,17 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   const cid = rid();
   await env.DB.prepare(`INSERT INTO p_work_comment (id, batch_id, act_id, author_email, author_name, author_role, body, kind, file_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
     .bind(cid, r.id, r.act_id, who && /@/.test(who) ? String(who).toLowerCase() : null, name, client ? 'client' : 'team', line, kind, !idea && latest ? latest.id : null).run();
-  if (!client && !reset && r.asana_gid && d.asana && await mirrorOn(env)) await d.asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { text: `From Locus, ${name}: ${line}` } }).catch(() => null);
-  if (client && !reset && d.listBrands && (d.teamPost || d.slackPost)) {
+  /* the call is saved: everything that talks to Asana or Slack runs after the answer (2026-10-14, "it should feel instantaneous") */
+  const later = p => { if (d.waitUntil && !opts.wait) d.waitUntil(p.catch(() => null)); else return p.catch(() => null); };
+  const tell = [];
+  if (!client && !reset && r.asana_gid && d.asana) tell.push((async () => { if (await mirrorOn(env)) await d.asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { text: `From Locus, ${name}: ${line}` } }); })());
+  if (client && !reset && d.listBrands && (d.teamPost || d.slackPost)) tell.push((async () => {
     const brand = (await d.listBrands(env)).find(b => b.act_id === r.act_id);
     if (brand && brand.slack_channel) {
       const msg = `${name} (client) ${ok ? 'approved' : 'asked for changes on'} ${what} of #${r.num} "${clean(r.title, 60)}"${ok ? '' : `: "${clean(text, 300)}"`} <${cardUrl(r.id)}|Open the card>`;
-      try { if (d.teamPost) await d.teamPost(env, brand.slack_channel, msg, null, { tagName: r.assignee_name || undefined }); else await d.slackPost(env, brand.slack_channel, msg); } catch { /* the call is saved */ }
+      if (d.teamPost) await d.teamPost(env, brand.slack_channel, msg, null, { tagName: r.assignee_name || undefined }); else await d.slackPost(env, brand.slack_channel, msg);
     }
-  }
+  })());
   /* Where the card goes now, from every ad's own call. */
   let ads = [];
   if (!idea) {
@@ -921,7 +978,13 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   const all = ads.length > 0 && ads.every(a => a.status === 'approved');
   const waiting = ads.some(a => a.status === 'review');
   let moved = null;
-  const move = to => d.moveCard ? d.moveCard(env, d, { id: r.id, to }, who).catch(e => ({ error: e.message })) : null;
+  /* the column is written here at once; moveCard (Asana's section, the morning card) follows after the answer */
+  const move = async to => {
+    if (!d.moveCard) return null;
+    await env.DB.prepare(`UPDATE p_br_batch SET board_stage = ?2, board_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`).bind(r.id, to).run().catch(() => {});
+    tell.push(d.moveCard(env, d, { id: r.id, to }, who));
+    return { to };
+  };
   if (reset) {
     await env.DB.prepare(`UPDATE p_br_batch SET approved_by = NULL, approved_at = NULL${client ? `, needs_client = 'ad'` : ''}, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
     if (!idea && board === 'ready') moved = await move('review');
@@ -933,9 +996,27 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   } else {
     if (idea || !waiting) await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
     if (!idea) moved = await move('making');
-    if (r.assignee_name) await dm(env, d, r.assignee_name, `${name} asked for changes on ${what} of #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`).catch(() => false);
+    if (r.assignee_name) tell.push(dm(env, d, r.assignee_name, `${name} asked for changes on ${what} of #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`));
   }
-  return { ok: true, approved: ok, reopened: reset, all_approved: all, ads, moved: moved && !moved.error ? moved.to : null };
+  const after = later(Promise.all(tell));
+  if (after) await after;
+  return { ok: true, approved: ok, reopened: reset, all_approved: all, ads, moved: moved && !moved.error ? moved.to : null, later: !!(d.waitUntil && !opts.wait) };
+}
+
+/** Approve all: one call per ad still waiting (or the ids given), the last answer carries the card's state. */
+export async function decideMany(env, d, body, who, scope, opts = {}) {
+  const r = await rowOf(env, body.id);
+  mustOwn(scope, r);
+  let ids = Array.isArray(body.file_ids) ? body.file_ids.map(String) : null;
+  if (!ids) {
+    const files = (await env.DB.prepare(`SELECT id, kind, version, ad, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
+    const cs = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, false));
+    ids = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs).filter(a => a.status === 'review').map(a => a.file_id);
+  }
+  if (!ids.length) throw err(400, 'Nothing is waiting for a call.');
+  let out = null;
+  for (const fid of ids) out = await decide(env, d, { ...body, file_id: fid, ok: true, reset: false }, who, scope, opts);
+  return { ...out, count: ids.length };
 }
 
 /** Which ad of the test a file is: "48-3 v2.png", "48_3.mp4", "LG_440-2 final.mov" (the card's number first when
@@ -968,7 +1049,8 @@ async function fileRow(env, d, origin, r, { id, key, kind, name, mime, size }, w
     if ((board === 'brief' || board === 'making') && d.moveCard) moved = (await d.moveCard(env, d, { id: r.id, to: 'review' }, who).catch(() => null))?.to || null;
     await convert(env, origin, id, mime, name).catch(e => console.log('convert: ' + e.message));
   }
-  return { ok: true, file: { id, kind, version, ad: ad || '', name, mime, size, url: await fileUrl(env, origin, id), video: /^video\//.test(mime), plays: playable(mime) }, moved };
+  const u = await fileUrl(env, origin, id), pic = sizable(mime);
+  return { ok: true, file: { id, kind, version, ad: ad || '', name, mime, size, url: u, thumb: pic ? `${u}&w=600` : null, view: pic ? `${u}&w=1600` : u, download: `${u}&dl=1`, video: /^video\//.test(mime), plays: playable(mime) }, moved };
 }
 const fileKey = (r, id, name) => `work/${r.act_id}/${r.id}/${id}-${name.replace(/[^\w.-]+/g, '_')}`;
 const fileName = (q, kind, mime) => clean(q, 120).replace(/[\\/]+/g, '_') || `${kind}.${String(mime).split('/')[1] || 'bin'}`;
@@ -1114,7 +1196,8 @@ export async function handleReviewLink(request, env, url, path, json, d) {
     if (!name) return json({ error: 'Add your name so the team knows who wrote it.' }, 400);
     const scope = { ids: [r.act_id], name };
     if (m[2] === '/note') return json({ ok: true, ...(await addComment(env, d, { ...body, id: r.id }, name, scope, { name, guest: true })) });
-    return json(await decide(env, d, { ...body, id: r.id }, name, scope, { name, guest: true }));
+    const guest = { name, guest: true };
+    return json(await (body.all === true || Array.isArray(body.file_ids) ? decideMany(env, d, { ...body, id: r.id }, name, scope, guest) : decide(env, d, { ...body, id: r.id }, name, scope, guest)));
   } catch (e) { return json({ error: e.message }, e.status || 500); }
 }
 
@@ -1183,7 +1266,9 @@ export async function pruneFiles(env) {
     WHERE f.deleted_at IS NULL AND f.kind = 'version' AND COALESCE(b.board_stage, '') IN ('live', 'done') AND COALESCE(b.board_at, b.updated_at) < ?1
       AND f.version < (SELECT MAX(version) FROM p_work_file g WHERE g.batch_id = f.batch_id AND g.kind = 'version' AND g.deleted_at IS NULL AND COALESCE(g.ad, '') = COALESCE(f.ad, '')) LIMIT 40`).bind(before).all().catch(() => ({ results: [] }))).results || [];
   for (const f of rows) {
+    FILE_ROWS.delete(f.id);
     await env.MEDIA.delete(f.r2_key).catch(() => {});
+    for (const w of PIC_SIZES) await env.MEDIA.delete(`${f.r2_key}.w${w}.webp`).catch(() => {});
     await env.DB.prepare(`UPDATE p_work_file SET deleted_at = datetime('now') WHERE id = ?1`).bind(f.id).run();
   }
   return rows.length;
@@ -1205,7 +1290,10 @@ export async function workRoutes(request, env, url, path, json, d, who, scope) {
   }
   if (path === '/api/production/comment' && request.method === 'POST') return json({ ok: true, ...(await addComment(env, d, body, who, scope ? { ...scope, name: scope.name || await clientName(env, who) } : null)) });
   if (path === '/api/production/comment/delete' && request.method === 'POST') return json(await deleteComment(env, d, body, who, scope));
-  if (path === '/api/production/decide' && request.method === 'POST') return json(await decide(env, d, body, who, scope ? { ...scope, name: scope.name || await clientName(env, who) } : null));
+  if (path === '/api/production/decide' && request.method === 'POST') {
+    const sc = scope ? { ...scope, name: scope.name || await clientName(env, who) } : null;
+    return json(await (body.all === true || Array.isArray(body.file_ids) ? decideMany(env, d, body, who, sc) : decide(env, d, body, who, sc)));
+  }
   teamOnly();
   if (path === '/api/production/save' && request.method === 'POST') return json(await saveCard(env, d, body, who));
   if (path === '/api/production/ai' && request.method === 'POST') {
