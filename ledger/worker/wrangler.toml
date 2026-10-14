@@ -57,10 +57,13 @@ binding = "AUTH"
 service = "mobius-account-health"
 
 # Slack: Cashew is its OWN Slack app since 2026-10-14 (api.slack.com/apps/A0C99FUDBA8),
-# with Event Subscriptions and Interactivity pointed straight at this worker
-# (/api/slack-events, /api/slack-interact). SLACK_BOT_TOKEN and
-# SLACK_SIGNING_SECRET are that app's, not the "Mobius Digital" app's that
-# Locus and Pulse share. The old forward-to-Pulse binding is gone.
+# one bot in front of SEVERAL separate sets of books. Slack's one Events URL
+# and one Interactivity URL point at the cashew-slack router (../slack), which
+# hands each request to the books its channel belongs to: here for Mobius
+# (/api/slack-events, /api/slack-interact, over a service binding) or the
+# Lucky worker for #lucky-finance. SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET
+# are the Cashew app's (the same values on every books worker), not the
+# "Mobius Digital" app's that Locus and Pulse share.
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put ADMIN_TOKEN         master/recovery key for the API
