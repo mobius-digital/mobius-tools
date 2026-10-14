@@ -3283,3 +3283,26 @@ Work, Store, More (Reports under More); phases 1 to 4 in order. All four are bui
 - Server: `setField`, `archiveCard`, `restoreCard`, `duplicateCard` in account-health production.js; `asanaUserFor` in
   meetings.js. Tests: account-health `node test-production.mjs` (8). Checked on the local pair against real data at 1440,
   768 and 375 (menus, pickers, selection, keys, collapse, phone picker and sheets). No bulk write was made to a real card.
+
+## 2026-10-15: THE PHONE PASS (`profit/phone.css`). Read before adding a phone rule anywhere else.
+
+Cole: "the entire Locus doesn't seem optimized for iPad and iPhone." Audit and the list of causes:
+`docs/handoffs/phone-pass.md`. One stylesheet, loaded LAST (`phone.css?v=1`, after v2.css, kit.css, supply.css), no
+JavaScript changed. Every page id was measured at 375 and 768 on the local pair with an in-page audit (overflow,
+outermost wide elements, taps under 32px, text under 11.5px, tables without a scroller).
+- **The top bar under 720 is rows, not a strip:** `.hd-right{display:contents}` and `order` put the helper badge
+  beside the ask bar (row 1), the period and attribution pills on row 2, and `#hdActions` (a page's own buttons,
+  filled by `pageActions`) as a full-width row 3 only when it has children. The page head wraps (title, then the
+  quiet actions; Tour hidden). 721 to 979 (iPad, rail drawer): the bar wraps only when the pills do not fit.
+- **index.html's 44px rule (`button,.btn,.chip,.ctl,select{min-height:44px}` under 720) stretches anything drawn at
+  its own size.** phone.css resets `min-height:0` on the task tick, the board's format / avatar / due buttons, the
+  switches, the table chevron / more / cell buttons, the ask bar's input and Chats, and the logo box, and gives them
+  a hit area with a `::after` under `pointer:coarse` instead. A new small control in a card needs the same two lines
+  or it becomes a tall pill on a phone.
+- **Injected page styles load AFTER phone.css** (tasks.js, desk.js, calendar.js, production.js, v2.js all append a
+  `<style>` to head on first render), so a phone.css rule of equal specificity LOSES to them. Beat them with one more
+  class (`.tk .tk-tr.tk-th`, `[data-ui="v2"] .dk .dk-k`), or set a property they do not set.
+- Rows that must wrap on a phone carry `overflow-wrap:anywhere` (ad names with no spaces, campaign names, URLs);
+  a one-column grid row is `minmax(0,1fr)`, never `1fr`, or a long word still widens it.
+- Tasks under 600 is a two-line grid (`grid-template-areas`); the How we work tables scroll inside their card at every
+  width (they were cut off on the desktop too).

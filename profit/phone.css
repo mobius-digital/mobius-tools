@@ -1,0 +1,91 @@
+/* ==========================================================================
+   2026-10-15: THE PHONE PASS (Cole: "the entire Locus doesn't seem optimized for iPad and iPhone").
+   Loaded after v2.css on every page. Measured at 375 and 768 on every page (the audit in
+   docs/handoffs/phone-pass.md). Shell first: the top bar is two rows (the helper badge beside the
+   ask bar, then the period and attribution pills, then a page's own actions as a full-width row),
+   the page head stacks (title first, the quiet actions under it), and every small control gets a
+   thumb-sized hit area on touch. Then the pages that broke. Tokens only, no em dashes.
+   ========================================================================== */
+@media (max-width:720px){
+  /* row 1: badge + ask bar; row 2: pills; row 3: the page's own buttons (Plan, P&L, Season, Reports) */
+  [data-ui="v2"] .hd-right{display:contents}
+  [data-ui="v2"] .lx-nudge-host{order:-1}
+  /* the ask bar shares row 1 with the badge: the 44px phone rule in index.html had pushed its input and
+     Chats button out of the 38px box, so the bar itself is the 44px target and its parts stay inside */
+  [data-ui="v2"] .v2ask{order:0;flex:1 1 0;min-width:0;height:44px}
+  [data-ui="v2"] .v2ask input{min-height:0}
+  [data-ui="v2"] .v2chats{min-height:0;height:30px}
+  [data-ui="v2"] #hdToday,[data-ui="v2"] #hdPeriod,[data-ui="v2"] #hdModel{order:1}
+  [data-ui="v2"] #hdActions{order:2;display:none}
+  [data-ui="v2"] #hdActions:not(:empty){display:flex;width:100%;gap:8px}
+  [data-ui="v2"] #hdActions .btn{flex:1 1 auto;justify-content:center;min-height:40px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  [data-ui="v2"] #hdActions .pill{flex:none}
+  [data-ui="v2"] .topbar{padding-bottom:6px}
+  /* index.html gives every button a 44px minimum on a phone. Right for a button, wrong for a thing drawn at its own
+     size: the round task tick became a 16x44 ellipse, the board's format pill a 44px circle, the avatar and the switch
+     a tall pill with the knob at the top. These keep their drawn size; the touch block below widens their hit area. */
+  [data-ui="v2"] .v2sw,[data-ui="v2"] .toggle,[data-ui="v2"] .pd-fmt,[data-ui="v2"] .pd-avb,[data-ui="v2"] .pd-due,[data-ui="v2"] .tk-tick,[data-ui="v2"] .cal-btn.cal-mini,[data-ui="v2"] .ds-logo,[data-ui="v2"] .v2ex,[data-ui="v2"] .v2rm,[data-ui="v2"] .v2cell{min-height:0}
+  /* Platform status: the letters inside a tiny logo box had shrunk to 5px */
+  [data-ui="v2"] .dk .ds-logo b{font-size:max(9px,calc(var(--lg,32px) * .36))}
+  /* page head: the title gets the whole width, the quiet actions sit under it */
+  [data-ui="v2"] .ph,[data-ui="v2"] .v2 > .ph,[data-ui="v2"] .lx > .ph{flex-wrap:wrap;align-items:flex-start;gap:2px 0}
+  [data-ui="v2"] .ph > div:first-child{flex:1 1 100%}
+  [data-ui="v2"] .ph-r{width:100%;justify-content:flex-end;margin:0 -7px 0 0}
+  [data-ui="v2"] .ph-ico[data-tour]{display:none}
+  /* today's calls: a grid item never widens the row, an ad name with no spaces wraps, the kind label reads,
+     the row's buttons are thumb-sized */
+  [data-ui="v2"] .dk .dk-row > *{min-width:0}
+  [data-ui="v2"] .dk .dk-row .why,[data-ui="v2"] .dk .dk-row .nm,[data-ui="v2"] .dk .dk-row .meta{overflow-wrap:anywhere}
+  [data-ui="v2"] .dk .dk-k{font-size:11px;justify-self:start}
+  [data-ui="v2"] .dk .dk-acts{justify-content:flex-start}
+  [data-ui="v2"] .dk .dk-acts .v2btn{height:38px;padding:0 13px}
+  /* Day check: the 30-day strip scrolls sideways with 34px squares instead of 18px slivers */
+  [data-ui="v2"] .dk .dk-days{grid-template-columns:repeat(30,34px);padding-bottom:4px}
+  [data-ui="v2"] .dk .dk-day i{font-size:11px}
+  /* the composer on Dashboards: wrap instead of pushing out */
+  [data-ui="v2"] .ds-composer-row{flex-wrap:wrap;row-gap:8px}
+  [data-ui="v2"] .ds-composer-row .ds-btn.primary{margin-left:auto}
+  /* Google > Changes: a one-column row still grew to a long campaign name (1fr = minmax(auto,1fr)) */
+  [data-ui="v2"] .gch-row{grid-template-columns:minmax(0,1fr);overflow-wrap:anywhere}
+  [data-ui="v2"] .gad .url{white-space:normal;overflow-wrap:anywhere}
+  /* source chips on tiles were 10px */
+  [data-ui="v2"] .v2src{font-size:11px}
+  /* a chart's end label never pushes the page sideways */
+  [data-ui="v2"] .v2chart svg{overflow:hidden;max-width:100%}
+  /* Calendar: the month arrows are thumb-sized */
+  .cal .cal-btn{min-width:40px;min-height:40px;justify-content:center}
+}
+/* How to use Locus > How we work: the two tables are 1,800 and 2,300px wide and were cut off inside their card at
+   every width, the desktop included. They scroll inside the card; under 980 the first column may wrap. */
+.sop .set-card{overflow-x:auto}
+@media (max-width:979px){.sop .sop-tbl td:first-child{white-space:normal}}
+/* iPad (721 to 979px, the rail is a drawer): the top bar wraps when the badge, the ask bar and the pills do not
+   fit on one line. P&L and Plan carry their own buttons and ran 36px past the screen at 768. The pills and the
+   page's buttons move to a second row only when they have to. */
+@media (min-width:721px) and (max-width:979px){
+  [data-ui="v2"] .topbar{flex-wrap:wrap;row-gap:8px}
+  [data-ui="v2"] .hd-right{flex:0 1 auto;min-width:0;justify-content:flex-end}
+  [data-ui="v2"] .v2ask{min-width:240px}
+}
+/* Tasks on a phone: the words take the whole row, who and when sit under them (the fixed Who and Due columns
+   had left the task text a third of the screen) */
+@media (max-width:600px){
+  .tk .tk-tr.tk-th{display:none}
+  .tk .tk-tr.tk-row{grid-template-columns:16px auto minmax(0,1fr);grid-template-areas:"k t t" ". w d";row-gap:6px;column-gap:10px;align-items:start}
+  .tk .tk-row > .tk-tick{grid-area:k;margin-top:2px}
+  .tk .tk-row > .t{grid-area:t}
+  .tk .tk-row > :nth-last-child(2){grid-area:w;justify-self:start}
+  .tk .tk-row > :last-child{grid-area:d;text-align:left;justify-self:start;align-self:center}
+}
+/* touch: hit areas (the look stays; a pseudo element takes the tap) */
+@media (pointer:coarse){
+  .tk .tk-tick,.v2ex,.v2rm,.v2cell,.pd-avb,.pd-fmt,.pd-due,.se-link.se-mini,.lx-nudge-x,.v2sw,.toggle{position:relative}
+  .tk .tk-tick::after,.v2ex::after,.v2rm::after,.v2cell::after,.pd-avb::after,.pd-fmt::after,.pd-due::after,.se-link.se-mini::after,.lx-nudge-x::after,.v2sw::after,.toggle::after{content:"";position:absolute;inset:-11px;border-radius:inherit}
+  .v2rm{opacity:1}
+  .dk .pu-sm input,.lx input[type=checkbox],.set-card input[type=checkbox]{width:20px;height:20px}
+  .v2gal .th .v2pick{width:30px;height:30px}
+  .v2foot a,.ts-foot a{display:inline-block;padding:8px 0}
+  /* the page head's quiet actions and the Change Log's row buttons were 28px on an iPad */
+  [data-ui="v2"] .ph-ico,[data-ui="v2"] .cl2-btn,[data-ui="v2"] .cl2-link,[data-ui="v2"] .pd-chip,[data-ui="v2"] .tk-seg button,[data-ui="v2"] .tk-chip,[data-ui="v2"] .cl-link,[data-ui="v2"] .btn.quiet{min-height:36px}
+  [data-ui="v2"] .set-back .link{display:inline-block;padding:8px 0}
+}
