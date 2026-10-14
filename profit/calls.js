@@ -166,7 +166,7 @@
   const toast = msg => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:12px;font-size:13.5px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4500); };
   const brandName = id => id ? ((D.brands.find(b => b.act_id === id) || {}).name || id) : 'Agency-wide';
   const today = () => D.today || new Date().toISOString().slice(0, 10);
-  const av = n => n ? `<span class="cl-av" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="cl-av" style="background:var(--line-strong);color:var(--ink)">?</span>';
+  const av = n => n && window.ProdSheet && window.ProdSheet.photoOf(n) ? `<img class="cl-av" src="${esc(window.ProdSheet.photoOf(n))}" alt="" referrerpolicy="no-referrer" style="object-fit:cover">` : n ? `<span class="cl-av" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="cl-av" style="background:var(--line-strong);color:var(--ink)">?</span>';
   const ICON = {
     chev: '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
     cal: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
@@ -499,6 +499,7 @@
     }
   }
   async function render(host, first) {
+    if (window.ProdSheet && !(host.S && host.S.client)) await window.ProdSheet.photos(host).catch(() => {});
     H = host; css(); BR = H.S.act || 'all';
     const t = H.RUN();
     if (first || !D) $('#main').innerHTML = '<div class="v2 cl"><header class="cl-head"><div><h1>Calls</h1><p>Loading the calls...</p></div></header></div>';
