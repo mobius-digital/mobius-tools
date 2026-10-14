@@ -93,3 +93,6 @@ Remove the now-dead switches (todayPost, What moved) from that card.
 - Keep passing: test-actions, test-production, test-clients, test-smoke, test-today, test-alerts, test-requests.
 - Update both CLAUDE.md files (a dated section at the end) and the `operating-cadence` memory (send hour is now 5,
   configurable). Report to Cole: what changed, and that tomorrow's 5am card is the live test.
+
+## Added 2026-10-13 by the leak finder session
+- BUILT the same day (morningcard.js `buildCard`, `LEAK_FLOOR`). The leak finder is LIVE (account-health `src/leaks.js`, `GET /api/leaks?act=`). The card adds ONE line when a NEW leak over $500 a month appeared since yesterday's card, tagged to its owner (`who`: Google buyer, Meta buyer, Strategist (site), Email owner), linked to Home > Day check. Compare leak ids against the ids stored on yesterday's `morningCard:<brand>:<date>`. Never a separate Slack post.

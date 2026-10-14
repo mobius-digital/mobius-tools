@@ -1,4 +1,6 @@
 import { tiktokReport } from './tiktok.js';
+import { leaksFor, lessonFromLeak } from './leaks.js';
+import { addLesson } from './leakctx.js';
 import { surveyReport } from './survey.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
@@ -273,6 +275,7 @@ THE CMO METHOD (Cole, 2026-10-08: "an entire CMO, with deep expert knowledge of 
 - You are the brand's CMO and a specialist on every channel at once. Before advising on a channel, read its knowledge file (view knowledge, topic = meta, tiktok, google-ads, seo-search, email-sms, retention-ltv, website-cro, offers-pricing, stock, calendar, measurement-budget, post-purchase-survey, cross-channel, messaging). For ANY change to one channel, also read cross-channel and say what the change does to the others and over what lag.
 - Work top down: the business first (contribution margin, MER and new-customer CAC against the plan), then which channel moved, then the campaign, then the ad. Rule out measurement (tracking, attribution model, a lagging sync, a credit shift between channels) before calling anything performance.
 - Every recommendation names its second-order effect (example: cutting Meta prospecting lowers branded search, direct and email revenue one to three weeks later; a discount lifts conversion now and lowers margin and future full-price demand).
+- Before any audit, "where are we leaking" or "what do we fix first" question, read the leaks view for the brand first: it ranks every leak across Google, Meta, TikTok, the funnel, landing pages and email by money a month, each benchmark with its source. Start from its top line, then go deeper with the channel views.
 - Think in systems, act in small steps: one change per channel at a time, sized so its effect can be read, with the read date stated.
 - Before cutting a channel that clicks under-credit (upper-funnel video, TikTok, YouTube, creators, podcasts), check the survey view when the brand has a post-purchase survey: what customers SAY is a reality check on Triple Whale, never a replacement for it (knowledge topic post-purchase-survey).
 
@@ -371,6 +374,7 @@ const VIEW_BLURBS = {
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   survey: 'one brand\x27s post-purchase survey ("how did you hear about us", Fairing or KnoCommerce) against Triple Whale for the same orders: answers grouped into channels (Facebook/Instagram, TikTok, Google/YouTube, podcast, word of mouth, influencer, other), the agreement % with Triple Whale lastPlatformClick, per channel what customers said vs what Triple Whale credited, what people credited to no ad say, and the top raw answers. Pass `brand`, optionally `days` or `from`/`to`. A reality check on attribution, never a replacement: read knowledge topic post-purchase-survey before drawing a conclusion.',
   knowledge: 'the expert playbooks, one per channel plus the cross-channel system and measurement: how each platform works now, decision rules with thresholds, diagnostics, how it affects the others, worked examples. Call with no `topic` for the list, then with `topic`.',
+  leaks: 'where one brand is losing money, ranked by dollars a month (the leak finder, the same list as Home > Overview): Google search terms judged irrelevant (negative keyword candidates), Performance Max search categories, Google / video / TikTok campaigns over the brand\'s cut line, Meta ad sets on the cut line (Today\'s calls), funnel steps under their published benchmark (Littledata, by device) AND under the brand\'s own 90 days, paid landing pages far under the site, missing or switched-off email flows. Each leak: number + source, benchmark + source, cost a month + how it was estimated, the fix, who owns it; `areas` says what could not be checked and why. Pass `brand`. Read it BEFORE any audit, "where are we leaking" or "what should we fix first" question.',
   google_ads: 'one brand\'s Google Ads read directly: campaigns with type (Search, Performance Max, Demand Gen, Shopping), spend, clicks, conversions and value, and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   website: 'one brand\'s website from Google Analytics 4: sessions, people, engagement, the funnel to purchase, channels, landing pages, devices, source and medium, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
   search: 'one brand\'s organic Google search from Search Console: clicks, impressions, click rate, position, top queries flagged brand or not, top pages, against the period before. Pass `brand`, optionally `days` or `from`/`to`.',
@@ -651,6 +655,11 @@ function buildViews(d) {
       const acct = await need(env, a); const w = winOf(a);
       const r = await surveyReport(env, acct.act_id, { from: w.from, to: w.to });
       return { brand: acct.name, ...r, how_to_read: r.error === 'not_linked' ? 'No post-purchase survey is connected for this brand (Brand settings > Integrations > Post-purchase survey). Say so, and suggest Fairing if the brand runs upper-funnel video, podcasts or creators.' : `${r.how_to_read} ${VIEW_BLURBS.survey}` };
+    },
+    leaks: async (env, a) => {
+      const acct = await need(env, a);
+      const r = await leaksFor(env, { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession }, acct.act_id, { days: [7, 14, 30, 60, 90].includes(+a.days) ? +a.days : 30 });
+      return { ...r, how_to_read: VIEW_BLURBS.leaks + ' Costs overlap (a better cart page also lifts checkout): never add them up. A search term judged irrelevant can be blocked from Locus (Ads > Google, Add negative): point the person there.' };
     },
     google_ads: async (env, a) => {
       const acct = await need(env, a); const w = winOf(a);
@@ -1498,6 +1507,32 @@ const ACTIONS = (d) => {
         return { ok: true, note: 'The creator link page is updated; creators see it on their next load.' };
       } },
 
+    { name: 'leak_lesson',
+      description: 'Teach the leak finder (the leaks view) what a teammate pushed back on, when someone says a leak or suggestion is wrong or should not be done ("our Google guy says never block competitor names in the brand campaign", "the web dev says that page is brand new, give it two weeks"). It is saved, judged once against the data and how the platform works (holds / partly / does not hold, with the why), and every later leak review follows it or shows both sides. Read the leaks view first so you can name the leak it is about.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string', description: 'The brand it is about. Leave empty only when it applies to every brand.' },
+        text: { type: 'string', description: 'What they said, in their words as closely as you have them.' },
+        author: { type: 'string', description: 'Who said it (first name).' },
+        role: { type: 'string', description: 'Their role: Google buyer, Meta buyer, web dev, strategist, email.' },
+        leak_id: { type: 'string', description: 'The id of the leak it is about, from the leaks view, when there is one.' },
+        final: { type: 'boolean', description: 'true only when Cole (or the person making the call) says to go with the team view no matter what Locus thinks. Then it is recorded as the final call of the team at once.' },
+        summary: { type: 'string' } }, required: ['text', 'summary'] },
+      propose: async (env, input) => {
+        const acct = input.brand ? await resolve(env, input.brand) : null;
+        if (input.brand && !acct) return { error: `No brand called "${input.brand}".` };
+        if (String(input.text || '').trim().length < 8) return { error: 'Say what they said, in a sentence.' };
+        return { summary: input.summary, detail: `${input.author || 'A teammate'}${input.role ? ` (${input.role})` : ''} on ${acct ? acct.name : 'every brand'}: "${String(input.text).trim()}". Saved as a lesson for the leak finder, then judged against the data; every later review follows it or shows both sides.`,
+          patch: { act: acct ? acct.act_id : '', text: input.text, author: input.author || '', role: input.role || '', leak_id: input.leak_id || null, brand: acct ? acct.name : '', final: !!input.final } };
+      },
+      apply: async (env, patch, h, ctx) => {
+        const by = (ctx && (ctx.who || ctx.email || ctx.user)) || null;
+        const dd = { getSetting: d.getSetting, putSetting: d.putSetting, xfetch: d.xfetch, mintSession: d.mintSession };
+        const r = patch.act ? await lessonFromLeak(env, dd, patch.act, { ...patch, scope: 'brand' }, by ? `${by} via the Strategist` : 'the Strategist')
+          : await addLesson(env, dd, { act: '', text: patch.text, author: patch.author, role: patch.role, added_by: by ? `${by} via the Strategist` : 'the Strategist', brand: 'every brand', final: !!patch.final });
+        if (r.error && !r.id) return { error: r.error };
+        const word = { holds: 'It holds', partly: 'It partly holds', does_not_hold: 'It does not hold', open: 'Saved; not judged yet' }[r.status] || 'Saved';
+        return { ok: true, note: `${word}.${r.why ? ` ${r.why}` : ''}${r.decision === 'team' ? ' Recorded as the final call of the team: the leak finder follows it.' : r.status === 'does_not_hold' || r.status === 'partly' ? ' Locus does not fully agree, so the final call is yours: Go with the team or Go with Locus, on the lesson in Home > Overview (What the team taught it, under Show all).' : r.rule ? ` From now on: ${r.rule}` : ''}` };
+      } },
     { name: 'set_writing_style',
       description: 'Change HOW Daily Briefs or weekly/monthly reports are written from now on, when Cole says he does not like how they read ("lead with profit", "shorter", "stop mentioning Google", "no hedging", "always end with one action for the client"). Standing direction, for every brand or for one. It changes emphasis, order, length, tone and what is left out; it can never add a number. Read writing_style first. Structural changes (a new section, a new number, a different layout) are a code change: use hand_to_claude_code for those.',
       input_schema: { type: 'object', properties: {

@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | Home > Yesterday | everyone | 14-day verdict grid per brand, the link that broke on Meta, account changes, the market (our brands, Pulse, Breezeway, advertiser chatter); Slack 8am only on a bad day | LIVE |
 | Ads > Today | buyer | scale / cut / trim / refresh / fix / test calls, ad set first, ranked by money at stake; Done logs to the Change Log | LIVE |
+| Leak finder (top of Google, Meta, TikTok, Website, Email; full list on Home > Day check) | owner, buyer, strategist, client | every leak ranked by money a month: search terms to block (Add negative), PMax categories, campaigns over the cut line, Meta cut lines, funnel steps vs Littledata by device, paid landing pages, email flows | LIVE 2026-10-13 |
 | Season > War room | owner, buyer | per brand in season: offer live now, next change, today so far live | LIVE (shell) |
 | Tools > Platform status | everyone | Pulse: platforms now, recent changes | LIVE |
 | Calendar (rail item, 2026-10-09) | everyone; clients later | all clients: lanes (13 weeks, Black Friday week one bar), tiles, work due this week from every countdown; one brand: month, warnings, Coming up; any date: panel with the countdown (ticks from Asana, Klaviyo, Meta), Make the Asana tasks, move, end, edit, history; Home card + chart bands; Slack pings; Strategist view + actions | LIVE (Lineup moved in) |

@@ -2324,8 +2324,9 @@
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=3"></script>
-<script src="v2.js?v=52"></script>
-<script src="desk.js?v=20"></script>
+<script src="v2.js?v=54"></script>
+<script src="leaks.js?v=4"></script>
+<script src="desk.js?v=22"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=11"></script>
 <script src="supply.js?v=6"></script>
@@ -10975,14 +10976,14 @@ async function renderSettings() {
           <div id="connPage"><div class="card"><span class="hint">Checking every connection…</span></div></div>
         </section>
         <section data-sec="sending"${sec === 'sending' ? '' : ' hidden'}>${secHead('sending')}
-          ${sCard('Daily Brief send time', 'When the brief posts each morning, for <b>every</b> brand with it switched on. Set in <b>Central time</b> all year, so it never shifts an hour when the clocks change. It always covers yesterday.',
-            '<div class="row" style="margin:0;gap:10px"><select id="btHour" style="max-width:200px"></select><span class="tiny" id="btMsg"></span></div>')}
-          ${sCard('Where the daily drafts post', 'Every brand\'s Daily Brief draft, with its Send, Edit and Rewrite buttons, goes to <b>one agency channel</b> so the brand channels stay conversation. Blank = each draft posts in its own brand\'s internal channel.',
+          ${sCard('Morning posts go out at', 'One hour for <b>everything</b> Locus sends in the morning: the client daily, Monday\'s weekly and the 1st\'s monthly drafts, and the morning card. <b>Central time</b> all year. Each brand\'s brief always covers yesterday.',
+            '<div class="row" style="margin:0;gap:10px"><select id="btHour" style="max-width:200px" aria-label="Morning posts go out at"></select><span class="tiny" id="btMsg"></span></div>')}
+          ${sCard('The morning card', 'One post per brand in its <b>internal</b> channel at that hour: yesterday against plan, whether the client daily went, and one line per thing someone must do today, each with the person tagged. Today\'s calls, task reminders and alerts go in its thread; Done or a ✅ crosses a line out instead of posting again.',
+            '<label class="row" style="margin:0 0 10px;gap:10px;align-items:center"><input type="checkbox" id="mcOn" class="lx-sw"><span>Post the morning card</span><span class="tiny" id="mcMsg"></span></label><div class="row" style="margin:0;gap:10px;flex-wrap:wrap"><select id="mcAct" style="max-width:220px" aria-label="Brand to preview"></select><button type="button" class="btn" id="mcPrev">Preview this morning\'s card</button></div>')}
+          ${sCard('Where the drafts post', 'Every brand\'s Daily Brief draft (and, with the morning card on, the weekly and monthly drafts), with its Send, Edit and Rewrite buttons, goes to <b>one agency channel</b> so the brand channels stay conversation. Blank = each draft posts in its own brand\'s internal channel.',
             '<div class="row" style="margin:0;gap:10px"><select id="dbChan" style="max-width:280px"></select><span class="tiny" id="dbMsg"></span></div>')}
           ${sCard('What the client gets each day', 'Once a brand has a Locus login, the client\'s daily can be <b>three lines plus Open in Locus</b>; the whole brief is in their Locus. A brand with no client login always gets the whole brief in Slack.',
             '<div class="row" style="margin:0;gap:10px"><select id="dbStyle" style="max-width:280px"><option value="short">Three lines and a link</option><option value="full">The whole brief</option></select><span class="tiny" id="dbStyleMsg"></span></div>')}
-          ${sCard('Today\'s calls in Slack', 'From 8am Central, once a day per brand, Locus posts what to scale, cut, trim or refresh to the brand\'s <b>internal</b> channel, with an Open in Locus button. Only when there is something to do; never to a client channel.',
-            '<label class="row" style="margin:0;gap:10px;align-items:center"><input type="checkbox" id="tpOn" class="lx-sw"><span>Post today\'s calls each morning</span><span class="tiny" id="tpMsg"></span></label>')}
           ${sCard('Who client messages come from', 'Drafts and alerts in your <b>internal</b> channels post as the Mobius bot. Anything sent to a <b>client</b> posts as a real person, so it arrives with a name and face rather than an app badge.',
             '<div id="slackWho"><span class="hint">Checking…</span></div>')}
           ${sCard('Acting on a draft from inside Slack', 'Every draft in an internal channel carries the same buttons as Locus: <b>Send to client</b>, <b>Edit the wording</b>, <b>Rewrite with AI</b> and <b>Don\'t send</b>. Use either place; the other keeps up.',
@@ -11805,10 +11806,33 @@ async function renderSettings() {
     };
     sel.onchange = () => save({ dailyBriefsChannel: sel.value }, $('#dbMsg'));
     st.onchange = () => save({ briefClientStyle: st.value }, $('#dbStyleMsg'));
-    const tp = $('#tpOn');
-    if (tp) {
-      try { const cfg = await apiAH('/api/settings'); tp.checked = cfg.todayPost !== false && cfg.todayPost !== 'off'; } catch {}
-      tp.onchange = () => save({ todayPost: tp.checked }, $('#tpMsg'));
+    /* The morning card (2026-10-13): its switch, and a preview of this morning's card for one brand (nothing posts). */
+    const mc = $('#mcOn'), pick = $('#mcAct'), prev = $('#mcPrev');
+    if (mc) {
+      try {
+        const cfg = await apiAH('/api/settings');
+        mc.checked = cfg.morningCard !== false;
+        if (cfg.dailyBriefsError?.error && $('#dbMsg')) $('#dbMsg').textContent = `Last refused: ${cfg.dailyBriefsError.error}`;
+      } catch {}
+      mc.onchange = () => save({ morningCard: mc.checked }, $('#mcMsg'));
+    }
+    if (pick && prev) {
+      const list = (S.accounts || []).filter(a => a.active !== false && a.active !== 0);
+      pick.innerHTML = list.map(a => `<option value="${esc(a.act_id)}">${esc(a.name)}</option>`).join('');
+      if (S.act && S.act !== 'all' && list.some(a => a.act_id === S.act)) pick.value = S.act;
+      prev.onclick = async () => {
+        prev.disabled = true; $('#mcMsg').textContent = 'Building the card…';
+        try {
+          const r = await apiAH(`/api/morning-card/preview?act=${encodeURIComponent(pick.value)}`);
+          $('#mcMsg').textContent = '';
+          const h = r.hour === 0 ? '12am' : r.hour < 12 ? `${r.hour}am` : r.hour === 12 ? '12pm' : `${r.hour - 12}pm`;
+          noteModal(`${r.name}: this morning's card`, `${r.where ? `<p class="hint">${esc(r.where)}</p>` : ''}
+            <p class="tiny" style="margin:0 0 8px">Posts at ${esc(h)} Central in the brand's internal channel${r.on ? '' : ' (the card is switched off)'}${r.posted ? `. Today's went out already` : ''}. Tags show as @name here and notify the person in Slack.</p>
+            <pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0;font:inherit;line-height:1.55">${esc(r.text)}</pre>
+            ${(r.thread || []).length ? `<p class="tiny" style="margin:10px 0 4px"><b>In its thread</b></p><ul style="margin:0 0 0 18px" class="tiny">${r.thread.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}`);
+        } catch (e) { $('#mcMsg').textContent = e.message; }
+        prev.disabled = false;
+      };
     }
   })();
 }
