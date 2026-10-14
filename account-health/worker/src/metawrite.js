@@ -26,6 +26,7 @@
  */
 import { resolveBrandId } from './brands.js';
 import { asana, asanaAll, numOf, googleToken } from './asana-brand.js';
+import { serveFile } from './prodwork.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BUSINESS_ID = '695359915477596';
@@ -50,8 +51,16 @@ export function money(cents, cur = 'USD') {
    worker (same account: Cloudflare refuses it, which read as a 404 on the first live Launch to Meta, 2026-10-10). The
    PROFIT service binding reaches it; anything else goes out through xfetch as before. */
 const PROFIT_HOST = 'mobius-profit.mobius-digital.workers.dev';
+const AH_HOST = 'mobius-account-health.mobius-digital.workers.dev';
 function fetchImage(env, d, url) {
-  try { if (env.PROFIT && new URL(url).host === PROFIT_HOST) return env.PROFIT.fetch(new Request(url)); } catch {}
+  try {
+    const u = new URL(url);
+    if (env.PROFIT && u.host === PROFIT_HOST) return env.PROFIT.fetch(new Request(url));
+    /* a Production file (prodwork.js) lives on THIS worker: the same refusal (the batch launch's dry run read it as a
+       404 on 2026-10-14), so read it from R2 here with the same signature check and no network at all */
+    const m = u.host === AH_HOST && /^\/api\/production\/f\/([a-f0-9]{16})$/.exec(u.pathname);
+    if (m) return serveFile(new Request(url), env, u, m[1]);
+  } catch {}
   return d.xfetch(url);
 }
 const pctText = (from, to) => { const p = Math.round((to - from) / from * 100); return `${p >= 0 ? '+' : ''}${p}%`; };

@@ -122,7 +122,7 @@ const imageGets = [];
 async function xfetch(url, init = {}) {
   const s = String(url);
   if (s.startsWith('https://graph.facebook.com/')) return graph(s, init);
-  if (s.startsWith('https://mobius-profit.mobius-digital.workers.dev/api/studio/img/') || s.startsWith('https://cdn.example.com/creator.png')) {
+  if (s.startsWith('https://mobius-profit.mobius-digital.workers.dev/api/studio/img/') || s.startsWith('https://cdn.example.com/creator.png') || s.startsWith('https://mobius-account-health.mobius-digital.workers.dev/api/production/f/')) {
     imageGets.push(s);
     return new Response(new Uint8Array([137, 80, 78, 71, 1, 2, 3]), { status: 200, headers: { 'Content-Type': 'image/png' } });
   }
@@ -131,7 +131,8 @@ async function xfetch(url, init = {}) {
 const asanaBrand = await import('./src/asana-brand.js');
 asanaBrand.useFetch(async () => J({ data: [] }));
 
-const env = { DB, META_TOKEN: 'mt' };
+/* R2 for Production files: metawrite's fetchImage reads a Production picture straight from the bucket (never over the worker's own public address) */
+const env = { DB, META_TOKEN: 'mt', MEDIA: { get: async key => /^work\//.test(key) ? { body: new Uint8Array([137, 80, 78, 71, 1, 2, 3]), size: 7 } : null } };
 const d = {
   getSetting: async (env, k) => (await env.DB.prepare('SELECT value FROM settings WHERE key = ?1').bind(k).first())?.value ?? null,
   putSetting: async (env, k, v) => env.DB.prepare('INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(k, typeof v === 'string' ? v : JSON.stringify(v)).run(),
@@ -289,6 +290,111 @@ await check('undo from the toast archives a launched ad (the same metawrite undo
   assert.ok(!u.error, u.error); assert.equal(objs[launched.ad_id].status, 'ARCHIVED');
 });
 
+/* ---------------- the batch (2026-10-14): every approved ad of a Production card, the brief's copy ---------------- */
+await check('briefCopy: shared lines, lines under an ad heading, inline labels, words over several paragraphs, hints are not words', async () => {
+  const html = `<h2>The test</h2><p><strong>Angle</strong></p><p>Spin</p><h2>The ads</h2>
+<p><strong>Ad 415-1</strong></p><p>Wedge on the range</p>
+<p><strong>Ad 415-2:</strong> close up of the face</p><p><strong>Headline</strong></p><p>Hear the spin</p><p><strong>Landing page:</strong> <a href="https://luckygolf.com/products/carver?v=2&amp;x=1">carver</a></p>
+<p><strong>Ad 415-3</strong></p><p>The sound</p><p><strong>Primary text</strong></p><p>Only for three.</p>
+<h2>Copy</h2><p><strong>Headline</strong></p><p><span data-ph>The words on the ad</span></p><p><strong>Primary text</strong></p><p>You can hear it.</p><p>Before you see it.</p><p><br></p><p>Not this line.</p><p><strong>Landing page</strong></p><p><span data-ph>Where the click goes</span></p>`;
+  const c = L.briefCopy(html);
+  assert.deepEqual(c.shared, { primary_text: 'You can hear it.\nBefore you see it.' }, 'a hint is not a headline; words stop at a blank line');
+  assert.deepEqual(c.ads['415-2'], { headline: 'Hear the spin', link: 'https://luckygolf.com/products/carver?v=2&x=1' });
+  assert.deepEqual(c.ads['415-3'], { primary_text: 'Only for three.' });
+  assert.equal(c.ads['415-1'], undefined);
+  assert.deepEqual(L.briefCopy('<p><strong>Headline:</strong> One line</p><p><strong>Link</strong></p><p>https://x.com/p</p>').shared, { headline: 'One line', link: 'https://x.com/p' });
+  /* Ice & Gold #5 (2026-10-14): one shared Headline line listing every ad, one "5-2: ..." paragraph per ad under Primary text, bold "5-4." ad lines */
+  const ig = L.briefCopy(`<h2>The ads</h2><p><strong>5-1.</strong> The chain (real photo)</p><p><strong>5-2.</strong> The list</p><p><strong>Headline</strong></p><p>Own line for two</p><h2>Copy</h2><p><strong>Headline</strong></p><p>5-1 The chain he'd never buy himself · 5-2 Your whole list, one order · 5-3 Ready to hand over</p><p><strong>Primary text:</strong></p><p>5-1: He won't buy himself a chain. So you do.</p><p>5-2: One order and the women on your list are done.</p><p>5-3: You don't have to wrap it.</p><p><strong>Landing page</strong></p><p>5-1 <a target="_blank" rel="noopener" href="https://iceandgold.com/products/chain">10mm Cuban</a> · 5-2: https://iceandgold.com/collections/gifts · 5-4 <a href="https://iceandgold.com/products/lion">Lion</a> / <a href="https://iceandgold.com/products/compass">Compass</a></p>`);
+  assert.deepEqual(ig.shared, {}, 'nothing stays shared when every line names its ad');
+  assert.deepEqual(ig.ads['5-1'], { headline: "The chain he'd never buy himself", primary_text: "He won't buy himself a chain. So you do.", link: 'https://iceandgold.com/products/chain' });
+  assert.deepEqual(ig.ads['5-2'], { headline: 'Own line for two', primary_text: 'One order and the women on your list are done.', link: 'https://iceandgold.com/collections/gifts' }, 'the line under the ad\'s own heading wins');
+  assert.deepEqual(ig.ads['5-3'], { headline: 'Ready to hand over', primary_text: "You don't have to wrap it." });
+  assert.deepEqual(ig.ads['5-4'], { link: 'https://iceandgold.com/products/lion' }, 'a link written as a product name gives its address; two links, the first');
+  assert.deepEqual(L.briefCopy('<p><strong>Primary text</strong></p><p>Buy the 5-1 model today</p>').shared, { primary_text: 'Buy the 5-1 model today' }, 'a number inside a sentence does not split');
+});
+
+const FILES = { f1: 'f1f1f1f1f1f1f1f1', f2: 'f2f2f2f2f2f2f2f2', f3: 'f3f3f3f3f3f3f3f3', f4: 'f4f4f4f4f4f4f4f4' };
+await check('batch prep: the approved ads only, names "415-n | Still", copy per ad with its source, the missing ones flagged, the test\'s own set first', async () => {
+  const PW = await import('./src/prodwork.js');
+  await PW.ensureWork(env);
+  const brief = { v: 2, format: 'Static', sizes: [], html: `<h2>The ads</h2><p><strong>Ad 415-1</strong></p><p>Range</p><p><strong>Ad 415-2</strong></p><p>Face</p><p><strong>Headline</strong></p><p>Hear the spin</p><p><strong>Landing page</strong></p><p><a href="https://luckygolf.com/products/carver?utm=2">carver</a></p><p><strong>Ad 415-3</strong></p><p>Sound</p><h2>Copy</h2><p><strong>Primary text</strong></p><p>You can hear it.</p>` };
+  db.exec(`UPDATE p_br_batch SET brief_json = '${JSON.stringify(brief).replace(/'/g, "''")}' WHERE id = 'bb415'`);
+  for (const [k, fid] of Object.entries(FILES)) db.exec(`INSERT INTO p_work_file (id, batch_id, act_id, kind, version, r2_key, name, mime, ad) VALUES ('${fid}', 'bb415', 'brand_lucky', 'version', 1, 'work/${fid}.png', '${k}.png', 'image/png', '415-${k.slice(1)}')`);
+  for (const fid of [FILES.f1, FILES.f2, FILES.f3]) db.exec(`INSERT INTO p_work_comment (id, batch_id, act_id, author_name, kind, file_id) VALUES ('ap${fid.slice(0, 2)}', 'bb415', 'brand_lucky', 'Nick', 'approval', '${fid}')`);
+  const n0 = graphPosts().length;
+  const p = await L.batchPrep(env, d, 'brand_lucky', { card_id: 'bb415' });
+  assert.ok(p.ok, p.error);
+  assert.deepEqual(p.ads.map(a => a.ad), ['415-1', '415-2', '415-3'], 'the fourth ad is not approved');
+  assert.deepEqual(p.ads.map(a => a.name), ['415-1 | Still', '415-2 | Still', '415-3 | Still']);
+  const [a1, a2, a3] = p.ads;
+  assert.deepEqual(a1.missing, ['headline']); assert.deepEqual(a3.missing, ['headline']); assert.deepEqual(a2.missing, []);
+  assert.deepEqual(a2.headline, { value: 'Hear the spin', source: 'ad' });
+  assert.deepEqual(a2.primary_text, { value: 'You can hear it.', source: 'shared' });
+  assert.deepEqual(a2.link, { value: 'https://luckygolf.com/products/carver?utm=2', source: 'ad' });
+  assert.deepEqual(a1.link, { value: 'https://luckygolf.com/products/old-wedge?utm=x', source: 'set' }, 'no link in the brief: the ad set\'s own');
+  assert.equal(a1.headline.source, 'none');
+  assert.match(a1.thumb, /\/api\/production\/f\/f1f1f1f1f1f1f1f1\?e=\d+&s=[a-f0-9]{32}&w=600$/);
+  assert.equal(p.suggested, '2300013', 'the test\'s own ad set'); assert.equal(p.cta, 'SHOP_NOW');
+  assert.ok(p.warnings.some(w => /2 of 3 ads have its headline and primary text/.test(w)), p.warnings.join(' | '));
+  assert.equal(graphPosts().length, n0, 'prep writes nothing');
+  assert.match((await L.batchPrep(env, d, 'brand_dartee', { card_id: 'bb415' })).error, /not one of this brand/);
+});
+
+await check('batch create refuses the whole batch while the brief lacks copy; the browser\'s words are never used', async () => {
+  const n = graphPosts().length;
+  const r = await L.batchCreate(env, d, 'brand_lucky', { card_id: 'bb415', adset: '2300013', cta: 'LEARN_MORE', ads: [{ file_id: FILES.f1, headline: 'typed here' }, { file_id: FILES.f2 }] }, COLE);
+  assert.match(r.error, /missing copy.*Ad 415-1: no headline.*nothing was made/i);
+  assert.equal(graphPosts().length, n, 'nothing written');
+  const pv = await L.batchPreview(env, d, 'brand_lucky', { card_id: 'bb415', adset: '2300013', ads: [{ file_id: FILES.f2 }] }, COLE);
+  assert.ok(pv.ok, pv.error); assert.equal(pv.rows[0].name, '415-2 | Still'); assert.equal(pv.rows[0].headline, 'Hear the spin'); assert.equal(pv.after.ads, pv.before.ads + 1); assert.deepEqual(pv.after.names, ['415-2 | Still']);
+  assert.equal(graphPosts().length, n, 'the dry run writes nothing');
+  assert.match((await L.batchPreview(env, d, 'brand_lucky', { card_id: 'bb415', adset: '', ads: [{ file_id: FILES.f2 }] }, COLE)).error, /Pick the ad set/);
+  assert.match((await L.batchPreview(env, d, 'brand_lucky', { card_id: 'bb415', adset: '2300013', ads: [{ file_id: FILES.f4 }] }, COLE)).error, /not an approved ad/);
+});
+
+await check('batch create: one PAUSED ad per picked ad with the brief\'s words, the row keeps the file and the button, a repeat is refused per ad', async () => {
+  const r = await L.batchCreate(env, d, 'brand_lucky', { card_id: 'bb415', adset: '2300013', cta: 'LEARN_MORE', ads: [{ file_id: FILES.f2, name: '415-2 | Still', link: 'https://luckygolf.com/products/carver' }] }, COLE);
+  assert.ok(r.ok, r.error); assert.equal(r.made, 1); assert.equal(r.failed, 0); assert.equal(r.adset, '415 | Wedges | CONCEPTS');
+  const ad = posts.filter(x => x.path === `${LUCKY}/ads`).at(-1);
+  assert.equal(ad.body.status, 'PAUSED'); assert.equal(ad.body.name, '415-2 | Still');
+  const spec = JSON.parse(posts.filter(x => x.path === `${LUCKY}/adcreatives`).at(-1).body.object_story_spec);
+  assert.equal(spec.link_data.name, 'Hear the spin'); assert.equal(spec.link_data.message, 'You can hear it.'); assert.equal(spec.link_data.link, 'https://luckygolf.com/products/carver'); assert.equal(spec.link_data.call_to_action.type, 'LEARN_MORE');
+  const row = db.prepare(`SELECT * FROM p_launch WHERE id = ?`).get(r.rows[0].launch.id);
+  assert.equal(row.work_file, FILES.f2); assert.equal(row.cta, 'LEARN_MORE'); assert.equal(row.batch_id, 'bb415'); assert.equal(row.num, '415'); assert.equal(row.source, 'asset');
+  assert.equal(db.prepare(`SELECT batch_id FROM p_br_adtag WHERE ad_id = ?`).get(r.rows[0].launch.ad_id).batch_id, 'bb415');
+  /* the brief gains a shared headline: the two short ads can go; 415-2 again is refused in its row, the others are made */
+  const brief = { v: 2, format: 'Static', sizes: [], html: `<h2>The ads</h2><p><strong>Ad 415-1</strong></p><p>Range</p><p><strong>Ad 415-2</strong></p><p>Face</p><p><strong>Headline</strong></p><p>Hear the spin</p><p><strong>Ad 415-3</strong></p><p>Sound</p><h2>Copy</h2><p><strong>Headline</strong></p><p>The wedge they ask about</p><p><strong>Primary text</strong></p><p>You can hear it.</p>` };
+  db.exec(`UPDATE p_br_batch SET brief_json = '${JSON.stringify(brief).replace(/'/g, "''")}' WHERE id = 'bb415'`);
+  const p = await L.batchPrep(env, d, 'brand_lucky', { card_id: 'bb415' });
+  assert.deepEqual(p.ads.map(a => a.missing.length), [0, 0, 0]);
+  assert.equal(p.ads[1].launched.length, 1, 'the launched ad says so'); assert.equal(p.ads[1].launched[0].ad_name, '415-2 | Still');
+  assert.equal(p.cta, 'LEARN_MORE', 'the button the brand used last');
+  const n = graphPosts().length;
+  const r2 = await L.batchCreate(env, d, 'brand_lucky', { card_id: 'bb415', adset: '2300013', ads: [{ file_id: FILES.f1 }, { file_id: FILES.f2 }, { file_id: FILES.f3 }] }, COLE);
+  assert.ok(r2.ok, r2.error); assert.equal(r2.made, 2); assert.equal(r2.failed, 1);
+  assert.deepEqual(r2.rows.map(x => [x.name, !!x.ok, !!x.duplicate]), [['415-1 | Still', true, false], ['415-2 | Still', false, true], ['415-3 | Still', true, false]]);
+  assert.equal(graphPosts().length, n + 6, 'two ads written (image, creative, ad each), the duplicate none');
+  assert.equal(JSON.parse(posts.filter(x => x.path === `${LUCKY}/adcreatives`).at(-1).body.object_story_spec).link_data.name, 'The wedge they ask about');
+  assert.ok(!imageGets.some(u => u.includes('/api/production/f/')), "a Production picture is read from R2, never fetched over the worker's own address");
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_launch WHERE batch_id = 'bb415' AND work_file IS NOT NULL`).get().n, 3);
+  const one = await L.launchPrep(env, d, 'brand_lucky', { work_file: FILES.f3 });
+  assert.equal(one.name, '415-3 | Still', 'the single launch names a Production file the same way'); assert.equal(one.fields.headline, 'The wedge they ask about');
+});
+
+await check('batch routes: team only, brand limits, a client is not on the rules', async () => {
+  const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s });
+  const h = (admin, only) => ({ isAdmin: async () => admin, sessionEmail: async () => 'noma@go-mobius-digital.com', brandsFor: async () => only, resolveBrandId: async (e, w) => w, md: d });
+  const req = (p, b) => new Request('https://ah.test' + p, { method: 'POST', body: JSON.stringify(b), headers: { 'Content-Type': 'application/json' } });
+  assert.equal((await L.handleLaunch(req('/api/launch/batch-prep', { act: 'brand_lucky', card_id: 'bb415' }), env, new URL('https://ah.test/api/launch/batch-prep'), '/api/launch/batch-prep', json, h(false, null))).status, 401);
+  assert.equal((await L.handleLaunch(req('/api/launch/batch-prep', { act: 'brand_lucky', card_id: 'bb415' }), env, new URL('https://ah.test/api/launch/batch-prep'), '/api/launch/batch-prep', json, h(true, new Set(['brand_dartee'])))).status, 403);
+  const ok = await L.handleLaunch(req('/api/launch/batch-prep', { act: 'brand_lucky', card_id: 'bb415' }), env, new URL('https://ah.test/api/launch/batch-prep'), '/api/launch/batch-prep', json, h(true, null));
+  assert.equal(ok.status, 200); assert.equal((await ok.json()).ads.length, 3);
+  const bad = await L.handleLaunch(req('/api/launch/batch-create', { act: 'brand_lucky', card_id: 'bb415', adset: '2300013', ads: [] }), env, new URL('https://ah.test/api/launch/batch-create'), '/api/launch/batch-create', json, h(true, null));
+  assert.equal(bad.status, 400);
+  const bg = fs.readFileSync(path.join(here, 'src', 'brandguard.js'), 'utf8');
+  assert.ok(!/launch\/batch/.test(bg), 'the batch routes are the team\'s: not on the client rules');
+});
+
 await check('routes: team only (admin), brand limits, mounted once in worker.js, no em dashes', async () => {
   const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s });
   const h = (admin, only) => ({ isAdmin: async () => admin, sessionEmail: async () => 'noma@go-mobius-digital.com', brandsFor: async () => only, resolveBrandId: async (e, w) => w, md: d });
@@ -300,7 +406,7 @@ await check('routes: team only (admin), brand limits, mounted once in worker.js,
   assert.equal(ok.status, 200); assert.equal((await ok.json()).suggested, '2300013');
   const wk = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
   assert.equal(wk.split('handleLaunch(').length - 1, 1, 'mounted once');
-  for (const f of [path.join(here, 'src', 'launch.js'), path.join(root, 'profit', 'launch.js'), path.join(here, 'test-launch.mjs')]) assert.ok(!fs.readFileSync(f, 'utf8').includes(String.fromCharCode(0x2014)), 'em dash in ' + f);
+  for (const f of [path.join(here, 'src', 'launch.js'), path.join(root, 'profit', 'launch.js'), path.join(root, 'profit', 'prodsheet.js'), path.join(here, 'test-launch.mjs')]) assert.ok(!fs.readFileSync(f, 'utf8').includes(String.fromCharCode(0x2014)), 'em dash in ' + f);
 });
 
 const failed = checks.filter(c => !c.pass);

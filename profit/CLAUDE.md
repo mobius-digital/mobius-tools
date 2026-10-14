@@ -3235,3 +3235,14 @@ Mock: https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (page Review redesign: A
   counts locally. The sheet loads the photos and the card together. Measured on the local pair against the real
   workers: sheet open 347ms, viewer open 56ms, note on screen in 61ms, a call's chip in 11 to 48ms, no picture node
   replaced on any repaint. index.html: review-ui.js?v=8, prodsheet.js?v=9.
+- **Launch N to Meta (2026-10-14, night).** The Ads tab's bar shows "Launch N to Meta" when two or more ads are approved
+  (team only; one approved ad keeps the card's own Launch button). `LaunchToMeta.openBatch({act, tok, cardId, onDone,
+  onBrief})` (launch.js?v=4): ad set + button once at the top (suggested set with why; changing the set re-reads
+  batch-prep so a link that came from the set follows it, typed links and the brief's own stay), then one row per
+  approved ad: tick, thumb, "Ad 5-2 · v2 · Still", Name in Meta (editable), Link (editable, "Use this link for all"),
+  Headline and Primary text READ ONLY from the brief with a source tag under each (from the brief / this ad's own line
+  in the brief / from the ad set / Write it in the brief + "Open the brief", which closes the window and opens the
+  Brief tab). A row with no headline or primary text cannot be ticked. "Already in Meta: <name> (<set>)" on a row that
+  was launched before. Pick all / Pick none. Check N (dry run) = batch-preview: the ad set before and after with every
+  new name, a row's reason when it would fail; Create N paused = batch-create; the result lists Made / Not made per ad
+  with Ads Manager and Undo (the existing /api/meta/undo) per row. prodsheet.js?v=10.

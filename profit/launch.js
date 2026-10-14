@@ -12,7 +12,11 @@
  * metawrite.js meta_create_ad (one Meta write path with Locus and Ads > Meta). Turning it on and undo use
  * the existing /api/meta/write (kind resume) and /api/meta/undo.
  *
- *   window.LaunchToMeta.open({ act, tok, studioAd | asset, onDone })   the Launch window
+ *   window.LaunchToMeta.open({ act, tok, studioAd | asset | workFile, onDone })   the Launch window, one ad
+ *   window.LaunchToMeta.openBatch({ act, tok, cardId, onDone, onBrief })  every approved ad of a Production card (2026-10-14):
+ *       one ad set, the brief's copy (shared lines, or the lines under an ad's own heading), names "5-2 | Still",
+ *       Check it (a dry run per ad), Create N paused. An ad whose brief has no headline or primary text cannot be
+ *       picked until the brief has it (nothing is typed here); onBrief opens the brief.
  *   window.LaunchToMeta.chip(studioAdId)                                 status chip HTML from the cache
  *   window.LaunchToMeta.watch(act, tok, repaint)                         load the brand's launches (2 min cache)
  * The test library rows (brand.js `.lb-row[data-b]`) get a status chip from here, without touching brand.js.
@@ -109,6 +113,34 @@ textarea.ln-in{min-height:64px;resize:vertical;line-height:1.45}
 .lb-res .ln-chip{margin-left:6px}
 .ln-kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 10px;font-size:13px;margin:0 0 12px}
 .ln-kv dt{color:var(--muted)}.ln-kv dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+.ln-where{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:12px;margin:0 0 6px}
+@media (max-width:560px){.ln-where{grid-template-columns:1fr}}
+.lnb-head{display:flex;align-items:center;gap:10px;margin:10px 0 0;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;font-weight:600;color:var(--ink-2)}
+.lnb-head .n{color:var(--muted);font-weight:500}
+.lnb-row{display:grid;grid-template-columns:22px 64px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:start}
+.lnb-row.off{opacity:.55}
+.lnb-row.short{opacity:1}
+.lnb-tick{margin:2px 0 0;width:16px;height:16px;accent-color:var(--brand)}
+.lnb-pic{width:64px;aspect-ratio:4/5;object-fit:cover;border-radius:var(--r-sm,8px);border:1px solid var(--line);background:var(--surface-2);display:block}
+.lnb-vid{width:64px;aspect-ratio:4/5;border-radius:var(--r-sm,8px);border:1px solid var(--line);background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+.lnb-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:13px;color:var(--ink)}
+.lnb-top b{font-weight:650}
+.lnb-top .lnb-done{font-size:11.5px;color:var(--muted)}
+.lnb-top .lnb-done a{color:inherit}
+.lnb-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px}
+@media (max-width:640px){.lnb-g{grid-template-columns:1fr}}
+.lnb-f{display:block;font-size:11.5px;font-weight:600;color:var(--ink-2);min-width:0}
+.lnb-f .ln-in{margin-top:3px;padding:6px 8px;font-size:13px}
+.lnb-f.wide{grid-column:1 / -1}
+.lnb-ro{display:block;margin-top:3px;padding:6px 8px;border:1px dashed var(--line-strong);border-radius:var(--r-sm,8px);font-size:13px;font-weight:500;color:var(--ink);background:var(--surface-2);white-space:pre-line;line-height:1.4;max-height:96px;overflow:auto}
+.lnb-ro.none{color:var(--bad);border-color:var(--bad);font-weight:500}
+.lnb-tag{display:inline-block;margin:3px 0 0;font-size:11px;font-weight:500;color:var(--muted)}
+.lnb-tag.bad{color:var(--bad)}
+.lnb-tag button{all:unset;cursor:pointer;color:var(--brand);font-weight:600;margin-left:6px}
+.lnb-tag button:hover{text-decoration:underline}
+.lnb-res{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.lnb-res .ok{color:var(--good);font-weight:600}.lnb-res .bad{color:var(--bad)}
+.lnb-res .acts{display:flex;gap:6px;flex-wrap:wrap}
 `;
   document.head.appendChild(st);
 }
@@ -247,6 +279,151 @@ function wireAfter(box, l, finish) {
   };
 }
 
+/* ---------------- the batch window: every approved ad of a Production card (2026-10-14) ---------------- */
+const SRC_TAG = { shared: 'from the brief', ad: "this ad's own line in the brief", set: 'from the ad set', none: 'Write it in the brief' };
+function openBatch(o) {
+  if (o.tok) L.tok = o.tok;
+  const { box, close } = sheet(`<h3>Launch to Meta</h3><p class="ln-say">Reading the card, the brief and the brand's ad sets. A few seconds.</p>`);
+  const done = changed => { close(); if (changed && o.onDone) o.onDone(); };
+  const fail = e => {
+    box.innerHTML = `<h3>Launch to Meta</h3><p class="ln-msg bad">${esc(e.message)}</p><div class="ln-foot"><button class="btn" data-ln="close">Close</button></div>`;
+    box.querySelector('[data-ln="close"]').onclick = () => done(false);
+  };
+  let P = null, picked = new Set(), checked = null, made = false;
+  const prep = adset => postAH('/api/launch/batch-prep', { act: o.act, card_id: o.cardId, ...(adset ? { adset } : {}) });
+  prep().then(p => { if (p.error) throw new Error(p.error); P = p; picked = new Set(p.ads.filter(a => !a.missing.length).map(a => a.file_id)); form(); }).catch(fail);
+
+  const n = () => picked.size;
+  const title = () => `Launch ${n()} to Meta`;
+  function rowHtml(a, i) {
+    const short = a.missing.length > 0, on = picked.has(a.file_id);
+    const pic = a.video ? `<div class="lnb-vid">Video</div>` : `<img class="lnb-pic" src="${esc(a.thumb)}" alt="" loading="lazy">`;
+    const donePill = a.launched.length ? `<span class="lnb-done">Already in Meta: ${a.launched.map(l => l.ads_manager ? `<a href="${esc(l.ads_manager)}" target="_blank" rel="noopener">${esc(l.ad_name)}</a>` : esc(l.ad_name)).join(', ')} (${esc(a.launched[0].adset_name)})</span>` : '';
+    const tag = (f, k) => `<span class="lnb-tag${f.source === 'none' ? ' bad' : ''}">${esc(SRC_TAG[f.source] || '')}${f.source === 'none' && o.onBrief ? '<button type="button" data-brief>Open the brief</button>' : ''}${k === 'link' && f.value && P.ads.length > 1 ? `<button type="button" data-linkall="${esc(a.file_id)}">Use this link for all</button>` : ''}</span>`;
+    const ro = (f, cls = '') => `<span class="lnb-ro${f.value ? '' : ' none'}${cls}">${esc(f.value || 'Not in the brief yet')}</span>`;
+    return `<div class="lnb-row${on ? '' : ' off'}${short ? ' short' : ''}" data-row="${esc(a.file_id)}">
+      <input type="checkbox" class="lnb-tick" data-pick="${esc(a.file_id)}" ${on ? 'checked' : ''} ${short ? 'disabled title="The brief has no headline or primary text for this ad"' : ''} aria-label="Launch ${esc(a.ad ? 'ad ' + a.ad : 'this ad')}">
+      <div>${pic}</div>
+      <div style="min-width:0">
+        <div class="lnb-top"><b>${esc(a.ad ? `Ad ${a.ad}` : 'The ad')}</b><span style="color:var(--muted);font-size:12px">v${esc(a.version)} · ${esc(a.format)}</span>${donePill}</div>
+        <div class="lnb-g">
+          <label class="lnb-f">Name in Meta<input class="ln-in" data-name="${esc(a.file_id)}" value="${esc(a.name)}"></label>
+          <label class="lnb-f">Link<input class="ln-in" data-link="${esc(a.file_id)}" value="${esc(a.link.value)}" placeholder="https://" ${short ? 'disabled' : ''}>${tag(a.link, 'link')}</label>
+          <div class="lnb-f">Headline${ro(a.headline)}${tag(a.headline)}</div>
+          <div class="lnb-f">Primary text${ro(a.primary_text)}${tag(a.primary_text)}</div>
+        </div>
+      </div></div>`;
+  }
+  function form() {
+    const p = P;
+    const opt = s => `<option value="${esc(s.id)}" ${s.id === p.suggested ? 'selected' : ''}>${esc(s.name)} · ${esc(s.status === 'ACTIVE' ? 'on' : 'off')}${s.campaign ? ` · ${esc(s.campaign)}` : ''}${s.id === p.suggested ? ' (suggested)' : ''}</option>`;
+    const test = p.test ? `<p class="ln-test"><b>Test #${esc(p.test.num)}</b>${p.test.title ? `: ${esc(p.test.title)}` : ''}. Every ad is tied to this test in the test library by its name.</p>` : '';
+    box.innerHTML = `<h3 data-ln="title">${esc(title())}</h3>
+      <p class="ln-say">Every ad goes into ONE ad set, made <b>paused</b>, so nothing spends until someone turns it on. The words come from the brief: a Headline, Primary text or Landing page line written once is shared; the same line under an ad's own heading is that ad's. Check it first: the dry run shows the ad set before and after.</p>
+      ${test}
+      ${(p.warnings || []).length ? `<div class="ln-warn">${p.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
+      <div class="ln-where">
+        <label class="ln-f">Ad set<select class="ln-in" data-f="adset">${(p.adsets || []).map(opt).join('')}</select><small data-ln="why">${esc(p.why || '')}</small></label>
+        <label class="ln-f">Button<select class="ln-in" data-f="cta">${CTAS.map(([k, l]) => `<option value="${k}" ${k === (p.cta || 'SHOP_NOW') ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Same button on every ad.</small></label>
+      </div>
+      <div class="lnb-head">The ads <span class="n" data-ln="count">${n()} of ${p.ads.length} picked</span><span style="flex:1"></span>${p.ads.length > 1 ? '<button type="button" class="btn sm" data-ln="all">Pick all</button><button type="button" class="btn sm" data-ln="none">Pick none</button>' : ''}</div>
+      <div data-ln="rows">${p.ads.map(rowHtml).join('')}</div>
+      <div data-ln="dry"></div>
+      <p class="ln-msg" data-ln="msg"></p>
+      <div class="ln-foot"><button class="btn" data-ln="close">Cancel</button><button class="btn primary" data-ln="go" ${p.can === false ? 'disabled title="Locus can only read this ad account. See the note above."' : ''}>Check ${n()} (dry run)</button></div>`;
+    const go = box.querySelector('[data-ln="go"]');
+    const sync = () => {
+      box.querySelector('[data-ln="title"]').textContent = title();
+      box.querySelector('[data-ln="count"]').textContent = `${n()} of ${p.ads.length} picked`;
+      go.textContent = checked ? `Create ${n()} paused` : `Check ${n()} (dry run)`;
+      go.disabled = p.can === false || n() === 0;
+      box.querySelectorAll('[data-row]').forEach(r => r.classList.toggle('off', !picked.has(r.dataset.row)));
+    };
+    const val = () => ({ act: o.act, card_id: o.cardId, adset: box.querySelector('[data-f="adset"]').value, cta: box.querySelector('[data-f="cta"]').value,
+      ads: p.ads.filter(a => picked.has(a.file_id)).map(a => ({ file_id: a.file_id, name: box.querySelector(`[data-name="${a.file_id}"]`).value, link: box.querySelector(`[data-link="${a.file_id}"]`).value })) });
+    const reset = () => { if (!checked) return; checked = null; box.querySelector('[data-ln="dry"]').innerHTML = ''; msg(box, ''); sync(); };
+    box.querySelectorAll('[data-pick]').forEach(t => t.addEventListener('change', e => { if (e.target.checked) picked.add(e.target.dataset.pick); else picked.delete(e.target.dataset.pick); reset(); sync(); }));
+    box.querySelectorAll('[data-name],[data-link]').forEach(el => el.addEventListener('input', reset));
+    box.querySelector('[data-f="cta"]').addEventListener('change', reset);
+    box.querySelector('[data-f="adset"]').addEventListener('change', async e => {
+      const w = box.querySelector('[data-ln="why"]'); w.textContent = e.target.value === p.suggested ? p.why : 'Your pick. Reading the links this ad set already uses.';
+      reset();
+      /* a link that came from the ad set follows the ad set; typed links and the brief's own stay */
+      try {
+        const q = await prep(e.target.value);
+        if (q.error) throw new Error(q.error);
+        for (const a of q.ads) {
+          const old = p.ads.find(x => x.file_id === a.file_id); if (!old) continue;
+          const inp = box.querySelector(`[data-link="${a.file_id}"]`);
+          if (inp && (old.link.source === 'set' || old.link.source === 'none') && inp.value === old.link.value) { inp.value = a.link.value; }
+          old.link = a.link;
+        }
+        if (e.target.value !== p.suggested) w.textContent = 'Your pick.';
+      } catch (err) { msg(box, err.message, 'bad'); }
+    });
+    const all = box.querySelector('[data-ln="all"]'), none = box.querySelector('[data-ln="none"]');
+    if (all) all.onclick = () => { p.ads.filter(a => !a.missing.length).forEach(a => picked.add(a.file_id)); box.querySelectorAll('[data-pick]:not(:disabled)').forEach(t => { t.checked = true; }); reset(); sync(); };
+    if (none) none.onclick = () => { picked.clear(); box.querySelectorAll('[data-pick]').forEach(t => { t.checked = false; }); reset(); sync(); };
+    box.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { done(false); o.onBrief && o.onBrief(); });
+    box.querySelectorAll('[data-linkall]').forEach(b => b.onclick = () => { const v = box.querySelector(`[data-link="${b.dataset.linkall}"]`).value; box.querySelectorAll('[data-link]').forEach(i => { if (!i.disabled) i.value = v; }); reset(); });
+    box.querySelector('[data-ln="close"]').onclick = () => done(made);
+    go.onclick = async () => {
+      go.disabled = true;
+      const body = val();
+      try {
+        if (!checked) {
+          msg(box, `Checking ${body.ads.length} ad${body.ads.length === 1 ? '' : 's'} with Meta. Nothing is written.`);
+          const r = await postAH('/api/launch/batch-preview', body);
+          if (r.error) throw new Error(r.error);
+          checked = JSON.stringify(body);
+          box.querySelector('[data-ln="dry"]').innerHTML = dryBatch(r);
+          const bad = r.rows.filter(x => !x.ok);
+          msg(box, bad.length ? `${bad.length} ad${bad.length === 1 ? ' would' : 's would'} fail (see above). Fix ${bad.length === 1 ? 'it' : 'them'} or leave ${bad.length === 1 ? 'it' : 'them'} out.` : 'Looks right? Create them. They stay paused until someone turns them on.', bad.length ? 'bad' : 'ok');
+          sync(); go.disabled = p.can === false || !r.rows.some(x => x.ok);
+          return;
+        }
+        if (checked !== JSON.stringify(body)) { reset(); return; }
+        msg(box, `Making ${body.ads.length} ad${body.ads.length === 1 ? '' : 's'} in Meta, one after the other.`);
+        const r = await postAH('/api/launch/batch-create', body);
+        if (r.error) throw new Error(r.error);
+        index(r.rows.filter(x => x.ok).map(x => ({ ...x.launch, act: o.act, studio_ad: null, source: 'asset', ads_manager: x.ads_manager })));
+        made = r.made > 0;
+        madeBatch(r);
+      } catch (e) { msg(box, e.message, 'bad'); go.disabled = false; }
+    };
+    sync();
+  }
+  function dryBatch(r) {
+    const list = names => names.length ? `<ul>${names.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<div>No ads yet.</div>';
+    const rows = r.rows.map(x => x.ok ? `<li class="new">${esc(x.name)} (new, paused)</li>` : `<li style="color:var(--bad)">${esc(x.name || x.ad)}: ${esc(x.error)}</li>`).join('');
+    return `${(r.warnings || []).length ? `<div class="ln-warn">${r.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
+      <div class="ln-ba"><div><b class="cap">Before</b>"${esc(r.before.adset)}": ${r.before.ads} ad${r.before.ads === 1 ? '' : 's'}${list(r.before.names || [])}</div>
+      <div><b class="cap">After</b>"${esc(r.after.adset)}": ${r.after.ads} ads<ul>${(r.before.names || []).map(x => `<li>${esc(x)}</li>`).join('')}${rows}</ul>
+      ${r.rows.filter(x => x.ok).slice(0, 1).map(x => `<div style="margin-top:6px">Button: ${esc((CTAS.find(c => c[0] === x.cta) || [0, x.cta])[1])}</div>`).join('')}</div></div>`;
+  }
+  function madeBatch(r) {
+    const ok = r.rows.filter(x => x.ok), bad = r.rows.filter(x => !x.ok);
+    box.innerHTML = `<h3>${ok.length ? `Made ${ok.length} in Meta, paused` : 'Nothing was made'}</h3>
+      <p class="ln-say">${ok.length ? `${ok.length === 1 ? 'It is' : 'They are'} in "${esc(r.adset)}" and spend nothing until someone turns ${ok.length === 1 ? 'it' : 'them'} on.` : ''}${bad.length ? ` ${bad.length} ${bad.length === 1 ? 'was' : 'were'} not made; the reason is beside each.` : ''}</p>
+      <div>${r.rows.map(x => `<div class="lnb-res" data-res="${esc(x.file_id)}"><div>${x.ok ? `<span class="ok">Made</span> ${esc(x.name)}` : `<span class="bad">Not made</span> ${esc(x.name || x.ad)}: ${esc(x.error)}`}</div>
+        <div class="acts">${x.ok && x.ads_manager ? `<a class="btn sm" href="${esc(x.ads_manager)}" target="_blank" rel="noopener">Ads Manager</a>` : ''}${x.ok && x.launch.write ? `<button class="btn sm" data-undo="${esc(x.file_id)}">Undo</button>` : ''}</div></div>`).join('')}</div>
+      <p class="ln-msg" data-ln="msg"></p>
+      <div class="ln-foot"><button class="btn primary" data-ln="close">Done</button></div>`;
+    box.querySelector('[data-ln="close"]').onclick = () => done(made);
+    box.querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => {
+      const x = ok.find(y => y.file_id === b.dataset.undo); if (!x) return;
+      b.disabled = true;
+      try {
+        const u = await postAH('/api/meta/undo', { act: o.act, write: x.launch.write });
+        if (u.error) throw new Error(u.error);
+        index([{ ...x.launch, act: o.act, source: 'asset', status: 'ARCHIVED', eff_status: 'ARCHIVED' }]);
+        b.closest('[data-res]').querySelector('.ok').textContent = 'Undone'; b.remove();
+        msg(box, `"${x.name}" is archived in Meta.`, 'ok');
+      } catch (e) { msg(box, e.message, 'bad'); b.disabled = false; }
+    });
+  }
+}
+
 /* ---------------- the status window (click a chip) ---------------- */
 function status(id, onDone) {
   const l = findLaunch(id); if (!l) return;
@@ -294,6 +471,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 
 window.LaunchToMeta = {
   open,
+  openBatch,
   /* The status chip for one Studio ad (its newest launch), or '' when it was never launched. */
   chip: studioAdId => { const l = (L.byAd.get(studioAdId) || [])[0]; return l ? chipFor(l) : ''; },
   launched: studioAdId => (L.byAd.get(studioAdId) || []).length,

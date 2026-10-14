@@ -2132,3 +2132,23 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   a picture with one R2 read. **The edge cache (caches.default) is a no-op on a workers.dev address**: tried and
   removed the same day; the browser cache carries it. Tests: test-production2 15 (approve all, sized copies with a
   mocked Images binding, a download is always the original).
+- **2026-10-14 (night): the BATCH launch (Cole: "how can I launch an entire batch of ads into Facebook").** launch.js:
+  `POST /api/launch/batch-prep {act, card_id, adset?}` = every APPROVED ad of a Production card (adsOf on p_work_file +
+  p_work_comment) with its Meta name (`<ad> | Still|Video`, i.e. "5-2 | Still", the name Locus already uses, numOf ties
+  it to the test), its copy and WHERE each line came from, the ad sets (the test's own first, else the set of the
+  brand's last launch, else `suggest`), the button the brand used last (`p_launch.cta`), what was already launched
+  (`p_launch.work_file`), warnings (missing copy, the 6-per-set rule, read-only account). `batch-preview` = one dry run
+  per ad; `batch-create` = `launchCreate` per ad in turn (PAUSED, p_launch, p_br_adtag), one failing ad never stops the
+  rest, each row answers with its launch or its reason; a repeat into the same set is refused per ad (`work_file` +
+  adset). **The copy comes from the BRIEF and only the brief** (`briefCopy(html)`): a Headline / Primary text /
+  Landing page (or Link) / Description line is shared by every ad; the same label under an ad's own heading ("Ad 5-2",
+  a bold "5-2.", or "5-2" alone on a line, until the next ad heading or section heading) is that ad's and wins; a
+  shared line that lists every ad in turn ("5-1 The chain he'd never buy himself · 5-2 Your whole list", or one
+  "5-2: ..." paragraph per ad) is split per ad (`splitByAd`, only when the words start with an ad number); hints
+  (`<span data-ph>`) are not words; words run on over following paragraphs until a label, a heading or a blank line.
+  The browser sends only the picked file ids, names and links: an ad whose brief has no headline or primary text is
+  refused with the ads named and NOTHING is made ("Refuse until the brief has it", Cole). The single Launch to Meta on a
+  Production file now reads the brief the same way and is named "5-3 | Still" too. Team only: the batch routes are not
+  on brandguard's client rules. Tests: test-launch.mjs 18 (briefCopy shapes incl. Ice & Gold #5's real brief, prep,
+  refusal, create with the brief's words, per-row duplicate, routes). NOT tested live: a real batch create (the dry
+  run was run against Ice & Gold #5 on the local pair: 5 ads, the brief's own lines per ad, nothing written).

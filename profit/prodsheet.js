@@ -443,6 +443,7 @@ async function open(H, id, opts = {}) {
       ${T.client ? '' : '<button type="button" class="ps-btn" data-upload>Upload</button>'}
       ${!T.client && ads.length ? (sentAd ? '<button type="button" class="ps-btn" data-send="">Take it back from the client</button>' : '<button type="button" class="ps-btn" data-send="ad">Send to the client</button>') + '<button type="button" class="ps-btn" data-share>Copy client link</button>' : ''}
       ${ads.length ? `<button type="button" class="ps-btn" data-dlall>Download all (${ads.length})</button>` : ''}
+      ${!T.client && n('approved') > 1 && window.LaunchToMeta && window.LaunchToMeta.openBatch ? `<button type="button" class="ps-btn" data-launchall>Launch ${n('approved')} to Meta</button>` : ''}
       ${n('review') > 1 && canCall ? `<button type="button" class="ps-btn" data-allok>Approve all ${n('review')}</button>` : ''}
       ${n('review') && canCall ? `<button type="button" class="ps-btn pri" data-allrev>${n('review') === 1 ? 'Review it' : `Review all ${n('review')}`}</button>` : ads.length ? '<button type="button" class="ps-btn" data-allrev>Open the review</button>' : ''}</div>`;
     const ups = UP.length ? `<div class="ps-ups">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : '';
@@ -722,6 +723,8 @@ async function open(H, id, opts = {}) {
     $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev, data: T.data }));
     const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev, data: T.data }); };
     $$('[data-launchf]', host).forEach(b => b.onclick = () => window.LaunchToMeta.open({ act: c().act_id, tok: H.S.tok, workFile: b.dataset.launchf, onDone: afterRev }));
+    /* every approved ad of the card into one ad set, with the brief's copy (2026-10-14) */
+    const la = $('[data-launchall]', host); if (la) la.onclick = () => window.LaunchToMeta.openBatch({ act: c().act_id, tok: H.S.tok, cardId: id, onDone: afterRev, onBrief: () => { T.tab = 'brief'; paint(); } });
     const dla = $('[data-dlall]', host); if (dla) dla.onclick = async () => {
       const files = (T.data.ads || []).map(a => T.data.files.find(f => f.id === a.file_id)).filter(Boolean);
       for (const f of files) { const x = document.createElement('a'); x.href = f.download || f.url; x.download = f.name || ''; document.body.appendChild(x); x.click(); x.remove(); await new Promise(r => setTimeout(r, 400)); }
