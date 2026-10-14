@@ -1961,3 +1961,6 @@ my Google guy goes, no, we shouldn't do that... is that true? Can we learn from 
   (`briefData`, after the same freshness re-pull), so the morning card says "no client daily today, the weekly report
   covers it" and still shows yesterday against plan. #daily-briefs therefore holds one draft per brand per morning, and
   only drafts (daily, weekly, monthly). Cole may rename the channel in Slack (the id stays C0C8UA53U3W).
+- **Quiet when empty (2026-10-14):** a brand with no numbers, no lines, nothing owed and no weekly line gets no card that
+  day (`morningCardDone` 'nothing to say'). First live run 2026-10-14 5am: 9 cards posted, every daily draft landed in
+  #daily-briefs (C0C8UA53U3W); SpeedIn (not launched) got an empty card, which this stops.

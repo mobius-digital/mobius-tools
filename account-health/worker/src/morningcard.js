@@ -300,6 +300,9 @@ async function readiness(env, a, today) {
 export async function postCard(env, d, a, today, shared = {}) {
   const c = await buildCard(env, d, a, today, shared);
   const { _rows, _tasks, ...card } = c;
+  /* Nothing to say = no post (2026-10-14: SpeedIn, not launched, got a card reading only "Yesterday's numbers are not
+     in yet"). A brand with no numbers, no lines, nothing owed and no weekly line stays quiet that day. */
+  if (!(card.items || []).length && !card.owes && !card.weekly && !(card.leaks || []).length && /not in yet/.test(card.nums)) return { ...card, empty: true };
   const m = cardMessage(card);
   const p = await d.slackPost(env, a.slack_channel, m.text, m.blocks, { username: 'Locus' });
   card.channel = (p && p.channel) || a.slack_channel; card.ts = (p && (p.ts || p.message?.ts)) || null;
@@ -357,6 +360,7 @@ export async function morningCardTick(env, d) {
       if (!ready.ok && hour < from + WAIT_HOURS) { out.waiting.push(`${a.name} (${ready.why})`); continue; }
       try {
         const c = await postCard(env, d, a, today, shared);
+        if (c.empty) { st.acts[a.act_id] = 'nothing to say'; (out.quiet = out.quiet || []).push(a.name); continue; }
         st.acts[a.act_id] = c.ts ? 'posted' : 'posted, no ts';
         out.posted.push(a.name + (ready.ok ? '' : ` (${ready.why})`));
       } catch (e) {
