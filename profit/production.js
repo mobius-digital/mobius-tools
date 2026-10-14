@@ -20,7 +20,7 @@ const COLS = [
   { k: 'ready', label: 'Ready', hint: 'approved, not launched', dot: 'var(--good)' },
   { k: 'live', label: 'Live', hint: 'in the account', dot: 'var(--c-email)' },
 ];
-const FMT = { Static: 'var(--brand)', Video: 'var(--bad)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-email)' };
+const FMT = { Static: 'var(--brand)', Video: 'var(--c-email)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-google)' }; /* never good / warn / bad: those mean status */
 
 let H = null, D = null, LOADING = null, BRAND = 'all', FORMAT = 'all', ALL_LIVE = false, DRAG = null;
 
@@ -178,7 +178,7 @@ function paint() {
   $('#main').innerHTML = `<div class="pd">
     <div class="pd-head"><div><h1>Production</h1><p>Every ad from brief to live. Click a card to write its brief, drag it to move it. ${nWork} ads in progress, ${nReady} ready to launch.</p></div>
       <div class="pd-r"><span class="pd-sync">${D.mirror === false ? 'Asana mirror off' : `Mirrored to Asana${D.synced_at ? ` · synced ${ago(D.synced_at)}` : ''}`}</span><button class="pd-btn pri" data-newbrief>+ New brief</button></div></div>
-    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><span class="note">Click a card to write its brief. Late cards show in coral.</span></div>
+    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><span class="note">Red outline = past its due date and not approved yet · amber = waiting on the client · green = approved</span></div>
     <div class="pd-wrap"><div class="pd-grid">${COLS.map(col).join('')}</div></div>
   </div>`;
   wire();
@@ -216,7 +216,7 @@ async function move(id, to) {
   if (!c || c.board === to) return;
   const from = c.board, t0 = today();
   c.board = to; c.since = t0;
-  if (to === 'live') c.late = false; else c.late = !!c.due && c.due < t0;
+  if (to === 'live' || to === 'ready') c.late = false; else c.late = !!c.due && c.due < t0;
   paint();
   try {
     const r = await post('/api/production/move', { id, to });

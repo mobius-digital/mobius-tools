@@ -25,7 +25,7 @@ Locus Studio, all approved: "Early Bird AI: Gold Link, letters, Cuban" (0c9c72bb
 AI: Lariat, Spiral, Water Drop" (8fe8b9ef9eb72d71442d4ac1, 4 ads). Real Shopify photos as references + product
 fingerprints; Studio scored 9 to 10 of 10 on every product; checked by eye against the real pieces; two fixes with
 Change with AI (Cuban offer badge into the centre square; wrong jewelry removed from the Notes ad). About $3.80.
-Preview: docs/bfcm-ice-and-gold/ads/out/_sheet_ai.jpg. The earlier real-photo batch is archived. No list-building ads
+Preview: docs/bfcm-ice-and-gold/ads/out/_sheet_ai.jpg. **Where they live:** Locus > Creative > AI ads (Studio, Launch to Meta on each ad); Frame > Ice & Gold > Ad Concepts > "BFCM Early Bird - Free studs over $125 (Nov 2 to 25)" (EB-1 to EB-9, folder 165dd288-a0dd-4c3a-91af-3ef42b8628cc); Asana BFCM 2026 task 1219215692646595 (Briefs + Ads built ticked). Ahsan loads them by Oct 29. The earlier real-photo batch is archived. No list-building ads
 (Cole, Oct 14). The 5 creator video lines wait for creators (studs to them by about Oct 27).
 
 Sources: build calendar (docs/bfcm-ads-gameplan-2026-10-13.md), Locus Season (p_season_phase, brand_ice_and_gold),
