@@ -208,6 +208,27 @@ Studio cost: about $0.34 an ad on Dartee so far, so 15 ads is about $5, up to ab
 
 ---
 
+## The split: AI vs templates vs real photos (Oct 14, proposed, waiting on Cole)
+
+Cole's question: where do the ads come from, and in what share? Dartee statics, last 90 days, Triple Whale
+lastPlatformClick, sorted by eye into three kinds:
+
+| Kind | Spend | ROAS | Best of them |
+|---|---|---|---|
+| Clean belt hero + one short line (studio-style product shot, often rendered) | $8.8K | 2.19 | 257 B 6.05x, 312 B 5.64x, 353-1 5.39x, 350-1 2.01x on $4.3K |
+| Designed template (review card, tweet card, text-heavy) | $4.9K | 1.86 | 261-3 tweet 2.55x, 298 A review 1.99x on $2K |
+| AI-made scene (new since Sep 18: Bone Dry, Muni, marker) | $1.3K | 1.64 | 365-16 2.79x, 376-3 Bone Dry 2.11x |
+
+Read: the AI scenes are too new and too thin to judge (365 alone had 47 ads), not worse. Bone Dry is the second-best
+static of the last two weeks (2.11x, behind the review card 2.27x). The library is old: 41 of its 64 photos are from 2024.
+
+Proposed rule for every batch (20 ads = 8 / 8 / 4):
+- **40% AI-made scenes** (Studio draws the world, product fingerprint + score on, one colourway per ad, Bone Dry style).
+- **40% templates on proven winners** (the 12 shared layouts; offer-first for promo batches, review and tweet cards).
+- **20% real photos, only from NEW shoots** (Justin and James, creators). No more 2024 library shots.
+- Each kind in its own ad set so it is judged ad set first; after two weeks move the split toward the winner.
+- Promo batches lean templates (offer-first won BFCM 2025): 30 / 50 / 20.
+
 ## Next batches (outline only; written after Early Bird is approved)
 
 - **Early access list build, 3 (Nov 17 to 22):** the only ask is the signup; the real offer (free Raincheck with every
