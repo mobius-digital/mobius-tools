@@ -298,6 +298,13 @@ export async function makeBrief(env, d, act, it, m, who, { later = null } = {}) 
   try { const a = await briefToAsana(env, d, act, doc, row, it, m, who); return { num, gid: a.gid, url: a.url, id }; }
   catch (e) { await env.DB.prepare(`DELETE FROM p_br_batch WHERE id = ?1`).bind(id).run().catch(() => {}); throw e; }
 }
+/** The Asana user for a team member's first name (the roster's email first, then a name that starts the same). */
+export async function asanaUserFor(env, d, doc, name) {
+  if (!name || !doc || !doc.workspace || !d.asanaAll) return null;
+  const users = (await d.asanaAll(env, `/users?workspace=${doc.workspace}&opt_fields=name,email`).catch(() => [])) || [];
+  const w = String(name).toLowerCase(), mail = (ROSTER.find(x => x.name.toLowerCase() === w) || {}).email;
+  return (mail && users.find(u => String(u.email || '').toLowerCase() === mail)) || users.find(u => String(u.name || '').toLowerCase().startsWith(w)) || null;
+}
 /** The Asana half: the numbered task (the number moves up when Asana already has a newer one), its section and
  *  assignee, then the card row is linked to it. */
 async function briefToAsana(env, d, act, doc, row, it, m, who) {
@@ -309,12 +316,7 @@ async function briefToAsana(env, d, act, doc, row, it, m, who) {
   const recent = await d.asana(env, `/tasks?project=${doc.project_gid}&modified_since=${encodeURIComponent(since)}&opt_fields=name&limit=100`).catch(() => []);
   const top = Math.max(0, ...(Array.isArray(recent) ? recent : []).map(t => +numOf(t.name) || 0));
   if (top >= num) { num = top + 1; await env.DB.prepare(`UPDATE p_br_batch SET num = ?2 WHERE id = ?1`).bind(row.id, String(num)).run(); }
-  let assignee = null;
-  if (it.owner && doc.workspace) {
-    const users = (await d.asanaAll(env, `/users?workspace=${doc.workspace}&opt_fields=name,email`).catch(() => [])) || [];
-    const w = it.owner.toLowerCase(), mail = (ROSTER.find(x => x.name.toLowerCase() === w) || {}).email;
-    assignee = (mail && users.find(u => String(u.email || '').toLowerCase() === mail)) || users.find(u => String(u.name || '').toLowerCase().startsWith(w)) || null;
-  }
+  const assignee = await asanaUserFor(env, d, doc, it.owner);
   const from = m ? `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}. Confirmed by ${sEsc(who)} in Locus.</em>\n` : `<em>Added in Locus Production by ${sEsc(who)}.</em>\n`;
   const html = briefFor(it.text).replace('<body>', `<body>${from}`);
   const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });

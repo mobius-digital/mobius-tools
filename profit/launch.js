@@ -13,7 +13,9 @@
  * the existing /api/meta/write (kind resume) and /api/meta/undo.
  *
  *   window.LaunchToMeta.open({ act, tok, studioAd | asset | workFile, onDone })   the Launch window, one ad
- *   window.LaunchToMeta.openBatch({ act, tok, cardId, onDone, onBrief })  every approved ad of a Production card (2026-10-14):
+ *   window.LaunchToMeta.openBatch({ act, tok, cardId, onDone, onBrief, queue, step, total })  every approved ad of a Production card (2026-10-14):
+ *       queue = [{cardId, act, num, title}] more cards to launch after this one (the board's bulk Launch, 2026-10-15):
+ *       one window per card in turn, each test picks its own ad set; Done reads "Next card" while the queue holds any.
  *       one ad set, the brief's copy (shared lines, or the lines under an ad's own heading), names "5-2 | Still",
  *       Check it (a dry run per ad), Create N paused. An ad whose brief has no headline or primary text cannot be
  *       picked until the brief has it (nothing is typed here); onBrief opens the brief.
@@ -125,7 +127,8 @@ textarea.ln-in{min-height:64px;resize:vertical;line-height:1.45}
 .lnb-vid{width:64px;aspect-ratio:4/5;border-radius:var(--r-sm,8px);border:1px solid var(--line);background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
 .lnb-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:13px;color:var(--ink)}
 .lnb-top b{font-weight:650}
-.lnb-top .lnb-done{font-size:11.5px;color:var(--muted)}
+.lnb-top .lnb-step{font-size:12px;font-weight:500;color:var(--muted);margin-left:8px}
+.lnb-done{font-size:11.5px;color:var(--muted)}
 .lnb-top .lnb-done a{color:inherit}
 .lnb-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px}
 @media (max-width:640px){.lnb-g{grid-template-columns:1fr}}
@@ -284,9 +287,12 @@ const SRC_TAG = { shared: 'from the brief', ad: "this ad's own line in the brief
 function openBatch(o) {
   if (o.tok) L.tok = o.tok;
   const { box, close } = sheet(`<h3>Launch to Meta</h3><p class="ln-say">Reading the card, the brief and the brand's ad sets. A few seconds.</p>`);
-  const done = changed => { close(); if (changed && o.onDone) o.onDone(); };
+  const queue = Array.isArray(o.queue) ? o.queue : [];
+  const stepNote = o.total > 1 ? ` <span class="lnb-step">Card ${o.step || 1} of ${o.total}</span>` : '';
+  const nextCard = () => { const q = queue[0]; openBatch({ ...o, act: q.act || o.act, cardId: q.cardId, queue: queue.slice(1), step: (o.step || 1) + 1, onBrief: null }); };
+  const done = changed => { close(); if (queue.length) { nextCard(); return; } if ((changed || o.changed) && o.onDone) o.onDone(); };
   const fail = e => {
-    box.innerHTML = `<h3>Launch to Meta</h3><p class="ln-msg bad">${esc(e.message)}</p><div class="ln-foot"><button class="btn" data-ln="close">Close</button></div>`;
+    box.innerHTML = `<h3>Launch to Meta${stepNote}</h3><p class="ln-msg bad">${esc(e.message)}</p><div class="ln-foot"><button class="btn" data-ln="close">${queue.length ? 'Skip to the next card' : 'Close'}</button></div>`;
     box.querySelector('[data-ln="close"]').onclick = () => done(false);
   };
   let P = null, picked = new Set(), checked = null, made = false;
@@ -318,7 +324,7 @@ function openBatch(o) {
     const p = P;
     const opt = s => `<option value="${esc(s.id)}" ${s.id === p.suggested ? 'selected' : ''}>${esc(s.name)} · ${esc(s.status === 'ACTIVE' ? 'on' : 'off')}${s.campaign ? ` · ${esc(s.campaign)}` : ''}${s.id === p.suggested ? ' (suggested)' : ''}</option>`;
     const test = p.test ? `<p class="ln-test"><b>Test #${esc(p.test.num)}</b>${p.test.title ? `: ${esc(p.test.title)}` : ''}. Every ad is tied to this test in the test library by its name.</p>` : '';
-    box.innerHTML = `<h3 data-ln="title">${esc(title())}</h3>
+    box.innerHTML = `<h3 data-ln="title">${esc(title())}${stepNote}</h3>
       <p class="ln-say">Every ad goes into ONE ad set, made <b>paused</b>, so nothing spends until someone turns it on. The words come from the brief: a Headline, Primary text or Landing page line written once is shared; the same line under an ad's own heading is that ad's. Check it first: the dry run shows the ad set before and after.</p>
       ${test}
       ${(p.warnings || []).length ? `<div class="ln-warn">${p.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
@@ -408,7 +414,8 @@ function openBatch(o) {
       <div>${r.rows.map(x => `<div class="lnb-res" data-res="${esc(x.file_id)}"><div>${x.ok ? `<span class="ok">Made</span> ${esc(x.name)}` : `<span class="bad">Not made</span> ${esc(x.name || x.ad)}: ${esc(x.error)}`}</div>
         <div class="acts">${x.ok && x.ads_manager ? `<a class="btn sm" href="${esc(x.ads_manager)}" target="_blank" rel="noopener">Ads Manager</a>` : ''}${x.ok && x.launch.write ? `<button class="btn sm" data-undo="${esc(x.file_id)}">Undo</button>` : ''}</div></div>`).join('')}</div>
       <p class="ln-msg" data-ln="msg"></p>
-      <div class="ln-foot"><button class="btn primary" data-ln="close">Done</button></div>`;
+      <div class="ln-foot"><button class="btn primary" data-ln="close">${queue.length ? `Next card (${(o.step || 1) + 1} of ${o.total})` : 'Done'}</button></div>`;
+    if (made) o.changed = true;
     box.querySelector('[data-ln="close"]').onclick = () => done(made);
     box.querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => {
       const x = ok.find(y => y.file_id === b.dataset.undo); if (!x) return;

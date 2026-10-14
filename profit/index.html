@@ -2289,14 +2289,14 @@
   </div>
 </div>
 
-<!-- The phone's navigation: the four daily destinations in thumb reach, plus
-     More, which opens the full rail as the drawer. CSS decides visibility -
+<!-- The phone's navigation: the four daily destinations in thumb reach (Home, Ads, Work, Store;
+     Reports sits under More since 2026-10-15), plus More, which opens the full rail as the drawer. CSS decides visibility -
      the bar exists only under 720px; tablets keep the rail (iPad convention). -->
 <nav class="tabbar" id="tabbar" aria-label="Primary">
   <button data-t="overview" data-grp="home"><svg class="ic"><use href="#i-overview"/></svg><span>Home</span></button>
   <button data-t="meta" data-grp="ads"><svg class="ic"><use href="#i-ads"/></svg><span>Ads</span></button>
+  <button data-t="production" data-grp="work"><svg class="ic"><use href="#i-circle-check"/></svg><span>Work</span></button>
   <button data-t="store" data-grp="store"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
-  <button data-t="brief" data-grp="reports"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
 </nav>
 
@@ -2314,11 +2314,11 @@
 <script src="tasks.js?v=3"></script>
 <script src="review-ui.js?v=8"></script>
 <script src="prodsheet.js?v=11"></script>
-<script src="production.js?v=8"></script>
+<script src="production.js?v=9"></script>
 <script src="sop.js?v=3"></script>
 <script src="expenses.js?v=1"></script>
 <script src="studio.js?v=33"></script>
-<script src="launch.js?v=4"></script>
+<script src="launch.js?v=5"></script>
 <script src="season.js?v=18"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=5"></script>
@@ -5200,7 +5200,7 @@ function show(tab, opt) {
   const rtl = document.getElementById('railTools'); if (rtl) rtl.classList.toggle('on', grp === 'tools');
   seasonRail();
   const tbMore = document.getElementById('tbMore');
-  if (tbMore) tbMore.classList.toggle('on', !['home', 'ads', 'store', 'reports'].includes(grp));
+  if (tbMore) tbMore.classList.toggle('on', !['home', 'ads', 'work', 'store'].includes(grp));
   /* The hub rail (2026-10-07): the group holding the open page unfolds, every other
      group folds to its heading. A heading click (wired in railGroups) opens a group
      to browse it; the next page change folds it again. */

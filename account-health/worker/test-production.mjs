@@ -5,7 +5,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { boardOf } from './src/asana-brand.js';
-import { formatOf, cardOf, listBoard, moveCard, handleProduction } from './src/production.js';
+import { formatOf, cardOf, listBoard, moveCard, handleProduction, setField, archiveCard, restoreCard, duplicateCard } from './src/production.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -117,6 +117,51 @@ await check('routes: team only (401, 403 for a client), GET the board, POST move
   const b1 = await call('/api/production/brief', { method: 'POST', body: { act: 'brand_zeta', text: 'x' } }); assert.equal(b1.status, 400); assert.equal(b1.body.error, 'Pick the brand.');
   const b2 = await call('/api/production/brief', { method: 'POST', body: { act: 'brand_alpha', text: '  ' } }); assert.equal(b2.status, 400); assert.equal(b2.body.error, 'Name the brief.');
   assert.equal((await call('/api/production/move')).status, 404);
+});
+
+await check('the board from the outside (2026-10-15): one field at a time (owner and due reach Asana, format lives in the page), archive = off the board + Asana complete, restore puts it back, duplicate = an Iteration page pointing at the card', async () => {
+  sections = [{ gid: 'S1', name: 'Creative Briefs' }, { gid: 'S2', name: 'Creative Studio' }, { gid: 'S3', name: 'Ready to Launch' }];
+  db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
+  const dd = { ...d, asanaAll: async (e, path) => /\/users\?/.test(path) ? [{ gid: 'U_RAVO', name: 'Ravo Editor', email: 'ravo@go-mobius-digital.com' }, { gid: 'U_AHSAN', name: 'Ahsan Abidi', email: 'ahsan@go-mobius-digital.com' }] : [] };
+  db.prepare(`UPDATE p_br_doc SET data_json = ? WHERE act_id = 'brand_alpha'`).run(JSON.stringify({ project_gid: 'P1', workspace: 'W1', last_sync: '2026-10-13T10:00:00Z' }));
+  calls = [];
+  const f1 = await setField(env, dd, { id: 'c1', owner: 'Ravo', due: '2026-10-20' }, 'ahsan@go-mobius-digital.com');
+  assert.equal(f1.ok, true); assert.equal(f1.card.assignee, 'Ravo'); assert.equal(f1.card.due, '2026-10-20'); assert.equal(f1.asana.written, true);
+  const put = calls.find(c => c.path === '/tasks/T1' && c.init && c.init.method === 'PUT');
+  assert.deepEqual(put.init.body, { due_on: '2026-10-20', assignee: 'U_RAVO' }, 'the Asana task gets the date and the person');
+  const f2 = await setField(env, dd, { id: 'c1', format: 'Video' }, 'x');
+  assert.equal(f2.card.format, 'Video'); assert.equal(JSON.parse(db.prepare(`SELECT brief_json FROM p_br_batch WHERE id = 'c1'`).get().brief_json).format, 'Video', 'the format lives in the page');
+  calls = [];
+  const f3 = await setField(env, dd, { id: 'c1', owner: '' }, 'x'); assert.equal(f3.card.assignee, ''); assert.deepEqual(calls[0].init.body, { assignee: null });
+  await assert.rejects(setField(env, dd, { id: 'c1', due: 'Friday' }, 'x'), e => e.status === 400);
+  await assert.rejects(setField(env, dd, { id: 'c1' }, 'x'), e => e.status === 400 && /Nothing to change/.test(e.message));
+  await assert.rejects(setField(env, dd, { id: 'c1', format: 'Banner' }, 'x'), e => e.status === 400);
+  const f4 = await setField(env, dd, { id: 'c5', due: '2026-11-01' }, 'x'); assert.equal(f4.asana.why, 'This card has no Asana task.');
+  /* archive */
+  calls = [];
+  const a = await archiveCard(env, dd, { id: 'c1' }, 'ahsan@go-mobius-digital.com');
+  assert.equal(a.ok, true); assert.equal(a.was, 'review'); assert.equal(a.asana.done, true);
+  assert.deepEqual(calls[0], { path: '/tasks/T1', init: { method: 'PUT', body: { completed: true } } });
+  assert.ok(!(await listBoard(env, dd, { act: 'brand_alpha' })).cards.some(c => c.id === 'c1'), 'off the board');
+  assert.deepEqual({ ...db.prepare(`SELECT stage, board_stage FROM p_br_batch WHERE id = 'c1'`).get() }, { stage: 'done', board_stage: 'done' });
+  calls = [];
+  const back = await restoreCard(env, dd, { id: 'c1', to: 'making' }, 'x');
+  assert.equal(back.to, 'making'); assert.deepEqual(calls[0].init.body, { completed: false }); assert.equal(back.asana.moved, true);
+  assert.equal((await listBoard(env, dd, { act: 'brand_alpha' })).cards.find(c => c.id === 'c1').board, 'making', 'back on the board');
+  /* duplicate: Asana connected and the mirror on, so the new task is made and the Iteration page written into it */
+  calls = [];
+  const dup = await duplicateCard(env, dd, { id: 'c2' }, 'ahsan@go-mobius-digital.com');
+  assert.equal(dup.title, 'UGC unboxing (iteration)'); assert.ok(dup.id && dup.id !== 'c2'); assert.equal(dup.num, 103, 'the next number after 102');
+  const row = db.prepare(`SELECT title, act_id, board_stage, brief_json, asana_gid FROM p_br_batch WHERE id = ?`).get(dup.id);
+  assert.equal(row.act_id, 'brand_alpha'); assert.equal(row.board_stage, 'brief');
+  const page = JSON.parse(row.brief_json); assert.equal(page.format, 'UGC'); assert.match(page.html, /<h2>Iteration<\/h2>/); assert.match(page.html, /<strong>Iterating on<\/strong><\/p><p>102-1/, 'points at the card it comes from');
+  assert.ok(calls.some(c => c.init && c.init.method === 'POST' && c.path.startsWith('/tasks?')), 'the Asana task is made');
+  /* the routes: team only */
+  const call = async (path, body, client) => { const h = new Headers({ authorization: 'Bearer team' }); if (client) h.set('x-client', '1'); const url = new URL('https://x' + path); const r = await handleProduction(new Request(url, { method: 'POST', headers: h, body: JSON.stringify(body) }), env, url, url.pathname, json, dd); return { status: r.status, body: await r.json() }; };
+  for (const [pth, body] of [['/api/production/field', { id: 'c2', due: '2026-10-21' }], ['/api/production/card/delete', { id: 'c2' }], ['/api/production/card/restore', { id: 'c2', to: 'making' }], ['/api/production/duplicate', { id: 'c2' }]])
+    assert.equal((await call(pth, body, true)).status, 403, `${pth} is the team's`);
+  assert.equal((await call('/api/production/field', { id: 'c2', launch_on: '2026-10-30' })).body.card.launch_on, '2026-10-30');
+  assert.equal((await call('/api/production/field', { id: 'nope', due: '' })).status, 404);
 });
 
 console.log(`\n${n} passed, ${bad} failed`);

@@ -3251,3 +3251,35 @@ Mock: https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (page Review redesign: A
   the card exists ("its Asana task is being made"); the Asana link shows on the card once the background half is done.
   A brief made by New brief opens on the starting page with grey hints (the server reads the untouched Asana template as
   blank). prodsheet.js?v=11, production.js?v=8.
+
+## 2026-10-15: THE BOARD, Asana-grade (production.js?v=9, launch.js?v=5). Read before touching the Production board.
+
+Cole: "ours looks like the downgraded version of Asana", and the whole of Locus on iPad and iPhone. Audit, plan and the
+approved mocks (desktop, iPad, iPhone): https://claude.ai/artifact/CiYkbvV4PUNn4tojz9r9Cn. His picks: the card sheet stays
+the centred sheet; "Delete card" = ARCHIVE (off the board, Asana task completed, restorable); the phone bar is Home, Ads,
+Work, Store, More (Reports under More); phases 1 to 4 in order. All four are built; the Locus-wide phone pass is next.
+- **Board** (`.pd-wrap` flex, `--pd-h` = what the window leaves under the filter bar): 268px columns (300 on iPad), each
+  `.pd-cards` its own vertical scroll under a sticky header, the board scrolls sideways, a column collapses to a 44px rail
+  (`pd_collapsed` in localStorage), Sort (due / number / newest, `pd_sort`), cards with rows that only show when there is
+  something to say (waiting on the client, open notes, uploads, approved, result pills). A repaint keeps every column's
+  scroll; `patch(id)` redraws one card in place.
+- **Act from the outside**: right-click, the pencil, or "." on a focused card = the menu (Open, Open in Asana, Copy card
+  link, Move to, Assign to, Due date, Format, Send to the client, Launch to Meta (Ready only), Duplicate as iteration,
+  Delete card); the avatar, the date and the format pill on the card open the same pickers (`pick(kind, ids)`); column
+  header menu (collapse, new brief, select all, sort). Keys: arrows between cards, Enter opens, D / M / A pickers, X or
+  Space selects, Shift+click a range, Ctrl/Cmd+A the column, C copies the link, Delete archives, Esc clears. Menus are
+  `showMenu()` (one helper; a bottom sheet under 600px or on a long press). Writes: `/api/production/field`
+  (owner / due / launch_on / format, one field at a time; owner and due reach Asana), `card/delete` (archive; the toast
+  has Undo = `card/restore {id, to}`), `duplicate` (an Iteration page pointing at the card, then the new card opens).
+- **Select many**: the tick on hover, Ctrl/Cmd-click, Shift for a range in a column, or Select in the bar (phone: Select
+  mode, tap to pick). The floating bar: Move to, Assign, Due, Send to client, Launch N to Meta, Copy links, Delete.
+  Bulk = the per-card routes in a loop (optimistic, each failure named in the toast). Dragging a selected card drags them
+  all. Launch N across cards = `LaunchToMeta.openBatch({..., queue, step, total})`: one window per card in turn (each test
+  picks its own ad set), Done reads "Next card (2 of 3)"; a card with nothing approved shows the reason and "Skip to the
+  next card". A single Ready card with no approved ad opens its Ads tab instead.
+- **iPhone** (under 600px): one column per screen (`.pd-seg` picker, swipe = scroll-snap, `pd_col` remembered), Filters
+  button = bottom sheet with 44px chips (brand, format, sort), long press = the menu as a bottom sheet, the bulk bar sits
+  above the tab bar. The phone tab bar is Home / Ads / Work (`production`) / Store / More.
+- Server: `setField`, `archiveCard`, `restoreCard`, `duplicateCard` in account-health production.js; `asanaUserFor` in
+  meetings.js. Tests: account-health `node test-production.mjs` (8). Checked on the local pair against real data at 1440,
+  768 and 375 (menus, pickers, selection, keys, collapse, phone picker and sheets). No bulk write was made to a real card.

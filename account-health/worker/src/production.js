@@ -16,9 +16,9 @@
  * client's own Production (GET /api/production for a client = Needs you + Coming up), the Asana mirror switch.
  */
 import { boardOf, BOARD_SECTION, ensureBoard, readDoc } from './asana-brand.js';
-import { makeBrief } from './meetings.js';
+import { makeBrief, asanaUserFor } from './meetings.js';
 import { ROSTER } from './actions.js';
-import { ensureWork, mirrorOn, workRoutes, clientBoard, fileUrl } from './prodwork.js';
+import { ensureWork, mirrorOn, workRoutes, clientBoard, fileUrl, templateHtml, saveCard, normBrief } from './prodwork.js';
 
 export const COLUMNS = ['brief', 'making', 'review', 'ready', 'live'];
 const STAGE_OF = { brief: 'idea', making: 'production', review: 'production', ready: 'production', live: 'live' };
@@ -161,8 +161,91 @@ export async function handleProduction(request, env, url, path, json, d) {
       const made = await makeBrief(env, d, act, it, null, nameOfEmail(who), { later: d.waitUntil || null });
       return json({ ok: true, ...made });
     }
+    /* The board from the outside (2026-10-15, the Asana-grade board): one field from a card's popover, a card archived
+       from the board's menu or the bulk bar, put back, or duplicated as an iteration. Team only (a client was refused above). */
+    if (path === '/api/production/field') return json(await setField(env, dd, body, who));
+    if (path === '/api/production/card/delete') return json(await archiveCard(env, dd, body, who));
+    if (path === '/api/production/card/restore') return json(await restoreCard(env, dd, body, who));
+    if (path === '/api/production/duplicate') return json(await duplicateCard(env, dd, body, who));
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status || 500); }
+}
+
+const FORMATS = ['Static', 'Video', 'UGC', 'Carousel'];
+const asanaDocOf = async (env, act) => safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(act).first().catch(() => null))?.data_json, null);
+const rowById = async (env, id) => { const r = await env.DB.prepare(`SELECT * FROM p_br_batch WHERE id = ?1`).bind(String(id || '')).first(); if (!r) throw Object.assign(new Error('No such card.'), { status: 404 }); return r; };
+
+/** One field changed on the card itself: owner, due, launch day or format. The Asana task follows for the owner and the
+ *  due date (mirror on); the format lives in the brief's page. Answers the card as the board shows it. */
+export async function setField(env, d, body, who) {
+  await ensureWork(env);
+  const r = await rowById(env, body.id);
+  const set = [], vals = [];
+  let asana = { written: false, why: '' };
+  const put = {};
+  if ('owner' in body) { const v = clean(body.owner, 40) || null; set.push('assignee_name'); vals.push(v); put.assignee = v; }
+  if ('due' in body) { if (body.due && !/^\d{4}-\d{2}-\d{2}$/.test(body.due)) throw Object.assign(new Error('Pick a date.'), { status: 400 }); set.push('due_on'); vals.push(body.due || null); put.due_on = body.due || null; }
+  if ('launch_on' in body) { if (body.launch_on && !/^\d{4}-\d{2}-\d{2}$/.test(body.launch_on)) throw Object.assign(new Error('Pick a date.'), { status: 400 }); set.push('launch_on'); vals.push(body.launch_on || null); }
+  if ('format' in body) {
+    if (!FORMATS.includes(body.format)) throw Object.assign(new Error('Pick a format.'), { status: 400 });
+    const b = normBrief({ ...(safe(r.brief_json, null) || { v: 2, html: '' }), v: 2, format: body.format });
+    set.push('brief_json'); vals.push(JSON.stringify(b));
+  }
+  if (!set.length) throw Object.assign(new Error('Nothing to change.'), { status: 400 });
+  if (('assignee' in put || 'due_on' in put) && r.asana_gid && d.asana) {
+    if (!(await mirrorOn(env))) asana.why = 'The Asana mirror is off.';
+    else {
+      try {
+        const body2 = {};
+        if ('due_on' in put) body2.due_on = put.due_on;
+        if ('assignee' in put) { const u = put.assignee ? await asanaUserFor(env, d, await asanaDocOf(env, r.act_id), put.assignee) : null; body2.assignee = u ? u.gid : null; if (put.assignee && !u) asana.why = `No "${put.assignee}" in Asana; the task's assignee was cleared.`; }
+        await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: body2 });
+        asana = { written: true, why: asana.why };
+      } catch (e) { asana = { written: false, why: e.message }; }
+    }
+  } else if (('assignee' in put || 'due_on' in put) && !r.asana_gid) asana.why = 'This card has no Asana task.';
+  await env.DB.prepare(`UPDATE p_br_batch SET ${set.map((k, i) => `${k} = ?${i + 2}`).join(', ')}, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, ...vals).run();
+  const row = await rowById(env, r.id);
+  return { ok: true, card: cardOf(row, await d.listBrands(env), d.centralDate ? d.centralDate() : centralToday()), asana, by: nameOfEmail(who) };
+}
+
+/** "Delete card" on the board = archived: off the board (stage done), the Asana task marked complete (mirror on).
+ *  Nothing is destroyed; restoreCard puts it back where it was. */
+export async function archiveCard(env, d, body, who) {
+  await ensureWork(env);
+  const r = await rowById(env, body.id);
+  const was = r.board_stage || boardOf(r.asana_section, r.stage) || 'brief';
+  let asana = { done: false, why: '' };
+  if (r.asana_gid && d.asana) {
+    if (!(await mirrorOn(env))) asana.why = 'The Asana mirror is off.';
+    else { try { await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: true } }); asana = { done: true, why: '' }; } catch (e) { asana = { done: false, why: e.message }; } }
+  } else if (!r.asana_gid) asana.why = 'This card has no Asana task.';
+  await env.DB.prepare(`UPDATE p_br_batch SET board_stage = 'done', stage = 'done', board_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
+  return { ok: true, id: r.id, was, asana, by: nameOfEmail(who) };
+}
+export async function restoreCard(env, d, body, who) {
+  await ensureWork(env);
+  const r = await rowById(env, body.id);
+  const to = COLUMNS.includes(body.to) ? body.to : 'brief';
+  if (r.asana_gid && d.asana && await mirrorOn(env)) await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: false } }).catch(() => {});
+  const m = await moveCard(env, d, { id: r.id, to }, who);
+  return { ok: true, id: r.id, to, asana: m.asana };
+}
+
+/** "Duplicate as iteration": a new numbered brief under the same brand whose page starts from the Iteration template,
+ *  already pointing at the card it comes from. Awaited end to end (the Asana task, then the page into it) so the
+ *  iteration page is what Asana holds. */
+export async function duplicateCard(env, d, body, who) {
+  await ensureWork(env);
+  const r = await rowById(env, body.id);
+  const it = { text: clean(`${r.title || 'Untitled'} (iteration)`, 300), owner: '', due: '' };
+  const by = nameOfEmail(who);
+  const made = (await mirrorOn(env)) && (await hasAsana(env, r.act_id)) ? await makeBrief(env, d, r.act_id, it, null, by) : await localBrief(env, r.act_id, it, by);
+  const old = safe(r.brief_json, null) || {};
+  const format = old.format || formatOf(r.title, r.brief_text);
+  const html = templateHtml('iter', format, made.num).replace(/<span data-ph>the ad it starts from, like [^<]*<\/span>/, `${sEsc(String(r.num || ''))}-1`);
+  await saveCard(env, d, { id: made.id, brief: { v: 2, html, format, sizes: old.sizes || [] } }, who);
+  return { ok: true, id: made.id, num: made.num, title: it.text, from: r.id };
 }
 
 async function hasAsana(env, act) {

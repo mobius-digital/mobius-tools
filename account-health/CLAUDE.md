@@ -2171,3 +2171,14 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   deleted_at on the row, R2 original + .w600/.w1600 copies (and the Stream copy) wiped in waitUntil, a system line
   "Deleted v2 of 7-1 (name)" in the history; the ad falls back to the version before, an ad with one version leaves the
   Ads tab, its signed link answers 404. test-production2.mjs 16.
+
+## 2026-10-15: the board from the outside (production.js setField / archiveCard / restoreCard / duplicateCard)
+
+- `POST /api/production/field {id, owner | due | launch_on | format}` writes ONE field: owner -> `assignee_name` + the
+  Asana assignee (`asanaUserFor` in meetings.js: roster email, else a name prefix; exported), due -> `due_on` + Asana
+  due_on, launch_on stays local, format -> `brief_json.format` (normBrief). 400 on a bad date or format; returns
+  `{card, asana: {written, why}}`. `card/delete` = ARCHIVE (board_stage and stage 'done', Asana task completed when the
+  mirror is on; returns `was` so the board's Undo can put it back); `card/restore {id, to}` = Asana completed false, then
+  `moveCard`. `duplicate {id}` = `makeBrief` (or localBrief) titled "<title> (iteration)" with an Iteration page whose first
+  hint names the source ("<num>-1"). All four are team only (a client gets 403 before the route). Tests in
+  test-production.mjs, the 2026-10-15 check.
