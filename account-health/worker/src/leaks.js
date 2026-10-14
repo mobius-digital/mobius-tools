@@ -247,7 +247,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = fal
   else {
     areas.google = { state: 'ok' };
     /* Search terms: the irrelevant ones become ONE leak with a negative keyword per term. */
-    if (judgeErr === 'not checked yet') areas.google.note = 'Search terms are judged by the AI check (every Monday, or Run the AI check on Home > Day check).';
+    if (judgeErr === 'not checked yet') areas.google.note = 'Search terms are judged by the AI check (every Monday, or Run the AI check on the Overview page).';
     else if (judgeErr) areas.google.note = `Search terms were not judged: ${judgeErr}.`;
     else if (unseen && !ai) areas.google.note = `${unseen} search term${unseen === 1 ? '' : 's'} with spend came in since the last AI check; the next check judges ${unseen === 1 ? 'it' : 'them'}.`;
     const bad = terms.map((t, i) => ({ t, l: labelT(i) })).filter(x => x.l && x.l.label === 'irrelevant').map(({ t, l }) => ({ term: t.term, campaign: t.campaign, campaign_id: t.campaign_id, campaign_type: t.campaign_type, ad_group: t.ad_group, spend: r2(t.spend), clicks: t.clicks, why: l.why, status: t.status }))

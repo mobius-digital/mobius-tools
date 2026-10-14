@@ -126,13 +126,12 @@
     const brands = isLatest && (m.brands || []).length ? U().card(agency ? 'Our brands that day' : 'Your brand that day', 'Meta cost per sale against each brand\'s own last 28 days (Meta\'s count).',
       `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Meta spend</th><th>Cost per sale</th><th>Its normal</th><th></th></tr></thead><tbody>${m.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${U().money(b.spend)}</td><td>${b.cpa != null ? U().money(b.cpa) : 'no sale'}</td><td>${b.cpa_normal != null ? U().money(b.cpa_normal) : '–'}</td><td>${b.change == null ? '' : `<span class="v2pill ${b.change >= 0.15 ? 'bad' : b.change <= -0.15 ? 'good' : ''}">${b.change >= 0 ? '+' : ''}${Math.round(b.change * 100)}%</span>`}</td></tr>`).join('')}</tbody></table></div>`) : '';
     $('#main').innerHTML = shell('yesterday', title, `<div id="dkNow"></div><p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? A bad day when two or more of four signs agree.</p>
-      ${answer}${isLatest ? `<div id="dkVerdict"></div>` : ''}${H.S.act !== 'all' && window.LeaksCard ? '<div id="dkLeaks"></div>' : ''}${U().card('The last 30 days', '', strip)}${U().card(`The four signs, ${wdl(sel.date)} ${md(sel.date)}`, '', signs)}${brands}`);
+      ${answer}${isLatest ? `<div id="dkVerdict"></div>` : ''}${U().card('The last 30 days', '', strip)}${U().card(`The four signs, ${wdl(sel.date)} ${md(sel.date)}`, '', signs)}${brands}`);
     const root = $('#main');
     root.querySelectorAll('.dk-day').forEach(el => el.onclick = () => { MDSEL = el.dataset.d; yesterday(false); });
     if (isLatest) fillVerdict(m, t, agency);
     fillNow(t);
-    /* The leak finder (2026-10-13, leaks.js): one brand's whole list, ranked by money a month, under the day's verdict. */
-    if (H.S.act !== 'all' && window.LeaksCard) window.LeaksCard.full(document.getElementById('dkLeaks'), H);
+    /* The leak finder's full list moved to Home > Overview on 2026-10-14 (Cole: "it's not on the overview?"). */
   }
 
   /* RIGHT NOW (2026-10-09, account-health checknow.js): today so far against a normal day by this hour, the signs,

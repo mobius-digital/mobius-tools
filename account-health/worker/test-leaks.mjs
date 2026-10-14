@@ -36,7 +36,8 @@ db.exec(`INSERT INTO ads (act_id, ad_id, name, adset_id) VALUES ('act_77', 'ad1'
 db.exec(`INSERT INTO ad_creative (ad_id, json, fetched_at) VALUES ('ad1', '{"link":"https://test.com/products/a?utm=x"}', '2026-10-12')`);
 for (let i = 0; i < 7; i++) { run(`INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, link_clicks, reach) VALUES ('act_77', 'ad1', date('2026-10-12', ?1), 100, 10000, 250, 6000)`, `-${i} day`); run(`INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, link_clicks, reach) VALUES ('act_77', 'ad2', date('2026-10-12', ?1), 50, 10000, 80, 7000)`, `-${i} day`); }
 db.exec(`INSERT INTO tw_ad_attr VALUES ('brand_x', '2026-10-10', 'ad1', 'fullFirstClick', 1400, 7, 'meta'), ('brand_x', '2026-10-10', 'ad1', 'lastPlatformClick', 700, 2, 'meta'), ('brand_x', '2026-10-01', 'g', 'lastPlatformClick', 1500, 10, 'google')`);
-for (let i = 0; i < 30; i++) run(`INSERT INTO tw_daily (act_id, date, metric, value) VALUES ('brand_x', date('2026-10-12', ?1), 'totalOrders', 10)`, `-${i} day`);
+const YDAY = new Date(Date.now() - 864e5).toISOString().slice(0, 10);   // the leak window always ends yesterday
+for (let i = 0; i < 30; i++) run(`INSERT INTO tw_daily (act_id, date, metric, value) VALUES ('brand_x', date(?2, ?1), 'totalOrders', 10)`, `-${i} day`, YDAY);
 
 /* ---------- the mocked outside world ---------- */
 const seen = { mutate: [], gaql: [], ga4: 0, model: 0 };

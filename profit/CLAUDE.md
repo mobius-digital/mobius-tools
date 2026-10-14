@@ -3121,3 +3121,11 @@ Report. Handoff `docs/handoffs/leak-finder.md`; approved mock https://claude.ai/
   cross-checked yet". Lessons show the **final call** (Go with the team / Go with Locus, in the fold and in the Saved
   modal after a pushback Locus does not fully agree with). The page Cole reviews: https://claude.ai/artifact/BiKJGU8QkUFmCEMr1q5PFz
   (`docs/locus-hub/leak-finder-mock.html`, the real leaks.js inlined on Lucky's Oct 13 data).
+- **Fourth pass (2026-10-14): the full list lives on Home > Overview, not Day check** (Cole: "it's not on the
+  overview? ... it only shows one suggestion?"). One brand: `LeaksCard.full` under Needs you today, opens on the top 3
+  to act on, "Show all N leaks" opens every leak in place (then "Look elsewhere first, or check the numbers" as its own
+  group, What was checked, the lessons, Show fewer). All clients: `LeaksCard.brands` = one row per brand with its
+  biggest leak to act on, a month, how many, when its AI check ran (each brand a plain read, three at a time; click =
+  that brand's Overview via v2.js `pickAct`). The "Across channels" line says which AI check wrote it ("AI check,
+  Oct 13"), since the numbers beside it refresh hourly. Top-of-page cards' "Every leak" link opens Overview. Day check
+  is only about yesterday again. leaks.js?v=4, v2.js?v=54, desk.js?v=22.

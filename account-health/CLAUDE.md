@@ -1984,3 +1984,6 @@ doing this before anything else", and "we do need an end call whether we go with
   (`briefData`, after the same freshness re-pull), so the morning card says "no client daily today, the weekly report
   covers it" and still shows yesterday against plan. #daily-briefs therefore holds one draft per brand per morning, and
   only drafts (daily, weekly, monthly). Cole may rename the channel in Slack (the id stays C0C8UA53U3W).
+- **2026-10-14:** the morning card's leak line: MONDAY = one "Weekly leak check: N leaks; I'd look at <biggest to act
+  on> first (<$ a month>) · N searches to block · full list on Overview" tagged to that leak's owner (the AI check runs
+  for it); Tuesday to Sunday = a line only for a NEW leak over $500 a month. The full list moved to Home > Overview.
