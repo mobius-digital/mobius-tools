@@ -20,11 +20,13 @@ lines** (diversify) so B1 lines 8 and 14, BF lines 9, 23 and 25, Holiday lines 8
 wedding or party frame; waterproof is allowed but not pushed; the $250 free gift is permanent (say "free gift" only);
 returns are 14 days; no 15% codes. Ads are 4:5 with the words in the 1:1 centre, no 9:16.
 
-**Batch 1 BUILT Oct 14** as 10 statics from real iceandgold.com photos (eb-01 to eb-10, `docs/bfcm-ice-and-gold/ads/out/`,
-source `build.py`), loaded into Locus Studio as draft batch `0e80356a58a0544c346e93fd` "Early Bird: free studs over $125
-(real photos)" on brand_ice_and_gold. No image cost. **No list-building ads (Cole, Oct 14):** the list hears about early
-access by email and SMS only, so eb-10 (join the list) was removed and the batch is 9 ads. Batch 1 lines tagged List are out.
-The 5 creator video lines wait for creators: studs go to them to film by about Oct 27 (Season note).
+**Batch 1 BUILT Oct 14, with AI (Cole: AI is fine with a quality check; the real-photo layouts looked worse).** 9 ads in
+Locus Studio, all approved: "Early Bird AI: Gold Link, letters, Cuban" (0c9c72bb31775f3b405bb7d3, 5 ads) and "Early Bird
+AI: Lariat, Spiral, Water Drop" (8fe8b9ef9eb72d71442d4ac1, 4 ads). Real Shopify photos as references + product
+fingerprints; Studio scored 9 to 10 of 10 on every product; checked by eye against the real pieces; two fixes with
+Change with AI (Cuban offer badge into the centre square; wrong jewelry removed from the Notes ad). About $3.80.
+Preview: docs/bfcm-ice-and-gold/ads/out/_sheet_ai.jpg. The earlier real-photo batch is archived. No list-building ads
+(Cole, Oct 14). The 5 creator video lines wait for creators (studs to them by about Oct 27).
 
 Sources: build calendar (docs/bfcm-ads-gameplan-2026-10-13.md), Locus Season (p_season_phase, brand_ice_and_gold),
 Asana "BFCM 2026" > "Ice & Gold (proposal, show Fela)", creator-link research (docs/research-2026-10-06/ice-and-gold.md),
