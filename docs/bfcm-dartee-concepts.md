@@ -13,7 +13,7 @@ Value stack, Tweet, Fake text thread, Countdown, Reddit post, and so on. Swap to
 
 | Batch | Ads | Live | Done by | State |
 |---|---|---|---|---|
-| October giveaway | 8 | Oct 9 | Oct 14 | **NOT RUNNING.** No giveaway campaign on Meta (only 4 campaigns spent in the last 7 days, all sales). Cole asked Noma Oct 12. Draft lines below. |
+| October giveaway (Game of Belts) | 8 | Oct 9 | Oct 14 | **NOT RUNNING.** No giveaway campaign on Meta. Building first, on Justin's raw photos. |
 | Early Bird (second belt 50% off) | 15 | Nov 1 | Oct 18 | Concepts below, waiting on Cole |
 | Early access list build | 3 | Nov 17 | Nov 3 | Not started |
 | Black Friday | 25 | Nov 26 | Nov 6 | Not started |
@@ -65,39 +65,57 @@ Competitor references (Atria ad ids, m...) sit on the lines they fit; the full s
 
 ---
 
-## Batch: October giveaway, 8 ads (NOT RUNNING, most urgent)
+## Batch: October giveaway, "Game of Belts", 8 ads (NOT RUNNING, build first)
 
-Offer (Season): enter free with email + phone; every Dartee belt to the winner and their group. Goal 10,000 leads
-at $2 to $3. Assets: Justin's Drive folder (#dartee, Oct 12): finished ads (duplicates, some outside the safe zone)
-plus raw photos and video of the belt pile. **Blocked on two answers: the headline (see questions) and the signup
-page URL.** Lines are written for "you and your foursome"; swap if Cole picks "you and your favorite playing partner".
+Offer (Cole, Oct 14): win 50 Dartee belts, 25 for you and 25 for your buddy, $4,500 total. Enter free with email
+and phone. Not a foursome. Templates (docs/bfcm-ad-templates.md): 1 offer-first (the prize is the offer), 3 sign-up,
+7 native phone.
 
-1. **Angle:** The pile. **Why:** a prize you can see beats a prize you read about; the 100-belt pile is the one
-   photo nobody else has. **Concept:** Justin's real pile photo used as the ad, one line: "We're giving away every
-   Dartee belt." Sub: "To you and your foursome. Enter free." **Testing:** the prize photo as the control.
-   Format: Offer-first banner on a real photo ("Use as the ad").
-2. **Angle:** Name your three. **Why:** the entry is free, so the only friction is caring; naming your buddies makes
-   it personal and is how the list grows. **Concept:** four belt boxes in a row on a cart seat, three blank name
-   tags and one "you". "Who's in your foursome?" **Testing:** the buddy hook against the pile.
-   Format: real photo + sticky-note name tags.
-3. **Angle:** The value said out loud. **Why:** "$4,500 of belts" makes the prize concrete in one number.
-   **Concept:** belt pile, big number "$4,500 in belts", "Enter free. Takes 20 seconds." **Testing:** a number
-   headline vs words (line 1). Needs the real value confirmed (Slack says $4,500).
-4. **Angle:** Group chat. **Why:** this is where golfers actually talk about a tee time; a win lands there first.
-   **Concept:** iMessage thread, four names: "bro I just won us all Dartee belts" / "every single one??" / "drinks on
-   me". **Testing:** native chat format. Format: Fake text thread.
-5. **Angle:** Where should we text you if you win? **Why:** the page's own line; the phone field is the ask, so say it
-   first. **Concept:** phone on a green next to a marker on a belt, text bubble "You won." **Testing:** the SMS ask
-   as the headline.
-6. **Angle:** Every colour. **Why:** the range (gator, ostrich, Muni, Raincheck) is the prize; colour sells this brand.
-   **Concept:** grid of 12 real belt photos, "You get all of them." **Testing:** variety vs the pile.
-7. **Angle:** Deadline. **Why:** entries close Nov 16; the back half of the run needs a reason today.
-   **Concept:** pile photo, "Entries close Nov 16." **Testing:** urgency (runs from about Nov 5).
-8. **Angle:** Founders. **Why:** James and Justin to camera sold the Traditions restock (2407-2, 4.06x TW).
-   **Concept:** still frame of the two founders behind the pile from Justin's video, "We're giving all of it away."
-   **Testing:** a face vs a product.
+Photos: Justin's Drive folder (1aPLUgdRD3VYFjbbnoRY98lAQLoY40zFV), now a Dartee library source in Locus, so Studio's
+"From the library" shows it. Their 15 finished concepts (the throne, "One stack for you. One for your partner.",
+"Your partner owes you.") are the direction; we build ours on the RAW shots:
+- LEAN: DSC00254-2.jpg, guy leaning on a box stack against a white sweep (light stand and floor visible).
+- BELTS: DSC00144-2.jpg, close-up of a pile of textured belts (camo, ostrich, croc, pink, green).
+- LABELS: IMG_9995.JPG, tight stack with the box labels readable (Albino Gator).
+- Video stills from the .MOV files (two tall stacks; a guy holding a stack taller than him; a guy breaking through
+  the paper sweep with the stack).
 
-Run it as its own lead campaign (Season: start $250 a day), separate Klaviyo list "October giveaway".
+Every raw gets the same edit in Studio ("Use as the ad", "what to change on the photo"): clean bright white seamless,
+remove the light stands, cables and floor edge, lift the colours so the box greens and pinks pop, crisp contrast. Never
+the flat raw look. Two lines stack photos on top of each other (Cole: "stack them"), like their examples.
+
+1. **Angle:** One stack for you, one for your buddy. **Why:** the prize is the offer and two real stacks show it in
+   one look; their own concept, rebuilt on the real photo. **Concept:** the two-stack still, cleaned and brightened,
+   headline between the stacks: "25 for you. 25 for your buddy." Small: "Win 50 Dartee belts. Enter free."
+   **Testing:** the control. Template 1.
+2. **Angle:** A guy and his prize. **Why:** a person makes the pile real and gives it scale. **Concept:** LEAN photo,
+   stands and floor removed, warm bright grade. Headline down the left side: "Win 50 belts." Small: "You and your
+   buddy. $4,500 in belts." **Testing:** a person with the prize vs stacks alone (line 1). Template 1.
+3. **Angle:** It's the belts, not the boxes. **Why:** colour and texture sell Dartee; boxes don't show what you win.
+   **Concept:** BELTS close-up, rich grade, "25 of these are yours." Small: "25 more for your buddy. Enter free."
+   **Testing:** the belts vs the boxes. Template 1.
+4. **Angle:** Stacked (two photos, one ad). **Why:** Cole's stacking idea: the box pile on top, the belts that are
+   inside them below, so the eye goes from "that's a lot" to "that's what I get". **Concept:** top half the LABELS
+   stack, bottom half the BELTS close-up, one line across the seam: "50 belts. Half are yours." **Testing:** a two-photo
+   stack vs a single photo. Template 1.
+5. **Angle:** Enter for your buddy. **Why:** the buddy is the share mechanic; entering for him is a favour he will
+   hear about. Their best line was "Your partner owes you." **Concept:** the still of the guy holding a stack taller
+   than he is, graded, "Enter for your buddy. He'll owe you forever." **Testing:** the favour angle. Template 1.
+6. **Angle:** The group text. **Why:** a buddy giveaway lives in the text thread; native phone is untested for us and
+   cheap to try. **Concept:** iMessage thread over a soft, blurred stack: "entered us both in the dartee thing" /
+   "what thing" / "50 belts. 25 each" / "ok you're my favorite playing partner now". **Testing:** native chat vs a
+   photo ad. Template 7.
+7. **Angle:** Takes 20 seconds. **Why:** the only cost is the form; showing it is short removes the friction, and the
+   page's own line asks for the phone number. **Concept:** a phone showing the entry form (email, phone) leaning on
+   the LABELS stack: "Where should we text you if you win?" **Testing:** showing the form vs selling the prize.
+   Template 3.
+8. **Angle:** What $4,500 looks like. **Why:** the number does the work only next to the pile. **Concept:** the
+   still of the guy bursting through the paper sweep with the stack (stacked over the two-stack shot for height),
+   "This is $4,500 in belts. Yours and your buddy's." **Testing:** the dollar number vs the belt count (line 1).
+   Template 1. From Nov 9, the same ad with "Entries close Nov 16".
+
+Copy: "buddy" in our lines (Dartee's own ads say "playing partner"; either is fine). No em dashes. No "foursome".
+Still needed to launch: the signup page link.
 
 ---
 
@@ -207,8 +225,7 @@ Studio cost: about $0.34 an ad on Dartee so far, so 15 ads is about $5, up to ab
 
 ## Open questions for Cole
 
-1. Giveaway headline: "every belt to you and your foursome" (Locus) or "you and your favorite playing partner, $4,500
-   value" (Slack)? And the signup page URL.
+1. Giveaway signup page URL (headline answered Oct 14: you and your buddy, 50 belts, $4,500). Early Bird approved Oct 14.
 2. Early Bird exclusions: "any belt" includes the Up & Down collection and new belts (Lizard lands in about two weeks)?
    Black Friday excludes both; if Early Bird does too, the ads say "any belt" only with a small exclusion line.
 3. Early Bird page: on darteegolf.com this time? The warehouse page on lovable.app made those ads invisible to
