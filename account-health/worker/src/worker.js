@@ -6978,7 +6978,8 @@ async function handleSlackEvent(request, env, ctx) {
   const dm = ev.channel_type === 'im';
   /* A group DM (Cole + Noma + the app, 2026-10-14) is gated like a DM (who is asking) but answers like a
      channel: only when tagged, or a reply in a thread it already answered, never every message. */
-  const group = ev.channel_type === 'mpim';
+  /* An app_mention carries no channel_type, so a mention in a group DM is looked up (cached). */
+  const group = ev.channel_type === 'mpim' || (!ev.channel_type && !dm && await isGroupDm(env, ev.channel));
   /* A mention inside a channel thread arrives TWICE: as app_mention and as a plain message whose
      text carries <@bot>. Both count as a mention; the claim below keeps one. */
   const botId = body?.authorizations?.[0]?.user_id || null;
@@ -7065,6 +7066,19 @@ async function dmGate(env, ev) {
   if (only) { const names = (await listAccounts(env, false)).filter(a => only.has(a.act_id)).map(a => a.name); rule = ` ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.`; }
   const name = x.profile?.real_name || x.real_name || x.name || 'a teammate';
   return { ok: true, email, note: `This is a direct message from ${name} (${email}) to you, the Strategist. There is no channel brand: work out the brand from their words and the conversation; when it matters and is unclear, ask which brand in one line. Questions about Mobius Digital's OWN money (the agency's income, expenses, receipts, bills, its P&L, taxes, the bank) go to ask_ledger, which only works for Cole.${rule}` };
+}
+
+/* Is this channel a group DM? conversations.info once per channel, kept in settings (a channel never changes kind). */
+async function isGroupDm(env, ch) {
+  if (!ch || !/^[A-Z0-9]{5,20}$/.test(ch)) return false;
+  const key = `isMpim:${ch}`;
+  const hit = await getSetting(env, key).catch(() => null);
+  if (hit === '1' || hit === '0') return hit === '1';
+  const r = await slackApi(env, 'conversations.info', { channel: ch }).catch(() => null);
+  if (!r?.ok) return false;
+  const yes = !!r.channel?.is_mpim;
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2`).bind(key, yes ? '1' : '0').run().catch(() => {});
+  return yes;
 }
 
 async function strategistSlackAnswer(env, ev, screen) {
@@ -7410,7 +7424,9 @@ const AH_APP = {
         || await env.DB.prepare(`SELECT 1 AS x FROM brand_accounts WHERE active = 1 AND slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
         || await env.DB.prepare(`SELECT 1 AS x FROM brands WHERE status IN ('active', 'demo') AND client_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)
         || (ch === await getSetting(env, 'strategistChannel').catch(() => null) ? { x: 1 } : null)
-        || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)) : null;
+        || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)
+        /* A group DM is ours (2026-10-14): an app_mention carries no channel_type, so the router cannot tell by itself. */
+        || (await isGroupDm(env, ch) ? { x: 1 } : null)) : null;
       return json({ owns: !!row });
     }
 
