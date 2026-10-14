@@ -46,7 +46,7 @@ export function cardOf(r, brands, today) {
   const due = /^\d{4}-\d{2}-\d{2}$/.test(r.due_on || '') ? r.due_on : '';
   return {
     id: r.id, act_id: r.act_id, brand: brand?.name || r.act_id, num: r.num, title: r.title || '', board,
-    format: formatOf(r.title, r.brief_text), assignee: r.assignee_name || '', due,
+    format: (safe(r.brief_json, null) || {}).format || formatOf(r.title, r.brief_text), assignee: r.assignee_name || '', due,
     late: !!due && due < today && board !== 'live' && board !== 'done',
     asana_url: r.asana_url || null, asset_url: r.asset_url || null, brief_url: r.brief_url || null,
     since: String(r.board_at || r.updated_at || r.created_at || '').slice(0, 10), verdict: r.verdict || null, result: r.asana_result || null,
@@ -63,7 +63,7 @@ export async function listBoard(env, d, { act = 'all' } = {}) {
   const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
   /* Open cards, and live ones from the last 60 days (the Live column shows the newest few). */
   const since = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
-  const rows = (await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, board_at, asana_section, asana_url, asset_url, brief_url, brief_text, assignee_name, due_on, verdict, asana_result, launch_on, needs_client, approved_by, created_at, updated_at
+  const rows = (await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, board_at, asana_section, asana_url, asset_url, brief_url, brief_text, brief_json, assignee_name, due_on, verdict, asana_result, launch_on, needs_client, approved_by, created_at, updated_at
     FROM p_br_batch WHERE act_id IN (${ph}) AND stage != 'done' AND (board_stage IS NULL OR board_stage != 'done') AND (stage != 'live' OR COALESCE(board_at, updated_at) >= ?${ids.length + 1})
     ORDER BY CAST(num AS INTEGER) DESC LIMIT 600`).bind(...ids, since).all()).results || [];
   const cards = rows.map(r => cardOf(r, brands, today)).filter(c => COLUMNS.includes(c.board));
@@ -80,11 +80,11 @@ export async function listBoard(env, d, { act = 'all' } = {}) {
   /* Production v2: each card's newest version (a picture for the card) and its open notes. */
   if (out.length) {
     const op = out.map((_, i) => `?${i + 1}`).join(', ');
-    const fl = (await env.DB.prepare(`SELECT id, batch_id, version, mime FROM p_work_file WHERE kind = 'version' AND deleted_at IS NULL AND batch_id IN (${op}) ORDER BY version`).bind(...out.map(c => c.id)).all().catch(() => ({ results: [] }))).results || [];
+    const fl = (await env.DB.prepare(`SELECT id, batch_id, version, mime FROM p_work_file WHERE kind = 'version' AND deleted_at IS NULL AND batch_id IN (${op}) ORDER BY created_at, rowid`).bind(...out.map(c => c.id)).all().catch(() => ({ results: [] }))).results || [];
     const nt = (await env.DB.prepare(`SELECT batch_id, COUNT(*) AS n FROM p_work_comment WHERE kind IN ('note', 'change_request') AND fixed_at IS NULL AND batch_id IN (${op}) GROUP BY batch_id`).bind(...out.map(c => c.id)).all().catch(() => ({ results: [] }))).results || [];
     for (const c of out) {
       const mine = fl.filter(f => f.batch_id === c.id);
-      const v = mine[mine.length - 1];
+      const v = mine.filter(f => /^image\//.test(f.mime || '')).pop();   // the newest picture of any ad (versions are per ad)
       c.versions = mine.length;
       c.thumb = v && /^image\//.test(v.mime || '') && d.origin ? await fileUrl(env, d.origin, v.id) : null;
       c.open_notes = nt.find(x => x.batch_id === c.id)?.n || 0;

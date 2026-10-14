@@ -1996,7 +1996,34 @@ doing this before anything else", and "we do need an end call whether we go with
 
 Handoff `docs/handoffs/production-v2.md`; approved mock https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (v7, after research
 Cole asked for; the team does not use Frame's Premiere panel, so review moved into Locus and Frame can go). Tests:
-`node test-production2.mjs` (12), test-clients has a Production check.
+`node test-production2.mjs` (14), test-clients has a Production check.
+- **2026-10-14 (afternoon): THE BRIEF IS ONE WRITTEN PAGE, not a form** (mock v9, after Cole asked whether I had researched
+  how the team writes briefs: Ice & Gold 3/4/5, Lucky 440-2, Party Patch 437 and Grunk 370 are all one flowing Asana
+  description with headings, bold labels, numbered ads, pictures and links). `brief_json = {v: 2, html, format, sizes}`.
+  `sanitizeHtml` is the only door in (allowlist p br strong em u s code pre blockquote ol ul li a h1 h2 h3 hr img video span;
+  only href / data-file / data-ph / data-ai survive; b/i/div are aliased; scripts and styles are dropped with their content;
+  unclosed tags are closed; 80k cap). `<span data-ph>` = a grey hint that vanishes when typed over, `<span data-ai>` = words
+  the AI wrote (tinted until edited), `<img data-file>` / `<video data-file>` = a file uploaded on the card (kind `inline`;
+  the signed src is filled at read time by `fillSrc`, never stored). `htmlToText` makes brief_text (lists number themselves,
+  hints left out). `templateHtml(kind new|iter|resize|blank, format, num)` seeds a page with the card's own ad numbers
+  (48-1, 48-2, 48-3); `getCard` returns `brief.blank` and `templates` for a page with no words. Old cards: first open reads
+  `html_notes` live from Asana (`asanaToHtml`: top-level newlines become paragraphs, Asana's tags pass, the template's
+  example line becomes a hint), else `textToHtml` of brief_text or the Google Doc. A v1 form brief converts on read
+  (`toPage` / `v1ToHtml`). Asana export `briefHtml` = Asana's tags only (p/br to newlines, h3 to strong, pictures as a link
+  to the card, hints left out, named entities decoded, valid XML with `<hr/>`). The sync (asana-brand.js, `TASK_FIELDS` now
+  carries `html_notes`) stores `briefFromAsana(old, html_notes, notes)` when the Asana text really changed. `aiFill`
+  sends the whole page and gets the whole page back: every hint and every empty label gets `<span data-ai>` words; a typed
+  sentence that went missing makes it refuse (502), nothing is kept; a page with words and nothing to fill returns
+  `filled: 0` with a why. Route `GET /api/production/template?id=&kind=`.
+- **Versions are per ad and automatic; no size limit** (Cole: "like Frame"). `adOf(name, num)` reads the ad from the file
+  name ("48-3 v2.png", "LG_440-2 final.mov", "48_3.mp4"; the card's own number wins when several pairs appear; no pair =
+  "" = the ad itself); `p_work_file.ad`; version = MAX per (card, ad) + 1. `POST /api/production/upload` stays for files
+  one request can carry; bigger ones use R2 multipart: `POST upload/start?id=&kind=&name=&type=&size=` ->
+  `{id, key, uploadId, part: 24MB}`, `PUT upload/part?id=&key=&uploadId=&n=` (body = the part, key must be the card's),
+  `POST upload/finish {id, key, uploadId, parts, name, type, size, kind}`. A mime of application/octet-stream is read
+  from the extension (.mov). `pruneFiles` keeps the last version OF EACH AD. `decide` names the ad ("Approved 45-1 v3.") and
+  takes `file_id`. `filesOf` orders by ad then version; the board thumb and the client thumb are the newest PICTURE of any ad.
+  Not tested live: a real multipart upload against R2 (the Node test mocks createMultipartUpload / uploadPart / complete).
 - **Tables** (created on first use by `ensureWork`, called by every route and by `syncTasks`): p_br_batch gains `brief_json`,
   `brief_at`, `brief_hash`, `launch_on`, `needs_client` (idea | ad), `client_sent_at`, `client_due` (+3 business days),
   `approved_by`, `approved_at`, `share_token`. `p_work_comment` (comments AND notes: `file_id`, `shape_json` in 0..1 of the

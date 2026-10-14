@@ -360,11 +360,13 @@ async function main(){
      * app's config (src/controller.js). Both load into one context with their
      * module lines stripped, and the controller is built on mocked deps. */
     const engineSrc=fs.readFileSync(path.join(__dirname,'../../ask/engine.js'),'utf8').replace(/^export\s+/gm,'');
+    /* The per-edition playbook (../../ask/cashew-playbook.js) the helper reads at answer time. */
+    const playbookSrc=fs.readFileSync(path.join(__dirname,'../../ask/cashew-playbook.js'),'utf8').replace(/^export\s+/gm,'');
     const ctlSrc=fs.readFileSync(path.join(__dirname,'src/controller.js'),'utf8').replace(/^import[^;]*;\r?\n/gm,'').replace(/^export\s+/gm,'');
     const askCtx=vm.createContext({console,JSON,Object,Number,Array,String,Math,Date,Set,RegExp,Promise,Error,
       fetch:async(...a)=>askCtx.claudeMock(...a)});
     askCtx.claudeMock=async()=>{throw Error('no Claude mock installed');};
-    vm.runInContext(engineSrc+'\n'+ctlSrc+'\nglobalThis.ask={gateSql,buildProposal,applyAskEdit,toSlackText,buildController};',askCtx);
+    vm.runInContext(engineSrc+'\n'+playbookSrc+'\n'+ctlSrc+'\nglobalThis.ask={gateSql,buildProposal,applyAskEdit,toSlackText,buildController};',askCtx);
     const safeJsonT=(x,fb)=>{try{return JSON.parse(x);}catch{return fb;}};
     const ctlDeps={ getSetting:async()=>null, putSetting:async()=>{}, safeJson:safeJsonT, centralDate:()=>'2026-09-17', monthOf:d=>String(d).slice(0,7),
       addMonthsYmd:(ymd,n)=>{const d=new Date(ymd+'T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+n);return d.toISOString().slice(0,10);},
@@ -491,7 +493,7 @@ async function main(){
          {ts:'9.9',user:'OWNER',text:'and last month?'}]);
       const sent=seen[0].messages[0].content;
       assert.match(sent,/\[Cole\] how much on AcmeCloud this month\?/);   // the mention markup is stripped
-      assert.match(sent,/\[Controller\] \*\$340\.00\* on AcmeCloud in September\./);
+      assert.match(sent,/\[Cashew\] \*\$340\.00\* on AcmeCloud in September\./);
       assert.match(sent,/\[someone else\] nice/);
       assert.match(sent,/Cole now asks: and last month\?/);
       assert.doesNotMatch(sent,/9\.9.*and last month.*9\.9/s);            // the question is not also in the transcript
