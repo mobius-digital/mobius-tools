@@ -4,6 +4,27 @@ Six batches, 78 ads, one ad per numbered line. The offer is still a PROPOSAL wai
 tagged with what it needs. **Build "Offer: none" lines now. Build "List" lines now (only the end line changes if
 Fela moves Thursday). Hold every other tag until Cole says the offer is locked.**
 
+## Oct 14 update: the offer is LOCKED (read this first; it overrides the tags below)
+
+Locked with Fela in #ice-gold on Oct 13 (Locus Season, seed 034):
+- **Early Bird, Nov 2 to 25:** free pair of studs on any order over **$125** (not $100). Everything else full price.
+  The studs listing is ready in about 2 weeks, so no ad pictures the studs yet; the product leads, the studs are line two.
+- **Early access, Thu Nov 26:** the email and SMS list gets the Black Friday deal 24 hours early.
+- **Black Friday, Nov 27 to 30:** spend $100 save $25, $200 save $60 + free studs, $300 save $100 + free studs.
+  **No gift box** (lines tagged Box are dropped or become studs lines). Pick Any 4 for $150 stays live and does not stack.
+- **Gifting, Dec 4 to 18:** gift sets at full price, free gift wrap with a name, "order by Dec 18" in every ad.
+- **Gift cards, Dec 19 to 24.** Valentine's is still a proposal.
+
+Fela's rules (Oct 13): say "18K gold over stainless steel", never "plated" or "gold PVD"; **drop the owambe and founder
+lines** (diversify) so B1 lines 8 and 14, BF lines 9, 23 and 25, Holiday lines 8, 17 and 20 are out or get a general
+wedding or party frame; waterproof is allowed but not pushed; the $250 free gift is permanent (say "free gift" only);
+returns are 14 days; no 15% codes. Ads are 4:5 with the words in the 1:1 centre, no 9:16.
+
+**Batch 1 BUILT Oct 14** as 10 statics from real iceandgold.com photos (eb-01 to eb-10, `docs/bfcm-ice-and-gold/ads/out/`,
+source `build.py`), loaded into Locus Studio as draft batch `0e80356a58a0544c346e93fd` "Early Bird: free studs over $125
+(real photos)" on brand_ice_and_gold. No image cost. eb-10 (early access sign-up) needs a signup page to point at.
+The 5 creator video lines wait for creators: studs go to them to film by about Oct 27 (Season note).
+
 Sources: build calendar (docs/bfcm-ads-gameplan-2026-10-13.md), Locus Season (p_season_phase, brand_ice_and_gold),
 Asana "BFCM 2026" > "Ice & Gold (proposal, show Fela)", creator-link research (docs/research-2026-10-06/ice-and-gold.md),
 Locus ad data (Meta spend + Triple Whale lastPlatformClick, Jul 5 to Oct 12), Meta Ad Library (Oct 13),
