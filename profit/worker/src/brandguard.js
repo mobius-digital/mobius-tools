@@ -208,6 +208,13 @@ export const CLIENT_RULES = [
   R('POST', '/api/requests'),
   R('POST', '/api/requests/reply'),
   R('POST', '/api/requests/decide'),
+  /* Production (2026-10-14, prodwork.js): the brand's own Needs you + Coming up, a card's sheet, a comment or a note on
+     a file, and Approve / Ask for changes on what the team sent them (the handler checks needs_client). Never the team
+     board, a drag, a new brief, an upload, the review link, the mirror or Asana. */
+  R('GET', '/api/production'),
+  R('GET', '/api/production/card', 'none', { own: [{ in: 'query', key: 'id', table: 'p_br_batch' }] }),
+  R('POST', '/api/production/comment', 'none', { own: [{ in: 'body', key: 'id', table: 'p_br_batch' }] }),
+  R('POST', '/api/production/decide', 'none', { own: [{ in: 'body', key: 'id', table: 'p_br_batch' }] }),
 
   /* ---- ADS: Today, All channels, Meta (every job), Google (every job), TikTok, Tests and angles ---- */
   R('GET', '/api/hub/today'),
