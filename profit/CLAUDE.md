@@ -3246,3 +3246,8 @@ Mock: https://claude.ai/artifact/Tw9a67Zb4qLg5ZgFDApUMj (page Review redesign: A
   was launched before. Pick all / Pick none. Check N (dry run) = batch-preview: the ad set before and after with every
   new name, a row's reason when it would fail; Create N paused = batch-create; the result lists Made / Not made per ad
   with Ads Manager and Undo (the existing /api/meta/undo) per row. prodsheet.js?v=10.
+- **2026-10-14 (late).** Ads tab card: "Delete v2" (team only, muted link next to Compare; confirm modal; the ad falls
+  back to the version before or leaves the tab) = `/api/production/file/delete`. New brief: the window closes as soon as
+  the card exists ("its Asana task is being made"); the Asana link shows on the card once the background half is done.
+  A brief made by New brief opens on the starting page with grey hints (the server reads the untouched Asana template as
+  blank). prodsheet.js?v=11, production.js?v=8.

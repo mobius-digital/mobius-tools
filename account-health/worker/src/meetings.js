@@ -41,6 +41,7 @@
 import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_RULE } from './actions.js';
 import { briefFor, ensureBoard } from './asana-brand.js';
 import { nextNumber } from './ideas.js';
+import { numOf } from './asana-brand.js';
 import { teamPost, tagOf, loadCard } from './morningcard.js';
 
 const MODEL = 'claude-sonnet-5-5';
@@ -275,13 +276,39 @@ const KINDS = ['team', 'brief', 'client', 'client_owes'];
  *  that says where it came from (the call `m`, or Production's "+ New brief" when m is null). Assigned by the roster email,
  *  then by first name. The p_br_batch card is written at once (the hourly sync matches it by number), so Production shows
  *  it before Asana is read again. Returns {num, gid, url, id}. */
-export async function makeBrief(env, d, act, it, m, who) {
+/** A numbered brief: its card on Production at once, its Asana task in Creative Brief(s) after. From a call's confirm
+ *  the Asana half is awaited (the card is dropped again when Asana refuses, so confirm's "task to write one" fallback
+ *  still fires); Production's New brief answers as soon as the card exists and runs the Asana half in waitUntil
+ *  (2026-10-14, Cole: "it takes a long time if I want to do a new brief"). */
+export async function makeBrief(env, d, act, it, m, who, { later = null } = {}) {
   const doc = safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(act).first().catch(() => null))?.data_json, null);
   if (!doc?.project_gid) throw new Error('not connected to Asana');
+  await ensureBoard(env);
+  const max = (await env.DB.prepare(`SELECT MAX(CAST(num AS INTEGER)) AS n FROM p_br_batch WHERE act_id = ?1`).bind(act).first().catch(() => null))?.n || 0;
+  const num = max + 1;
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  await env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, assignee_name, due_on, board_stage, board_at, source, created_at)
+    VALUES (?1, ?2, ?3, ?4, 'idea', ?5, ?6, 'brief', datetime('now'), ?7, datetime('now'))`)
+    .bind(id, act, String(num), clean(it.text, 300), it.owner ? clean(it.owner, 40) : null, it.due || null, m ? 'meeting' : 'locus').run();
+  const row = { id, num };
+  if (later) {
+    later(briefToAsana(env, d, act, doc, row, it, m, who).catch(e => console.log(`brief #${num} to Asana: ${e.message}`)));
+    return { num, id, url: null, gid: null, asana_later: true };
+  }
+  try { const a = await briefToAsana(env, d, act, doc, row, it, m, who); return { num, gid: a.gid, url: a.url, id }; }
+  catch (e) { await env.DB.prepare(`DELETE FROM p_br_batch WHERE id = ?1`).bind(id).run().catch(() => {}); throw e; }
+}
+/** The Asana half: the numbered task (the number moves up when Asana already has a newer one), its section and
+ *  assignee, then the card row is linked to it. */
+async function briefToAsana(env, d, act, doc, row, it, m, who) {
   const secs = (await d.asana(env, `/projects/${doc.project_gid}/sections?opt_fields=name`).catch(() => [])) || [];
   const sec = secs.find(s => /creative\s*brief/i.test(s.name)) || secs.find(s => /brief/i.test(s.name));
   if (!sec) throw new Error('no Creative Brief section');
-  const num = await nextNumber(env, act, doc.project_gid);
+  let num = +row.num;
+  const since = new Date(Date.now() - 3 * 864e5).toISOString();
+  const recent = await d.asana(env, `/tasks?project=${doc.project_gid}&modified_since=${encodeURIComponent(since)}&opt_fields=name&limit=100`).catch(() => []);
+  const top = Math.max(0, ...(Array.isArray(recent) ? recent : []).map(t => +numOf(t.name) || 0));
+  if (top >= num) { num = top + 1; await env.DB.prepare(`UPDATE p_br_batch SET num = ?2 WHERE id = ?1`).bind(row.id, String(num)).run(); }
   let assignee = null;
   if (it.owner && doc.workspace) {
     const users = (await d.asanaAll(env, `/users?workspace=${doc.workspace}&opt_fields=name,email`).catch(() => [])) || [];
@@ -293,12 +320,9 @@ export async function makeBrief(env, d, act, it, m, who) {
   const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });
   await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: t.gid } }).catch(() => {});
   const url = t.permalink_url || `https://app.asana.com/0/${doc.project_gid}/${t.gid}`;
-  await ensureBoard(env);
-  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-  await env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, assignee_gid, assignee_name, due_on, board_stage, board_at, source, created_at)
-    VALUES (?1, ?2, ?3, ?4, 'idea', ?5, ?6, ?7, ?8, ?9, ?10, 'brief', datetime('now'), ?11, datetime('now'))`)
-    .bind(id, act, String(num), clean(it.text, 300), t.gid, url, clean(sec.name, 80), assignee?.gid || null, assignee?.name || (it.owner ? clean(it.owner, 40) : null), it.due || null, m ? 'meeting' : 'locus').run().catch(e => console.log('brief card: ' + e.message));
-  return { num, gid: t.gid, url, id };
+  await env.DB.prepare(`UPDATE p_br_batch SET asana_gid = ?2, asana_url = ?3, asana_section = ?4, assignee_gid = COALESCE(?5, assignee_gid), assignee_name = COALESCE(?6, assignee_name) WHERE id = ?1`)
+    .bind(row.id, t.gid, url, clean(sec.name, 80), assignee?.gid || null, assignee?.name || null).run().catch(e => console.log('brief card link: ' + e.message));
+  return { gid: t.gid, url };
 }
 /** The brand's open weekly report draft, if the week's draft exists (drafted Monday 6am, sent after the call). */
 async function openWeekly(env, act) {

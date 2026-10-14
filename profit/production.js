@@ -274,7 +274,7 @@ function newBrief() {
       const r = await post('/api/production/brief', { act, text, owner: $('#pdNbOwner', w).value, due: $('#pdNbDue', w).value });
       if (r.error) throw new Error(r.error);
       close();
-      toast(r.local ? `Brief #${r.num} is on the board. Write it now.` : r.num ? `Brief #${r.num} is in Asana and on the board. Write it now.` : 'The brief is on the board.');
+      toast(r.local ? `Brief #${r.num} is on the board. Write it now.` : r.asana_later ? `Brief #${r.num} is on the board. Write it now; its Asana task is being made.` : r.num ? `Brief #${r.num} is in Asana and on the board. Write it now.` : 'The brief is on the board.');
       await render(H, false);
       if (r.id) openCard(r.id);
     } catch (e) { err.textContent = e.message || 'Could not make the brief.'; err.hidden = false; go.disabled = false; go.textContent = 'Make the brief'; }

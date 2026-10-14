@@ -157,6 +157,7 @@ function css() {
 .ps-adb .row{flex-wrap:wrap}
 .ps-adb textarea{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
 .ps-lnk{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.ps-lnk.mute{color:var(--muted);font-weight:500}.ps-lnk.mute:hover{color:var(--bad)}
 .ps-dropline{display:flex;align-items:center;gap:10px;border:1px dashed var(--line-strong);border-radius:10px;padding:12px 14px;color:var(--muted);font-size:12.5px;cursor:pointer;background:transparent;font-family:inherit;text-align:left;width:100%}
 .ps-dropline:hover,.ps-dropline:focus-visible{border-color:var(--ink-2);outline:none}
 .ps-b.over{outline:2px dashed var(--brand);outline-offset:-6px;border-radius:10px}
@@ -479,7 +480,7 @@ async function open(H, id, opts = {}) {
         <div class="ps-adb">
           <div style="display:flex;align-items:center;gap:8px"><span class="ps-st" style="--sc:${st[1]}"><i></i>${st[0]}</span><span style="flex:1"></span>${a.status === 'review' || !canCall ? `<span class="ps-hint">${esc(by)}</span>` : ''}</div>
           ${acts}
-          ${vs.length > 1 ? `<button type="button" class="ps-lnk" data-cmp="${esc(top.id)}">Compare v${vs[vs.length - 2].version} and v${top.version}</button>` : ''}
+          ${vs.length > 1 || !T.client ? `<div class="row" style="justify-content:space-between;gap:10px">${vs.length > 1 ? `<button type="button" class="ps-lnk" data-cmp="${esc(top.id)}">Compare v${vs[vs.length - 2].version} and v${top.version}</button>` : '<span></span>'}${T.client ? '' : `<button type="button" class="ps-lnk mute" data-fdel="${esc(top.id)}" data-fv="v${top.version} of ${esc(adLabel(a.ad))}" title="Delete this version">Delete v${top.version}</button>`}</div>` : ''}
         </div></article>`;
     };
     const grid = shown.length ? `<div class="ps-ads">${shown.map(card).join('')}</div>` : ads.length ? '<p class="ps-hint">Nothing here with this filter.</p>' : '';
@@ -721,6 +722,13 @@ async function open(H, id, opts = {}) {
     };
     $$('[data-open]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.open, onChange: afterRev, data: T.data }));
     $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev, data: T.data }));
+    /* delete an uploaded version (team only): the card falls back to the version before, or the ad leaves the tab */
+    $$('[data-fdel]', host).forEach(b => b.onclick = async () => {
+      if (!(await confirmBox(`Delete ${b.dataset.fv}?`, 'The file is removed from the card and from the client link. Notes on it stay in the history. If there is an older version, the ad falls back to it.', 'Delete'))) return;
+      b.disabled = true; b.textContent = 'Deleting...';
+      try { const r = await post(H, '/api/production/file/delete', { file_id: b.dataset.fdel }); if (r.error) throw new Error(r.error); toast(`Deleted ${r.deleted || 'it'}.`); await afterRev(); }
+      catch (e) { b.disabled = false; b.textContent = 'Delete'; toast(e.message || 'Could not delete it.', true); }
+    });
     const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev, data: T.data }); };
     $$('[data-launchf]', host).forEach(b => b.onclick = () => window.LaunchToMeta.open({ act: c().act_id, tok: H.S.tok, workFile: b.dataset.launchf, onDone: afterRev }));
     /* every approved ad of the card into one ad set, with the brief's copy (2026-10-14) */

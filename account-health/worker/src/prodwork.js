@@ -351,7 +351,19 @@ export function sanitizeHtml(html) {
   return out.trim().slice(0, HTML_MAX);
 }
 /** True when the page has no words of its own (only hints, blank lines). */
-export const htmlBlank = html => !htmlToText(html).trim();
+/** A page with nobody's words on it counts as blank, so the sheet starts from the Locus template with its grey hints
+ *  (2026-10-14, Cole: "I thought you were going to put actual placeholder text, greyed out, but it's actual text"): no
+ *  text at all, or only the Asana template untouched (headings, bold labels, the grey example line, the "Added in
+ *  Locus" / "From the call" line, numbered label stubs). */
+export function templateOnly(html) {
+  const left = String(html || '')
+    .replace(/<h[1-3]>[\s\S]*?<\/h[1-3]>/gi, ' ')
+    .replace(/<strong>[\s\S]*?<\/strong>/gi, ' ')
+    .replace(/<span data-ph>[\s\S]*?<\/span>/gi, ' ')
+    .replace(/<em>([\s\S]*?)<\/em>/gi, (m, t) => /^(From the |Added in Locus)/.test(t) || ASANA_HINTS.some(r => r.test(decodeEnt(t).trim())) ? ' ' : m);
+  return !htmlToText(left).replace(/[\s:.\d\u00b7-]+/g, '');
+}
+export const htmlBlank = html => !htmlToText(html).trim() || templateOnly(html);
 
 /** The page as plain text (brief_text, the hash, the Strategist, Studio): block tags break lines, lists number
  *  themselves, hints are left out, pictures become "[picture]", links keep their address. */
@@ -1274,10 +1286,31 @@ export async function pruneFiles(env) {
   return rows.length;
 }
 
+/** Delete an uploaded version (team only; 2026-10-14, Cole: "How do you delete creatives that are uploaded?"). The row
+ *  is marked deleted, the file and its sized copies leave R2 (and Stream, when it was converted), a system line says who
+ *  removed it. Notes on it stay in the history. An ad whose newest version goes falls back to the one before; an ad with
+ *  one version leaves the Ads tab. A launch already made from it is untouched (Meta has its own copy). */
+export async function deleteFile(env, d, body, who, scope) {
+  if (scope) throw err(403, 'The team\'s part of Production.');
+  await ensureWork(env);
+  const f = await env.DB.prepare(`SELECT id, batch_id, act_id, r2_key, kind, version, ad, name, stream_uid FROM p_work_file WHERE id = ?1 AND deleted_at IS NULL`).bind(String(body.file_id || '')).first();
+  if (!f) throw err(404, 'That file is already gone.');
+  await env.DB.prepare(`UPDATE p_work_file SET deleted_at = datetime('now') WHERE id = ?1`).bind(f.id).run();
+  FILE_ROWS.delete(f.id);
+  const wipe = (async () => {
+    if (env.MEDIA) for (const k of [f.r2_key, ...PIC_SIZES.map(w => `${f.r2_key}.w${w}.webp`)]) await env.MEDIA.delete(k).catch(() => {});
+    if (f.stream_uid && env.CF_ACCOUNT_ID && env.CF_STREAM_TOKEN) await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${f.stream_uid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${env.CF_STREAM_TOKEN}` } }).catch(() => {});
+  })();
+  if (d && d.waitUntil) d.waitUntil(wipe); else await wipe;
+  const label = f.kind === 'version' ? `v${f.version || '?'}${f.ad ? ` of ${f.ad}` : ''}` : (f.name || 'a file');
+  await addComment(env, d, { id: f.batch_id, body: `Deleted ${label}${f.name ? ` (${f.name})` : ''}.`, kind: 'system' }, who, null, { quiet: true }).catch(() => {});
+  return { ok: true, file_id: f.id, deleted: label };
+}
+
 /* ================================================================================================================ */
 /*  ROUTES (called from production.js handleProduction)                                                              */
 /* ================================================================================================================ */
-const WORK_PATHS = new Set(['card', 'comment', 'comment/delete', 'decide', 'save', 'ai', 'send', 'fixed', 'upload', 'upload/start', 'upload/part', 'upload/finish', 'template', 'share', 'photos', 'mirror'].map(p => `/api/production/${p}`));
+const WORK_PATHS = new Set(['card', 'comment', 'comment/delete', 'file/delete', 'decide', 'save', 'ai', 'send', 'fixed', 'upload', 'upload/start', 'upload/part', 'upload/finish', 'template', 'share', 'photos', 'mirror'].map(p => `/api/production/${p}`));
 export async function workRoutes(request, env, url, path, json, d, who, scope) {
   if (!WORK_PATHS.has(path)) return null;   // before the body is read: move and brief read it themselves
   const origin = url.origin;
@@ -1290,6 +1323,7 @@ export async function workRoutes(request, env, url, path, json, d, who, scope) {
   }
   if (path === '/api/production/comment' && request.method === 'POST') return json({ ok: true, ...(await addComment(env, d, body, who, scope ? { ...scope, name: scope.name || await clientName(env, who) } : null)) });
   if (path === '/api/production/comment/delete' && request.method === 'POST') return json(await deleteComment(env, d, body, who, scope));
+  if (path === '/api/production/file/delete' && request.method === 'POST') return json(await deleteFile(env, d, body, who, scope));
   if (path === '/api/production/decide' && request.method === 'POST') {
     const sc = scope ? { ...scope, name: scope.name || await clientName(env, who) } : null;
     return json(await (body.all === true || Array.isArray(body.file_ids) ? decideMany(env, d, body, who, sc) : decide(env, d, body, who, sc)));

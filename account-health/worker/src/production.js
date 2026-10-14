@@ -157,7 +157,8 @@ export async function handleProduction(request, env, url, path, json, d) {
       const it = { text, owner: clean(body.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(body.due || '') ? body.due : '' };
       /* With the Asana mirror off, or a brand with no Asana project, the brief is made in Locus only. */
       if (!(await mirrorOn(env)) || !(await hasAsana(env, act))) return json({ ok: true, ...(await localBrief(env, act, it, nameOfEmail(who))) });
-      const made = await makeBrief(env, d, act, it, null, nameOfEmail(who));
+      /* The card at once; the Asana task is made in the background and linked to the card when it exists. */
+      const made = await makeBrief(env, d, act, it, null, nameOfEmail(who), { later: d.waitUntil || null });
       return json({ ok: true, ...made });
     }
     return json({ error: 'not found' }, 404);

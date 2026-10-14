@@ -2156,3 +2156,18 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   signature check, no network. The worker cannot fetch its own workers.dev address (the same refusal the 2026-10-10
   live launch hit on the profit origin); the first batch dry run read it as a 404 on every ad, and the single Launch
   to Meta on a Production file had the same hole. Checked: the dry run on Ice & Gold #5 proposes both ads cleanly.
+- **2026-10-14 (late): three Production fixes from Cole's review.** (1) **New brief is instant**: `POST /api/production/brief`
+  with the mirror on inserts the card row first (meetings.js `makeBrief(..., { later: d.waitUntil })`) and answers
+  `{num, id, asana_later: true}`; `briefToAsana` runs in waitUntil: it reads Asana's last 3 days of tasks and moves the
+  number past a newer one made in Asana, makes the task in Creative Brief(s) with the template (`briefFor`), then links
+  the row (asana_gid / asana_url / asana_section / assignee). A call's confirm still awaits it (and drops the row when
+  Asana refuses, so its "task to write one" fallback holds). (2) **Grey hints on a new brief**: the Asana template that
+  briefFor writes came back on first open as real words (labels, the example line) so the page was not "blank" and the
+  Locus template with its `<span data-ph>` hints never showed. `templateOnly(html)` (prodwork.js) = nothing but
+  headings, bold labels, hints, the Asana example line and the "Added in Locus" / "From the call" line; `htmlBlank` now
+  includes it, so getCard answers `blank: true` + the starting pages and the sheet opens on the template with grey hints.
+  The team's own template TASKS in Asana (Lucky "UGC/Video Template", real sentences) are words and stay as they are.
+  (3) **Delete an uploaded version**: `POST /api/production/file/delete {file_id}` (team only, 403 for a client):
+  deleted_at on the row, R2 original + .w600/.w1600 copies (and the Stream copy) wiped in waitUntil, a system line
+  "Deleted v2 of 7-1 (name)" in the history; the ad falls back to the version before, an ad with one version leaves the
+  Ads tab, its signed link answers 404. test-production2.mjs 16.

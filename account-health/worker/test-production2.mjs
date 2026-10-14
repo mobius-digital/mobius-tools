@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { handleProduction, moveCard, formatOf } from './src/production.js';
 import { briefText, normBrief, aiFill, saveCard, addComment, decide, getCard, uploadFile, sendToClient, serveFile, handleReviewLink, shareLink,
-  pruneFiles, setMirror, mirrorOn, normShape, briefHtml, savePhoto, teamPhotos, sanitizeHtml, htmlToText, textToHtml, asanaToHtml, templateHtml, briefFromAsana, adOf, fillSrc } from './src/prodwork.js';
+  pruneFiles, setMirror, mirrorOn, normShape, briefHtml, savePhoto, teamPhotos, sanitizeHtml, htmlToText, textToHtml, asanaToHtml, templateHtml, briefFromAsana, adOf, fillSrc, templateOnly, htmlBlank } from './src/prodwork.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => { let hi = 0; return sql.replace(/\?(\d*)/g, (_, n) => { if (n) { hi = Math.max(hi, +n); return ':p' + n; } hi++; return ':p' + hi; }); };
@@ -55,6 +55,8 @@ Inspo: https://example.com/ref' WHERE id = 'c2'`);
 const BRANDS = [{ act_id: 'brand_alpha', name: 'Alpha Golf', slack_channel: 'C_ALPHA' }, { act_id: 'brand_beta', name: 'Beta Socks', slack_channel: 'C_BETA' }];
 let asanaCalls = [], slack = [], posts = [];
 const ASANA_T2 = `<body><h2>The test</h2><strong>Angle:</strong> Winter hands\n<strong>What we're testing:</strong> 3 hooks on 45-1\n<em>What changes, and on which ad. Like: 3 new concepts</em>\n<strong>Why:</strong> Searches doubled\n<ol><li>45-1 red knuckles then the glove</li><li>45-2 the frosty grip</li></ol>\n<h2>Copy</h2><strong>Headline:</strong> Warm grip\n<strong>Inspo:</strong> <a href="https://a.com/x">https://a.com/x</a></body>`;
+/* the Asana template as Locus writes it for a new brief (asana-brand.js briefFor), untouched by anyone */
+const ASANA_T4 = `<body><em>Added in Locus Production by Ahsan.</em>\n<h2>The test</h2><strong>Angle:</strong>\n<strong>What we're testing:</strong>\n<em>What changes, and on which ad. Like: 3 new concepts · 3 headlines on 412-3</em>\n<strong>Why:</strong>\n<strong>1.</strong>\n<strong>2.</strong>\n<strong>3.</strong>\n<h2>Copy</h2><strong>Headline:</strong>\n<strong>Primary text:</strong>\n<strong>Offer:</strong>\n<strong>Landing page:</strong>\n<strong>Inspo:</strong> </body>`;
 const sections = [{ gid: 'S1', name: 'Creative Briefs' }, { gid: 'S2', name: 'Creative Studio' }, { gid: 'S3', name: 'Ready to Launch' }, { gid: 'S4', name: 'Analyze Results' }];
 const d = {
   listBrands: async () => BRANDS, centralDate: () => '2026-10-14',
@@ -65,6 +67,9 @@ const d = {
     if (init && init.method === 'PUT' && path.startsWith('/tasks/')) return { gid: 'T', notes: 'ASANA PLAIN ' + (init.body.html_notes || '').replace(/<[^>]+>/g, '') };
     if (path.startsWith('/tasks/T2?')) return { gid: 'T2', html_notes: ASANA_T2, notes: ASANA_T2.replace(/<[^>]+>/g, '') };
     if (path.startsWith('/tasks/T1?')) return { gid: 'T1', html_notes: '<body></body>', notes: '' };
+    if (path.startsWith('/tasks/T4?')) return { gid: 'T4', html_notes: ASANA_T4, notes: ASANA_T4.replace(/<[^>]+>/g, '') };
+    if (init && init.method === 'POST' && path.startsWith('/tasks?')) return { gid: 'TNEW', permalink_url: 'https://app.asana.com/0/P1/TNEW' };
+    if (path.startsWith('/tasks?project=')) return [{ gid: 'TX', name: '52 - Made in Asana an hour ago' }];
     return {};
   },
   slackApi: async (e, method, args) => { slack.push({ method, args }); if (method === 'users.lookupByEmail') return { ok: true, user: { id: 'U_' + args.email.split('@')[0].toUpperCase() } }; if (method === 'users.info') return { ok: true, user: { profile: { image_192: 'https://slack/p/' + args.user } } }; return { ok: true }; },
@@ -346,6 +351,51 @@ await check('the Asana mirror switch: off stops every Asana write (move, save, c
   assert.equal(asanaCalls.length, 0, 'not one Asana call');
   const st = (await call('/api/production/mirror')).body; assert.equal(st.on, false); assert.equal(st.changed_by, 'Cole');
   await setMirror(env, true, 'cole@go-mobius-digital.com');
+});
+
+await check('2026-10-14 night: a new brief answers at once (Asana task in waitUntil, linked after, number moved past a newer Asana task); the untouched Asana template is blank (grey hints); a version is deleted by the team only', async () => {
+  /* 1. New brief: the card first, Asana after */
+  asanaCalls = []; const later = [];
+  /* Asana answers slowly here (30ms before the task is made), so the route's answer is proven to come first */
+  const d3 = { ...d, waitUntil: p => later.push(p), asana: async (e, path, init) => { if (init && init.method === 'POST' && path.startsWith('/tasks?')) await new Promise(r => setTimeout(r, 30)); return d.asana(e, path, init); } };
+  const u = new URL('https://ah.test/api/production/brief');
+  const r = await (await handleProduction(new Request(u, { method: 'POST', headers: new Headers({ authorization: 'Bearer x' }), body: JSON.stringify({ act: 'brand_alpha', text: 'Belt as a gift, part two', owner: 'Ravo', due: '2026-10-20' }) }), env, u, u.pathname, json, d3)).json();
+  assert.equal(r.ok, true); assert.equal(r.asana_later, true); assert.equal(r.num, 50); assert.ok(r.id); assert.equal(r.url, null);
+  assert.ok(!asanaCalls.some(c => c.init && c.init.method === 'POST' && c.path.startsWith('/tasks?')), 'answered before the Asana task is made'); assert.equal(later.length, 1, 'the Asana half runs in waitUntil');
+  const fresh = { ...db.prepare(`SELECT num, title, board_stage, assignee_name, due_on, source, asana_gid FROM p_br_batch WHERE id = ?`).get(r.id) };
+  assert.deepEqual(fresh, { num: '50', title: 'Belt as a gift, part two', board_stage: 'brief', assignee_name: 'Ravo', due_on: '2026-10-20', source: 'locus', asana_gid: null }, 'the card is on the board at once');
+  await Promise.all(later);
+  const posted = asanaCalls.find(c => c.path.startsWith('/tasks?') && c.init && c.init.method === 'POST');
+  assert.ok(posted, 'the task is made after'); assert.equal(posted.init.body.name, '53 - Belt as a gift, part two', 'Asana had a 52 made an hour ago, so the brief moves to 53'); assert.match(posted.init.body.html_notes, /^<body><em>Added in Locus Production by Ahsan\.<\/em>/); assert.equal(posted.init.body.due_on, '2026-10-20');
+  assert.ok(asanaCalls.some(c => c.path === '/sections/S1/addTask'), 'into Creative Briefs');
+  const linked = { ...db.prepare(`SELECT num, asana_gid, asana_url, asana_section FROM p_br_batch WHERE id = ?`).get(r.id) };
+  assert.deepEqual(linked, { num: '53', asana_gid: 'TNEW', asana_url: 'https://app.asana.com/0/P1/TNEW', asana_section: 'Creative Briefs' }, 'the card is linked to its task after');
+  /* 2. The Asana template untouched reads as a blank page, so the sheet starts from the Locus template with its grey hints */
+  assert.equal(templateOnly(ASANA_T4), true); assert.equal(templateOnly(asanaToHtml(ASANA_T4)), true, 'after the Asana html became a page');
+  assert.equal(templateOnly(ASANA_T2), false, 'a page with words on it'); assert.equal(htmlBlank('<p><strong>Headline</strong></p><p>Milled. Not cast.</p>'), false); assert.equal(htmlBlank('<h2>Copy</h2><p><strong>Headline</strong></p><p><span data-ph>The words on the ad</span></p>'), true, 'hints are not words');
+  add('c4', 'brand_alpha', '47', 'Fresh from Asana', 'idea', 'Creative Briefs', 'T4');
+  const c4 = await getCard(env, dd, 'https://ah.test', 'c4', null);
+  assert.equal(c4.brief_from, 'asana'); assert.equal(c4.brief.blank, true, 'nobody wrote a word yet'); assert.match(c4.templates.new, /<span data-ph>The words on the ad<\/span>/, 'the sheet gets the starting pages with hints');
+  /* 3. Delete an uploaded version: team only; the ad falls back to the version before, then leaves the tab; R2 is wiped; the history says who */
+  const v1 = await call('/api/production/upload?id=c3&name=7-1.png', { method: 'POST', raw: Buffer.from('PNG-V1'), type: 'image/png' });
+  const v2 = await call('/api/production/upload?id=c3&name=7-1 v2.png', { method: 'POST', raw: Buffer.from('PNG-V2'), type: 'image/png' });
+  assert.equal(v2.body.file.version, 2);
+  const key2 = db.prepare(`SELECT r2_key FROM p_work_file WHERE id = ?`).get(v2.body.file.id).r2_key;
+  assert.ok(R2.has(key2), 'the file is in R2'); R2.set(key2 + '.w600.webp', Buffer.from('small'));
+  assert.equal((await call('/api/production/file/delete', { method: 'POST', body: { file_id: v2.body.file.id }, client: true })).status, 403, 'a client cannot');
+  const del = await call('/api/production/file/delete', { method: 'POST', body: { file_id: v2.body.file.id }, email: 'ahsan@go-mobius-digital.com' });
+  assert.equal(del.status, 200); assert.equal(del.body.deleted, 'v2 of 7-1');
+  assert.equal(R2.has(key2), false, 'gone from R2'); assert.equal(R2.has(key2 + '.w600.webp'), false, 'and its sized copy');
+  assert.equal((await call('/api/production/file/delete', { method: 'POST', body: { file_id: v2.body.file.id } })).status, 404, 'already gone');
+  let c3 = await getCard(env, dd, 'https://ah.test', 'c3', null);
+  assert.deepEqual(c3.files.filter(f => f.kind === 'version').map(f => [f.ad, f.version]), [['7-1', 1]], 'the ad falls back to v1');
+  assert.equal(c3.ads.length, 1); assert.equal(c3.ads[0].file_id, v1.body.file.id);
+  assert.ok(c3.comments.some(x => x.kind === 'system' && /Deleted v2 of 7-1 \(7-1 v2\.png\)/.test(x.body)), 'the history says so');
+  assert.equal((await call('/api/production/file/delete', { method: 'POST', body: { file_id: v1.body.file.id } })).status, 200);
+  c3 = await getCard(env, dd, 'https://ah.test', 'c3', null);
+  assert.equal(c3.ads.length, 0, 'an ad with one version leaves the tab');
+  const fu = new URL(v1.body.file.url);
+  assert.equal((await serveFile(new Request(fu), env, fu, fu.pathname.split('/').pop())).status, 404, 'its link no longer serves');
 });
 
 await check('comments: saved at once (Slack and Asana after, waitUntil), deleted by their author or the owner only, never a decision; files carry a download link', async () => {
