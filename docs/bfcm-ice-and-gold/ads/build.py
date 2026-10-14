@@ -47,14 +47,22 @@ def page(name, body, bg='#F6F0E6', logo=True, logo_cls=''):
         f.write(html)
 
 
+
+def split(img, pos, head, sub='', pill=True, extra=''):
+    """Photo on top (whole width, 0 to 860), words on cream below so no jewelry is covered."""
+    return (f'<img src="assets/{img}" style="position:absolute;top:0;left:0;width:1080px;height:860px;object-fit:cover;object-position:{pos}">'
+            '<div style="position:absolute;top:860px;left:0;right:0;bottom:0;background:#F6F0E6"></div>'
+            f'<div style="position:absolute;top:895px;left:80px;right:80px">{extra}<h1 style="font-size:64px">{head}</h1>'
+            + (f'<div class="price" style="font-size:28px;margin-top:10px">{sub}</div>' if sub else '')
+            + (f'<div style="margin-top:22px;display:flex;align-items:center;gap:22px"><div class="pill" style="font-size:24px;padding:15px 26px">{OFFER}</div>'
+               f'<div class="date" style="margin:0">{DATES}</div></div>' if pill else '')
+            + '</div><img src="assets/logo.png" style="position:absolute;right:80px;bottom:150px;height:40px">')
+
+
 ADS = {}
 
 # 1. The Gold Link Set leads, studs second (offer-first, early-bird variant: product leads)
-ADS['eb-01'] = dict(logo_cls='l', body=
-    '<img class="bleed" src="assets/gold-link-set-0.png" style="object-position:50% 30%">'
-    '<div class="band"><h1>The Gold Link Set</h1>'
-    '<div class="sub">Necklace, bracelet and earrings. $249.</div>'
-    f'<div class="pill light">{OFFER}</div><div class="date" style="color:#EADBC4">{DATES}</div></div>')
+ADS['eb-01'] = dict(logo=False, body=split('gold-link-set-0.png', '50% 80%', 'The Gold Link Set', 'Necklace, bracelet and earrings. $249.'))
 
 # 2. Lariat Heart Set, product on cream
 ADS['eb-02'] = dict(body=
@@ -64,17 +72,10 @@ ADS['eb-02'] = dict(body=
     f'<div class="center" style="bottom:150px"><div class="pill">{OFFER}</div><div class="date">{DATES}</div></div>')
 
 # 3. Spiral Set clears the line on its own
-ADS['eb-03'] = dict(logo_cls='l', body=
-    '<img class="bleed" src="assets/spiral-earring-and-necklace-set-10.png" style="object-position:50% 25%">'
-    '<div class="band"><h1>This set comes with<br>free studs.</h1>'
-    '<div class="sub">Spiral Earring and Necklace Set, $149.<br>Any order over $125 gets a free pair, Nov 2 to 25.</div></div>')
+ADS['eb-03'] = dict(logo=False, body=split('spiral-earring-and-necklace-set-10.png', '50% 75%', 'This set comes with free studs.', 'Spiral Earring and Necklace Set, $149.'))
 
 # 4. Water Drop Set: just over the line
-ADS['eb-04'] = dict(logo_cls='l', body=
-    '<img class="bleed" src="assets/water-drop-earring-and-necklace-set-0.png" style="object-position:50% 20%">'
-    '<div class="band"><h1>The Water Drop Set. $129.</h1>'
-    '<div class="sub">That is over $125, so the studs are free.</div>'
-    f'<div class="pill light">Free studs, {DATES}</div></div>')
+ADS['eb-04'] = dict(logo=False, body=split('water-drop-earring-and-necklace-set-0.png', '50% 85%', 'The Water Drop Set. $129.', 'That is over $125, so the studs are free.'))
 
 # 5. Two gifts on the list, studs for you
 ADS['eb-05'] = dict(body=
@@ -95,19 +96,10 @@ ADS['eb-06'] = dict(logo=False, body=
     '<img src="assets/logo.png" style="position:absolute;right:80px;bottom:190px;height:48px">')
 
 # 7. Review over product (real review, iceandgold.com)
-ADS['eb-07'] = dict(logo_cls='l', body=
-    '<img class="bleed" src="assets/gold-link-set-3.png" style="object-position:50% 30%">'
-    '<div class="band"><div style="font-size:36px;letter-spacing:8px;color:#F3D9A4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>'
-    '<h1 style="font-size:58px;font-style:italic;margin-top:10px">"The packaging was as impressive as the necklace itself."</h1>'
-    '<div class="sub" style="font-size:24px">Zaylee, Ice &amp; Gold customer</div>'
-    f'<div class="pill light">{OFFER}</div><div class="date" style="color:#EADBC4">{DATES}</div></div>')
+ADS['eb-07'] = dict(logo=False, body=split('gold-link-set-3.png', '50% 70%', '<i>"The packaging was as impressive as the necklace itself."</i>', 'Zaylee, Ice &amp; Gold customer', extra='<div style="font-size:30px;letter-spacing:6px;color:#B9791A;margin-bottom:6px">&#9733;&#9733;&#9733;&#9733;&#9733;</div>'))
 
 # 8. His chain is on your list
-ADS['eb-08'] = dict(logo_cls='l', bg='#141210', body=
-    '<img class="bleed" src="assets/12mm-diamond-clasps-gold-cuban-set-3.jpg" style="object-position:50% 50%">'
-    '<div class="band"><h1>His chain is on your list.</h1>'
-    '<div class="sub">12mm Diamond Clasps Gold Cuban Set, $249.<br>The free studs are for you.</div>'
-    f'<div class="pill light">{OFFER}</div><div class="date" style="color:#EADBC4">{DATES}</div></div>')
+ADS['eb-08'] = dict(logo=False, body=split('12mm-diamond-clasps-gold-cuban-set-3.jpg', '50% 55%', 'His chain is on your list.', '12mm Diamond Clasps Gold Cuban Set, $249. The free studs are for you.'))
 
 # 9. Native phone: the gift list in Notes
 NOTE = ('<div style="position:absolute;top:170px;left:130px;right:130px;background:#fff;border-radius:40px;'
