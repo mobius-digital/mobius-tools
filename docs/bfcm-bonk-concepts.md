@@ -67,18 +67,12 @@ it in five words over real hats. So: keep the proven heroes running through the 
   Big Savings" gift-set cards and a "Complete Bundle: $59.99, save up to $156" card ran all season.
 - Nobody else sells a matched hat + marker + divot tool + towel + tees in one box (brand brain). That is the open ground.
 
-## Three things to settle with Floyd before the offer ads (send with the offer confirmation)
-1. **The $99 bundle is priced above the same bundle today.** The Performer Bundle sells hat + marker + divot tool +
-   magnetic towel + 10 tees for **$92.95** right now, and the new **Smoke Show Golf Gift Set** (same five pieces, live
-   since Oct 6) is **$102.80**. A $99 Black Friday price is $6 above the Performer. Either the Black Friday bundle has
-   something extra, or the Performer comes down/off the site for the weekend, or the price goes under $92.95.
-2. **The $130.50 value has to add up from the site.** Today's prices: snapback $42.95 (PF 2.0 $45.95, 250 $49.95) +
-   marker $19.95 + divot tool $19.95 + towel $29.95 + tees $12.95 = **$125.75** ($128.75 with a PF 2.0). Floyd's itemized
-   list or a corrected value; the bundle ads print it.
-3. **What B2G1 covers** (hats only, or everything; does it stack with the bundle; which item is free). Last year's
-   "Site Wide" wording was pulled after complaints, so the ad will say exactly what is free.
-Also (already in the Asana DECIDE task): retention is 10 to 11%, so the "list first" phase is small. Recommend public
-warm-up ads from Nov 1 regardless.
+## Black Friday offer: CONFIRMED (Cole, Oct 14)
+- Bundle at the site price **$92.95** (not $99). Value **$125.75** from site prices (snapback $42.95 + marker $19.95
+  + divot tool $19.95 + towel $29.95 + tees $12.95). Save $32.80.
+- **Buy 2 Get 1 Free on hats only.** Youth, Southpaw and PF 2.0 are hats, so they count.
+- Written into Locus Season (`p_season_phase` key `bf`). Still open: the Early BF warm-up offer (lines 12 to 15).
+- Note: the Smoke Show Golf Gift Set (same five pieces) is $102.80 on the site; worth retiring or matching it.
 
 ## Cost heads-up
 - Bonk statics are HTML around real photos: **$0 image spend**. Uploading them to Studio as photo-is-the-ad lines costs
@@ -156,11 +150,10 @@ offer-free statics (real photos only)" on brand_bonk_golf, every line a real-pho
 in `locus_uploads.json`). ebf-11 is marked HOLD in its line text. No image-model spend.
 
 ## Batch 2. Black Friday (25, live Nov 27 to 30, done by Nov 13)
-Proposed offer: Everything a Golfer Needs bundle (hat, ball marker, divot tool, towel, tees), "$130.50 value" for $99,
-and Buy 2 Get 1 Free. At Black Friday the offer IS the headline (Lucky and Bonk 2025 both), so almost every line needs
-the offer. Lines 23 and 24 reuse the built Early BF heroes with a sticker. Photos for the bundle: the Smoke Show Golf
-Gift Set shoot (4 real photos on Shopify, Oct 6) and the Performer Bundle card; a flat lay of the five pieces on white
-is still worth shooting.
+Offer (confirmed Oct 14): the five-piece set $125.75 of gear for $92.95, and Buy 2 Get 1 Free on hats only.
+**BUILT Oct 14: lines 1 to 24** as `docs/bfcm-bonk/ads/out/bf-01..24.png` (`bf_build.py`; prices are constants at the
+top), loaded into Locus Studio as draft batch `955e149acf3af48d87fdaf4a` "Black Friday: bundle + B2G1 hats". Line 25
+(unbox video) needs footage. Line 19 was changed from "the only sale of the year" (unverified) to a type-led B2G1 card.
 
 The bundle ($99)
 1. **Everything in one box.** `NEEDS OFFER` Angle: the whole golf gift solved. Why: nobody else sells the matched

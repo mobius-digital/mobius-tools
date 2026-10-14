@@ -2315,10 +2315,10 @@ async function processPlaidTxnInner(env, item, t, opts = {}) {
   // 3) new row through the rules
   const row = await applyRule(env, { date, month, type, vendor, amount, bucket: null, tax_cat: null, note, status });
   const res = await env.DB.prepare(`INSERT OR IGNORE INTO transactions
-    (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, plaid_id)
-    VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'plaid',?10)`)
+    (date, month, type, vendor, amount, bucket, tax_cat, note, status, source, plaid_id, acct)
+    VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'plaid',?10,?11)`)
     .bind(row.date, row.month, row.type, row.vendor, row.amount, row.bucket, row.tax_cat,
-          row.note, row.status, t.transaction_id).run();
+          row.note, row.status, t.transaction_id, acctType === 'credit' ? 'card' : 'bank').run();
   return res.meta.changes ? (row.status === 'review' ? 'added-review' : 'added') : 'duplicate';
 }
 
@@ -3411,6 +3411,8 @@ const LEDGER = {
           })),
           buckets: BUCKETS_OUT,
           edition: (await getSetting(env, 'edition')) || 'service',
+          /* The owner's other sets of books (the picker at the top of the rail). Links only; nothing is shared. */
+          books: safeJson(await getSetting(env, 'books'), null),
         });
       }
 
@@ -3870,6 +3872,19 @@ const LEDGER = {
        * Each month is exactly what its report says (frozen when closed), minus
        * the transaction detail, so a chart can never disagree with a statement.
        * Top vendors come from the live rows: closed months cannot change them. */
+      /* The drill: every booked row behind a number over a range of months, so a tile can
+         open the charges it is made of. kind = in | out | fee; line = the tax category. */
+      if (path === '/api/drill') {
+        const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+        if (!validMonth(from) || !validMonth(to) || from > to) return json({ error: 'from/to=YYYY-MM' }, 400);
+        const { results } = await env.DB.prepare(
+          `SELECT id, date, month, type, vendor, amount, tax_cat, bucket, note, receipt_key, receipt_skip, acct
+           FROM transactions WHERE expected = 0 AND type != 'transfer' AND month >= ?1 AND month <= ?2 ORDER BY date, id`).bind(from, to).all();
+        const rows = results.map(r => ({ id: r.id, date: r.date, month: r.month, vendor: r.vendor, amount: r.amount, type: r.type,
+          kind: r.type, line: r.type === 'in' ? 'Revenue' : (r.tax_cat || r.bucket || 'Uncategorized'),
+          note: r.note || '', receipt: !!r.receipt_key, noReceiptNeeded: !!r.receipt_skip, acct: r.acct || null }));
+        return json({ from, to, rows });
+      }
       if (path === '/api/series') {
         const from = url.searchParams.get('from'), to = url.searchParams.get('to');
         if (!validMonth(from) || !validMonth(to) || from > to) return json({ error: 'from/to = YYYY-MM' }, 400);
@@ -4371,8 +4386,19 @@ const LEDGER = {
         /* The edition: which business the books are for. It picks the rail,
            the Settings sections and the words; it never hides data. */
         if (EDITIONS.includes(b.edition)) await putSetting(env, 'edition', b.edition);
+        /* The books list: the separate sets of books this owner keeps, as links
+           for the picker. Name, https address and edition only; at most twelve. */
+        if (Array.isArray(b.books)) {
+          const books = b.books.map(x => ({
+            id: String(x?.id || x?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24),
+            name: String(x?.name || '').trim().slice(0, 40),
+            edition: EDITIONS.includes(x?.edition) ? x.edition : 'service',
+            url: String(x?.url || '').trim().slice(0, 200),
+          })).filter(x => x.name && /^https:\/\/[^\s]+$/.test(x.url)).slice(0, 12);
+          await putSetting(env, 'books', JSON.stringify(books));
+        }
         return json({ money: await getMoney(env), taxCats: safeJson(await getSetting(env, 'taxCats'), []), notify: await getNotify(env),
-          edition: (await getSetting(env, 'edition')) || 'service' });
+          edition: (await getSetting(env, 'edition')) || 'service', books: safeJson(await getSetting(env, 'books'), null) });
       }
 
       if (path === '/api/password' && request.method === 'POST') {

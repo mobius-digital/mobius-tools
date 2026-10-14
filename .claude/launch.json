@@ -140,6 +140,26 @@
         "account-health/worker/wrangler.toml"
       ],
       "port": 8797
+    },
+    {
+      "name": "cashew-stub",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/wetzl/AppData/Local/Temp/claude/C--Users-wetzl-OneDrive-Apps-Desktop-Mobius-Digital-Mobius-Digital-Tools--claude-worktrees-jovial-sinoussi-5d17fa/af77b2de-1577-43fc-a381-c2b926dcb8bd/scratchpad/stub-server.js",
+        ".",
+        "8793"
+      ],
+      "port": 8793
+    },
+    {
+      "name": "lucky-stub",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/wetzl/AppData/Local/Temp/claude/C--Users-wetzl-OneDrive-Apps-Desktop-Mobius-Digital-Mobius-Digital-Tools--claude-worktrees-jovial-sinoussi-5d17fa/af77b2de-1577-43fc-a381-c2b926dcb8bd/scratchpad/stub-server.js",
+        "C:/Users/wetzl/Lucky Golf/Lucky Ledger/app",
+        "8794"
+      ],
+      "port": 8794
     }
   ]
 }

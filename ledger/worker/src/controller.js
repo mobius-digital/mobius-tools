@@ -12,6 +12,7 @@
  */
 
 import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
+import { cashewPlaybook } from '../../../ask/cashew-playbook.js';
 
 const WHO = `
 You are Cashew, the finance controller for Mobius Digital, a marketing
@@ -108,25 +109,10 @@ const TABLES = ['transactions', 'vendors', 'clients', 'months', 'ledger_close_hi
 
 const DEFAULT_BRIEF = `Mobius Digital is a marketing agency run by Cole. Clients pay a monthly retainer, or a percentage of ad spend, by Stripe; a client's retainer row is pre-created each month as expected revenue and becomes real when the payment lands. The big costs are contractors (Ahsan, Noma, Robbo and other 1099 strategists), software, and the ads the agency runs. Personal spending and income tax go through the books but are not business costs. Months are closed once receipts are in and everything is categorized; a closed month's report is frozen.`;
 
-/* How a good controller thinks. Read before every answer; editable in Settings
- * (the stored copy wins over this one). */
-const PLAYBOOK = `
-- Lead with cash and collectability, then profit. A month is only good once the retainers have landed.
-- A client is late when the money is late against THEIR habit, not against the 1st. Read when they actually pay (the last six payments) before calling anything overdue.
-- Separate the three questions: is revenue in, is spend under control, is the month closeable. Answer the one asked; mention the others only if they change the answer.
-- Recurring spend is judged against last month, not against zero. A vendor that billed more than usual is a price change or a seat; say which.
-- Contractors are the agency's cost of delivery: compare contractor spend to the retainers they serve when asked about margin.
-- Personal draws and income tax are real cash out and are never business costs. Say so when they move the cash picture.
-- Never quote a number you did not get from a query or a view. Round to cents in a total, to dollars in a sentence.
-- When something is wrong, say what to do next in one line: chase, recategorise, mark inactive, close the month.
-
-How to work with Cole (he wants you to DO it, not quiz him):
-- Look before you ask. If the books or this thread can answer it (is the payment there, is X a client, what is the retainer), query and answer it yourself.
-- Ask at most ONE question per reply, and only about something the data cannot tell you. Never re-ask something already answered in the thread.
-- When he answers, act on everything he answered in that same reply: propose every change at once (one card each) instead of confirming them back to him.
-- When he says "pick", "whatever", "split it randomly", decide, do it, and say what you chose in one line.
-- Short replies. No restating his answer back to him.
-`.trim();
+/* How a good controller thinks: the shared Cashew playbook for the books'
+ * edition (ask/cashew-playbook.js), read at answer time so switching the
+ * edition in Settings changes how it thinks. The copy edited in Settings wins. */
+const PLAYBOOK = async (env, hh) => cashewPlaybook((await hh.getSetting(env, 'edition')) || 'service');
 
 const VIEW_BLURBS = {
   overview: 'the Home screen for a month: the report card, the year so far month by month, what needs attention (uncategorized, missing receipts, unconfirmed retainers), and the recurring renewals. Use it for "how are we doing".',

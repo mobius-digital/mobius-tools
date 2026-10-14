@@ -1,0 +1,39 @@
+# Cashew Slack router: the one address the Cashew Slack app talks to.
+#
+# Cashew is ONE Slack app (A0C99FUDBA8, bot user "Cashew") in front of several
+# SEPARATE sets of books: Mobius Digital's (worker mobius-ledger, this account)
+# and Lucky Golf's (worker lucky-ledger, the Lucky Golf account). Slack allows
+# one Events URL and one Interactivity URL per app, so this worker is both, and
+# the CHANNEL decides whose books a message is about. The books never mix:
+# each worker holds its own data, its own bank links, its own access list.
+#
+# Paste into Slack (api.slack.com/apps/A0C99FUDBA8):
+#   Event Subscriptions -> Request URL
+#     https://cashew-slack.mobius-digital.workers.dev/slack/events
+#   Interactivity & Shortcuts -> Request URL
+#     https://cashew-slack.mobius-digital.workers.dev/slack
+#
+# Deploy:  npx wrangler deploy   (from this folder, Mobius Cloudflare login)
+#
+# No secret here on purpose: this worker stores nothing and verifies nothing.
+# It answers Slack's URL check and passes every request on whole, both
+# signature headers intact, so each set of books verifies Cashew's signature
+# for itself (SLACK_SIGNING_SECRET on each worker = the Cashew app's). A forged
+# request reaching this worker is forwarded and refused there with a 401.
+name = "cashew-slack"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+[vars]
+# Which channels belong to which books. Everything not listed, and every DM,
+# is Mobius Digital's (Cole's default books). Add a channel id here when a new
+# business joins Cashew. Lucky: #lucky-finance.
+TENANT_CHANNELS = '{"C0C1XGY9DQC":"lucky"}'
+# Where each set of books lives. Mobius goes over the service binding below
+# (same Cloudflare account: a public workers.dev fetch between two workers on
+# one account is blocked). Lucky is on another account, so its public URL works.
+LUCKY_URL = "https://lucky-ledger.lucky-golf-showroom.workers.dev"
+
+[[services]]
+binding = "MOBIUS"
+service = "mobius-ledger"

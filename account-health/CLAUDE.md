@@ -93,7 +93,7 @@ Mobius Profit's Reports tab; `/api/reports`, `/api/report`,
   closed with no `SLACK_SIGNING_SECRET`. Slack allows three seconds: buttons ack
   immediately and work in `ctx.waitUntil`, EXCEPT `views.open` which must happen
   inside the ack because a `trigger_id` expires.
-- **(2026-10-14: the Ledger is now Cashew on ITS OWN Slack app, A0C99FUDBA8, events and interactivity straight to mobius-ledger; slack-router serves Locus and Pulse only. The paragraph below is history.)**
+- **(2026-10-14: the Ledger is now Cashew on ITS OWN Slack app, A0C99FUDBA8; its events and interactivity go to the `cashew-slack` router (`ledger/slack`), which forwards by channel to mobius-ledger or the Lucky worker; slack-router serves Locus and Pulse only. The paragraph below is history.)**
 - **One Slack app, one interactivity URL, three tools.** The URL points at the
   LEDGER worker, which classifies and forwards: `{id, tax}` values are Ledger's,
   `brief_*` / `report_*` / `noop_open` action ids and modal callback ids come
