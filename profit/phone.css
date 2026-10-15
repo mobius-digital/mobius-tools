@@ -220,6 +220,12 @@ body.lxs-open{overflow:hidden}
   [data-ui="v2"] .rv-list{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
   [data-ui="v2"] .rv-box{padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
   [data-ui="v2"] .rv-ver{min-height:0}
+  /* the "Arrow attached · Remove" pill and the Keep it / Delete pair live in the hosted Notes panel: the 44px rule had
+     stretched their buttons, so the pill read as a huge blob on Cole's phone (fifth pass). The pill is one 32px row
+     and the buttons keep their drawn size. */
+  [data-ui="v2"] .rv-pend{min-height:32px;padding:0 12px;font-size:12px;white-space:nowrap}
+  [data-ui="v2"] .rv-pend button,[data-ui="v2"] .rv-del .rv-btn{min-height:0}
+
 }
 /* touch: hit areas (the look stays; a pseudo element takes the tap) */
 @media (pointer:coarse){
