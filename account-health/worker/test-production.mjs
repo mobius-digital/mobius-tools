@@ -5,7 +5,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { boardOf } from './src/asana-brand.js';
-import { formatOf, cardOf, listBoard, moveCard, handleProduction, setField, archiveCard, restoreCard, duplicateCard } from './src/production.js';
+import { formatOf, cardOf, listBoard, moveCard, handleProduction, setField, archiveCard, restoreCard, duplicateCard, listArchived } from './src/production.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -162,6 +162,29 @@ await check('the board from the outside (2026-10-15): one field at a time (owner
     assert.equal((await call(pth, body, true)).status, 403, `${pth} is the team's`);
   assert.equal((await call('/api/production/field', { id: 'c2', launch_on: '2026-10-30' })).body.card.launch_on, '2026-10-30');
   assert.equal((await call('/api/production/field', { id: 'nope', due: '' })).status, 404);
+});
+
+await check('Archived (2026-10-15 polish): cards archived in the last 60 days with the column they left; older and open ones never; the GET route is the team\'s; Put back = restore', async () => {
+  const dd = { ...d };
+  await archiveCard(env, dd, { id: 'c2' }, 'ahsan@go-mobius-digital.com');   /* c2's Asana task sits in Creative Studio since the routes check */
+  db.exec(`UPDATE p_br_batch SET board_at = '2026-10-14 09:00:00' WHERE id = 'c2'`);
+  db.exec(`UPDATE p_br_batch SET board_stage = 'done', stage = 'done', board_at = '2026-06-01 09:00:00' WHERE id = 'c4'`);   /* long gone */
+  const a = await listArchived(env, dd, { act: 'brand_alpha' });
+  assert.equal(a.days, 60);
+  assert.ok(a.cards.some(c => c.id === 'c2'), 'the fresh one is listed');
+  assert.ok(!a.cards.some(c => c.id === 'c4'), 'an archive older than 60 days is not');
+  assert.ok(!a.cards.some(c => c.id === 'c1'), 'a card on the board is not');
+  const c2 = a.cards.find(c => c.id === 'c2');
+  assert.equal(c2.brand, 'Alpha Golf'); assert.equal(c2.num, '102'); assert.equal(c2.archived_at, '2026-10-14'); assert.equal(c2.was, 'making', 'the Asana section (Creative Studio, from the earlier move) still says where it was');
+  assert.ok(!('board' in c2) && !('brief_text' in c2), 'a lean row');
+  assert.ok((await listArchived(env, dd, { act: 'all' })).cards.some(c => c.id === 'c2'));
+  assert.deepEqual((await listArchived(env, dd, { act: 'brand_beta' })).cards, []);
+  const call = async (path, client) => { const h = new Headers({ authorization: 'Bearer team' }); if (client) h.set('x-client', '1'); const url = new URL('https://x' + path); const r = await handleProduction(new Request(url, { method: 'GET', headers: h }), env, url, url.pathname, json, dd); return { status: r.status, body: await r.json() }; };
+  const g = await call('/api/production/archived?act=brand_alpha'); assert.equal(g.status, 200); assert.ok(g.body.cards.some(c => c.id === 'c2'));
+  assert.equal((await call('/api/production/archived?act=brand_alpha', true)).status, 403, 'a client never lists the archive');
+  const back = await restoreCard(env, dd, { id: 'c2', to: c2.was }, 'x');
+  assert.equal(back.to, 'making');
+  assert.ok(!(await listArchived(env, dd, { act: 'brand_alpha' })).cards.some(c => c.id === 'c2'), 'off the archive once back on the board');
 });
 
 console.log(`\n${n} passed, ${bad} failed`);
