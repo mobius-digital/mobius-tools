@@ -1145,10 +1145,16 @@ Plain English, no em dashes, lead with the answer.` }];
         /* A long server-tool turn can pause; send it back as is and it carries on. */
         if (!calls.length && reply.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: reply.content }); continue; }
         if (!calls.length) {
-          /* Web search answers come as many text blocks, one per cited phrase: those join with nothing between
-             them ("they ran " + "20% off sitewide" + ", and"). Joining with newlines broke sentences across lines. */
-          const texts = (reply.content || []).filter(c => c.type === 'text');
-          answer = texts.map((c, i) => (i && !c.citations?.length && !texts[i - 1].citations?.length ? '\n\n' : '') + c.text).join('').trim();
+          /* Text blocks next to each other are one run of prose: a web answer arrives as one block per cited phrase
+             ("they ran " + "20% off sitewide" + ", and"), and joining them with newlines broke sentences across lines.
+             Only a tool step between two text blocks starts a new paragraph. */
+          let gap = false;
+          answer = (reply.content || []).map(c => {
+            if (c.type !== 'text') { if (!/thinking/.test(c.type)) gap = true; return ''; }
+            const sep = gap ? '\n\n' : '';
+            gap = false;
+            return sep + c.text;
+          }).join('').trim();
           if (!answer && reply.stop_reason === 'refusal') answer = 'I cannot help with that one.';
           /* Text written in the same turn as proposals is the read those cards belong to; the last turn is often
              only "the cards are below" (Monday review preview, 2026-10-10). Keep it in front of the answer. */
