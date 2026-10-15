@@ -234,7 +234,23 @@
     if (undoFn) t.querySelector('button').onclick = () => { t.remove(); undoFn(); };
     document.body.appendChild(t); setTimeout(() => t.remove(), ms || (undoFn ? 12000 : bad ? 6000 : 3000));
   }
-  window.LxMetaWrite = { pause, budget, undo, toast, metaLive };
+  /* ONE CHANGE WITHOUT A MODAL (2026-10-15, Today's calls "Do all N calls": Cole confirms the whole list once, in one
+     sheet). The SAME server path as pause() / budget(): a dry run first, then the write with `expect` from that dry run,
+     so a change Meta already moved is refused as stale. kind 'pause' (ad set, or the ad when it.ad_id) or 'budget'
+     (amount = the new budget). Never throws: { ok, write, summary } or { ok: false, error }. */
+  async function run(host, it, { kind, amount, reason } = {}) {
+    const body = kind === 'budget'
+      ? { act: it.act_id, kind: 'budget', level: 'adset', object: it.adset_id, amount, reason: `${reason || 'From Today'}: ${it.why || ''}` }
+      : { act: it.act_id, kind: 'pause', level: it.ad_id ? 'ad' : 'adset', object: it.ad_id || it.adset_id, reason: `${reason || 'From Today'}: ${it.why || ''}` };
+    let d; try { d = await write(host, { ...body, dry: true }); } catch (e) { d = { error: e.message }; }
+    if (!d || d.error) return { ok: false, error: d && d.error || 'Meta did not answer.' };
+    const keyB = d.before && d.before.daily_budget != null ? 'daily_budget' : 'lifetime_budget';
+    const expect = kind === 'budget' ? (d.before && d.before[keyB] != null ? { [keyB]: d.before[keyB] } : undefined) : (d.before && d.before.status != null ? { status: d.before.status } : undefined);
+    let r; try { r = await write(host, { ...body, expect }); } catch (e) { r = { error: e.message }; }
+    if (!r || r.error) return { ok: false, error: r && r.error || 'Meta did not answer.' };
+    return { ok: true, write: r, summary: String(r.summary || '').replace(/^[^:]+:\s*/, '') };
+  }
+  window.LxMetaWrite = { pause, budget, undo, toast, metaLive, run };
 
   /* ---------- refresh: on every show(), for the brand on screen ---------- */
   async function refresh(host2) {

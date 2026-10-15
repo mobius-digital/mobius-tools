@@ -424,7 +424,7 @@ async function buyerList(env, ctx, accts) {
       const tr = R.target_roas;
       const age = s.first ? Math.round((Date.parse(to) - Date.parse(s.first)) / 864e5) + 1 : null;
       const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, objective: s.objective, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: X.spend, orders: X.orders, results: res, revenue: X.revenue,
-        cpa: cpr, goal: unit, goal_roas: tr, roas, n_ads: s.ads.length, anchor, days, judged_on: m,
+        cpa: cpr, goal: unit, goal_roas: tr, roas, n_ads: s.ads.length, anchor, top_ad: top ? { ad_id: top.id, name: top.name, share } : null, days, judged_on: m,
         set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget } };
       let working = true;
       if (unit && X.spend >= R.cr_judge_x * unit && !(age != null && age < R.cr_min_days)) {
