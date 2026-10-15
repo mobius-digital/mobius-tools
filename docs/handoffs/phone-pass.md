@@ -232,6 +232,36 @@ and sat in the blurred top edge. Under 720 now:
   61px tabs, the ask bar display none, the chat open full screen with the box at y 712 and focused, closed back to
   y 812, light and dark. phone.css?v=9 on both hosts.
 
+## Ninth pass, the same day: Ask is a tab, and the chat is a proper phone sheet
+
+Cole on the eighth pass: "looks fine, a little clunky", and "the chat itself looks bad on mobile". The round button
+crammed into a flat full-width bar read as stuck on, and the chat was the desktop side panel stretched to the phone
+(the title wrapped, New / Chats / Reports were tall pills, a 13.5px box with an "Enter sends, Shift+Enter" hint, every
+answer in a grey bubble). Rebuilt on the pattern of an assistant tab in a native app (Triple Whale's Moby, the ChatGPT
+and Claude apps):
+
+- **Ask is the middle tab** (Home, Ads, Ask, Work, Store, More): drawn like the others, the helper's face as its icon,
+  lit while the chat is open, the face switching to "thinking" while it works. The five tabs Cole picked keep their
+  places; Ask sits between Ads and Work.
+- **The chat is a large sheet from the bottom**: rounded top, a grab handle, swipe the header down to close, a sliver
+  of the page above it, the iOS sheet curve. Its height follows the visual viewport (phone.js sets `--vvh` / `--vvt`),
+  so the box stays above the keyboard; the safe-area padding under the box drops while the keyboard is up.
+- **Header**: the helper, "Ask Locus", "About <brand>", then three icons: new chat, More (a bottom sheet with Past chats,
+  Reports, New chat) and close.
+- **Empty chat**: the helper, "What do you want to know?", one line on what it can answer, then "Try asking" with four
+  questions for the page you are on (index.html's `askList()`, the same list the top-bar ask bar used), near the thumb.
+  Tapping one asks it.
+- **Conversation**: your questions are brand bubbles on the right, answers are plain 15.5px text, cards (proposals,
+  reports, files) keep their boxes, the working line is a soft grey card.
+- **Box**: a 16px pill (iOS zooms the page on anything smaller), "Ask Locus anything", `enterkeyhint="send"`, a round
+  send arrow inside the pill that lights only when there is something to send.
+- **ask-ui.js is untouched** (Ledger and Supply share it): phone.js adds the pieces inside #ask (`.lxa-*`) and phone.css
+  hides the originals under 720; above 720 the added pieces are hidden and the panel is as before.
+- Checked in headless Chrome at 375 with a faked notch and stubbed APIs, light and dark: six 60px tabs with the labels
+  on one line, the sheet at y 69 (10px under the notch), the empty state with four questions and the box focused, typed
+  then sent, the working card, the answer, the More sheet over the chat, closed back down with the tab unlit, no
+  sideways scroll. Not on a real iPhone (keyboard behaviour especially). phone.css?v=10, phone.js?v=4.
+
 ## Still open
 
 - Not checked on a real device, only the Browser pane at 375 and 768.

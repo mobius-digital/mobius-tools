@@ -2194,7 +2194,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=43">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="phone.css?v=9">
+<link rel="stylesheet" href="phone.css?v=10">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=13"></script>
 <script src="strategist.js?v=4"></script>
@@ -2300,13 +2300,13 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <nav class="tabbar" id="tabbar" aria-label="Primary">
   <button data-t="overview" data-grp="home"><svg class="ic"><use href="#i-overview"/></svg><span>Home</span></button>
   <button data-t="meta" data-grp="ads"><svg class="ic"><use href="#i-ads"/></svg><span>Ads</span></button>
+  <!-- Ask, a tab in the middle of the phone bar (2026-10-15, Cole: the ask bar at the top of a phone was hard to reach
+       and the round button that replaced it looked clunky). The helper's face is its icon; it opens the chat, which
+       comes up from the bottom (phone.css, phone.js). Shown when the ask bar would be. -->
+  <button id="tbAsk" type="button" aria-label="Ask Locus" hidden><span class="lx-face" data-state="clear"></span><span>Ask</span></button>
   <button data-t="production" data-grp="work"><svg class="ic"><use href="#i-circle-check"/></svg><span>Work</span></button>
   <button data-t="store" data-grp="store"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
-  <!-- Ask, beside the tabs (2026-10-15, Cole: the ask bar at the top of a phone was hard to reach and sat in the blurred
-       top edge). On a phone the top-bar ask bar is hidden (phone.css) and this round button opens the chat, which slides
-       up from the bottom with its box at the bottom. Shown when the ask bar would be. -->
-  <button id="tbAsk" type="button" aria-label="Ask Locus" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z"/><path d="M12 8.2l.9 2.2 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9Z"/></svg></button>
 </nav>
 
 <div class="nav-scrim" id="navScrim" hidden></div>
@@ -2345,7 +2345,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
 <script src="polish.js?v=2" defer></script>
-<script src="phone.js?v=3" defer></script>
+<script src="phone.js?v=4" defer></script>
 <script>
 'use strict';
 const DEFAULT_WORKER_URL = 'https://mobius-profit.mobius-digital.workers.dev';
