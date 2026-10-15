@@ -3530,8 +3530,10 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
 - WINNER (now Studio's "Real product"): the real cut-out is placed on an EMPTY canvas FIRST, `/api/studio/make-real`
   has the model paint the whole scene around it (`realPrompt`: short on purpose), then `realfit.js` (browser) finds
   where the model left the product (`fit`, masked zero-mean correlation, coarse whole-frame at 1/16 with 6 candidates,
-  then 1/8, 1/4, 1/2) and `lock` puts the REAL pixels back lit by the model's smooth light only. Club ads: 12 of 12
-  exact and grounded on the bench, 2 of 2 first try live in Studio. Gate `RealFit.GATE` 0.78 (good fits 0.80 to 0.96,
+  then 1/8, 1/4, 1/2) and `lock` puts the REAL pixels back lit by the model's smooth light only. Club ads: 10 of 12
+  on the bench (Cole caught 2 wedges whose AI-drawn shaft above the photo came out BLACK: the Carver photo ends at its
+  thin black band; fixed by giving `realPrompt` the fingerprint for anything drawn past the photo, 2 of 2 gold after),
+  2 of 2 first try live in Studio. Grade the parts the AI draws past the photo too, not only the marks. Gate `RealFit.GATE` 0.78 (good fits 0.80 to 0.96,
   every bad one 0.72 or less); up to 3 tries, best kept; a failed fit is NEVER locked (it would paste a ghost product),
   the ad shows "Check the product". ~$0.32 an attempt, about $0.40 a finished ad.
 - Traps measured on the way: the long designed-ad prompt (adPrompt) made the model return the canvas BLACK with no
