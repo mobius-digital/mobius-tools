@@ -50,7 +50,7 @@
   .pv img,.pv video{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
   .pv .ov{position:absolute;display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.18)}
   .pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
-  .pv:hover .open,.pv:focus-visible .open{opacity:1}
+  @media (hover:hover){.pv:hover .open{opacity:1}}.pv:focus-visible .open{opacity:1}   /* iOS keeps :hover after a tap, so the overlay stayed over the card */
   .pv .open span{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--surface);font-weight:700;font-size:13px;display:inline-flex;align-items:center}
   .cb{padding:14px;display:flex;flex-direction:column;gap:10px}
   .st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent)}
@@ -72,7 +72,7 @@
      bottom sheet with a "Notes · N" pill). phone.css keys the viewer's phone rules on [data-ui="v2"], which is why <html>
      carries that attribute here: nothing else on this page reads it. phone.js gates everything on width and on the Locus
      nodes it finds, so the More sheet, client picker, Filters and tab-row parts are inert on this page. -->
-<link rel="stylesheet" href="phone.css?v=5">
+<link rel="stylesheet" href="phone.css?v=7">
 </head>
 <body>
 <header class="top"><b id="brand">Ad review</b><span class="muted" style="font-size:13px">from Mobius Digital</span><span class="who" id="who"></span></header>

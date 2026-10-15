@@ -162,6 +162,50 @@ the audit measured page bodies only, never the sheets, menus or the brief editor
   before the next repaint. The page's own cards at 375: one column, no sideways scroll, the card buttons 32px (at
   the audit threshold, left alone).
 
+## Sixth pass, the same day: Cole's iPhone screenshots (the pill, the stuck overlay, the grey band, the column pills)
+
+Cole sent two screenshots of Locus on his iPhone (Ice & Gold, card 5). Four complaints, four causes:
+
+- **"Arrow attached · Remove" looked absolutely huge** in the Notes sheet. Cause: the pill's Remove is a
+  `<button>`, and index.html's 44px rule stretched it, which stretched the pill around it. Fix in phone.css's
+  viewer block: `[data-ui="v2"] .rv-pend button` and `.rv-del .rv-btn` (the Keep it / Delete pair) reset to
+  `min-height:0`; the pill itself is one 32px line (`white-space:nowrap`, 12px). Measured at 375 on the review
+  stub: pill 151x32, the button 17px, in the sheet. phone.css?v=6 on both hosts.
+- **"Open review" hovered over the whole picture while scrolling.** Cause: iOS keeps `:hover` on the last element
+  tapped, so `.ps-pv:hover .open{opacity:1}` (prodsheet.js, the sheet's Ads cards) and `.pv:hover .open`
+  (review.html's cards) stayed on after a tap. Both rules are now inside `@media (hover:hover)`; focus-visible
+  still shows the overlay for the keyboard. Checked: at 375 (hover:none) a hovered card reads opacity 0; on the
+  desktop (hover:hover) it reads 1. prodsheet.js?v=12.
+- **A grey band at the top of the whole app.** Cause: the two `theme-color` metas were keyed on
+  `prefers-color-scheme`, the PHONE's scheme, while Locus picks its own theme from `pf_theme`. Safari paints the
+  status-bar band with theme-color, so a dark Locus on a light-mode iPhone got a #F7F7F8 band over a #111113 page.
+  Now ONE meta (`#themeColor`) set by `syncThemeColor()` in the head script and again from `paintTheme()` on every
+  theme switch. Checked on the gate page: dark reads #111113 with the body at rgb(17,17,19), switching to light
+  flips it to #F7F7F8. The installed-app status bar (`apple-mobile-web-app-status-bar-style default`) was left as
+  is; if the band is still there on the home-screen app, the next step is `black-translucent` plus a dark top bar,
+  not a theme-color change.
+- **The Production column pills (Brief / Making / Review / Ready / Live) looked super big.** Same 44px rule on
+  `.pd-seg button` (production.js, drawn at 34px). production.js belongs to the board session, so the fix
+  (`min-height:0` in its injected CSS) was handed to it rather than made here.
+
+## Seventh pass, the same day: the band came back after a popup; the ask bar looked blurry
+
+Cole, after the sixth pass: the grey band was gone, came back after he opened a popup, and then stayed; when it was
+not there, the ask bar looked covered by something at the very top, slightly blurry.
+
+- **The band:** `#v2scrim` (the dark layer behind the side panel and the card sheet) is created by v2.js on the
+  first popup and then stays in the page for good, at opacity 0 but still a full-screen fixed layer with a grey
+  background. Safari tints the status-bar band from what is fixed at the top edge, so after one popup the band
+  stayed. A closed scrim is now `visibility:hidden` (the flip waits for the fade).
+- **The blur:** the page uses `viewport-fit=cover`, so it runs under the status bar and the Dynamic Island, where iOS
+  blurs what is behind it. index.html pads the top bar with `env(safe-area-inset-top)`, but v2.css's
+  `[data-ui="v2"] .topbar{padding:10px 16px 2px}` is more specific and threw it away, so the badge and the ask bar
+  sat in that strip. phone.css puts it back under 980, and gives the full-screen panel and the review viewer the
+  same top inset (and the viewer the bottom one).
+- Checked in headless Chrome over CDP (375, touch, `Emulation.setSafeAreaInsetsOverride` top 59 / bottom 34; the
+  Browser pane refused the spare port): top bar padding 69px (10 + 59), panel 59px; the scrim hidden before, visible
+  open, fading at 60ms, hidden after. phone.css?v=7 on both hosts.
+
 ## Still open
 
 - Not checked on a real device, only the Browser pane at 375 and 768.

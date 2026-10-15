@@ -220,6 +220,12 @@ body.lxs-open{overflow:hidden}
   [data-ui="v2"] .rv-list{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
   [data-ui="v2"] .rv-box{padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
   [data-ui="v2"] .rv-ver{min-height:0}
+  /* the "Arrow attached · Remove" pill and the Keep it / Delete pair live in the hosted Notes panel: the 44px rule had
+     stretched their buttons, so the pill read as a huge blob on Cole's phone (fifth pass). The pill is one 32px row
+     and the buttons keep their drawn size. */
+  [data-ui="v2"] .rv-pend{min-height:32px;padding:0 12px;font-size:12px;white-space:nowrap}
+  [data-ui="v2"] .rv-pend button,[data-ui="v2"] .rv-del .rv-btn{min-height:0}
+
 }
 /* touch: hit areas (the look stays; a pseudo element takes the tap) */
 @media (pointer:coarse){
@@ -232,4 +238,25 @@ body.lxs-open{overflow:hidden}
   /* the page head's quiet actions and the Change Log's row buttons were 28px on an iPad */
   [data-ui="v2"] .ph-ico,[data-ui="v2"] .cl2-btn,[data-ui="v2"] .cl2-link,[data-ui="v2"] .pd-chip,[data-ui="v2"] .tk-seg button,[data-ui="v2"] .tk-chip,[data-ui="v2"] .cl-link,[data-ui="v2"] .btn.quiet{min-height:36px}
   [data-ui="v2"] .set-back .link{display:inline-block;padding:8px 0}
+}
+
+/* ---------- Seventh pass (2026-10-15, Cole on his iPhone): the grey band came back after a popup and stayed; the ask
+   bar looked covered and slightly blurry at the very top. ----------
+   1. #v2scrim (the dark layer behind the side panel and the card sheet) is made on the first popup and then stays in
+      the page for good, at opacity 0 but still a full-screen fixed layer with a grey background. Safari tints the
+      status-bar band from what sits fixed at the top edge, so after one popup the band stayed grey. A closed scrim is
+      now hidden outright (the visibility flip waits for the fade, so it still fades out). */
+#v2scrim:not(.on){visibility:hidden;transition:opacity var(--t,.15s) var(--ease,ease),visibility 0s linear var(--t,.15s)}
+#v2scrim.on{visibility:visible}
+/* 2. The page uses viewport-fit=cover, so the top of the page runs under the status bar and the Dynamic Island, where
+      iOS blurs whatever is behind it. index.html pads the top bar with env(safe-area-inset-top), but v2.css's
+      [data-ui="v2"] .topbar{padding:10px 16px 2px} is more specific and threw that away, so the badge and the ask bar
+      sat in the blurred strip. The same goes for the screens that cover the whole phone (the side panel and card
+      sheet, the review viewer): their first row now starts below the status bar too. */
+@media (max-width:979px){
+  [data-ui="v2"] .topbar{padding-top:calc(10px + env(safe-area-inset-top,0px))}
+}
+@media (max-width:720px){
+  [data-ui="v2"] #v2panel{padding-top:env(safe-area-inset-top,0px)}
+  [data-ui="v2"] .rv-scrim{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 }

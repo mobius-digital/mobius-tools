@@ -3286,8 +3286,24 @@ Work, Store, More (Reports under More); phases 1 to 4 in order. All four are bui
   button = bottom sheet with 44px chips (brand, format, sort), long press = the menu as a bottom sheet, the bulk bar sits
   above the tab bar. The phone tab bar is Home / Ads / Work (`production`) / Store / More.
 - Server: `setField`, `archiveCard`, `restoreCard`, `duplicateCard` in account-health production.js; `asanaUserFor` in
-  meetings.js. Tests: account-health `node test-production.mjs` (8). Checked on the local pair against real data at 1440,
+  meetings.js. Tests: account-health `node test-production.mjs` (9). Checked on the local pair against real data at 1440,
   768 and 375 (menus, pickers, selection, keys, collapse, phone picker and sheets). No bulk write was made to a real card.
+- **Polish (same day, Cole's desktop review against Asana; production.js?v=10):** the card's cursor is the ARROW
+  (`cursor:default`), pointer on its controls, and the hand only while a drag is under way (`.pd.dragging`, set in
+  dragstart, cleared in dragend; `.pd-wrap.pan` while a pan runs). Chrome's white open-hand read as a blob on the card.
+  Columns are 300px at every width (the iPad rule is gone), cards pad 11/13 with a 7px gap. The card's action (Launch to
+  Meta, Open review) is its own last row, `.pd-r4 > .pd-act`, a full-width 28px button that cannot run past the edge (it
+  used to sit on the date row and spill on Ready cards). **Sideways:** `.pd-cards` is `overscroll-behavior-y:contain`,
+  never both axes (contain on x swallowed every trackpad swipe and Shift+wheel over a column, which is most of the board);
+  `sideways(wrap)` turns a wheel over a column header or the gaps into board scroll (over the cards the column scrolls and
+  the browser chains sideways on its own), and a mouse drag on empty board space (gaps, headers, under the cards) pans
+  (`pointer capture`, the click after a pan is eaten). Left / Right with a card focused already moved between columns.
+  `scrollbar-color` keeps the thin bar visible. **Archived:** an "Archived" button in the filter bar (phone: a row in the
+  Filters sheet) opens `archivedBox()`: `GET /api/production/archived?act=` (account-health `listArchived`, team only:
+  p_br_batch rows with board_stage 'done' and board_at in the last 60 days, `was` = the column the Asana section still
+  names) with a "Put back" per row that asks which column (the one it left marked) and calls the same `card/restore`
+  the toast's Undo uses; the board reloads on close. The Delete confirm says it can be put back from Archived for 60 days.
+  Checked on a stub harness (not committed) at 1440, 1280, 768 and 375 (the phone board still snaps one column per screen).
 
 ## 2026-10-15: THE PHONE PASS (`profit/phone.css`). Read before adding a phone rule anywhere else.
 
@@ -3335,6 +3351,19 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   Reply reads its box beside the button (v9) for the same reason. **A new review-ui.js handler must find its
   inputs from the clicked element, never from the viewer root, or it breaks in the sheet.** Day check's Right now
   actions are a full-width row under the title (`#dkNow .v2h > .find`).
+- **Sixth pass (same day): Cole's iPhone screenshots.** The "Box attached · Remove" pill in the hosted Notes panel
+  and the Keep it / Delete pair are reset from the 44px rule in phone.css's viewer block (`.rv-pend button`,
+  `.rv-del .rv-btn`; the pill is one 32px nowrap line). **Hover-only overlays must sit inside `@media (hover:hover)`:**
+  iOS keeps `:hover` after a tap, so `.ps-pv:hover .open` (prodsheet.js) and `.pv:hover .open` (review.html) stayed
+  over the card while scrolling. **`theme-color` is ONE meta set from Locus's own `data-theme`** (`syncThemeColor()`
+  in the head script, called again by `paintTheme()`); the two metas keyed on `prefers-color-scheme` followed the
+  phone, and a dark Locus on a light-mode iPhone got a light grey status-bar band. phone.css?v=6, prodsheet.js?v=12.
+- **Seventh pass (same day): nothing fixed may linger, and the top keeps its notch inset.** A closed full-screen layer
+  must be `visibility:hidden` or `display:none`, never just opacity 0: Safari tints the status-bar band from a fixed
+  layer at the top edge, and the lazily made `#v2scrim` kept the band grey after the first popup. v2.css's
+  `[data-ui="v2"] .topbar` padding beats index.html's safe-area rule, so phone.css re-adds
+  `env(safe-area-inset-top)` on the top bar (under 980), `#v2panel` and `.rv-scrim`; a new full-screen layer
+  needs the same inset or its first row sits under the status bar blur. phone.css?v=7.
 - **Fifth pass (same day): review.html has the phone layer.** The public client link loads `phone.css?v=5` after its
   own `<style>` and `phone.js?v=3` deferred after review-ui.js, and its `<html>` carries `data-ui="v2"` because that
   attribute is the key phone.css uses for the viewer block (nothing else on the page reads it; the page keeps its own

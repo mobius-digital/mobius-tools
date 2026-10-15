@@ -147,7 +147,7 @@ function css() {
 .ps-pv:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
 .ps-pv .ov{position:absolute;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .ps-pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
-.ps-pv:hover .open,.ps-pv:focus-visible .open{opacity:1}
+@media (hover:hover){.ps-pv:hover .open{opacity:1}}.ps-pv:focus-visible .open{opacity:1}   /* hover only on a device that hovers: iOS keeps :hover after a tap, so the Open review overlay stayed over the card while scrolling */
 .ps-pv .open span{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--surface);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px}
 .ps-adb{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
 .ps-st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);white-space:nowrap}

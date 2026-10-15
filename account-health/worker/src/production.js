@@ -146,6 +146,8 @@ export async function handleProduction(request, env, url, path, json, d) {
     const work = await workRoutes(request, env, url, path, json, dd, who, scope);
     if (work) return work;
     if (scope) return json({ error: 'The team\'s part of Production.' }, 403);
+    /* Archived (2026-10-15 polish): the cards deleted from the board in the last 60 days, so a deletion is never final. */
+    if (path === '/api/production/archived' && request.method === 'GET') return json(await listArchived(env, dd, { act: url.searchParams.get('act') || 'all' }));
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
     const body = await request.json().catch(() => ({}));
     if (path === '/api/production/move') return json({ ok: true, ...(await moveCard(env, dd, body, who)) });
@@ -222,6 +224,32 @@ export async function archiveCard(env, d, body, who) {
   } else if (!r.asana_gid) asana.why = 'This card has no Asana task.';
   await env.DB.prepare(`UPDATE p_br_batch SET board_stage = 'done', stage = 'done', board_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
   return { ok: true, id: r.id, was, asana, by: nameOfEmail(who) };
+}
+/** The cards archived ("Delete card") in the last 60 days, newest first, so one can be put back from the board's
+ *  Archived list long after the toast's Undo is gone. `was` is the best guess of the column it left (the Asana section
+ *  the row still carries, else Brief); the list offers every column anyway. */
+export const ARCHIVED_DAYS = 60;
+export async function listArchived(env, d, { act = 'all' } = {}) {
+  await ensureWork(env);
+  const brands = await d.listBrands(env);
+  const ids = act !== 'all' ? [act] : brands.map(b => b.act_id);
+  if (!ids.length) return { cards: [], days: ARCHIVED_DAYS };
+  const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
+  const since = new Date(Date.now() - ARCHIVED_DAYS * 864e5).toISOString().slice(0, 10);
+  const rows = (await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, board_at, asana_section, asana_url, brief_text, brief_json, assignee_name, due_on, updated_at
+    FROM p_br_batch WHERE act_id IN (${ph}) AND board_stage = 'done' AND COALESCE(board_at, updated_at) >= ?${ids.length + 1}
+    ORDER BY COALESCE(board_at, updated_at) DESC LIMIT 200`).bind(...ids, since).all()).results || [];
+  const cards = rows.map(r => {
+    const brand = brands.find(b => b.act_id === r.act_id);
+    const was = boardOf(r.asana_section, 'production');
+    return {
+      id: r.id, act_id: r.act_id, brand: brand?.name || r.act_id, num: r.num, title: r.title || '',
+      format: (safe(r.brief_json, null) || {}).format || formatOf(r.title, r.brief_text), assignee: r.assignee_name || '',
+      archived_at: String(r.board_at || r.updated_at || '').slice(0, 10), asana_url: r.asana_url || null,
+      was: COLUMNS.includes(was) ? was : 'brief',
+    };
+  });
+  return { cards, days: ARCHIVED_DAYS };
 }
 export async function restoreCard(env, d, body, who) {
   await ensureWork(env);
