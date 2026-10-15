@@ -2332,7 +2332,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 
 <script src="meta.js?v=12"></script>
 <script src="amb.js?v=25"></script>
-<script src="../onboard/questions.js?v=9"></script>
+<script src="../onboard/questions.js?v=10"></script>
 <script src="brand.js?v=23"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=6"></script>
@@ -11700,7 +11700,7 @@ async function renderSettings() {
         ${agOff.length || brOff.length ? `<div class="notice warn" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>${agOff.length + brOff.length} thing${agOff.length + brOff.length === 1 ? '' : 's'} to look at.</b> ${esc([...agOff.map(a => a.name), ...brOff].slice(0, 8).join(' · '))}${agOff.length + brOff.length > 8 ? ' …' : ''}</div></div>` : `<div class="notice good" style="margin:0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>Nothing is broken${AGENCY ? ' across the agency' : ` for ${esc(one ? one.name : 'this brand')}`}.</div></div>`}
       </div>
       ${AGENCY ? `<div class="card set-card"><h3>Mobius's own</h3><p class="hint set-why">Made once, shared by every brand: a key on the worker, or Cole signing in from Locus. Click one for what it does and how to fix it.</p>
-        ${byGroup(agency, AGROUPS, a => card(a, 'agency'))}</div>${gridHtml()}<div id="pdMirror"></div>` : ''}
+        ${byGroup(agency, AGROUPS, a => card(a, 'agency'))}</div>${gridHtml()}<div id="cnConnect"></div><div id="pdMirror"></div>` : ''}
       ${AGENCY ? '' : brands.length ? brands.map(b => `<div class="card set-card"><h3>${esc(b.name)}</h3><p class="hint set-why">${esc(b.summary)}. Click a card for what Locus gets from it and the exact steps; where Locus can already see the account, pick it from the list.</p>
         ${byGroup(b.items, BGROUPS, i => card(i, 'brand', b.act_id))}</div>`).join('') : '<div class="card"><p class="hint">No active brands.</p></div>'}
       <div class="cn-scrim" id="cnScrim" hidden></div><aside class="cn-drawer" id="cnDrawer" hidden aria-label="Integration"></aside>`;
@@ -11711,6 +11711,24 @@ async function renderSettings() {
         + '.cn-opt{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin:5px 0}.cn-opt.cur{border-color:var(--good)}.cn-tools{display:flex;gap:6px;margin:6px 0}.cn-tools button.on{border-color:var(--brand);color:var(--brand)}';
       document.head.appendChild(st); }
     const drawer = $('#cnDrawer'), scrim = $('#cnScrim');
+    /* Connect links (2026-10-15, account-health connect.js): one no-login link per client that lists only what Locus
+       still cannot read for them, with the exact clicks, and ticks itself off. Here: who is missing what, Copy link,
+       Copy message. Nothing is sent from here; Cole sends it. */
+    if (AGENCY) (async () => {
+      const el = $('#cnConnect'); if (!el) return;
+      el.innerHTML = '<div class="card set-card"><h3>Ask clients for what is missing</h3><p class="hint">Checking every client…</p></div>';
+      let cj; try { cj = await mApi('/api/ask/connect'); } catch (e) { el.innerHTML = `<div class="card set-card"><h3>Ask clients for what is missing</h3><p class="hint">Could not check: ${esc(e.message)}</p></div>`; return; }
+      if (run !== RUN) return;
+      const rows = (cj.brands || []);
+      const need = rows.filter(b => b.missing.length);
+      const msg = b => `Hi ${b.name} team! A few quick connections so we can see everything in one place: ${b.missing.join(', ')}. This page has the exact clicks for each and ticks them off by itself as they connect (no passwords): ${b.link}`;
+      el.innerHTML = `<div class="card set-card"><h3>Ask clients for what is missing</h3>
+        <p class="hint set-why">Each client has one link. It shows only what Locus still cannot see for them, with the exact clicks, and ticks itself off as things connect. Clarity and Klaviyo keys are pasted right on the page. Send it in their Slack channel.</p>
+        ${need.length ? '' : '<p class="hint">Every client is connected.</p>'}
+        <div style="display:flex;flex-direction:column;gap:8px">${rows.map(b => `<div class="cn-opt"><span><b>${esc(b.name)}</b> <span class="tiny">${b.missing.length ? 'Missing: ' + esc(b.missing.join(', ')) : 'All connected'}${b.skipped.length ? ' · not used: ' + esc(b.skipped.join(', ')) : ''}</span></span>
+          <span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-s" data-cncopy="${esc(b.link)}">Copy link</button>${b.missing.length ? `<button type="button" class="btn btn-s" data-cncopy="${esc(msg(b))}">Copy message</button>` : ''}<a class="btn btn-s" href="${esc(b.link)}" target="_blank" rel="noopener">Open</a></span></div>`).join('')}</div></div>`;
+      el.onclick = e => { const t = e.target.closest('[data-cncopy]'); if (!t) return; navigator.clipboard?.writeText(t.dataset.cncopy).then(() => { const w = t.textContent; t.textContent = 'Copied'; setTimeout(() => { t.textContent = w; }, 1400); }); };
+    })();
     /* Production v2 (2026-10-14): the Asana mirror switch for Production, agency side only. */
     if (AGENCY && window.ProductionTab && window.ProductionTab.mirrorCard) window.ProductionTab.mirrorCard($('#pdMirror'), { apiAH, confirmModal, S });
     const close = () => { drawer.hidden = true; scrim.hidden = true; host.querySelectorAll('.cn-card.on').forEach(x => x.classList.remove('on')); };

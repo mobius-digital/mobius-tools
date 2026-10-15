@@ -464,6 +464,15 @@ export async function handlePublic(request, env, url, path, json) {
     const nc = await env.DB.prepare(`SELECT steps_json FROM p_newclient WHERE token = ?1`).bind(row.token).first().catch(() => null);
     const inv = safeJson(nc?.steps_json, {}).stripe;
     if (inv?.url && !inv.paid) links.invoice = inv.url;
+    /* The brand's connect page (account-health connect.js, settings connectTokens {token: brand id}): one page that
+       ticks itself off as accounts connect. Made here on first ask when the brand exists (same D1). */
+    if (/^brand_[a-z0-9_]+$/.test(row.act_id || '')) {
+      const t = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'connectTokens'`).first().catch(() => null))?.value, {});
+      let tok = Object.keys(t).find(k => t[k] === row.act_id);
+      if (!tok) { tok = crypto.randomUUID().replace(/-/g, '').slice(0, 20); t[tok] = row.act_id;
+        await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('connectTokens', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(t)).run().catch(() => { tok = null; }); }
+      if (tok) links.connect = `https://tools.go-mobius-digital.com/onboard/connect.html?c=${tok}`;
+    }
     return json({ brand: row.name, links, answers: safeJson(row.answers_json, {}), prefill: safeJson(row.prefill_json, {}), status: row.status, step: row.step, submitted_at: row.submitted_at });
   }
   if (request.method === 'PUT') {

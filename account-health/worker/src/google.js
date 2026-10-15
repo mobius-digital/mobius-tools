@@ -520,3 +520,21 @@ export async function leakFunnel(env, act, from, to, bfrom, bto) {
       landing_error: lp.error || null };
   });
 }
+
+/** Send the Mobius manager's link request to a client's Google Ads account (CustomerClientLinkService), so the
+ *  client only clicks Accept (connect.js, 2026-10-15). An account already linked or already invited answers ok. */
+export async function adsInvite(env, customerId) {
+  const mcc = String(env.GOOGLE_ADS_MCC || '').replace(/\D/g, '');
+  const cid = String(customerId || '').replace(/\D/g, '');
+  if (!mcc) throw new Error('GOOGLE_ADS_MCC is not set');
+  if (cid.length !== 10) throw new Error('A customer ID has 10 digits.');
+  try {
+    await gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${mcc}/customerClientLinks:mutate`,
+      { body: { operation: { create: { clientCustomer: `customers/${cid}`, status: 'PENDING' } } }, headers: adsHeaders(env) });
+    return { ok: true, sent: true };
+  } catch (e) {
+    const m = gaqlErr(e);
+    if (/ALREADY|DUPLICATE|already/i.test(m)) return { ok: true, sent: false, note: m };
+    throw new Error(m);
+  }
+}

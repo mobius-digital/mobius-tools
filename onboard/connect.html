@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Connect your accounts · Mobius Digital</title>
+<link rel="icon" href="../favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* The connect link (2026-10-15). One link per brand (?c=<token>), no login. Shows only what Mobius still cannot see,
+   with the exact clicks, and ticks itself off as each account connects (re-reads every 30 seconds).
+   Backend: account-health connect.js, GET/POST /api/connect/<token>. Same look as the onboarding form. */
+:root{
+  --bg:#F4F7F9; --surface:#FFFFFF; --ink:#13202B; --ink-2:#3B4A57; --muted:#6B7A88;
+  --line:#E1E8ED; --line-strong:#C9D4DC; --acc:#2F9AD6; --acc-ink:#FFFFFF; --acc-soft:#E6F3FB;
+  --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E; --bad-bg:#F8E4E0;
+  --sans:'Instrument Sans',system-ui,-apple-system,Segoe UI,sans-serif; --serif:'Instrument Serif',Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0E161C;--surface:#16212A;--ink:#EAF1F5;--ink-2:#C2CED7;--muted:#8FA0AD;--line:#243139;--line-strong:#33434E;--acc:#6CC3F0;--acc-ink:#0E161C;--acc-soft:#1B2E3B;--good:#5FD292;--good-bg:#15301F;--warn:#EBBF63;--warn-bg:#33280F;--bad:#F09182;--bad-bg:#3A1C17}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px 48px}
+header{padding:28px 0 6px}
+.brand{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px}
+.brand img{height:26px;width:auto}
+@media (prefers-color-scheme:dark){.brand img.l{display:none}}@media (prefers-color-scheme:light){.brand img.d{display:none}}
+h1{font-family:var(--serif);font-weight:400;font-size:clamp(30px,6vw,42px);line-height:1.08;margin:6px 0 6px;text-wrap:balance}
+.lede{color:var(--ink-2);margin:0 0 18px;max-width:60ch}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:0 0 6px}
+.bar i{display:block;height:100%;background:var(--good);transition:width .4s}
+.count{font-size:12.5px;color:var(--muted);margin-bottom:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.card h2{font-size:16px;font-weight:600;margin:0}
+.card .why{font-size:13px;color:var(--muted);margin-top:2px}
+.pill{flex:none;font-size:12px;font-weight:700;border-radius:99px;padding:3px 10px;white-space:nowrap}
+.pill.todo{background:var(--warn-bg);color:var(--warn)}
+.pill.waiting{background:var(--acc-soft);color:var(--acc)}
+.pill.done{background:var(--good-bg);color:var(--good)}
+.pill.skipped{background:var(--line);color:var(--muted)}
+ol{margin:12px 0 0;padding-left:20px;font-size:14px;color:var(--ink-2)}
+ol li{margin:4px 0}
+.cp{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.cp button{display:inline-flex;gap:8px;align-items:center;border:1px dashed var(--line-strong);background:var(--acc-soft);border-radius:9px;padding:7px 11px;font-size:13px;min-height:40px}
+.cp small{color:var(--muted);font-weight:600}
+.cp b{font-family:ui-monospace,Consolas,monospace;font-weight:600;color:var(--ink);word-break:break-all}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.in{flex:1 1 220px;min-width:0;border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;font-size:15px;background:var(--surface);min-height:44px}
+.in:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+label.lb{display:block;font-size:13px;font-weight:600;margin-top:12px}
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:9px;padding:9px 16px;font-weight:600;font-size:14px;min-height:44px;text-decoration:none;display:inline-flex;align-items:center}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.btn:disabled{opacity:.6;cursor:default}
+.btn:focus-visible,.cp button:focus-visible,.link:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.link{background:none;border:0;padding:4px 0;font-size:13px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;min-height:32px}
+.auto{font-size:12.5px;color:var(--muted)}
+.msg{margin-top:10px;font-size:13.5px;border-radius:9px;padding:9px 12px}
+.msg.bad{background:var(--bad-bg);color:var(--bad)}
+.msg.ok{background:var(--good-bg);color:var(--good)}
+.msg.info{background:var(--acc-soft);color:var(--ink-2)}
+.done-list{margin-top:22px}
+.done-list h3{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.done-list .card{padding:12px 16px}
+.center{text-align:center;padding:60px 0}
+.note{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="center"><p class="note">Loading…</p></div></div>
+<script>
+'use strict';
+(function () {
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const AH = (LOCAL && new URLSearchParams(location.search).get('api')) || 'https://mobius-account-health.mobius-digital.workers.dev';
+const TOKEN = (new URLSearchParams(location.search).get('c') || '').replace(/[^a-f0-9]/g, '');
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const LOGO = '<img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital">';
+const PILL = { todo: 'To do', waiting: 'Waiting on you', done: 'Connected', skipped: 'Not used' };
+let D = null, busy = false, msgs = {}, typed = {};
+
+function fatal(t) { $('#app').innerHTML = `<header><div class="brand">${LOGO}</div></header><div class="center"><h1>Hmm.</h1><p class="lede" style="margin:auto">${esc(t)}</p></div>`; }
+
+async function load(quiet) {
+  if (!TOKEN) return fatal('This link is missing its code. Ask your Mobius contact for your link.');
+  try {
+    const r = await fetch(`${AH}/api/connect/${TOKEN}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return quiet ? null : fatal(j.error || 'This link did not open. Try again in a minute.');
+    D = j; if (!busy) render();
+  } catch { if (!quiet) fatal('Could not reach Mobius. Check your connection and refresh.'); }
+}
+
+function card(it) {
+  const open = it.state === 'todo' || it.state === 'waiting';
+  if (!open) return `<div class="card"><div class="top"><div><h2>${esc(it.title)}</h2></div><span class="pill ${it.state}">${PILL[it.state]}</span></div>${it.state === 'skipped' ? `<div class="foot"><span></span><button class="link" data-unskip="${it.key}">We do use this</button></div>` : ''}</div>`;
+  const m = msgs[it.key];
+  return `<div class="card" id="c-${it.key}">
+    <div class="top"><div><h2>${esc(it.title)}</h2><div class="why">${esc(it.why)}</div></div><span class="pill ${it.state}">${PILL[it.state]}</span></div>
+    ${it.waiting ? `<div class="msg info">${esc(it.waiting)}</div>` : ''}
+    <ol>${it.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    ${it.copy.length ? `<div class="cp">${it.copy.map(([l, v]) => `<button type="button" data-copy="${esc(v)}" aria-label="Copy ${esc(l)}"><small>${esc(l)}</small><b>${esc(v)}</b><span class="cpd">Copy</span></button>`).join('')}</div>` : ''}
+    ${it.input ? `<label class="lb" for="in-${it.key}">${esc(it.input.label)}</label><div class="row">
+      <input class="in" id="in-${it.key}" ${it.input.secret ? 'type="password" autocomplete="off"' : 'type="text"'} placeholder="${esc(it.input.placeholder)}" value="${esc(typed[it.key] || '')}" data-in="${it.key}">
+      <button class="btn pri" data-save="${it.key}" type="button">Save</button></div>` : ''}
+    ${m ? `<div class="msg ${m.kind}">${esc(m.text)}</div>` : ''}
+    <div class="foot">${it.url ? `<a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Open ${esc(it.title.split(' (')[0])}</a>` : '<span></span>'}
+      ${it.auto && !it.input ? `<span class="auto">Ticks itself once we can see it.</span>` : ''}
+      ${it.skip ? `<button class="link" data-skip="${it.key}" type="button">We don't use this</button>` : ''}</div>
+  </div>`;
+}
+
+function render() {
+  const items = D.items || [];
+  const open = items.filter(i => i.state === 'todo' || i.state === 'waiting');
+  const rest = items.filter(i => !(i.state === 'todo' || i.state === 'waiting'));
+  const done = items.filter(i => i.state === 'done' || i.state === 'skipped').length;
+  const pct = items.length ? Math.round(done / items.length * 100) : 100;
+  document.title = `${D.brand} · Connect your accounts`;
+  $('#app').innerHTML = `<header><div class="brand">${LOGO}<span>${esc(D.brand)}</span></div>
+    <h1>${open.length ? 'Connect your accounts' : 'All connected. Thank you.'}</h1>
+    <p class="lede">${open.length ? `${open.length === 1 ? 'One thing' : `${open.length} things`} left so we can see everything in one place. Each one takes a minute or two, and this page ticks them off by itself as they connect. We never ask for a password.` : 'We can see everything we need. You can close this page.'}</p></header>
+    <div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
+    <div class="count">${done} of ${items.length} connected</div>
+    ${open.map(card).join('')}
+    ${rest.length ? `<div class="done-list"><h3>Done</h3>${rest.map(card).join('')}</div>` : ''}
+    <p class="note" style="margin-top:20px">Stuck on one? Reply in your Slack channel with Mobius and we will walk you through it.</p>`;
+}
+
+async function post(key, body) {
+  busy = true;
+  const b = document.querySelector(`[data-save="${key}"]`); if (b) { b.disabled = true; b.textContent = 'Checking…'; }
+  try {
+    const r = await fetch(`${AH}/api/connect/${TOKEN}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, ...body }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) msgs[key] = { kind: 'bad', text: j.error || 'That did not save. Check it and try again.' };
+    else { D = j; delete typed[key]; msgs[key] = body.value ? { kind: 'ok', text: 'Saved. Thank you.' } : null; }
+  } catch { msgs[key] = { kind: 'bad', text: 'Could not reach Mobius. Try again.' }; }
+  busy = false; render();
+}
+
+document.addEventListener('input', e => { const k = e.target.dataset.in; if (k) typed[k] = e.target.value; });
+document.addEventListener('keydown', e => { const k = e.target.dataset && e.target.dataset.in; if (k && e.key === 'Enter') document.querySelector(`[data-save="${k}"]`)?.click(); });
+document.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.copy != null) { navigator.clipboard?.writeText(t.dataset.copy).then(() => { const s = t.querySelector('.cpd'); if (s) { s.textContent = 'Copied'; setTimeout(() => { s.textContent = 'Copy'; }, 1500); } }); return; }
+  if (t.dataset.save) { const v = (typed[t.dataset.save] || '').trim(); if (!v) { msgs[t.dataset.save] = { kind: 'bad', text: 'Paste it in the box first.' }; render(); return; } post(t.dataset.save, { value: v }); return; }
+  if (t.dataset.skip) { post(t.dataset.skip, { skip: true }); return; }
+  if (t.dataset.unskip) { post(t.dataset.unskip, { skip: false }); return; }
+});
+/* Re-read every 30 seconds while the page is open, so things tick themselves. Never while typing. */
+setInterval(() => { if (document.visibilityState === 'visible' && !busy && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.in)) load(true); }, 30000);
+load(false);
+})();
+</script>
+</body>
+</html>

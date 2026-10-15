@@ -2228,3 +2228,31 @@ it", and only for brands with `rules.monday_post` on). Tests: `node test-minoff.
   handled separately).
 - NOT tested live: a real tick (`lastHourly.minOff`), a real tap through the router, response_url redraw on a thread reply,
   the router deploy.
+
+## 2026-10-15: ONBOARDING AUDIT, THE CONNECT LINK, THE META PARTNER SWEEP
+
+Cole: "when they give access to our partner account I have to manually assign those two people... can I just send
+all the clients a link that auto updates?"
+- **Meta partner sweep** (`metaaccess.js partnerSweep`, hourly before `autoConnectMeta`; `POST /api/ask/access {sweep|dry}`):
+  walks `695359915477596/client_ad_accounts | client_pages | client_pixels | client_product_catalogs` and assigns the
+  Mobius Tools system user + the team by NAME (`DEFAULT_TEAM`, or settings `metaTeam`; Meta hides `business_users`
+  from a system user, so ids are read off `assigned_users` on client accounts). Scope = assets whose owner business is
+  a live brand's, plus anything new since `metaSweepSeen` (first run = baseline; past clients untouched). First run
+  2026-10-15: 35 assignments (ad accounts + catalogs). **Pages need `pages_manage_metadata` on the Mobius Tools token;
+  pixels answer "(#10) Application does not have permission"**: both reported once in `errors`, assigned by hand.
+- **Connect link** (`connect.js`, page `onboard/connect.html?c=<20 hex>`): public `GET/POST /api/connect/<token>`
+  (before the auth gate). Lists only what Locus cannot read yet (from `integrationsReport({brand})`, cached 45 s);
+  Clarity token, Klaviyo key, Triple Whale shop and Google Ads ID are finished ON the page; "We don't use this" =
+  `connectSkip:<brand>`. Opening it runs Google `autoMatch` (at most every 5 min). Tokens in settings `connectTokens`.
+  Staff list: `GET /api/ask/connect` -> Locus Agency settings > Integrations > "Ask clients for what is missing".
+  The onboarding API (profit brand.js) serves `links.connect` for brands that exist.
+- **Google Ads request is sent by Locus** (`google.js adsInvite` = `customerClientLinks:mutate` PENDING from the MCC):
+  from the connect page and from onboarding answers `gads_id` (`onboardAdsTick`, hourly); the pending ID links itself
+  once it shows under the manager (`pendingTick`). NOT tested live: the mutate call.
+- **Hourly** now also runs Google `autoMatch` (GA4 / Search Console linked the moment a client adds Cole). It linked
+  Dartee GA4 + GSC and SpeedIn GA4 on its first run.
+- **Onboarding questions** (onboard/questions.js v10): Google Ads user-invite step removed (the manager link covers it),
+  Clarity added, Klaviyo asks for a Full Access private key on the connect page, Meta says we assign ourselves; extras
+  `vip`, `reorder_flows`, `content_calendar` removed (Klaviyo / the Locus calendar answer them).
+- **TikTok**: still not connectable: TIKTOK_APP_ID / TIKTOK_APP_SECRET are not set (app review). Once set, Cole signs in
+  once; TikTok ties the token to the ad accounts ticked at sign-in, so a NEW client's TikTok account needs a re-connect.

@@ -97,7 +97,7 @@ textarea.in{min-height:90px;resize:vertical}
 </head>
 <body>
 <div class="wrap" id="app"><div class="center"><p class="note">Loading your form…</p></div></div>
-<script src="questions.js?v=9"></script>
+<script src="questions.js?v=10"></script>
 <script>
 'use strict';
 (function () {
@@ -177,12 +177,12 @@ function fieldHtml(f) {
 function howto(f) {
   if (!f.steps && !f.copy && !f.loom && !f.go && !f.link) return '';
   const link = f.link && St.links[f.link];
-  const LABEL = { sign: 'Read and sign the agreement', invoice: 'Open the invoice', drive: 'Open your Google Drive folder' };
+  const LABEL = { sign: 'Read and sign the agreement', invoice: 'Open the invoice', drive: 'Open your Google Drive folder', connect: 'Open your connect page' };
   const go = [...(f.go || []), ...(link ? [[LABEL[f.link] || 'Open', link]] : []), ...(f.loom ? [['Watch the short video', f.loom]] : [])];
   return `<div class="howto">
     ${f.steps ? `<ol>${f.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
     ${f.copy ? `<div class="cp">${f.copy.map(([l, v]) => `<button type="button" data-copy="${esc(v)}" title="Copy"><small>${esc(l)}</small><b>${esc(v)}</b><span class="note">Copy</span></button>`).join('')}</div>` : ''}
-    ${f.link && !link ? `<p class="note" style="margin:8px 0 0">${f.link === 'sign' ? 'The agreement is on its way by email.' : f.link === 'invoice' ? 'The invoice is on its way by email.' : 'Your folder link is in your Asana project under Client Resources, or ask your Mobius contact.'}</p>` : ''}
+    ${f.link && !link ? `<p class="note" style="margin:8px 0 0">${f.link === 'sign' ? 'The agreement is on its way by email.' : f.link === 'invoice' ? 'The invoice is on its way by email.' : f.link === 'connect' ? 'Your connect page link comes from us in Slack once your account is set up.' : 'Your folder link is in your Asana project under Client Resources, or ask your Mobius contact.'}</p>` : ''}
     ${go.length ? `<div class="go">${go.map(([l, u]) => `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('')}</div>` : ''}
   </div>`;
 }

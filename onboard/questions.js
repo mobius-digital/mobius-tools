@@ -44,23 +44,18 @@ const STEPS = [
           'Open Users > Partners, click Add, then "Give a partner access to your assets".',
           'Paste our Business ID (below) and click Next.',
           'Tick every asset you have and give each one Full control: Pages, ad accounts, pixels and datasets, the Instagram account, catalogs, commerce accounts, custom conversions, domains, offline event sets, block lists, apps and creative folders.',
-          'Click Save changes once, at the end.',
+          'Click Save changes once, at the end. That is all: we assign our own team on our side automatically.',
         ],
         copy: [['Our Meta Business ID', MOBIUS.bmId]] },
-      { id: 'acc_google', label: 'Google Ads', type: 'check', loom: LOOM.google,
-        steps: [
-          'Go to ads.google.com, open Tools and settings (Admin), then Access and security.',
-          'Open the Security tab, find Allowed domains, add our domain (below) and click Save. Without this step Google blocks our invites.',
-          'Go back to the Users tab, click the + button and add both of our emails.',
-          'Choose Admin access and click Send invitation.',
-        ],
-        copy: [['Our domain', MOBIUS.domain], ...MOBIUS.team] },
+      /* 2026-10-15 audit: the separate "invite both emails as Admin" Google Ads step is gone. The manager link below
+         gives the whole Mobius team access (everyone on the Mobius manager account), and Locus sends that request
+         itself from the customer ID (account-health connect.js onboardAdsTick), so the client only clicks Accept. */
       /* 2026-10-08: Locus reads Google Ads, Analytics and Search Console directly, through the Mobius
          manager account and Cole's login, so each needs one more step. */
       { id: 'gads_id', label: 'Your Google Ads customer ID, if you run Google Ads', type: 'text', help: 'The 10-digit number at the top right of Google Ads, like 123-456-7890.',
-        why: 'We send a link request from the Mobius manager account so our reporting can read your campaigns.' },
+        why: 'We send a request from the Mobius manager account within the hour. Accepting it gives our team access; no separate invites.' },
       { id: 'acc_gads_link', label: 'Google Ads: accept our manager link', type: 'check',
-        steps: ['Once you add your customer ID above, we send the request.', 'In Google Ads open Admin, then Access and security, then the Managers tab, and click Accept on the Mobius Digital request.'],
+        steps: ['Once you add your customer ID above, we send the request (within the hour).', 'In Google Ads open Admin, then Access and security, then the Managers tab, and click Accept on the Mobius Digital request.'],
         copy: [['Our Google Ads manager ID', MOBIUS.adsMcc]] },
       { id: 'acc_ga4', label: 'Google Analytics', type: 'check',
         steps: ['Go to analytics.google.com and pick your website property.', 'Click Admin (the gear, bottom left), then Property access management.', 'Click the + button, Add users, and add our email.', 'Choose the Administrator role and click Add.'],
@@ -68,6 +63,10 @@ const STEPS = [
       { id: 'acc_gsc', label: 'Google Search Console', type: 'check',
         steps: ['Go to search.google.com/search-console and pick your website.', 'Open Settings, then Users and permissions, then Add user.', 'Add our email with Full permission.'],
         copy: [MOBIUS.team[0]] },
+      /* 2026-10-15: Locus reads Clarity (where shoppers get stuck). Clarity has no invite-a-partner flow, only a token,
+         so the client pastes it on the connect page, which checks it on the spot. */
+      { id: 'acc_clarity', label: 'Microsoft Clarity (free, shows where shoppers get stuck)', type: 'check', link: 'connect',
+        steps: ['No Clarity yet? Install the free "Microsoft Clarity" app from the Shopify App Store. It takes two minutes.', 'In Clarity open your project, then Settings > Data Export > Generate new API token. Name it Mobius.', 'Paste the token on your connect page (button below). It checks it straight away.'] },
       { id: 'shopify_url', label: 'Your Shopify store address', type: 'text', help: 'The one that ends in .myshopify.com. You can see it in Shopify under Settings > Domains.',
         why: 'We send you a collaborator request from our side, so you never have to make us an account.' },
       { id: 'shopify_code', label: 'Your collaborator request code, if you have one', type: 'text', help: 'Shopify > Settings > Users > Security, under Collaborators. Leave empty if it says anyone can send a request.' },
@@ -75,8 +74,8 @@ const STEPS = [
         steps: ['Once you add your store address above, we send the request.', 'You get an email from Shopify. Open it and click Approve (Settings > Users also shows it). That is it.'] },
       { id: 'acc_tw', label: 'Triple Whale (or the attribution tool you use)', type: 'check',
         steps: ['Open Settings > Users and click Invite.', 'Add both of our emails with the Admin role.'], copy: MOBIUS.team },
-      { id: 'acc_klaviyo', label: 'Klaviyo (or the email tool you use)', type: 'check',
-        steps: ['In Klaviyo: Settings > Users > Add new user.', 'Add our email with the Admin role.'], copy: [MOBIUS.team[0]] },
+      { id: 'acc_klaviyo', label: 'Klaviyo (or the email tool you use)', type: 'check', link: 'connect',
+        steps: ['In Klaviyo: Settings > Users > Add new user. Add our email with the Admin role.', 'Then Settings > API keys > Create Private API Key, name it Mobius, choose Full Access, and paste it on your connect page (button below). That is how our reporting reads your flows and campaigns.', 'Use Attentive or another tool? Invite our email as an admin there instead.'], copy: [MOBIUS.team[0]] },
       { id: 'acc_tiktok', label: 'TikTok Ads, if you run them', type: 'check',
         steps: ['In TikTok Business Center: Users > Invite member.', 'Add both of our emails as Admin, and share the ad account with Full access.'], copy: MOBIUS.team },
       { id: 'content_link', label: 'Where your content lives', type: 'url', help: 'A link to your Google Drive, Dropbox, Frame or wherever your photos, videos and past ads already are.',
@@ -181,11 +180,12 @@ const STEPS = [
       { id: 'strategy_doc', label: 'Documented marketing strategy? Link it here', type: 'url' },
       { id: 'comments', label: 'Do you reply to comments on posts and ads?', type: 'yesno' },
     ] },
+  /* 2026-10-15 audit: VIP segments and reorder reminders are read from Klaviyo directly now, and dates live in the
+     Locus calendar, so those three questions are gone. Old answers stay in answers_json. */
   { id: 'extras', title: 'Nice to have', intro: 'Optional. Skip anything you do not have to hand.',
     fields: [
       { id: 'faq_videos', label: 'Do you have videos answering these? How many?', type: 'text' },
       { id: 'emojis', label: 'Emojis you use on social', type: 'text' },
-      { id: 'content_calendar', label: 'Do you keep a content calendar?', type: 'yesno' },
       { id: 'post_freq', label: 'How often you post', type: 'text', help: 'For example: Instagram 3-5 a week, Facebook 3 a week.' },
       { id: 'shoots', label: 'How often you do photoshoots, and what kind', type: 'text' },
       { id: 'cro', label: 'Website testing (CRO): tool and who owns it', type: 'text' },
@@ -193,8 +193,6 @@ const STEPS = [
       { id: 'bolt_ons', label: 'Add-ons at checkout', type: 'text', help: 'Gift wrap, priority shipping, a small extra.' },
       { id: 'post_purchase', label: 'One-click upsell after purchase', type: 'text' },
       { id: 'custom', label: 'Engraving, monogramming or customisation', type: 'text' },
-      { id: 'vip', label: 'Are your top 20% of customers segmented?', type: 'yesno' },
-      { id: 'reorder_flows', label: 'Automated reorder reminders?', type: 'yesno' },
       { id: 'referral', label: 'Referral or affiliate program', type: 'text' },
       { id: 'subscription', label: 'Could a subscription work?', type: 'text' },
     ] },

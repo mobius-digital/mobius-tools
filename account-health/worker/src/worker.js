@@ -18,6 +18,7 @@ import { handleActions, actionTick, handleActionButton, handleReaction, onAction
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
+import { connectGet, connectPost, connectOverview, pendingTick as connectPendingTick, onboardAdsTick } from './connect.js';
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
@@ -49,7 +50,7 @@ import { buildStrategist } from './strategist.js';
 import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
-import { accessReport, grantSelf } from './metaaccess.js';
+import { accessReport, grantSelf, partnerSweep } from './metaaccess.js';
 import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
@@ -70,6 +71,7 @@ import { useFetch as surveyFetch, surveyReport, storeFairing, storeKno, forgetSu
 import { storeKey as klaviyoStore, forgetKey as klaviyoForget, useFetch as klaviyoFetch, klaviyoView } from './klaviyo.js';
 import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { handleLeaks, leaksFor } from './leaks.js';
+import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 import { handleLaunch } from './launch.js';
@@ -6747,6 +6749,12 @@ async function roleFor(env, email) {
 }
 
 /** The signed-in email, or null for a password/token session that has none. */
+/* The brand behind a connect token, with its internal channel (connect.js tellTeam). */
+async function connectTokenBrand(env, tok) {
+  const t = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'connectTokens'`).first())?.value, {});
+  const id = t[tok]; if (!id) return null;
+  return env.DB.prepare(`SELECT act_id, name, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(id).first();
+}
 async function sessionEmail(env, request) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) return null;
@@ -7347,7 +7355,16 @@ const AH_APP = {
         ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta, perBrand: 120, tags: 150 }).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
+        /* Meta partner sweep first (metaaccess.js): assigns the team + Mobius Tools on what clients shared, so a new
+           client's ad account is visible to the auto-connect right after it. Small: ~30 reads an hour. */
+        ran.metaSweep = await partnerSweep(env, idxDeps(), { canAfford: () => subCanAfford(40) }).then(r => ({ added: r.added, errors: r.errors?.length || 0, error: r.error })).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
+        /* Google: link GA4 / Search Console the moment a client gives Cole access, and a Google Ads ID a client typed on
+           the connect link once it shows under the manager (google.js autoMatch, connect.js). Three Google reads. */
+        if (subCanAfford(40)) ran.googleMatch = await googleMatch(env).then(r => ({ matched: r.matched })).catch(e => ({ error: e.message }));
+        if (subCanAfford(30)) ran.connectPending = await connectPendingTick(env).catch(e => ({ error: e.message }));
+        if (subCanAfford(30)) ran.onboardAds = await onboardAdsTick(env, googleAdsInvite).catch(e => ({ error: e.message }));
+
         /* Saved dashboards with a Slack schedule (the hub, 2026-10-07). */
         ran.dashboards = await dashboardTick(env).catch(e => ({ error: e.message }));
         /* What moved yesterday, once a day per brand to its internal channel, only when something moved (moved.js). */
@@ -7494,6 +7511,18 @@ const AH_APP = {
     /* Production v2 (prodwork.js): a card's file by a signed link (an <img> or <video> sends no header), and the review
        link a client opens with no login (an unguessable token per card). */
     if (path.startsWith('/api/production/f/') && request.method === 'GET') return prodFile(request, env, url, path.slice('/api/production/f/'.length), CORS);
+    /* The connect link (connect.js, 2026-10-15): public by an unguessable token per brand, no login. GET = what Locus
+       still cannot read for the brand; POST {key, value} or {key, skip} = the client finishes one item on the page. */
+    { const cm = /^\/api\/connect\/([a-f0-9]{20})$/.exec(path);
+      if (cm) {
+        const connectDeps = { adsInvite: googleAdsInvite, tellTeam: async text => {
+          const t = (await connectTokenBrand(env, cm[1]).catch(() => null)); if (!t?.slack_channel) return;
+          await teamPost(env, cardDeps(), t.slack_channel, text, null, {}).catch(() => {}); } };
+        try {
+          if (request.method === 'GET') return json(await connectGet(env, cm[1]));
+          if (request.method === 'POST') return json(await connectPost(env, cm[1], await request.json().catch(() => ({})), connectDeps));
+        } catch (e) { return json({ error: e.message }, e.status || 400); }
+      } }
     if (path.startsWith('/api/review/')) {
       const r = await handleReviewLink(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), moveCard: prodMove, formatOf: prodFormat, readDoc: brandReadDoc });
       if (r) return r;
@@ -7836,6 +7865,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));
       /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */
+      /* Connect links for every live brand: what is missing and the link to send (connect.js). */
+      if (path === '/api/ask/connect') return json(await connectOverview(env, 'https://tools.go-mobius-digital.com'));
+      if (path === '/api/ask/access' && request.method === 'POST' && (body.sweep || body.dry)) return json(await partnerSweep(env, idxDeps(), { dry: !!body.dry }));
       if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {
         if (request.method === 'POST') return json(await backfillTick(env, idxDeps()));
