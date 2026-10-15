@@ -2244,7 +2244,14 @@ Audit, goal and the approved mock: `docs/handoffs/lineup-audit.md`, `docs/locus-
   grow to the lanes they use (up to `LANES` = 4, `--rh` on `.wr`); past that, "+N more" is a button that opens the whole day
   (`dayPanel`, the side panel = a bottom sheet on a phone). Coming up sits beside the month only when `.cal-tw` (a
   container) is 1180px+, otherwise below it as a card grid. Under 560px of month width (container `calmo`) chips become
-  coloured dots per day and a tap opens the day. Tasks month view: "+N more" opens that day's week.
+  coloured dots per day and a tap opens the day.
+- **ONE CALENDAR (2026-10-15, Cole approved).** Work > Tasks lost its own calendar view (List / Board only, plus a
+  "Calendar" link that calls `CalendarTab.focus('tasks', 'month')` and opens this page). Views: 13 weeks (all clients
+  only, the lanes) / Month / Week (`cal_view`); filter chips All / Marketing / Tasks (`cal_f`). Tasks = `/api/actions`
+  open items with a due date (briefs left out), as chips with a small box (late = warn), in the day sheet, and in
+  `taskPanel` (Mark done with Undo, Move the due date, Open in Tasks via `ACT_OPEN`); dragging a task moves its due
+  date (`/api/actions/edit`). A client login (`CLI()`) never requests /api/actions and never sees the chips: Tasks is
+  an AGENCY_TABS page. The how-to line under the chips says what Marketing vs Tasks means.
 - **Data** = account-health `GET /api/calendar` (see account-health/CLAUDE.md "THE CALENDAR"); writes go to the same worker.
   Cached 2 minutes per scope in the page (`ST.data`), dropped on every write.
 - **Home**: v2.js home() draws `<div id="v2cal">` (Live now + Coming up 14 days, `CalendarTab.homeCard`) and shades each

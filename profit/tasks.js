@@ -4,11 +4,10 @@
  *
  *   Quick add     one typed line; account-health /api/actions/quick reads brand, owner, due and area out of it (Haiku),
  *                 falling back to the plain words.
- *   View          List / Board / Calendar. Group by Brand / Person / Due / Area. Only mine. Area chips. Remembered in
+ *   View          List / Board (the calendar is the Calendar rail page since 2026-10-15; "Calendar" links there with Tasks on). Group by Brand / Person / Due / Area. Only mine. Area chips. Remembered in
  *                 localStorage (tk_prefs).
  *   List          Task / Brand / Area / From / Who / Due, one card per group, round tick, "Done this week · N  Show".
  *   Board         a column per group value; dragging a card changes that field; "+ Add" prefills it.
- *   Calendar      Mon to Sun plus "Later / no date" (or the month); dragging a card to a day changes its due date.
  *   Waiting on client  the Requests asks still open (and done in the last week), last, with a coral dashed tick. They
  *                 close when the client marks the ask done, never from here.
  * Clicking a task opens the edit window (words, who, due, area, brand, done, drop). New ads live on Production, so
@@ -94,26 +93,6 @@
       .tk .tk-add{align-self:flex-start;height:26px;padding:0 10px;border-radius:999px;font:inherit;font-size:12px;cursor:pointer;background:transparent;border:1px dashed var(--line-strong);color:var(--muted)}
       .tk .tk-add:hover{color:var(--ink)}
       .tk .tk-addin{width:100%;box-sizing:border-box;height:32px;padding:0 8px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px}
-      .tk .tk-calh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-      .tk .tk-calh b{font-weight:600;color:var(--ink)}
-      .tk .tk-calh .nav{display:flex;align-items:center;gap:6px}
-      .tk .tk-calh .nav button.ar{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
-      .tk .tk-week{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;align-items:start;overflow-x:auto}
-      .tk .tk-day{min-height:260px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);min-width:110px}
-      .tk .tk-day.today{border-color:var(--line-strong);background:var(--surface)}
-      .tk .tk-day.later{border-style:dashed;background:transparent}
-      .tk .tk-day.over{border-color:var(--brand)}
-      .tk .tk-day .dh{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 6px;font-size:12px;font-weight:600;color:var(--ink-2)}
-      .tk .tk-day.today .dh span:first-child{color:var(--warn)}
-      .tk .tk-day.we .dh span:first-child{color:var(--muted)}
-      .tk .tk-day .tk-bc{margin:0 6px 6px;padding:8px;gap:6px}
-      .tk .tk-day .tk-bc .t{font-size:12px;line-height:1.3}
-      .tk .tk-month{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;overflow-x:auto}
-      .tk .tk-month .wd{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:2px 4px}
-      .tk .tk-mc{min-height:96px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);padding:4px;display:flex;flex-direction:column;gap:3px;min-width:80px}
-      .tk .tk-mc.out{opacity:.45}.tk .tk-mc.today{border-color:var(--warn)}.tk .tk-mc.over{border-color:var(--brand)}
-      .tk .tk-mc .n{font-size:11px;color:var(--muted)}.tk .tk-more{align-self:flex-start;border:0;background:none;padding:2px 3px;font:inherit;font-size:11px;font-weight:600;color:var(--ink-2);cursor:pointer}.tk .tk-more:hover{color:var(--brand);text-decoration:underline}
-      .tk .tk-mc .it{font-size:11.5px;line-height:1.25;padding:3px 5px;border-radius:4px;background:var(--surface);border:1px solid var(--line);cursor:grab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .tk .tk-empty{color:var(--muted);font-size:13.5px;padding:14px 12px}
       .tk-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9500;padding:16px}
       .tk-modal{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(480px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 44px rgba(0,0,0,.35);max-height:calc(100vh - 32px);overflow:auto}
@@ -326,30 +305,6 @@
     return { due: k === 'today' ? t : k === 'week' ? (fri > t && fri <= weekEnd() ? fri : weekEnd()) : k === 'later' ? addDays(weekEnd(), 7) : '' };
   }
 
-  /* ---------- Calendar ---------- */
-  function weekHtml(items) {
-    const t = today(), mon = addDays(addDays(t, -((dt(t).getUTCDay() + 6) % 7)), CW * 7), sun = addDays(mon, 6);
-    const days = [...Array(7)].map((_, n) => addDays(mon, n));
-    const later = items.filter(i => !i.due || i.due > sun || i.due < mon).sort((a, b) => (a.due || 'z').localeCompare(b.due || 'z'));
-    const head = `${short(mon)} to ${dt(mon).getUTCMonth() === dt(sun).getUTCMonth() ? dt(sun).getUTCDate() : short(sun)}`;
-    return `<div class="tk-calh"><div class="nav"><button class="ar" data-cw="-1" aria-label="Previous week">‹</button><b>${esc(head)}</b><button class="ar" data-cw="1" aria-label="Next week">›</button>${CW ? '<button class="tk-link" data-cw="0">This week</button>' : ''}</div>
-        <span class="muted">${P.cal === 'week' ? 'Week · <button class="tk-link" data-calv="month">Month</button>' : '<button class="tk-link" data-calv="week">Week</button> · Month'}</span></div>
-      <div class="tk-week">${days.map((d, n) => { const its = items.filter(i => i.due === d); return `<section class="tk-day${d === t ? ' today' : ''}${n > 4 ? ' we' : ''}" data-day="${d}"><div class="dh"><span>${esc(dt(d).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }))} ${dt(d).getUTCDate()}</span><span class="muted">${its.length || ''}</span></div>${its.map(i => `<div class="tk-bc" draggable="true" data-id="${esc(i.id)}"><div class="t">${esc(i.text)}</div><div class="r">${areaTag(i)}<span style="flex:1"></span>${tav(i.owner)}</div></div>`).join('')}</section>`; }).join('')}
-        <section class="tk-day later" data-day=""><div class="dh"><span>Later / no date</span><span class="muted">${later.length || ''}</span></div>${later.map(i => `<div class="tk-bc" draggable="true" data-id="${esc(i.id)}"><div class="t">${esc(i.text)}</div><div class="r">${areaTag(i)}<span style="flex:1"></span>${dueHtml(i.due)}</div></div>`).join('')}</section></div>`;
-  }
-  function monthHtml(items) {
-    const t = today(), base = dt(t); base.setUTCDate(1); base.setUTCMonth(base.getUTCMonth() + CW);
-    const ym = base.toISOString().slice(0, 7), first = `${ym}-01`, start = addDays(first, -((dt(first).getUTCDay() + 6) % 7));
-    const last = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-    const cells = []; for (let d = start; d <= last || cells.length % 7; d = addDays(d, 1)) cells.push(d);
-    const none = items.filter(i => !i.due).length;
-    return `<div class="tk-calh"><div class="nav"><button class="ar" data-cw="-1" aria-label="Previous month">‹</button><b>${esc(base.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }))}</b><button class="ar" data-cw="1" aria-label="Next month">›</button>${CW ? '<button class="tk-link" data-cw="0">This month</button>' : ''}</div>
-        <span class="muted"><button class="tk-link" data-calv="week">Week</button> · Month</span></div>
-      <div class="tk-month">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => `<div class="wd">${w}</div>`).join('')}
-        ${cells.map(d => { const its = items.filter(i => i.due === d); return `<div class="tk-mc${d.slice(0, 7) !== ym ? ' out' : ''}${d === t ? ' today' : ''}" data-day="${d}"><span class="n">${dt(d).getUTCDate()}</span>${its.slice(0, 3).map(i => `<div class="it" draggable="true" data-id="${esc(i.id)}" title="${esc(i.text)}">${esc(i.text)}</div>`).join('')}${its.length > 3 ? `<button class="tk-more" data-more="${d}">+${its.length - 3} more</button>` : ''}</div>`; }).join('')}</div>
-      ${none ? `<p class="muted" style="margin:0;font-size:12.5px">${none} with no date. They show in the week view under Later / no date.</p>` : ''}`;
-  }
-
   /* ---------- edit window ---------- */
   function editTask(it) {
     closePop();
@@ -433,11 +388,12 @@
     const late = all.filter(i => i.due && i.due < t).length, waitN = D.waiting.filter(inAct).filter(w => w.status === 'open').length;
     const items = visible(), wait = visibleWait();
     const seg = (key, opts) => `<div class="tk-seg" role="tablist">${opts.map(([v, l]) => `<button role="tab" aria-selected="${P[key] === v}" class="${P[key] === v ? 'on' : ''}" data-${key}="${v}">${l}</button>`).join('')}</div>`;
-    const body = P.view === 'board' ? boardHtml(items, wait) : P.view === 'cal' ? (P.cal === 'month' ? monthHtml(items) : weekHtml(items)) : listHtml(items, wait);
+    if (P.view === 'cal') P.view = 'list';   // the calendar view moved to the Calendar rail page (2026-10-15)
+    const body = P.view === 'board' ? boardHtml(items, wait) : listHtml(items, wait);
     $('#main').innerHTML = `<div class="v2 tk">
       <header class="tk-head"><div><h1>Tasks</h1><p>What the team owes, from approved calls and quick adds. ${all.length} open, ${late} late, ${waitN} waiting on clients.</p></div>
         <form class="tk-qa" id="tkQa"><label for="tkQuick">Quick add</label><input id="tkQuick" type="text" maxlength="300" placeholder="Dartee raise Prospecting 1 to $400/day by Wed" autocomplete="off"><button type="submit" class="tk-btn pri" id="tkQuickGo">Add</button></form></header>
-      <div class="tk-bar"><div class="tk-segw"><span class="lb">View</span>${seg('view', [['list', 'List'], ['board', 'Board'], ['cal', 'Calendar']])}</div>
+      <div class="tk-bar"><div class="tk-segw"><span class="lb">View</span>${seg('view', [['list', 'List'], ['board', 'Board']])}<button class="tk-link" id="tkToCal" style="margin-left:8px">Calendar &#8599;</button></div>
         <div class="tk-segw"><span class="lb">Group by</span>${seg('group', [['brand', 'Brand'], ['person', 'Person'], ['due', 'Due'], ['area', 'Area']])}</div>
         <span style="flex:1"></span><button class="tk-chip${P.mine ? ' on' : ''}" style="--cc:var(--brand)" id="tkMine" aria-pressed="${P.mine}">Only mine</button></div>
       <div class="tk-areas"><span class="lb" style="margin-right:4px">Area</span>${[['all', 'All', 'var(--ink)'], ...AREA_KEYS.map(k => [k, AREA[k][0], AREA[k][1]]), ...(D.items.some(i => areaOf(i) === 'other') ? [['other', 'Other', AREA.other[1]]] : [])].map(([k, l, c]) => `<button class="tk-chip${P.area === k ? ' on' : ''}" style="--cc:${c}" data-areaf="${k}">${l}</button>`).join('')}</div>
@@ -451,10 +407,8 @@
     $$('[data-group]', root).forEach(b => b.onclick = () => { P.group = b.dataset.group; save(); paint(); });
     $$('[data-areaf]', root).forEach(b => b.onclick = () => { P.area = b.dataset.areaf; save(); paint(); });
     $('#tkMine', root).onclick = () => { P.mine = !P.mine; save(); paint(); };
-    $$('[data-calv]', root).forEach(b => b.onclick = () => { P.cal = b.dataset.calv; CW = 0; save(); paint(); });
-    $$('[data-cw]', root).forEach(b => b.onclick = () => { CW = b.dataset.cw === '0' ? 0 : CW + +b.dataset.cw; paint(); });
-    /* "+N more" on a month day opens that day's week, where every task shows (2026-10-15). */
-    $$('[data-more]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const mon = s => addDays(s, -((dt(s).getUTCDay() + 6) % 7)); P.cal = 'week'; CW = Math.round((dt(mon(b.dataset.more)) - dt(mon(today()))) / 6048e5); save(); paint(); });
+    /* ONE CALENDAR (2026-10-15): the tasks' calendar is the Calendar rail page, opened on the month with Tasks showing. */
+    $('#tkToCal', root).onclick = () => { if (window.CalendarTab && window.CalendarTab.focus) window.CalendarTab.focus('tasks', 'month'); H.show('calendar'); };
     const ds = $('#tkDoneShow', root); if (ds) ds.onclick = () => { SHOW_DONE = !SHOW_DONE; paint(); };
     const qa = $('#tkQa', root), qi = $('#tkQuick', root), qg = $('#tkQuickGo', root);
     qa.onsubmit = async e => { e.preventDefault(); const v = qi.value.trim(); if (!v) { qi.focus(); return; } qg.disabled = true; qi.disabled = true; await quick(v); await reload(); const n = $('#tkQuick'); if (n) n.focus(); };

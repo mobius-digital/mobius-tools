@@ -30,8 +30,15 @@
     sale: [['offer', 'Offer written', -21], ['briefs', 'Ads briefed', -14], ['built', 'Ads built', -5], ['email', 'Email and text scheduled', -3], ['loaded', 'Ads loaded', -2]],
     adpush: [['briefs', 'Ads briefed', -14], ['built', 'Ads built', -5], ['loaded', 'Ads loaded', -2]],
     other: [['briefs', 'Ads briefed', -14], ['built', 'Ads built', -5], ['loaded', 'Ads loaded', -2]], site: [] };
-  const ST = { off: 0, mon: null, data: new Map() };
+  const ST = { off: 0, mon: null, wk: null, data: new Map() };
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} };
+  /* ONE CALENDAR (2026-10-15, Cole approved): Work's calendar view moved in here. view = lanes (all clients only) /
+     month / week; filter = all / mkt (what customers see) / tasks (what the team owes, /api/actions with a due date).
+     Tasks are the team's page (AGENCY_TABS), so a client login never loads them and never sees the chips. */
+  const VIEW = { v: store('cal_view') || '', f: store('cal_f') || 'all' };
+  const CLI = () => !!(H && H.S && (H.S.role === 'client' || H.S.client)) || document.body.classList.contains('is-client');
+  const FLT = () => (CLI() ? 'mkt' : VIEW.f);
+  const viewOf = act => (VIEW.v === 'week' ? 'week' : VIEW.v === 'month' || (act && act !== 'all') ? 'month' : 'lanes');
 
   function css() {
     if (document.getElementById('calcss')) return;
@@ -107,10 +114,19 @@
       .cal-chip.more{border:0;background:transparent;color:var(--ink-2);font-weight:600} .cal-chip.more:hover{color:var(--brand);text-decoration:underline}
       .cal .cal-mo .dots{display:none;gap:3px;flex-wrap:wrap;margin-top:6px} .cal .cal-mo .dots i{width:7px;height:7px;border-radius:50%;background:var(--c)}
       .cal .cal-mo .dots i.mail{--c:var(--good)} .cal .cal-mo .dots i.drop{--c:var(--c-meta,#5b8def)} .cal .cal-mo .dots i.sale{--c:var(--c-email,#9b7bd8)} .cal .cal-mo .dots i.other{--c:var(--muted)}
-      @container calmo (max-width:560px){.cal .cal-mo .bars{display:none}.cal .cal-mo .dots{display:flex;justify-content:center}.cal .cal-mo .c{min-height:58px;padding:5px 2px;cursor:pointer}.cal .cal-mo .dh{padding:6px 2px;text-align:center}.cal .cal-mo .c .n{display:block;text-align:center}}
+      @container calmo (max-width:560px){.cal .cal-mw .cal-ch .r{width:100%;margin-left:0}.cal .cal-mw .cal-seg{flex:1 1 100%}.cal .cal-mw .cal-seg button{flex:1;min-height:36px}.cal .cal-mw [data-add]{margin-left:auto}.cal .cal-mo .bars{display:none}.cal .cal-mo .dots{display:flex;justify-content:center}.cal .cal-mo .c{min-height:58px;padding:5px 2px;cursor:pointer}.cal .cal-mo .dh{padding:6px 2px;text-align:center}.cal .cal-mo .c .n{display:block;text-align:center}}
       .cal-pn.cal-day{display:grid;gap:8px} .cal-day .cal-ev{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:11px 12px;display:grid;gap:4px;cursor:pointer;text-align:left;width:100%;color:var(--ink);font:inherit}
       .cal-day .cal-ev:hover{border-color:var(--line-strong);background:var(--surface-2)} .cal-day .cal-ev b{font-size:13.5px} .cal-day .ty{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center} .cal-day .ty i{width:8px;height:8px;border-radius:2px;background:var(--c)}
-      .cal-day .cal-ev.mail{cursor:default} .cal-chip[draggable="true"]{cursor:grab}
+      .cal-day .cal-ev.mail{cursor:default}
+      .cal-chip.task{--c:var(--line-strong);background:var(--surface);color:var(--ink-2);font-weight:500;padding-left:17px}
+      .cal-chip.task::before{content:"";position:absolute;left:5px;top:5px;width:6px;height:6px;border-radius:2px;border:1.5px solid var(--muted)}
+      .cal-chip.task.late{border-color:var(--warn);color:var(--warn)} .cal-chip.task.late::before{border-color:var(--warn)}
+      .cal .cal-mo .dots i.task{--c:var(--ink-2);border-radius:2px}
+      .cal .cal-seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;padding:2px;gap:2px}
+      .cal .cal-seg button{border:0;background:none;padding:4px 10px;border-radius:6px;font:inherit;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+      .cal .cal-seg button.on{background:var(--surface-2);color:var(--ink)}
+      .cal .cal-fl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px} .cal .cal-fl .cap{font-size:12px;color:var(--muted);flex:1 1 280px;min-width:0}
+      .cal .cal-fl .cal-layer.on{border-color:var(--brand);color:var(--ink);background:var(--brand-soft,var(--surface-2))} .cal-chip[draggable="true"]{cursor:grab}
       .cal .cal-warn{padding:10px 12px;border-radius:8px;background:var(--warn-bg);font-size:12.5px;display:grid;gap:3px;margin:0 0 10px}
       .cal .cal-warn b{color:var(--warn)} .cal .cal-warn .a{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
       .cal .cal-ev{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:11px 12px;display:grid;gap:6px;cursor:pointer;text-align:left;width:100%;color:var(--ink);font:inherit}
@@ -160,6 +176,14 @@
     return p;
   }
   const drop = () => ST.data.clear();
+  async function loadTasks(force) {
+    if (CLI()) return null;
+    const hit = ST.data.get('tasks');
+    if (!force && hit && Date.now() - hit.at < 120e3) return hit.p;
+    const p = H.apiAH('/api/actions?act=all&status=open').then(r => { if (r && r.error) throw new Error(r.error); return (r.items || []).filter(i => i.kind !== 'brief' && /^\d{4}-\d{2}-\d{2}/.test(String(i.due || ''))); });
+    ST.data.set('tasks', { at: Date.now(), p }); p.catch(() => ST.data.delete('tasks'));
+    return p;
+  }
   const bfOf = today => { const y = +today.slice(0, 4); const nov1 = new Date(Date.UTC(y, 10, 1)); const thu = (4 - nov1.getUTCDay() + 7) % 7; return add(new Date(Date.UTC(y, 10, 1 + thu + 21)).toISOString().slice(0, 10), 1); };
   const brandName = (d, id) => (d.brands.find(b => b.id === id) || (H.S.accounts || []).find(a => a.act_id === id) || {}).name || id;
   const isOpen = e => e.kind === 'sale' && !e.end;
@@ -247,26 +271,39 @@
 
   /* ---------- One brand: the month ---------- */
   const LANES = 4;
+  const RANK = x => (x.kind === 'task' ? 2 : x.kind === 'mail' ? 1 : 0);
   function monthItems(d, act) {
-    const items = withTeasers(d.items.filter(x => x.act === act)).map(x => ({ ...x }));
-    for (const e of d.emails.filter(e => e.act === act)) items.push({ id: `mail:${e.date}:${e.name}`, src: 'email', name: `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e });
-    return items.sort((a, b) => a.start.localeCompare(b.start) || (a.kind === 'mail') - (b.kind === 'mail'));
+    const all = !act || act === 'all', f = FLT(), items = [], pre = id => (all && id ? `${brandName(d, id)}: ` : '');
+    if (f !== 'tasks') {
+      for (const x of withTeasers(d.items.filter(x => all || x.act === act))) items.push({ ...x, label: pre(x.act) + x.name });
+      for (const e of d.emails.filter(e => all || e.act === act)) { const name = `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`; items.push({ id: `mail:${e.date}:${e.name}`, src: 'email', name, label: pre(e.act) + name, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e }); }
+    }
+    if (f !== 'mkt') for (const t of d.tasks || []) {
+      if (!all && t.act_id !== act) continue;
+      const due = String(t.due).slice(0, 10);
+      items.push({ id: `task:${t.id}`, kind: 'task', name: t.text, label: pre(t.act_id) + t.text, start: due, end: due, status: 'conf', task: t });
+    }
+    return items.sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
   }
   /* Everything on one day in the side panel (a sheet from the bottom on a phone): "+N more", or any tap on a phone. */
   function dayPanel(d, act, day) {
     const list = monthItems(d, act).filter(x => x.start <= day && (x.end || '2099-12-31') >= day);
     const row = x => x.kind === 'mail'
-      ? `<div class="cal-ev mail"><b>${esc(x.name)}</b><span class="ty" style="--c:var(--good)"><i></i>${esc(x.mail.status)}, from Klaviyo</span></div>`
-      : `<button type="button" class="cal-ev" data-ev="${esc(x.id)}"><b>${esc(x.name)}</b><span class="ty" style="--c:var(${x.kind === 'drop' ? '--c-meta' : x.kind === 'sale' ? '--c-email' : '--muted'})"><i></i>${esc(KL[x.kind] || '')} &middot; ${md(x.start)}${x.end && x.end !== x.start ? ` to ${md(x.end)}` : isOpen(x) ? ', no end date' : ''}</span></button>`;
+      ? `<div class="cal-ev mail"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--good)"><i></i>${esc(x.mail.status)}, from Klaviyo</span></div>`
+      : x.kind === 'task'
+      ? `<button type="button" class="cal-ev" data-task="${esc(x.task.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.start < d.today ? '--warn' : '--ink-2'})"><i></i>Task &middot; ${esc(x.task.owner || 'nobody yet')}${x.start < d.today ? ' &middot; late' : ''}</span></button>`
+      : `<button type="button" class="cal-ev" data-ev="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.kind === 'drop' ? '--c-meta' : x.kind === 'sale' ? '--c-email' : '--muted'})"><i></i>${esc(KL[x.kind] || '')} &middot; ${md(x.start)}${x.end && x.end !== x.start ? ` to ${md(x.end)}` : isOpen(x) ? ', no end date' : ''}</span></button>`;
     const body = U().panel(`${wd(day)} ${md(day)}`, `<div class="cal-pn cal-day">${list.length ? list.map(row).join('') : '<p class="v2hint" style="margin:0">Nothing on this day.</p>'}${day >= d.today ? '<div style="margin-top:6px"><button type="button" class="cal-btn pri" data-addday="1">+ Add a date on this day</button></div>' : ''}</div>`);
     body.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => openEv(d, b.dataset.ev));
+    body.querySelectorAll('[data-task]').forEach(b => b.onclick = () => taskPanel(d, b.dataset.task));
     body.querySelectorAll('[data-addday]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); addModal(d, act, { start: day }); });
   }
   function month(el, d, act) {
-    const mon = ST.mon || d.today.slice(0, 7);
+    const week = viewOf(act) === 'week', mon = ST.mon || d.today.slice(0, 7), cap = week ? 99 : LANES;
     const [y, m] = mon.split('-').map(Number);
-    const first = `${mon}-01`, dow = (D(first).getUTCDay() + 6) % 7, start = add(first, -dow);
-    const n = new Date(Date.UTC(y, m, 0)).getUTCDate(), weeks = Math.ceil((dow + n) / 7);
+    const first = `${mon}-01`, dow = (D(first).getUTCDay() + 6) % 7;
+    const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const start = week ? monday(ST.wk || d.today) : add(first, -dow), weeks = week ? 1 : Math.ceil((dow + n) / 7);
     const items = monthItems(d, act);
     let h = '<div class="dhr">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => `<div class="dh">${x}</div>`).join('') + '</div>';
     for (let w = 0; w < weeks; w++) {
@@ -276,24 +313,44 @@
         const e = x.end || '2099-12-31';
         if (e < a || x.start > z) continue;
         const c0 = Math.max(0, days(a, x.start)), c1 = Math.min(6, days(a, e));
-        for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(x.kind === 'mail' ? 'mail' : CLS(x.kind));
+        for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(x.kind === 'mail' || x.kind === 'task' ? x.kind : CLS(x.kind));
         let r = used.findIndex(q => q < c0); if (r < 0) { r = used.length; used.push(-1); }
-        if (r >= LANES) { for (let c = c0; c <= c1; c++) hidden[c] = (hidden[c] || 0) + 1; continue; }
+        if (r >= cap) { for (let c = c0; c <= c1; c++) hidden[c] = (hidden[c] || 0) + 1; continue; }
         used[r] = c1;
+        if (x.kind === 'task') {
+          const t = x.task, late = x.start < d.today;
+          bars += `<button type="button" class="cal-chip task${late ? ' late' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-task="${esc(t.id)}" draggable="true" data-drag="task:${esc(t.id)}"${tip(`<b>Task: ${esc(t.text)}</b><br>${esc(t.act_id ? brandName(d, t.act_id) : 'Agency-wide')} &middot; ${esc(t.owner || 'nobody yet')} &middot; due ${md(x.start)}${late ? ', late' : ''}`)}>${esc(x.label)}</button>`;
+          continue;
+        }
         const cls = `cal-chip ${x.kind === 'mail' ? 'mail' : CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
         const tt = x.kind === 'mail' ? tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.status}, from Klaviyo`) : tip(tipOf(d, x));
-        bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable && !x.teaserOf ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < a ? '&#8592; ' : ''}${esc(x.name)}${isOpen(x) && e > z ? ' (no end date)' : ''}</button>`;
+        bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable && !x.teaserOf ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < a ? '&#8592; ' : ''}${esc(x.label || x.name)}${isOpen(x) && e > z ? ' (no end date)' : ''}</button>`;
       }
       /* Busy days (2026-10-15, Cole: "squished"): the row grows to the lanes it uses (up to LANES), and anything past
          that is "+N more" on its own line, a button that opens the whole day. */
-      const lanes = Math.min(used.length, LANES), more = Object.keys(hidden).length > 0;
+      const lanes = Math.min(used.length, cap), more = Object.keys(hidden).length > 0;
       for (const [c, k] of Object.entries(hidden)) bars += `<button type="button" class="cal-chip more" data-dayall="${ds[c]}" style="left:${c / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${lanes * 22}px">+${k} more</button>`;
-      const rh = Math.max(96, 25 + lanes * 22 + (more ? 22 : 0) + 8);
-      h += `<div class="wr" style="--rh:${rh}px">${ds.map((x, i) => `<div class="c ${x.slice(0, 7) === mon ? '' : 'x'} ${x === d.today ? 'td' : ''}" data-day="${x}"><span class="n">${+x.slice(8)}</span>${cover[i] ? `<span class="dots">${cover[i].slice(0, 6).map(k => `<i class="${k}"></i>`).join('')}</span>` : ''}</div>`).join('')}<div class="bars">${bars}</div></div>`;
+      const rh = Math.max(week ? 220 : 96, 25 + lanes * 22 + (more ? 22 : 0) + 8);
+      h += `<div class="wr" style="--rh:${rh}px">${ds.map((x, i) => `<div class="c ${week || x.slice(0, 7) === mon ? '' : 'x'} ${x === d.today ? 'td' : ''}" data-day="${x}"><span class="n">${+x.slice(8)}</span>${cover[i] ? `<span class="dots">${cover[i].slice(0, 6).map(k => `<i class="${k}"></i>`).join('')}</span>` : ''}</div>`).join('')}<div class="bars">${bars}</div></div>`;
     }
     el.innerHTML = h;
+    if (week) return `${md(start)} to ${md(add(start, 6))}`;
     return D(first).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   }
+
+  /* The month / week card, the same on both pages. */
+  function monthCard(act) {
+    const all = !act || act === 'all', v = viewOf(act), f = FLT(), cli = CLI();
+    const seg = [...(all ? [['lanes', '13 weeks']] : []), ['month', 'Month'], ['week', 'Week']].map(([k, l]) => `<button type="button" class="${v === k ? 'on' : ''}" data-view="${k}">${l}</button>`).join('');
+    const fl = cli ? '' : [['all', 'All', 'var(--ink-2)'], ['mkt', 'Marketing', 'var(--c-email,#9b7bd8)'], ['tasks', 'Tasks', 'var(--muted)']].map(([k, l, c]) => `<button type="button" class="cal-layer ${f === k ? 'on' : ''}" data-flt="${k}"><i style="background:${c}"></i>${l}</button>`).join('');
+    const how = cli ? 'What your customers see and when: drops, sales, the Black Friday plan, emails and texts. Click a day to see everything on it.'
+      : '<b>Marketing</b> is what customers see: drops, sales, the Black Friday plan, emails and texts. <b>Tasks</b> are what the team owes, on the day they are due (from Work &gt; Tasks). Click an empty day to add a date; drag anything to move it.';
+    const lg = `<div class="cal-lg">${f !== 'tasks' ? '<span><i style="border:1px solid var(--c-meta,#5b8def);background:color-mix(in srgb,var(--c-meta,#5b8def) 22%,var(--surface))"></i>Drop</span><span><i style="border:1px solid var(--c-email,#9b7bd8);background:color-mix(in srgb,var(--c-email,#9b7bd8) 22%,var(--surface))"></i>Sale or offer</span><span><i style="border:1px solid var(--muted);background:var(--surface-2)"></i>Teaser, list, other</span><span><i style="border:1px solid var(--good)"></i>Email or text</span>' : ''}${f !== 'mkt' ? '<span><i style="border:1px solid var(--muted);background:var(--surface)"></i>Task</span><span><i style="border:1px solid var(--warn)"></i>Late task</span>' : ''}${f !== 'tasks' ? '<span>Striped = pencilled &middot; dashed = no offer yet</span>' : ''}</div>`;
+    return `<div class="cal-card cal-mw"><div class="cal-ch"><h3 id="calMonT"></h3><div class="r"><span class="cal-seg" role="tablist">${seg}</span><button type="button" class="cal-btn" data-m="-1" aria-label="Back">&#8249;</button><button type="button" class="cal-btn" data-m="0">Today</button><button type="button" class="cal-btn" data-m="1" aria-label="Forward">&#8250;</button><button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
+      <div class="cal-fl">${fl}<span class="cap">${how}</span></div>${!cli && f !== 'mkt' && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
+      <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
+  }
+  let d0tasks = true;
 
   /* ---------- the page ---------- */
   async function render(first) {
@@ -301,7 +358,7 @@
     const act = H.S.act || 'all', one = act !== 'all', t = H.RUN();
     const title = one ? `Calendar: ${esc(brandName({ brands: [] }, act))}` : 'Calendar';
     if (first) $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', title)}<div class="v2card"><p class="v2hint">Loading the calendar…</p></div></div>`;
-    let d; try { d = await load(act); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', title)}<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div></div>`; return; }
+    let d; try { const [x, tk] = await Promise.all([load(act), loadTasks().catch(() => null)]); d = { ...x, tasks: tk }; d0tasks = CLI() || !!tk; } catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', title)}<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div></div>`; return; }
     if (t !== H.RUN()) return;
     return one ? brandPage(d, act) : allPage(d);
   }
@@ -334,15 +391,16 @@
     $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', 'Calendar')}
       <p class="cal-lead" style="margin:-4px 0 14px;font-size:15px;font-weight:600;max-width:80ch">${esc(headLine(d, d.items))}</p>
       ${tiles}
-      <div class="cal-card"><div class="cal-ch"><h3>What customers see, every client</h3><span class="cap">13 weeks. Click anything to open it; click a client to see their month.</span>
+      ${viewOf('all') !== 'lanes' ? monthCard('all') : `<div class="cal-card"><div class="cal-ch"><h3>What customers see, every client</h3><span class="cal-seg" role="tablist"><button type="button" class="on" data-view="lanes">13 weeks</button><button type="button" data-view="month">Month</button><button type="button" data-view="week">Week</button></span><span class="cap">13 weeks. Click anything to open it; click a client to see their month.</span>
         <div class="r">${lay('drop', 'var(--c-meta,#5b8def)', 'Drops')}${lay('sale', 'var(--c-email,#9b7bd8)', 'Sales and offers')}${lay('other', 'var(--muted)', 'Other')}${lay('mail', 'var(--good)', 'Emails')}
           <button type="button" class="cal-btn" data-nav="-4">&#8249;</button><button type="button" class="cal-btn" data-nav="0">Today</button><button type="button" class="cal-btn" data-nav="4">&#8250;</button>
           <button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
         <div class="cal-ln" id="calLanes"></div>
         <div class="cal-lg"><span><i style="border:1px solid var(--c-email,#9b7bd8);background:color-mix(in srgb,var(--c-email,#9b7bd8) 22%,var(--surface))"></i>Confirmed</span><span><i style="border:1px solid var(--muted);background:repeating-linear-gradient(135deg,var(--surface-2) 0 4px,transparent 4px 8px)"></i>Pencilled or proposed</span><span><i style="border:1.5px dashed var(--warn)"></i>No offer yet</span><span><i style="width:10px;height:10px;transform:rotate(45deg);background:var(--c-meta,#5b8def);border-radius:2px"></i>&nbsp;One-day drop</span><span><i style="width:8px;height:8px;border-radius:50%;background:var(--good)"></i>Email sent</span><span><i style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--good)"></i>Email scheduled</span><span>A client's Black Friday week is one bar; open it for the parts.</span></div>
-      </div>
+      </div>`}
       <div class="cal-card" id="calWork"><div class="cal-ch"><h3>Work due this week</h3><span class="cap">Every date's countdown, ${md(today)} to ${md(wk)}, plus anything late. Ticks come from Asana, Klaviyo and Meta.</span></div>${workHtml(d)}</div>
     </div>`;
+    if (viewOf('all') !== 'lanes') { document.getElementById('calMonT').textContent = month(document.getElementById('calMonth'), d, 'all'); wire($('#main'), d); return; }
     const draw = () => { const el = document.getElementById('calLanes'); if (el) lanes(el, d); };
     requestAnimationFrame(draw);
     wire($('#main'), d);
@@ -376,9 +434,7 @@
     $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', `Calendar: ${esc(b.name)}`)}
       <p style="margin:-4px 0 4px;font-size:15px;font-weight:600;max-width:80ch">${esc(headLine(d, mine))}</p>
       <p class="v2hint cal-team" style="margin:0 0 14px">Locus <b>${esc(T.strat || 'Ahsan')}</b>, buyer <b>${esc(T.buyer || 'Ahsan')}</b>, email <b>${esc(T.email || '?')}</b> (from the Black Friday plan's call sheet). ${b.channel ? 'Pings go to the brand’s internal Slack channel.' : 'No internal Slack channel is set, so nothing pings.'}</p>
-      <div class="cal-tw"><div class="cal-two"><div class="cal-card cal-mw"><div class="cal-ch"><h3 id="calMonT"></h3><span class="cap">Click an empty day to add a date there; drag a date to move it.</span><div class="r"><button type="button" class="cal-btn" data-m="-1">&#8249;</button><button type="button" class="cal-btn" data-m="0">Today</button><button type="button" class="cal-btn" data-m="1">&#8250;</button><button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
-        <div class="cal-mo" id="calMonth"></div>
-        <div class="cal-lg"><span><i style="border:1px solid var(--c-meta,#5b8def);background:color-mix(in srgb,var(--c-meta,#5b8def) 22%,var(--surface))"></i>Drop</span><span><i style="border:1px solid var(--c-email,#9b7bd8);background:color-mix(in srgb,var(--c-email,#9b7bd8) 22%,var(--surface))"></i>Sale or offer</span><span><i style="border:1px solid var(--muted);background:var(--surface-2)"></i>Teaser, list, other</span><span><i style="border:1px solid var(--good)"></i>Email or text</span><span>Striped = pencilled &middot; dashed = no offer yet</span></div></div>
+      <div class="cal-tw"><div class="cal-two">${monthCard(act)}
         <div>${warns.map(([h1, s, a]) => `<div class="cal-warn" style="margin-bottom:10px"><b>${esc(h1)}</b><span>${esc(s)}</span>${a ? `<div class="a">${a}</div>` : ''}</div>`).join('')}
           <div class="cal-card"><div class="cal-ch"><h3>Coming up</h3><span class="cap">6 weeks</span></div><div class="cal-cu">${cu}</div></div></div></div></div></div>`;
     const t = month(document.getElementById('calMonth'), d, act); document.getElementById('calMonT').textContent = t;
@@ -393,7 +449,16 @@
     root.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addModal(d, act || null));
     root.querySelectorAll('[data-lay]').forEach(b => b.onclick = () => { LAY[b.dataset.lay] = !on(b.dataset.lay); store('cal_lay', JSON.stringify(LAY)); b.classList.toggle('off', !on(b.dataset.lay)); const el = document.getElementById('calLanes'); if (el) { lanes(el, d); wire(el, d); } });
     root.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => { const n = +b.dataset.nav; ST.off = n ? ST.off + n : 0; const el = document.getElementById('calLanes'); if (el) { lanes(el, d); wire(el, d); } });
-    root.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { const n = +b.dataset.m; const cur = ST.mon || d.today.slice(0, 7); const [y, m] = cur.split('-').map(Number); ST.mon = n ? new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7) : null; brandPage(d, act); });
+    const again = () => (act ? brandPage(d, act) : allPage(d));
+    root.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+      const n = +b.dataset.m;
+      if (viewOf(act) === 'week') ST.wk = n ? add(monday(ST.wk || d.today), n * 7) : null;
+      else { const cur = ST.mon || d.today.slice(0, 7); const [y, m] = cur.split('-').map(Number); ST.mon = n ? new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7) : null; }
+      again();
+    });
+    root.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { VIEW.v = b.dataset.view; store('cal_view', VIEW.v); if (VIEW.v === 'week' && ST.mon) ST.wk = ST.mon === d.today.slice(0, 7) ? null : `${ST.mon}-01`; again(); });
+    root.querySelectorAll('[data-flt]').forEach(b => b.onclick = () => { VIEW.f = b.dataset.flt; store('cal_f', VIEW.f); again(); });
+    root.querySelectorAll('.cal-mo [data-task]').forEach(b => b.onclick = e => { e.stopPropagation(); taskPanel(d, b.dataset.task); });
     root.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => { const v = b.dataset.tile; if (v === 'work') document.getElementById('calWork')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); else if (v.startsWith('ev:')) openEv(d, v.slice(3)); else if (v.startsWith('brand:')) pickAct(v.slice(6)); });
     /* Hover lights the WHOLE day (2026-10-15): the chips sit on a layer above the cells, so CSS :hover only lit part
        of it, and v2.css's global .wr{gap:14px} had opened gaps between the days (gap:0 above). Each week row tracks the column under the pointer instead, chips included. */
@@ -408,7 +473,7 @@
       c.onclick = () => { if (c.closest('.cal-mo').clientWidth <= 560) return dayPanel(d, act, c.dataset.day); if (c.dataset.day < d.today) return toast('That day has passed.'); addModal(d, act, { start: c.dataset.day }); };
       c.ondragover = e => { e.preventDefault(); c.classList.add('drop-on'); };
       c.ondragleave = () => c.classList.remove('drop-on');
-      c.ondrop = async e => { e.preventDefault(); c.classList.remove('drop-on'); const id = e.dataTransfer.getData('text/cal'); if (id) moveTo(id, c.dataset.day, d); };
+      c.ondrop = async e => { e.preventDefault(); c.classList.remove('drop-on'); const id = e.dataTransfer.getData('text/cal'); if (id && id.startsWith('task:')) moveTask(id.slice(5), c.dataset.day, d); else if (id) moveTo(id, c.dataset.day, d); };
     });
     root.querySelectorAll('[data-drag]').forEach(x => { x.ondragstart = e => { e.dataTransfer.setData('text/cal', x.dataset.drag); e.dataTransfer.effectAllowed = 'move'; }; });
   }
@@ -430,6 +495,23 @@
     const e = d.items.find(x => x.id === id); if (!e || e.start === day) return;
     try { await call('/api/calendar/move', { id, start: day }); toast(`Moved ${e.name} to ${md(day)}.`, async () => { await call('/api/calendar/move', { id, start: e.start }); refresh(); }); refresh(); }
     catch (er) { toast(er.message); }
+  }
+  async function moveTask(id, day, d) {
+    const t = (d.tasks || []).find(x => x.id === id); if (!t || String(t.due).slice(0, 10) === day) return;
+    try { await call('/api/actions/edit', { id, due: day }); toast(`Task due ${md(day)}.`, async () => { await call('/api/actions/edit', { id, due: String(t.due).slice(0, 10) }); refresh(); }); refresh(); }
+    catch (er) { toast(er.message); }
+  }
+  /* A task in the side panel: who, when, Mark done, Move, or open it on Work > Tasks (the full edit window). */
+  function taskPanel(d, id) {
+    const t = (d.tasks || []).find(x => x.id === id); if (!t) return;
+    const due = String(t.due).slice(0, 10), late = due < d.today;
+    const body = U().panel(t.text, `<div class="cal-pn"><div class="tags"><span class="tag">Task</span>${late ? '<span class="tag warn">Late</span>' : ''}<span>${esc(t.act_id ? brandName(d, t.act_id) : 'Agency-wide')}</span></div>
+      <div class="kv"><div><span>Due</span><b${late ? ' style="color:var(--warn)"' : ''}>${wd(due)} ${md(due)}</b></div><div><span>Who</span><b>${esc(t.owner || 'Nobody yet')}</b></div><div><span>Area</span><b>${esc(t.area ? t.area[0].toUpperCase() + t.area.slice(1) : 'None')}</b></div></div>
+      <div class="acts"><button type="button" class="cal-btn pri" data-tdone="1">Mark done</button><button type="button" class="cal-btn" data-tmove="1">Move the due date</button><button type="button" class="cal-btn" data-topen="1">Open in Tasks</button></div></div>`);
+    const close = () => document.querySelector('#v2panel .pclose')?.click();
+    body.querySelector('[data-tdone]').onclick = async e => { e.target.disabled = true; try { await call('/api/actions/done', { id, done: true }); close(); toast('Done.', async () => { await call('/api/actions/done', { id, done: false }); refresh(); }); refresh(); } catch (er) { toast(er.message); e.target.disabled = false; } };
+    body.querySelector('[data-tmove]').onclick = () => dateModal('Move the due date', t.text, due, async v => { await call('/api/actions/edit', { id, due: v }); toast(`Task due ${md(v)}.`); close(); refresh(); });
+    body.querySelector('[data-topen]').onclick = () => { close(); window.ACT_OPEN = id; H.show('tasks'); };
   }
   async function makeAsana(id, btn) {
     if (btn) { btn.disabled = true; btn.textContent = 'Making…'; }
@@ -589,6 +671,8 @@
   }
 
   window.CalendarTab = {
+    /** Work > Tasks "Calendar": open this page on the month with only the tasks showing. */
+    focus(f, v) { VIEW.f = f || 'all'; VIEW.v = v || 'month'; store('cal_f', VIEW.f); store('cal_view', VIEW.v); },
     render(tab, host, first) { H = host; return render(first); },
     homeCard(el, host) { H = host; return homeCard(el); },
     bandsFor(act, from, to, host) { if (host) H = host; return bandsFor(act, from, to); },
