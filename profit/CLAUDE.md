@@ -698,9 +698,10 @@ profit/
 - **Playback on the link** goes through the account-health worker with
   `?angles=<slug>`: it authorises only Meta ads shown as proof on that brand's LIVE
   page (same rule as share tokens), and `ad-creatives` returns covers and copy only.
-- **Look = the Lucky Golf hub (Cole, 2026-09-16).** Archivo, lanes per section, labelled
-  single-line pill rows for sections and formats (no dropdowns, no bottom sheets), black
-  primary buttons. The PDF is ONE dark page: link as a button + QR, no angle list (a list
+- **Look = the Lucky Golf hub (Cole, 2026-09-16).** Archivo, labelled single-line pill rows,
+  black primary buttons, no dropdowns. Since 2026-10-14 the page is TWO screens in Frost
+  Buddy's shape (a feed of videos that worked + one checklist, see the 2026-10-14 section at
+  the end); on a phone the How panel is a bottom sheet, like every Locus phone surface. The PDF is ONE dark page: link as a button + QR, no angle list (a list
   was tried and rejected). The season chart is thin bars like the canvas, season colour
   and a spike limit (`season.color`, `season.cap`) set on Link and brief.
 - **TRYBE SHOWS THE PDF'S TEXT LAYER, NOT THE PAGE.** It extracts the words in draw
@@ -785,7 +786,11 @@ profit/
   Bulk import on 2026-10-06 ran through the local `ah-worker-dev` (Cloudflare 403s a Python user agent;
   send a browser one). Public proof is video only; the Open beat is hidden in the editor because step 1
   "The first second" is the same thing.
-- **v17 (same day): First seconds.** Fourth tab on the link: the bank of ways to open a video,
+- **v18 (2026-10-14): two tabs.** The Ideas / Watch examples / First seconds / Before you film tabs
+  below are history; the link is "Film one of these" (a proof-first feed) and "Before you film" (the
+  checklist). Details in the 2026-10-14 section at the end of this file. Every field below is still
+  stored and edited the same way.
+- **v17 (2026-10-06): First seconds.** Was the fourth tab on the link: the bank of ways to open a video,
   `p_amb_brand.hooks_json` = [{title, how, kind 'shared'|'brand', url, clip (a stored upload proof id)}],
   seeded per brand from scratchpad hook_bank.py (16 shared openers copied into every brand + 6 made for
   each brand; clips attached where a stored Atria clip matched). Shared rows are COPIES per brand on
@@ -3368,3 +3373,38 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   `min-height:0` lines are no-ops there (measured). The sideways-pill hide rule is `.rv-strip .lxs-notes-btn` (two
   classes, or review-ui's injected `.rv-btn` display wins). A new phone rule for the viewer belongs in phone.css's
   viewer block and lands on both hosts; a new phone rule for the review page itself goes in review.html's own style.
+
+## 2026-10-14: THE CREATOR LINK IS TWO SCREENS (angles/app.src.js v18). Read before touching angles/.
+
+- **Why.** Cole walked Frost Buddy's creator hub on 2026-10-14 (notes: `Lucky Golf/Creator Playbook/
+  07-video-ideas-simplify.md`, "The honest assessment"): theirs asks a creator to watch one video that
+  worked and make their version; ours asked them to read four tabs. Same answer for Locus: four tabs
+  collapse to two. This is a PRESENTATION change: no field left D1, no migration, no worker change, the
+  Ambassadors editor and the PDF are untouched.
+- **Film one of these** (`#ideas`, `renderIdeas`): page head, the dated window pinned on top (the brand's
+  `season` title / until / line, plus `season.next` as the deal line with a megaphone), **Pick one for me**,
+  **Open like one of these** (a sideways row of the `hooks` rows that have a stored clip, first frame at
+  1.2s, tap plays; text-only openers are NOT shown), the lane pills, then the feed: one card per live idea,
+  ideas with a playable proof video first (brand's own meta / upload before another brand's clip,
+  `mainProof`), then a "Be the first" group for ideas with no video. A card = the video (first frame, tap
+  plays through the same playAd / playFile), chips (Film first, section, format), the title, the one-line
+  argument, **Film this** (same submit link, copies the idea name) and **How**. How opens the whole brief
+  (`howInner`: who / show, the numbered steps, text on screen, other lines, do / don't, why, Watch first)
+  inline under the card on a desktop (`toggleHow`) and as a bottom sheet on a phone (`openSheet`:
+  `#sheet`, scrim, grab handle, swipe down, Escape, Film this pinned at the foot). Pick one for me scrolls
+  to a random card (hot counts double), flashes it and opens its How.
+- **Before you film** (`#rules`, `renderRules`): "Please stop filming these" red card first, then
+  `checkCard` x3 in Frost Buddy's shape: **Before you film** = `guide` (numbered), **Always say** and
+  **Skip these** = `rules` split by how the team wrote each line (`SKIP_RE`: a rule that opens with never /
+  don't / do not / avoid / skip / no goes to Skip these; a mixed rule stays in Always say because it leads
+  with the say part), then what it is / who we talk to, the season card with the chart, Ready.
+- **Routes.** `#ideas` (default), `#rules`, `#a=<id>` (one idea on its own page, kept for old links in
+  Slack and TRYBE notes; same `howInner`), `#watch` and `#hooks` fall through to the feed. `wireFilm(root)`
+  and `wireCopy(root, a)` take a root because the sheet lives outside `#app`.
+- **CSS** is appended under "2026-10-14 v18" in `angles/app.css` (`.win`, `.pickrow`, `.hk-row`, `.feed`,
+  `.fc*`, `.sheet*`, `.chk`); older lane / wsec / hk-list rules are still in the file, unused. Icons added
+  to `icons.json`: chevron-up, list-checks, megaphone. `build.py` V = 18.
+- **Known gaps.** The doc's card line wants "title + format + minutes"; there is no length field on an
+  idea, so the card shows title, format chip and the argument line. The "campaign tag" (several dated
+  windows at once) is still one `season` row per brand. Headless Chrome at 390 renders the cards wider
+  than the real phone pane (its minimum window width); check phones in the Browser pane, not headless.
