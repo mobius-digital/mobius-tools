@@ -118,11 +118,13 @@ function buildTiles() {
     // ideas' videos dealt round-robin. An ad that is both a pick and an idea's proof shows once, as the pick.
     const ideaOf = {};
     for (const a of all) for (const p of a.proof || []) if (p.kind === 'meta' && p.ad_id && !ideaOf[p.ad_id]) ideaOf[p.ad_id] = a;
-    const picks = (D.picks || []).map(p => ({ p, a: ideaOf[p.ad_id] || null, theirs: false }));
+    const picks = (D.picks || []).map(p => ({ p, a: (p.ad_id && ideaOf[p.ad_id]) || null, theirs: isTheirs(p) }));
     const taken = new Set(picks.map(t => t.p.ad_id));
     out = [...picks, ...dealt(all.map(a => [a, (a.proof || []).filter(p => playableProof(p) && !(p.ad_id && taken.has(p.ad_id))).sort((x, y) => isTheirs(x) - isTheirs(y))]))];
   }
-  return out.map((t, i) => ({ ...t, star: i === 0, sec: t.a?.section_id || '', i }));
+  // The staff's order (Ambassadors > Videos, board_sort) wins; videos it has not placed keep the dealt order after them.
+  if (!(D.board && D.board.length)) out = out.map((t, k) => [t, t.p.board_sort ?? 1e6 + k]).sort((x, y) => x[1] - y[1]).map(x => x[0]);
+  return out.map((t, i) => ({ ...t, star: i === 0, sec: t.p.section_id || t.a?.section_id || '', i }));
 }
 function cats() {
   const n = {};
@@ -137,7 +139,7 @@ function words(t) {
   const p = t.p;
   if (t.theirs) return { cap: p.note || t.a?.title || '', sub: `${whoOf(p) || 'Another brand'}, not us`, chip: secName(t.sec) };
   if (t.rank) return { cap: t.a?.title || '', sub: `#${t.rank} right now`, chip: secName(t.sec) || 'Our ad', capAd: t.a ? '' : p.ad_id };
-  return { cap: t.a?.title || '', sub: p.kind === 'meta' ? 'Ran as our ad' : 'Our video', chip: secName(t.sec) || (t.a ? '' : 'Our ad'), capAd: !t.a && p.kind === 'meta' ? p.ad_id : '' };
+  return { cap: p.note || t.a?.title || '', sub: p.kind === 'meta' ? 'Ran as our ad' : 'Our video', chip: secName(t.sec) || (t.a ? '' : 'Our ad'), capAd: !p.note && !t.a && p.kind === 'meta' ? p.ad_id : '' };
 }
 
 function tile(t) {
@@ -160,8 +162,10 @@ const SKIP_RE = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
 function checklist() {
   const b = D.brand;
   const av = b.avoid || [], g = b.guide || [], r = b.rules || [];
-  const say = r.filter(x => !SKIP_RE.test(x)), skip = r.filter(x => SKIP_RE.test(x));
-  if (!av.length && !g.length && !r.length) return '';
+  // Skip these is its own list since 2026-10-15 (b.skip); older brands still split their rules by how each line opens.
+  const own = Array.isArray(b.skip);
+  const say = own ? r : r.filter(x => !SKIP_RE.test(x)), skip = own ? b.skip : r.filter(x => SKIP_RE.test(x));
+  if (!av.length && !g.length && !say.length && !skip.length) return '';
   const list = (cls, title, items) => items.length ? `<div class="ck-list ${cls}"><p class="ck-h">${esc(title)}</p><ul>${items.map(x => `<li>${typeof x === 'string' ? esc(x) : `<b>${esc(x.title)}</b>${x.why ? ` <span>${esc(x.why)}</span>` : ''}`}</li>`).join('')}</ul></div>` : '';
   return `<section class="card checklist" id="checklist">
     <div class="ck-top"><h2>${ic('list-checks', 18)}Before you film</h2><p>Two minutes. Saves you a video we cannot run.</p></div>

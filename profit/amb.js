@@ -42,7 +42,7 @@ const x2 = n => n == null ? ' - ' : n.toFixed(2) + 'x';
 
 const S = { url: '', tok: '', act: 'all', accounts: [], pick: null, data: null, view: 'angles', edit: null, icons: null, tags: null,
   filter: 'all', q: '', dirty: false, covers: new Map(), coverTried: new Set(), upKind: new Map() };
-const LS_VIEW = 'amb_view';
+const LS_VIEW = 'amb_view2';   // 2026-10-15: new screens; the old key held 'angles'
 
 async function api(path, opts = {}) {
   const res = await fetch(S.url.replace(/\/+$/, '') + path, {
@@ -353,7 +353,7 @@ async function render({ tok, url, act, accounts, pick }) {
   if (act === 'all') return renderAll(main);
   main.innerHTML = `<div class="am">${head()}<div class="v2card"><span class="hint">Loading…</span></div></div>`;
   await Promise.all([loadIcons(), refresh()]);
-  S.view = localStorage.getItem(LS_VIEW) || 'angles';
+  S.view = localStorage.getItem(LS_VIEW) || 'videos';
   if (S.edit && !S.data.angles.some(a => a.id === S.edit) && S.edit !== 'new') S.edit = null;
   S.dirty = false;
   paint();
@@ -392,26 +392,447 @@ function paint() {
     return;
   }
   const keep = snapshotEditor();
-  const tabs = `<nav class="v2tabs am-sub" aria-label="Creator link views">
-    <button data-v="angles" class="${S.view === 'angles' ? 'on' : ''}">Ideas</button>
-    <button data-v="link" class="${S.view === 'link' ? 'on' : ''}">Link and brief</button></nav>`;
+  // Three screens (2026-10-15). The old Ideas and Link and brief views open from Settings > More.
+  if (!['videos', 'checklist', 'settings', 'angles', 'link'].includes(S.view)) S.view = 'videos';
+  const tab = ['angles', 'link'].includes(S.view) ? 'settings' : S.view;
+  const tabs = `<nav class="v2tabs am-sub" aria-label="Creator link screens">
+    <button data-v="videos" class="${tab === 'videos' ? 'on' : ''}">Videos</button>
+    <button data-v="checklist" class="${tab === 'checklist' ? 'on' : ''}">Checklist</button>
+    <button data-v="settings" class="${tab === 'settings' ? 'on' : ''}">Settings</button></nav>`;
+  const back = ['angles', 'link'].includes(S.view) ? `<p style="margin:0 0 10px"><button class="btn" type="button" id="amBack">${ic('arrow-left', 14)} Back to Settings</button></p>` : '';
   main.innerHTML = `<div class="am">
     ${head()}
-    ${summary()}
-    ${linkStrip()}
+    ${topBar()}
     ${tabs}
+    ${back}
     <div id="amBody"></div></div>`;
   main.querySelectorAll('.am-sub button').forEach(b => b.onclick = async () => {
     if (S.edit && !(await okToLeave())) return;
     S.view = b.dataset.v; S.edit = null; S.dirty = false; localStorage.setItem(LS_VIEW, S.view); paint();
   });
-  wireStrip();
-  wireSummary(main);
+  $('#amBack')?.addEventListener('click', () => { S.view = 'settings'; S.edit = null; localStorage.setItem(LS_VIEW, S.view); paint(); });
+  wireTop();
   const body = $('#amBody');
-  if (S.view === 'link') { closeDrawer(); paintLink(body); return autoGrow(body); }
+  closeDrawer();
+  if (S.view === 'videos') return paintVideos(body);
+  if (S.view === 'checklist') return paintChecklist(body);
+  if (S.view === 'settings') return paintSettings(body);
+  if (S.view === 'link') { paintLink(body); return autoGrow(body); }
   paintAngles(body);
-  if (S.edit) paintEditor(keep); else closeDrawer();
+  if (S.edit) paintEditor(keep);
 }
+
+/* =====================================================================================
+   THE SIMPLE STAFF SIDE (2026-10-15, Cole: "it needs to be almost stupid dumb to use").
+   Three screens, one job each, matching the public page creators see:
+     Videos     the board exactly as creators see it, in their order. Tap a video to change its
+                caption, category or place, or to take it off. One "Add videos" button: our ads,
+                an uploaded file, or an Atria ad.
+     Checklist  the four short lists under the videos: stop filming these, before you film,
+                always say, skip these.
+     Settings   the link, the look, how the board fills, the categories, the PDF. The old idea
+                briefs and every other text field are one tap away at the bottom.
+   ===================================================================================== */
+function boardCss() {
+  if (document.getElementById('amBoardCss')) return;
+  const st = document.createElement('style');
+  st.id = 'amBoardCss';
+  st.textContent = `
+.avb-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:6px 0 14px}
+.avb-top .btn.primary{min-height:44px;padding:0 18px;font-size:14.5px}
+.avb-top p{margin:0;color:var(--muted);font-size:13.5px}
+.avb-note{padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font-size:13.5px;margin-bottom:14px}
+.avb-cats{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-bottom:14px;padding-bottom:2px}
+.avb-cats::-webkit-scrollbar{display:none}
+.avb-cat{flex:none;min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);font-weight:600;font-size:13px;color:var(--ink-2);cursor:pointer}
+.avb-cat span{color:var(--faint);font-size:12px;margin-left:6px}
+.avb-cat.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.avb-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.avb-t{position:relative;display:block;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line);padding:0;cursor:pointer;text-align:left;isolation:isolate}
+.avb-t:hover{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.avb-m,.avb-m img,.avb-m video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1}
+.avb-n{position:absolute;left:8px;top:8px;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.avb-chip{position:absolute;right:8px;top:8px;max-width:calc(100% - 52px);padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avb-cap{position:absolute;left:0;right:0;bottom:0;padding:30px 9px 9px;background:linear-gradient(0deg,rgba(0,0,0,.9),rgba(0,0,0,.5) 60%,transparent);color:#fff}
+.avb-cap b{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;line-height:1.3}
+.avb-cap small{display:block;font-size:11px;opacity:.75;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avb-edit{position:absolute;right:8px;bottom:8px;display:none}
+.avb-empty{grid-column:1/-1;padding:40px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line-strong);border-radius:14px}
+.avb-add{display:grid;grid-template-columns:1fr;gap:10px}
+.avb-opt{display:flex;gap:14px;align-items:center;text-align:left;padding:14px 16px;min-height:64px;border-radius:14px;border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;color:var(--ink);width:100%}
+.avb-opt:hover{border-color:var(--brand)}
+.avb-opt .am-i{flex:none;width:22px!important;height:22px!important;color:var(--brand)}
+.avb-opt b{display:block;font-size:15px}
+.avb-opt span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.avb-player{background:#000;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:200px}
+.avb-player video,.avb-player img{display:block;max-width:100%;max-height:46vh}
+.avb-player .hint{color:#bbb;padding:24px;text-align:center}
+.avb-moves{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.avb-moves .btn{min-height:44px;padding:0 8px;justify-content:center}
+.avb-rm{color:var(--bad)!important;border-color:color-mix(in srgb,var(--bad) 40%,var(--line))!important;min-height:44px;width:100%}
+.avc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.avc-card{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.avc-card h3{margin:0;font-size:16px;display:flex;align-items:center;gap:8px}
+.avc-card > p{margin:4px 0 10px;color:var(--muted);font-size:13px}
+.avc-card.stop h3{color:var(--bad)}
+.avc-row{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:6px;align-items:start;margin-bottom:8px}
+.avc-item{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2)}
+.avc-item:focus-within{border-color:var(--brand)}
+.avc-item textarea{all:unset;display:block;width:100%;box-sizing:border-box;resize:none;overflow:hidden;white-space:pre-wrap;word-wrap:break-word;color:var(--ink);font:inherit;line-height:1.4}
+.avc-t1{font-size:14px;font-weight:600}
+.avc-t1.n{font-weight:500}
+.avc-t2{font-size:13px;color:var(--muted)!important}
+.avc-item textarea::placeholder{color:var(--faint);font-weight:400}
+.avc-card.stop .avc-item{border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.avc-x{width:44px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+.avc-add{min-height:40px}
+.avs{display:flex;flex-direction:column;gap:12px;max-width:760px}
+.avs-card{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.avs-card h3{margin:0;font-size:16px}
+.avs-card > p{margin:-4px 0 0;color:var(--muted);font-size:13px}
+.avs-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.avs-more{display:flex;flex-direction:column;gap:8px}
+.avs-more button{display:flex;justify-content:space-between;align-items:center;min-height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-size:14px;text-align:left}
+.avs-more button span{color:var(--muted);font-size:12.5px}
+.av-save{position:sticky;bottom:0;display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:12px 0;background:linear-gradient(0deg,var(--bg) 70%,transparent);margin-top:12px;z-index:5}
+.av-save .btn{min-height:44px;padding:0 22px}
+.av-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);margin-bottom:12px}
+.av-top .addr{flex:1;min-width:200px}
+.av-top .addr b{display:block;font-size:15px}
+.av-top .addr a{font-size:13px;color:var(--muted)}
+.av-top .btn{min-height:40px}
+@media (max-width:1100px){.avb-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:860px){.avb-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.avc{grid-template-columns:1fr}}
+@media (max-width:600px){.avb-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.avs-g{grid-template-columns:1fr}.avb-top .btn.primary{width:100%}.av-top .btn{flex:1;white-space:nowrap;padding:0 10px}.av-top .addr{min-width:100%}.av-top .am-sw{width:100%;min-height:40px}.avb-moves{grid-template-columns:repeat(2,minmax(0,1fr))}}
+`;
+  document.head.appendChild(st);
+}
+
+/* The top of every screen: the link, live or off, and the two things you do with it. */
+function topBar() {
+  const b = S.data.brand;
+  const url = PUBLIC_BASE + b.slug;
+  return `<div class="av-top">
+    <div class="addr"><b>${esc(b.display_name || S.data.account?.name || '')} creator link</b><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url.replace('https://', ''))}</a></div>
+    ${sw('amLive', b.live, b.live ? 'Live for creators' : 'Off (creators see "being set up")')}
+    <button class="btn" id="amCopy" type="button">${ic('copy', 14)} Copy link</button>
+    <a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${ic('external-link', 14)} ${b.live ? 'Open as a creator' : 'Preview'}</a>
+  </div>`;
+}
+function wireTop() {
+  const url = PUBLIC_BASE + S.data.brand.slug;
+  $('#amCopy').onclick = async e => { const btn = e.currentTarget; try { await navigator.clipboard.writeText(url); btn.innerHTML = `${ic('check', 14)} Copied`; setTimeout(() => { btn.innerHTML = `${ic('copy', 14)} Copy link`; }, 1600); } catch { helpModal('Copy this link', `<p><code style="user-select:all">${esc(url)}</code></p>`); } };
+  $('#amLive').onchange = async e => {
+    const on = e.target.checked;
+    try { S.data = await post('/api/amb/brand', { live: on }, 'PUT'); paint(); } catch (err) { e.target.checked = !on; helpModal('Could not save', `<p>${esc(err.message)}</p>`); }
+  };
+}
+
+/* ---------- Videos ---------- */
+const V = { cat: 'all', pub: null, tiles: [], caps: new Map() };
+const isTheirsP = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
+const whoOfP = p => String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, '').trim();
+/* The same order the public page uses (angles/app.src.js buildTiles): videos put straight on the
+   board first, then the ideas' videos dealt round-robin, then the staff order wins. */
+function boardTiles(P) {
+  const seenA = new Set();
+  const all = [P.hot, ...(P.sections || [])].filter(s => s && s.angles.length).flatMap(s => s.angles).filter(a => !seenA.has(a.id) && seenA.add(a.id));
+  const playable = p => p.kind === 'meta' || p.kind === 'upload';
+  if (P.board && P.board.length) {
+    const ideaOf = {}; for (const a of all) for (const p of a.proof || []) if (p.kind === 'meta' && !ideaOf[p.ad_id]) ideaOf[p.ad_id] = a;
+    return P.board.map(x => ({ p: { id: null, kind: 'meta', ad_id: x.ad_id }, a: ideaOf[x.ad_id] || null, theirs: false, rank: x.rank }));
+  }
+  const ideaOf = {}; for (const a of all) for (const p of a.proof || []) if (p.kind === 'meta' && p.ad_id && !ideaOf[p.ad_id]) ideaOf[p.ad_id] = a;
+  const picks = (P.picks || []).map(p => ({ p, a: (p.ad_id && ideaOf[p.ad_id]) || null, theirs: isTheirsP(p) }));
+  const seen = new Set(picks.map(t => t.p.ad_id || t.p.id));
+  const dealt = [];
+  all.forEach((a, ai) => {
+    let r = 0;
+    for (const p of (a.proof || []).filter(playable).sort((x, y) => isTheirsP(x) - isTheirsP(y))) {
+      const k = p.ad_id || p.file || p.id;
+      if (seen.has(k)) continue; seen.add(k);
+      dealt.push({ p, a, theirs: isTheirsP(p), hot: !!a.hot, r: r++, ai });
+    }
+  });
+  dealt.sort((x, y) => (y.hot && y.r === 0) - (x.hot && x.r === 0) || (x.r - y.r) || (x.ai - y.ai));
+  return [...picks, ...dealt].map((t, k) => [t, t.p.board_sort ?? 1e6 + k]).sort((x, y) => x[1] - y[1]).map(x => x[0]);
+}
+const secById = id => (S.data.sections || []).find(s => s.id === id);
+function tileWords(t) {
+  const p = t.p;
+  const sec = p.section_id || t.a?.section_id || '';
+  const cap = p.note || t.a?.title || V.caps.get(p.ad_id) || (p.kind === 'meta' ? 'Our ad' : 'Video');
+  const sub = t.theirs ? `${whoOfP(p) || 'Another brand'}, not us` : t.rank ? `#${t.rank} right now` : p.kind === 'meta' ? 'Ran as our ad' : 'Our video';
+  return { sec, cap, sub, catName: secById(sec)?.name || '' };
+}
+async function paintVideos(body) {
+  boardCss();
+  const auto = S.data.brand.board_mode === 'auto';
+  body.innerHTML = `
+    <div class="avb-top"><button class="btn primary" id="vAdd" type="button">${ic('plus', 16)} Add videos</button>
+      <p>${auto ? 'This board fills itself with your top ads.' : 'Creators see these in this order. Tap a video to change it or move it.'}</p></div>
+    ${auto ? `<div class="avb-note">The board is set to <b>Our top ads</b>, ranked by ${esc({ orders: 'orders', revenue: 'sales', roas: 'return on ad spend', hook: 'stopping the scroll' }[S.data.brand.board_sort || 'orders'])}. To choose and order videos yourself, switch it to Hand-picked in Settings.</div>` : ''}
+    <div class="avb-cats" id="vCats"></div>
+    <div class="avb-grid" id="vGrid"><p class="avb-empty">Loading the board…</p></div>`;
+  $('#vAdd').onclick = () => openAdd();
+  try { V.pub = await api(`/api/angles/${encodeURIComponent(S.data.brand.slug)}`); }
+  catch (e) { $('#vGrid').innerHTML = `<p class="avb-empty">${esc(e.message)}</p>`; return; }
+  V.tiles = boardTiles(V.pub);
+  paintGrid();
+  // Our ads with no idea and no caption read their own first line of copy, like the public page.
+  const need = V.tiles.filter(t => t.p.kind === 'meta' && !t.p.note && !t.a && !V.caps.has(t.p.ad_id)).map(t => t.p.ad_id);
+  for (let i = 0; i < need.length; i += 40) {
+    try {
+      const r = await api(`/api/ad-creatives?ads=${encodeURIComponent(need.slice(i, i + 40).join(','))}`);
+      for (const [id, v] of Object.entries(r.assets || {})) { const l = String(v.body || v.headline || '').split(/\n|(?<=[.!?])\s/)[0].trim().slice(0, 90); if (l) V.caps.set(id, l); if (v.thumb) S.covers.set(id, v.thumb); }
+    } catch {}
+  }
+  if (need.length && document.getElementById('vGrid')) paintGrid();
+}
+function paintGrid() {
+  const grid = $('#vGrid'); if (!grid) return;
+  const counts = {};
+  V.tiles.forEach(t => { const s = tileWords(t).sec; if (s) counts[s] = (counts[s] || 0) + 1; });
+  const cats = (S.data.sections || []).filter(s => !s.pinned && s.enabled && counts[s.id]);
+  $('#vCats').innerHTML = cats.length > 1 ? `<button class="avb-cat ${V.cat === 'all' ? 'on' : ''}" data-c="all">All<span>${V.tiles.length}</span></button>${cats.map(s => `<button class="avb-cat ${V.cat === s.id ? 'on' : ''}" data-c="${esc(s.id)}">${esc(s.name)}<span>${counts[s.id]}</span></button>`).join('')}` : '';
+  $('#vCats').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { V.cat = b.dataset.c; paintGrid(); });
+  const base = S.url.replace(/\/+$/, '');
+  const shown = V.tiles.map((t, i) => [t, i]).filter(([t]) => V.cat === 'all' || tileWords(t).sec === V.cat);
+  grid.innerHTML = shown.length ? shown.map(([t, i]) => {
+    const w = tileWords(t);
+    const media = t.p.kind === 'meta' ? `<span class="avb-m" data-cover="${esc(t.p.ad_id)}"></span>`
+      : `<span class="avb-m"><video src="${esc(base)}/api/angles-file/${esc(t.p.id)}#t=0.8" muted playsinline preload="metadata"></video></span>`;
+    return `<button class="avb-t" type="button" data-i="${i}" aria-label="Change: ${esc(w.cap)}">${media}<span class="avb-n">${i + 1}</span>${w.catName ? `<span class="avb-chip">${esc(w.catName)}</span>` : ''}<span class="avb-cap"><b>${esc(w.cap)}</b><small>${esc(w.sub)}</small></span></button>`;
+  }).join('') : `<div class="avb-empty">No videos yet. Tap <b>Add videos</b> to put the first one on.</div>`;
+  grid.querySelectorAll('[data-i]').forEach(el => el.onclick = () => openVideo(+el.dataset.i));
+  loadCovers(grid);
+}
+async function saveOrder(ids) {
+  S.data = await post('/api/amb/board', { order: ids });
+}
+/* One video: watch it, change its caption, category and place, or take it off. */
+function openVideo(i) {
+  const t = V.tiles[i]; if (!t) return;
+  const auto = S.data.brand.board_mode === 'auto';
+  const w = tileWords(t);
+  const base = S.url.replace(/\/+$/, '');
+  const cats = (S.data.sections || []).filter(s => !s.pinned);
+  const canEdit = !!t.p.id && !auto;
+  modal(auto ? 'One of your top ads' : 'Change this video', `
+    <div class="avb-player" id="vPlay">${t.p.kind === 'upload' ? `<video src="${esc(base)}/api/angles-file/${esc(t.p.id)}" controls playsinline preload="metadata"></video>` : '<p class="hint">Loading the ad…</p>'}</div>
+    ${canEdit ? `
+    <label class="am-f">Caption creators see <small>One line. Leave it empty to use ${t.a ? 'the idea title' : "the ad's own first line"}.</small><textarea class="am-in" id="vCap" rows="2" placeholder="${esc(t.a?.title || w.cap)}">${esc(t.p.note || '')}</textarea></label>
+    <label class="am-f">Category<select class="am-in" id="vSec"><option value="">${t.a ? `Same as its idea (${esc(secById(t.a.section_id)?.name || 'none')})` : 'No category'}</option>${cats.map(s => `<option value="${esc(s.id)}"${t.p.section_id === s.id ? ' selected' : ''}>${esc(s.name)}${s.enabled ? '' : ' (hidden)'}</option>`).join('')}</select></label>
+    ${t.p.kind === 'upload' ? `<label class="am-f">Whose video is it? <small>Leave empty if it is ours. A brand name shows "not us" to creators.</small><input class="am-in" id="vWho" value="${esc(t.theirs ? whoOfP(t.p) : '')}" placeholder="Our video"></label>` : ''}
+    <div><p class="hint" style="margin:0 0 6px">Place on the board: <b>${i + 1} of ${V.tiles.length}</b></p>
+      <div class="avb-moves"><button class="btn" type="button" data-mv="top">${ic('chevrons-up', 15)} To the top</button><button class="btn" type="button" data-mv="up">${ic('chevron-up', 15)} Up one</button><button class="btn" type="button" data-mv="down">${ic('chevron-down', 15)} Down one</button><button class="btn" type="button" data-mv="end">${ic('chevrons-down', 15)} To the end</button></div></div>
+    <button class="btn avb-rm" type="button" id="vRm">${ic('trash-2', 15)} Take it off the board</button>`
+    : `<p class="hint" style="margin:0"><b>${esc(w.cap)}</b><br>${esc(w.sub)}</p>`}`, { cta: canEdit ? 'Save' : 'Close' });
+  const m = modal.last;
+  if (t.p.kind === 'meta') api(`/api/ad-video?ad=${encodeURIComponent(t.p.ad_id)}`).then(v => {
+    const box = m.querySelector('#vPlay'); if (!box) return;
+    box.innerHTML = v.src ? `<video src="${esc(v.src)}" controls playsinline></video>` : v.preview ? `<iframe src="${esc(v.preview)}" style="width:100%;height:46vh;border:0;background:#fff" allowfullscreen></iframe>` : '<p class="hint">This ad has no video to play here.</p>';
+  }).catch(() => { const box = m.querySelector('#vPlay'); if (box) box.innerHTML = S.covers.get(t.p.ad_id) ? `<img src="${esc(S.covers.get(t.p.ad_id))}" alt="">` : '<p class="hint">Could not load the ad.</p>'; });
+  const stop = () => m.querySelectorAll('video').forEach(v => v.pause());
+  if (!canEdit) { m._submit = ctl => { stop(); ctl.close(); }; return; }
+  m.querySelectorAll('[data-mv]').forEach(b => b.onclick = async () => {
+    const ids = V.tiles.map(x => x.p.id).filter(Boolean);
+    const k = ids.indexOf(t.p.id); if (k < 0) return;
+    ids.splice(k, 1);
+    const to = { top: 0, up: Math.max(0, k - 1), down: Math.min(ids.length, k + 1), end: ids.length }[b.dataset.mv];
+    ids.splice(to, 0, t.p.id);
+    b.disabled = true;
+    try { await saveOrder(ids); stop(); m._ctl.close(); paint(); } catch (e) { b.disabled = false; m._ctl.msg(e.message); }
+  });
+  m.querySelector('#vRm').onclick = async () => {
+    if (!(await confirmIt('Take this video off the board?', t.p.kind === 'upload' ? 'The uploaded file is deleted too.' : 'The ad itself is not touched. You can add it again from Our ads.'))) return;
+    try { S.data = await post('/api/amb/board', { remove: [t.p.id] }); stop(); m._ctl.close(); paint(); } catch (e) { m._ctl.msg(e.message); }
+  };
+  m._submit = async ctl => {
+    const edit = { id: t.p.id, note: m.querySelector('#vCap').value.trim(), section_id: m.querySelector('#vSec').value || null };
+    if (m.querySelector('#vWho')) edit.brand = m.querySelector('#vWho').value.trim();
+    try { S.data = await post('/api/amb/board', { edit }); stop(); ctl.close(); paint(); } catch (e) { ctl.msg(e.message); }
+  };
+}
+function confirmIt(title, text) {
+  return new Promise(res => {
+    const w = document.createElement('div'); w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal am-modal" style="max-width:420px" role="dialog" aria-modal="true"><h3>${esc(title)}</h3><p class="hint">${esc(text)}</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn" data-n>Keep it</button><button class="btn primary" data-y>Take it off</button></div></div>`;
+    document.body.appendChild(w);
+    w.querySelector('[data-n]').onclick = () => { w.remove(); res(false); };
+    w.querySelector('[data-y]').onclick = () => { w.remove(); res(true); };
+  });
+}
+/* Add videos: three ways in, said plainly. */
+function openAdd() {
+  modal('Add videos', `<div class="avb-add">
+    <button class="avb-opt" type="button" data-a="ads">${ic('megaphone')}<span><b>From our ads</b><span>Pick ads that ran, sorted by orders, ROAS, CTR or spend.</span></span></button>
+    <button class="avb-opt" type="button" data-a="upload">${ic('upload')}<span><b>Upload a video</b><span>A file from your phone or computer, ours or another brand's. Up to 95MB.</span></span></button>
+    <button class="avb-opt" type="button" data-a="atria">${ic('link')}<span><b>Another brand's ad from Atria</b><span>Paste the Atria link. We save the video so it plays on the link.</span></span></button>
+    <p class="hint" style="margin:4px 0 0">Saw a good TikTok or Reel? Drop it in the ideas channel in Slack and press <b>Creator link</b>.</p></div>`, { cta: 'Close' });
+  const m = modal.last;
+  m.querySelector('[data-m="yes"]').style.display = 'none';
+  m.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { m.remove(); ({ ads: openAdPicker, upload: openUpload, atria: openAtria })[b.dataset.a](); });
+}
+const catSelect = (id) => `<label class="am-f">Category<select class="am-in" id="${id}"><option value="">No category</option>${(S.data.sections || []).filter(s => !s.pinned && s.enabled).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label>`;
+function openUpload() {
+  modal('Upload a video', `
+    <label class="am-f">The video<input class="am-in" id="uFile" type="file" accept="video/*"></label>
+    <label class="am-f">Caption creators see <small>One line, like "Old belt in the bin, new one on, say the price".</small><textarea class="am-in" id="uCap" rows="2"></textarea></label>
+    ${catSelect('uSec')}
+    <label class="am-f">Whose video is it? <small>Leave empty if it is ours.</small><input class="am-in" id="uWho" placeholder="Our video"></label>`, { cta: 'Upload and add' });
+  const m = modal.last;
+  m._submit = async ctl => {
+    const f = m.querySelector('#uFile').files[0];
+    if (!f) return ctl.msg('Choose a video first.');
+    if (f.size > 95 * 1024 * 1024) return ctl.msg('That file is over 95MB. Trim it first.');
+    const yes = m.querySelector('[data-m="yes"]'); yes.disabled = true; yes.textContent = 'Uploading…';
+    try {
+      const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/amb/upload?act=${encodeURIComponent(S.act)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': f.type || 'video/mp4' }, body: f });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'The upload failed.');
+      S.data = await post('/api/amb/board', { upload: { file_key: j.file_key, note: m.querySelector('#uCap').value.trim(), section_id: m.querySelector('#uSec').value || null, brand: m.querySelector('#uWho').value.trim() } });
+      ctl.close(); paint();
+    } catch (e) { yes.disabled = false; yes.textContent = 'Upload and add'; ctl.msg(e.message); }
+  };
+}
+function openAtria() {
+  modal("Another brand's ad from Atria", `
+    <label class="am-f">Atria link<input class="am-in" id="aLink" placeholder="https://app.tryatria.com/ad/m123456789"></label>
+    <label class="am-f">Brand name<input class="am-in" id="aWho" placeholder="Bogey Bros"></label>
+    <label class="am-f">What creators should steal <small>One line, like "The wife counting how long until he notices".</small><textarea class="am-in" id="aNote" rows="2"></textarea></label>
+    ${catSelect('aSec')}`, { cta: 'Save the video' });
+  const m = modal.last;
+  m._submit = async ctl => {
+    const mm = m.querySelector('#aLink').value.trim().match(/tryatria\.com\/ad\/([mt]\d+)/);
+    if (!mm) return ctl.msg('Paste the ad\'s Atria link, like https://app.tryatria.com/ad/m123456789.');
+    const yes = m.querySelector('[data-m="yes"]'); yes.disabled = true; yes.textContent = 'Saving the video…';
+    try {
+      const res = await fetch(AH_URL + '/api/atria/clip-to-angle', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ act: S.act, angle_id: 'board', ad_id: mm[1], who: m.querySelector('#aWho').value.trim(), note: m.querySelector('#aNote').value.trim() }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Atria did not answer.');
+      const sec = m.querySelector('#aSec').value;
+      if (sec && j.proof_id) await post('/api/amb/board', { edit: { id: j.proof_id, note: m.querySelector('#aNote').value.trim(), section_id: sec } });
+      // New videos go to the top, like every other way in.
+      const ids = [j.proof_id, ...V.tiles.map(x => x.p.id).filter(id => id && id !== j.proof_id)];
+      S.data = await post('/api/amb/board', { order: ids });
+      ctl.close(); paint();
+    } catch (e) { yes.disabled = false; yes.textContent = 'Save the video'; ctl.msg(e.message); }
+  };
+}
+
+/* ---------- Checklist ---------- */
+const SKIP_START = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
+function paintChecklist(body) {
+  boardCss();
+  const b = S.data.brand;
+  const rules = b.rules || [];
+  const own = Array.isArray(b.skip);
+  const say = own ? rules : rules.filter(x => !SKIP_START.test(x));
+  const skip = own ? b.skip : rules.filter(x => SKIP_START.test(x));
+  // One item = one box: the line in bold, an optional smaller line under it, a delete button on the right.
+  const two = (k, a, bb, pa, pb) => `<div class="avc-row" data-row="${k}"><div class="avc-item"><textarea class="avc-t1" data-f="a" rows="1" placeholder="${esc(pa)}">${esc(a || '')}</textarea><textarea class="avc-t2" data-f="b" rows="1" placeholder="${esc(pb)}">${esc(bb || '')}</textarea></div><button class="avc-x" type="button" data-x aria-label="Delete this line">${ic('x', 15)}</button></div>`;
+  const one = (k, a, pa) => `<div class="avc-row" data-row="${k}"><div class="avc-item"><textarea class="avc-t1 n" data-f="a" rows="1" placeholder="${esc(pa)}">${esc(a || '')}</textarea></div><button class="avc-x" type="button" data-x aria-label="Delete this line">${ic('x', 15)}</button></div>`;
+  const ROW = {
+    stop: x => two('stop', x?.title, x?.why, 'What not to film', 'Why (optional)'),
+    do: x => two('do', x?.title, x?.text, 'The rule', 'One line on how (optional)'),
+    say: x => one('say', x, 'Something to always say or show'),
+    skip: x => one('skip', x, 'Something to never say or do'),
+  };
+  const card = (k, cls, icon, title, line, items) => `<section class="avc-card ${cls}"><h3>${ic(icon, 17)}${esc(title)}</h3><p>${esc(line)}</p><div data-list="${k}">${items.map(ROW[k]).join('')}</div><button class="btn avc-add" type="button" data-add="${k}">${ic('plus', 14)} Add a line</button></section>`;
+  body.innerHTML = `<p class="hint" style="margin:6px 0 14px">This is the checklist at the bottom of the creator link. Keep every line short.</p>
+    <div class="avc">
+      ${card('stop', 'stop', 'ban', 'Please stop filming these', 'What we have plenty of. Shown first, in red.', b.avoid || [])}
+      ${card('do', '', 'list-checks', 'Before you film', 'How to make a video that holds attention.', b.guide || [])}
+      ${card('say', '', 'megaphone', 'Always say', 'Product names, true claims, what to show.', say)}
+      ${card('skip', '', 'x', 'Skip these', 'Claims we cannot make, things that get a video dropped.', skip)}
+    </div>
+    <div class="av-save"><span class="am-msg" id="cMsg"></span><button class="btn primary" id="cSave" type="button">Save the checklist</button></div>`;
+  const fit = t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
+  const fitAll = () => body.querySelectorAll('.avc-item textarea').forEach(fit);
+  body.addEventListener('input', e => { if (e.target.matches('.avc-item textarea')) fit(e.target); });
+  body.addEventListener('click', e => {
+    const x = e.target.closest('[data-x]'); if (x) { x.closest('.avc-row').remove(); return; }
+    const a = e.target.closest('[data-add]'); if (a) { const k = a.dataset.add; const box = body.querySelector(`[data-list="${k}"]`); box.insertAdjacentHTML('beforeend', ROW[k]()); box.lastElementChild.querySelector('textarea').focus(); }
+  });
+  requestAnimationFrame(fitAll);
+  $('#cSave').onclick = async () => {
+    const rows = k => [...body.querySelectorAll(`[data-list="${k}"] .avc-row`)].map(r => [r.querySelector('[data-f="a"]').value.trim(), r.querySelector('[data-f="b"]')?.value.trim() || '']).filter(([a]) => a);
+    const payload = {
+      avoid: rows('stop').map(([title, why]) => ({ title, why })),
+      guide: rows('do').map(([title, text]) => ({ title, text })),
+      rules: rows('say').map(([a]) => a),
+      skip: rows('skip').map(([a]) => a),
+    };
+    try { S.data = await post('/api/amb/brand', payload, 'PUT'); flashMsg($('#cMsg'), 'Saved. Creators see it on their next load.'); }
+    catch (e) { flashMsg($('#cMsg'), e.message, false); }
+  };
+}
+
+/* ---------- Settings ---------- */
+function paintSettings(body) {
+  boardCss();
+  const b = S.data.brand;
+  const secs = (S.data.sections || []).filter(s => !s.pinned);
+  body.innerHTML = `<div class="avs">
+    <section class="avs-card"><h3>The link</h3>
+      <div class="avs-g">
+        <label class="am-f">Brand name on the page<input class="am-in" id="sName" value="${esc(b.display_name || '')}"></label>
+        <label class="am-f">Page address<div style="display:flex"><span class="am-in am-pre" style="white-space:nowrap">/angles/</span><input class="am-in" id="sSlug" value="${esc(b.slug || '')}" style="border-radius:0 8px 8px 0"></div></label>
+        <label class="am-f">TRYBE campaign link <small>Where creators submit.</small><input class="am-in" id="sSubmit" value="${esc(b.submit_url || '')}" placeholder="https://..."></label>
+        <label class="am-f">Button text<input class="am-in" id="sBtn" value="${esc(b.submit_label || '')}" placeholder="Open our TRYBE campaign"></label>
+      </div></section>
+    <section class="avs-card"><h3>The look</h3>
+      <div class="avs-g">
+        <label class="am-f">Logo link <small>A PNG or JPG address.</small><input class="am-in" id="sLogo" value="${esc(b.logo_url || '')}" placeholder="https://..."></label>
+        <label class="am-f">Brand colour<input class="am-in" id="sAcc" type="color" value="${esc(b.accent || '#2F62D9')}" style="height:40px;padding:4px"></label>
+      </div></section>
+    <section class="avs-card"><h3>How the board fills</h3><p>Hand-picked shows the videos on the Videos screen. Our top ads fills itself from this brand's Meta video ads in the last 30 days.</p>
+      <div class="avs-g">
+        <label class="am-f">Board<select class="am-in" id="sBoard"><option value="picked"${b.board_mode !== 'auto' ? ' selected' : ''}>Hand-picked</option><option value="auto"${b.board_mode === 'auto' ? ' selected' : ''}>Our top ads</option></select></label>
+        <label class="am-f">Rank top ads by<select class="am-in" id="sSort"${b.board_mode !== 'auto' ? ' disabled' : ''}>${[['orders', 'Most orders'], ['revenue', 'Most sales'], ['roas', 'Best return on ad spend'], ['hook', 'Stops the scroll']].map(([v, t]) => `<option value="${v}"${(b.board_sort || 'orders') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="am-f">How many top ads<input class="am-in" id="sN" type="number" min="4" max="50" value="${esc(b.board_n || 20)}"${b.board_mode !== 'auto' ? ' disabled' : ''}></label>
+      </div></section>
+    <section class="avs-card"><h3>Categories</h3><p>The buttons above the videos. Products or moments, in creator words: Gifts, Black Friday, Hats.</p>
+      <div id="sCats" style="display:flex;flex-direction:column;gap:8px">${secs.map(s => `<div class="avc-row" data-sid="${esc(s.id)}" style="grid-template-columns:minmax(0,1fr) auto"><input class="am-in" data-sn value="${esc(s.name)}"><label class="am-sw"><input type="checkbox" data-se ${s.enabled ? 'checked' : ''}><span class="am-tr"></span><span>Shown</span></label></div>`).join('')}</div>
+      <div style="display:flex;gap:8px"><input class="am-in" id="sNewCat" placeholder="New category name" style="flex:1"><button class="btn" type="button" id="sAddCat">${ic('plus', 14)} Add</button></div>
+      <p class="hint" style="margin:0">A hidden category hides its videos from creators too.</p></section>
+    <section class="avs-card"><h3>For TRYBE</h3><p>The one-page PDF you upload to the TRYBE campaign. It explains the link, so it never goes out of date.</p>
+      <div><button class="btn" type="button" id="sPdf">${ic('file-down', 15)} Download the PDF</button></div></section>
+    <section class="avs-card"><h3>More</h3>
+      <div class="avs-more">
+        <button type="button" data-go="angles">Idea briefs<span>Written ideas with steps and lines. Creators no longer see these.</span></button>
+        <button type="button" data-go="link">Every other text field<span>Intro, about, PDF words, the opener bank.</span></button>
+      </div></section>
+    <div class="av-save"><span class="am-msg" id="sMsg"></span><button class="btn primary" id="sSave" type="button">Save settings</button></div>
+  </div>`;
+  $('#sBoard').onchange = () => { const on = $('#sBoard').value === 'auto'; $('#sSort').disabled = !on; $('#sN').disabled = !on; };
+  $('#sPdf').onclick = () => makePdf().catch(err => helpModal('Could not build the PDF', `<p>${esc(err.message)}</p>`));
+  body.querySelectorAll('[data-go]').forEach(x => x.onclick = () => { S.view = x.dataset.go; localStorage.setItem(LS_VIEW, S.view); paint(); });
+  $('#sAddCat').onclick = async () => {
+    const name = $('#sNewCat').value.trim(); if (!name) return;
+    try { S.data = await post('/api/amb/section', { name, icon_svg: S.icons?.tag || null }); paint(); } catch (e) { flashMsg($('#sMsg'), e.message, false); }
+  };
+  $('#sSave').onclick = async () => {
+    try {
+      for (const row of body.querySelectorAll('#sCats [data-sid]')) {
+        const s = secs.find(x => x.id === row.dataset.sid); if (!s) continue;
+        const name = row.querySelector('[data-sn]').value.trim(), on = row.querySelector('[data-se]').checked;
+        if (name && (name !== s.name || on !== !!s.enabled)) await post('/api/amb/section', { id: s.id, name, line: s.line || '', enabled: on });
+      }
+      S.data = await post('/api/amb/brand', {
+        display_name: $('#sName').value.trim(), slug: $('#sSlug').value.trim().toLowerCase(),
+        submit_url: $('#sSubmit').value.trim(), submit_label: $('#sBtn').value.trim(),
+        logo_url: $('#sLogo').value.trim(), accent: $('#sAcc').value.toUpperCase(),
+        board_mode: $('#sBoard').value, board_sort: $('#sSort').value, board_n: +$('#sN').value || 20,
+      }, 'PUT');
+      flashMsg($('#sMsg'), 'Saved. Creators see it on their next load.');
+    } catch (e) { flashMsg($('#sMsg'), e.message, false); }
+  };
+}
+
+
 
 /* ---------- the top: one verdict, four tiles, the staff numbers ---------- */
 function counts() {
@@ -1308,6 +1729,7 @@ async function openAdPicker() {
       const box = document.getElementById('lPicks');
       if (box) { box.innerHTML = picksList(); wirePicks(); }
       ctl.close();
+      if (S.view === 'videos') paint();
     } catch (e) { yes.disabled = false; ctl.msg(e.message); }
   };
   count();

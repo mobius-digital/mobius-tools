@@ -3442,6 +3442,24 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
     account-health `anglesBoardAds()` lets the slug play and cover exactly those ads on a LIVE auto page,
     alongside proof. Tested on Ice & Gold 2026-10-14 (11 ads ranked) and set back to `picked`; switching a
     brand on is Cole's call.
+- **THE STAFF SIDE IS THREE SCREENS (2026-10-15, Cole on a tablet: "stupid dumb to use").** `profit/amb.js` v23,
+  `paint()` + the block "THE SIMPLE STAFF SIDE": a top bar (link, Live switch, Copy link, Open as a creator), then tabs
+  **Videos** (default) / **Checklist** / **Settings** (view key `amb_view2`).
+  - **Videos** = the board exactly as creators see it, numbered, with the same category chips. It loads the public
+    payload (`GET /api/angles/<slug>` with the staff token) and orders it with `boardTiles()`, a copy of the page's
+    `buildTiles`. KEEP THE TWO IN STEP. Tap a video: watch it, caption (`p_amb_proof.note`, wins over the idea title),
+    category (`p_amb_proof.section_id`, wins over the idea's), whose video (uploads), To the top / Up one / Down one /
+    To the end (writes `board_sort` for every video, `POST /api/amb/board {order}`), Take it off (deletes the proof
+    row and an uploaded file). **Add videos** = From our ads (the picker), Upload a video (`/api/amb/upload` then
+    `{upload}`), Another brand's ad from Atria (account-health clip-to-angle with `angle_id: 'board'`).
+  - **Checklist** = four boxes: Please stop filming these (`avoid`), Before you film (`guide`), Always say (`rules`),
+    Skip these (`p_amb_brand.skip_json`, its own list since amb-007; null = the page still splits `rules` by SKIP_RE).
+  - **Settings** = name, address, TRYBE link and button text, logo, colour, how the board fills, categories (rename,
+    show / hide, add), the PDF, and More: the old **Idea briefs** view (`angles`) and **Every other text field**
+    (`link`, the old Link and brief form), each with Back to Settings.
+  - Migration `amb-007.sql` (applied): `p_amb_proof.section_id`, `p_amb_proof.board_sort`, `p_amb_brand.skip_json`. New
+    videos take `MIN(board_sort) - 1` so they land on top. The public page sorts by `board_sort` (nulls after, in the
+    dealt order) on a hand-picked board.
 - **HOW A VIDEO GETS ON THE BOARD (2026-10-15).** Five ways, all ending as `p_amb_proof` rows:
   1. **Board picks** (Ambassadors > Link and brief > "Pick ads from the account"): the brand's ads with spend in
      7 / 30 / 90 / 365 days (`GET /api/amb/board-ads`: Meta spend, CTR, 3-second rate from `ad_daily`; orders,

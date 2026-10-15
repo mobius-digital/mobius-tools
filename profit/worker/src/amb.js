@@ -123,6 +123,7 @@ function shapeBrand(b, acct) {
     pdf: safeJson(b.pdf_json, null),
     guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
     hooks: safeJson(b.hooks_json, []),          // "First seconds" bank, [{title, how, kind, url, clip}]
+    skip: b.skip_json == null ? null : safeJson(b.skip_json, []),   // checklist "Skip these"; null = guess from rules (old brands)
     board_mode: b.board_mode === 'auto' ? 'auto' : 'picked', board_n: b.board_n || 20, board_sort: BOARD_SORTS.has(b.board_sort) ? b.board_sort : 'orders',   // the video board (amb-004)
   };
 }
@@ -181,13 +182,14 @@ export async function addBoardPicks(env, actId, adIds) {
   const added = [];
   const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) n FROM p_amb_proof WHERE act_id = ?1 AND angle_id = ?2`).bind(actId, BOARD).first();
   let n = mx?.n || 0;
-  for (const adId of adIds) {
+  // Each new pick takes MIN(board_sort) - 1, so walk the list backwards: the first one given ends on top.
+  for (const adId of [...adIds].reverse()) {
     const own = await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(actId, adId).first();
     if (!own) continue;
     const dup = await env.DB.prepare(`SELECT 1 FROM p_amb_proof WHERE act_id = ?1 AND angle_id = ?2 AND ad_id = ?3`).bind(actId, BOARD, adId).first();
     if (dup) continue;
-    await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, ad_id, shown, sort) VALUES (?1, ?2, ?3, 'meta', ?4, 1, ?5)`).bind(rid(), actId, BOARD, adId, ++n).run();
-    added.push(adId);
+    await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, ad_id, shown, sort, board_sort) VALUES (?1, ?2, ?3, 'meta', ?4, 1, ?5, (SELECT MIN(board_sort) - 1 FROM p_amb_proof WHERE act_id = ?2))`).bind(rid(), actId, BOARD, adId, ++n).run();
+    added.unshift(adId);
   }
   return added;
 }
@@ -263,6 +265,8 @@ async function publicPayload(env, slug, preview = false) {
     const item = { id: p.id, kind: p.kind, who: p.who, note: p.note, url: p.kind === 'upload' ? null : p.url, thumb: p.thumb, source: p.kind === 'upload' && p.url ? p.url : null };
     if (p.kind === 'meta') item.ad_id = p.ad_id;
     if (p.kind === 'upload') item.file = `/api/angles-file/${p.id}`;
+    if (p.section_id) item.section_id = p.section_id;
+    if (p.board_sort != null) item.board_sort = p.board_sort;
     if ((p.kind === 'post' || p.kind === 'typed') && p.views) item.views = p.views;   // views yes, sales never
     (proofBy.get(p.angle_id) || proofBy.set(p.angle_id, []).get(p.angle_id)).push(item);
   }
@@ -282,7 +286,7 @@ async function publicPayload(env, slug, preview = false) {
     preview: !b.live,
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; x.hooks = hooks; return x; })(),
     board: b.board_mode === 'auto' ? await autoBoard(env, b) : null,
-    picks: (proofBy.get(BOARD) || []).filter(p => p.kind === 'meta').map(p => ({ id: p.id, kind: 'meta', ad_id: p.ad_id })),   // board picks, in the team's order
+    picks: (proofBy.get(BOARD) || []).filter(p => p.kind === 'meta' || p.kind === 'upload'),   // videos put straight on the board (ads and uploads), in the team's order
     season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
       || await seasonShape(env, b.act_id).catch(() => null),
     hot: pinned ? { id: pinned.id, name: pinned.name, line: pinned.line, icon_svg: cleanSvg(pinned.icon_svg), color: pinned.color, angles: hot } : null,
@@ -475,6 +479,7 @@ export async function handleStaff(request, env, url, path, json) {
         has('guide') ? JSON.stringify((Array.isArray(body.guide) ? body.guide : []).map(x => ({ title: clip(x.title, 120), text: clip(x.text, 500) })).filter(x => x.title || x.text).slice(0, 14)) : cur.guide_json,
         has('hooks') ? JSON.stringify((Array.isArray(body.hooks) ? body.hooks : []).map(x => ({ title: clip(x.title, 120), how: clip(x.how, 500), kind: x.kind === 'brand' ? 'brand' : 'shared', url: /^https:\/\/\S+$/i.test(x.url || '') ? clip(x.url, 500) : null, clip: /^[a-f0-9]{16}$/.test(x.clip || '') ? x.clip : null })).filter(x => x.title || x.how).slice(0, 40)) : cur.hooks_json,
       ).run();
+      if (has('skip')) await env.DB.prepare(`UPDATE p_amb_brand SET skip_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(arr(body.skip, 12, 300))).run();
       if (has('board_mode') || has('board_n') || has('board_sort')) {
         // A changed mode, size or ranking re-ranks on the next page load (board_at cleared).
         await env.DB.prepare(`UPDATE p_amb_brand SET board_mode = ?2, board_n = ?3, board_sort = ?4, board_at = NULL WHERE act_id = ?1`).bind(acct.act_id,
@@ -706,13 +711,37 @@ export async function handleStaff(request, env, url, path, json) {
     }
     if (path === '/api/amb/board' && method === 'POST') {
       const acct = await mustAccount(env, act);
+      const secOk = async id => (id && (await env.DB.prepare(`SELECT id FROM p_amb_section WHERE id = ?1 AND act_id = ?2`).bind(String(id), acct.act_id).first())) ? String(id) : null;
       const add = (Array.isArray(body.add) ? body.add : []).map(String).filter(x => /^\d{6,25}$/.test(x)).slice(0, 50);
       if (add.length) await addBoardPicks(env, acct.act_id, add);
+      // An uploaded video straight onto the board (the file went up through /api/amb/upload first).
+      if (body.upload) {
+        const u = body.upload;
+        if (!u.file_key || !(await ownFileKey(env, request, acct.act_id, u.file_key))) return json({ error: 'Upload the file first.' }, 400);
+        const theirs = String(u.brand || '').trim();
+        await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, file_key, who, note, section_id, shown, sort, board_sort)
+          VALUES (?1, ?2, ?3, 'upload', ?4, ?5, ?6, ?7, 1, 0, (SELECT MIN(board_sort) - 1 FROM p_amb_proof WHERE act_id = ?2))`)
+          .bind(rid(), acct.act_id, BOARD, clip(u.file_key, 200), theirs ? `${clip(theirs, 60)} (inspiration)` : null, clip(u.note, 300) || null, await secOk(u.section_id)).run();
+      }
+      // Caption, category and whose video it is, for ANY video on this brand's board.
+      if (body.edit && /^[a-f0-9]{16}$/.test(body.edit.id || '')) {
+        const e = body.edit;
+        const cur = await env.DB.prepare(`SELECT who FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(e.id, acct.act_id).first();
+        if (!cur) return json({ error: 'That video is not on this board.' }, 404);
+        const theirs = e.brand === undefined ? cur.who : (String(e.brand || '').trim() ? `${clip(String(e.brand).trim(), 60)} (inspiration)` : null);
+        await env.DB.prepare(`UPDATE p_amb_proof SET note = ?3, section_id = ?4, who = ?5 WHERE id = ?1 AND act_id = ?2`)
+          .bind(e.id, acct.act_id, clip(e.note, 300) || null, await secOk(e.section_id), theirs).run();
+      }
       const remove = (Array.isArray(body.remove) ? body.remove : []).map(String).filter(x => /^[a-f0-9]{16}$/.test(x));
-      for (const id of remove) await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2 AND angle_id = ?3`).bind(id, acct.act_id, BOARD).run();
+      for (const id of remove) {
+        const p = await env.DB.prepare(`SELECT file_key FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id).first();
+        await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id).run();
+        if (p?.file_key && env.MEDIA && await ownFileKey(env, request, acct.act_id, p.file_key)) await env.MEDIA.delete(p.file_key).catch(() => {});
+      }
+      // ONE order for the whole board: every video id in the order creators should see them.
       if (Array.isArray(body.order)) {
         let i = 0;
-        for (const id of body.order.map(String).filter(x => /^[a-f0-9]{16}$/.test(x)).slice(0, 100)) await env.DB.prepare(`UPDATE p_amb_proof SET sort = ?3 WHERE id = ?1 AND act_id = ?2 AND angle_id = ?4`).bind(id, acct.act_id, ++i, BOARD).run();
+        for (const id of body.order.map(String).filter(x => /^[a-f0-9]{16}$/.test(x)).slice(0, 300)) await env.DB.prepare(`UPDATE p_amb_proof SET board_sort = ?3 WHERE id = ?1 AND act_id = ?2`).bind(id, acct.act_id, ++i).run();
       }
       await env.DB.prepare(`UPDATE p_amb_brand SET updated_at = datetime('now') WHERE act_id = ?1`).bind(acct.act_id).run().catch(() => {});
       return json(await staffPayload(env, acct));

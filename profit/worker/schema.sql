@@ -416,3 +416,7 @@ ALTER TABLE p_amb_brand ADD COLUMN board_n INTEGER NOT NULL DEFAULT 20;
 ALTER TABLE p_amb_brand ADD COLUMN board_json TEXT;
 ALTER TABLE p_amb_brand ADD COLUMN board_at TEXT;
 ALTER TABLE p_amb_brand ADD COLUMN board_sort TEXT NOT NULL DEFAULT 'orders';
+
+ALTER TABLE p_amb_proof ADD COLUMN section_id TEXT;
+ALTER TABLE p_amb_proof ADD COLUMN board_sort INTEGER;
+ALTER TABLE p_amb_brand ADD COLUMN skip_json TEXT;

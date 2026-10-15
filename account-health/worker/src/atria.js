@@ -285,9 +285,10 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
     if (path === '/api/atria/clip-to-angle' && request.method === 'POST') {
       const b = await request.json().catch(() => ({}));
       const act = await resolveBrandId(env, String(b.act || '')), angleId = String(b.angle_id || ''), adId = String(b.ad_id || '').trim();
-      if (!/^(act_|asana_|brand_)/.test(act) || !/^[a-f0-9]{16}$/.test(angleId) || !/^[mt]\d{6,}$/.test(adId)) return json({ error: 'act, angle_id and an Atria ad id (m...) are required' }, 400);
+      if (!/^(act_|asana_|brand_)/.test(act) || !(angleId === 'board' || /^[a-f0-9]{16}$/.test(angleId)) || !/^[mt]\d{6,}$/.test(adId)) return json({ error: 'act, angle_id and an Atria ad id (m...) are required' }, 400);
       if (!env.MEDIA) return json({ error: 'File storage is not connected.' }, 503);
-      const ang = await env.DB.prepare(`SELECT id FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(angleId, act).first();
+      // 'board' = straight onto the creator board, no idea (profit amb.js BOARD, 2026-10-15).
+      const ang = angleId === 'board' ? { id: 'board' } : await env.DB.prepare(`SELECT id FROM p_amb_angle WHERE id = ?1 AND act_id = ?2`).bind(angleId, act).first();
       if (!ang) return json({ error: 'That idea is not on this brand.' }, 404);
       const link = `https://app.tryatria.com/ad/${adId}`;
       const have = await env.DB.prepare(`SELECT id FROM p_amb_proof WHERE angle_id = ?1 AND kind = 'upload' AND url = ?2`).bind(angleId, link).first();
