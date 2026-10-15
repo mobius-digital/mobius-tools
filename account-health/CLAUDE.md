@@ -2271,6 +2271,35 @@ all the clients a link that auto updates?"
   `POST /api/ask/connect/check` (connectNow 'all'). Meta and Google offer no webhook for "a client gave you access".
   Clarity: the CLIENT installs it (free Shopify app) and invites us; Cole connects it.
 
+## 2026-10-15: FRAME IN STEP WITH PRODUCTION (`src/framesync.js`). Read before touching deleteFile, uploads or Frame.
+
+Cole deleted Ice & Gold ads in Locus after Fela's comments, but Frame still held them and every v1, so the media buyer
+downloaded old ads. Now a Locus delete or a new version puts the card's Frame concept folder in step for THAT ad.
+Tests: test-production2.mjs 17 (Frame mocked: moves, the old folder made once, bring-back, a link-less card found by
+number, a 429 left pending and finished by the hourly retry, no DELETE call ever).
+- **Triggers:** prodwork.js `fileRow` (a new version of an ad) and `deleteFile` call `frameLater(env, d, card, [ad])`:
+  `d.waitUntil` in the worker (never blocks the answer), awaited in tests.
+- **The rule per ad:** the current Locus version (newest not deleted) stays in the concept folder; every other Frame file
+  of that ad (`adOf` prefix "5-4") is MOVED into "zz Old versions (do not launch)", a sibling of the concept folder under
+  Ad Concepts (made once; `settings frameOld:<parent id>` remembers it and a D1 claim stops twin folders). Current =
+  same title (`titleOf`: no extension, no ad number, no trailing v2 / final / (1); Frame's may add words, a resize) and,
+  when the Frame name says a version (`verOf`), the same one. Current not in Frame = moved back from the old folder, else
+  sent by `remote_upload` (Frame fetches the signed Locus link, 24h). An ad with no live version = all its Frame files
+  move. An ad Locus never had, and files with no ad number, are left alone.
+- **Never deletes** a Frame file or folder (review links). Moves only; version stacks move through `version_stacks`.
+- **The folder:** the card's `asset_url` (next.frame.io/project/<p>/<folder>, from the Asana notes) when that folder's
+  name starts with the card number; else the brand's project (frame connection, else the project named like the brand)
+  > Ad Concepts > "<num> - ...", and a found folder fills an empty `asset_url`. Kept in `p_br_batch.frame_json`
+  {account, project, folder, parent, pending, tries, at, last} (guarded ALTER). No folder = nothing happens.
+- **Rate limit:** Frame allows about 10 moves a minute. A 429 waits 7 s then 14 s; still refused = the ad stays in
+  `pending` and `brandAsanaTick` runs `frameRetry` (cards untouched for 10 minutes, 5 a tick, gives up after 6 tries).
+- Each sync that did something writes one system line on the card ("Frame: moved ... to "zz Old versions ..."").
+- `frameApi` errors now carry `status`; production.js answers a non-HTTP error status as 500.
+- **Verified live 2026-10-15** (local `wrangler dev --remote` against real Frame and D1, test card 999 on The Golf Sock,
+  folders "MD - Internal > zz Locus Frame sync test > 999 - Frame sync test"): v1 upload moved the stray v2 out, the v2
+  upload swapped them, deleting v2 moved it out and brought v1 back, each within ~5 seconds. The test card rows were
+  removed; the Frame test folders stay (never delete Frame). Not tested live: `remote_upload` (the dev origin is not
+  public), the 429 path, a version stack.
 ## 2026-10-15: SLACK ANSWERS LIKE VIKTOR (one message, real tables, order line items, image matching). Read before touching answerSlack.
 
 Cole compared a Locus thread with Viktor's on the same Bonk BFCM question (Locus: 6 posts, a split code-block table,

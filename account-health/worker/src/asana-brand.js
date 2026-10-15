@@ -1,3 +1,4 @@
+import { frameRetry } from './framesync.js';
 import { mirrorOn, pullStories, pruneFiles, briefFromAsana, briefHash, ensureWork } from './prodwork.js';
 import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 /**
@@ -1173,6 +1174,7 @@ export async function brandAsanaTick(env, canAfford = () => true) {
   /* The Asana mirror switch (Agency settings > Integrations): off = no task sync; the tagger and results still run. */
   const mirror = await mirrorOn(env);
   out.pruned = await pruneFiles(env).catch(() => 0);
+  out.frame = await frameRetry(env).catch(e => e.message);   // Frame moves a 429 left undone (framesync.js)
   for (const d of docs) {
     const doc = safeJson(d.data_json, {});
     if (!doc.project_gid || doc.paused) continue;

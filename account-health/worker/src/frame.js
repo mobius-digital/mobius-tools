@@ -136,7 +136,7 @@ export async function frameApi(env, method, path, body) {
   if (res.status === 401) { const t2 = await frameToken(env, true); if (t2) res = await run(t2); }
   const text = await res.text();
   const j = safeJson(text, {});
-  if (!res.ok) throw new Error(`Frame (${method} ${path}): ${j.errors?.[0]?.detail || j.errors?.[0]?.title || j.message || `${res.status} ${text.slice(0, 200)}`}`);
+  if (!res.ok) throw Object.assign(new Error(`Frame (${method} ${path}): ${j.errors?.[0]?.detail || j.errors?.[0]?.title || j.message || `${res.status} ${text.slice(0, 200)}`}`), { status: res.status });
   return j;
 }
 /* V4 answers are {data: ...}; lists may page with links.next. */
