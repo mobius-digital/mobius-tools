@@ -55,6 +55,26 @@
       .dk .dk-row .nm{font-weight:600;word-break:break-word}.dk .dk-row .meta{font-size:12px;color:var(--muted)}.dk .dk-row .why{font-size:12.5px;color:var(--ink-2)}
       .dk .dk-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
       .dk .dk-row.done{opacity:.45}
+      .dk .dk-c1{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+      .dk .dk-th{width:72px;aspect-ratio:4/5;border-radius:8px;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;padding:0;cursor:pointer;display:grid;place-items:center}
+      .dk .dk-th:hover{border-color:var(--line-strong)}.dk .dk-th:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+      .dk .dk-th i{width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;font-style:normal;font-size:11px}
+      .dk .dk-th i svg{fill:#fff;stroke:#fff}
+      @media (max-width:820px){.dk .dk-c1{flex-direction:row;align-items:center}.dk .dk-th{width:56px}}
+      .dk .dk-doall{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+      .dk .dk-doall .v2hint{margin:0}
+      @media (min-width:721px){.dk-all.modal{max-width:580px}}
+      .dk-all .dk-all-l{max-height:min(55vh,520px);overflow:auto;margin:10px 0 0;overscroll-behavior:contain}
+      .dk-all .dk-all-g{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 0 2px}
+      .dk-all .dk-all-i{display:grid;grid-template-columns:auto 52px minmax(0,1fr);gap:4px 10px;align-items:start;padding:9px 0;border-top:1px solid var(--line);font-size:13px}
+      .dk-all .dk-all-i input{margin:2px 0 0;width:18px;height:18px}
+      .dk-all .dk-all-i .t{word-break:break-word}.dk-all .dk-all-i.off .t{color:var(--muted)}
+      .dk-all .dk-all-i .st{grid-column:3;font-size:12px;color:var(--muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+      .dk-all .dk-all-i .st:empty{display:none}
+      .dk-all .dk-all-i .st.ok{color:var(--good)}.dk-all .dk-all-i .st.bad{color:var(--bad)}
+      .dk-all .dk-k{font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:5px;text-align:center}
+      .dk-all .dk-k.scale{background:var(--good-bg);color:var(--good)}.dk-all .dk-k.cut{background:var(--bad-bg);color:var(--bad)}.dk-all .dk-k.trim{background:var(--warn-bg);color:var(--warn)}
+      .dk-all .lx-nudge-ma{align-items:center}.dk-all [data-sum]{margin-right:auto}
       .dk .v2btn,.dk-form .v2btn{margin-top:0;text-decoration:none;display:inline-flex;align-items:center}
       .dk .v2btn.ghost,.dk-form .v2btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);font-weight:500}
       .dk .dk-gh{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
@@ -219,6 +239,14 @@
    *                  mirrored to the Asana task through account-health POST /api/brand-asana/result so the hourly sync
    *                  does not undo it. The row disappears after the call. Today never opens a Meta job page.
    * The 8am Slack post with the same rows is account-health todaypost.js.
+   * 2026-10-15 (Cole approved): THE AD ON EVERY CALL. Scale / Cut / Refresh rows show the set's main ad (the anchor, else
+   *                  the top-spend ad, hub.js `top_ad`), Trim the trimmed ad: the same covers as the Ads page (V2.thumbs,
+   *                  account-health /api/ad-creatives), and a tap plays it (V2.playAd: Meta's preview in the side panel,
+   *                  a bottom sheet on a phone). DO ALL N: one button over the list for every Scale / Cut / Trim still
+   *                  open; one sheet lists every change, ticked, and runs the ticked ones one by one through the same
+   *                  dry-run-then-write path as Do it (LxMetaWrite.run), each with its own result and Undo. One failing
+   *                  never stops the rest. ?open=today&act=<brand>&doall=1 (the morning card's "Make the calls") opens
+   *                  the sheet ready, never run: Cole confirms.
    * ======================================================================================= */
   let KIND = 'all';
   const OPEN = {};
@@ -283,12 +311,14 @@
     const vis = rows.filter(r => !sn[r.key]);
     const kinds = [['all', 'All'], ['fix', 'Fix'], ['scale', 'Scale'], ['cut', 'Cut'], ['trim', 'Trim'], ['refresh', 'Refresh'], ['call', 'Call']];
     const cnt = k => vis.filter(r => k === 'all' || r.kind === k).length;
+    const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
+    const doList = vis.filter(r => DO_TIP[r.kind] && !dn[r.key]).sort((a, b) => (b.stake || 0) - (a.stake || 0));
+    const doBar = doList.length ? `<div class="dk-doall"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button><span class="v2hint">Every Scale, Cut and Trim on this list. You see each change and confirm once; nothing is written before that.</span></div>` : '';
     const counts = `<div class="dk-counts">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
     const shown = vis.filter(r => KIND === 'all' || r.kind === KIND);
     const by = {}; for (const r of shown) (by[r.act_id] ??= []).push(r);
     const order = Object.entries(by).sort((a, b) => b[1].reduce((s, r) => s + (r.stake || 0), 0) - a[1].reduce((s, r) => s + (r.stake || 0), 0));
     const amLink = r => { const n = String(r.meta_act || '').replace(/^act_/, ''); return n ? `https://adsmanager.facebook.com/adsmanager/manage/${r.ad_id ? 'ads' : 'adsets'}?act=${n}${r.adset_id ? `&selected_adset_ids=${r.adset_id}` : ''}${r.ad_id ? `&selected_ad_ids=${r.ad_id}` : ''}` : null; };
-    const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
     const gb = (attr, label, extra = '') => `<button type="button" class="v2btn ghost" ${attr}${extra}>${label}</button>`;
     const row = r => { const cur = r.currency || 'USD', am = amLink(r), k = esc(r.key);
       if (r.kind === 'call') { const c = r.test, $ = v => U().money(v, cur);
@@ -302,7 +332,9 @@
       const primary = DO_TIP[r.kind] ? `<button type="button" class="v2btn dk-p" data-do="${k}" title="${esc(DO_TIP[r.kind])}">Do it</button>`
         : r.kind === 'refresh' ? `<button type="button" class="v2btn dk-p" data-brief="${k}" title="Ask Locus to brief three iterations of this ad as an Asana brief.">Brief the iteration</button>`
         : am ? `<a class="v2btn dk-p" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : '';
-      return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>
+      const ad = adOf(r);
+      const th = ad ? `<button type="button" class="dk-th" data-thumb="${esc(ad.id)}" data-play="${k}" aria-label="Play the ad ${esc(ad.name || '')}" title="${esc(r.kind === 'trim' ? 'The ad to turn off' : r.kind === 'refresh' ? 'The main ad' : `The set's main ad${ad.name ? `: ${ad.name}` : ''}`)}. Tap to play."><i>${window.icon ? window.icon('play', { size: 12 }) : '&#9654;'}</i></button>` : '';
+      return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>${th}</div>
         <div><div class="nm">${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
         <div class="why">${esc(r.why || '')}${anchor}</div>
         <div class="dk-acts">${primary}${am && r.kind !== 'fix' ? `<a class="v2btn ghost" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-locus="${k}"`, 'Open in Locus', ' title="See it on Ads > Meta with the numbers around it."')}${gb(`data-else="${k}"`, 'Something else', ' title="Give it to someone as an action item instead."')}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; };
@@ -310,7 +342,7 @@
       return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b></span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
     const sub = win ? `<b>What the media buyer changes today, ad set first.</b> Ranked by money at stake. Judged on Triple Whale last platform click, ${md(win.from)} to ${md(win.to)}, with each brand's Ads rules.` : '<b>What the media buyer changes today, ad set first.</b>';
-    $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${counts}
+    $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${doBar}${counts}
       ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
       ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day</button></p>` : ''}
       ${U().foot(`${esc(d.rules_note || '')} Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Action items (Slack reminds the owner when it is due). Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
@@ -345,6 +377,91 @@
     root.querySelectorAll('[data-locus]').forEach(b => b.onclick = () => { const r = find(b.dataset.locus); if (r) openInLocus(r); });
     root.querySelectorAll('[data-else]').forEach(b => b.onclick = () => { const r = find(b.dataset.else); if (r) somethingElse(r); });
     root.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () => { const r = find(b.dataset.key); if (r) callTest(r, b.dataset.verdict, () => { CALLED[r.key] = 1; CACHE.delete('/api/brand/tests-overview'); today(false); }); });
+    /* The ad on the call: covers per brand (the cover cache is per ad account), a tap plays it. */
+    const byAct = {}; root.querySelectorAll('.dk-th[data-thumb]').forEach(el => { const r = find(el.dataset.play); if (r) (byAct[r.act_id] ??= []).push(el.dataset.thumb); });
+    if (window.V2 && window.V2.thumbs) for (const [act, ids] of Object.entries(byAct)) window.V2.thumbs(root, ids, act, H);
+    root.querySelectorAll('[data-play]').forEach(b => b.onclick = () => { const r = find(b.dataset.play), ad = r && adOf(r); if (!ad) return;
+      if (!window.V2 || !window.V2.playAd) { openInLocus({ ...r, ad_id: ad.id }); return; }
+      window.V2.playAd({ id: ad.id, name: ad.name, act: r.act_id, note: `${r.kind === 'trim' ? 'The ad this call turns off' : 'The main ad'} in "${r.adset || ''}", ${r.brand}.` }, H, () => openInLocus({ act_id: r.act_id, ad_id: ad.id })); });
+    /* Do all N: one sheet, every change ticked, run one by one after Cole confirms. */
+    const afterAll = () => { CACHE.delete(`/api/hub/today?act=${encodeURIComponent(H.S.act)}`); if (window.LxNudge) window.LxNudge.state.at = 0; if (t === H.RUN()) today(false); };
+    const da = root.querySelector('#dkDoAll'); if (da) da.onclick = () => doAll(doList, { markDone, unDone, after: afterAll });
+    if (window.TODAY_DOALL) { window.TODAY_DOALL = 0; if (doList.length) doAll(doList, { markDone, unDone, after: afterAll }); }
+  }
+  /* The ad a call is about: Trim = the ad it turns off; Scale / Cut / Refresh = the set's main ad (the anchor, else the
+     top-spend ad, hub.js top_ad). Fix and test calls have none. */
+  function adOf(r) {
+    if (r.kind === 'trim' || r.kind === 'refresh') return r.ad_id ? { id: r.ad_id, name: r.ad } : null;
+    if (r.kind === 'scale' || r.kind === 'cut') { const a = (r.anchor && r.anchor.ad_id ? r.anchor : null) || (r.top_ad && r.top_ad.ad_id ? r.top_ad : null); return a ? { id: a.ad_id, name: a.name } : null; }
+    return null;
+  }
+  /* DO ALL N (2026-10-15). One sheet (a .modal-wrap: centred on a computer, rising from the bottom on a phone) lists every
+     change in plain words, all ticked: "Pause the ad set X", "Raise the budget on X 20%, from $a to $b a day" (the live
+     budget read from Meta first, the same rise Do it uses), "Turn off the ad Z in X". The ticked ones run in order through
+     LxMetaWrite.run (dry run, then the write with expect), each line shows its own result and an Undo; one failure never
+     stops the rest. A set on its campaign's budget cannot be raised here and says so, unticked. */
+  async function doAll(list, fx) {
+    const W = window.LxMetaWrite; if (!W || !W.run) { dtoast('The Meta write helper did not load. Hard-refresh (Ctrl+Shift+R).', true); return; }
+    if (document.querySelector('.dk-all-w')) return;
+    const ord = [...new Set(list.map(r => r.act_id))], brands = ord.length > 1;
+    list = list.slice().sort((a, b) => ord.indexOf(a.act_id) - ord.indexOf(b.act_id));   // one block per brand, biggest call first inside it
+    const plan = list.map(r => ({ r, on: true, amount: null, text: r.kind === 'cut' ? `Pause the ad set "${r.adset}"` : r.kind === 'trim' ? `Turn off the ad "${r.ad}" in "${r.adset}"` : `Raise the budget on "${r.adset}" 20% (reading it from Meta…)` }));
+    let lastB = null;
+    const items = plan.map((p, i) => { const g = brands && p.r.brand !== lastB ? `<div class="dk-all-g">${esc(p.r.brand)}</div>` : ''; lastB = p.r.brand;
+      return `${g}<div class="dk-all-i" data-i="${i}"><input type="checkbox" checked aria-label="Include this change" data-c="${i}"><span class="dk-k ${p.r.kind}">${p.r.kind.toUpperCase()}</span><span class="t">${esc(p.text)}</span><span class="st" data-st></span></div>`; }).join('');
+    const w = document.createElement('div'); w.className = 'modal-wrap dk-all-w';
+    w.innerHTML = `<div class="modal lx-nudge-m dk-all" role="dialog" aria-modal="true" aria-labelledby="dkAllH"><h3 id="dkAllH">${list.length === 1 ? 'Make this call?' : `Make all ${list.length} calls?`}</h3>
+      <p class="hint">Untick anything you want to leave. Nothing is written until you press the button; then each change goes to Meta one at a time, is logged in the Change Log, and has its own Undo.</p>
+      <div class="dk-all-l">${items}</div><p class="lx-nudge-err" data-err hidden></p>
+      <div class="row lx-nudge-ma"><span class="faint" data-sum></span><button class="btn" data-m="no" type="button">Cancel</button><button class="btn primary" data-m="yes" type="button" disabled>Reading budgets…</button></div></div>`;
+    document.body.appendChild(w);
+    const yes = w.querySelector('[data-m="yes"]'), no = w.querySelector('[data-m="no"]'), sum = w.querySelector('[data-sum]');
+    let running = false, ran = false;
+    const close = () => { if (running) return; w.remove(); document.removeEventListener('keydown', key); if (ran) fx.after(); };
+    const key = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', key);
+    w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+    no.onclick = close;
+    const line = i => w.querySelector(`.dk-all-i[data-i="${i}"]`);
+    const count = () => plan.filter(p => p.on).length;
+    const label = () => { if (ran || running) return; const n = count(); yes.disabled = !n; yes.textContent = n === 1 ? 'Make 1 change' : `Make ${n} changes`; };
+    w.querySelectorAll('[data-c]').forEach(c => c.onchange = () => { const p = plan[+c.dataset.c]; p.on = c.checked; line(+c.dataset.c).classList.toggle('off', !c.checked); label(); });
+    const skip = (i, why) => { const p = plan[i], el = line(i); p.on = false; const c = el.querySelector('input'); c.checked = false; c.disabled = true; el.classList.add('off'); el.querySelector('.st').textContent = why; };
+    /* The live budgets, one Meta read per brand (metaLive keeps the last one for 5 minutes). */
+    const acts = [...new Set(plan.filter(p => p.r.kind === 'scale').map(p => p.r.act_id))];
+    for (const act of acts) {
+      let live = null, err = null; try { live = await W.metaLive(H, act); } catch (e) { err = e.message; }
+      if (!w.isConnected) return;
+      plan.forEach((p, i) => { if (p.r.kind !== 'scale' || p.r.act_id !== act) return;
+        const o = live && live.adsets && live.adsets[p.r.adset_id], t = line(i).querySelector('.t');
+        if (!o) { t.textContent = `Raise the budget on "${p.r.adset}"`; return skip(i, err ? `Could not read the budget: ${err}` : 'Meta did not return this ad set; it may have been removed.'); }
+        if (!o.daily && !o.lifetime) { t.textContent = `Raise the budget on "${p.r.adset}"`; return skip(i, 'It runs on its campaign\'s budget, so raise it on Ads > Meta > Campaigns.'); }
+        const from = o.daily || o.lifetime, to = p.r.suggested_budget > 0 ? Math.round(p.r.suggested_budget) : Math.round(from * 1.2), per = o.daily ? ' a day' : ' in total', cur = p.r.currency || 'USD';
+        p.amount = to;
+        t.textContent = `Raise the budget on "${p.r.adset}" ${Math.round((to - from) / from * 100)}%, from ${U().money(from, cur)} to ${U().money(to, cur)}${per}`;
+      });
+    }
+    label();
+    yes.onclick = async () => {
+      if (ran) return close();
+      running = true; yes.disabled = true; no.disabled = true; yes.textContent = 'Writing to Meta…';
+      w.querySelectorAll('[data-c]').forEach(c => { c.disabled = true; });
+      let ok = 0, bad = 0;
+      for (const [i, p] of plan.entries()) {
+        if (!p.on) continue;
+        const st = line(i).querySelector('.st'); st.className = 'st'; st.textContent = 'Writing…';
+        let res; try { res = await W.run(H, p.r, { kind: p.r.kind === 'scale' ? 'budget' : 'pause', amount: p.amount, reason: 'From Today (Do all)' }); } catch (e) { res = { ok: false, error: e.message }; }
+        if (res && res.ok) {
+          ok++; try { fx.markDone(p.r.key); } catch {}
+          st.className = 'st ok'; st.innerHTML = `<span>Done${res.summary ? `: ${esc(res.summary)}` : ''}</span>${res.write && res.write.write ? '<button type="button" class="v2link" data-undo="1">Undo</button>' : ''}`;
+          const u = st.querySelector('[data-undo]');
+          if (u) u.onclick = () => { u.disabled = true; u.textContent = 'Undoing…'; W.undo(H, [res.write], p.r, async () => { try { fx.unDone(p.r.key); } catch {} st.className = 'st'; st.textContent = 'Undone. Meta has the old value back.'; }).then(() => { if (u.isConnected) { u.disabled = false; u.textContent = 'Undo'; } }); };
+        } else { bad++; st.className = 'st bad'; st.textContent = `Not made: ${(res && res.error) || 'Meta did not answer.'}`; }
+      }
+      running = false; ran = true; no.hidden = true;
+      sum.textContent = `${ok} made${bad ? `, ${bad} not made` : ''}. Undo is on each line.`;
+      yes.disabled = false; yes.textContent = 'Close';
+    };
   }
   /* The ad set on Campaigns (the campaign opened, the ad set row lit), the ad's preview on Ads, the overview for a Fix. */
   function openInLocus(r) {

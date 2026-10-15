@@ -381,6 +381,7 @@ async function buyerList(env, ctx, accts) {
       const cutCpa = cpa != null && s.spend >= R.cr_cut_spend_x * goal && cpa > R.cr_cut_cpa_x * goal;
       const working = !cutZero && !cutCpa;
       const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, goal, roas, n_ads: s.ads.length, anchor,
+        top_ad: top ? { ad_id: top.id, name: top.name, share } : null,   /* Today's calls shows this ad's cover (2026-10-15); no judging change */
         set: { spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, status: s.status, budget: s.budget } };
       const sales = n => `${n} sale${n === 1 ? '' : 's'}`;
       if (s.orders >= R.cr_scale_buys && cpa <= goal) rows.push({ kind: 'scale', ...setRow, stake: 0.2 * s.spend,

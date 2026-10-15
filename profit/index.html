@@ -2334,10 +2334,10 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="accent.js?v=1"></script>
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
-<script src="nudge.js?v=3"></script>
-<script src="v2.js?v=54"></script>
+<script src="nudge.js?v=4"></script>
+<script src="v2.js?v=55"></script>
 <script src="leaks.js?v=4"></script>
-<script src="desk.js?v=22"></script>
+<script src="desk.js?v=23"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=13"></script>
 <script src="supply.js?v=6"></script>
@@ -2555,6 +2555,8 @@ async function boot() {
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
     if (open === 'calendar' && qs.get('ev')) window.CAL_OPEN = qs.get('ev');
+    /* The morning card's "Make the calls" (?open=today&act=<brand>&doall=1) opens the Do all sheet, ticked, not run. */
+    if (open === 'today' && qs.get('doall') === '1') window.TODAY_DOALL = 1;
     /* A Slack note or reminder opens one task (?open=actions|tasks&item=<id>); the old call page ids open Calls. */
     if ((open === 'actions' || open === 'tasks') && qs.get('item')) window.ACT_OPEN = qs.get('item');
     if (qs.get('meeting')) window.ACT_MEETING = qs.get('meeting');   // a call from Slack (?open=actions|calls&meeting=<id>)
@@ -5394,7 +5396,7 @@ function AGR(tab, first) {
 function DR(tab, first) {
   if (!window.DeskTab) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
   window.WAR_MODE = ({ warplan: 'plan', warlive: 'live' })[tab] || null;
-  return window.DeskTab.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, AH_URL, RUN: () => RUN }, first);
+  return window.DeskTab.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
 }
 window.SEASON_TAB = () => ({ label: SEASON.label, mode: SEASON.mode });
 window.SET_SEASON_TAB = st => { Object.assign(SEASON, st); try { localStorage.setItem('pf_season', JSON.stringify(SEASON)); } catch {} seasonRail(); if (['war', 'warplan', 'warlive', 'season'].includes(S.tab)) show(S.tab); };

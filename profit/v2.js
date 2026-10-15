@@ -3272,5 +3272,34 @@
       if (tab === 'search') return search(first);
     },
     MODEL_SHORT,
+    /* Today's calls (desk.js, 2026-10-15) shows the ad on every call: the same covers (account-health /api/ad-creatives,
+       cached in THUMBS) and the same Play (Meta's preview, the mp4 as the fallback) as the Ads page. */
+    thumbs(root, ids, act, host) { if (!H && host) H = host; return H ? loadThumbs(root, ids, act) : Promise.resolve(); },
+    playAd(ad, host, onMore) { if (!H && host) H = host; return playAd(ad, onMore); },
   };
+  /* The ad alone, playing: Today has the ad id and name but not its numbers, so this is the cover and Meta's preview in the
+     same side panel (a bottom sheet on a phone), with a way to the full preview on Ads > Meta > Ads. Plays on open. */
+  function playAd(ad, onMore) {
+    const id = String(ad.id || ''); if (!id) return;
+    const th = THUMBS.has(id) ? ` style="background-image:url('${THUMBS.get(id)}')"` : '';
+    const body = panel(ad.name || 'Ad', `<div class="v2pv"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(id)}"${th}><button type="button" class="v2play" aria-label="Play">Play</button></div></div>
+      ${ad.note ? `<p class="v2hint" style="margin-top:10px">${esc(ad.note)}</p>` : ''}${onMore ? '<p style="margin-top:10px"><button type="button" class="v2btn ghost" data-more="1">See its numbers on Ads</button></p>' : ''}</div>`);
+    loadThumbs(body, [id], ad.act);
+    const more = body.querySelector('[data-more]'); if (more) more.onclick = () => { if (panel.close) panel.close(); onMore(); };
+    const m = body.querySelector('.v2pv-m');
+    const pv = PREVIEWS.get(id) || H.apiAH(`/api/ad-video?ad=${encodeURIComponent(id)}&mode=preview`).catch(e => ({ error: e.message }));
+    PREVIEWS.set(id, pv);
+    const play = async () => {
+      m.innerHTML = '<span class="v2hint" style="padding:14px">Loading the ad…</span>';
+      try {
+        const u = await pv; let link = u && u.preview, src = u && u.src;
+        if (!link && !src && H.adVideoUrl) { const f = await H.adVideoUrl(id); src = typeof f === 'string' ? f : f && f.src; link = f && f.preview; if (!src && !link) throw new Error((f && f.reason) || (u && u.error) || 'Meta has no preview for this ad.'); }
+        if (!link && !src) throw new Error((u && u.error) || 'Meta has no preview for this ad.');
+        if (link) { m.classList.add('pvf'); m.style.backgroundImage = 'none'; m.innerHTML = `<iframe src="${esc(link)}" scrolling="no" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Meta's preview of this ad"></iframe>`; }
+        else m.innerHTML = `<video src="${esc(src)}" controls autoplay playsinline></video>`;
+      } catch (e) { m.innerHTML = ''; m.classList.add('still'); if (THUMBS.has(id)) m.style.backgroundImage = `url("${THUMBS.get(id)}")`; m.insertAdjacentHTML('beforeend', `<span class="v2pill">${esc(e.message)}</span>`); }
+    };
+    body.querySelector('.v2play').onclick = play;
+    play();
+  }
 })();

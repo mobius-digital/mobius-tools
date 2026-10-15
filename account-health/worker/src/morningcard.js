@@ -12,7 +12,8 @@
  *           cards that are late (p_br_batch via production.js listBoard). More than 5 = the first 5 by money or
  *           lateness and "and N more in Locus".
  *   one "Client owes" line when a Requests ask is open; on Monday the weekly line (the card is the Monday thread anchor).
- *   Buttons: "Open <Brand> in Locus", and "Make the calls" when there are calls (one actions block per button: the
+ *   Buttons: "Open <Brand> in Locus", and "Make the calls" when there are calls (?open=today&doall=1: Today's calls with
+ *   the Do all sheet open, ticked, not run; one actions block per button: the
  *   router acks only the action id noop_open, and an id must be unique inside a block).
  * Its THREAD, posted right after: the full Today's calls list (todaypost.js messageFor) and one reminder line per owner
  * with the Done buttons (actions.js reminderMessage; the p_action rows point at that reply so Done and ✅ work there).
@@ -276,7 +277,8 @@ export function cardMessage(c) {
   const parts = [L.slice(0, 2)];
   for (const l of L.slice(2)) { const last = parts[parts.length - 1]; if (parts.length > 1 && last.length < 2 && last.join('\n').length + l.length < 400) last.push(l); else parts.push([l]); }
   const blocks = [...parts.map(p => ({ type: 'section', text: { type: 'mrkdwn', text: p.join('\n').slice(0, 2900) } })), btn(`Open ${c.name} in Locus`, `${LOCUS}?act=${encodeURIComponent(c.act)}`)];
-  if (c.calls) blocks.push(btn('Make the calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}`));
+  /* 2026-10-15: straight onto Today's calls with the Do all sheet open, every change ticked; nothing runs until Cole confirms. */
+  if (c.calls) blocks.push(btn('Make the calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}&doall=1`));
   return { text, blocks };
 }
 /** The card as plain words, for the Locus preview: tags shown as @Name, bold and italics dropped. */
