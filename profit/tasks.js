@@ -112,7 +112,7 @@
       .tk .tk-month .wd{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:2px 4px}
       .tk .tk-mc{min-height:96px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);padding:4px;display:flex;flex-direction:column;gap:3px;min-width:80px}
       .tk .tk-mc.out{opacity:.45}.tk .tk-mc.today{border-color:var(--warn)}.tk .tk-mc.over{border-color:var(--brand)}
-      .tk .tk-mc .n{font-size:11px;color:var(--muted)}
+      .tk .tk-mc .n{font-size:11px;color:var(--muted)}.tk .tk-more{align-self:flex-start;border:0;background:none;padding:2px 3px;font:inherit;font-size:11px;font-weight:600;color:var(--ink-2);cursor:pointer}.tk .tk-more:hover{color:var(--brand);text-decoration:underline}
       .tk .tk-mc .it{font-size:11.5px;line-height:1.25;padding:3px 5px;border-radius:4px;background:var(--surface);border:1px solid var(--line);cursor:grab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .tk .tk-empty{color:var(--muted);font-size:13.5px;padding:14px 12px}
       .tk-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9500;padding:16px}
@@ -346,7 +346,7 @@
     return `<div class="tk-calh"><div class="nav"><button class="ar" data-cw="-1" aria-label="Previous month">‹</button><b>${esc(base.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }))}</b><button class="ar" data-cw="1" aria-label="Next month">›</button>${CW ? '<button class="tk-link" data-cw="0">This month</button>' : ''}</div>
         <span class="muted"><button class="tk-link" data-calv="week">Week</button> · Month</span></div>
       <div class="tk-month">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => `<div class="wd">${w}</div>`).join('')}
-        ${cells.map(d => { const its = items.filter(i => i.due === d); return `<div class="tk-mc${d.slice(0, 7) !== ym ? ' out' : ''}${d === t ? ' today' : ''}" data-day="${d}"><span class="n">${dt(d).getUTCDate()}</span>${its.slice(0, 3).map(i => `<div class="it" draggable="true" data-id="${esc(i.id)}" title="${esc(i.text)}">${esc(i.text)}</div>`).join('')}${its.length > 3 ? `<span class="n">+${its.length - 3} more</span>` : ''}</div>`; }).join('')}</div>
+        ${cells.map(d => { const its = items.filter(i => i.due === d); return `<div class="tk-mc${d.slice(0, 7) !== ym ? ' out' : ''}${d === t ? ' today' : ''}" data-day="${d}"><span class="n">${dt(d).getUTCDate()}</span>${its.slice(0, 3).map(i => `<div class="it" draggable="true" data-id="${esc(i.id)}" title="${esc(i.text)}">${esc(i.text)}</div>`).join('')}${its.length > 3 ? `<button class="tk-more" data-more="${d}">+${its.length - 3} more</button>` : ''}</div>`; }).join('')}</div>
       ${none ? `<p class="muted" style="margin:0;font-size:12.5px">${none} with no date. They show in the week view under Later / no date.</p>` : ''}`;
   }
 
@@ -453,6 +453,8 @@
     $('#tkMine', root).onclick = () => { P.mine = !P.mine; save(); paint(); };
     $$('[data-calv]', root).forEach(b => b.onclick = () => { P.cal = b.dataset.calv; CW = 0; save(); paint(); });
     $$('[data-cw]', root).forEach(b => b.onclick = () => { CW = b.dataset.cw === '0' ? 0 : CW + +b.dataset.cw; paint(); });
+    /* "+N more" on a month day opens that day's week, where every task shows (2026-10-15). */
+    $$('[data-more]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const mon = s => addDays(s, -((dt(s).getUTCDay() + 6) % 7)); P.cal = 'week'; CW = Math.round((dt(mon(b.dataset.more)) - dt(mon(today()))) / 6048e5); save(); paint(); });
     const ds = $('#tkDoneShow', root); if (ds) ds.onclick = () => { SHOW_DONE = !SHOW_DONE; paint(); };
     const qa = $('#tkQa', root), qi = $('#tkQuick', root), qg = $('#tkQuickGo', root);
     qa.onsubmit = async e => { e.preventDefault(); const v = qi.value.trim(); if (!v) { qi.focus(); return; } qg.disabled = true; qi.disabled = true; await quick(v); await reload(); const n = $('#tkQuick'); if (n) n.focus(); };
