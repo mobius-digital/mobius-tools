@@ -3337,6 +3337,12 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   over the card while scrolling. **`theme-color` is ONE meta set from Locus's own `data-theme`** (`syncThemeColor()`
   in the head script, called again by `paintTheme()`); the two metas keyed on `prefers-color-scheme` followed the
   phone, and a dark Locus on a light-mode iPhone got a light grey status-bar band. phone.css?v=6, prodsheet.js?v=12.
+- **Seventh pass (same day): nothing fixed may linger, and the top keeps its notch inset.** A closed full-screen layer
+  must be `visibility:hidden` or `display:none`, never just opacity 0: Safari tints the status-bar band from a fixed
+  layer at the top edge, and the lazily made `#v2scrim` kept the band grey after the first popup. v2.css's
+  `[data-ui="v2"] .topbar` padding beats index.html's safe-area rule, so phone.css re-adds
+  `env(safe-area-inset-top)` on the top bar (under 980), `#v2panel` and `.rv-scrim`; a new full-screen layer
+  needs the same inset or its first row sits under the status bar blur. phone.css?v=7.
 - **Fifth pass (same day): review.html has the phone layer.** The public client link loads `phone.css?v=5` after its
   own `<style>` and `phone.js?v=3` deferred after review-ui.js, and its `<html>` carries `data-ui="v2"` because that
   attribute is the key phone.css uses for the viewer block (nothing else on the page reads it; the page keeps its own

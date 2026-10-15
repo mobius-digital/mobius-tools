@@ -188,6 +188,24 @@ Cole sent two screenshots of Locus on his iPhone (Ice & Gold, card 5). Four comp
   `.pd-seg button` (production.js, drawn at 34px). production.js belongs to the board session, so the fix
   (`min-height:0` in its injected CSS) was handed to it rather than made here.
 
+## Seventh pass, the same day: the band came back after a popup; the ask bar looked blurry
+
+Cole, after the sixth pass: the grey band was gone, came back after he opened a popup, and then stayed; when it was
+not there, the ask bar looked covered by something at the very top, slightly blurry.
+
+- **The band:** `#v2scrim` (the dark layer behind the side panel and the card sheet) is created by v2.js on the
+  first popup and then stays in the page for good, at opacity 0 but still a full-screen fixed layer with a grey
+  background. Safari tints the status-bar band from what is fixed at the top edge, so after one popup the band
+  stayed. A closed scrim is now `visibility:hidden` (the flip waits for the fade).
+- **The blur:** the page uses `viewport-fit=cover`, so it runs under the status bar and the Dynamic Island, where iOS
+  blurs what is behind it. index.html pads the top bar with `env(safe-area-inset-top)`, but v2.css's
+  `[data-ui="v2"] .topbar{padding:10px 16px 2px}` is more specific and threw it away, so the badge and the ask bar
+  sat in that strip. phone.css puts it back under 980, and gives the full-screen panel and the review viewer the
+  same top inset (and the viewer the bottom one).
+- Checked in headless Chrome over CDP (375, touch, `Emulation.setSafeAreaInsetsOverride` top 59 / bottom 34; the
+  Browser pane refused the spare port): top bar padding 69px (10 + 59), panel 59px; the scrim hidden before, visible
+  open, fading at 60ms, hidden after. phone.css?v=7 on both hosts.
+
 ## Still open
 
 - Not checked on a real device, only the Browser pane at 375 and 768.
