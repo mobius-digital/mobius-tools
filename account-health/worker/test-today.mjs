@@ -28,17 +28,19 @@ let n = 0, bad = 0;
 const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', e.message); } };
 
 await check('the line and the message: call, name, money at stake, why, the Locus button; Fix and Call rows never post', () => {
-  assert.equal(lineFor(ROWS.brand_alpha[0]), '*Scale* "Broad | Gift", $240 at stake. 9 sales at $31 each, under the $40 goal over 7 days.');
+  assert.equal(lineFor(ROWS.brand_alpha[0]), '*Scale* "Broad | Gift", $240 at stake. 9 sales at $31 each, under the $40 goal over 7 days. Raise the budget 20% and watch 3 days.');
   assert.match(lineFor(ROWS.brand_alpha[2]), /^\*Trim\* the ad "312 C \| UGC" in "Broad \| Gift", \$95 at stake\./);
   const m = messageFor({ act_id: 'brand_alpha', name: 'Alpha Golf' }, ROWS.brand_alpha);
   assert.match(m.text, /^Today's calls: Alpha Golf\n\*Scale\*/); assert.ok(!/Meta spent nothing/.test(m.text), 'fix rows stay out');
   assert.equal(m.blocks.length, 5, 'header, one section per call, button, footer'); assert.equal(m.blocks[3].elements[0].url, 'https://tools.go-mobius-digital.com/profit/?open=today&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)), 'no em dash');
-  const many = Array.from({ length: 9 }, (_, i) => ({ kind: 'cut', adset: 'Set ' + i, stake: 100 - i, why: 'x '.repeat(80) }));
+  const many = Array.from({ length: 60 }, (_, i) => ({ kind: 'cut', adset: 'Set ' + i, stake: 100 - i, why: 'A full reason that is not cut. '.repeat(4) }));
   const mm = messageFor({ act_id: 'brand_alpha', name: 'Alpha Golf' }, many);
-  assert.equal(mm.blocks.filter(b => b.type === 'section').length, 7, 'six calls, then the more line');
-  assert.match(mm.blocks[7].text.text, /\|3 more in Locus>$/);
-  assert.ok(mm.blocks.every(b => !b.text || b.text.text.length < 300), 'every block short');
+  assert.equal(mm.blocks.filter(b => b.type === 'section').length, 45, 'one section per call, 45 in the first message');
+  assert.equal(mm.rest.length, 1); assert.equal(mm.rest[0].blocks.length, 15, 'the other 15 in a second message');
+  assert.ok([mm, ...mm.rest].every(m => m.blocks.length <= 50), 'under the 50-block limit');
+  assert.ok(!/more in Locus/.test(JSON.stringify(mm)), 'no more-in-Locus line');
+  assert.match(mm.blocks[1].text.text, /(A full reason that is not cut\. ){3}A full reason that is not cut\.$/, 'full why');
   assert.equal(messageFor({ act_id: 'b', name: 'B' }, ROWS.brand_beta), null);
   assert.equal(messageFor({ act_id: 'b', name: 'B' }, [{ kind: 'call' }]), null);
 });

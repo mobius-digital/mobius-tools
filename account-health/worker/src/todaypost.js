@@ -34,35 +34,29 @@ export async function readToday(env, d, act) {
   });
   return call(`/api/hub/today?act=${encodeURIComponent(act)}`, token);
 }
-/** The why, short: its first sentence when that fits, else cut on a word at WHY_MAX (2026-10-15, Cole: the thread
- *  folded behind Show more with whole paragraphs per call). */
-const WHY_MAX = 90, SHOWN = 6;
-export function shortWhy(s) {
-  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
-  if (t.length <= WHY_MAX) return t;
-  const first = (t.match(/^.+?[.!?](?=\s|$)/) || [''])[0];
-  if (first && first.length <= WHY_MAX) return first;
-  return t.slice(0, WHY_MAX).replace(/\s+\S*$/, '').replace(/[,;:]$/, '') + '...';
-}
-/** One line per row: the call, what, the money at stake, the why. */
+/** One line per row: the call, what, the money at stake, the full why. */
 export function lineFor(r) {
   const what = r.ad ? `the ad "${r.ad}" in "${r.adset || ''}"` : `"${r.adset || ''}"`;
   const stake = r.stake > 0 ? `, ${money(r.stake, r.currency)} at stake` : '';
-  return `*${VERB[r.kind] || r.kind}* ${mk(what)}${stake}. ${mk(shortWhy(r.why))}`.trim();
+  return `*${VERB[r.kind] || r.kind}* ${mk(what)}${stake}. ${mk(String(r.why ?? '').replace(/\s+/g, ' ').trim())}`.trim();
 }
 /** The message for one brand, or null when there is nothing to call today (Fix and Call rows are not posted).
- *  2026-10-15: one short section per call (one big section folded behind Show more), the top SHOWN by money at stake,
- *  then "N more in Locus" as a link (a section, so it survives the morning card's thread, which drops the buttons). */
+ *  2026-10-15 (Cole: the FULL list in Slack, never folded, like Viktor's posts): Slack folds ONE tall section behind
+ *  Show more, never a message of many short blocks. So every call is its own section, the why in full, sorted by money
+ *  at stake. Slack takes 50 blocks a message: past that the calls carry on in `rest` (more messages, same shape). */
+const PER_MSG = 45;
 export function messageFor(brand, rows) {
   const list = (rows || []).filter(r => KINDS.includes(r.kind)).sort((p, q) => (q.stake || 0) - (p.stake || 0));
   if (!list.length) return null;
-  const lines = list.slice(0, SHOWN).map(lineFor), extra = list.length - SHOWN;
+  const lines = list.map(lineFor);
   const head = `Today's calls: ${brand.name}`, url = `${LOCUS}?open=today&act=${encodeURIComponent(brand.act_id)}`;
-  const more = extra > 0 ? `<${url}|${extra} more in Locus>` : '';
-  return { text: `${head}\n${lines.join('\n')}${more ? `\n${extra} more in Locus: ${url}` : ''}`, blocks: [
+  const sec = l => ({ type: 'section', text: { type: 'mrkdwn', text: l.slice(0, 2900) } });
+  const chunks = [];
+  for (let i = 0; i < lines.length; i += PER_MSG) chunks.push(lines.slice(i, i + PER_MSG));
+  const rest = chunks.slice(1).map((c, i) => ({ text: `${head} (${i + 2} of ${chunks.length})\n${c.join('\n')}`, blocks: c.map(sec) }));
+  return { text: `${head}\n${chunks[0].join('\n')}`, rest, blocks: [
     { type: 'header', text: { type: 'plain_text', text: head.slice(0, 150) } },
-    ...lines.map(l => ({ type: 'section', text: { type: 'mrkdwn', text: l.slice(0, 600) } })),
-    ...(more ? [{ type: 'section', text: { type: 'mrkdwn', text: more } }] : []),
+    ...chunks[0].map(sec),
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url }] },
     { type: 'context', elements: [{ type: 'mrkdwn', text: 'Do it on the page writes the change to Meta after you confirm it. Switch this post off in Agency settings (todayPost).' }] },
   ] };
@@ -95,7 +89,7 @@ export async function todayTick(env, d) {
     }
     const msg = messageFor(a, r && r.rows);
     if (!msg) { state.acts[a.act_id] = 'nothing to call'; out.quiet.push(a.name); continue; }
-    try { await d.slackPost(env, a.slack_channel, msg.text, msg.blocks, { username: 'Locus' }); state.acts[a.act_id] = 'posted'; out.posted.push(a.name); }
+    try { await d.slackPost(env, a.slack_channel, msg.text, msg.blocks, { username: 'Locus' }); for (const m of msg.rest || []) await d.slackPost(env, a.slack_channel, m.text, m.blocks, { username: 'Locus' }); state.acts[a.act_id] = 'posted'; out.posted.push(a.name); }
     catch (e) { state.acts[a.act_id] = `failed: ${e.message}`; out.failed.push(`${a.name} (${e.message})`); }
   }
   await d.putSetting(env, 'todayDone', JSON.stringify(state));
