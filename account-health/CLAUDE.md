@@ -2184,10 +2184,11 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   test-production.mjs, the 2026-10-15 check.
 
 ## 2026-10-15: short Slack posts and ONE approval per plan change
-- **Today's calls thread** (todaypost.js `messageFor`): one section per call, the why cut to its first sentence or 90
-  characters (`shortWhy`), the top 6 by money at stake, then "N more in Locus" as a link section (it survives the
-  morning card's thread, which drops buttons). The morning card (`cardMessage`) is short sections too. Slack folds a
-  tall section behind Show more; keep every new post in small sections.
+- **Today's calls thread** (todaypost.js `messageFor`, second pass the same day, Cole: the FULL list, never "N more in
+  Locus"): every call is its own section with the full why, sorted by money at stake. Slack folds ONE tall section
+  behind Show more, never a message of many short blocks (how Viktor's long posts stay open). 45 calls a message;
+  past that `rest` holds the next messages (Slack's 50-block limit), posted by todayTick and the morning card's thread.
+  The morning card (`cardMessage`) is short sections too. Verified live in #locus-alerts with Dartee's 9 calls.
 - **Grouped proposals** (ask/engine.js `groupProposals`, `applyGroup`): two or more proposals from one answer are ONE
   card on Slack and in the web chat ("N changes, one approval", numbered, Apply all / No thanks). The card's id is the
   ids joined by commas; `applyProposal` with a comma id applies each in order and returns `{group, note}` with a line

@@ -327,6 +327,10 @@ export async function postCard(env, d, a, today, shared = {}) {
     const blocks = calls.blocks.filter(b => b.type !== 'context' && b.type !== 'actions');
     const r = await d.slackPost(env, card.channel, calls.text, blocks, { username: 'Locus', thread_ts: card.ts }).catch(() => null);
     if (r && r.ts) card.thread.push(r.ts);
+    for (const m of calls.rest || []) {
+      const x = await d.slackPost(env, card.channel, m.text, m.blocks, { username: 'Locus', thread_ts: card.ts }).catch(() => null);
+      if (x && x.ts) card.thread.push(x.ts);
+    }
   }
   const byOwner = new Map();
   for (const t of _tasks) { const k = t.owner || ''; if (!byOwner.has(k)) byOwner.set(k, []); byOwner.get(k).push(t); }
