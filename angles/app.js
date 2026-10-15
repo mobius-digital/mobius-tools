@@ -74,52 +74,77 @@ function applyAccent(hex) {
 const isTheirs = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
 const whoOf = p => String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, '').trim();
 const plat = () => D.brand.submit_platform || 'TRYBE';
+const SHOW_FIRST = 24;   // Frost Buddy shows 30 of 50, then "See more"
+let SHOW_ALL = false;
 function ideas() {
   const seen = new Set();
   return [D.hot, ...D.sections].filter(s => s && s.angles.length).flatMap(s => s.angles).filter(a => !seen.has(a.id) && seen.add(a.id));
 }
-/* One tile per video, dealt round-robin so the board never shows one idea twice in a row:
-   the lead video of every idea first (the ideas the team flagged Start here at the very
-   top, one star each, like Frost Buddy's one starred card), then every idea's second
-   video, and so on. Inside an idea our own videos lead and other brands' follow. */
-function buildTiles() {
+const secName = id => D.sections.find(s => s.id === id)?.name || '';
+const playableProof = p => p.kind === 'meta' || p.kind === 'upload' || ((p.kind === 'post' || p.kind === 'typed') && p.url && p.thumb);
+/* Deal round-robin so one idea never shows twice in a row: every idea's lead video, then every
+   idea's second video, and so on. Inside an idea our own videos lead and other brands' follow. */
+function dealt(list) {
   const out = [];
   const seen = new Set();
-  ideas().forEach((a, ai) => {
-    const pr = (a.proof || []).filter(p => p.kind === 'meta' || p.kind === 'upload' || ((p.kind === 'post' || p.kind === 'typed') && p.url && p.thumb));
-    pr.sort((x, y) => isTheirs(x) - isTheirs(y));
+  list.forEach(([a, pr], ai) => {
     let r = 0;
     for (const p of pr) {
       const key = p.ad_id || p.file || p.url;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ p, a, theirs: isTheirs(p), star: !!a.hot && r === 0, r: r++, ai });
+      out.push({ p, a, theirs: isTheirs(p), hot: !!a.hot, r: r++, ai });
     }
   });
-  out.sort((x, y) => (y.star - x.star) || (x.r - y.r) || (x.ai - y.ai));
-  return out.map((t, i) => ({ ...t, i }));
+  return out.sort((x, y) => (y.hot && y.r === 0) - (x.hot && x.r === 0) || (x.r - y.r) || (x.ai - y.ai));
+}
+/* Two ways to fill the board, set per brand on the Ambassadors tab (board_mode):
+     picked  the proof videos attached to the ideas, as the team chose them.
+     auto    the brand's own Meta video ads ranked by Triple Whale orders (D.board, ids and rank
+             only), then other brands' clips from the ideas.
+   ONE "Start here" star, on the very first video, like Frost Buddy. */
+function buildTiles() {
+  const all = ideas();
+  let out;
+  if (D.board && D.board.length) {
+    const ideaOf = {};
+    for (const a of all) for (const p of a.proof || []) if (p.kind === 'meta' && p.ad_id && !ideaOf[p.ad_id]) ideaOf[p.ad_id] = a;
+    const ours = D.board.map(x => ({ p: { kind: 'meta', ad_id: x.ad_id }, a: ideaOf[x.ad_id] || null, theirs: false, rank: x.rank }));
+    const theirs = dealt(all.map(a => [a, (a.proof || []).filter(p => playableProof(p) && isTheirs(p))]));
+    out = [...ours, ...theirs];
+  } else {
+    out = dealt(all.map(a => [a, (a.proof || []).filter(playableProof).sort((x, y) => isTheirs(x) - isTheirs(y))]));
+  }
+  return out.map((t, i) => ({ ...t, star: i === 0, sec: t.a?.section_id || '', i }));
 }
 function cats() {
   const n = {};
-  for (const t of TILES) if (t.a.section_id) n[t.a.section_id] = (n[t.a.section_id] || 0) + 1;
+  for (const t of TILES) if (t.sec) n[t.sec] = (n[t.sec] || 0) + 1;
   return D.sections.filter(s => n[s.id]).map(s => ({ id: s.id, name: s.name, n: n[s.id] }));
 }
-const shown = () => TILES.filter(t => CAT === 'all' || t.a.section_id === CAT);
+const shown = () => TILES.filter(t => CAT === 'all' || t.sec === CAT);
+/* What a tile says, Frost Buddy's card: the caption in bold, one small line under it, the category
+   top right. Our video: the idea's title (or, on the auto board, the ad's own headline once the
+   covers call brings it). Another brand's: the team's "steal this" note, and whose it is. */
+function words(t) {
+  const p = t.p;
+  if (t.theirs) return { cap: p.note || t.a?.title || '', sub: `${whoOf(p) || 'Another brand'}, not us`, chip: secName(t.sec) };
+  if (t.rank) return { cap: t.a?.title || '', sub: `#${t.rank} right now`, chip: secName(t.sec) || 'Our ad', capAd: t.a ? '' : p.ad_id };
+  return { cap: t.a?.title || '', sub: p.kind === 'meta' ? 'Ran as our ad' : 'Our video', chip: secName(t.sec) };
+}
 
 function tile(t) {
   const p = t.p;
+  const w = words(t);
   const cover = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
   const media = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
     : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.8" preload="none" muted playsinline loop tabindex="-1" aria-hidden="true"></video>` : '';
-  const who = whoOf(p);
-  const chip = t.theirs ? `<span class="chip chip-them">${esc(who || 'Another brand')}</span>` : p.kind === 'meta' ? `<span class="chip chip-ours">Ran as our ad</span>` : '';
-  const head = t.theirs ? (p.note || t.a.title) : t.a.title;
-  return `<button class="tile" data-t="${t.i}" aria-label="Play: ${esc(head)}">
-    <span class="tl-media" ${cover}>${media}<span class="tl-shade"></span>
-      ${t.star ? `<span class="tl-star">${ic('star', 12)}Start here</span>` : ''}
-      <span class="tl-play">${ic('play', 18)}</span>
-    </span>
-    <span class="tl-cap">${chip}<b>${esc(head)}</b></span>
+  return `<button class="tile${t.theirs ? ' them' : ''}" data-t="${t.i}" ${cover} aria-label="Play: ${esc(w.cap || 'video')}">
+    ${media}
+    ${t.star ? `<span class="tl-star">${ic('star', 11)}Start here</span>` : ''}
+    ${w.chip ? `<span class="tl-chip">${esc(w.chip)}</span>` : ''}
+    <span class="tl-play">${ic('play', 18)}</span>
+    <span class="tl-cap"><b ${w.capAd ? `data-cap-ad="${esc(w.capAd)}"` : ''}>${esc(w.cap || 'One of our top ads')}</b><small>${esc(w.sub)}</small></span>
   </button>`;
 }
 
@@ -129,71 +154,66 @@ function checklist() {
   const b = D.brand;
   const av = b.avoid || [], g = b.guide || [], r = b.rules || [];
   const say = r.filter(x => !SKIP_RE.test(x)), skip = r.filter(x => SKIP_RE.test(x));
-  const block = (cls, icon, title, items) => items.length ? `<section class="ck ${cls}">
-      <h3><span class="ck-i">${ic(icon, 16)}</span>${esc(title)}</h3>
-      <ul>${items.map(x => `<li>${typeof x === 'string' ? `<span>${esc(x)}</span>` : `<span><b>${esc(x.title)}</b>${x.text || x.why ? ` ${esc(x.text || x.why)}` : ''}</span>`}</li>`).join('')}</ul>
-    </section>` : '';
   if (!av.length && !g.length && !r.length) return '';
-  return `<section class="checklist" id="checklist">
-    <div class="sec-h"><p class="eyebrow">Before you film</p><h2>The checklist</h2><p class="sub">Read it once. It is the difference between a video we run and one we do not.</p></div>
-    <div class="ck-grid">
-      ${block('ck-stop', 'ban', 'Please stop filming these', av)}
-      ${block('ck-do', 'list-checks', 'Before you film', g)}
-      ${block('ck-say', 'megaphone', 'Always say', say)}
-      ${block('ck-skip', 'x', 'Skip these', skip)}
-    </div>
+  const list = (cls, title, items) => items.length ? `<div class="ck-list ${cls}"><p class="ck-h">${esc(title)}</p><ul>${items.map(x => `<li>${typeof x === 'string' ? esc(x) : `<b>${esc(x.title)}</b>${x.why ? ` <span>${esc(x.why)}</span>` : ''}`}</li>`).join('')}</ul></div>` : '';
+  return `<section class="card checklist" id="checklist">
+    <div class="ck-top"><h2>${ic('list-checks', 18)}Before you film</h2><p>Two minutes. Saves you a video we cannot run.</p></div>
+    ${list('ck-stop', 'Please stop filming these', av)}
+    ${g.length ? `<div class="ck-boxes">${g.map(x => `<div class="ck-box">${ic('check', 15)}<div><b>${esc(x.title)}</b>${x.text ? `<span>${esc(x.text)}</span>` : ''}</div></div>`).join('')}</div>` : ''}
+    ${list('ck-say', 'Always say', say)}
+    ${list('ck-skip', 'Skip these', skip)}
   </section>`;
 }
 function steps() {
   const b = D.brand;
-  const sub = b.submit_url
-    ? `<a class="btn btn-acc" href="${esc(b.submit_url)}" target="_blank" rel="noopener">${esc(b.submit_label || `Open our ${plat()} campaign`)}${ic('arrow-right', 15)}</a>`
-    : `<p class="st-note">Submit it on ${esc(plat())} like always.</p>`;
   const S = [
-    ['Pick one', 'Tap any video and watch how they filmed it.'],
-    ['Copy it', `Same idea, your place, your voice, our product.`],
-    ['Film it right', 'Run the checklist below before you hit record.'],
-    [`Submit on ${plat()}`, 'Post it and send it to us so it can run as an ad.'],
+    ['Pick one', 'Tap any video. Watch how they filmed it.'],
+    ['Copy it', 'Same idea, your place, your voice, our product.'],
+    ['Film it right', 'Run the checklist below.'],
+    [`Submit on ${plat()}`, 'Send it in so it can run as an ad.'],
   ];
-  return `<section class="steps" id="steps">${S.map(([t, d], k) => `<div class="st"><span class="st-n">${k + 1}</span><div><b>${esc(t)}</b><p>${esc(d)}</p>${k === 3 ? sub : ''}</div></div>`).join('')}</section>`;
+  return `<section class="card steps">
+    <div class="st-row">${S.map(([t, d], k) => `<div class="st"><b><span>${k + 1}</span>${esc(t)}</b><p>${esc(d)}</p></div>`).join('')}</div>
+    ${b.submit_url ? `<a class="btn btn-acc st-go" href="${esc(b.submit_url)}" target="_blank" rel="noopener">${esc(b.submit_label || `Open our ${plat()} campaign`)}${ic('arrow-right', 15)}</a>` : ''}
+  </section>`;
 }
 function render() {
   const b = D.brand;
   document.title = `${b.display_name} · Watch these, make your version`;
   const cs = cats();
   const list = shown();
+  const cut = SHOW_ALL ? list.length : Math.min(list.length, SHOW_FIRST);
   const pv = D.preview ? `<div class="pv-bar" role="status"><b>Preview.</b> This link is switched off, so creators see "being set up". Only signed-in Mobius staff can see this page.</div>` : '';
-  const ours = TILES.filter(t => !t.theirs).length;
   app.innerHTML = `${pv}
-  <header class="top"><div class="wrap">
+  <header class="top"><div class="col">
     <a class="brand" href="#" aria-label="${esc(b.display_name)} creators">${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}<span class="tag-c">Creators</span></a>
-    <a class="top-link" href="#checklist">${ic('list-checks', 15)}<span>The checklist</span></a>
+    <a class="top-link" href="#checklist">${ic('list-checks', 16)}<span>Before you film</span></a>
   </div></header>
-  <main>
-    <section class="hero"><div class="wrap">
-      <p class="eyebrow">${esc(b.display_name)} creators</p>
-      <h1>Watch these.<br>Make your version.</h1>
-      <p class="lede">${TILES.length} videos that worked${ours && ours < TILES.length ? `, ours and other brands'` : ''}. Pick one, film yours today. That's the whole job.</p>
-    </div></section>
-    <div class="wrap">
-      ${cs.length > 1 ? `<div class="cats" role="group" aria-label="Show"><button class="cat ${CAT === 'all' ? 'on' : ''}" data-cat="all">All<span>${TILES.length}</span></button>${cs.map(c => `<button class="cat ${CAT === c.id ? 'on' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}<span>${c.n}</span></button>`).join('')}</div>` : ''}
-      <div class="grid">${list.map(tile).join('') || '<p class="empty">No videos here yet.</p>'}</div>
-      ${steps()}
-      ${checklist()}
-    </div>
+  <main class="col">
+    <section class="hero">
+      <h1>Watch these. Make your version.</h1>
+      <p class="lede">${D.board ? `Our best videos right now, and other brands doing it well.` : `Videos that worked, ours and other brands'.`} Pick one, film yours today. That's the whole job.</p>
+      <a class="lede-link" href="#checklist">${ic('check', 14)}Read "Before you film" first</a>
+    </section>
+    ${cs.length > 1 ? `<div class="cats" role="group" aria-label="Show"><button class="cat ${CAT === 'all' ? 'on' : ''}" data-cat="all">All<span>${TILES.length}</span></button>${cs.map(c => `<button class="cat ${CAT === c.id ? 'on' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}<span>${c.n}</span></button>`).join('')}</div>` : ''}
+    <div class="grid">${list.slice(0, cut).map(tile).join('') || '<p class="empty">No videos here yet.</p>'}</div>
+    ${cut < list.length ? `<button class="more" data-more>See all ${list.length} videos${ic('chevron-down', 15)}</button>` : ''}
+    ${steps()}
+    ${checklist()}
   </main>
-  <footer><div class="wrap"><span>Questions? Message ${esc(b.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>`;
+  <footer><div class="col"><span>Questions? Message ${esc(b.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>`;
   wire();
 }
 function wire() {
   app.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => {
-    CAT = c.dataset.cat;
+    CAT = c.dataset.cat; SHOW_ALL = false;
     const y = app.querySelector('.cats').getBoundingClientRect().top;
     const x = app.querySelector('.cats').scrollLeft;
     render();
     const n = app.querySelector('.cats'); n.scrollLeft = x;
     scrollBy(0, n.getBoundingClientRect().top - y);
   });
+  app.querySelector('[data-more]')?.addEventListener('click', () => { const y = scrollY; SHOW_ALL = true; render(); scrollTo(0, y); });
   app.querySelectorAll('[data-t]').forEach(el => {
     el.onclick = () => openPlayer(TILES[+el.dataset.t]);
     if (!canHover()) return;
@@ -221,14 +241,15 @@ function wirePreviews() {
 function openPlayer(t) {
   closePlayer();
   const p = t.p, a = t.a;
-  const who = whoOf(p);
+  const wd = words(t);
+  const cap = wd.capAd ? (document.querySelector(`[data-cap-ad="${CSS.escape(wd.capAd)}"]`)?.textContent || wd.cap) : wd.cap;
   const info = t.theirs
-    ? `<span class="chip chip-them">${esc(who || 'Another brand')}</span>
-       <b class="pl-t">${esc(p.note || a.title)}</b>
+    ? `<span class="chip chip-them">${esc(whoOf(p) || 'Another brand')}</span>
+       <b class="pl-t">${esc(cap)}</b>
        <p class="pl-s">Not our brand, but they did it well. Take the idea, film it with ${esc(D.brand.display_name)}.</p>`
-    : `${p.kind === 'meta' ? '<span class="chip chip-ours">Ran as our ad</span>' : ''}
-       <b class="pl-t">${esc(a.title)}</b>
-       ${a.argument ? `<p class="pl-s">${esc(a.argument)}</p>` : ''}`;
+    : `<span class="chip chip-ours">${esc(wd.sub)}</span>
+       <b class="pl-t">${esc(cap || 'One of our top ads')}</b>
+       ${a?.argument ? `<p class="pl-s">${esc(a.argument)}</p>` : ''}`;
   const w = document.createElement('div');
   w.className = 'pl-wrap'; w.id = 'player';
   w.innerHTML = `<div class="pl" role="dialog" aria-modal="true" aria-label="Video">
@@ -319,6 +340,9 @@ async function loadCovers(proof) {
       ? fetch(`${API}/api/ad-creatives?ads=${q}`, authed())
       : fetch(`${API}/api/ad-creatives?angles=${encodeURIComponent(SLUG)}&ads=${q}`)).then(x => x.json());
     for (const [id, v] of Object.entries(r.assets || {})) {
+      // The auto board's ads with no idea of their own take the first line of their copy (the hook) as the caption; the headline is usually an offer.
+      const line = String(v.body || v.headline || '').split(/\n|(?<=[.!?])\s/)[0].trim().slice(0, 90);
+      if (line) document.querySelectorAll(`[data-cap-ad="${CSS.escape(id)}"]`).forEach(c => { c.textContent = line; });
       if (!v.thumb) continue;
       document.querySelectorAll(`[data-cover="${CSS.escape(id)}"]`).forEach(m => { if (!m.querySelector('img')) m.insertAdjacentHTML('afterbegin', `<img src="${esc(v.thumb)}" alt="" loading="lazy">`); });
     }

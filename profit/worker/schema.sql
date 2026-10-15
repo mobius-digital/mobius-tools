@@ -411,3 +411,7 @@ CREATE TABLE IF NOT EXISTS p_snapshot (
   last_view   TEXT
 );
 CREATE INDEX IF NOT EXISTS p_snapshot_act ON p_snapshot (act_id, created_at);
+ALTER TABLE p_amb_brand ADD COLUMN board_mode TEXT NOT NULL DEFAULT 'picked';
+ALTER TABLE p_amb_brand ADD COLUMN board_n INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE p_amb_brand ADD COLUMN board_json TEXT;
+ALTER TABLE p_amb_brand ADD COLUMN board_at TEXT;

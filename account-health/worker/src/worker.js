@@ -7855,6 +7855,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           WHERE b.slug = ?1 AND b.live = 1 AND p.kind = 'meta' AND p.shown = 1`,
       ).bind(slug).all().catch(() => ({ results: [] }));
       const allowed = new Set((results || []).map(r => r.ad_id));
+      for (const id of await anglesBoardAds(env, slug)) allowed.add(id);
       const ids = (url.searchParams.get('ads') || '').split(',').map(x => x.trim()).filter(id => allowed.has(id)).slice(0, 40);
       if (!ids.length) return json({ assets: {} });
       let assets = {};
@@ -7968,7 +7969,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           `SELECT 1 FROM p_amb_proof p JOIN p_amb_brand b ON b.act_id = p.act_id
             WHERE b.slug = ?1 AND b.live = 1 AND p.kind = 'meta' AND p.shown = 1 AND p.ad_id = ?2 LIMIT 1`,
         ).bind(slug, adId).first().catch(() => null);
-        if (!ok) return json({ error: 'not on this page' }, 404);
+        if (!ok && !(await anglesBoardAds(env, slug)).includes(adId)) return json({ error: 'not on this page' }, 404);
       } else if (!(await isAdmin(request, env))) {
         return json({ error: 'unauthorized' }, 401);
       }
@@ -9646,4 +9647,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 };
 /* For the offline dashboard checks (test-dashrange.mjs). */
 export { dashNumbers, dashBlocks, dashRange };
+/** A creator link on the AUTO board (profit amb.js autoBoard, migration amb-004) also shows the
+ *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorises
+ *  exactly those ads on a LIVE page, the same rule as proof. Empty for a hand-picked board. */
+async function anglesBoardAds(env, slug) {
+  if (!/^[a-z0-9-]{1,50}$/.test(slug || '')) return [];
+  const row = await env.DB.prepare(`SELECT board_json FROM p_amb_brand WHERE slug = ?1 AND live = 1 AND board_mode = 'auto'`).bind(slug).first().catch(() => null);
+  try { return (JSON.parse(row?.board_json || '[]') || []).map(x => String(x.ad_id)); } catch { return []; }
+}
+
 export default AH_APP;

@@ -3377,41 +3377,53 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   classes, or review-ui's injected `.rv-btn` display wins). A new phone rule for the viewer belongs in phone.css's
   viewer block and lands on both hosts; a new phone rule for the review page itself goes in review.html's own style.
 
-## 2026-10-14: THE CREATOR LINK IS ONE VIDEO BOARD (angles/app.src.js v19). Read before touching angles/.
+## 2026-10-14: THE CREATOR LINK IS ONE VIDEO BOARD (angles/app.src.js v20). Read before touching angles/.
 
 - **Why.** Cole walked Frost Buddy's creator hub (notes: `Lucky Golf/Creator Playbook/source-notes/
   07-video-ideas-simplify.md`). Their Video Ideas page is just videos: "Watch these. Make your version.",
-  products as filters, one starred card, four steps, the checklist under it. v18 (same day: a feed with
-  How panels, an opener-clip row and two tabs) was still too much: "simple is king". v19 is ONE page.
-  PRESENTATION only: no field left D1, no migration, no worker change; the Ambassadors editor, the PDF and
-  the submit link are untouched. Cole's rule for the page is in memory `creator-link-video-board`.
-- **The page, top to bottom.** Top bar (logo, "The checklist" jump). Hero: "Watch these. Make your
-  version." + "<N> videos that worked. Pick one, film yours today. That's the whole job." Category chips
-  = the brand's sections that have videos, with counts, shown only when there are two or more (rename
-  sections in Locus to creator words: products or moments like Black Friday, Gifts). The grid (5/4/3/2
-  columns): one tile per playable proof (meta ad, stored upload, or a post with a thumb), dealt
-  round-robin across ideas so one idea never shows twice in a row; the lead video of each hot ("Film
-  these first") idea is at the top with a "Start here" star. A tile = the video (first frame, plays
-  muted on desktop hover), one chip ("Ran as our ad", or the other brand's name), one line (our video:
-  the idea title; another brand's: the proof `note`, the team's "steal this" line). Tap opens the player:
-  a sheet from the bottom on a phone (grab handle, swipe down), a card on a desktop, with the note, "Not
-  our brand, but they did it well. Take the idea, film it with <brand>." for other brands, and Previous /
-  Next video (arrow keys too). Then the 4 steps (Pick one, Copy it, Film it right, Submit on TRYBE: the
-  ONLY place the submit link is). Then the checklist: Please stop filming these (red, full width), Before
-  you film (`guide`), Always say / Skip these (`rules` split by `SKIP_RE`: a rule opening with never /
-  don't / do not / avoid / skip / no is a skip).
+  products as filters, ONE starred card, four steps, the checklist under it. v18 (a feed with How panels,
+  an opener row, two tabs) and v19 (a five-column grid with 13 stars) were both rejected the same day:
+  "simple is king". Cole's rule for the page is memory `creator-link-video-board`.
+- **Layout = Frost Buddy's, measured 2026-10-14 in Cole's signed-in Chrome** (portal
+  affiliate.frostbuddy.com/portal/video-ideas; Tailwind): `main max-w-3xl px-4 md:px-8`, grid
+  `grid-cols-2 sm:grid-cols-3 gap-3` (2 columns under 640px, 3 above, never more), cards `aspect-[9/16]
+  rounded-2xl` with everything ON the video (star top left, product top right on black/55, white play
+  button, caption bold 11px + creator 9.5px at the bottom over a black fade), 30 of 50 then "See more",
+  the four steps as one strip, the checklist as six green tinted boxes then pill lists. Ours copies that
+  (`.col` max 832px, `.grid` 3/2 columns, `.tile` IS the video, 24 then "See all N videos").
+- **The page, top to bottom.** Top bar (logo, "Before you film" jump). One-line hero + "Read Before you
+  film first". Category chips = the brand's enabled non-pinned sections that have videos, with counts,
+  only when 2+ (renamed to creator words 2026-10-14, `migrations/amb-005-section-names.sql`, e.g. Muni
+  belts, Gifts, On the course; the team can rename in Locus). The grid. The steps strip (Pick one, Copy
+  it, Film it right, Submit on TRYBE) with the ONE submit button under it. The checklist card: Please
+  stop filming these (red), the `guide` as tinted boxes, Always say / Skip these (`rules` split by
+  `SKIP_RE`).
+- **A tile.** Our video: caption = the idea title, line = "Ran as our ad" / "Our video". Another brand's
+  clip: caption = the proof `note` (the team's "steal this" line), line = "<brand>, not us". Category name
+  top right. Exactly ONE "Start here" star: the very first tile. Tap = the player (bottom sheet on a
+  phone with grab handle and swipe down, a card on desktop) with Previous / Next video (arrow keys) and,
+  for other brands, "Not our brand, but they did it well. Take the idea, film it with <brand>."
+- **Two board modes, per brand** (`p_amb_brand.board_mode`, `board_n`, migration `amb-004.sql`; picker
+  "Videos on the board" on Link and brief in profit/amb.js v20):
+  - `picked` (default, every brand today): every playable proof attached to the ideas, dealt round-robin
+    across ideas (each idea's lead video first, flagged "Film these first" ideas at the top), our own
+    before other brands' inside an idea.
+  - `auto`: `autoBoard()` in worker amb.js ranks the brand's own Meta VIDEO ads (`ads.media_type =
+    'video'`) by Triple Whale orders (`tw_ad_attr`, lastPlatformClick, Meta rows, last 30 days), top
+    `board_n` (4 to 50, default 20), and caches `[{ad_id, rank}]` in `board_json` + `board_at` for 6 hours
+    (a save on the tab clears `board_at`). The payload carries `board` (ids and rank only, never money).
+    The page shows those first (caption = the idea title when the ad is also proof on an idea, else the
+    first line of the ad copy from ad-creatives; line "#N right now"), then other brands' clips.
+    account-health `anglesBoardAds()` lets the slug play and cover exactly those ads on a LIVE auto page,
+    alongside proof. Tested on Ice & Gold 2026-10-14 (11 ads ranked) and set back to `picked`; switching a
+    brand on is Cole's call.
 - **Not shown any more (still stored and edited):** each idea's steps, openers, alt hooks, on-screen text,
   do / don't, why; the First seconds hooks bank; the season card and chart; about / audience; inspiration
   LINKS with no stored clip; ideas with no video (they appear once a video is attached).
-- **Routes.** None. `#rules` / `#checklist` scroll to the checklist (old PDF and Slack links); anything
-  else shows the board.
-- **Look = Locus v2** (`profit/v2.css` tokens copied into `angles/app.css`, the whole file was rewritten):
-  Inter, graphite dark by default, a true light theme on `prefers-color-scheme: light`, one brand accent
-  computed in `applyAccent` to 4.5:1 on each theme (`--acc-d`, `--acc-l`). Logos sit on a white pill on
-  dark. Shell: Inter font, theme-color per scheme, title "Creator videos", `build.py` V = 19.
-- **Feed source (Cole asked 2026-10-14).** Frost Buddy fills its feed from TikTok Shop, where every tagged
-  post is visible with views and sales; we cannot see TRYBE creators' organic posts, so the board is
-  hand-picked (proof attached to ideas in Locus). An auto-ranked mode would have to come from the brand's
-  own Meta video ads (spend and purchases per ad are in D1) and was proposed as a follow-up, not built.
-- **Testing note.** Headless Chrome does not paint the stored clips' first frames and renders narrower
-  than ~500px wrong; use a 390px iframe for phone shots, and the Browser pane for clip frames.
+- **Routes.** None. `#rules` / `#checklist` scroll to the checklist (old PDF and Slack links).
+- **Look = Locus v2** (`profit/v2.css` tokens in `angles/app.css`): Inter, graphite dark by default, a true
+  light theme on `prefers-color-scheme: light`, one brand accent from `applyAccent` at 4.5:1 on each theme
+  (`--acc-d`, `--acc-l`). Logos sit on a white pill on dark. `build.py` V = 20.
+- **Testing note.** Headless Chrome does not paint the stored clips' first frames and lays out under ~500px
+  wrong; put the page in a 390px or 768px iframe for phone and tablet shots, and use the Browser pane for
+  clip frames. The pane stops painting when the app window is hidden.

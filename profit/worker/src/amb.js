@@ -123,6 +123,7 @@ function shapeBrand(b, acct) {
     pdf: safeJson(b.pdf_json, null),
     guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
     hooks: safeJson(b.hooks_json, []),          // "First seconds" bank, [{title, how, kind, url, clip}]
+    board_mode: b.board_mode === 'auto' ? 'auto' : 'picked', board_n: b.board_n || 20,   // the video board (amb-004)
   };
 }
 
@@ -171,6 +172,26 @@ function customShape(custom, weeks = 52, back = 13) {
 }
 
 /* ---------------- public ---------------- */
+
+/** The auto board (amb-004): the brand's own Meta VIDEO ads ranked by Triple Whale orders
+ *  (last-platform-click, Meta rows, last 30 days), top `n`. Ids and rank only; the order is
+ *  the only thing the page learns, never a number. Cached on the brand row for 6 hours so
+ *  account-health can authorise exactly these ads for playback (it reads board_json). */
+async function autoBoard(env, b) {
+  const fresh = b.board_at && (Date.now() - Date.parse(b.board_at.replace(' ', 'T') + 'Z')) < 6 * 3600e3;
+  if (fresh && b.board_json) return safeJson(b.board_json, []);
+  const n = Math.min(Math.max(+b.board_n || 20, 4), 50);
+  const { results } = await env.DB.prepare(
+    `SELECT t.ad_id, SUM(t.orders) ord, SUM(t.revenue) rev FROM tw_ad_attr t
+      WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND (t.platform = 'meta' OR t.platform IS NULL)
+        AND t.ad_id IN (SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)} AND media_type = 'video')
+      GROUP BY t.ad_id HAVING ord > 0 ORDER BY ord DESC, rev DESC LIMIT ?3`,
+  ).bind(b.act_id, addDays(today(), -30), n).all().catch(() => ({ results: [] }));
+  const board = (results || []).map((r, i) => ({ ad_id: r.ad_id, rank: i + 1 }));
+  await env.DB.prepare(`UPDATE p_amb_brand SET board_json = ?2, board_at = datetime('now') WHERE act_id = ?1`)
+    .bind(b.act_id, JSON.stringify(board)).run().catch(() => {});
+  return board;
+}
 
 /** `preview` = a signed-in team member. They see a switched-off page in full, so a
  *  new brand can be reviewed before creators get it (Cole, 2026-09-17, Grunk Dolfer).
@@ -222,6 +243,7 @@ async function publicPayload(env, slug, preview = false) {
     live: true,
     preview: !b.live,
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; x.hooks = hooks; return x; })(),
+    board: b.board_mode === 'auto' ? await autoBoard(env, b) : null,
     season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
       || await seasonShape(env, b.act_id).catch(() => null),
     hot: pinned ? { id: pinned.id, name: pinned.name, line: pinned.line, icon_svg: cleanSvg(pinned.icon_svg), color: pinned.color, angles: hot } : null,
@@ -414,6 +436,12 @@ export async function handleStaff(request, env, url, path, json) {
         has('guide') ? JSON.stringify((Array.isArray(body.guide) ? body.guide : []).map(x => ({ title: clip(x.title, 120), text: clip(x.text, 500) })).filter(x => x.title || x.text).slice(0, 14)) : cur.guide_json,
         has('hooks') ? JSON.stringify((Array.isArray(body.hooks) ? body.hooks : []).map(x => ({ title: clip(x.title, 120), how: clip(x.how, 500), kind: x.kind === 'brand' ? 'brand' : 'shared', url: /^https:\/\/\S+$/i.test(x.url || '') ? clip(x.url, 500) : null, clip: /^[a-f0-9]{16}$/.test(x.clip || '') ? x.clip : null })).filter(x => x.title || x.how).slice(0, 40)) : cur.hooks_json,
       ).run();
+      if (has('board_mode') || has('board_n')) {
+        // A changed mode or size re-ranks on the next page load (board_at cleared).
+        await env.DB.prepare(`UPDATE p_amb_brand SET board_mode = ?2, board_n = ?3, board_at = NULL WHERE act_id = ?1`).bind(acct.act_id,
+          has('board_mode') ? (body.board_mode === 'auto' ? 'auto' : 'picked') : (cur.board_mode || 'picked'),
+          has('board_n') ? Math.min(Math.max(parseInt(body.board_n, 10) || 20, 4), 50) : (cur.board_n || 20)).run();
+      }
       return json(await staffPayload(env, acct));
     }
 

@@ -1342,6 +1342,15 @@ function paintLink(body) {
       </div>
 
       <div class="v2card">
+        <h3>Videos on the board</h3>
+        <p class="hint" style="margin:0 0 10px">What creators see on the link. Hand-picked shows the videos attached to the ideas below. Top ads fills the board by itself with this brand's Meta video ads that got the most orders in Triple Whale over the last 30 days (re-ranked every 6 hours), then the other brands' clips. Creators never see a number.</p>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:10px">
+          <label class="am-f">Board<select class="am-in" id="lBoard"><option value="picked"${b.board_mode !== 'auto' ? ' selected' : ''}>Hand-picked videos</option><option value="auto"${b.board_mode === 'auto' ? ' selected' : ''}>Our top ads, ranked by orders</option></select></label>
+          <label class="am-f">How many<input class="am-in" id="lBoardN" type="number" min="4" max="50" value="${esc(b.board_n || 20)}"></label>
+        </div>
+      </div>
+
+      <div class="v2card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h3>Inspiration from other brands</h3><p class="hint" style="margin:0">Show tiles labelled Inspiration, which open the other brand's post.</p></div>${sw('lInspo', b.show_inspo, '')}</div>
       </div>
   </div>
@@ -1496,7 +1505,7 @@ function paintLink(body) {
       slug: $('#lSlug').value.trim().toLowerCase(), display_name: $('#lName').value.trim(),
       submit_platform: $('#lPlat').value.trim() || 'TRYBE', submit_url: $('#lSubmit').value.trim(), submit_label: $('#lBtn').value.trim(),
       logo_url: $('#lLogo').value.trim(), accent, intro: $('#lIntro').value.trim(), about: $('#lAbout').value.trim(), audience: $('#lAud').value.trim(),
-      avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked,
+      avoid: avoidOut, rules: rulesOut, show_inspo: $('#lInspo').checked, board_mode: $('#lBoard').value, board_n: +$('#lBoardN').value || 20,
       guide: [...body.querySelectorAll('#lGuide .am-li')].map(li => ({ title: li.querySelector('[data-gt]').value.trim(), text: li.querySelector('[data-gx]').value.trim() })).filter(x => x.title || x.text),
       hooks: [...body.querySelectorAll('#lHooks .am-li')].map(li => ({ title: li.querySelector('[data-ht]').value.trim(), how: li.querySelector('[data-hh]').value.trim(), kind: li.querySelector('[data-hk]').value, url: li.querySelector('[data-hu]').value.trim(), clip: (li.querySelector('[data-hu]').value.trim().match(/^[a-f0-9]{16}$/) || [])[0] || null })).map(x => (x.clip ? { ...x, url: '' } : x)).filter(x => x.title || x.how),
       pdf: {

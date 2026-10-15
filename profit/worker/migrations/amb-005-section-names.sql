@@ -1,0 +1,20 @@
+-- 2026-10-14: section names in creator words (they are the board's category chips now). Ran once.
+UPDATE p_amb_section SET name='Muni belts' WHERE act_id='brand_dartee_golf' AND name='The Muni';
+UPDATE p_amb_section SET name='Gifts' WHERE act_id='brand_dartee_golf' AND name='Gifts (film them now)';
+UPDATE p_amb_section SET name='No more holes' WHERE act_id='brand_dartee_golf' AND name='Holes are stupid';
+UPDATE p_amb_section SET name='Getting noticed' WHERE act_id='brand_dartee_golf' AND name='The belt people notice';
+UPDATE p_amb_section SET name='On the course' WHERE act_id='brand_dartee_golf' AND name='On the course this fall';
+UPDATE p_amb_section SET name='New drops and hats' WHERE act_id='brand_grunk_dolfer' AND name='Fall drops and hats';
+UPDATE p_amb_section SET name='Gifts' WHERE act_id='brand_grunk_dolfer' AND name='Gift him the one he''ll actually wear';
+UPDATE p_amb_section SET name='Beers on the course' WHERE act_id='brand_grunk_dolfer' AND name='Golf is a drinking sport';
+UPDATE p_amb_section SET name='The fit' WHERE act_id='brand_grunk_dolfer' AND name='Dad bod approved';
+UPDATE p_amb_section SET name='With the crew' WHERE act_id='brand_grunk_dolfer' AND name='The crew';
+UPDATE p_amb_section SET name='Holidays' WHERE act_id='brand_party_patch' AND name='Holiday season';
+UPDATE p_amb_section SET name='Next-day plans' WHERE act_id='brand_party_patch' AND name='Tomorrow is still happening';
+UPDATE p_amb_section SET name='Say your age' WHERE act_id='brand_party_patch' AND name='Say your age';
+UPDATE p_amb_section SET name='Show it' WHERE act_id='brand_party_patch' AND name='Show it, don''t say it';
+UPDATE p_amb_section SET name='Won''t turn green' WHERE act_id='brand_ice_and_gold' AND name='Does it turn green?';
+UPDATE p_amb_section SET name='Gifts' WHERE act_id='brand_ice_and_gold' AND name='Black Friday and Christmas gifts';
+UPDATE p_amb_section SET name='Sets' WHERE act_id='brand_ice_and_gold' AND name='The set for the occasion';
+UPDATE p_amb_section SET name='Everyday wear' WHERE act_id='brand_ice_and_gold' AND name='Never take it off';
+UPDATE p_amb_section SET name='For him' WHERE act_id='brand_ice_and_gold' AND name='His chain';
