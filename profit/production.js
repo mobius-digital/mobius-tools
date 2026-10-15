@@ -92,8 +92,11 @@ function css() {
 .pd-chip.on{background:var(--cc,var(--ink));border-color:var(--cc,var(--ink));color:var(--surface);font-weight:600}
 .pd-sel{height:34px;padding:0 30px 0 10px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:500;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2.2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
 /* the board: columns side by side, each its own scroll, the board scrolls sideways under the bar */
-.pd-wrap{display:flex;gap:10px;align-items:stretch;overflow-x:auto;overflow-y:hidden;min-width:0;height:var(--pd-h,70vh);padding-bottom:6px;scrollbar-width:thin;outline:none}
-.pd-col{flex:0 0 268px;min-width:0;display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;transition:border-color .12s,background .12s,flex-basis .15s}
+.pd-wrap{display:flex;gap:12px;align-items:stretch;overflow-x:auto;overflow-y:hidden;min-width:0;height:var(--pd-h,70vh);padding-bottom:6px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;outline:none}
+/* 2026-10-15 polish: the arrow is the cursor on a card (Asana); the hand shows only while a drag or a pan is under way */
+.pd-wrap.pan,.pd-wrap.pan *{cursor:grabbing!important}
+.pd.dragging .pd-card{cursor:grabbing}
+.pd-col{flex:0 0 300px;min-width:0;display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;transition:border-color .12s,background .12s,flex-basis .15s}
 .pd-col.over{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,var(--surface-2))}
 .pd-col.cl{flex-basis:44px}
 .pd-col.cl .pd-cards,.pd-col.cl .pd-ch .n2,.pd-col.cl .pd-ch .ic{display:none}
@@ -107,9 +110,10 @@ function css() {
 .pd-col:hover .pd-ch .ic,.pd-ch .ic:focus-within{opacity:1}
 .pd-ch .ic button{width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;font:inherit}
 .pd-ch .ic button:hover{background:var(--surface);color:var(--ink)}
-.pd-cards{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px;padding:0 10px 10px;scrollbar-width:thin;overscroll-behavior:contain}
-.pd-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px 8px;display:flex;flex-direction:column;gap:6px;cursor:grab;user-select:none;box-shadow:0 1px 0 rgba(15,15,20,.02);outline:none}
-.pd-card:active{cursor:grabbing}
+/* overscroll-behavior-Y only: a column swallows its own vertical overscroll, but a sideways trackpad swipe or Shift+wheel
+   over a column must reach the board (contain on both axes ate every horizontal swipe) */
+.pd-cards{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px;padding:0 12px 12px;scrollbar-width:thin;overscroll-behavior-y:contain}
+.pd-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 13px 11px;display:flex;flex-direction:column;gap:7px;cursor:default;user-select:none;box-shadow:0 1px 0 rgba(15,15,20,.02);outline:none}
 .pd-card:hover{border-color:var(--line-strong)}
 .pd-card:focus-visible{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
 .pd-card.sel{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
@@ -141,13 +145,16 @@ function css() {
 .pd-r3{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);min-width:0}
 .pd-r3 .sp{flex:1}
 .pd-r3 .m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pd-due{font:inherit;font-size:11.5px;color:var(--muted);background:none;border:0;padding:1px 4px;margin-left:-4px;border-radius:4px;cursor:pointer;white-space:nowrap}
+.pd-due{font:inherit;font-size:11.5px;color:var(--muted);background:none;border:0;padding:1px 4px;margin-left:-4px;border-radius:4px;cursor:pointer;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .pd-due:hover{background:var(--surface-2);color:var(--ink)}
 .pd-due.late{color:var(--bad);font-weight:600}
 .pd-due.soon{color:var(--good)}
 .pd-avb{border:0;background:none;padding:0;cursor:pointer;display:inline-flex;border-radius:50%}
 .pd-avb:hover{box-shadow:0 0 0 2px var(--brand-soft)}
-.pd-act{font:inherit;font-size:11.5px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
+/* the card's action (Launch to Meta, Open review) is its own last row: a small full-width button that cannot run past the edge */
+.pd-r4{display:flex;min-width:0;margin-top:1px}
+.pd-act{flex:1;min-width:0;height:28px;padding:0 10px;font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,transparent);border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);border-radius:7px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.pd-act:hover{background:color-mix(in srgb,var(--brand) 16%,transparent);border-color:var(--brand)}
 .pd-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--surface);background:var(--line-strong);flex:none}
 .pd-av.pd-none{background:var(--line-strong);color:var(--ink)}
 .pd-card .pd-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:var(--surface-2);display:block}
@@ -209,9 +216,16 @@ function css() {
 .pd-modal .ft{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 .pd-modal .err{color:var(--bad);font-size:12.5px}
 .pd-modal .pd-fchips{display:flex;flex-wrap:wrap;gap:6px}
-/* iPad: wider columns, the pencil always there (no hover on touch) */
-@media (max-width:1024px){.pd-col{flex-basis:300px}}
-@media (pointer:coarse){.pd-pen{opacity:1}.pd-ch .ic{opacity:1}.pd-card{cursor:default}}
+/* Archived (the list behind "Delete card") */
+.pd-arch{display:flex;flex-direction:column;gap:6px;max-height:min(56vh,480px);overflow-y:auto;margin:0 -4px;padding:0 4px}
+.pd-arch .ar{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);min-width:0}
+.pd-arch .ar .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pd-arch .ar .t b{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-arch .ar .t span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-arch .ar .pd-btn{height:30px;padding:0 11px;font-size:12.5px;flex:none}
+.pd-arch .ar.gone{opacity:.45;pointer-events:none}
+/* iPad and touch: the pencil always there (no hover on touch) */
+@media (pointer:coarse){.pd-pen{opacity:1}.pd-ch .ic{opacity:1}}
 /* iPhone: one column per screen, a column picker, a swipe between columns, Filters in a sheet */
 .pd-seg{display:none}
 @media (max-width:600px){
@@ -311,7 +325,8 @@ function cardHtml(c) {
     <div class="pd-r1"><span class="num">${esc(initials(c.brand))} #${esc(c.num)}</span>${D.act === 'all' && BRAND === 'all' ? `<span class="br">${esc(c.brand)}</span>` : ''}<span class="sp"></span><button type="button" class="pd-fmt" data-pop="format" data-id="${esc(c.id)}" style="--fc:${FMT[c.format] || 'var(--brand)'}" title="Change the format">${esc(c.format || 'Static')}</button></div>
     <div class="pd-t">${esc(c.title || 'Untitled brief')}</div>
     ${pills.length ? `<div class="pd-pills">${pills.join('')}</div>` : ''}
-    <div class="pd-r3"><button type="button" class="pd-avb" data-pop="owner" data-id="${esc(c.id)}" title="${esc(c.assignee ? `${c.assignee} makes it. Change who.` : 'Nobody yet. Pick who makes it.')}">${av(c.assignee, 20)}</button><button type="button" class="pd-due ${due.cls}" data-pop="due" data-id="${esc(c.id)}" title="Change the due date">${esc(due.text)}</button><span class="sp"></span>${act}</div>
+    <div class="pd-r3"><button type="button" class="pd-avb" data-pop="owner" data-id="${esc(c.id)}" title="${esc(c.assignee ? `${c.assignee} makes it. Change who.` : 'Nobody yet. Pick who makes it.')}">${av(c.assignee, 20)}</button><button type="button" class="pd-due ${due.cls}" data-pop="due" data-id="${esc(c.id)}" title="Change the due date">${esc(due.text)}</button><span class="sp"></span></div>
+    ${act ? `<div class="pd-r4">${act}</div>` : ''}
   </div>`;
 }
 
@@ -352,7 +367,7 @@ function paint() {
       <div class="pd-r"><span class="pd-sync">${D.mirror === false ? 'Asana mirror off' : `Mirrored to Asana${D.synced_at ? ` · synced ${ago(D.synced_at)}` : ''}`}</span>
         ${PHONE() ? `<button class="pd-btn" data-filters>Filters${nFilt ? ` · ${nFilt}` : ''}</button><button class="pd-btn${SELMODE ? ' on' : ''}" data-selmode>${SELMODE ? 'Done' : 'Select'}</button>` : ''}
         <button class="pd-btn pri" data-newbrief>${PHONE() ? '+' : '+ New brief'}</button></div></div>
-    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><select class="pd-sel" data-sort aria-label="Sort">${SORTS.map(([k, l]) => `<option value="${k}"${SORT === k ? ' selected' : ''}>Sort: ${l}</option>`).join('')}</select><button class="pd-btn${SELMODE ? ' on' : ''}" data-selmode>${SELMODE ? 'Done selecting' : 'Select'}</button></div>
+    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><select class="pd-sel" data-sort aria-label="Sort">${SORTS.map(([k, l]) => `<option value="${k}"${SORT === k ? ' selected' : ''}>Sort: ${l}</option>`).join('')}</select><button class="pd-btn${SELMODE ? ' on' : ''}" data-selmode>${SELMODE ? 'Done selecting' : 'Select'}</button><button class="pd-btn" data-archived title="Cards deleted in the last 60 days">Archived</button></div>
     ${seg}
     <div class="pd-wrap" tabindex="-1">${COLS.map(colHtml).join('')}</div>
   </div>`;
@@ -395,6 +410,7 @@ function wire() {
   $$('[data-newbrief]', root).forEach(b => b.onclick = () => newBrief());
   $$('[data-selmode]', root).forEach(b => b.onclick = () => { SELMODE = !SELMODE; if (!SELMODE) SEL.clear(); paint(); });
   $$('[data-filters]', root).forEach(b => b.onclick = () => filtersSheet());
+  $$('[data-archived]', root).forEach(b => b.onclick = () => archivedBox());
   const sort = $('[data-sort]', root); if (sort) sort.onchange = () => { SORT = sort.value; remember('pd_sort', SORT); paint(); };
   const all = $('#pdAllLive', root); if (all) all.onclick = () => { ALL_LIVE = true; paint(); };
   $$('[data-collapse]', root).forEach(b => b.onclick = e => { e.stopPropagation(); COLLAPSED.add(b.dataset.collapse); remember('pd_collapsed', JSON.stringify([...COLLAPSED])); paint(); });
@@ -410,7 +426,40 @@ function wire() {
   const wrap = $('.pd-wrap', root);
   $$('[data-seg]', root).forEach(b => b.onclick = () => { PHONE_COL = b.dataset.seg; remember('pd_col', PHONE_COL); const i = COLS.findIndex(c => c.k === PHONE_COL); wrap.scrollTo({ left: i * wrap.clientWidth, behavior: 'smooth' }); segOn(); });
   if (PHONE()) { let t = null; wrap.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => { const i = Math.round(wrap.scrollLeft / Math.max(1, wrap.clientWidth)); const k = (COLS[i] || COLS[0]).k; if (k !== PHONE_COL) { PHONE_COL = k; remember('pd_col', k); segOn(); } }, 80); }, { passive: true }); }
+  else sideways(wrap);
   keys();
+}
+/* Sideways on a desktop (2026-10-15 polish, what Asana gives a mouse): a wheel over a column header or the gaps between
+   columns scrolls the board (over the cards the column scrolls, Shift+wheel and a trackpad swipe chain to the board on
+   their own now that the columns only contain the vertical axis), and dragging empty board space pans it. */
+function sideways(wrap) {
+  wrap.addEventListener('wheel', e => {
+    if (e.ctrlKey || e.target.closest('.pd-cards, .pd-menu')) return;   /* over the cards: the column's own scroll, chained to the board by the browser */
+    const dx = e.deltaX || e.deltaY; if (!dx) return;
+    e.preventDefault(); wrap.scrollLeft += dx;
+  }, { passive: false });
+  let pan = null;
+  wrap.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    const t = e.target;
+    if (t.closest('.pd-card, button, a, input, select, .pd-add, .pd-more, .pd-menu')) return;
+    const cards = t.closest('.pd-cards');
+    if (cards && t !== cards && !t.classList.contains('pd-empty')) return;
+    pan = { x: e.clientX, y: e.clientY, left: wrap.scrollLeft, top: cards ? cards.scrollTop : 0, cards, moved: false, id: e.pointerId };
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!pan || e.pointerId !== pan.id) return;
+    const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+    if (!pan.moved) { if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; pan.moved = true; wrap.classList.add('pan'); try { wrap.setPointerCapture(e.pointerId); } catch { /* fine */ } }
+    wrap.scrollLeft = pan.left - dx;
+    if (pan.cards) pan.cards.scrollTop = pan.top - dy;
+  });
+  const end = e => {
+    if (!pan || (e && e.pointerId !== pan.id)) return;
+    const moved = pan.moved; pan = null; wrap.classList.remove('pan');
+    if (moved) { const eat = ev => { ev.stopPropagation(); ev.preventDefault(); }; wrap.addEventListener('click', eat, { capture: true, once: true }); setTimeout(() => wrap.removeEventListener('click', eat, { capture: true }), 0); }
+  };
+  wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
 }
 function segOn() { $$('#main [data-seg]').forEach(b => { const on = b.dataset.seg === PHONE_COL; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }); }
 function edgeScroll(e) {
@@ -440,9 +489,10 @@ function wireCard(el) {
   el.addEventListener('dragstart', e => {
     DRAG = SEL.has(id) ? [...SEL] : [id];
     DRAG.forEach(x => { const c = $(`#main .pd-card[data-id="${CSS.escape(x)}"]`); if (c) c.classList.add('drag'); });
+    const root = $('#main .pd'); if (root) root.classList.add('dragging');   /* the hand shows only now (Asana) */
     try { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; } catch { /* old browsers */ }
   });
-  el.addEventListener('dragend', () => { $$('#main .pd-card.drag').forEach(c => c.classList.remove('drag')); DRAG = null; $$('#main .pd-col.over').forEach(c => c.classList.remove('over')); });
+  el.addEventListener('dragend', () => { $$('#main .pd-card.drag').forEach(c => c.classList.remove('drag')); DRAG = null; $$('#main .pd-col.over').forEach(c => c.classList.remove('over')); const root = $('#main .pd'); if (root) root.classList.remove('dragging'); });
   /* a long press on touch opens the menu as a bottom sheet */
   let timer = null, sx = 0, sy = 0;
   el.addEventListener('pointerdown', e => {
@@ -662,7 +712,7 @@ async function sendMany(ids) {
 async function archiveMany(ids) {
   const cards = ids.map(cardOf).filter(Boolean); if (!cards.length) return;
   const title = cards.length === 1 ? `Delete #${cards[0].num}?` : `Delete ${cards.length} cards?`;
-  if (!(await confirmBox(title, `${cards.length === 1 ? 'It leaves' : 'They leave'} the board and the Asana task is marked complete. Nothing is destroyed: Undo on the message that follows puts ${cards.length === 1 ? 'it' : 'them'} back.`, 'Delete'))) return;
+  if (!(await confirmBox(title, `${cards.length === 1 ? 'It leaves' : 'They leave'} the board and the Asana task is marked complete. Nothing is destroyed: Undo on the message that follows puts ${cards.length === 1 ? 'it' : 'them'} back, and for 60 days ${cards.length === 1 ? 'it' : 'each'} can be put back from Archived.`, 'Delete'))) return;
   const done = []; const why = [];
   for (const c of cards) { try { const r = await post('/api/production/card/delete', { id: c.id }); if (r.error) throw new Error(r.error); done.push({ id: c.id, to: r.was || c.board }); } catch (e) { why.push(`#${c.num}: ${e.message}`); } }
   D.cards = D.cards.filter(c => !done.some(x => x.id === c.id)); done.forEach(x => SEL.delete(x.id)); paint();
@@ -770,15 +820,57 @@ function filtersSheet() {
     ${brands ? `<label>Brand${chips(brands, BRAND, 'brand')}</label>` : ''}
     <label>Format${chips([['all', 'All formats'], ...Object.keys(FMT).map(f => [f, f, FMT[f]])], FORMAT, 'fmt')}</label>
     <label>Sort<select data-sort>${SORTS.map(([k, l]) => `<option value="${k}"${SORT === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+    <button type="button" class="pd-btn" data-archived style="width:100%;justify-content:center">Archived cards</button>
     <div class="ft"><button type="button" class="pd-btn" data-clear>Clear</button><button type="button" class="pd-btn pri" data-done>Done</button></div></div>`;
   document.body.appendChild(w);
   const close = () => { w.remove(); paint(); };
+  $('[data-archived]', w).onclick = () => { close(); archivedBox(); };
   $$('[data-brand]', w).forEach(b => b.onclick = () => { BRAND = b.dataset.brand; $$('[data-brand]', w).forEach(x => x.classList.toggle('on', x === b)); });
   $$('[data-fmt]', w).forEach(b => b.onclick = () => { FORMAT = b.dataset.fmt; $$('[data-fmt]', w).forEach(x => x.classList.toggle('on', x === b)); });
   $('[data-sort]', w).onchange = e => { SORT = e.target.value; remember('pd_sort', SORT); };
   $('[data-clear]', w).onclick = () => { BRAND = 'all'; FORMAT = 'all'; close(); };
   $('[data-done]', w).onclick = close;
   w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+}
+
+/** Archived (2026-10-15 polish): the cards deleted from the board in the last 60 days, each with Put back. "Delete card"
+ *  archives, and until now the only way back was Undo on the toast. Put back asks which column (the one it left is marked)
+ *  and calls the same restore route the toast's Undo uses. */
+function archivedBox() {
+  const w = document.createElement('div'); w.className = 'pd-scrim';
+  const brandName = D.act !== 'all' ? (D.brands.find(b => b.act_id === D.act) || {}).name : (BRAND !== 'all' ? (D.brands.find(b => b.act_id === BRAND) || {}).name : '');
+  w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pdArT"><h3 id="pdArT">Archived</h3>
+    <p>Cards deleted from the board in the last 60 days${brandName ? ` for ${esc(brandName)}` : ''}. Put back returns one to the board${D.mirror === false ? '' : ' and reopens its Asana task'}.</p>
+    <div class="pd-arch" id="pdArList"><div class="pd-sk" style="height:44px"></div><div class="pd-sk" style="height:44px"></div></div>
+    <div class="ft"><button type="button" class="pd-btn" data-x>Close</button></div></div>`;
+  document.body.appendChild(w);
+  let changed = false;
+  const close = () => { w.remove(); document.removeEventListener('keydown', key, true); if (changed) render(H, false); };
+  const key = e => { if (e.key === 'Escape' && !MENU) { e.stopPropagation(); close(); } };
+  document.addEventListener('keydown', key, true);
+  $('[data-x]', w).onclick = close;
+  w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+  const list = $('#pdArList', w);
+  const act = D.act !== 'all' ? D.act : (BRAND !== 'all' ? BRAND : 'all');
+  H.apiAH(`/api/production/archived?act=${encodeURIComponent(act)}`).then(r => {
+    if (r.error) throw new Error(r.error);
+    const cards = r.cards || [];
+    if (!cards.length) { list.innerHTML = '<div class="pd-empty">Nothing archived in the last 60 days.</div>'; return; }
+    list.innerHTML = cards.map(c => `<div class="ar" data-ar="${esc(c.id)}"><div class="t"><b>${esc(initials(c.brand))} #${esc(c.num)} ${esc(c.title || 'Untitled brief')}</b><span>${esc(c.brand)} · ${esc(c.format || 'Static')}${c.assignee ? ` · ${esc(c.assignee)}` : ''} · deleted ${esc(short(c.archived_at) || 'recently')}</span></div><button type="button" class="pd-btn" data-back="${esc(c.id)}">Put back</button></div>`).join('');
+    $$('[data-back]', list).forEach(b => b.onclick = () => {
+      const c = cards.find(x => x.id === b.dataset.back); if (!c) return;
+      showMenu({ anchor: b, title: `Put #${c.num} back in`, items: COLS.map(col => ({ k: col.k, l: col.label, on: col.k === c.was, ico: `<span class="dot" style="width:8px;height:8px;border-radius:50%;background:${col.dot}"></span>` })), onPick: async k => {
+        closeMenu();
+        const row = b.closest('.ar'); b.disabled = true; b.textContent = 'Putting back...';
+        try {
+          const res = await post('/api/production/card/restore', { id: c.id, to: k }); if (res.error) throw new Error(res.error);
+          changed = true; row.classList.add('gone'); b.textContent = `Back in ${COL_OF[k].label}`;
+          toast(`#${c.num} is back in ${COL_OF[k].label}.${res.asana && res.asana.moved ? ' Moved in Asana.' : ''}`);
+          if (!$$('.ar:not(.gone)', list).length) list.insertAdjacentHTML('beforeend', '<div class="pd-empty">Nothing else archived in the last 60 days.</div>');
+        } catch (e) { b.disabled = false; b.textContent = 'Put back'; toast(e.message || 'Could not put it back.', { bad: true }); }
+      } });
+    });
+  }).catch(e => { list.innerHTML = `<div class="pd-empty" style="color:var(--bad)">${esc(e.message || 'Could not load the archive.')}</div>`; });
 }
 
 function newBrief() {
