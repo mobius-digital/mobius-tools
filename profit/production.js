@@ -234,7 +234,7 @@ function css() {
   .pd-head .pd-r{margin-left:auto;gap:8px}
   .pd-filt{display:none}
   .pd-seg{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin:0 -2px}
-  .pd-seg button{flex:none;height:34px;padding:0 12px;border-radius:999px;border:0;background:var(--surface-2);color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .pd-seg button{flex:none;height:36px;min-height:0;padding:0 12px;border-radius:999px;border:0;background:var(--surface-2);color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
   .pd-seg button.on{background:var(--ink);color:var(--surface);font-weight:600}
   .pd-seg button i{font-style:normal;opacity:.65;font-size:12px}
   .pd-wrap{scroll-snap-type:x mandatory;scrollbar-width:none;gap:12px}
