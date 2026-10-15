@@ -2262,3 +2262,11 @@ all the clients a link that auto updates?"
   for Cole and a paste box that PUTs `/api/brand-links` klaviyo_key / clarity_token). No Clarity = Cole installs it
   through the Shopify collaborator access. The Meta sweep and Google autoMatch run hourly ONLY while a New client is
   under 45 days old, else once a day at 4am Central.
+- **2026-10-15 (last), Cole: "check-ins are a way for things to break; if something happens, then this happens."** No
+  timed access checks any more (the hourly sweep / Google match / pending Google Ads / onboarding Ads tick are gone from
+  the cron; `autoConnectMeta` stays as before). Every connect-page item has a Done button (`done_label`); Done records
+  `connectInvited` and runs `connectNow(env, key, brand)` in waitUntil (meta = partnerSweep + autoConnectMeta; ga4 / gsc =
+  autoMatch; google_ads = send the request + link if accepted). The onboarding form's access ticks and the Google Ads ID
+  field send the same POST (onboard/index.html `tellConnect`, needs `links.connect`). Cole's Check now =
+  `POST /api/ask/connect/check` (connectNow 'all'). Meta and Google offer no webhook for "a client gave you access".
+  Clarity: the CLIENT installs it (free Shopify app) and invites us; Cole connects it.

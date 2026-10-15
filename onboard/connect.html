@@ -112,8 +112,7 @@ function card(it) {
       <button class="btn pri" data-save="${it.key}" type="button">Save</button></div>` : ''}
     ${m ? `<div class="msg ${m.kind}">${esc(m.text)}</div>` : ''}
     <div class="foot">${it.url ? `<a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Open ${esc(it.title.split(' (')[0])}</a>` : '<span></span>'}
-      ${it.auto && !it.input ? `<span class="auto">Ticks itself once we can see it.</span>` : ''}
-      ${it.invite && !it.invited ? `<button class="btn pri" data-invited="${it.key}" type="button">Done, I invited you</button>` : ''}
+      ${it.done_label && !it.invited ? `<button class="btn pri" data-invited="${it.key}" type="button">${esc(it.done_label)}</button>` : ''}
       ${it.skip ? `<button class="link" data-skip="${it.key}" type="button">We don't use this</button>` : ''}</div>
   </div>`;
 }

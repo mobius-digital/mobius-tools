@@ -27,30 +27,30 @@ const putS = (env, k, v) => env.DB.prepare(`INSERT INTO settings (key, value) VA
 const COLE = 'cole@go-mobius-digital.com', BM = '695359915477596', MCC = '556-646-8199';
 /* The client's words. Order = the order on the page. `skip` = may say "we don't use this". */
 const ITEMS = {
-  meta: { title: 'Meta (Facebook and Instagram)', why: 'Your ad results, every ad and the audiences.', skip: false, auto: true,
+  meta: { title: 'Meta (Facebook and Instagram)', why: 'Your ad results, every ad and the audiences.', skip: false, auto: true, done: 'Done, I shared it',
     steps: ['Go to business.facebook.com/settings and pick your business.', 'Open Users > Partners, click Add, then "Give a partner access to your assets".',
       'Paste our Business ID (below) and click Next.', 'Tick every asset and give each one Full control: ad accounts, Pages, pixels and datasets, the Instagram account and catalogs. Then Save.',
       'That is all. We assign our team on our side automatically.'], copy: [['Our Meta Business ID', BM]], url: 'https://business.facebook.com/settings/partners' },
-  tw: { title: 'Triple Whale', why: 'Your sales, orders and which ads really sold, in one place.', skip: false, auto: true,
+  tw: { title: 'Triple Whale', why: 'Your sales, orders and which ads really sold, in one place.', skip: false, auto: true, done: 'Done, I invited you',
     steps: ['Open Triple Whale > Settings > Users and click Invite.', 'Add our email with the Admin role.'], copy: [['Our email', COLE]], url: 'https://app.triplewhale.com',
     input: { key: 'tw_shop', label: 'Your Shopify store address', placeholder: 'yourstore.myshopify.com' } },
-  google_ads: { title: 'Google Ads', why: 'Your Google campaigns and search terms next to everything else.', skip: true,
+  google_ads: { title: 'Google Ads', why: 'Your Google campaigns and search terms next to everything else.', skip: true, done: 'Done, I accepted it',
     steps: ['Type your Google Ads customer ID below (the 10-digit number at the top right of Google Ads). We send the request from our side.',
       'In Google Ads open Admin > Access and security > Managers and click Accept on the Mobius Digital request.'],
     copy: [['Our Google Ads manager ID', MCC]], url: 'https://ads.google.com/aw/accountaccess/managers',
     input: { key: 'google_ads', label: 'Google Ads customer ID', placeholder: '123-456-7890' } },
-  ga4: { title: 'Google Analytics', why: 'How people move through your website.', skip: true, auto: true,
+  ga4: { title: 'Google Analytics', why: 'How people move through your website.', skip: true, auto: true, done: 'Done, I added you',
     steps: ['Go to analytics.google.com and pick your website property.', 'Click Admin (the gear, bottom left), then Property access management.',
       'Click +, Add users, add our email, choose Administrator and click Add.'], copy: [['Our email', COLE]], url: 'https://analytics.google.com/analytics/web/' },
-  gsc: { title: 'Google Search Console', why: 'What people search on Google before they find you.', skip: true, auto: true,
+  gsc: { title: 'Google Search Console', why: 'What people search on Google before they find you.', skip: true, auto: true, done: 'Done, I added you',
     steps: ['Go to search.google.com/search-console and pick your website.', 'Open Settings > Users and permissions > Add user.', 'Add our email with Full permission.'],
     copy: [['Our email', COLE]], url: 'https://search.google.com/search-console/users' },
   /* 2026-10-15 (Cole): the client only INVITES us. Making the Clarity token and the Klaviyo key is our job, on the
      staff list ("Your turn"). The client taps "Done, I invited you" and Cole gets a Slack line. */
-  clarity: { title: 'Microsoft Clarity', why: 'Where shoppers get stuck on your site: rage clicks, dead clicks and how far they scroll. Free.', skip: true, invite: true,
+  clarity: { title: 'Microsoft Clarity', why: 'Where shoppers get stuck on your site: rage clicks, dead clicks and how far they scroll. Free.', skip: true, invite: true, done: 'Done, I invited you',
     steps: ['Already use Clarity? Open your project at clarity.microsoft.com, then Settings > Team > Add team member.', 'Add our email as an Admin.',
-      'No Clarity yet? Nothing to do: we set it up through your Shopify access.'], copy: [['Our email', COLE]], url: 'https://clarity.microsoft.com/projects' },
-  email: { title: 'Klaviyo', why: 'Your email and SMS results, flows and lists.', skip: true, invite: true,
+      'No Clarity yet? Install the free "Microsoft Clarity" app from the Shopify App Store first (two minutes), then add our email as above.'], copy: [['Our email', COLE]], url: 'https://clarity.microsoft.com/projects' },
+  email: { title: 'Klaviyo', why: 'Your email and SMS results, flows and lists.', skip: true, invite: true, done: 'Done, I invited you',
     steps: ['In Klaviyo click your name (bottom left) > Settings > Users > Add new user.', 'Add our email with the Admin role.'],
     copy: [['Our email', COLE]], url: 'https://www.klaviyo.com/settings/account/users' },
 };
@@ -101,8 +101,8 @@ export async function connectList(env, brandId) {
     const state = done ? 'done' : skips.includes(key) ? 'skipped' : (pend[key] || inv[key]) ? 'waiting' : 'todo';
     out.push({ key, state, title: it.title, why: it.why, steps: it.steps, copy: it.copy || [], url: it.url || null, skip: it.skip, auto: !!it.auto,
       input: !done && it.input && !(key === 'tw' && r.state !== 'off') ? it.input : null,
-      invite: !!it.invite && !done, invited: !!inv[key],
-      waiting: pend[key] ? pend[key].note : inv[key] ? 'Thanks. We finish this one on our side.' : null });
+      done_label: done ? null : it.done || null, invited: !!inv[key],
+      waiting: pend[key] ? pend[key].note : inv[key] ? (YOURS[key] ? 'Thanks. We finish this one on our side.' : 'Thanks. We are checking now; this ticks itself once we can see it.') : null });
   }
   return { brand: b?.name || null, items: out };
 }
@@ -134,11 +134,12 @@ export async function connectPost(env, tok, body, deps) {
     const s = new Set(await skipsOf(env, b.id)); body.skip ? s.add(key) : s.delete(key);
     await putS(env, `connectSkip:${b.id}`, JSON.stringify([...s]));
   } else if (body.invited !== undefined) {
-    if (!ITEMS[key].invite) throw Object.assign(new Error('Nothing to confirm for this one.'), { status: 400 });
     const inv = await invitedOf(env, b.id);
     if (body.invited) inv[key] = new Date().toISOString(); else delete inv[key];
     await putS(env, `connectInvited:${b.id}`, JSON.stringify(inv));
-    if (body.invited && deps.tellTeam) await deps.tellTeam(`${b.name} invited you to ${ITEMS[key].title}. Your turn: make the ${YOURS[key].label} and paste it in Locus (Agency settings > Integrations > Ask clients for what is missing).`).catch(() => {});
+    if (body.invited && YOURS[key] && deps.tellTeam) await deps.tellTeam(`${b.name} invited you to ${ITEMS[key].title}. Your turn: make the ${YOURS[key].label} and paste it in Locus (Agency settings > Integrations > Ask clients for what is missing).`).catch(() => {});
+    /* The EVENT: the client says it is done, so Locus looks now (Meta: assign the team; Google: link it). No timers. */
+    if (body.invited && deps.onDone) deps.onDone(key, b);
     return connectGet(env, tok, { force: true });
   } else if (key === 'tw') {
     const shop = val.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -152,7 +153,7 @@ export async function connectPost(env, tok, body, deps) {
     pend.google_ads = { id, at: new Date().toISOString(), note: sent.error ? 'We got your ID and will send the request shortly.' : 'Request sent. Accept it in Google Ads (Admin > Access and security > Managers).', error: sent.error || null };
     await putS(env, `connectPending:${b.id}`, JSON.stringify(pend));
     if (sent.error && deps.tellTeam) await deps.tellTeam(`${b.name} gave their Google Ads ID ${id} on the connect link, but Locus could not send the manager request: ${sent.error}. Send it from the Mobius manager by hand.`).catch(() => {});
-  } else throw Object.assign(new Error('Nothing to save for this one: invite us and it ticks itself.'), { status: 400 });
+  } else throw Object.assign(new Error('Nothing to save for this one: invite us, then tap Done.'), { status: 400 });
   if (deps.tellTeam && body.skip === undefined && body.invited === undefined) await deps.tellTeam(`${b.name} connected ${ITEMS[key].title} on their connect link.`).catch(() => {});
   return connectGet(env, tok, { force: true });
 }

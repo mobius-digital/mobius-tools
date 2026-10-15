@@ -6749,6 +6749,22 @@ async function roleFor(env, email) {
 }
 
 /** The signed-in email, or null for a password/token session that has none. */
+/* Look now, when something happened (connect.js): Meta = assign the team on what clients shared, then connect a waiting
+   new client's ad account; Google = link GA4 / Search Console, send a typed Google Ads ID's manager request, link an
+   accepted one. 'all' = Cole's Check now. */
+async function connectNow(env, key, brandId) {
+  const out = {};
+  if (key === 'meta' || key === 'all') {
+    out.meta = await partnerSweep(env, idxDeps()).then(r => ({ added: r.added, errors: r.errors })).catch(e => ({ error: e.message }));
+    out.connected = await autoConnectMeta(env).catch(e => ({ error: e.message }));
+  }
+  if (['ga4', 'gsc', 'all'].includes(key)) out.google = await googleMatch(env).then(r => r.matched).catch(e => ({ error: e.message }));
+  if (key === 'google_ads' || key === 'all') {
+    out.ads_sent = await onboardAdsTick(env, googleAdsInvite).catch(e => ({ error: e.message }));
+    out.ads_linked = await connectPendingTick(env).catch(e => ({ error: e.message }));
+  }
+  return out;
+}
 /* The brand behind a connect token, with its internal channel (connect.js tellTeam). */
 async function connectTokenBrand(env, tok) {
   const t = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'connectTokens'`).first())?.value, {});
@@ -7357,16 +7373,9 @@ const AH_APP = {
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         /* Meta partner sweep first (metaaccess.js): assigns the team + Mobius Tools on what clients shared, so a new
            client's ad account is visible to the auto-connect right after it. Small: ~30 reads an hour. */
-        /* Cole 2026-10-15: this only matters while a client is being onboarded, so it runs hourly only when a New client
-           was made in the last 45 days, and once a day otherwise (to catch an existing client sharing a new account). */
-        const onboarding = await env.DB.prepare(`SELECT 1 FROM p_newclient WHERE created_at > datetime('now', '-45 days') LIMIT 1`).first().catch(() => null);
-        if (onboarding || hour === 4) ran.metaSweep = await partnerSweep(env, idxDeps(), { canAfford: () => subCanAfford(40) }).then(r => ({ added: r.added, errors: r.errors?.length || 0, error: r.error })).catch(e => ({ error: e.message }));
+        /* No timed access checks (Cole 2026-10-15): the connect link's Done button, the onboarding ticks and Cole's
+           Check now run partnerSweep / Google match (connect.js onDone, /api/ask/connect/check). */
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
-        /* Google: link GA4 / Search Console the moment a client gives Cole access, and a Google Ads ID a client typed on
-           the connect link once it shows under the manager (google.js autoMatch, connect.js). Three Google reads. */
-        if ((onboarding || hour === 4) && subCanAfford(40)) ran.googleMatch = await googleMatch(env).then(r => ({ matched: r.matched })).catch(e => ({ error: e.message }));
-        if (subCanAfford(30)) ran.connectPending = await connectPendingTick(env).catch(e => ({ error: e.message }));
-        if (subCanAfford(30)) ran.onboardAds = await onboardAdsTick(env, googleAdsInvite).catch(e => ({ error: e.message }));
 
         /* Saved dashboards with a Slack schedule (the hub, 2026-10-07). */
         ran.dashboards = await dashboardTick(env).catch(e => ({ error: e.message }));
@@ -7518,7 +7527,7 @@ const AH_APP = {
        still cannot read for the brand; POST {key, value} or {key, skip} = the client finishes one item on the page. */
     { const cm = /^\/api\/connect\/([a-f0-9]{20})$/.exec(path);
       if (cm) {
-        const connectDeps = { adsInvite: googleAdsInvite, tellTeam: async text => {
+        const connectDeps = { adsInvite: googleAdsInvite, onDone: (key, b) => ctx.waitUntil(connectNow(env, key, b.id).catch(() => {})), tellTeam: async text => {
           const t = (await connectTokenBrand(env, cm[1]).catch(() => null)); if (!t?.slack_channel) return;
           await teamPost(env, cardDeps(), t.slack_channel, text, null, {}).catch(() => {}); } };
         try {
@@ -7870,6 +7879,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */
       /* Connect links for every live brand: what is missing and the link to send (connect.js). */
       if (path === '/api/ask/connect') return json(await connectOverview(env, 'https://tools.go-mobius-digital.com'));
+      /* Check now (Cole's button): every look at once, for one brand or all. */
+      if (path === '/api/ask/connect/check') return json(await connectNow(env, 'all', body.act || null));
       if (path === '/api/ask/access' && request.method === 'POST' && (body.sweep || body.dry)) return json(await partnerSweep(env, idxDeps(), { dry: !!body.dry }));
       if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {

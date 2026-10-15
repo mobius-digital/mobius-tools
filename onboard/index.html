@@ -97,7 +97,7 @@ textarea.in{min-height:90px;resize:vertical}
 </head>
 <body>
 <div class="wrap" id="app"><div class="center"><p class="note">Loading your form…</p></div></div>
-<script src="questions.js?v=11"></script>
+<script src="questions.js?v=12"></script>
 <script>
 'use strict';
 (function () {
@@ -172,6 +172,14 @@ function fieldHtml(f) {
     ${sug != null ? `<div class="sug"><b>From your website:</b> <span style="white-space:pre-wrap">${esc(sugText)}</span><br><button type="button" class="btn sm" data-use="${f.id}">Use this</button></div>` : ''}
     ${f.calc || f.type === 'check' ? '' : `<div class="foot"><span></span><button type="button" class="unsure ${unsure ? 'on' : ''}" data-unsure="${f.id}">${unsure ? 'Marked "not sure". Tap to undo.' : "I'm not sure"}</button></div>`}
   </div>`;
+}
+/* A tick on an access step is the EVENT that makes Locus look right away (account-health connect.js: Meta assigns our
+   team, Google links the property, a Google Ads ID gets the manager request). Only once the brand exists in Locus. */
+const CONNECT_KEY = { acc_meta: 'meta', acc_tw: 'tw', acc_ga4: 'ga4', acc_gsc: 'gsc', acc_klaviyo: 'email', acc_clarity: 'clarity', acc_gads_link: 'google_ads' };
+function tellConnect(id, value) {
+  const m = /[?&]c=([a-f0-9]{20})/.exec(St.links.connect || ''); const key = id === 'gads_id' ? 'google_ads' : CONNECT_KEY[id];
+  if (!m || !key) return;
+  fetch(`${AH}/api/connect/${m[1]}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value ? { key, value } : { key, invited: true }) }).catch(() => {});
 }
 /* The how-to under a tick box: numbered clicks, values to copy, the Loom. */
 function howto(f) {
@@ -251,9 +259,10 @@ function wire(s) {
     if (f.type === 'list') { listRows(f); continue; }
     if (f.type === 'yesno') { el.querySelectorAll('[data-yn]').forEach(b => b.onclick = () => { el.querySelectorAll('[data-yn]').forEach(x => x.classList.toggle('on', x === b)); setAnswer(f.id, b.dataset.yn); }); continue; }
     if (f.type === 'check' && f.auto) continue;   // Locus ticks these; the client cannot
-    if (f.type === 'check') { el.onchange = () => setAnswer(f.id, el.checked ? true : ''); continue; }
+    if (f.type === 'check') { el.onchange = () => { setAnswer(f.id, el.checked ? true : ''); if (el.checked) tellConnect(f.id); }; continue; }
     if (f.type === 'file') { paintFiles(f); el.onchange = () => upload(f, el); continue; }
     el.oninput = () => setAnswer(f.id, f.type === 'money' ? el.value.replace(/[^0-9.]/g, '') : el.value.trim());
+    if (f.id === 'gads_id') el.onchange = () => { if (el.value.replace(/\D/g, '').length === 10) tellConnect(f.id, el.value.trim()); };
   }
   document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
     const t = b.querySelector('.note');

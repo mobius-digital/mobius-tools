@@ -64,10 +64,10 @@ const STEPS = [
         steps: ['Go to search.google.com/search-console and pick your website.', 'Open Settings, then Users and permissions, then Add user.', 'Add our email with Full permission.'],
         copy: [MOBIUS.team[0]] },
       /* 2026-10-15: Locus reads Clarity (where shoppers get stuck). The client only invites us; Cole makes the token
-         himself from Locus (Integrations > Ask clients for what is missing > Your turn). No Clarity = we install it
-         through the Shopify collaborator access. */
-      { id: 'acc_clarity', label: 'Microsoft Clarity, if you use it', type: 'check',
-        steps: ['Open your project at clarity.microsoft.com, then Settings > Team > Add team member.', 'Add our email as an Admin.', 'No Clarity yet? Nothing to do: we set it up through your Shopify access.'],
+         himself from Locus (Integrations > Ask clients for what is missing > Your turn). No Clarity = the client installs
+         the free Shopify app first (Cole: installing is theirs, connecting is ours). */
+      { id: 'acc_clarity', label: 'Microsoft Clarity (free, shows where shoppers get stuck)', type: 'check',
+        steps: ['Open your project at clarity.microsoft.com, then Settings > Team > Add team member.', 'Add our email as an Admin.', 'No Clarity yet? Install the free "Microsoft Clarity" app from the Shopify App Store first (two minutes), then add our email as above.'],
         copy: [MOBIUS.team[0]] },
       { id: 'shopify_url', label: 'Your Shopify store address', type: 'text', help: 'The one that ends in .myshopify.com. You can see it in Shopify under Settings > Domains.',
         why: 'We send you a collaborator request from our side, so you never have to make us an account.' },
