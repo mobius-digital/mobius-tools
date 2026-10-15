@@ -383,6 +383,24 @@ async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, paren
     .bind(id, act, parent || null, JSON.stringify(spec), prompt, model, w, h, cost, batch_id || null, Number.isInteger(line) ? line : null, check ? JSON.stringify(check) : null).run();
   return shape(await getAd(env, id));
 }
+/* The real-product prompt. SHORT on purpose, measured 2026-10-15: with the designed-ad prompt (adPrompt: layout,
+   typography and copy rules) the model handed the canvas back with the empty area left BLACK and no words, twice; a
+   shorter version with the rules still attached painted a scene but ignored the scene notes and the headline. This
+   wording (the bench's: scene first, product kept, words inline in one sentence) painted the scene and the words. */
+function realPrompt(spec, brand, inspo = 0) {
+  const names = (spec.products || []).map(p => p.title).filter(Boolean);
+  const words = [spec.headline && `Headline "${spec.headline}"`, spec.subline && `smaller line "${spec.subline}"`,
+    ...(spec.callouts || []).map(c => `small label "${c}" next to the part it names`), spec.cta && `button "${spec.cta}"`].filter(Boolean);
+  const type = (STYLES[spec.style] || STYLES.auto).replace(/\.$/, '');
+  return [
+    `Photoreal Instagram ad, ${spec.square ? 'square' : '4:5 portrait'}, for ${brand}. The product in this image${names.length ? ` (${names.join(', ')})` : ''} is a REAL product photo already placed where it belongs. Paint the whole scene around it. The product is FIXED: its position, size, angle and which way it faces stay exactly as placed; never move, resize, rotate, flip or mirror it. Compose the scene and the words around where it already is.`,
+    spec.look ? `The scene: ${spec.look} (Where these notes describe the product's position, size, angle or facing, ignore that part: it is already placed.)` : 'The scene: a real setting that suits the product, natural light.',
+    'Match the scene light, perspective and scale to the product so it looks photographed there: the surface it rests on, a soft contact shadow where it touches, reflections of the surroundings on polished metal. Where the product runs off an edge of the frame, the scene continues behind it.',
+    'Keep the product exactly as it is: same shape, position, logos, marks and colours. Do not add a second product and do not draw any other club or logo.',
+    inspo ? 'The last attached image is inspiration only for mood and colour; never copy its products, logos or words.' : '',
+    words.length ? `Words on the ad, spelled exactly, and no other words: ${words.join('; ')}. Type: ${type}; crisp and flat, no glow or 3D. Every word between ${spec.square ? '5% and 95%' : '12% and 88%'} of the height from the top, in empty space, never touching the product.` : 'No words on the ad.',
+  ].filter(Boolean).join(' ');
+}
 async function emptyCheck(key, model, bytes, box) {
   const res = await fetch(`${OA}/chat/completions`, {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -395,11 +413,11 @@ async function emptyCheck(key, model, bytes, box) {
   if (!res.ok) throw new Error(j.error?.message || 'check failed');
   return safeJson(j.choices?.[0]?.message?.content, null);
 }
-async function layoutCheck(key, model, bytes, box) {
+async function layoutCheck(key, model, bytes, box, note = '') {
   const res = await fetch(`${OA}/chat/completions`, {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, messages: [{ role: 'user', content: [
-      { type: 'text', text: `This ad must show exactly ONE product (one club, one shaft), and no words may sit on the product, which fills the box [${box.join(', ')}] (left, top, right, bottom, 0-1000). Fail it if there is a second club or product anywhere, a second shaft, or any word overlapping that box.` },
+      { type: 'text', text: `This ad must show exactly ONE product (one club, one shaft), and no words may sit on the product, which fills the box [${box.join(', ')}] (left, top, right, bottom, 0-1000). Fail it if there is a second club or product anywhere, a second shaft, or any word overlapping that box.${note ? ' ' + note : ''}` },
       { type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } }] }],
       response_format: { type: 'json_schema', json_schema: { name: 'layout', strict: true, schema: { type: 'object', additionalProperties: false, required: ['ok', 'issue'], properties: { ok: { type: 'boolean' }, issue: { type: 'string' } } } } } }),
   });
@@ -430,7 +448,7 @@ function cleanSpec(s = {}) {
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
-    ref_use: ['copy', 'vibe', 'own'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact,
+    ref_use: ['copy', 'vibe', 'own'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact, real: !!s.real,
     cut: s.cut && /^https?:\/\//.test(s.cut.url || '') ? { url: clip(s.cut.url, 1000), x: +s.cut.x || 0, y: +s.cut.y || 0, w: +s.cut.w || 0, h: +s.cut.h || 0 } : null,
   };
 }
@@ -993,6 +1011,16 @@ export async function handleStaff(request, env, url, path, json, CORS) {
   if (path === '/api/studio/finalize' && request.method === 'POST') {
     const row = await getAd(env, body.id);
     if (!row || !body.png) return json({ error: 'id and png are required' }, 400);
+    /* Real-product ads: the browser's fit result rides along (score, tries, where the product sits), and a locked
+       9:16 goes back as the story without touching the feed picture. */
+    if (body.check && typeof body.check === 'object') {
+      const ck = { ...(safeJson(row.check_json, {}) || {}), fit: { score: +body.check.score || 0, tries: +body.check.tries || 1, ok: !!body.check.ok, kind: body.kind === 'story' ? 'story' : 'feed' } };
+      await env.DB.prepare(`UPDATE p_studio_ad SET check_json = ?2 WHERE id = ?1`).bind(row.id, JSON.stringify(ck)).run();
+    }
+    if (body.kind === 'story') {
+      await env.MEDIA.put(await keyOf(env, row, 'story'), unb64(String(body.png).replace(/^data:image\/png;base64,/, '')), { httpMetadata: { contentType: 'image/png' } });
+      return json({ ok: true, ad: shape(await getAd(env, row.id)) });
+    }
     const cur = await env.MEDIA.get(await keyOf(env, row, 'full'));
     if (cur && row.full_w === row.full_h) await env.MEDIA.put(await keyOf(env, row, 'square'), await cur.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
     /* A tall master (9:16, or 2:3 if the model refused 9:16) is kept as the Stories / Reels version. */
@@ -1063,6 +1091,42 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       }
       const ad = await saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, issue: '', exact: true }, parent: body.parent_id, batch_id: clip(body.batch_id, 40) || null, line: Number.isInteger(body.line) ? body.line : null });
       send({ type: 'done', ads: [ad] });
+    });
+  }
+  /* ---- real product (2026-10-15, the fidelity bench) ----
+     Measured on Lucky (Carver 02, Eclipse Mallet, Stryker, hats, polos; 100% crops beside the Shopify photos):
+     full AI on GPT Image 2.5 got the medallion and hat wordmark right but drew 2 of 4 wedges LEFT-HANDED, never the
+     putter's clover or heel wordmark, and missed a hybrid's gold band (9 of 16 ads passed every check). An empty
+     scene with the cut-out pasted in kept every mark but floated and looked pasted (0 of 8 shippable). What passed
+     12 of 12 club ads: the browser places the real cut-out on an empty canvas FIRST, the model paints the whole
+     scene around it (so the ground, contact shadow, light and perspective follow the product), then the browser
+     finds where the model left the product, puts the real pixels back over it and takes only the model's smooth
+     light (never its detail or colour). This route is the middle step; studio.js (front end) does the rest. */
+  if (path === '/api/studio/make-real' && request.method === 'POST') {
+    if (!key) return needKey();
+    if (!body.png) return json({ error: 'png is required' }, 400);
+    const spec = cleanSpec({ ...(body.spec || {}), exact: true, real: true });
+    const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
+    if (!acct) return json({ error: 'unknown brand' }, 404);
+    return stream(CORS, async send => {
+      const m = await models(key);
+      const canvas = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
+      const { w, h } = pngSize(canvas);
+      const insp = await refImages(env, spec.inspo, 1);
+      const scene = { ...spec, square: w === h };
+      const prompt = realPrompt(scene, acct.name, insp.length);
+      const size = `${w}x${h}`;
+      send({ type: 'status', text: 'Building the scene around the real product. About a minute.' });
+      const out = await imageCall(key, m.image, { prompt, images: [{ buf: canvas, type: 'image/png' }, ...insp], mask: canvas, size, quality: 'high' });
+      let cost = COST.feed;
+      /* One product only: a model that sees the product sometimes draws a second copy beside it. */
+      let lay = null;
+      if (spec.cut) {
+        const box = [spec.cut.x / w, spec.cut.y / h, (spec.cut.x + spec.cut.w) / w, (spec.cut.y + spec.cut.h) / h].map(v => Math.round(Math.min(1, Math.max(0, v)) * 1000));
+        lay = await layoutCheck(key, m.check || m.vision, out.bytes, box, 'The box is only the bounding box of the product: words may sit in its empty corners. Fail on words only if an ad word covers the product itself. Words, numbers and logos stamped, engraved or embroidered ON the product (a brand name, FORGED, a loft number) are part of the product and never a fail.').catch(() => null); cost += COST.vision;
+      }
+      const ad = await saveAd(env, act, { bytes: out.bytes, spec, prompt, model: m.image, cost, check: { ok: true, issue: '', exact: true, real: true, layout: lay }, parent: body.parent_id, batch_id: clip(body.batch_id, 40) || null, line: Number.isInteger(body.line) ? body.line : null });
+      send({ type: 'done', ads: [ad], layout: lay });
     });
   }
   if (path === '/api/studio/harmonize' && request.method === 'POST') {

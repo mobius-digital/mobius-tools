@@ -3517,3 +3517,29 @@ number (Poisson: a set truly on goal shows 0 sales 37% of the time at 1x spent, 
 - **Measured after deploy (2026-10-15)**: calls barely dropped (45) because the GOALS are below what Meta last-click
   shows (Bonk $25 goal vs $58; Ice & Gold $50 vs $173). Meta last platform click runs about 2x blended CAC, so a Meta
   platform goal (goal_meta) is the lever; Cole and Ahsan set it, Locus does not.
+
+## 2026-10-15: REAL PRODUCT in Studio (the fidelity bench). Read before touching exact / real-product ads.
+
+Cole: "consistently make ads with AI that always get the logo right and always get the clubs right". Bench on Lucky
+(Carver 02, Eclipse Mallet, Stryker, hats, polo; every ad graded by 100% crops beside the Shopify photos, never by a
+vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-bench. Results page: see the bench README.
+- Full AI on GPT Image 2.5 at 1536x1920 with the truth photos: 9 of 16 ads passed every check (hat wordmark and wedge
+  medallion right every time; 2 of 4 wedges drawn LEFT-HANDED, putter clover and heel wordmark wrong 4 of 4, a hybrid
+  missing its gold band). Empty AI scene + pasted cut-out: marks exact, 0 of 8 shippable (floats, looks pasted). AI
+  relight of that composite: still floating. Gemini image models: the account-health key is free tier (quota 0).
+- WINNER (now Studio's "Real product"): the real cut-out is placed on an EMPTY canvas FIRST, `/api/studio/make-real`
+  has the model paint the whole scene around it (`realPrompt`: short on purpose), then `realfit.js` (browser) finds
+  where the model left the product (`fit`, masked zero-mean correlation, coarse whole-frame at 1/16 with 6 candidates,
+  then 1/8, 1/4, 1/2) and `lock` puts the REAL pixels back lit by the model's smooth light only. Club ads: 12 of 12
+  exact and grounded on the bench, 2 of 2 first try live in Studio. Gate `RealFit.GATE` 0.78 (good fits 0.80 to 0.96,
+  every bad one 0.72 or less); up to 3 tries, best kept; a failed fit is NEVER locked (it would paste a ghost product),
+  the ad shows "Check the product". ~$0.32 an attempt, about $0.40 a finished ad.
+- Traps measured on the way: the long designed-ad prompt (adPrompt) made the model return the canvas BLACK with no
+  words; a look that re-describes the product ("club lower-right, back of the head facing camera") makes the model
+  re-pose or MIRROR it, so the art director (account-health studio-ai.js) writes setting-only looks for photo ads;
+  the one-product check must be told stamped marks (FORGED) are part of the product and the box is a bounding box.
+- On by default for clubs and caps (`REAL_RE`), switch on the Product card. Soft garments (polos) and 3-item apparel
+  scenes fail the fit (the model re-drapes or drops items): leave them on full AI. The cut-out keeps which photo
+  edges the product touched (`edges`, a shaft cut by the frame runs off the ad's edge) and peels the soft studio floor
+  shadow (neutral, smooth, bottom third only). Every real ad has "Real product · check": the photo beside the ad,
+  whole and on its two busiest details at 100%. Change with AI, variations and the 9:16 re-fit and re-lock.

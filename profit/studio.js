@@ -640,6 +640,9 @@ function batchView(b) {
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="bProd" ${prods.length >= 4 ? 'disabled' : ''}>${prods.length ? 'Add another product' : 'Choose the product'}</button>
         <button class="btn quiet" id="bPhotos" title="Photos from a shoot that are not on Shopify yet. The AI draws from them and checks against them like Shopify photos.">Add your own photos</button>
         <button class="btn quiet" id="bLib" title="Product photos from the brand’s photo library (its Drive), used like your own photos.">From the library</button></div>
+        ${prods.length ? `<div class="st-crow" style="margin-top:12px"><div><b>Real product</b><span class="tiny">The ad uses the real photo of the product, cut out. The AI builds the scene around it and only relights it, so every logo, mark and shape is the photo's. On by default for clubs and hats. Needs white-background studio photos.</span>
+          ${su.exact ? `<div class="st-thumbs" style="margin-top:8px">${S.cutting ? '<span class="st-busy"><span class="st-spin"></span>Cutting out the studio photos…</span>' : (su.cutouts || []).length ? (su.cutouts || []).map((c, k) => `<button class="t" data-zu="${esc(c.url)}" title="Real photo ${k + 1}"><img src="${esc(c.url)}" alt="" style="object-fit:contain;background:var(--surface-2)"></button>`).join('') + '<button class="st-add" id="bRecut">Cut again</button>' : '<span class="tiny">No white-background photo to cut out. Add studio photos, then press Cut again.</span><button class="st-add" id="bRecut">Cut again</button>'}</div>` : ''}</div>
+          <input type="checkbox" class="lx-sw" id="bExact" aria-label="Real product" ${su.exact ? 'checked' : ''}></div>` : ''}
         <div class="st-crow" style="margin-top:12px"><div><b>Dress a photo</b><span class="tiny">Put this product on a real photo of a person: their face, pose and light stay as shot. Saved to the library as a look you can use as the ad.</span></div><button class="btn" id="bDress">Dress a photo</button></div>
       </div>
       <div><p class="st-sub">Swipe file</p><div class="hint">Ads you like, for style ideas. Nothing is copied. Up to 12: drop, click or paste.</div>
@@ -714,7 +717,9 @@ function planRow(a, i, plan) {
    then the quiet ones (video, download, delete) under a line. */
 function adCard(a) {
   const s = a.spec || {}, ck = a.check, appr = a.status === 'approved';
-  const chk = ck?.exact ? `<span class="v2pill good"${tip('Built on a real photo of the product, kept as shot. Nothing about the product was drawn.')}>Real product photo</span>`
+  const chk = ck?.real ? (!ck.fit?.ok ? `<button class="v2pill warn" data-pcheck="${a.id}"${tip(ck.fit ? `The AI moved or redrew the product (fit ${Math.round((ck.fit.score || 0) * 100)}%), so the real photo was not put back. Open the check, then Redo.` : 'The real product was not put back on this one (it stopped part way). Redo it.')}>Check the product</button>`
+      : `<button class="v2pill good" data-pcheck="${a.id}"${tip(`The real product photo, lined up with the scene${ck.fit ? ` (fit ${Math.round(ck.fit.score * 100)}%${ck.fit.tries > 1 ? `, best of ${ck.fit.tries}` : ''})` : ''}. Its pixels are the photo's; only the light is the scene's. Click to see it beside the photo.`)}>Real product · check</button>`)
+    : ck?.exact ? `<span class="v2pill good"${tip('Built on a real photo of the product, kept as shot. Nothing about the product was drawn.')}>Real product photo</span>`
     : ck ? (ck.ok === false ? `<span class="v2pill warn"${tip(`The check model thinks the product may not match the photos${ck.issue ? `: ${ck.issue}` : ''}. Look closely before approving.`)}>Product may be off</span>`
       : ck.ok ? `<span class="v2pill good"${tip(`The check model compared the product in this ad with the product photos${ck.score != null ? ` and scored it ${ck.score} out of 10` : ''}${ck.tries ? `. This is the best of ${ck.tries} tries` : ''}. A net, not a guarantee: still look at it.`)}>Product ${ck.score != null ? ck.score + '/10' : 'checked'}${ck.tries ? ` · best of ${ck.tries}` : ''}</span>` : '') : '';
   const zn = ck?.zone, zone = !zn ? '' : zn.ok ? `<span class="v2pill good"${tip('Every word sits inside the centre square, so nothing is cut where Meta shows the ad square.')}>Words inside the square</span>`
@@ -1064,10 +1069,11 @@ async function pickProduct() {
         const p = S.products[+bt.dataset.p];
         const prod = { title: p.title, handle: p.handle, type: p.type || '', all: p.images, dna: null };
         su.products.push(prod);
-        su.exact = false;
+        su.exact = REAL_RE.test(`${p.title} ${p.type || ''}`);
         su.images = [...su.images, ...p.images.slice(0, su.products.length > 1 ? 2 : 6)].slice(0, 8);
         ctl.close(true); await saveCur(); paint();
         fingerprint(prod);
+        if (su.exact) cutAll();
       });
     };
     w.querySelector('#pq').oninput = e => { S.prodQ = e.target.value; draw(); };
@@ -1089,7 +1095,7 @@ async function planAds() {
     br.lines = br.lines.filter(l => (l.text || '').trim());
     await repairRefs(b);
     await saveCur();
-    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: false, cutouts: [], own_ad: su.from_ad?.fresh ? su.from_ad.image || '' : '' });
+    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: !!su.exact && (su.cutouts || []).length > 0, cutouts: su.exact ? (su.cutouts || []).map(c => c.url) : [], own_ad: su.from_ad?.fresh ? su.from_ad.image || '' : '' });
     b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact }; b.status = 'planned';
     await saveCur();
   } catch (e) { S.err = `Planning: ${e.message}`; }
@@ -1101,6 +1107,9 @@ async function planAds() {
    so white highlights inside the product survive), uploaded, and placed on the canvas the model
    builds the scene around. The product pixels are put back on top afterwards. */
 const HARD = /wedge|putter|hybrid|driver|iron|fairway|club|wood\b/i;
+/* Real product is the default where it was measured to work (2026-10-15 bench): clubs and caps. Soft garments (a polo)
+   get redrawn and re-draped by the model, so the fit gate rejects them; leave those on full AI unless the team switches. */
+const REAL_RE = /wedge|putter|hybrid|driver|iron|fairway|club|wood\b|\bhat\b|\bcap\b|snapback|visor/i;
 async function cutoutOf(src) {
   const im = await loadImg(src + (/cdn\.shopify\.com/.test(src) ? (src.includes('?') ? '&' : '?') + 'width=1400' : ''));
   const k = Math.min(1, 1400 / Math.max(im.naturalWidth, im.naturalHeight));
@@ -1118,6 +1127,19 @@ async function cutoutOf(src) {
   for (let xx = 0; xx < W; xx++) { push(xx); push((H - 1) * W + xx); }
   for (let yy = 0; yy < H; yy++) { push(yy * W); push(yy * W + W - 1); }
   while (stack.length) { const p = stack.pop(), xx = p % W, yy = (p / W) | 0; if (xx > 0) push(p - 1); if (xx < W - 1) push(p + 1); if (yy > 0) push(p - W); if (yy < H - 1) push(p + W); }
+  const edges0 = (() => { const al = new Uint8Array(W * H); for (let p = 0; p < W * H; p++) al[p] = bg[p] ? 0 : 255; return window.RealFit ? window.RealFit.cutEdges(al, W, H) : []; })();
+  /* Peel the studio shadow: neutral grey (not gold, not black) touching the background in the bottom third of the
+     product. Measured 2026-10-15: the Carver's soft floor shadow came through as a grey patch under the sole. */
+  if (!edges0.includes('bottom')) {
+    let ty = H, by = 0; for (let p = 0; p < W * H; p++) if (!bg[p]) { const yy = (p / W) | 0; if (yy < ty) ty = yy; if (yy > by) by = yy; }
+    const from = ty + (by - ty) * 0.66;
+    /* smooth too: a shadow is a soft gradient, polished steel has sharp reflections (so silver clubs keep their chrome) */
+    const grey = i => { const r = px[i], g = px[i + 1], b = px[i + 2], l = (r + g + b) / 3; if (!(l > 140 && l < 238 && Math.max(r, g, b) - Math.min(r, g, b) < 14)) return false;
+      const n = i + 4 < px.length ? px[i + 4] : r, d = i + W * 4 < px.length ? px[i + W * 4] : r; return Math.abs(n - r) < 7 && Math.abs(d - r) < 7; };
+    const st = [];
+    for (let p = 0; p < W * H; p++) { if (!bg[p]) continue; const xx = p % W, yy = (p / W) | 0; if (yy < from) continue; for (const q of [xx > 0 ? p - 1 : -1, xx < W - 1 ? p + 1 : -1, p - W, p + W]) if (q >= 0 && q < W * H && !bg[q] && ((q / W) | 0) >= from && grey(q * 4)) { bg[q] = 1; st.push(q); } }
+    while (st.length) { const p = st.pop(), xx = p % W; for (const q of [xx > 0 ? p - 1 : -1, xx < W - 1 ? p + 1 : -1, p - W, p + W]) if (q >= 0 && q < W * H && !bg[q] && ((q / W) | 0) >= from && grey(q * 4)) { bg[q] = 1; st.push(q); } }
+  }
   /* Keep the product: drop small islands (soft studio shadows, dust) not joined to the main shape. */
   const lab = new Int32Array(W * H), sizes = [0]; let id = 0;
   for (let p0 = 0; p0 < W * H; p0++) {
@@ -1135,11 +1157,13 @@ async function cutoutOf(src) {
     px[p * 4 + 3] = a;
   }
   if (n < W * H * 0.01 || n > W * H * 0.92) return null;
+  const al = new Uint8Array(W * H); for (let p = 0; p < W * H; p++) al[p] = px[p * 4 + 3];
+  const edges = window.RealFit ? window.RealFit.cutEdges(al, W, H) : [];
   x.putImageData(d, 0, 0);
   const pad = 4; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
   const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
   o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
-  return { blob: await new Promise(r => o.toBlob(r, 'image/png')), w: o.width, h: o.height };
+  return { blob: await new Promise(r => o.toBlob(r, 'image/png')), w: o.width, h: o.height, edges };
 }
 async function cutAll() {
   const b = S.cur, su = b.setup;
@@ -1150,7 +1174,7 @@ async function cutAll() {
     try {
       const c = await cutoutOf(u); if (!c) continue;
       const res = await fetch(S.url.replace(/\/+$/, '') + '/api/studio/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'image/png' }, body: c.blob });
-      const j = await res.json(); if (j.url) out.push({ src: u, url: j.url, w: c.w, h: c.h });
+      const j = await res.json(); if (j.url) out.push({ src: u, url: j.url, w: c.w, h: c.h, edges: c.edges || [] });
     } catch {}
   }
   su.cutouts = out; S.cutting = false;
@@ -1166,6 +1190,7 @@ function rectFor(cut, a) {
 }
 /* Put the real product pixels back on top of a square ad (after make, vary, redo or change). */
 async function relock(ad) {
+  if (ad?.spec?.real) return relockReal(ad);
   const cut = ad?.spec?.cut; if (!cut?.url || ad.full_w !== ad.full_h) return ad;
   const [base, pic] = await Promise.all([loadImg(img(ad, 'full')), loadImg(cut.url)]);
   const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
@@ -1174,37 +1199,98 @@ async function relock(ad) {
   const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad;
   return fin.ad;
 }
-async function makeExact(b, a, i, extra = {}) {
+/* ---- real product (2026-10-15, the fidelity bench; see profit/CLAUDE.md "Real product") ----
+   1. the real cut-out is placed on an EMPTY 4:5 canvas (a side the photo cut it on runs off the ad's edge);
+   2. /api/studio/make-real: the model paints the whole scene around it, so the ground, contact shadow and light follow it;
+   3. RealFit.fit finds where the model left the product (it nudges or resizes it a little); a low score = it moved, redrew
+      or dropped it, so the ad is made again (three tries at most, the best kept);
+   4. RealFit.lock puts the real pixels back there, lit by the model's smooth light only. Every mark is the photo's. */
+const RW = 1024, RH = 1280;
+function rectReal(cut, a) {
+  const f = SIZE[a.size] || SIZE.medium, [cx, cy] = PLACE[a.place] || PLACE.center;
+  const s = Math.min(f * RW / cut.w, f * 1.1 * RW / cut.h), w = cut.w * s, h = cut.h * s, m = 56;
+  let x = Math.min(RW - m - w, Math.max(m, cx * RW - w / 2)), y = Math.min(RH - 128 - h, Math.max(128, (cy * RW + 128) - h / 2));
+  const e = cut.edges || [];
+  if (e.includes('top')) y = -6; if (e.includes('bottom')) y = RH - h + 6;
+  if (e.includes('left')) x = -6; if (e.includes('right')) x = RW - w + 6;
+  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+}
+const pixels = (im, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h); return { data: x.getImageData(0, 0, w, h).data, w, h }; };
+/* Fit the real cut-out to a picture the model made and lock it. Returns {png (data URL), fit}. */
+async function fitLock(src, cutUrl, r) {
+  const [pic, cutIm] = await Promise.all([loadImg(src), loadImg(cutUrl)]);
+  const W = pic.naturalWidth, H = pic.naturalHeight, k = W / RW;
+  const rr = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
+  const ai = pixels(pic, W, H), cut = pixels(cutIm, Math.max(8, Math.round(rr.w)), Math.max(8, Math.round(rr.h)));
+  const fit = window.RealFit.fit(ai, cut, rr);
+  const lay = document.createElement('canvas'); lay.width = W; lay.height = H;
+  const lx = lay.getContext('2d', { willReadFrequently: true }); lx.drawImage(cutIm, fit.x, fit.y, fit.w, fit.h);
+  const out = window.RealFit.lock(ai, { data: lx.getImageData(0, 0, W, H).data });
+  const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+  oc.getContext('2d').putImageData(new ImageData(out, W, H), 0, 0);
+  return { png: oc.toDataURL('image/png'), fit: { ...fit, ok: fit.score >= window.RealFit.GATE } };
+}
+async function makeReal(b, a, i, extra = {}) {
   const cut = (b.setup.cutouts || [])[a.photo - 1];
-  const r = rectFor(cut, a);
-  const spec = { ...specOf(b, a), exact: true, cut: { url: cut.url, ...r } };
-  /* 1. the scene and words, with the product's spot left empty */
-  const res = await streamCall(S.url, '/api/studio/make-exact', { spec, batch_id: b.id, line: i, ...extra });
-  let ad = res.ads?.[0]; if (!ad) return null;
-  S.d.ads.unshift(ad);
-  /* 2. the real product into the spot */
-  const [scene, pic] = await Promise.all([loadImg(img(ad, 'full')), loadImg(cut.url)]);
-  const comp = document.createElement('canvas'); comp.width = 1024; comp.height = 1024;
-  const cx = comp.getContext('2d'); cx.drawImage(scene, 0, 0, 1024, 1024); cx.drawImage(pic, r.x, r.y, r.w, r.h);
-  /* 3. shadow only: the model may touch a ring around the product, never the product */
-  const mask = document.createElement('canvas'); mask.width = 1024; mask.height = 1024;
-  const mx = mask.getContext('2d'); mx.fillStyle = '#000'; mx.fillRect(0, 0, 1024, 1024);
-  mx.clearRect(Math.max(0, r.x - r.w * 0.18), Math.max(0, r.y + r.h * 0.35), r.w * 1.36, Math.min(1024, r.h * 0.9));
-  mx.drawImage(pic, r.x, r.y, r.w, r.h);
-  try {
-    const h = await streamCall(S.url, '/api/studio/harmonize', { id: ad.id, png: comp.toDataURL('image/png'), mask: mask.toDataURL('image/png') });
-    /* Take only the shadow ring from the model's pass (it redraws everything, words included);
-       the rest stays the original scene, pixel for pixel. */
-    const shaded = await loadImg(img(h.ad, 'plate'));
-    const ring = [Math.max(0, r.x - r.w * 0.18), Math.max(0, r.y + r.h * 0.35), r.w * 1.36, Math.min(1024, r.h * 0.9)];
-    const t = document.createElement('canvas'); t.width = 1024; t.height = 1024;
-    const tx = t.getContext('2d'); tx.drawImage(shaded, 0, 0, 1024, 1024);
-    tx.globalCompositeOperation = 'destination-in'; tx.filter = 'blur(14px)'; tx.fillStyle = '#000'; tx.fillRect(ring[0] + 14, ring[1] + 14, ring[2] - 28, ring[3] - 28);
-    cx.clearRect(0, 0, 1024, 1024); cx.drawImage(scene, 0, 0, 1024, 1024); cx.drawImage(t, 0, 0); cx.drawImage(pic, r.x, r.y, r.w, r.h);
-  } catch { /* no shadow is better than no ad: keep the plain composite */ }
-  const fin = await post('/api/studio/finalize', { id: ad.id, png: comp.toDataURL('image/png') });
-  const k = S.d.ads.findIndex(x => x.id === ad.id); if (k >= 0) S.d.ads[k] = fin.ad;
+  const r = rectReal(cut, a);
+  const spec = { ...specOf(b, a), exact: true, real: true, cut: { url: cut.url, ...r } };
+  const canvas = document.createElement('canvas'); canvas.width = RW; canvas.height = RH;
+  canvas.getContext('2d').drawImage(await loadImg(cut.url), r.x, r.y, r.w, r.h);
+  const png = canvas.toDataURL('image/png');
+  let best = null, tries = 0;
+  for (; tries < 3; tries++) {
+    const res = await streamCall(S.url, '/api/studio/make-real', { spec, png, batch_id: b.id, line: i, ...extra });
+    const ad = res.ads?.[0]; if (!ad) break;
+    const got = await fitLock(img(ad, 'full'), cut.url, r);
+    const lay = ad.check?.layout, okLay = !lay || lay.ok !== false;
+    const score = got.fit.score - (okLay ? 0 : 1);
+    if (!best || score > best.score) { if (best) await post('/api/studio/status', { id: best.ad.id, status: 'deleted' }).catch(() => {}); best = { ad, got, score }; }
+    else await post('/api/studio/status', { id: ad.id, status: 'deleted' }).catch(() => {});
+    if (got.fit.ok && okLay) break;
+  }
+  if (!best) return null;
+  /* No try kept the product where it was placed: never paste the real one at a guessed spot (a second, ghost product).
+     The ad stays as the model made it, flagged "Check the product", for a Redo. */
+  const fin = await post('/api/studio/finalize', { id: best.ad.id, png: best.got.fit.ok ? best.got.png : await dataUrlOf(img(best.ad, 'full')), check: { score: best.got.fit.score, ok: best.got.fit.ok, tries: Math.min(3, tries + 1) } });
+  S.d.ads.unshift(fin.ad);
   return fin.ad;
+}
+/* After Change with AI, a variation or the 9:16: the model redrew the picture, product included; put the real one back. */
+const dataUrlOf = async src => { const im = await loadImg(src); const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); return c.toDataURL('image/png'); };
+async function relockReal(ad, kind = 'full') {
+  const cut = ad?.spec?.cut; if (!ad?.spec?.real || !cut?.url || !window.RealFit) return ad;
+  const got = await fitLock(img(ad, kind), cut.url, cut);
+  const fin = await post('/api/studio/finalize', { id: ad.id, png: got.fit.ok ? got.png : await dataUrlOf(img(ad, kind)), kind: kind === 'story' ? 'story' : undefined, check: { score: got.fit.score, ok: got.fit.ok, tries: 1 } });
+  const i = S.d.ads.findIndex(x => x.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad;
+  return fin.ad;
+}
+/* The built-in check: the real photo beside the same spot in the ad, whole and at 100% on its two busiest details. */
+async function realCheck(ad) {
+  const cut = ad?.spec?.cut; if (!cut?.url || !window.RealFit) return;
+  modal('Check the product', '<div id="rcBody"><span class="st-busy"><span class="st-spin"></span>Lining the real photo up with the ad…</span></div>', { cta: null, wide: true, onOpen: async w => {
+    const host = w.querySelector('#rcBody');
+    try {
+      const [pic, cutIm] = await Promise.all([loadImg(img(ad, 'full')), loadImg(cut.url)]);
+      const W = pic.naturalWidth, H = pic.naturalHeight, k = W / RW;
+      const fit = window.RealFit.fit(pixels(pic, W, H), pixels(cutIm, Math.max(8, Math.round(cut.w * k)), Math.max(8, Math.round(cut.h * k))), { x: cut.x * k, y: cut.y * k, w: cut.w * k, h: cut.h * k });
+      /* the two most detailed squares of the photo (marks, letters, edges) */
+      const cp = pixels(cutIm, cutIm.naturalWidth, cutIm.naturalHeight), sq = Math.max(24, Math.round(Math.min(cp.w, cp.h) / 4)), cand = [];
+      for (let y = 0; y + sq <= cp.h; y += Math.round(sq / 2)) for (let x = 0; x + sq <= cp.w; x += Math.round(sq / 2)) {
+        let e = 0, n = 0;
+        for (let yy = y + 1; yy < y + sq; yy += 2) for (let xx = x + 1; xx < x + sq; xx += 2) { const i = (yy * cp.w + xx) * 4; if (cp.data[i + 3] < 200) continue; n++; e += Math.abs(cp.data[i] - cp.data[i - 4]) + Math.abs(cp.data[i + 1] - cp.data[i - cp.w * 4 + 1]); }
+        if (n > sq * sq / 8) cand.push({ x, y, e: e / n });
+      }
+      cand.sort((p, q) => q.e - p.e); const picks = [];
+      for (const c of cand) { if (picks.every(p => Math.abs(p.x - c.x) >= sq || Math.abs(p.y - c.y) >= sq)) picks.push(c); if (picks.length === 2) break; }
+      const crop = (im, x, y, cw, ch, size) => { const c = document.createElement('canvas'); c.width = size; c.height = Math.round(size * ch / cw); const cx = c.getContext('2d'); cx.fillStyle = '#e9e9e9'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(im, x, y, cw, ch, 0, 0, c.width, c.height); return c.toDataURL('image/png'); };
+      const sx = fit.w / cutIm.naturalWidth, sy = fit.h / cutIm.naturalHeight;
+      const pair = (l, r, cap) => `<div class="st-g2" style="margin-top:12px"><figure style="margin:0"><img src="${l}" alt="" style="width:100%;border-radius:8px"><figcaption class="tiny">The real photo${cap}</figcaption></figure><figure style="margin:0"><img src="${r}" alt="" style="width:100%;border-radius:8px"><figcaption class="tiny">The ad${cap}</figcaption></figure></div>`;
+      const whole = pair(crop(cutIm, 0, 0, cutIm.naturalWidth, cutIm.naturalHeight, 420), crop(pic, fit.x, fit.y, fit.w, fit.h, 420), '');
+      const zooms = picks.map((p, n) => pair(crop(cutIm, p.x, p.y, sq, sq, 320), crop(pic, fit.x + p.x * sx, fit.y + p.y * sy, sq * sx, sq * sy, 320), `, detail ${n + 1}`)).join('');
+      const ok = fit.score >= window.RealFit.GATE;
+      host.innerHTML = `<p class="hint" style="margin:0">${ok ? `The product in the ad lines up with the real photo (fit ${Math.round(fit.score * 100)}%). Its pixels are the photo's; only the light comes from the scene. Look for a second outline or a cut edge, then approve.` : `The fit is ${Math.round(fit.score * 100)}%, under ${Math.round(window.RealFit.GATE * 100)}%: the AI moved or redrew the product. Redo this ad.`}</p>${whole}${zooms}`;
+    } catch (e) { host.innerHTML = `<span class="st-msg bad">${esc(e.message)}</span>`; }
+  } });
 }
 /* 4:5 with a guaranteed 1:1 safe area: every ad is made square, then placed in a 4:5 canvas with
    transparent bands that the model fills with background only, and the original square goes back
@@ -1286,7 +1372,7 @@ async function makeBatch() {
   const one = async i => {
     try {
       let ad;
-      if (plan.exact && plan.ads[i].photo > 0 && (b.setup.cutouts || [])[plan.ads[i].photo - 1]) ad = await makeExact(b, plan.ads[i], i);
+      if (plan.exact && plan.ads[i].photo > 0 && (b.setup.cutouts || [])[plan.ads[i].photo - 1] && window.RealFit) ad = await makeReal(b, plan.ads[i], i);
       else { const r = await streamCall(S.url, '/api/studio/make', { spec: specOf(b, plan.ads[i]), n: 1, batch_id: b.id, line: i }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); }); ad = r.ads?.[0]; }
       await extend(ad).catch(e => { S.err = `4:5: ${e.message}`; });
       done++; tick(); return ad;
@@ -1323,10 +1409,12 @@ function wireAds() {
     try {
       const r = await streamCall(S.url, '/api/studio/story', { id: x.dataset.st9 });
       const i = S.d.ads.findIndex(a => a.id === r.ad.id); if (i >= 0) S.d.ads[i] = r.ad;
+      if (r.ad.spec?.real && window.RealFit) { x.textContent = 'Putting the real product in the 9:16…'; await relockReal(r.ad, 'story'); }
     } catch (e) { S.err = `9:16: ${e.message}`; }
     paint();
   });
   document.querySelectorAll('[data-redo]').forEach(x => x.onclick = () => redo(S.d.ads.find(a => a.id === x.dataset.redo)));
+  document.querySelectorAll('[data-pcheck]').forEach(x => x.onclick = () => realCheck(S.d.ads.find(a => a.id === x.dataset.pcheck)));
   document.querySelectorAll('[data-change]').forEach(x => x.onclick = () => change(S.d.ads.find(a => a.id === x.dataset.change)));
   document.querySelectorAll('[data-vid]').forEach(x => x.onclick = () => makeVideo(S.d.ads.find(a => a.id === x.dataset.vid)));
   document.querySelectorAll('[data-vplay]').forEach(x => x.onclick = () => playVid(S.vids.find(v => v.id === x.dataset.vplay)));
@@ -1342,8 +1430,8 @@ async function redo(a) {
     if (a.spec?.varied_from) {
       const r = await streamCall(S.url, '/api/studio/vary', { base_id: a.spec.varied_from, spec: a.spec, batch_id: a.batch_id, line: a.line });
       S.d.ads.unshift(r.ad); await extend(await relock(r.ad));
-    } else if (a.spec?.exact && a.spec?.cut && S.cur?.plan?.ads?.[a.line]) {
-      await extend(await makeExact(S.cur, S.cur.plan.ads[a.line], a.line, { parent_id: a.id }));
+    } else if (a.spec?.real && a.spec?.cut && S.cur?.plan?.ads?.[a.line] && window.RealFit) {
+      await makeReal(S.cur, S.cur.plan.ads[a.line], a.line, { parent_id: a.id });
     } else {
       const r = await streamCall(S.url, '/api/studio/make', { spec: a.spec, n: 1, parent_id: a.id, batch_id: a.batch_id, line: a.line }, o => { if (o.type === 'ad') S.d.ads.unshift(o.ad); });
       await extend(r.ads?.[0]);
