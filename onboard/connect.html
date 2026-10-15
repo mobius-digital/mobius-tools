@@ -113,6 +113,7 @@ function card(it) {
     ${m ? `<div class="msg ${m.kind}">${esc(m.text)}</div>` : ''}
     <div class="foot">${it.url ? `<a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">Open ${esc(it.title.split(' (')[0])}</a>` : '<span></span>'}
       ${it.auto && !it.input ? `<span class="auto">Ticks itself once we can see it.</span>` : ''}
+      ${it.invite && !it.invited ? `<button class="btn pri" data-invited="${it.key}" type="button">Done, I invited you</button>` : ''}
       ${it.skip ? `<button class="link" data-skip="${it.key}" type="button">We don't use this</button>` : ''}</div>
   </div>`;
 }
@@ -126,7 +127,7 @@ function render() {
   document.title = `${D.brand} · Connect your accounts`;
   $('#app').innerHTML = `<header><div class="brand">${LOGO}<span>${esc(D.brand)}</span></div>
     <h1>${open.length ? 'Connect your accounts' : 'All connected. Thank you.'}</h1>
-    <p class="lede">${open.length ? `${open.length === 1 ? 'One thing' : `${open.length} things`} left so we can see everything in one place. Each one takes a minute or two, and this page ticks them off by itself as they connect. We never ask for a password.` : 'We can see everything we need. You can close this page.'}</p></header>
+    <p class="lede">${open.length ? `${open.length === 1 ? 'One thing' : `${open.length} things`} left so we can see everything in one place. Each one takes a minute or two, and this page ticks them off by itself as they connect. You only invite us; we never ask for a password or a key.` : 'We can see everything we need. You can close this page.'}</p></header>
     <div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
     <div class="count">${done} of ${items.length} connected</div>
     ${open.map(card).join('')}
@@ -152,6 +153,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.copy != null) { navigator.clipboard?.writeText(t.dataset.copy).then(() => { const s = t.querySelector('.cpd'); if (s) { s.textContent = 'Copied'; setTimeout(() => { s.textContent = 'Copy'; }, 1500); } }); return; }
   if (t.dataset.save) { const v = (typed[t.dataset.save] || '').trim(); if (!v) { msgs[t.dataset.save] = { kind: 'bad', text: 'Paste it in the box first.' }; render(); return; } post(t.dataset.save, { value: v }); return; }
+  if (t.dataset.invited) { post(t.dataset.invited, { invited: true }); return; }
   if (t.dataset.skip) { post(t.dataset.skip, { skip: true }); return; }
   if (t.dataset.unskip) { post(t.dataset.unskip, { skip: false }); return; }
 });

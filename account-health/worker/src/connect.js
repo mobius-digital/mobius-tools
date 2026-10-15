@@ -1,6 +1,4 @@
 import { integrationsReport } from './integrations.js';
-import { storeClarity } from './clarity.js';
-import { storeKey as klaviyoStore } from './klaviyo.js';
 import { autoMatch as googleMatch } from './google.js';
 import { setTripleWhale, connSet } from './brands.js';
 /**
@@ -10,9 +8,9 @@ import { setTripleWhale, connSet } from './brands.js';
  *
  * One link per brand, no login: onboard/connect.html?c=<token>. It lists ONLY what Locus still cannot read for that
  * brand, each with the exact clicks, and ticks itself off as things connect (the page re-reads every 30 seconds).
- * What the client can finish on the page itself:
- *   - Clarity: paste the Data Export token (verified live, same as Settings > Integrations).
- *   - Klaviyo: paste a private API key (verified live).
+ * The client only gives access; keys are ours (Cole, 2026-10-15). On the page itself:
+ *   - Clarity / Klaviyo: invite our email, tap "Done, I invited you" (settings `connectInvited:<brand>`, Slack line to
+ *     the team); Cole then makes the token / key from the staff list ("Your turn", `yours` in connectOverview).
  *   - Google Ads: type the customer ID; Locus sends the Mobius manager request itself, they click Accept.
  *   - Triple Whale: type the store address.
  *   - "We don't use this": hides the item for good (settings `connectSkip:<brand>`), staff can see it.
@@ -47,14 +45,24 @@ const ITEMS = {
   gsc: { title: 'Google Search Console', why: 'What people search on Google before they find you.', skip: true, auto: true,
     steps: ['Go to search.google.com/search-console and pick your website.', 'Open Settings > Users and permissions > Add user.', 'Add our email with Full permission.'],
     copy: [['Our email', COLE]], url: 'https://search.google.com/search-console/users' },
-  clarity: { title: 'Microsoft Clarity', why: 'Where shoppers get stuck on your site: rage clicks, dead clicks and how far they scroll. Free.', skip: true,
-    steps: ['No Clarity yet? Install the free "Microsoft Clarity" app from the Shopify App Store (or add a project at clarity.microsoft.com). It takes two minutes.',
-      'In Clarity open your project, then Settings > Data Export > Generate new API token. Name it Mobius.', 'Copy the token and paste it below.'],
-    url: 'https://clarity.microsoft.com/projects', input: { key: 'clarity', label: 'Clarity API token', placeholder: 'Paste the long token', secret: true } },
-  email: { title: 'Klaviyo', why: 'Your email and SMS results, flows and lists.', skip: true,
-    steps: ['In Klaviyo click your name (bottom left) > Settings > API keys > Create Private API Key.', 'Name it Mobius, choose Full Access, and create it.', 'Copy the key (it starts with pk_) and paste it below.'],
-    url: 'https://www.klaviyo.com/settings/account/api-keys', input: { key: 'klaviyo', label: 'Klaviyo private API key', placeholder: 'pk_...', secret: true } },
+  /* 2026-10-15 (Cole): the client only INVITES us. Making the Clarity token and the Klaviyo key is our job, on the
+     staff list ("Your turn"). The client taps "Done, I invited you" and Cole gets a Slack line. */
+  clarity: { title: 'Microsoft Clarity', why: 'Where shoppers get stuck on your site: rage clicks, dead clicks and how far they scroll. Free.', skip: true, invite: true,
+    steps: ['Already use Clarity? Open your project at clarity.microsoft.com, then Settings > Team > Add team member.', 'Add our email as an Admin.',
+      'No Clarity yet? Nothing to do: we set it up through your Shopify access.'], copy: [['Our email', COLE]], url: 'https://clarity.microsoft.com/projects' },
+  email: { title: 'Klaviyo', why: 'Your email and SMS results, flows and lists.', skip: true, invite: true,
+    steps: ['In Klaviyo click your name (bottom left) > Settings > Users > Add new user.', 'Add our email with the Admin role.'],
+    copy: [['Our email', COLE]], url: 'https://www.klaviyo.com/settings/account/users' },
 };
+
+/* What Cole does once the client has invited him (the staff list's "Your turn"). `field` = the /api/brand-links key. */
+const YOURS = {
+  email: { field: 'klaviyo_key', label: 'Klaviyo private key', url: 'https://www.klaviyo.com/settings/account/api-keys',
+    steps: 'Open Klaviyo and switch to the brand (account menu, bottom left) > Settings > API keys > Create Private API Key > name it Mobius > Full Access > Create. Copy it and paste it here.' },
+  clarity: { field: 'clarity_token', label: 'Clarity API token', url: 'https://clarity.microsoft.com/projects',
+    steps: "Open the brand's Clarity project (none yet? install the free Microsoft Clarity app in their Shopify admin first) > Settings > Data Export > Generate new API token. Copy it and paste it here." },
+};
+const invitedOf = async (env, id) => safe(await getS(env, `connectInvited:${id}`), {});
 
 async function tokens(env) { return safe(await getS(env, 'connectTokens'), {}); }
 /** The brand's link token, made on first ask. */
@@ -82,6 +90,7 @@ export async function connectList(env, brandId) {
   const by = Object.fromEntries((b?.items || []).map(i => [i.key, i]));
   const skips = await skipsOf(env, brandId);
   const pend = safe(await getS(env, `connectPending:${brandId}`), {});
+  const inv = await invitedOf(env, brandId);
   const out = [];
   for (const [key, it] of Object.entries(ITEMS)) {
     const r = by[key]; if (!r) continue;
@@ -89,10 +98,11 @@ export async function connectList(env, brandId) {
     if (key === 'email' && r.tool === 'attentive') continue;
     /* Meta: an ad account on the brand means the client already shared it (data may still be syncing). */
     const done = r.state === 'ok' || (key === 'meta' && !r.input);
-    const state = done ? 'done' : skips.includes(key) ? 'skipped' : pend[key] ? 'waiting' : 'todo';
+    const state = done ? 'done' : skips.includes(key) ? 'skipped' : (pend[key] || inv[key]) ? 'waiting' : 'todo';
     out.push({ key, state, title: it.title, why: it.why, steps: it.steps, copy: it.copy || [], url: it.url || null, skip: it.skip, auto: !!it.auto,
       input: !done && it.input && !(key === 'tw' && r.state !== 'off') ? it.input : null,
-      waiting: pend[key] ? pend[key].note : null });
+      invite: !!it.invite && !done, invited: !!inv[key],
+      waiting: pend[key] ? pend[key].note : inv[key] ? 'Thanks. We finish this one on our side.' : null });
   }
   return { brand: b?.name || null, items: out };
 }
@@ -123,9 +133,14 @@ export async function connectPost(env, tok, body, deps) {
   if (body.skip !== undefined) {
     const s = new Set(await skipsOf(env, b.id)); body.skip ? s.add(key) : s.delete(key);
     await putS(env, `connectSkip:${b.id}`, JSON.stringify([...s]));
-  } else if (key === 'clarity') await storeClarity(env, b.id, val, null);
-  else if (key === 'email') await klaviyoStore(env, b.id, val);
-  else if (key === 'tw') {
+  } else if (body.invited !== undefined) {
+    if (!ITEMS[key].invite) throw Object.assign(new Error('Nothing to confirm for this one.'), { status: 400 });
+    const inv = await invitedOf(env, b.id);
+    if (body.invited) inv[key] = new Date().toISOString(); else delete inv[key];
+    await putS(env, `connectInvited:${b.id}`, JSON.stringify(inv));
+    if (body.invited && deps.tellTeam) await deps.tellTeam(`${b.name} invited you to ${ITEMS[key].title}. Your turn: make the ${YOURS[key].label} and paste it in Locus (Agency settings > Integrations > Ask clients for what is missing).`).catch(() => {});
+    return connectGet(env, tok, { force: true });
+  } else if (key === 'tw') {
     const shop = val.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if (!/^[a-z0-9-]+\.myshopify\.com$/.test(shop)) throw Object.assign(new Error('That should end in .myshopify.com. Shopify shows it under Settings > Domains.'), { status: 400 });
     await setTripleWhale(env, b.id, shop);
@@ -138,7 +153,7 @@ export async function connectPost(env, tok, body, deps) {
     await putS(env, `connectPending:${b.id}`, JSON.stringify(pend));
     if (sent.error && deps.tellTeam) await deps.tellTeam(`${b.name} gave their Google Ads ID ${id} on the connect link, but Locus could not send the manager request: ${sent.error}. Send it from the Mobius manager by hand.`).catch(() => {});
   } else throw Object.assign(new Error('Nothing to save for this one: invite us and it ticks itself.'), { status: 400 });
-  if (deps.tellTeam && body.skip === undefined) await deps.tellTeam(`${b.name} connected ${ITEMS[key].title} on their connect link.`).catch(() => {});
+  if (deps.tellTeam && body.skip === undefined && body.invited === undefined) await deps.tellTeam(`${b.name} connected ${ITEMS[key].title} on their connect link.`).catch(() => {});
   return connectGet(env, tok, { force: true });
 }
 
@@ -167,7 +182,10 @@ export async function connectOverview(env, origin) {
     const tok = await connectToken(env, b.id);
     out.push({ id: b.id, name: b.name, link: `${origin}/onboard/connect.html?c=${tok}`,
       missing: l.items.filter(i => i.state === 'todo' || i.state === 'waiting').map(i => i.title),
-      skipped: l.items.filter(i => i.state === 'skipped').map(i => i.title), done: l.items.filter(i => i.state === 'done').map(i => i.title) });
+      skipped: l.items.filter(i => i.state === 'skipped').map(i => i.title), done: l.items.filter(i => i.state === 'done').map(i => i.title),
+      /* Your turn: the keys only Cole can make, once the client has invited him (or before, if he already has access). */
+      yours: l.items.filter(i => YOURS[i.key] && (i.state === 'todo' || i.state === 'waiting'))
+        .map(i => ({ key: i.key, title: i.title, invited: i.invited, ...YOURS[i.key] })) });
   }
   return { brands: out };
 }

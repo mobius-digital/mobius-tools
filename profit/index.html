@@ -2332,7 +2332,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 
 <script src="meta.js?v=12"></script>
 <script src="amb.js?v=25"></script>
-<script src="../onboard/questions.js?v=10"></script>
+<script src="../onboard/questions.js?v=11"></script>
 <script src="brand.js?v=23"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=6"></script>
@@ -11723,11 +11723,23 @@ async function renderSettings() {
       const need = rows.filter(b => b.missing.length);
       const msg = b => `Hi ${b.name} team! A few quick connections so we can see everything in one place: ${b.missing.join(', ')}. This page has the exact clicks for each and ticks them off by itself as they connect (no passwords): ${b.link}`;
       el.innerHTML = `<div class="card set-card"><h3>Ask clients for what is missing</h3>
-        <p class="hint set-why">Each client has one link. It shows only what Locus still cannot see for them, with the exact clicks, and ticks itself off as things connect. Clarity and Klaviyo keys are pasted right on the page. Send it in their Slack channel.</p>
+        <p class="hint set-why">Each client has one link. It shows only what Locus still cannot see for them, with the exact clicks, and ticks itself off as things connect. Clients only invite us. The keys are yours: each one is under the client, with the clicks and a box to paste it. Send the link in their Slack channel.</p>
         ${need.length ? '' : '<p class="hint">Every client is connected.</p>'}
-        <div style="display:flex;flex-direction:column;gap:8px">${rows.map(b => `<div class="cn-opt"><span><b>${esc(b.name)}</b> <span class="tiny">${b.missing.length ? 'Missing: ' + esc(b.missing.join(', ')) : 'All connected'}${b.skipped.length ? ' · not used: ' + esc(b.skipped.join(', ')) : ''}</span></span>
-          <span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-s" data-cncopy="${esc(b.link)}">Copy link</button>${b.missing.length ? `<button type="button" class="btn btn-s" data-cncopy="${esc(msg(b))}">Copy message</button>` : ''}<a class="btn btn-s" href="${esc(b.link)}" target="_blank" rel="noopener">Open</a></span></div>`).join('')}</div></div>`;
-      el.onclick = e => { const t = e.target.closest('[data-cncopy]'); if (!t) return; navigator.clipboard?.writeText(t.dataset.cncopy).then(() => { const w = t.textContent; t.textContent = 'Copied'; setTimeout(() => { t.textContent = w; }, 1400); }); };
+        <div style="display:flex;flex-direction:column;gap:8px">${rows.map(b => `<div class="cn-opt" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span><b>${esc(b.name)}</b> <span class="tiny">${b.missing.length ? 'Missing: ' + esc(b.missing.join(', ')) : 'All connected'}${b.skipped.length ? ' · not used: ' + esc(b.skipped.join(', ')) : ''}</span></span>
+          <span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-s" data-cncopy="${esc(b.link)}">Copy link</button>${b.missing.length ? `<button type="button" class="btn btn-s" data-cncopy="${esc(msg(b))}">Copy message</button>` : ''}<a class="btn btn-s" href="${esc(b.link)}" target="_blank" rel="noopener">Open</a></span></div>
+          ${(b.yours || []).map(y => `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)"><div><b>Your turn: ${esc(y.label)}</b> <span class="tiny">${y.invited ? 'they say they invited you' : 'once they invite you'}</span></div>
+            <div class="tiny" style="margin:3px 0 6px">${esc(y.steps)} <a href="${esc(y.url)}" target="_blank" rel="noopener">Open</a></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap"><input type="password" autocomplete="off" style="flex:1 1 220px;min-width:0" placeholder="Paste the ${esc(y.label.toLowerCase())}" data-cnkey="${esc(b.id)}|${esc(y.field)}"><button type="button" class="btn btn-s" data-cnsave="${esc(b.id)}|${esc(y.field)}">Save</button></div>
+            <div class="tiny" data-cnmsg="${esc(b.id)}|${esc(y.field)}"></div></div>`).join('')}</div>`).join('')}</div></div>`;
+      el.onclick = async e => {
+        const sv = e.target.closest('[data-cnsave]');
+        if (sv) { const k = sv.dataset.cnsave, [act, field] = k.split('|'); const inp = el.querySelector(`[data-cnkey="${k}"]`), out = el.querySelector(`[data-cnmsg="${k}"]`);
+          const v = (inp?.value || '').trim(); if (!v) { out.textContent = 'Paste it first.'; return; }
+          sv.disabled = true; sv.textContent = 'Checking…';
+          try { await mApi('/api/brand-links', { method: 'PUT', body: JSON.stringify({ act, [field]: v }) }); out.textContent = 'Connected.'; inp.value = ''; sv.closest('div[style*="border-top"]').style.opacity = '.5'; }
+          catch (er) { out.textContent = er.message || 'That did not work.'; }
+          sv.disabled = false; sv.textContent = 'Save'; return; }
+        const t = e.target.closest('[data-cncopy]'); if (!t) return; navigator.clipboard?.writeText(t.dataset.cncopy).then(() => { const w = t.textContent; t.textContent = 'Copied'; setTimeout(() => { t.textContent = w; }, 1400); }); };
     })();
     /* Production v2 (2026-10-14): the Asana mirror switch for Production, agency side only. */
     if (AGENCY && window.ProductionTab && window.ProductionTab.mirrorCard) window.ProductionTab.mirrorCard($('#pdMirror'), { apiAH, confirmModal, S });

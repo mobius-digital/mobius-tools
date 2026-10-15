@@ -2256,3 +2256,9 @@ all the clients a link that auto updates?"
   `vip`, `reorder_flows`, `content_calendar` removed (Klaviyo / the Locus calendar answer them).
 - **TikTok**: still not connectable: TIKTOK_APP_ID / TIKTOK_APP_SECRET are not set (app review). Once set, Cole signs in
   once; TikTok ties the token to the ad accounts ticked at sign-in, so a NEW client's TikTok account needs a re-connect.
+- **2026-10-15 (later), Cole: "all they need to do is give me access... then I need a checklist on my end."** The client
+  never pastes a key: Clarity and Klaviyo are INVITE steps on the connect page ("Done, I invited you" ->
+  `connectInvited:<brand>` + a Slack line), and the staff list carries `yours` per brand (connect.js `YOURS`: the clicks
+  for Cole and a paste box that PUTs `/api/brand-links` klaviyo_key / clarity_token). No Clarity = Cole installs it
+  through the Shopify collaborator access. The Meta sweep and Google autoMatch run hourly ONLY while a New client is
+  under 45 days old, else once a day at 4am Central.

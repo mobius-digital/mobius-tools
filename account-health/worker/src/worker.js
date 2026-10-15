@@ -7357,11 +7357,14 @@ const AH_APP = {
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         /* Meta partner sweep first (metaaccess.js): assigns the team + Mobius Tools on what clients shared, so a new
            client's ad account is visible to the auto-connect right after it. Small: ~30 reads an hour. */
-        ran.metaSweep = await partnerSweep(env, idxDeps(), { canAfford: () => subCanAfford(40) }).then(r => ({ added: r.added, errors: r.errors?.length || 0, error: r.error })).catch(e => ({ error: e.message }));
+        /* Cole 2026-10-15: this only matters while a client is being onboarded, so it runs hourly only when a New client
+           was made in the last 45 days, and once a day otherwise (to catch an existing client sharing a new account). */
+        const onboarding = await env.DB.prepare(`SELECT 1 FROM p_newclient WHERE created_at > datetime('now', '-45 days') LIMIT 1`).first().catch(() => null);
+        if (onboarding || hour === 4) ran.metaSweep = await partnerSweep(env, idxDeps(), { canAfford: () => subCanAfford(40) }).then(r => ({ added: r.added, errors: r.errors?.length || 0, error: r.error })).catch(e => ({ error: e.message }));
         ran.newClientMeta = await autoConnectMeta(env).catch(e => ({ error: e.message }));
         /* Google: link GA4 / Search Console the moment a client gives Cole access, and a Google Ads ID a client typed on
            the connect link once it shows under the manager (google.js autoMatch, connect.js). Three Google reads. */
-        if (subCanAfford(40)) ran.googleMatch = await googleMatch(env).then(r => ({ matched: r.matched })).catch(e => ({ error: e.message }));
+        if ((onboarding || hour === 4) && subCanAfford(40)) ran.googleMatch = await googleMatch(env).then(r => ({ matched: r.matched })).catch(e => ({ error: e.message }));
         if (subCanAfford(30)) ran.connectPending = await connectPendingTick(env).catch(e => ({ error: e.message }));
         if (subCanAfford(30)) ran.onboardAds = await onboardAdsTick(env, googleAdsInvite).catch(e => ({ error: e.message }));
 

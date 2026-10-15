@@ -63,10 +63,12 @@ const STEPS = [
       { id: 'acc_gsc', label: 'Google Search Console', type: 'check',
         steps: ['Go to search.google.com/search-console and pick your website.', 'Open Settings, then Users and permissions, then Add user.', 'Add our email with Full permission.'],
         copy: [MOBIUS.team[0]] },
-      /* 2026-10-15: Locus reads Clarity (where shoppers get stuck). Clarity has no invite-a-partner flow, only a token,
-         so the client pastes it on the connect page, which checks it on the spot. */
-      { id: 'acc_clarity', label: 'Microsoft Clarity (free, shows where shoppers get stuck)', type: 'check', link: 'connect',
-        steps: ['No Clarity yet? Install the free "Microsoft Clarity" app from the Shopify App Store. It takes two minutes.', 'In Clarity open your project, then Settings > Data Export > Generate new API token. Name it Mobius.', 'Paste the token on your connect page (button below). It checks it straight away.'] },
+      /* 2026-10-15: Locus reads Clarity (where shoppers get stuck). The client only invites us; Cole makes the token
+         himself from Locus (Integrations > Ask clients for what is missing > Your turn). No Clarity = we install it
+         through the Shopify collaborator access. */
+      { id: 'acc_clarity', label: 'Microsoft Clarity, if you use it', type: 'check',
+        steps: ['Open your project at clarity.microsoft.com, then Settings > Team > Add team member.', 'Add our email as an Admin.', 'No Clarity yet? Nothing to do: we set it up through your Shopify access.'],
+        copy: [MOBIUS.team[0]] },
       { id: 'shopify_url', label: 'Your Shopify store address', type: 'text', help: 'The one that ends in .myshopify.com. You can see it in Shopify under Settings > Domains.',
         why: 'We send you a collaborator request from our side, so you never have to make us an account.' },
       { id: 'shopify_code', label: 'Your collaborator request code, if you have one', type: 'text', help: 'Shopify > Settings > Users > Security, under Collaborators. Leave empty if it says anyone can send a request.' },
@@ -74,8 +76,8 @@ const STEPS = [
         steps: ['Once you add your store address above, we send the request.', 'You get an email from Shopify. Open it and click Approve (Settings > Users also shows it). That is it.'] },
       { id: 'acc_tw', label: 'Triple Whale (or the attribution tool you use)', type: 'check',
         steps: ['Open Settings > Users and click Invite.', 'Add both of our emails with the Admin role.'], copy: MOBIUS.team },
-      { id: 'acc_klaviyo', label: 'Klaviyo (or the email tool you use)', type: 'check', link: 'connect',
-        steps: ['In Klaviyo: Settings > Users > Add new user. Add our email with the Admin role.', 'Then Settings > API keys > Create Private API Key, name it Mobius, choose Full Access, and paste it on your connect page (button below). That is how our reporting reads your flows and campaigns.', 'Use Attentive or another tool? Invite our email as an admin there instead.'], copy: [MOBIUS.team[0]] },
+      { id: 'acc_klaviyo', label: 'Klaviyo (or the email tool you use)', type: 'check',
+        steps: ['In Klaviyo: Settings > Users > Add new user.', 'Add our email with the Admin role. We take it from there.'], copy: [MOBIUS.team[0]] },
       { id: 'acc_tiktok', label: 'TikTok Ads, if you run them', type: 'check',
         steps: ['In TikTok Business Center: Users > Invite member.', 'Add both of our emails as Admin, and share the ad account with Full access.'], copy: MOBIUS.team },
       { id: 'content_link', label: 'Where your content lives', type: 'url', help: 'A link to your Google Drive, Dropbox, Frame or wherever your photos, videos and past ads already are.',
