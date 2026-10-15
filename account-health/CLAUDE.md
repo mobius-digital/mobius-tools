@@ -2270,3 +2270,35 @@ all the clients a link that auto updates?"
   field send the same POST (onboard/index.html `tellConnect`, needs `links.connect`). Cole's Check now =
   `POST /api/ask/connect/check` (connectNow 'all'). Meta and Google offer no webhook for "a client gave you access".
   Clarity: the CLIENT installs it (free Shopify app) and invites us; Cole connects it.
+
+## 2026-10-15: SLACK ANSWERS LIKE VIKTOR (one message, real tables, order line items, image matching). Read before touching answerSlack.
+
+Cole compared a Locus thread with Viktor's on the same Bonk BFCM question (Locus: 6 posts, a split code-block table,
+"can't see line items", "web search ran out", "is this for Bonk?"; Ice & Gold V1s: "I can't see images, a human should
+sort 14 pairs"). Tests: `node test-stratdata.mjs` (8); test-stratmake checks the report rides on the one message.
+- **One message** (ask/engine.js `slackMessage`): the answer is drawn as rich_text (one short block per paragraph /
+  list / quote / code, never one tall block: Slack folds a tall block behind Show more) plus at most ONE native `table`
+  block (Slack allows one a message; a markdown pipe table or a code-block table becomes it; further tables are
+  monospace). Refused table = the same message with the table monospace (`plain`); refused again = section pieces,
+  logged "rich message refused". A copy/paste draft after a line "---- draft ----" (`splitDraft`) is the only second
+  message. Reports ride as link buttons (`noop_open`, one block each) on the answer, never a second copy. The live
+  "On it" message is replaced in place. Prompt: `C.slackStyle` overrides the engine's Slack style block.
+- **Citations**: adjacent text blocks in the final turn join with nothing between (a web answer is one block per cited
+  phrase); only a tool step between two blocks starts a paragraph.
+- **store_sql** (stratdata.js): Triple Whale's warehouse through `POST https://api.triplewhale.com/api/v2/orcabase/api/sql`
+  {shopId, query, period {startDate, endDate}}, x-api-key = TW_API_KEY (works, verified 2026-10-15: Bonk BFCM 2025 =
+  535 paid orders, 1.89 units, 677 Headwear units). ClickHouse; `orders_table.products_info` is the line items;
+  `@startDate` / `@endDate` in the SQL. `gateTwSql` = one SELECT/WITH, no writes. Always loaded.
+- **web_lookup**: DuckDuckGo html (Bing second) and a page reader (r.jina.ai when a plain fetch is thin), for when the
+  server web_search / web_fetch (now max_uses 15 each) run out. Always loaded.
+- **make_canvas**: `canvases.create` (markdown) + `canvases.access.set` (asker write, channel read) + files.info permalink.
+  Needs the bot scope `canvases:write`; NOT verified live (the tool says the fix if Slack refuses).
+- **match_ads_to_board**: live Meta ads (ad sets by name, `adset.id IN` so the creative read stays small; never
+  asset_feed_spec) and their adimages (full url + upload name) vs the Production board version files of the tests
+  (p_work_file, 600px via prodwork `smallPic`), ONE Opus 5.5 vision call (~$0.16 for 29 ads + 28 files), verdicts:
+  keep = the last approved version of each ad (else the newest), pause = any other version, unsure = no match; plus
+  upload order, duplicates (two ads on one design) and board files never uploaded. Live run on Ice & Gold tests 3/4/5
+  matched all 14 V1s with the deciding detail and the Strategist sent one 14-pause approval card (not applied).
+- `POST /api/ask/tool {name, input}` runs a data tool directly: ADMIN_TOKEN only (the local .dev.vars token works on
+  `wrangler dev --remote`, which carries the deployed secrets).
+- Ledger and Supply use the same engine: they get the one-message Slack shape on their next deploy (not deployed here).
