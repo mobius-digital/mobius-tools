@@ -161,6 +161,18 @@ function tile(t) {
 const SKIP_RE = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
 function checklist() {
   const b = D.brand;
+  // The short creator checklist (2026-10-15): three boxes, a few short lines each. "Say it right" is only
+  // for when you mention something; nobody has to say every line. Older brands fall back to the long lists.
+  const c = b.checklist;
+  if (c && ((c.do || []).length || (c.say || []).length || (c.skip || []).length)) {
+    const list = (cls, title, sub, items) => items.length ? `<div class="ck-list ${cls}"><p class="ck-h">${esc(title)}${sub ? ` <span class="ck-sub">${esc(sub)}</span>` : ''}</p><ul>${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+    return `<section class="card checklist" id="checklist">
+      <div class="ck-top"><h2>${ic('list-checks', 18)}Before you film</h2><p>Thirty seconds. Saves you a video we cannot run.</p></div>
+      ${(c.do || []).length ? `<div class="ck-boxes">${c.do.map(x => `<div class="ck-box">${ic('check', 15)}<div><b>${esc(x.title)}</b>${x.text ? `<span>${esc(x.text)}</span>` : ''}</div></div>`).join('')}</div>` : ''}
+      ${list('ck-say', 'Say it right', 'only if you mention it', c.say || [])}
+      ${list('ck-skip', 'Skip these', '', c.skip || [])}
+    </section>`;
+  }
   const av = b.avoid || [], g = b.guide || [], r = b.rules || [];
   // Skip these is its own list since 2026-10-15 (b.skip); older brands still split their rules by how each line opens.
   const own = Array.isArray(b.skip);

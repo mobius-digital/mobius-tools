@@ -123,6 +123,7 @@ function shapeBrand(b, acct) {
     pdf: safeJson(b.pdf_json, null),
     guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
     hooks: safeJson(b.hooks_json, []),          // "First seconds" bank, [{title, how, kind, url, clip}]
+    checklist: safeJson(b.checklist_json, null),   // the creator checklist {do:[{title,text}], say:[], skip:[]}, three short lines each (amb-009)
     skip: b.skip_json == null ? null : safeJson(b.skip_json, []),   // checklist "Skip these"; null = guess from rules (old brands)
     board_mode: b.board_mode === 'auto' ? 'auto' : 'picked', board_n: b.board_n || 20, board_sort: BOARD_SORTS.has(b.board_sort) ? b.board_sort : 'orders',   // the video board (amb-004)
   };
@@ -479,6 +480,14 @@ export async function handleStaff(request, env, url, path, json) {
         has('guide') ? JSON.stringify((Array.isArray(body.guide) ? body.guide : []).map(x => ({ title: clip(x.title, 120), text: clip(x.text, 500) })).filter(x => x.title || x.text).slice(0, 14)) : cur.guide_json,
         has('hooks') ? JSON.stringify((Array.isArray(body.hooks) ? body.hooks : []).map(x => ({ title: clip(x.title, 120), how: clip(x.how, 500), kind: x.kind === 'brand' ? 'brand' : 'shared', url: /^https:\/\/\S+$/i.test(x.url || '') ? clip(x.url, 500) : null, clip: /^[a-f0-9]{16}$/.test(x.clip || '') ? x.clip : null })).filter(x => x.title || x.how).slice(0, 40)) : cur.hooks_json,
       ).run();
+      if (has('checklist')) {
+        const c = body.checklist || {};
+        const lines = v => arr(v, 6, 160);
+        await env.DB.prepare(`UPDATE p_amb_brand SET checklist_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify({
+          do: (Array.isArray(c.do) ? c.do : []).map(x => ({ title: clip(x?.title, 80), text: clip(x?.text, 160) })).filter(x => x.title).slice(0, 6),
+          say: lines(c.say), skip: lines(c.skip),
+        })).run();
+      }
       if (has('skip')) await env.DB.prepare(`UPDATE p_amb_brand SET skip_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(arr(body.skip, 12, 300))).run();
       if (has('board_mode') || has('board_n') || has('board_sort')) {
         // A changed mode, size or ranking re-ranks on the next page load (board_at cleared).

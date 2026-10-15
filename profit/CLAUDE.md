@@ -3452,8 +3452,12 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
     To the end (writes `board_sort` for every video, `POST /api/amb/board {order}`), Take it off (deletes the proof
     row and an uploaded file). **Add videos** = From our ads (the picker), Upload a video (`/api/amb/upload` then
     `{upload}`), Another brand's ad from Atria (account-health clip-to-angle with `angle_id: 'board'`).
-  - **Checklist** = four boxes: Please stop filming these (`avoid`), Before you film (`guide`), Always say (`rules`),
-    Skip these (`p_amb_brand.skip_json`, its own list since amb-007; null = the page still splits `rules` by SKIP_RE).
+  - **Checklist** (2026-10-15 later, Cole: "Always say" read like every video must say it, and it was "a LOT that
+    people won't read") = THREE boxes of about three short lines: Before you film (title + one line), **Say it right**
+    ("only if you mention it"), Skip these. Stored in `p_amb_brand.checklist_json` {do:[{title,text}], say:[], skip:[]}
+    (amb-009, written for all five brands from their long lists). The page shows only this when it exists. The LONG
+    lists (`guide`, `rules`, `avoid`, `skip_json`) stay for briefs, the PDF and the Strategist, edited under Settings >
+    More > Full rules. The staff box warns past three lines.
   - **Settings** = name, address, TRYBE link and button text, logo, colour, how the board fills, categories (rename,
     show / hide, add), the PDF, and More: the old **Idea briefs** view (`angles`) and **Every other text field**
     (`link`, the old Link and brief form), each with Back to Settings.

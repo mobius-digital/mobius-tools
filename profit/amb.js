@@ -471,6 +471,7 @@ function boardCss() {
 .avb-moves .btn{min-height:44px;padding:0 8px;justify-content:center}
 .avb-rm{color:var(--bad)!important;border-color:color-mix(in srgb,var(--bad) 40%,var(--line))!important;min-height:44px;width:100%}
 .avc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.avc3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .avc-card{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
 .avc-card h3{margin:0;font-size:16px;display:flex;align-items:center;gap:8px}
 .avc-card > p{margin:4px 0 10px;color:var(--muted);font-size:13px}
@@ -502,6 +503,7 @@ function boardCss() {
 .av-top .addr a{font-size:13px;color:var(--muted)}
 .av-top .btn{min-height:40px}
 @media (max-width:1100px){.avb-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:1100px){.avc3{grid-template-columns:1fr}}
 @media (max-width:860px){.avb-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.avc{grid-template-columns:1fr}}
 @media (max-width:600px){.avb-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.avs-g{grid-template-columns:1fr}.avb-top .btn.primary{width:100%}.av-top .btn{flex:1;white-space:nowrap;padding:0 10px}.av-top .addr{min-width:100%}.av-top .am-sw{width:100%;min-height:40px}.avb-moves{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `;
@@ -727,45 +729,39 @@ const SKIP_START = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
 function paintChecklist(body) {
   boardCss();
   const b = S.data.brand;
-  const rules = b.rules || [];
-  const own = Array.isArray(b.skip);
-  const say = own ? rules : rules.filter(x => !SKIP_START.test(x));
-  const skip = own ? b.skip : rules.filter(x => SKIP_START.test(x));
-  // One item = one box: the line in bold, an optional smaller line under it, a delete button on the right.
+  // The short creator checklist (checklist_json). A brand without one starts from its long lists, cut to three.
+  const c = b.checklist || {
+    do: (b.guide || []).slice(0, 3).map(x => ({ title: x.title, text: '' })),
+    say: (Array.isArray(b.skip) ? (b.rules || []) : (b.rules || []).filter(x => !SKIP_START.test(x))).slice(0, 3),
+    skip: (Array.isArray(b.skip) ? b.skip : (b.rules || []).filter(x => SKIP_START.test(x))).slice(0, 3),
+  };
   const two = (k, a, bb, pa, pb) => `<div class="avc-row" data-row="${k}"><div class="avc-item"><textarea class="avc-t1" data-f="a" rows="1" placeholder="${esc(pa)}">${esc(a || '')}</textarea><textarea class="avc-t2" data-f="b" rows="1" placeholder="${esc(pb)}">${esc(bb || '')}</textarea></div><button class="avc-x" type="button" data-x aria-label="Delete this line">${ic('x', 15)}</button></div>`;
   const one = (k, a, pa) => `<div class="avc-row" data-row="${k}"><div class="avc-item"><textarea class="avc-t1 n" data-f="a" rows="1" placeholder="${esc(pa)}">${esc(a || '')}</textarea></div><button class="avc-x" type="button" data-x aria-label="Delete this line">${ic('x', 15)}</button></div>`;
   const ROW = {
-    stop: x => two('stop', x?.title, x?.why, 'What not to film', 'Why (optional)'),
-    do: x => two('do', x?.title, x?.text, 'The rule', 'One line on how (optional)'),
-    say: x => one('say', x, 'Something to always say or show'),
-    skip: x => one('skip', x, 'Something to never say or do'),
+    do: x => two('do', x?.title, x?.text, 'The rule, a few words', 'One short line on how (optional)'),
+    say: x => one('say', x, 'If they mention it, say it this way'),
+    skip: x => one('skip', x, 'Something that gets a video dropped'),
   };
-  const card = (k, cls, icon, title, line, items) => `<section class="avc-card ${cls}"><h3>${ic(icon, 17)}${esc(title)}</h3><p>${esc(line)}</p><div data-list="${k}">${items.map(ROW[k]).join('')}</div><button class="btn avc-add" type="button" data-add="${k}">${ic('plus', 14)} Add a line</button></section>`;
-  body.innerHTML = `<p class="hint" style="margin:6px 0 14px">This is the checklist at the bottom of the creator link. Keep every line short.</p>
-    <div class="avc">
-      ${card('stop', 'stop', 'ban', 'Please stop filming these', 'What we have plenty of. Shown first, in red.', b.avoid || [])}
-      ${card('do', '', 'list-checks', 'Before you film', 'How to make a video that holds attention.', b.guide || [])}
-      ${card('say', '', 'megaphone', 'Always say', 'Product names, true claims, what to show.', say)}
-      ${card('skip', '', 'x', 'Skip these', 'Claims we cannot make, things that get a video dropped.', skip)}
+  const card = (k, cls, icon, title, line, items) => `<section class="avc-card ${cls}"><h3>${ic(icon, 17)}${esc(title)}</h3><p>${esc(line)}</p><div data-list="${k}">${items.map(ROW[k]).join('')}</div><p class="hint avc-warn" data-warn="${k}" style="margin:0 0 8px;color:var(--warn)"></p><button class="btn avc-add" type="button" data-add="${k}">${ic('plus', 14)} Add a line</button></section>`;
+  body.innerHTML = `<p class="hint" style="margin:6px 0 14px">The checklist under the videos on the creator link. <b>Three short lines a box.</b> Creators skim; the full rules stay under Settings &gt; More for briefs and the Strategist.</p>
+    <div class="avc avc3">
+      ${card('do', '', 'list-checks', 'Before you film', 'How to make a video people watch.', c.do || [])}
+      ${card('say', '', 'megaphone', 'Say it right', 'Only if they mention it. Nobody has to say these.', c.say || [])}
+      ${card('skip', 'stop', 'ban', 'Skip these', 'Claims we cannot make, videos we have plenty of.', c.skip || [])}
     </div>
     <div class="av-save"><span class="am-msg" id="cMsg"></span><button class="btn primary" id="cSave" type="button">Save the checklist</button></div>`;
   const fit = t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
-  const fitAll = () => body.querySelectorAll('.avc-item textarea').forEach(fit);
+  const warn = () => ['do', 'say', 'skip'].forEach(k => { const n = body.querySelectorAll(`[data-list="${k}"] .avc-row`).length; body.querySelector(`[data-warn="${k}"]`).textContent = n > 3 ? `${n} lines. Creators read about three; cut one if you can.` : ''; });
   body.addEventListener('input', e => { if (e.target.matches('.avc-item textarea')) fit(e.target); });
   body.addEventListener('click', e => {
-    const x = e.target.closest('[data-x]'); if (x) { x.closest('.avc-row').remove(); return; }
-    const a = e.target.closest('[data-add]'); if (a) { const k = a.dataset.add; const box = body.querySelector(`[data-list="${k}"]`); box.insertAdjacentHTML('beforeend', ROW[k]()); box.lastElementChild.querySelector('textarea').focus(); }
+    const x = e.target.closest('[data-x]'); if (x) { x.closest('.avc-row').remove(); warn(); return; }
+    const a = e.target.closest('[data-add]'); if (a) { const k = a.dataset.add; const box = body.querySelector(`[data-list="${k}"]`); box.insertAdjacentHTML('beforeend', ROW[k]()); box.lastElementChild.querySelector('textarea').focus(); warn(); }
   });
-  requestAnimationFrame(fitAll);
+  requestAnimationFrame(() => { body.querySelectorAll('.avc-item textarea').forEach(fit); warn(); });
   $('#cSave').onclick = async () => {
     const rows = k => [...body.querySelectorAll(`[data-list="${k}"] .avc-row`)].map(r => [r.querySelector('[data-f="a"]').value.trim(), r.querySelector('[data-f="b"]')?.value.trim() || '']).filter(([a]) => a);
-    const payload = {
-      avoid: rows('stop').map(([title, why]) => ({ title, why })),
-      guide: rows('do').map(([title, text]) => ({ title, text })),
-      rules: rows('say').map(([a]) => a),
-      skip: rows('skip').map(([a]) => a),
-    };
-    try { S.data = await post('/api/amb/brand', payload, 'PUT'); flashMsg($('#cMsg'), 'Saved. Creators see it on their next load.'); }
+    const checklist = { do: rows('do').map(([title, text]) => ({ title, text })), say: rows('say').map(([a]) => a), skip: rows('skip').map(([a]) => a) };
+    try { S.data = await post('/api/amb/brand', { checklist }, 'PUT'); flashMsg($('#cMsg'), 'Saved. Creators see it on their next load.'); }
     catch (e) { flashMsg($('#cMsg'), e.message, false); }
   };
 }
@@ -803,7 +799,7 @@ function paintSettings(body) {
     <section class="avs-card"><h3>More</h3>
       <div class="avs-more">
         <button type="button" data-go="angles">Idea briefs<span>Written ideas with steps and lines. Creators no longer see these.</span></button>
-        <button type="button" data-go="link">Every other text field<span>Intro, about, PDF words, the opener bank.</span></button>
+        <button type="button" data-go="link">Full rules and every other text field<span>The long rules for briefs and the Strategist, intro, PDF words, the opener bank.</span></button>
       </div></section>
     <div class="av-save"><span class="am-msg" id="sMsg"></span><button class="btn primary" id="sSave" type="button">Save settings</button></div>
   </div>`;
