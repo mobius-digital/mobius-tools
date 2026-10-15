@@ -11,7 +11,7 @@ import json, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SLUGS = ['party-patch', 'grunk-dolfer', 'dartee', 'hiden', 'ice-and-gold']   # add a brand here for a clean link preview
-V = '18'
+V = '19'
 
 icons = json.load(open(os.path.join(HERE, 'icons.json'), encoding='utf-8'))
 src = open(os.path.join(HERE, 'app.src.js'), encoding='utf-8').read()
@@ -22,21 +22,21 @@ SHELL = '''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Creator angles</title>
-<meta name="description" content="What to film this week: angles, openers, shot plans and proof. Updated by the brand.">
-<meta property="og:title" content="Creator angles">
-<meta property="og:description" content="What to film this week: angles, openers, shot plans and proof.">
-<meta name="theme-color" content="#ffffff">
+<title>Creator videos</title>
+<meta name="description" content="Watch these, make your version. Videos that worked, picked by the brand.">
+<meta property="og:title" content="Creator videos">
+<meta property="og:description" content="Watch these, make your version.">
+<meta name="theme-color" content="#131316" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#F6F6F7" media="(prefers-color-scheme: light)">
 <meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
 <link rel="stylesheet" href="/angles/app.css?v={V}">
 </head>
 <body>
 <div id="app"></div>
-<noscript><p style="padding:40px;font-family:sans-serif">This page needs JavaScript to show the angles.</p></noscript>
+<noscript><p style="padding:40px;font-family:sans-serif">This page needs JavaScript to show the videos.</p></noscript>
 <script src="/angles/app.js?v={V}"></script>
 </body>
 </html>
@@ -72,9 +72,9 @@ if (/^\/angles\/[a-z0-9-]+\/?$/i.test(location.pathname)) {
 </html>
 '''
 inner = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
-         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&display=swap">'
+         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">'
          f'<link rel="stylesheet" href="/angles/app.css?v={V}">'
-         '<meta name="theme-color" content="#ffffff">'
+         '<meta name="theme-color" content="#131316" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#F6F6F7" media="(prefers-color-scheme: light)">'
          '</head><body><div id="app"></div>'
          f'<script src="/angles/app.js?v={V}"></script>')
 open(os.path.join(ROOT, '404.html'), 'w', encoding='utf-8').write(NOT_FOUND % json.dumps(inner).replace('</', '<' + chr(92) + '/'))

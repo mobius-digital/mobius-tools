@@ -1,12 +1,16 @@
-/* The creator link (Ambassadors). One brand's living brief, read by creators.
+/* The creator link (Ambassadors). One brand's video board, read by its TRYBE creators.
  * Data: GET {API}/api/angles/<slug>. No sign-in, no money on the page.
  * Built by angles/build.py, which inlines the Lucide icons into app.js.
  *
- * The look is the Lucky Golf creator hub's: Archivo, flat cards, pill rows, black
- * primary buttons. Two screens since 2026-10-14 (Frost Buddy's shape): a feed of
- * videos that worked with a Film this button, and one checklist. Phone first: the
- * How panel is a bottom sheet, the pill rows scroll sideways, and one submit
- * button sits in a bottom bar under the thumb.
+ * v19 (2026-10-14, Cole after walking Frost Buddy's hub): ONE page, a video board.
+ *   "Watch these. Make your version." -> category chips (the brand's sections, only when
+ *   there are two or more) -> a grid of videos (tap plays; ours and other brands', the
+ *   other brands' ones carry who made it and the team's one-line "steal this" note) ->
+ *   the 4 steps (the TRYBE link lives in step 4 only) -> the checklist (stop filming these,
+ *   before you film, always say, skip these).
+ * Every idea field (steps, openers, hooks bank, season, about) is still stored and edited
+ * in Locus; the page just does not show it. Look = Locus v2: Inter, graphite dark by
+ * default, a true light theme, one brand accent.
  */
 (function () {
 'use strict';
@@ -27,12 +31,10 @@ function staffToken() {
 const TOK = staffToken();
 const authed = () => (TOK ? { headers: { Authorization: 'Bearer ' + TOK } } : undefined);
 const ICONS = __ICONS__;
-const ic = (n, s = 16, st = '') => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px;${st}" aria-hidden="true">${ICONS[n] || ''}</svg>`;
-const svgI = (svg, s = 16) => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px" aria-hidden="true">${svg || ICONS.sparkles}</svg>`;
+const ic = (n, s = 16) => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const $ = s => document.querySelector(s);
-const app = $('#app');
-const isPhone = () => matchMedia('(max-width: 699px)').matches;
+const app = document.getElementById('app');
+const canHover = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 function slugFromUrl() {
   const q = new URLSearchParams(location.search).get('b');
@@ -42,7 +44,8 @@ function slugFromUrl() {
 }
 const SLUG = slugFromUrl();
 let D = null;
-const F = { sec: 'all', fmt: 'all' };
+let CAT = 'all';
+let TILES = [];
 
 function toast(msg) {
   document.querySelectorAll('.toast').forEach(t => t.remove());
@@ -51,96 +54,235 @@ function toast(msg) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2400);
 }
-async function copy(text) { try { await navigator.clipboard.writeText(text); return true; } catch { return false; } }
 
-/* ---------- colour ---------- */
+/* ---------- colour: one brand accent, readable on both themes ---------- */
 function hexToRgb(h) { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return null; const n = parseInt(m[1], 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
 const mix = (rgb, w, t) => rgb.map((c, i) => Math.round(c * (1 - t) + w[i] * t));
 const toHex = rgb => '#' + rgb.map(c => c.toString(16).padStart(2, '0')).join('');
 function lum(rgb) { const a = rgb.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * a[0] + .7152 * a[1] + .0722 * a[2]; }
-function darkenTo(rgb, ratio) { let c = rgb; for (let i = 0; i < 16 && (1.05 / (lum(c) + .05)) < ratio; i++) c = mix(c, [0, 0, 0], .08); return c; }
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+function toward(rgb, target, bg, ratio) { let c = rgb; for (let i = 0; i < 20 && contrast(c, bg) < ratio; i++) c = mix(c, target, .1); return c; }
 function applyAccent(hex) {
-  const rgb = hexToRgb(hex); if (!rgb) return;
+  const rgb = hexToRgb(hex) || [143, 179, 255];
   const r = document.documentElement.style;
-  r.setProperty('--acc', toHex(rgb));
-  r.setProperty('--acc-ink', toHex(darkenTo(rgb, 5)));
-  r.setProperty('--acc-soft', `rgba(${rgb.join(',')},.12)`);
-  r.setProperty('--acc-line', `rgba(${rgb.join(',')},.45)`);
-  r.setProperty('--glow', `rgba(${rgb.join(',')},.14)`);
+  r.setProperty('--acc-d', toHex(toward(rgb, [255, 255, 255], [19, 19, 22], 4.5)));
+  r.setProperty('--acc-l', toHex(toward(rgb, [0, 0, 0], [255, 255, 255], 4.5)));
+  r.setProperty('--acc-rgb', rgb.join(','));
 }
-/** One section colour becomes a tag, a badge and a lane edge. */
-const toneVars = hex => {
-  const rgb = hexToRgb(hex) || [95, 100, 114];
-  return `--t:${toHex(rgb)};--t-ink:${toHex(darkenTo(rgb, 5))};--t-soft:rgba(${rgb.join(',')},.17);--t-soft2:rgba(${rgb.join(',')},.05);--t-line:rgba(${rgb.join(',')},.32)`;
-};
 
-/* ---------- data ---------- */
-const lanes = () => [D.hot, ...D.sections].filter(s => s && s.angles.length);
-const uniq = () => { const seen = new Set(); return lanes().flatMap(s => s.angles).filter(a => !seen.has(a.id) && seen.add(a.id)); };
-const findAngle = id => uniq().find(a => a.id === id);
-const sectionOf = a => D.sections.find(s => s.id === a.section_id);
-/* `products` is free text the team types, so the card has to tidy it:
-   "Muni belts (The Last Loop, Beach Club, ...)"        -> "Muni belts"
-   "Koozies, ball markers, divot tools, towels"         -> "Koozies +3"
-   The angle's own page still shows the full string, untouched. */
-function shortProd(p) {
-  const t = String(p || '').split('(')[0].trim().replace(/[,;]\s*$/, '');
-  if (t.length <= 20) return t;
-  // A list, however it was punctuated: "a, b and c" / "a or b" / "a + b" -> "a +2".
-  const parts = t.split(/\s*[,+]\s*|\s+and\s+|\s+or\s+/i).map(x => x.trim()).filter(Boolean);
-  if (parts.length < 2) return t;
-  // "Fall drops: Brown Chunkman, Espresso Martini, ..." -> "Fall drops +3":
-  // when the list already carries its own label, that label IS the short name.
-  const head = parts[0].includes(':') ? parts[0].split(':')[0].trim() : parts[0];
-  return `${head} +${parts.length - 1}`;
-}
-/* The value the team put on MOST of this brand's angles is its default - "Any
-   Dartee belt", "Party Patch", "Grunk Dolfer polos" - which is another way of
-   saying "our product". On every card it is noise, so only the ones that name
-   something specific get a chip. */
-/* "The Muni" the group and "Muni belts" the product are the same fact twice.
-   Compare them stripped down to letters and drop the chip if either swallows
-   the other, so a product chip only ever ADDS something. */
-const bare = t => String(t || '').toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
-function sameThing(p, name) {
-  const a = bare(p), b = bare(name);
-  return !!a && !!b && (a.includes(b) || b.includes(a));
-}
-/* Words the team types when the answer is "no particular product". They are
-   not products, so they never become a chip. */
-const VAGUE = new Set(['everything', 'all', 'any', 'anything', 'allproducts', 'various', 'na', 'none']);
-let _defProd = null;
-function defaultProd() {
-  if (_defProd === null) {
-    const c = {};
-    for (const a of uniq()) { const p = shortProd(a.products); if (p) c[p] = (c[p] || 0) + 1; }
-    _defProd = Object.entries(c).sort((x, y) => y[1] - x[1])[0]?.[0] || '';
-  }
-  return _defProd;
-}
-const fmtViews = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
-const platformOf = u => /tiktok/i.test(u) ? 'TikTok' : /instagram/i.test(u) ? 'Instagram' : /facebook|fb\.watch/i.test(u) ? 'Facebook' : /youtu/i.test(u) ? 'YouTube' : 'the web';
+/* ---------- the tiles ---------- */
+const isTheirs = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
+const whoOf = p => String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, '').trim();
 const plat = () => D.brand.submit_platform || 'TRYBE';
-const addDays = (ymd, n) => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const fmtDay = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-const fmtMon = ymd => new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+function ideas() {
+  const seen = new Set();
+  return [D.hot, ...D.sections].filter(s => s && s.angles.length).flatMap(s => s.angles).filter(a => !seen.has(a.id) && seen.add(a.id));
+}
+/* One tile per video, dealt round-robin so the board never shows one idea twice in a row:
+   the lead video of every idea first (the ideas the team flagged Start here at the very
+   top, one star each, like Frost Buddy's one starred card), then every idea's second
+   video, and so on. Inside an idea our own videos lead and other brands' follow. */
+function buildTiles() {
+  const out = [];
+  const seen = new Set();
+  ideas().forEach((a, ai) => {
+    const pr = (a.proof || []).filter(p => p.kind === 'meta' || p.kind === 'upload' || ((p.kind === 'post' || p.kind === 'typed') && p.url && p.thumb));
+    pr.sort((x, y) => isTheirs(x) - isTheirs(y));
+    let r = 0;
+    for (const p of pr) {
+      const key = p.ad_id || p.file || p.url;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ p, a, theirs: isTheirs(p), star: !!a.hot && r === 0, r: r++, ai });
+    }
+  });
+  out.sort((x, y) => (y.star - x.star) || (x.r - y.r) || (x.ai - y.ai));
+  return out.map((t, i) => ({ ...t, i }));
+}
+function cats() {
+  const n = {};
+  for (const t of TILES) if (t.a.section_id) n[t.a.section_id] = (n[t.a.section_id] || 0) + 1;
+  return D.sections.filter(s => n[s.id]).map(s => ({ id: s.id, name: s.name, n: n[s.id] }));
+}
+const shown = () => TILES.filter(t => CAT === 'all' || t.a.section_id === CAT);
 
-/* ---------- submit ---------- */
-function filmBtn(a, cls) {
+function tile(t) {
+  const p = t.p;
+  const cover = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
+  const media = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
+    : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.8" preload="none" muted playsinline loop tabindex="-1" aria-hidden="true"></video>` : '';
+  const who = whoOf(p);
+  const chip = t.theirs ? `<span class="chip chip-them">${esc(who || 'Another brand')}</span>` : p.kind === 'meta' ? `<span class="chip chip-ours">Ran as our ad</span>` : '';
+  const head = t.theirs ? (p.note || t.a.title) : t.a.title;
+  return `<button class="tile" data-t="${t.i}" aria-label="Play: ${esc(head)}">
+    <span class="tl-media" ${cover}>${media}<span class="tl-shade"></span>
+      ${t.star ? `<span class="tl-star">${ic('star', 12)}Start here</span>` : ''}
+      <span class="tl-play">${ic('play', 18)}</span>
+    </span>
+    <span class="tl-cap">${chip}<b>${esc(head)}</b></span>
+  </button>`;
+}
+
+/* ---------- the page ---------- */
+const SKIP_RE = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
+function checklist() {
   const b = D.brand;
-  if (!b.submit_url) return `<span class="btn ${cls} is-off" aria-disabled="true">Submit on ${esc(plat())}</span>`;
-  const label = a ? (b.submit_label || `Film this on ${plat()}`) : `Open our ${plat()} campaign`;
-  return `<a class="btn ${cls}" href="${esc(b.submit_url)}" target="_blank" rel="noopener" data-film="${esc(a ? a.title : '')}">${esc(label)}${ic('arrow-right', 15)}</a>`;
+  const av = b.avoid || [], g = b.guide || [], r = b.rules || [];
+  const say = r.filter(x => !SKIP_RE.test(x)), skip = r.filter(x => SKIP_RE.test(x));
+  const block = (cls, icon, title, items) => items.length ? `<section class="ck ${cls}">
+      <h3><span class="ck-i">${ic(icon, 16)}</span>${esc(title)}</h3>
+      <ul>${items.map(x => `<li>${typeof x === 'string' ? `<span>${esc(x)}</span>` : `<span><b>${esc(x.title)}</b>${x.text || x.why ? ` ${esc(x.text || x.why)}` : ''}</span>`}</li>`).join('')}</ul>
+    </section>` : '';
+  if (!av.length && !g.length && !r.length) return '';
+  return `<section class="checklist" id="checklist">
+    <div class="sec-h"><p class="eyebrow">Before you film</p><h2>The checklist</h2><p class="sub">Read it once. It is the difference between a video we run and one we do not.</p></div>
+    <div class="ck-grid">
+      ${block('ck-stop', 'ban', 'Please stop filming these', av)}
+      ${block('ck-do', 'list-checks', 'Before you film', g)}
+      ${block('ck-say', 'megaphone', 'Always say', say)}
+      ${block('ck-skip', 'x', 'Skip these', skip)}
+    </div>
+  </section>`;
 }
-function wireFilm(root = app) {
-  root.querySelectorAll('[data-film]').forEach(el => el.addEventListener('click', e => {
-    e.stopPropagation();
-    const t = el.dataset.film;
-    if (t) copy(`Angle: ${t}`).then(ok => ok && toast('Angle name copied. Paste it in your submission note.'));
-  }));
+function steps() {
+  const b = D.brand;
+  const sub = b.submit_url
+    ? `<a class="btn btn-acc" href="${esc(b.submit_url)}" target="_blank" rel="noopener">${esc(b.submit_label || `Open our ${plat()} campaign`)}${ic('arrow-right', 15)}</a>`
+    : `<p class="st-note">Submit it on ${esc(plat())} like always.</p>`;
+  const S = [
+    ['Pick one', 'Tap any video and watch how they filmed it.'],
+    ['Copy it', `Same idea, your place, your voice, our product.`],
+    ['Film it right', 'Run the checklist below before you hit record.'],
+    [`Submit on ${plat()}`, 'Post it and send it to us so it can run as an ad.'],
+  ];
+  return `<section class="steps" id="steps">${S.map(([t, d], k) => `<div class="st"><span class="st-n">${k + 1}</span><div><b>${esc(t)}</b><p>${esc(d)}</p>${k === 3 ? sub : ''}</div></div>`).join('')}</section>`;
+}
+function render() {
+  const b = D.brand;
+  document.title = `${b.display_name} · Watch these, make your version`;
+  const cs = cats();
+  const list = shown();
+  const pv = D.preview ? `<div class="pv-bar" role="status"><b>Preview.</b> This link is switched off, so creators see "being set up". Only signed-in Mobius staff can see this page.</div>` : '';
+  const ours = TILES.filter(t => !t.theirs).length;
+  app.innerHTML = `${pv}
+  <header class="top"><div class="wrap">
+    <a class="brand" href="#" aria-label="${esc(b.display_name)} creators">${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}<span class="tag-c">Creators</span></a>
+    <a class="top-link" href="#checklist">${ic('list-checks', 15)}<span>The checklist</span></a>
+  </div></header>
+  <main>
+    <section class="hero"><div class="wrap">
+      <p class="eyebrow">${esc(b.display_name)} creators</p>
+      <h1>Watch these.<br>Make your version.</h1>
+      <p class="lede">${TILES.length} videos that worked${ours && ours < TILES.length ? `, ours and other brands'` : ''}. Pick one, film yours today. That's the whole job.</p>
+    </div></section>
+    <div class="wrap">
+      ${cs.length > 1 ? `<div class="cats" role="group" aria-label="Show"><button class="cat ${CAT === 'all' ? 'on' : ''}" data-cat="all">All<span>${TILES.length}</span></button>${cs.map(c => `<button class="cat ${CAT === c.id ? 'on' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}<span>${c.n}</span></button>`).join('')}</div>` : ''}
+      <div class="grid">${list.map(tile).join('') || '<p class="empty">No videos here yet.</p>'}</div>
+      ${steps()}
+      ${checklist()}
+    </div>
+  </main>
+  <footer><div class="wrap"><span>Questions? Message ${esc(b.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>`;
+  wire();
+}
+function wire() {
+  app.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => {
+    CAT = c.dataset.cat;
+    const y = app.querySelector('.cats').getBoundingClientRect().top;
+    const x = app.querySelector('.cats').scrollLeft;
+    render();
+    const n = app.querySelector('.cats'); n.scrollLeft = x;
+    scrollBy(0, n.getBoundingClientRect().top - y);
+  });
+  app.querySelectorAll('[data-t]').forEach(el => {
+    el.onclick = () => openPlayer(TILES[+el.dataset.t]);
+    if (!canHover()) return;
+    const v = el.querySelector('video');
+    if (!v) return;
+    el.addEventListener('mouseenter', () => { if (v.dataset.src) loadPreview(v); v.play().catch(() => {}); });
+    el.addEventListener('mouseleave', () => { v.pause(); try { v.currentTime = .8; } catch {} });
+  });
+  app.querySelectorAll('a[href="#checklist"]').forEach(a => a.onclick = e => { e.preventDefault(); document.getElementById('checklist')?.scrollIntoView({ behavior: 'smooth' }); });
+  app.querySelector('.brand').onclick = e => { e.preventDefault(); scrollTo({ top: 0, behavior: 'smooth' }); };
+  wirePreviews();
+  loadCovers(shown().map(t => t.p));
 }
 
-/* ---------- top bar + footer ---------- */
+/* First frames: a clip's <video> gets its src only when it is near the screen. */
+function loadPreview(v) { if (v.dataset.src) { v.src = v.dataset.src; v.preload = 'metadata'; delete v.dataset.src; } }
+const previewIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => {
+  for (const e of es) if (e.isIntersecting) { loadPreview(e.target); previewIO.unobserve(e.target); }
+}, { rootMargin: '400px 0px' }) : null;
+function wirePreviews() {
+  app.querySelectorAll('video.pv[data-src]').forEach(v => previewIO ? previewIO.observe(v) : loadPreview(v));
+}
+
+/* ---------- the player: a sheet from the bottom on a phone, a card on a desktop ---------- */
+function openPlayer(t) {
+  closePlayer();
+  const p = t.p, a = t.a;
+  const who = whoOf(p);
+  const info = t.theirs
+    ? `<span class="chip chip-them">${esc(who || 'Another brand')}</span>
+       <b class="pl-t">${esc(p.note || a.title)}</b>
+       <p class="pl-s">Not our brand, but they did it well. Take the idea, film it with ${esc(D.brand.display_name)}.</p>`
+    : `${p.kind === 'meta' ? '<span class="chip chip-ours">Ran as our ad</span>' : ''}
+       <b class="pl-t">${esc(a.title)}</b>
+       ${a.argument ? `<p class="pl-s">${esc(a.argument)}</p>` : ''}`;
+  const w = document.createElement('div');
+  w.className = 'pl-wrap'; w.id = 'player';
+  w.innerHTML = `<div class="pl" role="dialog" aria-modal="true" aria-label="Video">
+    <span class="grab" data-grab></span>
+    <button class="pl-x" data-close aria-label="Close">${ic('x', 18)}</button>
+    <div class="pl-v"><div class="loading">Loading the video…</div></div>
+    <div class="pl-info">${info}
+      <div class="pl-nav"><button class="btn btn-line" data-step="-1" aria-label="Previous video">${ic('arrow-left', 16)}</button><button class="btn btn-line pl-next" data-step="1">Next video${ic('arrow-right', 16)}</button></div>
+    </div>
+  </div>`;
+  document.body.appendChild(w);
+  document.body.classList.add('locked');
+  requestAnimationFrame(() => w.classList.add('on'));
+  const list = shown();
+  const k = list.indexOf(t);
+  w.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { const n = list[(k + +b.dataset.step + list.length) % list.length]; if (n) openPlayer(n); });
+  w.querySelector('[data-close]').onclick = closePlayer;
+  w.addEventListener('click', e => { if (e.target === w) closePlayer(); });
+  let y0 = null;
+  const g = w.querySelector('.pl');
+  g.addEventListener('touchstart', e => { if (e.target.closest('video,iframe')) return; y0 = e.touches[0].clientY; }, { passive: true });
+  g.addEventListener('touchend', e => { if (y0 != null && e.changedTouches[0].clientY - y0 > 70) closePlayer(); y0 = null; }, { passive: true });
+  loadMedia(w.querySelector('.pl-v'), p);
+}
+function closePlayer() {
+  const w = document.getElementById('player');
+  if (!w) return;
+  w.querySelectorAll('video').forEach(v => v.pause());
+  w.remove();
+  document.body.classList.remove('locked');
+}
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('player')) return;
+  if (e.key === 'Escape') closePlayer();
+  if (e.key === 'ArrowRight') document.querySelector('#player [data-step="1"]')?.click();
+  if (e.key === 'ArrowLeft') document.querySelector('#player [data-step="-1"]')?.click();
+});
+async function loadMedia(box, p) {
+  const put = html => { box.innerHTML = html; box.querySelector('video')?.play().catch(() => {}); };
+  if (p.kind === 'upload') return put(`<video src="${esc(API + p.file)}" controls autoplay playsinline></video>`);
+  if (p.kind !== 'meta') { put(`<a class="btn btn-acc pl-out" href="${esc(p.url)}" target="_blank" rel="noopener">Watch it on ${/tiktok/i.test(p.url) ? 'TikTok' : /instagram/i.test(p.url) ? 'Instagram' : 'the web'}${ic('external-link', 15)}</a>`); return; }
+  try {
+    const res = D.preview
+      ? await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(p.ad_id)}`, authed())
+      : await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(p.ad_id)}&angles=${encodeURIComponent(SLUG)}`);
+    const v = await res.json();
+    if (!res.ok) throw new Error(v.error || 'This video cannot be played right now.');
+    if (v.src) put(`<video src="${esc(v.src)}" controls autoplay playsinline></video>`);
+    else if (v.preview) put(`<iframe class="frame" src="${esc(v.preview)}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="The ad, as Meta shows it"></iframe>`);
+    else throw new Error('This ad has no video to play.');
+  } catch (e) { box.innerHTML = `<div class="loading">${esc(e.message)}</div>`; }
+}
+
+/* ---------- logo ---------- */
 // Store logos often carry wide clear margins, which make the mark tiny at header height.
 // Trim them once per URL (Shopify's CDN allows the cross-origin read); on any failure the
 // original image stays as it is.
@@ -166,476 +308,7 @@ document.addEventListener('load', e => {
   } catch { LOGO_TRIM[im.dataset.logo] = im.dataset.logo; }
 }, true);
 
-function topbar() {
-  const b = D.brand;
-  // Stored in UTC ("2026-09-17 01:10"); shown in the viewer's own time zone.
-  const upd = b.updated_at ? `Updated ${new Date(b.updated_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '';
-  const pv = D.preview ? `<div class="pv-bar" role="status"><div class="wrap"><b>Preview.</b> This link is switched off, so creators see "being set up". Only signed-in Mobius staff can see this page.</div></div>` : '';
-  return `${pv}<header class="topbar"><div class="wrap">
-    <a class="brand" href="#ideas" data-home aria-label="${esc(b.display_name)} creator angles">
-      ${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}
-      <span class="lbl">Creators</span>
-    </a>
-    <div class="tb-r">${upd ? `<span class="upd"><i></i>${upd}</span>` : ''}${b.submit_url ? filmBtn(null, 'btn-hero tb-film') : ''}</div>
-  </div></header>`;
-}
-const footer = () => `<footer><div class="wrap"><span>Questions about an angle? Message ${esc(D.brand.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>`;
-
-/* ---------- season ---------- */
-function seasonCard() {
-  const se = D.brand.season;
-  if (!se || !se.title) return '';
-  const ch = D.season_chart;
-  const color = se.color || '#7C3AED';
-  let chart = '';
-  if (ch && se.show_chart !== false) {
-    const n = ch.weeks.length;
-    const xs = ch.weeks.map(w => w.x).filter(x => x != null);
-    const peak = Math.max(...xs);
-    const peakWeek = ch.weeks.find(w => w.x === peak);
-    const drawn = !!ch.custom;
-    const top = drawn ? 4 : Math.max(se.cap ? Math.min(se.cap, peak) : peak, 1.2);
-    const [h0, h1] = (se.highlight || []).map(x => (x || '').trim());
-    const inHi = w => { if (!h0 || !h1) return false; const d = w.week_of.slice(5), e = addDays(w.week_of, 6).slice(5); return h0 <= h1 ? (e >= h0 && d <= h1) : (e >= h0 || d <= h1); };
-    const now = ch.now_index ?? 0;
-    const W = n * 10, H = 132, base = 132;
-    let bars = '', hits = '', ticks = '', lastM = '', lastTick = -99;
-    ch.weeks.forEach((w, i) => {
-      const x = i * 10;
-      const clipped = w.x != null && w.x > top;
-      const h = w.x == null ? 3 : Math.max(3, (Math.min(w.x, top) / top) * (base - 24));
-      const busy = drawn && w.level >= 55;
-      const fill = w.x == null ? '#E6E9EE' : inHi(w) ? color : busy ? color : '#CBD2DC';
-      const alpha = drawn && !inHi(w) && busy ? ' fill-opacity=".5"' : '';
-      bars += `<rect x="${x + 1.5}" y="${base - h}" width="7" height="${h}" rx="1.5" fill="${fill}"${alpha}/>`;
-      if (clipped) bars += `<rect x="${x + 1.5}" y="${base - h}" width="7" height="3" rx="1" fill="#0a0b0d" opacity=".5"/>`;
-      hits += `<rect class="hit" x="${x}" y="0" width="10" height="${base}" data-w="${i}"/>`;
-      const m = fmtMon(w.week_of);
-      if (m !== lastM) { if (i - lastTick >= (isPhone() ? 7 : 3)) { ticks += `<span style="left:${(i / n) * 100}%">${m}</span>`; lastTick = i; } lastM = m; }
-    });
-    const nx = now * 10 + 5;
-    const nowMark = `<line x1="${nx}" y1="20" x2="${nx}" y2="${base}" stroke="#0a0b0d" stroke-width="1.4" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
-    chart = `<div class="chart" data-chart>
-      <div class="chart-h"><p class="lbl">${drawn ? 'When to film' : 'Last year, week by week'}</p>
-        <div class="legend">${h0 ? `<span><i style="background:${esc(color)}"></i>${esc(se.title)}</span>` : ''}${drawn ? `<span><i style="background:${esc(color)};opacity:.5"></i>Busy weeks</span>` : ''}<span><i></i>${drawn ? 'Quieter' : 'Other weeks'}</span></div></div>
-      <div class="svgbox">
-        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Last year's sales week by week, with ${esc(se.title)} highlighted and this week marked.">${bars}${nowMark}${hits}</svg>
-        <span class="nowpill" style="left:${(nx / W) * 100}%">This week</span>
-        <div class="tip" data-tip></div>
-      </div>
-      <div class="ticks">${ticks}</div>
-      <p class="chart-note">${drawn
-        ? `Peak: <b>week of ${peakWeek ? fmtDay(peakWeek.week_of) : ''}</b>. Film two to three weeks before a spike so your video is live in time. <span class="muted">Tap a bar for any week.</span>`
-        : `Busiest week last year: <b>${peakWeek ? fmtDay(peakWeek.week_of) : ''}</b>, ${peak.toFixed(1)}x a normal week.${se.cap && peak > top ? ' Tall spikes are trimmed.' : ''} <span class="muted">Tap a bar for any week.</span>`}</p>
-    </div>`;
-  }
-  return `<section class="card season">
-    <div class="season-top">
-      <span class="tag" style="${toneVars(color)}">${ic('calendar-days', 13)}${esc(se.title)}${se.until ? ` · until ${esc(se.until)}` : ''}</span>
-      <span class="from">From the team</span>
-    </div>
-    ${se.line ? `<p class="season-line">${esc(se.line)}</p>` : ''}
-    ${chart}
-    ${se.next ? `<p class="next">${ic('arrow-right', 14)}Next up: ${esc(se.next)}</p>` : ''}
-  </section>`;
-}
-function wireChart() {
-  const c = app.querySelector('[data-chart]');
-  if (!c) return;
-  const tip = c.querySelector('[data-tip]');
-  const box = c.querySelector('.svgbox');
-  const weeks = D.season_chart.weeks;
-  const now = D.season_chart.now_index ?? 0;
-  const show = (i, el) => {
-    const w = weeks[i];
-    const vs = D.season_chart.custom ? (w.level >= 80 ? 'Peak week, film for this' : w.level >= 55 ? 'Busy week' : w.level >= 30 ? 'Normal week' : 'Quiet week') : w.x == null ? 'No sales data' : w.x >= 1.05 ? `${w.x.toFixed(1)}x a normal week` : w.x <= .95 ? `${w.x.toFixed(1)}x, a quieter week` : 'About a normal week';
-    tip.innerHTML = `<b>${i === now ? 'This week' : 'Week of ' + fmtDay(w.week_of)}</b><span>${esc(vs)}</span>`;
-    const br = box.getBoundingClientRect(), r = el.getBoundingClientRect();
-    tip.style.left = Math.min(Math.max(r.left + r.width / 2 - br.left, 70), br.width - 70) + 'px';
-    tip.classList.add('on');
-    c.querySelectorAll('.hit.sel').forEach(x => x.classList.remove('sel'));
-    el.classList.add('sel');
-  };
-  c.querySelectorAll('.hit').forEach(h => {
-    h.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(+h.dataset.w, h); });
-    h.addEventListener('click', () => show(+h.dataset.w, h));
-  });
-  box.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { tip.classList.remove('on'); c.querySelectorAll('.hit.sel').forEach(x => x.classList.remove('sel')); } });
-}
-
-/* ---------- stop list, rules, about ---------- */
-function avoidCard() {
-  const av = D.brand.avoid || [];
-  if (!av.length) return '';
-  return `<section class="card avoid">
-    <div class="lane-h"><div class="lane-t"><span class="badge warn">${ic('ban', 16)}</span><h2 class="disp">Please stop filming these</h2></div><span class="lane-s">We have plenty. They will not be picked for ads.</span></div>
-    <ul>${av.map(x => `<li>${ic('x', 15)}<div><b>${esc(x.title)}</b>${x.why ? `<span>${esc(x.why)}</span>` : ''}</div></li>`).join('')}</ul>
-  </section>`;
-}
-function rulesCard() {
-  const r = D.brand.rules || [];
-  if (!r.length) return '';
-  return `<section class="card rules"><p class="lbl">Say it right</p><ul>${r.map(x => `<li>${ic('check', 15)}<span>${esc(x)}</span></li>`).join('')}</ul></section>`;
-}
-function aboutCard() {
-  const b = D.brand;
-  if (!b.about && !b.audience) return '';
-  return `<section class="card about">
-    ${b.about ? `<div><p class="lbl">What it is</p><p>${esc(b.about)}</p></div>` : ''}
-    ${b.audience ? `<div><p class="lbl">Who we are talking to</p><p>${esc(b.audience)}</p></div>` : ''}
-  </section>`;
-}
-
-/* ---------- list ---------- */
-/* THE SHAPE OF THE PAGE (Cole, 2026-10-14, after walking Frost Buddy's creator hub: ours asked
-   creators to read, theirs asks them to watch one video and make their version). TWO screens:
-     Film one of these   a vertical feed of ideas, the ones with a real video on top, "be the first"
-                         ideas under them. A card = the video (first frame, tap to play), one line,
-                         the section chip, Film this, and How (the numbered steps, say this, text on
-                         screen, do / don't) folded under the card: inline on a desktop, a bottom
-                         sheet on a phone. Above the feed: the dated window with its deal line, Pick
-                         one for me, and a row of opener clips ("Open like one of these").
-     Before you film     the checklist in Frost Buddy's shape: stop filming these (red), before you
-                         film, always say, skip these, what it is, the season.
-   Nothing left the database: the First seconds text bank and every idea field are still there, the
-   page just stops showing them first. #a=<id> still opens one idea on its own page (old links). */
-const TABS = [['ideas', 'Film one of these'], ['rules', 'Before you film']];
-
-/* Proof thumbnails. A creator should SEE that an idea has real videos behind it. */
-function proofTile(p, a, small) {
-  const inspo = p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
-  const out = p.kind === 'post' || p.kind === 'typed' || p.kind === 'inspo';
-  /* The cover goes INSIDE the well (data-cover on the well, never on the tile), or loadCovers drops the
-     image above the box and the tile stretches. A stored clip shows its own first frame as the preview. */
-  const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}"` : p.kind === 'upload' ? `data-play-file="${esc(p.file)}"` : '';
-  const wellAttrs = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
-  const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
-    : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
-  const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? whoOf(p) : p.kind === 'upload' ? 'Clip' : 'Creator post';
-  const cls = small ? 'pthumb' : 'wtile';
-  const cap = small ? '' : `<span class="wcap"><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'}">${esc(lbl)}</span>${a ? `<a class="wname" href="#a=${esc(a.id)}">${esc(a.title)}</a>` : ''}</span>`;
-  return out
-    ? `<a class="${cls}" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(lbl)}"><span class="well">${img}<span class="pbtn sm">${ic('external-link', 14)}</span></span>${cap}</a>`
-    : `<button class="${cls}" ${attrs} title="${esc(lbl)}"><span class="well" ${wellAttrs}>${img}<span class="pbtn sm">${ic('play', 14)}</span></span>${cap}</button>`;
-}
-const isTheirs = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
-const whoOf = p => String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, 'Another brand') || 'Another brand';
-const playable = p => p.kind === 'meta' || p.kind === 'upload';
-/* The video on a feed card: the brand's own first, another brand's clip when that is all we have. */
-function mainProof(a) {
-  const pr = (a.proof || []).filter(playable);
-  return pr.find(p => !isTheirs(p)) || pr[0] || null;
-}
-/* Watch first, in two groups: videos that ran for the brand, then other brands' videos we pulled in. */
-function watchBlock(a, withNames) {
-  const ours = a.proof.filter(p => !isTheirs(p));
-  const theirs = a.proof.filter(p => isTheirs(p) && p.kind !== 'inspo');
-  const links = inspoList(a);
-  if (!ours.length && !theirs.length && !links) return '';
-  return `<h3 class="disp sec-t">Watch first</h3><p class="sec-s">Get the shape, then make your version.</p>
-    ${ours.length ? `<p class="lbl grp">From ${esc(D.brand.display_name)}</p><div class="wgrid">${ours.map(p => proofTile(p, withNames ? a : null, false)).join('')}</div>` : ''}
-    ${theirs.length ? `<p class="lbl grp">Other brands doing the shape well</p><div class="wgrid">${theirs.map(p => proofTile(p, withNames ? a : null, false)).join('')}</div>` : ''}
-    ${links}`;
-}
-
-/* The numbered steps, in the order a creator works: the first second, say this first, at 3 seconds, then the shots. */
-function stepsOf(a) {
-  const shots = (a.shots || []).filter(x => x.text);
-  // The first shot usually restates the first second; drop it when we have a first second of our own.
-  const rest = a.visual_hook && shots.length && /^open/i.test(shots[0].label || '') ? shots.slice(1) : shots;
-  const alts = (a.alt_hooks || []).filter(Boolean);
-  return [
-    a.visual_hook ? ['The first second', a.visual_hook, alts] : null,
-    a.openers?.[0] ? ['Say this first', `“${a.openers[0]}”`] : null,
-    a.rehook ? ['At 3 seconds', a.rehook] : null,
-    ...rest.map(x => [x.label && !/^open/i.test(x.label) ? x.label : 'Then', x.text]),
-  ].filter(Boolean);
-}
-/* Everything under "How": the same block on a card, in the phone sheet and on the idea page. */
-function howInner(a) {
-  const steps = stepsOf(a);
-  const more = (a.openers || []).slice(1);
-  return `
-    ${a.who ? `<p class="para"><b>Who it is for.</b> ${esc(a.who)}</p>` : ''}
-    ${a.products ? `<p class="para"><b>Show.</b> ${esc(a.products)}</p>` : ''}
-    <h3 class="disp sec-t">How to film it</h3><p class="sec-s">In order. Your hands do something before you talk.</p>
-    <ol class="steps big">${steps.map(([l, t, al], k) => `<li><span class="n">${k + 1}</span><div><span class="lbl">${esc(l)}</span><p class="${/^Say/.test(l) ? 'hook' : ''}">${esc(t)}</p>${al && al.length ? `<div class="alts"><span class="lbl">Or open with</span><ul>${al.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}</div></li>`).join('')}</ol>
-    ${a.on_screen ? `<div class="card overlay"><div><p class="lbl">Text on screen</p><p>${esc(a.on_screen)}</p></div><button class="iconbtn" data-copytext aria-label="Copy the text">${ic('copy', 16)}</button></div>` : ''}
-    ${more.length ? `<h3 class="disp sec-t">Other lines you can say</h3><p class="sec-s">Word for word or bend them.</p>
-    <ul class="openers">${more.map((o, k) => `<li class="card"><span class="hook">&ldquo;${esc(o)}&rdquo;</span><button class="iconbtn" data-copy="${k + 1}" aria-label="Copy this line">${ic('copy', 16)}</button></li>`).join('')}</ul>` : ''}
-    ${(a.do_text || a.dont_text) ? `<div class="dd">
-      ${a.do_text ? `<div class="card do"><p class="lbl">Do</p><p>${esc(a.do_text)}</p></div>` : ''}
-      ${a.dont_text ? `<div class="card dont"><p class="lbl">Don't</p><p>${esc(a.dont_text)}</p></div>` : ''}
-    </div>` : ''}
-    ${a.why ? `<p class="why">${ic('lightbulb', 14)}<span><b>Why this works.</b> ${esc(a.why)}</span></p>` : ''}
-    ${watchBlock(a, false)}`;
-}
-function wireCopy(root, a) {
-  root.querySelectorAll('[data-copy]').forEach(el => el.onclick = async () => {
-    if (await copy(a.openers[+el.dataset.copy])) { toast('Line copied'); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1400); }
-  });
-  root.querySelector('[data-copytext]')?.addEventListener('click', async () => { if (await copy(a.on_screen)) toast('Text copied'); });
-}
-
-/* ---------- the feed ---------- */
-function feedMedia(a) {
-  const p = mainProof(a);
-  if (!p) return `<div class="fc-media fc-first"><span class="well"><span class="first">${ic('clapperboard', 22)}<b>Be the first</b><span>No video on this one yet. Yours could be it.</span></span></span></div>`;
-  const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}"` : `data-play-file="${esc(p.file)}"`;
-  const wellAttrs = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
-  const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
-    : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
-  const lbl = p.kind === 'meta' ? 'Ran as an ad' : isTheirs(p) ? `${whoOf(p)}, for the shape` : 'Creator video';
-  return `<button class="fc-media" ${attrs} aria-label="Play: ${esc(a.title)}"><span class="well" ${wellAttrs}>${img}<span class="pbtn">${ic('play', 18)}</span><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'} fc-lbl">${esc(lbl)}</span></span></button>`;
-}
-function feedCard(a) {
-  const s = sectionOf(a);
-  const n = (a.proof || []).filter(playable).length;
-  return `<article class="card fc" id="c-${esc(a.id)}" data-id="${esc(a.id)}">
-    ${feedMedia(a)}
-    <div class="fc-body">
-      <div class="fc-chips">${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Film first</span>` : ''}${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}</div>
-      <h2 class="disp fc-t">${esc(a.title)}</h2>
-      ${a.argument ? `<p class="fc-line">${esc(a.argument)}</p>` : ''}
-      <div class="fc-btns">${filmBtn(a, 'btn-hero fc-film')}<button class="btn btn-line fc-how" data-how="${esc(a.id)}" aria-expanded="false">How${ic('chevron-down', 15)}</button>${n > 1 ? `<span class="small muted fc-n">${n} videos</span>` : ''}</div>
-    </div>
-    <div class="fc-panel" hidden data-panel="${esc(a.id)}"></div>
-  </article>`;
-}
-/* How: inline under the card on a desktop, a bottom sheet on a phone. */
-function toggleHow(id, open) {
-  const a = findAngle(id); if (!a) return;
-  if (isPhone()) { openSheet(a); return; }
-  const panel = app.querySelector(`[data-panel="${CSS.escape(id)}"]`);
-  const btn = app.querySelector(`[data-how="${CSS.escape(id)}"]`);
-  if (!panel || !btn) return;
-  const show = open ?? panel.hidden;
-  if (show && !panel.innerHTML) {
-    panel.innerHTML = `<div class="fc-how-in">${howInner(a)}</div>`;
-    wirePlay(panel); wireCopy(panel, a); loadCovers(a.proof);
-  }
-  panel.hidden = !show;
-  btn.setAttribute('aria-expanded', String(show));
-  btn.innerHTML = show ? `Close${ic('chevron-up', 15)}` : `How${ic('chevron-down', 15)}`;
-}
-function closeSheet() { const w = document.getElementById('sheet'); if (w) { w.querySelectorAll('video').forEach(v => v.pause()); w.remove(); document.body.classList.remove('locked'); } }
-function openSheet(a) {
-  closeSheet();
-  const w = document.createElement('div');
-  w.className = 'sheet-wrap'; w.id = 'sheet';
-  w.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(a.title)}">
-    <div class="sheet-h" data-grab><span class="grab"></span><div class="sheet-t"><span class="lbl">How to film it</span><b class="disp">${esc(a.title)}</b></div><button class="iconbtn" data-close aria-label="Close">${ic('x', 18)}</button></div>
-    <div class="sheet-b">${howInner(a)}</div>
-    <div class="sheet-f">${filmBtn(a, 'btn-hero btn-full')}</div>
-  </div>`;
-  document.body.appendChild(w);
-  document.body.classList.add('locked');
-  const done = () => { closeSheet(); document.removeEventListener('keydown', k); };
-  const k = e => { if (e.key === 'Escape') done(); };
-  document.addEventListener('keydown', k);
-  w.addEventListener('click', e => { if (e.target === w) done(); });
-  w.querySelector('[data-close]').onclick = done;
-  let y0 = null;
-  const h = w.querySelector('[data-grab]');
-  h.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
-  h.addEventListener('touchend', e => { if (y0 != null && e.changedTouches[0].clientY - y0 > 60) done(); y0 = null; }, { passive: true });
-  wirePlay(w); wireFilm(w); wireCopy(w, a); loadCovers(a.proof);
-}
-
-/* Open like one of these: the opener clips from the First seconds bank. Text-only openers are not shown. */
-function hookRow() {
-  const hs = (D.brand.hooks || []).filter(h => h.file);
-  if (!hs.length) return '';
-  return `<section class="openers-row">
-    <div class="wrap"><p class="lbl">Open like one of these</p><p class="sec-s">The first two seconds decide everything. Tap one, then do your version with our product.</p></div>
-    <div class="hk-row">${hs.map(h => `<button class="hk-clip" data-play-file="${esc(h.file)}"><span class="well"><video class="pv" data-src="${esc(API + h.file)}#t=1.2" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video><span class="pbtn sm">${ic('play', 14)}</span></span><span class="hk-cap">${esc(h.title)}</span></button>`).join('')}</div>
-  </section>`;
-}
-/* The dated window (Black Friday, Halloween, gift season) pinned on top with its one-line deal. The chart stays on Before you film. */
-function windowCard() {
-  const se = D.brand.season;
-  if (!se || !se.title) return '';
-  return `<section class="card win" style="${toneVars(se.color || '#7C3AED')}">
-    <span class="tag">${ic('calendar-days', 13)}${esc(se.title)}${se.until ? ` · until ${esc(se.until)}` : ''}</span>
-    ${se.line ? `<p class="win-line">${esc(se.line)}</p>` : ''}
-    ${se.next ? `<p class="win-next">${ic('megaphone', 14)}<span>${esc(se.next)}</span></p>` : ''}
-  </section>`;
-}
-
-/* Pick one for me: hot ideas count double, so the random pick leans to what we want most. */
-function pickRandom(notId) {
-  const all = uniq().filter(a => a.id !== notId);
-  if (!all.length) return null;
-  const bag = all.flatMap(a => (a.hot ? [a, a] : [a]));
-  return bag[Math.floor(Math.random() * bag.length)];
-}
-
-function tabBar(cur) {
-  return `<nav class="tabs" aria-label="Sections"><div class="wrap">${TABS.map(([k, t]) => `<a class="tab ${cur === k ? 'on' : ''}" href="#${k}">${esc(t)}</a>`).join('')}</div></nav>`;
-}
-function shell(cur, inner) {
-  const b = D.brand;
-  closeSheet();
-  document.title = `${b.display_name} · ${TABS.find(t => t[0] === cur)?.[1] || 'What to film'}`;
-  app.innerHTML = `${topbar()}${tabBar(cur)}<main>${inner}</main><div class="dock">${filmBtn(null, 'btn-hero btn-full')}</div>${footer()}`;
-  app.querySelector('[data-home]').onclick = e => { e.preventDefault(); location.hash = 'ideas'; };
-  wirePlay(app);
-  wireFilm(app);
-}
-
-const inLane = a => F.sec === 'all' || (D.hot && F.sec === D.hot.id ? a.hot : a.section_id === F.sec);
-function renderIdeas() {
-  const b = D.brand;
-  const ls = lanes();
-  const list = uniq().filter(inLane);
-  const withVideo = list.filter(a => mainProof(a));
-  const first = list.filter(a => !mainProof(a));
-  const pills = `<button class="pill ${F.sec === 'all' ? 'on' : ''}" data-sec="all">All ideas</button>` + ls.map(s => `<button class="pill ${F.sec === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" style="${toneVars(s.color)}"><i class="dot"></i>${esc(s.pinned ? 'Film these first' : s.name)}</button>`).join('');
-  shell('ideas', `
-    <div class="wrap">
-      <div class="page-h">
-        <p class="lbl acc">${esc(b.display_name)} · creators</p>
-        <h1 class="disp">Film one of these</h1>
-        <p class="intro">${esc(b.intro || 'Watch one that worked, make your version, film it today. That is the whole job.')} <a href="#rules" class="intro-link">Read "Before you film" once, it takes two minutes.</a></p>
-      </div>
-      ${windowCard()}
-      <div class="pickrow"><button class="btn btn-hero" data-pick>${ic('shuffle', 16)} Pick one for me</button><span class="small muted">Not sure where to start? We pick, leaning to the ones we want most.</span></div>
-    </div>
-    ${hookRow()}
-    <div class="filters"><div class="wrap"><div class="frow"><span class="flbl">Show</span><div class="prow" role="group" aria-label="Lanes">${pills}</div></div></div></div>
-    <div class="wrap feed">
-      ${withVideo.map(feedCard).join('')}
-      ${first.length ? `<div class="feed-sep"><p class="lbl">Be the first</p><p class="sec-s">No video on these yet. Film one and it moves to the top.</p></div>${first.map(feedCard).join('')}` : ''}
-      ${!list.length ? '<div class="card empty">Nothing here yet.</div>' : ''}
-    </div>`);
-  app.querySelectorAll('[data-sec]').forEach(p => p.onclick = () => { F.sec = p.dataset.sec; rerender(); });
-  app.querySelectorAll('[data-how]').forEach(btn => btn.onclick = () => toggleHow(btn.dataset.how));
-  app.querySelector('[data-pick]').onclick = () => {
-    const a = pickRandom(); if (!a) return;
-    if (!inLane(a)) { F.sec = 'all'; rerender(); }
-    const c = app.querySelector(`#c-${CSS.escape(a.id)}`); if (!c) return;
-    c.classList.add('picked'); setTimeout(() => c.classList.remove('picked'), 2400);
-    c.scrollIntoView({ behavior: 'smooth', block: isPhone() ? 'start' : 'center' });
-    toggleHow(a.id, true);
-  };
-  loadCovers(uniq().flatMap(a => a.proof));
-}
-/* Re-render in place: the filter bar stays where the thumb is. */
-function rerender() {
-  const bar = app.querySelector('.filters');
-  const before = bar ? bar.getBoundingClientRect().top : 0;
-  const rows = [...app.querySelectorAll('.prow')].map(r => r.scrollLeft);
-  renderIdeas();
-  const nb = app.querySelector('.filters');
-  if (nb) scrollTo(0, scrollY + nb.getBoundingClientRect().top - before);
-  app.querySelectorAll('.prow').forEach((r, i) => { r.scrollLeft = rows[i] || 0; });
-}
-
-/* Before you film: Frost Buddy's shape. The brand's rules split into "always say" and "skip these"
-   by how the team wrote each one (a rule that opens with never / don't is a skip). */
-const SKIP_RE = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
-function checkCard(title, icon, items, mark, line) {
-  if (!items.length) return '';
-  return `<section class="card chk"><div class="lane-h"><div class="lane-t"><span class="badge ${mark === 'no' ? 'warn' : ''}">${ic(icon, 16)}</span><h2 class="disp">${esc(title)}</h2></div>${line ? `<span class="lane-s">${esc(line)}</span>` : ''}</div>
-    <ol class="guide-list">${items.map((x, i) => `<li><span class="n ${mark}">${mark === 'ok' ? ic('check', 13) : mark === 'no' ? ic('x', 13) : i + 1}</span><div>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<span class="${x.title ? '' : 'solo'}">${esc(x.text)}</span>` : ''}</div></li>`).join('')}</ol></section>`;
-}
-function renderRules() {
-  const b = D.brand;
-  const rules = b.rules || [];
-  shell('rules', `
-    <div class="wrap">
-      <div class="page-h">
-        <p class="lbl acc">${esc(b.display_name)} · creators</p>
-        <h1 class="disp">Before you film</h1>
-        <p class="intro">Two minutes, once. What we have enough of, how to hold attention, what to say and what to skip.</p>
-      </div>
-      ${avoidCard()}
-      ${checkCard('Before you film', 'list-checks', b.guide || [], 'num', 'Talking to the camera is fine. Talking to the camera while nothing happens is not.')}
-      ${checkCard('Always say', 'megaphone', rules.filter(r => !SKIP_RE.test(r)).map(text => ({ text })), 'ok', 'Say it the way the site says it.')}
-      ${checkCard('Skip these', 'ban', rules.filter(r => SKIP_RE.test(r)).map(text => ({ text })), 'no', 'Claims we cannot make and things that get a video dropped.')}
-      ${aboutCard()}
-      ${seasonCard()}
-      <section class="card rules-end"><p>Ready? <a href="#ideas">Film one of these</a>.</p></section>
-    </div>`);
-  wireChart();
-}
-
-/* First frames: a clip's <video> gets its src only when it is near the screen. */
-const previewIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => {
-  for (const e of es) { if (!e.isIntersecting) continue; const v = e.target; if (v.dataset.src) { v.src = v.dataset.src; v.preload = 'metadata'; delete v.dataset.src; } previewIO.unobserve(v); }
-}, { rootMargin: '400px 0px' }) : null;
-function wirePreviews(root) {
-  root.querySelectorAll('video.pv[data-src]').forEach(v => { if (previewIO) previewIO.observe(v); else { v.src = v.dataset.src; v.preload = 'metadata'; } });
-}
-/* Any play button, on a card strip or an angle page. */
-function wirePlay(root) {
-  wirePreviews(root);
-  root.querySelectorAll('[data-play-ad]').forEach(el => el.onclick = e => { e.stopPropagation(); playAd(el.dataset.playAd); });
-  root.querySelectorAll('[data-play-file]').forEach(el => el.onclick = e => { e.stopPropagation(); playFile(API + el.dataset.playFile); });
-}
-
-/* ---------- one angle (old links: #a=<id>) ---------- */
-function renderAngle(id, picked) {
-  const a = findAngle(id);
-  if (!a) { location.hash = 'ideas'; return; }
-  const s = sectionOf(a);
-  const list = uniq();
-  const i = list.indexOf(a);
-  const next = list[(i + 1) % list.length];
-  const prev = list[(i - 1 + list.length) % list.length];
-  const other = pickRandom(a.id);
-  shell('ideas', `
-    <div class="wrap det">
-      <div class="det-main" style="${s ? toneVars(s.color) : ''}">
-        <div class="det-top"><a class="back" href="#ideas">${ic('arrow-left', 15)}All ideas</a>${picked ? `<span class="picked">${ic('shuffle', 13)} Picked at random for you</span>` : ''}</div>
-        <div class="tags">
-          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Film first</span>` : ''}
-          ${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}
-          ${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}
-        </div>
-        <h1 class="disp">${esc(a.title)}</h1>
-        ${a.argument ? `<p class="lead-line">${esc(a.argument)}</p>` : ''}
-        <div class="only-narrow"><div class="card filmcard">${filmBtn(a, 'btn-hero btn-full')}${other ? `<a class="btn btn-line btn-full" href="#a=${esc(other.id)}&pick">${ic('shuffle', 15)} Pick another</a>` : ''}</div></div>
-        ${howInner(a)}
-        <div class="pn">
-          <a class="card pn-a" href="#a=${esc(prev.id)}">${ic('arrow-left', 16)}<span><span class="lbl">Previous</span><b>${esc(prev.title)}</b></span></a>
-          <a class="card pn-a r" href="#a=${esc(next.id)}"><span><span class="lbl">Next idea</span><b>${esc(next.title)}</b></span>${ic('arrow-right', 16)}</a>
-        </div>
-      </div>
-      <aside class="det-side">
-        <div class="card filmcard">${filmBtn(a, 'btn-hero btn-full')}<p>${D.brand.submit_url ? `Opens our ${esc(plat())} campaign and copies the idea's name for your submission note.` : `Submit on ${esc(plat())} like always, with the idea's name in your note.`}</p></div>
-        ${other ? `<a class="btn btn-line btn-full" href="#a=${esc(other.id)}&pick">${ic('shuffle', 15)} Pick another for me</a>` : ''}
-        <a class="card pn-a" href="#rules"><span><span class="lbl">Two minutes</span><b>Before you film: the checklist</b></span>${ic('chevron-right', 16)}</a>
-      </aside>
-    </div>`);
-  app.querySelector('.dock').innerHTML = `${filmBtn(a, 'btn-hero btn-full')}${other ? `<a class="btn btn-line dock-next" href="#a=${esc(other.id)}&pick" aria-label="Pick another">${ic('shuffle', 18)}</a>` : ''}`;
-  wireFilm(app);
-  wireCopy(app, a);
-  loadCovers(a.proof);
-  swipe(app.querySelector('.det-main'), prev.id, next.id);
-  scrollTo(0, 0);
-}
-
-function inspoList(a) {
-  const list = (a.inspo || []).filter(x => x.brand || x.what);
-  const ins = a.proof.filter(p => p.kind === 'inspo').map(p => ({ brand: p.who, what: p.note, url: p.url }));
-  const all = [...list, ...ins];
-  if (!all.length) return '';
-  return `<ul class="inspo">${all.map(x => `<li class="card">${ic('lightbulb', 16)}<div>${x.brand ? `<b>${esc(x.brand)}</b>` : ''}${x.what ? `<span>${esc(x.what)}</span>` : ''}</div>${x.url ? `<a class="btn btn-line btn-sm" href="${esc(x.url)}" target="_blank" rel="noopener">Watch ${ic('external-link', 13)}</a>` : ''}</li>`).join('')}</ul>`;
-}
-
-function swipe(el, prevId, nextId) {
-  if (!el) return;
-  let x0 = null, y0 = null;
-  el.addEventListener('touchstart', e => { if (e.target.closest('.proof')) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
-  el.addEventListener('touchend', e => {
-    if (x0 == null) return;
-    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) > 70 && Math.abs(dy) < 45) location.hash = 'a=' + (dx < 0 ? nextId : prevId);
-  }, { passive: true });
-}
-
+/* ---------- Meta ad covers ---------- */
 async function loadCovers(proof) {
   const ids = [...new Set((proof || []).filter(p => p.kind === 'meta' && !p.thumb).map(p => p.ad_id))].filter(id => !document.querySelector(`[data-cover="${CSS.escape(id)}"] img`));
   if (!ids.length) return;
@@ -652,81 +325,26 @@ async function loadCovers(proof) {
   } catch { /* the placeholder stays */ }
 }
 
-function player(inner) {
-  const w = document.createElement('div');
-  w.className = 'player-wrap';
-  w.innerHTML = `<div class="player" role="dialog" aria-modal="true" aria-label="Video">${inner}<button class="btn btn-line btn-full" data-close>Close</button></div>`;
-  document.body.appendChild(w);
-  document.body.classList.add('locked');
-  const done = () => { w.querySelectorAll('video').forEach(v => v.pause()); w.remove(); document.body.classList.remove('locked'); document.removeEventListener('keydown', k); };
-  const k = e => { if (e.key === 'Escape') done(); };
-  document.addEventListener('keydown', k);
-  w.addEventListener('click', e => { if (e.target === w) done(); });
-  w.querySelector('[data-close]').onclick = done;
-  w.querySelector('[data-close]').focus();
-  return w;
-}
-async function playAd(adId) {
-  const w = player(`<div class="loading">Loading the ad…</div>`);
-  try {
-    const res = D.preview
-      ? await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(adId)}`, authed())
-      : await fetch(`${API}/api/ad-video?ad=${encodeURIComponent(adId)}&angles=${encodeURIComponent(SLUG)}`);
-    const v = await res.json();
-    if (!res.ok) throw new Error(v.error || 'This ad cannot be played right now.');
-    const box = w.querySelector('.loading');
-    if (v.src) box.outerHTML = `<video src="${esc(v.src)}" controls autoplay playsinline></video>`;
-    else if (v.preview) box.outerHTML = `<iframe class="frame" src="${esc(v.preview)}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="The ad, as Meta shows it"></iframe>`;
-    else throw new Error('This ad has no video to play.');
-    w.querySelector('video')?.play().catch(() => {});
-  } catch (e) { const box = w.querySelector('.loading'); if (box) box.textContent = e.message; }
-}
-function playFile(src) {
-  const w = player(`<video src="${esc(src)}" controls autoplay playsinline></video>`);
-  w.querySelector('video').play().catch(() => {});
-}
-
 /* ---------- boot ---------- */
-let LIST_Y = 0;
-function route() {
-  if (!D) return;
-  const h = location.hash.replace(/^#/, '');
-  const m = h.match(/^a=([a-f0-9]+)(&pick)?/);
-  if (m) return renderAngle(m[1], !!m[2]);
-  if (h === 'rules') { renderRules(); scrollTo(0, 0); return; }
-  if (h === 'watch' || h === 'hooks') history.replaceState(null, '', '#ideas');   // the old tabs: the feed holds them now
-  renderIdeas();
-  if (LIST_Y) { scrollTo(0, LIST_Y); LIST_Y = 0; }
-}
-addEventListener('hashchange', route);
-addEventListener('popstate', route);
-document.addEventListener('click', e => { if (e.target.closest('a[href^="#a="]') && !location.hash.startsWith('#a=')) LIST_Y = scrollY; }, true);
-let wasPhone = null;
-addEventListener('resize', () => {
-  const p = isPhone();
-  if (wasPhone !== null && p !== wasPhone && D && !location.hash.replace('#', '')) rerender();
-  wasPhone = p;
-});
-
 async function boot() {
-  wasPhone = isPhone();
-  if (!SLUG) { app.innerHTML = `<div class="center"><div><h1 class="disp">Creator angles</h1><p class="muted">This link is missing the brand. Check the link you were sent.</p></div></div>`; return; }
-  app.innerHTML = `<div class="wrap" style="padding-top:56px;display:flex;flex-direction:column;gap:14px;max-width:720px"><div class="skel" style="height:40px;width:70%"></div><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="height:180px;margin-top:20px"></div></div>`;
+  if (!SLUG) { app.innerHTML = `<div class="center"><div><h1>Creator videos</h1><p class="sub">This link is missing the brand. Check the link you were sent.</p></div></div>`; return; }
+  app.innerHTML = `<div class="wrap" style="padding-top:64px;display:grid;gap:14px;max-width:720px"><div class="skel" style="height:44px;width:70%"></div><div class="skel"></div><div class="skel" style="height:260px;margin-top:20px"></div></div>`;
   try {
     const res = await fetch(`${API}/api/angles/${encodeURIComponent(SLUG)}`, authed());
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || 'This page could not be loaded.');
+    applyAccent(j.brand?.accent);
     if (!j.live) {
-      applyAccent(j.brand?.accent);
-      app.innerHTML = `<div class="center"><div><h1 class="disp">${esc(j.brand?.display_name || '')} creator angles</h1><p class="muted">This page is being set up. Check back soon.</p></div></div>`;
+      app.innerHTML = `<div class="center"><div><h1>${esc(j.brand?.display_name || '')} creators</h1><p class="sub">This page is being set up. Check back soon.</p></div></div>`;
       return;
     }
     D = j;
-    if (D.hot) D.hot.pinned = true;
-    applyAccent(j.brand.accent);
-    route();
+    TILES = buildTiles();
+    render();
+    // Old links (#rules from the PDF and Slack) land on the checklist.
+    if (/^#(rules|checklist)/.test(location.hash)) setTimeout(() => document.getElementById('checklist')?.scrollIntoView(), 50);
   } catch (e) {
-    app.innerHTML = `<div class="center"><div><h1 class="disp">Page not found</h1><p class="muted">${esc(e.message)}</p></div></div>`;
+    app.innerHTML = `<div class="center"><div><h1>Page not found</h1><p class="sub">${esc(e.message)}</p></div></div>`;
   }
 }
 boot();
