@@ -2234,10 +2234,17 @@ Audit, goal and the approved mock: `docs/handoffs/lineup-audit.md`, `docs/locus-
   from this Monday, nav +-4 weeks, layer switches saved in `cal_lay`; a brand's Black Friday plan phases within BF+-3 days
   merge into ONE bar; one-day dates are labelled pins; a sale with no end draws 4 weeks fading; a date with a teaser gets a
   striped lead-in that opens the same date; Klaviyo sends are dots), and "Work due this week" = every countdown step due in
-  7 days plus anything late, grouped by day and step. One brand: the month (week rows with spanning chips, 3 lanes then
-  "+N", drag a typed date to move it, click an empty day to add), warnings (no end date, no offer, a drop just before Black
+  7 days plus anything late, grouped by day and step. One brand: the month (week rows with spanning chips, 4 lanes then
+  "+N more", drag a typed date to move it, click an empty day to add), warnings (no end date, no offer, a drop just before Black
   Friday, two offers at once), Coming up. The side panel uses `V2UI.panel`; modals are `.modal-wrap.cal-m`. Klaviyo names
   lose their filing prefix (`mailName`). Do not use the class `.vd` (global verdict pill; it uppercased the panel once).
+- **Month layout (2026-10-15, Cole: hover lit part of a day, squished next to Coming up).** v2.css has a GLOBAL
+  `.wr{display:flex;gap:14px}` that opened 14px gaps between the calendar's day cells; `.cal-mo .wr` now sets gap:0. Hover
+  is JS (each week row tracks the column under the pointer, class `.hov`) because chips sit on a layer above the cells. Rows
+  grow to the lanes they use (up to `LANES` = 4, `--rh` on `.wr`); past that, "+N more" is a button that opens the whole day
+  (`dayPanel`, the side panel = a bottom sheet on a phone). Coming up sits beside the month only when `.cal-tw` (a
+  container) is 1180px+, otherwise below it as a card grid. Under 560px of month width (container `calmo`) chips become
+  coloured dots per day and a tap opens the day. Tasks month view: "+N more" opens that day's week.
 - **Data** = account-health `GET /api/calendar` (see account-health/CLAUDE.md "THE CALENDAR"); writes go to the same worker.
   Cached 2 minutes per scope in the page (`ST.data`), dropped on every write.
 - **Home**: v2.js home() draws `<div id="v2cal">` (Live now + Coming up 14 days, `CalendarTab.homeCard`) and shades each
