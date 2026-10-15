@@ -295,7 +295,7 @@ function redraw(items, today, by) {
   if (open.length) blocks.push({ type: 'actions', elements: open.slice(0, 4).map((r, n) => DONE_BTN(r, n)).concat([{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions${items[0].act_id ? `&act=${encodeURIComponent(items[0].act_id)}` : ''}` }]) });
   return { text, blocks };
 }
-async function slackName(env, d, userId) {
+export async function slackName(env, d, userId) {
   if (!userId || !d.slackApi) return userId || null;
   const u = await d.slackApi(env, 'users.info', { user: userId }).catch(() => null);
   return u?.user?.profile?.display_name || u?.user?.real_name || u?.user?.name || userId;

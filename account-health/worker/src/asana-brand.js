@@ -642,11 +642,11 @@ function third(list, v, lowerBetter = false) {
    account, because it is the number Cole set by hand on 2026-09-24.
    Same rule as rulesFor in profit/worker/src/brand.js; change both together. */
 function rulesOf(acct, doc) {
-  const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2, yellow_pct: 30, min_spend: 20, min_days: 7, min_cap_pct: 25, min_track: 0, monday_post: 0 };
+  const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2, yellow_pct: 30, min_days: 7, min_cap_pct: 25, min_track: 0, monday_post: 0 };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
   else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
-  for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_spend', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
   /* TWO LINES (Cole, 2026-10-04): Winner <= goal, Keep <= the account's own average.
      The average is trailing-30-day Meta spend / Triple Whale orders, refreshed on the
      1st of each month by refreshAccountAvg, so the keep line tightens as the account improves. */
@@ -717,7 +717,7 @@ async function testMinimums(env, act) {
    else to open. Switched on per brand in Settings -> Goals (rules.monday_post). */
 const centralParts = (d = new Date()) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' })
   .formatToParts(d).map(p => [p.type, p.value]));
-export async function mondayCalls(env, act) {
+export async function mondayCalls(env, act, opts = {}) {
   act = await resolveBrandId(env, act);
   const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   if (!acct) return { error: 'unknown account' };
@@ -732,6 +732,7 @@ export async function mondayCalls(env, act) {
   const groups = { loser: [], winner: [], avg: [], keep: [], early: [] };
   const open = new Set(), openAds = new Set();
   const plan = { pause: [], pauseAds: [], clear: [] };
+  const due = [];   // the daily check (minoff.js): every ad set whose minimum is due off and still set in Meta
   let old = 0;
   for (const r of rows) {
     const st = stats[r.id];
@@ -759,7 +760,10 @@ export async function mondayCalls(env, act) {
     if (call === 'loser' || minOff) { sets.forEach(a => open.add(`${a.act}|${a.id}`)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
     if (call === 'loser') { if (sets.length) plan.pause.push(...sets.map(a => a.id)); else plan.pauseAds.push(...(st.ad_ids || [])); }
     else if (minOff) plan.clear.push(...sets.filter(a => a.min > 0).map(a => a.id));
+    if (minOff) for (const a of sets) if (a.min > 0) due.push({ id: a.id, name: a.name, act: a.act, min: a.min, day, why: call === 'early' ? `past ${rules.min_days} days` : 'judged' });
   }
+  /* The daily minimum check (minoff.js, 2026-10-15) needs the list only: the same judgement as Monday, no message. */
+  if (opts.minOnly) return { act, name: acct.name, channel: acct.slack_channel, due, error: meta.error };
   const L = [];
   const keepLine = rules.acct_avg ? `${money(rules.acct_avg)} account average${rules.acct_avg_month ? ` (${rules.acct_avg_month})` : ''}` : `${money(rules.target_cpa * (1 + rules.yellow_pct / 100))}`;
   const head = `*${acct.name} · this week's test calls*\nWinner: ${money(rules.target_cpa)} or less per sale · Keep: up to ${keepLine} · both need 2+ sales`;
@@ -805,6 +809,8 @@ export async function mondayCalls(env, act) {
   if (todo && !canEdit) L.push('_Locus can only read this ad account, so the changes are yours to make. For a Do it button the Mobius Tools system user needs "Manage campaigns" on it, with a token that includes ads_management._');
   return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo, scopes };
 }
+/** Test ad sets whose minimum spend is due off today and still set in Meta (minoff.js's daily check). */
+export const testMinimumsDue = (env, act) => mondayCalls(env, act, { minOnly: true });
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function doLabel(plan) {
   const p = plan.pause.length + plan.pauseAds.length, c = plan.clear.length;

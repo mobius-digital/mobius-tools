@@ -2198,3 +2198,33 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   phases are read first and merged (PUT /api/season/phase rewrites every column); applied in order, stops at the
   first error and says what went in. PLAYBOOK "PLAN CHANGES ARE ONE APPROVAL": state the plan as a short numbered
   list, then one card. Verified live 2026-10-15 in #locus-alerts (The Golf Sock test thread): one card; Apply not tapped.
+
+## 2026-10-15: TEST MINIMUMS DUE OFF, EVERY DAY (`src/minoff.js`). Read before touching test minimums or the Monday post.
+
+Cole approved: a DAILY check with a Slack button, every active brand (before, minimums came off only on the Monday "Do
+it", and only for brands with `rules.monday_post` on). Tests: `node test-minoff.mjs` (10 offline checks, Graph + Slack mocked).
+- **Which sets**: asana-brand.js `testMinimumsDue(env, act)` = `mondayCalls(env, act, { minOnly: true })`: the SAME
+  judgement as Monday (judged and not a loser, or still early but past `rules.min_days`), and the minimum still set in
+  Meta (`testMinimums`, read live). Returns `{ due: [{id, name, act, min, day, why}] }`, no message, no permission reads.
+  With the defaults (min_days 7 = judge_days 7) the "past min_days" path never fires: a test past 7 days that is not
+  judged is "starved" and counts as a loser. Only a brand with min_days under judge_days sees "past N days" lines.
+- **The tick** (`minOffTick`, hourly, right after actionTick; `minOffDeps()` in worker.js): once per Central day from the
+  morning hour, every active brand (`eligible`: not paused, not The Golf Sock, not Harborline, not demo_) with an
+  internal channel. Waits up to 3 hours past the morning hour for today's morning card, then posts anyway (teamPost
+  falls back to top-level). `subCanAfford(40)` before each brand. One message per brand only when something is due:
+  the buyer tagged (calendar.js `teamOf`), one line per set "<set>: test minimum $X/day is due off (day N, judged)." with a
+  "Take it off" button (`minoff_one_<i>`), and "Take all N off" (`minoff_all`, confirm dialog) when two or more are open.
+  State `minOffDone` {date, acts, tries}; the message `minOff:<act>:<date>`. Switch `settings.minOffPost` ('off' stops it;
+  `/api/settings` GET/PUT; Locus Agency settings > Slack and sending, under the morning card switch).
+- **The button**: `/slack/actions` -> `handleMinOffButton` -> metawrite.js `locusWrite` kind `min_spend`, min 0, `who` = the
+  Slack name: the same fresh read, brand check, Manage check, `p_meta_write` row, Change Log line and 24h undo in Locus as
+  the Campaigns screen. "Nothing would change" = already off (struck, "Already off in Meta"). A refusal keeps the line's
+  button and shows Meta's reason. The message is redrawn through response_url: "~line~ Done by X, undo in Locus".
+  NEVER applied by itself.
+- **slack-router**: `IDEA_ID` now matches `minoff_` AND `tests_do$`. The Monday Do it button (`tests_do`) matched no Locus
+  rule in the router and fell through to Pulse, so it cannot have worked through the router before this. Needs the
+  slack-router deploy.
+- The unused `min_spend` ($20) rules field is gone from asana-brand.js `rulesOf` (read nowhere here; profit's TEST_KEYS is
+  handled separately).
+- NOT tested live: a real tick (`lastHourly.minOff`), a real tap through the router, response_url redraw on a thread reply,
+  the router deploy.

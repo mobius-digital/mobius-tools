@@ -14,7 +14,8 @@ import { handleAlerts, alertTick } from './alerts.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam } from './calendar.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
-import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone } from './actions.js';
+import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, slackName } from './actions.js';
+import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
@@ -53,7 +54,7 @@ import { handleResearch } from './research.js';
 import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
-import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll, readDoc as brandReadDoc } from './asana-brand.js';
+import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, testMinimumsDue, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll, readDoc as brandReadDoc } from './asana-brand.js';
 import { ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
@@ -6207,6 +6208,9 @@ async function handleSlackInteract(request, env, ctx) {
       ctx.waitUntil(runMondayPlan(env, payload).catch(() => {}));
       return ACK();
     }
+    /* Test minimums due off: Take it off / Take all N off under the morning card (minoff.js, 2026-10-15). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^minoff_/.test(a.action_id || '')))
+      return await handleMinOffButton(env, ctx, payload, minOffDeps(), { ACK, xfetch });
     /* An action item's Done button on its reminder line (actions.js, 2026-10-13). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^act_done/.test(a.action_id || '')))
       return await handleActionButton(env, ctx, payload, actionDeps(), { ACK, xfetch });
@@ -6908,6 +6912,21 @@ function cardDeps() {
     /* The leak finder's list (cached an hour) for the card's one "new leak" line. */
     leaks: (env, act, o = {}) => leaksFor(env, { getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }, act, o) };
 }
+/* minoff.js: the daily "test minimum due off" line under each brand's morning card, and its Take it off buttons.
+   The write is the Locus one (metawrite.js locusWrite kind min_spend, min 0) as the tapper; the synced ad set row
+   drops its minimum like the /api/meta/write route's syncedRow does. */
+function minOffDeps() {
+  const base = { getSetting, putSetting, centralHour, centralDate, slackPost, slackApi };
+  return { ...base, listAccounts, canAfford: n => subCanAfford(n), teamOf: calendarTeam,
+    teamPost: (env, ch, text, blocks, opts) => teamPost(env, base, ch, text, blocks, opts), tagOf: (env, name) => tagOf(env, base, name),
+    dueOff: (env, act) => testMinimumsDue(env, act),
+    slackName: (env, uid) => slackName(env, { slackApi }, uid),
+    write: async (env, b, c) => {
+      const r = await metaLocusWrite(env, { xfetch, listAccounts, getSetting, putSetting }, b, c);
+      if (r.ok && r.level === 'adset' && r.object) await env.DB.prepare(`UPDATE meta_adsets SET min_spend = NULL WHERE adset_id = ?1`).bind(String(r.object)).run().catch(() => {});
+      return r;
+    } };
+}
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));
 function hubDeps() {
@@ -7339,6 +7358,8 @@ const AH_APP = {
         ran.today = await todayTick(env, todayDeps()).catch(e => ({ error: e.message }));
         /* Action items due today (and overdue, once a day): one line per owner per brand with Done buttons (actions.js, 2026-10-13). */
         ran.actions = await actionTick(env, actionDeps()).catch(e => ({ error: e.message }));
+        /* Test minimums due off today, one line per brand under its morning card with a Take it off button (minoff.js, 2026-10-15). */
+        ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -9268,6 +9289,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           todayPost: (await getSetting(env, 'todayPost')) !== 'off',
           /* Action item reminders to Slack the morning they are due (actions.js). On unless 'off'. */
           actionRemind: (await getSetting(env, 'actionRemind')) !== 'off',
+          /* The daily "test minimum due off" line under each morning card (minoff.js). On unless 'off'. */
+          minOffPost: await minOffOn(env),
           /* 2026-10-13: one hour for every morning post (Central) and the morning card's switch (morningcard.js). */
           morningHour: await morningHour(env),
           morningCard: await cardOn(env),
@@ -9290,6 +9313,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('briefClientStyle' in b) await putSetting(env, 'briefClientStyle', b.briefClientStyle === 'full' ? 'full' : 'short');
         if ('todayPost' in b) await putSetting(env, 'todayPost', b.todayPost ? 'on' : 'off');
         if ('actionRemind' in b) await putSetting(env, 'actionRemind', b.actionRemind ? 'on' : 'off');
+        if ('minOffPost' in b) await putSetting(env, 'minOffPost', b.minOffPost ? 'on' : 'off');
         if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
         if ('morningHour' in b) {
           const h = +b.morningHour;

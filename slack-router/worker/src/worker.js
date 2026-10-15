@@ -69,7 +69,8 @@ const LOCUS_ID = /^(brief|report)_|^noop_open$/;
 
 /* The ideas bot's buttons (account-health ideas.js). Checked FIRST and by action id only, so
    no value shape of Ledger's can ever be mistaken for one, and none of these can reach Ledger. */
-const IDEA_ID = /^(idea_|nc_|act_done)/;   // nc_ = Locus's New client buttons (2026-10-03); act_done = an action item's Done button (2026-10-13)
+const IDEA_ID = /^(idea_|nc_|act_done|minoff_|tests_do$)/;   // nc_ = Locus's New client buttons (2026-10-03); act_done = an action item's Done button (2026-10-13);
+// minoff_ = Take it off on a test minimum due off (2026-10-15); tests_do = the Monday test calls' Do it button, which fell through to Pulse until 2026-10-15
 
 function ownerOf(payload) {
   const acts = payload.type === 'block_actions' ? (payload.actions || []) : [];
