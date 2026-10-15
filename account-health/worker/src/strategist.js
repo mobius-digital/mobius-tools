@@ -1508,6 +1508,85 @@ const ACTIONS = (d) => {
         return { ok: true, note: 'The creator link page is updated; creators see it on their next load.' };
       } },
 
+    /* 2026-10-15 (Cole): put the brand's own ads on the creator board from Slack. The board (the public
+       creator link, /angles/<slug>) is now a grid of videos; "board picks" are ads picked straight from the
+       ad account, no idea needed (p_amb_proof kind 'meta', angle_id 'board', the same rows the Ambassadors
+       tab's picker writes). Other brands' videos still go through the ideas pipeline (its Creator link
+       button) or Atria clip-to-angle, because those have to be downloaded and stored first. */
+    { name: 'add_to_creator_board',
+      description: 'Put a brand\'s own Meta ads on its creator board (the public creator link creators copy from), or take them off. Either name the ads (ad ids or names from the ads view), or say how to pick them: rank_by orders | sales | roas | cpa | ctr | spend | hook (3-second views per impression), with count and days. Videos only by default (images never show on the link). Shows the ads with their numbers for approval; creators never see a number. For ANOTHER brand\'s video (a TikTok, a Reel, an Atria ad), hand the thread to the ideas pipeline instead: it stores the clip and its Creator link button adds it with a "steal this" note.',
+      input_schema: { type: 'object', properties: {
+        brand: { type: 'string' },
+        ad_ids: { type: 'array', items: { type: 'string' }, description: 'Exact Meta ad ids to add, when known.' },
+        names: { type: 'array', items: { type: 'string' }, description: 'Ad names (or parts of names) to add, when ids are not known.' },
+        rank_by: { type: 'string', enum: ['orders', 'sales', 'roas', 'cpa', 'ctr', 'spend', 'hook'], description: 'Pick the top ads by this, instead of naming them.' },
+        count: { type: 'integer', description: 'How many to add when ranking. 1 to 20. Default 5.' },
+        days: { type: 'integer', description: 'The period for the numbers. Default 30.' },
+        include_images: { type: 'boolean', description: 'true to allow image ads (they still never show on the link). Default false.' },
+        remove: { type: 'boolean', description: 'true to take the named ads OFF the board instead.' },
+        summary: { type: 'string' } }, required: ['brand', 'summary'] },
+      propose: async (env, input) => {
+        const acct = await resolve(env, input.brand); if (!acct) return { error: `No brand called "${input.brand}".` };
+        const hub = await env.DB.prepare(`SELECT slug, live, board_mode FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first();
+        if (!hub) return { error: `${acct.name} has no creator link yet.` };
+        const days = Math.min(Math.max(Number(input.days) || 30, 7), 365);
+        const since = d.addDays(d.localDate(acct.tz), -days);
+        const { results } = await env.DB.prepare(
+          `WITH m AS (SELECT ad_id, SUM(spend) spend, SUM(impressions) impr, SUM(link_clicks) clicks, SUM(video_3s) v3
+                        FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY ad_id),
+                tw AS (SELECT ad_id, SUM(orders) orders, SUM(revenue) sales FROM tw_ad_attr
+                        WHERE act_id = ?1 AND model = 'lastPlatformClick' AND date >= ?2 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id)
+           SELECT x.ad_id, x.name, x.media_type, COALESCE(m.spend, 0) spend, COALESCE(m.impr, 0) impr, COALESCE(m.clicks, 0) clicks, COALESCE(m.v3, 0) v3,
+                  COALESCE(tw.orders, 0) orders, COALESCE(tw.sales, 0) sales,
+                  (SELECT id FROM p_amb_proof p WHERE p.act_id = ?1 AND p.angle_id = 'board' AND p.ad_id = x.ad_id) pick_id
+             FROM ads x LEFT JOIN m ON m.ad_id = x.ad_id LEFT JOIN tw ON tw.ad_id = x.ad_id
+            WHERE x.act_id IN ${metaOf(1)}`,
+        ).bind(acct.act_id, since).all();
+        const all = (results || []).map(r => ({ ...r, roas: r.spend > 0 ? r.sales / r.spend : null, cpa: r.orders > 0 ? r.spend / r.orders : null, ctr: r.impr > 0 ? r.clicks / r.impr : null, hook: r.impr > 0 ? r.v3 / r.impr : null }));
+        let chosen = [];
+        const ids = new Set((input.ad_ids || []).map(String));
+        const names = (input.names || []).map(n => String(n).toLowerCase().trim()).filter(Boolean);
+        if (ids.size || names.length) {
+          chosen = all.filter(a => ids.has(a.ad_id) || names.some(n => String(a.name || '').toLowerCase().includes(n)));
+          if (!chosen.length) return { error: `None of those ads are in ${acct.name}'s account.` };
+        } else if (input.rank_by && !input.remove) {
+          const k = input.rank_by;
+          const pool = all.filter(a => (input.include_images || a.media_type === 'video') && !a.pick_id && a.spend > 0
+            && (k === 'roas' ? a.spend >= 50 && a.orders > 0 : k === 'cpa' ? a.orders > 0 : k === 'ctr' || k === 'hook' ? a.impr >= 1000 : true));
+          const v = a => k === 'cpa' ? -a.cpa : k === 'sales' ? a.sales : a[k] ?? -Infinity;
+          chosen = pool.sort((a, b) => v(b) - v(a)).slice(0, Math.min(Math.max(Number(input.count) || 5, 1), 20));
+          if (!chosen.length) return { error: `No ${input.include_images ? '' : 'video '}ads qualify by ${k} in the last ${days} days.` };
+        } else return { error: 'Name the ads, or say what to rank them by.' };
+        if (input.remove) {
+          const off = chosen.filter(a => a.pick_id);
+          if (!off.length) return { error: 'None of those ads are on the board.' };
+          return { summary: input.summary, detail: `Take off ${acct.name}'s creator board:\n${off.map(a => `- ${a.name}`).join('\n')}`, patch: { act_id: acct.act_id, remove: off.map(a => a.pick_id) } };
+        }
+        const add = chosen.filter(a => !a.pick_id && (input.include_images || a.media_type === 'video'));
+        const skipped = chosen.length - add.length;
+        if (!add.length) return { error: 'Those ads are already on the board, or are images (images never show on the link).' };
+        const $ = n => `$${Math.round(n).toLocaleString('en-US')}`;
+        const line = a => `- ${a.name}: ${$(a.spend)} spent, ${a.orders} orders, ${$(a.sales)} sales, ROAS ${a.roas == null ? '-' : a.roas.toFixed(2) + 'x'}, CPA ${a.cpa == null ? '-' : $(a.cpa)}, CTR ${a.ctr == null ? '-' : (a.ctr * 100).toFixed(2) + '%'}`;
+        return { summary: input.summary,
+          detail: `Add to ${acct.name}'s creator board (/angles/${hub.slug}${hub.live ? '' : ', switched off'}), last ${days} days, Triple Whale orders and sales:\n${add.map(line).join('\n')}${skipped ? `\n(${skipped} skipped: already on the board or an image)` : ''}${hub.board_mode === 'auto' ? '\nNote: this board is on "Our top ads", so picks show only when it is switched back to hand-picked.' : ''}`,
+          patch: { act_id: acct.act_id, add: add.map(a => a.ad_id) } };
+      },
+      apply: async (env, patch) => {
+        if (patch.remove?.length) {
+          for (const id of patch.remove) await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2 AND angle_id = 'board'`).bind(id, patch.act_id).run();
+          return { ok: true, note: `Took ${patch.remove.length} off the creator board.` };
+        }
+        const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) n FROM p_amb_proof WHERE act_id = ?1 AND angle_id = 'board'`).bind(patch.act_id).first();
+        let n = mx?.n || 0, added = 0;
+        for (const adId of patch.add || []) {
+          if (await env.DB.prepare(`SELECT 1 FROM p_amb_proof WHERE act_id = ?1 AND angle_id = 'board' AND ad_id = ?2`).bind(patch.act_id, adId).first()) continue;
+          await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, ad_id, shown, sort) VALUES (?1, ?2, 'board', 'meta', ?3, 1, ?4)`).bind(rid(), patch.act_id, adId, ++n).run();
+          added++;
+        }
+        await env.DB.prepare(`UPDATE p_amb_brand SET updated_at = datetime('now') WHERE act_id = ?1`).bind(patch.act_id).run().catch(() => {});
+        return { ok: true, note: `Added ${added} to the creator board. Creators see them first on their next load.` };
+      } },
+
     { name: 'leak_lesson',
       description: 'Teach the leak finder (the leaks view) what a teammate pushed back on, when someone says a leak or suggestion is wrong or should not be done ("our Google guy says never block competitor names in the brand campaign", "the web dev says that page is brand new, give it two weeks"). It is saved, judged once against the data and how the platform works (holds / partly / does not hold, with the why), and every later leak review follows it or shows both sides. Read the leaks view first so you can name the leak it is about.',
       input_schema: { type: 'object', properties: {

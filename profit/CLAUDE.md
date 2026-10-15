@@ -3442,6 +3442,25 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
     account-health `anglesBoardAds()` lets the slug play and cover exactly those ads on a LIVE auto page,
     alongside proof. Tested on Ice & Gold 2026-10-14 (11 ads ranked) and set back to `picked`; switching a
     brand on is Cole's call.
+- **HOW A VIDEO GETS ON THE BOARD (2026-10-15).** Five ways, all ending as `p_amb_proof` rows:
+  1. **Board picks** (Ambassadors > Link and brief > "Pick ads from the account"): the brand's ads with spend in
+     7 / 30 / 90 / 365 days (`GET /api/amb/board-ads`: Meta spend, CTR, 3-second rate from `ad_daily`; orders,
+     sales, ROAS, CPA from Triple Whale `tw_ad_attr`), videos only by default, sort by spend / orders / sales /
+     ROAS / CPA / CTR / stops the scroll / most recent, search, tick any number, "Add N to the board" (in the
+     list's order). Stored as kind `meta` with `angle_id = 'board'` (the `BOARD` sentinel; no idea needed),
+     reordered and removed in "Picked from the ad account" (`POST /api/amb/board` {add, remove, order}). The
+     payload sends them as `picks`; on a hand-picked board they come FIRST, then the ideas' videos. Covers and
+     playback are authorised by account-health's existing proof rule (any shown meta proof on a live page).
+     `ads.status` is not synced, so "Running now" = spend in the last 2 days.
+  2. **An idea's own videos** (idea editor > Watch first): a Meta ad by name, an uploaded file (R2, 95MB), or a link.
+  3. **Other brands' videos, from the ideas bot**: its "Creator link" button makes an idea with the reference clip
+     stored as an `upload` (plays on the page) and the "steal this" note; who = "Another brand (inspiration)".
+  4. **Other brands' videos, from Atria**: "Pull the video in" on an idea's inspiration row (account-health
+     `/api/atria/clip-to-angle`).
+  5. **The Strategist** (Slack or the ask bar): tool `add_to_creator_board` in account-health strategist.js puts the
+     brand's OWN ads on the board as board picks (named ads, or "top N by orders / sales / roas / cpa / ctr / spend /
+     hook" over N days), or takes them off, shown with their numbers for approval first. For another brand's video
+     it hands the thread to the ideas pipeline (way 3). Claude Code sessions use the same routes or SQL.
 - **Not shown any more (still stored and edited):** each idea's steps, openers, alt hooks, on-screen text,
   do / don't, why; the First seconds hooks bank; the season card and chart; about / audience; inspiration
   LINKS with no stored clip; ideas with no video (they appear once a video is attached).

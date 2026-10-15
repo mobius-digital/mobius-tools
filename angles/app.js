@@ -99,7 +99,8 @@ function dealt(list) {
   return out.sort((x, y) => (y.hot && y.r === 0) - (x.hot && x.r === 0) || (x.r - y.r) || (x.ai - y.ai));
 }
 /* Two ways to fill the board, set per brand on the Ambassadors tab (board_mode):
-     picked  the proof videos attached to the ideas, as the team chose them.
+     picked  the board picks (D.picks: ads the team chose straight from the ad account, in order),
+             then the proof videos attached to the ideas.
      auto    the brand's own Meta video ads ranked by Triple Whale orders (D.board, ids and rank
              only), then other brands' clips from the ideas.
    ONE "Start here" star, on the very first video, like Frost Buddy. */
@@ -113,7 +114,13 @@ function buildTiles() {
     const theirs = dealt(all.map(a => [a, (a.proof || []).filter(p => playableProof(p) && isTheirs(p))]));
     out = [...ours, ...theirs];
   } else {
-    out = dealt(all.map(a => [a, (a.proof || []).filter(playableProof).sort((x, y) => isTheirs(x) - isTheirs(y))]));
+    // Board picks first (ads the team picked straight from the ad account, in their order), then the
+    // ideas' videos dealt round-robin. An ad that is both a pick and an idea's proof shows once, as the pick.
+    const ideaOf = {};
+    for (const a of all) for (const p of a.proof || []) if (p.kind === 'meta' && p.ad_id && !ideaOf[p.ad_id]) ideaOf[p.ad_id] = a;
+    const picks = (D.picks || []).map(p => ({ p, a: ideaOf[p.ad_id] || null, theirs: false }));
+    const taken = new Set(picks.map(t => t.p.ad_id));
+    out = [...picks, ...dealt(all.map(a => [a, (a.proof || []).filter(p => playableProof(p) && !(p.ad_id && taken.has(p.ad_id))).sort((x, y) => isTheirs(x) - isTheirs(y))]))];
   }
   return out.map((t, i) => ({ ...t, star: i === 0, sec: t.a?.section_id || '', i }));
 }
@@ -130,7 +137,7 @@ function words(t) {
   const p = t.p;
   if (t.theirs) return { cap: p.note || t.a?.title || '', sub: `${whoOf(p) || 'Another brand'}, not us`, chip: secName(t.sec) };
   if (t.rank) return { cap: t.a?.title || '', sub: `#${t.rank} right now`, chip: secName(t.sec) || 'Our ad', capAd: t.a ? '' : p.ad_id };
-  return { cap: t.a?.title || '', sub: p.kind === 'meta' ? 'Ran as our ad' : 'Our video', chip: secName(t.sec) };
+  return { cap: t.a?.title || '', sub: p.kind === 'meta' ? 'Ran as our ad' : 'Our video', chip: secName(t.sec) || (t.a ? '' : 'Our ad'), capAd: !t.a && p.kind === 'meta' ? p.ad_id : '' };
 }
 
 function tile(t) {

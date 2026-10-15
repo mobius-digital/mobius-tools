@@ -301,7 +301,7 @@ function injectCss() {
 .am-score b{font-size:20px;font-weight:650;color:var(--ink);letter-spacing:-.02em}
 .am-score span{font-size:12px;color:var(--muted)}
 @media (max-width:1000px){.am-g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:720px){.am-g2,.am-g3,.am-g4{grid-template-columns:1fr}.am-list-edit .am-li,.am-list-edit .am-li.hook,.am-list-edit .am-li.three{grid-template-columns:1fr}}
+@media (max-width:720px){.am-pkbar{grid-template-columns:1fr 1fr!important}.am-pkbar input{grid-column:1/-1}.am-g2,.am-g3,.am-g4{grid-template-columns:1fr}.am-list-edit .am-li,.am-list-edit .am-li.hook,.am-list-edit .am-li.three{grid-template-columns:1fr}}
 `;
   document.head.appendChild(st);
 }
@@ -1209,6 +1209,111 @@ function wireProof(a, root) {
 }
 
 /* ---------- Link and brief ---------- */
+/* ---------- board picks: ads picked straight from the ad account onto the creator board (2026-10-15) ---------- */
+const BOARD = 'board';
+const boardPicks = () => (S.data?.proof || []).filter(p => p.angle_id === BOARD && p.kind === 'meta').sort((x, y) => (x.sort || 0) - (y.sort || 0));
+function picksList() {
+  const ps = boardPicks();
+  if (!ps.length) return '<p class="hint" style="margin:0">None yet.</p>';
+  return ps.map((p, i) => `<div class="am-pick" data-pid="${esc(p.id)}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px">
+      <span style="width:22px;text-align:center;color:var(--muted);font-size:12px">${i + 1}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px">${esc(p.stats?.name || p.ad_id)}</span>
+      <button class="btn" type="button" data-pmv="-1" aria-label="Move up" ${i === 0 ? 'disabled' : ''} style="min-width:36px;padding:0 8px">${ic('arrow-up', 14)}</button>
+      <button class="btn" type="button" data-pmv="1" aria-label="Move down" ${i === ps.length - 1 ? 'disabled' : ''} style="min-width:36px;padding:0 8px">${ic('arrow-down', 14)}</button>
+      <button class="btn" type="button" data-prm aria-label="Take it off the board" style="min-width:36px;padding:0 8px">${ic('x', 14)}</button>
+    </div>`).join('');
+}
+function wirePicks() {
+  const box = document.getElementById('lPicks');
+  if (!box) return;
+  const save = async b => { try { S.data = await post('/api/amb/board', b); box.innerHTML = picksList(); wirePicks(); } catch (e) { helpModal('Could not save', `<p>${esc(e.message)}</p>`); } };
+  box.querySelectorAll('[data-prm]').forEach(x => x.onclick = () => save({ remove: [x.closest('[data-pid]').dataset.pid] }));
+  box.querySelectorAll('[data-pmv]').forEach(x => x.onclick = () => {
+    const ids = boardPicks().map(p => p.id);
+    const id = x.closest('[data-pid]').dataset.pid, i = ids.indexOf(id), k = i + +x.dataset.pmv;
+    if (k < 0 || k >= ids.length) return;
+    [ids[i], ids[k]] = [ids[k], ids[i]];
+    save({ order: ids });
+  });
+}
+/* The picker: the brand's ads from the account with the numbers staff sort by (Triple Whale orders and
+   sales, Meta spend and clicks), tick any number, Add to the board. Numbers never reach creators. */
+const PICK_SORTS = [['spend', 'Most spend'], ['orders', 'Most orders'], ['sales', 'Most sales'], ['roas', 'Best ROAS'], ['cpa', 'Lowest CPA'], ['ctr', 'Best CTR'], ['hook', 'Stops the scroll'], ['recent', 'Spent most recently']];
+async function openAdPicker() {
+  const P = { days: 30, video: true, sort: 'spend', q: '', ads: [], sel: new Set(), thumbs: {} };
+  const pct = v => v == null ? ' - ' : (v * 100).toFixed(v < 0.1 ? 2 : 1) + '%';
+  const x2 = v => v == null ? ' - ' : v.toFixed(2) + 'x';
+  modal('Pick ads for the creator board', `
+    <p class="hint" style="margin:0">This brand's ads with spend in the period. Tick the ones creators should copy, then add them. Orders and sales are Triple Whale, spend and clicks are Meta.</p>
+    <div class="am-pkbar" style="display:grid;grid-template-columns:minmax(0,1fr) 150px 130px;gap:8px">
+      <input class="am-in" id="pkQ" placeholder="Search by ad name">
+      <select class="am-in" id="pkSort" aria-label="Sort by">${PICK_SORTS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>
+      <select class="am-in" id="pkDays" aria-label="Period"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;min-height:36px"><input type="checkbox" id="pkVideo" checked> Videos only (images never show on the link)</label>
+    <div id="pkList" style="display:flex;flex-direction:column;gap:6px;max-height:min(56vh,560px);overflow:auto"><p class="hint">Loading the ads…</p></div>`, { cta: 'Add to the board', wide: true });
+  const w = modal.last;
+  const yes = w.querySelector('[data-m="yes"]');
+  const val = (a, k) => k === 'cpa' ? (a.cpa == null ? Infinity : a.cpa) : (a[k] == null ? -Infinity : a[k]);
+  const sorted = rows => rows.sort((a, b) => P.sort === 'cpa' ? val(a, 'cpa') - val(b, 'cpa')
+    : P.sort === 'recent' ? String(b.last_spend || '').localeCompare(String(a.last_spend || ''))
+    : val(b, P.sort) - val(a, P.sort));
+  const count = () => { yes.textContent = P.sel.size ? `Add ${P.sel.size} to the board` : 'Add to the board'; yes.disabled = !P.sel.size; };
+  const loadThumbs = async ids => {
+    const need = ids.filter(id => !(id in P.thumbs));
+    if (!need.length) return;
+    need.forEach(id => { P.thumbs[id] = ''; });
+    try {
+      const r = await api(`/api/ad-creatives?ads=${encodeURIComponent(need.join(','))}`);
+      for (const [id, v] of Object.entries(r.assets || {})) {
+        if (!v.thumb) continue;
+        P.thumbs[id] = v.thumb;
+        w.querySelectorAll(`[data-th="${CSS.escape(id)}"]`).forEach(el => { el.style.backgroundImage = `url("${v.thumb.replace(/"/g, '%22')}")`; });
+      }
+    } catch { /* the names are enough */ }
+  };
+  const paintList = () => {
+    const q = P.q.toLowerCase();
+    const rows = sorted(P.ads.filter(a => !q || String(a.name || '').toLowerCase().includes(q) || a.ad_id === q));
+    const box = w.querySelector('#pkList');
+    box.innerHTML = rows.length ? rows.slice(0, 150).map(a => `<label style="display:grid;grid-template-columns:22px 44px minmax(0,1fr);gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;cursor:pointer;${a.on_board ? 'opacity:.55' : ''}">
+        <input type="checkbox" data-ad="${esc(a.ad_id)}" ${a.on_board ? 'checked disabled' : P.sel.has(a.ad_id) ? 'checked' : ''} style="width:18px;height:18px">
+        <span data-th="${esc(a.ad_id)}" style="width:44px;height:58px;border-radius:7px;background:var(--surface-2) center/cover no-repeat;${P.thumbs[a.ad_id] ? `background-image:url(&quot;${esc(P.thumbs[a.ad_id])}&quot;)` : ''}"></span>
+        <span style="min-width:0"><b style="display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.name || a.ad_id)}</b>
+          <span style="display:block;font-size:12px;color:var(--muted)">${a.on_board ? 'On the board · ' : ''}${a.running ? 'Running now' : a.last_spend ? 'Last spent ' + esc(a.last_spend) : 'Not running'} · ${esc(a.media_type || 'unknown type')}</span>
+          <span style="display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;margin-top:3px;font-variant-numeric:tabular-nums">
+            <span>Spend <b>${money(a.spend)}</b></span><span>Orders <b>${a.orders ?? 0}</b></span><span>Sales <b>${money(a.sales)}</b></span><span>ROAS <b>${x2(a.roas)}</b></span><span>CPA <b>${a.cpa == null ? ' - ' : money(a.cpa)}</b></span><span>CTR <b>${pct(a.ctr)}</b></span><span>Stops scroll <b>${pct(a.hook)}</b></span></span></span>
+      </label>`).join('') + (rows.length > 150 ? `<p class="hint">Showing the first 150 of ${rows.length}. Search to narrow it.</p>` : '')
+      : '<p class="hint">No ads with spend in this period.</p>';
+    box.querySelectorAll('input[data-ad]').forEach(c => c.onchange = () => { if (c.checked) P.sel.add(c.dataset.ad); else P.sel.delete(c.dataset.ad); count(); });
+    loadThumbs(rows.slice(0, 40).map(a => a.ad_id));
+  };
+  const load = async () => {
+    w.querySelector('#pkList').innerHTML = '<p class="hint">Loading the ads…</p>';
+    try { P.ads = (await api(`/api/amb/board-ads?act=${encodeURIComponent(S.act)}&days=${P.days}&video=${P.video ? 1 : 0}`)).ads || []; paintList(); }
+    catch (e) { w.querySelector('#pkList').innerHTML = `<p class="hint">${esc(e.message)}</p>`; }
+  };
+  w.querySelector('#pkQ').oninput = e => { P.q = e.target.value.trim(); paintList(); };
+  w.querySelector('#pkSort').onchange = e => { P.sort = e.target.value; paintList(); };
+  w.querySelector('#pkDays').onchange = e => { P.days = +e.target.value; load(); };
+  w.querySelector('#pkVideo').onchange = e => { P.video = e.target.checked; load(); };
+  w._submit = async ctl => {
+    if (!P.sel.size) return;
+    yes.disabled = true;
+    // In the order they show in the list, so "sort by orders, tick the top five" lands in that order.
+    const order = [...w.querySelectorAll('input[data-ad]')].map(c => c.dataset.ad).filter(id => P.sel.has(id));
+    for (const id of P.sel) if (!order.includes(id)) order.push(id);
+    try {
+      S.data = await post('/api/amb/board', { add: order });
+      const box = document.getElementById('lPicks');
+      if (box) { box.innerHTML = picksList(); wirePicks(); }
+      ctl.close();
+    } catch (e) { yes.disabled = false; ctl.msg(e.message); }
+  };
+  count();
+  load();
+}
+
 function paintLink(body) {
   const b = S.data.brand;
   const se = b.season || {};
@@ -1349,6 +1454,11 @@ function paintLink(body) {
           <label class="am-f">Rank top ads by<select class="am-in" id="lBoardSort"${b.board_mode !== 'auto' ? ' disabled' : ''}>${[['orders', 'Most orders (Triple Whale)'], ['revenue', 'Most sales (Triple Whale)'], ['roas', 'Best return on ad spend'], ['hook', 'Stops the scroll (3-second views)']].map(([v, t]) => `<option value="${v}"${(b.board_sort || 'orders') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
           <label class="am-f">How many<input class="am-in" id="lBoardN" type="number" min="4" max="50" value="${esc(b.board_n || 20)}"${b.board_mode !== 'auto' ? ' disabled' : ''}></label>
         </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><b style="font-size:13.5px">Picked from the ad account</b><p class="hint" style="margin:2px 0 0">Shown first on a hand-picked board, in this order. No idea needed.</p></div>
+            <button class="btn primary" id="lPickAds" type="button">${ic('plus', 13)} Pick ads from the account</button></div>
+          <div id="lPicks" style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${picksList()}</div>
+        </div>
       </div>
       </div>
 
@@ -1358,6 +1468,8 @@ function paintLink(body) {
   </div>
   <div class="am-save"><span class="am-msg" id="lMsg"></span><button class="btn primary" id="lSave">Save</button></div>`;
 
+  $('#lPickAds').onclick = () => openAdPicker();
+  wirePicks();
   $('#lBoard').onchange = () => { const on = $('#lBoard').value === 'auto'; $('#lBoardSort').disabled = !on; $('#lBoardN').disabled = !on; };
   let accent = b.accent || '#13202B';
   const syncSw = () => body.querySelectorAll('#lSw .am-swatch').forEach(x => x.classList.toggle('on', x.dataset.c.toLowerCase() === accent.toLowerCase()));

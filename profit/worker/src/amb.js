@@ -171,6 +171,27 @@ function customShape(custom, weeks = 52, back = 13) {
   return { weeks: out, now_index: back, custom: true };
 }
 
+/* ---------------- board picks ---------------- */
+/** The angle_id of a video picked straight onto the board (no idea). Not a real angle row. */
+export const BOARD = 'board';
+/** Add ads to the board picks, in the order given, after the ones already there. Only this brand's ads; an
+ *  ad already picked is skipped. Shared by the Ambassadors tab and the Strategist (account-health calls the
+ *  same SQL in its own tool). Returns the ids it added. */
+export async function addBoardPicks(env, actId, adIds) {
+  const added = [];
+  const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort), 0) n FROM p_amb_proof WHERE act_id = ?1 AND angle_id = ?2`).bind(actId, BOARD).first();
+  let n = mx?.n || 0;
+  for (const adId of adIds) {
+    const own = await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(actId, adId).first();
+    if (!own) continue;
+    const dup = await env.DB.prepare(`SELECT 1 FROM p_amb_proof WHERE act_id = ?1 AND angle_id = ?2 AND ad_id = ?3`).bind(actId, BOARD, adId).first();
+    if (dup) continue;
+    await env.DB.prepare(`INSERT INTO p_amb_proof (id, act_id, angle_id, kind, ad_id, shown, sort) VALUES (?1, ?2, ?3, 'meta', ?4, 1, ?5)`).bind(rid(), actId, BOARD, adId, ++n).run();
+    added.push(adId);
+  }
+  return added;
+}
+
 /* ---------------- public ---------------- */
 
 /** The auto board (amb-004, amb-006): the brand's own Meta VIDEO ads over the last 30 days, ranked by
@@ -261,6 +282,7 @@ async function publicPayload(env, slug, preview = false) {
     preview: !b.live,
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; x.hooks = hooks; return x; })(),
     board: b.board_mode === 'auto' ? await autoBoard(env, b) : null,
+    picks: (proofBy.get(BOARD) || []).filter(p => p.kind === 'meta').map(p => ({ id: p.id, kind: 'meta', ad_id: p.ad_id })),   // board picks, in the team's order
     season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
       || await seasonShape(env, b.act_id).catch(() => null),
     hot: pinned ? { id: pinned.id, name: pinned.name, line: pinned.line, icon_svg: cleanSvg(pinned.icon_svg), color: pinned.color, angles: hot } : null,
@@ -649,6 +671,51 @@ export async function handleStaff(request, env, url, path, json) {
           ORDER BY revenue DESC LIMIT ?5`,
       ).bind(acct.act_id, q, `%${q}%`, minSpend, limit).all();
       return json({ ads: (results || []).map(r => ({ ...r, roas: r.spend > 0 ? r.revenue / r.spend : null, tagged: r.tagged ? r.tagged.split(',') : [] })) });
+    }
+
+    /* BOARD PICKS (2026-10-15, Cole): ads picked straight from the ad account onto the board, no idea needed.
+       Stored as p_amb_proof kind 'meta' with angle_id = BOARD (the sentinel), so playback and covers on the
+       public link are authorised by the same proof rule as every other video. The picker lists the brand's
+       ads with the numbers staff sort by; numbers stay on the staff side. */
+    if (path === '/api/amb/board-ads' && method === 'GET') {
+      const acct = await mustAccount(env, act);
+      const days = [7, 30, 90, 365].includes(+url.searchParams.get('days')) ? +url.searchParams.get('days') : 30;
+      const videoOnly = url.searchParams.get('video') !== '0';
+      const since = addDays(today(), -days);
+      const { results } = await env.DB.prepare(
+        `WITH m AS (SELECT ad_id, SUM(spend) spend, SUM(impressions) impr, SUM(link_clicks) clicks, SUM(video_3s) v3,
+                           MAX(CASE WHEN spend > 0 THEN date END) last_spend
+                      FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY ad_id HAVING SUM(spend) > 0),
+              tw AS (SELECT ad_id, SUM(orders) orders, SUM(revenue) sales FROM tw_ad_attr
+                      WHERE act_id = ?1 AND model = 'lastPlatformClick' AND date >= ?2 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id)
+         SELECT x.ad_id, x.name, x.status, x.media_type, m.spend, m.impr, m.clicks, m.v3, m.last_spend,
+                COALESCE(tw.orders, 0) orders, COALESCE(tw.sales, 0) sales
+           FROM m JOIN ads x ON x.ad_id = m.ad_id AND x.act_id IN ${metaOf(1)} LEFT JOIN tw ON tw.ad_id = m.ad_id
+          WHERE (?3 = 0 OR x.media_type = 'video')
+          ORDER BY m.spend DESC LIMIT 300`,
+      ).bind(acct.act_id, since, videoOnly ? 1 : 0).all().catch(() => ({ results: [] }));
+      const on = new Set(((await env.DB.prepare(`SELECT ad_id FROM p_amb_proof WHERE act_id = ?1 AND angle_id = ?2 AND kind = 'meta'`).bind(acct.act_id, BOARD).all()).results || []).map(r => r.ad_id));
+      return json({ days, ads: (results || []).map(r => ({
+        ad_id: r.ad_id, name: r.name, media_type: r.media_type, last_spend: r.last_spend,
+        running: !!r.last_spend && r.last_spend >= addDays(today(), -2),   // ads.status is not synced; spend in the last 2 days = running
+        spend: r.spend || 0, orders: r.orders, sales: r.sales,
+        ctr: r.impr > 0 ? r.clicks / r.impr : null, hook: r.impr > 0 ? r.v3 / r.impr : null,
+        roas: r.spend > 0 ? r.sales / r.spend : null, cpa: r.orders > 0 ? r.spend / r.orders : null,
+        on_board: on.has(r.ad_id),
+      })) });
+    }
+    if (path === '/api/amb/board' && method === 'POST') {
+      const acct = await mustAccount(env, act);
+      const add = (Array.isArray(body.add) ? body.add : []).map(String).filter(x => /^\d{6,25}$/.test(x)).slice(0, 50);
+      if (add.length) await addBoardPicks(env, acct.act_id, add);
+      const remove = (Array.isArray(body.remove) ? body.remove : []).map(String).filter(x => /^[a-f0-9]{16}$/.test(x));
+      for (const id of remove) await env.DB.prepare(`DELETE FROM p_amb_proof WHERE id = ?1 AND act_id = ?2 AND angle_id = ?3`).bind(id, acct.act_id, BOARD).run();
+      if (Array.isArray(body.order)) {
+        let i = 0;
+        for (const id of body.order.map(String).filter(x => /^[a-f0-9]{16}$/.test(x)).slice(0, 100)) await env.DB.prepare(`UPDATE p_amb_proof SET sort = ?3 WHERE id = ?1 AND act_id = ?2 AND angle_id = ?4`).bind(id, acct.act_id, ++i, BOARD).run();
+      }
+      await env.DB.prepare(`UPDATE p_amb_brand SET updated_at = datetime('now') WHERE act_id = ?1`).bind(acct.act_id).run().catch(() => {});
+      return json(await staffPayload(env, acct));
     }
 
     // What the season chart will look like on the link, for the staff preview.
