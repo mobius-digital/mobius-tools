@@ -8,6 +8,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { handleProduction, moveCard, formatOf } from './src/production.js';
+import { useFetch as frameFetch } from './src/frame.js';
+import { useSleep as frameSleep, titleOf, frameRetry, OLD_FOLDER } from './src/framesync.js';
 import { briefText, normBrief, aiFill, saveCard, addComment, decide, getCard, uploadFile, sendToClient, serveFile, handleReviewLink, shareLink,
   pruneFiles, setMirror, mirrorOn, normShape, briefHtml, savePhoto, teamPhotos, sanitizeHtml, htmlToText, textToHtml, asanaToHtml, templateHtml, briefFromAsana, adOf, fillSrc, templateOnly, htmlBlank } from './src/prodwork.js';
 
@@ -434,6 +436,87 @@ await check('prune: 60 days after Live only the final version OF EACH AD stays; 
   const p = await teamPhotos(env, d);
   assert.equal(p.Cole, 'https://lh3.googleusercontent.com/a/cole'); assert.equal(p.Ahsan, 'https://slack/p/U_AHSAN');
   const calls = slack.length; await teamPhotos(env, d); assert.equal(slack.length, calls, 'Slack photos cached for a week');
+});
+
+await check('Frame in step: a new version moves the old one into "zz Old versions", a delete moves it out and brings the one before back, never a Frame delete', async () => {
+  /* Frame V4 mocked: an account, the Alpha project (root > Ad Concepts > "9 - Gift tag" and "10 - Cold hands"), files by folder */
+  const F = { root: [{ id: 'CONCEPTS', name: 'Ad Concepts', type: 'folder' }], CONCEPTS: [{ id: 'F9', name: '9 - Gift tag', type: 'folder' }, { id: 'F10', name: '10 - Cold hands', type: 'folder' }],
+    F9: [{ id: 'a1', name: '9-1 Old idea.png', type: 'file' }, { id: 'a1b', name: '9-1 Old idea 9x16.png', type: 'file' }, { id: 'a2', name: '9-2 Keep.png', type: 'file' }, { id: 'pdf', name: 'Brief notes.pdf', type: 'file' }],
+    F10: [{ id: 'b1', name: '10-1 Cold v1.png', type: 'file' }] };
+  const calls = []; let throttle = 1, made = 0;
+  const where = id => Object.keys(F).find(k => F[k].some(x => x.id === id));
+  const res = (b, status = 200) => new Response(JSON.stringify(b), { status });
+  frameFetch(async (u, init = {}) => {
+    const m = init.method || 'GET', path = String(u).replace('https://api.frame.io/v4', ''), body = init.body ? JSON.parse(init.body) : null;
+    calls.push(`${m} ${path}`);
+    let x;
+    if (path === '/accounts') return res({ data: [{ id: 'ACC' }] });
+    if ((x = /^\/accounts\/ACC\/folders\/(\w+)\/children/.exec(path))) return res({ data: F[x[1]] || [] });
+    if (m === 'GET' && (x = /^\/accounts\/ACC\/folders\/(\w+)$/.exec(path))) { const p = where(x[1]); return p ? res({ data: { id: x[1], name: F[p].find(i => i.id === x[1]).name, parent_id: p, project_id: 'PRJ' } }) : res({ errors: [{ detail: 'Not found' }] }, 404); }
+    if (m === 'GET' && /^\/accounts\/ACC\/files\//.test(path)) return res({ errors: [{ detail: 'Not found' }] }, 404);
+    if (path === '/accounts/ACC/workspaces') return res({ data: [{ id: 'W' }] });
+    if (path.startsWith('/accounts/ACC/workspaces/W/projects')) return res({ data: [{ id: 'PRJ', name: 'Alpha Golf', root_folder_id: 'root' }] });
+    if (path === '/accounts/ACC/projects/PRJ') return res({ data: { id: 'PRJ', root_folder_id: 'root' } });
+    if (m === 'POST' && (x = /^\/accounts\/ACC\/folders\/(\w+)\/folders$/.exec(path))) { const id = 'OLD' + (++made); F[x[1]].push({ id, name: body.data.name, type: 'folder' }); F[id] = []; return res({ data: { id, name: body.data.name } }); }
+    if (m === 'PATCH' && (x = /^\/accounts\/ACC\/files\/(\w+)\/move$/.exec(path))) {
+      if (throttle-- > 0) return res({ errors: [{ title: 'Too Many Requests' }] }, 429);
+      const from = where(x[1]); const it = F[from].find(i => i.id === x[1]); F[from] = F[from].filter(i => i !== it); F[body.data.parent_id].push(it); return res({ data: it });
+    }
+    if (m === 'POST' && (x = /^\/accounts\/ACC\/folders\/(\w+)\/files\/remote_upload$/.exec(path))) {
+      assert.match(body.data.source_url, /^https:\/\/(ah\.test|mobius-account-health\.mobius-digital\.workers\.dev)\/api\/production\/f\/[a-f0-9]{16}\?e=\d+&s=/, 'Frame fetches the signed Locus link');
+      const it = { id: 'up' + calls.length, name: body.data.name, type: 'file' }; F[x[1]].push(it); return res({ data: it });
+    }
+    return res({ errors: [{ detail: 'unmocked ' + m + ' ' + path }] }, 400);
+  });
+  frameSleep(async () => {});
+  db.exec(`CREATE TABLE IF NOT EXISTS p_studio_cfg (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`);
+  db.prepare(`INSERT OR REPLACE INTO p_studio_cfg (key, value) VALUES ('frame_tokens', ?)`).run(JSON.stringify({ access: 'tok', exp: Date.now() + 3600e3 }));
+  add('c9', 'brand_alpha', '9', 'Gift tag', 'production', 'Creative Studio', null);
+  add('c10', 'brand_alpha', '10', 'Cold hands', 'production', 'Creative Studio', null);
+  db.exec(`UPDATE p_br_batch SET asset_url = 'https://next.frame.io/project/PRJ/F9' WHERE id = 'c9'`);
+  const names = k => F[k].map(i => i.name).sort();
+  const up = name => call(`/api/production/upload?id=c9&kind=version&name=${encodeURIComponent(name)}`, { method: 'POST', raw: Buffer.from('PNG'), type: 'image/png' });
+
+  assert.equal(titleOf('5-4 Spell it out MOM v2'), titleOf('5-4 Spell it out MOM.png'));
+  assert.equal(titleOf('LG_440-2 final.mov'), '');
+  /* v1 of both ads, already in Frame by hand: nothing moves, nothing is sent */
+  await up('9-1 Old idea.png'); await up('9-2 Keep.png');
+  assert.deepEqual(names('F9'), ['9-1 Old idea 9x16.png', '9-1 Old idea.png', '9-2 Keep.png', 'Brief notes.pdf']);
+  assert.ok(!F.CONCEPTS.some(x => x.name === OLD_FOLDER), 'no old folder until something needs it');
+  /* v2 of 9-1: v1 and its resize move out (one 429 waited out), v2 is sent to Frame */
+  await up('9-1 New idea v2.png');
+  const old = F.CONCEPTS.find(x => x.name === OLD_FOLDER);
+  assert.ok(old, 'the old folder is made beside the concept folder, under Ad Concepts');
+  assert.deepEqual(names(old.id), ['9-1 Old idea 9x16.png', '9-1 Old idea.png']);
+  assert.deepEqual(names('F9'), ['9-1 New idea v2.png', '9-2 Keep.png', 'Brief notes.pdf']);
+  /* delete v2 in Locus: v2 moves out, v1 (and its resize) come back */
+  const v2 = db.prepare(`SELECT id FROM p_work_file WHERE batch_id = 'c9' AND ad = '9-1' AND version = 2`).get().id;
+  assert.equal((await call('/api/production/file/delete', { method: 'POST', body: { file_id: v2 } })).status, 200);
+  assert.deepEqual(names('F9'), ['9-1 Old idea 9x16.png', '9-1 Old idea.png', '9-2 Keep.png', 'Brief notes.pdf']);
+  assert.deepEqual(names(old.id), ['9-1 New idea v2.png']);
+  /* delete the only version of 9-2: Frame's copy moves out; the PDF (no ad) never moves */
+  const k2 = db.prepare(`SELECT id FROM p_work_file WHERE batch_id = 'c9' AND ad = '9-2'`).get().id;
+  await call('/api/production/file/delete', { method: 'POST', body: { file_id: k2 } });
+  assert.deepEqual(names('F9'), ['9-1 Old idea 9x16.png', '9-1 Old idea.png', 'Brief notes.pdf']);
+  assert.equal(F.CONCEPTS.filter(x => x.name === OLD_FOLDER).length, 1, 'one old folder, reused');
+  const hist = db.prepare(`SELECT body FROM p_work_comment WHERE batch_id = 'c9' AND kind = 'system' AND body LIKE 'Frame:%'`).all().map(r => r.body);
+  assert.ok(hist.some(b => /moved 9-2 Keep\.png to "zz Old versions/.test(b)), hist.join(' | '));
+  /* a card with no Frame link: found by number under the brand's Ad Concepts, and the link is stored */
+  await call(`/api/production/upload?id=c10&kind=version&name=${encodeURIComponent('10-1 Cold v2.png')}`, { method: 'POST', raw: Buffer.from('PNG'), type: 'image/png' });
+  assert.equal(db.prepare(`SELECT asset_url FROM p_br_batch WHERE id = 'c10'`).get().asset_url, 'https://next.frame.io/project/PRJ/F10');
+  assert.deepEqual(names('F10'), ['10-1 Cold v2.png']);
+  assert.ok(names(old.id).includes('10-1 Cold v1.png'));
+  /* NEVER a delete in Frame */
+  assert.ok(!calls.some(c => /^DELETE /.test(c)), 'no DELETE call to Frame');
+  /* still in the 429 after the retries: left pending, the hourly retry finishes it */
+  throttle = 3;
+  await up('9-1 Third.png');
+  assert.match(db.prepare(`SELECT frame_json FROM p_br_batch WHERE id = 'c9'`).get().frame_json, /"pending":\["9-1"\]/);
+  const retry = await frameRetry(env, { anyAge: true });
+  assert.equal(retry.c9.moved.length, 2);
+  assert.deepEqual(names('F9'), ['9-1 Third.png', 'Brief notes.pdf']);
+  assert.doesNotMatch(db.prepare(`SELECT frame_json FROM p_br_batch WHERE id = 'c9'`).get().frame_json, /"pending":\["/);
+  db.prepare(`DELETE FROM p_studio_cfg WHERE key = 'frame_tokens'`).run();
 });
 
 console.log(`\n${n} passed, ${bad} failed`);

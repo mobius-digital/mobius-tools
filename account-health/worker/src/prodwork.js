@@ -31,6 +31,7 @@ import { boardOf, ensureBoard } from './asana-brand.js';
 import { ROSTER } from './actions.js';
 import { brandBrain, SPECIFICITY } from './brain.js';
 import { slackIdOf } from './morningcard.js';
+import { frameLater } from './framesync.js';
 
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const AI_MODEL = 'claude-sonnet-5-5';
@@ -1060,6 +1061,8 @@ async function fileRow(env, d, origin, r, { id, key, kind, name, mime, size }, w
     const board = r.board_stage || boardOf(r.asana_section, r.stage);
     if ((board === 'brief' || board === 'making') && d.moveCard) moved = (await d.moveCard(env, d, { id: r.id, to: 'review' }, who).catch(() => null))?.to || null;
     await convert(env, origin, id, mime, name).catch(e => console.log('convert: ' + e.message));
+    /* Frame in step (framesync.js): the older version of this ad leaves the concept folder, the new one is there */
+    if (ad) { const fp = frameLater(env, d, r.id, [ad], { origin }); if (fp) await fp; }
   }
   const u = await fileUrl(env, origin, id), pic = sizable(mime);
   return { ok: true, file: { id, kind, version, ad: ad || '', name, mime, size, url: u, thumb: pic ? `${u}&w=600` : null, view: pic ? `${u}&w=1600` : u, download: `${u}&dl=1`, video: /^video\//.test(mime), plays: playable(mime) }, moved };
@@ -1302,6 +1305,8 @@ export async function deleteFile(env, d, body, who, scope) {
     if (f.stream_uid && env.CF_ACCOUNT_ID && env.CF_STREAM_TOKEN) await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${f.stream_uid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${env.CF_STREAM_TOKEN}` } }).catch(() => {});
   })();
   if (d && d.waitUntil) d.waitUntil(wipe); else await wipe;
+  /* Frame in step (framesync.js): the deleted version is MOVED out of the concept folder, the one before comes back */
+  if (f.kind === 'version' && f.ad) { const fp = frameLater(env, d, f.batch_id, [f.ad], { origin: d && d.origin }); if (fp) await fp; }
   const label = f.kind === 'version' ? `v${f.version || '?'}${f.ad ? ` of ${f.ad}` : ''}` : (f.name || 'a file');
   await addComment(env, d, { id: f.batch_id, body: `Deleted ${label}${f.name ? ` (${f.name})` : ''}.`, kind: 'system' }, who, null, { quiet: true }).catch(() => {});
   return { ok: true, file_id: f.id, deleted: label };

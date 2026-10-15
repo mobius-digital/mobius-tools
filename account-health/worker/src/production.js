@@ -170,7 +170,7 @@ export async function handleProduction(request, env, url, path, json, d) {
     if (path === '/api/production/card/restore') return json(await restoreCard(env, dd, body, who));
     if (path === '/api/production/duplicate') return json(await duplicateCard(env, dd, body, who));
     return json({ error: 'not found' }, 404);
-  } catch (e) { return json({ error: e.message }, e.status || 500); }
+  } catch (e) { return json({ error: e.message }, e.status >= 400 && e.status < 600 ? e.status : 500); }
 }
 
 const FORMATS = ['Static', 'Video', 'UGC', 'Carousel'];
