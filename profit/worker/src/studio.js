@@ -397,6 +397,9 @@ function realPrompt(spec, brand, inspo = 0) {
     spec.look ? `The scene: ${spec.look} (Where these notes describe the product's position, size, angle or facing, ignore that part: it is already placed.)` : 'The scene: a real setting that suits the product, natural light.',
     'Match the scene light, perspective and scale to the product so it looks photographed there: the surface it rests on, a soft contact shadow where it touches, reflections of the surroundings on polished metal. Where the product runs off an edge of the frame, the scene continues behind it.',
     'Keep the product exactly as it is: same shape, position, logos, marks and colours. Do not add a second product and do not draw any other club or logo.',
+    /* 2026-10-15: the Carver photo ends at its thin black shaft band; when the model drew the rest of the shaft it carried
+       the black on (the real shaft is gold). The fingerprint tells it what the unseen part looks like. */
+    spec.dna ? `If any part of the product continues past the photo (a shaft running on to the edge of the frame), draw that part to match these facts about the real product: ${spec.dna.replace(/\s+/g, ' ').slice(0, 900)}` : 'If any part of the product continues past the photo (a shaft running on to the edge of the frame), continue it in the same material and colour as the part just before the edge of the photo, not the colour of a band or ring at that edge.',
     inspo ? 'The last attached image is inspiration only for mood and colour; never copy its products, logos or words.' : '',
     words.length ? `Words on the ad, spelled exactly, and no other words: ${words.join('; ')}. Type: ${type}; crisp and flat, no glow or 3D. Every word between ${spec.square ? '5% and 95%' : '12% and 88%'} of the height from the top, in empty space, never touching the product.` : 'No words on the ad.',
   ].filter(Boolean).join(' ');
