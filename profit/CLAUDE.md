@@ -3424,14 +3424,18 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   top right. Exactly ONE "Start here" star: the very first tile. Tap = the player (bottom sheet on a
   phone with grab handle and swipe down, a card on desktop) with Previous / Next video (arrow keys) and,
   for other brands, "Not our brand, but they did it well. Take the idea, film it with <brand>."
-- **Two board modes, per brand** (`p_amb_brand.board_mode`, `board_n`, migration `amb-004.sql`; picker
-  "Videos on the board" on Link and brief in profit/amb.js v20):
+- **Two board modes, per brand** (`p_amb_brand.board_mode`, `board_n`, migration `amb-004.sql`; pickers
+  "Board", "Rank top ads by" and "How many" under "Videos on the board" on Link and brief, profit/amb.js v21;
+  the last two are disabled while the board is hand-picked):
   - `picked` (default, every brand today): every playable proof attached to the ideas, dealt round-robin
     across ideas (each idea's lead video first, flagged "Film these first" ideas at the top), our own
     before other brands' inside an idea.
   - `auto`: `autoBoard()` in worker amb.js ranks the brand's own Meta VIDEO ads (`ads.media_type =
-    'video'`) by Triple Whale orders (`tw_ad_attr`, lastPlatformClick, Meta rows, last 30 days), top
-    `board_n` (4 to 50, default 20), and caches `[{ad_id, rank}]` in `board_json` + `board_at` for 6 hours
+    'video'`, last 30 days) by what staff chose in "Rank top ads by" (`board_sort`, migration amb-006,
+    2026-10-15, Cole: "we should be able to choose what we sort by"): `orders` (default, Triple Whale
+    `tw_ad_attr` lastPlatformClick Meta rows), `revenue` (TW sales), `roas` (TW sales / Meta spend, needs
+    $50+ spend and 1+ order), `hook` (3-second views / impressions, needs 1,000+ impressions). Organic
+    is not an option: we cannot see TRYBE creators' posts. Top `board_n` (4 to 50, default 20), and caches `[{ad_id, rank}]` in `board_json` + `board_at` for 6 hours
     (a save on the tab clears `board_at`). The payload carries `board` (ids and rank only, never money).
     The page shows those first (caption = the idea title when the ad is also proof on an idea, else the
     first line of the ad copy from ad-creatives; line "#N right now"), then other brands' clips.

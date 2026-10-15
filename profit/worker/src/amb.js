@@ -123,7 +123,7 @@ function shapeBrand(b, acct) {
     pdf: safeJson(b.pdf_json, null),
     guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
     hooks: safeJson(b.hooks_json, []),          // "First seconds" bank, [{title, how, kind, url, clip}]
-    board_mode: b.board_mode === 'auto' ? 'auto' : 'picked', board_n: b.board_n || 20,   // the video board (amb-004)
+    board_mode: b.board_mode === 'auto' ? 'auto' : 'picked', board_n: b.board_n || 20, board_sort: BOARD_SORTS.has(b.board_sort) ? b.board_sort : 'orders',   // the video board (amb-004)
   };
 }
 
@@ -173,21 +173,38 @@ function customShape(custom, weeks = 52, back = 13) {
 
 /* ---------------- public ---------------- */
 
-/** The auto board (amb-004): the brand's own Meta VIDEO ads ranked by Triple Whale orders
- *  (last-platform-click, Meta rows, last 30 days), top `n`. Ids and rank only; the order is
- *  the only thing the page learns, never a number. Cached on the brand row for 6 hours so
+/** The auto board (amb-004, amb-006): the brand's own Meta VIDEO ads over the last 30 days, ranked by
+ *  what the staff chose on the Ambassadors tab (board_sort), top `n`:
+ *    orders   Triple Whale orders (last-platform-click, Meta rows), ties broken by sales
+ *    revenue  Triple Whale sales
+ *    roas     Triple Whale sales / Meta spend, ads with at least $50 spent and 1 order
+ *    hook     3-second video views / impressions (stops the scroll), ads with at least 1,000 impressions
+ *  Ids and rank only reach the page, never a number. Cached on the brand row for 6 hours so
  *  account-health can authorise exactly these ads for playback (it reads board_json). */
+const BOARD_SORTS = new Set(['orders', 'revenue', 'roas', 'hook']);
 async function autoBoard(env, b) {
   const fresh = b.board_at && (Date.now() - Date.parse(b.board_at.replace(' ', 'T') + 'Z')) < 6 * 3600e3;
   if (fresh && b.board_json) return safeJson(b.board_json, []);
   const n = Math.min(Math.max(+b.board_n || 20, 4), 50);
+  const sort = BOARD_SORTS.has(b.board_sort) ? b.board_sort : 'orders';
   const { results } = await env.DB.prepare(
-    `SELECT t.ad_id, SUM(t.orders) ord, SUM(t.revenue) rev FROM tw_ad_attr t
-      WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND (t.platform = 'meta' OR t.platform IS NULL)
-        AND t.ad_id IN (SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)} AND media_type = 'video')
-      GROUP BY t.ad_id HAVING ord > 0 ORDER BY ord DESC, rev DESC LIMIT ?3`,
-  ).bind(b.act_id, addDays(today(), -30), n).all().catch(() => ({ results: [] }));
-  const board = (results || []).map((r, i) => ({ ad_id: r.ad_id, rank: i + 1 }));
+    `WITH v AS (SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)} AND media_type = 'video'),
+          tw AS (SELECT ad_id, SUM(orders) ord, SUM(revenue) rev FROM tw_ad_attr
+                  WHERE act_id = ?1 AND model = 'lastPlatformClick' AND date >= ?2 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id),
+          m AS (SELECT ad_id, SUM(spend) sp, SUM(impressions) im, SUM(video_3s) v3 FROM ad_daily
+                  WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY ad_id)
+     SELECT v.ad_id, COALESCE(tw.ord, 0) ord, COALESCE(tw.rev, 0) rev, COALESCE(m.sp, 0) sp, COALESCE(m.im, 0) im, COALESCE(m.v3, 0) v3
+       FROM v LEFT JOIN tw ON tw.ad_id = v.ad_id LEFT JOIN m ON m.ad_id = v.ad_id
+      WHERE COALESCE(tw.ord, 0) > 0 OR COALESCE(m.im, 0) > 0`,
+  ).bind(b.act_id, addDays(today(), -30)).all().catch(() => ({ results: [] }));
+  const rows = results || [];
+  const pick = {
+    orders: () => rows.filter(r => r.ord > 0).sort((x, y) => y.ord - x.ord || y.rev - x.rev),
+    revenue: () => rows.filter(r => r.rev > 0).sort((x, y) => y.rev - x.rev || y.ord - x.ord),
+    roas: () => rows.filter(r => r.sp >= 50 && r.ord > 0).sort((x, y) => y.rev / y.sp - x.rev / x.sp),
+    hook: () => rows.filter(r => r.im >= 1000).sort((x, y) => y.v3 / y.im - x.v3 / x.im),
+  }[sort]();
+  const board = pick.slice(0, n).map((r, i) => ({ ad_id: r.ad_id, rank: i + 1 }));
   await env.DB.prepare(`UPDATE p_amb_brand SET board_json = ?2, board_at = datetime('now') WHERE act_id = ?1`)
     .bind(b.act_id, JSON.stringify(board)).run().catch(() => {});
   return board;
@@ -436,11 +453,12 @@ export async function handleStaff(request, env, url, path, json) {
         has('guide') ? JSON.stringify((Array.isArray(body.guide) ? body.guide : []).map(x => ({ title: clip(x.title, 120), text: clip(x.text, 500) })).filter(x => x.title || x.text).slice(0, 14)) : cur.guide_json,
         has('hooks') ? JSON.stringify((Array.isArray(body.hooks) ? body.hooks : []).map(x => ({ title: clip(x.title, 120), how: clip(x.how, 500), kind: x.kind === 'brand' ? 'brand' : 'shared', url: /^https:\/\/\S+$/i.test(x.url || '') ? clip(x.url, 500) : null, clip: /^[a-f0-9]{16}$/.test(x.clip || '') ? x.clip : null })).filter(x => x.title || x.how).slice(0, 40)) : cur.hooks_json,
       ).run();
-      if (has('board_mode') || has('board_n')) {
-        // A changed mode or size re-ranks on the next page load (board_at cleared).
-        await env.DB.prepare(`UPDATE p_amb_brand SET board_mode = ?2, board_n = ?3, board_at = NULL WHERE act_id = ?1`).bind(acct.act_id,
+      if (has('board_mode') || has('board_n') || has('board_sort')) {
+        // A changed mode, size or ranking re-ranks on the next page load (board_at cleared).
+        await env.DB.prepare(`UPDATE p_amb_brand SET board_mode = ?2, board_n = ?3, board_sort = ?4, board_at = NULL WHERE act_id = ?1`).bind(acct.act_id,
           has('board_mode') ? (body.board_mode === 'auto' ? 'auto' : 'picked') : (cur.board_mode || 'picked'),
-          has('board_n') ? Math.min(Math.max(parseInt(body.board_n, 10) || 20, 4), 50) : (cur.board_n || 20)).run();
+          has('board_n') ? Math.min(Math.max(parseInt(body.board_n, 10) || 20, 4), 50) : (cur.board_n || 20),
+          has('board_sort') ? (BOARD_SORTS.has(body.board_sort) ? body.board_sort : 'orders') : (cur.board_sort || 'orders')).run();
       }
       return json(await staffPayload(env, acct));
     }

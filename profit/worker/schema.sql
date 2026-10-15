@@ -415,3 +415,4 @@ ALTER TABLE p_amb_brand ADD COLUMN board_mode TEXT NOT NULL DEFAULT 'picked';
 ALTER TABLE p_amb_brand ADD COLUMN board_n INTEGER NOT NULL DEFAULT 20;
 ALTER TABLE p_amb_brand ADD COLUMN board_json TEXT;
 ALTER TABLE p_amb_brand ADD COLUMN board_at TEXT;
+ALTER TABLE p_amb_brand ADD COLUMN board_sort TEXT NOT NULL DEFAULT 'orders';
