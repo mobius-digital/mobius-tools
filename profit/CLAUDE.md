@@ -3330,6 +3330,13 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   Reply reads its box beside the button (v9) for the same reason. **A new review-ui.js handler must find its
   inputs from the clicked element, never from the viewer root, or it breaks in the sheet.** Day check's Right now
   actions are a full-width row under the title (`#dkNow .v2h > .find`).
+- **Sixth pass (same day): Cole's iPhone screenshots.** The "Box attached · Remove" pill in the hosted Notes panel
+  and the Keep it / Delete pair are reset from the 44px rule in phone.css's viewer block (`.rv-pend button`,
+  `.rv-del .rv-btn`; the pill is one 32px nowrap line). **Hover-only overlays must sit inside `@media (hover:hover)`:**
+  iOS keeps `:hover` after a tap, so `.ps-pv:hover .open` (prodsheet.js) and `.pv:hover .open` (review.html) stayed
+  over the card while scrolling. **`theme-color` is ONE meta set from Locus's own `data-theme`** (`syncThemeColor()`
+  in the head script, called again by `paintTheme()`); the two metas keyed on `prefers-color-scheme` followed the
+  phone, and a dark Locus on a light-mode iPhone got a light grey status-bar band. phone.css?v=6, prodsheet.js?v=12.
 - **Fifth pass (same day): review.html has the phone layer.** The public client link loads `phone.css?v=5` after its
   own `<style>` and `phone.js?v=3` deferred after review-ui.js, and its `<html>` carries `data-ui="v2"` because that
   attribute is the key phone.css uses for the viewer block (nothing else on the page reads it; the page keeps its own
