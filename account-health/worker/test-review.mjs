@@ -54,7 +54,7 @@ const slackApi = async (e, method, p) => {
 let AFFORD = true, ADMIN = true;
 const d = {
   getSetting, putSetting, slackApi, listAccounts: async (e, active) => ACCTS.map(a => ({ ...a })),
-  centralDate: () => TODAY, centralHour: () => HOUR, briefHour: async () => 9,
+  centralDate: () => TODAY, centralHour: () => HOUR, briefHour: async () => 11,   // the reports hour = the morning hour since 2026-10-12 (no offset)
   subCanAfford: () => AFFORD, strategist: () => ({ engine, h: () => ({}) }),
   isAdmin: async () => ADMIN, sessionEmail: async () => 'cole@go-mobius-digital.com',
 };

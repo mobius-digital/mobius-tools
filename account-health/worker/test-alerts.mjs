@@ -367,14 +367,15 @@ const sign = raw => { const ts = String(Math.floor(Date.now() / 1000)); return {
 const router = (await import('../../slack-router/worker/src/worker.js')).default;
 const hits = [];
 const binding = (name, owns = false) => ({ fetch: async req => { hits.push({ name, url: req.url }); return new Response(JSON.stringify({ owns }), { status: 200 }); } });
-await check('router: a DM (text or file) goes to Locus now; a channel Locus does not own still goes to the Ledger', async () => {
+await check('router: a DM (text or file) goes to Locus; a channel Locus does not own is dropped (the Ledger has its own app since 2026-10-14)', async () => {
   const renv = { SLACK_SIGNING_SECRET: secret, LEDGER: binding('LEDGER'), AUTH: binding('AUTH', false), PULSE: binding('PULSE') };
   const ev = async e => { hits.length = 0; const raw = JSON.stringify({ type: 'event_callback', event: e }); await router.fetch(new Request('https://r.test/slack/events', { method: 'POST', headers: { 'Content-Type': 'application/json', ...sign(raw) }, body: raw }), renv); return hits.at(-1); };
   const dm = await ev({ type: 'message', channel_type: 'im', channel: 'D123', user: COLE, text: 'how is Lucky today' });
   assert.equal(dm.name, 'AUTH'); assert.match(dm.url, /\/slack\/events$/);
   assert.equal((await ev({ type: 'message', channel_type: 'im', channel: 'D123', user: COLE, files: [{ id: 'F1' }] })).name, 'AUTH');
-  const fin = await ev({ type: 'app_mention', channel_type: 'channel', channel: 'C_FINANCE', user: COLE, text: '<@B> P&L?' });
-  assert.equal(fin.name, 'LEDGER');
+  await ev({ type: 'app_mention', channel_type: 'channel', channel: 'C_FINANCE', user: COLE, text: '<@B> P&L?' });
+  assert.ok(!hits.some(h => h.name === 'LEDGER'), 'nothing goes to the Ledger');
+  assert.ok(!hits.some(h => h.name === 'AUTH' && /\/slack\/events$/.test(h.url)), 'an unowned channel is not forwarded');
 });
 
 const failed = checks.filter(c => !c.pass);
