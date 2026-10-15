@@ -783,5 +783,5 @@ export async function metaLive(env, d, brandId) {
   return out;
 }
 /* Read helpers for launch.js (Launch to Meta, 2026-10-10): the same Graph reads and the brand's Meta accounts. */
-export { gget, gall, metaActs };
+export { gget, gall, metaActs, brandOf };
 export const _test = { findObject, driveIdOf, targetingSummary, WRITE_SQL, resetTable: () => { tabled = false; } };

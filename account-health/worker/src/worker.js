@@ -75,6 +75,7 @@ import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 import { handleLaunch } from './launch.js';
+import { dataTools } from './stratdata.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7874,6 +7875,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (request.method === 'PUT') return json(await saveSkill(env, { name: body.name, description: body.description, body: body.body, by: await sessionEmail(env, request).catch(() => null) }));
         if (request.method === 'DELETE') return json(await deleteSkill(env, String(url.searchParams.get('id') || '')));
         return json({ skills: await skillsList(env, { all: true }) });
+      }
+      /* Run one of the Strategist's data tools directly (store_sql, web_lookup, match_ads_to_board): the admin key only, for checks. */
+      if (path === '/api/ask/tool' && request.method === 'POST') {
+        if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== 'Bearer ' + env.ADMIN_TOKEN) return json({ error: 'Admin key only.' }, 403);
+        const tool = dataTools({ listAccounts, xfetch, slack: slackApi }).find(t => t.def.name === body.name);
+        if (!tool) return json({ error: 'No such tool.' }, 400);
+        return json(await tool.run(env, body.input || {}, { surface: 'web', screen: body.act ? { act_id: body.act } : null }));
       }
       if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));
       /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */

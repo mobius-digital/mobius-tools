@@ -38,6 +38,7 @@ import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
+import { dataTools } from './stratdata.js';
 import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
@@ -200,7 +201,13 @@ const RULES = `
   there, say exactly what is missing and offer hand_to_claude_code. Edits to what already
   exists (the creator link page, an angle, a section, a brief, a calendar date, goals) are
   yours. A client's words forwarded into the thread are the request: act on them.
-- Public web pages you CAN read (web_fetch) and search (web_search): a competitor's
+- ORDERS AND WHAT WAS IN THEM: store_sql reads the brand's Triple Whale warehouse (every order with its line
+  items, units, discount code, customer, back to the store's start). Units or hats per order, bundle counts, code
+  use, last year's BFCM mix: query it. Never say you only see cart product ids or that history starts in Dec 2025.
+- WHICH AD IS WHICH DESIGN: match_ads_to_board compares the live Meta ad images with the Production board files
+  (V1 / V2, approved). "Turn off the V1s", "only approved should be live", "cross reference Frame and Meta": run it,
+  then send the meta_pause cards for its pause list in the same turn. Never ask a person to sort pairs.
+- Public web pages you CAN read (web_fetch) and search (web_search); when those run out, web_lookup: a competitor's
   site, a product page, a news item, a platform's help article. Videos, Drive, Air,
   Dropbox and screenshots you cannot watch or open yourself. When a Slack thread carries a reference (a TikTok / Reel / YouTube /
   Atria / Ad Library link, an uploaded clip or image, a Drive folder) and the
@@ -244,19 +251,21 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
   and money keep their own buttons.
 - Files: post_file for a CSV of rows you read, or a document (a brief, a plan, a script). make_report for a
   laid-out page with charts.
-- HOW AN ANSWER LOOKS (Cole, 2026-10-13: "it over explains... a wall of text... they want quick answers").
-  Think as long as you need; SAY little. Talk like a sharp colleague in a chat, not a report.
-  * First line = the answer or the call, in one plain sentence. Then at most 3 short bullets, one line each.
-  * Give the decision and the one reason that matters, not everything you found. Leave out what does not
-    change what they do. Offer the rest in one closing line ("Want the full rewrite?") instead of writing it.
-  * No section headers, no "Verdict:", no stacked bold labels, no sub-bullets, no restating their message.
+- HOW AN ANSWER LOOKS (Cole, 2026-10-13: "it over explains... a wall of text"; 2026-10-15 after comparing with Viktor:
+  one decisive, data-backed message with real tables). Think as long as you need; SAY it once, in ONE message.
+  * First line = the call, in one plain sentence, with the number that decides it. Then the evidence: a few
+    bullets, and a table when you compare offers, products, periods or ads (3+ rows or several numbers each).
+  * Give the decision and the reasons that matter, not everything you found. No section headers, no "Verdict:",
+    no stacked bold labels, no restating their message.
   * Normal English a customer would say out loud: full sentences, everyday words. No clipped slogans
     ("One belt is just a belt."), no fragments joined by colons and slashes, no invented labels.
-  * Several items (three briefs, three batches): one short block each, separated by a blank line; each
-    block is a few lines a person reads in five seconds.
   * When you did work: what is done, and anything you could not do, one line each. Every task, brief, file
     and ad you mention is a link. Numbers to the dollar, sourced (Triple Whale or Meta-reported).
-  * Ask questions only after doing everything you can, each with your default.
+  * Never end with an offer ("Want me to...?") or a question you can answer yourself. The brand is the
+    channel's, the thread's, or the one the products name; never ask "is this for X?". Ask ONE question only
+    when you are truly blocked, with your default.
+  * Never hand work back. If a tool can do it (match ads to files, count orders, read the board, search
+    again), do it, then act (send the cards). "A human should sort these" is not an answer.
 
 WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
 - Home: Overview (open=overview, the central dashboard with Needs you today), Day check (open=yesterday: was yesterday a bad day ON META for advertisers in general; bad when 2+ of 4 signs agree: our brands' Meta cost per sale, Breezeway's panel, Meta's status page, advertisers online), P&L (open=profit), Goals (open=plan: the month's revenue, spend and MER plus the goal cost per sale and goal ROAS).
@@ -1766,14 +1775,14 @@ export function buildStrategist(d) {
        all easy to change back. Money, ads, Asana, Frame, Klaviyo, the creator link and anything a client sees keep the Apply card. */
     directActions: ['set_account', 'set_brief_time', 'set_writing_style', 'set_report_sections', 'set_goals', 'set_brand_context', 'save_dashboard', 'schedule_question', 'log_change', 'add_date', 'move_date', 'end_date', 'create_alert', 'pause_alert'],
     ...stratHooks(d), ...makeHooks(d),
-    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d)],
+    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d)],
     dropTools: ['remember'],
     /* Cost pass 2026-10-10 (scripts/prompt-size.mjs measures it): one tool list on both surfaces, the everyday
        tools loaded up front and the other ~70 found through tool search, the stable prompt cached for an hour
        (questions come minutes apart, not seconds: strat_run 2026-10-10 had 8 cold starts on the 5-minute cache
        and 4 on the hour). The brand brain stays on 5 minutes (one brand is rarely asked twice in an hour). */
     sameTools: true, toolSearch: true, cacheTtl: '1h',
-    alwaysLoaded: ['read_app', 'make_report', 'locus_get', 'locus_routes', 'search_slack', 'read_thread', 'remember', 'recall', 'read_skill', 'meta_read', 'check_now'],
+    alwaysLoaded: ['read_app', 'make_report', 'locus_get', 'locus_routes', 'search_slack', 'read_thread', 'remember', 'recall', 'read_skill', 'meta_read', 'check_now', 'store_sql', 'web_lookup'],
     /* The brand edition (2026-10-10): a client's question runs here too, with only these tools (each reads Locus through
        the client's own sign-in, so brandguard's allowlist and scrub apply) and the web. clients.js clientAsk. */
     clientTools: ['locus_routes', 'locus_get', 'make_report', 'post_file'], clientServerTools: true,

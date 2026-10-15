@@ -253,11 +253,13 @@ await check('Slack: make_report gets a share link + PDF buttons, the PDF renders
   assert.ok(Array.isArray(imgSeen.content) && imgSeen.content.some(c => c.type === 'image'), 'the tool_result carried the image block');
   const posts = slackCalls.filter(c => c.method === 'chat.postMessage');
   const btn = posts.find(p => (p.p.blocks || []).some(b => b.type === 'actions' && b.elements[0].url && /\/r\/[a-f0-9]{32}$/.test(b.elements[0].url)));
-  assert.ok(btn, 'Open the report button'); assert.ok(btn.p.blocks.some(b => /\.pdf$/.test(b.elements[0].url)), 'PDF button');
-  assert.ok(btn.p.blocks.every(b => b.elements[0].action_id === 'noop_open'));
+  assert.ok(btn, 'Open the report button'); assert.ok(btn.p.blocks.some(b => b.type === 'actions' && /\.pdf$/.test(b.elements[0].url)), 'PDF button');
+  assert.ok(btn.p.blocks.filter(b => b.type === 'actions').every(b => b.elements[0].action_id === 'noop_open'));
+  /* 2026-10-15: one message per answer: the report rides on the answer as buttons, not as a second copy of itself. */
+  assert.equal(posts.length, 1, 'the answer and the report are one message');
   const uploads = slackCalls.filter(c => c.method === 'files.completeUploadExternal');
   assert.equal(uploads.length, 2, 'one image (the redo) + one PDF');
-  const reportTextAt = slackCalls.findIndex(c => c.method === 'chat.postMessage' && /\*Lucky Golf, September\*/.test(c.p.text));
+  const reportTextAt = slackCalls.findIndex(c => c.method === 'chat.postMessage' && (c.p.blocks || []).some(b => b.type === 'actions' && /Lucky Golf, September/.test(b.elements[0].text.text)));
   assert.ok(slackCalls.findIndex(c => c.method === 'files.completeUploadExternal') > reportTextAt, 'uploads come after the report text');
   const getUrl = slackCalls.filter(c => c.method === 'files.getUploadURLExternal').map(c => c.p.filename);
   assert.ok(getUrl.some(f => /\.pdf$/.test(f))); assert.ok(getUrl.some(f => /\.png$/.test(f)));

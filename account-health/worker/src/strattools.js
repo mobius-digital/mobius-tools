@@ -16,6 +16,7 @@ import { ROUTES } from './routes.js';
 import { brandBrain } from './brain.js';
 import { resolveBrandId } from './brands.js';
 import { CLIENT_RULES } from './brandguard.js';
+import { DATA_STEP_LABELS } from './stratdata.js';
 
 /* A client login (the brand edition) sees only the routes its allowlist opens. */
 const clientRoute = r => CLIENT_RULES.some(c => (c.m === r.m || r.m === 'ANY') && (c.p ? c.p === r.p : c.re.test(r.p)));
@@ -363,7 +364,8 @@ export function stratHooks(d) {
       frame_folder: `Preparing a Frame folder: ${clip(input.name, 40)}`,
       frame_move: `Preparing a Frame move: ${clip(input.item, 40)}`,
       make_report: `Building "${clip(input.title, 50)}" (with a share link and a PDF)`,
-    })[name] || null,
-    serverTools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5 }],
+    })[name] || (DATA_STEP_LABELS[name] ? DATA_STEP_LABELS[name](input) : null),
+    /* 2026-10-15: 5 a turn ran out twice in one research answer (Melin); web_lookup is the fallback past these. */
+    serverTools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 15 }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 15 }],
   };
 }

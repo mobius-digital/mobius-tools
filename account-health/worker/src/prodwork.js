@@ -646,6 +646,15 @@ async function sizedPic(env, f, w) {
     return { body: new Response(buf).body, size: buf.byteLength, webp: true };
   } catch { return null; }
 }
+/** A Production file as small bytes for a model to look at (the 600-wide WebP when it can be made, else the original). */
+export async function smallPic(env, fid, w = 600) {
+  await ensureWork(env);
+  const f = await fileRowOf(env, fid);
+  if (!f || f.deleted_at || !env.MEDIA) return null;
+  if (sizable(f.mime)) { const p = await sizedPic(env, f, w).catch(() => null); if (p) return { bytes: await new Response(p.body).arrayBuffer(), mime: 'image/webp' }; }
+  const o = await env.MEDIA.get(f.r2_key);
+  return o ? { bytes: await o.arrayBuffer(), mime: f.mime } : null;
+}
 /* a file row read once per isolate (10 minutes): a warm worker answers a picture with one R2 read and no D1 query */
 const FILE_ROWS = new Map();
 async function fileRowOf(env, fid) {

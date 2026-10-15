@@ -288,6 +288,161 @@ export function slackPieces(text, maxChars = 650, maxLines = 9) {
 
 export const toSlackText = s => String(s || '').replace(/\*\*(.+?)\*\*/gs, '*$1*').replace(/^#{1,6}\s*/gm, '').replace(/\s*—\s*/g, ' - ').trim();
 
+/* ---------------- one Slack message, drawn the way Slack draws a person's message ----------------
+ * 2026-10-15 (Cole, comparing with Viktor): one reply per turn, real tables, nothing folded or cut. A long
+ * answer used to go out as 4 to 6 short section messages (sections fold behind "Show more"); now the whole
+ * answer is ONE message of rich_text blocks (what Slack's own composer sends) plus at most one native
+ * `table` block (Slack allows one per message; further tables are drawn monospace). The model writes Slack
+ * mrkdwn (or markdown by reflex); this reads both. */
+const NUMERIC_CELL = /^[-+(]?[$€£]?[-+]?[\d][\d,]*(\.\d+)?[%xk]?\)?$|^[-–]$|^n\/a$/i;
+function inlineRich(s) {
+  const out = [];
+  const src = String(s ?? '');
+  /* Order matters: links and code first, so a * or _ inside them is left alone. */
+  const re = /<(https?:[^|>]+)\|([^>]+)>|<(https?:[^>]+)>|<@([A-Z0-9]+)(?:\|[^>]*)?>|\[([^\]]+)\]\((https?:[^)\s]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|(?<![\w*])\*([^*\n]+?)\*(?![\w*])|(?<![\w_])_([^_\n]+?)_(?![\w_])|(?<![\w~])~([^~\n]+?)~(?![\w~])|(https?:\/\/[^\s<>)]+)/g;
+  let last = 0, m;
+  const text = (t, style) => { if (t) out.push({ type: 'text', text: t, ...(style ? { style } : {}) }); };
+  while ((m = re.exec(src))) {
+    text(src.slice(last, m.index));
+    if (m[1]) out.push({ type: 'link', url: m[1], text: m[2] });
+    else if (m[3]) out.push({ type: 'link', url: m[3] });
+    else if (m[4]) out.push({ type: 'user', user_id: m[4] });
+    else if (m[5]) out.push({ type: 'link', url: m[6], text: m[5] });
+    else if (m[7]) text(m[7], { code: true });
+    else if (m[8] || m[9]) {
+      /* Bold may carry a link or italics inside: parse the inside and add bold to each piece. */
+      for (const p of inlineRich(m[8] || m[9])) out.push(p.type === 'text' || p.type === 'link' ? { ...p, style: { ...(p.style || {}), bold: true } } : p);
+    }
+    else if (m[10]) text(m[10], { italic: true });
+    else if (m[11]) text(m[11], { strike: true });
+    else if (m[12]) out.push({ type: 'link', url: m[12] });
+    last = m.index + m[0].length;
+  }
+  text(src.slice(last));
+  return out.length ? out : [{ type: 'text', text: ' ' }];
+}
+const cellsOf = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+const isPipeRow = l => /^\s*\|.*\|\s*$/.test(l);
+const isPipeRule = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+/* A code block that is really a table: 2+ lines whose columns sit at the same 2-space gaps. */
+function codeTable(lines) {
+  const rows = lines.filter(l => l.trim());
+  if (rows.length < 2 || rows.length > 101) return null;
+  if (rows.every(isPipeRow) || (isPipeRow(rows[0]) && isPipeRule(rows[1] || ''))) return rows.filter(l => !isPipeRule(l)).map(cellsOf);
+  const split = rows.map(l => l.trim().split(/\s{2,}/));
+  const n = split[0].length;
+  if (n < 2 || split.some(r => r.length !== n)) return null;
+  return split;
+}
+function tableBlock(rows) {
+  const width = Math.min(20, Math.max(...rows.map(r => r.length)));
+  const body = rows.slice(1, 100);
+  const numeric = Array.from({ length: width }, (_, i) => body.length > 0 && body.filter(r => NUMERIC_CELL.test(String(r[i] ?? '').replace(/\*/g, '').trim())).length >= Math.ceil(body.length * 0.7));
+  const cell = (v, head) => ({ type: 'rich_text', elements: [{ type: 'rich_text_section', elements: inlineRich(String(v ?? '').trim() || ' ').map(p => head && p.type === 'text' ? { ...p, style: { ...(p.style || {}), bold: true } } : p) }] });
+  return { type: 'table', column_settings: numeric.map((num, i) => ({ ...(num ? { align: 'right' } : {}), ...(i === 0 ? { is_wrapped: true } : {}) })),
+    rows: [rows[0], ...body].map((r, ri) => Array.from({ length: width }, (_, i) => cell(r[i], ri === 0))) };
+}
+const monoTable = rows => {
+  const w = rows[0].map((_, i) => Math.max(...rows.map(r => String(r[i] ?? '').replace(/\*/g, '').length)));
+  return rows.map(r => r.map((v, i) => String(v ?? '').replace(/\*/g, '').padEnd(w[i])).join('  ').trimEnd()).join('\n');
+};
+
+/**
+ * Text -> { text, blocks, plain }: ONE message. `blocks` has rich_text blocks and at most one native table;
+ * `plain` is the same message with every table drawn monospace (the fallback when Slack refuses the table).
+ */
+export function slackMessage(src, { tables = 1 } = {}) {
+  const lines = String(src || '').replace(/\r/g, '').split('\n');
+  const parts = [];   // { kind: 'para'|'list'|'quote'|'pre'|'table', ... }
+  for (let i = 0; i < lines.length;) {
+    const l = lines[i];
+    if (/^\s*```/.test(l)) {
+      const body = [];
+      for (i++; i < lines.length && !/^\s*```\s*$/.test(lines[i]); i++) body.push(lines[i]);
+      i++;
+      const t = codeTable(body);
+      parts.push(t ? { kind: 'table', rows: t } : { kind: 'pre', text: body.join('\n') });
+      continue;
+    }
+    if (isPipeRow(l) || (l.includes('|') && isPipeRule(lines[i + 1] || ''))) {
+      const rows = [];
+      for (; i < lines.length && (isPipeRow(lines[i]) || isPipeRule(lines[i]) || (lines[i].includes('|') && (!rows.length || cellsOf(lines[i]).length === rows[0].length))); i++) if (!isPipeRule(lines[i])) rows.push(cellsOf(lines[i]));
+      if (rows.length >= 2) parts.push({ kind: 'table', rows });
+      else parts.push({ kind: 'para', lines: rows.map(r => r.join(' | ')) });
+      continue;
+    }
+    const bullet = l.match(/^(\s*)(?:[•●▪◦‣]|[-*](?=\s))\s+(.*)$/), num = l.match(/^(\s*)\d+[.)]\s+(.*)$/);
+    if (bullet || num) {
+      const style = bullet ? 'bullet' : 'ordered';
+      const items = [];
+      for (; i < lines.length; i++) {
+        const b = lines[i].match(style === 'bullet' ? /^(\s*)(?:[•●▪◦‣]|[-*](?=\s))\s+(.*)$/ : /^(\s*)\d+[.)]\s+(.*)$/);
+        if (!b) break;
+        items.push({ indent: Math.min(3, Math.floor(b[1].replace(/\t/g, '  ').length / 2)), text: b[2] });
+      }
+      parts.push({ kind: 'list', style, items });
+      continue;
+    }
+    if (/^\s*(>|&gt;)/.test(l)) {
+      const q = [];
+      for (; i < lines.length && /^\s*(>|&gt;)/.test(lines[i]); i++) q.push(lines[i].replace(/^\s*(>|&gt;)\s?/, ''));
+      parts.push({ kind: 'quote', lines: q });
+      continue;
+    }
+    if (!l.trim()) { i++; parts.push({ kind: 'gap' }); continue; }
+    const p = [];
+    for (; i < lines.length && lines[i].trim() && !/^\s*```/.test(lines[i]) && !isPipeRow(lines[i]) && !/^(\s*)(?:[•●▪◦‣]|[-*](?=\s)|\d+[.)])\s+/.test(lines[i]) && !/^\s*(>|&gt;)/.test(lines[i]); i++) p.push(lines[i]);
+    parts.push({ kind: 'para', lines: p });
+  }
+  const build = native => {
+    const blocks = [];
+    let els = [], used = 0;
+    const flush = () => { if (els.length) blocks.push({ type: 'rich_text', elements: els }); els = []; };
+    parts.forEach((p, idx) => {
+      const next = parts.slice(idx + 1).find(x => x.kind !== 'gap');
+      /* A blank line between two pieces is kept as one empty line, the way the composer shows it. */
+      const gapAfter = parts[idx + 1]?.kind === 'gap' && next ? '\n' : '';
+      if (p.kind === 'gap') return;
+      if (p.kind === 'para') els.push({ type: 'rich_text_section', elements: [...inlineRich(p.lines.join('\n')), ...(gapAfter ? [{ type: 'text', text: '\n' }] : [])] });
+      else if (p.kind === 'quote') els.push({ type: 'rich_text_quote', elements: inlineRich(p.lines.join('\n')) });
+      else if (p.kind === 'pre') els.push({ type: 'rich_text_preformatted', elements: [{ type: 'text', text: p.text || ' ' }] });
+      else if (p.kind === 'list') {
+        /* Slack wants one list element per indent level run. */
+        let run = null;
+        for (const it of p.items) {
+          if (!run || run.indent !== it.indent) { run = { type: 'rich_text_list', style: p.style, indent: it.indent, elements: [] }; els.push(run); }
+          run.elements.push({ type: 'rich_text_section', elements: inlineRich(it.text) });
+        }
+        if (gapAfter) els.push({ type: 'rich_text_section', elements: [{ type: 'text', text: '\n' }] });
+      } else if (p.kind === 'table') {
+        if (native && used < tables) { used++; flush(); blocks.push(tableBlock(p.rows)); }
+        else els.push({ type: 'rich_text_preformatted', elements: [{ type: 'text', text: monoTable(p.rows) }] });
+      }
+    });
+    flush();
+    /* Many short blocks, never one tall one: Slack folds a single tall block behind "Show more" but shows a
+       message of short blocks whole (the 2026-10-15 lesson from the Today's calls thread). Over Slack's 50 blocks,
+       neighbours are merged back. */
+    let out = blocks.flatMap(b => b.type === 'rich_text' ? b.elements.map(e => ({ type: 'rich_text', elements: [e] })) : [b]);
+    while (out.length > 46) {
+      const k = out.findIndex((b, n) => b.type === 'rich_text' && out[n + 1]?.type === 'rich_text');
+      if (k < 0) break;
+      out.splice(k, 2, { type: 'rich_text', elements: [...out[k].elements, ...out[k + 1].elements] });
+    }
+    return out;
+  };
+  const plainText = parts.map(p => p.kind === 'para' ? p.lines.join('\n') : p.kind === 'list' ? p.items.map(it => '• ' + it.text).join('\n')
+    : p.kind === 'quote' ? p.lines.map(x => '> ' + x).join('\n') : p.kind === 'pre' ? p.text : p.kind === 'table' ? monoTable(p.rows) : '').filter(Boolean).join('\n\n');
+  return { text: plainText.slice(0, 3500) || ' ', blocks: build(true), plain: build(false), hasTable: parts.some(p => p.kind === 'table') };
+}
+
+/* A copy/paste draft rides as its own second message, after a line "---- draft ----" in the answer. */
+export function splitDraft(text) {
+  const m = String(text || '').match(/^\s*-{2,}\s*draft[^\n]*-{2,}\s*$/im);
+  if (!m) return { answer: String(text || ''), draft: '' };
+  return { answer: text.slice(0, m.index).trim(), draft: text.slice(m.index + m[0].length).trim() };
+}
+
 /* ------------------------------------------------------------------ */
 /*  the assistant                                                      */
 /* ------------------------------------------------------------------ */
@@ -990,7 +1145,10 @@ Plain English, no em dashes, lead with the answer.` }];
         /* A long server-tool turn can pause; send it back as is and it carries on. */
         if (!calls.length && reply.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: reply.content }); continue; }
         if (!calls.length) {
-          answer = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
+          /* Web search answers come as many text blocks, one per cited phrase: those join with nothing between
+             them ("they ran " + "20% off sitewide" + ", and"). Joining with newlines broke sentences across lines. */
+          const texts = (reply.content || []).filter(c => c.type === 'text');
+          answer = texts.map((c, i) => (i && !c.citations?.length && !texts[i - 1].citations?.length ? '\n\n' : '') + c.text).join('').trim();
           if (!answer && reply.stop_reason === 'refusal') answer = 'I cannot help with that one.';
           /* Text written in the same turn as proposals is the read those cards belong to; the last turn is often
              only "the cards are below" (Monday review preview, 2026-10-10). Keep it in front of the answer. */
@@ -1151,9 +1309,13 @@ Plain English, no em dashes, lead with the answer.` }];
     const update = async (text, blocks) => work?.ts ? h.slack(env, 'chat.update', { channel, ts: work.ts, text, blocks: blocks || [{ type: 'section', text: { type: 'mrkdwn', text: String(text).slice(0, 2900) } }] }, true) : null;
 
     const system = [...(await systemBlocks(env, h, extra)),
-      { type: 'text', text: 'You are answering in Slack. Slack mrkdwn, NOT markdown: *bold* with single asterisks, _italic_, `code`. Bullets are "• ". Never use headings (#) or tables. ' +
-        /* 2026-10-10 (Cole: "it always doesn't show the full message, just Show more"): Slack folds any long message. */
-        'LENGTH: Slack folds a long message behind "Show more", so keep the answer to about 8 short lines (under 700 characters): the answer first, then at most 3 bullets. Offer the rest in one closing line ("Want the breakdown by ad set?") instead of writing it. This holds for reviews and plans too. When the answer truly has several items (three briefs), separate them with a blank line and keep each under 8 lines: each block is posted as its own short message. A report goes in make_report, which posts its own link.' }];
+      /* 2026-10-15 (Cole, comparing a Locus thread with Viktor's on the same question): one decisive message,
+         real tables, no closing offer, no question it could answer itself. */
+      { type: 'text', text: C.slackStyle || `You are answering in Slack. Slack mrkdwn: *bold* with single asterisks, _italic_, \`code\`, bullets "• ". No headings (#).
+SHAPE: your whole answer is posted as ONE Slack message, so write it as one piece: the verdict in the first line (the decision, with the number that decides it), then the evidence. Short and decisive; as long as the question needs and no longer. No preamble, no recap of the question, no sign-off.
+TABLES: when you compare 3+ items or show several numbers per item, write a markdown pipe table (header row, then a |---| row, then up to 20 rows; short cells). The first table becomes a real Slack table; at most one more is drawn monospace. Never a table in a code block.
+DRAFTS: when asked for something to send or paste (a message for a client or partner, copy), put it LAST, after a line exactly "---- draft ----": it is posted as its own message so it copies cleanly. Write the draft in plain words, no markdown.
+${slackToolDefs.some(t => t.name === 'make_canvas') ? 'FORWARDING: when the person will forward a longer write-up (an analysis for a partner or client, a plan), call make_canvas with the full version and keep the message itself to the short read plus the canvas link.' + String.fromCharCode(10) : ''}DON'T: end with an offer ("Want me to...?", "Let me know if...") or a question unless you truly cannot go on without the answer; then ask ONE question. Never ask what you can work out: the brand is this channel's or thread's brand (or the one named or obvious from the products), the period is the one in the thread. Never hand the person a job your tools can do.` }];
     const prior = await threadTranscript(env, h, ev);
     const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q }];
     const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null,
@@ -1172,31 +1334,42 @@ Plain English, no em dashes, lead with the answer.` }];
         const t = extraSlack.find(x => x.def.name === name);
         return t ? await t.run(env, input, ctx) : null;
       }, usage, choice.model, ctx, choice.effort || null);
-      const text = toSlackText(r.answer);
+      const { answer: body, draft } = splitDraft(toSlackText(String(r.answer || '').replace(/^#{1,6}\s+(.+)$/gm, '*$1*')));
       const foot = C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : '';
-      /* 2026-10-13 (Cole: "I never want it to show the Show more"): Slack folds any tall message, so a long
-         answer goes out as several short messages, split at blank lines, each small enough to show whole.
-         The cost line rides on the last one. */
-      const msgs = slackPieces(text);
-      const blocksOf = (m, last) => [{ type: 'section', text: { type: 'mrkdwn', text: m } }, ...(last && foot ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: foot }] }] : [])];
-      if (text) {
-        for (let i = 0; i < msgs.length; i++) {
-          const last = i === msgs.length - 1;
-          const u = !i && work?.ts ? await update(msgs[0], blocksOf(msgs[0], last)).catch(() => null) : null;
-          if (!u?.ok) await say(msgs[i], blocksOf(msgs[i], last));
+      /* 2026-10-15 (Cole, after Viktor): ONE message per answer. The answer is drawn as rich_text (what a person's
+         message is, so Slack never cuts it into section-sized pieces) with a real table, and a report made in
+         this turn rides on the same message as buttons, not as a second copy of itself. Only a copy/paste
+         draft gets a message of its own. */
+      const reportBtns = [];
+      for (const rep of r.flags.reports || []) {
+        /* Link buttons still send Slack a tap, which the router acks only for action id noop_open; ids must be unique inside a block. */
+        if (rep.share) for (const [i, url] of [rep.share, rep.pdf].filter(Boolean).entries()) reportBtns.push({ type: 'actions', elements: [
+          { type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: i ? 'PDF' : `Open "${String(rep.title).slice(0, 60)}"` }, url, ...(i ? {} : { style: 'primary' }) }] });
+      }
+      const extraText = (r.flags.reports || []).filter(rep => !rep.share).map(reportText).join('\n\n');
+      const full = [body, extraText].filter(Boolean).join('\n\n');
+      if (full || reportBtns.length) {
+        const m = slackMessage(full || ' ');
+        const tail = [...reportBtns, ...(foot ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: foot }] }] : [])];
+        const post = async blocks => {
+          const all = [...blocks, ...tail].slice(0, 50);
+          const u = work?.ts ? await update(m.text, all).catch(() => null) : null;
+          return u?.ok ? u : await say(m.text, all);
+        };
+        let res = await post(m.blocks);
+        /* A refused table (or any block Slack will not draw): the same message with the table drawn monospace,
+           then, as a last resort, plain sections. */
+        if (res?.ok === false && m.hasTable) res = await post(m.plain);
+        if (res?.ok === false) {
+          console.log(`${C.name} rich message refused: ${res.error} ${JSON.stringify(res.response_metadata || {}).slice(0, 300)}`);
+          for (const [i, piece] of slackPieces(full, 2900, 200).entries()) await say(piece, [{ type: 'section', text: { type: 'mrkdwn', text: piece } }, ...(i ? [] : tail)]);
         }
+        if (draft) { const d = slackMessage(draft); const dr = await say(d.text, d.blocks); if (dr?.ok === false) await say(draft.slice(0, 3900)); }
         r.answered = true;
       } else if (work?.ts) {
         await update(r.stopped ? 'Stopped.' : 'Done.', [{ type: 'context', elements: [{ type: 'mrkdwn', text: (r.stopped ? '_Stopped._ ' : '') + foot }] }]).catch(() => {});
       } else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
       for (const p of groupProposals(r.flags.proposals)) await say(p.group ? `${p.summary}: ${p.items.map(x => x.summary).join('; ')}`.slice(0, 2900) : p.summary, proposalBlocks(p));
-      for (const rep of r.flags.reports || []) {
-        await say(reportText(rep));
-        /* A report with a share link (and a PDF) gets buttons. Link buttons still send Slack a tap, which the router
-           acks only for the action id noop_open, and an id must be unique inside a block: one block per button. */
-        if (rep.share) await say(`Open or share "${rep.title}"`, [rep.share, rep.pdf].filter(Boolean).map((url, i) => ({ type: 'actions', elements: [
-          { type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: i ? 'PDF' : 'Open the report' }, url, ...(i ? {} : { style: 'primary' }) }] }))).catch(() => {});
-      }
       /* What the app posts after the answer (the Strategist: images it made, report PDFs). */
       if (C.afterSlack) await C.afterSlack(env, r, ctx).catch(e => console.log(`${C.name} afterSlack: ${e.message}`));
       if (ev.channel_type === 'im') for (const hd of r.flags.handoffs || []) await say(`*${hd.title}* needs a code change. Paste this into Claude Code:\n\`\`\`\n${hd.prompt}\n\`\`\``);
