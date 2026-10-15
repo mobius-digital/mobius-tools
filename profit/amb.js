@@ -1393,7 +1393,7 @@ function paintEditor(keep) {
   <section class="v2card am-c" id="edFilm">
     <div class="v2h" style="margin:0"><h3>How to film it</h3><span class="find">Numbered on the page, in this order. Write each as an instruction: "Open on...", "Say...", "At 3 seconds, cut to...".</span></div>
     <label class="am-f"><span class="am-step">1</span>The first second <small>what is physically on screen before anyone talks</small><textarea class="am-in" id="eVis" style="min-height:56px" placeholder="Open on her holding the box, him not in frame yet.">${esc(a.visual_hook || '')}</textarea></label>
-    <label class="am-f">Or open with <small>two more ways in, one per row. Creators see them under step 1 with a link to the First seconds page. Lean on the bank on Link and brief.</small><textarea class="am-in" id="eAlt" style="min-height:56px" placeholder="Phone on the floor at 0.5x, reach down for the belt.\nShe films it, not you: her first line is the opener.">${esc((a.alt_hooks || []).join('\n'))}</textarea></label>
+    <label class="am-f">Or open with <small>two more ways in, one per row. Creators no longer see these (the link is a video board since 2026-10-14); kept for briefs.</small><textarea class="am-in" id="eAlt" style="min-height:56px" placeholder="Phone on the floor at 0.5x, reach down for the belt.\nShe films it, not you: her first line is the opener.">${esc((a.alt_hooks || []).join('\n'))}</textarea></label>
     <label class="am-f"><span class="am-step">2</span>Say this first <small>one line per row. The first row is the line on the card; the rest show as "Other lines you can say".</small><textarea class="am-in" id="eOpen" style="min-height:74px" placeholder="Let's see how long it takes him to notice what the buckle does.">${esc((a.openers || []).join('\n'))}</textarea></label>
     <label class="am-f"><span class="am-step">3</span>At 3 seconds <small>what happens next so they keep watching: a cut, a question, a count, a second person</small><textarea class="am-in" id="eRe" style="min-height:56px" placeholder="At 3 seconds, hand it over and stay on his face. Cut on his 'Wait a second.'">${esc(a.rehook || '')}</textarea></label>
     <div class="am-f"><span class="am-step">4</span>Then <small>the rest of the shots, one box per beat (Middle, Close)</small>
@@ -1845,7 +1845,7 @@ function paintLink(body) {
       </div>
 
       <div class="v2card am-c">
-        <div><h3>First seconds: ways to open a video</h3><p class="hint" style="margin:0">The "First seconds" tab on the link. One row per opener: a short name, one line of how to do it, whether it is made for this brand or works for any brand, and an example (an Atria link, or the id of a stored clip from one of this brand's ideas). Shared rows are copied per brand, so rewording one here changes it only for this brand.</p></div>
+        <div><h3>First seconds: ways to open a video</h3><p class="hint" style="margin:0">Not shown on the link any more (it is a video board); kept for briefs and the bots. One row per opener: a short name, one line of how to do it, whether it is made for this brand or works for any brand, and an example (an Atria link, or the id of a stored clip from one of this brand's ideas). Shared rows are copied per brand, so rewording one here changes it only for this brand.</p></div>
         <div class="am-list-edit" id="lHooks">${(b.hooks?.length ? b.hooks : [{ title: '', how: '', kind: 'brand' }]).map(x => hookRow(x)).join('')}</div>
         <div><button class="btn" id="lHookAdd" type="button">${ic('plus', 13)} Add an opener</button></div>
       </div>
@@ -2067,7 +2067,7 @@ const ruleRow = x => `<div class="am-li one"><textarea class="am-in grow" rows="
 const pdfText = b => {
   const t = b.pdf || {};
   const plat = b.submit_platform || 'TRYBE';
-  const steps = (t.steps && t.steps.length === 3) ? t.steps : ['Open the link and pick an idea', 'Film it your way, starting with the opener', `Submit it on ${plat} with the idea's name`];
+  const steps = (t.steps && t.steps.length === 3) ? t.steps : ['Open the link and pick a video', 'Make your version with our product', `Submit it on ${plat}`];
   return {
     line1: t.line1 || `${b.display_name} creators,`,
     line2: t.line2 || 'start here.',

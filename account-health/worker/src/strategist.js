@@ -1481,7 +1481,7 @@ const ACTIONS = (d) => {
     /* 2026-10-09: Fela (Ice & Gold) asked to drop a line from "Who we are talking to" and asked what "What it is"
        was for. Nothing could edit the page's own text: the request went to the ideas bot and died as "No draft yet". */
     { name: 'edit_creator_page',
-      description: 'Change the creator link PAGE text for a brand (not an angle): intro (top of What to film), about ("What it is", the product overview creators read), audience ("Who we are talking to"), rules ("Before you film" claim and filming rules), avoid ("please stop filming these"). Each field you pass REPLACES that field whole, so read the angles view first, start from the current text and change only what was asked (e.g. drop one sentence, keep the rest word for word). Use it when a client or Cole asks to edit, remove or reword something on the creator link.',
+      description: 'Change the creator link PAGE text for a brand (not an angle): intro (kept for the PDF; the page itself shows only videos and the checklist), about ("What it is", the product overview creators read), audience ("Who we are talking to"), rules ("Before you film" claim and filming rules), avoid ("please stop filming these"). Each field you pass REPLACES that field whole, so read the angles view first, start from the current text and change only what was asked (e.g. drop one sentence, keep the rest word for word). Use it when a client or Cole asks to edit, remove or reword something on the creator link.',
       input_schema: { type: 'object', properties: {
         brand: { type: 'string' }, intro: { type: 'string' }, about: { type: 'string' }, audience: { type: 'string' },
         rules: { type: 'array', items: { type: 'string' } },
