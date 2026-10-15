@@ -3365,6 +3365,11 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   `env(safe-area-inset-top)` on the top bar (under 980), `#v2panel` and `.rv-scrim`; a new full-screen layer
   needs the same inset or its first row sits under the status bar blur. In the installed app (`display-mode: standalone`,
   status bar outside the page) the top bar starts 24px down because iOS blurs the page's top edge. phone.css?v=8.
+- **Ninth pass (same day): Ask is the middle tab and the chat is a phone sheet.** `#tbAsk` sits between Ads and Work
+  (the helper face, lit while open); `#ask` is a large bottom sheet sized to the visual viewport with a phone header,
+  an empty state of four `askList()` questions, bubbles only for your questions and a 16px pill box with a send arrow.
+  ask-ui.js is unchanged: phone.js adds `.lxa-*` pieces inside #ask and phone.css hides the originals under 720.
+  phone.css?v=10, phone.js?v=4. (Superseded eighth pass:)
 - **Eighth pass (same day): on a phone Ask is at the bottom.** The top-bar ask bar is hidden under 720; `#tbAsk` (a round
   button at the end of `#tabbar`, shown with the ask bar) opens `AskUI`, and `#ask` slides up full screen with a
   one-row 34px header. The desktop and iPad keep the ask bar at the top. phone.css?v=9.

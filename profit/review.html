@@ -72,13 +72,13 @@
      bottom sheet with a "Notes · N" pill). phone.css keys the viewer's phone rules on [data-ui="v2"], which is why <html>
      carries that attribute here: nothing else on this page reads it. phone.js gates everything on width and on the Locus
      nodes it finds, so the More sheet, client picker, Filters and tab-row parts are inert on this page. -->
-<link rel="stylesheet" href="phone.css?v=9">
+<link rel="stylesheet" href="phone.css?v=10">
 </head>
 <body>
 <header class="top"><b id="brand">Ad review</b><span class="muted" style="font-size:13px">from Mobius Digital</span><span class="who" id="who"></span></header>
 <main id="main"><p class="muted">Loading...</p></main>
 <script src="review-ui.js?v=9"></script>
-<script src="phone.js?v=3" defer></script>
+<script src="phone.js?v=4" defer></script>
 <script>
 (() => {
   const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';

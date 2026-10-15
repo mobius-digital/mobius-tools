@@ -213,3 +213,109 @@
 
   window.LxPhone = { open, close, more: openMore, client: openClient, isPhone: PHONE };
 })();
+
+/* ---------- Ask on a phone (2026-10-15, second go). ask-ui.js builds #ask the same way for Locus, Ledger and Supply,
+   so this adds its phone pieces inside it rather than changing its markup: a grab handle, a header (the helper, "Ask
+   Locus", who it is about, new chat / More / close), the empty state (a greeting and four questions for the page,
+   from index.html's askList()), a round send arrow, swipe down to close, the sheet's height kept to the visual
+   viewport so the box sits above the keyboard, and the Ask tab lit while the chat is open. phone.css draws it all
+   under 720 and hides these pieces above it. */
+(() => {
+  const PHONE = () => matchMedia('(max-width:720px)').matches;
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const IC = {
+    new: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>',
+    close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    send: '<svg class="lxa-send-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>',
+    go: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>',
+    chats: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z"/></svg>',
+    reports: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  };
+  const scopeName = () => { const l = $('#pfPickLbl'); const t = l && l.textContent.trim(); return t || 'All clients'; };
+  const sugs = () => { try { return (typeof askList === 'function' ? askList() : []).slice(0, 4); } catch (e) { return []; } };
+  const pageName = () => { try { return (typeof TAB_TITLE !== 'undefined' && typeof S !== 'undefined' && TAB_TITLE[S.tab]) || ''; } catch (e) { return ''; } };
+
+  function build(a) {
+    if (a.dataset.lxa) return; a.dataset.lxa = '1';
+    a.insertAdjacentHTML('afterbegin', '<div class="lxa-grab" aria-hidden="true"><i></i></div>');
+    const h = a.querySelector('.ch2');
+    h.insertAdjacentHTML('afterbegin', `<div class="lxa-hd"><span class="lx-face" data-state="clear"></span><span class="lxa-tt"><b>Ask Locus</b><small class="lxa-scope"></small></span></div>`
+      + `<button type="button" class="lxa-ib" data-lxa="new" aria-label="New chat">${IC.new}</button>`
+      + `<button type="button" class="lxa-ib" data-lxa="menu" aria-label="Past chats and reports">${IC.more}</button>`
+      + `<button type="button" class="lxa-ib" data-lxa="close" aria-label="Close">${IC.close}</button>`);
+    $('#askLog', a).insertAdjacentHTML('beforebegin', '<div class="lxa-empty"></div>');
+    const f = $('#askForm', a), ta = $('#askIn', a), b = f && f.querySelector('button[type="submit"]');
+    if (ta) { ta.setAttribute('enterkeyhint', 'send'); ta.dataset.ph = ta.placeholder; }
+    if (b) { b.classList.add('lxa-send'); b.setAttribute('aria-label', 'Send'); b.innerHTML = `<span class="lxa-send-t">${esc(b.textContent)}</span>${IC.send}`; }
+    const has = () => f && f.classList.toggle('lxa-has', !!(ta && ta.value.trim()));
+    if (ta) { ta.addEventListener('input', has); ta.addEventListener('focus', () => { setTimeout(() => { const l = $('#askLog'); if (l) l.scrollTop = l.scrollHeight; }, 300); }); }
+    if (f) f.addEventListener('submit', () => setTimeout(has, 0));
+    a.addEventListener('click', e => {
+      const x = e.target.closest('[data-lxa]'); if (!x) {
+        const s = e.target.closest('.lxa-sug'); if (s && window.AskUI) AskUI.ask(s.dataset.q);
+        return;
+      }
+      const k = x.dataset.lxa;
+      if (k === 'close') AskUI.close();
+      else if (k === 'new') AskUI.fresh();
+      else if (k === 'menu' && window.LxPhone) LxPhone.open('Ask Locus', `<button type="button" class="lxs-row" data-m="chats"><span class="lxs-ic">${IC.chats}</span><span class="lxs-t"><span>Past chats</span><small>About ${esc(scopeName())}</small></span></button>`
+        + `<button type="button" class="lxs-row" data-m="reports"><span class="lxs-ic">${IC.reports}</span><span class="lxs-t"><span>Reports</span><small>Pages it built for you</small></span></button>`
+        + `<button type="button" class="lxs-row" data-m="new"><span class="lxs-ic">${IC.new}</span><span class="lxs-t"><span>New chat</span></span></button>`, body => {
+          body.addEventListener('click', ev => { const r = ev.target.closest('[data-m]'); if (!r) return; LxPhone.close(); const m = r.dataset.m; setTimeout(() => { if (m === 'chats') AskUI.history(); else if (m === 'reports') AskUI.reports(); else AskUI.fresh(); }, 60); });
+        });
+    });
+    /* swipe the handle or the header down to close */
+    let y0 = null, dy = 0;
+    const start = e => { if (!PHONE() || e.target.closest('button')) return; y0 = e.clientY; dy = 0; a.classList.add('lxa-drag'); };
+    const move = e => { if (y0 == null) return; dy = Math.max(0, e.clientY - y0); a.style.transform = `translateY(${dy}px)`; };
+    const end = () => { if (y0 == null) return; a.classList.remove('lxa-drag'); a.style.transform = ''; if (dy > 90) AskUI.close(); y0 = null; };
+    [a.querySelector('.lxa-grab'), h].forEach(el => { el.addEventListener('pointerdown', start); el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); });
+    new MutationObserver(sync).observe($('#askLog', a), { childList: true });
+    new MutationObserver(sync).observe(a, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  let lastEmpty = '';
+  function sync() {
+    const a = $('#ask'); if (!a) return;
+    const open = a.classList.contains('on');
+    const tb = $('#tbAsk'); if (tb) tb.classList.toggle('on', open && PHONE());
+    if (!PHONE()) return;
+    const ta = $('#askIn', a); if (ta && ta.placeholder !== 'Ask Locus anything') { ta.placeholder = 'Ask Locus anything'; if (ta._grow) ta._grow(); }
+    const fm = $('#askForm', a); if (fm && ta) fm.classList.toggle('lxa-has', !!ta.value.trim());   // Enter sends without a submit event
+    const sc = $('.lxa-scope', a); if (sc) sc.textContent = 'About ' + scopeName();
+    const log = $('#askLog', a);
+    const busy = !!(log && log.querySelector('.working'));
+    a.querySelectorAll('.lxa-hd .lx-face').forEach(f => { const s = busy ? 'thinking' : 'clear'; if (f.dataset.state !== s) f.dataset.state = s; });
+    if (tb) { const f = tb.querySelector('.lx-face'); const s = busy ? 'thinking' : 'clear'; if (f && f.dataset.state !== s) f.dataset.state = s; }
+    const empty = !!log && !log.querySelector('.m:not(.intro)');
+    a.classList.toggle('lxa-isempty', empty);
+    if (empty) {
+      const qs = sugs(), key = scopeName() + '|' + pageName() + '|' + qs.join('|');
+      if (key !== lastEmpty) {
+        lastEmpty = key;
+        const pg = pageName();
+        $('.lxa-empty', a).innerHTML = `<div class="lxa-hello"><span class="lx-face" data-state="clear"></span><h2>What do you want to know?</h2><p>Ask about ${esc(scopeName())}${pg ? `, or anything on ${esc(pg)}` : ''}. Locus reads the numbers and answers in plain words.</p></div>`
+          + (qs.length ? `<div class="lxa-sugs"><span>Try asking</span>${qs.map(q => `<button type="button" class="lxa-sug" data-q="${esc(q)}"><span>${esc(q)}</span>${IC.go}</button>`).join('')}</div>` : '');
+      }
+    }
+    if (open) fit();
+  }
+  /* keep the sheet inside the visual viewport, so the box sits above the keyboard */
+  function fit() {
+    const a = $('#ask'), vv = window.visualViewport; if (!a || !vv || !PHONE()) return;
+    a.style.setProperty('--vvh', vv.height + 'px');
+    a.style.setProperty('--vvt', vv.offsetTop + 'px');
+    a.classList.toggle('lxa-kb', vv.height < window.innerHeight - 120);
+  }
+  if (window.visualViewport) { visualViewport.addEventListener('resize', fit); visualViewport.addEventListener('scroll', fit); }
+  function watch() {
+    const a = $('#ask'); if (a) { build(a); sync(); return true; }
+    return false;
+  }
+  if (!watch()) {
+    const mo = new MutationObserver(() => { if (watch()) mo.disconnect(); });
+    mo.observe(document.body, { childList: true });
+  }
+})();
