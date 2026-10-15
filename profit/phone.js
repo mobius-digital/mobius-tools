@@ -111,6 +111,50 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') setTimeout(syncScrim, 0); });
   new MutationObserver(muts => { for (const m of muts) if (m.target.classList && m.target.classList.contains('hd-period')) { syncScrim(); return; } }).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
 
+  /* ---------- Tasks: Group by, Only mine and Area live in a Filters sheet (five rows of chips at 375) ---------- */
+  function chip(attrs, on, label, style) { return `<button type="button" class="lxs-chip${on ? ' on' : ''}" ${attrs}${style ? ` style="${esc(style)}"` : ''}>${esc(label)}</button>`; }
+  function filtersHtml() {
+    const tk = $('#main .tk'); if (!tk) return '';
+    const grp = [...tk.querySelectorAll('.tk-bar [data-group]')].map(b => chip(`data-lxs-group="${esc(b.dataset.group)}"`, b.classList.contains('on'), b.textContent)).join('');
+    const mine = tk.querySelector('#tkMine');
+    const areas = [...tk.querySelectorAll('.tk-areas [data-areaf]')].map(b => chip(`data-lxs-area="${esc(b.dataset.areaf)}"`, b.classList.contains('on'), b.textContent, b.getAttribute('style') || '')).join('');
+    return `<div class="lxs-sec">Group by</div><div class="lxs-chips">${grp}</div>${mine ? `<div class="lxs-sec">Show</div><div class="lxs-chips">${chip('data-lxs-mine="1"', mine.classList.contains('on'), 'Only mine', '--cc:var(--brand)')}</div>` : ''}<div class="lxs-sec">Area</div><div class="lxs-chips">${areas}</div>`;
+  }
+  function openFilters() {
+    open('Filters', filtersHtml(), b => {
+      b.addEventListener('click', e => {
+        const g = e.target.closest('[data-lxs-group]'), a = e.target.closest('[data-lxs-area]'), m = e.target.closest('[data-lxs-mine]');
+        const real = g ? $(`#main .tk .tk-bar [data-group="${g.dataset.lxsGroup}"]`) : a ? $(`#main .tk .tk-areas [data-areaf="${a.dataset.lxsArea}"]`) : m ? $('#tkMine') : null;
+        if (!real) return; real.click();
+        setTimeout(() => { b.innerHTML = filtersHtml(); filtersBtn(); }, 80);
+      });
+    });
+  }
+  function filtersBtn() {
+    const bar = $('#main .tk .tk-bar'); if (!bar) return;
+    let b = bar.querySelector('.lxs-filters');
+    if (!PHONE()) { if (b) b.remove(); return; }
+    const tk = bar.closest('.tk');
+    const n = (tk.querySelector('.tk-bar [data-group].on') && tk.querySelector('.tk-bar [data-group].on').dataset.group !== 'brand' ? 1 : 0) + (tk.querySelector('#tkMine.on') ? 1 : 0) + (tk.querySelector('.tk-areas [data-areaf].on') && tk.querySelector('.tk-areas [data-areaf].on').dataset.areaf !== 'all' ? 1 : 0);
+    if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'tk-chip lxs-filters'; b.addEventListener('click', openFilters); bar.appendChild(b); }
+    const t = n ? `Filters · ${n}` : 'Filters'; if (b.textContent !== t) b.textContent = t;   /* a same-text write is still a mutation: guard, or the observer loops */
+    b.classList.toggle('on', n > 0);
+  }
+
+  /* ---------- the page tabs: the open tab scrolls into view, and the row fades at its edge when more exist ---------- */
+  function segFix() {
+    const seg = $('#v2seg'); if (!seg || seg.hidden) return;
+    const on = seg.querySelector('.on, [aria-current], [aria-selected="true"]'); if (!on) return;
+    let row = on.parentElement; while (row && row !== seg && !(row.scrollWidth > row.clientWidth + 2)) row = row.parentElement;
+    if (!row || row === seg && !(seg.scrollWidth > seg.clientWidth + 2)) { seg.querySelectorAll('.lxs-fade').forEach(r => r.classList.remove('lxs-fade')); return; }
+    row.classList.add('lxs-fade');
+    const want = on.getBoundingClientRect().left - row.getBoundingClientRect().left - (row.clientWidth - on.offsetWidth) / 2;
+    row.scrollTo({ left: row.scrollLeft + want, behavior: 'smooth' });
+  }
+
+  let tick = 0;
+  new MutationObserver(() => { clearTimeout(tick); tick = setTimeout(() => { filtersBtn(); if (PHONE()) segFix(); }, 60); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+
   /* ---------- widen past a phone: nothing stays open ---------- */
   matchMedia('(max-width:720px)').addEventListener('change', e => { if (!e.matches) { close(); syncScrim(); } });
 

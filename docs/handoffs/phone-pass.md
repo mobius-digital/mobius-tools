@@ -79,8 +79,29 @@ the audit measured page bodies only, never the sheets, menus or the brief editor
 - Checked at 375 on the local pair: More sheet, client sheet (pick All clients: page switched, node moved back),
   the period menu with its scrim, the card sheet's Brief and Ads tabs.
 
+## Third pass, the same day: Filters, the tab hint, the review viewer and Launch
+
+- **Tasks has a Filters sheet** (phone.js `filtersBtn` / `openFilters`): under 720 the bar keeps the View segment
+  and gains one "Filters · N" chip (N = the choices that differ from the defaults); Group by, Only mine and the
+  Area chips move into a bottom sheet whose chips click the REAL controls in the hidden bar (tasks.js is
+  untouched; the Area chips carry `data-areaf`, not `data-area`). The sheet redraws after each pick so the count
+  and the page both follow.
+- **The page tabs say when they scroll** (phone.js `segFix`): a `#v2seg` row wider than the screen gets
+  `.lxs-fade` (a sticky gradient at its right edge, phone.css) and scrolls the open tab to the middle, so the
+  cut "Re..." is gone and the next tab shows a sliver. Both run from one debounced MutationObserver on body.
+- **The review viewer** (review-ui.js has its own 900px stack; phone.css adds the phone parts): the 44px rule had
+  stretched the colour swatches to 20x44 ovals and the icon buttons to 32x44; now 22px round swatches with a
+  coarse-pointer hit area, 40px tools and header buttons, the trailing x hidden (Back closes), Ask for changes
+  and Approve share one full row, the stage is capped at 50vh so the Notes panel starts inside the first screen,
+  the strip is 92px with 56x70 thumbs.
+- **Launch to Meta**: the single window shows the ad as a 200px picture above the form instead of a whole screen;
+  a batch row puts the tick, the thumb and "Ad 48-1 · v2 · Still" on one line and the fields full width under them
+  (`.lnb-row > div:last-child{display:contents}` under 600). Both windows were checked at 375 with stub payloads
+  (no card on the real data has an uploaded version yet; nothing was written to Meta).
+
 ## Still open
 
-- Page tabs (`#v2seg`) scroll sideways on a phone with no hint that more exist (Reports cut to "Re").
-- The Tasks filter bar is five rows of chips at 375; a single "Filters" sheet like Production's would be tighter.
 - The Day check "Right now" card stacks its two buttons full width; fine, but a row of two would read faster.
+- The review viewer's Notes panel sits under the strip (a scroll); a bottom sheet for notes would match the rest
+  of the phone layer, at the cost of hiding the ad while reading them. Left as a scroll for now.
+- Not checked on a real device, only the Browser pane at 375 and 768.

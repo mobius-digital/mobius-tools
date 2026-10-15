@@ -106,6 +106,9 @@
 #lxSheet .lxs-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 #lxSheet .lxs-t small{font-size:12.5px;color:var(--muted);font-weight:400}
 #lxSheet .lxs-chev{width:8px;height:13px;color:var(--faint);flex:none}
+#lxSheet .lxs-chips{display:flex;flex-wrap:wrap;gap:8px;padding:2px 10px 6px}
+#lxSheet .lxs-chip{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:14px;cursor:pointer}
+#lxSheet .lxs-chip.on{background:var(--cc,var(--ink));border-color:transparent;color:var(--surface);font-weight:600}
 #lxSheet .lxs-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 10px;border-radius:var(--r-md,10px);background:var(--surface-2)}
 #lxSheet .lxs-seg button{min-height:40px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 #lxSheet .lxs-seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-card,0 1px 2px rgba(0,0,0,.12))}
@@ -138,14 +141,70 @@ body.lxs-open{overflow:hidden}
   [data-ui="v2"] .ps-tb button[data-tool]{height:36px;min-height:0;flex:none;font-size:13px}
   [data-ui="v2"] .ps-tb .sep{flex:none}
   [data-ui="v2"] .ps-doc{padding:14px}
+  /* the Launch to Meta window is a .modal-wrap, so it already sits at the bottom; its own width rule had kept
+     a 16px gap each side and a desktop height */
+  [data-ui="v2"] .ln-modal .modal{width:100%;max-width:none;max-height:92dvh}
+  /* Tasks: View stays on the page; Group by, Only mine and Area move into the Filters sheet (phone.js) */
+  [data-ui="v2"] .tk .tk-bar .tk-segw:nth-of-type(2),[data-ui="v2"] .tk .tk-bar #tkMine,[data-ui="v2"] .tk .tk-areas{display:none}
+  [data-ui="v2"] .tk .tk-bar{gap:10px}
+  [data-ui="v2"] .tk .tk-bar .lxs-filters{margin-left:auto;height:40px;min-height:0;padding:0 14px;font-size:13px}
+  [data-ui="v2"] .tk .tk-qa{display:flex;gap:8px}
+  [data-ui="v2"] .tk .tk-qa input{flex:1;min-width:0}
+  /* the page tabs: a fade at the edge of a row that scrolls (phone.js marks it) */
+  [data-ui="v2"] #v2seg .lxs-fade{position:relative;scroll-padding:0 24px}
+  [data-ui="v2"] #v2seg .lxs-fade::after{content:"";position:sticky;right:0;flex:none;align-self:stretch;width:32px;margin-left:-32px;background:linear-gradient(90deg,transparent,var(--bg));pointer-events:none}
   /* the top: one character (the badge), a plain search bar, no faded face */
   [data-ui="v2"] .topbar .lx-face{opacity:1}
   [data-ui="v2"] .v2ask .lx-ask-face{display:none}
+  /* Launch to Meta on a phone: the ad is a 200px picture beside the test line, not a whole screen; a batch row
+     puts the tick, the thumb and the ad's name on one line and the fields full width under them */
+  [data-ui="v2"] .ln-modal .ln-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+  [data-ui="v2"] .ln-modal .ln-pic,[data-ui="v2"] .ln-modal .ln-vid{width:auto;max-width:200px;height:200px;aspect-ratio:auto;margin:0 auto;display:block}
+  [data-ui="v2"] .ln-modal .ln-foot .btn{flex:1 1 auto}
+  [data-ui="v2"] .ln-modal .ln-foot .btn:first-child{flex:0 0 auto}
+}
+@media (max-width:600px){
+  [data-ui="v2"] .ln-modal .lnb-row{grid-template-columns:22px 56px minmax(0,1fr);gap:8px 10px;align-items:center}
+  [data-ui="v2"] .ln-modal .lnb-row > div:last-child{display:contents}
+  [data-ui="v2"] .ln-modal .lnb-row .lnb-top{margin:0}
+  [data-ui="v2"] .ln-modal .lnb-row .lnb-g{grid-column:1 / -1}
+  [data-ui="v2"] .ln-modal .lnb-pic,[data-ui="v2"] .ln-modal .lnb-vid{width:56px}
+  [data-ui="v2"] .ln-modal .lnb-tick{min-height:0}
+}
+/* The review viewer on a phone (review-ui.js has its own 900px rules; these are the phone-only parts):
+   the 44px rule had stretched the colour swatches to 20x44 ovals and the icon buttons to 32x44; the header
+   closes with Back, so the trailing x is hidden; the two call buttons share one full row; the stage is capped
+   so the notes panel starts inside the first screen; the strip is 92px. */
+@media (max-width:720px){
+  [data-ui="v2"] .rv-scrim{z-index:9600}
+  [data-ui="v2"] .rv-h{padding:8px 10px;gap:6px 8px}
+  [data-ui="v2"] .rv-h .rv-btn{height:40px;min-height:0;padding:0 12px}
+  [data-ui="v2"] .rv-h .rv-btn.ic{width:40px;padding:0}
+  [data-ui="v2"] .rv-h > .rv-btn.ic[data-close]:last-child{display:none}
+  [data-ui="v2"] .rv-h .rv-who b{font-size:15px}
+  [data-ui="v2"] .rv-h .rv-seg{margin-left:0!important}
+  [data-ui="v2"] .rv-h .rv-seg button{min-height:0;height:32px}
+  [data-ui="v2"] .rv-h [data-ask],[data-ui="v2"] .rv-h [data-approve]{flex:1 1 40%}
+  [data-ui="v2"] .rv-h [data-ask]{margin-left:0}
+  [data-ui="v2"] .rv-stage{min-height:0;padding:12px 12px 72px}
+  [data-ui="v2"] .rv-media img,[data-ui="v2"] .rv-media video{max-height:50vh}
+  [data-ui="v2"] .rv-bar{bottom:12px;padding:4px}
+  [data-ui="v2"] .rv-tool{width:40px;height:40px;min-height:0}
+  [data-ui="v2"] .rv-sw{width:22px;height:22px;min-height:0;padding:0}
+  [data-ui="v2"] .rv-strip{flex:0 0 92px;padding:0 12px}
+  [data-ui="v2"] .rv-thumb{width:56px;height:70px;flex:0 0 56px;min-height:0}
+  [data-ui="v2"] .rv-tabs{padding:0 14px}
+  [data-ui="v2"] .rv-tab,[data-ui="v2"] .rv-chip,[data-ui="v2"] .rv-link,[data-ui="v2"] .rv-at{min-height:0}
+  [data-ui="v2"] .rv-chip{height:30px}
+  [data-ui="v2"] .rv-chips,[data-ui="v2"] .rv-list{padding-left:14px;padding-right:14px}
+  [data-ui="v2"] .rv-list{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+  [data-ui="v2"] .rv-box{padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
+  [data-ui="v2"] .rv-ver{min-height:0}
 }
 /* touch: hit areas (the look stays; a pseudo element takes the tap) */
 @media (pointer:coarse){
-  .tk .tk-tick,.v2ex,.v2rm,.v2cell,.pd-avb,.pd-fmt,.pd-due,.se-link.se-mini,.lx-nudge-x,.v2sw,.toggle{position:relative}
-  .tk .tk-tick::after,.v2ex::after,.v2rm::after,.v2cell::after,.pd-avb::after,.pd-fmt::after,.pd-due::after,.se-link.se-mini::after,.lx-nudge-x::after,.v2sw::after,.toggle::after{content:"";position:absolute;inset:-11px;border-radius:inherit}
+  .tk .tk-tick,.v2ex,.v2rm,.v2cell,.pd-avb,.pd-fmt,.pd-due,.se-link.se-mini,.lx-nudge-x,.v2sw,.toggle,.rv-sw{position:relative}
+  .tk .tk-tick::after,.v2ex::after,.v2rm::after,.v2cell::after,.pd-avb::after,.pd-fmt::after,.pd-due::after,.se-link.se-mini::after,.lx-nudge-x::after,.v2sw::after,.toggle::after,.rv-sw::after{content:"";position:absolute;inset:-11px;border-radius:inherit}
   .v2rm{opacity:1}
   .dk .pu-sm input,.lx input[type=checkbox],.set-card input[type=checkbox]{width:20px;height:20px}
   .v2gal .th .v2pick{width:30px;height:30px}

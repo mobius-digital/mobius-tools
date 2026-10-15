@@ -3315,3 +3315,10 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   up full screen, the brief toolbar is one scrolling row. The rail drawer is iPad-only now. The helper's face is full
   opacity on a phone and the ask bar has none (the two faded faces read as blur). A new popover anywhere in Locus
   should be a `.hd-period` menu or use `LxPhone.open` so it lands at the bottom on a phone.
+- **Third pass (same day): Filters, the tab hint, the viewer, Launch.** Tasks under 720 keeps View and one
+  "Filters · N" chip; Group by, Only mine and the Area chips (`data-areaf`) live in a sheet that clicks the real
+  hidden controls. A `#v2seg` row wider than the screen gets `.lxs-fade` and centres the open tab (`segFix`). The
+  review viewer's swatches, tools and header buttons are reset from the 44px rule (round swatches, 40px tools, Back
+  closes, the call buttons share a row, the stage is capped at 50vh so Notes start on the first screen). Launch to
+  Meta shows a 200px picture; a batch row is tick + thumb + name on one line, fields full width under it. Any new
+  small control inside the viewer or a Launch row needs the same `min-height:0` treatment.
