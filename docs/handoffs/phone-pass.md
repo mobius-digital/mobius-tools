@@ -206,6 +206,14 @@ not there, the ask bar looked covered by something at the very top, slightly blu
   Browser pane refused the spare port): top bar padding 69px (10 + 59), panel 59px; the scrim hidden before, visible
   open, fading at 60ms, hidden after. phone.css?v=7 on both hosts.
 
+- **Follow-up, the blur stayed (Cole: grey band gone, blur still there).** His screenshots are the installed
+  home-screen app: the status bar sits outside the page (`status-bar-style default`, so the top inset is 0 there and
+  the padding above changed nothing for him), and iOS softens the top edge of the page under it with a short blur.
+  The top bar started 10px below that edge. In `(display-mode: standalone)` under 980 the first row now starts 24px
+  below it; a browser tab keeps 10px. Headless Chrome cannot emulate display-mode, so the rule was checked by
+  forcing its declarations on: padding 24px, the ask bar at 24, nothing overlapping. phone.css?v=8. Not seen on the
+  phone yet; if it still looks soft, ask for a screenshot of the top at rest and after a scroll.
+
 ## Still open
 
 - Not checked on a real device, only the Browser pane at 375 and 768.

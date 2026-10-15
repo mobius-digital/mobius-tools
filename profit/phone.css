@@ -260,3 +260,10 @@ body.lxs-open{overflow:hidden}
   [data-ui="v2"] #v2panel{padding-top:env(safe-area-inset-top,0px)}
   [data-ui="v2"] .rv-scrim{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 }
+/* 3. Locus installed on the home screen (Cole's screenshots, iOS): the status bar sits outside the page, and iOS
+      softens the top edge of the page under it with a short blur that content scrolls into. The top bar started
+      10px below that edge, so the helper badge and the ask bar sat inside the blur and looked covered. In the
+      installed app the first row starts 24px below the edge; a browser tab keeps the tighter 10px. */
+@media (display-mode:standalone) and (max-width:979px){
+  [data-ui="v2"] .topbar{padding-top:calc(24px + env(safe-area-inset-top,0px))}
+}
