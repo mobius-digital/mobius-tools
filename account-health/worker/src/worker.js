@@ -372,6 +372,8 @@ async function syncMetaStructure(env, acct, force = false) {
 
 const PURCHASE_TYPES = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
 const ATC_TYPES = ['omni_add_to_cart', 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart'];
+/* Leads per ad (2026-10-15): the cost-per-lead goal on Today's calls for lead campaigns. Instant forms and pixel leads. */
+const LEAD_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
 function pickAction(list, types) {
   if (!Array.isArray(list)) return 0;
   for (const t of types) {
@@ -838,22 +840,22 @@ async function syncAdSlice(env, acct, since, until) {
     +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
     sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
     // avg watch time is SECONDS per impression-ish, not a count - never summed.
-    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES)]);
-  const COLS = 20;
+    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES), pickAction(r.actions, LEAD_TYPES)]);
+  const COLS = 21;
   const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
   const stmts = [];
   for (let i = 0; i < daily.length; i += per) {
     const chunk = daily.slice(i, i + per);
     stmts.push(env.DB.prepare(
       `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s,
-         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart) VALUES ` +
+         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart, leads) VALUES ` +
       chunk.map(() => `(${Array(COLS).fill('?').join(',')})`).join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
         purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
         video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100,
         reach = excluded.reach, clicks_all = excluded.clicks_all, outbound_clicks = excluded.outbound_clicks,
         video_p25 = excluded.video_p25, video_p50 = excluded.video_p50, video_p75 = excluded.video_p75,
-        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart`,
+        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart, leads = excluded.leads`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();

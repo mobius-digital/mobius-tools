@@ -1159,6 +1159,25 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   .g-h h4{margin:0;font-size:14px;font-weight:700;color:var(--ink)}
   .g-hint{margin:4px 0 8px;font-size:12.5px;color:var(--muted);line-height:1.5}
   .g-row{display:grid;grid-template-columns:1fr 150px;align-items:center;gap:16px;padding:9px 0;border-top:1px solid var(--line)}
+  /* Goals and ad rules (2026-10-15): goals with real and break-even beside them, rules as sentences with AND / OR. */
+  .grw .gr-seg{display:inline-flex;flex-wrap:wrap}
+  .grw .gr-mhint{margin:8px 0 0}
+  .grw .gr-goal.main{background:var(--brand-soft, rgba(98,189,234,.10));border-radius:8px;padding-left:8px;padding-right:8px}
+  .grw .gr-goal.main .g-l b::after{content:'used for the calls';margin-left:8px;font-size:10.5px;font-weight:600;color:var(--accent, var(--brand));text-transform:uppercase;letter-spacing:.04em}
+  .grw .gr-sug{color:var(--ink-2)}
+  .grw .gr-sug b{color:var(--ink)}
+  .grw .gr-warn{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:color-mix(in srgb, var(--bad) 10%, transparent);color:var(--ink);font-size:13px}
+  .grw .gr-plat{display:flex;flex-wrap:wrap;gap:12px 22px;padding-top:4px}
+  .grw .gr-p{display:flex;align-items:center;gap:10px}
+  .grw .gr-rule{display:block;margin:0;padding:11px 0;border-top:1px solid var(--line);line-height:2.1;font-size:14px}
+  .grw .gr-rule:first-of-type{border-top:0}
+  .grw .gr-t{display:inline-block;min-width:64px;margin-right:10px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)}
+  .grw .gr-t.good{color:var(--good)} .grw .gr-t.bad{color:var(--bad)} .grw .gr-t.warn{color:var(--warn)}
+  .grw .gr-k{display:inline-block;font:700 11px/1 ui-monospace,monospace;padding:3px 6px;border-radius:4px;border:1px solid currentColor;margin:0 3px;vertical-align:1px}
+  .grw .gr-k.and{color:var(--accent, var(--brand))} .grw .gr-k.or{color:var(--warn)} .grw .gr-k.not{color:var(--bad)}
+  .grw .gr-in{display:inline-flex;vertical-align:middle;margin:0 2px}
+  .grw .gr-rule .g-sw{display:inline-flex;vertical-align:middle;margin-left:6px}
+  .grw .gr-why{margin:10px 0 0;color:var(--ink-2)}
   .g-row:first-of-type{border-top:0}
   .g-l b{display:block;font-size:13px;font-weight:600;color:var(--ink)}
   .g-l small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px;line-height:1.4}
@@ -3021,7 +3040,7 @@ document.addEventListener('click', e => {
    question you actually had, and the essay is one click away for the day you
    want to know how the format-tag coverage threshold works. */
 const PAGE_BRIEF = {
-  calendar: { answers: 'One calendar: what customers will see and when (drops, sales, emails, the Black Friday plan) for every client, the team's tasks on the day they are due, and what has to be ready for each date: photos, ads briefed and built, the email scheduled, the ads loaded.', when: 'Monday for the week ahead; whenever a client gives us a date.', todo: 'Work down “Work due this week”, late first. Make the Asana tasks for a new date; the countdown ticks itself from Asana, Klaviyo and Meta.' },
+  calendar: { answers: 'One calendar: what customers will see and when (drops, sales, emails, the Black Friday plan) for every client, the team’s tasks on the day they are due, and what has to be ready for each date: photos, ads briefed and built, the email scheduled, the ads loaded.', when: 'Monday for the week ahead; whenever a client gives us a date.', todo: 'Work down “Work due this week”, late first. Make the Asana tasks for a new date; the countdown ticks itself from Asana, Klaviyo and Meta.' },
   yesterday: { answers: 'Was yesterday a bad day on Meta, for advertisers in general: a bad day when two or more of four signs agree (our brands paying more per sale than usual, other advertisers, Meta posting a problem, advertisers complaining online).', when: 'Every morning, before touching an ad account.', todo: 'Red: hold big changes on Meta and wait it out. Normal or mixed: carry on.' },
   today: { answers: 'What to change today: ad sets to scale or cut, ads to switch off or refresh, things to fix, tests to call. Ad set first, ranked by money at stake.', when: 'Every morning, after Yesterday.', todo: 'Work down the list. Make the change in Ads Manager, then press Done so it lands in the Change Log and tomorrow\u2019s brief.' },
   war: { answers: 'During the season: sales today against the plan, the offer running now and what changes next, for every brand.', when: 'Every day of list week and the Black Friday weekend.', todo: 'Check the live column at each desk slot; open The plan for the full offer and timeline.' },
@@ -3455,7 +3474,7 @@ const SET_GROUPS = [['Mobius Digital', ['brands', 'connections', 'team', 'links'
    Data and costs; Remove from Locus is "Archive this brand" at the bottom of About. One icon each, never repeated. */
 const BRAND_SECS = [['about', 'About the brand', 'i-idcard', 'Its name, time zone and currency. Archive a brand that has left at the bottom.'],
   ['conn', 'Integrations', 'i-plug', 'Everything this brand is connected to: ad platforms, store, website, email, work tools. Click a card for what Locus gets from it and the exact steps.'],
-  ['goals', 'Ads rules', 'i-sliders', 'How Ads > Today and Meta > Ads call each ad set and ad. The goal cost per sale they use is set in Home > Goals.'],
+  ['goals', 'Goals and ad rules', 'i-sliders', 'What this brand is judged on (cost per sale, per new customer, per lead or ROAS), the goal per platform, and the rules Ads > Today and Meta > Ads use, written as sentences.'],
   ['slack', 'Slack and sending', 'i-plane', 'Where its briefs and reports go, whether you see them first, and every automatic post it makes.'],
   ['stock', 'Stock and factories', 'i-factory', 'Stock is on for every brand with the Shopify app. Buying (factories, order dates) and Drops (new designs) switch on here.'],
   ['data', 'Data and costs', 'i-steth', 'Are this brand’s numbers right, and how to fix them: is the data complete, are the costs right, and the repairs.'],
@@ -5350,32 +5369,26 @@ function V2R(tab, first) {
    goal ROAS) moved here from Settings > Goals and rules, so every number the client agreed sits on one page. Same saves
    as the old card: /api/client-settings target_cpa, the Meta accounts route target_roas. */
 async function addGoalTargets() {
+  /* ONE PLACE (2026-10-15, Cole: "why do I need to change this in Home?"): the goals and the ad rules are edited only in
+     Brand settings > Goals and ad rules. Home > Goals shows what they are and links there. */
   if (S.act === 'all' || S.tab !== 'plan') return;
   const a = S.accounts.find(x => x.act_id === S.act); if (!a) return;
   const run = RUN;
   let g = null; try { g = await api(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`); } catch { return; }
   const host = document.querySelector('#main .lx') || document.querySelector('#main > div') || document.querySelector('#main');
   if (run !== RUN || !host || host.querySelector('#gtCard')) return;
-  const T = g.rules?.target_cpa, R = g.goal_roas, cur = a.currency;
+  const r = g.rules || {}, cur = a.currency;
+  const NAME = { cpa: 'Cost per sale', ncpa: 'Cost per new customer', roas: 'ROAS', cpl: 'Cost per lead' };
+  const val = { cpa: r.target_cpa != null ? fmtMoney(r.target_cpa, cur) : null, ncpa: r.goal_ncpa > 0 ? fmtMoney(r.goal_ncpa, cur) : null, roas: g.goal_roas ? g.goal_roas + 'x' : null, cpl: r.goal_cpl > 0 ? fmtMoney(r.goal_cpl, cur) : null };
+  const m = r.goal_metric || 'cpa';
   const el = document.createElement('div'); el.className = 'card'; el.id = 'gtCard';
-  el.innerHTML = `<h3 style="margin:0 0 4px">What a sale should cost</h3><p class="hint" style="margin:0 0 12px">Agreed with the client with the month plan above. Every green, yellow and red in Locus, and every call on Ads &gt; Today, is measured against these two.</p>
-    <div class="row" style="gap:18px;flex-wrap:wrap;align-items:flex-end;margin:0">
-      <label class="tiny" style="display:flex;flex-direction:column;gap:4px"><b>Goal cost per sale</b><span class="unit-in" style="width:120px"><span>${esc(sym(cur))}</span><input type="text" inputmode="decimal" id="gtCpa" value="${T != null ? Math.round(T) : ''}" placeholder="not set"></span></label>
-      <label class="tiny" style="display:flex;flex-direction:column;gap:4px"><b>Goal ROAS</b><span class="unit-in" style="width:100px"><input type="text" inputmode="decimal" id="gtRoas" value="${R != null ? R : ''}" placeholder="not set"><span>x</span></span></label>
-      <button class="btn primary" id="gtSave">Save targets</button><span class="tiny" id="gtMsg"></span></div>`;
+  el.innerHTML = `<h3 style="margin:0 0 4px">What the ads are judged on</h3><p class="hint" style="margin:0 0 12px">Every call on Ads &gt; Today and every green or red on Meta &gt; Ads uses this goal.</p>
+    <div class="row" style="gap:22px;flex-wrap:wrap;align-items:baseline;margin:0">
+      <span><span class="tiny">${esc(NAME[m])} goal</span><br><b style="font-size:20px">${val[m] || 'not set'}</b></span>
+      ${Object.keys(NAME).filter(k => k !== m && val[k]).map(k => `<span><span class="tiny">${esc(NAME[k])}</span><br><b>${val[k]}</b></span>`).join('')}
+      <button class="btn" id="gtEdit">Change goals and ad rules</button></div>`;
   host.appendChild(el);
-  el.querySelector('#gtSave').onclick = async () => {
-    const n = id => { const raw = el.querySelector(id).value.replace(/[^0-9.]/g, ''); return raw === '' ? '' : +raw; };
-    const cpa = n('#gtCpa'), roas = n('#gtRoas'), msg = el.querySelector('#gtMsg');
-    if (cpa !== '' && !(cpa > 0)) { msg.textContent = 'Goal cost per sale must be above 0, or blank.'; return; }
-    msg.textContent = 'Saving…';
-    try {
-      await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, target_cpa: cpa }) });
-      if (window.MetaTab) await window.MetaTab.api(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
-      await refreshAccounts().catch(() => {});
-      msg.textContent = 'Saved. Every screen uses these now.';
-    } catch (e) { msg.textContent = e.message; }
-  };
+  el.querySelector('#gtEdit').onclick = () => openGoals(a.act_id);
 }
 /* The calendar (2026-10-09, calendar.js): Lineup's dates, the Black Friday plan, Drops and Klaviyo in one place. */
 function CALR(first) {
@@ -11175,59 +11188,94 @@ async function renderSettings() {
     if (!window.CostsUI) { box.innerHTML = '<span class="tiny" style="color:var(--bad)">Costs did not load. Hard-refresh (Ctrl+Shift+R).</span>'; return; }
     window.CostsUI.mount(box, { act: a.act_id, api });
   }
+  /* GOALS AND AD RULES (2026-10-15, Cole approved the "Locus Ad Call Rules" page). ONE screen: what the brand is
+     judged on (cost per sale, per new customer, per lead or ROAS), each goal with the real number and break-even beside
+     it, a goal per platform, then every rule as one sentence with AND / OR spelled out and the numbers inside it.
+     Goal cost per sale and goal ROAS still live on the account (accounts.target_cpa / target_roas, read by every
+     screen); the rest live in the rules doc (/api/brand/rules). */
   async function loadGoals(box, a) {
     box.dataset.loaded = '1';
-    let g;
-    try { g = await api(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`); }
+    let g, pre = null;
+    try { [g, pre] = await Promise.all([api(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`), api(`/api/customers?act=${encodeURIComponent(a.act_id)}&days=90&journey=0`).catch(() => null)]); }
     catch (e) { box.innerHTML = `<span class="tiny" style="color:var(--bad)">${esc(e.message)}</span>`; return; }
-    const r = g.rules, cur = a.currency;
-    /* GOALS LAYOUT (2026-10-08, Cole: "words aren't lined up, it looks clunky"): every setting is one row, the
-       label and a one-line meaning on the left, the number in a fixed-width box on the right, grouped in cards. */
-    const num = (k, label, v, unit, ph, hint) => `<label class="g-row"><span class="g-l"><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><span class="g-c"><span class="unit-in">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null ? '' : v}" placeholder="${ph || ''}">${unit && unit !== '$' ? `<span class="g-u">${unit}</span>` : ''}</span></span></label>`;
+    const r = g.rules, cur = a.currency, h = pre?.headline || {};
+    const M = { metric: r.goal_metric || 'cpa', guard: r.roas_guard !== false, win: r.window_auto !== false, track: !!r.min_track };
+    const margin = pre?.cm_ok !== false && h.margin > 0 && h.margin < 1 ? h.margin : null;
+    const be = { cpa: margin && h.new_aov ? h.new_aov * margin : null, ncpa: margin && h.new_aov ? h.new_aov * margin : null, roas: margin ? 1 / margin : null };
+    const real = { ncpa: h.cac > 0 ? h.cac : null };
+    const money = v => v == null ? '' : fmtMoney(v, cur);
+    const inp = (k, v, unit, ph = '', w = 64) => `<span class="unit-in gr-in" style="width:${w + (unit === '$' ? 14 : 18)}px">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null || v === '' ? '' : v}" placeholder="${ph}">${unit && unit !== '$' ? `<span class="g-u">${unit}</span>` : ''}</span>`;
+    const AND = '<span class="gr-k and">AND</span>', OR = '<span class="gr-k or">OR</span>', NOT = '<span class="gr-k not">NOT</span>';
+    const sw = (k, on, onTxt, offTxt = 'off') => `<span class="g-sw tgl"><span class="toggle ${on ? 'on' : ''}" data-g="${k}"></span><span class="tiny" data-gl="${k}">${on ? onTxt : offTxt}</span></span>`;
     const sec = (title, tag, hint, body, extra = '') => `<section class="g-sec"><div class="g-h"><h4>${title}${tag ? ` <span class="gtag${tag === 'Meta' ? ' meta' : ''}">${tag}</span>` : ''}</h4>${extra}</div>${hint ? `<p class="g-hint">${hint}</p>` : ''}${body}</section>`;
-    const sw = (k, on, onTxt) => `<span class="g-sw tgl"><span class="toggle ${on ? 'on' : ''}" data-g="${k}"></span><span class="tiny">${on ? onTxt : 'off'}</span></span>`;
-    const T = r.target_cpa, Y = r.yellow_pct, K = r.acct_avg || (T ? T * (1 + Y / 100) : null);
-    const band = T ? `<div class="gband"><i class="gk" style="flex:100">winner up to ${fmtMoney(T, cur)}</i><i class="gw" style="flex:${Math.max(Math.round(((K - T) / T) * 100), 18)}">keep up to ${fmtMoney(K, cur)}</i><i class="gp" style="flex:40">pause</i></div><span class="tiny">Winner and keep both need 2+ sales.</span>` : '';
-    box.innerHTML = `<div class="gwrap2">
-      ${sec('The goal these rules use', 'Every platform', 'Agreed with the client and set with the month plan in Home > Goals. Every green, yellow and red in Locus is measured against it.',
-        `<div class="g-row"><span class="g-l"><b>Goal cost per sale</b><small>What the client is willing to pay for one sale.</small></span><span class="g-c"><b class="g-val">${T != null ? fmtMoney(T, cur) : 'not set'}</b></span></div>`
-        + `<div class="g-row"><span class="g-l"><b>Goal ROAS</b><small>Revenue back for every dollar of ad spend.</small></span><span class="g-c"><b class="g-val">${g.goal_roas ? g.goal_roas + 'x' : 'not set'}</b></span></div>`
-        + `<div class="g-row"><span class="g-l"></span><span class="g-c"><button type="button" class="btn" data-g="togoals">Change in Home &gt; Goals</button></span></div>`)}
-      ${sec('Judging tests', 'Meta', 'When a new test is ready for a call on Ads › Today, and what counts as a keeper.',
-        num('judge_spend', 'Judge after spending', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? `${Math.round(T * 3)}` : '150', T ? 'Blank means 3 times the goal cost per sale.' : '')
-        + num('judge_days', 'Or after', r.judge_days, 'days', '', 'Whichever comes first.')
-        + `<div class="g-row"><span class="g-l"><b>Keep line</b><small>The account's own average cost per sale over the last 30 days. Updates on the 1st.</small></span><span class="g-c"><b class="g-val">${r.acct_avg ? fmtMoney(r.acct_avg, cur) : 'not set yet'}</b></span></div>`
-        + (band ? `<div class="g-band">${band}</div>` : ''))}
-      ${sec('Creative calls', 'Meta', 'How Ads › Today and Meta › Creative label each ad set and ad: Scale, Keep, Watch, Trim or Cut. The ad set is judged first; in a working set the biggest ad reads Keep.',
-        num('cr_judge_x', 'Judge an ad after spending', r.cr_judge_x, 'x goal', '', 'Times the goal cost per sale.')
-        + num('cr_min_days', 'And running at least', r.cr_min_days, 'days')
-        + num('cr_scale_buys', 'Scale needs at least', r.cr_scale_buys, 'sales', '', 'At or under the goal cost per sale.')
-        + num('cr_cut_zero_x', 'Cut with no sale after spending', r.cr_cut_zero_x, 'x goal')
-        + num('cr_cut_cpa_x', 'Cut when cost per sale is over', r.cr_cut_cpa_x, 'x goal')
-        + num('cr_cut_spend_x', 'Once it has spent', r.cr_cut_spend_x, 'x goal')
-        + num('cr_anchor_pct', 'The anchor ad carries at least', r.cr_anchor_pct, '%', '', 'Of its ad set\u2019s spend. The anchor is replaced, never just switched off.'))}
-      ${sec('Test minimums', 'Meta', 'A small daily minimum on new tests so Meta gives each one a fair start.',
-        num('min_spend', 'Minimum per new test', r.min_spend, '$', '', 'Per day.')
-        + num('min_days', 'Minimum stays on for', r.min_days, 'days')
-        + num('min_cap_pct', 'All minimums together, at most', r.min_cap_pct, '%', '', 'Of the campaign budget.'), sw('min_track', r.min_track, 'shown on the test list'))}
-      <div class="g-save"><button class="btn primary" data-g="save">Save rules</button><span class="tiny" data-g="msg"></span></div></div>`;
+    const METRICS = [['cpa', 'Cost per sale', 'Any order an ad brings in.'], ['ncpa', 'Cost per new customer', 'First orders only (Triple Whale journeys).'], ['roas', 'ROAS', 'Revenue back for each ad dollar. For brands where order size swings.'], ['cpl', 'Cost per lead', 'Service brands and lead campaigns.']];
+    const goalRow = (k, label, v, unit, hint, sug) => `<div class="g-row gr-goal${k === M.metric || (k === 'target_roas' && M.metric === 'roas') || (k === 'target_cpa' && M.metric === 'cpa') ? ' main' : ''}" data-gk="${k}"><span class="g-l"><b>${label}</b><small>${hint}</small>${sug ? `<small class="gr-sug">${sug}</small>` : ''}</span><span class="g-c">${inp(k, v, unit, 'not set', 76)}</span></div>`;
+    const sugLine = (realV, beV, unit, fill) => { const p = []; if (realV != null) p.push(`real, last 90 days: <b>${unit === 'x' ? realV.toFixed(2) + 'x' : money(realV)}</b>`); if (beV != null) p.push(`break-even on a first order: <b>${unit === 'x' ? beV.toFixed(2) + 'x' : money(beV)}</b>${fill ? ` <button type="button" class="v2link" data-fill="${fill}" data-v="${unit === 'x' ? Math.round(beV * 10) / 10 : Math.round(beV)}">Use it</button>` : ''}`); return p.join(' · '); };
+    const T = r.target_cpa, TR = g.goal_roas;
+    const lowWarn = (goal, realV) => goal && realV && goal < realV * 0.7 ? `<p class="gr-warn">The goal is ${Math.round((1 - goal / realV) * 100)}% under what the brand really runs at (${money(realV)}). Every set at the normal cost will read Cut. Check it with the client.</p>` : '';
+    const per = M.metric === 'roas' ? 'x' : '$';
+    box.innerHTML = `<div class="gwrap2 grw">
+      ${sec('What this brand is judged on', '', 'Pick one. Every call on Ads > Today and every green or red on Meta > Ads uses it. The others are kept for reports and for campaigns built for them (a lead campaign always uses cost per lead).',
+        `<div class="ds-seg gr-seg" role="tablist">${METRICS.map(([k, l]) => `<button type="button" data-metric="${k}" class="${M.metric === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="tiny gr-mhint">${(METRICS.find(x => x[0] === M.metric) || [])[2] || ''}</p>`)}
+      ${sec('The goals', 'Every platform', 'Agreed with the client. Blank means not set. The one the calls use is highlighted.',
+        goalRow('target_cpa', 'Goal cost per sale', T != null ? Math.round(T) : '', '$', 'What the client will pay for one sale.', sugLine(null, be.cpa, '$', 'target_cpa'))
+        + goalRow('goal_ncpa', 'Goal cost per new customer', r.goal_ncpa || '', '$', 'What the client will pay to win a new customer.', sugLine(real.ncpa, be.ncpa, '$', 'goal_ncpa'))
+        + lowWarn(+r.goal_ncpa || null, real.ncpa)
+        + goalRow('target_roas', 'Goal ROAS', TR != null ? TR : '', 'x', 'Revenue back for every ad dollar. Also the ROAS guard below.', sugLine(null, be.roas, 'x', 'target_roas'))
+        + goalRow('goal_cpl', 'Goal cost per lead', r.goal_cpl || '', '$', 'Used for lead campaigns, and for the brand when it is judged on leads.', ''))}
+      ${sec('A goal per platform', '', `Optional. Blank means the brand goal above. Each platform credits sales its own way, so the same goal can be too tight on one. In the brand's main measure (${M.metric === 'roas' ? 'ROAS' : (METRICS.find(x => x[0] === M.metric) || [])[1].toLowerCase()}). Google and TikTok goals are used by the leak finder.`,
+        `<div class="gr-plat">${[['goal_meta', 'Meta'], ['goal_google', 'Google'], ['goal_tiktok', 'TikTok']].map(([k, l]) => `<label class="gr-p"><b>${l}</b>${inp(k, r[k] || '', per, 'brand goal', 70)}</label>`).join('')}</div>`)}
+      ${sec('Ad calls, as sentences', 'Meta', 'The ad set is judged first, then each ad by its role in it. Change a number and the sentence is the rule.',
+        `<p class="gr-rule"><span class="gr-t">Wait</span>Don't judge an ad set until it has spent ${inp('cr_judge_x', r.cr_judge_x, 'x', '2', 36)} the goal ${AND} run ${inp('cr_min_days', r.cr_min_days, 'days', '3', 36)}.</p>
+        <p class="gr-rule"><span class="gr-t good">Scale</span>Raise the budget 20% when it has ${inp('cr_scale_buys', r.cr_scale_buys, '+', '3', 36)} sales ${AND} its cost is at or under the goal<span data-gshow="guard"> ${OR} its ROAS is at or over the goal ROAS</span>.</p>
+        <p class="gr-rule"><span class="gr-t bad">Cut</span>Pause it when it has spent ${inp('cr_cut_zero_x', r.cr_cut_zero_x, 'x', '3', 36)} the goal with no sale, ${OR} spent ${inp('cr_cut_spend_x', r.cr_cut_spend_x, 'x', '3', 36)} the goal at a cost over ${inp('cr_cut_cpa_x', r.cr_cut_cpa_x, 'x', '1.5', 36)} the goal<span data-gshow="guard">, ${AND} ${NOT} while its ROAS beats the goal ROAS</span>.</p>
+        <p class="gr-rule"><span class="gr-t">Guard</span>Never cut a set whose ROAS beats the goal ROAS: big orders are paying for its cost per sale. ${sw('roas_guard', M.guard, 'on', 'off')}</p>
+        <p class="gr-rule"><span class="gr-t warn">Trim</span>In a set that works, leave the main ad alone (the one with ${inp('cr_anchor_pct', r.cr_anchor_pct, '%', '50', 36)} or more of its spend). Turn off a smaller ad only when its OWN spend passes the cut line.</p>
+        <p class="gr-rule"><span class="gr-t">Refresh</span>Brief a new version of the main ad when its clicks fall 20% or more against the week before ${AND} people see it more often.</p>
+        <p class="gr-rule"><span class="gr-t">Window</span>Judge the last 7 days of Triple Whale sales; a set with under 1 sale a day is judged on 14 days. ${sw('window_auto', M.win, 'on', 'always 7 days')}</p>
+        <p class="tiny gr-why">Why these numbers: a set that truly runs on goal shows zero sales 37% of the time after 1x the goal spent, 14% after 2x and 5% after 3x. Under 3 sales the cost per sale is mostly luck.</p>`)}
+      ${sec('Test calls', 'Meta', 'When a new test is ready for Winner, Keep running or Loser on Ads > Today.',
+        `<p class="gr-rule"><span class="gr-t">Ready</span>A test is ready when it has spent ${inp('judge_spend', r.judge_spend_auto ? '' : r.judge_spend, '$', T ? String(Math.round(T * 3)) : '150', 56)} ${OR} run ${inp('judge_days', r.judge_days, 'days', '7', 36)} with at least a third of that spend.${T ? ' Blank = 3 times the goal cost per sale.' : ''}</p>
+        <p class="gr-rule"><span class="gr-t good">Winner</span>2+ sales ${AND} cost per sale at or under the goal.</p>
+        <p class="gr-rule"><span class="gr-t warn">Keep</span>2+ sales ${AND} cost per sale at or under the keep line, the account's own 30-day average (${r.acct_avg ? money(r.acct_avg) : 'not set yet'}).</p>`)}
+      ${sec('Test minimums', 'Meta', 'A daily minimum on a new test’s ad set so Meta gives it a fair start. Locus tells you in Slack the day it should come off, with a button.',
+        `<p class="gr-rule"><span class="gr-t">Off</span>Take a test's minimum off after ${inp('min_days', r.min_days, 'days', '7', 36)}, or sooner once it is judged. All minimums together stay under ${inp('min_cap_pct', r.min_cap_pct, '%', '25', 36)} of the campaign budget.</p>`, sw('min_track', M.track, 'shown on the test list'))}
+      <div class="g-save"><button class="btn primary" data-g="save">Save goals and rules</button><span class="tiny" data-g="msg"></span></div></div>`;
     const v = k => box.querySelector(`[data-g="${k}"]`);
-    const tg = v('min_track');
-    tg.onclick = () => { tg.classList.toggle('on'); tg.nextElementSibling.textContent = tg.classList.contains('on') ? 'shown on the test list' : 'off'; };
-    v('togoals').onclick = () => { S.act = a.act_id; try { localStorage.setItem(LS.act, a.act_id); } catch {} show('plan'); };
+    const paintGuard = () => box.querySelectorAll('[data-gshow="guard"]').forEach(el => { el.hidden = !M.guard; });
+    paintGuard();
+    box.querySelectorAll('[data-metric]').forEach(b => b.onclick = () => {
+      M.metric = b.dataset.metric;
+      box.querySelectorAll('[data-metric]').forEach(x => x.classList.toggle('on', x === b));
+      box.querySelector('.gr-mhint').textContent = (METRICS.find(x => x[0] === M.metric) || [])[2] || '';
+      box.querySelectorAll('.gr-goal').forEach(row => row.classList.toggle('main', row.dataset.gk === ({ cpa: 'target_cpa', ncpa: 'goal_ncpa', roas: 'target_roas', cpl: 'goal_cpl' })[M.metric]));
+    });
+    const tog = (k, onTxt, offTxt, set) => { const t = v(k); if (!t) return; t.onclick = () => { t.classList.toggle('on'); const on = t.classList.contains('on'); set(on); box.querySelector(`[data-gl="${k}"]`).textContent = on ? onTxt : offTxt; }; };
+    tog('roas_guard', 'on', 'off', on => { M.guard = on; paintGuard(); });
+    tog('window_auto', 'on', 'always 7 days', on => { M.win = on; });
+    tog('min_track', 'shown on the test list', 'off', on => { M.track = on; });
+    box.querySelectorAll('[data-fill]').forEach(b => b.onclick = () => { const i = v(b.dataset.fill); if (i) { i.value = b.dataset.v; i.focus(); } });
     v('save').onclick = async () => {
-      const n = k => { const raw = v(k).value.replace(/[^0-9.]/g, ''); return raw === '' ? '' : +raw; };
+      const n = k => { const el = v(k); if (!el) return ''; const raw = el.value.replace(/[^0-9.]/g, ''); return raw === '' ? '' : +raw; };
       const msg = v('msg');
-      /* Goals moved to Home > Goals (2026-10-09): this box saves only the rules. */
+      const cpa = n('target_cpa'), roas = n('target_roas');
+      if (cpa !== '' && !(cpa > 0)) { msg.textContent = 'Goal cost per sale must be above 0, or blank.'; return; }
+      const need = { cpa, ncpa: n('goal_ncpa'), roas, cpl: n('goal_cpl') }[M.metric];
+      if (!(need > 0)) { msg.textContent = `Set the ${(METRICS.find(x => x[0] === M.metric) || [])[1].toLowerCase()} goal, or pick a measure that has one. Without it Locus makes no calls.`; return; }
       v('save').disabled = true; msg.textContent = 'Saving…';
       try {
-        const rules = { judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: Y || 30,
-          min_track: tg.classList.contains('on') ? 1 : 0, monday_post: r.monday_post ? 1 : 0, min_spend: n('min_spend') || 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
-          cr_judge_x: n('cr_judge_x') || 1, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 2, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 2, cr_anchor_pct: n('cr_anchor_pct') || 50 };
+        const rules = { goal_metric: M.metric, roas_guard: M.guard ? 'on' : 'off', window_auto: M.win ? 'on' : 'off',
+          goal_ncpa: n('goal_ncpa') || 0, goal_cpl: n('goal_cpl') || 0, goal_meta: n('goal_meta') || 0, goal_google: n('goal_google') || 0, goal_tiktok: n('goal_tiktok') || 0,
+          judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: r.yellow_pct || 30,
+          min_track: M.track ? 1 : 0, monday_post: r.monday_post ? 1 : 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
+          cr_judge_x: n('cr_judge_x') || 2, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 3, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 3, cr_anchor_pct: n('cr_anchor_pct') || 50 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
+        if (cpa !== (T != null ? Math.round(T) : '')) await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, target_cpa: cpa }) });
+        if (roas !== (TR != null ? TR : '') && window.MetaTab) await window.MetaTab.api(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
         await refreshAccounts().catch(() => {});
         await loadGoals(box, a);
-        const m2 = box.querySelector('[data-g="msg"]'); if (m2) m2.textContent = 'Saved. Every screen uses these rules now.';
+        const m2 = box.querySelector('[data-g="msg"]'); if (m2) m2.textContent = 'Saved. Every screen uses these now.';
       } catch (e) { v('save').disabled = false; msg.textContent = e.message; }
     };
   }

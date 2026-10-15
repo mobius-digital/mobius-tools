@@ -84,25 +84,47 @@ function cleanRow(kind, b) {
    Brand info copy; it wins until account-health's unifyGoals moves it onto the
    account (hourly). Same rule as rulesOf in account-health asana-brand.js. */
 const DEFAULT_RULES = { target_cpa: 0, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2 };
-export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_spend: 20, min_days: 7, min_cap_pct: 25, monday_post: 0,
-  /* Creative calls on Ads > Meta > Creative (2026-10-08): judged after cr_judge_x goal CPAs and cr_min_days live;
-     Scale = cr_scale_buys+ purchases at or under goal; Cut = cr_cut_zero_x goal CPAs with no purchase, or
-     cr_cut_spend_x spent at a CPA over cr_cut_cpa_x the goal. */
-  cr_judge_x: 1, cr_min_days: 3, cr_scale_buys: 2, cr_cut_zero_x: 3, cr_cut_spend_x: 2, cr_cut_cpa_x: 1.5, cr_anchor_pct: 50 };
+export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_track: 0, min_days: 7, min_cap_pct: 25, monday_post: 0,
+  /* AD CALLS v2 (Cole approved 2026-10-15, docs: the "Locus Ad Call Rules" page). The unit is the goal (cost per sale,
+     per new customer or per lead; for a ROAS goal, the brand's 30-day order value / the goal ROAS). A set waits until it
+     has spent cr_judge_x units AND run cr_min_days; Scale = cr_scale_buys+ results on goal; Cut = cr_cut_zero_x units
+     with none, or cr_cut_spend_x units at over cr_cut_cpa_x the goal, UNLESS its ROAS beats the goal ROAS (the guard).
+     Why these numbers: a set truly on goal shows zero sales 37% of the time at 1x spent, 14% at 2x, 5% at 3x. The old
+     "2x spent at 1.5x the goal" line cut ~40% of on-goal sets; "2 sales = scale" was noise. */
+  cr_judge_x: 2, cr_min_days: 3, cr_scale_buys: 3, cr_cut_zero_x: 3, cr_cut_spend_x: 3, cr_cut_cpa_x: 1.5, cr_anchor_pct: 50,
+  goal_ncpa: 0, goal_cpl: 0, goal_meta: 0, goal_google: 0, goal_tiktok: 0 };
+/* What the brand is judged on (rules doc `goal_metric`): cpa = cost per sale (accounts.target_cpa), ncpa = cost per new
+   customer (goal_ncpa), roas (accounts.target_roas), cpl = cost per lead (goal_cpl). */
+export const GOAL_METRICS = ['cpa', 'ncpa', 'roas', 'cpl'];
+/* Docs saved before v2 carry the OLD defaults as typed numbers (the Settings form wrote every field). Those are dropped so
+   the new defaults apply; a number someone really chose (anything else) stays. */
+const OLD_DEFAULTS = { cr_judge_x: 1, cr_scale_buys: 2, cr_cut_spend_x: 2 };
+export const RULES_V = 2;
 export function rulesFor(acct, doc) {
   const r = { ...DEFAULT_RULES, ...TEST_KEYS, target_cpa: null };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
   else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
-  if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
-  for (const k of Object.keys(TEST_KEYS)) if (doc && +doc[k] > 0) r[k] = +doc[k];
+  r.target_roas = acct?.target_roas > 0 ? +acct.target_roas : null;
+  if (r.target_roas) { r.win_roas = r.target_roas; r.lose_roas = Math.round(r.target_roas * 0.6 * 100) / 100; }
+  const old = !(doc && +doc.rules_v >= RULES_V);
+  for (const k of Object.keys(TEST_KEYS)) if (doc && +doc[k] > 0 && !(old && OLD_DEFAULTS[k] === +doc[k])) r[k] = +doc[k];
   r.min_track = !!(doc && +doc.min_track > 0);
   r.acct_avg = doc && +doc.acct_avg_cpa > 0 ? +doc.acct_avg_cpa : null;   // set monthly by account-health refreshAccountAvg
   r.acct_avg_month = doc?.acct_avg_month || null;
   r.monday_post = !!(doc && +doc.monday_post > 0);
+  r.goal_metric = GOAL_METRICS.includes(doc?.goal_metric) ? doc.goal_metric : 'cpa';
+  r.roas_guard = !(doc && doc.roas_guard === 'off');
+  r.window_auto = !(doc && doc.window_auto === 'off');
   r.judge_spend_auto = !(doc && +doc.judge_spend > 0);
   if (r.judge_spend_auto) r.judge_spend = r.target_cpa ? Math.round(r.target_cpa * 3) : DEFAULT_RULES.judge_spend;
   r.set = !!(doc && Object.keys(TEST_KEYS).some(k => +doc[k] > 0));
   return r;
+}
+/* The goal for one metric, platform first (goal_meta etc. are in the brand's main metric), then the brand's. */
+export function goalOf(R, metric = R.goal_metric, platform = 'meta') {
+  const p = +R[`goal_${platform}`] > 0 ? +R[`goal_${platform}`] : null;
+  if (metric === R.goal_metric && p) return p;
+  return metric === 'cpa' ? R.target_cpa : metric === 'roas' ? R.target_roas : metric === 'ncpa' ? (+R.goal_ncpa || null) : metric === 'cpl' ? (+R.goal_cpl || null) : null;
 }
 function suggest(st, rules) {
   if (!st || !(st.spend > 0)) return 'not_live';
@@ -486,8 +508,13 @@ export async function handleStaff(request, env, url, path, json) {
       let doc = safeJson(row?.data_json, {});
       if (request.method === 'PUT') {
         const next = {};
-        for (const k of Object.keys(TEST_KEYS)) if (k in (body.rules || {})) { const v = +body.rules[k]; if (Number.isFinite(v) && v >= 0) next[k] = v; }
-        doc = { ...doc, ...next };
+        const R0 = body.rules || {};
+        for (const k of Object.keys(TEST_KEYS)) if (k in R0) { const v = +R0[k]; if (Number.isFinite(v) && v >= 0) next[k] = v; }
+        if (GOAL_METRICS.includes(R0.goal_metric)) next.goal_metric = R0.goal_metric;
+        for (const k of ['roas_guard', 'window_auto']) if (k in R0) next[k] = R0[k] === 'off' || R0[k] === false ? 'off' : 'on';
+        /* The first save under v2 drops any number still sitting at an OLD default (it was never a choice). */
+        if (!(+doc.rules_v >= RULES_V)) for (const [k, v] of Object.entries(OLD_DEFAULTS)) if (+doc[k] === v && !(k in next)) delete doc[k];
+        doc = { ...doc, ...next, rules_v: RULES_V };
         delete doc.target_cpa; delete doc.win_roas; delete doc.lose_roas;
         await putDoc(env, A, '', 'rules', doc, 'approved', 'staff');
       }

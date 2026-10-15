@@ -27,7 +27,7 @@
  *   GET /api/hub/command?act=all      the agency command center: why each brand needs attention (team only)
  */
 import { metaOf } from './brandids.js';
-import { rulesFor } from './brand.js';
+import { rulesFor, goalOf } from './brand.js';
 
 /* Brand-first phase 3 (2026-10-08): `act` / `a.act_id` here is the BRAND id. Meta's own tables
    (ad_daily, ads, meta_campaigns, meta_adsets, activities) stay on the Meta ad account id, so they
@@ -275,21 +275,32 @@ async function yesterdayMany(env, ctx, accts, all) {
   return { as_of, days, brands: out, market };
 }
 
-/* ---------- Today: the media buyer's list (2026-10-09) ----------
-   Meta only for now. Per brand, the 7 days ending on the latest day Triple Whale attribution has
-   landed (tw_ad_attr, lastPlatformClick), so a window never ends on a half-attributed day. THE AD SET
-   IS THE UNIT (Cole's doctrine): a set is judged once it has spent cr_judge_x goal CPAs; Scale =
-   cr_scale_buys+ sales at or under goal; Cut = cr_cut_zero_x goals spent with no sale, or cr_cut_spend_x
-   spent at a CPA over cr_cut_cpa_x the goal. Inside a WORKING set (one not on that cut line) the anchor
-   (top-spend ad with cr_anchor_pct%+ of the set) is never cut or trimmed; a small ad over the same cut
-   line on its own, after cr_min_days, is a Trim; an anchor whose link CTR fell 20%+ against the 7 days
-   before is a Refresh (replace it, never just switch it off). Rules and goal are the brand's own
-   (brand.js rulesFor), the SAME numbers v2.js creative() applies on Ads > Meta > Ads (aligned 2026-10-13:
-   the old "working = CPA within 1.3x" and "trim at 2x goal" were this file's own). Every call carries the
-   money at stake; rows sort on it. */
+/* ---------- Today: the media buyer's list (2026-10-09; AD CALLS v2 2026-10-15) ----------
+   Meta only for now. Per brand, the 7 days ending on the latest day Triple Whale attribution has landed
+   (tw_ad_attr, lastPlatformClick), so a window never ends on a half-attributed day; a set under 1 result a
+   day is judged on 14 days instead (rules window_auto), because 7 days of a slow set cannot reach 3 sales.
+   THE AD SET IS THE UNIT (Cole's doctrine). The rules are the brand's own (brand.js rulesFor; the approved
+   page "Locus Ad Call Rules", 2026-10-15) and the SAME numbers v2.js creative() applies on Ads > Meta > Ads:
+     the goal = the brand's metric (cost per sale, per new customer, per lead, or ROAS), and the UNIT is that
+       goal in dollars (for ROAS: the brand's order value in the window / the goal ROAS);
+     WAIT until the set has spent cr_judge_x units AND run cr_min_days (a good set shows 0 sales 1 time in 7 at 2x);
+     SCALE at cr_scale_buys+ results on goal, or at goal ROAS or better;
+     CUT at cr_cut_zero_x units with no result, or cr_cut_spend_x units at worse than cr_cut_cpa_x the goal,
+       NEVER when its ROAS beats the goal ROAS (roas_guard: big baskets pay for a high cost per sale; named in the brand's note);
+     TRIM a small ad in a working set only on its OWN spend past the same line, never the main ad;
+     REFRESH the main ad when its link CTR fell 20%+ AND its frequency rose (fatigue, not a slow week).
+   A campaign's Meta objective decides what it is judged on: sales campaigns on the brand metric, lead
+   campaigns on cost per lead (goal_cpl), awareness / engagement / traffic never on sales (Refresh only).
+   Every call carries the money at stake; rows sort on it. */
 const OFF_STATUS = /^(PAUSED|CAMPAIGN_PAUSED|ADSET_PAUSED|DELETED|ARCHIVED)$/;
 const moneyOf = (cur) => v => (v == null ? '' : `${cur && cur !== 'USD' ? cur + ' ' : '$'}${Math.round(v).toLocaleString('en-US')}`);
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const OBJ_SALES = /^(OUTCOME_SALES|CONVERSIONS|PRODUCT_CATALOG_SALES|OUTCOME_APP_PROMOTION|APP_INSTALLS)$/;
+const OBJ_LEADS = /^(OUTCOME_LEADS|LEAD_GENERATION)$/;
+const objKind = o => !o || OBJ_SALES.test(o) ? 'sales' : OBJ_LEADS.test(o) ? 'leads' : 'reach';
+const NOUN = { cpa: ['sale', 'sales'], roas: ['sale', 'sales'], ncpa: ['new customer', 'new customers'], cpl: ['lead', 'leads'] };
+const COST = { cpa: 'cost per sale', roas: 'cost per sale', ncpa: 'cost per new customer', cpl: 'cost per lead' };
+const cap = t => t[0].toUpperCase() + t.slice(1);
 async function buyerList(env, ctx, accts) {
   const as_of = new Date().toISOString();
   const y = accts.length ? ctx.addDays(ctx.localDate(accts[0].tz), -1) : null;
@@ -309,113 +320,171 @@ async function buyerList(env, ctx, accts) {
   const docOf = Object.fromEntries((docQ.results || []).map(r => { let d = {}; try { d = JSON.parse(r.data_json || '{}'); } catch {} return [r.act_id, d]; }));
   const spOf = {}; for (const r of spQ.results || []) (spOf[r.act_id] ??= {})[r.date] = num(r.spend);
   const meta = accts.filter(a => metas[a.act_id]);
+  const RULES = Object.fromEntries(meta.map(a => [a.act_id, rulesFor(a, docOf[a.act_id] || null)]));
   const W = meta.filter(a => toOf[a.act_id]).map(a => { const t = toOf[a.act_id]; return { act: a.act_id, f: ctx.addDays(t, -6), t, l2: ctx.addDays(t, -1), pf: ctx.addDays(t, -13), pt: ctx.addDays(t, -7) }; });
-  let adRows = [], attrRows = [];
+  let adRows = [], attrRows = [], newRows = [];
   if (W.length) {
-    /* Two parameters a brand (D1 binds at most 100); the window edges are worked out in SQL. */
+    /* Two parameters a brand (D1 binds at most 100); the window edges are worked out in SQL. pf..t = 14 days. */
     const vals = W.map((_, i) => `(?${i * 2 + 3}, ?${i * 2 + 4})`).join(', ');
     const binds = W.flatMap(w => [w.act, w.t]);
     const lo = W.map(w => w.pf).sort()[0], hi = W.map(w => w.t).sort().pop();
     const CTE = `WITH w0(brand, t) AS (VALUES ${vals}), w AS (SELECT brand, t, date(t, '-6 day') f, date(t, '-1 day') l2, date(t, '-13 day') pf, date(t, '-7 day') pt FROM w0)`;
-    [adRows, attrRows] = await Promise.all([
-      env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget, s.campaign_id,
+    const wantNew = W.some(w => RULES[w.act].goal_metric === 'ncpa');
+    [adRows, attrRows, newRows] = await Promise.all([
+      env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget, s.campaign_id, mc.objective,
           COALESCE(x.first_spend_date, substr(x.created_time, 1, 10)) first_spend,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.spend ELSE 0 END) spend,
+          SUM(d.spend) spend14,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.impressions ELSE 0 END) impr,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.reach ELSE 0 END) reach,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.link_clicks ELSE 0 END) clicks,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN COALESCE(d.leads, 0) ELSE 0 END) leads,
+          SUM(COALESCE(d.leads, 0)) leads14,
           SUM(CASE WHEN d.date BETWEEN w.l2 AND w.t THEN d.spend ELSE 0 END) s2,
           SUM(CASE WHEN d.date BETWEEN w.pf AND w.pt THEN d.impressions ELSE 0 END) p_impr,
+          SUM(CASE WHEN d.date BETWEEN w.pf AND w.pt THEN d.reach ELSE 0 END) p_reach,
           SUM(CASE WHEN d.date BETWEEN w.pf AND w.pt THEN d.link_clicks ELSE 0 END) p_clicks
         FROM ad_daily d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id JOIN w ON w.brand = c.brand_id
-        LEFT JOIN ads x ON x.act_id = d.act_id AND x.ad_id = d.ad_id LEFT JOIN meta_adsets s ON s.adset_id = x.adset_id
-        WHERE d.date BETWEEN ?1 AND ?2 AND d.date BETWEEN w.pf AND w.t GROUP BY c.brand_id, d.ad_id HAVING spend > 0`).bind(lo, hi, ...binds).all().then(r => r.results || []),
-      env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id, SUM(t.orders) ord, SUM(t.revenue) rev FROM tw_ad_attr t JOIN w ON w.brand = t.act_id
-        WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'lastPlatformClick' AND (t.platform = 'meta' OR t.platform IS NULL) AND t.date BETWEEN w.f AND w.t GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []),
+        LEFT JOIN ads x ON x.act_id = d.act_id AND x.ad_id = d.ad_id LEFT JOIN meta_adsets s ON s.adset_id = x.adset_id LEFT JOIN meta_campaigns mc ON mc.campaign_id = s.campaign_id
+        WHERE d.date BETWEEN ?1 AND ?2 AND d.date BETWEEN w.pf AND w.t GROUP BY c.brand_id, d.ad_id HAVING spend14 > 0`).bind(lo, hi, ...binds).all().then(r => r.results || []),
+      env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id, SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.orders ELSE 0 END) ord, SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.revenue ELSE 0 END) rev,
+          SUM(t.orders) ord14, SUM(t.revenue) rev14 FROM tw_ad_attr t JOIN w ON w.brand = t.act_id
+        WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'lastPlatformClick' AND (t.platform = 'meta' OR t.platform IS NULL) AND t.date BETWEEN w.pf AND w.t GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []),
+      /* New customers per ad: an order whose customer has no earlier order (tw_orders keeps 400 days). */
+      wantNew ? env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id, SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.weight ELSE 0 END) n, SUM(t.weight) n14
+          FROM tw_order_touch t JOIN w ON w.brand = t.act_id JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id
+          WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'lastPlatformClick' AND t.date BETWEEN w.pf AND w.t AND o.customer_id IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date)
+          GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []).catch(() => []) : [],
     ]);
   }
-  const atOf = {}; for (const r of attrRows) atOf[`${r.act_id}|${r.ad_id}`] = { ord: num(r.ord), rev: num(r.rev) };
+  const atOf = {}; for (const r of attrRows) atOf[`${r.act_id}|${r.ad_id}`] = { ord: num(r.ord), rev: num(r.rev), ord14: num(r.ord14), rev14: num(r.rev14) };
+  const nwOf = {}; for (const r of newRows) nwOf[`${r.act_id}|${r.ad_id}`] = { n: num(r.n), n14: num(r.n14) };
   const rows = [], brands = [];
   let note = null;
   for (const a of meta) {
-    const R = rulesFor(a, docOf[a.act_id] || null);
-    const goal = R.target_cpa > 0 ? R.target_cpa : null;
-    if (!note || accts.length === 1) note = R;
+    const R = RULES[a.act_id];
+    const metric = R.goal_metric;
     const $ = moneyOf(a.currency), w = W.find(v => v.act === a.act_id);
     const from = w ? w.f : null, to = w ? w.t : null;
-    const base = { act_id: a.act_id, brand: a.name, currency: a.currency, from, to };
-    const fix = (meta_act, why) => rows.push({ kind: 'fix', ...base, meta_act, adset_id: null, adset: null, ad_id: null, ad: null, spend: null, orders: null, revenue: null, cpa: null, goal, roas: null, n_ads: null, anchor: null, stake: 1e6, why });
+    if (!note || accts.length === 1) note = R;
+    const goalCpa = R.target_cpa > 0 ? R.target_cpa : null;
+    const base = { act_id: a.act_id, brand: a.name, currency: a.currency, from, to, metric };
+    const fix = (meta_act, why) => rows.push({ kind: 'fix', ...base, meta_act, adset_id: null, adset: null, ad_id: null, ad: null, spend: null, orders: null, revenue: null, cpa: null, goal: goalCpa, roas: null, n_ads: null, anchor: null, stake: 1e6, why });
     /* fix: the connection, and a Meta account that went quiet yesterday. */
     for (const c of metas[a.act_id]) if (c.last_error) fix(c.external_id, `Meta connection error, so these numbers may be stale: ${String(c.last_error).slice(0, 140)}`);
     const S = spOf[a.act_id] || {}, normY = (num(S[wk[1]]) + num(S[wk[2]]) + num(S[wk[3]]) + num(S[wk[4]])) / 4;
     if (!(num(S[y]) > 0) && normY > 50) fix(metas[a.act_id][0].external_id, `Meta spent nothing yesterday; a normal ${WEEKDAY[new Date(`${y}T12:00:00Z`).getUTCDay()]} is ${$(normY)}. Check billing, rejected ads and paused campaigns.`);
-    if (!w) { brands.push({ act_id: a.act_id, name: a.name, from: null, to: null, goal, n_sets_judged: 0, note: 'No Triple Whale attribution in the last 30 days.' }); continue; }
-    /* Ad sets from the ads that spent in the window. */
+    if (!w) { brands.push({ act_id: a.act_id, name: a.name, from: null, to: null, goal: goalCpa, metric, n_sets_judged: 0, note: 'No Triple Whale attribution in the last 30 days.' }); continue; }
+    /* Ad sets from the ads that spent in the 14 days. */
     const sets = {};
     for (const r of adRows.filter(r => r.act_id === a.act_id)) {
-      if (!r.adset_id || !(num(r.spend) > 0)) continue;
-      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0 };
-      const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, campaign: r.campaign_id || null, meta_act: r.meta_act, spend: 0, s2: 0, orders: 0, revenue: 0, ads: [] };
-      s.spend += num(r.spend); s.s2 += num(r.s2); s.orders += at.ord; s.revenue += at.rev;
-      s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, first: r.first_spend || null, spend: num(r.spend), orders: at.ord, revenue: at.rev, impr: num(r.impr), clicks: num(r.clicks), p_impr: num(r.p_impr), p_clicks: num(r.p_clicks) });
+      if (!r.adset_id || !(num(r.spend14) > 0)) continue;
+      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0, ord14: 0, rev14: 0 };
+      const nw = nwOf[`${a.act_id}|${r.ad_id}`] || { n: 0, n14: 0 };
+      const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, campaign: r.campaign_id || null,
+        obj: objKind(r.objective), objective: r.objective || null, meta_act: r.meta_act, first: null, w7: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0 }, w14: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0 }, s2: 0, ads: [] };
+      s.w7.spend += num(r.spend); s.w7.orders += at.ord; s.w7.revenue += at.rev; s.w7.nc += nw.n; s.w7.leads += num(r.leads);
+      s.w14.spend += num(r.spend14); s.w14.orders += at.ord14; s.w14.revenue += at.rev14; s.w14.nc += nw.n14; s.w14.leads += num(r.leads14);
+      s.s2 += num(r.s2);
+      if (r.first_spend && (!s.first || r.first_spend < s.first)) s.first = r.first_spend;
+      if (num(r.spend) > 0) s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, first: r.first_spend || null, spend: num(r.spend), orders: at.ord, revenue: at.rev, nc: nw.n, leads: num(r.leads),
+        impr: num(r.impr), reach: num(r.reach), clicks: num(r.clicks), p_impr: num(r.p_impr), p_reach: num(r.p_reach), p_clicks: num(r.p_clicks) });
     }
-    const live = Object.values(sets).filter(s => s.spend > 0 && !(s.status && OFF_STATUS.test(s.status) && !(s.s2 > 0)));
-    if (!goal) {
-      const worst = live.filter(s => s.spend > 300 && !s.orders).sort((p, q) => q.spend - p.spend)[0];
-      if (worst) fix(worst.meta_act, `No goal cost per sale set, and "${worst.name}" spent ${$(worst.spend)} with no sale in 7 days. Set the goal in Settings > Goals so Locus can make the calls.`);
-      brands.push({ act_id: a.act_id, name: a.name, from, to, goal: null, n_sets_judged: 0 });
+    const live = Object.values(sets).filter(s => s.w7.spend > 0 && !(s.status && OFF_STATUS.test(s.status) && !(s.s2 > 0)));
+    /* The unit: the goal in dollars for the brand's metric. A ROAS goal turns into a cost per sale through the
+       brand's own order value over the window (all its Meta sets), so the spend gates still mean "N goals". */
+    const tot = live.reduce((x, s) => ({ rev: x.rev + s.w7.revenue, ord: x.ord + s.w7.orders }), { rev: 0, ord: 0 });
+    const aov = tot.ord ? tot.rev / tot.ord : null;
+    const unitOf = m => m === 'roas' ? (R.target_roas && aov ? aov / R.target_roas : null) : goalOf(R, m);
+    const unitMain = unitOf(metric);
+    if (!unitMain) {
+      const worst = live.filter(s => s.w7.spend > 300 && !s.w7.orders).sort((p, q) => q.w7.spend - p.w7.spend)[0];
+      const what = metric === 'roas' ? 'goal ROAS' : `goal ${COST[metric]}`;
+      if (worst) fix(worst.meta_act, `No ${what} set, and "${worst.name}" spent ${$(worst.w7.spend)} with no sale in 7 days. Set the goal in Home > Goals so Locus can make the calls.`);
+      brands.push({ act_id: a.act_id, name: a.name, from, to, goal: null, metric, n_sets_judged: 0 });
       continue;
     }
-    let judged = 0;
+    let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0; const kept = [];
     for (const s of live) {
-      if (s.spend < R.cr_judge_x * goal) continue;
-      judged++;
+      /* What this set is judged on: its campaign's objective. */
+      const m = s.obj === 'leads' ? 'cpl' : s.obj === 'reach' ? null : metric;
+      if (s.obj === 'reach') notSales++;
+      const unit = m ? unitOf(m) : null;
+      if (m === 'cpl' && !unit) noLeadGoal++;
       s.ads.sort((p, q) => q.spend - p.spend);
-      const cpa = s.orders ? s.spend / s.orders : null, roas = div(s.revenue, s.spend);
-      const top = s.ads[0], share = top ? top.spend / s.spend : 0;
+      const top = s.ads[0], share = top ? top.spend / s.w7.spend : 0;
       const anchor = top && share >= R.cr_anchor_pct / 100 ? { ad_id: top.id, name: top.name, share } : null;
-      /* ONE RULE WITH THE ADS PAGE (2026-10-13). The cut line is the brand's cr_* rule, the same test v2.js creative()
-         runs on a set: no sale after cr_cut_zero_x goals, or cr_cut_cpa_x the goal after cr_cut_spend_x goals. A set
-         that is not on that line is WORKING (it used to be "CPA within 1.3x goal", a number the Ads page never had, so
-         a set at 1.4x read Watch there and nothing here). */
-      const cutZero = !s.orders && s.spend >= R.cr_cut_zero_x * goal;
-      const cutCpa = cpa != null && s.spend >= R.cr_cut_spend_x * goal && cpa > R.cr_cut_cpa_x * goal;
-      const working = !cutZero && !cutCpa;
-      const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, goal, roas, n_ads: s.ads.length, anchor,
-        set: { spend: s.spend, orders: s.orders, revenue: s.revenue, cpa, status: s.status, budget: s.budget } };
-      const sales = n => `${n} sale${n === 1 ? '' : 's'}`;
-      if (s.orders >= R.cr_scale_buys && cpa <= goal) rows.push({ kind: 'scale', ...setRow, stake: 0.2 * s.spend,
-        why: `${sales(s.orders)} at ${$(cpa)} each, ${Math.round(cpa) < Math.round(goal) ? 'under' : 'at'} the ${$(goal)} goal over 7 days. Raise the budget 20% and watch 3 days.` });
-      else if (cutZero) rows.push({ kind: 'cut', ...setRow, stake: s.spend,
-        why: `Spent ${$(s.spend)} (${(s.spend / goal).toFixed(1)}x the goal) with no sale in 7 days.` });
-      else if (cutCpa) rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, s.spend - goal * s.orders),
-        why: `Cost per sale ${$(cpa)}, ${(cpa / goal).toFixed(1)}x the ${$(goal)} goal, on ${$(s.spend)} spent.` });
-      if (!working) continue;
-      if (s.ads.length >= 2) for (const ad of s.ads) {
-        if (anchor && ad.id === anchor.ad_id) continue;
-        const acpa = ad.orders ? ad.spend / ad.orders : null;
-        /* Trim = the ad is over the SAME cut line on its own (the Ads page's own() rule), once it has run cr_min_days;
-           it used to be a flat 2x the goal, so a no-sale ad at 2x read Trim here and Watch on the Ads page. */
-        const age = ad.first ? Math.round((Date.parse(to) - Date.parse(ad.first)) / 864e5) : null;
-        if (age != null && age < R.cr_min_days) continue;
-        const over = ad.orders ? (ad.spend >= R.cr_cut_spend_x * goal && acpa > R.cr_cut_cpa_x * goal) : ad.spend >= R.cr_cut_zero_x * goal;
-        if (!over) continue;
-        rows.push({ kind: 'trim', ...setRow, ad_id: ad.id, ad: ad.name, spend: ad.spend, orders: ad.orders, revenue: ad.revenue, cpa: acpa, roas: div(ad.revenue, ad.spend), stake: Math.max(0, ad.spend - goal * ad.orders),
-          why: ad.orders ? `This ad costs ${$(acpa)} a sale, ${(acpa / goal).toFixed(1)}x the ${$(goal)} goal, on ${$(ad.spend)} spent, while the set works at ${$(cpa)}. Turn off this ad only.`
-            : `This ad spent ${$(ad.spend)} with no sale while the set works at ${$(cpa)} a sale. Turn off this ad only.` });
+      const resOf = x => m === 'ncpa' ? x.nc : m === 'cpl' ? x.leads : x.orders;
+      /* A slow set (under 1 result a day over 7 days) is judged on its 14 days. */
+      const use14 = !!unit && R.window_auto && resOf(s.w7) < 7 && s.w14.spend > s.w7.spend;
+      if (use14) slow++;
+      const X = use14 ? s.w14 : s.w7, days = use14 ? 14 : 7;
+      const res = resOf(X), cpr = res ? X.spend / res : null, roas = div(X.revenue, X.spend);
+      const tr = R.target_roas;
+      const age = s.first ? Math.round((Date.parse(to) - Date.parse(s.first)) / 864e5) + 1 : null;
+      const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, objective: s.objective, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: X.spend, orders: X.orders, results: res, revenue: X.revenue,
+        cpa: cpr, goal: unit, goal_roas: tr, roas, n_ads: s.ads.length, anchor, days, judged_on: m,
+        set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget } };
+      let working = true;
+      if (unit && X.spend >= R.cr_judge_x * unit && !(age != null && age < R.cr_min_days)) {
+        judged++;
+        const [one, many] = NOUN[m];
+        const n = k => `${Number.isInteger(k) ? k : k.toFixed(1)} ${Math.round(k) === 1 ? one : many}`;
+        const onGoal = m === 'roas' ? roas != null && roas >= tr : cpr != null && cpr <= unit;
+        const guard = !!(R.roas_guard && tr && m !== 'cpl' && roas != null && roas >= tr);
+        const overLine = m === 'roas' ? roas != null && roas < tr / R.cr_cut_cpa_x : cpr != null && cpr > R.cr_cut_cpa_x * unit;
+        const cutZero = !res && X.spend >= R.cr_cut_zero_x * unit;
+        const cutCpa = res > 0 && X.spend >= R.cr_cut_spend_x * unit && overLine && !guard;
+        working = !cutZero && !cutCpa;
+        const win = days === 14 ? '14 days (a slow set)' : '7 days';
+        const goalTxt = m === 'roas' ? `${tr}x goal ROAS` : `${$(unit)} goal`;
+        if (res >= R.cr_scale_buys && (onGoal || guard)) rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
+          why: m === 'roas' || (!onGoal && guard)
+            ? `${n(res)} at ${roas.toFixed(2)}x ROAS, ${!onGoal && guard ? `over the ${tr}x goal ROAS even at ${$(cpr)} a ${one}` : `at or over the ${tr}x goal`} over ${win}. Raise the budget 20% and watch 3 days.`
+            : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}. Raise the budget 20% and watch 3 days.` });
+        else if (cutZero) rows.push({ kind: 'cut', ...setRow, stake: X.spend,
+          why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}.` });
+        else if (cutCpa) rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, X.spend - unit * res),
+          why: m === 'roas' ? `ROAS ${roas.toFixed(2)}x against the ${tr}x goal, on ${$(X.spend)} spent over ${win}.`
+            : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${tr && roas != null ? `; ROAS ${roas.toFixed(2)}x is under the ${tr}x goal too` : ''}.` });
+        else if (guard && cpr != null && cpr > R.cr_cut_cpa_x * unit && X.spend >= R.cr_cut_spend_x * unit) kept.push(s.name);
+        if (working && s.ads.length >= 2) for (const ad of s.ads) {
+          if (anchor && ad.id === anchor.ad_id) continue;
+          /* Trim = the ad over the SAME line on its OWN spend (7 days), once it has run cr_min_days. */
+          const aAge = ad.first ? Math.round((Date.parse(to) - Date.parse(ad.first)) / 864e5) : null;
+          if (aAge != null && aAge < R.cr_min_days) continue;
+          const ares = resOf(ad), acpr = ares ? ad.spend / ares : null, aroas = div(ad.revenue, ad.spend);
+          const aguard = !!(R.roas_guard && tr && m !== 'cpl' && aroas != null && aroas >= tr);
+          const aover = ares ? (ad.spend >= R.cr_cut_spend_x * unit && (m === 'roas' ? aroas < tr / R.cr_cut_cpa_x : acpr > R.cr_cut_cpa_x * unit) && !aguard)
+            : ad.spend >= R.cr_cut_zero_x * unit;
+          if (!aover) continue;
+          rows.push({ kind: 'trim', ...setRow, ad_id: ad.id, ad: ad.name, spend: ad.spend, orders: ad.orders, results: ares, revenue: ad.revenue, cpa: acpr, roas: aroas, days: 7, stake: Math.max(0, ad.spend - unit * ares),
+            why: ares ? `This ad costs ${$(acpr)} a ${one}, ${(acpr / unit).toFixed(1)}x the ${$(unit)} goal, on ${$(ad.spend)} of its own spend, while the set works${cpr != null ? ` at ${$(cpr)}` : ''}. Turn off this ad only.`
+              : `This ad spent ${$(ad.spend)} of its own (${(ad.spend / unit).toFixed(1)}x the goal) with no ${one} while the set works. Turn off this ad only.` });
+        }
       }
-      if (anchor) {
+      /* Refresh: the main ad wears out. Runs for every objective (awareness sets included). */
+      if (anchor && working) {
         const ad = s.ads[0];
         if (ad.impr >= 2000 && ad.p_impr >= 2000) {
           const ctr = ad.clicks / ad.impr, pctr = ad.p_clicks / ad.p_impr;
-          if (pctr > 0 && ctr <= pctr * 0.8) rows.push({ kind: 'refresh', ...setRow, ad_id: ad.id, ad: ad.name, stake: 0.3 * s.spend, ctr, prev_ctr: pctr,
-            why: `The main ad (${Math.round(anchor.share * 100)}% of the set's spend) gets ${Math.round((1 - ctr / pctr) * 100)}% fewer clicks than the week before (${(ctr * 100).toFixed(2)}% vs ${(pctr * 100).toFixed(2)}%). Brief a new version of it now; do not switch it off.` });
+          const freq = ad.reach ? ad.impr / ad.reach : null, pfreq = ad.p_reach ? ad.p_impr / ad.p_reach : null;
+          const freqUp = freq == null || pfreq == null || freq > pfreq;
+          if (pctr > 0 && ctr <= pctr * 0.8 && freqUp) rows.push({ kind: 'refresh', ...setRow, ad_id: ad.id, ad: ad.name, stake: 0.3 * s.w7.spend, ctr, prev_ctr: pctr, freq, prev_freq: pfreq,
+            why: `The main ad (${Math.round(anchor.share * 100)}% of the set's spend) gets ${Math.round((1 - ctr / pctr) * 100)}% fewer clicks than the week before (${(ctr * 100).toFixed(2)}% vs ${(pctr * 100).toFixed(2)}%)${freq != null && pfreq != null ? ` while people see it more often (${freq.toFixed(1)} vs ${pfreq.toFixed(1)} times)` : ''}. Brief a new version of it now; do not switch it off.` });
         }
       }
     }
-    brands.push({ act_id: a.act_id, name: a.name, from, to, goal, n_sets_judged: judged });
+    const notes = [];
+    if (notSales) notes.push(`${notSales} awareness or traffic ad set${notSales === 1 ? '' : 's'} not judged on sales (only Refresh).`);
+    if (kept.length) notes.push(`${kept.length} ad set${kept.length === 1 ? '' : 's'} over the cost line kept because ROAS beats the goal (${kept.slice(0, 3).map(n => `"${n}"`).join(', ')}).`);
+    if (noLeadGoal) notes.push(`${noLeadGoal} lead ad set${noLeadGoal === 1 ? '' : 's'} need a goal cost per lead (Home > Goals).`);
+    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, kept, note: notes.join(' ') || undefined });
   }
-  const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct);
-  const rules_note = `Ad sets first, over the last 7 days of Triple Whale last platform click: judged after ${r.cr_judge_x}x the goal cost per sale is spent; scale at ${r.cr_scale_buys}+ sales at or under goal; cut at ${r.cr_cut_zero_x}x the goal spent with no sale, or ${r.cr_cut_spend_x}x spent at over ${r.cr_cut_cpa_x}x the goal; in a set that is not on that line, the main ad (${pct}%+ of its spend) is never cut and a small ad over the same line after ${r.cr_min_days} days is a Trim. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
+  const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct), [one, many] = NOUN[r.goal_metric] || NOUN.cpa;
+  const goalWord = r.goal_metric === 'roas' ? 'goal (your order value at the goal ROAS)' : `goal ${COST[r.goal_metric]}`;
+  const rules_note = `Ad sets first, on Triple Whale last platform click over 7 days (14 for a set under 1 ${one} a day). A set waits until it has spent ${r.cr_judge_x}x the ${goalWord} AND run ${r.cr_min_days} days. Scale: ${r.cr_scale_buys}+ ${many} on goal${r.roas_guard ? ' or at the goal ROAS' : ''}. Cut: ${r.cr_cut_zero_x}x the goal spent with no ${one}, OR ${r.cr_cut_spend_x}x spent at worse than ${r.cr_cut_cpa_x}x the goal${r.roas_guard ? ', never when its ROAS beats the goal ROAS' : ''}. In a working set the main ad (${pct}%+ of its spend) is never cut; a small ad is a Trim only on its own spend past the same line. Refresh: the main ad's clicks fell 20%+ and people see it more often. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
   return { as_of, rules_note, brands, rows: rows.sort((p, q) => q.stake - p.stake) };
 }
 

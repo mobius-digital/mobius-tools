@@ -1549,7 +1549,11 @@
        (an ad truly on goal has about a 5% chance of that), or 2x spent at a CPA over 1.5x goal.
        Everything judged in between is Watch. */
     /* The numbers are the brand's own (Settings > brand > Goals > Creative calls), defaults below. */
-    const K = { jx: +RR.cr_judge_x || 1, days: +RR.cr_min_days || 3, buys: +RR.cr_scale_buys || 2, zx: +RR.cr_cut_zero_x || 3, sx: +RR.cr_cut_spend_x || 2, cx: +RR.cr_cut_cpa_x || 1.5, anchor: (+RR.cr_anchor_pct || 50) / 100 };
+    const K = { jx: +RR.cr_judge_x || 2, days: +RR.cr_min_days || 3, buys: +RR.cr_scale_buys || 3, zx: +RR.cr_cut_zero_x || 3, sx: +RR.cr_cut_spend_x || 3, cx: +RR.cr_cut_cpa_x || 1.5, anchor: (+RR.cr_anchor_pct || 50) / 100,
+      guard: RR.roas_guard !== false, troas: +RR.target_roas || +g.roas || null };
+    /* THE ROAS GUARD (2026-10-15, the approved ad call rules): a set or ad over the cost line is NOT cut while its ROAS beats
+       the goal ROAS; big orders are paying for it. Same rule as hub.js buyerList. */
+    const roasOk = x => !!(K.guard && K.troas && x && x.spend > 0 && (x.revenue != null ? x.revenue / x.spend : x.roas) >= K.troas);
     /* THE AD SET FIRST, THE AD BY ITS ROLE (Cole, 2026-10-08). Meta spends an ad set as one system: the
        ad taking most of the budget is usually the broad opener, and the smaller ads with prettier numbers
        often convert the people it warmed. Cutting the opener can sink the set. So:
@@ -1570,11 +1574,11 @@
       ? `People this ad brought in spent ${money(r.ltv90, cur)} each in their first 90 days, ${x2(r.ltv_x)} their first order. The brand's average ad gets ${x2(brandX)}. They come back more, so this ad can afford a higher cost per purchase than the goal. The call above does not include this; it is your judgment.`
       : `People this ad brought in spent ${money(r.ltv90, cur)} each in their first 90 days, ${x2(r.ltv_x)} their first order, against ${x2(brandX)} for the brand's average ad. They come back less than usual.`; };
     const own = r => { const G = goal; if (!goal) return 'nogoal'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < goal * K.jx) return 'thin';
-      if (r.purchases >= K.buys && r.cpa <= G) return 'scale';
-      if ((!r.purchases && r.spend >= G * K.zx) || (r.purchases && r.spend >= G * K.sx && r.cpa > G * K.cx)) return 'cut';
+      if (r.purchases >= K.buys && (r.cpa <= G || roasOk(r))) return 'scale';
+      if ((!r.purchases && r.spend >= G * K.zx) || (r.purchases && r.spend >= G * K.sx && r.cpa > G * K.cx && !roasOk(r))) return 'cut';
       return 'watch'; };
-    const setCall = x => { const G = goal; if (!goal || !x) return null; if (x.spend < goal * K.jx) return 'thin'; if (x.purchases >= K.buys && x.cpa <= G) return 'scale';
-      if ((!x.purchases && x.spend >= G * K.zx) || (x.purchases && x.spend >= G * K.sx && x.cpa > G * K.cx)) return 'cut'; return 'watch'; };
+    const setCall = x => { const G = goal; if (!goal || !x) return null; if (x.spend < goal * K.jx) return 'thin'; if (x.purchases >= K.buys && (x.cpa <= G || roasOk(x))) return 'scale';
+      if ((!x.purchases && x.spend >= G * K.zx) || (x.purchases && x.spend >= G * K.sx && x.cpa > G * K.cx && !roasOk(x))) return 'cut'; return 'watch'; };
     const role = r => !r.adset || r.adset.ads <= 1 ? 'solo' : (r.set_share >= K.anchor || (r.set_rank === 1 && r.set_share >= K.anchor - 0.1)) ? 'anchor' : 'support';
     const funnelRole = r => r.fc_rev == null || r.lc_rev == null || (r.fc_rev + r.lc_rev) < (goal || 50) ? null : r.fc_rev >= r.lc_rev * 1.3 ? 'opener' : r.lc_rev >= r.fc_rev * 1.3 ? 'closer' : null;
     const verdict = r => { const o = own(r); if (o === 'new' || o === 'thin' || o === 'nogoal') return o; const sc = setCall(r.adset), ro = role(r);
@@ -1601,7 +1605,7 @@
        yet" beside its role chip, the same words the sheet's ad set box shows. */
     const setChip = r => { const sc = setCall(r.adset), x = r.adset; if (!sc || !SET_VL[sc] || !x) return '';
       return `<span class="set-${SET_VL[sc][1]}"${tipAttr(esc(`The ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${x.cpa == null ? 'no purchases' : `${money(x.cpa, cur)} per purchase`} over its ${x.ads} ads. The set is judged first; this ad's call then follows from its role in it.`))}>${SET_VL[sc][0]}</span>`; };
-    const RULE = `<b>How a card gets its call:</b> the ad set is judged first on its own totals, then the ad by its role in it (anchor or support). A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, or ${K.sx}x spent at a CPA over ${K.cx}x the goal. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button><br><span class="faint">Today's calls judge the last 7 days on last platform click, with these same numbers; this page judges the dates and attribution picked above.</span>`;
+    const RULE = `<b>How a card gets its call:</b> the ad set is judged first on its own totals, then the ad by its role in it (anchor or support). A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal${K.guard && K.troas ? ` or at ${K.troas}x ROAS` : ''}. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, OR ${K.sx}x spent at a CPA over ${K.cx}x the goal${K.guard && K.troas ? `, never while ROAS is ${K.troas}x or better` : ''}. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button><br><span class="faint">Today's calls judge the last 7 days on last platform click, with these same numbers; this page judges the dates and attribution picked above.</span>`;
     const top = ads.slice(0, 60);
     const VCOL = { scale: '--good', keep: '--c-meta', watch: '--warn', trim: '--warn', cut: '--bad', thin: '--v2-cmp', new: '--v2-cmp', nogoal: '--v2-cmp' };
     const ctxOf = r => ({ call: VL[verdict(r)], why: whyOf(r), role: role(r), fr: funnelRole(r) && FR[funnelRole(r)], set: r.adset, setCall: setCall(r.adset) });

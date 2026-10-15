@@ -136,7 +136,9 @@ export async function judge(env, d, brand, brain, terms, cats, flows, lessons = 
 }
 
 /* ---------- the brand's own rules (the cut line Meta's calls use) ---------- */
-const RULE_DEF = { cr_cut_zero_x: 3, cr_cut_spend_x: 2, cr_cut_cpa_x: 1.5 };
+/* Same numbers as profit brand.js TEST_KEYS (ad calls v2, 2026-10-15). A doc saved before v2 (no rules_v) may still carry
+   the old cr_cut_spend_x 2 as a typed default; it is ignored like rulesFor does. */
+const RULE_DEF = { cr_cut_zero_x: 3, cr_cut_spend_x: 3, cr_cut_cpa_x: 1.5 };
 async function brandRow(env, act) {
   const a = await env.DB.prepare(`SELECT act_id, name, currency, tz, target_cpa FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!a) return null;
@@ -144,8 +146,10 @@ async function brandRow(env, act) {
   const tool = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`emailTool:${act}`).first().catch(() => null);
   a.email_tool = tool?.value || 'klaviyo';
   const R = { ...RULE_DEF }; const dj = safe(doc?.data_json, {}) || {};
-  for (const k of Object.keys(RULE_DEF)) if (+dj[k] > 0) R[k] = +dj[k];
+  for (const k of Object.keys(RULE_DEF)) if (+dj[k] > 0 && !(k === 'cr_cut_spend_x' && +dj[k] === 2 && !(+dj.rules_v >= 2))) R[k] = +dj[k];
   R.goal = +dj.target_cpa > 0 ? +dj.target_cpa : +a.target_cpa > 0 ? +a.target_cpa : null;
+  /* A goal per platform (rules goal_google / goal_tiktok, in the brand's own metric) wins on that platform's campaigns. */
+  R.goal_by = { google: +dj.goal_google > 0 ? +dj.goal_google : null, tiktok: +dj.goal_tiktok > 0 ? +dj.goal_tiktok : null, meta: +dj.goal_meta > 0 ? +dj.goal_meta : null };
   return { ...a, R };
 }
 /** Over the cut line: no sale after cut_zero_x goals, or cut_cpa_x the goal after cut_spend_x goals. Cost = what was
@@ -270,7 +274,8 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = fal
         fix: 'Worth adding these to the account-level negative keyword list in Google Ads (Tools > Shared library > Negative keyword lists). Google does not let Locus add negatives to Performance Max by API.', items: pbad.slice(0, 30), keep: true });
     }
     /* Campaigns over the brand's cut line on Google's own conversions: PMax, video and Demand Gen, Search. */
-    for (const c of g.campaigns || []) {
+    const Rg = R.goal_by?.google ? { ...R, goal: R.goal_by.google } : R;
+    for (const c of g.campaigns || []) { const R = Rg;
       const over = overCutLine(R, c.spend, c.conversions);
       if (!over) continue;
       const area = c.type === 'PERFORMANCE_MAX' ? 'google_pmax' : (c.type === 'VIDEO' || c.type === 'DEMAND_GEN') ? 'google_video' : 'google_search';
@@ -304,7 +309,8 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = fal
   /* --- TikTok --- */
   if (tt && !tt.error) {
     areas.tiktok = { state: 'ok' };
-    for (const c of tt.campaigns || []) {
+    const Rt = R.goal_by?.tiktok ? { ...R, goal: R.goal_by.tiktok } : R;
+    for (const c of tt.campaigns || []) { const R = Rt;
       const over = overCutLine(R, c.spend, c.purchases || 0);
       if (over) leaks.push({ id: `tiktok:camp:${c.id}`, area: 'tiktok', title: `TikTok campaign "${c.name}" ${over.why === 'no_sale' ? 'spends with no sale' : `costs ${(over.cpa / R.goal).toFixed(1)}x the goal per sale`}`,
         number: `${money(c.spend)} spent, ${c.purchases || 0} purchases (TikTok, its own count, last ${days} days)`, benchmark: `${money(R.goal)} goal per sale, the brand's cut line`,
