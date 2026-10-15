@@ -272,7 +272,10 @@ export function cardMessage(c) {
   if (c.weekly) L.push(esc(c.weekly));
   const text = L.join('\n');
   const btn = (label, url) => ({ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: label.slice(0, 75) }, url }] });
-  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, btn(`Open ${c.name} in Locus`, `${LOCUS}?act=${encodeURIComponent(c.act)}`)];
+  /* 2026-10-15: short sections (the head, then a few lines each) so Slack never folds the card behind Show more. */
+  const parts = [L.slice(0, 2)];
+  for (const l of L.slice(2)) { const last = parts[parts.length - 1]; if (parts.length > 1 && last.length < 2 && last.join('\n').length + l.length < 400) last.push(l); else parts.push([l]); }
+  const blocks = [...parts.map(p => ({ type: 'section', text: { type: 'mrkdwn', text: p.join('\n').slice(0, 2900) } })), btn(`Open ${c.name} in Locus`, `${LOCUS}?act=${encodeURIComponent(c.act)}`)];
   if (c.calls) blocks.push(btn('Make the calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}`));
   return { text, blocks };
 }

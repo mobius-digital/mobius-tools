@@ -172,7 +172,7 @@ window.AskUI = (() => {
       <b>${esc(p.summary)}</b>${p.detail ? `<div class="pd">${esc(p.detail).replace(/\n/g, '<br>')}</div>` : ''}
       ${p.preview ? `<div class="pv">${esc(p.preview).replace(/\n/g, '<br>')}</div>` : ''}
       ${p.done ? `<div class="pr ${p.done === 'applied' ? 'ok' : ''}">${linkify(p.result || (p.done === 'applied' ? 'Applied.' : 'Left as it was.'))}</div>`
-        : `<div class="pa"><button class="btn primary" onclick="AskUI.applyProposal('${esc(p.id)}')">Apply</button><button class="btn" onclick="AskUI.applyProposal('${esc(p.id)}', true)">No thanks</button></div>`}
+        : `<div class="pa"><button class="btn primary" onclick="AskUI.applyProposal('${esc(p.id)}')">${p.group ? 'Apply all' : 'Apply'}</button><button class="btn" onclick="AskUI.applyProposal('${esc(p.id)}', true)">No thanks</button></div>`}
     </div>`;
   /* A report the assistant built: a card in the chat, the page on Open. */
   const reportCardHTML = r => `<div class="m ai rep" data-id="${esc(r.id)}">

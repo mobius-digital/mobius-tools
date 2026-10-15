@@ -716,6 +716,7 @@ export function createAssistant(config) {
   }
   /** The tap. Finds the proposal, runs the action's apply, forgets the proposal. */
   async function applyProposal(env, id, h, { cancel = false, ctx = null } = {}) {
+    if (String(id).includes(',')) return applyGroup(env, String(id).split(',').filter(Boolean), h, { cancel, ctx });
     const p = (await pendingList(env, h)).find(x => x.id === id);
     if (!p) return { error: 'That proposal has expired or was already handled.' };
     await dropProposal(env, h, id);
@@ -726,6 +727,28 @@ export function createAssistant(config) {
       const r = await a.apply(env, p.patch, h, ctx);
       return r?.error ? { error: r.error, summary: p.summary } : { ok: true, summary: p.summary, ...(r || {}) };
     } catch (e) { return { error: String(e.message || e), summary: p.summary }; }
+  }
+  /* 2026-10-15 (Cole got ~10 Apply cards in a row for one BFCM plan update): two or more proposals from one answer
+   * are ONE card, a numbered list with Apply all / No thanks. The card's id is the proposals' ids joined by commas;
+   * Apply all applies them in order and says how each went. */
+  async function applyGroup(env, ids, h, opts) {
+    const out = [];
+    for (const id of ids) out.push(await applyProposal(env, id, h, opts));
+    if (opts.cancel) return { ok: true, cancelled: true, summary: `${ids.length} changes` };
+    const clip = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 3) + '...' : t; };
+    const lines = out.map((r, i) => `${i + 1}. ${r.error ? '⚠️' : '✓'} ${clip(r.summary || `Change ${i + 1}`, 120)}${r.error ? `: ${clip(r.error, 160)}` : r.note ? `. ${clip(r.note, 160)}` : ''}`);
+    const bad = out.filter(r => r.error).length;
+    const note = `${bad ? `${out.length - bad} of ${out.length} applied.` : `All ${out.length} applied.`}\n${lines.join('\n')}`;
+    return bad === out.length ? { error: note, group: true, results: out } : { ok: true, group: true, note, summary: `${out.length} changes`, results: out };
+  }
+  /** Two or more proposals become one grouped proposal (one card on every surface); one stays as it is. */
+  function groupProposals(list) {
+    list = (list || []).filter(Boolean);
+    if (list.length < 2) return list;
+    return [{ id: list.map(p => p.id).join(','), group: true, action: 'group', at: list[0].at, preview: null,
+      summary: `${list.length} changes, one approval`,
+      detail: list.map((p, i) => `${i + 1}. ${p.summary}`).join('\n'),
+      items: list.map(p => ({ id: p.id, action: p.action, summary: p.summary, detail: p.detail })) }];
   }
   /* ---------------- reports ---------------- */
   async function reportsList(env, h) { return h.safeJson(await h.getSetting(env, K.reports), []) || []; }
@@ -773,12 +796,20 @@ export function createAssistant(config) {
   /* Slack's card for a proposal: the summary, the detail, two buttons. The
    * value carries the app so the router knows whose tap it is. */
   const proposalBlocks = p => [
-    { type: 'section', text: { type: 'mrkdwn', text: `*${p.summary}*${p.detail ? '\n' + p.detail : ''}` } },
+    ...(p.group ? groupSections(p) : [{ type: 'section', text: { type: 'mrkdwn', text: `*${p.summary}*${p.detail ? '\n' + p.detail : ''}` } }]),
     { type: 'actions', elements: [
-      { type: 'button', action_id: 'ask_apply', style: 'primary', text: { type: 'plain_text', text: 'Apply' }, value: JSON.stringify({ askp: p.id, app: C.slackApp || P }) },
+      { type: 'button', action_id: 'ask_apply', style: 'primary', text: { type: 'plain_text', text: p.group ? 'Apply all' : 'Apply' }, value: JSON.stringify({ askp: p.id, app: C.slackApp || P }) },
       { type: 'button', action_id: 'ask_cancel', text: { type: 'plain_text', text: 'No thanks' }, value: JSON.stringify({ askp: p.id, app: C.slackApp || P, cancel: true }) },
     ] },
   ];
+
+  /* A grouped card in short sections (four lines each) so Slack never folds it behind Show more. */
+  function groupSections(p) {
+    const items = p.items || [], out = [{ type: 'section', text: { type: 'mrkdwn', text: `*${items.length} changes, one approval.* Apply all makes them in this order.` } }];
+    for (let i = 0; i < items.length; i += 4) out.push({ type: 'section', text: { type: 'mrkdwn',
+      text: items.slice(i, i + 4).map((x, j) => `*${i + j + 1}.* ${String(x.summary || '').slice(0, 160)}`).join('\n') } });
+    return out;
+  }
 
   async function memory(env, h) {
     return {
@@ -1158,7 +1189,7 @@ Plain English, no em dashes, lead with the answer.` }];
       } else if (work?.ts) {
         await update(r.stopped ? 'Stopped.' : 'Done.', [{ type: 'context', elements: [{ type: 'mrkdwn', text: (r.stopped ? '_Stopped._ ' : '') + foot }] }]).catch(() => {});
       } else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
-      for (const p of r.flags.proposals || []) await say(p.summary, proposalBlocks(p));
+      for (const p of groupProposals(r.flags.proposals)) await say(p.group ? `${p.summary}: ${p.items.map(x => x.summary).join('; ')}`.slice(0, 2900) : p.summary, proposalBlocks(p));
       for (const rep of r.flags.reports || []) {
         await say(reportText(rep));
         /* A report with a share link (and a PDF) gets buttons. Link buttons still send Slack a tap, which the router
@@ -1230,7 +1261,8 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
         shouldStop: async () => !!(runId && C.progress && (await C.progress.get(env, runId))?.stop) }, choice.effort || null);
       return { answer: r.answer || (r.stopped ? 'Stopped.' : 'I could not work that one out. Try naming the period.'), sql: r.sql, inTok: r.inTok, outTok: r.outTok,
         model: choice.model, effort: choice.effort || null, modelLabel: choice.label || null, cost: r.cost, steps: stepsSeen, stopped: r.stopped, ms: r.ms,
-        costLine: C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : null, ...r.flags };
+        costLine: C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : null, ...r.flags,
+        ...(r.flags.proposals ? { proposals: groupProposals(r.flags.proposals) } : {}) };
     } catch (e) {
       r = { error: String(e.message || e) };
       return { error: String(e.message || e) };
@@ -1309,7 +1341,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     answerSlack, answerWeb, nightly, briefing,
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
-    applyProposal, pendingList, proposalBlocks, runAction, actions: ACTIONS.map(a => a.name), reportsList,
+    applyProposal, pendingList, proposalBlocks, groupProposals, runAction, actions: ACTIONS.map(a => a.name), reportsList,
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },

@@ -6226,13 +6226,18 @@ async function handleSlackInteract(request, env, ctx) {
     if (tap) {
       const val = safeJson(tap.value, {});
       const { engine, h } = strategist();
-      const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null) } }).catch(e => ({ error: String(e.message || e) }));
-      /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
-      const done = res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
-      const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
-      if (payload.response_url) ctx.waitUntil(xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replace_original: true, text: done, ...(link ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
-          { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] } : {}) }) }).catch(() => {}));
+      /* 2026-10-15: applied after the ack. A grouped card (Apply all) runs several changes in a row, past Slack's 3 seconds. */
+      const say = body => payload.response_url ? xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
+      ctx.waitUntil((async () => {
+        const many = String(val.askp || '').includes(',') && !val.cancel;
+        if (many) await say({ replace_original: true, text: 'Applying them now...' });
+        const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null) } }).catch(e => ({ error: String(e.message || e) }));
+        /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
+        const done = res.group ? (res.error ? '⚠️ ' + res.error : res.note) : res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
+        const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
+        await say({ replace_original: true, text: done, ...(link || res.group ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
+          ...(link ? [{ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] : [])] } : {}) });
+      })());
       return ACK();
     }
     if (payload.type === 'block_actions') return await slackBlockAction(env, ctx, payload);

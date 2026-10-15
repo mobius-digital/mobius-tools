@@ -212,8 +212,70 @@ export function stratActions(d) {
       const r = await callLocus(env, d, ctx || null, patch.method, patch.path, patch.body);
       return r?.error ? { error: r.error } : { ok: true, note: 'Done in Locus.' };
     },
-  }];
+  }, seasonPlanAction(d)];
 }
+
+/* 2026-10-15 (Cole asked for Grunk's BFCM plan to be updated from a call and got ~10 Apply cards, one per phase and
+   task): the whole plan change is ONE proposal. Phases are read first and merged, because PUT /api/season/phase
+   rewrites every column of the row; tasks and answers merge on the server. Applied in order, stopping at the first
+   error, and the note says what went in and what did not. */
+const SEASON_KINDS = { phase: '/api/season/phase', task: '/api/season/task', answer: '/api/season/answer', plan: '/api/season/war' };
+const PHASE_FIELDS = ['name', 'start', 'end', 'grp', 'who', 'offer', 'detail', 'status', 'sort'];
+function seasonPlanAction(d) {
+  return {
+    name: 'season_plan',
+    description: 'Change a brand\'s season plan (Black Friday / BFCM: phases and their offers and dates, season tasks, call-sheet answers, the War Room plan) in ONE approval. Use it for any plan update with more than one change, e.g. after a call, instead of several locus_write cards. Read the plan first (locus_get /api/season?act=<brand>), then send every change in order, each with a plain one-line "what".',
+    input_schema: { type: 'object', properties: {
+      act: { type: 'string', description: 'The brand id.' },
+      summary: { type: 'string', description: 'The whole change in one short line, e.g. "Update Grunk\'s BFCM plan from Tuesday\'s call".' },
+      changes: { type: 'array', maxItems: 30, items: { type: 'object', properties: {
+        kind: { type: 'string', enum: ['phase', 'task', 'answer', 'plan'], description: 'phase = a phase row (key + only the fields that change: name, start, end, grp, who, offer, detail, status missing|draft|locked|skip, sort); task = a season task (id + fields: name, due, owner, done, note, phase_key; a new one uses id "c:<word>"); answer = a call-sheet answer (key + value); plan = the War Room plan (patch with goals, budget, sale, thresholds...).' },
+        what: { type: 'string', description: 'This change in plain words, as a person reads it on the card.' },
+        fields: { type: 'object', description: 'The fields for this change (key or id included).' } }, required: ['kind', 'what', 'fields'] } } },
+      required: ['act', 'summary', 'changes'] },
+    propose: async (env, input, h, ctx) => {
+      const act = String(input.act || '').trim(), list = Array.isArray(input.changes) ? input.changes.slice(0, 30) : [];
+      if (!act) return { error: 'Name the brand (act).' };
+      if (!list.length) return { error: 'No changes given.' };
+      const s = await callLocus(env, d, ctx || null, 'GET', `/api/season?act=${encodeURIComponent(act)}`);
+      if (s?.error) return { error: `Could not read the season plan: ${s.error}` };
+      const a = (s.accounts || []).find(x => x.act_id === act);
+      if (!a) return { error: `No season plan for ${act}. Use a brand id from the list.` };
+      const steps = [];
+      for (const [i, c] of list.entries()) {
+        const f = c && typeof c.fields === 'object' && c.fields ? c.fields : {};
+        if (!SEASON_KINDS[c?.kind]) return { error: `Change ${i + 1}: kind must be phase, task, answer or plan.` };
+        let body;
+        if (c.kind === 'phase') {
+          if (!f.key) return { error: `Change ${i + 1}: a phase needs its key.` };
+          const cur = (a.phases || []).find(p => p.key === f.key) || {};
+          body = { act, key: f.key };
+          for (const k of PHASE_FIELDS) body[k] = k in f ? f[k] : cur[k] ?? null;
+          if (!body.start || !body.end) return { error: `Change ${i + 1}: the phase "${f.key}" needs a start and end date (YYYY-MM-DD).` };
+        } else if (c.kind === 'task') {
+          if (!f.id) return { error: `Change ${i + 1}: a task needs its id.` };
+          body = { act, ...f };
+          if (!('due' in body)) body.due = ((a.tasks || []).find(t => t.id === f.id) || {}).due || null;
+        } else if (c.kind === 'answer') {
+          if (!f.key) return { error: `Change ${i + 1}: an answer needs its key.` };
+          body = { act, key: f.key, value: f.value };
+        } else body = { act, patch: f.patch && typeof f.patch === 'object' ? f.patch : f };
+        steps.push({ what: clip(c.what || `${c.kind} ${f.key || f.id || ''}`, 200), path: SEASON_KINDS[c.kind], body });
+      }
+      return { summary: clip(input.summary, 160), detail: steps.map((x, i) => `${i + 1}. ${x.what}`).join('\n').slice(0, 1200), patch: { act, steps } };
+    },
+    apply: async (env, patch, h, ctx) => {
+      const done = [];
+      for (const [i, x] of (patch.steps || []).entries()) {
+        const r = await callLocus(env, d, ctx || null, 'PUT', x.path, x.body);
+        if (r?.error) return { error: `Stopped at ${i + 1} of ${patch.steps.length} ("${x.what}"): ${r.error}.${done.length ? ` Already in: ${done.length} change${done.length === 1 ? '' : 's'}.` : ' Nothing was changed.'}` };
+        done.push(x.what);
+      }
+      return { ok: true, note: `All ${done.length} changes are in the plan: ${LOCUS_SEASON}${encodeURIComponent(patch.act)}` };
+    },
+  };
+}
+const LOCUS_SEASON = 'https://tools.go-mobius-digital.com/profit/?open=season&act=';
 
 /* ---------------- config hooks ---------------- */
 export function stratHooks(d) {

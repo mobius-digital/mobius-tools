@@ -2182,3 +2182,18 @@ Cole saw other clients' Google Ads accounts in a client's Integrations. A full a
   `moveCard`. `duplicate {id}` = `makeBrief` (or localBrief) titled "<title> (iteration)" with an Iteration page whose first
   hint names the source ("<num>-1"). All four are team only (a client gets 403 before the route). Tests in
   test-production.mjs, the 2026-10-15 check.
+
+## 2026-10-15: short Slack posts and ONE approval per plan change
+- **Today's calls thread** (todaypost.js `messageFor`): one section per call, the why cut to its first sentence or 90
+  characters (`shortWhy`), the top 6 by money at stake, then "N more in Locus" as a link section (it survives the
+  morning card's thread, which drops buttons). The morning card (`cardMessage`) is short sections too. Slack folds a
+  tall section behind Show more; keep every new post in small sections.
+- **Grouped proposals** (ask/engine.js `groupProposals`, `applyGroup`): two or more proposals from one answer are ONE
+  card on Slack and in the web chat ("N changes, one approval", numbered, Apply all / No thanks). The card's id is the
+  ids joined by commas; `applyProposal` with a comma id applies each in order and returns `{group, note}` with a line
+  per change. Ledger and Supply get it on their next deploy. The Slack tap (worker.js) now applies in `waitUntil` after
+  the ack (several changes run past Slack's 3 seconds) and says "Applying them now..." first.
+- **season_plan** (strattools.js `seasonPlanAction`): phases / tasks / answers / the War Room plan in ONE proposal;
+  phases are read first and merged (PUT /api/season/phase rewrites every column); applied in order, stops at the
+  first error and says what went in. PLAYBOOK "PLAN CHANGES ARE ONE APPROVAL": state the plan as a short numbered
+  list, then one card. Verified live 2026-10-15 in #locus-alerts (The Golf Sock test thread): one card; Apply not tapped.

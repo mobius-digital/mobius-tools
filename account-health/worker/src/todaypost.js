@@ -34,21 +34,35 @@ export async function readToday(env, d, act) {
   });
   return call(`/api/hub/today?act=${encodeURIComponent(act)}`, token);
 }
+/** The why, short: its first sentence when that fits, else cut on a word at WHY_MAX (2026-10-15, Cole: the thread
+ *  folded behind Show more with whole paragraphs per call). */
+const WHY_MAX = 90, SHOWN = 6;
+export function shortWhy(s) {
+  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+  if (t.length <= WHY_MAX) return t;
+  const first = (t.match(/^.+?[.!?](?=\s|$)/) || [''])[0];
+  if (first && first.length <= WHY_MAX) return first;
+  return t.slice(0, WHY_MAX).replace(/\s+\S*$/, '').replace(/[,;:]$/, '') + '...';
+}
 /** One line per row: the call, what, the money at stake, the why. */
 export function lineFor(r) {
   const what = r.ad ? `the ad "${r.ad}" in "${r.adset || ''}"` : `"${r.adset || ''}"`;
   const stake = r.stake > 0 ? `, ${money(r.stake, r.currency)} at stake` : '';
-  return `*${VERB[r.kind] || r.kind}* ${mk(what)}${stake}. ${mk(r.why || '')}`.trim();
+  return `*${VERB[r.kind] || r.kind}* ${mk(what)}${stake}. ${mk(shortWhy(r.why))}`.trim();
 }
-/** The message for one brand, or null when there is nothing to call today (Fix and Call rows are not posted). */
+/** The message for one brand, or null when there is nothing to call today (Fix and Call rows are not posted).
+ *  2026-10-15: one short section per call (one big section folded behind Show more), the top SHOWN by money at stake,
+ *  then "N more in Locus" as a link (a section, so it survives the morning card's thread, which drops the buttons). */
 export function messageFor(brand, rows) {
   const list = (rows || []).filter(r => KINDS.includes(r.kind)).sort((p, q) => (q.stake || 0) - (p.stake || 0));
   if (!list.length) return null;
-  const lines = list.slice(0, 12).map(lineFor), more = list.length > 12 ? `\n${list.length - 12} more on the page.` : '';
+  const lines = list.slice(0, SHOWN).map(lineFor), extra = list.length - SHOWN;
   const head = `Today's calls: ${brand.name}`, url = `${LOCUS}?open=today&act=${encodeURIComponent(brand.act_id)}`;
-  return { text: `${head}\n${lines.join('\n')}${more}\n<${url}|Open in Locus>`, blocks: [
+  const more = extra > 0 ? `<${url}|${extra} more in Locus>` : '';
+  return { text: `${head}\n${lines.join('\n')}${more ? `\n${extra} more in Locus: ${url}` : ''}`, blocks: [
     { type: 'header', text: { type: 'plain_text', text: head.slice(0, 150) } },
-    { type: 'section', text: { type: 'mrkdwn', text: `${lines.join('\n')}${more}`.slice(0, 2900) } },
+    ...lines.map(l => ({ type: 'section', text: { type: 'mrkdwn', text: l.slice(0, 600) } })),
+    ...(more ? [{ type: 'section', text: { type: 'mrkdwn', text: more } }] : []),
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url }] },
     { type: 'context', elements: [{ type: 'mrkdwn', text: 'Do it on the page writes the change to Meta after you confirm it. Switch this post off in Agency settings (todayPost).' }] },
   ] };
