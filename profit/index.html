@@ -11007,7 +11007,7 @@ async function renderSettings() {
           ${sCard('Morning posts go out at', 'One hour for <b>everything</b> Locus sends in the morning: the client daily, Monday\'s weekly and the 1st\'s monthly drafts, and the morning card. <b>Central time</b> all year. Each brand\'s brief always covers yesterday.',
             '<div class="row" style="margin:0;gap:10px"><select id="btHour" style="max-width:200px" aria-label="Morning posts go out at"></select><span class="tiny" id="btMsg"></span></div>')}
           ${sCard('The morning card', 'One post per brand in its <b>internal</b> channel at that hour: yesterday against plan, whether the client daily went, and one line per thing someone must do today, each with the person tagged. Today\'s calls, task reminders and alerts go in its thread; Done or a ✅ crosses a line out instead of posting again.',
-            '<label class="row" style="margin:0 0 10px;gap:10px;align-items:center"><input type="checkbox" id="mcOn" class="lx-sw"><span>Post the morning card</span><span class="tiny" id="mcMsg"></span></label><div class="row" style="margin:0;gap:10px;flex-wrap:wrap"><select id="mcAct" style="max-width:220px" aria-label="Brand to preview"></select><button type="button" class="btn" id="mcPrev">Preview this morning\'s card</button></div>')}
+            '<label class="row" style="margin:0 0 10px;gap:10px;align-items:center"><input type="checkbox" id="mcOn" class="lx-sw"><span>Post the morning card</span><span class="tiny" id="mcMsg"></span></label><label class="row" style="margin:0 0 10px;gap:10px;align-items:center"><input type="checkbox" id="minOn" class="lx-sw"><span>Test minimums due off: one line a day in the card's thread, with a Take it off button</span><span class="tiny" id="minMsg"></span></label><div class="row" style="margin:0;gap:10px;flex-wrap:wrap"><select id="mcAct" style="max-width:220px" aria-label="Brand to preview"></select><button type="button" class="btn" id="mcPrev">Preview this morning\'s card</button></div>')}
           ${sCard('Where the drafts post', 'Every brand\'s Daily Brief draft (and, with the morning card on, the weekly and monthly drafts), with its Send, Edit and Rewrite buttons, goes to <b>one agency channel</b> so the brand channels stay conversation. Blank = each draft posts in its own brand\'s internal channel.',
             '<div class="row" style="margin:0;gap:10px"><select id="dbChan" style="max-width:280px"></select><span class="tiny" id="dbMsg"></span></div>')}
           ${sCard('What the client gets each day', 'Once a brand has a Locus login, the client\'s daily can be <b>three lines plus Open in Locus</b>; the whole brief is in their Locus. A brand with no client login always gets the whole brief in Slack.',
@@ -11877,6 +11877,7 @@ async function renderSettings() {
       try {
         const cfg = await apiAH('/api/settings');
         mc.checked = cfg.morningCard !== false;
+        if ($('#minOn')) { $('#minOn').checked = cfg.minOffPost !== false; $('#minOn').onchange = () => save({ minOffPost: $('#minOn').checked }, $('#minMsg')); }
         if (cfg.dailyBriefsError?.error && $('#dbMsg')) $('#dbMsg').textContent = `Last refused: ${cfg.dailyBriefsError.error}`;
       } catch {}
       mc.onchange = () => save({ morningCard: mc.checked }, $('#mcMsg'));
