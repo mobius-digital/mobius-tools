@@ -2,9 +2,10 @@
  * Data: GET {API}/api/angles/<slug>. No sign-in, no money on the page.
  * Built by angles/build.py, which inlines the Lucide icons into app.js.
  *
- * The look is the Lucky Golf creator hub's: lanes per section, pill rows for
- * sections and formats, flat cards with a quoted opener, black primary buttons.
- * Phone first: the pill rows scroll sideways, cards stack, and one submit
+ * The look is the Lucky Golf creator hub's: Archivo, flat cards, pill rows, black
+ * primary buttons. Two screens since 2026-10-14 (Frost Buddy's shape): a feed of
+ * videos that worked with a Film this button, and one checklist. Phone first: the
+ * How panel is a bottom sheet, the pill rows scroll sideways, and one submit
  * button sits in a bottom bar under the thumb.
  */
 (function () {
@@ -25,7 +26,7 @@ function staffToken() {
 }
 const TOK = staffToken();
 const authed = () => (TOK ? { headers: { Authorization: 'Bearer ' + TOK } } : undefined);
-const ICONS = {"copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "external-link": "<path d=\"M15 3h6v6\"/><path d=\"M10 14 21 3\"/><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>", "play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\"/>", "arrow-left": "<path d=\"m12 19-7-7 7-7\"/><path d=\"M19 12H5\"/>", "arrow-right": "<path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "chevron-down": "<path d=\"m6 9 6 6 6-6\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\"/><path d=\"M20 2v4\"/><path d=\"M22 4h-4\"/><circle cx=\"4\" cy=\"20\" r=\"2\"/>", "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M4.929 4.929 19.07 19.071\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "calendar-days": "<path d=\"M8 2v3\"/><path d=\"M16 2v3\"/><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18\"/><path d=\"M8 13h.01\"/><path d=\"M12 13h.01\"/><path d=\"M16 13h.01\"/><path d=\"M8 17h.01\"/><path d=\"M12 17h.01\"/><path d=\"M16 17h.01\"/>", "clapperboard": "<path d=\"m12.296 3.464 3.02 3.956\"/><path d=\"M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z\"/><path d=\"M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><path d=\"m6.18 5.276 3.1 3.899\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "type": "<path d=\"M12 4v16\"/><path d=\"M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2\"/><path d=\"M9 20h6\"/>", "music": "<path d=\"M9 18V5l12-2v13\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"18\" cy=\"16\" r=\"3\"/>", "flame": "<path d=\"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4\"/>", "leaf": "<path d=\"M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20\"/><path d=\"M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "lightbulb": "<path d=\"M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5\"/><path d=\"M9 18h6\"/><path d=\"M10 22h4\"/>", "video": "<path d=\"m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5\"/><rect x=\"2\" y=\"6\" width=\"14\" height=\"12\" rx=\"2\"/>", "image": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"2\"/><path d=\"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "upload": "<path d=\"M12 3v12\"/><path d=\"m17 8-5-5-5 5\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/>", "pencil": "<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\"/><path d=\"m15 5 4 4\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "grip-vertical": "<circle cx=\"9\" cy=\"12\" r=\"1\"/><circle cx=\"9\" cy=\"5\" r=\"1\"/><circle cx=\"9\" cy=\"19\" r=\"1\"/><circle cx=\"15\" cy=\"12\" r=\"1\"/><circle cx=\"15\" cy=\"5\" r=\"1\"/><circle cx=\"15\" cy=\"19\" r=\"1\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "qr-code": "<rect width=\"5\" height=\"5\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"5\" height=\"5\" x=\"16\" y=\"3\" rx=\"1\"/><rect width=\"5\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/><path d=\"M21 16h-3a2 2 0 0 0-2 2v3\"/><path d=\"M21 21v.01\"/><path d=\"M12 7v3a2 2 0 0 1-2 2H7\"/><path d=\"M3 12h.01\"/><path d=\"M12 3h.01\"/><path d=\"M12 16v.01\"/><path d=\"M16 12h1\"/><path d=\"M21 12v.01\"/><path d=\"M12 21v-1\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "file-text": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5\"/><path d=\"M10 9H8\"/><path d=\"M16 13H8\"/><path d=\"M16 17H8\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\"/><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\"/><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\"/><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "target": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "ghost": "<path d=\"M15 10v1\"/><path d=\"M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z\"/><path d=\"M9 10v1\"/>", "gift": "<path d=\"M12 7v14\"/><path d=\"M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8\"/><path d=\"M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5\"/><rect x=\"3\" y=\"7\" width=\"18\" height=\"4\" rx=\"1\"/>", "shuffle": "<path d=\"m18 14 4 4-4 4\"/><path d=\"m18 2 4 4-4 4\"/><path d=\"M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22\"/><path d=\"M2 6h1.972a4 4 0 0 1 3.6 2.2\"/><path d=\"M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>"};
+const ICONS = {"copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "external-link": "<path d=\"M15 3h6v6\"/><path d=\"M10 14 21 3\"/><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>", "play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\"/>", "arrow-left": "<path d=\"m12 19-7-7 7-7\"/><path d=\"M19 12H5\"/>", "arrow-right": "<path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "chevron-down": "<path d=\"m6 9 6 6 6-6\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\"/><path d=\"M20 2v4\"/><path d=\"M22 4h-4\"/><circle cx=\"4\" cy=\"20\" r=\"2\"/>", "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M4.929 4.929 19.07 19.071\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "calendar-days": "<path d=\"M8 2v3\"/><path d=\"M16 2v3\"/><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18\"/><path d=\"M8 13h.01\"/><path d=\"M12 13h.01\"/><path d=\"M16 13h.01\"/><path d=\"M8 17h.01\"/><path d=\"M12 17h.01\"/><path d=\"M16 17h.01\"/>", "clapperboard": "<path d=\"m12.296 3.464 3.02 3.956\"/><path d=\"M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z\"/><path d=\"M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><path d=\"m6.18 5.276 3.1 3.899\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "type": "<path d=\"M12 4v16\"/><path d=\"M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2\"/><path d=\"M9 20h6\"/>", "music": "<path d=\"M9 18V5l12-2v13\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"18\" cy=\"16\" r=\"3\"/>", "flame": "<path d=\"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4\"/>", "leaf": "<path d=\"M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20\"/><path d=\"M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "lightbulb": "<path d=\"M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5\"/><path d=\"M9 18h6\"/><path d=\"M10 22h4\"/>", "video": "<path d=\"m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5\"/><rect x=\"2\" y=\"6\" width=\"14\" height=\"12\" rx=\"2\"/>", "image": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"2\"/><path d=\"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "upload": "<path d=\"M12 3v12\"/><path d=\"m17 8-5-5-5 5\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/>", "pencil": "<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\"/><path d=\"m15 5 4 4\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "grip-vertical": "<circle cx=\"9\" cy=\"12\" r=\"1\"/><circle cx=\"9\" cy=\"5\" r=\"1\"/><circle cx=\"9\" cy=\"19\" r=\"1\"/><circle cx=\"15\" cy=\"12\" r=\"1\"/><circle cx=\"15\" cy=\"5\" r=\"1\"/><circle cx=\"15\" cy=\"19\" r=\"1\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "qr-code": "<rect width=\"5\" height=\"5\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"5\" height=\"5\" x=\"16\" y=\"3\" rx=\"1\"/><rect width=\"5\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/><path d=\"M21 16h-3a2 2 0 0 0-2 2v3\"/><path d=\"M21 21v.01\"/><path d=\"M12 7v3a2 2 0 0 1-2 2H7\"/><path d=\"M3 12h.01\"/><path d=\"M12 3h.01\"/><path d=\"M12 16v.01\"/><path d=\"M16 12h1\"/><path d=\"M21 12v.01\"/><path d=\"M12 21v-1\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "file-text": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5\"/><path d=\"M10 9H8\"/><path d=\"M16 13H8\"/><path d=\"M16 17H8\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\"/><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\"/><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\"/><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "target": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "ghost": "<path d=\"M15 10v1\"/><path d=\"M7.528 20.472a1.6 1.6 0 012.277 0l1.057 1.056a1.6 1.6 0 002.276 0l1.057-1.056a1.6 1.6 0 012.277 0l1.114 1.114a1.4 1.4 0 002.414-1V10a8 8 0 00-16 0v10.586a1.4 1.4 0 002.414 1z\"/><path d=\"M9 10v1\"/>", "gift": "<path d=\"M12 7v14\"/><path d=\"M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8\"/><path d=\"M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5\"/><rect x=\"3\" y=\"7\" width=\"18\" height=\"4\" rx=\"1\"/>", "shuffle": "<path d=\"m18 14 4 4-4 4\"/><path d=\"m18 2 4 4-4 4\"/><path d=\"M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22\"/><path d=\"M2 6h1.972a4 4 0 0 1 3.6 2.2\"/><path d=\"M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "chevron-up": "<path d=\"m18 15-6-6-6 6\"/>", "list-checks": "<path d=\"M13 5h8\"/> <path d=\"M13 12h8\"/> <path d=\"M13 19h8\"/> <path d=\"m3 17 2 2 4-4\"/> <path d=\"m3 7 2 2 4-4\"/>", "megaphone": "<path d=\"M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z\"/> <path d=\"M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14\"/> <path d=\"M8 6v8\"/>"};
 const ic = (n, s = 16, st = '') => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px;${st}" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 const svgI = (svg, s = 16) => `<svg class="i" viewBox="0 0 24 24" style="width:${s}px;height:${s}px" aria-hidden="true">${svg || ICONS.sparkles}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -131,8 +132,8 @@ function filmBtn(a, cls) {
   const label = a ? (b.submit_label || `Film this on ${plat()}`) : `Open our ${plat()} campaign`;
   return `<a class="btn ${cls}" href="${esc(b.submit_url)}" target="_blank" rel="noopener" data-film="${esc(a ? a.title : '')}">${esc(label)}${ic('arrow-right', 15)}</a>`;
 }
-function wireFilm() {
-  app.querySelectorAll('[data-film]').forEach(el => el.addEventListener('click', e => {
+function wireFilm(root = app) {
+  root.querySelectorAll('[data-film]').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();
     const t = el.dataset.film;
     if (t) copy(`Angle: ${t}`).then(ok => ok && toast('Angle name copied. Paste it in your submission note.'));
@@ -286,16 +287,21 @@ function aboutCard() {
 }
 
 /* ---------- list ---------- */
-/* THE SHAPE OF THE PAGE (Cole, 2026-10-06, after reading v11 as a creator: "all over the
-   place", "would a creator understand this?"). Three screens, one job each:
-     Ideas            what to film. Hot first, then every lane. One "Pick one for me" button.
-     Watch examples   every proof video and every other-brand reference, in one grid.
-     Before you film  what it is, say it right, stop filming these, keep them watching, the season.
-   An idea page reads in the order a creator works: the idea, watch first, how to film it
-   (first second, say this, at 3 seconds, then, close, text on screen), more lines, do / don't. */
-const TABS = [['ideas', 'Ideas'], ['watch', 'Watch examples'], ['hooks', 'First seconds'], ['rules', 'Before you film']];
+/* THE SHAPE OF THE PAGE (Cole, 2026-10-14, after walking Frost Buddy's creator hub: ours asked
+   creators to read, theirs asks them to watch one video and make their version). TWO screens:
+     Film one of these   a vertical feed of ideas, the ones with a real video on top, "be the first"
+                         ideas under them. A card = the video (first frame, tap to play), one line,
+                         the section chip, Film this, and How (the numbered steps, say this, text on
+                         screen, do / don't) folded under the card: inline on a desktop, a bottom
+                         sheet on a phone. Above the feed: the dated window with its deal line, Pick
+                         one for me, and a row of opener clips ("Open like one of these").
+     Before you film     the checklist in Frost Buddy's shape: stop filming these (red), before you
+                         film, always say, skip these, what it is, the season.
+   Nothing left the database: the First seconds text bank and every idea field are still there, the
+   page just stops showing them first. #a=<id> still opens one idea on its own page (old links). */
+const TABS = [['ideas', 'Film one of these'], ['rules', 'Before you film']];
 
-/* Proof thumbnails on a card. A creator should SEE that an idea has real videos behind it. */
+/* Proof thumbnails. A creator should SEE that an idea has real videos behind it. */
 function proofTile(p, a, small) {
   const inspo = p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
   const out = p.kind === 'post' || p.kind === 'typed' || p.kind === 'inspo';
@@ -305,7 +311,7 @@ function proofTile(p, a, small) {
   const wellAttrs = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
   const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
     : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
-  const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? (String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, 'Another brand') || 'Another brand') : p.kind === 'upload' ? 'Clip' : 'Creator post';
+  const lbl = p.kind === 'meta' ? 'Ran as an ad' : inspo ? whoOf(p) : p.kind === 'upload' ? 'Clip' : 'Creator post';
   const cls = small ? 'pthumb' : 'wtile';
   const cap = small ? '' : `<span class="wcap"><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'}">${esc(lbl)}</span>${a ? `<a class="wname" href="#a=${esc(a.id)}">${esc(a.title)}</a>` : ''}</span>`;
   return out
@@ -313,55 +319,146 @@ function proofTile(p, a, small) {
     : `<button class="${cls}" ${attrs} title="${esc(lbl)}"><span class="well" ${wellAttrs}>${img}<span class="pbtn sm">${ic('play', 14)}</span></span>${cap}</button>`;
 }
 const isTheirs = p => p.kind === 'inspo' || (p.kind === 'upload' && /inspiration|another brand/i.test(p.who || ''));
+const whoOf = p => String(p.who || '').replace(/\s*\(inspiration\)\s*$/i, '').replace(/^another brand$/i, 'Another brand') || 'Another brand';
+const playable = p => p.kind === 'meta' || p.kind === 'upload';
+/* The video on a feed card: the brand's own first, another brand's clip when that is all we have. */
+function mainProof(a) {
+  const pr = (a.proof || []).filter(playable);
+  return pr.find(p => !isTheirs(p)) || pr[0] || null;
+}
 /* Watch first, in two groups: videos that ran for the brand, then other brands' videos we pulled in. */
 function watchBlock(a, withNames) {
   const ours = a.proof.filter(p => !isTheirs(p));
   const theirs = a.proof.filter(p => isTheirs(p) && p.kind !== 'inspo');
   const links = inspoList(a);
   if (!ours.length && !theirs.length && !links) return '';
-  return `<h2 class="disp sec-t">Watch first</h2><p class="sec-s">Get the shape, then make your version.</p>
+  return `<h3 class="disp sec-t">Watch first</h3><p class="sec-s">Get the shape, then make your version.</p>
     ${ours.length ? `<p class="lbl grp">From ${esc(D.brand.display_name)}</p><div class="wgrid">${ours.map(p => proofTile(p, withNames ? a : null, false)).join('')}</div>` : ''}
     ${theirs.length ? `<p class="lbl grp">Other brands doing the shape well</p><div class="wgrid">${theirs.map(p => proofTile(p, withNames ? a : null, false)).join('')}</div>` : ''}
     ${links}`;
 }
-function proofStrip(a) {
-  const pr = (a.proof || []).slice(0, 3);
-  if (!pr.length) return '';
-  const more = (a.proof || []).length - pr.length;
-  return `<div class="pstrip">${pr.map(p => proofTile(p, a, true)).join('')}${more > 0 ? `<a class="pmore" href="#a=${esc(a.id)}">+${more}</a>` : ''}</div>`;
+
+/* The numbered steps, in the order a creator works: the first second, say this first, at 3 seconds, then the shots. */
+function stepsOf(a) {
+  const shots = (a.shots || []).filter(x => x.text);
+  // The first shot usually restates the first second; drop it when we have a first second of our own.
+  const rest = a.visual_hook && shots.length && /^open/i.test(shots[0].label || '') ? shots.slice(1) : shots;
+  const alts = (a.alt_hooks || []).filter(Boolean);
+  return [
+    a.visual_hook ? ['The first second', a.visual_hook, alts] : null,
+    a.openers?.[0] ? ['Say this first', `“${a.openers[0]}”`] : null,
+    a.rehook ? ['At 3 seconds', a.rehook] : null,
+    ...rest.map(x => [x.label && !/^open/i.test(x.label) ? x.label : 'Then', x.text]),
+  ].filter(Boolean);
+}
+/* Everything under "How": the same block on a card, in the phone sheet and on the idea page. */
+function howInner(a) {
+  const steps = stepsOf(a);
+  const more = (a.openers || []).slice(1);
+  return `
+    ${a.who ? `<p class="para"><b>Who it is for.</b> ${esc(a.who)}</p>` : ''}
+    ${a.products ? `<p class="para"><b>Show.</b> ${esc(a.products)}</p>` : ''}
+    <h3 class="disp sec-t">How to film it</h3><p class="sec-s">In order. Your hands do something before you talk.</p>
+    <ol class="steps big">${steps.map(([l, t, al], k) => `<li><span class="n">${k + 1}</span><div><span class="lbl">${esc(l)}</span><p class="${/^Say/.test(l) ? 'hook' : ''}">${esc(t)}</p>${al && al.length ? `<div class="alts"><span class="lbl">Or open with</span><ul>${al.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}</div></li>`).join('')}</ol>
+    ${a.on_screen ? `<div class="card overlay"><div><p class="lbl">Text on screen</p><p>${esc(a.on_screen)}</p></div><button class="iconbtn" data-copytext aria-label="Copy the text">${ic('copy', 16)}</button></div>` : ''}
+    ${more.length ? `<h3 class="disp sec-t">Other lines you can say</h3><p class="sec-s">Word for word or bend them.</p>
+    <ul class="openers">${more.map((o, k) => `<li class="card"><span class="hook">&ldquo;${esc(o)}&rdquo;</span><button class="iconbtn" data-copy="${k + 1}" aria-label="Copy this line">${ic('copy', 16)}</button></li>`).join('')}</ul>` : ''}
+    ${(a.do_text || a.dont_text) ? `<div class="dd">
+      ${a.do_text ? `<div class="card do"><p class="lbl">Do</p><p>${esc(a.do_text)}</p></div>` : ''}
+      ${a.dont_text ? `<div class="card dont"><p class="lbl">Don't</p><p>${esc(a.dont_text)}</p></div>` : ''}
+    </div>` : ''}
+    ${a.why ? `<p class="why">${ic('lightbulb', 14)}<span><b>Why this works.</b> ${esc(a.why)}</span></p>` : ''}
+    ${watchBlock(a, false)}`;
+}
+function wireCopy(root, a) {
+  root.querySelectorAll('[data-copy]').forEach(el => el.onclick = async () => {
+    if (await copy(a.openers[+el.dataset.copy])) { toast('Line copied'); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1400); }
+  });
+  root.querySelector('[data-copytext]')?.addEventListener('click', async () => { if (await copy(a.on_screen)) toast('Text copied'); });
 }
 
-function card(a, lane) {
-  const own = sectionOf(a) || (lane && !lane.pinned ? lane : null);
-  const chips = [
-    own ? `<span class="tag" style="${toneVars(own.color)}">${svgI(own.icon_svg, 12)}${esc(own.name)}</span>` : '',
-    a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : '',
-  ].filter(Boolean).join('');
-  const n = a.proof.length;
-  return `<article class="card ang" data-open="${esc(a.id)}">
-    <div class="ang-top">${chips}</div>
-    <a class="disp ang-title" href="#a=${esc(a.id)}">${esc(a.title)}</a>
-    ${a.argument ? `<p class="ang-line">${esc(a.argument)}</p>` : ''}
-    ${a.openers?.[0] ? `<p class="hook">&ldquo;${esc(a.openers[0])}&rdquo;</p>` : ''}
-    ${proofStrip(a)}
-    <div class="ang-foot">${n ? `<span class="muted small">${n} video${n === 1 ? '' : 's'} to watch</span>` : '<span></span>'}<a class="open" href="#a=${esc(a.id)}">Open ${ic('arrow-right', 13)}</a></div>
+/* ---------- the feed ---------- */
+function feedMedia(a) {
+  const p = mainProof(a);
+  if (!p) return `<div class="fc-media fc-first"><span class="well"><span class="first">${ic('clapperboard', 22)}<b>Be the first</b><span>No video on this one yet. Yours could be it.</span></span></span></div>`;
+  const attrs = p.kind === 'meta' ? `data-play-ad="${esc(p.ad_id)}"` : `data-play-file="${esc(p.file)}"`;
+  const wellAttrs = p.kind === 'meta' ? `data-cover="${esc(p.ad_id)}"` : '';
+  const img = p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">`
+    : p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + p.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
+  const lbl = p.kind === 'meta' ? 'Ran as an ad' : isTheirs(p) ? `${whoOf(p)}, for the shape` : 'Creator video';
+  return `<button class="fc-media" ${attrs} aria-label="Play: ${esc(a.title)}"><span class="well" ${wellAttrs}>${img}<span class="pbtn">${ic('play', 18)}</span><span class="tag ${p.kind === 'meta' ? 'tag-green' : 'tag-chip'} fc-lbl">${esc(lbl)}</span></span></button>`;
+}
+function feedCard(a) {
+  const s = sectionOf(a);
+  const n = (a.proof || []).filter(playable).length;
+  return `<article class="card fc" id="c-${esc(a.id)}" data-id="${esc(a.id)}">
+    ${feedMedia(a)}
+    <div class="fc-body">
+      <div class="fc-chips">${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Film first</span>` : ''}${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}</div>
+      <h2 class="disp fc-t">${esc(a.title)}</h2>
+      ${a.argument ? `<p class="fc-line">${esc(a.argument)}</p>` : ''}
+      <div class="fc-btns">${filmBtn(a, 'btn-hero fc-film')}<button class="btn btn-line fc-how" data-how="${esc(a.id)}" aria-expanded="false">How${ic('chevron-down', 15)}</button>${n > 1 ? `<span class="small muted fc-n">${n} videos</span>` : ''}</div>
+    </div>
+    <div class="fc-panel" hidden data-panel="${esc(a.id)}"></div>
   </article>`;
 }
+/* How: inline under the card on a desktop, a bottom sheet on a phone. */
+function toggleHow(id, open) {
+  const a = findAngle(id); if (!a) return;
+  if (isPhone()) { openSheet(a); return; }
+  const panel = app.querySelector(`[data-panel="${CSS.escape(id)}"]`);
+  const btn = app.querySelector(`[data-how="${CSS.escape(id)}"]`);
+  if (!panel || !btn) return;
+  const show = open ?? panel.hidden;
+  if (show && !panel.innerHTML) {
+    panel.innerHTML = `<div class="fc-how-in">${howInner(a)}</div>`;
+    wirePlay(panel); wireCopy(panel, a); loadCovers(a.proof);
+  }
+  panel.hidden = !show;
+  btn.setAttribute('aria-expanded', String(show));
+  btn.innerHTML = show ? `Close${ic('chevron-up', 15)}` : `How${ic('chevron-down', 15)}`;
+}
+function closeSheet() { const w = document.getElementById('sheet'); if (w) { w.querySelectorAll('video').forEach(v => v.pause()); w.remove(); document.body.classList.remove('locked'); } }
+function openSheet(a) {
+  closeSheet();
+  const w = document.createElement('div');
+  w.className = 'sheet-wrap'; w.id = 'sheet';
+  w.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(a.title)}">
+    <div class="sheet-h" data-grab><span class="grab"></span><div class="sheet-t"><span class="lbl">How to film it</span><b class="disp">${esc(a.title)}</b></div><button class="iconbtn" data-close aria-label="Close">${ic('x', 18)}</button></div>
+    <div class="sheet-b">${howInner(a)}</div>
+    <div class="sheet-f">${filmBtn(a, 'btn-hero btn-full')}</div>
+  </div>`;
+  document.body.appendChild(w);
+  document.body.classList.add('locked');
+  const done = () => { closeSheet(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key === 'Escape') done(); };
+  document.addEventListener('keydown', k);
+  w.addEventListener('click', e => { if (e.target === w) done(); });
+  w.querySelector('[data-close]').onclick = done;
+  let y0 = null;
+  const h = w.querySelector('[data-grab]');
+  h.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
+  h.addEventListener('touchend', e => { if (y0 != null && e.changedTouches[0].clientY - y0 > 60) done(); y0 = null; }, { passive: true });
+  wirePlay(w); wireFilm(w); wireCopy(w, a); loadCovers(a.proof);
+}
 
-function lane(s) {
-  const list = s.angles;
-  if (!list.length) return '';
-  const cut = s.pinned ? 99 : isPhone() ? 3 : 6;
-  const extra = list.length > cut ? list.length - cut : 0;
-  const name = s.pinned ? 'Film these first' : s.name;
-  const line = s.pinned ? (s.line || 'The ideas we want most this week.') : s.line;
-  return `<section class="lane ${s.pinned ? 'lane-hot' : ''}" id="s-${esc(s.id)}" style="${toneVars(s.color)}">
-    <div class="lane-h">
-      <div class="lane-t"><span class="badge">${svgI(s.icon_svg, 16)}</span><h2 class="disp">${esc(name)}</h2><span class="num">${list.length}</span></div>
-      ${line ? `<span class="lane-s">${esc(line)}</span>` : ''}
-    </div>
-    <div class="grid">${list.map((a, i) => i >= cut ? card(a, s).replace('<article class="card ang"', '<article hidden class="card ang"') : card(a, s)).join('')}</div>
-    ${extra ? `<button class="btn btn-line btn-full more" data-more>Show ${extra} more ${ic('chevron-down', 15)}</button>` : ''}
+/* Open like one of these: the opener clips from the First seconds bank. Text-only openers are not shown. */
+function hookRow() {
+  const hs = (D.brand.hooks || []).filter(h => h.file);
+  if (!hs.length) return '';
+  return `<section class="openers-row">
+    <div class="wrap"><p class="lbl">Open like one of these</p><p class="sec-s">The first two seconds decide everything. Tap one, then do your version with our product.</p></div>
+    <div class="hk-row">${hs.map(h => `<button class="hk-clip" data-play-file="${esc(h.file)}"><span class="well"><video class="pv" data-src="${esc(API + h.file)}#t=1.2" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video><span class="pbtn sm">${ic('play', 14)}</span></span><span class="hk-cap">${esc(h.title)}</span></button>`).join('')}</div>
+  </section>`;
+}
+/* The dated window (Black Friday, Halloween, gift season) pinned on top with its one-line deal. The chart stays on Before you film. */
+function windowCard() {
+  const se = D.brand.season;
+  if (!se || !se.title) return '';
+  return `<section class="card win" style="${toneVars(se.color || '#7C3AED')}">
+    <span class="tag">${ic('calendar-days', 13)}${esc(se.title)}${se.until ? ` · until ${esc(se.until)}` : ''}</span>
+    ${se.line ? `<p class="win-line">${esc(se.line)}</p>` : ''}
+    ${se.next ? `<p class="win-next">${ic('megaphone', 14)}<span>${esc(se.next)}</span></p>` : ''}
   </section>`;
 }
 
@@ -378,36 +475,49 @@ function tabBar(cur) {
 }
 function shell(cur, inner) {
   const b = D.brand;
+  closeSheet();
   document.title = `${b.display_name} · ${TABS.find(t => t[0] === cur)?.[1] || 'What to film'}`;
   app.innerHTML = `${topbar()}${tabBar(cur)}<main>${inner}</main><div class="dock">${filmBtn(null, 'btn-hero btn-full')}</div>${footer()}`;
   app.querySelector('[data-home]').onclick = e => { e.preventDefault(); location.hash = 'ideas'; };
   wirePlay(app);
-  wireFilm();
+  wireFilm(app);
 }
 
+const inLane = a => F.sec === 'all' || (D.hot && F.sec === D.hot.id ? a.hot : a.section_id === F.sec);
 function renderIdeas() {
   const b = D.brand;
   const ls = lanes();
-  const shown = ls.filter(s => F.sec === 'all' || s.id === F.sec);
+  const list = uniq().filter(inLane);
+  const withVideo = list.filter(a => mainProof(a));
+  const first = list.filter(a => !mainProof(a));
   const pills = `<button class="pill ${F.sec === 'all' ? 'on' : ''}" data-sec="all">All ideas</button>` + ls.map(s => `<button class="pill ${F.sec === s.id ? 'on' : ''}" data-sec="${esc(s.id)}" style="${toneVars(s.color)}"><i class="dot"></i>${esc(s.pinned ? 'Film these first' : s.name)}</button>`).join('');
   shell('ideas', `
     <div class="wrap">
       <div class="page-h">
         <p class="lbl acc">${esc(b.display_name)} · creators</p>
-        <h1 class="disp">What to film for ${esc(b.display_name)}</h1>
-        <p class="intro">${esc(b.intro || 'Every idea here is what we want filmed right now. Steal the opener word for word or bend it.')} <a href="#rules" class="intro-link">Read "Before you film" first, it takes two minutes.</a></p>
+        <h1 class="disp">Film one of these</h1>
+        <p class="intro">${esc(b.intro || 'Watch one that worked, make your version, film it today. That is the whole job.')} <a href="#rules" class="intro-link">Read "Before you film" once, it takes two minutes.</a></p>
       </div>
-      <section class="card pickme">
-        <div><p class="pick-t">Not sure where to start?</p><p class="pick-s">We pick an idea at random, leaning to the ones we want most. On the idea page, Pick another gives you a new one.</p></div>
-        <button class="btn btn-hero" data-pick>${ic('shuffle', 16)} Pick one for me</button>
-      </section>
+      ${windowCard()}
+      <div class="pickrow"><button class="btn btn-hero" data-pick>${ic('shuffle', 16)} Pick one for me</button><span class="small muted">Not sure where to start? We pick, leaning to the ones we want most.</span></div>
     </div>
+    ${hookRow()}
     <div class="filters"><div class="wrap"><div class="frow"><span class="flbl">Show</span><div class="prow" role="group" aria-label="Lanes">${pills}</div></div></div></div>
-    <div class="wrap lanes">${shown.map(lane).join('') || `<div class="card empty">Nothing here yet.</div>`}</div>`);
+    <div class="wrap feed">
+      ${withVideo.map(feedCard).join('')}
+      ${first.length ? `<div class="feed-sep"><p class="lbl">Be the first</p><p class="sec-s">No video on these yet. Film one and it moves to the top.</p></div>${first.map(feedCard).join('')}` : ''}
+      ${!list.length ? '<div class="card empty">Nothing here yet.</div>' : ''}
+    </div>`);
   app.querySelectorAll('[data-sec]').forEach(p => p.onclick = () => { F.sec = p.dataset.sec; rerender(); });
-  app.querySelectorAll('[data-more]').forEach(btn => btn.onclick = () => { btn.closest('.lane').querySelectorAll('[hidden]').forEach(x => x.hidden = false); btn.remove(); });
-  app.querySelectorAll('[data-open]').forEach(c => c.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = 'a=' + c.dataset.open; }));
-  app.querySelector('[data-pick]').onclick = () => { const a = pickRandom(); if (a) location.hash = 'a=' + a.id + '&pick'; };
+  app.querySelectorAll('[data-how]').forEach(btn => btn.onclick = () => toggleHow(btn.dataset.how));
+  app.querySelector('[data-pick]').onclick = () => {
+    const a = pickRandom(); if (!a) return;
+    if (!inLane(a)) { F.sec = 'all'; rerender(); }
+    const c = app.querySelector(`#c-${CSS.escape(a.id)}`); if (!c) return;
+    c.classList.add('picked'); setTimeout(() => c.classList.remove('picked'), 2400);
+    c.scrollIntoView({ behavior: 'smooth', block: isPhone() ? 'start' : 'center' });
+    toggleHow(a.id, true);
+  };
   loadCovers(uniq().flatMap(a => a.proof));
 }
 /* Re-render in place: the filter bar stays where the thumb is. */
@@ -421,76 +531,31 @@ function rerender() {
   app.querySelectorAll('.prow').forEach((r, i) => { r.scrollLeft = rows[i] || 0; });
 }
 
-function renderWatch() {
-  const all = uniq();
-  const vids = all.flatMap(a => a.proof.filter(p => p.kind !== 'inspo' && !isTheirs(p)).map(p => [p, a]));
-  const theirs = all.flatMap(a => a.proof.filter(p => p.kind === 'upload' && isTheirs(p)).map(p => [p, a]));
-  const refs = [];
-  const seen = new Set();
-  for (const a of all) {
-    for (const x of (a.inspo || [])) { const k = x.url || x.brand + x.what; if (seen.has(k)) continue; seen.add(k); refs.push([x, a]); }
-    for (const p of a.proof.filter(p => p.kind === 'inspo')) { if (seen.has(p.url)) continue; seen.add(p.url); refs.push([{ brand: p.who, what: p.note, url: p.url }, a]); }
-  }
-  shell('watch', `
-    <div class="wrap">
-      <div class="page-h">
-        <p class="lbl acc">${esc(D.brand.display_name)} · creators</p>
-        <h1 class="disp">Watch these first</h1>
-        <p class="intro">Real videos made on these ideas, and other brands' videos that do the shape well. Get the shape, make your version.</p>
-      </div>
-      ${vids.length ? `<section class="wsec"><h2 class="disp sec-t">Videos that ran for ${esc(D.brand.display_name)} <span class="num">${vids.length}</span></h2><p class="sec-s">Tap to play. The name under each one is the idea it came from.</p>
-        <div class="wgrid">${vids.map(([p, a]) => proofTile(p, a, false)).join('')}</div></section>` : ''}
-      ${theirs.length ? `<section class="wsec"><h2 class="disp sec-t">Other brands doing the shape well <span class="num">${theirs.length}</span></h2><p class="sec-s">Tap to play. Take the move, not the product.</p>
-        <div class="wgrid">${theirs.map(([p, a]) => proofTile(p, a, false)).join('')}</div></section>` : ''}
-      ${refs.length ? `<section class="wsec"><h2 class="disp sec-t">More references (links) <span class="num">${refs.length}</span></h2><p class="sec-s">Ads we could not pull in yet. Each one says which idea it belongs to.</p>
-        <ul class="inspo">${refs.map(([x, a]) => `<li class="card">${ic('lightbulb', 16)}<div>${x.brand ? `<b>${esc(x.brand)}</b>` : ''}${x.what ? `<span>${esc(x.what)}</span>` : ''}<a class="wname" href="#a=${esc(a.id)}">For: ${esc(a.title)}</a></div>${x.url ? `<a class="btn btn-line btn-sm" href="${esc(x.url)}" target="_blank" rel="noopener">Watch ${ic('external-link', 13)}</a>` : ''}</li>`).join('')}</ul></section>` : ''}
-      ${!vids.length && !theirs.length && !refs.length ? '<div class="card empty">No examples yet. Yours could be the first.</div>' : ''}
-    </div>`);
-  loadCovers(vids.map(([p]) => p));
+/* Before you film: Frost Buddy's shape. The brand's rules split into "always say" and "skip these"
+   by how the team wrote each one (a rule that opens with never / don't is a skip). */
+const SKIP_RE = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
+function checkCard(title, icon, items, mark, line) {
+  if (!items.length) return '';
+  return `<section class="card chk"><div class="lane-h"><div class="lane-t"><span class="badge ${mark === 'no' ? 'warn' : ''}">${ic(icon, 16)}</span><h2 class="disp">${esc(title)}</h2></div>${line ? `<span class="lane-s">${esc(line)}</span>` : ''}</div>
+    <ol class="guide-list">${items.map((x, i) => `<li><span class="n ${mark}">${mark === 'ok' ? ic('check', 13) : mark === 'no' ? ic('x', 13) : i + 1}</span><div>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<span class="${x.title ? '' : 'solo'}">${esc(x.text)}</span>` : ''}</div></li>`).join('')}</ol></section>`;
 }
-
-/* First seconds: the bank of ways to open a video. This brand's own first, then the shared ones.
-   An entry with a stored clip plays it; one with only a link opens the ad. */
-function hookTile(h, i) {
-  const media = h.file ? `<button class="hk-play" data-play-file="${esc(h.file)}" aria-label="Play an example"><span class="well"><video class="pv" data-src="${esc(API + h.file)}#t=0.5" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video><span class="pbtn sm">${ic('play', 14)}</span></span></button>`
-    : h.url ? `<a class="hk-play" href="${esc(h.url)}" target="_blank" rel="noopener" aria-label="See an example"><span class="well"><span class="pbtn sm">${ic('external-link', 14)}</span></span></a>` : '';
-  return `<li class="card hk ${media ? 'has-media' : ''}"><span class="n">${i + 1}</span><div class="hk-body"><b>${esc(h.title)}</b><p>${esc(h.how)}</p>${media ? `<span class="tiny">${h.file ? 'Tap to watch an example' : 'See an example'}</span>` : ''}</div>${media}</li>`;
-}
-function renderHooks() {
-  const hs = D.brand.hooks || [];
-  const shared = hs.filter(h => h.kind !== 'brand');
-  const own = hs.filter(h => h.kind === 'brand');
-  shell('hooks', `
-    <div class="wrap">
-      <div class="page-h">
-        <p class="lbl acc">${esc(D.brand.display_name)} · creators</p>
-        <h1 class="disp">First seconds</h1>
-        <p class="intro">The first second decides whether there is a second second. Every idea on this page can open with any of these. Pick one, or make up your own and send it to us.</p>
-      </div>
-      ${own.length ? `<h2 class="disp sec-t">Made for ${esc(D.brand.display_name)}</h2><p class="sec-s">Openers built around this product.</p><ol class="hk-list">${own.map(hookTile).join('')}</ol>` : ''}
-      ${shared.length ? `<h2 class="disp sec-t">Ways to open any video</h2><p class="sec-s">They work for every brand. The product changes, the move does not.</p><ol class="hk-list">${shared.map(hookTile).join('')}</ol>` : ''}
-      ${!hs.length ? '<div class="card empty">The team is still writing these.</div>' : ''}
-      <section class="card rules-end"><p>Ready? <a href="#ideas">Pick an idea</a>. Each one suggests an opener and two more ways in.</p></section>
-    </div>`);
-}
-
 function renderRules() {
   const b = D.brand;
-  const g = b.guide || [];
+  const rules = b.rules || [];
   shell('rules', `
     <div class="wrap">
       <div class="page-h">
         <p class="lbl acc">${esc(b.display_name)} · creators</p>
         <h1 class="disp">Before you film</h1>
-        <p class="intro">Two minutes. What the product is, what you can say, what we have enough of, and how to keep people watching.</p>
+        <p class="intro">Two minutes, once. What we have enough of, how to hold attention, what to say and what to skip.</p>
       </div>
-      ${aboutCard()}
-      ${rulesCard()}
       ${avoidCard()}
-      ${g.length ? `<section class="card guide"><div class="lane-h"><div class="lane-t"><span class="badge">${ic('eye', 16)}</span><h2 class="disp">How to keep them watching</h2></div><span class="lane-s">Talking to the camera is fine. Talking to the camera while nothing happens is not.</span></div>
-        <ol class="guide-list">${g.map((x, i) => `<li><span class="n">${i + 1}</span><div>${x.title ? `<b>${esc(x.title)}</b>` : ''}${x.text ? `<span>${esc(x.text)}</span>` : ''}</div></li>`).join('')}</ol></section>` : ''}
+      ${checkCard('Before you film', 'list-checks', b.guide || [], 'num', 'Talking to the camera is fine. Talking to the camera while nothing happens is not.')}
+      ${checkCard('Always say', 'megaphone', rules.filter(r => !SKIP_RE.test(r)).map(text => ({ text })), 'ok', 'Say it the way the site says it.')}
+      ${checkCard('Skip these', 'ban', rules.filter(r => SKIP_RE.test(r)).map(text => ({ text })), 'no', 'Claims we cannot make and things that get a video dropped.')}
+      ${aboutCard()}
       ${seasonCard()}
-      <section class="card rules-end"><p>Ready? <a href="#ideas">Pick an idea</a>, <a href="#watch">watch the examples</a>, or see the <a href="#hooks">ways to open a video</a>.</p></section>
+      <section class="card rules-end"><p>Ready? <a href="#ideas">Film one of these</a>.</p></section>
     </div>`);
   wireChart();
 }
@@ -509,7 +574,7 @@ function wirePlay(root) {
   root.querySelectorAll('[data-play-file]').forEach(el => el.onclick = e => { e.stopPropagation(); playFile(API + el.dataset.playFile); });
 }
 
-/* ---------- one angle ---------- */
+/* ---------- one angle (old links: #a=<id>) ---------- */
 function renderAngle(id, picked) {
   const a = findAngle(id);
   if (!a) { location.hash = 'ideas'; return; }
@@ -519,47 +584,19 @@ function renderAngle(id, picked) {
   const next = list[(i + 1) % list.length];
   const prev = list[(i - 1 + list.length) % list.length];
   const other = pickRandom(a.id);
-  const shots = (a.shots || []).filter(x => x.text);
-  // The first shot usually restates the first second; drop it when we have a first second of our own.
-  const rest = a.visual_hook && shots.length && /^open/i.test(shots[0].label || '') ? shots.slice(1) : shots;
-  const alts = (a.alt_hooks || []).filter(Boolean);
-  const steps = [
-    a.visual_hook ? ['The first second', a.visual_hook, alts] : null,
-    a.openers?.[0] ? ['Say this first', `“${a.openers[0]}”`] : null,
-    a.rehook ? ['At 3 seconds', a.rehook] : null,
-    ...rest.map(x => [x.label && !/^open/i.test(x.label) ? x.label : 'Then', x.text]),
-  ].filter(Boolean);
-  const more = (a.openers || []).slice(1);
   shell('ideas', `
     <div class="wrap det">
       <div class="det-main" style="${s ? toneVars(s.color) : ''}">
         <div class="det-top"><a class="back" href="#ideas">${ic('arrow-left', 15)}All ideas</a>${picked ? `<span class="picked">${ic('shuffle', 13)} Picked at random for you</span>` : ''}</div>
         <div class="tags">
-          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Film these first</span>` : ''}
+          ${a.hot && D.hot ? `<span class="tag" style="${toneVars(D.hot.color)}">${svgI(D.hot.icon_svg, 12)}Film first</span>` : ''}
           ${s ? `<span class="tag" style="${toneVars(s.color)}">${svgI(s.icon_svg, 12)}${esc(s.name)}</span>` : ''}
           ${a.format ? `<span class="tag tag-chip">${esc(a.format)}</span>` : ''}
         </div>
         <h1 class="disp">${esc(a.title)}</h1>
         ${a.argument ? `<p class="lead-line">${esc(a.argument)}</p>` : ''}
-        ${a.who ? `<p class="para"><b>Who it is for.</b> ${esc(a.who)}</p>` : ''}
-        ${a.products ? `<p class="para"><b>Show.</b> ${esc(a.products)}</p>` : ''}
         <div class="only-narrow"><div class="card filmcard">${filmBtn(a, 'btn-hero btn-full')}${other ? `<a class="btn btn-line btn-full" href="#a=${esc(other.id)}&pick">${ic('shuffle', 15)} Pick another</a>` : ''}</div></div>
-
-        ${watchBlock(a, false)}
-
-        <h2 class="disp sec-t">How to film it</h2><p class="sec-s">In order. Your hands do something before you talk.</p>
-        <ol class="steps big">${steps.map(([l, t, al], k) => `<li><span class="n">${k + 1}</span><div><span class="lbl">${esc(l)}</span><p class="${/^Say/.test(l) ? 'hook' : ''}">${esc(t)}</p>${al && al.length ? `<div class="alts"><span class="lbl">Or open with</span><ul>${al.map(x => `<li>${esc(x)}</li>`).join('')}</ul><a href="#hooks">All the ways to open a video ${ic('arrow-right', 12)}</a></div>` : (k === 0 && (D.brand.hooks || []).length ? `<div class="alts"><a href="#hooks">Other ways to open it ${ic('arrow-right', 12)}</a></div>` : '')}</div></li>`).join('')}</ol>
-        ${a.on_screen ? `<div class="card overlay"><div><p class="lbl">Text on screen</p><p>${esc(a.on_screen)}</p></div><button class="iconbtn" data-copytext aria-label="Copy the text">${ic('copy', 16)}</button></div>` : ''}
-
-        ${more.length ? `<h2 class="disp sec-t">Other lines you can say</h2><p class="sec-s">Word for word or bend them.</p>
-        <ul class="openers">${more.map((o, k) => `<li class="card"><span class="hook">&ldquo;${esc(o)}&rdquo;</span><button class="iconbtn" data-copy="${k + 1}" aria-label="Copy this line">${ic('copy', 16)}</button></li>`).join('')}</ul>` : ''}
-
-        ${(a.do_text || a.dont_text) ? `<div class="dd">
-          ${a.do_text ? `<div class="card do"><p class="lbl">Do</p><p>${esc(a.do_text)}</p></div>` : ''}
-          ${a.dont_text ? `<div class="card dont"><p class="lbl">Don't</p><p>${esc(a.dont_text)}</p></div>` : ''}
-        </div>` : ''}
-        ${a.why ? `<p class="why">${ic('lightbulb', 14)}<span><b>Why this works.</b> ${esc(a.why)}</span></p>` : ''}
-
+        ${howInner(a)}
         <div class="pn">
           <a class="card pn-a" href="#a=${esc(prev.id)}">${ic('arrow-left', 16)}<span><span class="lbl">Previous</span><b>${esc(prev.title)}</b></span></a>
           <a class="card pn-a r" href="#a=${esc(next.id)}"><span><span class="lbl">Next idea</span><b>${esc(next.title)}</b></span>${ic('arrow-right', 16)}</a>
@@ -568,15 +605,12 @@ function renderAngle(id, picked) {
       <aside class="det-side">
         <div class="card filmcard">${filmBtn(a, 'btn-hero btn-full')}<p>${D.brand.submit_url ? `Opens our ${esc(plat())} campaign and copies the idea's name for your submission note.` : `Submit on ${esc(plat())} like always, with the idea's name in your note.`}</p></div>
         ${other ? `<a class="btn btn-line btn-full" href="#a=${esc(other.id)}&pick">${ic('shuffle', 15)} Pick another for me</a>` : ''}
-        <a class="card pn-a" href="#rules"><span><span class="lbl">Two minutes</span><b>Before you film: the rules</b></span>${ic('chevron-right', 16)}</a>
+        <a class="card pn-a" href="#rules"><span><span class="lbl">Two minutes</span><b>Before you film: the checklist</b></span>${ic('chevron-right', 16)}</a>
       </aside>
     </div>`);
   app.querySelector('.dock').innerHTML = `${filmBtn(a, 'btn-hero btn-full')}${other ? `<a class="btn btn-line dock-next" href="#a=${esc(other.id)}&pick" aria-label="Pick another">${ic('shuffle', 18)}</a>` : ''}`;
-  wireFilm();
-  app.querySelectorAll('[data-copy]').forEach(el => el.onclick = async () => {
-    if (await copy(a.openers[+el.dataset.copy])) { toast('Line copied'); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1400); }
-  });
-  app.querySelector('[data-copytext]')?.addEventListener('click', async () => { if (await copy(a.on_screen)) toast('Text copied'); });
+  wireFilm(app);
+  wireCopy(app, a);
   loadCovers(a.proof);
   swipe(app.querySelector('.det-main'), prev.id, next.id);
   scrollTo(0, 0);
@@ -659,9 +693,8 @@ function route() {
   const h = location.hash.replace(/^#/, '');
   const m = h.match(/^a=([a-f0-9]+)(&pick)?/);
   if (m) return renderAngle(m[1], !!m[2]);
-  if (h === 'watch') { renderWatch(); scrollTo(0, 0); return; }
   if (h === 'rules') { renderRules(); scrollTo(0, 0); return; }
-  if (h === 'hooks') { renderHooks(); scrollTo(0, 0); return; }
+  if (h === 'watch' || h === 'hooks') history.replaceState(null, '', '#ideas');   // the old tabs: the feed holds them now
   renderIdeas();
   if (LIST_Y) { scrollTo(0, LIST_Y); LIST_Y = 0; }
 }
