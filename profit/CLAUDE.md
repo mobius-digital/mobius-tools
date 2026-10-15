@@ -3322,3 +3322,12 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   closes, the call buttons share a row, the stage is capped at 50vh so Notes start on the first screen). Launch to
   Meta shows a 200px picture; a batch row is tick + thumb + name on one line, fields full width under it. Any new
   small control inside the viewer or a Launch row needs the same `min-height:0` treatment.
+- **Fourth pass (same day): the viewer's Notes are a sheet; the Right now row.** Under 720 phone.css hides
+  `.rv-side` inside the viewer and phone.js (`reviewFix`, run by the body observer after every review-ui repaint)
+  puts a "Notes · N" pill at the end of the strip; the pill, a pin or number tag on the ad, and Ask for changes
+  host the REAL `.rv-side` in `#lxSheet` (`.lxs-notes`, z 9700; re-hosted after each paint, put back on close).
+  Enter-to-post in the hosted panel is phone.js's (review-ui's own looks inside the viewer root); review-ui.js's
+  Reply reads its box beside the button (v9) for the same reason. **A new review-ui.js handler must find its
+  inputs from the clicked element, never from the viewer root, or it breaks in the sheet.** Day check's Right now
+  actions are a full-width row under the title (`#dkNow .v2h > .find`). review.html (the client link) has no
+  phone layer yet.

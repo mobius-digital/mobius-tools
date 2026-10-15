@@ -99,9 +99,39 @@ the audit measured page bodies only, never the sheets, menus or the brief editor
   (`.lnb-row > div:last-child{display:contents}` under 600). Both windows were checked at 375 with stub payloads
   (no card on the real data has an uploaded version yet; nothing was written to Meta).
 
+## Fourth pass, the same day: the viewer's Notes sheet and the Right now row
+
+- **Notes are a bottom sheet** (phone.js `reviewFix` / `openNotes` / `hostNotes`; phone.css?v=4, phone.js?v=3).
+  Under 720 phone.css hides `.rv-side` inside the viewer, the main column fills the screen (the ad takes up to
+  `100dvh - 300px`, the strip sits at the bottom), and a "Notes · N" pill (N = the open notes on this version,
+  read from the tab's own count) sits sticky at the right end of the strip. The pill, a pin or number tag on the
+  ad, and Ask for changes open `#lxSheet` hosting the REAL `.rv-side` node, titled with the ad's label.
+  review-ui.js repaints the whole viewer on every change, so the body MutationObserver (the same debounced one
+  Filters and segFix use) re-hosts the new node after each paint and the stale copy leaves; the tabs are pinned at
+  the top of the sheet, the note box at the bottom (a messages app), and the sheet sits above the viewer
+  (`#lxSheet.lxs-notes`, z-index 9700). Closing (x, scrim, swipe, Escape, Back on the viewer, widening past 720)
+  puts the node back into `.rv-b`.
+- **Two handlers read through the viewer root and had to change.** Enter-to-post: review-ui.js's keydown looks
+  for the Post button inside the viewer, so phone.js's capture keydown posts (or sends a reply) when the typing
+  happens in the hosted panel; Shift+Enter is still a new line. Reply: the button read its box through the viewer
+  root, so review-ui.js now reads it beside the button (`rs.closest('.rv-rbox')`, review-ui.js?v=9 on index.html
+  and review.html). Escape closes only the sheet (capture + stopPropagation), never the viewer under it, and
+  leaves a box being typed in to review-ui.js, which blurs it.
+- **Day check > Right now**: the card's action slot (`.v2h > .find`: `flex:1; min-width:200px`) sat beside the
+  title and stacked its two buttons. Under 720 it is a full-width row under the title (it may run under the
+  Export icon, which sits on the title row), so Refresh and "What are advertisers saying?" share one row and
+  still wrap when they do not fit.
+- Checked at 375 with stub payloads (no real card has an uploaded version): the pill count; open; close puts the
+  node back; a pin opens the sheet on its note (ringed, scrolled into view); post with Enter (pending, then saved,
+  the count 2 to 3); Shift+Enter; Resolve (the count follows, the sheet stays); the Versions tab; a reply by the
+  button and by Enter; Ask for changes opens the sheet with the box focused and "Send back"; Escape twice (blur,
+  then the sheet); Back with the sheet open (nothing orphaned); the next ad's title and empty state. At 768 the
+  viewer stacks as before, there is no pill and a pin highlights in place. Day check, Production and a card's
+  Ads tab have no sideways scroll at either width.
+
 ## Still open
 
-- The Day check "Right now" card stacks its two buttons full width; fine, but a row of two would read faster.
-- The review viewer's Notes panel sits under the strip (a scroll); a bottom sheet for notes would match the rest
-  of the phone layer, at the cost of hiding the ad while reading them. Left as a scroll for now.
+- The public client link (`review.html`) does not load the phone layer and does not carry `data-ui="v2"`, so
+  none of phone.css's viewer rules apply there: on a client's phone it is review-ui.js's own 900px stack. It
+  deserves a pass of its own (load phone.css + phone.js there, or fold the phone rules into review-ui.js).
 - Not checked on a real device, only the Browser pane at 375 and 768.

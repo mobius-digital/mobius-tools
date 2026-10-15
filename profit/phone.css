@@ -39,6 +39,10 @@
   [data-ui="v2"] .dk .dk-k{font-size:11px;justify-self:start}
   [data-ui="v2"] .dk .dk-acts{justify-content:flex-start}
   [data-ui="v2"] .dk .dk-acts .v2btn{height:38px;padding:0 13px}
+  /* Day check > Right now: the card's action slot sat beside the title with a 200px minimum (v2 .find), so its two
+     buttons stacked; on its own full-width row under the title they fit side by side (and still wrap when not) */
+  [data-ui="v2"] #dkNow .v2h > .find{flex:1 1 100%;min-width:0}
+  [data-ui="v2"] #dkNow .v2h.lx-hx > .find{margin-right:-38px}   /* the row may run under the Export icon, which sits on the title row */
   /* Day check: the 30-day strip scrolls sideways with 34px squares instead of 18px slivers */
   [data-ui="v2"] .dk .dk-days{grid-template-columns:repeat(30,34px);padding-bottom:4px}
   [data-ui="v2"] .dk .dk-day i{font-size:11px}
@@ -118,6 +122,15 @@
 #lxSheet .lc-pick-menu [data-act],#lxSheet .lc-pick-add{display:flex;align-items:center;width:100%;min-height:48px;padding:6px 12px;border:0;border-radius:var(--r-md,10px);background:transparent;color:var(--ink);font:inherit;font-size:15px;text-align:left;cursor:pointer}
 #lxSheet .lc-pick-menu [data-act].on{background:var(--brand-soft);font-weight:600}
 #lxSheet .lc-pick-add{color:var(--brand);font-weight:600}
+@media (min-width:721px){.lxs-notes-btn{display:none}}   /* a phone turned sideways: the pill waits for the next repaint */
+/* the review viewer's Notes panel, hosted in the sheet: above the viewer, full width, tabs pinned at the top and the
+   note box pinned at the bottom like a messages app, the list scrolling between them */
+#lxSheet.lxs-notes{z-index:9700}
+#lxSheet.lxs-notes .lxs-b{padding:0}
+#lxSheet .rv-side{display:flex;flex-direction:column;border:0;background:transparent}
+#lxSheet .rv-tabs{position:sticky;top:0;z-index:1;background:var(--surface);padding:0 14px}
+#lxSheet .rv-list{flex:none;overflow:visible;padding:10px 14px 16px}
+#lxSheet .rv-box{position:sticky;bottom:0;background:var(--surface);padding:12px 14px 14px;box-shadow:0 -8px 16px -12px rgba(0,0,0,.25)}
 body.lxs-open{overflow:hidden}
 /* top-bar menus at the bottom */
 #lxMenuScrim{position:fixed;inset:0;z-index:79;background:rgba(0,0,0,.42)}
@@ -187,7 +200,14 @@ body.lxs-open{overflow:hidden}
   [data-ui="v2"] .rv-h [data-ask],[data-ui="v2"] .rv-h [data-approve]{flex:1 1 40%}
   [data-ui="v2"] .rv-h [data-ask]{margin-left:0}
   [data-ui="v2"] .rv-stage{min-height:0;padding:12px 12px 72px}
-  [data-ui="v2"] .rv-media img,[data-ui="v2"] .rv-media video{max-height:50vh}
+  /* Notes are a bottom sheet (fourth pass; phone.js hosts the real .rv-side node in #lxSheet). The panel leaves
+     the layout, the main column fills the screen so the strip sits at the bottom, the ad takes what is left, and
+     a "Notes · N" pill sits at the right end of the strip, sticky, so it is always under the thumb. */
+  [data-ui="v2"] .rv-scrim .rv-side{display:none}
+  [data-ui="v2"] .rv-scrim .rv-main{flex:1 1 auto;min-height:0}
+  [data-ui="v2"] .rv-media img{max-height:calc(100dvh - 300px)}
+  [data-ui="v2"] .rv-media video{max-height:calc(100dvh - 340px)}
+  [data-ui="v2"] .rv-strip .lxs-notes-btn{position:sticky;right:12px;margin-left:auto;flex:none;height:40px;min-height:0;padding:0 14px;border-radius:999px;font-weight:600;box-shadow:0 0 0 6px var(--surface)}
   [data-ui="v2"] .rv-bar{bottom:12px;padding:4px}
   [data-ui="v2"] .rv-tool{width:40px;height:40px;min-height:0}
   [data-ui="v2"] .rv-sw{width:22px;height:22px;min-height:0;padding:0}

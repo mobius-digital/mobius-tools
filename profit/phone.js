@@ -7,6 +7,10 @@
    - Every top-bar menu (.hd-period.open .hd-per-menu: period, attribution, PillMenu, Columns, Export) is drawn as
      a bottom sheet by phone.css; this file only adds the scrim behind it and closes on a scrim tap.
    - The side panel (#v2panel, card sheets included) slides UP (phone.css); modals already sat at the bottom.
+   - The review viewer's Notes panel (.rv-side, review-ui.js) is the same sheet hosting the REAL node (fourth pass):
+     a "Notes · N" pill at the end of the strip opens it, a pin or number tag on the ad opens it on that note, Ask
+     for changes opens it with the note box focused. review-ui.js repaints the whole viewer on every change, so
+     the node is re-hosted after each paint; every handler stays review-ui.js's own.
    Loads deferred, after the boot script, so NAV, show(), drawPick(), closePops() exist. Nothing here runs on a
    desktop or an iPad: PHONE() gates every entry point, and a resize past 720 closes what is open. */
 (() => {
@@ -31,11 +35,25 @@
     const move = e => { if (y0 == null) return; dy = Math.max(0, e.clientY - y0); box.style.transform = `translateY(${dy}px)`; };
     const end = () => { if (y0 == null) return; box.style.transition = ''; box.style.transform = ''; if (dy > 80) close(); y0 = null; };
     ['.lxs-grab', '.lxs-h'].forEach(s => { const el = host.querySelector(s); el.addEventListener('pointerdown', start); el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && host && !host.hidden) close(); });
+    /* Escape closes the sheet and nothing under it (the review viewer also listens for Escape); a box being typed in
+       is left to its own page (review-ui.js blurs it) */
+    document.addEventListener('keydown', e => {
+      if (!host || host.hidden) return;
+      /* Enter posts a note or a reply typed in the hosted Notes panel (review-ui.js looks for the button inside the
+         viewer, where the panel no longer is); Shift+Enter stays a new line, as in the viewer */
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && host.classList.contains('lxs-notes') && e.target.matches && e.target.matches('textarea') && host.contains(e.target)) {
+        const b = host.querySelector(e.target.closest('.rv-rbox') ? '[data-rsend]' : '[data-post]'); if (b) { e.preventDefault(); e.stopPropagation(); b.click(); } return;
+      }
+      if (e.key !== 'Escape') return;
+      const a = document.activeElement; if (a && host.contains(a) && a.matches('input,textarea')) return;
+      e.stopPropagation(); close();
+    }, true);
     return host;
   }
   function open(title, html, wire) {
     const h = ensure(); clearTimeout(timer);
+    if (moved && movedFrom) { movedFrom.appendChild(moved); moved = null; movedFrom = null; }
+    h.classList.remove('lxs-notes'); notesOn = false;
     h.querySelector('#lxsTitle').textContent = title || '';
     h.querySelector('.lxs-h').classList.toggle('bare', !title);
     const b = h.querySelector('.lxs-b'); b.innerHTML = html || ''; b.scrollTop = 0;
@@ -45,7 +63,7 @@
   }
   function close() {
     if (!host || host.hidden) return;
-    host.classList.remove('on'); document.body.classList.remove('lxs-open');
+    host.classList.remove('on', 'lxs-notes'); document.body.classList.remove('lxs-open'); notesOn = false;
     if (moved && movedFrom) { movedFrom.appendChild(moved); moved = null; movedFrom = null; }
     timer = setTimeout(() => { host.hidden = true; host.querySelector('.lxs-b').innerHTML = ''; }, 240);
   }
@@ -141,6 +159,41 @@
     b.classList.toggle('on', n > 0);
   }
 
+  /* ---------- the review viewer: Notes are a bottom sheet hosting the real .rv-side node ---------- */
+  let notesOn = false;
+  const viewer = () => document.querySelector('.rv-scrim');
+  function hostNotes() {   /* the viewer's CURRENT .rv-side goes in the sheet; after a repaint it is a new node and the old copy leaves */
+    const w = viewer(); const side = w && w.querySelector('.rv-b > .rv-side'); if (!side) return;
+    const b = host.querySelector('.lxs-b'); const old = b.querySelector('.rv-side');
+    moved = side; movedFrom = side.parentElement; b.appendChild(side); if (old && old !== side) old.remove();
+    const who = w.querySelector('.rv-who b'); const t = host.querySelector('#lxsTitle'); if (who && t && t.textContent !== who.textContent) t.textContent = who.textContent;
+  }
+  function openNotes(hi) {
+    const w = viewer(); if (!w || !PHONE()) return;
+    if (notesOn && host && !host.hidden) hostNotes();
+    else { const who = w.querySelector('.rv-who b'); open(who ? who.textContent : 'Notes', '', () => { host.classList.add('lxs-notes'); notesOn = true; hostNotes(); }); }
+    if (hi) requestAnimationFrame(() => requestAnimationFrame(() => { const n = host.querySelector('.rv-note.hi'); if (n) n.scrollIntoView({ block: 'center' }); }));
+  }
+  function reviewFix() {
+    const w = viewer();
+    if (!w) { if (notesOn) close(); return; }
+    if (!PHONE()) return;
+    const strip = w.querySelector('.rv-strip'); if (!strip) return;
+    let btn = strip.querySelector('.lxs-notes-btn');
+    if (!btn) { btn = document.createElement('button'); btn.type = 'button'; btn.className = 'rv-btn lxs-notes-btn'; btn.addEventListener('click', () => openNotes()); strip.appendChild(btn); }
+    const n = document.querySelector('.rv-tab[data-tab="notes"] .rv-hint'); const c = n ? n.textContent.trim() : '';
+    const t = c && c !== '0' ? `Notes · ${c}` : 'Notes'; if (btn.textContent !== t) btn.textContent = t;
+    if (notesOn && host && !host.hidden) hostNotes();
+  }
+  /* a pin or number tag on the ad opens the sheet on that note; Ask for changes opens it with the note box ready.
+     Both run after review-ui.js's own click handler has repainted (it sits on the element itself), so by the time
+     the click reaches the document the element is detached: match it on its own classes, not on an ancestor. */
+  document.addEventListener('click', e => {
+    if (!PHONE() || !viewer()) return;
+    if (e.target.closest('.rv-pin[data-pin], .rv-num[data-pin]')) { setTimeout(() => openNotes(true), 0); return; }
+    if (e.target.closest('.rv-btn[data-ask]')) setTimeout(() => { openNotes(); const t = host && host.querySelector('[data-body]'); if (t) t.focus(); }, 0);
+  });
+
   /* ---------- the page tabs: the open tab scrolls into view, and the row fades at its edge when more exist ---------- */
   function segFix() {
     const seg = $('#v2seg'); if (!seg || seg.hidden) return;
@@ -153,7 +206,7 @@
   }
 
   let tick = 0;
-  new MutationObserver(() => { clearTimeout(tick); tick = setTimeout(() => { filtersBtn(); if (PHONE()) segFix(); }, 60); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+  new MutationObserver(() => { clearTimeout(tick); tick = setTimeout(() => { filtersBtn(); reviewFix(); if (PHONE()) segFix(); }, 60); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
 
   /* ---------- widen past a phone: nothing stays open ---------- */
   matchMedia('(max-width:720px)').addEventListener('change', e => { if (!e.matches) { close(); syncScrim(); } });
