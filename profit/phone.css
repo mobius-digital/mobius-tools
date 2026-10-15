@@ -267,3 +267,28 @@ body.lxs-open{overflow:hidden}
 @media (display-mode:standalone) and (max-width:979px){
   [data-ui="v2"] .topbar{padding-top:calc(24px + env(safe-area-inset-top,0px))}
 }
+
+/* ---------- Ask lives at the bottom on a phone (2026-10-15, Cole: "should this chat bar even be at the top?") ----------
+   The top bar's ask bar was the hardest thing to reach with a thumb and sat in the top edge iOS blurs. Under 720 it is
+   hidden, so row 1 of the top bar is the helper badge and the date and attribution pills; the round Ask button beside
+   the tabs (#tbAsk, index.html) opens the chat, which slides UP full screen with its box at the bottom. The desktop
+   and the iPad keep the ask bar at the top. */
+@media (max-width:720px){
+  [data-ui="v2"] .topbar .v2ask{display:none}
+  [data-ui="v2"] .tabbar{align-items:center}
+  [data-ui="v2"] .tabbar #tbAsk{flex:none;width:48px;height:48px;min-height:0;padding:0;margin:0 2px 0 6px;border-radius:50%;border:0;background:var(--brand);color:var(--on-brand,#fff);box-shadow:0 6px 16px -6px color-mix(in srgb,var(--brand) 70%,transparent);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+  [data-ui="v2"] .tabbar #tbAsk[hidden]{display:none}
+  [data-ui="v2"] .tabbar #tbAsk svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  [data-ui="v2"] .tabbar #tbAsk:active{transform:scale(.94)}
+  /* the chat: up from the bottom, full screen, its first row below the status bar */
+  #ask{top:0;left:0;right:0;width:100vw;padding-top:env(safe-area-inset-top,0px);box-shadow:none;transform:translateY(100%);transition:transform 260ms var(--ease,ease)}
+  #ask.on{transform:none}
+  /* its header row: the 44px phone rule had made New, Chats and Reports tall pills and wrapped the title */
+  #ask .ch2{gap:6px;padding:12px 14px 10px;flex-wrap:nowrap}
+  #ask .ch2 b{white-space:nowrap;margin-right:auto}
+  #ask .ch2 .ctl{min-height:0;height:34px;padding:0 12px;white-space:nowrap;flex:none}
+  #ask .ch2 .x{min-height:0;width:34px;height:34px;flex:none;margin-left:0}
+}
+@media (display-mode:standalone) and (max-width:720px){
+  #ask{padding-top:calc(14px + env(safe-area-inset-top,0px))}
+}

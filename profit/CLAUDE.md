@@ -3365,6 +3365,9 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   `env(safe-area-inset-top)` on the top bar (under 980), `#v2panel` and `.rv-scrim`; a new full-screen layer
   needs the same inset or its first row sits under the status bar blur. In the installed app (`display-mode: standalone`,
   status bar outside the page) the top bar starts 24px down because iOS blurs the page's top edge. phone.css?v=8.
+- **Eighth pass (same day): on a phone Ask is at the bottom.** The top-bar ask bar is hidden under 720; `#tbAsk` (a round
+  button at the end of `#tabbar`, shown with the ask bar) opens `AskUI`, and `#ask` slides up full screen with a
+  one-row 34px header. The desktop and iPad keep the ask bar at the top. phone.css?v=9.
 - **Fifth pass (same day): review.html has the phone layer.** The public client link loads `phone.css?v=5` after its
   own `<style>` and `phone.js?v=3` deferred after review-ui.js, and its `<html>` carries `data-ui="v2"` because that
   attribute is the key phone.css uses for the viewer block (nothing else on the page reads it; the page keeps its own

@@ -214,6 +214,24 @@ not there, the ask bar looked covered by something at the very top, slightly blu
   forcing its declarations on: padding 24px, the ask bar at 24, nothing overlapping. phone.css?v=8. Not seen on the
   phone yet; if it still looks soft, ask for a screenshot of the top at rest and after a scroll.
 
+## Eighth pass, the same day: Ask moves to the bottom on a phone
+
+Cole asked whether the ask bar should be at the top at all. On a phone it was the hardest thing to reach with a thumb
+and sat in the blurred top edge. Under 720 now:
+
+- **The top-bar ask bar is hidden** (`.topbar .v2ask{display:none}`), so row 1 is the helper badge and the date and
+  attribution pills. The desktop and the iPad keep it.
+- **A round Ask button sits at the right end of the tab bar** (`#tbAsk` in index.html, 48px, brand fill, a chat
+  bubble with a spark). It is shown exactly when the ask bar would be (`!S.tok`, set in the same place as the ask
+  bar), closes any open sheet and calls `AskUI.open()`, which focuses the box.
+- **The chat slides UP full screen** (`#ask` translateY, top inset padded, 14px more in the installed app) with its box
+  at the bottom. Its header (title, New, Chats, Reports, x) is one 34px row; the 44px rule had wrapped the title and
+  made the buttons tall pills.
+- Lost on a phone, on purpose: typing in the ask bar to jump to a page or brand. More and the client sheet cover it.
+- Checked in headless Chrome at 375 with a faked notch and every API stubbed: the button at 317,724 48x48 beside five
+  61px tabs, the ask bar display none, the chat open full screen with the box at y 712 and focused, closed back to
+  y 812, light and dark. phone.css?v=9 on both hosts.
+
 ## Still open
 
 - Not checked on a real device, only the Browser pane at 375 and 768.
