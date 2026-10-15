@@ -129,9 +129,39 @@ the audit measured page bodies only, never the sheets, menus or the brief editor
   viewer stacks as before, there is no pill and a pin highlights in place. Day check, Production and a card's
   Ads tab have no sideways scroll at either width.
 
+## Fifth pass, the same day: the public client link (review.html)
+
+- **What was wrong.** `review.html` loaded review-ui.js but not phone.css or phone.js, and its `<html>` had no
+  `data-ui="v2"`, so none of phone.css's viewer rules applied: on a client's phone the viewer was review-ui.js's
+  own 900px stack (34px tools, 18px swatches, a trailing x beside Back, the Notes panel under the strip with the
+  whole viewer scrolling).
+- **The fix is three lines on review.html, no new rules.** `<html lang="en" data-ui="v2">`, `phone.css?v=5` after
+  the page's own `<style>`, `phone.js?v=3` deferred after review-ui.js. The attribute is only the key phone.css
+  uses for the viewer block; nothing else on the page reads it (review.html has its own token set, like s.html, and
+  every token the sheet and the viewer rules use exists there: surface, surface-2, ink, ink-2, muted, line,
+  line-strong, brand-soft; the rest carry fallbacks). phone.js gates on width and on the Locus nodes it finds, so
+  More, the client picker, the top-bar scrim, Filters and segFix are inert on this page; reviewFix, openNotes and
+  hostNotes run exactly as in Locus. The alternative (re-keying the viewer block on `.rv-scrim`) was rejected: the
+  tabs, chips, list and box rules must also match while the panel is hosted in `#lxSheet`, outside the viewer.
+- **Why no min-height resets were copied:** index.html's 44px rule does not exist on review.html, so the
+  `min-height:0` lines in the viewer block are no-ops there; measured, not assumed (tools 38x40 inside the 359px
+  bar exactly as in Locus, swatches 21x22 round with the -11px coarse hit area, header buttons 40px).
+- **One phone.css fix for both hosts:** `.lxs-notes-btn{display:none}` above 720 lost to review-ui.js's own
+  `.rv-btn{display:inline-flex}` (injected later, equal specificity), so a phone turned sideways kept the pill until
+  the next repaint. It is `.rv-strip .lxs-notes-btn` now (phone.css?v=5 on index.html and review.html).
+- **Checked at 375 (light and dark) and 768 on the local static server, with a static JSON stub under the page's
+  `pf_ah` override (data-URL SVG ads; nothing touched a worker):** the viewer opened from a card: Back reads the
+  brand and closes, the x is hidden, Ask for changes + Approve on one row, the ad capped, the strip at the bottom
+  (92px, 56x70 thumbs), "Notes · 2" sticky at its end, no sideways scroll on the page or the viewer; the pill opens
+  the sheet hosting the real `.rv-side` (title "Ad 48-1", tabs pinned top, the name box and note box pinned bottom,
+  z 9700, dark surface in dark mode); Enter posts (pending then saved, the pill 2 to 3, the sheet stays hosted after
+  the repaint); x puts the node back into `.rv-b` (hidden, one copy); a pin opens the sheet on its note (ringed,
+  inside the first screen); Escape closes only the sheet; Ask for changes opens it with the box focused and "Send
+  back", Enter sends the decision; Back with the sheet open leaves no orphan node and no `lxs-open` on body. At 768
+  the viewer stacks as before, the side panel is visible, a pin highlights in place, and the pill is hidden even
+  before the next repaint. The page's own cards at 375: one column, no sideways scroll, the card buttons 32px (at
+  the audit threshold, left alone).
+
 ## Still open
 
-- The public client link (`review.html`) does not load the phone layer and does not carry `data-ui="v2"`, so
-  none of phone.css's viewer rules apply there: on a client's phone it is review-ui.js's own 900px stack. It
-  deserves a pass of its own (load phone.css + phone.js there, or fold the phone rules into review-ui.js).
 - Not checked on a real device, only the Browser pane at 375 and 768.

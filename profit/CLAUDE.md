@@ -3329,5 +3329,12 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
   Enter-to-post in the hosted panel is phone.js's (review-ui's own looks inside the viewer root); review-ui.js's
   Reply reads its box beside the button (v9) for the same reason. **A new review-ui.js handler must find its
   inputs from the clicked element, never from the viewer root, or it breaks in the sheet.** Day check's Right now
-  actions are a full-width row under the title (`#dkNow .v2h > .find`). review.html (the client link) has no
-  phone layer yet.
+  actions are a full-width row under the title (`#dkNow .v2h > .find`).
+- **Fifth pass (same day): review.html has the phone layer.** The public client link loads `phone.css?v=5` after its
+  own `<style>` and `phone.js?v=3` deferred after review-ui.js, and its `<html>` carries `data-ui="v2"` because that
+  attribute is the key phone.css uses for the viewer block (nothing else on the page reads it; the page keeps its own
+  token set). phone.js's Locus parts are inert there (no `#tbMore`, `#pfPick`, `.hd-period`, `.tk`, `#v2seg`); the
+  viewer gets the same pill, sheet and Enter-to-post. index.html's 44px rule does not exist on review.html, so the
+  `min-height:0` lines are no-ops there (measured). The sideways-pill hide rule is `.rv-strip .lxs-notes-btn` (two
+  classes, or review-ui's injected `.rv-btn` display wins). A new phone rule for the viewer belongs in phone.css's
+  viewer block and lands on both hosts; a new phone rule for the review page itself goes in review.html's own style.

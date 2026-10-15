@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ui="v2">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -67,11 +67,18 @@
   .err{color:var(--bad);font-size:12.5px}
   @media (max-width:600px){h1{font-size:24px}.top{height:auto;padding:12px 16px;flex-wrap:wrap}}
 </style>
+<!-- The phone layer (2026-10-15, fifth pass): the same phone.css + phone.js Locus loads, so the viewer on a client's phone
+     matches Locus (40px tools, round swatches, Back closes, the call buttons on one row, the strip at the bottom, Notes as a
+     bottom sheet with a "Notes · N" pill). phone.css keys the viewer's phone rules on [data-ui="v2"], which is why <html>
+     carries that attribute here: nothing else on this page reads it. phone.js gates everything on width and on the Locus
+     nodes it finds, so the More sheet, client picker, Filters and tab-row parts are inert on this page. -->
+<link rel="stylesheet" href="phone.css?v=5">
 </head>
 <body>
 <header class="top"><b id="brand">Ad review</b><span class="muted" style="font-size:13px">from Mobius Digital</span><span class="who" id="who"></span></header>
 <main id="main"><p class="muted">Loading...</p></main>
 <script src="review-ui.js?v=9"></script>
+<script src="phone.js?v=3" defer></script>
 <script>
 (() => {
   const AH = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';

@@ -122,7 +122,7 @@
 #lxSheet .lc-pick-menu [data-act],#lxSheet .lc-pick-add{display:flex;align-items:center;width:100%;min-height:48px;padding:6px 12px;border:0;border-radius:var(--r-md,10px);background:transparent;color:var(--ink);font:inherit;font-size:15px;text-align:left;cursor:pointer}
 #lxSheet .lc-pick-menu [data-act].on{background:var(--brand-soft);font-weight:600}
 #lxSheet .lc-pick-add{color:var(--brand);font-weight:600}
-@media (min-width:721px){.lxs-notes-btn{display:none}}   /* a phone turned sideways: the pill waits for the next repaint */
+@media (min-width:721px){.rv-strip .lxs-notes-btn{display:none}}   /* a phone turned sideways: the pill waits for the next repaint (two classes: review-ui's own .rv-btn{display:inline-flex} is injected later and beat a one-class rule) */
 /* the review viewer's Notes panel, hosted in the sheet: above the viewer, full width, tabs pinned at the top and the
    note box pinned at the bottom like a messages app, the list scrolling between them */
 #lxSheet.lxs-notes{z-index:9700}
