@@ -3448,3 +3448,27 @@ outermost wide elements, taps under 32px, text under 11.5px, tables without a sc
 - **Testing note.** Headless Chrome does not paint the stored clips' first frames and lays out under ~500px
   wrong; put the page in a 390px or 768px iframe for phone and tablet shots, and use the Browser pane for
   clip frames. The pane stops painting when the app window is hidden.
+
+## 2026-10-15: AD CALLS v2 and ONE Goals and ad rules screen. Read before touching hub.js buyerList, v2.js creative() or rules.
+
+Cole approved the "Locus Ad Call Rules" page (https://claude.ai/artifact/PyQPNkUBVy8myEQQGxHiD1): the reasoning for every
+number (Poisson: a set truly on goal shows 0 sales 37% of the time at 1x spent, 14% at 2x, 5% at 3x).
+- **Defaults** (brand.js TEST_KEYS): cr_judge_x 2, cr_min_days 3, cr_scale_buys 3, cr_cut_zero_x 3, cr_cut_spend_x 3,
+  cr_cut_cpa_x 1.5, cr_anchor_pct 50. `min_spend` ($20) is gone (nothing read it). A rules doc without `rules_v >= 2`
+  ignores stored numbers equal to the OLD defaults (1, 2, 2), because the old Settings form saved every field.
+- **New rule fields**: `goal_metric` cpa | ncpa | roas | cpl, `goal_ncpa`, `goal_cpl`, `goal_meta`, `goal_google`,
+  `goal_tiktok` (platform goals in the main metric; Google / TikTok used by account-health leaks.js), `roas_guard`
+  on|off (never cut while ROAS beats the goal ROAS; kept sets are named in the brand's `note`, not rows), `window_auto`
+  on|off (a set under 1 result a day judged on 14 days). `goalOf(R, metric, platform)` in brand.js.
+- **buyerList**: wait = spent 2x the unit AND 3 days; the unit = the goal in dollars (ROAS: the brand's window AOV /
+  goal ROAS); a campaign's Meta objective decides (lead campaigns on cost per lead, awareness / traffic only Refresh);
+  new customers per ad from tw_order_touch + tw_orders first orders; leads from `ad_daily.leads` (new column, synced
+  from Meta actions lead / lead_grouped / pixel lead since 2026-10-15, no backfill); Refresh needs CTR down 20% AND
+  frequency up. Rows carry `metric`, `results`, `days`, `judged_on`, `goal_roas`, `top_ad`.
+- **The screen** (index.html `loadGoals`): Brand settings > Goals and ad rules = measure picker, every goal with the real
+  90-day CAC and the first-order break-even (new AOV x margin from /api/customers) and Use it, platform goals, every rule
+  as a sentence with AND / OR / NOT chips and the numbers inline, test calls, test minimums. Home > Goals shows the goal
+  read only with one button there (`addGoalTargets`). Creative's "Change it" opens it (openGoals).
+- **Measured after deploy (2026-10-15)**: calls barely dropped (45) because the GOALS are below what Meta last-click
+  shows (Bonk $25 goal vs $58; Ice & Gold $50 vs $173). Meta last platform click runs about 2x blended CAC, so a Meta
+  platform goal (goal_meta) is the lever; Cole and Ahsan set it, Locus does not.
