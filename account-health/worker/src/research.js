@@ -413,7 +413,7 @@ const cost = m => Math.round(((m.in / 1e6) * 5 + (m.out / 1e6) * 25 + (m.searche
 
 /* ---------------- the duplicate check ---------------- */
 async function dedupe(env, act, b) {
-  const lib = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status != 'proposed'`).bind(act).all()).results || [];
+  const lib = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status = 'active'`).bind(act).all()).results || [];
   const pool = lib.filter(x => x.id !== b.exclude_id);
   if (!pool.length) return { matches: [] };
   const m = await claude(env, {

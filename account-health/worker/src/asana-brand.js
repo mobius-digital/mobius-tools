@@ -496,7 +496,7 @@ async function tagPass(env, act, { limit = 12, warn = true } = {}) {
   const rows = (await env.DB.prepare(`SELECT id, num, title, offer, hypothesis, why, level, brief_url, brief_text, legacy_json, asana_gid, stage, created_at, source FROM p_br_batch
       WHERE act_id = ?1 AND angle_id IS NULL AND tagged_at IS NULL ORDER BY CAST(num AS INTEGER) ASC LIMIT ?2`).bind(act, limit).all()).results || [];
   if (!rows.length) return { tagged: 0, left: 0 };
-  const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status != 'proposed'`).bind(act).all()).results || [];
+  const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status = 'active'`).bind(act).all()).results || [];
   /* 2026-10-04: the prompt never saw the existing concepts, so almost every test got a
      concept of its own (239 concepts for 279 Party Patch tests) and nothing grouped. */
   const concepts = (await env.DB.prepare(`SELECT c.angle_id, c.name, COUNT(b.id) n FROM p_br_concept c LEFT JOIN p_br_batch b ON b.concept_id = c.id
@@ -1063,7 +1063,7 @@ const TIDY_SCHEMA = obj({ groups: { type: 'array', items: obj({ keep_id: S, merg
 async function tidyAngles(env, act) {
   const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
   const angles = (await env.DB.prepare(`SELECT a.id, a.name, a.argument, COUNT(b.id) n, GROUP_CONCAT(b.title, ' / ') titles
-      FROM p_br_angle a LEFT JOIN p_br_batch b ON b.angle_id = a.id WHERE a.act_id = ?1 AND a.status != 'proposed' GROUP BY a.id ORDER BY n DESC`).bind(act).all()).results || [];
+      FROM p_br_angle a LEFT JOIN p_br_batch b ON b.angle_id = a.id WHERE a.act_id = ?1 AND a.status = 'active' GROUP BY a.id ORDER BY n DESC`).bind(act).all()).results || [];
   if (angles.length < 10) return { merged: 0, angles: angles.length };
   const { out } = await claudeJson(env, {
     system: `You tidy ${acct?.name || 'a brand'}'s angle library. An angle is the REASON TO BUY, said in one sentence. Two angles are the same when they give the buyer the same reason in different words, or when one is just a narrower version of the other. Rules:
@@ -1150,7 +1150,7 @@ async function testedCheck(env, act, idea) {
   idea = clip(String(idea || '').trim(), 600);
   if (!idea) throw Object.assign(new Error('Type the idea first.'), { status: 400 });
   const acct = await env.DB.prepare(`SELECT name FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
-  const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status != 'proposed'`).bind(act).all()).results || [];
+  const angles = (await env.DB.prepare(`SELECT id, name, argument FROM p_br_angle WHERE act_id = ?1 AND status = 'active'`).bind(act).all()).results || [];
   const tests = (await env.DB.prepare(`SELECT num, title, hypothesis, angle_id FROM p_br_batch WHERE act_id = ?1 AND angle_id IS NOT NULL ORDER BY CAST(num AS INTEGER) DESC LIMIT 400`).bind(act).all()).results || [];
   const { out } = await claudeJson(env, {
     system: `You tell ${acct?.name || 'a brand'}'s creative strategist whether an ad idea has already been tested. An ANGLE is the reason to buy; the same reason in different words IS the same angle ("1 star review from his wife" and "wife hates his old polos" are the same: the wife's reaction). Check the idea against the angles and the past tests.
