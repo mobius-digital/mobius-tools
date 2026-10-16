@@ -5786,7 +5786,7 @@ async function slackApi(env, method, body) {
   /* READ methods refuse a JSON body (Slack answers ok:false). conversations.replies sent as JSON is
      why the Strategist answered a thread reply with no memory of the thread (found 2026-10-05):
      the engine swallowed the error and sent the bare question. Reads go form-encoded. */
-  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info|files\.(getUploadURLExternal|completeUploadExternal))$/.test(method);
+  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info|auth\.test|files\.(info|getUploadURLExternal|completeUploadExternal))$/.test(method);
   const init = read
     ? { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(Object.entries(body || {}).filter(([, v]) => v != null).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)])).toString() }

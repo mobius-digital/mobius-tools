@@ -118,7 +118,9 @@ async function webRead(d, url) {
 
 /* ---------------- make_canvas ---------------- */
 async function makeCanvas(env, d, ctx, { title, markdown }) {
-  const c = await d.slack(env, 'canvases.create', { title: clip(title, 120), document_content: { type: 'markdown', markdown: clip(markdown, 90000) } });
+  /* Slack shows the title above the canvas, so a first heading that repeats it would print it twice. */
+  const body = String(markdown || '').replace(/^\s*#\s+(.+)\n+/, (m, h) => h.trim().toLowerCase() === String(title).trim().toLowerCase() ? '' : m);
+  const c = await d.slack(env, 'canvases.create', { title: clip(title, 120), document_content: { type: 'markdown', markdown: clip(body, 90000) } });
   if (!c?.ok) return { error: c?.error === 'missing_scope' ? 'The Slack app needs the canvases:write scope (api.slack.com > the app > OAuth & Permissions), then reinstall.' : `Slack would not make the canvas: ${c?.error}` };
   const id = c.canvas_id;
   const users = [ctx?.ev?.user].filter(Boolean);
@@ -126,7 +128,9 @@ async function makeCanvas(env, d, ctx, { title, markdown }) {
   if (users.length) await d.slack(env, 'canvases.access.set', { canvas_id: id, access_level: 'write', user_ids: users }).catch(() => null);
   if (ctx?.channel && !/^D/.test(ctx.channel)) await d.slack(env, 'canvases.access.set', { canvas_id: id, access_level: 'read', channel_ids: [ctx.channel] }).catch(() => null);
   const info = await d.slack(env, 'files.info', { file: id }).catch(() => null);
-  const link = info?.file?.permalink || null;
+  let link = info?.file?.permalink || null;
+  /* files.info does not always answer for a canvas: the workspace's own docs link is the same page. */
+  if (!link) { const a = await d.slack(env, 'auth.test', {}).catch(() => null); if (a?.url && a?.team_id) link = `${a.url.replace(/\/$/, '')}/docs/${a.team_id}/${id}`; }
   return { id, link };
 }
 
