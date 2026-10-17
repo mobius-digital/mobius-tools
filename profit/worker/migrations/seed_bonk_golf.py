@@ -55,7 +55,7 @@ BRAND = dict(
           'divot tools, towels and tees.',
     audience='Golfers 25 to 55 who play most weekends and buy their own gear, and the wives, kids and buddies '
              'buying for them from November to Christmas.',
-    accent='#2E7D4F',
+    accent='#121212',   # bonkgolf.com theme text colour (site is black and white)
     logo_url='https://bonkgolf.com/cdn/shop/files/BONK_GOLF_NEW_Logo_1_1_989b507e-bc6e-484f-89c5-873b178547e1.png?width=600',
     submit_platform='TRYBE',
     submit_url=None,
