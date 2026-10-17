@@ -2081,9 +2081,16 @@ function dayIssues(piv, metaBy, date, sp) {
     return issues;                               // everything else is downstream of this
   }
   if (sp.source === 'rebuilt') {
-    issues.push({ code: 'meta_missing', severity: 'broken', label: 'Meta spend is missing from Triple Whale',
-      what: `Triple Whale reports ${fmtUsd(sp.tw_meta ?? 0)} of Meta spend, Meta itself reports ${fmtUsd(sp.meta_api)}`,
-      fix: 'Reconnect Meta in Triple Whale → Settings → Integrations, then Re-sync and Rebuild here.' });
+    /* A WARNING, NOT A BLOCK (2026-10-17). spendFor() has already put Meta's
+       own figure back into the total, and channel returns divide by Meta's own
+       spend too, so the brief's numbers are RIGHT; only Triple Whale's copy is
+       short. Blocking here held five correct briefs on 2026-10-17 behind "Do
+       not send - the numbers are wrong" when TW's Meta feed stalled mid-day on
+       the 16th for every brand on the shared connection. Still said on the card
+       and on Data Health, so the TW connection gets fixed. */
+    issues.push({ code: 'meta_missing', severity: 'warn', label: 'Triple Whale is behind on Meta spend',
+      what: `Triple Whale has ${fmtUsd(sp.tw_meta ?? 0)} of Meta spend, Meta itself reports ${fmtUsd(sp.meta_api)}, so the brief uses Meta's figure`,
+      fix: 'The brief is right as it stands. To fix Triple Whale itself, reconnect Meta in Triple Whale → Settings → Integrations.' });
   }
   for (const [metric, label] of Object.entries(TW_PLATFORM_SPEND)) {
     if (metric === 'fb_ads_spend') continue;     // the witness above is stronger
@@ -5919,10 +5926,16 @@ function briefCard(acct, date, row, banner) {
       + (fix ? `\n_${fix}_` : '')
       + `\nSpend below has been rebuilt from the platforms' own reporting where possible.`
     : '';
+  /* A non-blocking note for the team only: the numbers are fine, a feed behind
+     them is not. One line, so it never crowds the brief. */
+  const note = !bad && status !== 'sent'
+    ? health?.flagged?.flatMap(x => x.issues.filter(i => i.code === 'meta_missing').map(i => `${prettyDate(x.date)}: ${i.what}`))[0]
+    : null;
+  const warnLine = note ? `:information_source: _${note}. Numbers are right; Triple Whale's Meta link needs a reconnect._` : '';
   const steer = row?.steer && status !== 'sent'
     ? `\n\n_Last rewrite was steered: “${String(row.steer).slice(0, 200)}”_` : '';
 
-  const body = [head, banner, warn, row?.text || '_Nothing written for this day yet._']
+  const body = [head, banner, warn || warnLine, row?.text || '_Nothing written for this day yet._']
     .filter(Boolean).join('\n\n') + steer;
   const blocks = mrkdwnSections(body);
 
