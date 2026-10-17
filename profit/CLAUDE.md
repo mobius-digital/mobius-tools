@@ -3545,3 +3545,13 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
   edges the product touched (`edges`, a shaft cut by the frame runs off the ad's edge) and peels the soft studio floor
   shadow (neutral, smooth, bottom third only). Every real ad has "Real product · check": the photo beside the ad,
   whole and on its two busiest details at 100%. Change with AI, variations and the 9:16 re-fit and re-lock.
+
+## 2026-10-16: Bonk Golf creator link (seed_bonk_golf.py). LIVE, not on TRYBE yet.
+- `angles/bonk-golf`, 17 videos, hand-picked board, 4 categories (Show it working, Gifts, On the course, New drops). Research:
+  `docs/research-2026-10-16/bonk-golf.md`. Re-running the seed replaces Bonk's sections, ideas and videos.
+- Our videos are Bonk's own Meta ads (proof rows under `brand_bonk_golf`, ads under `act_12528825`: the shared seed lib's
+  `ads` guard uses the proof act_id, so it does not work for brand-first brands; this seed guards on the Meta act).
+- Other brands' clips were downloaded from Atria and put in R2 by hand (`wrangler r2 object put mobius-amb-media/amb/<brand>/inspo-<name>.mp4`),
+  then filed as `upload` proof with who "<Brand> (inspiration)". `inspo` kind with an Atria URL does NOT play on the v20 board.
+- Watch a brand's own ad before calling it creator material: two Bonk "winners" (278 B, 276 B) were motion graphics.
+- No submit link yet: the button hides until a TRYBE campaign link is pasted on the Ambassadors tab.
