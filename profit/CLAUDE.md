@@ -3553,5 +3553,5 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
   `ads` guard uses the proof act_id, so it does not work for brand-first brands; this seed guards on the Meta act).
 - Other brands' clips were downloaded from Atria and put in R2 by hand (`wrangler r2 object put mobius-amb-media/amb/<brand>/inspo-<name>.mp4`),
   then filed as `upload` proof with who "<Brand> (inspiration)". `inspo` kind with an Atria URL does NOT play on the v20 board.
-- Watch a brand's own ad before calling it creator material: two Bonk "winners" (278 B, 276 B) were motion graphics.
+- Cole's rule (2026-10-16): only videos a person with a phone can film start to finish. No motion graphics, studio spins, CGI or brand films, even if they sold. Other brands' videos can be any product (joggers, hoodies); the format is what counts.
 - No submit link yet: the button hides until a TRYBE campaign link is pasted on the Ambassadors tab.

@@ -37,3 +37,11 @@ Their files cannot play on Bonk's link (each link only plays its own brand's ads
 
 ## Clips on the board (R2 `amb/brand_bonk_golf/inspo-<name>.mp4`)
 mel-elements, mel-pioneer, mel-gift, ves-japan, ves-sound, ves-pocket, pri-plaid, pa-candy, hon-switch2, cs-pro.
+
+## Round 2 (Cole, same day): only what a creator can film
+Pulled: 243 A (tabletop with graphic overlays), 285-1 (studio graphic after the first second), 280 C (studio close-ups),
+239 A (studio spin), Melin's CGI dirt test, Primo's "$5000 camera" (a brand film after 3 seconds).
+Added from Melin and Primo, any product, judged on format only: Melin pilot "one hat for my whole day" (mel-pilot), Melin
+creator talking in a golf cart (mel-cart), Melin dad-and-son selfie "we're both rocking them" (mel-selfie), Melin hands-only
+POV unboxing (mel-inside), Primo co-owner story selfie "I just had to come on here quick, we just dropped" (pri-story).
+Rule kept: watch every frame; a format is usable only if a person with a phone can film all of it.
