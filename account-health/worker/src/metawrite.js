@@ -27,6 +27,7 @@
 import { resolveBrandId } from './brands.js';
 import { asana, asanaAll, numOf, googleToken } from './asana-brand.js';
 import { serveFile } from './prodwork.js';
+import { recordWrite, registerUndo, doneNote } from './extwrite.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BUSINESS_ID = '695359915477596';
@@ -235,9 +236,10 @@ async function unchanged(env, d, p) {
   const keys = Object.keys(p.before || {});
   if (!keys.length) return null;
   const now = await gget(d, env, p.id, { fields: keys.join(',') });
+  const norm = v => v == null || v === '' ? '0' : typeof v === 'object' ? JSON.stringify(v) : String(v);
   for (const k of keys) {
-    const was = p.before[k] == null || p.before[k] === '' ? '0' : String(p.before[k]);
-    const is = now[k] == null || now[k] === '' ? '0' : String(now[k]);
+    const was = norm(p.before[k]);
+    const is = norm(now[k]);
     if (was !== is) return `${p.name} changed since this card was made (${k} was ${was}, now ${is}). Nothing was written; ask again for a fresh card.`;
   }
   return null;
@@ -480,6 +482,240 @@ const undoAction = d => ({
   },
 });
 
+/* ---------------- B2. more Meta hands (2026-10-17): bids, targeting, schedule, new campaign / ad set, ad copy ----------------
+   Same rules as above (prep: brand, object, Manage; before -> after; p_meta_write; Change Log; meta_undo). New here:
+   Meta checks each change first with execution_options validate_only, so a refusal shows on the card, never at Apply. */
+const validate = async (d, env, path, params) => {
+  try { await gpost(d, env, path, { ...params, execution_options: ['validate_only'] }); return null; }
+  catch (e) { return `Meta would refuse this: ${e.message.replace(/^Meta said: /, '')}`; }
+};
+const BIDS = { lowest_cost: 'LOWEST_COST_WITHOUT_CAP', cost_cap: 'COST_CAP', bid_cap: 'LOWEST_COST_WITH_BID_CAP', min_roas: 'LOWEST_COST_WITH_MIN_ROAS' };
+const BID_WORD = { LOWEST_COST_WITHOUT_CAP: 'highest volume (no cap)', COST_CAP: 'cost per result goal', LOWEST_COST_WITH_BID_CAP: 'bid cap', LOWEST_COST_WITH_MIN_ROAS: 'ROAS goal' };
+const bidAction = d => ({
+  name: 'meta_bid',
+  description: 'Change how a Meta campaign (Advantage campaign budget) or ad set bids: strategy lowest_cost (highest volume), cost_cap (cost per result goal, dollars), bid_cap (dollars) or min_roas (ROAS goal as a multiple, 2.5 = 250%). The bid sits where the budget sits: the campaign for a CBO, the ad set otherwise.',
+  input_schema: base({ strategy: { type: 'string', enum: Object.keys(BIDS) }, amount: { type: 'number', description: 'cost_cap / bid_cap: dollars.' }, roas: { type: 'number', description: 'min_roas: the floor as a multiple (2.5 = 250%).' } }, ['strategy']),
+  propose: async (env, input, h, ctx) => {
+    const r = await prep(env, d, input, ctx); if (r.error) return r;
+    if (r.level === 'ad') return { error: 'Ads have no bid. Name the ad set or the campaign.' };
+    const o = await gget(d, env, r.obj.id, { fields: `name,bid_strategy,${r.level === 'adset' ? 'bid_amount,bid_constraints,campaign{bid_strategy,daily_budget,lifetime_budget}' : 'daily_budget,lifetime_budget'}` });
+    if (r.level === 'adset' && (+o.campaign?.daily_budget > 0 || +o.campaign?.lifetime_budget > 0)) return { error: `"${o.name}" is inside an Advantage campaign budget, so its campaign holds the bid strategy. Change the campaign.` };
+    const to = BIDS[input.strategy];
+    const after = { bid_strategy: to };
+    if (to === 'COST_CAP' || to === 'LOWEST_COST_WITH_BID_CAP') { if (!(+input.amount > 0)) return { error: 'Give amount in dollars.' }; if (r.level === 'adset') after.bid_amount = String(Math.round(+input.amount * 100)); }
+    if (to === 'LOWEST_COST_WITH_MIN_ROAS') { if (!(+input.roas > 0)) return { error: 'Give roas as a multiple (2.5 = 250%).' }; if (r.level === 'adset') after.bid_constraints = { roas_average_floor: Math.round(+input.roas * 10000) }; }
+    if (r.level === 'campaign' && to !== 'LOWEST_COST_WITHOUT_CAP') return { error: `On an Advantage campaign budget the ${BID_WORD[to]} amount is set on each ad set; change the campaign strategy in Ads Manager, or name an ad set outside a campaign budget.` };
+    const before = { bid_strategy: o.bid_strategy || null, ...(r.level === 'adset' ? { bid_amount: o.bid_amount != null ? String(o.bid_amount) : null, bid_constraints: o.bid_constraints || null } : {}) };
+    if (before.bid_strategy === to && (!after.bid_amount || after.bid_amount === before.bid_amount) && (!after.bid_constraints || JSON.stringify(after.bid_constraints) === JSON.stringify(before.bid_constraints))) return { error: 'It already bids that way.' };
+    const bad = await validate(d, env, r.obj.id, after); if (bad) return { error: bad };
+    const show = (s, a, c) => `${BID_WORD[s] || s || 'unset'}${a ? ` ${money(+a, r.cur)}` : ''}${c?.roas_average_floor ? ` ${Math.round(c.roas_average_floor / 100)}%` : ''}`;
+    const line = `${LEVEL_WORD[r.level]} "${o.name}" bidding ${show(before.bid_strategy, before.bid_amount, before.bid_constraints)} → ${show(to, after.bid_amount, after.bid_constraints)}`;
+    const keep = Object.fromEntries(Object.keys(after).map(k => [k, before[k] ?? null]));
+    return { summary: `${r.brand.name}: ${line}`, detail: `${LEVEL_WORD[r.level]} ${o.id} in ${r.actName}. A new bid goal sends it back into learning.\nWhy: ${clip(input.reason, 300)}`,
+      patch: { ...common(r, 'meta_bid', input, ctx), before: keep, after, category: 'bid_strategy', logLine: `Bidding: ${line}`, done: 'Bidding changed.' } };
+  },
+  apply: (env, p, h, ctx) => applyUpdate(env, d, p, ctx),
+});
+
+async function audiencesByName(d, env, act, wants) {
+  const list = await gall(d, env, `${act}/customaudiences`, { fields: 'id,name', limit: '200' }, 3).catch(() => []);
+  const out = [], bad = [];
+  for (const w0 of wants || []) {
+    const w = String(w0).trim(), lw = w.toLowerCase();
+    const hit = list.find(a => a.id === w) || list.filter(a => a.name.toLowerCase() === lw)[0] || (list.filter(a => a.name.toLowerCase().includes(lw)).length === 1 ? list.find(a => a.name.toLowerCase().includes(lw)) : null);
+    if (hit) out.push({ id: hit.id, name: hit.name }); else bad.push(w);
+  }
+  return { out, bad };
+}
+const targetingAction = d => ({
+  name: 'meta_targeting',
+  description: 'Change an ad set\'s targeting in Meta, only the parts named: ages, gender, countries (the full new list), Advantage+ audience on or off, custom audiences to include or exclude (names or ids, added to what is there; remove_audiences takes them out). Read meta_read first; everything not named stays as it is.',
+  input_schema: base({ age_min: { type: 'integer' }, age_max: { type: 'integer' }, gender: { type: 'string', enum: ['all', 'men', 'women'] }, countries: { type: 'array', items: { type: 'string' }, description: 'Two-letter codes: US, CA.' },
+    advantage_audience: { type: 'boolean' }, include_audiences: { type: 'array', items: { type: 'string' } }, exclude_audiences: { type: 'array', items: { type: 'string' } }, remove_audiences: { type: 'array', items: { type: 'string' } } }),
+  propose: async (env, input, h, ctx) => {
+    const r = await prep(env, d, { ...input, level: 'adset' }, ctx, 'adset'); if (r.error) return r;
+    const o = await gget(d, env, r.obj.id, { fields: 'name,targeting' });
+    const cur = o.targeting || {};
+    const t = JSON.parse(JSON.stringify(cur));
+    const parts = [];
+    if (input.age_min != null) { t.age_min = Math.max(18, Math.min(65, +input.age_min)); parts.push(`min age ${cur.age_min || 18} → ${t.age_min}`); }
+    if (input.age_max != null) { t.age_max = Math.max(18, Math.min(65, +input.age_max)); parts.push(`max age ${cur.age_max || 65} → ${t.age_max}`); }
+    if (input.gender) { if (input.gender === 'all') delete t.genders; else t.genders = [input.gender === 'men' ? 1 : 2]; parts.push(`gender → ${input.gender}`); }
+    if (input.countries?.length) { const cs = input.countries.map(c => String(c).trim().toUpperCase()).filter(c => /^[A-Z]{2}$/.test(c)); if (!cs.length) return { error: 'countries are two-letter codes like US.' }; t.geo_locations = { ...(t.geo_locations || {}), countries: cs }; delete t.geo_locations.regions; delete t.geo_locations.cities; delete t.geo_locations.zips; parts.push(`countries → ${cs.join(', ')}`); }
+    if (input.advantage_audience != null) { t.targeting_automation = { ...(t.targeting_automation || {}), advantage_audience: input.advantage_audience ? 1 : 0 }; parts.push(`Advantage+ audience ${input.advantage_audience ? 'on' : 'off'}`); }
+    for (const [key, field, word] of [['include_audiences', 'custom_audiences', 'include'], ['exclude_audiences', 'excluded_custom_audiences', 'exclude']]) {
+      if (!input[key]?.length) continue;
+      const a = await audiencesByName(d, env, r.act, input[key]);
+      if (a.bad.length) return { error: `No custom audience called ${a.bad.map(x => `"${x}"`).join(', ')} in ${r.actName}.` };
+      const have = t[field] || [];
+      t[field] = [...have, ...a.out.filter(x => !have.some(h0 => h0.id === x.id))];
+      parts.push(`${word} ${a.out.map(x => x.name).join(', ')}`);
+    }
+    if (input.remove_audiences?.length) {
+      const lw = input.remove_audiences.map(x => String(x).toLowerCase());
+      for (const field of ['custom_audiences', 'excluded_custom_audiences']) if (t[field]) t[field] = t[field].filter(x => !lw.includes(String(x.id)) && !lw.some(w => String(x.name || '').toLowerCase().includes(w)));
+      parts.push(`take out ${input.remove_audiences.join(', ')}`);
+    }
+    if (!parts.length) return { error: 'Name what to change.' };
+    if (JSON.stringify(t) === JSON.stringify(cur)) return { error: 'Nothing would change.' };
+    const bad = await validate(d, env, r.obj.id, { targeting: t }); if (bad) return { error: bad };
+    const line = `ad set "${o.name}" targeting: ${parts.join('; ')}`;
+    return { summary: `${r.brand.name}: ${line}`, detail: `Ad set ${o.id} in ${r.actName}. A targeting change sends it back into learning.\nWhy: ${clip(input.reason, 300)}`,
+      patch: { ...common(r, 'meta_targeting', input, ctx), before: { targeting: cur }, after: { targeting: t }, category: 'targeting', logLine: `Targeting: ${line}`, done: 'Targeting changed.' } };
+  },
+  apply: (env, p, h, ctx) => applyUpdate(env, d, p, ctx),
+});
+
+/** "2026-10-31 23:59" in the account's zone, or a full ISO time. */
+function metaTime(s, tz) {
+  const v = String(s || '').trim();
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(v)) { const t = Date.parse(v); return isNaN(t) ? null : new Date(t); }
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?$/); if (!m) return null;
+  const wall = Date.UTC(+m[1], +m[2] - 1, +m[3], m[4] != null ? +m[4] : 23, m[5] != null ? +m[5] : 59);
+  const off = t => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz || 'America/Chicago', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(t)).map(x => [x.type, x.value])); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute) - t; };
+  let t = wall; for (let k = 0; k < 2; k++) t = wall - off(t);
+  return new Date(t);
+}
+const scheduleAction = d => ({
+  name: 'meta_schedule',
+  description: 'Set when a Meta ad set (or a lifetime-budget campaign) starts and/or stops: end at a date and time (a sale ending Sunday night), or start later. Times are the brand\'s time zone unless a full ISO time is given; a date alone ends at 23:59.',
+  input_schema: base({ start: { type: 'string', description: 'YYYY-MM-DD HH:MM or ISO.' }, end: { type: 'string', description: 'YYYY-MM-DD HH:MM or ISO.' } }),
+  propose: async (env, input, h, ctx) => {
+    const r = await prep(env, d, input, ctx); if (r.error) return r;
+    if (r.level === 'ad') return { error: 'Ads take their schedule from the ad set. Name the ad set.' };
+    const field = r.level === 'campaign' ? ['start_time', 'stop_time'] : ['start_time', 'end_time'];
+    const o = await gget(d, env, r.obj.id, { fields: `name,${field.join(',')}` });
+    const tz = r.brand.tz || 'America/Chicago';
+    const before = {}, after = {}, parts = [];
+    for (const [k, v, word] of [[field[0], input.start, 'starts'], [field[1], input.end, 'ends']]) {
+      if (!v) continue;
+      const t = metaTime(v, tz); if (!t) return { error: `${word}: give YYYY-MM-DD HH:MM or a full ISO time.` };
+      if (word === 'ends' && t.getTime() < Date.now() + 10 * 60e3) return { error: 'The end must be at least 10 minutes from now. To stop it now, pause it.' };
+      before[k] = o[k] || '0'; after[k] = t.toISOString();   /* '0' = not set (and what undo sends to clear it) */
+      parts.push(`${word} ${t.toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}`);
+    }
+    if (!parts.length) return { error: 'Give start, end or both.' };
+    const bad = await validate(d, env, r.obj.id, after); if (bad) return { error: bad };
+    const line = `${LEVEL_WORD[r.level]} "${o.name}" ${parts.join(', ')}`;
+    return { summary: `${r.brand.name}: ${line}`, detail: `${Object.keys(before).map(k => `${k.replace('_', ' ')} was ${before[k] === '0' ? 'not set' : before[k]}`).join('; ')}.\nWhy: ${clip(input.reason, 300)}`,
+      patch: { ...common(r, 'meta_schedule', input, ctx), before, after, category: 'other', logLine: `Schedule: ${line}`, done: 'Schedule set.' } };
+  },
+  apply: (env, p, h, ctx) => applyUpdate(env, d, p, ctx),
+});
+
+const OBJECTIVES = ['OUTCOME_SALES', 'OUTCOME_TRAFFIC', 'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 'OUTCOME_AWARENESS', 'OUTCOME_APP_PROMOTION'];
+async function accountFor(env, d, brand, want) {
+  const metas = await metaActs(env, brand.act_id);
+  if (!metas.length) return { error: `${brand.name} has no Meta ad account connected in Locus.` };
+  const m = want ? metas.find(x => x.act === want || x.act === `act_${String(want).replace(/^act_/, '')}` || String(x.name).toLowerCase().includes(String(want).toLowerCase())) : metas[0];
+  if (!m) return { error: `${want} is not one of ${brand.name}'s ad accounts (${metas.map(x => x.name).join(', ')}).` };
+  const can = await metaCan(env, m.act, d, m.name);
+  return can.can ? m : { error: can.fix };
+}
+const createCampaignAction = d => ({
+  name: 'meta_create_campaign',
+  description: 'Make a new Meta campaign, PAUSED: name, objective (sales by default), and a daily budget in dollars for an Advantage campaign budget (omit it and the ad sets carry the budgets). Then add ad sets with meta_create_adset or meta_duplicate_adset. Undo archives it.',
+  input_schema: { type: 'object', properties: { brand: { type: 'string' }, account: { type: 'string', description: 'The ad account when the brand has several.' }, name: { type: 'string' }, objective: { type: 'string', enum: OBJECTIVES }, daily_budget: { type: 'number' }, reason: REASON }, required: ['brand', 'name', 'reason'] },
+  propose: async (env, input, h, ctx) => {
+    const brand = await brandOf(env, d, input.brand, ctx); if (!brand) return { error: `Which brand? No brand called "${input.brand || ''}".` };
+    const m = await accountFor(env, d, brand, input.account); if (m.error) return m;
+    const name = clip(String(input.name || '').trim(), 300); if (!name) return { error: 'Give the campaign a name.' };
+    const objective = OBJECTIVES.includes(input.objective) ? input.objective : 'OUTCOME_SALES';
+    const params = { name, objective, status: 'PAUSED', special_ad_categories: [], ...(input.daily_budget > 0 ? { daily_budget: String(Math.round(input.daily_budget * 100)), bid_strategy: 'LOWEST_COST_WITHOUT_CAP' } : { is_adset_budget_sharing_enabled: false }) };
+    const bad = await validate(d, env, `${m.act}/campaigns`, params); if (bad) return { error: bad };
+    const cur = brand.currency || 'USD';
+    return { summary: `${brand.name}: new campaign "${name}" (PAUSED)`, detail: `${objective.replace('OUTCOME_', '').toLowerCase()} · ${input.daily_budget > 0 ? `Advantage campaign budget ${money(Math.round(input.daily_budget * 100), cur)}/day` : 'budgets on the ad sets'} · in ${m.name}.\nWhy: ${clip(input.reason, 300)}`,
+      patch: { action: 'meta_create_campaign', act: m.act, brand: brand.act_id, level: 'campaign', name, params, reason: clip(input.reason, 300), proposer: ctx?.who || null } };
+  },
+  apply: async (env, p, h, ctx) => {
+    const c = await gpost(d, env, `${p.act}/campaigns`, p.params);
+    const wid = await record(env, { ...p, id: c.id }, ctx, { before: null, after: { created: c.id }, object: c.id, summary: `New campaign "${p.name}" (PAUSED)`, category: 'new_campaign' });
+    return { ok: true, write: wid, created: c.id, note: `Campaign "${p.name}" made (${c.id}), paused. Logged (undo: ${wid}).` };
+  },
+});
+const OPT = ['OFFSITE_CONVERSIONS', 'VALUE', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS', 'THRUPLAY', 'POST_ENGAGEMENT'];
+const createAdsetAction = d => ({
+  name: 'meta_create_adset',
+  description: 'Make a new ad set in a Meta campaign, PAUSED: name, daily budget (only when the campaign has no Advantage campaign budget), optimisation (default: what the campaign\'s other ad sets use), and targeting copied from another ad set (like) or set by countries and ages. The pixel and conversion event come from the ad sets already running. Add ads with meta_create_ad. To copy a set WITH its ads use meta_duplicate_adset instead.',
+  input_schema: { type: 'object', properties: { brand: { type: 'string' }, campaign: { type: 'string', description: 'The campaign id or exact name.' }, name: { type: 'string' }, daily_budget: { type: 'number' },
+    optimization: { type: 'string', enum: OPT }, like: { type: 'string', description: 'An ad set whose targeting, pixel and event to copy (id or name).' }, countries: { type: 'array', items: { type: 'string' } }, age_min: { type: 'integer' }, age_max: { type: 'integer' }, reason: REASON }, required: ['brand', 'campaign', 'name', 'reason'] },
+  propose: async (env, input, h, ctx) => {
+    const r = await prep(env, d, { ...input, target: input.campaign, level: 'campaign' }, ctx, 'campaign'); if (r.error) return r;
+    const camp = r.obj, cbo = +camp.daily_budget > 0 || +camp.lifetime_budget > 0;
+    if (!cbo && !(input.daily_budget > 0)) return { error: `"${camp.name}" has no campaign budget, so the new ad set needs daily_budget.` };
+    if (cbo && input.daily_budget > 0) return { error: `"${camp.name}" runs an Advantage campaign budget; its ad sets carry no budget. Leave daily_budget out (meta_min_spend sets a minimum).` };
+    let like = null;
+    if (input.like) { const f = await findObject(env, d, r.brand, input.like, 'adset'); if (f.error) return f; like = await gget(d, env, f.obj.id, { fields: 'name,targeting,promoted_object,optimization_goal,billing_event,attribution_spec' }); }
+    else {
+      const sib = await gall(d, env, `${camp.id}/adsets`, { fields: 'name,targeting,promoted_object,optimization_goal,billing_event,attribution_spec', limit: '5' }, 1).catch(() => []);
+      like = sib[0] || (await gall(d, env, `${r.act}/adsets`, { fields: 'name,targeting,promoted_object,optimization_goal,billing_event,attribution_spec', limit: '5', filtering: [{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }] }, 1).catch(() => []))[0] || null;
+    }
+    const targeting = like?.targeting ? JSON.parse(JSON.stringify(like.targeting)) : { geo_locations: { countries: ['US'] }, age_min: 18, age_max: 65 };
+    if (input.countries?.length) targeting.geo_locations = { countries: input.countries.map(c => String(c).toUpperCase()).filter(c => /^[A-Z]{2}$/.test(c)) };
+    if (input.age_min) targeting.age_min = +input.age_min;
+    if (input.age_max) targeting.age_max = +input.age_max;
+    const optimization = OPT.includes(input.optimization) ? input.optimization : like?.optimization_goal || 'OFFSITE_CONVERSIONS';
+    if (/OFFSITE_CONVERSIONS|VALUE/.test(optimization) && !like?.promoted_object) return { error: 'No running ad set to copy the pixel and conversion event from. Give like: an ad set that optimises for purchases.' };
+    const name = clip(String(input.name || '').trim(), 300); if (!name) return { error: 'Give the ad set a name.' };
+    const params = { name, campaign_id: camp.id, status: 'PAUSED', optimization_goal: optimization, billing_event: like?.billing_event || 'IMPRESSIONS', targeting,
+      ...(like?.promoted_object ? { promoted_object: like.promoted_object } : {}), ...(like?.attribution_spec ? { attribution_spec: like.attribution_spec } : {}),
+      ...(!cbo ? { daily_budget: String(Math.round(input.daily_budget * 100)), bid_strategy: 'LOWEST_COST_WITHOUT_CAP' } : {}) };
+    const bad = await validate(d, env, `${r.act}/adsets`, params); if (bad) return { error: bad };
+    const ts = targetingSummary(targeting);
+    return { summary: `${r.brand.name}: new ad set "${name}" in "${camp.name}" (PAUSED)`,
+      detail: `${!cbo ? `${money(Math.round(input.daily_budget * 100), r.cur)}/day` : 'Campaign budget'} · optimises for ${optimization.toLowerCase().replace(/_/g, ' ')} · ${ts.where || 'everywhere'}, ${ts.ages || '18-65'}${like ? ` · targeting, pixel and event from "${like.name}"` : ''}.\nWhy: ${clip(input.reason, 300)}`,
+      patch: { action: 'meta_create_adset', act: r.act, brand: r.brand.act_id, level: 'adset', name, params, campaign: camp.name, reason: clip(input.reason, 300), proposer: ctx?.who || null } };
+  },
+  apply: async (env, p, h, ctx) => {
+    const s = await gpost(d, env, `${p.act}/adsets`, p.params);
+    const wid = await record(env, { ...p, id: s.id }, ctx, { before: null, after: { created: s.id }, object: s.id, summary: `New ad set "${p.name}" in "${p.campaign}" (PAUSED)`, category: 'new_adset' });
+    return { ok: true, write: wid, created: s.id, note: `Ad set "${p.name}" made (${s.id}), paused. Add ads with meta_create_ad. Logged (undo: ${wid}).` };
+  },
+});
+const adCopyAction = d => ({
+  name: 'meta_ad_copy',
+  description: 'Change the words or link of a live Meta ad: primary text, headline, description, landing page or button. Meta cannot edit a creative, so a copy of the creative is made with the new words and the ad switches to it (same image or video, same page). Ads built from several options (dynamic / Advantage+ creative) or from an existing post are refused: change those in Ads Manager. A creative change sends the ad back through review.',
+  input_schema: { type: 'object', properties: { brand: { type: 'string' }, target: { type: 'string', description: 'The ad, exact name or id.' }, primary_text: { type: 'string' }, headline: { type: 'string' }, description: { type: 'string' }, link: { type: 'string' }, cta: { type: 'string', enum: CTAS }, reason: REASON }, required: ['brand', 'target', 'reason'] },
+  propose: async (env, input, h, ctx) => {
+    const r = await prep(env, d, { ...input, level: 'ad' }, ctx, 'ad'); if (r.error) return r;
+    const ad = await gget(d, env, r.obj.id, { fields: 'name,creative{id,name,object_story_spec,asset_feed_spec,effective_object_story_id,object_story_id}' });
+    const c = ad.creative || {};
+    if (c.asset_feed_spec) return { error: `"${ad.name}" is built from several options (dynamic / Advantage+ creative). Change its words in Ads Manager.` };
+    const s = c.object_story_spec;
+    if (!s || !(s.link_data || s.video_data)) return { error: `"${ad.name}" runs an existing post${c.object_story_id ? ` (${c.object_story_id})` : ''}, so its words live on the post. Change them on the page, or make a new ad.` };
+    if (input.link && !/^https:\/\//.test(input.link)) return { error: 'link must be a full https:// address.' };
+    const spec = JSON.parse(JSON.stringify(s));
+    const was = {}, now = {};
+    const set = (obj, k, v, word) => { if (v == null || v === '') return; was[word] = obj[k] ?? ''; obj[k] = v; now[word] = v; };
+    if (spec.link_data) {
+      const L = spec.link_data;
+      set(L, 'message', input.primary_text, 'primary text'); set(L, 'name', input.headline, 'headline'); set(L, 'description', input.description, 'description');
+      if (input.link) { set(L, 'link', input.link, 'link'); if (L.call_to_action?.value) L.call_to_action.value.link = input.link; }
+      if (input.cta) { was.button = L.call_to_action?.type || ''; L.call_to_action = { type: input.cta, value: { link: L.link } }; now.button = input.cta; }
+      delete L.image_url; if (L.picture && L.image_hash) delete L.picture;
+    } else {
+      const V = spec.video_data;
+      set(V, 'message', input.primary_text, 'primary text'); set(V, 'title', input.headline, 'headline'); set(V, 'link_description', input.description, 'description');
+      if (input.link || input.cta) { was.button = `${V.call_to_action?.type || ''} ${V.call_to_action?.value?.link || ''}`.trim(); V.call_to_action = { type: input.cta || V.call_to_action?.type || 'SHOP_NOW', value: { ...(V.call_to_action?.value || {}), link: input.link || V.call_to_action?.value?.link } }; now.button = `${V.call_to_action.type} ${V.call_to_action.value.link}`; }
+      if (V.image_hash && V.image_url) delete V.image_url;
+    }
+    if (!Object.keys(now).length) return { error: 'Give the new primary text, headline, description, link or button.' };
+    const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: spec };
+    const bad = await validate(d, env, `${r.act}/adcreatives`, params); if (bad) return { error: bad };
+    const lines = Object.keys(now).map(k => `${k}: "${clip(was[k], 160)}" → "${clip(now[k], 160)}"`);
+    return { summary: `${r.brand.name}: new words on ad "${ad.name}"`, detail: `${lines.join('\n')}\nThe ad switches to a copy of its creative with these words; it goes back through review.\nWhy: ${clip(input.reason, 300)}`,
+      patch: { ...common(r, 'meta_ad_copy', input, ctx), old: c.id, params, lines, logLine: `New words on ad "${ad.name}": ${lines.join('; ')}` } };
+  },
+  apply: async (env, p, h, ctx) => {
+    const now = await gget(d, env, p.id, { fields: 'creative{id}' });
+    if (now.creative?.id !== p.old) return { error: `"${p.name}" changed creative since this card was made. Nothing was written; ask again.` };
+    const cr = await gpost(d, env, `${p.act}/adcreatives`, p.params);
+    await gpost(d, env, p.id, { creative: { creative_id: cr.id } });
+    const wid = await record(env, p, ctx, { before: { creative: { creative_id: p.old } }, after: { creative: { creative_id: cr.id } }, summary: p.logLine, category: 'creative' });
+    return { ok: true, write: wid, note: `Ad "${p.name}" now runs the new words (creative ${cr.id}); Meta reviews it again. Logged (undo: ${wid}).` };
+  },
+});
+
 /* ---------------- E. meta_read (a tool, reads only) ---------------- */
 const LIVE = ['ACTIVE', 'IN_PROCESS', 'WITH_ISSUES', 'PENDING_REVIEW', 'PREAPPROVED'];
 function targetingSummary(t) {
@@ -612,8 +848,60 @@ export function asanaActions(d) {
         return { summary: `Complete "${clip(f.task.name, 80)}"`, detail: f.task.permalink_url || f.task.gid, patch: { gid: f.task.gid, url: f.task.permalink_url, name: f.task.name } };
       },
       apply: async (env, p) => { await asana(env, `/tasks/${p.gid}`, { method: 'PUT', body: { completed: true } }); return { ok: true, note: `Completed: ${p.name}` }; } },
+    /* 2026-10-17: everything else on a task, recorded with its before-state so undo_change can put it back. */
+    { name: 'asana_update',
+      description: 'Change an Asana task (by link, brief number or words in its name): rename it, add to or replace its notes, reassign it (first name), move its due date, move it to another section of the brand\'s project, or reopen it (complete: false). Only the parts named change.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, task: { type: 'string' }, name: { type: 'string' }, notes_append: { type: 'string', description: 'A line added at the end of the description.' }, notes: { type: 'string', description: 'Replaces the whole description (rarely).' },
+        assignee: { type: 'string', description: 'First name, or "nobody".' }, due: { type: 'string', description: 'YYYY-MM-DD, or "none".' }, section: { type: 'string' }, complete: { type: 'boolean' }, reason: { type: 'string' } }, required: ['task'] },
+      propose: async (env, i, h, ctx) => {
+        const f = await findTask(env, d, i, ctx); if (f.error) return f;
+        const t = await asana(env, `/tasks/${f.task.gid}?opt_fields=name,notes,completed,due_on,permalink_url,assignee.name,memberships.project.gid,memberships.section.gid,memberships.section.name,workspace.gid`);
+        const body = {}, before = {}, lines = [];
+        if (i.name && i.name !== t.name) { body.name = clip(i.name, 300); before.name = t.name; lines.push(`name "${clip(t.name, 60)}" → "${clip(body.name, 60)}"`); }
+        if (i.notes != null) { body.notes = clip(i.notes, 20000); before.notes = t.notes || ''; lines.push('description replaced'); }
+        else if (i.notes_append) { body.notes = `${t.notes || ''}${t.notes ? '\n\n' : ''}${clip(i.notes_append, 4000)}`; before.notes = t.notes || ''; lines.push(`description + "${clip(i.notes_append, 80)}"`); }
+        if (i.assignee) {
+          if (/^(nobody|none|unassign)/i.test(i.assignee)) { body.assignee = null; lines.push(`unassigned (was ${t.assignee?.name || 'nobody'})`); }
+          else {
+            const u = await asanaUserByName(env, { workspace: t.workspace?.gid }, i.assignee);
+            if (!u) return { error: `No Asana user called "${i.assignee}".` };
+            body.assignee = u.gid; lines.push(`assignee ${t.assignee?.name || 'nobody'} → ${u.name}`);
+          }
+          before.assignee = t.assignee?.gid || null;
+        }
+        if (i.due) {
+          if (/^none$/i.test(i.due)) body.due_on = null; else if (/^\d{4}-\d{2}-\d{2}$/.test(i.due)) body.due_on = i.due; else return { error: 'due is YYYY-MM-DD or "none".' };
+          before.due_on = t.due_on || null; lines.push(`due ${t.due_on || 'none'} → ${body.due_on || 'none'}`);
+        }
+        if (i.complete != null && !!i.complete !== !!t.completed) { body.completed = !!i.complete; before.completed = !!t.completed; lines.push(i.complete ? 'marked complete' : 'reopened'); }
+        let section = null;
+        if (i.section) {
+          const mem = (t.memberships || []).find(m => m.project?.gid) || null;
+          if (!mem) return { error: 'That task is in no project, so it has no sections.' };
+          const secs = await asana(env, `/projects/${mem.project.gid}/sections?opt_fields=name`).catch(() => []);
+          section = (secs || []).find(s => String(s.name).toLowerCase() === String(i.section).toLowerCase()) || (secs || []).find(s => String(s.name).toLowerCase().includes(String(i.section).toLowerCase()));
+          if (!section) return { error: `No section like "${i.section}". Sections: ${(secs || []).map(s => s.name).join(', ')}.` };
+          if (section.gid === mem.section?.gid) section = null;
+          else { before.section = mem.section?.gid || null; lines.push(`section ${mem.section?.name || 'none'} → ${section.name}`); }
+        }
+        if (!lines.length) return { error: 'Nothing would change.' };
+        return { summary: `Asana "${clip(t.name, 70)}": ${lines.join('; ')}`, detail: t.permalink_url || '', patch: { gid: t.gid, name: t.name, url: t.permalink_url, body, section: section?.gid || null, before, lines, brand: (await brandOf(env, d, i.brand, ctx).catch(() => null))?.act_id || null, reason: clip(i.reason, 300) || null } };
+      },
+      apply: async (env, p, h, ctx) => {
+        if (Object.keys(p.body).length) await asana(env, `/tasks/${p.gid}`, { method: 'PUT', body: p.body });
+        if (p.section) await asana(env, `/sections/${p.section}/addTask`, { method: 'POST', body: { task: p.gid } });
+        const id = await recordWrite(env, { platform: 'asana', brand: p.brand, object: p.gid, name: p.name, action: 'asana_update', before: p.before, after: { ...p.body, ...(p.section ? { section: p.section } : {}) },
+          undo: { gid: p.gid, before: p.before }, summary: `Asana "${clip(p.name, 70)}": ${p.lines.join('; ')}`, reason: p.reason, category: 'other', objectType: 'ASANA_TASK', ctx });
+        return { ok: true, note: doneNote(`Updated${p.url ? `: ${p.url}` : '.'}`, id) };
+      } },
   ];
 }
+registerUndo('asana', async (env, d, row, u) => {
+  const { section, ...rest } = u.before || {};
+  if (Object.keys(rest).length) await asana(env, `/tasks/${u.gid}`, { method: 'PUT', body: rest });
+  if (section) await asana(env, `/sections/${section}/addTask`, { method: 'POST', body: { task: u.gid } });
+  return { ok: true, note: `Undone: ${row.summary}.` };
+});
 
 /* ---------------- D. Google Drive (as Cole, through the service account's delegation) ---------------- */
 const driveIdOf = s => { const t = String(s || '').trim(); return (t.match(/\/folders\/([\w-]{10,})/) || t.match(/\/d\/([\w-]{10,})/) || t.match(/[?&]id=([\w-]{10,})/) || (/^[\w-]{10,}$/.test(t) ? [0, t] : []))[1] || null; };
@@ -700,12 +988,77 @@ export function driveActions(d) {
         await gdrive(env, d, DRIVE_RW, `files/${p.fid}/permissions?supportsAllDrives=true&sendNotificationEmail=${p.notify}`, { method: 'POST', body: { type: 'user', role: p.role, emailAddress: p.email } });
         return { ok: true, note: `Shared "${p.name}" with ${p.email}.${p.link ? ` ${p.link}` : ''}` };
       } },
+    /* 2026-10-17: make a folder, move, rename. Never trash or delete anything that was there before. */
+    { name: 'drive_folder',
+      description: 'Make a folder in Google Drive: inside the brand\'s folder by default, inside a subfolder of it by name, or inside any folder link. Undo removes it again only while it is still empty.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' }, parent: { type: 'string', description: 'Folder link or id; default the brand\'s folder.' }, subfolder: { type: 'string', description: 'A folder name inside the parent to put it in.' }, reason: { type: 'string' } }, required: ['name'] },
+      propose: async (env, i, h, ctx) => {
+        let to = driveIdOf(i.parent), brand = await brandOf(env, d, i.brand, ctx).catch(() => null);
+        if (!to) { if (!brand) return { error: 'Which folder or brand?' }; to = await brandFolder(env, brand.act_id); if (!to) return { error: `${brand.name} has no Drive folder linked.` }; }
+        let dest = await gdrive(env, d, DRIVE_RO, `files/${to}?supportsAllDrives=true&fields=id,name,webViewLink`);
+        const kidsOf = async id => (await gdrive(env, d, DRIVE_RO, `files?supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,webViewLink)&q=${encodeURIComponent(`'${id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)}`)).files || [];
+        if (i.subfolder) { const kids = await kidsOf(to); const sub = kids.find(k => k.name.toLowerCase() === String(i.subfolder).toLowerCase()) || kids.find(k => k.name.toLowerCase().includes(String(i.subfolder).toLowerCase())); if (!sub) return { error: `No folder "${i.subfolder}" in ${dest.name}.` }; dest = sub; }
+        const name = clip(String(i.name || '').trim(), 200); if (!name) return { error: 'Give the folder a name.' };
+        if ((await kidsOf(dest.id)).some(k => k.name.toLowerCase() === name.toLowerCase())) return { error: `${dest.name} already has a folder called "${name}".` };
+        return { summary: `New Drive folder "${name}" in ${clip(dest.name, 60)}`, detail: dest.webViewLink || dest.id, patch: { parent: dest.id, parentName: dest.name, name, brand: brand?.act_id || null, reason: clip(i.reason, 300) || null } };
+      },
+      apply: async (env, p, h, ctx) => {
+        const f = await gdrive(env, d, DRIVE_RW, `files?supportsAllDrives=true&fields=id,name,webViewLink`, { method: 'POST', body: { name: p.name, mimeType: 'application/vnd.google-apps.folder', parents: [p.parent] } });
+        const id = await recordWrite(env, { platform: 'drive', brand: p.brand, object: f.id, name: p.name, action: 'drive_folder', after: { folder: f.id, in: p.parentName }, undo: { op: 'unmake', id: f.id }, summary: `New Drive folder "${p.name}" in ${p.parentName}`, reason: p.reason, objectType: 'DRIVE_FOLDER', ctx });
+        return { ok: true, note: doneNote(`Folder made: ${f.webViewLink || f.id}`, id) };
+      } },
+    { name: 'drive_move',
+      description: 'Move a Google Drive file or folder into another folder (a link or id, or a subfolder of the brand\'s folder by name). Undo moves it back.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, file: { type: 'string' }, to: { type: 'string', description: 'Folder link or id.' }, subfolder: { type: 'string', description: 'A folder name inside the brand\'s folder (or inside to).' }, reason: { type: 'string' } }, required: ['file'] },
+      propose: async (env, i, h, ctx) => {
+        const fid = driveIdOf(i.file); if (!fid) return { error: 'Give the file or folder link.' };
+        let to = driveIdOf(i.to), brand = await brandOf(env, d, i.brand, ctx).catch(() => null);
+        if (!to) { if (!brand) return { error: 'Which folder?' }; to = await brandFolder(env, brand.act_id); if (!to) return { error: `${brand.name} has no Drive folder linked.` }; }
+        let dest = await gdrive(env, d, DRIVE_RO, `files/${to}?supportsAllDrives=true&fields=id,name,webViewLink`);
+        if (i.subfolder) { const kids = (await gdrive(env, d, DRIVE_RO, `files?supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)&q=${encodeURIComponent(`'${to}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)}`)).files || []; const sub = kids.find(k => k.name.toLowerCase() === String(i.subfolder).toLowerCase()) || kids.find(k => k.name.toLowerCase().includes(String(i.subfolder).toLowerCase())); if (!sub) return { error: `No folder "${i.subfolder}" in ${dest.name}.` }; dest = sub; }
+        const f = await gdrive(env, d, DRIVE_RO, `files/${fid}?supportsAllDrives=true&fields=id,name,parents,webViewLink`);
+        if ((f.parents || []).includes(dest.id)) return { error: `"${f.name}" is already in ${dest.name}.` };
+        if (dest.id === fid) return { error: 'A folder cannot go inside itself.' };
+        return { summary: `Move "${clip(f.name, 60)}" to ${clip(dest.name, 60)} in Drive`, detail: f.webViewLink || fid, patch: { fid, name: f.name, from: (f.parents || []).join(','), to: dest.id, toName: dest.name, brand: brand?.act_id || null, reason: clip(i.reason, 300) || null } };
+      },
+      apply: async (env, p, h, ctx) => {
+        await gdrive(env, d, DRIVE_RW, `files/${p.fid}?supportsAllDrives=true&addParents=${p.to}${p.from ? `&removeParents=${p.from}` : ''}&fields=id`, { method: 'PATCH', body: {} });
+        const id = await recordWrite(env, { platform: 'drive', brand: p.brand, object: p.fid, name: p.name, action: 'drive_move', before: { parents: p.from }, after: { parents: p.to }, undo: { op: 'move', id: p.fid, add: p.from, remove: p.to }, summary: `Moved "${p.name}" to ${p.toName} in Drive`, reason: p.reason, objectType: 'DRIVE_FILE', ctx });
+        return { ok: true, note: doneNote(`Moved "${p.name}" to ${p.toName}.`, id) };
+      } },
+    { name: 'drive_rename',
+      description: 'Rename a Google Drive file or folder.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, file: { type: 'string' }, name: { type: 'string' }, reason: { type: 'string' } }, required: ['file', 'name'] },
+      propose: async (env, i, h, ctx) => {
+        const fid = driveIdOf(i.file); if (!fid) return { error: 'Give the file or folder link.' };
+        const f = await gdrive(env, d, DRIVE_RO, `files/${fid}?supportsAllDrives=true&fields=id,name,webViewLink`);
+        const name = clip(String(i.name || '').trim(), 300); if (!name || name === f.name) return { error: 'Give a new name.' };
+        const brand = await brandOf(env, d, i.brand, ctx).catch(() => null);
+        return { summary: `Rename "${clip(f.name, 60)}" → "${clip(name, 60)}" in Drive`, detail: f.webViewLink || fid, patch: { fid, from: f.name, name, brand: brand?.act_id || null, reason: clip(i.reason, 300) || null } };
+      },
+      apply: async (env, p, h, ctx) => {
+        await gdrive(env, d, DRIVE_RW, `files/${p.fid}?supportsAllDrives=true&fields=id`, { method: 'PATCH', body: { name: p.name } });
+        const id = await recordWrite(env, { platform: 'drive', brand: p.brand, object: p.fid, name: p.name, action: 'drive_rename', before: { name: p.from }, after: { name: p.name }, undo: { op: 'rename', id: p.fid, name: p.from }, summary: `Renamed "${p.from}" → "${p.name}" in Drive`, reason: p.reason, objectType: 'DRIVE_FILE', ctx });
+        return { ok: true, note: doneNote('Renamed.', id) };
+      } },
   ];
 }
+registerUndo('drive', async (env, d, row, u) => {
+  if (u.op === 'rename') await gdrive(env, d, DRIVE_RW, `files/${u.id}?supportsAllDrives=true&fields=id`, { method: 'PATCH', body: { name: u.name } });
+  else if (u.op === 'move') await gdrive(env, d, DRIVE_RW, `files/${u.id}?supportsAllDrives=true&addParents=${u.add}&removeParents=${u.remove}&fields=id`, { method: 'PATCH', body: {} });
+  else if (u.op === 'unmake') {
+    /* Only a folder this write made, and only while nothing was put in it: then it goes to Drive's trash (30 days). */
+    const kids = (await gdrive(env, d, DRIVE_RO, `files?supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=1&fields=files(id)&q=${encodeURIComponent(`'${u.id}' in parents and trashed = false`)}`)).files || [];
+    if (kids.length) return { error: 'Something was put in that folder since, so Locus leaves it. Remove it in Drive yourself if it should go.' };
+    await gdrive(env, d, DRIVE_RW, `files/${u.id}?supportsAllDrives=true&fields=id`, { method: 'PATCH', body: { trashed: true } });
+  } else return { error: `Unknown Drive undo ${u.op}.` };
+  return { ok: true, note: `Undone: ${row.summary}.` };
+});
 
 /* ---------------- assembly ---------------- */
 export function metaActions(d) {
-  return [statusAction(d, 'meta_pause', 'PAUSED'), statusAction(d, 'meta_resume', 'ACTIVE'), budgetAction(d), minSpendAction(d), renameAction(d), duplicateAction(d), createAdAction(d), undoAction(d)];
+  return [statusAction(d, 'meta_pause', 'PAUSED'), statusAction(d, 'meta_resume', 'ACTIVE'), budgetAction(d), minSpendAction(d), renameAction(d), duplicateAction(d), createAdAction(d), undoAction(d),
+    bidAction(d), targetingAction(d), scheduleAction(d), createCampaignAction(d), createAdsetAction(d), adCopyAction(d)];
 }
 /** Everything here for strategist.js: `tools` (reads) and `actions` (Apply cards). */
 export function writeTools(d) { return [...metaTools(d), ...driveTools(d)]; }

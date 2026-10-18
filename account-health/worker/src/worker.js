@@ -76,6 +76,7 @@ import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
 import { handleLaunch } from './launch.js';
 import { dataTools } from './stratdata.js';
+import { extraTools } from './allwrite.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -5809,7 +5810,7 @@ async function slackApi(env, method, body) {
   /* READ methods refuse a JSON body (Slack answers ok:false). conversations.replies sent as JSON is
      why the Strategist answered a thread reply with no memory of the thread (found 2026-10-05):
      the engine swallowed the error and sent the bare question. Reads go form-encoded. */
-  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info|auth\.test|files\.(info|getUploadURLExternal|completeUploadExternal))$/.test(method);
+  const read = /^(conversations\.(replies|history|info|members|list)|users\.(info|list|lookupByEmail)|reactions\.get|team\.info|auth\.test|chat\.getPermalink|pins\.list|files\.(info|getUploadURLExternal|completeUploadExternal))$/.test(method);
   const init = read
     ? { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(Object.entries(body || {}).filter(([, v]) => v != null).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)])).toString() }
@@ -6269,7 +6270,7 @@ async function handleSlackInteract(request, env, ctx) {
       ctx.waitUntil((async () => {
         const many = String(val.askp || '').includes(',') && !val.cancel;
         if (many) await say({ replace_original: true, text: 'Applying them now...' });
-        const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null) } }).catch(e => ({ error: String(e.message || e) }));
+        const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null), whoId: payload.user?.id || null } }).catch(e => ({ error: String(e.message || e) }));
         /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
         const done = res.group ? (res.error ? '⚠️ ' + res.error : res.note) : res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
         const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
@@ -7911,7 +7912,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Run one of the Strategist's data tools directly (store_sql, web_lookup, match_ads_to_board): the admin key only, for checks. */
       if (path === '/api/ask/tool' && request.method === 'POST') {
         if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== 'Bearer ' + env.ADMIN_TOKEN) return json({ error: 'Admin key only.' }, 403);
-        const tool = dataTools({ listAccounts, xfetch, slack: slackApi }).find(t => t.def.name === body.name);
+        const tdeps = { listAccounts, xfetch, slack: slackApi, getSetting, putSetting };
+        const tool = [...dataTools(tdeps), ...extraTools(tdeps)].find(t => t.def.name === body.name);
         if (!tool) return json({ error: 'No such tool.' }, 400);
         /* channel + user: run it as though asked in that Slack conversation (make_canvas). */
         const sctx = body.channel ? { surface: 'slack', channel: body.channel, ev: { user: body.user || null } } : { surface: 'web' };

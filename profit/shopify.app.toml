@@ -49,7 +49,7 @@ api_version = "2026-07"
 # Must match SHOPIFY_SCOPES in worker/src/worker.js exactly — Shopify compares the
 # two at install and re-prompts on a mismatch. read_reports is what grants
 # shopifyqlQuery, which is the only way to get customers by first-order month.
-scopes = "read_orders,read_customers,read_products,read_reports"
+scopes = "read_orders,read_customers,read_products,read_reports,write_products,write_discounts"
 optional_scopes = [ ]
 
 # true = classic OAuth (authorization code grant), which is what the worker does.

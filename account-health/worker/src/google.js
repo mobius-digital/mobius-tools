@@ -538,3 +538,20 @@ export async function adsInvite(env, customerId) {
     throw new Error(m);
   }
 }
+
+/* ---------- The Strategist's Google Ads hands (googlewrite.js, 2026-10-17) ----------
+   One GAQL read and one mutate through the same token, headers and fetch as every read here. `adsMutate` runs a
+   service's operations (campaigns, adGroups, adGroupAds, adGroupCriteria, campaignCriteria, campaignBudgets, ads);
+   `validate` asks Google to check them without making them. Errors come back in Google's own words (gaqlErr). */
+export async function adsCustomer(env, act) {
+  const link = await linkFor(env, act);
+  return link.ads ? String(link.ads).replace(/\D/g, '') : null;
+}
+export const adsQuery = (env, cid, query) => adsSearch(env, cid, query);
+export async function adsMutate(env, cid, service, operations, validate = false) {
+  return gfetch(env, SCOPES.ads, `https://googleads.googleapis.com/${ADS_V}/customers/${cid}/${service}:mutate`, { body: { operations, ...(validate ? { validateOnly: true } : {}) }, headers: adsHeaders(env) });
+}
+export const adsError = e => gaqlErr(e);
+export async function adsDropCache(env, act) {
+  for (const p of ['gads2', 'gadad', 'gadst', 'gadlk2', 'gadch']) await env.DB.prepare(`DELETE FROM settings WHERE key LIKE ?1`).bind(`${p}:${act}:%`).run().catch(() => {});
+}

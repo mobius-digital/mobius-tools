@@ -276,3 +276,9 @@ FROM brands b LEFT JOIN accounts m ON m.act_id = (SELECT external_id FROM connec
 CREATE TABLE IF NOT EXISTS p_meta_write (id TEXT PRIMARY KEY, act TEXT NOT NULL, brand TEXT, level TEXT, object TEXT NOT NULL,
   name TEXT, action TEXT NOT NULL, field TEXT, before TEXT, after TEXT, summary TEXT, by TEXT, at TEXT NOT NULL DEFAULT (datetime('now')), undone TEXT);
 CREATE INDEX IF NOT EXISTS p_meta_write_brand ON p_meta_write (brand, at);
+
+-- Every Strategist write outside Meta (src/extwrite.js, 2026-10-17): Slack, Google Ads, TikTok, Shopify, Asana, Drive,
+-- Frame, Klaviyo additions. before / after and how to undo it (undo_change, 24h). Also created on first use.
+CREATE TABLE IF NOT EXISTS p_ext_write (id TEXT PRIMARY KEY, platform TEXT NOT NULL, brand TEXT, object TEXT, name TEXT,
+  action TEXT NOT NULL, before TEXT, after TEXT, undo TEXT, summary TEXT, by TEXT, at TEXT NOT NULL, undone TEXT);
+CREATE INDEX IF NOT EXISTS p_ext_write_brand ON p_ext_write (brand, at);

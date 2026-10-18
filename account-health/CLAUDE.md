@@ -2337,3 +2337,37 @@ sort 14 pairs"). Tests: `node test-stratdata.mjs` (8); test-stratmake checks the
 - `POST /api/ask/tool {name, input}` runs a data tool directly: ADMIN_TOKEN only (the local .dev.vars token works on
   `wrangler dev --remote`, which carries the deployed secrets).
 - Ledger and Supply use the same engine: they get the one-message Slack shape on their next deploy (not deployed here).
+
+## 2026-10-17: FULL CONTROL OVER EVERY CONNECTION (`src/extwrite.js`, `allwrite.js`, `slackwrite.js`, `googlewrite.js`, `tiktokwrite.js`, `shopifywrite.js`). Read before adding a write.
+
+Cole: "Locus should have every Slack permission and full control over every connection we add." Every action applies at
+once on a teammate's direct ask (strategist.js `directActions: 'all'`, `cardOnly: CARD_ONLY` from allwrite.js) and keeps the
+metawrite.js rules: look up first, the brand's own object only, before -> after, one Change Log line (`activities`,
+event_type `<platform>_write`, filed under the brand's Meta account), undo where the API allows. Tests: `node test-fullcontrol.mjs` (10).
+- **The record:** Meta writes stay in `p_meta_write`; everything else goes to `p_ext_write` (platform, before, after, `undo`
+  = how to reverse it, null = cannot). `undo_change` takes back any write for 24h (xw_ / mw_ id, or "last" per brand,
+  which also finds Meta's). A module registers its undo with `registerUndo(platform, fn)`.
+- **New actions:** Slack `slack_post` (internal channel or a teammate's DM), `slack_post_client` (CARD ONLY; apply refused
+  unless Cole while `settings.slackSendWho` != anyone), `slack_schedule`, `slack_react`, `slack_pin`, `slack_edit` /
+  `slack_delete` (its own posts only), `slack_invite`, `slack_channel`. Client-facing = a brand's `brief_channel`, any
+  Slack Connect channel, a guest DM (`classify`). Google Ads `google_status` (campaign / ad group / ad / keyword),
+  `google_budget`, `google_target` (tROAS / tCPA; portfolio refused), `google_rename`, `google_keywords`,
+  `google_keyword_bid`, `google_negative` (any match, campaign or ad group, add / remove), `google_ad_text` (RSA); every
+  op goes to Google with validateOnly in the proposal; undo replays stored inverse ops (google.js `adsMutate`). Meta
+  `meta_bid`, `meta_targeting`, `meta_schedule`, `meta_create_campaign`, `meta_create_adset` (pixel + event copied from a
+  running set), `meta_ad_copy` (new creative from the old spec, ad switched; dynamic creative / existing posts refused);
+  each validated first with `execution_options: ['validate_only']`. TikTok `tiktok_status`, `tiktok_budget`. Shopify
+  `shopify_product`, `shopify_discount` (p_shopify token; refused without write scopes). Klaviyo `klaviyo_campaign_update`,
+  `klaviyo_campaign_duplicate`, `klaviyo_list`, `klaviyo_segment`, `klaviyo_rename`. `asana_update`, `drive_folder` /
+  `drive_move` / `drive_rename`, `frame_rename` / `frame_comment`, calendar `edit_date`, `tick_step`, `note_date`,
+  `remove_date`, `restore_date`. Reads `google_read`, `tiktok_read`, `write_access`.
+- **Off by design:** client channel posts and customer sends without a card (slack_post_client, klaviyo schedule / flow
+  status, drive_share), deleting anything in Frame (comments cannot be undone either), passwords and secrets. "Undo"
+  of a created Drive folder or Klaviyo list only removes it while still empty.
+- **Live `write_access` 2026-10-17** (`POST /api/ask/tool {name: 'write_access'}` on a remote preview): Meta writable on
+  every live brand, token lacks `pages_manage_metadata`; Google Ads validateOnly accepted (Bonk, Dartee, Grunk, Ice &
+  Gold); Drive full scope yes; Klaviyo 5 keys flows + campaigns + templates; Asana and Frame yes. Slack bot HAS
+  reactions:read, canvases:write, reactions:write; LACKS pins:write, channels:manage, groups:write, channels:join,
+  im:write, chat:write.public (so DMs, pins, invites and new channels refuse until added). Shopify: two installed stores,
+  read scopes only, not linked to a brand. TikTok: app keys not set. Ice & Gold's google_ads link is the MCC id
+  5566468199 (wrong). Every new write is mock-tested only; the first real one of each kind is the test.
