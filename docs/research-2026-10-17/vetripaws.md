@@ -67,3 +67,26 @@ Breath has 4 (fewer real owner breath ads exist; most are powder pours or vet le
 - Don't say "vet recommended", and no prices or discount codes on camera.
 - Don't name or show another brand's product.
 - No "results in 30 seconds" or before and after promises about health.
+
+## Round 2 (2026-10-17)
+
+Seven more, every one a concept and format not already on the board, from brands not used before (none from Wuffes, Dog is Human, Native Pet, PetLab Co. or Pupford). All watched frame by frame; all filmable by one owner with a phone and a dog.
+
+| # | Sec | Clip | Brand | Format |
+|---|---|---|---|---|
+| 23 | joint | wag-alfie-shoes | Wagwear | FAQ captions over walk footage ("the question I get asked most") |
+| 24 | joint | ppl-holly-walk | Pawprint Lab | Walk with me voiceover, tin up front |
+| 25 | breath | mm-id-rather | Meow Mouth | Odd claim hook ("I'd rather..."), talking head outside |
+| 26 | breath | pl-cat-dad | PrettyLitter | Dog dad call-out ("listen up fellas"), holding the dog |
+| 27 | coat | rhy-groom-worst | Rhykin Pet Co | Groom with me, "my worst client is back" captions |
+| 28 | coat | tl-non-negotiables | Touchland | Shedding season non-negotiables, quick cuts |
+| 29 | takeit | viva-let-them-pick | Viva Raw | Lineup on the floor, let the dog pick |
+
+Rejected in round 2:
+- Different Dog "things my mum says about me" (studio set, brand cards).
+- Chewy x WHIMZEES "me the second my dog's breath gets stinky" (too close to the kiss recoil pick, needs a stink cloud effect).
+- Chewy x Bruce the Rescue Retriever (repeats the day in the life vlog, half of it is website screen recordings).
+- Bugalugs plaque powder (staged kitchen presenter, landscape, product shots).
+- Honest Dog Company bone broth (plain product talking head, nothing new).
+- Dog Friendly Co. senior paw pads (compilation of many dogs from many sources).
+- Petz Park "black leggings" (kinetic text and stock shots).

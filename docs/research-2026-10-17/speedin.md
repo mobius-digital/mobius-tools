@@ -87,3 +87,38 @@ Notes on picks:
 - Cures, treats, fixes, doctor recommended or FDA approved. None of it.
 - Prices, discounts or codes unless we send you one.
 - Kids, pregnancy or nursing. These strips are for adults.
+
+## Round 2 (2026-10-17)
+
+Five more, each a concept and format not already on the board, from advertisers not used before. Every clip checked on a contact sheet (a frame every 1.5 seconds), and every one is 100% phone footage with plain captions only. Ids, captions, openers and shots are appended to `speedin_ideas.json` (items 21 to 25).
+
+| # | Sec | Clip | Brand | Idea |
+|---|-----|------|-------|------|
+| 24 | energy | guava-sideline-saturday | Guava Family | Sports parent Saturday, voiceover vlog |
+| 25 | energy | honeystinger-color-run | Honey Stinger | Run with me, strip at the halfway point |
+| 26 | sleep | supergut-family-asked | Supergut | "This was the topic at our family dinner" storytime |
+| 27 | glow | fleur-partner-steals | Fleur | POV: your partner keeps stealing your strips |
+| 28 | nopills | drywater-nurse-shift | DryWater | Nurse get ready for my shift: no time to stop and drink |
+
+Notes: Guava shows kids on the field: the strip is for the parent, never the kids. Supergut is a drink at the counter; ours is water or tea in shot only, never wine. DryWater mixes a powder into water; ours is the strip only, and the idea is the job (nurse, teacher, server) where you never get to stop. It is a day shift energy idea, not the Manta night shift sleep tip.
+
+Pulled after the owner's review (failed the phone rule; a "skip this part" note does not save a clip):
+- OxyShred gym list (m1658414809346881): "Fitness Journey" title graphic and flying product graphics.
+- DripDrop street interview (m1139822485381915): cuts to studio product shots and a stock model shot.
+- CAVAE bottle drawer (m2197727044473033): a third "pile of bottles" idea next to Hostage Tape and Emmafy.
+
+Rejected in round 2:
+- Ultra Pouches gym (m2272794356970308): cinematic studio cuts between the phone talking head.
+- Thesis exam week (m4384366525162005): looks AI generated, cinematic.
+- Everstride flight (m2329758700879594): green screen plus stock b roll and a gauge graphic.
+- Moerie hair (m970656506086235): GLP-1 opener and "five inches in a month" claims.
+- Beam (m1073920088787472): gut testimonial, nothing new as a format.
+- Chalene Johnson sleep (m1603316404035724): landscape podcast clip that pairs sleep with alcohol talk.
+- Ultra Pouches sleep (m28810346638649318): bedtime tip list, too close to Budpop on the board.
+- Blissal apology (m1580722603263008): shower footage and a collage of other people's clips.
+- Feel Goods strangers taste test (to7208350695727107370): meme sticker and label overlays, names a competitor.
+- CAVAE drawer talking head (m1664786465206648): pill and bottle emoji stickers over the video.
+- Loaded Tea teacher hotline (m1121185303695869): animated cartoon.
+- Neutonic (to7444226880221236513): founder pitch built on price and competitor jabs.
+- AgeMate "no morning routine" (m2168454834048317): counter drink build, too close to Everyday Dose and Supergut.
+- Honey Stinger sunrise hike (m997273616727787): all phone, but the creator is 38 weeks pregnant taking caffeine.
