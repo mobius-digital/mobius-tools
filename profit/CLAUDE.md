@@ -3555,3 +3555,13 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
   then filed as `upload` proof with who "<Brand> (inspiration)". `inspo` kind with an Atria URL does NOT play on the v20 board.
 - Cole's rule (2026-10-16): only videos a person with a phone can film start to finish. No motion graphics, studio spins, CGI or brand films, even if they sold. Other brands' videos can be any product (joggers, hoodies); the format is what counts.
 - No submit link yet: the button hides until a TRYBE campaign link is pasted on the Ambassadors tab.
+
+## 2026-10-17: VetriPaws and Speedin creator links (seed_strip_brands.py). Seeded, links OFF until TRYBE.
+- `angles/vetripaws` (22 videos) and `angles/speedin` (23 videos), sister brands selling supplement strips (dogs / adults).
+  Every video is ANOTHER brand's clip from Atria (VetriPaws has ~$50 of video spend, Speedin has no Meta yet), stored at
+  `amb/brand_<slug>/inspo-<name>.mp4` in R2. Research: `docs/research-2026-10-17/`. Phone rule applied, each clip watched.
+- One seed for both: `python seed_strip_brands.py <slug> <ideas.json> <checklist.json>`; ideas + checklist JSON came from the
+  research (scratchpad, not committed; the .sql files are). It never touches `live`; re-running replaces sections, ideas, videos.
+  Board order = hot first, then one category at a time (`mix`).
+- Uploaded clips only play once a link is LIVE (`/api/angles-file` checks `b.live`), so the staff preview shows covers-less
+  tiles. Switch each live on the Creators tab once its TRYBE campaign link is pasted.
