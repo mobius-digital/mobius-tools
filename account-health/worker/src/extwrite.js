@@ -125,6 +125,18 @@ const SLACK_WANT = {
   'channels:manage': 'make public channels, invite people, archive', 'groups:write': 'make private channels, invite people', 'channels:join': 'join public channels',
   'canvases:write': 'make canvases', 'files:write': 'upload files', 'im:write': 'DM people', 'users:read': 'see names', 'users:read.email': 'match teammates by email',
   'channels:history': 'read public channels', 'groups:history': 'read private channels', 'files:read': 'see uploaded images', 'bookmarks:write': 'add channel bookmarks',
+  /* 2026-10-17, Cole: "Locus should be able to do EVERYTHING no matter what". The rest of Slack's bot scopes, so a gap shows
+     here whether or not code uses it yet (only Slack Connect invites, calls, workflows and billing are left out on purpose). */
+  'app_mentions:read': 'hear @Locus', 'assistant:write': 'act as an app agent', 'canvases:read': 'read canvases', 'channels:read': 'list public channels',
+  'groups:read': 'list private channels', 'im:history': 'read DMs', 'im:read': 'list DMs', 'mpim:history': 'read group DMs', 'mpim:read': 'list group DMs',
+  'mpim:write': 'start group DMs', 'pins:read': 'see pins', 'bookmarks:read': 'see channel bookmarks', 'channels:write.invites': 'invite to public channels',
+  'groups:write.invites': 'invite to private channels', 'channels:write.topic': 'set public channel topics', 'groups:write.topic': 'set private channel topics',
+  'im:write.topic': 'set DM topics', 'mpim:write.topic': 'set group DM topics', 'reminders:read': 'see reminders', 'reminders:write': 'set reminders',
+  'usergroups:read': 'see @groups', 'usergroups:write': 'edit @groups', 'users.profile:read': 'see profiles', 'team:read': 'see the workspace', 'emoji:read': 'see custom emoji',
+  'links:read': 'see shared links', 'links:write': 'unfurl Locus links', 'lists:read': 'read Slack Lists', 'lists:write': 'edit Slack Lists', 'dnd:read': 'see do-not-disturb',
+  'metadata.message:read': 'read message metadata', 'search:read.public': 'search public channels', 'search:read.private': 'search private channels',
+  'search:read.im': 'search DMs', 'search:read.mpim': 'search group DMs', 'search:read.files': 'search files', 'search:read.users': 'search people',
+  'remote_files:read': 'read remote files', 'remote_files:write': 'add remote files', 'remote_files:share': 'share remote files',
 };
 export async function slackScopes(env, d) {
   if (!env.SLACK_BOT_TOKEN) return { error: 'SLACK_BOT_TOKEN is not set.' };
