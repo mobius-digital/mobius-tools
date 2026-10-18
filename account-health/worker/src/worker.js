@@ -3169,17 +3169,26 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   // internal-only brand would destroy a handled brief the team had just read.
   const channel = acct.brief_channel;
   if (!channel) return { name: acct.name, error: 'no client channel set for this brand - it is handled internally; pick one in Settings if it should be sent', draft_intact: true };
-  /* THE CLIENT DAILY IS THREE LINES PLUS A DOOR (Cole, 2026-10-12: the client chats are cluttered too; the
-     report lives in Locus, Slack carries the headline). Once the brand has a Locus client login there is a door
-     to open, so the message shrinks to the opener, the headline, the day's three money lines and "Open the full
-     brief in Locus". A brand nobody can sign in for still gets the whole brief. settings.briefClientStyle =
-     'full' keeps the whole brief everywhere. The stored row keeps the full text either way. */
-  let out = text;
+  /* THE CLIENT DAILY IS ONE SHORT POST, THE BRIEF IS ITS THREAD (Cole, 2026-10-17; first built 2026-10-12 as a
+     Locus link for brands with a client login). The client channel gets the opener, the headline and the day's
+     Net Sales / Ad Spend / MER against plan; the rest of the brief goes as ONE reply under it, so a client
+     channel holds one short message a day and the detail is one tap away, login or not. A brand with a Locus
+     client login also gets "Open the full brief in Locus". settings.briefClientStyle = 'full' posts the whole
+     brief top-level as before. The stored row keeps the full text either way. */
   const style = (await getSetting(env, 'briefClientStyle').catch(() => null)) || 'short';
-  if (style !== 'full' && await brandHasClientLogin(env, acct.act_id)) out = shortBriefText(text);
+  const short = style !== 'full';
+  const out = short ? shortBriefText(text, { locus: await brandHasClientLogin(env, acct.act_id) }) : text;
   try {
     // Goes to the client, so it comes from Cole - not a bot wearing a name.
-    await slackPost(env, channel, out, null, { asUser: true });
+    const top = await slackPost(env, channel, out, null, { asUser: true });
+    const rest = short ? briefThreadText(text) : '';
+    /* The reply failing must not unsend the headline the client already has: the send is recorded either way,
+       and the internal channel hears about the missing thread. */
+    if (rest && top?.ts) {
+      await slackPost(env, channel, rest, null, { asUser: true, thread_ts: top.ts }).catch(e =>
+        acct.slack_channel && slackPost(env, acct.slack_channel,
+          `:warning: *${acct.name}*: the client daily went out but its full brief did not post in the thread (${e.message}).`).catch(() => {}));
+    }
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
     // The review card in the internal channel still shows a live Send button
     // for a brief the client now has. Redraw it before anyone presses it again.
@@ -3215,9 +3224,9 @@ async function brandHasClientLogin(env, act_id) {
 }
 
 /** The short client daily: the opener, the headline and the Today line (everything before the first blank
- *  line), then the first day's date and its Net Sales / Ad Spend / MER lines, then the door into Locus.
- *  Works on the stored text, so a headline Cole edited is the headline the client reads. */
-function shortBriefText(text) {
+ *  line), then the first day's date and its Net Sales / Ad Spend / MER lines (each already "vs plan"), then
+ *  where the rest is. Works on the stored text, so a headline Cole edited is the headline the client reads. */
+function shortBriefText(text, { locus = false } = {}) {
   const lines = String(text || '').split('\n');
   const out = [];
   let i = 0;
@@ -3227,8 +3236,15 @@ function shortBriefText(text) {
   while (i < lines.length && lines[i].trim() !== '') day.push(lines[i++]);
   const keep = day.filter((l, k) => k === 0 || /^(Net Sales|Ad Spend|MER:)/i.test(l.replace(/\*/g, '').trim()));
   if (keep.length > 1) out.push('', ...keep);
-  out.push('', `<${DASHBOARD_URL}|Open the full brief in Locus>`);
+  out.push('', locus ? `_Full update in the thread, or <${DASHBOARD_URL}|open it in Locus>._` : '_Full update in the thread._');
   return out.join('\n');
+}
+
+/** The thread reply under the short daily: the whole brief minus its opener paragraph, which the short post
+ *  already carries. Empty when nothing is left (a brief that is only an opener). */
+function briefThreadText(text) {
+  const parts = String(text || '').split(/\n\s*\n/);
+  return parts.slice(1).join('\n\n').trim();
 }
 
 /** A brief that fails silently is worse than no brief - nobody notices for weeks.
