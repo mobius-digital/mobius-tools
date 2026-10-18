@@ -29,7 +29,7 @@ export async function tiktokStart(env, origin) {
   await putS(env, 'tiktok_state', JSON.stringify({ state, at: Date.now() }));
   return { url: `https://business-api.tiktok.com/portal/auth?app_id=${encodeURIComponent(env.TIKTOK_APP_ID)}&state=${state}&redirect_uri=${encodeURIComponent(origin + '/tiktok/callback')}` };
 }
-async function tt(env, path, { method = 'GET', body, token } = {}) {
+export async function tt(env, path, { method = 'GET', body, token } = {}) {
   const res = await F(`${API}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { 'Access-Token': token } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || (j.code && j.code !== 0)) throw new Error(j.message || `TikTok ${res.status}`);

@@ -173,7 +173,7 @@ await check('registered: every action and both tools, no em dashes in any descri
   const src = fs.readFileSync(path.join(here, 'src', 'metawrite.js'), 'utf8');
   assert.ok(!src.includes('—'), 'em dash in metawrite.js');
   const strat = fs.readFileSync(path.join(here, 'src', 'strategist.js'), 'utf8');
-  assert.match(strat, /writeActions\(d\)/); assert.match(strat, /writeTools\(d\)/); assert.match(strat, /ACTING IN META, ASANA AND DRIVE/);
+  assert.match(strat, /writeActions\(d\)/); assert.match(strat, /writeTools\(d\)/); assert.match(strat, /ACTING ON EVERY CONNECTION/);
 });
 
 await check('permission: a read-only account refuses with the exact Business settings fix, cached', async () => {
