@@ -360,10 +360,9 @@ profit/
   orders (product-level profit, most likely) will need it, and the approval takes time.
 - **Shopify webhooks are configured in `profit/shopify.app.toml`, not in a dashboard
   form.** Cole went looking for the form and there isn't one any more; `shopify app
-  deploy` pushes the scopes and webhook subscriptions from that file. `embedded` must
-  stay FALSE - the worker implements the standalone authorization-code grant, and
-  marking the app embedded makes Shopify expect token exchange plus App Bridge, which
-  fails in a way that does not point back here.
+  deploy` pushes the scopes and webhook subscriptions from that file. `embedded` is TRUE
+  since 2026-10-18 (see the section at the end): the install is still the classic
+  authorization-code grant; App Bridge session tokens only authenticate the embedded page.
 - **`shopify app config link` OVERWRITES the local TOML with whatever is on the
   remote app.** It is a pull, not a link. Run once against a freshly-created blank
   app and it silently reset `name` to the org name, `application_url` to
@@ -3581,3 +3580,20 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
 - First run on real data (Oct 10 to 17): Lucky 36 ads in 11 groups, $1.1K of $3.5K (the "Black Wedges - N" set alone has
   11 look-alikes); Dartee 29 ads, $546; Ice & Gold 25 ads, $244; the rest under $150. Fatigue is unchanged (command
   center CTR / hook / frequency, Today's Refresh call).
+
+## 2026-10-18: THE EMBEDDED SHOPIFY APP (review 131577). Read before touching /shopify/*.
+
+Shopify paused the app: no usable UI ("Shopify could not be read: Shopify returned 403" on the reviewer's store), session
+tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopify-app-review-2026-10-18.md`.
+- `shopify.app.toml`: `embedded = true`, `application_url = .../shopify/app`, scopes now add write_products and
+  write_discounts (Locus's shopify_product / shopify_discount). `use_legacy_install_flow` STAYS TRUE: the install is the
+  same classic grant; the callback now lands every store back inside the admin (`https://<shop>/admin/apps/<api key>`).
+- `src/shopifyapp.js`: `GET /shopify/app` = the page (App Bridge from Shopify's CDN, the client id in a meta tag,
+  CSP frame-ancestors for that shop + admin.shopify.com, no cookies or storage; a shop with no saved token is sent to
+  /shopify/install through App Bridge's top-level open). `GET /shopify/app/api/report` = the numbers, authorised only by
+  the session token (`verifySessionToken`: HS256 with the app secret, aud = the client id, dest/iss = the shop, exp/nbf).
+  `appReport` never fails for a refused part: orders denied (Protected customer data not approved) = products + one note;
+  a 401 forgets the token and sends the store to the install. Tests: `node test-shopifyapp.mjs` (4).
+- The old public `?store=` report (`/api/store-view`) answers plain sentences instead of raw Shopify errors.
+- The two stores in p_shopify on 2026-10-17 ("Dlwlrma Store", "OFS Signature Looks") were Shopify's REVIEWERS; never link
+  them to a brand. Clients can install only after the review passes.

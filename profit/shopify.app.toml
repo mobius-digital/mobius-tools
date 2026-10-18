@@ -16,14 +16,14 @@ client_id = "a204d4974bccc5aacf66c3f723fb5652"
 name = "Mobius Digital"
 handle = "mobius-profit"
 
-# Where a merchant lands when they open the app. Our install route reads ?shop=
-# and kicks off the OAuth grant.
-application_url = "https://mobius-profit.mobius-digital.workers.dev/shopify/install"
+# Where a merchant lands when they open the app: the EMBEDDED store screen inside the Shopify admin
+# (worker/src/shopifyapp.js: App Bridge + session tokens, no cookies). A store with no saved token is sent through
+# /shopify/install (the classic authorization-code grant below) once, then lands back inside the admin.
+application_url = "https://mobius-profit.mobius-digital.workers.dev/shopify/app"
 
-# MUST stay false. The worker implements the standalone authorization-code grant.
-# Marking the app embedded makes Shopify expect token exchange plus App Bridge,
-# which fails in a way that does not point back here.
-embedded = false
+# true since 2026-10-18 (review 131577 asked for an in-admin UI on session tokens). The install stays the classic
+# grant (use_legacy_install_flow = true); session tokens only authenticate the embedded page's own API calls.
+embedded = true
 
 # Only the three MANDATORY compliance webhooks live here. app/uninstalled cannot:
 # app-specific subscriptions (anything with `topics =`) are rejected outright when
