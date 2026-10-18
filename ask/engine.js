@@ -1274,7 +1274,9 @@ Plain English, no em dashes, lead with the answer.` }];
 
   async function answerSlack(env, ev, h, extra = {}) {
     const channel = ev.channel;
-    const thread = ev.channel_type === 'im' ? ev.thread_ts : (ev.thread_ts || ev.ts);
+    /* Every answer goes in a thread, DMs included (2026-10-17, Cole: "Viktor always does"). A top-level DM
+       starts a new thread under the message asked. */
+    const thread = ev.thread_ts || ev.ts;
     /* The reply carries the assistant's own name when the Slack app allows it
        (chat:write.customize). Refused, it goes out under the app's name and
        nothing is lost. */

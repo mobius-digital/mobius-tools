@@ -7103,7 +7103,7 @@ async function handleSlackEvent(request, env, ctx) {
   let dmScreen = null;
   if (dm || group || agencyCh) {
     const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
-    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, text: gate.reply, username: 'Locus' }).catch(() => {})); return ACK(); }
+    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, thread_ts: ev.thread_ts || ev.ts, text: gate.reply, username: 'Locus' }).catch(() => {})); return ACK(); }
     dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '')
       + (group ? ' This is a GROUP DM: other teammates read this thread and may ask you follow-ups. Answer whoever tagged you, by name; talk to the people the asker names.' : '') };
   }
