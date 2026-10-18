@@ -1931,3 +1931,8 @@ body.lx-gate-on .topbar{display:none}
 .v2lp-path:hover{text-decoration:underline}
 .v2lp-note b.good{color:var(--good)} .v2lp-note b.warn{color:var(--warn)} .v2lp-note b.bad{color:var(--bad)}
 .v2lp .v2link{margin-left:2px}
+
+/* Look-alike ads card (2026-10-18): ad names are buttons that open the preview. */
+.v2tbl .v2alk{background:none;border:0;padding:0;margin:0;font:inherit;color:var(--ink);text-align:left;cursor:pointer;max-width:100%}
+.v2tbl .v2alk:hover{text-decoration:underline}
+.v2tbl .v2alk:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
