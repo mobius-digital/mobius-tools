@@ -77,7 +77,7 @@ import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } fr
 import { handleLaunch } from './launch.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
-import { runStudioMake } from './studiomake.js';
+import { runStudioMake, studioMakeTools } from './studiomake.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7954,10 +7954,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/tool' && request.method === 'POST') {
         if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== 'Bearer ' + env.ADMIN_TOKEN) return json({ error: 'Admin key only.' }, 403);
         const tdeps = { listAccounts, xfetch, slack: slackApi, getSetting, putSetting };
-        const tool = [...dataTools(tdeps), ...extraTools(tdeps)].find(t => t.def.name === body.name);
+        const tool = [...dataTools(tdeps), ...extraTools(tdeps), ...studioMakeTools(strategistDeps())].find(t => t.def.name === body.name);
         if (!tool) return json({ error: 'No such tool.' }, 400);
-        /* channel + user: run it as though asked in that Slack conversation (make_canvas). */
-        const sctx = body.channel ? { surface: 'slack', channel: body.channel, ev: { user: body.user || null } } : { surface: 'web' };
+        /* channel + user (+ thread): run it as though asked in that Slack conversation (make_canvas, studio_make). */
+        const sctx = body.channel ? { surface: 'slack', channel: body.channel, thread: body.thread || null, ev: { user: body.user || null } } : { surface: 'web' };
         return json(await tool.run(env, body.input || {}, { ...sctx, screen: body.act ? { act_id: body.act } : null }));
       }
       if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));

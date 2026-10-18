@@ -45,11 +45,18 @@ export async function readStream(res) {
   return done;
 }
 
-/** The store's products, as Studio's product picker sees them. */
+/** The store's products, as Studio's product picker sees them. Studio reads only the Triple Whale shop; a brand
+ *  without one (VetriPaws, 2026-10-18) is read from its own website's Shopify products.json. */
 async function storeProducts(env, d, act) {
   const r = await profitCall(env, d, `/api/studio/products?act=${encodeURIComponent(act)}`);
   const j = await r.json().catch(() => ({}));
-  return j.products || [];
+  if ((j.products || []).length) return j.products;
+  const docs = (await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key IN ('profile', 'brand_facts')`).bind(act).all().catch(() => ({ results: [] }))).results || [];
+  const site = docs.map(x => safeJson(x.data_json, {}).website).find(w => /^https?:\/\//.test(w || ''));
+  if (!site) return [];
+  const res = await d.xfetch(`${new URL(site).origin}/products.json?limit=250`, { headers: { 'User-Agent': 'Mozilla/5.0 Locus' } }).catch(() => null);
+  const s = res?.ok ? await res.json().catch(() => ({})) : {};
+  return (s.products || []).map(p => ({ handle: p.handle, title: p.title, type: p.product_type || '', images: (p.images || []).map(i => i.src).filter(Boolean).slice(0, 8) })).filter(p => p.images.length);
 }
 /** A product by name: exact title, then handle, then every word of the ask inside the title. */
 export function matchProduct(list, want) {
@@ -176,6 +183,12 @@ async function oneBatch(env, d, job, j) {
   return { name: row.name, product: j.product.title, ads: made, plan: planned.ads, failed };
 }
 
+/* "ad 1, ad 3: <reason>" once per reason (an empty OpenAI balance failed all 9 VetriPaws ads the same way). */
+export function failedText(failed) {
+  const by = new Map();
+  for (const f of failed) { const m = String(f).match(/^(ad \d+): ([\s\S]*)$/); const [who, why] = m ? [m[1], m[2]] : ['', String(f)]; by.set(why, [...(by.get(why) || []), who].filter(Boolean)); }
+  return [...by].map(([why, ads]) => `${ads.sort().join(', ')}${ads.length ? ': ' : ''}${why}`).join('; ');
+}
 /* All of a batch's ads in ONE Slack post: upload each, then one completeUploadExternal with every file. */
 async function postBatch(env, d, job, b) {
   const files = [];
@@ -189,7 +202,7 @@ async function postBatch(env, d, job, b) {
     const up = await d.xfetch(a.upload_url, { method: 'POST', body: bytes });
     if (up.ok) files.push({ id: a.file_id, title: `${i + 1}. ${clip(b.plan[i]?.headline || b.name, 150)}` });
   }
-  const head = `*${b.name}* (${b.product}): ${files.length} of ${b.ads.length} made${b.failed.length ? `. Failed: ${b.failed.join('; ')}` : ''}`;
+  const head = `*${b.name}* (${b.product}): ${files.length} of ${b.ads.length} made${b.failed.length ? `. Failed: ${failedText(b.failed)}` : ''}`;
   if (!files.length) return d.slack(env, 'chat.postMessage', { channel: job.channel, thread_ts: job.thread, text: head });
   return d.slack(env, 'files.completeUploadExternal', { files, channel_id: job.channel, thread_ts: job.thread, initial_comment: head });
 }
