@@ -3562,6 +3562,6 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
   `amb/brand_<slug>/inspo-<name>.mp4` in R2. Research: `docs/research-2026-10-17/`. Phone rule applied, each clip watched.
 - One seed for both: `python seed_strip_brands.py <slug> <ideas.json> <checklist.json>`; ideas + checklist JSON came from the
   research (scratchpad, not committed; the .sql files are). It never touches `live`; re-running replaces sections, ideas, videos.
-  Board order = hot first, then one category at a time (`mix`).
+  Board order = hot first, then one category at a time (`mix`). Categories = the PRODUCTS (Cole 2026-10-17: any angle under its product, never angle names like "Stiff mornings"); every video sits under one product.
 - Uploaded clips only play once a link is LIVE (`/api/angles-file` checks `b.live`), so the staff preview shows covers-less
   tiles. Switch each live on the Creators tab once its TRYBE campaign link is pasted.
