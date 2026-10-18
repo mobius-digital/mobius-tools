@@ -39,6 +39,7 @@ import { metaOf, resolveBrandId } from './brands.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
 import { dataTools } from './stratdata.js';
+import { slackImages } from './slackindex.js';
 import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
@@ -357,9 +358,15 @@ THE ANGLES HUB (what creators see)
 - Each angle carries: title, the argument, who it is for, products (short), format, the lever (staff only), three openers (first lines that stop the scroll), the shots, the on-screen text, a do and a don't.
 - Before writing new angles, read the brand context, the current angles (to not repeat them) and what actually sold (Triple Whale attributed revenue by ad). Angles come from evidence, then taste.
 ACTING IN META, ASANA AND DRIVE (2026-10-09; Cole: "Why can't the AI make changes himself too? If he suggests doing something we approve it or change it up.")
-- You can change things yourself now, every change behind an Apply card: meta_pause, meta_resume, meta_budget,
-  meta_min_spend, meta_rename, meta_duplicate_adset, meta_create_ad, meta_undo; asana_task, asana_comment,
-  asana_complete; drive_copy_to, drive_share. Reads: meta_read (the live account structure), drive_list.
+- You can change things yourself: meta_pause, meta_resume, meta_budget, meta_min_spend, meta_rename,
+  meta_duplicate_adset, meta_create_ad, meta_undo; asana_task, asana_comment, asana_complete; drive_copy_to,
+  drive_share. Reads: meta_read (the live account structure), drive_list.
+- DO WHAT YOU ARE TOLD (2026-10-17, Cole: "Locus should be able to do everything"). When a teammate tells you to make
+  a change ("turn off the ad Nick screenshotted", "pause 368 - 1", "raise Lucky's prospecting to $300"), find the
+  exact object and make it at once with asked_directly true; then say it is done and how to undo it. No card, no
+  "nothing changes until you tap Apply". Only YOUR OWN extra ideas (pausing the whole ad set when they named one ad, a
+  second change they did not ask for) go on a card. A screenshot or image is never a blocker: open it with read_thread
+  (you see the images) and match it to the ad by its words and picture.
 - READ FIRST. meta_read before any Meta card, so the card names the exact campaign / ad set / ad with its real
   budget and status; the views (Triple Whale attributed) for the numbers that justify it. Never propose from memory.
 - ONE CHANGE AT A TIME, each with the number and the reason ("Ad set 412 | UGC at 3.1x TW ROAS on $1,840 over 7 days,
@@ -1771,9 +1778,11 @@ export function buildStrategist(d) {
        The rest of the Viktor-grade pass (Slack, memory, skills, Locus API, files, web, live steps,
        Stop, cost line) is in strattools.js; docs/strategist-viktor-grade-plan.md is the plan. */
     model: 'claude-opus-5-5', strongModel: 'claude-opus-5-5', deepModel: 'claude-opus-5-5', strongWhen: null, deepWhen: null,
-    /* Applied at once when the person plainly asks for exactly that (engine: asked_directly). Internal Locus settings only,
-       all easy to change back. Money, ads, Asana, Frame, Klaviyo, the creator link and anything a client sees keep the Apply card. */
-    directActions: ['set_account', 'set_brief_time', 'set_writing_style', 'set_report_sections', 'set_goals', 'set_brand_context', 'save_dashboard', 'schedule_question', 'log_change', 'add_date', 'move_date', 'end_date', 'create_alert', 'pause_alert'],
+    /* 2026-10-17, Cole: "Locus should be able to do everything." Every action applies at once when the team member
+       told it to (Meta writes keep their 24h undo and Change Log line). Its own suggestions are still cards, and so
+       are the three that reach people outside: an email or flow going out to customers, a file shared out. */
+    directActions: 'all', cardOnly: ['klaviyo_campaign_schedule', 'klaviyo_flow_status', 'drive_share'],
+    slackImages: (env, files) => slackImages(env, d.idx, files, 4),
     ...stratHooks(d), ...makeHooks(d),
     tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d)],
     dropTools: ['remember'],

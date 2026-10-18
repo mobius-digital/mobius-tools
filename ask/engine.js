@@ -631,11 +631,13 @@ export function createAssistant(config) {
    * internal, easy-to-undo actions (C.directActions: a brand setting, a dashboard, a schedule). Those apply
    * at once when the person's own message asked for exactly that change (the model sets asked_directly);
    * anything it suggests on its own, and every other action, is still a card with Apply. */
-  const DIRECT = new Set(C.directActions || []);
+  /* 2026-10-17, Cole ("Locus should be able to do everything"): C.directActions may be 'all', with C.cardOnly naming
+     the few that still always show a card (things a customer or someone outside receives). */
+  const DIRECT = new Set(C.directActions === 'all' ? ACTIONS.map(a => a.name).filter(n => !(C.cardOnly || []).includes(n)) : (C.directActions || []));
   const actionDefs = ACTIONS.map(a => DIRECT.has(a.name) ? ({
     name: a.name,
     description: 'Applies RIGHT AWAY when asked_directly is true (the person explicitly asked for exactly this change in their own words); otherwise PROPOSES it as a card with an Apply button. ' + a.description,
-    input_schema: { ...a.input_schema, properties: { ...(a.input_schema?.properties || {}), asked_directly: { type: 'boolean', description: 'true ONLY when the person\'s own message explicitly asked for exactly this change ("turn on the daily brief for Ice & Gold"). false when it is your own suggestion, when you are filling in details they did not give, or when they asked a question rather than gave an instruction.' } } },
+    input_schema: { ...a.input_schema, properties: { ...(a.input_schema?.properties || {}), asked_directly: { type: 'boolean', description: 'true when the person\'s own message told you to do this ("turn on the daily brief for Ice & Gold", "turn off the ad Nick screenshotted", "pause 368 - 1"). Working out WHICH object they meant (finding the ad from a screenshot, a name or a headline) still counts as asked: do it, do not ask again. false when it is your own suggestion or goes further than they asked (they said the ad and you would pause its whole ad set), or when they asked a question rather than gave an instruction.' } } },
   }) : ({
     name: a.name,
     description: 'PROPOSES a change; it does NOT apply it. A card with an Apply button is shown and the person taps it. ' + a.description,
@@ -1049,7 +1051,7 @@ export function createAssistant(config) {
     const stable = [schemaDoc(h)];
     if (playbook) stable.push('## How you think (your playbook)\n' + playbook);
     stable.push('## Reports and features\nWhen asked for a report, a dashboard, a forecast laid out, a breakdown or a PDF the app does not have: fetch every number first (queries and views), then call make_report ONCE with the whole page (KPI tiles, tables, a chart where a series over time helps, a line of text where a number needs a word). Never a number that did not come back from a query or a view. When the request needs the app itself to change (a new screen, a new check, a different computation, an integration), call hand_to_claude_code; that is the owner\'s job, done in Claude Code, and the card only shows to the owner.');
-    if (ACTIONS.length) stable.push('## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. The exception: an action that takes asked_directly applies at once when the person plainly told you to make exactly that change; then say it is done. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.');
+    if (ACTIONS.length) stable.push('## What you can change\nYou can PROPOSE changes with the action tools. Every proposal shows the person a card with an Apply button; nothing is changed until they tap it. The exception: an action that takes asked_directly applies at once when the person told you to do it; then say it is done (and how to undo it when there is an undo). Do not ask "are you sure" or put up a card for something they told you to do. When asked to change something, look the record up first (a query or a view) so the proposal is exact, then propose it. Never claim a change has been made; say it is proposed and waiting on them.');
     const cat = toolCatalog(); if (cat) stable.push(cat);
     const blocks = stable.map(text => ({ type: 'text', text }));
     blocks[blocks.length - 1].cache_control = { type: 'ephemeral', ...(C.cacheTtl ? { ttl: C.cacheTtl } : {}) };
@@ -1328,8 +1330,12 @@ TABLES: when you compare 3+ items or show several numbers per item, write a mark
 DRAFTS: when asked for something to send or paste (a message for a client or partner, copy), put it LAST, after a line exactly "---- draft ----": it is posted as its own message so it copies cleanly. Write the draft in plain words, no markdown.
 ${slackToolDefs.some(t => t.name === 'make_canvas') ? 'FORWARDING: when the person will forward a longer write-up (an analysis for a partner or client, a plan), call make_canvas with the full version and keep the message itself to the short read plus the canvas link.' + String.fromCharCode(10) : ''}DON'T: end with an offer ("Want me to...?", "Let me know if...") or a question unless you truly cannot go on without the answer; then ask ONE question. Never ask what you can work out: the brand is this channel's or thread's brand (or the one named or obvious from the products), the period is the one in the thread. Never hand the person a job your tools can do.` }];
     const prior = await threadTranscript(env, h, ev);
-    const messages = [{ role: 'user', content: prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q }];
-    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null,
+    const asked = prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q;
+    /* Images posted WITH the question are shown to the model (C.slackImages turns Slack files into image blocks);
+       without the hook, or when none open, the question goes as text as before. */
+    const seen = C.slackImages && (ev.files || []).length ? await C.slackImages(env, ev.files).catch(() => []) : [];
+    const messages = [{ role: 'user', content: seen.some(b => b.type === 'image') ? [{ type: 'text', text: asked }, ...seen] : asked }];
+    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null, who: extra.who || null,
       onStep: async s => {
         const line = s.label || s.note; if (!line) return;
         stepsSeen.push(line);

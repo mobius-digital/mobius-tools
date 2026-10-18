@@ -111,9 +111,13 @@ export function stratTools(d) {
         return { text: JSON.stringify(r).slice(0, 14000) };
       }),
     t({ name: 'read_thread',
-      description: 'Open one Slack thread, live from Slack (every reply, who said it, what was posted). Give the Slack link from search_slack or one someone pasted.',
+      description: 'Open one Slack thread or message, live from Slack (every reply, who said it, what was posted), WITH the images posted in it: you SEE the screenshots and photos yourself (the newest 4). Give the Slack link from search_slack or one someone pasted, or a channel id + ts (the digest gives both for every post with a file). Use it whenever someone points at a screenshot or image ("the ad Nick screenshotted"). Never say you cannot open images.',
       input_schema: { type: 'object', properties: { link: { type: 'string' }, channel: { type: 'string' }, ts: { type: 'string' } } } },
-      async (env, input) => ({ text: JSON.stringify(await readThread(env, d.idx, input)).slice(0, 26000) })),
+      async (env, input) => {
+        const { images = [], ...r } = await readThread(env, d.idx, input, { withImages: true });
+        const text = JSON.stringify(r).slice(0, 26000);
+        return images.length ? { text, content: [{ type: 'text', text }, ...images] } : { text };
+      }),
 
     t({ name: 'remember',
       description: 'Save a fact so you have it in every future answer: a decision, an offer or price, a date, a preference, a rule the client set, who owns what. Give it a short TOPIC (2 to 5 words): saying something new on the same topic REPLACES the old fact, so when you are corrected, use the same topic. Facts with an end (a sale, a launch) get until. Scope: the brand it is about, or "agency" for how Mobius works. Do not save numbers the data already holds, or one-off questions. Say "noted" in a few words, never more.',
