@@ -563,6 +563,9 @@ export function createAssistant(config) {
       weeks: { type: 'integer' }, months: { type: 'integer' },
       brand: { type: 'string', description: 'A brand or account key, where a view takes one.' },
       id: { type: 'string', description: 'A record id, where a view takes one.' },
+      what: { type: 'string', description: 'Which part of the view, where a view takes one (its instructions list the choices).' },
+      topic: { type: 'string', description: 'A topic, where a view takes one.' },
+      product: { type: 'string', description: 'A product name or group, where a view takes one.' },
     }, required: ['view'] },
   };
   /* A custom report or dashboard, built from numbers the model has already
@@ -1212,6 +1215,22 @@ Plain English, no em dashes, lead with the answer.` }];
         }
         messages.push({ role: 'user', content: results });
       }
+      /* Ended with no words (the rounds ran out mid-search, or the forced last round came back as thinking only):
+         one more round, tools off, told to write up what it found. 2026-10-18: a by-SKU stock question read 17
+         steps of data and the person got "I could not work that one out. Try naming the period." */
+      if (!answer && !stopped && messages.length && messages[messages.length - 1].role === 'user') {
+        const last = messages[messages.length - 1];
+        const nudge = { type: 'text', text: 'Stop searching. Write your answer now from what you have already read: the verdict, the numbers behind it, and plainly what you could not see and what would fill it.' };
+        last.content = Array.isArray(last.content) ? [...last.content, nudge] : [{ type: 'text', text: String(last.content || '') }, nudge];
+        const reply = await callClaude(env, system, messages, toolDefs, model, true, effort);
+        const u = reply.usage || {};
+        inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+        cacheRead += u.cache_read_input_tokens || 0; cacheWrite += u.cache_creation_input_tokens || 0;
+        outTok += u.output_tokens || 0;
+        cost += costOf(reply.model || model, u);
+        answer = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+        if (lead.length) answer = [...lead, answer].filter(Boolean).join('\n\n');
+      }
     } finally {
       usage.count = (usage.count || 0) + 1;
       usage.inTok = (usage.inTok || 0) + inTok;
@@ -1385,7 +1404,7 @@ ${slackToolDefs.some(t => t.name === 'make_canvas') ? 'FORWARDING: when the pers
         r.answered = true;
       } else if (work?.ts) {
         await update(r.stopped ? 'Stopped.' : 'Done.', [{ type: 'context', elements: [{ type: 'mrkdwn', text: (r.stopped ? '_Stopped._ ' : '') + foot }] }]).catch(() => {});
-      } else if (!Object.keys(r.flags).length) await say('I could not work that one out. Try naming the period.');
+      } else if (!Object.keys(r.flags).length) await say('I read the data but could not put an answer together. Ask again, or narrow it to one product or one question.');
       for (const p of groupProposals(r.flags.proposals)) await say(p.group ? `${p.summary}: ${p.items.map(x => x.summary).join('; ')}`.slice(0, 2900) : p.summary, proposalBlocks(p));
       /* What the app posts after the answer (the Strategist: images it made, report PDFs). */
       if (C.afterSlack) await C.afterSlack(env, r, ctx).catch(e => console.log(`${C.name} afterSlack: ${e.message}`));
@@ -1449,7 +1468,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
         ...(client ? { client, allow: clientAllow, noUsage: true } : {}),
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },
         shouldStop: async () => !!(runId && C.progress && (await C.progress.get(env, runId))?.stop) }, choice.effort || null);
-      return { answer: r.answer || (r.stopped ? 'Stopped.' : 'I could not work that one out. Try naming the period.'), sql: r.sql, inTok: r.inTok, outTok: r.outTok,
+      return { answer: r.answer || (r.stopped ? 'Stopped.' : 'I read the data but could not put an answer together. Ask again, or narrow it to one product or one question.'), sql: r.sql, inTok: r.inTok, outTok: r.outTok,
         model: choice.model, effort: choice.effort || null, modelLabel: choice.label || null, cost: r.cost, steps: stepsSeen, stopped: r.stopped, ms: r.ms,
         costLine: C.costLine ? C.costLine({ ...r, model: choice.model, effort: choice.effort, label: choice.label }) : null, ...r.flags,
         ...(r.flags.proposals ? { proposals: groupProposals(r.flags.proposals) } : {}) };
