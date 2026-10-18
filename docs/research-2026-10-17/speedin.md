@@ -122,3 +122,48 @@ Rejected in round 2:
 - Neutonic (to7444226880221236513): founder pitch built on price and competitor jabs.
 - AgeMate "no morning routine" (m2168454834048317): counter drink build, too close to Everyday Dose and Supergut.
 - Honey Stinger sunrise hike (m997273616727787): all phone, but the creator is 38 weeks pregnant taking caffeine.
+
+## Round 3 (2026-10-17): visual variety
+
+The owner cut 9 clips because they all looked the same (one person talking to the camera indoors). Meta's Andromeda treats look-alike videos as one ad, so this round is about the shot, not the script. Rule for the 9: no single person talking to camera indoors, no two share a shot type, and none repeats a look already on the board (car selfie, desk POV, day montage, gym bag, kitchen build, sideline vlog, selfie run, scrubs at home, night routine b-roll, hands-only comment reply, hands-only bag swap, bathroom hair GRWM, salon mirror, two-person kitchen skit, mouth tape macro). Every clip was checked on a contact sheet (a frame every 1.5 seconds) and is phone footage end to end. All advertisers are new to the board. Items 17 to 25 in `speedin_ideas.json`; none hot.
+
+| # | Sec | Clip | Brand | Shot type | Idea |
+|---|-----|------|-------|-----------|------|
+| 17 | energy | intake-strangers-event | Intake Breathing | Strangers try it at a crowded event, handheld | First-try reactions from adults at a festival or market |
+| 18 | sleep | sonno-bed-wide-flop | Sonno | Fixed wide shot of the whole bed from the foot, physical comedy | Me at 1am vs me now, same shot |
+| 19 | sleep | vessi-dog-walk-pov | Vessi | POV down at your feet walking the dog, pet in shot | My dog doesn't care how I slept |
+| 20 | sleep | comfrt-airport-gate | Comfrt | Propped phone, full body at an empty airport gate | How I actually sleep on a red-eye (jet lag) |
+| 21 | sleep | loftie-nightstand-lights-out | Loftie | Fixed close-up on the nightstand, lamp dims to dark, text only | Lights out routine in four steps (busy mind) |
+| 22 | glow | glowie-nails-sunlight | Glowie | Macro close-up of the hand in window sunlight, no talking | My nails in the sun |
+| 23 | glow | duradry-mirror-check | Duradry | Mirror selfie plus full-length outfit check | 30 days before the wedding |
+| 24 | glow | bodywise-week-diary | Be Bodywise | Week by week progress diary, same angle, jump cuts | Week 1 to week 8, same window |
+| 25 | glow | cecred-beach-wind | Cecred | Outdoor beach, hair in the wind, handheld in full sun | Hair check in the wind |
+
+Notes:
+- Intake: the original is a nose strip with a deviated septum line; we keep only the format (strangers trying it). Adults only, and only people who agreed to be filmed.
+- Comfrt: one 2 second overlay is a screenshot of the site's colour swatches, not a product shot. Ours has no overlays. Sleep strip on the plane only, never before driving.
+- Loftie is the closest to the Winks night routine on the board; it differs because it is one fixed nightstand shot with captions and no voice, and the room goes dark. If the owner sees it as the same look, it is the first to swap.
+- Bodywise is a hair growth serum ad ("finally healing"); our version only shows the diary and never claims regrowth.
+- Duradry ends on underarm sweat claims; we keep only the mirror and outfit check.
+
+Rejected in round 3:
+- Halo Blinds (m1105307895646600): great pitch-black room shots, but half of it is a man talking to camera indoors.
+- MoonBrew (m28977849921904727): green-screen duet over a car selfie, and car selfie is on the board.
+- Sanrae (m1065333869430814): kitchen talking head.
+- Spruka (m2125253681747981): staged police opener, then hands-only on a seat.
+- Klyr Men (m1011720274798920): split-face tape demo is a great look but it is an indoor face-to-camera selfie, and half-face results don't fit a supplement.
+- nowhey (m1317289863590179): montage of many different people and places, not one creator's shoot.
+- Symphonyband (m841393602352219): illustrated ear graphic, then an indoor talking head.
+- Dove (m2095214224415601): camera-shot travel film with shower footage.
+- The 3am Mama / EllaOla (m998942876340530): night vision opener is good, but it is a kids' sleep product, talking head and review screenshots.
+- Sleepwhale (m1004021842518588): talking head plus stock pill and blood cell shots.
+- Organics Ocean street interview (m2097649861114954): pop-up packshot and supplement facts stickers.
+- Blue-Emu (m1637832984730100): too close to the desk POV on the board.
+- Troomy (m1025794607129163): shop-with-me store run ends in app screen recordings for a rebate.
+- RISE (m4400464213551545): indoor taste test talking head.
+- Monos pack with me (m1590493586209204): overhead suitcase packing reads as a third bag look.
+- Cushion Lab pillow POV (m2439186836610929): POV in bed works, but hands only again and it collides with the Vessi POV.
+- Quince bed making (m1789981102143000, m1750433689560525): brand end cards and a product page screenshot; also a second bedroom look next to Sonno.
+- This Works (m1658770635881689): brand-made with stat graphics and end card.
+- Essence Vault podcast (m1087060294330760): studio bottle shots and a static end card.
+- Vessi 7am (m1647687406914468): produced brand film.
