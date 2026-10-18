@@ -34,6 +34,7 @@ import { brandBrain } from './brain.js';
 import { resolveBrandId, storagePrefix, connGet } from './brands.js';
 import { frameApi, frameStatus, NEEDS_FRAME } from './frame.js';
 import { REPORT_PY } from './reportpy.js';
+import { recordWrite, registerUndo, doneNote } from './extwrite.js';
 
 export const AH_ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -650,6 +651,38 @@ export function makeActions(d) {
         return { summary: i.summary || `Move "${it.name}" to ${to.id === p.root ? 'the top of ' + p.name : to.name} in Frame`, detail: `${it.type === 'folder' ? 'Folder' : 'File'} "${it.name}" -> ${to.name}. Its review links keep working.`, patch: { account: p.account, id: it.id, type: it.type, to: to.id, name: it.name, toName: to.name } };
       },
       apply: async (env, x) => { await frameApi(env, 'PATCH', `/accounts/${x.account}/${x.type === 'folder' ? 'folders' : 'files'}/${x.id}/move`, { data: { parent_id: x.to } }); return { ok: true, note: `Moved "${x.name}" to ${x.toName} in Frame.` }; } },
+    /* 2026-10-17: rename and comment, recorded in p_ext_write (extwrite.js). Still nothing that removes a file or folder. */
+    { name: 'frame_rename',
+      description: 'Rename a file or folder in a brand\'s Frame.io project. Review links keep working. Undo puts the old name back.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, project: { type: 'string' }, item: { type: 'string', description: 'The file or folder: id or path of names.' }, name: { type: 'string' }, reason: { type: 'string' } }, required: ['item', 'name'] },
+      propose: async (env, i, h, ctx) => {
+        const p = await frameProject(env, d, i, ctx).catch(e => ({ error: e.message })); if (p.error) return p;
+        const it = await resolveItem(env, p, i.item).catch(e => ({ error: e.message })); if (it.error) return it;
+        if (it.id === p.root || !['file', 'folder'].includes(it.type)) return { error: 'Name a file or a folder inside the project.' };
+        const name = clip(String(i.name || '').trim(), 200); if (!name || name === it.name) return { error: 'Give a new name.' };
+        return { summary: `Rename "${it.name}" → "${name}" in Frame`, detail: `${it.type === 'folder' ? 'Folder' : 'File'} in ${p.name}. Review links keep working.`, patch: { account: p.account, id: it.id, type: it.type, from: it.name, name, brand: brandOfCtx(ctx) || null, reason: clip(i.reason, 300) || null } };
+      },
+      apply: async (env, x, h, ctx) => {
+        await frameApi(env, 'PATCH', `/accounts/${x.account}/${x.type === 'folder' ? 'folders' : 'files'}/${x.id}`, { data: { name: x.name } });
+        const id = await recordWrite(env, { platform: 'frame', brand: x.brand, object: x.id, name: x.name, action: 'frame_rename', before: { name: x.from }, after: { name: x.name }, undo: { op: 'rename', account: x.account, id: x.id, type: x.type, name: x.from }, summary: `Renamed "${x.from}" → "${x.name}" in Frame`, reason: x.reason, objectType: 'FRAME_ITEM', ctx });
+        return { ok: true, note: doneNote(`Renamed in Frame.`, id) };
+      } },
+    { name: 'frame_comment',
+      description: 'Leave a comment on a file in a brand\'s Frame.io project (a change for the editor, a sign-off note), optionally at a second in the video. It is posted under the Frame account Locus holds; the client sees it if they review that file.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, project: { type: 'string' }, item: { type: 'string', description: 'The file: id or path of names.' }, text: { type: 'string' }, at_second: { type: 'number' }, reason: { type: 'string' } }, required: ['item', 'text'] },
+      propose: async (env, i, h, ctx) => {
+        const p = await frameProject(env, d, i, ctx).catch(e => ({ error: e.message })); if (p.error) return p;
+        const it = await resolveItem(env, p, i.item).catch(e => ({ error: e.message })); if (it.error) return it;
+        if (it.type !== 'file') return { error: `${it.name} is a ${it.type}; comments go on a file.` };
+        const text = clip(String(i.text || '').replace(/\u2014/g, ',').trim(), 2000); if (!text) return { error: 'Write the comment.' };
+        return { summary: `Comment on "${it.name}" in Frame${i.at_second != null ? ` at ${Math.floor(i.at_second / 60)}:${String(Math.round(i.at_second % 60)).padStart(2, '0')}` : ''}`, detail: text, patch: { account: p.account, id: it.id, name: it.name, text, at: i.at_second != null ? +i.at_second : null, brand: brandOfCtx(ctx) || null, reason: clip(i.reason, 300) || null } };
+      },
+      apply: async (env, x, h, ctx) => {
+        const j = await frameApi(env, 'POST', `/accounts/${x.account}/files/${x.id}/comments`, { data: { text: x.text, ...(x.at != null ? { timestamp: x.at } : {}) } });
+        const cid = j?.data?.id || null;
+        const id = await recordWrite(env, { platform: 'frame', brand: x.brand, object: x.id, name: x.name, action: 'frame_comment', after: { comment: cid, text: x.text }, undo: null, summary: `Commented on "${x.name}" in Frame: "${clip(x.text, 80)}"`, reason: x.reason, objectType: 'FRAME_FILE', ctx });
+        return { ok: true, note: doneNote(`Comment posted on "${x.name}". Comments are not taken back from Locus; delete it in Frame if needed.`, id, false) };
+      } },
   ];
 }
 
@@ -735,3 +768,9 @@ export async function handleMake(request, env, url, path, json, isAdmin, d) {
   }
   return null;
 }
+
+registerUndo('frame', async (env, d, row, u) => {
+  if (u.op !== 'rename') return { error: `Unknown Frame undo ${u.op}.` };
+  await frameApi(env, 'PATCH', `/accounts/${u.account}/${u.type === 'folder' ? 'folders' : 'files'}/${u.id}`, { data: { name: u.name } });
+  return { ok: true, note: `Undone: ${row.summary}.` };
+});

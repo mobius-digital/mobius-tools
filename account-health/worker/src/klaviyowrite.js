@@ -24,11 +24,14 @@
  */
 import { klaviyo, keyFor, klaviyoView, bust } from './klaviyo.js';
 import { resolveBrandId } from './brands.js';
+import { recordWrite, registerUndo, doneNote } from './extwrite.js';
 
 const SCOPE_FIX = {
   flows: 'flows:write (Flows: Full access)',
   campaigns: 'campaigns:write (Campaigns: Full access)',
   templates: 'templates:read (Templates: Read access)',
+  lists: 'lists:write (Lists: Full access)',
+  segments: 'segments:write (Segments: Full access)',
 };
 const MIN_AHEAD_MIN = 15;
 const clip = (s, n) => String(s ?? '').slice(0, n);
@@ -295,7 +298,137 @@ export const OPS = {
       return { ok: true, id, link: id ? `https://www.klaviyo.com/campaign/${id}/wizard` : null, note: `Draft "${p.name}" is in Klaviyo. Nothing was sent. Logged in the Change Log.` };
     },
   },
+  /* 2026-10-17: lists, segments and a draft's own fields. Recorded in p_ext_write (extwrite.js) for undo_change. */
+  list_create: {
+    need: 'lists',
+    async propose(env, act, input) {
+      const k = await keyOf(env, act); if (k.error) return k;
+      const name = clip(String(input.name || '').trim(), 120); if (!name) return { error: 'Give the list a name.' };
+      let ix = null; try { ix = await audienceIndex(env, act); } catch {}
+      if ((ix?.lists || []).some(l => String(l.name).toLowerCase() === name.toLowerCase())) return { error: `There is already a list called "${name}".` };
+      return { summary: `New Klaviyo list "${name}"`, detail: 'An empty list. Nobody is added and nothing is sent; sign-up forms or flows fill it.', before: null, after: { name }, patch: { op: 'list_create', act, name, reason: clip(input.reason, 300) || null } };
+    },
+    async apply(env, p, ctx) {
+      const k = await keyOf(env, p.act); if (k.error) return k;
+      let r; try { r = await klaviyo(k.key, '/api/lists/', { method: 'POST', body: { data: { type: 'list', attributes: { name: p.name } } } }); }
+      catch (e) { return { error: writeErr(e, (await brandRow(env, p.act))?.name, 'lists') }; }
+      const id = r.data?.id;
+      await bust(env, p.act, ['audiences', 'lists']);
+      const w = await recordWrite(env, { platform: 'klaviyo', brand: p.act, object: id, name: p.name, action: 'klaviyo_list_create', after: { list: id }, undo: { op: 'list_delete', act: p.act, id }, summary: `New Klaviyo list "${p.name}"`, reason: p.reason, category: 'email', objectType: 'KLAVIYO_LIST', ctx: kctx(ctx) });
+      return { ok: true, id, note: doneNote(`List "${p.name}" is in Klaviyo.`, w) };
+    },
+  },
+  segment_create: {
+    need: 'segments',
+    async propose(env, act, input) {
+      const k = await keyOf(env, act); if (k.error) return k;
+      const name = clip(String(input.name || '').trim(), 120); if (!name) return { error: 'Give the segment a name.' };
+      let def = input.definition;
+      if (typeof def === 'string') { try { def = JSON.parse(def); } catch { return { error: 'definition must be Klaviyo segment JSON: {"condition_groups":[{"conditions":[...]}]}.' }; } }
+      if (!def || !Array.isArray(def.condition_groups) || !def.condition_groups.length) return { error: 'definition needs condition_groups (Klaviyo\'s segment definition: groups are AND, conditions inside a group are OR).' };
+      return { summary: `New Klaviyo segment "${name}"`, detail: `${input.about ? `${clip(input.about, 300)}\n` : ''}Definition: ${clip(JSON.stringify(def), 900)}\nA segment only groups people; nothing is sent.`, before: null, after: { name },
+        patch: { op: 'segment_create', act, name, definition: def, reason: clip(input.reason, 300) || null } };
+    },
+    async apply(env, p, ctx) {
+      const k = await keyOf(env, p.act); if (k.error) return k;
+      let r; try { r = await klaviyo(k.key, '/api/segments/', { method: 'POST', body: { data: { type: 'segment', attributes: { name: p.name, definition: p.definition } } } }); }
+      catch (e) { return { error: writeErr(e, (await brandRow(env, p.act))?.name, 'segments') }; }
+      const id = r.data?.id;
+      await bust(env, p.act, ['audiences', 'segments']);
+      const w = await recordWrite(env, { platform: 'klaviyo', brand: p.act, object: id, name: p.name, action: 'klaviyo_segment_create', after: { segment: id, definition: p.definition }, undo: { op: 'segment_delete', act: p.act, id }, summary: `New Klaviyo segment "${p.name}"`, reason: p.reason, category: 'email', objectType: 'KLAVIYO_SEGMENT', ctx: kctx(ctx) });
+      return { ok: true, id, note: doneNote(`Segment "${p.name}" is in Klaviyo; it fills over the next minutes.`, w) };
+    },
+  },
+  audience_rename: {
+    need: 'lists',
+    async propose(env, act, input) {
+      const k = await keyOf(env, act); if (k.error) return k;
+      let ix; try { ix = await audienceIndex(env, act); } catch (e) { return { error: e.message }; }
+      const r = resolveAudiences(ix, [input.audience]); if (r.bad.length || !r.out.length) return { error: `Audience: ${r.bad.join('; ') || 'which one?'}.` };
+      const a = r.out[0], name = clip(String(input.name || '').trim(), 120);
+      if (!name || name === a.name) return { error: 'Give a new name.' };
+      return { summary: `Rename Klaviyo ${a.kind} "${a.name}" → "${name}"`, detail: '', before: { name: a.name }, after: { name }, patch: { op: 'audience_rename', act, id: a.id, kind: a.kind, from: a.name, name, reason: clip(input.reason, 300) || null } };
+    },
+    async apply(env, p, ctx) {
+      const k = await keyOf(env, p.act); if (k.error) return k;
+      try { await klaviyo(k.key, `/api/${p.kind}s/${p.id}/`, { method: 'PATCH', body: { data: { type: p.kind, id: p.id, attributes: { name: p.name } } } }); }
+      catch (e) { return { error: writeErr(e, (await brandRow(env, p.act))?.name, p.kind === 'list' ? 'lists' : 'segments') }; }
+      await bust(env, p.act, ['audiences', 'lists', 'segments']);
+      const w = await recordWrite(env, { platform: 'klaviyo', brand: p.act, object: p.id, name: p.name, action: 'klaviyo_rename', before: { name: p.from }, after: { name: p.name }, undo: { op: 'rename', act: p.act, kind: p.kind, id: p.id, name: p.from }, summary: `Renamed Klaviyo ${p.kind} "${p.from}" → "${p.name}"`, reason: p.reason, category: 'email', objectType: `KLAVIYO_${p.kind.toUpperCase()}`, ctx: kctx(ctx) });
+      return { ok: true, note: doneNote('Renamed.', w) };
+    },
+  },
+  campaign_update: {
+    need: 'campaigns',
+    async propose(env, act, input) {
+      const k = await keyOf(env, act); if (k.error) return k;
+      const f = await findCampaign(k.key, input.campaign); if (f.error) return f;
+      const c = f.campaign; const st = c.attributes?.status || '';
+      if (!/^draft$/i.test(st)) return { error: `"${c.attributes?.name}" is ${st}. Only a draft can be edited (unschedule it first).` };
+      const content = c.message?.attributes?.definition?.content || c.message?.attributes?.content || {};
+      const camp = {}, msg = {}, before = {}, lines = [];
+      if (input.name && input.name !== c.attributes?.name) { camp.name = clip(input.name, 120); before.name = c.attributes?.name; lines.push(`name → "${camp.name}"`); }
+      for (const [key, field, word, n] of [['subject', 'subject', 'subject', 200], ['preview', 'preview_text', 'preview', 200], ['from_email', 'from_email', 'sender email', 120], ['from_label', 'from_label', 'sender name', 120]]) {
+        if (input[key] == null || input[key] === content[field]) continue;
+        msg[field] = clip(String(input[key]).replace(/\u2014/g, ','), n); before[field] = content[field] ?? ''; lines.push(`${word}: "${clip(content[field] || '', 60)}" → "${clip(msg[field], 60)}"`);
+      }
+      if (msg.from_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(msg.from_email)) return { error: 'That sender email is not an email address.' };
+      if (input.audiences || input.exclude) {
+        let ix; try { ix = await audienceIndex(env, act); } catch (e) { return { error: e.message }; }
+        const inc = input.audiences ? resolveAudiences(ix, input.audiences) : null, exc = input.exclude ? resolveAudiences(ix, input.exclude) : null;
+        const bad = [...(inc?.bad || []), ...(exc?.bad || [])]; if (bad.length) return { error: `Audience: ${bad.join('; ')}.` };
+        const cur = c.attributes?.audiences || {};
+        camp.audiences = { included: inc ? inc.out.map(x => x.id) : cur.included || [], excluded: exc ? exc.out.map(x => x.id) : cur.excluded || [] };
+        if (!camp.audiences.included.length) return { error: 'A campaign needs at least one list or segment.' };
+        before.audiences = { included: cur.included || [], excluded: cur.excluded || [] };
+        lines.push(`to ${audNames(ix, camp.audiences.included).join(', ')}${camp.audiences.excluded.length ? `, not ${audNames(ix, camp.audiences.excluded).join(', ')}` : ''}`);
+      }
+      if (!lines.length) return { error: 'Nothing would change.' };
+      return { summary: `Edit draft "${c.attributes?.name}": ${lines.join('; ')}`, detail: 'It stays a draft; nothing is sent.', before, after: { ...camp, ...msg },
+        patch: { op: 'campaign_update', act, id: c.id, mid: c.message?.id || null, name: camp.name || c.attributes?.name, camp, msg, before, lines, reason: clip(input.reason, 300) || null } };
+    },
+    async apply(env, p, ctx) {
+      const k = await keyOf(env, p.act); if (k.error) return k;
+      const brand = (await brandRow(env, p.act))?.name;
+      const c = await getCampaign(k.key, p.id).catch(() => null);
+      if (!/^draft$/i.test(c?.attributes?.status || '')) return { error: `"${p.name}" is not a draft any more. Nothing was written.` };
+      const r = await campaignPatch(k.key, p.id, p.mid, p.camp, p.msg); if (r) return { error: writeErr(r, brand, 'campaigns') };
+      await bust(env, p.act, ['campaigns']);
+      const undoCamp = {}, undoMsg = {};
+      for (const [kk, v] of Object.entries(p.before)) (['name', 'audiences'].includes(kk) ? undoCamp : undoMsg)[kk] = v;
+      const w = await recordWrite(env, { platform: 'klaviyo', brand: p.act, object: p.id, name: p.name, action: 'klaviyo_campaign_update', before: p.before, after: { ...p.camp, ...p.msg }, undo: { op: 'campaign', act: p.act, id: p.id, mid: p.mid, camp: undoCamp, msg: undoMsg }, summary: `Klaviyo draft "${p.name}": ${p.lines.join('; ')}`, reason: p.reason, category: 'email', objectType: 'KLAVIYO_CAMPAIGN', ctx: kctx(ctx) });
+      return { ok: true, note: doneNote(`Draft "${p.name}" updated. Nothing was sent.`, w) };
+    },
+  },
 };
+/** A draft's own fields and its message's content, in one or two PATCHes. Returns the error, or null. */
+async function campaignPatch(key, id, mid, camp, msg) {
+  try {
+    if (camp && Object.keys(camp).length) await klaviyo(key, `/api/campaigns/${id}/`, { method: 'PATCH', body: { data: { type: 'campaign', id, attributes: camp } } });
+    if (mid && msg && Object.keys(msg).length) await klaviyo(key, `/api/campaign-messages/${mid}/`, { method: 'PATCH', body: { data: { type: 'campaign-message', id: mid, attributes: { definition: { channel: 'email', content: msg } } } } });
+    return null;
+  } catch (e) { return e; }
+}
+const kctx = ctx => ({ who: ctx?.who, via: ctx?.via === 'locus' ? 'locus' : 'strategist' });
+registerUndo('klaviyo', async (env, d, row, u) => {
+  const k = await keyOf(env, u.act); if (k.error) return k;
+  try {
+    if (u.op === 'rename') await klaviyo(k.key, `/api/${u.kind}s/${u.id}/`, { method: 'PATCH', body: { data: { type: u.kind, id: u.id, attributes: { name: u.name } } } });
+    else if (u.op === 'campaign') {
+      const c = await getCampaign(k.key, u.id);
+      if (!/^draft$/i.test(c?.attributes?.status || '')) return { error: 'It is not a draft any more.' };
+      const e = await campaignPatch(k.key, u.id, u.mid, u.camp, u.msg); if (e) throw e;
+    } else if (u.op === 'list_delete') {
+      /* Only the list this write made, and only while nobody is on it. */
+      const r = await klaviyo(k.key, `/api/lists/${u.id}/?additional-fields[list]=profile_count`);
+      if (+r.data?.attributes?.profile_count > 0) return { error: 'People have joined that list since, so Locus leaves it. Remove it in Klaviyo yourself if it should go.' };
+      await klaviyo(k.key, `/api/lists/${u.id}/`, { method: 'DELETE' });
+    } else if (u.op === 'segment_delete') await klaviyo(k.key, `/api/segments/${u.id}/`, { method: 'DELETE' });
+    else return { error: `Unknown Klaviyo undo ${u.op}.` };
+  } catch (e) { return { error: `Klaviyo said: ${e?.said || e?.message}` }; }
+  await bust(env, u.act, ['campaigns', 'audiences', 'lists', 'segments']);
+  return { ok: true, note: `Undone: ${row.summary}.` };
+});
 async function stopPropose(env, act, input, action) {
   const k = await keyOf(env, act); if (k.error) return k;
   const f = await findCampaign(k.key, input.campaign); if (f.error) return f;
@@ -374,7 +507,7 @@ function card(d, name, opName, description, props, required) {
     propose: async (env, input, h, ctx) => {
       const b = await brandOf(env, d, input.brand, ctx); if (!b) return { error: `Which brand? No brand called "${input.brand || ''}".` };
       const can = await klaviyoCan(env, b.act_id); if (can.error) return { error: can.error };
-      if (!can[OPS[opName].need]) return { error: fixFor(b.name, OPS[opName].need) };
+      if (can[OPS[opName].need] === false) return { error: fixFor(b.name, OPS[opName].need) };
       const op = opName === 'campaign_cancel' && input.mode === 'unschedule' ? 'campaign_unschedule' : opName;
       const p = await OPS[op].propose(env, b.act_id, input); if (p.error) return p;
       return { summary: `${b.name}: ${p.summary}`, detail: p.detail, patch: { ...p.patch, op } };
@@ -392,6 +525,16 @@ export function klaviyoActions(d) {
       { campaign: { type: 'string', description: 'The campaign name or id.' }, at: { type: 'string' } }, ['campaign', 'at']),
     card(d, 'klaviyo_campaign_cancel', 'campaign_cancel', 'Stop a scheduled Klaviyo campaign. mode unschedule = back to draft (can be fixed and rescheduled); cancel = cancelled for good.',
       { campaign: { type: 'string' }, mode: { type: 'string', enum: ['unschedule', 'cancel'] } }, ['campaign', 'mode']),
+    card(d, 'klaviyo_campaign_update', 'campaign_update', 'Edit a DRAFT Klaviyo campaign: name, subject, preview text, sender, who it goes to (audiences / exclude, the full new lists). It stays a draft; nothing sends. Undo puts the old fields back.',
+      { campaign: { type: 'string' }, name: { type: 'string' }, subject: { type: 'string' }, preview: { type: 'string' }, from_email: { type: 'string' }, from_label: { type: 'string' }, audiences: { type: 'array', items: { type: 'string' } }, exclude: { type: 'array', items: { type: 'string' } } }, ['campaign']),
+    card(d, 'klaviyo_campaign_duplicate', 'campaign_duplicate', 'Copy any Klaviyo campaign as a new DRAFT (same audience, content and sender), optionally renamed. Nothing sends until someone schedules it.',
+      { campaign: { type: 'string' }, name: { type: 'string' } }, ['campaign']),
+    card(d, 'klaviyo_list', 'list_create', 'Make a new, empty Klaviyo list (for a sign-up form, a giveaway, a waitlist). Nobody is added and nothing is sent.',
+      { name: { type: 'string' } }, ['name']),
+    card(d, 'klaviyo_segment', 'segment_create', 'Make a Klaviyo segment from a definition (Klaviyo API JSON: {"condition_groups":[{"conditions":[{"type":"profile-metric","metric_id":"...","measurement":"count","measurement_filter":{"type":"numeric","operator":"greater-than","value":0},"timeframe_filter":{"type":"date","operator":"in-the-last","quantity":90,"unit":"day"}}]}]}; groups are AND, conditions in a group OR; read klaviyo_read what=segments for examples and metric ids). Say in about what it means in plain words. Nothing is sent.',
+      { name: { type: 'string' }, definition: { type: 'object' }, about: { type: 'string' } }, ['name', 'definition']),
+    card(d, 'klaviyo_rename', 'audience_rename', 'Rename a Klaviyo list or segment.',
+      { audience: { type: 'string', description: 'Its name or id.' }, name: { type: 'string' } }, ['audience', 'name']),
   ];
 }
 export const _test = { resolveAudiences, sendAt, findFlow, OPS };

@@ -43,6 +43,7 @@ import { slackImages } from './slackindex.js';
 import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
+import { extraTools, extraActions, CARD_ONLY } from './allwrite.js';
 /* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
 import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
@@ -357,10 +358,17 @@ THE ANGLES HUB (what creators see)
 - A section is named after a product only when the buyer chooses BETWEEN products (wedge vs putter). One-product brands get occasions.
 - Each angle carries: title, the argument, who it is for, products (short), format, the lever (staff only), three openers (first lines that stop the scroll), the shots, the on-screen text, a do and a don't.
 - Before writing new angles, read the brand context, the current angles (to not repeat them) and what actually sold (Triple Whale attributed revenue by ad). Angles come from evidence, then taste.
-ACTING IN META, ASANA AND DRIVE (2026-10-09; Cole: "Why can't the AI make changes himself too? If he suggests doing something we approve it or change it up.")
-- You can change things yourself: meta_pause, meta_resume, meta_budget, meta_min_spend, meta_rename,
-  meta_duplicate_adset, meta_create_ad, meta_undo; asana_task, asana_comment, asana_complete; drive_copy_to,
-  drive_share. Reads: meta_read (the live account structure), drive_list.
+ACTING ON EVERY CONNECTION (2026-10-09, full control 2026-10-17: "Locus should have every Slack permission and full control over every connection we add.")
+- You can change things yourself, on every connection: Meta (pause, resume, budget, min spend, bid, targeting,
+  schedule, rename, duplicate, new campaign / ad set / ad, ad copy), Google Ads (google_status, budget, target,
+  rename, keywords, keyword bid, negatives, RSA text), TikTok, Shopify (products, discount codes), Klaviyo (flows,
+  drafts, lists, segments), Slack (post in internal channels, DM teammates, schedule, react, pin, edit or delete your
+  own posts, invite, make channels), Asana, Drive, Frame, the calendar. Reads first: meta_read, google_read,
+  tiktok_read, klaviyo_read, drive_list, frame_list. undo_change takes back any of your changes for 24 hours (Meta
+  too). write_access says what a token may not do and the exact fix; read it before ever saying you cannot.
+- Off by design, always a card or never: posting in a CLIENT channel (slack_post_client is a card; Cole approves),
+  sending to customers (a Klaviyo schedule or flow going live is a card), sharing a Drive file out, deleting anything
+  in Frame, passwords and secrets.
 - DO WHAT YOU ARE TOLD (2026-10-17, Cole: "Locus should be able to do everything"). When a teammate tells you to make
   a change ("turn off the ad Nick screenshotted", "pause 368 - 1", "raise Lucky's prospecting to $300"), find the
   exact object and make it at once with asked_directly true; then say it is done and how to undo it. No card, no
@@ -1336,6 +1344,55 @@ const BUTTONS = (d) => {
         const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
         return { summary: `${a.name}: ${e.name} ends ${i.date}`, detail: `Live since ${e.start}.`, request: { method: 'POST', path: '/api/calendar/end', body: { id: e.id, date: i.date } } };
       }), done: () => 'Saved. The calendar shows the end.' }),
+    /* 2026-10-17: the rest of a date (rename, offer, status, channels, photos, teaser), its countdown ticks, notes, remove and put back. */
+    routeAction({ name: 'edit_date',
+      description: 'Change a typed date on a brand\'s calendar: its name, the offer text, pencilled or confirmed, the channels, the photos link, the teaser start, the kind. Only the parts named change (move_date moves it, end_date ends it).',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string', description: 'The date\'s name as on the calendar' }, new_name: { type: 'string' }, offer: { type: 'string' }, status: { type: 'string', enum: ['pencilled', 'confirmed'] },
+        channels: { type: 'array', items: { type: 'string', enum: ['paid', 'email', 'sms', 'organic'] } }, assets: { type: 'string', description: 'Photos link (https)' }, teaser: { type: 'string', description: 'YYYY-MM-DD' }, kind: { type: 'string', enum: ['drop', 'sale', 'adpush', 'site', 'other'] } }, required: ['brand', 'name'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        const body = { id: e.id, act: a.act_id, name: i.new_name || e.name, kind: i.kind || e.kind, start: e.start, end: e.end, teaser: i.teaser || e.teaser, offer: i.offer != null ? i.offer : e.offer,
+          status: i.status ? (i.status === 'confirmed' ? 'conf' : 'pen') : e.status, channels: i.channels?.length ? i.channels : e.channels, assets: i.assets || e.assets, assets_due: e.assets_due };
+        const lines = [i.new_name && `name → ${i.new_name}`, i.offer != null && `offer → "${String(i.offer).slice(0, 120)}"`, i.status && `→ ${i.status}`, i.channels?.length && `channels → ${i.channels.join(', ')}`, i.assets && 'photos link set', i.teaser && `teaser from ${i.teaser}`, i.kind && `kind → ${i.kind}`].filter(Boolean);
+        if (!lines.length) return { error: 'Nothing to change.' };
+        return { summary: `${a.name}: ${e.name}: ${lines.join('; ')}`, detail: `Goes live ${e.start}.`, request: { method: 'POST', path: '/api/calendar/event', body } };
+      }), done: () => 'Saved. The calendar shows it.' }),
+    routeAction({ name: 'tick_step',
+      description: 'Tick (or untick) a countdown step on a typed date by hand: offer, photos, briefed, built, email, loaded. Use it when someone says a step is done that Locus cannot see.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' }, step: { type: 'string', description: 'The step key or its words: offer, photos, briefs, built, email, loaded.' }, done: { type: 'boolean' } }, required: ['brand', 'name', 'step'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        const w = String(i.step).toLowerCase(), steps = e.steps || [];
+        const s = steps.find(x => x.key === w) || steps.find(x => String(x.label || '').toLowerCase().includes(w) || w.includes(x.key));
+        if (!s) return { error: `No step "${i.step}" on ${e.name}. Steps: ${steps.map(x => x.key).join(', ') || 'none'}.` };
+        const done = i.done !== false;
+        return { summary: `${a.name}: ${e.name}: ${s.label || s.key} ${done ? 'done' : 'not done'}`, detail: '', request: { method: 'POST', path: '/api/calendar/tick', body: { id: e.id, key: s.key, done } } };
+      }), done: () => 'Ticked.' }),
+    routeAction({ name: 'note_date',
+      description: 'Add a note to a typed date\'s history on the calendar (a decision, a change from the client).',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' }, text: { type: 'string' } }, required: ['brand', 'name', 'text'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        return { summary: `${a.name}: note on ${e.name}`, detail: String(i.text).slice(0, 600), request: { method: 'POST', path: '/api/calendar/comment', body: { id: e.id, text: String(i.text).slice(0, 600) } } };
+      }), done: () => 'Noted.' }),
+    routeAction({ name: 'remove_date',
+      description: 'Take a typed date off a brand\'s calendar (it is kept as cancelled and can be put back with restore_date).',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' } }, required: ['brand', 'name'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand); const e = await calFind(env, a, i.name);
+        return { summary: `${a.name}: take ${e.name} (${e.start}) off the calendar`, detail: 'Kept as cancelled; restore_date puts it back.', request: { method: 'DELETE', path: `/api/calendar/event?id=${encodeURIComponent(e.id)}` } };
+      }), done: () => 'Removed. restore_date puts it back.' }),
+    routeAction({ name: 'restore_date',
+      description: 'Put a removed date back on a brand\'s calendar (as pencilled).',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' } }, required: ['brand', 'name'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        if (!env.CAL) return { error: 'The calendar is not connected here.' };
+        const { results } = await env.CAL.prepare(`SELECT id, name, launch_date FROM events WHERE status = 'cancelled' AND (locus_brand = ?1 OR brand_id = ?2) ORDER BY updated_at DESC LIMIT 50`).bind(a.act_id, String(a.act_id).replace(/^brand_/, '').replace(/_/g, '-')).all().catch(() => ({ results: [] }));
+        const q = String(i.name).toLowerCase(), e = (results || []).find(x => x.name.toLowerCase() === q) || (results || []).find(x => x.name.toLowerCase().includes(q));
+        if (!e) return { error: `No removed date called "${i.name}" on ${a.name}.` };
+        return { summary: `${a.name}: put ${e.name} (${e.launch_date}) back on the calendar`, detail: 'It comes back pencilled.', request: { method: 'POST', path: '/api/calendar/restore', body: { id: e.id } } };
+      }), done: () => 'Back on the calendar (pencilled).' }),
     routeAction({ name: 'make_asana_tasks',
       description: 'Make the Asana tasks for a typed date: one task per countdown step (briefed, built, email, loaded) in the brand\'s Asana project, due on the step\'s date. Completing them ticks the calendar.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string' } }, required: ['brand', 'name'] },
@@ -1781,10 +1838,10 @@ export function buildStrategist(d) {
     /* 2026-10-17, Cole: "Locus should be able to do everything." Every action applies at once when the team member
        told it to (Meta writes keep their 24h undo and Change Log line). Its own suggestions are still cards, and so
        are the three that reach people outside: an email or flow going out to customers, a file shared out. */
-    directActions: 'all', cardOnly: ['klaviyo_campaign_schedule', 'klaviyo_flow_status', 'drive_share'],
+    directActions: 'all', cardOnly: CARD_ONLY,
     slackImages: (env, files) => slackImages(env, d.idx, files, 4),
     ...stratHooks(d), ...makeHooks(d),
-    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d)],
+    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d), ...extraTools(d)],
     dropTools: ['remember'],
     /* Cost pass 2026-10-10 (scripts/prompt-size.mjs measures it): one tool list on both surfaces, the everyday
        tools loaded up front and the other ~70 found through tool search, the stable prompt cached for an hour
@@ -1806,7 +1863,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d), ...extraActions(d)],
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',
