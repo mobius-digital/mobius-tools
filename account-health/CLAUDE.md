@@ -1716,6 +1716,12 @@ Cole moved the Monday call to 8am Central and reset the team's week (audit and b
   / Ad Spend / MER, "Open the full brief in Locus") when the brand has a Locus client login (`brandHasClientLogin`:
   `settings.clientUsers`) and `settings.briefClientStyle` is not 'full'. No client login = the whole brief, as before.
   The stored row always keeps the full text. Locus: the same settings card, "What the client gets each day".
+- **2026-10-17: the short daily goes to EVERY client channel, the full brief is its thread reply.** `sendBrief` posts
+  `shortBriefText(text, {locus})` top-level (opener, headline, the day's Net Sales / Ad Spend / MER vs plan, "Full update
+  in the thread", plus an Open in Locus link when the brand has a client login), then `briefThreadText(text)` (the brief
+  minus its opener) as ONE reply, both as Cole. A failed reply never unsends the headline; the internal channel is told.
+  `briefClientStyle` = 'full' posts the whole brief top-level as before. Also: `meta_missing` (Triple Whale short on Meta
+  spend, rebuilt from Meta's own figure) is a WARNING now, not a block; the card shows one info line.
 - NOT tested live: the bot's self-join (first real post is the next 6am tick; the fallback covers a failure) and the
   short send (no brand with a client channel has a client login yet; Lucky has logins and no client channel).
 
