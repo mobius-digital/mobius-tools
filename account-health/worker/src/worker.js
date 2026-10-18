@@ -77,6 +77,7 @@ import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } fr
 import { handleLaunch } from './launch.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
+import { runStudioMake } from './studiomake.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -6905,7 +6906,12 @@ async function syncPass(env) {
 /* ---- the Strategist (strategist.js, on ../../ask/engine.js) ---- */
 let _strat = null;
 function strategist() {
-  if (!_strat) _strat = buildStrategist({
+  if (!_strat) _strat = buildStrategist(strategistDeps());
+  return _strat;
+}
+let _stratDeps = null;
+function strategistDeps() {
+  if (!_stratDeps) _stratDeps = ({
     getSetting, putSetting, safeJson, listAccounts, overview, briefData, dataHealth, storePeriod,
     localDate, addDays, ymdDiff, daysInMonth, briefHour, slack: slackApi,
     claude: (env, args) => claude(env, args),
@@ -6918,7 +6924,7 @@ function strategist() {
     /* Live checks, alerts, scheduled tasks, the Ledger door (alerts.js, checknow.js, 2026-10-09). */
     auto: autoDeps(),
   });
-  return _strat;
+  return _stratDeps;
 }
 /* What checknow.js, alerts.js and the scheduled checks need from here. */
 function autoDeps() {
@@ -7037,7 +7043,7 @@ async function handleSlackEvent(request, env, ctx) {
   if (body?.type === 'url_verification') return json({ challenge: body.challenge });
   const ok = await verifySlackSig(env, request.headers.get('x-slack-request-timestamp'), raw, request.headers.get('x-slack-signature'));
   if (!ok) return new Response('bad signature', { status: 401 });
-  const ev = body?.event;
+  let ev = body?.event;
   /* The Slack index (slackindex.js, 2026-10-09): every message in a brand's internal or client channel is
      written down as it arrives, before any routing, so the Strategist knows what was said. Reading only:
      nothing below ever answers in a client channel. */
@@ -7081,7 +7087,16 @@ async function handleSlackEvent(request, env, ctx) {
        is theirs (the bot's own tag was handled above, so any tag left is a human). Anything else
        is read once by a small model that says whether it is for the Strategist. */
     if (/<@U[A-Z0-9]+/.test(ev.text || '')) return ACK();
-    if (!(await replyForStrategist(env, ev).catch(e => { console.log('reply gate: ' + e.message); return true; }))) return ACK();
+    if (!(await replyForStrategist(env, ev).catch(e => { console.log('reply gate: ' + e.message); return true; }))) { console.log(`reply gate: no for ${ev.channel}:${ev.ts}`); return ACK(); }
+  }
+  /* A bare tag in a thread ("@Locus" and nothing else) means "this, please": it carries the asker's own messages since
+     the Strategist last spoke. It used to reach the engine as an empty question and be dropped without a word (Cole,
+     2026-10-18: "just make the ads", then "@Locus" twice, then "Was this done?" + "@Locus", and nothing ever came back).
+     When one of those messages is already being answered, the tag adds nothing. */
+  if (mentioned && inThread && !plainTag(ev.text) && !(ev.files || []).length) {
+    const prior = await unansweredAsk(env, ev).catch(() => null);
+    if (prior === 'answered') return ACK();
+    ev = { ...ev, text: `${ev.text || ''} ${prior || '(they tagged you with no words: pick the thread up where it stands and do the open ask)'}` };
   }
   const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
@@ -7191,10 +7206,34 @@ const GATE_SYSTEM = `You decide whether an AI assistant called the Strategist, w
 YES when the message is for the Strategist: a question or an instruction aimed at nobody in particular, a follow-up to something the Strategist said, a correction of it, or an answer to a question the Strategist asked.
 NO when teammates are talking to each other: the message names or addresses a specific person, or it is a plan, a status update, an agreement, a thanks or small talk between people.
 When unsure, YES. Reply with exactly one word: YES or NO.`;
+const plainTag = t => String(t || '').replace(/<@[A-Z0-9]+(?:\|[^>]*)?>/g, '').trim();
+/* The asker's messages in this thread after the Strategist's last post, as one text; 'answered' when one of them was
+   already claimed (it is being or was answered); null when there is none. */
+async function unansweredAsk(env, ev) {
+  const r = await slackApi(env, 'conversations.replies', { channel: ev.channel, ts: ev.thread_ts, limit: 200, latest: ev.ts, inclusive: false });
+  const before = (r?.messages || []).filter(m => Number(m.ts) < Number(ev.ts));
+  const mine = [];
+  for (let i = before.length - 1; i >= 0; i--) {
+    const m = before[i];
+    if (m.bot_id || m.subtype === 'bot_message') break;
+    if (m.user !== ev.user) continue;
+    if (plainTag(m.text) || (m.files || []).length) mine.unshift(m);
+  }
+  if (!mine.length) return null;
+  for (const m of mine) {
+    const seen = await env.DB.prepare(`SELECT 1 AS x FROM settings WHERE key = ?1`).bind(`askSeen:${ev.channel}:${m.ts}`).first().catch(() => null);
+    if (seen) return 'answered';
+  }
+  return mine.map(m => plainTag(m.text)).filter(Boolean).join(' / ');
+}
 async function replyForStrategist(env, ev) {
   if (!env.ANTHROPIC_API_KEY) return true;
-  const r = await slackApi(env, 'conversations.replies', { channel: ev.channel, ts: ev.thread_ts, limit: 12, latest: ev.ts, inclusive: true });
-  const msgs = (r?.messages || []).filter(m => m.ts !== ev.ts).slice(-8);
+  const r = await slackApi(env, 'conversations.replies', { channel: ev.channel, ts: ev.thread_ts, limit: 200, latest: ev.ts, inclusive: true });
+  const all = (r?.messages || []).filter(m => m.ts !== ev.ts);
+  /* Only the asker and the Strategist in the thread: there is nobody else it could be for. Cole's "Now I'm just
+     confused, just make the ads" (2026-10-18) was read as NOT for the Strategist in his own one-on-one thread. */
+  if (all.every(m => m.bot_id || m.subtype === 'bot_message' || !m.user || m.user === ev.user)) return true;
+  const msgs = all.slice(-8);
   const who = m => m.bot_id || m.subtype === 'bot_message' ? `${m.username || m.bot_profile?.name || 'bot'} (assistant)` : m.user === ev.user ? 'the same person who wrote the newest message' : `teammate ${m.user || '?'}`;
   const text = m => String(m.text || '').replace(/<@([A-Z0-9]+)(?:\|[^>]*)?>/g, '@$1').slice(0, 700);
   const transcript = msgs.map(m => `${who(m)}: ${text(m)}`).join('\n');
@@ -7332,6 +7371,8 @@ const AH_APP = {
     for (const m of batch.messages) {
       if (m.body?.kind === 'welcome') await welcomeOnJoinByChannel(env, m.body.channel).catch(e => console.log('welcome job: ' + e.message));
       else if (m.body?.kind === 'strategist') await strategistSlackAnswer(env, m.body.ev, m.body.screen).catch(e => console.log('strategist job: ' + e.message));
+      /* The Strategist pressed Make (studiomake.js): plan, make, post the ads in the thread. */
+      else if (m.body?.kind === 'studio_make') await runStudioMake(env, strategistDeps(), m.body).catch(async e => { console.log('studio make job: ' + e.message); if (m.body.channel) await slackApi(env, 'chat.postMessage', { channel: m.body.channel, thread_ts: m.body.thread, text: `Making the ads failed: ${e.message}` }).catch(() => {}); });
       else if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
       m.ack();
     }

@@ -44,6 +44,7 @@ import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
 import { extraTools, extraActions, CARD_ONLY } from './allwrite.js';
+import { studioMakeTools } from './studiomake.js';
 /* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
 import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
@@ -306,7 +307,7 @@ THINKING LIKE A STRATEGIST (every answer, not only the creative ones)
 - Know why the question is being asked. Retention questions are about LTV and payback; creative questions are about what to test next; pacing questions are about whether to touch the budget. Answer the question behind the question.
 - Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used. Where the evidence is missing, say so and name what would settle it.
 - Gaps are findings. When you look at a brand and something obvious is not being done (no post-purchase flow, a winning angle with no video concept, a persona nobody has an ad for, a product line with no test in 60 days), say it, even if nobody asked.
-- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A QUESTION to be asked again on a schedule ("ask this every Monday", "post the answer in #lucky-internal every morning") = schedule_question (read the schedules view first so you do not make a twin). A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
+- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A QUESTION to be asked again on a schedule ("ask this every Monday", "post the answer in #lucky-internal every morning") = schedule_question (read the schedules view first so you do not make a twin). A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch, then studio_make in the same answer when the person wants ads (make / create / build / show me): the images land in the thread. Never tell anyone to pick the product and press Make. Feedback on made ads = change that batch's lines (studio_batch again or the batch row) and studio_make again; one round of copy talk at most before ads exist. When someone says they are confused or "just make it", stop explaining and make it. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
 - Problem layers are YOUR thinking tool, never output: do not write want / villain / layer / external / internal into a brief, a review or a reply unless someone asks about layers. Every problem has three layers (Donald Miller, StoryBrand): EXTERNAL (the thing they would search for), INTERNAL (how it makes them feel), PHILOSOPHICAL (why nobody should have to put up with it), plus one VILLAIN, all starting from the customer's WANT. Brands sell the external fix, people buy relief from the feeling. Read the brand's known problems (brain view, The problem) before writing or judging anything and say which layer a piece argues; they are a map, not a rule. Cold audiences: lead internal, anchored to a concrete moment in the customer's words; warm and product-aware: layer one proof and offer. Fun and gift products often sell on a social want and have no layer three: never force one. The full method (which want, when a new layer is a new angle, Miller's seven parts as concepts, the five testimonial questions) is knowledge topic messaging: read it before any creative review, brief or angle work.
 - Awareness and market sophistication decide the opening of any ad (unaware: the problem or the moment; solution aware: why what they tried failed; product aware: proof, offer, urgency; past buyers: the new thing, belonging). Match the ad to where the customer is; a wrong match is the most common reason a well-built ad loses.
 
@@ -1110,7 +1111,7 @@ const BUILD_ACTIONS = (d) => {
         return { ok: true, note: `Saved. Open it: ${LOCUS_URL}?open=dash&id=${id} (Reports > Dashboards).${p.schedule && !p.channel ? ' It has a schedule but no channel yet: set one on the dashboard in Locus.' : ''}` };
       } },
     { name: 'studio_batch',
-      description: 'Put a batch of static ads into Locus Studio as a draft (the AI makes the images there): one line per ad with the words on it and a short note on the look, under an angle, why, concept and what is being tested. Use it when asked to make statics from words, with no reference image in the thread (with a reference, draft_from_thread). The team opens Studio, picks the product and presses Make.',
+      description: 'Put a batch of static ads into Locus Studio as a draft (the AI makes the images there): one line per ad with the words on it and a short note on the look, under an angle, why, concept and what is being tested. Use it when asked to make statics from words, with no reference image in the thread (with a reference, draft_from_thread). It returns the batch_id; call studio_make with it to make the ads.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, name: { type: 'string', description: 'The batch name, a few words.' }, num: { type: 'string', description: 'The Asana brief number it belongs to, if any.' },
         angle: { type: 'string' }, why: { type: 'string' }, concept: { type: 'string' }, testing: { type: 'string', enum: STUDIO_TESTING, description: 'What changes across the lines.' }, post_copy: { type: 'string', description: 'Primary text under the ad, if given.' },
         lines: { type: 'array', items: { type: 'string' }, description: '3 to 12 lines, one ad each: the words on the ad plus a short note on the look.' }, summary: { type: 'string' } }, required: ['brand', 'name', 'angle', 'lines', 'summary'] },
@@ -1126,7 +1127,7 @@ const BUILD_ACTIONS = (d) => {
         const id = Array.from(crypto.getRandomValues(new Uint8Array(12))).map(b => b.toString(16).padStart(2, '0')).join('');
         await env.DB.prepare(`INSERT INTO p_studio_batch (id, act_id, num, br_batch_id, name, brief_json, setup_json, plan_json, status) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, NULL, 'draft')`)
           .bind(id, p.act_id, p.num, p.name, JSON.stringify(p.brief), JSON.stringify({ products: [], images: [], swipe: [] })).run();
-        return { ok: true, note: `Studio batch "${p.name}" is waiting in Locus Studio (${LOCUS_URL}#studio). Pick the product there and press Make.` };
+        return { ok: true, batch_id: id, note: `Studio batch "${p.name}" saved as a draft in Locus Studio (batch_id ${id}). To make the ads now, call studio_make with this batch_id and the product.` };
       } },
   ];
 };
@@ -1841,7 +1842,7 @@ export function buildStrategist(d) {
     directActions: 'all', cardOnly: CARD_ONLY,
     slackImages: (env, files) => slackImages(env, d.idx, files, 4),
     ...stratHooks(d), ...makeHooks(d),
-    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d), ...extraTools(d)],
+    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d), ...extraTools(d), ...studioMakeTools(d)],
     dropTools: ['remember'],
     /* Cost pass 2026-10-10 (scripts/prompt-size.mjs measures it): one tool list on both surfaces, the everyday
        tools loaded up front and the other ~70 found through tool search, the stable prompt cached for an hour
