@@ -5,7 +5,7 @@
  * admin token (secret SUPPLY_TOKEN: the engine accepts the Mobius Google session or that token, NOT
  * this worker's ADMIN_TOKEN), so Slack questions and scheduled runs work without a person's session.
  *
- *   stockView(env, acct, what)   the Strategist's `stock` view: summary | products | orders | drops
+ *   stockView(env, acct, what)   the Strategist's `stock` view: summary | products | skus | orders | drops
  *   handleSupplyProxy(...)       /api/supply/* for the Strategist's actions AND a client login's own brand (since
  *                                2026-10-12): the same Supply routes the Locus screens call, pinned to one brand
  *   supplyClient(...)            GET /api/supply/client: one brand's state for a client login (the agency's Slack
@@ -78,7 +78,7 @@ function judge(st, ads) {
 }
 const LABEL = { out: 'out', order: 'order now', gap: 'runs out before its order lands', soon: 'coming up', covered: 'on the way', ok: 'fine', nosales: 'not selling', dormant: 'empty, not selling', unsorted: 'not in a group', nofactory: 'no factory', drop: 'limited drop', drop_done: 'drop sold out', sunset: 'winding down', off: 'discontinued' };
 
-export async function stockView(env, acct, what = 'summary') {
+export async function stockView(env, acct, what = 'summary', opts = {}) {
   const b = await supplyBrandOf(env, acct.act_id);
   if (!b) return { connected: false, note: `${acct.name} has no stock feed. Stock reads from Shopify once the brand installs the Mobius Digital Shopify app (Lucky Golf is connected). Say so; do not guess stock from orders.` };
   const st = await supplyFetch(env, '/api/state', { brand: b.id });
@@ -88,11 +88,24 @@ export async function stockView(env, acct, what = 'summary') {
     runs_out: p.status === 'out' ? 'now' : p.runOutDate, first_size_out: (p.variants || []).filter(v => v.isCore && v.velocity > 0.001).sort((x, y) => (x.runOutDays ?? 9e9) - (y.runOutDays ?? 9e9))[0]?.axis || null,
     on_the_way: p.incoming || 0, lands: p.incomingLands || null, ...(b.buys ? { order_by: p.orderByDate, suggested_units: p.suggested, at_cost: p.atCost != null ? Math.round(p.atCost) : null, minimum: p.moq || null, factory: p.factoryName || null } : {}),
     weeks_of_stock: p.weeksOfCover, sold_90d: p.sold90, ad_spend_30d: J.spend(p), kind: p.lifecycle });
-  const live = st.products.filter(p => p.status !== 'off' && (p.velocity > 0.001 || p.onHand > 0));
+  /* A product with nothing on hand and no recent sales still counts when units are on the way (2026-10-18: the
+     Eclipse Blade, out for months with 362 on order, vanished and the Strategist said no putters were coming). */
+  const live = st.products.filter(p => p.status !== 'off' && (p.velocity > 0.001 || p.onHand > 0 || p.incoming > 0));
   const base = { brand: acct.name, today: st.today, black_friday: J.SE.black_friday, cyber_monday: J.SE.cyber_monday, buying_on: !!b.buys, drops_on: !!b.makes,
     ad_spend_30d: ads.total, ad_spend_tied_to_products: ads.mapped, open: 'https://tools.go-mobius-digital.com/profit/?open=stock&act=' + acct.act_id };
   if (what === 'products') return { ...base, products: live.map(prod) };
-  if (what === 'orders') return { ...base, factory_orders: st.orders.filter(o => o.status !== 'cancelled').map(o => ({ id: o.id, factory: o.factoryName, stage: o.status === 'sent' || o.status === 'confirmed' ? 'placed' : o.status, placed: o.sent_at, lands: o.expected_at, days_to_landing: o.daysToLanding, late: !!o.overdue, looks_landed: !!o.likelyLanded, units: o.units, received: o.received, at_cost: Math.round(o.atCost || 0), products: o.productTitles })),
+  /* Every size of every product (or the ones named): on hand, sales, what is on order and when it lands. The grain
+     for "do we have enough of each SKU for $X" (2026-10-18: without it the Strategist looped and answered nothing). */
+  if (what === 'skus') {
+    const q = String(opts.product || '').toLowerCase().trim();
+    const pick = q ? live.filter(p => String(p.id) === q || String(p.title).toLowerCase().includes(q) || String(p.lineName || '').toLowerCase().includes(q)) : live;
+    return { ...base, how_to_read_skus: "per_week is the Supply brain's demand rate (a size that was out borrows its rate from the size curve). sold_* are real units sold. on_order counts open factory orders only; lands is the order's expected date.",
+      products: pick.map(p => ({ id: p.id, product: p.title, group: p.lineName || null, price: p.price, skus: (p.variants || []).filter(v => v.onHand || v.sold90 || v.incoming).map(v => ({
+        sku: v.sku, size: v.axis, on_hand: v.onHand, sold_14d: v.sold14, sold_30d: v.sold30, sold_90d: v.sold90, per_week: Math.round(v.velocity * 7 * 10) / 10,
+        on_order: v.incoming || 0, lands: v.incomingLands || null, runs_out: v.runOutDate || null, core: !!v.isCore })) })) };
+  }
+  if (what === 'orders') return { ...base, factory_orders: st.orders.filter(o => o.status !== 'cancelled').map(o => ({ id: o.id, factory: o.factoryName, stage: o.status === 'sent' || o.status === 'confirmed' ? 'placed' : o.status, placed: o.sent_at, lands: o.expected_at, days_to_landing: o.daysToLanding, late: !!o.overdue, looks_landed: !!o.likelyLanded, units: o.units, received: o.received, at_cost: Math.round(o.atCost || 0), products: o.productTitles,
+      lines: (o.lines || []).map(l => ({ product: l.productTitle, sku: l.sku, size: l.axis, qty: l.qty, received: l.received || 0 })), notes: o.notes || null })),
     factories: st.factories.map(f => ({ name: f.name, make_days: f.production_days, ship_days: f.shipping_days, minimum: f.moq_default, closed: f.closures })) };
   if (what === 'drops') {
     if (!b.makes) return { ...base, note: 'Drops is off for this brand.' };
