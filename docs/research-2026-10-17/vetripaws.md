@@ -90,3 +90,23 @@ Rejected in round 2:
 - Honest Dog Company bone broth (plain product talking head, nothing new).
 - Dog Friendly Co. senior paw pads (compilation of many dogs from many sources).
 - Petz Park "black leggings" (kinetic text and stock shots).
+
+## Round 3 (2026-10-17): visual variety
+
+Meta's Andromeda treats look-alike videos as one ad, so this round picks for the LOOK first. No single person talking to camera indoors. Every shot type below is new to the board and different from the other three. All four advertisers are new to the board. All watched frame by frame; all filmable with a phone.
+
+| # | Sec | Clip | Brand | Shot type | Format |
+|---|---|---|---|---|---|
+| 30 | breath | bb-doorbell-kiss | Bogey Bros Golf Co | Doorbell camera, wide low porch angle | Doorbell camera skit: dog meets you at the door, partner's voice through the doorbell |
+| 31 | breath | bnb-park-interview | Butternut Box | Street interview outdoors, two people and a mic, dog in frame | "I asked dog owners at the park" |
+| 32 | breath | wr-back-seat | WaggingRights | Car interior, dog in the back seat, phone on the dash | Car ride captions |
+| 33 | coat | pwz-beach-day | Pawezy | Beach / water montage, slow motion shake off | Beach day montage |
+
+Rejected in round 3:
+- Aerovac car dog hair (mostly studio product shots and a branded end card).
+- Solara Covers "sandy dog vs my seats" (great car look, but ends on a designed end card and uses sticker labels).
+- Pet Snacks dental chews (stock clips and warehouse shelves).
+- The Lab Woody x Hill's dog get ready with me (too close to the grooming look, bag shots in the middle).
+- Just Food For Dogs travel PSA (talking head indoors holding the dog, the exact look we cut).
+- Progressive "car ride" dog reaction (6 seconds, too close to the dog running at home look).
+- Searches for lint test, slow motion shake and pet camera clips came up empty for phone-only formats.
