@@ -229,7 +229,7 @@ async function sessionEmail(env, request) {
 // read_reports is what grants shopifyqlQuery, and the cohort data comes from
 // ShopifyQL `FROM customers`. Without it cohorts fail silently. Must stay in step
 // with profit/shopify.app.toml - Shopify compares the two at install.
-const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports';
+const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports,write_products,write_discounts';
 const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 // Keep in step with `api_version` in profit/shopify.app.toml.
 const SHOPIFY_API_VERSION = '2026-07';
