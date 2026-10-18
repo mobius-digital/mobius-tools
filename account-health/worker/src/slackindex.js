@@ -243,7 +243,7 @@ export async function search(env, deps, { q = '', brand = null, side = null, fro
 }
 
 /** A thread, read LIVE from Slack so edits and new replies are there. */
-export async function readThread(env, deps, { link = '', channel = '', ts = '' } = {}) {
+export async function readThread(env, deps, { link = '', channel = '', ts = '' } = {}, { withImages = false } = {}) {
   const m = String(link).match(/archives\/([A-Z0-9_]+)\/p(\d{10})(\d{6})/);
   if (m) { channel = m[1]; ts = `${m[2]}.${m[3]}`; const t = String(link).match(/thread_ts=(\d+\.\d+)/); if (t) ts = t[1]; }
   if (!channel || !ts) return { error: 'Give a Slack link, or a channel id and a ts.' };
@@ -259,8 +259,44 @@ export async function readThread(env, deps, { link = '', channel = '', ts = '' }
     if (used + line.length > 24000) { lines.push('[... the rest of the thread is longer than this reader keeps ...]'); break; }
     used += line.length; lines.push(line);
   }
-  return { where: info ? `${info.brandName || 'team'} ${info.side}` : channel, messages: lines.length, thread: lines.join('\n'),
+  /* The images in the thread, so the Strategist SEES a screenshot instead of only its file name. */
+  const images = withImages ? await slackImages(env, deps, (r.messages || []).flatMap(x => x.files || []), 4) : [];
+  return { where: info ? `${info.brandName || 'team'} ${info.side}` : channel, messages: lines.length, thread: lines.join('\n'), images,
     note: info?.side === 'client' ? 'This is the CLIENT channel: the client reads it. Never post there; quote it to the team.' : undefined };
+}
+
+/* 2026-10-17 (Cole asked Locus to pause "the ad Nick screenshotted"; it answered "I can't open images").
+   Slack images as Claude image blocks: Slack's 1024px thumb (readable, and never the 6000px camera original the
+   model refuses), the bot token first, then Cole's token for a channel the bot is not in. The newest `max` kept,
+   each followed by a line naming it. */
+export async function slackImages(env, deps, files, max = 4) {
+  const out = [];
+  const isImg = f => /^image\//i.test(f.mimetype || '') || /^(png|jpe?g|gif|webp|heic)$/i.test(f.filetype || '');
+  for (const f of (files || []).filter(isImg).slice(-max)) {
+    const name = String(f.name || f.title || 'image').slice(0, 60);
+    let block = null;
+    for (const url of [f.thumb_1024, f.thumb_960, f.thumb_720, f.url_private].filter(Boolean).slice(0, 2)) {
+      for (const tok of [env.SLACK_BOT_TOKEN, env.SLACK_USER_TOKEN].filter(Boolean)) {
+        const res = await (deps?.xfetch || fetch)(url, { headers: { Authorization: `Bearer ${tok}` } }).catch(() => null);
+        const type = (res?.headers.get('content-type') || '').split(';')[0].trim();
+        if (!res?.ok || !/^image\/(png|jpeg|gif|webp)$/.test(type)) continue;
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > 3.7e6) continue;
+        block = { type: 'image', source: { type: 'base64', media_type: type, data: b64(buf) } };
+        break;
+      }
+      if (block) break;
+    }
+    out.push(block ? block : { type: 'text', text: `(the image "${name}" would not open: Slack refused both tokens)` });
+    if (block) out.push({ type: 'text', text: `(above: the image "${name}")` });
+  }
+  return out;
+}
+function b64(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
 }
 
 /** The brand's last two weeks across its internal and client channels: one line a message, capped. */
@@ -268,11 +304,11 @@ export async function digest(env, brand, { days = 14, cap = 6000, deps = null } 
   if (!brand) return '';
   await ensureSlackIndex(env);
   const since = new Date(Date.now() - days * DAY * 1000).toISOString().slice(0, 10);
-  const { results } = await env.DB.prepare(`SELECT ts, thread_ts, name, bot, text, files, side FROM slack_msg WHERE brand = ?1 AND day >= ?2 ORDER BY CAST(ts AS REAL) DESC LIMIT 400`).bind(brand, since).all();
+  const { results } = await env.DB.prepare(`SELECT channel, ts, thread_ts, name, bot, text, files, side FROM slack_msg WHERE brand = ?1 AND day >= ?2 ORDER BY CAST(ts AS REAL) DESC LIMIT 400`).bind(brand, since).all();
   const lines = []; let used = 0;
   for (const r of results || []) {
     if (r.bot && /^(Strategist|Ideas)$/i.test(r.name || '') && String(r.text || '').length < 40) continue;   // "On it..." lines
-    const line = `[${when(r.ts)} · ${r.side === 'client' ? 'CLIENT' : 'internal'} · ${r.name}]${r.thread_ts && r.thread_ts !== r.ts ? ' (reply)' : ''} ${String(r.text || '').replace(/\s+/g, ' ').slice(0, 240)}${filesNote(r.files)}`;
+    const line = `[${when(r.ts)} · ${r.side === 'client' ? 'CLIENT' : 'internal'} · ${r.name}]${r.thread_ts && r.thread_ts !== r.ts ? ' (reply)' : ''} ${String(r.text || '').replace(/\s+/g, ' ').slice(0, 240)}${filesNote(r.files)}${filesNote(r.files) ? ` (to see it: read_thread channel ${r.channel} ts ${r.thread_ts || r.ts})` : ''}`;
     if (used + line.length > cap) break;
     used += line.length; lines.push(line);
   }

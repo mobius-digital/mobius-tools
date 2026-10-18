@@ -7152,7 +7152,10 @@ async function strategistSlackAnswer(env, ev, screen) {
   const { engine, h } = strategist();
   const findings = await engine.openFindings(env, h()).catch(() => []);
   /* call: a plainly asked-for internal setting is applied right away, as the owner (the same as an Apply tap from Slack). */
-  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), call: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
+  /* who: the asker's Slack name, so a change made straight from a message is logged as theirs in the Change Log. */
+  const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
+  const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
 /* A thread is "open" (the Strategist answers plain replies in it) once it was mentioned there,
