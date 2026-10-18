@@ -3555,3 +3555,19 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
   then filed as `upload` proof with who "<Brand> (inspiration)". `inspo` kind with an Atria URL does NOT play on the v20 board.
 - Cole's rule (2026-10-16): only videos a person with a phone can film start to finish. No motion graphics, studio spins, CGI or brand films, even if they sold. Other brands' videos can be any product (joggers, hoodies); the format is what counts.
 - No submit link yet: the button hides until a TRYBE campaign link is pasted on the Ambassadors tab.
+
+## 2026-10-18: LOOK-ALIKE ADS (hub.js `lookAlikeGroups`). Meta's own similarity and fatigue fields are empty.
+
+- Probed 2026-10-17 on six ad accounts (Graph v23 to v26): `creative_fatigue`, `creative_similarity_score` and
+  `creative_diversity_score` are VALID insights fields (fake names are refused) but come back empty on every ad, ad set,
+  campaign and account. Meta's `/act_x/recommendations` answers, but it is mostly upsell (Reels, GEN_AI_MVP, music,
+  Advantage+); its FRAGMENTATION flag names our numbered test ad sets, which are fragmented on purpose. Cole: skip both.
+- Instead, Locus judges look-alikes from its own AI tags (`ad_tag`, no new AI cost). Two ads that spent in the last 7
+  days, in the SAME ad set, are `same` (one asset_key twice) or `alike` (same format, hook, person, product and offer,
+  and message + notes share 40%+ of their words). Groups join (A~B, B~C).
+- Shown: a "Looks like N others" / "Same creative twice" chip on the Ads > Meta > Ads cards, the card "Ads Meta likely
+  counts as one" on that page (`d.alike` from `/api/hub/creative`), and a command center reason `similar` (warn when the
+  groups hold $100+ and 10%+ of the week's Meta spend), which the Strategist reads through /api/hub/command.
+- First run on real data (Oct 10 to 17): Lucky 36 ads in 11 groups, $1.1K of $3.5K (the "Black Wedges - N" set alone has
+  11 look-alikes); Dartee 29 ads, $546; Ice & Gold 25 ads, $244; the rest under $150. Fatigue is unchanged (command
+  center CTR / hook / frequency, Today's Refresh call).

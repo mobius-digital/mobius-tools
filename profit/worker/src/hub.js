@@ -825,12 +825,54 @@ function channelRows(ctx, a, w, meta, g, t, piv, ncBy) {
     paid: paid(meta.cur, g.cur, t.cur), prev_paid: w.pf ? paid(meta.prev, g.prev, t.prev) : null };
 }
 
+/* ---------- Look-alike ads (2026-10-18) ----------
+   Meta's Andromeda treats ads that look alike as one ad: they share delivery and the "test" teaches nothing.
+   Meta's own similarity fields exist in the API but come back empty on every account (probed 2026-10-17), so
+   Locus judges it from the AI tags it already has (ad_tag, no new AI cost). Two LIVE ads in the SAME ad set are:
+   - "same": the same creative (asset_key) running twice;
+   - "alike": the same format, hook, person, product and offer AND the message + notes share 40%+ of their words.
+   Groups are joined (A~B and B~C = one group of 3). Ads with no tags are never judged. */
+const ALIKE_KEYS = ['format', 'hook', 'person', 'product', 'offer'];
+const ALIKE_STOP = new Set('a an and the of to in on with for at by from into over under its it is are be this that their his her our your as or but no not very more most'.split(' '));
+const alikeWords = t => new Set(`${(t && t.message) || ''} ${(t && t.notes) || ''}`.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/)
+  .filter(w => w.length > 2 && !ALIKE_STOP.has(w)).map(w => w.replace(/(ing|ed|es|s)$/, '')));
+const jaccard = (a, b) => { if (!a.size || !b.size) return 0; let n = 0; for (const w of a) if (b.has(w)) n++; return n / (a.size + b.size - n); };
+export function lookAlikeGroups(ads) {
+  const bySet = {};
+  for (const r of ads) if (r.adset_id && (r.asset_key || r.tags)) (bySet[r.adset_id] ||= []).push(r);
+  const out = [];
+  for (const [set, list] of Object.entries(bySet)) {
+    if (list.length < 2) continue;
+    const parent = list.map((_, i) => i), find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+    const kind = {};
+    const words = list.map(r => r.tags ? alikeWords(r.tags) : null);
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      let k = null;
+      if (a.asset_key && a.asset_key === b.asset_key) k = 'same';
+      else if (a.tags && b.tags && ALIKE_KEYS.every(x => String(a.tags[x] || '').toLowerCase() === String(b.tags[x] || '').toLowerCase()) && jaccard(words[i], words[j]) >= 0.4) k = 'alike';
+      if (!k) continue;
+      const ri = find(i), rj = find(j); if (ri !== rj) parent[rj] = ri;
+      kind[`${i}|${j}`] = k;
+    }
+    const groups = {};
+    list.forEach((r, i) => (groups[find(i)] ||= []).push(i));
+    for (const idx of Object.values(groups)) {
+      if (idx.length < 2) continue;
+      const same = idx.some(i => idx.some(j => kind[`${Math.min(i, j)}|${Math.max(i, j)}`] === 'same'));
+      const ads2 = idx.map(i => list[i]).sort((x, y) => num(y.spend) - num(x.spend));
+      out.push({ adset_id: set, kind: same ? 'same' : 'alike', ads: ads2.map(r => ({ id: r.id, name: r.name, spend: num(r.spend) })), spend: ads2.reduce((s, r) => s + num(r.spend), 0) });
+    }
+  }
+  return out.sort((x, y) => y.spend - x.spend);
+}
+
 /* ---------- Creative ---------- */
-const formatOf = name => { const parts = String(name || '').split('|'); if (parts.length < 2) return null; const t = parts[parts.length - 1].trim(); return /[a-z]/i.test(t) ? t.replace(/\s+/g, ' ').slice(0, 24) : null; };
+const formatOf =name => { const parts = String(name || '').split('|'); if (parts.length < 2) return null; const t = parts[parts.length - 1].trim(); return /[a-z]/i.test(t) ? t.replace(/\s+/g, ' ').slice(0, 24) : null; };
 const batchOf = name => { const m = String(name || '').match(/^\s*(?:[A-Z]{1,4}_)?(\d{2,4})\b/); return m ? m[1] : null; };
 async function creativeBrand(env, a, w, model) {
   const act = a.act_id;
-  const { results: ads } = await env.DB.prepare(`SELECT d.ad_id, x.name, x.media_type, x.first_spend_date, x.created_time, x.campaign_id, x.adset_id, x.asset_key, ${META_COLS}
+  const { results: ads } = await env.DB.prepare(`SELECT d.ad_id, x.name, x.media_type, x.first_spend_date, x.created_time, x.campaign_id, x.adset_id, x.asset_key, MAX(d.date) last_day, ${META_COLS}
     FROM ad_daily d LEFT JOIN ads x ON x.ad_id = d.ad_id WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 GROUP BY d.ad_id HAVING SUM(d.spend) > 0`).bind(act, w.from, w.to).all();
   const { byAd } = await attrByAd(env, act, w.from, w.to, model, 'meta');
   /* First-click credit per ad, beside the screen's model: an ad Triple Whale credits far more on FIRST
@@ -855,7 +897,7 @@ async function creativeBrand(env, a, w, model) {
     return { id: r.ad_id, name: r.name || r.ad_id, media_type: r.media_type || (num(r.v3) > 0 ? 'video' : 'image'), campaign: cName[r.campaign_id] || null, adset_id: r.adset_id || null,
       fc_rev: model === 'platform' ? null : num((fc[r.ad_id] || {}).rev), lc_rev: model === 'platform' ? null : num((lc[r.ad_id] || {}).rev),
       first_spend: first, age: first ? Math.max(0, Math.round((Date.parse(today) - Date.parse(first)) / 864e5)) : null,
-      format: formatOf(r.name), batch: b, angle: b ? (angleOf[b] || null) : null, asset_key: r.asset_key || null, tags: r.asset_key ? (tagOf[r.asset_key] || null) : null, ...m };
+      format: formatOf(r.name), batch: b, angle: b ? (angleOf[b] || null) : null, asset_key: r.asset_key || null, tags: r.asset_key ? (tagOf[r.asset_key] || null) : null, last_day: r.last_day || null, ...m };
   }).sort((x, y) => y.spend - x.spend);
   /* THE AD SET IS THE UNIT (Cole, 2026-10-08). Meta spends inside an ad set as one system: the ad that
      takes most of the budget is often the broad opener, and the smaller ads with prettier numbers ride
@@ -871,6 +913,10 @@ async function creativeBrand(env, a, w, model) {
      Independent of the date window: it is a property of the ad. */
   const ltv = await ltvByAd(env, act, w.to).catch(() => ({}));
   for (const r of rows) { const l = ltv[r.id]; if (l && l.n) { r.ltv_n = l.n; r.ltv_first = l.first / l.n; r.ltv90 = l.v90 / l.n; r.ltv_x = l.first ? l.v90 / l.first : null; } }
+  /* Look-alikes among the ads still spending (the last 7 days of the window), per ad set. */
+  const liveFrom = new Date(Date.parse(w.to) - 6 * 864e5).toISOString().slice(0, 10);
+  const alike = lookAlikeGroups(rows.filter(r => r.last_day && r.last_day >= liveFrom));
+  for (const g of alike) for (const x of g.ads) { const r = rows.find(y => y.id === x.id); if (r) { r.twins = g.ads.filter(y => y.id !== x.id).map(y => ({ id: y.id, name: y.name })); r.twin_kind = g.kind; } }
   const rankIn = {};
   for (const r of rows) { if (!r.adset_id) continue; const k = rankIn[r.adset_id] = (rankIn[r.adset_id] || 0) + 1; const x = sets[r.adset_id];
     r.adset = { id: x.id, name: x.name, spend: x.spend, purchases: x.purchases, revenue: x.revenue, cpa: x.cpa, roas: x.roas, ads: x.ads }; r.set_share = div(r.spend, x.spend); r.set_rank = k; }
@@ -900,7 +946,8 @@ async function creativeBrand(env, a, w, model) {
   const roll = key => { const by = {}; for (const r of rows) { const k = r[key] || 'Untagged'; const b = by[k] ||= { key: k, ads: 0, spend: 0, revenue: 0, purchases: 0, impr: 0, clicks: 0, v3: 0 }; b.ads++; b.spend += r.spend; b.revenue += r.revenue; b.purchases += r.purchases; b.impr += r.impressions; b.clicks += r.clicks; b.v3 += (r.hook || 0) * r.impressions; }
     return Object.values(by).map(b => ({ ...b, roas: div(b.revenue, b.spend), cpa: div(b.spend, b.purchases), ctr: div(b.clicks, b.impr), hook: b.v3 ? div(b.v3, b.impr) : null })).sort((x, y) => y.spend - x.spend); };
   return { act_id: act, name: a.name, currency: a.currency, goals: { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null }, ads: rows.slice(0, 400), fatigue, weeks: weeks.map(x => ({ ...x, fresh_share: div(x.fresh, x.spend) })),
-    by_format: roll('format'), by_angle: roll('angle'), by_type: roll('media_type') };
+    by_format: roll('format'), by_angle: roll('angle'), by_type: roll('media_type'),
+    alike: alike.map(g => ({ ...g, adset_name: sName[g.adset_id] || null })) };
 }
 
 async function ltvByAd(env, act, asOf) {
@@ -1109,6 +1156,7 @@ async function drillMany(env, ctx, accts, w, model) {
    - FATIGUE: Meta link CTR, hook (3s views / impressions) and frequency (impressions / reach per day), the last
      7 days against the 14 before (daily_insights). Flagged when 2 of the 3 moved the wrong way by 15%+ on
      $300+ of Meta spend in the 7 days.
+   - LOOK-ALIKES: ads in one ad set Meta likely counts as one (lookAlikeGroups, from the AI tags), last 7 days.
    - DAY CHECK: yesterdayMany's verdict for yesterday, and the bad days in the last 7.
    - SETUP: no Triple Whale shop, no Meta account, no goals, no Asana project.
    Paused and test brands (SKIP_HUB) come back `paused` with no reasons: never flag them (Cole's rule).
@@ -1126,10 +1174,10 @@ async function commandMany(env, ctx, accts) {
   const live = accts.filter(a => !SKIP_HUB.test(a.name || ''));
   const acts = live.map(a => a.act_id);
   const none = { results: [] };
-  let piv = {}, adQ = none, fatQ = none, conQ = none, docQ = none, yd = null;
+  let piv = {}, adQ = none, fatQ = none, conQ = none, docQ = none, yd = null, simQ = none;
   if (acts.length) {
     const IN1 = inList(acts.length, 1), IN3 = inList(acts.length, 3);
-    [piv, adQ, fatQ, conQ, docQ, yd] = await Promise.all([
+    [piv, adQ, fatQ, conQ, docQ, yd, simQ] = await Promise.all([
       twPivotMany(env, acts, ctx.addDays(y, -22), y, ['totalSales', 'totalNetTaxes', 'blendedAds', 'totalOrders']),
       env.DB.prepare(`SELECT c.brand_id act_id, MAX(substr(x.created_time, 1, 10)) last_ad, SUM(CASE WHEN substr(x.created_time, 1, 10) >= ?2 THEN 1 ELSE 0 END) new14
         FROM ads x JOIN connections c ON c.kind = 'meta' AND c.external_id = x.act_id WHERE c.brand_id IN (${IN3}) AND x.created_time IS NOT NULL AND substr(x.created_time, 1, 10) <= ?1 GROUP BY c.brand_id`).bind(y, ctx.addDays(y, -13), ...acts).all().catch(() => none),
@@ -1138,6 +1186,9 @@ async function commandMany(env, ctx, accts) {
       env.DB.prepare(`SELECT brand_id, kind FROM connections WHERE brand_id IN (${IN1})`).bind(...acts).all().catch(() => none),
       env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE act_id IN (${IN1}) AND line_id = '' AND key = 'rules'`).bind(...acts).all().catch(() => none),
       yesterdayMany(env, ctx, live, true).catch(() => null),
+      env.DB.prepare(`SELECT c.brand_id act_id, x.ad_id id, MAX(x.name) name, MAX(x.adset_id) adset_id, MAX(x.asset_key) asset_key, MAX(t.tags_json) tags_json, SUM(d.spend) spend
+        FROM ad_daily d JOIN ads x ON x.ad_id = d.ad_id JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id LEFT JOIN ad_tag t ON t.asset_key = x.asset_key
+        WHERE c.brand_id IN (${IN3}) AND d.date BETWEEN ?1 AND ?2 AND d.spend > 0 GROUP BY c.brand_id, x.ad_id`).bind(ctx.addDays(y, -6), y, ...acts).all().catch(() => none),
     ]);
   }
   const AD = Object.fromEntries((adQ.results || []).map(r => [r.act_id, r]));
@@ -1145,6 +1196,7 @@ async function commandMany(env, ctx, accts) {
   const KINDS = {}; for (const r of conQ.results || []) (KINDS[r.brand_id] ??= new Set()).add(r.kind);
   const DOC = {}; for (const r of docQ.results || []) { try { DOC[r.act_id] = JSON.parse(r.data_json || 'null'); } catch {} }
   const YD = Object.fromEntries(((yd && yd.brands) || []).map(b => [b.act_id, b]));
+  const SIM = {}; for (const r of simQ.results || []) { let t = null; try { t = r.tags_json ? JSON.parse(r.tags_json) : null; } catch {} (SIM[r.act_id] ??= []).push({ ...r, tags: t }); }
   const days = dates(ctx.addDays(y, -13), y, ctx.addDays);
   const out = [];
   for (const a of accts) {
@@ -1195,6 +1247,13 @@ async function commandMany(env, ctx, accts) {
     if (fat.freq_change != null && fat.freq_change >= 0.15) signs.push(`frequency up ${Math.round(fat.freq_change * 100)}%`);
     fat.signs = signs;
     if (metaSpend7 >= 300 && signs.length >= 2) add(signs.length >= 3 ? 'bad' : 'warn', 'fatigue', `Creative fatigue on Meta: ${signs.join(', ')} (last 7 days vs the 14 before)`, 'adcreative');
+    /* LOOK-ALIKES: ads in one ad set that Meta likely counts as one (lookAlikeGroups). Flagged when they hold
+       $100+ and 10%+ of the week's Meta spend. */
+    const sim = lookAlikeGroups(SIM[a.act_id] || []);
+    const simSpend = sim.reduce((t, g) => t + g.spend, 0), simAds = sim.reduce((t, g) => t + g.ads.length, 0);
+    const similar = sim.length ? { groups: sim.length, ads: simAds, spend: Math.round(simSpend), same: sim.filter(g => g.kind === 'same').length } : null;
+    if (similar && simSpend >= Math.max(100, metaSpend7 * 0.1)) add('warn', 'similar',
+      `${simAds} Meta ads in ${sim.length} ad set${sim.length === 1 ? '' : 's'} look alike (${$(simSpend)} this week): Meta likely counts each group as one ad`, 'adcreative');
     /* DAY CHECK */
     const yb = YD[a.act_id];
     let daycheck = null;
@@ -1212,7 +1271,7 @@ async function commandMany(env, ctx, accts) {
     if (!goal && !(mg.sales > 0)) gaps.push(['No goals set (goal CPA or a monthly plan)', 'plan']);
     if (!K.has('asana')) gaps.push(['No Asana project linked', 'settings']);
     for (const [t, go] of gaps) add('info', 'setup', t, go);
-    out.push({ ...base, goal, cadence, fatigue: fat, daycheck, gaps: gaps.map(g => g[0]), reasons });
+    out.push({ ...base, goal, cadence, fatigue: fat, similar, daycheck, gaps: gaps.map(g => g[0]), reasons });
   }
   return { as_of, yesterday: y, market: yd ? yd.market : null, brands: out };
 }
