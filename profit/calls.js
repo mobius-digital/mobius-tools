@@ -58,6 +58,13 @@
       .cl .cl-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;min-width:0}
       .cl .cl-card.open{border-color:var(--line-strong)}
       .cl .cl-card.ring{box-shadow:0 0 0 2px var(--brand)}
+      .cl .cl-run-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .cl .cl-run-b{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+      .cl .cl-run-b:hover{border-color:var(--brand)}
+      .cl .cl-run-b b{font-size:15px;font-weight:650;color:var(--ink)}
+      .cl .cl-run-b span{font-size:13px;color:var(--ink-2);line-height:1.4}
+      .cl .cl-run-b small{font-size:11.5px;color:var(--muted);margin-top:4px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+      @media (max-width:720px){.cl .cl-run-g{grid-template-columns:1fr}}
       .cl .cl-top{display:flex;align-items:flex-start;gap:14px;padding:14px 16px}
       .cl .cl-mark{width:34px;height:34px;border-radius:8px;background:var(--brand-soft);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
       .cl .cl-tt{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -460,6 +467,14 @@
       if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) SEV[b.act_id] = b.paused ? undefined : (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good');
     } catch { MON = null; }
   }
+  /* 2026-10-19: the call screens (callscreen.js). The Monday agenda block that sat here is the Monday call screen now. */
+  function runHtml() {
+    const today = (D && D.today) || new Date().toISOString().slice(0, 10), dow = dt(today).getUTCDay();
+    const tip = dow === 1 ? 'Today, 8:00am' : 'Mondays, 8:00am';
+    const card = (k, title, sub, hint) => `<button class="cl-run-b" data-run="${k}"><b>${title}</b><span>${sub}</span><small>${hint}</small></button>`;
+    return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a call</b><span class="muted" style="font-size:13px">Share the screen and go top to bottom. Locus fills what it knows; type only what the call decides.</span></div>
+      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first: last week, the read, the plan', tip)}${card('client', 'Client call', 'One brand with the client watching: their news, the read, asks, what is coming', 'Pick the client')}${card('kickoff', 'Creative kickoff', 'Walk the design team through each brief before they build', 'Tuesday or Wednesday')}</div></section>`;
+  }
   function paint() {
     closePop();
     const pend = D.pending.filter(inBrand), hist = D.meetings.filter(m => m.status !== 'extracted').filter(inBrand);
@@ -469,7 +484,7 @@
     $('#main').innerHTML = `<div class="v2 cl">
       <header class="cl-head"><div><h1>Calls</h1><p>Every recorded call, judged. Approve what it found and it becomes tasks, briefs and asks. Nothing lives here.</p></div>
         <button class="cl-menu" id="clBrand"><span>Brand</span> ${esc(bname)} ${ICON.chev}</button></header>
-      ${mondayHtml()}
+      ${runHtml()}
       <div class="cl-st"><b>Waiting on your OK</b><span class="cl-tag warn">${pend.length}</span></div>
       ${pend.length ? ordered.map(m => `<div data-slot="${esc(m.id)}"></div>`).join('') : `<section class="cl-card"><div class="cl-empty">Nothing waiting. ${D.connected ? 'Locus reads every Fireflies call within the hour.' : 'Fireflies is not connected (FIREFLIES_API_KEY on the account-health worker).'}</div></section>`}
       <div class="cl-st" style="margin-top:6px"><b>History</b><span class="muted" style="font-size:13px">What each call turned into</span><span style="flex:1"></span>${D.connected ? '<button class="cl-link" id="clPoll">Check Fireflies now</button>' : ''}</div>
@@ -483,6 +498,7 @@
       else $('[data-review]', el).onclick = () => { OPEN = m.id; paint(); const c = $(`.cl-card.open[data-mid="${CSS.escape(m.id)}"]`); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
     }
     wireHistory($('#clHist'));
+    $$('[data-run]').forEach(x => x.onclick = () => { if (window.CallScreen) window.CallScreen.open(H, x.dataset.run, x.dataset.run === 'client' ? (BR !== 'all' ? BR : '') : ''); else toast('The call screen did not load. Hard-refresh (Ctrl+Shift+R).'); });
     const b = $('#clBrand'); b.onclick = () => listMenu(b, 'Brand', [{ v: 'all', label: 'All brands', on: BR === 'all' }, ...(D.brands || []).map(x => ({ v: x.act_id, label: x.name, on: BR === x.act_id }))], v => { BR = v; paint(); });
     const poll = $('#clPoll'); if (poll) poll.onclick = async () => { poll.disabled = true; poll.textContent = 'Checking...'; try { const r = await post('/api/meetings/poll', {}); await load(); paint(); toast(r.read && r.read.length ? `Read ${plural(r.read.length, 'new call')}.` : r.errors && r.errors.length ? `Fireflies: ${r.errors[0].error}` : 'Nothing new on Fireflies.'); } catch (e) { toast(e.message); poll.disabled = false; poll.textContent = 'Check Fireflies now'; } };
     const sm = $('#clShowMon'); if (sm) sm.onclick = async () => { AGENDA = true; sm.disabled = true; if (!MON) await loadMonday(); paint(); };
@@ -503,7 +519,9 @@
     H = host; css(); BR = H.S.act || 'all';
     const t = H.RUN();
     if (first || !D) $('#main').innerHTML = '<div class="v2 cl"><header class="cl-head"><div><h1>Calls</h1><p>Loading the calls...</p></div></header></div>';
-    try { await load(); if (agendaOn()) await loadMonday(); }
+    const run = new URLSearchParams(location.search).get('call') || window.CALL_OPEN; window.CALL_OPEN = null;
+    if (run && window.CallScreen) { try { const u = new URL(location.href); u.searchParams.delete('call'); history.replaceState(null, '', u); } catch {} return window.CallScreen.open(H, run, H.S.act && H.S.act !== 'all' ? H.S.act : ''); }
+    try { await load(); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 cl"><header class="cl-head"><div><h1>Calls</h1><p style="color:var(--bad)">${esc(e.message)}</p></div></header></div>`; return; }
     if (t !== H.RUN()) return;
     paint();

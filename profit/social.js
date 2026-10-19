@@ -21,7 +21,9 @@
   const FILTERS = [['hot', 'Breaking out'], ['all', 'All'], ['reel', 'Reels'], ['carousel', 'Carousels'], ['post', 'Posts'], ['tiktok', 'TikToks'], ['photos', 'TikTok photos'], ['short', 'Shorts'], ['video', 'YouTube videos']];
   const k = n => { if (n == null) return '–'; const a = Math.abs(n); return a >= 1e6 ? `${(n / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M` : a >= 1e3 ? `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : String(Math.round(n)); };
   const ago = s => { if (!s) return ''; const d = (Date.now() - Date.parse(s)) / 864e5; return d < 1 ? 'today' : d < 2 ? 'yesterday' : d < 30 ? `${Math.floor(d)} days ago` : new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
-  const ST = { on: [], loaded: false, data: null, act: null, f: store('soc_f') || 'hot', view: 'feed', who: '', tag: '' };
+  const SORTS = [['hot', 'Breaking out first'], ['views', 'Most views'], ['new', 'Newest'], ['eng', 'Most engagement']];
+  const WINS = [[0, 'Everything we have'], [7, 'Last 7 days'], [14, 'Last 14 days'], [30, 'Last 30 days']];
+  const ST = { on: [], loaded: false, data: null, act: null, f: store('soc_f') || 'hot', view: 'feed', who: '', tag: '', sort: store('soc_sort') || 'hot', win: Number(store('soc_win')) || 0, paid: store('soc_paid') === '1', q: '' };
 
   function css() {
     if (document.getElementById('soccss')) return;
@@ -35,6 +37,11 @@
       .soc-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-weight:600;font-size:12.5px;cursor:pointer;color:var(--ink)}
       .soc-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand,#fff)} .soc-btn:disabled{opacity:.55;cursor:default}
       .soc .soc-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+      .soc .soc-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+      .soc .soc-ctl input[type=search]{flex:1 1 180px;min-width:0;padding:6px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px}
+      .soc .soc-ctl label.sw{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+      .soc .soc-ctl .n{font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap}
+      @media (max-width:720px){.soc .soc-ctl label.sw{min-height:44px}.soc .soc-ctl label.sw input{width:20px;height:20px}}
       .soc-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid var(--line-strong);border-radius:99px;font:inherit;font-size:12px;font-weight:600;color:var(--ink-2);background:none;cursor:pointer}
       .soc-chip.on{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--surface))}
       .soc-chip small{font-weight:500;color:var(--muted)}
@@ -147,19 +154,30 @@
     if (ST.view !== 'saved') list = ST.f === 'hot' ? hot : ST.f === 'all' ? list : list.filter(p => p.fmt === ST.f);
     if (ST.who) list = list.filter(p => p.follow_id === ST.who);
     if (ST.tag) list = list.filter(p => ST.tag.startsWith('#') ? String(p.caption).toLowerCase().includes(ST.tag) : p.sound === ST.tag);
-    list = ST.f === 'hot' && ST.view !== 'saved' ? [...list].sort((a, b) => (b.ratio || 0) - (a.ratio || 0)) : list;
+    if (ST.win && ST.view !== 'saved') list = list.filter(p => !p.posted_at || (Date.now() - Date.parse(p.posted_at)) / 864e5 <= ST.win);
+    if (ST.paid) list = list.filter(p => { const e = engOf(p); return e == null || e >= 0.005; });
+    if (ST.q) { const q = ST.q.toLowerCase(); list = list.filter(p => [p.caption, p.handle, p.who, p.hook, p.ftag, p.sound].some(x => String(x || '').toLowerCase().includes(q))); }
+    const vol = p => p.views != null ? p.views : (p.likes || 0);
+    const by = { hot: (a, b) => (b.ratio || 0) - (a.ratio || 0) || vol(b) - vol(a), views: (a, b) => vol(b) - vol(a), new: (a, b) => Date.parse(b.posted_at || 0) - Date.parse(a.posted_at || 0), eng: (a, b) => (engOf(b) || 0) - (engOf(a) || 0) };
+    list = [...list].sort(by[ST.sort] || by.hot);
+    const narrowed = !!(ST.win || ST.paid || ST.q);
     const counts = Object.fromEntries(FILTERS.map(([f]) => [f, f === 'hot' ? hot.length : f === 'all' ? posts.length : posts.filter(p => p.fmt === f).length]));
     const fol = d.follows || [];
     const tr = d.trends || { tags: [], sounds: [] };
     const trend = (tr.sounds.length || tr.tags.length) && ST.view !== 'saved' ? `<div class="soc-trend"><span class="lb">Doing well lately</span>${tr.sounds.map(s => `<button type="button" class="soc-chip ${ST.tag === s.name ? 'on' : ''}" data-tag="${esc(s.name)}" ${U() ? U().tipAttr(`A sound in ${s.posts} post${s.posts === 1 ? '' : 's'} doing better than usual`) : ''}>&#9835; ${esc(s.name)}</button>`).join('')}${tr.tags.map(s => `<button type="button" class="soc-chip ${ST.tag === s.name ? 'on' : ''}" data-tag="${esc(s.name)}">${esc(s.name)} <small>${s.posts}</small></button>`).join('')}</div>` : '';
-    const body = !fol.length ? emptyState() : !list.length ? `<div class="v2card"><p class="v2hint">${ST.view === 'saved' ? 'Nothing saved yet. Star a post, or Make ours, and it stays here.' : posts.length ? 'Nothing here with these filters.' : 'No posts yet. The first pull runs when you follow; check the follows list for anything that did not come back.'}</p></div>` : `<div class="soc-grid">${list.slice(0, 240).map(card).join('')}</div>`;
+    const body = !fol.length ? emptyState() : !list.length ? `<div class="v2card"><p class="v2hint">${ST.view === 'saved' ? 'Nothing saved yet. Star a post, or Make ours, and it stays here.' : posts.length ? `Nothing here with these filters.${narrowed ? ' <button type="button" class="soc-chip" data-clear>Clear search, window and paid filter</button>' : ''}` : 'No posts yet. The first pull runs when you follow; check the follows list for anything that did not come back.'}</p></div>` : `<div class="soc-grid">${list.slice(0, 240).map(card).join('')}</div>`;
     $('#main').innerHTML = `<div class="v2 soc">${head}
       <div class="soc-top"><span class="soc-seg"><button type="button" data-view="feed" class="${ST.view === 'feed' ? 'on' : ''}">Feed</button><button type="button" data-view="saved" class="${ST.view === 'saved' ? 'on' : ''}">Saved</button></span>
         ${fol.length ? `<select id="socWho" class="soc-btn" aria-label="Whose posts"><option value="">Everyone (${fol.length})</option>${fol.map(f => `<option value="${esc(f.id)}" ${ST.who === f.id ? 'selected' : ''}>${esc(f.kind === 'topic' ? `Topic: ${f.name}` : f.name)}</option>`).join('')}</select>` : ''}
         <span class="r"><button type="button" class="soc-btn" id="socFol">Following ${fol.length}</button><button type="button" class="soc-btn pri" id="socAdd">+ Follow</button></span></div>
       ${d.credits != null && d.credits < 1000 && !CLI() ? `<div class="soc-warn"><b>The ScrapeCreators account is running low: ${Number(d.credits).toLocaleString('en-US')} credits left.</b> ${d.credits < d.low ? 'The daily pull has stopped so the ideas bot keeps the last ones.' : 'The daily pull stops at ' + d.low + '.'} Top it up at <a href="https://app.scrapecreators.com" target="_blank" rel="noopener">scrapecreators.com</a> ($47 buys 25,000, enough for well over a year of this).</div>` : ''}
       ${trend}
-      ${ST.view === 'saved' || !fol.length ? '' : `<div class="soc-chips">${FILTERS.filter(([f]) => f === 'hot' || f === 'all' || counts[f]).map(([f, l]) => `<button type="button" class="soc-chip ${ST.f === f ? 'on' : ''}" data-f="${f}">${l} <small>${counts[f]}</small></button>`).join('')}</div>`}
+      ${ST.view === 'saved' || !fol.length ? '' : `<div class="soc-chips">${FILTERS.filter(([f]) => f === 'hot' || f === 'all' || counts[f]).map(([f, l]) => `<button type="button" class="soc-chip ${ST.f === f ? 'on' : ''}" data-f="${f}">${l} <small>${counts[f]}</small></button>`).join('')}</div>
+      <div class="soc-ctl"><select id="socSort" class="soc-btn" aria-label="Sort posts">${SORTS.map(([v, l]) => `<option value="${v}" ${ST.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select id="socWin" class="soc-btn" aria-label="Posted in">${WINS.map(([v, l]) => `<option value="${v}" ${ST.win === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <input type="search" id="socQ" placeholder="Search captions, handles, hooks" value="${esc(ST.q)}" aria-label="Search posts" autocomplete="off">
+        <label class="sw" ${U() ? U().tipAttr('Brand deals and paid posts usually get under 0.5% likes and comments per view. Hiding them leaves what people chose to watch.') : ''}><input type="checkbox" id="socPaid" ${ST.paid ? 'checked' : ''}> Hide paid-looking posts</label>
+        <span class="n">${list.length} post${list.length === 1 ? '' : 's'}</span></div>`}
       ${body}</div>`;
     wire(list);
   }
@@ -190,6 +208,11 @@
     m.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { ST.view = b.dataset.view; draw(); });
     m.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { ST.f = b.dataset.f; store('soc_f', ST.f); draw(); });
     m.querySelectorAll('[data-tag]').forEach(b => b.onclick = () => { ST.tag = ST.tag === b.dataset.tag ? '' : b.dataset.tag; if (ST.tag && ST.f === 'hot') ST.f = 'all'; draw(); });
+    const sort = m.querySelector('#socSort'); if (sort) sort.onchange = () => { ST.sort = sort.value; store('soc_sort', ST.sort); draw(); };
+    const win = m.querySelector('#socWin'); if (win) win.onchange = () => { ST.win = Number(win.value) || 0; store('soc_win', String(ST.win)); draw(); };
+    const paid = m.querySelector('#socPaid'); if (paid) paid.onchange = () => { ST.paid = paid.checked; store('soc_paid', ST.paid ? '1' : '0'); draw(); };
+    const q = m.querySelector('#socQ'); if (q) { let t; q.oninput = () => { clearTimeout(t); t = setTimeout(() => { ST.q = q.value.trim(); draw(); const n = $('#socQ'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 220); }; }
+    const clr = m.querySelector('[data-clear]'); if (clr) clr.onclick = () => { ST.q = ''; ST.win = 0; ST.paid = false; store('soc_win', '0'); store('soc_paid', '0'); draw(); };
     const who = m.querySelector('#socWho'); if (who) who.onchange = () => { ST.who = who.value; draw(); };
     [m.querySelector('#socAdd'), m.querySelector('#socAdd2')].forEach(b => b && (b.onclick = followModal));
     const fl = m.querySelector('#socFol'); if (fl) fl.onclick = followsPanel;

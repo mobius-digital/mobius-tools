@@ -2372,6 +2372,39 @@ event_type `<platform>_write`, filed under the brand's Meta account), undo where
   read scopes only, not linked to a brand. TikTok: app keys not set. Ice & Gold's google_ads link is the MCC id
   5566468199 (wrong). Every new write is mock-tested only; the first real one of each kind is the test.
 
+## 2026-10-19: THE CALL SCREENS (`src/callscreen.js`). Read before touching meetings.js confirm or mondayScreen.
+
+The screen Cole shares on the Monday call, a client call and the creative kickoff (profit/callscreen.js). Tests:
+`node test-callscreen.mjs` (11).
+- **Table `p_call`** (created on first use): one row per call, id `monday:<date>` | `client:<act>:<date>` |
+  `kickoff:<date>`, so two laptops open the same row. `state_json` = everything typed (autosaved), `result_json` = what
+  Finish made. `p_br_batch.kickoff_at` (guarded ALTER).
+- **Routes** (team only, a client scope gets 403; not on CLIENT_RULES): `GET /api/calls/screen?kind=&act=`,
+  `GET /api/calls/google?act=&from=&to=` (google.js adsReport by campaign type), `PUT /api/calls/state {id, state}`,
+  `POST /api/calls/parse {text, act}` (actions.js parseQuick), `POST /api/calls/done {item, done}` (markDone),
+  `POST /api/calls/finish {id, recap?}`, `POST /api/calls/kickoff/done {id, card, note, count, format, due, owner}`,
+  `GET /api/calls/history`. worker.js mounts it before /api/actions with `{ ...actionDeps(), waitUntil, adsReport }`.
+- **Monday data** = meetings.js `mondayScreen` (now reads every brand at once: 7s -> 3s) minus moved.js `SKIP` brands,
+  plus each brand's newest weekly report (`readOf`: totals, prior, plan, `winnersLosers` from `data.ads.top` + Triple
+  Whale `data.attr.ads.lastPlatformClick`, Google / Amazon from `data.channels`), open Requests asks. The Slack plan
+  thread is split by ONE Haiku 5.5 call per brand (`splitPlan`: read, batches, google, amazon, asks; Radhesh = Google,
+  Hamza = Amazon, never in the read), cached on the call keyed by the thread's hash; a brand nobody typed on (`edited`)
+  takes the newest split.
+- **Finish (Monday, client)** builds notes and writes a `p_meeting` row `live_<call id>` (kind monday_call /
+  client_call, status extracted), then runs meetings.js `confirm` (the same path as an approved Fireflies call: team
+  items -> p_action, batches -> numbered Asana briefs + Production cards, asks -> Requests, "This week" -> the open
+  weekly draft, one Slack note per brand). "This week" lines are written by one Sonnet 5.5 call from each brand's read
+  and batches (`clientLines`, client words, no names or costs). The client recap posts to `brief_channel` only when the
+  person ticked it.
+- **Fireflies afterwards**: meetings.js `extract` reads `typedOnCall(env, date)` and tells the model those items were
+  already typed; it returns only what was said and not typed (summary prefixed "Also said on the call, not typed").
+  Nothing new = the meeting is `skipped` with "everything said was typed on the call screen".
+- **Kickoff done** = production.js `setField` (owner, due, format; Asana follows), prodwork.js `addComment` ("Kickoff
+  <date>: agreed N ads, format, due, who" + the designer's notes; mirrored to Asana as a story), `kickoff_at`, then
+  `moveCard` to Making.
+- NOT tested live: Finish (Monday or client) end to end, kickoff done, the Fireflies "also said" read. Data loads were
+  checked against real data on a local `wrangler dev --remote`.
+
 ## 2026-10-19: LOCUS SOCIAL, phase 1: WATCH (`src/social.js`). Read before touching it or the ideas bot's Locus entry.
 
 Plan, audit and UI research: `docs/locus-social/proposal.html` (https://claude.ai/artifact/6DCyDxYMGAsfRpeNWzatZH).

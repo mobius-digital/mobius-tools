@@ -16,6 +16,7 @@ import { handleSocialPost, socialPostTick, socialResultsTick, handleSocialButton
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam } from './calendar.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
+import { handleCalls } from './callscreen.js';
 import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, slackName } from './actions.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
@@ -7764,6 +7765,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Meeting notes: Fireflies transcripts into action items (meetings.js, 2026-10-13). Team only. ---- */
     if (path === '/api/meetings' || path.startsWith('/api/meetings/')) {
       const r = await handleMeetings(request, env, url, path, json, meetingDeps());
+      if (r) return r;
+    }
+    /* ---- The call screens: Monday, client, creative kickoff, shared on the call and typed live (callscreen.js, 2026-10-19). Team only. ---- */
+    if (path === '/api/calls' || path.startsWith('/api/calls/')) {
+      const r = await handleCalls(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), adsReport });
       if (r) return r;
     }
     /* ---- Action items: the team's to-do list in Locus, not Asana (actions.js, 2026-10-13). Team only. ---- */

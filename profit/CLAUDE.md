@@ -3625,6 +3625,34 @@ say gold plated" sat in an unshown field). Built only from data the page has, no
 At a glance is not drawn on the Client answers view (the sheet carries it; "Edit our notes" opens `editProfile()`, the
 same modal). The full form stays folded under it. Only Ice & Gold, Yak and Grunk have filled forms (2026-10-19).
 
+## 2026-10-19: THE CALL SCREENS (`profit/callscreen.js`, `window.CallScreen`). Read before touching Work > Calls.
+
+Cole: "something pulled up that I would share the screen and go down every single week with the team." Approved mock:
+https://claude.ai/artifact/YbExG9VRV3untjLtPHjnJb (Monday call, client call, creative kickoff). Backend: account-health
+`src/callscreen.js` (its CLAUDE.md, same date).
+- **Entry**: Work > Calls opens with "Run a call" (three cards; calls.js `runHtml`, which replaced the Monday agenda block)
+  and `?open=calls&call=monday|client|kickoff[&act=]` (index.html sets `window.CALL_OPEN`). The screen draws into `#main`
+  with "← Calls"; Present = the browser's full screen on `#csRoot`.
+- **Every box is labelled where it comes from**: green "Locus fills it", blue "From <strategist>'s Slack plan", amber
+  "Typed on the call". Rail on the left = the order (Monday: Open, brands red first by `/api/hub/command`, Close; client:
+  six steps; kickoff: one per brief), a clock per step (Monday: 7 min red/amber, 2 min green, 4 unknown), Back / Next,
+  arrow keys, Ctrl+Enter = the last step. Side = what Finish will do, counted live.
+- **Monday brand step**: 1 last week's items (open p_action due by today, ticks are instant via `/api/calls/done`; due
+  later folds), 2 the read (the weekly report's numbers, winners and losers = ads that beat or fell under the ads' own
+  Triple Whale ROAS together that week, the strategist's read pre-filled from Slack, Google and Amazon rows with Radhesh's
+  and Hamza's Slack words, Google spend by campaign type loaded lazily), 3 batches (rows: what, who, due, keep tick; from
+  the Slack plan), 4 new jobs (type a sentence, Enter, `/api/calls/parse` reads owner and day), 5 client asks.
+- **Client call** shows only the client's own brand: their news, the read from the newest SENT report (week / month
+  toggle), This week from that report + promises typed, asks (open Requests + typed), Coming up (Calendar), recap +
+  "Post this recap in the client channel" tick. Internal tasks are NEVER shown on it (the client watches).
+- **Kickoff**: Production cards in the Brief column (parked templates / "Test" / bare numbers / 3 weeks with no due date
+  fold under "Show N older briefs"); the brief page from `/api/production/card`, the brand's winners, inspiration files,
+  the Drive folder, the designer's questions, then the deal (how many, format, who, due = kickoff + 2 working days) and
+  "Agreed: send it to Making".
+- Typing autosaves (`PUT /api/calls/state`, 700ms debounce, "Saved"). Finish asks first, then the server sends it all.
+- CSS `#cscss`, classes `.cs-*` (tokens only). callscreen.js?v=1, calls.js?v=4. Checked on the local pair against real
+  data (Monday, Grunk client call, kickoff; 1440 and 375). Finish was NOT pressed locally (it writes Asana and Slack).
+
 ## 2026-10-19: SOCIAL, phase 1: WATCH (`profit/social.js`, `window.SocialTab`). Read before touching it.
 
 Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later's week grid for phase 2):
@@ -3649,6 +3677,19 @@ Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later
   Clients see "save it and tell the team in Requests" instead.
 - CSS injected as `#soccss`, tokens only. Checked on the local trio (worktree statics + both dev workers) with real
   Lucky data at desktop width; the Takomo Make ours ran end to end live (Studio batch "Long Iron Dread: a PSA (statics)").
+- **Same day, after the demos (social.js?v=2).** Eight demo videos of Sandcastles, Virlo and Later were read as transcripts
+  (ScrapeCreators `/v1/youtube/video/transcript` through the team debug route `/api/social/raw`), and the plan page gained a
+  "What their demos actually showed" section (feature by feature: take / later / out). Built from it: a controls row under
+  the format chips with **Sort** (Breaking out first / Most views / Newest / Most engagement, `soc_sort`), **Posted in**
+  (everything / 7 / 14 / 30 days, `soc_win`; the backend keeps 30 days, so 30 is a no-op kept for when it keeps more),
+  a **search** over caption, handle, who, hook, format tag and sound (debounced, keeps the caret), **Hide paid-looking
+  posts** (engagement under 0.5% likes + comments per view, Kallaway's rule for dropping brand deals; `soc_paid`), and a
+  post count; the empty state offers "Clear search, window and paid filter". The ratio sort breaks ties on volume.
+  Phase 1.5 ideas (not built): transcript on Make ours once the clip is stored, a per-follow line (posts a week, median
+  views, best weekday), keep / change chips for Kallaway's seven variables. Phase 2 additions from Later's demo: the
+  Notify fallback as a Slack DM at post time, the tray's Unused filter, per-platform tweaks, saved captions, a tagged-in
+  collector with creator credit. Meta posting for Lucky needs NO app review (Cole is an admin of the Mobius Tools app):
+  two token scopes, `instagram_content_publish` + `pages_manage_posts`.
 
 ## 2026-10-19: SOCIAL, phase 2: THE WEEK and direct posting (`profit/socialweek.js`, `window.SocialWeek`). Read before touching it.
 
