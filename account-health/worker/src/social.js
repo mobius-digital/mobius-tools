@@ -334,7 +334,8 @@ export async function socialTick(env, can = () => true) {
 
 /* ---------------- public media: covers and videos by an unguessable key ---------------- */
 export async function serveSocialMedia(env, path, request, CORS = {}) {
-  const m = /^\/social-m\/([tv]\/[0-9a-f]{24})$/.exec(path);
+  /* t = a cover, v = a copied video (Watch); u = a staged or uploaded file for a post of ours (socialpost.js). */
+  const m = /^\/social-m\/([tvu]\/[0-9a-f]{24})$/.exec(path);
   if (!m || !env.MEDIA) return new Response('not found', { status: 404 });
   const range = request.headers.get('Range');
   const rm = /^bytes=(\d+)-(\d*)$/.exec(range || '');

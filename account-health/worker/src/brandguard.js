@@ -421,6 +421,21 @@ export const CLIENT_RULES = [
   R('POST', '/api/social/save', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
   R('POST', '/api/social/video', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
   R('GET', '/api/social/idea', 'none', { own: [{ in: 'query', key: 'id', table: 'social_post' }] }),
+  /* Phase 2 (socialpost.js, 2026-10-19): the brand's own Week, tray, posts and captions. Connecting an account, its mode
+     and the Pages list stay the team's (the handler refuses them for a client). */
+  R('GET', '/api/social/accounts'),
+  R('GET', '/api/social/week'),
+  R('GET', '/api/social/tray'),
+  R('POST', '/api/social/upload'),
+  R('GET', '/api/social/post', 'none', { own: [{ in: 'query', key: 'id', table: 'social_post_out' }] }),
+  R('POST', '/api/social/post', 'need', { fields: ['id', 'at', 'now', 'caption', 'media', 'targets', 'status', 'auto'] }),
+  R('DELETE', '/api/social/post', 'none', { own: [{ in: 'query', key: 'id', table: 'social_post_out' }] }),
+  R('POST', '/api/social/post/byhand', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post_out' }] }),
+  R('POST', '/api/social/post/retry', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post_out' }] }),
+  R('GET', '/api/social/captions'),
+  R('POST', '/api/social/captions', 'need', { fields: ['text'] }),
+  R('DELETE', '/api/social/captions', 'none', { own: [{ in: 'query', key: 'id', table: 'social_caption' }] }),
+  R('POST', '/api/social/rephrase', 'need', { fields: ['text', 'note'], cap: ['clientAsk', 0.01] }),
 
   /* ---- CALENDAR: read, add, edit, move, set the end, note, remove and put back. Never tick the team's work steps
      or make Asana tasks (Mobius's Asana). The handler checks each date's own brand. ---- */
