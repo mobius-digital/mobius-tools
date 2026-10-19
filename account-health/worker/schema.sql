@@ -282,3 +282,16 @@ CREATE INDEX IF NOT EXISTS p_meta_write_brand ON p_meta_write (brand, at);
 CREATE TABLE IF NOT EXISTS p_ext_write (id TEXT PRIMARY KEY, platform TEXT NOT NULL, brand TEXT, object TEXT, name TEXT,
   action TEXT NOT NULL, before TEXT, after TEXT, undo TEXT, summary TEXT, by TEXT, at TEXT NOT NULL, undone TEXT);
 CREATE INDEX IF NOT EXISTS p_ext_write_brand ON p_ext_write (brand, at);
+
+-- Locus Social, phase 1: Watch (2026-10-19, src/social.js; also created on first use by ensureSocial)
+CREATE TABLE IF NOT EXISTS social_brand (act_id TEXT PRIMARY KEY, on_by TEXT, on_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE IF NOT EXISTS social_follow (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'brand', name TEXT,
+  ig TEXT, tt TEXT, yt TEXT, query TEXT, added_by TEXT, pulled_at TEXT, error TEXT, credits INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS social_follow_act ON social_follow (act_id);
+CREATE TABLE IF NOT EXISTS social_post (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, follow_id TEXT NOT NULL, plat TEXT NOT NULL, pid TEXT NOT NULL,
+  fmt TEXT, handle TEXT, url TEXT, caption TEXT, thumb TEXT, thumb_src TEXT, posted_at TEXT, views INTEGER, likes INTEGER, comments INTEGER,
+  shares INTEGER, saves INTEGER, followers INTEGER, dur REAL, sound TEXT, slides INTEGER, hook TEXT, ftag TEXT, saved INTEGER NOT NULL DEFAULT 0,
+  idea_id TEXT, video TEXT, first_seen TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS social_post_act ON social_post (act_id, posted_at);
+CREATE INDEX IF NOT EXISTS social_post_follow ON social_post (follow_id);
