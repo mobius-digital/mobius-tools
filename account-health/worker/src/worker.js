@@ -3249,9 +3249,12 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
   const nextLine = next ? await briefNoteFor(env, acct.act_id, date).catch(() => null) : null;
   return dailyPost({
     brand: acct.name, date, currency: acct.currency, headline: headlineOf(text),
-    day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, plan: day?.f?.sales ?? null },
-    /* "of $30.6K planned" = the plan TO DATE (the forecast days so far), the figure the audit's example reads, not the whole month's goal. */
-    month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null), goal: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null), day_of_month: +date.slice(8, 10) },
+    day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
+    /* "of $27K planned" = the plan TO DATE (the forecast days so far), not the whole month's goal. */
+    month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null),
+      plan: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null),
+      spend: days.length ? days.reduce((n, x) => n + (x.a.spend || 0), 0) : (data?.mtd?.spend ?? null),
+      day_of_month: +date.slice(8, 10), days_in_month: daysInMonth(date) },
     others: days.filter(x => x.date !== date).map(x => x.a.sales), next: nextLine,
   });
 }
@@ -3267,7 +3270,7 @@ async function clientReportText(env, acct, row, data) {
   const asks = (await env.DB.prepare(`SELECT title FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
     .bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
   return weeklyPost({
-    brand: acct.name, period, start, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous, sentence,
+    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous, sentence,
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
     from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(a => a.title)],
     url,
@@ -7909,11 +7912,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (url.searchParams.get('post') === '1') {
         const ch = await getSetting(env, 'strategistChannel');
         if (!ch) return json({ ...out, error: 'no strategistChannel set' }, 400);
-        const parts = [`*Preview: the new client posts for ${acct.name}* (the audit's phase 1; what the client channel gets, as Cole)`];
-        if (out.daily) parts.push('', `_The daily (${prettyDate(out.daily.date)}), six lines, the full brief in its thread:_`, out.daily.text);
-        if (out.weekly) parts.push('', `_The weekly (week of ${prettyDate(out.weekly.start)}), sent on the Monday call's confirm:_`, out.weekly.text);
-        const p = await slackPost(env, ch, parts.join('\n'), null, { username: 'Locus' });
-        out.posted = { channel: p?.channel || ch, ts: p?.ts || null };
+        /* Each post exactly as the client sees it, one message each, with one small label line on top. */
+        out.posted = [];
+        for (const k of ['daily', 'weekly']) {
+          if (!out[k]) continue;
+          const p = await slackPost(env, ch, `_Preview: ${acct.name} ${k}, exactly as the client sees it_\n\n${out[k].text}`, null, { username: 'Locus' });
+          const link = p?.ts ? await slackApi(env, 'chat.getPermalink', { channel: p.channel || ch, message_ts: p.ts }).catch(() => null) : null;
+          out.posted.push({ kind: k, ts: p?.ts || null, link: link?.permalink || null });
+        }
       }
       return json(out);
     }

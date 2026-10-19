@@ -37,29 +37,35 @@ db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, source, inter
 /* ---------------- the daily ---------------- */
 const DAY = { sales: 719, spend: 489, mer: 1.47, plan: 1800 };
 const MONTH = { ym: '2026-10', sales: 19574, goal: 30603, day_of_month: 17 };
-await check('the daily is six lines: day, numbers with one verdict word, headline, month line, Next; no opener', () => {
-  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-17', headline: 'Quiet Saturday: no repeat buyers at all, so the day only just paid for itself', day: DAY, month: MONTH, others: [1018, 1438, 822], next: 'Ahsan steps Meta back up Monday if the cost per new customer holds.' });
-  const L = t.split('\n');
-  assert.equal(L.length, 5, t);   // five lines of text: the audit's six counts the thread pointer, which is the reply
-  assert.equal(L[0], '*Dartee Golf · Saturday, Oct 17*');
-  assert.equal(L[1], 'Sales *$719* · Ads *$489* · *1.47x*   under plan');
-  assert.equal(L[2], 'Quiet Saturday: no repeat buyers at all, so the day only just paid for itself');
-  assert.equal(L[3], 'October: $19.6K of $30.6K planned, 17 days in.');
-  assert.equal(L[4], '*Next:* Ahsan steps Meta back up Monday if the cost per new customer holds.');
-  assert.ok(!/Hey Team|→|%/.test(t), 'no opener, no arrow, no percentages');
-  assert.ok(!/[—–]/.test(t), 'no em dashes');
+await check('the daily: title, headline, labelled bullets for yesterday and the month, Next only when written, no opener', () => {
+  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-15', headline: 'Strongest day of the week, with Meta returning 3.24 per dollar', day: { sales: 1458, spend: 519, mer: 2.81, amer: 1.95, plan: 1800 }, month: { ym: '2026-10', sales: 17800, plan: 27000, spend: 8100, day_of_month: 15, days_in_month: 31 }, others: [1018, 1600, 822], next: 'Ahsan steps Meta back up Monday.' });
+  assert.equal(t, [
+    '*Dartee Golf \u00b7 Thursday, Oct 15*',
+    '_Strongest day of the week, with Meta returning 3.24 per dollar_',
+    '', '*Yesterday*',
+    '\u2022 Sales: *$1,458* (plan $1,800, under plan)',
+    '\u2022 Ad spend: *$519*',
+    '\u2022 MER: *2.81x*',
+    '\u2022 aMER (new customers): *1.95x*',
+    '', '*October so far* (15 of 31 days)',
+    '\u2022 Sales: *$17.8K* of $27K planned',
+    '\u2022 Ad spend: *$8,100*',
+    '\u2022 MER: *2.20x*',
+    '', '*Next:* Ahsan steps Meta back up Monday.',
+    '', '_Full update in the thread._'].join('\n'));
+  assert.ok(!/Hey Team|[\u2014\u2013]/.test(t), 'no opener, no em dashes');
 });
 await check('no Next line when nobody wrote one; no headline line on a v1 brief; "best day this month" beats the plan read', () => {
-  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-17', headline: null, day: { ...DAY, sales: 1500 }, month: MONTH, others: [1018, 1438, 822], next: '' });
-  const L = t.split('\n');
-  assert.equal(L.length, 3, t);
-  assert.equal(L[1], 'Sales *$1,500* · Ads *$489* · *1.47x*   best day this month');
+  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-17', headline: null, day: { sales: 1500, spend: 489, mer: 3.07, plan: 1800 }, month: { ym: '2026-10', sales: 19574, plan: 30603, day_of_month: 17 }, others: [1018, 1438, 822], next: '' });
+  assert.ok(!t.includes('Next'), t); assert.equal(t.split('\n')[1], '');
+  assert.ok(t.includes('\u2022 Sales: *$1,500* (plan $1,800, best day this month)'), t);
+  assert.ok(!t.includes('aMER'), 'no aMER line when it is unknown');
   assert.equal(dailyVerdict({ sales: 1900, plan: 1800, others: [2500, 2200] }), 'on plan');
   assert.equal(dailyVerdict({ sales: 1700, plan: 1800, others: [2500, 2200] }), 'under plan');
   assert.equal(dailyVerdict({ sales: 1700, plan: null, others: [2500, 2200] }), null, 'no plan, no word');
   assert.equal(dailyVerdict({ sales: 1700, plan: null, others: [900] }), null, 'one other day is not a month');
-  const noGoal = dailyPost({ brand: 'B', date: '2026-10-03', day: DAY, month: { ym: '2026-10', sales: 2400, goal: null, day_of_month: 3 } });
-  assert.match(noGoal, /October so far: \$2,400, 3 days in\./);
+  const noGoal = dailyPost({ brand: 'B', date: '2026-10-03', day: { sales: 800, spend: 300, mer: 2.67 }, month: { ym: '2026-10', sales: 2400, plan: null, day_of_month: 3 } });
+  assert.ok(noGoal.includes('\u2022 Sales: *$2,400*\n'), noGoal);
 });
 await check('headlineOf reads the stored brief\'s bold line after the opener; shortMoney and pctChange', () => {
   assert.equal(headlineOf('Hey Team :wave: Here\'s the Daily Update for October 17 →\n*Friday only just paid for itself*\n\n*October 17*\nNet Sales: $719'), 'Friday only just paid for itself');
@@ -70,39 +76,44 @@ await check('headlineOf reads the stored brief\'s bold line after the opener; sh
 
 /* ---------------- the weekly ---------------- */
 const TOTALS = { sales: 5890, spend: 3105, mer: 1.90, cm: 1784 }, PREV = { sales: 6958, spend: 3140, mer: 2.22, cm: 2620 };
-await check('the weekly: brand and week, four numbers with ONE comparison each, one sentence, This week, From you, the link', () => {
-  const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'weekly', start: '2026-10-12', totals: TOTALS, previous: PREV,
+await check('the weekly: title, one sentence, labelled bullets with ONE comparison each, This week, We need from you, the link', () => {
+  const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'weekly', start: '2026-10-12', end: '2026-10-18', totals: { ...TOTALS, amer: 1.2 }, previous: { ...PREV, amer: 1.41 },
     sentence: 'A slower week: same spend, fewer sales, mostly from the Burgundy drop cooling off.',
-    this_week: ['Splatter Collection goes live Friday; the drop email goes today', 'Three Splatter ads into testing by Thursday', 'Splatter Collection goes live Fri Oct 23'],
+    this_week: ['Splatter Collection goes live Friday; the drop email goes today', 'Three Splatter ads into testing by Thursday'],
     from_you: ['Is Splatter full price or a deal? Need it by Wednesday.'], url: 'https://tools.go-mobius-digital.com/profit/?reports=abc' });
-  const L = t.split('\n');
-  assert.equal(L[0], '*Grunk Dolfer · week of Oct 12*');
-  assert.equal(L[1], 'Sales *$5,890* ▼15% · Ads *$3,105* flat · *1.90x* (was 2.22x) · Profit *$1,784* ▼32%');
-  assert.equal(L[2], 'A slower week: same spend, fewer sales, mostly from the Burgundy drop cooling off.');
-  assert.equal(L[3], '*This week*');
-  assert.equal(L[4], '• Splatter Collection goes live Friday; the drop email goes today');
-  assert.equal(L[6], '• Splatter Collection goes live Fri Oct 23');
-  assert.equal(L[7], '*From you:* Is Splatter full price or a deal? Need it by Wednesday.');
-  assert.equal(L[8], '<https://tools.go-mobius-digital.com/profit/?reports=abc|Open the report>');
-  assert.equal(L.length, 9);
-  assert.ok(!/vs plan|Hey Team/.test(t), 'no plan comparison, no opener');
-  assert.equal((t.match(/%/g) || []).length, 2, 'one comparison per number (spend is flat), MER as (was x)');
+  assert.equal(t, [
+    '*Grunk Dolfer \u00b7 Weekly report, Oct 12 to 18*',
+    '_A slower week: same spend, fewer sales, mostly from the Burgundy drop cooling off._',
+    '', '*The week* (compared with the week before)',
+    '\u2022 Sales: *$5,890* (down 15%)',
+    '\u2022 Ad spend: *$3,105* (flat)',
+    '\u2022 MER: *1.90x* (was 2.22x)',
+    '\u2022 aMER (new customers): *1.20x* (was 1.41x)',
+    '\u2022 Profit: *$1,784* (was $2,620)',
+    '', '*This week*',
+    '\u2022 Splatter Collection goes live Friday; the drop email goes today',
+    '\u2022 Three Splatter ads into testing by Thursday',
+    '', '*We need from you*',
+    '\u2022 Is Splatter full price or a deal? Need it by Wednesday.',
+    '', '<https://tools.go-mobius-digital.com/profit/?reports=abc|Open the full report>'].join('\n'));
+  assert.ok(!/vs plan|Hey Team|\u25B2|\u25BC/.test(t), 'no plan comparison, no opener, no arrows');
 });
-await check('the weekly without a call: no This week block at all; the monthly says the month; profit left out when CM is unknown', () => {
-  const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'monthly', start: '2026-09-01', totals: { sales: 24000, spend: 9000, mer: 2.67, cm: null }, previous: { sales: 20000, spend: 8000, mer: 2.5 }, sentence: null, this_week: [], from_you: [], url: 'https://x/y' });
+await check('the weekly without a call: no This week block; the monthly says the month; profit left out when CM is unknown; long asks are clipped, 3 at most', () => {
+  const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'monthly', start: '2026-09-01', totals: { sales: 24000, spend: 9000, mer: 2.67, cm: null }, previous: { sales: 20000, spend: 8000, mer: 2.5 }, url: 'https://x/y',
+    from_you: ['aaaaa ' + 'word '.repeat(40), 'two', 'three', 'four'] });
   const L = t.split('\n');
-  assert.equal(L[0], '*Grunk Dolfer · September*');
-  assert.equal(L[1], 'Sales *$24,000* ▲20% · Ads *$9,000* ▲13% · *2.67x* (was 2.50x)');
-  assert.equal(L[2], '<https://x/y|Open the report>');
-  assert.equal(L.length, 3);
+  assert.equal(L[0], '*Grunk Dolfer \u00b7 September report*');
+  assert.equal(L[2], '*The month* (compared with the month before)');
+  assert.equal(L[3], '\u2022 Sales: *$24,000* (up 20%)');
+  assert.ok(!t.includes('Profit') && !t.includes('This month'), t);
+  const asks = L.slice(L.indexOf('*We need from you*') + 1).filter(l => l.startsWith('\u2022'));
+  assert.equal(asks.length, 3); assert.ok(asks[0].length <= 124 && asks[0].endsWith('...'), asks[0]);
 });
 await check('sentenceOf borrows the first sentence of What it means from the frozen summary', () => {
   const s = 'What we saw\n• Sales fell 15% on the same spend.\nWhat it means\nThe Burgundy drop cooled off and nothing replaced it, so the same ad money bought fewer sales. Next week the Splatter launch should lift it.\nWhat we\'re doing\n• Three ads into testing.';
   assert.equal(sentenceOf(s), 'The Burgundy drop cooled off and nothing replaced it, so the same ad money bought fewer sales.');
   assert.equal(sentenceOf('nothing here'), null);
   assert.equal(sentenceOf('What we saw\n• x.\n\nWhat it means\n\nSame spend bought fewer sales. More.'), 'Same spend bought fewer sales.', 'a blank line after the title is fine');
-  const big = weeklyPost({ brand: 'D', start: '2026-10-12', totals: { sales: 7318, spend: 3650, mer: 2.01, cm: 1907 }, previous: { sales: 6840, spend: 4680, mer: 1.46, cm: 355 } }).split('\n')[1];
-  assert.equal(big, 'Sales *$7,318* ▲7% · Ads *$3,650* ▼22% · *2.01x* (was 1.46x) · Profit *$1,907* (was $355)', 'profit past a 100% swing reads "was"');
 });
 
 /* ---------------- the calendar pieces for the weekly ---------------- */

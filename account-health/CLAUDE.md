@@ -2482,3 +2482,9 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   `mondayCalls` (no channel). `meetingDeps().listBrands` now carries `brief_channel` and `review_first`.
 - **Preview** (admin): `GET /api/client-post/preview?act=<brand>[&post=1]` = the daily from the brand's latest brief and the weekly from its latest weekly
   report, as text; `post=1` posts ONE preview message to `strategistChannel`, never to a client.
+- **Second pass the same day (Cole: "structured, bulleted, clear on what everything is").** Both posts are now labelled bullets.
+  Daily: title, the headline in italics, `*Yesterday*` (Sales with "(plan $X, under plan)", Ad spend, MER, aMER (new customers)),
+  `*October so far* (15 of 31 days)` (Sales of plan to date, Ad spend, MER), Next only when written, "_Full update in the thread._".
+  Weekly: `*Brand · Weekly report, Oct 12 to 18*`, the sentence in italics, `*The week* (compared with the week before)` with
+  Sales / Ad spend "(up 7%)" in words, MER / aMER / Profit "(was ...)", then This week, `*We need from you*` (3 at most, clipped
+  at 120 characters), "Open the full report". The preview route posts the daily and the weekly as two messages with permalinks.

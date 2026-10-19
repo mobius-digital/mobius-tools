@@ -73,24 +73,45 @@ export function dailyVerdict({ sales, plan, others = [] }) {
   return sales >= plan ? 'on plan' : 'under plan';
 }
 
-/** The six-line daily. `day` = {sales, spend, mer, plan}; `month` = {ym, sales, goal, day_of_month};
- *  `others` = the month's other finished days' sales (for "best day"). Returns the Slack text. */
+/** The client daily (2026-10-19, second pass after Cole: "structured, bulleted, clear on what everything is").
+ *  `day` = {sales, spend, mer, amer, plan}; `month` = {ym, sales, plan, spend, day_of_month, days_in_month};
+ *  `others` = the month's other finished days' sales (for "best day"). Returns the Slack text:
+ *    *Dartee Golf · Thursday, Oct 15*
+ *    _Strongest day of the week, with Meta returning 3.24 per dollar_
+ *
+ *    *Yesterday*
+ *    • Sales: *$1,458* (plan $1,800, under plan)
+ *    • Ad spend: *$519*
+ *    • MER: *2.81x*
+ *    • aMER (new customers): *1.95x*
+ *
+ *    *October so far* (15 of 31 days)
+ *    • Sales: *$17.8K* of $27K planned
+ *    • Ad spend: *$8.1K*
+ *    • MER: *2.20x*
+ *
+ *    *Next:* ...   (only when a person wrote one)
+ *    _Full update in the thread._ */
 export function dailyPost({ brand, date, currency = 'USD', headline = null, day = {}, month = {}, others = [], next = null }) {
-  const L = [`*${noDash(brand)} · ${dayLabel(date)}*`];
-  const nums = [`Sales *${money(day.sales, currency)}*`, `Ads *${money(day.spend, currency)}*`];
-  if (x(day.mer)) nums.push(`*${x(day.mer)}*`);
+  const L = [`*${noDash(brand)} \u00b7 ${dayLabel(date)}*`];
+  if (headline) L.push(`_${noDash(headline)}_`);
   const verdict = dailyVerdict({ sales: day.sales, plan: day.plan, others });
-  L.push(`${nums.join(' · ')}${verdict ? `   ${verdict}` : ''}`);
-  if (headline) L.push(noDash(headline));
-  const mName = month.ym ? MONTHS[+String(month.ym).slice(5, 7) - 1] : MONTHS[at(date).getUTCMonth()];
-  const dom = month.day_of_month || +date.slice(8, 10);
-  const days = `${dom} day${dom === 1 ? '' : 's'} in`;
+  const plan = day.plan > 0 ? `plan ${money(day.plan, currency)}` : '';
+  const note = [plan, verdict].filter(Boolean).join(', ');
+  L.push('', '*Yesterday*', `\u2022 Sales: *${money(day.sales, currency)}*${note ? ` (${note})` : ''}`, `\u2022 Ad spend: *${money(day.spend, currency)}*`);
+  if (x(day.mer)) L.push(`\u2022 MER: *${x(day.mer)}*`);
+  if (x(day.amer)) L.push(`\u2022 aMER (new customers): *${x(day.amer)}*`);
   if (month.sales != null) {
-    L.push(month.goal > 0 ? `${mName}: ${shortMoney(month.sales, currency)} of ${shortMoney(month.goal, currency)} planned, ${days}.`
-      : `${mName} so far: ${shortMoney(month.sales, currency)}, ${days}.`);
+    const mName = month.ym ? MONTHS[+String(month.ym).slice(5, 7) - 1] : MONTHS[at(date).getUTCMonth()];
+    const dom = month.day_of_month || +date.slice(8, 10);
+    L.push('', `*${mName} so far* (${dom}${month.days_in_month ? ` of ${month.days_in_month}` : ''} days)`,
+      `\u2022 Sales: *${shortMoney(month.sales, currency)}*${month.plan > 0 ? ` of ${shortMoney(month.plan, currency)} planned` : ''}`);
+    if (month.spend != null) L.push(`\u2022 Ad spend: *${shortMoney(month.spend, currency)}*`);
+    if (month.spend > 0) L.push(`\u2022 MER: *${x(month.sales / month.spend)}*`);
   }
   const n = noDash(next);
-  if (n) L.push(`*Next:* ${n.replace(/^next:\s*/i, '').slice(0, 240)}`);
+  if (n) L.push('', `*Next:* ${n.replace(/^next:\s*/i, '').slice(0, 240)}`);
+  L.push('', '_Full update in the thread._');
   return L.join('\n');
 }
 
@@ -105,25 +126,46 @@ export function sentenceOf(summary) {
   return out && out.length <= 260 ? out : null;
 }
 
-/** The weekly or monthly client post. */
-export function weeklyPost({ brand, period = 'weekly', start, currency = 'USD', totals = {}, previous = {}, sentence = null, this_week = [], from_you = [], url = null }) {
+/** Plain words for a change: "up 7%", "down 15%", "flat"; '' when there is nothing to compare. */
+export function changeWords(now, before) {
+  const c = pctChange(now, before);
+  return !c ? '' : c === 'flat' ? 'flat' : `${c[0] === '\u25B2' ? 'up' : 'down'} ${c.slice(1)}`;
+}
+
+/** The weekly or monthly client post: labelled bullets, one comparison each vs the period before.
+ *    *Grunk Dolfer · Weekly report, Oct 12 to 18*
+ *    _A slower week: same spend, fewer sales._
+ *
+ *    *The week* (compared with the week before)
+ *    • Sales: *$5,890* (down 15%)
+ *    • Ad spend: *$3,105* (flat)
+ *    • MER: *1.90x* (was 2.22x)
+ *    • aMER (new customers): *1.20x* (was 1.41x)
+ *    • Profit: *$1,784* (was $2,620)
+ *
+ *    *This week*  • ...      *We need from you*  • ...
+ *    <link|Open the full report> */
+export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence = null, this_week = [], from_you = [], url = null }) {
   const monthly = period === 'monthly';
-  const L = [`*${noDash(brand)} · ${monthly ? MONTHS[at(start).getUTCMonth()] : `week of ${monDay(start)}`}*`];
+  const endTxt = end ? (end.slice(5, 7) === start.slice(5, 7) ? String(+end.slice(8, 10)) : monDay(end)) : '';
+  const span = monthly ? `${MONTHS[at(start).getUTCMonth()]} report` : `Weekly report, ${monDay(start)}${endTxt ? ` to ${endTxt}` : ''}`;
+  const L = [`*${noDash(brand)} \u00b7 ${span}*`];
+  if (sentence) L.push(`_${noDash(sentence)}_`);
   const t = totals || {}, p = previous || {};
-  const cmp = (a, b) => { const c = pctChange(a, b); return c ? ` ${c}` : ''; };
-  const nums = [`Sales *${money(t.sales, currency)}*${cmp(t.sales, p.sales)}`, `Ads *${money(t.spend, currency)}*${cmp(t.spend, p.spend)}`];
-  if (x(t.mer)) nums.push(`*${x(t.mer)}*${x(p.mer) ? ` (was ${x(p.mer)})` : ''}`);
-  /* Profit swings by hundreds of percent off a small base ($355 to $1,907 is "+437%"), so past 100% it reads "(was $355)". */
-  const big = t.cm != null && p.cm != null && Math.abs(t.cm / Math.abs(p.cm || 1) - 1) > 1;
-  if (t.cm != null) nums.push(`Profit *${money(t.cm, currency)}*${big ? ` (was ${money(p.cm, currency)})` : cmp(t.cm, p.cm)}`);
-  L.push(nums.join(' · '));
-  if (sentence) L.push(noDash(sentence));
-  const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => noDash(s).replace(/^[•\-\s]+/, '').slice(0, 220)).filter(Boolean))];
+  const pct = (a, b) => { const w = changeWords(a, b); return w ? ` (${w})` : ''; };
+  const unit = monthly ? 'month' : 'week';
+  L.push('', `*The ${unit}* (compared with the ${unit} before)`,
+    `\u2022 Sales: *${money(t.sales, currency)}*${pct(t.sales, p.sales)}`,
+    `\u2022 Ad spend: *${money(t.spend, currency)}*${pct(t.spend, p.spend)}`);
+  if (x(t.mer)) L.push(`\u2022 MER: *${x(t.mer)}*${x(p.mer) ? ` (was ${x(p.mer)})` : ''}`);
+  if (x(t.amer)) L.push(`\u2022 aMER (new customers): *${x(t.amer)}*${x(p.amer) ? ` (was ${x(p.amer)})` : ''}`);
+  if (t.cm != null) L.push(`\u2022 Profit: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`);
+  const clip = s => s.length <= 120 ? s : s.slice(0, 117).replace(/\s+\S*$/, '') + '...';
+  const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(s).replace(/^[\u2022\-\s]+/, ''))).filter(Boolean))];
   const tw = clean(this_week), fy = clean(from_you);
-  if (tw.length) L.push(`*${monthly ? 'This month' : 'This week'}*`, ...tw.slice(0, 6).map(s => `• ${s}`));
-  if (fy.length === 1) L.push(`*From you:* ${fy[0]}`);
-  else if (fy.length) L.push('*From you*', ...fy.slice(0, 5).map(s => `• ${s}`));
-  if (url) L.push(`<${url}|Open the report>`);
+  if (tw.length) L.push('', `*This ${unit}*`, ...tw.slice(0, 5).map(s => `\u2022 ${s}`));
+  if (fy.length) L.push('', '*We need from you*', ...fy.slice(0, 3).map(s => `\u2022 ${s}`));
+  if (url) L.push('', `<${url}|Open the full report>`);
   return L.join('\n');
 }
 
