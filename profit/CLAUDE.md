@@ -3709,3 +3709,33 @@ Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later
   page scrolls; the button reads "Exit (Esc)"; Esc or leaving full screen ends it.
 - Client call: the read warns when the newest weekly report has not been sent yet ("Check the numbers before you show
   them"). Kickoff unchanged apart from the shared layout.
+
+## 2026-10-19: AGENCY VIEW vs ONE CLIENT. Read before touching the rail, the picker or show().
+
+Cole: "every client now has this under their Work tab, which is confusing ... There should be one thing called 'Agency
+view' that has everything that is agency. Only the things that really belong to one client show when I pick a client."
+Page table and the two rails: https://claude.ai/artifact/R1RksAoFEWR2NF5J2X6C5L.
+- **The picker's top choice is "Agency view"** (`AGENCY_VIEW`; still `S.act === 'all'` underneath). Settings in the rail
+  foot reads "Agency settings" there, "Brand settings" for a client.
+- **Three scopes** (index.html, after `clientTabOk`): `AGENCY_ONLY` (calls, tasks, economics, workload + the old ids),
+  `VIEW_BOTH` (overview = command center vs brand Home, yesterday, plan, requests, production, today, calendar, brief,
+  reports, dash, the season pages, pulse, settings, guide, health), everything else = one client. `tabInView(g, t)`:
+  the Work group is Agency view only; Production also sits in **Creative** under a client (that brand's ads, brief to
+  live). `NAV_OF` picks the group that shows in the current view; `navGo` and the `#v2seg` tabs filter by view;
+  `applyView()` (end of show()) hides rail and phone-bar destinations with no page in this view. A `[hidden]` rail
+  button needs the `display:none!important` rule (the rail's own display rule beat the attribute; client logins' Work
+  item was never actually hidden before this).
+- **A page opened in the other view switches the view** (top of show()): an agency page from a client goes to Agency
+  view; a client page from Agency view goes to the last client picked (`pf_lastclient`, else the first by name). A
+  picker change re-shows the same page; when that page has no version in the new view it opens Overview instead
+  (`LAST_VIEW`). So every old `?open=` link and every `[data-go]` still lands, and callers that set `#clientPick` then
+  `show(S.tab)` need no change.
+- **Home > Client call** (`ccall`, team only: in AGENCY_TABS) = callscreen.js's client screen for the picked client
+  (`CCALL()`); its "Calls" buttons go to that client's Home (wrapped host `show`, and the global `[data-go]` handler
+  skips `.cs` buttons that have their own onclick). Work > Calls > Client call asks which client and switches to it
+  (`window.LocusPick(act, 'ccall')`). `?open=calls&call=client&act=` opens `ccall`. Monday call and Creative kickoff
+  stay in Agency view.
+- **Client logins unchanged** in what they open (AGENCY_TABS + clientTabOk); they find Production under Creative now.
+- Checked on the local trio (worktree statics + both dev workers, headless Chrome) at 1440 and 375: both rails, the
+  picker both ways, every switch rule, the deep links (calls&call=client, studio, tasks&act, monday), the client call
+  and its back button, no page sideways scroll.

@@ -498,7 +498,14 @@
       else $('[data-review]', el).onclick = () => { OPEN = m.id; paint(); const c = $(`.cl-card.open[data-mid="${CSS.escape(m.id)}"]`); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
     }
     wireHistory($('#clHist'));
-    $$('[data-run]').forEach(x => x.onclick = () => { if (window.CallScreen) window.CallScreen.open(H, x.dataset.run, x.dataset.run === 'client' ? (BR !== 'all' ? BR : '') : ''); else toast('The call screen did not load. Hard-refresh (Ctrl+Shift+R).'); });
+    $$('[data-run]').forEach(x => x.onclick = () => {
+      /* A client call switches Locus to that client first (Home > Client call), so the shared screen shows only its pages. */
+      if (x.dataset.run === 'client' && window.LocusPick) {
+        if (BR !== 'all') return window.LocusPick(BR, 'ccall');
+        return listMenu(x, 'Which client is on the call?', ((D.brands && D.brands.length ? D.brands : H.S.accounts) || []).slice().sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ v: b.act_id, label: b.name })), v => window.LocusPick(v, 'ccall'));
+      }
+      if (window.CallScreen) window.CallScreen.open(H, x.dataset.run, x.dataset.run === 'client' ? (BR !== 'all' ? BR : '') : ''); else toast('The call screen did not load. Hard-refresh (Ctrl+Shift+R).');
+    });
     const b = $('#clBrand'); b.onclick = () => listMenu(b, 'Brand', [{ v: 'all', label: 'All brands', on: BR === 'all' }, ...(D.brands || []).map(x => ({ v: x.act_id, label: x.name, on: BR === x.act_id }))], v => { BR = v; paint(); });
     const poll = $('#clPoll'); if (poll) poll.onclick = async () => { poll.disabled = true; poll.textContent = 'Checking...'; try { const r = await post('/api/meetings/poll', {}); await load(); paint(); toast(r.read && r.read.length ? `Read ${plural(r.read.length, 'new call')}.` : r.errors && r.errors.length ? `Fireflies: ${r.errors[0].error}` : 'Nothing new on Fireflies.'); } catch (e) { toast(e.message); poll.disabled = false; poll.textContent = 'Check Fireflies now'; } };
     const sm = $('#clShowMon'); if (sm) sm.onclick = async () => { AGENDA = true; sm.disabled = true; if (!MON) await loadMonday(); paint(); };
