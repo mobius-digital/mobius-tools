@@ -125,14 +125,15 @@ export function winnersLosers(data) {
     return { ad_id: a.ad_id, name: a.name, thumb: a.thumb || null, video: !!a.video, spend: a.spend, share: a.share ?? null,
       roas: t ? (a.spend ? t.revenue / a.spend : null) : null, orders: t ? t.orders : null, headline: a.headline || null };
   });
-  if (!attr) return { winners: rows.slice(0, 3), losers: [], basis: 'spend', floor: data?.ads?.floor ?? null, bar: null };
-  /* The bar is these ads' own ROAS together that week: a winner beat it, a loser fell under it. Never a fixed number. */
-  const att = rows.filter(r => r.roas != null);
+  if (!attr) return { winners: rows.slice(0, 3), losers: [], basis: 'spend', floor: data?.ads?.floor ?? null, bar: null, pool: rows.length };
+  /* 2026-10-19 (Cole: "how are you choosing winners?"): the pool is the report's own ads, the biggest spenders that
+     each spent at least the floor (up to 10). Best 3 by Triple Whale ROAS and worst 3, never the same ad twice. `bar`
+     = those ads' ROAS together, shown as the yardstick. */
+  const att = rows.filter(r => r.roas != null).sort((a, b) => b.roas - a.roas);
   const sp = att.reduce((n, r) => n + (r.spend || 0), 0), rev = att.reduce((n, r) => n + (r.roas || 0) * (r.spend || 0), 0);
-  const bar = sp ? rev / sp : null;
-  const winners = att.filter(r => bar == null || r.roas >= bar).sort((a, b) => b.roas - a.roas).slice(0, 3);
-  const losers = att.filter(r => bar != null && r.roas < bar).sort((a, b) => a.roas - b.roas).slice(0, 3);
-  return { winners, losers, basis: 'tw', floor: data?.ads?.floor ?? null, bar };
+  const winners = att.slice(0, 3);
+  const losers = att.slice(3).reverse().slice(0, 3);
+  return { winners, losers, basis: 'tw', floor: data?.ads?.floor ?? null, bar: sp ? rev / sp : null, pool: att.length };
 }
 function channelOf(data, id) {
   const c = (data?.channels || []).find(x => x.id === id);
@@ -147,6 +148,7 @@ function readOf(rep) {
     period: rep.period, period_start: rep.period_start, period_end: rep.period_end, status: rep.status, sent_at: rep.sent_at || null,
     currency: data.account?.currency || 'USD', totals: pickTotals(data.totals), prior: pickTotals(data.previous), plan: pickTotals(data.forecast),
     ...winnersLosers(data), google: channelOf(data, 'google'), amazon: channelOf(data, 'amazon'),
+    channels: (data.channels || []).map(c => channelOf(data, c.id) && { id: c.id, ...channelOf(data, c.id) }).filter(Boolean),
     this_week: data.this_week || [], need_from_you: data.need_from_you || [], summary: String(rep.summary || '').slice(0, 1500),
   };
 }
@@ -167,7 +169,7 @@ async function splitPlan(env, d, brand, thread, monday) {
   const system = `You split a brand's Monday plan thread (posted in Slack before the Monday call) into the fields of the Monday call screen. Plain English, no em dashes. Keep their own words; never invent.
 WHO POSTS: Ahsan and Noma are the strategists (Meta ads and creative). Radhesh runs Google Ads. Hamza runs Amazon. Cole owns the agency. Each message starts with the poster's name.
 read = the STRATEGIST's takeaways on last week's Meta ads and creative in 1 to 4 sentences (numbers, winners, losers), as they wrote them. Never put a Google or Amazon update here; if only Radhesh or Hamza posted, read = ''.
-batches = each batch of ads they plan this week, one line each saying what to make ("3 new hooks on the Burgundy couch video, static 4:5"), owner = the designer or editor named (first name from: ${ROSTER.map(r => r.name).join(', ')}) else '', due = YYYY-MM-DD when a day is given (the Monday is ${monday}) else ''.
+batches = from Ahsan's, Noma's or Cole's posts only (never Radhesh's or Hamza's): each batch of ads planned for this week (never Google or Amazon work), one line each saying what to make ("3 new hooks on the Burgundy couch video, static 4:5"), owner = the designer or editor named (first name from: ${ROSTER.map(r => r.name).join(', ')}) else '', due = YYYY-MM-DD when a day is given (the Monday is ${monday}) else ''.
 google = what Radhesh's Google update says (budgets, bids, feeds, what he is watching), in one or two sentences, else ''. amazon = the same for Hamza's Amazon update, else ''.
 asks = what they need from the client, one line each, with a due date when given.`;
   return model(env, d, { system, user: `BRAND: ${brand}\n\nTHE PLAN THREAD:\n${text}`, schema: PLAN_SCHEMA, max: 2000 });
@@ -185,13 +187,17 @@ async function mondayData(env, d, who) {
   state.parsed = state.parsed || {};
   let changed = false;
   const asks = await listRequests(env, 'all').catch(() => ({ items: [] }));
+  /* What is already being made per brand (Production: Brief, Making, Review), so a batch is never asked for twice. */
+  const prod = {};
+  const board = await listBoard(env, d, { act: 'all' }).catch(() => ({ cards: [] }));
+  for (const c of board.cards || []) if (['brief', 'making', 'review'].includes(c.board) && !parked(c, today)) (prod[c.act_id] = prod[c.act_id] || []).push({ num: c.num, title: c.title, board: c.board, owner: c.assignee || '', due: c.due || '' });
   const brands = await Promise.all(ms.brands.map(async b => {
     const rep = await latestReport(env, b.act_id, 'weekly');
     const read = readOf(rep);
     /* The plan thread, split once per version of the thread (a new reply re-splits it). */
     let plan = null;
     if (b.thread.length) {
-      const h = 'v2:' + hash(b.thread.map(m => m.text).join('|'));
+      const h = 'v4:' + hash(b.thread.map(m => m.text).join('|'));
       const cached = state.parsed[b.act_id];
       if (cached && cached.h === h) plan = cached.plan;
       else {
@@ -203,12 +209,14 @@ async function mondayData(env, d, who) {
     const st = state.brands[b.act_id];
     /* A brand nobody has typed on yet takes the newest split (a later reply in the thread, or a better split). */
     if (plan && (!st || (st.seeded && !st.edited && st.h !== state.parsed[b.act_id]?.h))) {
-      state.brands[b.act_id] = { read: noDash(plan.read || ''), batches: (plan.batches || []).map(x => ({ text: noDash(clean(x.text, 300)), owner: clean(x.owner, 40), due: ymdOk(x.due) ? x.due : '', from: 'slack' })), jobs: [], asks: (plan.asks || []).map(x => ({ text: noDash(clean(x.text, 300)), due: ymdOk(x.due) ? x.due : '', from: 'slack' })), seeded: true, h: state.parsed[b.act_id]?.h || null };
+      state.brands[b.act_id] = { read: '', batches: (plan.batches || []).map(x => ({ text: noDash(clean(x.text, 300)), owner: clean(x.owner, 40), due: ymdOk(x.due) ? x.due : '', from: 'slack' })), jobs: [], asks: (plan.asks || []).map(x => ({ text: noDash(clean(x.text, 300)), due: ymdOk(x.due) ? x.due : '', from: 'slack' })), seeded: true, h: state.parsed[b.act_id]?.h || null };
       changed = true;
     }
     return {
       act_id: b.act_id, name: b.name, read, open: b.open,
-      plan: b.thread.length ? { by: b.thread[0].by, at: b.thread[0].at, where: b.thread[0].where, google: plan?.google || '', amazon: plan?.amazon || '' } : null,
+      /* The Slack posts themselves, as written, one per person (Cole: "he posts something every Monday, is that pulled?"). */
+      posts: b.thread.map(m => ({ by: m.by, at: m.at, text: m.text })),
+      making: (prod[b.act_id] || []).slice(0, 12),
       asks: (asks.items || []).filter(x => x.act_id === b.act_id && x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     };
   }));

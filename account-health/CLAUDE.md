@@ -2449,3 +2449,9 @@ Screens in profit/CLAUDE.md, same date.
   product from the ads app) and YouTube upload (Google verification) both need a screen recording of the working
   posting screen, so they are filed once phase 2's screen exists; until approved TikTok posts land as drafts / private,
   YouTube uploads as private.
+- **Second pass (2026-10-19, same day):** `/api/calls/screen?kind=monday` brands carry `posts` (every Slack post in the
+  plan thread, as written: by, at, text), `making` (Production cards in Brief / Making / Review, `parked` ones left
+  out), and `read.channels` (every channel row of the report). `winnersLosers` = best 3 and worst 3 by Triple Whale ROAS
+  among the report's ads over the floor, never the same ad twice, plus `bar` (those ads together) and `pool`. The plan
+  split no longer seeds a "read" (the posts are shown instead); batches come only from Ahsan's, Noma's or Cole's posts
+  (hash prefix `v4:`). meetings.js `mondayScreen` reads every brand at once.
