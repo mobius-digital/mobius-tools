@@ -186,6 +186,9 @@ function sessionValid() {
 }
 
 function showDir() {
+  /* Signing in for the Cashew link goes back there first, whoever is signed in. */
+  const nx = new URLSearchParams(location.search).get('next');
+  if (nx && !nx.startsWith('/')) { handToHub(nx); return; }
   /* A client login (2026-10-09) has no HQ: it goes straight to its brand in Locus. */
   if (localStorage.getItem('mobius_session_role') === 'client') { location.href = '/profit/'; return; }
   $('#scene').style.display = 'none';
