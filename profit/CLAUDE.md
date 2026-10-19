@@ -3597,3 +3597,13 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
 - The old public `?store=` report (`/api/store-view`) answers plain sentences instead of raw Shopify errors.
 - The two stores in p_shopify on 2026-10-17 ("Dlwlrma Store", "OFS Signature Looks") were Shopify's REVIEWERS; never link
   them to a brand. Clients can install only after the review passes.
+
+## 2026-10-19: Goal / break-even / real table (`goalsGlance` in index.html)
+
+Ahsan asked where to find a brand's break-even ROAS and target CPA; the answers were grey hints under the goal inputs.
+`goalsGlance(a, rules, customers90)` draws ONE table (cost per sale, cost per new customer, ROAS, plus cost per lead
+when set): the agreed goal (with "Makes money at the goal" / "past break-even"), break-even, and the real last 90 days
+coloured green / amber / red against goal and break-even, then a sentence with the inputs (margin before ads, AOV,
+first-order AOV). It opens Brand settings > Goals and ad rules and is the Home > Goals card. Break-even: cost per sale =
+AOV x margin, new customer = first-order AOV x margin, ROAS = 1 / margin. `/api/customers` headline now also returns
+`aov`, `cpa` (spend / paid orders), `mer`, `spend`, `sales`, `orders`. Real ROAS shown is the whole-store MER.
