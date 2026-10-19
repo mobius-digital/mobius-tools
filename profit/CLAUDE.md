@@ -3597,3 +3597,30 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
 - The old public `?store=` report (`/api/store-view`) answers plain sentences instead of raw Shopify errors.
 - The two stores in p_shopify on 2026-10-17 ("Dlwlrma Store", "OFS Signature Looks") were Shopify's REVIEWERS; never link
   them to a brand. Clients can install only after the review passes.
+
+## 2026-10-19: Goal / break-even / real table (`goalsGlance` in index.html)
+
+Ahsan asked where to find a brand's break-even ROAS and target CPA; the answers were grey hints under the goal inputs.
+`goalsGlance(a, rules, customers90)` draws ONE table (cost per sale, cost per new customer, ROAS, plus cost per lead
+when set): the agreed goal (with "Makes money at the goal" / "past break-even"), break-even, and the real last 90 days
+coloured green / amber / red against goal and break-even, then a sentence with the inputs (margin before ads, AOV,
+first-order AOV). It opens Brand settings > Goals and ad rules and is the Home > Goals card. Break-even: cost per sale =
+AOV x margin, new customer = first-order AOV x margin, ROAS = 1 / margin. `/api/customers` headline now also returns
+`aov`, `cpa` (spend / paid orders), `mer`, `spend`, `sales`, `orders`. Real ROAS shown is the whole-store MER.
+
+## 2026-10-19: Brand > Client answers is a BRAND SHEET (brand.js `brandSheet`, replaces `callSheet` / CALL_SHEET)
+
+Cole: "these answers aren't laid out in a way that is useful for myself or the team". The call sheet was the form
+re-grouped (admin first, raw dumps, the same facts three times, the client's numbers never checked; Ice & Gold's "never
+say gold plated" sat in an unshown field). Built only from data the page has, no AI:
+1. **"<Brand> in one read"**: what they sell and why (first thought, rest folded), what to push in ads (best sellers with
+   push = yes), the offer now + codes + thresholds, **Never say** (profile donts + dos_donts + jargon, red), Always, a good
+   90 days, who signs off. Team profile edits win over the form. Answers 180+ days old are flagged.
+2. **The numbers** (`fillNumbers`, `/api/customers?days=90&journey=0`): They told us / Our goal / Locus measures for
+   average order, kept per order, break-even, ad spend a month, cost per sale, cost per new customer; a gap of 20%+ is
+   named and copied into "Ask them on the call". Stacks as rows under 600px.
+3. Reference cards: Who buys (personas as cards), What to sell, Offers and growth, How they look and sound (swatches),
+   Competitors, Content and proof, Contacts and access. Empty columns and "N/A / none / no" answers are dropped (`said`).
+4. Ask them on the call: not sure, blank must-haves (only when the form has answers), numbers that do not match.
+At a glance is not drawn on the Client answers view (the sheet carries it; "Edit our notes" opens `editProfile()`, the
+same modal). The full form stays folded under it. Only Ice & Gold, Yak and Grunk have filled forms (2026-10-19).

@@ -29,6 +29,27 @@ const DEFAULT = 'mobius';
 const DROP_REQ = new Set(['host', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'x-forwarded-proto', 'x-real-ip', 'content-length']);
 const DROP_RES = new Set(['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'alt-svc']);
 
+/* A same-site path only: no scheme, no protocol-relative //host, nothing that could leave a script. */
+function safePath(p) {
+  return p && /^\/(?!\/)[\w\-./?=&%]*$/.test(p) ? p : null;
+}
+
+/* Stores the session the books' own address passed in the fragment, under the key that app
+   reads (Mobius: HQ's shared session; Lucky: its own token), then opens the books. */
+const SIGNIN_PAGE = `<!doctype html><meta charset="utf-8"><title>Signing in</title>
+<script>
+var f = new URLSearchParams(location.hash.slice(1)), then = __THEN__, books = __BOOKS__;
+history.replaceState(null, '', location.pathname);
+if (f.get('t') && books === 'lucky') localStorage.setItem('lucky_token', f.get('t'));
+else if (f.get('t') && books === 'mobius') {
+  localStorage.setItem('mobius_session', f.get('t'));
+  localStorage.setItem('mobius_session_email', f.get('e') || '');
+  localStorage.setItem('mobius_session_exp', f.get('x') || '0');
+  if (f.get('r') === 'client') localStorage.setItem('mobius_session_role', 'client'); else localStorage.removeItem('mobius_session_role');
+}
+location.replace(then);
+</script>`;
+
 function pickBooks(request) {
   const m = (request.headers.get('Cookie') || '').match(new RegExp('(?:^|;\\s*)' + COOKIE + '=([a-z]+)'));
   return m && BOOKS[m[1]] ? m[1] : DEFAULT;
@@ -52,6 +73,20 @@ export default {
     }
 
     const id = pickBooks(request), b = BOOKS[id];
+
+    /* Mobius sign-in: Google only allows the client's own origins, so HQ signs in on
+       tools.go-mobius-digital.com and hands the session back to /__cashew/signin. */
+    if (id === 'mobius' && url.pathname.startsWith('/hq/')) {
+      const then = safePath(url.searchParams.get('next')) || b.home;
+      const back = url.origin + '/__cashew/signin?then=' + encodeURIComponent(then);
+      return Response.redirect(b.app + '/hq/?next=' + encodeURIComponent(back), 302);
+    }
+    if (url.pathname === '/__cashew/signin') {
+      const then = safePath(url.searchParams.get('then')) || b.home;
+      return new Response(SIGNIN_PAGE.replace('__THEN__', JSON.stringify(then)).replace('__BOOKS__', JSON.stringify(id)), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+      });
+    }
     /* The Mobius app lives under /ledger/ on its site; the root of the hub is that page. */
     if (url.pathname === '/' && b.home !== '/') return Response.redirect(url.origin + b.home, 302);
 
