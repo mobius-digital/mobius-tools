@@ -201,18 +201,57 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .vs-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .vs-body{grid-column:2 / 4;min-width:0}
 @media (max-width:700px){.vs-step{grid-template-columns:34px 1fr}.vs-act{grid-column:2;justify-content:flex-start}.vs-body{grid-column:2}}
-.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:12px;margin-top:10px}
-.cs-blk{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0;overflow:hidden}
-.cs-v .br-mini{display:block;max-width:100%;overflow-x:auto;white-space:normal}
-.cs-v .br-mini td,.cs-v .br-mini th{white-space:normal;min-width:70px}
-.cs-blk h4{margin:0 0 4px;font-size:13px;font-weight:700}
-.cs-blk.cs-open{border-color:var(--warn);background:var(--warn-bg)}
-.cs-row{padding:5px 0;border-top:1px solid var(--line)}
-.cs-row:first-of-type{border-top:0}
-.cs-l{font-size:11.5px;font-weight:700;color:var(--muted)}
-.cs-v{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
-.cs-v .sug{color:var(--c-email)}
-@media print{.side,#subtabs,.lb-seg,#brGlance,#brDone,.bv-bar,.v2say,#biOnboard,.btn{display:none !important}.cs-grid{grid-template-columns:1fr 1fr}}
+.bs .v2h .cap{display:flex;gap:8px;flex-wrap:wrap}
+.bs-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:4px 28px;margin-top:6px}
+.bs-f{padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.bs-l{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.bs-v{font-size:13.5px;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.bs-p{margin:0 0 4px}
+.bs-ul{margin:0;padding-left:18px}.bs-ul li{margin:2px 0}
+.bs-gap{height:6px}
+.bs-dim{color:var(--muted);font-size:12.5px}
+.bs-more summary{cursor:pointer;color:var(--accent,var(--brand));font-size:12.5px;margin-top:4px}
+.bs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.bs-chip{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.bs-never{border-top-color:transparent}
+.bs-never .bs-v{background:color-mix(in srgb,var(--bad) 9%,transparent);border-left:3px solid var(--bad);border-radius:6px;padding:8px 10px}
+.bs-never .bs-l{color:var(--bad)}
+.bs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:14px;margin:14px 0}
+.bs-card{border:1px solid var(--line);border-radius:var(--r-lg,14px);background:var(--surface);padding:16px 18px;min-width:0}
+.bs-card h4{margin:0;font-size:14.5px;font-weight:700;color:var(--ink)}
+.bs-sub{margin:2px 0 6px;font-size:12.5px;color:var(--muted)}
+.bs-card > .bs-f:first-of-type,.bs-card > .bs-tw:first-of-type{margin-top:6px}
+.bs-ask{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 7%,var(--surface))}
+.bs-tw{overflow-x:auto;max-width:100%}
+.bs-t{width:100%;border-collapse:collapse;font-size:13px}
+.bs-t th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+.bs-t td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:break-word}
+.bs-t td a{overflow-wrap:anywhere}
+.bs-t tr:last-child td{border-bottom:0}
+.bs .bs-t td,.bs .bs-t th,.bs-card .bs-t td,.bs-card .bs-t th{white-space:normal}
+.bs-nt td:first-child{color:var(--ink-2);width:32%}
+.bs-nt th{white-space:normal}.bs-nt td:last-child{font-size:12.5px}
+.bs-nt td b{font-variant-numeric:tabular-nums}
+.bs-nt small{display:block;color:var(--muted);font-size:11.5px}
+.bs-nt td:not(:first-child){white-space:nowrap}
+@media (max-width:600px){.bs-nt tr:first-child{display:none}.bs-nt tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.bs-nt td{border:0;padding:2px 0}.bs-nt td:first-child{grid-column:1/-1;width:auto;font-weight:600;color:var(--ink)}
+.bs-nt td[data-h]::before{content:attr(data-h);display:block;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.bs-nt td:last-child{grid-column:1/-1;white-space:normal}.bs-nt td:empty{display:none}}
+.bs-kv{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.bs-kv td{padding:6px 0;border-top:1px solid var(--line);vertical-align:top}
+.bs-kv td:first-child{color:var(--muted);width:42%;padding-right:12px}
+.bs-ok{color:var(--good);font-weight:600}.bs-bad{color:var(--bad)}.bs-warn{color:var(--warn);font-weight:600}
+.bs-ppl{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:8px 0 4px}
+.bs-per{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
+.bs-per b{font-size:13.5px;color:var(--ink)}
+.bs-sw{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.bs-swi{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2)}
+.bs-swi i{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);display:inline-block}
+.bs-swi code{font-size:11.5px;color:var(--muted)}
+.bs-acc{font-size:12px;padding:3px 9px;border-radius:999px;border:1px dashed var(--line);color:var(--muted)}
+.bs-acc.ok{border-style:solid;color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+@media print{.side,#subtabs,.lb-seg,#brGlance,#brDone,.bv-bar,.v2say,#biOnboard,.btn{display:none !important}.bs-grid{grid-template-columns:1fr 1fr}.bs-more{display:none}}
 .lb-head h2{margin:0}
 .lb-seg{display:inline-flex;background:var(--unk-bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
 .lb-seg button{padding:7px 14px;border-radius:9px;font-weight:600;color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
@@ -431,8 +470,6 @@ textarea.br-in{min-height:64px;resize:vertical;line-height:1.5}
 .br .rs-tiles .v2tile .btn{align-self:flex-start;margin-top:4px}
 .br .br-pcard{background:var(--surface-2);border-color:var(--line)}
 .br .br-pcard:hover{border-color:var(--line-strong)}
-.br .cs-blk{background:var(--surface-2);border-color:var(--line)}
-.br .cs-blk.cs-open{background:var(--warn-bg);border-color:transparent}
 .br .br-chip{font:inherit;font-size:12.5px;font-weight:600}
 .br .br-chip.on{border-color:var(--ink);background:var(--ink);color:var(--bg)}
 .br .br-chip.on .n{color:var(--bg);opacity:.75}
@@ -606,7 +643,7 @@ function paint() {
   main.querySelectorAll('.lb-seg button').forEach(b => b.onclick = () => { S.view = b.dataset.v; localStorage.setItem(LS_VIEW, S.view); paint(); });
   main.querySelector('#brToAngles').onclick = e => { e.preventDefault(); window.show && window.show('angles'); };
   wireCompleteness(main);
-  glanceStrip($('#brGlance'));
+  if (S.view !== 'client') glanceStrip($('#brGlance'));
   const body = $('#brBody');
   ({ client: paintClient, research: paintResearch, voice: paintVoiceView })[S.view](body);
 }
@@ -1183,51 +1220,232 @@ function paintVoiceView(body) {
 /* ======================================================================
    CLIENT ANSWERS: the call sheet, the full answers, the interview
    ====================================================================== */
-/* The strategist's question before a call is "what did they tell us, in one screen". The
-   call sheet is built straight from the form (no AI, no cost): the same answers the full
-   list below carries, grouped the way a strategist reads them, with the gaps named. */
-const CALL_SHEET = [
-  ['Who', [['company', 'Company'], ['website', 'Website'], ['contact_name', 'Main contact'], ['contact_email', 'Email'], ['contact_phone', 'Phone'], ['approver', 'Who approves ads'], ['socials', 'Socials']]],
-  ['What they sell', [['best_sellers', 'Best sellers'], ['focus_ranges', 'Ranges to focus on'], ['categories', 'Categories'], ['cross_sells', 'Sell well together'], ['regions', 'Ships to'], ['product_count', 'Products'], ['variants', 'Variants']]],
-  ['Why people buy', [['solves', 'What it solves'], ['uvp', 'What makes them different'], ['why_you', 'Why them over competitors'], ['personas', 'Their customer types'], ['faqs', 'Questions customers ask']]],
-  ['The numbers', [['ad_spend', 'Ad spend a month'], ['aov', 'Average order'], ['cogs', 'Cost of that order'], ['ship_cost', 'Shipping cost per order'], ['breakeven', 'Break-even cost per sale'], ['target_cpa', 'Cost per sale they want'], ['target_cpa_how', 'How they got there'], ['product_costs', 'Cost and price per product']]],
-  ['Offers and retention', [['offers', 'Best offers'], ['codes', 'Codes running'], ['free_ship', 'Free shipping over'], ['bundle_upsell', 'Buy more, save more'], ['upsell_bundle', 'Bundles'], ['returning_offers', 'Offers for existing customers'], ['reorder_cycle', 'How often they reorder'], ['loyalty', 'Loyalty']]],
-  ['What they want from us', [['success_90', 'A successful 90 days'], ['tried_failed', 'Tried in ads, did not work'], ['key_dates', 'Launches and key dates']]],
-  ['Brand rules', [['dos_donts', "Do's and don'ts"], ['admired', 'Brands they look up to'], ['brand_guide', 'Brand guide'], ['logo', 'Logo'], ['fonts', 'Fonts'], ['colors', 'Colours']]],
-  ['Competitors and content', [['competitors', 'Competitors'], ['best_ads', 'Best ads they have run'], ['influencers', 'Influencers'], ['content_counts', 'Content they have'], ['ugc_rights', 'UGC rights'], ['content_link', 'Content library']]],
-];
-const ACCESS_KEYS = [['acc_meta', 'Meta'], ['acc_google', 'Google Ads'], ['acc_shopify', 'Shopify'], ['acc_tw', 'Triple Whale'], ['acc_klaviyo', 'Klaviyo'], ['acc_tiktok', 'TikTok'], ['content_shared', 'Content library shared']];
+/* THE BRAND SHEET (2026-10-19, replaces the call sheet). Cole: "these answers aren't laid out in a way that is useful
+   for myself or the team". The call sheet was the form re-grouped: admin first, raw dumps, the same facts three times on
+   one page, and the client's numbers never checked. Now, built only from what the page already has (no AI):
+   1. In one read: what they sell and why, what to push, the offer, the words to never use, a good 90 days, who signs off.
+   2. The numbers: what the client told us next to what Locus measures (last 90 days), with the gap said in words.
+   3. The reference cards, each a question: who buys, what to sell, offers, look and sound, competitors, content, contacts.
+   4. Ask them on the call: "not sure", blank must-haves and numbers that do not match.
+   Team edits in At a glance (the profile doc) win over the form, as they always did. The full form stays folded below. */
 const IMPORTANT = ['best_sellers', 'solves', 'uvp', 'ad_spend', 'aov', 'target_cpa', 'offers', 'success_90', 'competitors', 'dos_donts', 'personas'];
-function callSheet(d) {
-  const Qo = Q(), o = d.onboard, a = o?.answers || {}, pf = o?.prefill || {};
-  const F = Object.fromEntries(Qo.STEPS.flatMap(st => st.fields.map(f => [f.id, f])));
-  const cell = (id, label) => {
-    const f = F[id]; if (!f) return '';
-    const v = f.calc ? Qo.calc(id, a) : a[id];
-    let h = f.calc ? (v != null ? money(v) : null) : answerHtml(f, v, false);
-    const sug = h == null && pf[id] != null ? answerHtml(f, pf[id], false) : null;
-    if (h == null && !sug) return '';
-    if (h && h.length > 700 && !/<table/.test(h)) h = h.slice(0, 700) + '…';
-    return `<div class="cs-row"><div class="cs-l">${esc(label)}</div><div class="cs-v">${h ?? `<span class="sug">From the website, unconfirmed: ${sug}</span>`}</div></div>`;
-  };
-  const access = ACCESS_KEYS.map(([k, l]) => { const v = a[k]; const ok = v === true || v === 'yes'; return `<span class="v2pill ${ok ? 'good' : ''}">${ok ? '✓' : '○'} ${esc(l)}</span>`; }).join(' ');
-  const unsure = Object.keys(a).filter(k => a[k] === '__unsure' && F[k]).map(k => F[k].label);
-  const missing = IMPORTANT.filter(k => F[k] && answerHtml(F[k], a[k], false) == null && a[k] !== '__unsure').map(k => F[k].label);
-  const blocks = CALL_SHEET.map(([title, keys]) => { const rows = keys.map(([id, l]) => cell(id, l)).filter(Boolean).join(''); return rows ? `<div class="cs-blk"><h4>${esc(title)}</h4>${rows}</div>` : ''; }).filter(Boolean);
-  return `<section class="v2card"><div class="v2h"><h3>Before the call: what they told us</h3><span class="find">Built from their onboarding answers, grouped the way you read them on a call. The full answers, step by step, are below.</span><span class="cap"><button class="btn" id="csPrint">Print</button></span></div>
-    <div class="cs-grid">${blocks.join('')}
-      <div class="cs-blk"><h4>Access</h4><div class="br-chips" style="margin-top:4px">${access}</div></div>
-      ${unsure.length || missing.length ? `<div class="cs-blk cs-open"><h4>Ask them on the call</h4>${unsure.length ? `<div class="cs-row"><div class="cs-l">They said “not sure”</div><div class="cs-v">${unsure.map(esc).join('<br>')}</div></div>` : ''}${missing.length ? `<div class="cs-row"><div class="cs-l">Left blank</div><div class="cs-v">${missing.map(esc).join('<br>')}</div></div>` : ''}</div>` : ''}
-    </div></section>`;
+const ACCESS_KEYS = [['acc_meta', 'Meta'], ['acc_gads_link', 'Google Ads'], ['acc_ga4', 'Analytics'], ['acc_shopify', 'Shopify'], ['acc_tw', 'Triple Whale'], ['acc_klaviyo', 'Klaviyo'], ['acc_tiktok', 'TikTok'], ['acc_clarity', 'Clarity'], ['content_shared', 'Content library']];
+const NOTHING = /^(n\/?a|none|no|-+|nope|not sure|tbd|na)\.?$/i;
+/* A typed answer as plain text, or null when it says nothing. */
+function said(v) {
+  if (v == null || v === '__unsure' || v === false) return null;
+  if (Array.isArray(v) || typeof v === 'object') return null;
+  const s = String(v).trim();
+  return !s || NOTHING.test(s) ? null : s;
 }
+const rowsOf = v => Array.isArray(v) ? v.filter(r => r && Object.values(r).some(x => x != null && String(x).trim() !== '')) : [];
+const site = u => String(u || '').replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/+$/, '');
+const href = u => /^https?:\/\//i.test(u) ? u : 'https://' + u;
+const linkOr = s => /^(https?:\/\/|www\.)\S+$|^[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(s.trim()) ? `<a href="${esc(href(s.trim()))}" target="_blank" rel="noopener">${esc(site(s.trim()))}</a>` : esc(s);
+/* Free text with one item per line (or "- item") becomes a list; a single paragraph stays a paragraph. */
+function textBlock(s, max = 0) {
+  const items = String(s).split('\n').map(x => x.replace(/^\s*([-•*]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+  if (items.length < 2) return `<p class="bs-p">${esc(s.trim())}</p>`;
+  const shown = max ? items.slice(0, max) : items;
+  return `<ul class="bs-ul">${shown.map(x => `<li>${linkOr(x)}</li>`).join('')}</ul>${max && items.length > max ? `<details class="bs-more"><summary>${items.length - max} more</summary><ul class="bs-ul">${items.slice(max).map(x => `<li>${linkOr(x)}</li>`).join('')}</ul></details>` : ''}`;
+}
+/* First n sentences, the rest folded. */
+function lead(s, n = 2) {
+  /* A blank line ends the first thought (clients paste extra notes under it). */
+  const paras = String(s).trim().split(/\n\s*\n/);
+  if (paras.length > 1 && paras[0].length > 60) return `${lead(paras[0], n)}<details class="bs-more"><summary>Read the rest</summary>${paras.slice(1).map(x => `<p class="bs-p">${esc(x.trim())}</p>`).join('')}</details>`;
+  const parts = String(s).trim().split(/(?<=[.!?])\s+(?=[A-Z])/);
+  if (parts.length <= n) return `<p class="bs-p">${esc(s.trim())}</p>`;
+  return `<p class="bs-p">${esc(parts.slice(0, n).join(' '))}</p><details class="bs-more"><summary>Read the rest</summary><p class="bs-p">${esc(parts.slice(n).join(' '))}</p></details>`;
+}
+const fact = (label, html, cls = '') => html ? `<div class="bs-f ${cls}"><div class="bs-l">${label}</div><div class="bs-v">${html}</div></div>` : '';
+const card = (title, sub, body) => body.replace(/\s/g, '') ? `<section class="bs-card"><h4>${title}</h4>${sub ? `<p class="bs-sub">${sub}</p>` : ''}${body}</section>` : '';
+
+function brandSheet(d) {
+  const o = d.onboard, a = o?.answers || {}, p = d.docs['']?.profile || {};
+  const Qo = Q(), F = Object.fromEntries(Qo.STEPS.flatMap(st => st.fields.map(f => [f.id, f])));
+  const name = esc(d.account.name);
+  const t = id => said(a[id]);
+  const empty = !o || !Object.keys(a).some(k => a[k] != null && a[k] !== '' && !/^(st_|acc_)/.test(k));
+  /* Only the columns someone filled in. */
+  const tbl = (rows, cols) => { const use = cols.filter(([k], i) => !i || rows.some(r => said(r[k]))); return `<div class="bs-tw"><table class="bs-t"><tr>${use.map(([, l]) => `<th>${l}</th>`).join('')}</tr>${rows.map(r => `<tr>${use.map(([k, , f]) => `<td>${f ? f(r[k]) : esc(said(r[k]) || '')}</td>`).join('')}</tr>`).join('')}</table></div>`; };
+
+  /* 1. In one read */
+  const sellers = rowsOf(a.best_sellers).filter(r => r.name);
+  const push = sellers.filter(r => /^y/i.test(r.push || ''));
+  const heroes = (push.length ? push : sellers).slice(0, 4);
+  const offer = said(p.current_offer) || t('offers');
+  const codes = t('codes');
+  const thresholds = [said(p.free_ship) || t('free_ship') ? `Free shipping over ${money(+(said(p.free_ship) || t('free_ship')))}` : '', t('gift_threshold')].filter(Boolean);
+  const never = [said(p.donts), t('dos_donts'), t('jargon')].filter(Boolean);
+  const always = said(p.dos);
+  const contact = [t('contact_name'), t('contact_email') ? `<a href="mailto:${esc(t('contact_email'))}">${esc(t('contact_email'))}</a>` : '', t('contact_phone')].filter(Boolean);
+  const top = [
+    fact('What they sell, and why people buy', (t('solves') ? lead(t('solves')) : '') + (t('uvp') ? `<div class="bs-gap"></div>${textBlock(t('uvp'), 4)}` : '')),
+    fact(push.length ? 'Push these in ads' : 'Best sellers', heroes.length ? `<ul class="bs-ul">${heroes.map(r => `<li><b>${esc(r.name)}</b>${r.price ? ` · ${money(+String(r.price).replace(/[^0-9.]/g, ''))}` : ''}${r.stock ? ` <span class="bs-dim">· ${esc(r.stock)} in stock</span>` : ''}</li>`).join('')}</ul>${push.length && sellers.length > push.length ? `<p class="bs-dim">Not for ads: ${sellers.filter(r => !push.includes(r)).map(r => esc(r.name)).join(', ')}</p>` : ''}` : ''),
+    fact('The offer now', (offer ? textBlock(offer, 4) : '') + (codes || thresholds.length ? `<div class="bs-chips">${[...(codes ? codes.split('\n').map(s => s.trim()).filter(Boolean) : []).map(c => `<span class="bs-chip">${esc(c)}</span>`), ...thresholds.map(x => `<span class="bs-chip">${esc(x)}</span>`)].join('')}</div>` : '')),
+    fact('Never say', never.length ? never.map(x => textBlock(x)).join('') : '', 'bs-never'),
+    fact('Always', always ? textBlock(always) : ''),
+    fact('A good 90 days, in their words', t('success_90') ? textBlock(t('success_90'), 6) : ''),
+    fact('Signs off the ads', [t('approver'), contact.length ? contact.join(' · ') : ''].filter(Boolean).map(x => `<p class="bs-p">${x === t('approver') ? esc(x) : x}</p>`).join('')),
+  ].filter(Boolean);
+
+  /* 3. Reference cards */
+  const personas = rowsOf(a.personas).filter(r => r.name || r.buys);
+  const who = [
+    personas.length ? `<div class="bs-ppl">${personas.map(r => `<div class="bs-per"><b>${esc(r.name || 'Customer')}</b><span>${[r.age, r.gender, r.location].filter(Boolean).map(esc).join(' · ')}</span>${r.buys ? `<span>Buys: ${esc(r.buys)}</span>` : ''}${r.interests ? `<span>Into: ${esc(r.interests)}</span>` : ''}${r.online ? `<span>Online: ${esc(r.online)}</span>` : ''}${r.offline ? `<span>Offline: ${esc(r.offline)}</span>` : ''}${r.follows || r.media ? `<span>Follows: ${esc([r.follows, r.media].filter(Boolean).join(', '))}</span>` : ''}</div>`).join('')}</div>` : '',
+    fact('Why them over the competition', t('why_you') ? textBlock(t('why_you')) : ''),
+    fact('What customers ask most', t('faqs') ? textBlock(t('faqs'), 5) : ''),
+    fact('What they should be asking', t('should_ask') ? textBlock(t('should_ask'), 3) : ''),
+    fact('Their persona doc', t('persona_doc') ? linkOr(t('persona_doc')) : ''),
+  ].join('');
+  const cats = rowsOf(a.categories).map(r => r.name).filter(Boolean).filter((x, i, arr) => arr.findIndex(y => y.toLowerCase() === x.toLowerCase()) === i);
+  const regions = rowsOf(a.regions).filter(r => r.region);
+  const sell = [
+    sellers.length ? tbl(sellers, [['name', 'Product'], ['price', 'Price', v => said(v) ? money(+String(v).replace(/[^0-9.]/g, '')) : ''], ['stock', 'Stock'], ['lead', 'Reorder'], ['push', 'In ads', v => /^y/i.test(v || '') ? '<b class="bs-ok">Yes</b>' : /^n/i.test(v || '') ? 'No' : '']]) : '',
+    fact('Focus on', t('focus_ranges') ? textBlock(t('focus_ranges')) : ''),
+    fact('Sell well together', t('cross_sells') ? textBlock(t('cross_sells'), 4) : ''),
+    fact('Range', [t('product_count') ? `${esc(t('product_count'))} products` : '', t('variants') ? `variants: ${esc(t('variants'))}` : ''].filter(Boolean).join(' · ') + (cats.length ? `<div class="bs-chips">${cats.map(c => `<span class="bs-chip">${esc(c)}</span>`).join('')}</div>` : '')),
+    fact('What the product is', t('features') ? lead(t('features'), 2) : ''),
+    fact('Ships to', regions.length ? `<ul class="bs-ul">${regions.map(r => `<li><b>${esc(r.region)}</b>${r.ship_time ? ` · ${esc(r.ship_time)}` : ''}${r.expedited && !NOTHING.test(r.expedited) ? ` (faster: ${esc(r.expedited)})` : ''}${r.role ? ` <span class="bs-dim">· ${esc(r.role)}</span>` : ''}</li>`).join('')}</ul>` : ''),
+  ].join('');
+  const growth = [
+    ['Buy more, save more', 'bundle_upsell'], ['Bundles', 'upsell_bundle'], ['Existing customers', 'returning_offers'], ['How often they reorder', 'reorder_cycle'],
+    ['Loyalty', 'loyalty'], ['Add-ons at checkout', 'bolt_ons'], ['After purchase', 'post_purchase'], ['Referral', 'referral'], ['Subscription', 'subscription'], ['Customisation', 'custom'],
+  ].map(([l, k]) => t(k) ? `<tr><td>${l}</td><td>${esc(t(k))}</td></tr>` : '').join('');
+  const offers = [
+    growth ? `<table class="bs-kv">${growth}</table>` : '',
+    fact('Tried in ads, did not work', t('tried_failed') ? textBlock(t('tried_failed')) : ''),
+    fact('Launches and key dates', t('key_dates') ? textBlock(t('key_dates')) : ''),
+  ].join('');
+  const colors = rowsOf(a.colors).filter(r => /^#?[0-9a-f]{3,8}$/i.test(String(r.hex || '').trim()));
+  const fonts = rowsOf(a.fonts).filter(r => r.font);
+  const admired = rowsOf(a.admired).filter(r => r.name);
+  const fileLinks = id => (Array.isArray(a[id]) ? a[id] : a[id] ? [a[id]] : []).filter(x => x && x.key).map(x => `<a href="#" data-file="${esc(x.key)}">${esc(x.name)}</a>`).join(', ');
+  const look = [
+    colors.length ? `<div class="bs-sw">${colors.map(r => { const h = '#' + String(r.hex).trim().replace(/^#/, ''); return `<span class="bs-swi"><i style="background:${esc(h)}"></i>${esc(r.use || '')} <code>${esc(h)}</code></span>`; }).join('')}</div>` : '',
+    fact('Fonts', fonts.map(r => `${esc(r.font)}${r.use ? ` <span class="bs-dim">(${esc(r.use)})</span>` : ''}`).join(', ')),
+    fact('Logo and guide', [fileLinks('logo'), fileLinks('brand_guide')].filter(Boolean).join(' · ')),
+    fact('Brands they look up to', admired.map(r => `${linkOr(r.name)}${said(r.why) ? ` <span class="bs-dim">(${esc(r.why)})</span>` : ''}`).join(', ')),
+    fact('Emojis', t('emojis') ? esc(t('emojis')) : ''),
+  ].join('');
+  const comps = rowsOf(a.competitors).filter(r => r.name);
+  const compHtml = comps.length ? tbl(comps, [['name', 'Brand', v => linkOr(String(v))], ['strengths', 'Good at'], ['weaknesses', 'Falls short'], ['win', 'We win on']]) : '';
+  const counts = rowsOf(a.content_counts).filter(r => +r.videos || +r.stills);
+  const infl = rowsOf(a.influencers).filter(r => r.handle);
+  const content = [
+    fact('Their content library', t('content_link') ? linkOr(t('content_link')) : ''),
+    fact('What they already have', counts.map(r => `${esc(r.kind)}: ${+r.videos || 0} videos, ${+r.stills || 0} stills`).join('<br>')),
+    fact('Best ads they have run', t('best_ads') ? textBlock(t('best_ads')) : ''),
+    fact('Favourite posts', t('best_posts') ? textBlock(t('best_posts')) : ''),
+    fact('Posts they did not like', t('worst_posts') ? textBlock(t('worst_posts')) : ''),
+    fact('Can we use UGC in ads?', t('ugc_rights') ? esc(t('ugc_rights')) : ''),
+    fact('Reviews', t('reviews_tool') ? esc(t('reviews_tool')) : ''),
+    fact('Influencers that fit', infl.map(r => `${linkOr(r.handle)}${r.notes ? ` <span class="bs-dim">(${esc(r.notes)})</span>` : ''}`).join(', ')),
+    fact('Press', t('press') ? textBlock(t('press')) : ''),
+  ].join('');
+  const socials = rowsOf(a.socials).filter(r => said(r.handle));
+  const access = ACCESS_KEYS.map(([k, l]) => { const ok = a[k] === true || a[k] === 'yes'; return `<span class="bs-acc ${ok ? 'ok' : ''}">${ok ? '✓' : '○'} ${l}</span>`; }).join('');
+  const people = [
+    fact('Company', [t('company'), said(p.website) || t('website') ? linkOr(said(p.website) || t('website')) : ''].filter(Boolean).map(x => x === t('company') ? esc(x) : x).join(' · ')),
+    fact('Main contact', contact.join(' · ')),
+    fact('Socials', socials.map(r => `${esc(r.network || '')}: ${linkOr(String(r.handle))}`).join('<br>')),
+    fact('Shopify store', t('shopify_url') ? esc(t('shopify_url')) : ''),
+    fact('Drive', said(p.drive) ? `<a href="${esc(p.drive)}" target="_blank" rel="noopener">Client folder</a>` : ''),
+    Object.keys(a).some(k => /^acc_/.test(k)) ? fact('Access they gave us', `<div class="bs-chips">${access}</div>`) : '',
+    fact('Notes from them', t('acc_notes') ? esc(t('acc_notes')) : ''),
+    fact('Our notes', said(p.notes) ? esc(p.notes) : ''),
+  ].join('');
+
+  /* 4. Ask them on the call */
+  const unsure = Object.keys(a).filter(k => a[k] === '__unsure' && F[k]).map(k => F[k].label);
+  const blank = !empty ? IMPORTANT.filter(k => F[k] && answerHtml(F[k], a[k], false) == null && a[k] !== '__unsure' && !(k === 'offers' && offer) && !(k === 'dos_donts' && never.length)).map(k => F[k].label) : [];
+
+  return `<section class="v2card bs">
+      <div class="v2h"><h3>${name} in one read</h3><span class="find">${empty ? `No onboarding answers yet, so this is only what the team wrote in At a glance. Send the link below and it fills itself.` : `From their onboarding answers${o?.submitted_at ? ` (${esc(o.submitted_at.slice(0, 10))})` : ''} and the team's own notes. The full form is folded at the bottom.${o?.submitted_at && (Date.now() - Date.parse(o.submitted_at)) / 864e5 > 180 ? ` <b class="bs-warn">These answers are ${Math.round((Date.now() - Date.parse(o.submitted_at)) / (864e5 * 30.4))} months old: check them against the numbers below.</b>` : ''}`}</span><span class="cap"><button class="btn" id="bsEdit">Edit our notes</button><button class="btn" id="csPrint">Print</button></span></div>
+      ${top.length ? `<div class="bs-top">${top.join('')}</div>` : ''}
+    </section>
+    <section class="v2card bs" id="bsNums"><div class="v2h"><h3>The numbers</h3><span class="find">${empty ? 'What Locus measures over the last 90 days, against our goals.' : 'What they told us next to what Locus measures over the last 90 days.'}</span><span class="cap"><button class="btn" id="bsGoals">Goals and break-even</button></span></div><div class="bs-numb"><span class="tiny">Loading…</span></div></section>
+    <div class="bs-grid">
+      ${card('Who buys', 'Their words. Our research is on the Research tab.', who)}
+      ${card('What to sell', '', sell)}
+      ${card('Offers and growth', '', offers)}
+      ${card('How they look and sound', '', look)}
+      ${compHtml ? card('Competitors', 'Their list. Our read on each is on the Research tab.', compHtml) : ''}
+      ${card('Content and proof', '', content)}
+      ${card('Contacts and access', '', people)}
+      ${unsure.length || blank.length ? `<section class="bs-card bs-ask"><h4>Ask them on the call</h4><p class="bs-sub">What they were not sure of or left blank, plus any number below that does not match.</p>${unsure.length ? fact('They said "not sure"', `<ul class="bs-ul">${unsure.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`) : ''}${blank.length ? fact('Left blank', `<ul class="bs-ul">${blank.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`) : ''}<div id="bsAskNums"></div></section>` : `<section class="bs-card bs-ask" id="bsAskOnly" hidden><h4>Ask them on the call</h4><div id="bsAskNums"></div></section>`}
+    </div>`;
+}
+
+/* The numbers card: the form's answers against /api/customers (90 days). A gap of 20% or more is named, and lands on the
+   Ask them on the call card too. */
+async function fillNumbers(root, d) {
+  const box = root.querySelector('#bsNums .bs-numb'); if (!box) return;
+  const a = d.onboard?.answers || {}, r = d.rules || {};
+  const told = k => { const v = said(a[k]); if (v == null) return null; const n = +String(v).replace(/[^0-9.]/g, ''); return n > 0 ? n : null; };
+  let h = {}, cmOk = true, over = false;
+  try { const c = await api(`/api/customers?act=${encodeURIComponent(S.act)}&days=90&journey=0`); h = c.headline || {}; cmOk = c.cm_ok !== false; over = c.margin_pct != null; }
+  catch { box.innerHTML = '<span class="tiny">The measured numbers did not load. Refresh to try again.</span>'; return; }
+  if (!box.isConnected) return;
+  const margin = cmOk && h.margin > 0 && h.margin < 1 ? h.margin : null;
+  const tAov = told('aov'), tCogs = told('cogs'), tShip = told('ship_cost') || 0;
+  const tKeep = tAov && tCogs != null ? (tAov - tCogs - tShip) / tAov : null;
+  const pct = v => v == null ? null : Math.round(v * 100) + '%';
+  const rows = [
+    { l: 'Average order', k: 'aov', told: tAov, real: h.aov, f: money },
+    { l: 'Kept per order after product, shipping and fees', told: tKeep, real: margin, f: pct, noteFmt: 'pts' },
+    { l: 'Break-even cost per sale', told: tKeep != null ? tAov * tKeep : null, real: margin && h.aov ? h.aov * margin : null, f: money },
+    { l: 'Ad spend a month', k: 'ad_spend', told: told('ad_spend'), real: h.spend > 0 ? h.spend / 3 : null, f: money },
+    { l: 'Cost per sale', k: 'target_cpa', lower: true, told: told('target_cpa'), toldNote: 'what they would be happy with', goal: r.target_cpa > 0 ? +r.target_cpa : null, real: h.cpa, f: money },
+    { l: 'Cost per new customer', lower: true, told: null, goal: r.goal_ncpa > 0 ? +r.goal_ncpa : null, real: h.cac, f: money },
+  ];
+  const gaps = [];
+  const note = x => {
+    if (x.told == null || x.real == null || !x.told) return '';
+    const off = x.real / x.told - 1;
+    if (Math.abs(off) < 0.2) return '<span class="bs-ok">Matches</span>';
+    const msg = x.noteFmt === 'pts' ? `Really ${pct(x.real)}, not ${pct(x.told)}` : `Really ${Math.round(Math.abs(off) * 100)}% ${off > 0 ? 'higher' : 'lower'}`;
+    gaps.push(`${x.l}: they said ${x.f(x.told)}, Locus measures ${x.f(x.real)}`);
+    return `<span class="bs-warn">${msg}</span>`;
+  };
+  const hasTold = rows.some(x => x.told != null || (x.k && a[x.k] === '__unsure'));
+  const cell = (v, f, k) => v == null ? `<span class="bs-dim">${k && a[k] === '__unsure' ? 'not sure' : '-'}</span>` : f(v);
+  /* A cost against our goal: green at or under it, red over it. */
+  const tone = x => x.lower && x.goal != null && x.real != null ? (x.real <= x.goal ? 'bs-ok' : 'bs-bad') : '';
+  box.innerHTML = `<div class="bs-tw"><table class="bs-t bs-nt"><tr><th></th>${hasTold ? '<th>They told us</th>' : ''}<th>Our goal</th><th>Locus measures</th><th></th></tr>
+    ${rows.map(x => `<tr><td>${x.l}</td>${hasTold ? `<td data-h="They told us">${cell(x.told, x.f, x.k)}${x.toldNote && x.told != null ? `<small>${x.toldNote}</small>` : ''}</td>` : ''}<td data-h="Our goal">${x.goal != null ? x.f(x.goal) : x.l.startsWith('Cost per') ? '<span class="bs-dim">not set</span>' : ''}</td><td data-h="Measured"><b class="${tone(x)}">${cell(x.real, x.f)}</b></td><td>${note(x) || (tone(x) === 'bs-bad' ? '<span class="bs-warn">Over the goal</span>' : tone(x) ? '<span class="bs-ok">Under the goal</span>' : '')}</td></tr>`).join('')}
+  </table></div>
+  <p class="bs-dim" style="margin:8px 0 0">${margin ? `Measured: Triple Whale, last 90 days, ${(h.orders || 0).toLocaleString()} paid orders${over ? ', kept per order from the margin override in Brand settings' : ''}${d.onboard ? '' : '. No onboarding answers yet, so nothing to compare'}.` : 'Kept per order and break-even need the costs, and the cost check says they are not right yet (Brand settings, Data and costs).'} Measured cost per sale is all ad spend over all paid orders; ad calls judge each ad on its own. Ad spend a month = the last 90 days divided by three.</p>`;
+  const ask = root.querySelector('#bsAskNums');
+  if (ask && gaps.length) {
+    ask.innerHTML = fact('Numbers that do not match', `<ul class="bs-ul">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`);
+    const only = root.querySelector('#bsAskOnly'); if (only) only.hidden = false;
+  }
+}
+
+function wireFiles(root) {
+  root.querySelectorAll('[data-file]').forEach(x => x.onclick = async e => {
+    e.preventDefault();
+    const res = await fetch(`${S.url.replace(/\/+$/, '')}/api/brand/file?act=${encodeURIComponent(S.act)}&key=${encodeURIComponent(x.dataset.file)}`, { headers: { Authorization: 'Bearer ' + S.tok } });
+    if (!res.ok) return helpModal('Could not open the file', '<p>It may have been removed.</p>');
+    const blob = await res.blob(); const u = URL.createObjectURL(blob);
+    const a2 = document.createElement('a'); a2.href = u; a2.download = x.textContent; a2.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+  });
+}
+
 function paintClient(body) {
-  const d = S.d, o = d.onboard;
+  const d = S.d;
   const iv = d.docs['']?.voice_interview || {}, turns = iv.turns || [];
-  const answered = o && Object.keys(o.answers || {}).some(k => o.answers[k] != null && o.answers[k] !== '');
-  body.innerHTML = `${answered ? '<div id="csSheet"></div>' : ''}<div id="biOnboard" class="br"></div>
+  body.innerHTML = `<div id="csSheet">${brandSheet(d)}</div><div id="biOnboard" class="br"></div>
     ${turns.length ? vcard({ title: 'What they said in the voice interview', find: 'Their own words, verbatim. The guide on the Voice view is written from this.', cap: `<b>${turns.length}</b> answers${iv.stage === 'done' ? ', finished' : ', in progress'}`,
       body: `<details><summary class="v2link" style="cursor:pointer">Read the transcript</summary><div class="br-voicetx">${turns.map(t => `<p><b>${esc(t.q)}</b><br>${esc(t.a || 'Skipped')}</p>`).join('')}</div></details>` }) : ''}`;
-  if (answered) { body.querySelector('#csSheet').innerHTML = callSheet(d); body.querySelector('#csPrint').onclick = () => window.print(); }
+  const sh = body.querySelector('#csSheet');
+  sh.querySelector('#csPrint').onclick = () => window.print();
+  sh.querySelector('#bsEdit').onclick = () => editProfile();
+  sh.querySelector('#bsGoals').onclick = () => window.openGoals && window.openGoals(S.act);
+  wireFiles(sh);
+  fillNumbers(sh, d);
   paintOnboarding(body.querySelector('#biOnboard'));
 }
 
@@ -2128,7 +2346,13 @@ function glanceStrip(body) {
     ${item('Never', esc(short(p.donts || a.dos_donts || '', 120)))}
     ${p.notes ? item('Notes', esc(short(p.notes, 120))) : ''}
   </div>` });
-  body.querySelector('#brEditProf').onclick = () => modal('At a glance', `<div class="br-form">
+  body.querySelector('#brEditProf').onclick = () => editProfile();
+  const rl = body.querySelector('#brRules'); if (rl) rl.onclick = () => window.openGoals && window.openGoals(S.act);
+}
+/* The team's own facts (profile doc). Opened from At a glance and from the brand sheet's Edit our notes. */
+function editProfile() {
+  const d = S.d, p = d.docs['']?.profile || {}, a = d.onboard?.answers || {};
+  return modal('Our notes on the brand', `<div class="br-form">
       ${inp('pW', 'Website', p.website || a.website, { type: 'url', full: true })}
       ${inp('pDr', 'Google Drive client folder', p.drive, { type: 'url', full: true, hint: 'the onboarding link shows it to the client' })}
       ${inp('pO', 'Current offer', p.current_offer, { rows: 2, full: true })}
@@ -2139,7 +2363,6 @@ function glanceStrip(body) {
     await putDoc('', 'profile', { ...p, website: val(w, 'pW'), drive: val(w, 'pDr'), current_offer: val(w, 'pO'), free_ship: val(w, 'pF'), dos: val(w, 'pDo'), donts: val(w, 'pDn'), notes: val(w, 'pN') });
     ctl.close(); repaint();
   }) });
-  const rl = body.querySelector('#brRules'); if (rl) rl.onclick = () => window.openGoals && window.openGoals(S.act);
 }
 
 /* How the brand talks, in short. First thing on Voice and brand info. */
