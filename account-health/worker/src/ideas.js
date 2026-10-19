@@ -552,7 +552,7 @@ Use "" or [] when something is absent. Never guess words you cannot hear or read
    generateContent sends nothing until the whole breakdown of a 55 second video is written.
    streamGenerateContent sends chunks as it goes, so the connection never sits idle. One retry
    on a gateway or overload error. */
-async function geminiFacts(env, part, meter) {
+async function geminiFacts(env, part, meter, again = true) {
   const body = JSON.stringify({ contents: [{ role: 'user', parts: [part, { text: FACTS_PROMPT }] }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 8192 } });
   let r, raw = '';
@@ -576,7 +576,12 @@ async function geminiFacts(env, part, meter) {
   const text = chunks.map(c => (c.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('')).join('');
   let facts = safeJson(text, null);
   if (!facts) { const a = text.indexOf('{'), z = text.lastIndexOf('}'); facts = a >= 0 ? safeJson(text.slice(a, z + 1), null) : null; }
-  if (!facts) throw new Error('the video reader answered in a shape I could not read');
+  if (!facts) {
+    console.log(`geminiFacts unreadable (${chunks.length} chunks, finish ${chunks[chunks.length - 1]?.candidates?.[0]?.finishReason || '?'}): ${clip(text || raw, 1500)}`);
+    /* Now and then the reader's JSON comes back broken (Lucky, 2026-10-18); one more read usually fixes it. */
+    if (again) return geminiFacts(env, part, meter, false);
+    throw new Error('the video reader answered in a shape I could not read');
+  }
   return { facts, g_in: gi, g_out: go };
 }
 
@@ -1331,6 +1336,39 @@ async function runCompare(env, c) {
 /* ---------------- the buttons ---------------- */
 export const approversOf = env => String(env.IDEA_APPROVERS || DEFAULT_APPROVERS).split(/[\s,]+/).filter(Boolean);
 const GATED = new Set(['idea_link', 'idea_lucky', 'idea_asana', 'idea_studio', 'idea_undo_link', 'idea_undo_lucky', 'idea_discard']);
+
+/**
+ * Admin key only (worker.js /api/ideas/admin): what the tag and the buttons do, for a thread whose run
+ * failed (2026-10-18: every draft died on "grammar too large"). op 'draft' = a fresh draft (text = the tag's
+ * words), 'lucky' = the Lucky creator app button, as `who`. Returns the row after.
+ */
+export async function adminIdea(env, { id, op, text, who }) {
+  await ensureIdeaTables(env);
+  const row = await getRow(env, String(id || ''));
+  if (!row) return { error: 'No such idea thread.' };
+  if (op === 'draft') {
+    const job = { kind: 'draft', channel: row.channel, root: row.thread_ts, ts: row.thread_ts, user: null, text: clip(text || 'idea', 2000), bot: null };
+    return { ok: true, result: await runIdeaJob(env, job), row: await getRow(env, row.id) };
+  }
+  if (op === 'watch') {
+    const v = classifyLink(String(text || ''));
+    if (!v) return { error: 'text must be a video link.' };
+    const meter = { g_in: 0, g_out: 0, downloads: 0, videos_new: 0, videos_cached: 0 };
+    return { ok: true, result: await videoFacts(env, { ...v, label: 'V1' }, meter, row.act_id), meter };
+  }
+  if (op !== 'lucky') return { error: 'op is draft, watch or lucky.' };
+  const acct = (await acctsOf(env)).find(x => x.act_id === row.act_id);
+  const d = safeJson(row.draft_json, null);
+  if (!acct || !d) return { error: 'No draft on this thread yet.' };
+  const pushed = safeJson(row.pushed_json, {}) || {};
+  if (pushed.lucky_creators) return { error: 'Already on the Lucky creator app.', pushed: pushed.lucky_creators };
+  const reply = await pushLucky(env, row, acct, d, pushed, who || 'Cole');
+  if (reply?.ok !== false) await env.DB.prepare(`UPDATE idea_thread SET pushed_json = ?2, status = 'pushed', updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed)).run();
+  const fresh = await getRow(env, row.id);
+  if (fresh.reply_ts) { const card = ideaCard(fresh, acct, await hubOf(env, acct.act_id)); await slack(env, 'chat.update', { channel: row.channel, ts: fresh.reply_ts, text: card.text, blocks: card.blocks }); }
+  if (reply?.text) await say(env, row.channel, row.thread_ts, reply.text, reply.blocks);
+  return { ok: reply?.ok !== false, reply: reply?.text || null, pushed: pushed.lucky_creators || null };
+}
 
 export async function handleIdeaAction(env, ctx, p) {
   const a = (p.actions || []).find(x => /^idea_/.test(x.action_id || '')) || {};

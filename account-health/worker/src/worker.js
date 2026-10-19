@@ -56,7 +56,7 @@ import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, testMinimumsDue, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll, readDoc as brandReadDoc } from './asana-brand.js';
-import { ideaStart, runIdeaJob, handleIdeaAction, useFetch as ideasFetch } from './ideas.js';
+import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
@@ -7918,6 +7918,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         /* channel + user: run it as though asked in that Slack conversation (make_canvas). */
         const sctx = body.channel ? { surface: 'slack', channel: body.channel, ev: { user: body.user || null } } : { surface: 'web' };
         return json(await tool.run(env, body.input || {}, { ...sctx, screen: body.act ? { act_id: body.act } : null }));
+      }
+      /* Re-run or push an ideas thread (ideas.js adminIdea): the admin key only. */
+      if (path === '/api/ask/idea' && request.method === 'POST') {
+        if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== 'Bearer ' + env.ADMIN_TOKEN) return json({ error: 'Admin key only.' }, 403);
+        return json(await adminIdea(env, body || {}));
       }
       if (path === '/api/ask/usage') return json(await usageSummary(env, Math.min(90, Number(url.searchParams.get('days')) || 30)));
       /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */
