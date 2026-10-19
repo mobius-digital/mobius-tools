@@ -112,10 +112,12 @@
     el.innerHTML = `<div class="soc" style="display:grid;gap:10px">
       <p class="v2hint" style="max-width:68ch">Social watches the brands and topics this brand follows on Instagram, TikTok and YouTube, flags the posts doing far better than usual, and turns any of them into our own version (creator link, a brief or Studio). Posting comes next.</p>
       <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="socOn" ${on ? 'checked' : ''}> Show Social for this brand</label>
-      <p class="v2hint" id="socOnMsg"></p></div>`;
+      <p class="v2hint" id="socOnMsg"></p><div id="socConnect"></div></div>`;
+    const connect = () => { const c = el.querySelector('#socConnect'); if (!c) return; if (ST.on.includes(act) && window.SocialWeek) window.SocialWeek.connect(c, act, H); else c.innerHTML = ''; };
+    connect();
     el.querySelector('#socOn').onchange = async e => {
       const msg = el.querySelector('#socOnMsg');
-      try { await H.apiAH('/api/social/brand', { method: 'PUT', body: JSON.stringify({ act, on: e.target.checked }) }); await loadBrands(true); rail(act); msg.textContent = e.target.checked ? 'On. Social is in the rail now.' : 'Off. Follows and saved posts are kept.'; }
+      try { await H.apiAH('/api/social/brand', { method: 'PUT', body: JSON.stringify({ act, on: e.target.checked }) }); await loadBrands(true); rail(act); msg.textContent = e.target.checked ? 'On. Social is in the rail now.' : 'Off. Follows and saved posts are kept.'; connect(); }
       catch (err) { e.target.checked = !e.target.checked; msg.textContent = err.message; }
     };
   }

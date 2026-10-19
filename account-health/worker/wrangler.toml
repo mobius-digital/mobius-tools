@@ -11,8 +11,10 @@ compatibility_date = "2026-07-01"
 # in Profit -> Settings). Cron expressions are fixed at deploy time and always UTC, so
 # an hourly gate is the only way to make the time editable and keep it at the same
 # wall-clock hour across daylight saving. Still two triggers, not three.
+# Every 5 minutes (2026-10-19): Locus Social posts whose time has come go out (socialpost.js socialPostTick);
+# nothing else runs on that tick.
 [triggers]
-crons = ["30 3 * * *", "0 * * * *"]
+crons = ["30 3 * * *", "0 * * * *", "*/5 * * * *"]
 
 # D1 database. Create once with:
 #   npx wrangler d1 create mobius-account-health

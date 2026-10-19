@@ -295,3 +295,20 @@ CREATE TABLE IF NOT EXISTS social_post (id TEXT PRIMARY KEY, act_id TEXT NOT NUL
   idea_id TEXT, video TEXT, first_seen TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE INDEX IF NOT EXISTS social_post_act ON social_post (act_id, posted_at);
 CREATE INDEX IF NOT EXISTS social_post_follow ON social_post (follow_id);
+
+-- Locus Social, phase 2: the Week and posting direct (2026-10-19, src/socialpost.js; also created on first use by ensureSocialPost)
+CREATE TABLE IF NOT EXISTS social_account (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, plat TEXT NOT NULL, ext_id TEXT, name TEXT, handle TEXT, pic TEXT,
+  token_json TEXT, scopes TEXT, mode TEXT NOT NULL DEFAULT 'draft', status TEXT NOT NULL DEFAULT 'ok', error TEXT, connected_by TEXT,
+  connected_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS social_account_act ON social_account (act_id);
+CREATE TABLE IF NOT EXISTS social_post_out (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
+  caption TEXT NOT NULL DEFAULT '', media_json TEXT NOT NULL DEFAULT '[]', targets_json TEXT NOT NULL DEFAULT '{}', results_json TEXT NOT NULL DEFAULT '{}',
+  auto INTEGER NOT NULL DEFAULT 1, created_by TEXT, posting_at TEXT, posted_at TEXT, pulled_at TEXT, error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS social_post_out_act ON social_post_out (act_id, at);
+CREATE INDEX IF NOT EXISTS social_post_out_due ON social_post_out (status, at);
+CREATE TABLE IF NOT EXISTS social_caption (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, text TEXT NOT NULL, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE IF NOT EXISTS social_media (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL, type TEXT, name TEXT, bytes INTEGER,
+  who TEXT, source TEXT NOT NULL DEFAULT 'upload', url TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS social_media_act ON social_media (act_id);
+CREATE TABLE IF NOT EXISTS social_oauth_state (state TEXT PRIMARY KEY, act_id TEXT NOT NULL, plat TEXT NOT NULL, email TEXT, at TEXT NOT NULL DEFAULT (datetime('now')));

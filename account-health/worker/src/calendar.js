@@ -32,6 +32,7 @@ import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
 import { clientScope } from './brandguard.js';
 import { teamPost, cardOn } from './morningcard.js';
+import { calendarPosts } from './socialpost.js';
 
 let F = (...a) => fetch(...a);
 /** The worker hands in its counted fetch (xfetch), like every other module. */
@@ -209,10 +210,12 @@ export async function calendarData(env, { act = 'all', from, to, today, lite = f
   from = from || add(today, -21); to = to || add(today, 120);
   const brands = await brandsList(env, act);
   const ids = brands.map(b => b.act_id);
-  const [typed, season, drops, team] = await Promise.all([typedEvents(env, ids, from, to), seasonEvents(env, ids, from, to), dropEvents(env, brands, from, to), teamOf(env, ids)]);
+  const [typed, season, drops, team, social] = await Promise.all([typedEvents(env, ids, from, to), seasonEvents(env, ids, from, to), dropEvents(env, brands, from, to), teamOf(env, ids),
+    /* Locus Social posts (socialpost.js, 2026-10-19): a layer on the calendar, never an event with a countdown. */
+    calendarPosts(env, ids, from, to).catch(() => [])]);
   const items = [...typed, ...season, ...drops];
   /* lite: the dates only (chart bands), no Klaviyo, Meta or Asana reads and no countdown. */
-  if (lite) { items.sort((a, b) => a.start.localeCompare(b.start)); return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name })), items: items.map(e => ({ ...e, steps: [], kind_label: KIND_LABEL[e.kind] })), emails: [] }; }
+  if (lite) { items.sort((a, b) => a.start.localeCompare(b.start)); return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name })), items: items.map(e => ({ ...e, steps: [], kind_label: KIND_LABEL[e.kind] })), emails: [], social }; }
   const emails = [];
   const sig = {};
   await Promise.all(brands.map(async b => {
@@ -226,7 +229,7 @@ export async function calendarData(env, { act = 'all', from, to, today, lite = f
   /* The countdown is for what is still coming: once a date has gone live it has none (it happened). */
   for (const e of items) { e.steps = e.start <= today ? [] : stepsFor(e, team, today, sig[e.act] || {}); e.kind_label = KIND_LABEL[e.kind]; }
   items.sort((a, b) => a.start.localeCompare(b.start));
-  return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name, channel: b.slack_channel || null, client_channel: b.brief_channel || null, team: team[b.act_id] })), items, emails };
+  return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name, channel: b.slack_channel || null, client_channel: b.brief_channel || null, team: team[b.act_id] })), items, emails, social };
 }
 
 /* ---------- writes ---------- */
