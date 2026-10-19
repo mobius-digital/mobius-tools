@@ -12,7 +12,9 @@ import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
-import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam } from './calendar.js';
+import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
+/* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
+import { dailyPost, weeklyPost, headlineOf, sentenceOf, internalChannel } from './clientpost.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls } from './callscreen.js';
@@ -3150,8 +3152,9 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
      built from the same bad numbers. Two D1 reads; a send is a rare click.
      `ignoreHealth` exists for the one case where a human has looked at the
      numbers and decided they are right anyway. */
+  let hd = null;
   if (!ignoreHealth) {
-    const hd = await briefData(env, acct, date).catch(() => null);
+    hd = await briefData(env, acct, date).catch(() => null);
     const hh = hd && briefHealth(hd, await coverageDates(env, acct, date, hd).catch(() => [date]));
     if (hh?.verdict === 'broken') {
       return { name: acct.name, blocked: true, date,
@@ -3174,24 +3177,32 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   // internal-only brand would destroy a handled brief the team had just read.
   const channel = acct.brief_channel;
   if (!channel) return { name: acct.name, error: 'no client channel set for this brand - it is handled internally; pick one in Settings if it should be sent', draft_intact: true };
-  /* THE CLIENT DAILY IS ONE SHORT POST, THE BRIEF IS ITS THREAD (Cole, 2026-10-17; first built 2026-10-12 as a
-     Locus link for brands with a client login). The client channel gets the opener, the headline and the day's
-     Net Sales / Ad Spend / MER against plan; the rest of the brief goes as ONE reply under it, so a client
-     channel holds one short message a day and the detail is one tap away, login or not. A brand with a Locus
-     client login also gets "Open the full brief in Locus". settings.briefClientStyle = 'full' posts the whole
-     brief top-level as before. The stored row keeps the full text either way. */
-  const style = (await getSetting(env, 'briefClientStyle').catch(() => null)) || 'short';
-  const short = style !== 'full';
-  const out = short ? shortBriefText(text, { locus: await brandHasClientLogin(env, acct.act_id) }) : text;
+  /* THE CLIENT DAILY IS SIX LINES, THE BRIEF IS ITS THREAD (the reporting audit, 2026-10-19; one short post since
+     2026-10-17). The client channel gets dailyPost (clientpost.js): the day, Sales / Ads / MER with one verdict word,
+     the brief's headline, the month in one line, and Next only when a person wrote one. The whole brief goes as ONE
+     reply under it, so the detail is a tap away. ONE DAY PER POST: a brief that covers missed days (coverageDates)
+     still posts one six-line message per day, oldest first, and a day more than two days old is not posted at all.
+     The stored row keeps the full text either way. */
+  const full = r?.data || hd || await briefData(env, acct, date).catch(() => null);
+  const dates = full ? await coverageDates(env, acct, date, full).catch(() => [date]) : [date];
+  const missed = dates.filter(d => d < date && d >= addDays(date, -2));
+  const out = await clientDailyFor(env, acct, date, text, full);
   try {
-    // Goes to the client, so it comes from Cole - not a bot wearing a name.
+    for (const d of missed) {
+      const prow = await env.DB.prepare(`SELECT text, status FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, d).first().catch(() => null);
+      if (prow && ['sent', 'skipped', 'handled'].includes(prow.status)) continue;
+      const mp = await clientDailyFor(env, acct, d, prow?.text || null, full, { next: false });
+      // Goes to the client, so it comes from Cole - not a bot wearing a name.
+      await slackPost(env, channel, mp, null, { asUser: true });
+      await upsertBrief(env, acct.act_id, d, 'sent', channel, prow?.text || mp, full);
+    }
     const top = await slackPost(env, channel, out, null, { asUser: true });
-    const rest = short ? briefThreadText(text) : '';
+    const rest = briefThreadText(text);
     /* The reply failing must not unsend the headline the client already has: the send is recorded either way,
        and the internal channel hears about the missing thread. */
     if (rest && top?.ts) {
       await slackPost(env, channel, rest, null, { asUser: true, thread_ts: top.ts }).catch(e =>
-        acct.slack_channel && slackPost(env, acct.slack_channel,
+        internalChannel(acct) && slackPost(env, acct.slack_channel,
           `:warning: *${acct.name}*: the client daily went out but its full brief did not post in the thread (${e.message}).`).catch(() => {}));
     }
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
@@ -3222,34 +3233,59 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   }
 }
 
-/** Does anyone sign in to Locus for this brand? settings.clientUsers = {email: {brands: [...]}} (clients.js). */
-async function brandHasClientLogin(env, act_id) {
-  const users = safeJson(await getSetting(env, 'clientUsers').catch(() => null), {}) || {};
-  return Object.values(users).some(u => Array.isArray(u?.brands) && u.brands.includes(act_id));
-}
-
-/** The short client daily: the opener, the headline and the Today line (everything before the first blank
- *  line), then the first day's date and its Net Sales / Ad Spend / MER lines (each already "vs plan"), then
- *  where the rest is. Works on the stored text, so a headline Cole edited is the headline the client reads. */
-function shortBriefText(text, { locus = false } = {}) {
-  const lines = String(text || '').split('\n');
-  const out = [];
-  let i = 0;
-  while (i < lines.length && lines[i].trim() !== '') out.push(lines[i++]);
-  while (i < lines.length && lines[i].trim() === '') i++;
-  const day = [];
-  while (i < lines.length && lines[i].trim() !== '') day.push(lines[i++]);
-  const keep = day.filter((l, k) => k === 0 || /^(Net Sales|Ad Spend|MER:)/i.test(l.replace(/\*/g, '').trim()));
-  if (keep.length > 1) out.push('', ...keep);
-  out.push('', locus ? `_Full update in the thread, or <${DASHBOARD_URL}|open it in Locus>._` : '_Full update in the thread._');
-  return out.join('\n');
-}
-
 /** The thread reply under the short daily: the whole brief minus its opener paragraph, which the short post
  *  already carries. Empty when nothing is left (a brief that is only an opener). */
 function briefThreadText(text) {
   const parts = String(text || '').split(/\n\s*\n/);
   return parts.slice(1).join('\n\n').trim();
+}
+
+/** The six-line client daily for one date (clientpost.js dailyPost) from the brief data and the stored text.
+ *  `next` = the human Next line: for phase 1 the buyer's note box (settings briefNote:<act>, kept 2 days). */
+async function clientDailyFor(env, acct, date, text, data, { next = true } = {}) {
+  const days = (data?.days || []).filter(x => x.a?.sales != null && x.date <= date);
+  const day = days.find(x => x.date === date) || null;
+  const mtd = days.reduce((n, x) => n + (x.a.sales || 0), 0);
+  const nextLine = next ? await briefNoteFor(env, acct.act_id, date).catch(() => null) : null;
+  return dailyPost({
+    brand: acct.name, date, currency: acct.currency, headline: headlineOf(text),
+    day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, plan: day?.f?.sales ?? null },
+    /* "of $30.6K planned" = the plan TO DATE (the forecast days so far), the figure the audit's example reads, not the whole month's goal. */
+    month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null), goal: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null), day_of_month: +date.slice(8, 10) },
+    others: days.filter(x => x.date !== date).map(x => x.a.sales), next: nextLine,
+  });
+}
+
+/** The weekly / monthly client post (clientpost.js weeklyPost) for a report row: the frozen totals against the prior
+ *  period, one sentence, This week = the call's confirmed lines + the calendar's confirmed dates in 14 days, From you =
+ *  the call's asks + the calendar's asks + open Requests, then the archive link. The draft card shows the same text. */
+async function clientReportText(env, acct, row, data) {
+  const period = row.period, start = row.period_start;
+  const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
+  const sentence = sentenceOf(row.summary) || await reportSentence(env, acct, data).catch(() => null);
+  const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ)).catch(() => null) : null;
+  const asks = (await env.DB.prepare(`SELECT title FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
+    .bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  return weeklyPost({
+    brand: acct.name, period, start, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous, sentence,
+    this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
+    from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(a => a.title)],
+    url,
+  });
+}
+
+/** One sentence on the period from the frozen totals, when the summary has no "What it means" to borrow from. */
+async function reportSentence(env, acct, data) {
+  const t = data?.totals || {}, p = data?.previous || {};
+  const f2 = n => n == null ? 'n/a' : String(Math.round(n * 100) / 100);
+  const label = data?.period === 'monthly' ? 'month' : 'week';
+  const out = await claude(env, {
+    system: `Write ONE plain sentence of 20 words or fewer on how a client's ${label} went, for the brand owner, from the numbers given. Say what changed and the most likely reason only if the numbers show it. No greeting, no figures beyond one, no em dashes, no jargon. Return the sentence only.`,
+    user: `Brand ${acct.name}. This ${label}: sales ${f2(t.sales)}, ad spend ${f2(t.spend)}, MER ${f2(t.mer)}, new customer share ${f2(t.new_share)}, profit ${f2(t.cm)}. Prior ${label}: sales ${f2(p.sales)}, ad spend ${f2(p.spend)}, MER ${f2(p.mer)}, profit ${f2(p.cm)}.`,
+    maxTokens: 2000,
+  });
+  const line = String(out || '').split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
+  return line && line.length <= 260 ? line.replace(/[\u2014\u2013]/g, ',') : null;
 }
 
 /** A brief that fails silently is worse than no brief - nobody notices for weeks.
@@ -4965,18 +5001,11 @@ async function sendReport(env, acct, period, start) {
   // unset client channel is an error you can see, not a silent redirect.
   const channel = acct.brief_channel;
   if (!channel) throw new Error('no client channel set for this brand - pick one in Settings');
+  /* The new shape (2026-10-19): the four numbers with one comparison each, one sentence, This week (the Monday call +
+     the calendar), From you, the link. Client-facing, so it posts as the person, not the app. */
+  const text = await clientReportText(env, acct, row, data);
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
-  const label = period === 'weekly' ? 'Weekly' : 'Monthly';
-  const opener = period === 'weekly'
-    ? `Hey Team :wave: Here's your Weekly Report covering ${prettyDate(start)} → ${prettyDate(row.period_end)} →`
-    : `Hey Team :wave: Here's your ${MONTH_OF(monthOf(start))} report →`;
-  // Client-facing, so it posts as the person, not the app.
-  /* "This week" and "What we need from you" come from the confirmed Monday call notes (meetings.js), when the
-     call happened before the send. The archive page shows the same two lists. */
-  const wk = Array.isArray(data.this_week) && data.this_week.length ? `\n\n*This week*\n${data.this_week.map(x => `• ${x}`).join('\n')}` : '';
-  const need = Array.isArray(data.need_from_you) && data.need_from_you.length ? `\n\n*What we need from you*\n${data.need_from_you.map(x => `• ${x}`).join('\n')}` : '';
-  await slackPost(env, channel, `${opener}\n${reportHeadline(data)}${wk}${need}\n\n<${url}|Open the full report>`,
-    null, { asUser: true });
+  await slackPost(env, channel, text, null, { asUser: true });
   await env.DB.prepare(
     `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5
      WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
@@ -5034,9 +5063,10 @@ async function reportsPass(env) {
            week. The outcome is now whatever actually happened. */
         // Internal-only brands post the card and stop: makeReport already
         // stored the report as 'handled', and sendReport would only refuse.
-        const step = (a.review_first || internalOnly(a))
-          ? { posted: await postReportDraft(env, a, r).catch(e => ({ error: e.message })) }
-          : { sent: await sendReport(env, a, j.period, j.start).catch(e => ({ error: e.message })) };
+        /* 2026-10-19: DRAFTS ONLY, whatever review_first says. No report reaches a client before the Monday call unless a
+           person presses Send; a brand with review_first off is sent on the call's confirm (meetings.js) or by
+           reportFallbackPass at 11am Central. */
+        const step = { posted: await postReportDraft(env, a, r).catch(e => ({ error: e.message })) };
         const failure = (step.posted || step.sent)?.error || null;
         results.push({
           name: a.name, period: j.period,
@@ -5051,6 +5081,32 @@ async function reportsPass(env) {
     }
   }
   if (did) await putSetting(env, 'lastReportRun', JSON.stringify({ at: new Date().toISOString(), results })).catch(() => {});
+  return results;
+}
+
+/** 11am Central on a report day: a brand with review_first OFF whose report is still a draft gets it sent as it
+ *  stands (no This week block when the call was not confirmed), so a late call never leaves a client with nothing.
+ *  Brands with review_first on wait for a person's Send, as before. */
+const REPORT_FALLBACK_HOUR = 11;
+async function reportFallbackPass(env) {
+  if (centralHour() < REPORT_FALLBACK_HOUR) return { skipped: `before ${REPORT_FALLBACK_HOUR}am Central` };
+  const today = localDate(BRIEF_TZ);
+  const jobs = [];
+  if (new Date(today + 'T12:00:00Z').getUTCDay() === 1) jobs.push({ period: 'weekly', start: addDays(today, -7) });
+  if (today.slice(8) === '01') jobs.push({ period: 'monthly', start: `${prevMonth(monthOf(today))}-01` });
+  if (!jobs.length) return { skipped: 'not a report day' };
+  const results = [];
+  for (const a of await listAccounts(env, true)) {
+    if (a.review_first || internalOnly(a)) continue;
+    const cfg = safeJson(a.report_config_json, {});
+    for (const j of jobs) {
+      if (cfg[j.period] === false) continue;
+      const row = await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(a.act_id, j.period, j.start).first().catch(() => null);
+      if (row?.status !== 'draft') continue;
+      if (!subCanAfford(30)) { results.push({ name: a.name, period: j.period, deferred: 'budget' }); continue; }
+      results.push({ name: a.name, period: j.period, ...(await sendReport(env, a, j.period, j.start).then(r => ({ sent: r.channel })).catch(e => ({ error: e.message }))) });
+    }
+  }
   return results;
 }
 
@@ -6024,7 +6080,9 @@ async function reportCard(env, acct, row, banner) {
       : `:clipboard: *${label} report drafted - ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
   blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
   if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
-  if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: reportHeadline(data) } });
+  /* 2026-10-19: the card carries the client post exactly as Send will post it (clientReportText), so a person reads what
+     the client reads, This week included once the Monday call is confirmed. */
+  if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: await clientReportText(env, acct, row, data).catch(() => reportHeadline(data)) } });
 
   /* THE SUMMARY DELIBERATELY DOES NOT GO IN THE MESSAGE, and this is the one
      place the report and the Daily Brief differ on purpose.
@@ -6044,7 +6102,7 @@ async function reportCard(env, acct, row, banner) {
      the actual point of the change. */
   const notes = [handled
     ? `<${locusUrl}|Open the full report in Locus>. Nothing is sent for this brand - it is handled the moment it is written.`
-    : `<${locusUrl}|Open the full report in Locus>  ·  <${clientUrl}|What the client sees>. The client receives this headline and that link - never the summary text.`];
+    : `<${locusUrl}|Open the full report in Locus>  ·  <${clientUrl}|What the client sees>. The client receives the text above, nothing else.`];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
   if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: \u201c${String(row.steer).slice(0, 160)}\u201d`);
   if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
@@ -6647,7 +6705,7 @@ async function deliveryPass(env) {
     const yesterday = addDays(today, -1);
     const st = state[a.act_id] || (state[a.act_id] = {});
     const queue = line => {
-      const ch = a.slack_channel || def;
+      const ch = internalChannel(a) || def;   // never a brand's client channel (one-channel brands, 2026-10-19)
       if (!ch || !line) return;
       if (!byChannel.has(ch)) byChannel.set(ch, []);
       byChannel.get(ch).push(line);
@@ -6955,9 +7013,11 @@ function meetingDeps() {
   return {
     xfetch, slackPost, slackApi, centralDate, isAdmin, sessionEmail, clientScope, asana, asanaAll,
     canAfford: n => subCanAfford(n),
-    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
+    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null, review_first: !!a.review_first })),
     createAsk: (env, act, title, text, who) => createAsk(env, { slackPost }, act, title, text, who),
     slackSyncReport: async (env, act, start) => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, 'weekly', start); },
+    /* The weekly goes to the client when the Monday call is confirmed, for brands that do not review first (2026-10-19). */
+    sendReport: async (env, act, start) => { const a = await acctOf(env, act); if (!a) throw new Error('no such brand'); return sendReport(env, a, 'weekly', start); },
   };
 }
 /* actions.js: the team's action items; reminders under the brand's morning card (or its internal channel), a DM when it has none. */
@@ -7426,6 +7486,9 @@ const AH_APP = {
           // button is still the only path to a client channel.
           if (hour >= bh + REPORT_HOUR_OFFSET) {
             ran.reports = await reportsPass(env).catch(e => ({ error: e.message }));
+            /* The 11am fallback for brands that do not review first (2026-10-19). */
+            const fb = await reportFallbackPass(env).catch(e => ({ error: e.message }));
+            if (!fb?.skipped) ran.reportFallback = fb;
           }
           /* The morning card: one post per brand in its internal channel, after its brief (and Monday's weekly)
              so it can say "client daily sent 5:12" (morningcard.js, 2026-10-13). */
@@ -7830,21 +7893,47 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting } });
       if (r) return r;
     }
+    /* ---- The client posts, previewed (2026-10-19): the six-line daily from the brand's latest brief and the weekly in
+       its new shape from the latest weekly report, as text; ?post=1 posts ONE preview message to the Strategist channel
+       (settings.strategistChannel), never to a client. Admin only. */
+    if (path === '/api/client-post/preview' && request.method === 'GET') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      if (clientScope(request)) return json({ error: 'forbidden' }, 403);
+      const acct = await acctOf(env, url.searchParams.get('act') || '');
+      if (!acct) return json({ error: 'unknown account' }, 404);
+      const out = { brand: acct.name };
+      const brow = await env.DB.prepare(`SELECT date, text FROM briefs WHERE act_id = ?1 AND text IS NOT NULL ORDER BY (status = 'sent') DESC, date DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
+      if (brow) { const data = await briefData(env, acct, brow.date).catch(() => null); out.daily = { date: brow.date, text: await clientDailyFor(env, acct, brow.date, brow.text, data) }; }
+      const rrow = await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
+      if (rrow) out.weekly = { start: rrow.period_start, status: rrow.status, text: await clientReportText(env, acct, rrow, safeJson(rrow.data_json, null)) };
+      if (url.searchParams.get('post') === '1') {
+        const ch = await getSetting(env, 'strategistChannel');
+        if (!ch) return json({ ...out, error: 'no strategistChannel set' }, 400);
+        const parts = [`*Preview: the new client posts for ${acct.name}* (the audit's phase 1; what the client channel gets, as Cole)`];
+        if (out.daily) parts.push('', `_The daily (${prettyDate(out.daily.date)}), six lines, the full brief in its thread:_`, out.daily.text);
+        if (out.weekly) parts.push('', `_The weekly (week of ${prettyDate(out.weekly.start)}), sent on the Monday call's confirm:_`, out.weekly.text);
+        const p = await slackPost(env, ch, parts.join('\n'), null, { username: 'Locus' });
+        out.posted = { channel: p?.channel || ch, ts: p?.ts || null };
+      }
+      return json(out);
+    }
     /* ---- Export > Send to Slack (Locus share.js, 2026-10-09) ----
        A picture of one Locus card into the brand's OWN internal (slack_channel) or client (brief_channel) channel.
        The channel is looked up here from the brand; the browser never names one. Admin, and a person limited to
        some brands can only post for those. GET = which channels exist (names from Slack); POST = send. */
     if (path === '/api/share/slack') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      /* 2026-10-19 (the reporting audit): nothing but the one daily post from Cole reaches a client channel. */
+      if (request.method === 'POST' && body.to === 'client') return json({ error: 'Client channels only get the daily update from Cole. Send this to the internal channel, or paste the picture yourself.' }, 400);
       const email = await sessionEmail(env, request).catch(() => null);
       const only = await brandsFor(env, email).catch(() => null);
-      const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
       const act = String((request.method === 'POST' ? body.act : url.searchParams.get('act')) || '');
       if (!/^[\w-]{3,80}$/.test(act)) return json({ error: 'Pick a brand first.' }, 400);
       if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const a = await env.DB.prepare(`SELECT act_id, name, slack_channel, brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
       if (!a) return json({ error: 'No such brand.' }, 404);
-      const chans = { internal: a.slack_channel || null, client: a.brief_channel && a.brief_channel !== a.slack_channel ? a.brief_channel : null };
+      const chans = { internal: a.slack_channel || null, client: null };
       if (request.method === 'GET') {
         const out = { brand: a.name };
         for (const k of ['internal', 'client']) {

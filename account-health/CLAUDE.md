@@ -2449,3 +2449,36 @@ Screens in profit/CLAUDE.md, same date.
   product from the ads app) and YouTube upload (Google verification) both need a screen recording of the working
   posting screen, so they are filed once phase 2's screen exists; until approved TikTok posts land as drafts / private,
   YouTube uploads as private.
+
+## 2026-10-19: CLIENT CHANNELS, ONE SENDER, ONE POST A DAY (`src/clientpost.js`). The reporting audit, phase 1. Read before posting anything to a client.
+
+Audit and the approved shapes: `docs/locus-reporting-audit.html` (https://claude.ai/artifact/NnXTs45GGJpURc7zmKtSEB). Cole: client posts were stacked and
+text heavy, from three senders (his token, a bot renamed Mobius Digital, the Locus bot), the weekly went out at 6am with an empty "This week" because the
+Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
+- **Only Cole's user token posts to a client channel (`brief_channel`), and only two shapes.** `clientpost.js` draws both from stored numbers:
+  `dailyPost` = `*Brand · Saturday, Oct 17*` / `Sales $719 · Ads $489 · 1.47x   under plan` (one verdict word: on plan, under plan, best day this month;
+  no bracketed percentages) / the brief's headline (`headlineOf`, the bold line in the opener paragraph) / `October: $19.6K of $30.6K planned, 17 days in.` /
+  `*Next:* ...` ONLY when a person wrote one (phase 1: the buyer's note box, `briefNote:<act>`, kept 2 days; the model never fills it). No "Hey Team" opener.
+  `sendBrief` posts it (`clientDailyFor`) and the full brief as ONE thread reply (`briefThreadText`). **One day per post**: a brief covering missed days posts
+  one six-line message per missed day first (oldest first, marked sent), and a day more than two days old is not posted at all. `shortBriefText`,
+  `brandHasClientLogin` and the `briefClientStyle` switch are gone from the send path (the Locus setting is dead; its card can go in a later pass).
+- **The weekly and monthly** (`sendReport` -> `clientReportText` -> `weeklyPost`): `*Brand · week of Oct 12*` / four numbers with ONE comparison each vs the
+  prior period (`▲7%` `▼15%` `flat`, MER as `(was 1.46x)`, Profit left out when CM is unknown) / one sentence (`sentenceOf` = the first sentence of the
+  summary's What it means, else `reportSentence`, one small model call) / `*This week*` = `reports.data_json.this_week` (the Monday call's confirm) merged
+  with the calendar's confirmed dates in the next 14 days (calendar.js `clientCalendarFor`, the same `clientBits` the preview route reads) / `*From you:*` =
+  `need_from_you` + the calendar's asks + open `p_request` asks / `<link|Open the report>`. Nothing else. The draft card (`reportCard`) shows this exact text.
+- **When the weekly sends:** on the Monday call's confirm (meetings.js `confirm`, step 2: `d.sendReport` for a brand with `review_first` OFF; a review-first
+  brand gets its card redrawn so Send carries the new text, and a person presses it), else `reportFallbackPass` at 11am Central sends a review-first-OFF
+  brand's draft as it stands (no This week block). `reportsPass` at 6am DRAFTS ONLY now, whatever `review_first` says: the old auto-send is gone, so the
+  code matches "nothing reaches a client automatically". Every brand has review_first on today, so in practice a person presses Send after the call.
+- **Bot posts into client channels, removed:** calendar.js `calendarClient` branch deleted (the Monday "This week and next" and "we need from you" ride in
+  the weekly's This week / From you); `POST /api/share/slack` refuses `to: 'client'` and GET answers `client: null`; the connect-link "Copy message" was
+  already copy-only (profit index.html; nothing posts it). **"Grunk Dolfer Inventory Alerts" is NOT this codebase**: Supply / the Restock engine only know
+  Lucky (`STORES`, D1 `brands`, KV `settings.stores`), and no file here says "Don't Advertise". It is a separate Slack app; its channel is changed in that
+  app, not here.
+- **The one-channel guard everywhere** (`oneChannel` / `internalChannel`: `slack_channel === brief_channel` means the brand has no internal channel):
+  `deliveryPass` (falls to the agency `slackChannel`), actions.js `actionTick` (falls to the owner's DM), minoff.js (skipped), askschedule
+  `allowedChannels` (left out), alerts.js `channelOf` (falls to the Strategist channel), calendar.js `calendarTick` (skipped), asana-brand.js
+  `mondayCalls` (no channel). `meetingDeps().listBrands` now carries `brief_channel` and `review_first`.
+- **Preview** (admin): `GET /api/client-post/preview?act=<brand>[&post=1]` = the daily from the brand's latest brief and the weekly from its latest weekly
+  report, as text; `post=1` posts ONE preview message to `strategistChannel`, never to a client.

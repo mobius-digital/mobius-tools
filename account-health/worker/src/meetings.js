@@ -393,7 +393,14 @@ export async function confirm(env, d, body, who) {
         data.this_week = b.this_week; data.need_from_you = b.need_from_client; data.this_week_from = { meeting: m.id, title: m.title, at: now() };
         await env.DB.prepare(`UPDATE reports SET data_json = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(rep.act_id, rep.period, rep.period_start, JSON.stringify(data)).run();
         r.report = { period_start: rep.period_start, status: rep.status };
-        if (d.slackSyncReport) await d.slackSyncReport(env, act, rep.period_start).catch(() => {});
+        /* 2026-10-19 (the reporting audit): the weekly goes to the client WHEN THE CALL IS CONFIRMED, not at 6am. A brand
+           that does not review first sends now, This week included; a review-first brand gets its draft card redrawn so
+           the Send button carries the new text, and a person presses it. */
+        const brand = brands.find(x => x.act_id === act);
+        if (d.sendReport && rep.status === 'draft' && brand && brand.brief_channel && !brand.review_first) {
+          try { const sent = await d.sendReport(env, act, rep.period_start); r.report.sent = true; r.report.channel = sent?.channel || null; }
+          catch (e) { result.warnings.push(`${r.name}: the weekly report did not send (${e.message}). Send it from Reports.`); if (d.slackSyncReport) await d.slackSyncReport(env, act, rep.period_start).catch(() => {}); }
+        } else if (d.slackSyncReport) await d.slackSyncReport(env, act, rep.period_start).catch(() => {});
       } else result.warnings.push(`${r.name}: no weekly report draft is open, so "This week" was not added to a report. It is in the Slack note.`);
     }
     /* 3. What the client owes -> a Requests item the client ticks off. */

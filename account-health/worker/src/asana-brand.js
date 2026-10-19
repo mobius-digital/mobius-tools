@@ -720,7 +720,9 @@ const centralParts = (d = new Date()) => Object.fromEntries(new Intl.DateTimeFor
   .formatToParts(d).map(p => [p.type, p.value]));
 export async function mondayCalls(env, act, opts = {}) {
   act = await resolveBrandId(env, act);
-  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
+  const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel, brief_channel, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
+  /* 2026-10-19: a brand whose internal channel is its client channel has no channel for the team's calls. */
+  if (acct && acct.slack_channel && acct.slack_channel === acct.brief_channel) acct.slack_channel = null;
   if (!acct) return { error: 'unknown account' };
   const rules = rulesOf(acct, await getDoc(env, act, 'rules'));
   if (!rules.target_cpa) return { error: 'Set a goal cost per sale in Settings → Goals first.' };

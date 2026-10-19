@@ -265,7 +265,8 @@ export async function actionTick(env, d) {
     const [act, owner] = k.split('|');
     const brand = act ? brands.find(b => b.act_id === act) : null;
     /* Where: the brand's internal channel; agency-wide items go to the Strategist channel; neither = the owner's DM. */
-    let channel = act ? (brand?.slack_channel || null) : (strat || null);
+    /* A one-channel brand (its internal channel is the client's) has no internal channel here: the owner's DM instead (2026-10-19). */
+    let channel = act ? (brand?.slack_channel && brand.slack_channel !== brand.brief_channel ? brand.slack_channel : null) : (strat || null);
     if (!channel) {
       const email = items[0].owner_email || emailOf(owner);
       if (email && d.slackApi) { const u = await d.slackApi(env, 'users.lookupByEmail', { email }).catch(() => null); if (u?.ok && u.user?.id && !u.user.is_bot) channel = u.user.id; }
