@@ -11,6 +11,7 @@ import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } fro
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
+import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam } from './calendar.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
@@ -232,6 +233,7 @@ contractFetch(xfetch);
 frameFetch(xfetch);
 klaviyoFetch(xfetch);
 calendarFetch(xfetch);
+socialFetch(xfetch);
 googleFetch(xfetch);
 clarityFetch(xfetch);
 surveyFetch(xfetch);
@@ -7474,6 +7476,8 @@ const AH_APP = {
         ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
+        /* Locus Social: each followed brand and topic pulled once a day, four a tick (social.js). */
+        ran.social = await socialTick(env, n => subCanAfford(n)).catch(e => ({ error: e.message }));
         /* Is Locus itself working: every page's routes, connections and freshness, once a Central morning (smoke.js). */
         ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
@@ -7616,6 +7620,8 @@ const AH_APP = {
     }
     /* Ad covers (creative.js): public by a signed ad id, cached by the browser for a year. */
     if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);
+    /* Locus Social covers and copied videos (social.js): public by an unguessable key. */
+    if (path.startsWith('/social-m/') && request.method === 'GET') return serveSocialMedia(env, path, request, CORS);
     /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
     if (path.startsWith('/assets-img/') && request.method === 'GET') {
       /* A brand id (or an old act_ id in a link made before phase 3); the files stay under the brand's storage_prefix. */
@@ -7719,6 +7725,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
     /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
+    /* ---- Locus Social, phase 1: Watch (social.js, 2026-10-19) ---- */
+    if (path.startsWith('/api/social')) {
+      const r = await handleSocial(request, env, url, path, json, { isAdmin, sessionEmail, waitUntil: p => ctx.waitUntil(p) });
+      if (r) return r;
+    }
     if (path.startsWith('/api/calendar')) {
       const r = await handleCalendar(request, env, url, path, json, isAdmin, sessionEmail);
       if (r) return r;

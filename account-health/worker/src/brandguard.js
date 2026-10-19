@@ -410,6 +410,18 @@ export const CLIENT_RULES = [
   R('POST', '/api/brand/onboard'),
   R('PUT', '/api/brand/onboard'),
 
+  /* ---- SOCIAL (2026-10-19, social.js): the brand's own Watch feed, its follows and saved posts, switched on for its
+     own brand. Make ours and sending a draft on stay the team's (the handler refuses them for a client). ---- */
+  R('GET', '/api/social/brands', 'none'),
+  R('PUT', '/api/social/brand', 'need', { fields: ['on'] }),
+  R('GET', '/api/social'),
+  R('POST', '/api/social/follow', 'need', { fields: ['kind', 'text', 'name', 'ig', 'tt', 'yt'] }),
+  R('PUT', '/api/social/follow', 'none', { own: [{ in: 'body', key: 'id', table: 'social_follow' }] }),
+  R('DELETE', '/api/social/follow', 'none', { own: [{ in: 'query', key: 'id', table: 'social_follow' }] }),
+  R('POST', '/api/social/save', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
+  R('POST', '/api/social/video', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
+  R('GET', '/api/social/idea', 'none', { own: [{ in: 'query', key: 'id', table: 'social_post' }] }),
+
   /* ---- CALENDAR: read, add, edit, move, set the end, note, remove and put back. Never tick the team's work steps
      or make Asana tasks (Mobius's Asana). The handler checks each date's own brand. ---- */
   R('GET', '/api/calendar'),

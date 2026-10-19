@@ -171,6 +171,9 @@ export async function ensureIdeaTables(env) {
     `ALTER TABLE idea_media ADD COLUMN file_key TEXT`, `ALTER TABLE idea_media ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE idea_media ADD COLUMN clip TEXT`])
     await env.DB.prepare(sql).run().catch(() => {});
+  /* Added 2026-10-19 (Locus Social, "Make ours"): a thread started from Locus. The bot posts the root, and the bot's
+     own messages are never read as the thread, so the link and the ask live here as a human message (seed_json). */
+  await env.DB.prepare(`ALTER TABLE idea_thread ADD COLUMN seed_json TEXT`).run().catch(() => {});
   ready = true;
 }
 export function _resetForTests() { ready = false; }
@@ -1157,6 +1160,18 @@ async function userNames(env, ids) {
    with or without a Meta account. */
 const acctsOf = async env => env.DB.prepare(`SELECT act_id, name, slack_channel FROM brand_accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
 
+/* 2026-10-19: every draft failed from 2026-10-18 with "The compiled grammar is too large" (the API now refuses
+   IDEA_SCHEMA as a strict output format). The same call is retried once with the shape written into the prompt instead;
+   jsonOf already pulls the JSON out of plain text. Any other error is thrown as before. */
+async function claudeShaped(env, args, meter) {
+  try { return await claude(env, args, null, meter); }
+  catch (e) {
+    if (!args.schema || !/grammar is too large|too many strict|schema is too (large|complex)/i.test(e.message || '')) throw e;
+    const shape = { type: 'text', text: `Answer with ONE JSON object and nothing else (no prose, no code fence). Its shape, as a JSON schema: ${JSON.stringify(args.schema)}` };
+    return claude(env, { ...args, schema: undefined, user: [...(Array.isArray(args.user) ? args.user : [{ type: 'text', text: String(args.user) }]), shape] }, null, meter);
+  }
+}
+
 export async function runIdeaJob(env, job) {
   await ensureIdeaTables(env);
   const id = `${job.channel}:${job.root}`;
@@ -1177,12 +1192,15 @@ export async function runIdeaJob(env, job) {
   await env.DB.prepare(`INSERT INTO idea_thread (id, act_id, channel, thread_ts, status) VALUES (?1, ?2, ?3, ?4, 'working')
     ON CONFLICT(id) DO UPDATE SET act_id = excluded.act_id, status = 'working', updated_at = datetime('now')`).bind(id, acct.act_id, job.channel, job.root).run();
   await env.DB.prepare(`INSERT INTO idea_run (id, idea_id, act_id, kind) VALUES (?1, ?2, ?3, ?4)`).bind(runId, id, acct.act_id, compare ? 'compare' : job.kind || 'draft').run();
-  const prevStatus = row?.status && row.status !== 'working' ? row.status : null;
+  const prevStatus = row?.status && !['working', 'queued'].includes(row.status) ? row.status : null;
   try {
     const rep = await slack(env, 'conversations.replies', { channel: job.channel, ts: job.root, limit: 200 }, true);
     if (!rep.ok) throw Object.assign(new Error(`I could not read this thread: ${slackWhy(rep.error || 'error')}.`), { plain: true });
     const names = await userNames(env, (rep.messages || []).filter(m => !m.bot_id).map(m => m.user));
-    const t = parseThread(rep.messages, { botUser: job.bot, names });
+    /* A thread Locus started (Social > Make ours): the ask is the seed, read as the first human message. */
+    const seed = job.seed || safeJson(row?.seed_json, null);
+    if (seed?.user) names[seed.user] = seed.name || 'Someone';
+    const t = parseThread([...(seed ? [seed] : []), ...(rep.messages || [])], { botUser: job.bot, names });
     if (!t.msgs.length) throw Object.assign(new Error('There is nothing in this thread for me to read yet.'), { plain: true });
     const notes = [];
     await expandDrive(env, t, notes).catch(e => notes.push(`Google Drive: ${e.message}`));
@@ -1247,9 +1265,9 @@ export async function runIdeaJob(env, job) {
       await done();
       return r;
     }
-    const m = await claude(env, {
+    const m = await claudeShaped(env, {
       system, user, schema: makeKey ? obj({ [makeKey]: IDEA_SCHEMA.properties[makeKey] }) : IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id,
-    }, null, meter);
+    }, meter);
     const u = m.usage || {};
     const d = makeKey ? { ...safeJson(prev, {}), [makeKey]: nd(jsonOf(m))[makeKey] } : nd(jsonOf(m));
     if (d.creator_link) d.creator_link = cleanCreator(d.creator_link);
@@ -1279,6 +1297,8 @@ export async function runIdeaJob(env, job) {
         meter.g_in, meter.g_out, meter.downloads, meter.videos_new, meter.videos_cached, r4(cost), M.id, r4(pickCost), posted.ts || null).run();
     console.log(`idea ${id} ${acct.name}: ${M.id} $${cost.toFixed(4)}, brain ${brain.size || 0} chars${pick?.names ? ` on ${pick.names.join(' + ')}${pick.cached ? ' (cached pick)' : ` (pick $${pickCost.toFixed(4)})`}` : ' (full)'} (claude in ${u.input_tokens || 0}, cache read ${u.cache_read_input_tokens || 0}, write ${u.cache_creation_input_tokens || 0}, out ${u.output_tokens || 0}; gemini ${meter.g_in}/${meter.g_out}; videos new ${meter.videos_new}, cached ${meter.videos_cached})`);
     await done();
+    /* Locus asked to send it somewhere this draft had no version for: the version is written now, so send it. */
+    if (job.then_push && status !== 'questions') await pushIdea(env, id, job.then_push, job.who || null).catch(e => console.log(`then_push ${id}: ${e.message}`));
     return { ok: true, status, cost, videos_new: meter.videos_new, videos_cached: meter.videos_cached };
   } catch (e) {
     const msg = e.plain ? e.message : `That did not work: ${clip(e.message, 300)}. Tag me again to retry.`;
@@ -1298,7 +1318,7 @@ export async function runIdeaJob(env, job) {
 async function runCompare(env, c) {
   const { job, id, acct, t, hub, system, user, notes, meter, pick, pickCost, runId, prevStatus, brainSize } = c;
   const order = Math.random() < 0.5 ? [MODELS.fast, MODELS.deep] : [MODELS.deep, MODELS.fast];
-  const settled = await Promise.allSettled(order.map(M => claude(env, { system, user, schema: IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id }, null, { in: 0, out: 0, searches: 0 })));
+  const settled = await Promise.allSettled(order.map(M => claudeShaped(env, { system, user, schema: IDEA_SCHEMA, effort: M.effort, maxTokens: 16000, model: M.id }, { in: 0, out: 0, searches: 0 })));
   const shared = (meter.g_in * PRICE.g_in + meter.g_out * PRICE.g_out) / 1e6 + meter.downloads * PRICE.download + pickCost;
   let total = shared;
   const versions = [];
@@ -1693,6 +1713,9 @@ async function studioRefs(env, row) {
     const t = parseThread(rep.messages || []);
     await expandDrive(env, t).catch(() => {});
     for (const im of t.images) srcs.push({ label: im.label, url: im.file.thumb || im.file.url, auth: authOf(im.file) });
+    /* A post from Locus Social: its cover is the inspiration image (the link itself is a video page). */
+    const seed = safeJson(row.seed_json, null);
+    if (seed?.image) srcs.push({ label: 'V1', url: seed.image, auth: null });
     for (const v of t.videos.filter(v => v.platform === 'atria')) {
       const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
       const a = safeJson(hit?.facts_json, {})?.atria;
@@ -1748,4 +1771,85 @@ export async function pushStudio(env, row, acct, d, pushed) {
   const prod = product.length ? ` ${product.length} product photo${product.length === 1 ? '' : 's'} from this thread ${product.length === 1 ? 'is' : 'are'} on it as the product.` : '';
   const photos = usePhotos ? ` The lifestyle photos ARE the ads: Studio keeps each one as shot and adds the words.` : '';
   return { text: `Studio batch "${name}" is waiting in Locus Studio for ${acct.name} (${brief.lines.length} ad${brief.lines.length === 1 ? '' : 's'}).${prod}${photos}${inspo} ${product.length ? 'Check the product fingerprint there and make it' : 'Pick the product there and make it'}: ${LOCUS}` };
+}
+
+/* ---------------- Locus Social: "Make ours" (2026-10-19) ----------------
+   A post from Social > Watch becomes an ideas-bot thread in the brand's internal channel: the bot posts the ask as the
+   root (so the team sees it and can reply, Redo or press a destination there), the ask itself is stored as the thread's
+   seed (parseThread never reads the bot's own messages), and the usual job writes the draft card. Locus shows the same
+   draft and sends it on with the same push functions as the Slack buttons. */
+export async function ideaFromLocus(env, { act, url, image, note, who, label }) {
+  await ensureIdeaTables(env);
+  const acct = (await acctsOf(env)).find(a => a.act_id === act);
+  if (!acct) throw new Error('That brand is not active in Locus.');
+  if (!acct.slack_channel) throw new Error(`${acct.name} has no internal Slack channel, so there is nowhere to write the draft.`);
+  const ask = `${note ? `${clip(note, 600)} ` : ''}Make our version of this ${label || 'post'}: ${url}`;
+  const posted = await slack(env, 'chat.postMessage', { channel: acct.slack_channel, text: `*Make ours* (from Locus Social, asked by ${who || 'the team'}): ${clip(note, 600) || 'make our version of this.'}\n${url}`, unfurl_links: true });
+  if (!posted.ok) throw new Error(`I could not post in ${acct.name}'s channel: ${slackWhy(posted.error || 'error')}.`);
+  const seed = { ts: posted.ts, user: 'ULOCUSSOCIAL', name: who || 'the team', text: ask, image: image || null };
+  const id = `${acct.slack_channel}:${posted.ts}`;
+  /* 'queued', never 'working': runIdeaJob skips a thread that is already working. */
+  await env.DB.prepare(`INSERT INTO idea_thread (id, act_id, channel, thread_ts, status, from_name, seed_json) VALUES (?1, ?2, ?3, ?4, 'queued', ?5, ?6)
+    ON CONFLICT(id) DO NOTHING`).bind(id, acct.act_id, acct.slack_channel, posted.ts, who || null, JSON.stringify(seed)).run();
+  const job = { kind: 'draft', channel: acct.slack_channel, root: posted.ts, ts: posted.ts, user: null, text: ask, bot: null, seed };
+  if (env.IDEA_Q) await env.IDEA_Q.send(job); else await runIdeaJob(env, job);
+  return { id, channel: acct.slack_channel, ts: posted.ts };
+}
+/** Run a Locus-made draft again in its own thread (after a failure). The seed is on the row, so the link comes along. */
+export async function ideaRetry(env, id) {
+  await ensureIdeaTables(env);
+  const row = await getRow(env, id);
+  if (!row) throw new Error('That draft is no longer stored.');
+  await env.DB.prepare(`UPDATE idea_thread SET status = 'queued', updated_at = datetime('now') WHERE id = ?1`).bind(id).run();
+  const job = { kind: 'redo', channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user: null, text: '', bot: null };
+  if (env.IDEA_Q) await env.IDEA_Q.send(job); else await runIdeaJob(env, job);
+  return { ok: true };
+}
+/** What Locus shows on the card: status, the take, the script and where it went. */
+export async function ideaState(env, id) {
+  await ensureIdeaTables(env);
+  const row = await getRow(env, id);
+  if (!row) return null;
+  const d = safeJson(row.draft_json, {}) || {};
+  const pushed = safeJson(row.pushed_json, {}) || {};
+  const c = d.creator_link || {}, a = d.asana || {}, st = d.studio || {};
+  const sent = Object.fromEntries(Object.keys(DESTS).filter(k => pushed[k]).map(k => [k, { url: pushed[k].url || null, name: pushed[k].name || pushed[k].title || null }]));
+  return { id: row.id, status: row.status, updated_at: row.updated_at, cost: row.cost || 0,
+    pick: d.destination?.pick || null, why: d.destination?.reason || '', take: d.teardown?.summary || '', hook_why: d.teardown?.hook_why || '',
+    mode: MODE[d.transfer?.mode] || '', questions: (d.questions || []).filter(q => q.q).map(q => q.q),
+    script: { title: c.title || a.title || st.name || '', openers: c.openers || [], shots: c.shots || [], on_screen: c.on_screen || '', format: c.format || '' },
+    asana: a.title ? { title: a.title, kind: a.kind || '', script: a.script || '' } : null,
+    studio: (st.lines || []).length ? { name: st.name || '', lines: st.lines.slice(0, 12) } : null,
+    sent, link: `https://slack.com/app_redirect?channel=${row.channel}&message_ts=${row.thread_ts}` };
+}
+/** Send a Locus-made draft on, the same as its Slack button (and the Slack card is redrawn to match). */
+export async function pushIdea(env, id, dest, who) {
+  await ensureIdeaTables(env);
+  const row = await getRow(env, id);
+  if (!row) throw new Error('That draft is no longer stored.');
+  if (!['creator_link', 'asana_brief', 'studio'].includes(dest)) throw new Error('Pick the creator link, a brief or Studio.');
+  const d = safeJson(row.draft_json, {}) || {};
+  const pushed = safeJson(row.pushed_json, {}) || {};
+  const acct = (await acctsOf(env)).find(x => x.act_id === row.act_id);
+  if (!acct) throw new Error('That brand is no longer active in Locus.');
+  /* Lucky's creator link IS its own creator app (the Slack card does the same swap). */
+  if (dest === 'creator_link' && /lucky/i.test(acct.name) && luckyReady(env)) dest = 'lucky_creators';
+  if (pushed[dest]) return { ok: true, already: true, text: `Already sent to ${DESTS[dest]}.` };
+  /* This draft has no version for that place yet (e.g. a creator skit sent to Studio): write it first, then send. */
+  const k = DRAFT_KEY[dest], part = d[k] || {};
+  const empty = k === 'studio' ? !(part.lines || []).length : k === 'asana' ? !part.title : !(part.title || (part.shots || []).length);
+  if (empty) {
+    const job = { kind: 'make', dest, channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user: null, text: '', bot: null, then_push: dest === 'lucky_creators' ? 'creator_link' : dest, who };
+    await env.DB.prepare(`UPDATE idea_thread SET status = 'queued', updated_at = datetime('now') WHERE id = ?1`).bind(row.id).run();
+    if (env.IDEA_Q) await env.IDEA_Q.send(job); else await runIdeaJob(env, job);
+    return { ok: true, writing: dest, text: `Writing the ${DESTS[dest]} version first. It is sent there the moment it is done (about a minute).` };
+  }
+  const reply = dest === 'creator_link' ? await pushCreator(env, row, acct, d, pushed) : dest === 'lucky_creators' ? await pushLucky(env, row, acct, d, pushed, who || 'Locus')
+    : dest === 'asana_brief' ? await pushAsana(env, row, acct, d, pushed) : await pushStudio(env, row, acct, d, pushed);
+  if (reply?.ok === false) return reply;
+  await env.DB.prepare(`UPDATE idea_thread SET pushed_json = ?2, status = 'pushed', updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed)).run();
+  const fresh = await getRow(env, row.id);
+  if (fresh.reply_ts) { const card = ideaCard(fresh, acct, await hubOf(env, acct.act_id)); await slack(env, 'chat.update', { channel: row.channel, ts: fresh.reply_ts, text: card.text, blocks: card.blocks }).catch(() => {}); }
+  if (reply?.text) await say(env, row.channel, row.thread_ts, `${reply.text}${who ? ` (sent from Locus by ${who})` : ''}`, reply.blocks).catch(() => {});
+  return { ok: true, text: reply?.text || '' };
 }

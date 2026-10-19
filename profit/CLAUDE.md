@@ -3624,3 +3624,28 @@ say gold plated" sat in an unshown field). Built only from data the page has, no
 4. Ask them on the call: not sure, blank must-haves (only when the form has answers), numbers that do not match.
 At a glance is not drawn on the Client answers view (the sheet carries it; "Edit our notes" opens `editProfile()`, the
 same modal). The full form stays folded under it. Only Ice & Gold, Yak and Grunk have filled forms (2026-10-19).
+
+## 2026-10-19: SOCIAL, phase 1: WATCH (`profit/social.js`, `window.SocialTab`). Read before touching it.
+
+Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later's week grid for phase 2):
+`docs/locus-social/proposal.html`. Backend: account-health/CLAUDE.md, same date.
+- **Rail item Social** (`#railSocial`, `NAV.social` = `[['social', 'Watch']]`, icon `#i-play-circle`, after Calendar),
+  hidden unless the brand has Social on (`SocialTab.tabOk(act)`, read once per session from `/api/social/brands`;
+  `show()` keeps it in step like Products). Switched on in **Brand settings > Social** (`BRAND_SECS` `social`,
+  `SocialTab.settings`). A client sees it for its own brand when on (`clientTabOk`). `SOCR()` + `socialHost()` hand the
+  helpers in. TAB_TITLE / TAB_CRUMB / TAB_WHO / TAB_PURPOSE / PAGE_BRIEF / ASK_SUGGEST / SHOWABLE / `?open=` have
+  `social`. On 2026-10-19 Social is on for Lucky only, following Takomo, Vice Golf, Bad Birdie and the topic "golf wedges".
+- **The page**: Feed / Saved, whose posts (a select), Following N (a side panel: each follow's handles, last pull, errors,
+  Handles editor, Stop, Pull everything now), + Follow (in-app modal: A brand = one handle looked up everywhere, with
+  per-platform overrides; A topic = words). A strip when the scraper credits run low. "Doing well lately" chips (sounds,
+  hashtags; a click filters). Format chips with counts (Breaking out first, the default when there are any). Tall cards:
+  cover, format, platform, saved star, caption over a fade; who, hook + format tags, the ratio chip (green 3x+, amber
+  1.5x+), views or likes, engagement, "usually X · N days ago", "Our version started".
+- **A post** = `V2UI.panel` (wide; a bottom sheet on a phone): Play (a copied MP4 for TikTok / Instagram, YouTube's
+  player for YouTube; pictures show the cover), Open on the platform, Save, the numbers, "usually" in words, tags,
+  caption, then **Make ours** (an optional steer, about 20 to 30 cents) -> polls every 5 s -> the take, the script as beats
+  (Hook / Or open / each shot), on-screen text, the suggested place, Send to Creator link / Brief (Work board) / Studio
+  (Lucky's creator link is its creator app), sent ticks with links, the Slack thread link, Try again on a failed draft.
+  Clients see "save it and tell the team in Requests" instead.
+- CSS injected as `#soccss`, tokens only. Checked on the local trio (worktree statics + both dev workers) with real
+  Lucky data at desktop width; the Takomo Make ours ran end to end live (Studio batch "Long Iron Dread: a PSA (statics)").

@@ -1,0 +1,317 @@
+<title>Locus Social</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column, mock screens framed like Locus panels, decisions at the end */
+:root{
+  --bg:#f3f4f2; --panel:#ffffff; --ink:#1b1e1c; --mute:#626a65; --line:#dfe2de;
+  --acc:#1f7a52; --acc-soft:#e3f1ea; --warm:#b4651c; --warm-soft:#f8ecdf;
+  --ig:#c13584; --tt:#111; --yt:#d62b2b; --fb:#1f5fd6;
+  --display:"Archivo",system-ui,sans-serif; --body:"Inter Tight",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141716; --panel:#1c201e; --ink:#e8ebe8; --mute:#9aa39d; --line:#2c322f;
+  --acc:#4cc28c; --acc-soft:#1c3328; --warm:#e09a55; --warm-soft:#3a2a1b; --tt:#e8ebe8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141716; --panel:#1c201e; --ink:#e8ebe8; --mute:#9aa39d; --line:#2c322f;
+  --acc:#4cc28c; --acc-soft:#1c3328; --warm:#e09a55; --warm-soft:#3a2a1b; --tt:#e8ebe8; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15.5px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:44px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(30px,5vw,46px);font-weight:800;line-height:1.05}
+h2{font-size:24px;font-weight:700}
+h3{font-size:16px;font-weight:700}
+p{margin:0;max-width:68ch}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc)}
+.sec{display:grid;gap:16px}
+.lead{font-size:18px;color:var(--mute)}
+.answer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.answer>div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:6px;align-content:start}
+.answer b{font-family:var(--display);font-size:17px}
+.answer span{color:var(--mute);font-size:14px}
+@media (max-width:760px){.answer{grid-template-columns:1fr}}
+ul{margin:0;padding-left:20px;display:grid;gap:6px;max-width:72ch}
+/* mock frame */
+.frame{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.fbar{display:flex;gap:6px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tab{font-size:13px;padding:5px 11px;border-radius:999px;color:var(--mute)}
+.tab.on{background:var(--ink);color:var(--panel);font-weight:600}
+.fbar .sp{flex:1}
+.btn{font:600 13px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.fbody{padding:14px;display:grid;gap:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;color:var(--mute)}
+.chip.on{border-color:var(--acc);color:var(--acc);background:var(--acc-soft)}
+.feed{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:860px){.feed{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.post{border:1px solid var(--line);border-radius:9px;overflow:hidden;display:grid;background:var(--panel)}
+.thumb{aspect-ratio:4/5;max-width:100%;position:relative;display:flex;align-items:flex-end;padding:8px;color:#fff;font-size:12px;font-weight:600}
+.t1{background:linear-gradient(160deg,#2f5b45,#0f2419)}.t2{background:linear-gradient(160deg,#7a5a3a,#2a1d10)}
+.t3{background:linear-gradient(160deg,#36506e,#121c28)}.t4{background:linear-gradient(160deg,#6b3448,#22101a)}
+.fmt{position:absolute;top:8px;left:8px;font:500 11px var(--mono);background:rgba(0,0,0,.55);padding:2px 7px;border-radius:5px}
+.hot{position:absolute;top:8px;right:8px;font:600 11px var(--mono);background:var(--warm);padding:2px 7px;border-radius:5px;color:#fff}
+.pmeta{padding:9px 10px;display:grid;gap:4px;font-size:12.5px}
+.who{display:flex;gap:6px;align-items:center;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.d-ig{background:var(--ig)}.d-tt{background:var(--tt)}.d-yt{background:var(--yt)}.d-fb{background:var(--fb)}
+.num{font-family:var(--mono);color:var(--mute);font-variant-numeric:tabular-nums}
+.make{margin:0 10px 10px;font:600 12.5px var(--body);border:1px solid var(--acc);color:var(--acc);background:transparent;border-radius:7px;padding:6px}
+/* make menu */
+.split{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:760px){.split{grid-template-columns:1fr}}
+.menu{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;background:var(--bg)}
+.opt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:10px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+.opt i{font-style:normal;font:600 11px var(--mono);color:var(--acc);grid-row:span 2;align-self:center;border:1px solid var(--acc);border-radius:5px;padding:2px 6px}
+.opt b{font-size:14px}.opt span{font-size:12.5px;color:var(--mute)}
+/* calendar */
+.cal-wrap{overflow-x:auto}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:8px;min-width:860px}
+.day{border:1px solid var(--line);border-radius:8px;padding:8px;display:grid;gap:6px;align-content:start;min-height:150px}
+.day h4{margin:0;font:500 12px var(--mono);color:var(--mute)}
+.slot{border-radius:7px;padding:7px;font-size:12px;display:grid;gap:3px;border:1px solid var(--line);background:var(--bg)}
+.slot .st{font:500 10.5px var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.s-idea .st{color:var(--mute)}.s-make .st{color:var(--warm)}.s-ready .st{color:var(--acc)}.s-live .st{color:var(--fb)}
+.slot .pl{display:flex;gap:4px}
+.trend{border:1px dashed var(--warm);background:var(--warm-soft);border-radius:8px;padding:10px 12px;font-size:13.5px}
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
+tr:last-child td{border-bottom:0}
+td.r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.yes{color:var(--acc);font-weight:600}.no{color:var(--mute)}
+.phases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.phases{grid-template-columns:1fr}}
+.ph{border-top:3px solid var(--acc);background:var(--panel);border-radius:0 0 10px 10px;padding:14px;display:grid;gap:8px;align-content:start;border-left:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.ph .when{font:500 12px var(--mono);color:var(--mute)}
+.ph ul{font-size:14px}
+.note{font-size:13px;color:var(--mute)}
+.ask{background:var(--acc-soft);border-radius:12px;padding:18px;display:grid;gap:10px}
+
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.steps{grid-template-columns:1fr 1fr}}
+@media (max-width:440px){.steps{grid-template-columns:1fr}}
+.steps>div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:4px;align-content:start}
+.steps b{font-family:var(--display);font-size:17px}.steps span{font-size:13.5px;color:var(--mute)}
+.steps em{font:500 11px var(--mono);font-style:normal;color:var(--acc)}
+.aud{display:grid;gap:8px}
+.ai{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px}
+.tag{font:600 11px var(--mono);text-align:center;border-radius:5px;padding:3px 0}
+.t-add{background:var(--acc-soft);color:var(--acc)}.t-cut{background:var(--warm-soft);color:var(--warm)}.t-out{background:var(--bg);color:var(--mute);border:1px solid var(--line)}
+.ph .done{font-size:13px;border-top:1px dashed var(--line);padding-top:8px;color:var(--ink)}
+.ph .done b{color:var(--acc)}
+.strip{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.strip b{font:500 11px var(--mono);color:var(--warm);text-transform:uppercase;letter-spacing:.05em}
+
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:860px){.refs{grid-template-columns:1fr}}
+.refs figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:grid;align-content:start}
+.refs img{width:100%;aspect-ratio:4/3;object-fit:cover;object-position:top;border-bottom:1px solid var(--line);display:block}
+.refs figcaption{padding:12px;font-size:13.5px;line-height:1.55}
+.thumb.tall{aspect-ratio:9/14}
+.pf{position:absolute;top:8px;right:8px;width:12px;height:12px;border-radius:50%;border:2px solid #fff}
+.tags{display:flex;gap:4px;flex-wrap:wrap}
+.tags span{font:500 10.5px var(--mono);padding:1px 6px;border-radius:4px;background:var(--bg);color:var(--mute);border:1px solid var(--line)}
+.stats{display:flex;gap:8px;font:500 12px var(--mono);font-variant-numeric:tabular-nums;color:var(--mute)}
+.ox{color:var(--acc);font-weight:600;background:var(--acc-soft);padding:0 6px;border-radius:4px}
+.ox.mid{color:var(--warm);background:var(--warm-soft)}
+.script{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px;display:grid;gap:6px}
+.sh{display:grid;gap:2px;margin-bottom:4px}.sh .num{font-size:12px}
+.beat{display:grid;grid-template-columns:62px 38px minmax(0,1fr);gap:8px;align-items:center;font-size:13px;background:var(--bg);border-radius:6px;padding:7px 9px}
+.beat i{font:600 10.5px var(--mono);font-style:normal;color:var(--mute)}
+.beat em{font:500 11px var(--mono);font-style:normal;color:var(--mute)}
+.beat.hk{background:var(--warm-soft)}.beat.hk i{color:var(--warm)}
+.acct{display:inline-flex;gap:5px;align-items:center;font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+.wk{grid-template-columns:200px minmax(0,1fr)}
+@media (max-width:760px){.wk{grid-template-columns:1fr}}
+.tray{display:grid;gap:8px;align-content:start;border-right:1px solid var(--line);padding-right:12px}
+@media (max-width:760px){.tray{border-right:0;padding-right:0}}
+.tray h4{margin:0;font:500 11px var(--mono);color:var(--mute);letter-spacing:.06em}
+.ti{border-radius:7px;color:#fff;font-size:12px;font-weight:600;padding:22px 9px 8px;cursor:grab}
+.grid{display:grid;grid-template-columns:48px repeat(5,minmax(120px,1fr));gap:6px;min-width:720px}
+.gh{font:500 12px var(--mono);color:var(--mute);padding-bottom:2px}
+.gt{font:500 11px var(--mono);color:var(--mute);padding-top:6px}
+.c{border:1px dashed var(--line);border-radius:7px;min-height:74px;padding:4px}
+.c .slot{height:100%}
+</style>
+<div class="wrap">
+
+<header class="sec">
+  <div class="eyebrow">Build plan v3 · 19 Oct 2026 · audited · UI from Virlo, Sandcastles, Later</div>
+  <h1>Locus Social, in plain words</h1>
+  <p class="lead">A new spot in Locus that tells you what to post, gets it made, and posts it for you. Two screens. We post straight to Lucky's accounts, so it costs about $5 to $10 a month. Slack does the reminding.</p>
+</header>
+
+<section class="sec">
+  <div class="eyebrow">How it works</div>
+  <h2>Four steps, one loop</h2>
+  <div class="steps">
+    <div><em>SEE</em><b>Watch</b><span>Follow brands like Takomo, plus topics like "golf short game". Their new posts on Instagram, TikTok and YouTube land in one feed. Posts doing way better than that account's normal get flagged.</span></div>
+    <div><em>PICK</em><b>Make ours</b><span>Click a post. Claude writes Lucky's version as a shot-by-shot script (new angle, our product, never their footage) and sends it to Studio, the team or creators.</span></div>
+    <div><em>PLAN</em><b>Week</b><span>Your week as a time grid. Drag finished content from the tray onto a day. Monday the Strategist fills it with 5 posts for you to approve.</span></div>
+    <div><em>POST</em><b>Auto-post</b><span>Ready posts go out on their own, straight to Lucky's Instagram, TikTok, YouTube and Facebook. Views show on the card after.</span></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">What I looked at</div>
+  <h2>Three apps, and what we take from each</h2>
+  <p>I clicked through their sites and product tours. I didn't sign up for trials, since that means creating accounts in your name.</p>
+  <div class="refs">
+    <figure><img src="shots/sandcastles-feed.jpg" alt="Sandcastles video feed: tall video cards in a grid, each with an outlier score, views and engagement, and a filter panel on the left"><figcaption><b>Sandcastles</b> · $39 to $99/mo · competitor feed<br><span class="yes">Take:</span> tall video cards with three numbers under each (how far above normal, views, engagement), a platform icon in the corner, and a Feed / Saved switch.<br><span class="no">Skip:</span> the big filter panel. Format chips are enough.</figcaption></figure>
+    <figure><img src="shots/virlo-script.jpg" alt="Virlo script card: a 30 second UGC script broken into Hook, Setup, Demo, Payoff and CTA with timestamps"><figcaption><b>Virlo</b> · $49 to $199/mo · trends + scripts<br><span class="yes">Take:</span> "usually 3.7K views, this one 3.3M" as the outlier number. Hook and format tags on every card. Scripts as beats: Hook, Setup, Demo, Payoff, CTA, each with a timestamp. Topic searches, not just accounts.<br><span class="no">Skip:</span> the chat-first layout. Our chat is the Strategist.</figcaption></figure>
+    <figure><img src="shots/later-week.png" alt="Later calendar: account avatars with platform badges at the top, a week grid by hour with post thumbnails marked Auto"><figcaption><b>Later</b> · $25+/mo · scheduler<br><span class="yes">Take:</span> the week as an hour grid with thumbnails on it, account bubbles to pick where it posts, an "Auto" badge on posts that publish themselves, and a media tray you drag onto the grid.<br><span class="no">Skip:</span> grid preview, best time to post, social inbox.</figcaption></figure>
+  </div>
+  <p class="note">Virlo's "Monday Drop" (each client's best videos turned into scripts every Monday) is the same idea as our Monday plan, and agencies pay $199 a month for it. That's a good sign the idea is right.</p>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Screen 1 · Watch</div>
+  <h2>What everyone else is posting, and what's trending</h2>
+  <div class="frame">
+    <div class="fbar">
+      <span class="tab on">Watch</span><span class="tab">Week</span>
+      <span class="sp"></span><span class="tab on">Feed</span><span class="tab">Saved</span><button class="btn">14 brands · 3 topics</button><button class="btn pri">+ Follow</button>
+    </div>
+    <div class="fbody">
+      <div class="strip"><b>Trending on TikTok · golf</b><span class="chip">sound: "Pretty little baby" remix</span><span class="chip">#golftok</span><span class="chip">#wedgegame</span><span class="chip">sound: "Gimme gimme" slowed</span></div>
+      <div class="chips">
+        <span class="chip on">Breaking out</span><span class="chip">All</span><span class="chip">Reels</span><span class="chip">Carousels</span><span class="chip">Posts</span><span class="chip">TikTok</span><span class="chip">Shorts</span>
+      </div>
+      <div class="feed">
+        <div class="post"><div class="thumb tall t1"><span class="fmt">REEL</span><span class="pf d-ig"></span>"POV: your wedge has never seen a bunker"</div>
+          <div class="pmeta"><div class="who">@takomogolf</div><div class="tags"><span>POV hook</span><span>Skit</span></div><div class="stats"><span class="ox">100x</span><span>412k</span><span>6.1%</span></div><div class="num">usually 4.1k · 2 days ago</div></div><button class="make">Make ours</button></div>
+        <div class="post"><div class="thumb tall t2"><span class="fmt">CAROUSEL · 7</span><span class="pf d-ig"></span>"5 wedge shots every 15 handicap needs"</div>
+          <div class="pmeta"><div class="who">@vicegolf</div><div class="tags"><span>List hook</span><span>How-to</span></div><div class="stats"><span class="ox mid">2.4x</span><span>3.1k likes</span><span>4.0%</span></div><div class="num">usually 1.3k · 4 days ago</div></div><button class="make">Make ours</button></div>
+        <div class="post"><div class="thumb tall t3"><span class="fmt">TIKTOK</span><span class="pf d-tt"></span>Unboxing with a trending sound</div>
+          <div class="pmeta"><div class="who">@badbirdie</div><div class="tags"><span>Sound trend</span><span>Unboxing</span></div><div class="stats"><span class="ox">21x</span><span>880k</span><span>7.3%</span></div><div class="num">usually 42k · 1 day ago</div></div><button class="make">Make ours</button></div>
+        <div class="post"><div class="thumb tall t4"><span class="fmt">SHORT</span><span class="pf d-yt"></span>Range challenge, loser buys</div>
+          <div class="pmeta"><div class="who">topic: golf short game</div><div class="tags"><span>Challenge</span><span>Duo</span></div><div class="stats"><span class="ox">48x</span><span>1.2M</span><span>5.2%</span></div><div class="num">usually 25k · 3 days ago</div></div><button class="make">Make ours</button></div>
+      </div>
+      <p class="note">Example cards, not real numbers. Green number = how many times better than that account usually does. Click a card to watch the original right there.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">The button that matters</div>
+  <h2>"Make ours" writes a script, then sends it to whoever makes it</h2>
+  <div class="split">
+    <div class="script">
+      <div class="sh"><b>Our bunker POV</b><span class="num">from @takomogolf · 412k · 20s · POV hook · Skit</span></div>
+      <div class="beat hk"><i>HOOK</i><em>0:00</em><span>Text: "POV: you finally bought a wedge that knows what sand is"</span></div>
+      <div class="beat"><i>SETUP</i><em>0:03</em><span>Plugged lie, groan from a buddy off camera.</span></div>
+      <div class="beat"><i>DEMO</i><em>0:07</em><span>Lucky wedge, one swing, slow-mo spin to 3 feet.</span></div>
+      <div class="beat"><i>PAYOFF</i><em>0:14</em><span>Buddy's face. "What did you just hit?"</span></div>
+      <div class="beat"><i>CTA</i><em>0:18</em><span>"Link in bio. Your sand game is fixable."</span></div>
+    </div>
+    <div class="menu">
+      <div class="opt"><i>AI</i><b>Studio</b><span>Statics and carousels. Real product photo, AI around it.</span></div>
+      <div class="opt"><i>TEAM</i><b>Work card</b><span>Video for the team, or for you (assign it to yourself).</span></div>
+      <div class="opt"><i>CREATORS</i><b>Creator link</b><span>Added to Lucky's creator page as a video to film.</span></div>
+      <p class="note">Whatever comes back shows up in the Week tray, ready to drop on a day.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Screen 2 · Week</div>
+  <h2>A time grid, a tray of ready content, results on the cards</h2>
+  <div class="frame"><div class="fbar"><span class="tab">Watch</span><span class="tab on">Week</span><span class="sp"></span>
+    <span class="acct"><span class="dot d-ig"></span>IG</span><span class="acct"><span class="dot d-tt"></span>TikTok</span><span class="acct"><span class="dot d-yt"></span>YouTube</span><span class="acct"><span class="dot d-fb"></span>FB</span>
+    <button class="btn pri">Approve Monday's 5</button></div>
+  <div class="fbody wk">
+    <div class="tray"><h4>READY TO POST</h4>
+      <div class="ti t1">Studio · Ice &amp; Gold teaser</div><div class="ti t3">Creator · bunker POV</div><div class="ti t2">Winning Meta ad · wedge spin</div><div class="ti t4">Creator · range clip</div>
+      <p class="note">Studio finals, creator clips and our best ads land here. Drag onto the week.</p></div>
+    <div class="cal-wrap"><div class="grid">
+      <div></div><div class="gh">MON 19</div><div class="gh">TUE 20</div><div class="gh">WED 21</div><div class="gh">THU 22</div><div class="gh">FRI 23</div>
+      <div class="gt">9 AM</div><div class="c"><div class="slot s-live"><span class="st">Posted · 38k views</span>Wedge spin slow-mo<span class="pl"><span class="dot d-ig"></span><span class="dot d-tt"></span></span></div></div><div class="c"></div><div class="c"></div><div class="c"><div class="slot s-ready"><span class="st">Auto · 9:00</span>Bunker POV<span class="pl"><span class="dot d-tt"></span><span class="dot d-ig"></span><span class="dot d-yt"></span></span></div></div><div class="c"></div>
+      <div class="gt">12 PM</div><div class="c"></div><div class="c"></div><div class="c"><div class="slot s-make"><span class="st">Idea · in Studio</span>Ice &amp; Gold teaser<span class="pl"><span class="dot d-ig"></span></span></div></div><div class="c"></div><div class="c"><div class="slot s-ready"><span class="st">Auto · 12:00</span>Best Meta ad, organic<span class="pl"><span class="dot d-ig"></span><span class="dot d-tt"></span></span></div></div>
+      <div class="gt">6 PM</div><div class="c"></div><div class="c"><div class="slot s-ready"><span class="st">Auto · 18:00</span>"5 wedge shots" carousel<span class="pl"><span class="dot d-ig"></span><span class="dot d-fb"></span></span></div></div><div class="c"></div><div class="c"></div><div class="c"><div class="slot s-idea"><span class="st">Idea</span>Range challenge<span class="pl"><span class="dot d-yt"></span></span></div></div>
+    </div></div>
+  </div></div>
+  <p class="note">Click a post to open one composer: pick accounts by their bubbles, one caption, tweak per app if needed. Posts also show on the Locus Calendar. Ready means approved: you for Lucky, the client for client brands.</p>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Posting direct</div>
+  <h2>No middleman. Each app has a one-time approval wait</h2>
+  <div class="tbl"><table>
+    <tr><th>App</th><th>How we post</th><th>One-time wait</th><th>Until approved</th></tr>
+    <tr><td>Instagram + Facebook</td><td>Our own Meta app (Mobius Tools, already Live)</td><td>Meta review, about 2 to 4 weeks</td><td>Posting off; Watch works</td></tr>
+    <tr><td>TikTok</td><td>Our own TikTok developer app</td><td>TikTok audit, about 2 to 6 weeks</td><td>Posts land in TikTok drafts; one tap to publish</td></tr>
+    <tr><td>YouTube + Shorts</td><td>Our own Google project</td><td>Google check, a few weeks</td><td>Uploads land as private; one click to make public</td></tr>
+  </table></div>
+  <p class="note">I file all three requests on day one of phase 1, so the waits run while Watch is being built. You do one login per app to connect Lucky.</p>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Audit · what changed</div>
+  <h2>Kept, added and cut</h2>
+  <div class="aud">
+    <div class="ai"><span class="tag t-add">NEW</span><span><b>Post direct, no posting service.</b> Cost drops from about $25 to $50 a month to about $5 to $10.</span></div>
+    <div class="ai"><span class="tag t-add">NEW</span><span><b>From the UI research:</b> outlier number as "usually X, this one Y", hook and format tags on cards, shot-by-shot scripts, topic follows, hour grid, ready tray, account bubbles.</span></div>
+    <div class="ai"><span class="tag t-add">ADD</span><span><b>Trending sounds and hashtags strip</b> from TikTok's free trend data.</span></div>
+    <div class="ai"><span class="tag t-add">ADD</span><span><b>Our winning ads and creator clips</b> go straight into the ready tray. Already made, already proven.</span></div>
+    <div class="ai"><span class="tag t-add">ADD</span><span><b>Slack does the reminding.</b> Breakout alerts and the Monday plan go in the 5am morning card, with Approve buttons.</span></div>
+    <div class="ai"><span class="tag t-cut">CUT</span><span><b>Results screen.</b> Views go on the Posted cards and into the Strategist.</span></div>
+    <div class="ai"><span class="tag t-cut">CUT</span><span><b>"Making" stage and "I'll film it".</b> The Work board already does both.</span></div>
+    <div class="ai"><span class="tag t-cut">CUT</span><span><b>Watching competitors on Facebook.</b> Facebook stays as a copy of our Instagram posts.</span></div>
+    <div class="ai"><span class="tag t-out">OUT</span><span><b>Comments and DMs inbox, best time to post, link in bio, grid preview, competitor Stories, big filter panel.</b></span></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Watch-outs</div>
+  <h2>What could go wrong, and the fix built in</h2>
+  <ul>
+    <li><b>Approval waits.</b> Filed on day one; Watch doesn't need them, and drafts or private uploads cover the gap.</li>
+    <li><b>Some brands won't load on Instagram</b> (personal accounts). The follow box says so instead of showing an empty feed.</li>
+    <li><b>TikTok data comes from a paid scraper</b>, the only part that costs money. If it breaks, the feed keeps working on Instagram and YouTube.</li>
+    <li><b>Golf is a small room.</b> Make ours always changes angle and product and never reuses their footage.</li>
+    <li><b>AI can't fake Lucky's clubs.</b> So the plan is 5 good posts a week from people and Studio statics, not 15.</li>
+  </ul>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Build plan</div>
+  <h2>Three phases, each one useful on its own</h2>
+  <div class="phases">
+    <div class="ph"><h3>1. Watch</h3><span class="when">build first</span>
+      <ul><li>File the Meta, TikTok and Google approvals</li><li>Social in the rail, switch in Brand settings, Lucky on</li><li>Follow brands and topics; daily pull from Instagram, TikTok, YouTube</li><li>Cards: outlier number, hook and format tags, watch the original</li><li>Breaking out, Saved, trending strip</li><li>Make ours: script, then Studio, Work card or creator link</li></ul>
+      <p class="done"><b>Done when:</b> you click a breakout post and a script plus a Studio draft or Work card exists with the reference attached.</p></div>
+    <div class="ph"><h3>2. Week + post</h3><span class="when">as approvals land</span>
+      <ul><li>Connect Lucky's accounts (one login each)</li><li>Hour grid, ready tray, composer with account bubbles</li><li>Auto-post direct; views on Posted cards</li><li>Winning ads and creator clips feed the tray</li><li>Posts on the Locus Calendar</li></ul>
+      <p class="done"><b>Done when:</b> a post scheduled in Locus goes live on Instagram, TikTok and YouTube with nobody touching it.</p></div>
+    <div class="ph"><h3>3. Strategist</h3><span class="when">last</span>
+      <ul><li>Monday morning card: 5 posts for the week, Approve buttons</li><li>Breakout alerts in the morning card</li><li>Our own numbers steer the next plan</li></ul>
+      <p class="done"><b>Done when:</b> a Monday passes with 5 posts approved from Slack and nobody opened Locus.</p></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Cost</div>
+  <h2>About $5 to $10 a month</h2>
+  <div class="tbl"><table>
+    <tr><th>Piece</th><th>How</th><th style="text-align:right">Per month</th></tr>
+    <tr><td>Posting to all four apps</td><td>Direct, our own apps</td><td class="r">$0</td></tr>
+    <tr><td>Instagram + YouTube competitor posts</td><td>Official free data from Meta and YouTube</td><td class="r">$0</td></tr>
+    <tr><td>Trending sounds and hashtags</td><td>TikTok Creative Center</td><td class="r">$0</td></tr>
+    <tr><td>TikTok competitor posts + topic searches</td><td>ScrapeCreators, already used by the ideas bot</td><td class="r">~$5 to $10</td></tr>
+    <tr><td>Hosting</td><td>Existing Cloudflare setup</td><td class="r">$0 extra</td></tr>
+  </table></div>
+  <p class="note">Buying the closest mix instead (Sandcastles or Virlo for watching, plus Later for posting) runs about $65 to $250 a month and still can't send a post to Studio, the team or creators.</p>
+</section>
+
+<section class="ask">
+  <div class="eyebrow">When you click go</div>
+  <ul>
+    <li>I build phase 1 for Lucky, file the three approvals, and follow Takomo, Vice, Bad Birdie, Good Good, Malbon, Swag and Sub 70 plus the topics "golf short game" and "golf wedges" to start. Add or drop any in the app.</li>
+    <li>Phase 2 needs one login per app from you to connect Lucky. I can't type your passwords.</li>
+  </ul>
+</section>
+
+</div>
