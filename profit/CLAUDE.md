@@ -3652,3 +3652,41 @@ https://claude.ai/artifact/YbExG9VRV3untjLtPHjnJb (Monday call, client call, cre
 - Typing autosaves (`PUT /api/calls/state`, 700ms debounce, "Saved"). Finish asks first, then the server sends it all.
 - CSS `#cscss`, classes `.cs-*` (tokens only). callscreen.js?v=1, calls.js?v=4. Checked on the local pair against real
   data (Monday, Grunk client call, kickoff; 1440 and 375). Finish was NOT pressed locally (it writes Asana and Slack).
+
+## 2026-10-19: SOCIAL, phase 1: WATCH (`profit/social.js`, `window.SocialTab`). Read before touching it.
+
+Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later's week grid for phase 2):
+`docs/locus-social/proposal.html`. Backend: account-health/CLAUDE.md, same date.
+- **Rail item Social** (`#railSocial`, `NAV.social` = `[['social', 'Watch']]`, icon `#i-play-circle`, after Calendar),
+  hidden unless the brand has Social on (`SocialTab.tabOk(act)`, read once per session from `/api/social/brands`;
+  `show()` keeps it in step like Products). Switched on in **Brand settings > Social** (`BRAND_SECS` `social`,
+  `SocialTab.settings`). A client sees it for its own brand when on (`clientTabOk`). `SOCR()` + `socialHost()` hand the
+  helpers in. TAB_TITLE / TAB_CRUMB / TAB_WHO / TAB_PURPOSE / PAGE_BRIEF / ASK_SUGGEST / SHOWABLE / `?open=` have
+  `social`. On 2026-10-19 Social is on for Lucky only, following Takomo, Vice Golf, Bad Birdie and the topic "golf wedges".
+- **The page**: Feed / Saved, whose posts (a select), Following N (a side panel: each follow's handles, last pull, errors,
+  Handles editor, Stop, Pull everything now), + Follow (in-app modal: A brand = one handle looked up everywhere, with
+  per-platform overrides; A topic = words). A strip when the scraper credits run low. "Doing well lately" chips (sounds,
+  hashtags; a click filters). Format chips with counts (Breaking out first, the default when there are any). Tall cards:
+  cover, format, platform, saved star, caption over a fade; who, hook + format tags, the ratio chip (green 3x+, amber
+  1.5x+), views or likes, engagement, "usually X · N days ago", "Our version started".
+- **A post** = `V2UI.panel` (wide; a bottom sheet on a phone): Play (a copied MP4 for TikTok / Instagram, YouTube's
+  player for YouTube; pictures show the cover), Open on the platform, Save, the numbers, "usually" in words, tags,
+  caption, then **Make ours** (an optional steer, about 20 to 30 cents) -> polls every 5 s -> the take, the script as beats
+  (Hook / Or open / each shot), on-screen text, the suggested place, Send to Creator link / Brief (Work board) / Studio
+  (Lucky's creator link is its creator app), sent ticks with links, the Slack thread link, Try again on a failed draft.
+  Clients see "save it and tell the team in Requests" instead.
+- CSS injected as `#soccss`, tokens only. Checked on the local trio (worktree statics + both dev workers) with real
+  Lucky data at desktop width; the Takomo Make ours ran end to end live (Studio batch "Long Iron Dread: a PSA (statics)").
+- **Same day, after the demos (social.js?v=2).** Eight demo videos of Sandcastles, Virlo and Later were read as transcripts
+  (ScrapeCreators `/v1/youtube/video/transcript` through the team debug route `/api/social/raw`), and the plan page gained a
+  "What their demos actually showed" section (feature by feature: take / later / out). Built from it: a controls row under
+  the format chips with **Sort** (Breaking out first / Most views / Newest / Most engagement, `soc_sort`), **Posted in**
+  (everything / 7 / 14 / 30 days, `soc_win`; the backend keeps 30 days, so 30 is a no-op kept for when it keeps more),
+  a **search** over caption, handle, who, hook, format tag and sound (debounced, keeps the caret), **Hide paid-looking
+  posts** (engagement under 0.5% likes + comments per view, Kallaway's rule for dropping brand deals; `soc_paid`), and a
+  post count; the empty state offers "Clear search, window and paid filter". The ratio sort breaks ties on volume.
+  Phase 1.5 ideas (not built): transcript on Make ours once the clip is stored, a per-follow line (posts a week, median
+  views, best weekday), keep / change chips for Kallaway's seven variables. Phase 2 additions from Later's demo: the
+  Notify fallback as a Slack DM at post time, the tray's Unused filter, per-platform tweaks, saved captions, a tagged-in
+  collector with creator credit. Meta posting for Lucky needs NO app review (Cole is an admin of the Mobius Tools app):
+  two token scopes, `instagram_content_publish` + `pages_manage_posts`.

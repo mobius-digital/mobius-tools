@@ -2404,3 +2404,48 @@ The screen Cole shares on the Monday call, a client call and the creative kickof
   `moveCard` to Making.
 - NOT tested live: Finish (Monday or client) end to end, kickoff done, the Fireflies "also said" read. Data loads were
   checked against real data on a local `wrangler dev --remote`.
+
+## 2026-10-19: LOCUS SOCIAL, phase 1: WATCH (`src/social.js`). Read before touching it or the ideas bot's Locus entry.
+
+Plan, audit and UI research: `docs/locus-social/proposal.html` (https://claude.ai/artifact/6DCyDxYMGAsfRpeNWzatZH).
+Screens in profit/CLAUDE.md, same date.
+- **Data = ScrapeCreators** (`DOWNLOADER_KEY`, the ideas bot's key, 1 credit a call). A brand follow = Instagram
+  `/v2/instagram/user/posts` + `/v1/instagram/user/reels` (the posts list leaves most Reels out and has no plays; the
+  Reels list has both; items wrap the post in `.media`), TikTok `/v3/tiktok/profile/videos`, YouTube
+  `/v1/youtube/channel/shorts` + `/channel-videos`: 5 credits a pull. A topic = TikTok `/v1/tiktok/search/keyword`,
+  IG `/v2/instagram/reels/search`, YouTube `/v1/youtube/search`. Following a handle looks it up on all three (3
+  credits). `GET /api/social/raw?path=&...` (team) returns one raw answer to check field names.
+- **Credits guard:** every answer's `credits_remaining` is kept in settings `scCredits`; under `LOW_CREDITS` (150) the
+  daily pull stops so the ideas bot keeps the last ones, and the Watch page tells the team to top up. On 2026-10-19 the
+  account had 82 credits left: the daily pull is OFF until Cole tops up ($47 = 25,000).
+- **Tables** `social_brand` (Social on per brand), `social_follow`, `social_post` (id `act|plat|pid`; numbers refreshed
+  on every pull; covers copied to R2 `social/t/<key>` at pull time because IG / TikTok image links expire; a video is
+  copied to `social/v/<key>` on the first Play through `fetchSocialVideo`; both served PUBLIC by an unguessable key at
+  `/social-m/<t|v>/<24 hex>` with Range support). Posts older than 120 days go (saved ones and ones made into ours stay).
+- **Usually / Breaking out** (`scorePosts`, computed on read): a followed account's median on that platform (views on
+  video, likes on carousels and posts; 4+ posts); a topic post's author's followers. Breaking out = 3x usual, posted in
+  the last 30 days, 1,000+ views (100+ likes) or 20,000+ views for a topic post. Trend chips (`trendsOf`) = the sounds
+  and hashtags of posts at 1.5x+ in 14 days, read off the feed (no extra calls). Hook and format tags = one Haiku 5.5
+  batch of 40 untagged posts after a pull (`tagPosts`, caption-only, a fraction of a cent).
+- **The pull**: on Follow / edit at once; then `socialTick` (hourly cron after calendarTick) pulls up to 4 follows whose
+  `pulled_at` is 20+ hours old, only for brands with Social on, `subCanAfford(60)` each.
+- **Make ours = the ideas bot** (ideas.js `ideaFromLocus` / `ideaState` / `ideaRetry` / `pushIdea`): the bot posts the ask
+  in the brand's INTERNAL channel as the thread root, the ask is stored as `idea_thread.seed_json` and read as the first
+  human message on every run (parseThread never reads the bot's own messages), the queue job writes the usual draft card
+  in Slack, and Locus shows the same draft and sends it with the same push functions (Slack card redrawn). Lucky's
+  creator destination is its own creator app (`pushLucky`). A destination the draft has no version for runs a `make`
+  job first with `then_push`, and the push happens when it finishes. A new thread starts `queued` (never `working`,
+  which runIdeaJob skips as busy). Make ours and push are the team's (403 for a client).
+- **The ideas bot was broken from 2026-10-18 23:27**: every draft failed with "The compiled grammar is too large" (the
+  API now refuses IDEA_SCHEMA as a strict output format). `claudeShaped` retries the same call with the shape written
+  into the prompt instead; verified live 2026-10-19 (a $0.19 Opus draft). Any other error is thrown as before.
+- **Client rules** (brandguard, both copies): GET /api/social, /brands, /idea; PUT /brand; follow / unfollow / save /
+  video for their own brand's rows. `test-clients.mjs` 27/27, `test-ideas.mjs` 49/50 (the one failure, the router
+  check, fails the same on the commit before this work).
+- **Phase 2 (not built):** the Week (hour grid, ready tray, composer) and posting direct. For Lucky (Cole's own assets,
+  Cole is admin of the Mobius Tools Meta app) Instagram and Facebook posting need NO app review: Standard Access covers
+  accounts whose people have a role on the app; the system-user token needs `instagram_content_publish` and
+  `pages_manage_posts` added (Cole, Business settings). TikTok Content Posting (developers.tiktok.com, a different
+  product from the ads app) and YouTube upload (Google verification) both need a screen recording of the working
+  posting screen, so they are filed once phase 2's screen exists; until approved TikTok posts land as drafts / private,
+  YouTube uploads as private.
