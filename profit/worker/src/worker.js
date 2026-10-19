@@ -1237,6 +1237,12 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
       // it is the same question as repeat share, measured in money instead of orders.
       new_rev: agg.newRev, returning_rev: agg.retRev,
       new_rev_share: agg.newRev + agg.retRev > 0 ? agg.newRev / (agg.newRev + agg.retRev) : null,
+      // The whole-store side of the goals table (2026-10-19): any order, not only first orders. Paid orders, the
+      // same AOV definition as P&L (revenue / totalOrders); MER = revenue / blended spend.
+      spend: agg.spend, sales: agg.sales, orders: agg.totalOrders,
+      aov: agg.totalOrders > 0 ? agg.sales / agg.totalOrders : null,
+      cpa: agg.totalOrders > 0 && agg.spend > 0 ? agg.spend / agg.totalOrders : null,
+      mer: agg.spend > 0 ? agg.sales / agg.spend : null,
       // Fewer than ~50 new customers makes CAC and payback too noisy to act on.
       thin: agg.newOrders < 50,
     },

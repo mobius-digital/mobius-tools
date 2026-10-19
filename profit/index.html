@@ -1168,6 +1168,28 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   .grw .gr-sug{color:var(--ink-2)}
   .grw .gr-sug b{color:var(--ink)}
   .grw .gr-warn{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:color-mix(in srgb, var(--bad) 10%, transparent);color:var(--ink);font-size:13px}
+  /* Goal / break-even / real table (2026-10-19, goalsGlance): settings and Home > Goals. */
+  .gt{display:grid;margin-top:6px}
+  .gt-r{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:14px;align-items:start;padding:11px 8px;border-top:1px solid var(--line)}
+  .gt-r.gt-hd{border-top:0;padding-top:2px;padding-bottom:6px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .gt-r.main{background:var(--brand-soft, rgba(98,189,234,.10));border-radius:8px;border-top-color:transparent}
+  .gt-r.main + .gt-r{border-top-color:transparent}
+  .gt-l,.gt-c{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .gt-l b{font-size:14px;color:var(--ink)}
+  .gt-c b{font-size:18px;font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+  .gt-l small,.gt-c small{font-size:12px;color:var(--muted);line-height:1.4}
+  .gt-l em{font-style:normal;font-weight:600;color:var(--accent, var(--brand))}
+  .gt-c.good b{color:var(--good)} .gt-c.warn b{color:var(--warn)} .gt-c.bad b{color:var(--bad)}
+  .gt-c small.gt-ok{color:var(--good)} .gt-c small.gt-no{color:var(--bad)}
+  .gt-none{font-size:14px;font-weight:500;color:var(--muted)}
+  .gt-how{margin:12px 0 0;font-size:13px;line-height:1.55;color:var(--ink-2)}
+  .gt-how b{color:var(--ink)}
+  @media (max-width:600px){
+    .gt-r{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 10px}
+    .gt-r .gt-l{grid-column:1 / -1;margin-bottom:4px}
+    .gt-r.gt-hd span:first-child{display:none}
+    .gt-c b{font-size:16px}
+  }
   .grw .gr-plat{display:flex;flex-wrap:wrap;gap:12px 22px;padding-top:4px}
   .grw .gr-p{display:flex;align-items:center;gap:10px}
   .grw .gr-rule{display:block;margin:0;padding:11px 0;border-top:1px solid var(--line);line-height:2.1;font-size:14px}
@@ -2335,7 +2357,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="meta.js?v=12"></script>
 <script src="amb.js?v=25"></script>
 <script src="../onboard/questions.js?v=12"></script>
-<script src="brand.js?v=23"></script>
+<script src="brand.js?v=24"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=6"></script>
 <script src="requests.js?v=2"></script>
@@ -2345,7 +2367,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="review-ui.js?v=9"></script>
 <script src="prodsheet.js?v=12"></script>
 <script src="production.js?v=10"></script>
-<script src="sop.js?v=3"></script>
+<script src="sop.js?v=4"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=35"></script>
@@ -5382,25 +5404,70 @@ function V2R(tab, first) {
 /* HOME > GOALS (2026-10-09; first Brand > Goals, moved to Home the same day): Plan is Goals, and the two targets every ad is judged by (goal cost per sale,
    goal ROAS) moved here from Settings > Goals and rules, so every number the client agreed sits on one page. Same saves
    as the old card: /api/client-settings target_cpa, the Meta accounts route target_roas. */
+/* GOAL, BREAK-EVEN, REAL (2026-10-19, Ahsan: "how can I check the breakeven ROAS or target CPA for this brand?"). The
+   answers existed only as grey hints under the input boxes. ONE table, drawn the same way at the top of Brand settings >
+   Goals and ad rules and on Home > Goals: each measure with the goal we agreed, where the brand breaks even, and what it
+   really ran at over the last 90 days, coloured, with the inputs behind break-even spelled out under it.
+   Break-even = what one order leaves after product, shipping and fees (Triple Whale costs, or the margin override):
+   cost per sale = average order x margin, cost per new customer = first order x margin, ROAS = 1 / margin.
+   `g` = /api/brand/rules, `pre` = /api/customers?days=90&journey=0 (null when it failed). */
+function goalsGlance(a, g, pre) {
+  const r = g?.rules || {}, cur = a.currency, h = pre?.headline || {};
+  const margin = pre && pre.cm_ok !== false && h.margin > 0 && h.margin < 1 ? h.margin : null;
+  const m = r.goal_metric || 'cpa';
+  const mo = v => v == null ? '' : fmtMoney(v, cur);
+  const X = v => v == null ? '' : (+v).toFixed(2) + 'x';
+  const rows = [
+    { k: 'cpa', name: 'Cost per sale (CPA)', sub: 'Any order', lower: true, f: mo,
+      goal: r.target_cpa > 0 ? +r.target_cpa : null, be: margin && h.aov ? h.aov * margin : null, real: h.cpa ?? null,
+      realSub: 'ad spend / orders' },
+    { k: 'ncpa', name: 'Cost per new customer', sub: 'First orders only', lower: true, f: mo,
+      goal: r.goal_ncpa > 0 ? +r.goal_ncpa : null, be: margin && h.new_aov ? h.new_aov * margin : null, real: h.cac ?? null,
+      realSub: 'ad spend / new customers' },
+    { k: 'roas', name: 'ROAS', sub: 'Revenue per ad dollar', lower: false, f: X,
+      goal: g?.goal_roas > 0 ? +g.goal_roas : null, be: margin ? 1 / margin : null, real: h.mer ?? null,
+      realSub: 'whole store (MER)' },
+  ];
+  if (r.goal_cpl > 0 || m === 'cpl') rows.push({ k: 'cpl', name: 'Cost per lead', sub: 'Lead campaigns', lower: true, f: mo,
+    goal: r.goal_cpl > 0 ? +r.goal_cpl : null, be: null, real: null, realSub: '' });
+  // Better = under for a cost, over for ROAS. Real is green at the goal, amber between goal and break-even, red past it.
+  const beats = (row, v, line) => row.lower ? v <= line : v >= line;
+  const tone = row => {
+    if (row.real == null) return '';
+    if (row.goal != null && beats(row, row.real, row.goal)) return 'good';
+    if (row.be != null && beats(row, row.real, row.be)) return row.goal != null ? 'warn' : 'good';
+    return row.be != null || row.goal != null ? 'bad' : '';
+  };
+  const goalNote = row => row.goal == null || row.be == null ? ''
+    : beats(row, row.goal, row.be) ? `<small class="gt-ok">Makes money at the goal</small>`
+    : `<small class="gt-no">The goal is past break-even: an order at the goal loses money</small>`;
+  const cell = (v, f, sub, cls = '') => `<span class="gt-c ${cls}"><b>${v == null ? '<span class="gt-none">–</span>' : f(v)}</b>${sub ? `<small>${sub}</small>` : ''}</span>`;
+  const body = rows.map(row => `<div class="gt-r${row.k === m ? ' main' : ''}">
+      <span class="gt-l"><b>${row.name}</b><small>${row.sub}${row.k === m ? ' · <em>used for the calls</em>' : ''}</small></span>
+      <span class="gt-c"><b>${row.goal == null ? '<span class="gt-none">not set</span>' : row.f(row.goal)}</b>${goalNote(row)}</span>
+      ${row.k === 'cpl' ? cell(null, row.f, 'needs lead value') : cell(row.be, row.f, row.be == null ? (margin ? 'needs orders' : 'needs costs') : '')}
+      ${row.k === 'cpl' ? cell(null, row.f, 'on Ads') : cell(row.real, row.f, row.real == null ? 'no data' : row.realSub, tone(row))}
+    </div>`).join('');
+  const how = !pre ? `<p class="gt-how">Break-even and the real numbers did not load. Refresh to try again.</p>`
+    : !margin ? `<p class="gt-how">Break-even needs the brand's costs, and the cost check says they are not right yet. Fix them in Brand settings, Data and costs, or set a margin override there.</p>`
+    : `<p class="gt-how"><b>How break-even is worked out.</b> After product, shipping and fees, an order keeps <b>${Math.round(margin * 100)}%</b> of its price${pre.margin_pct != null ? ' (the margin override)' : ' (Triple Whale costs)'}. The average order is <b>${mo(h.aov)}</b> and a first order <b>${mo(h.new_aov)}</b>, so an order can cost up to ${mo(h.aov && h.aov * margin)} (a new customer ${mo(h.new_aov && h.new_aov * margin)}) in ads before it loses money, and ROAS breaks even at ${X(1 / margin)}. Spend past break-even only pays back if customers order again. Last 90 days, ${(h.orders || 0).toLocaleString()} orders.</p>`;
+  return `<div class="gt"><div class="gt-r gt-hd"><span>Measure</span><span>Goal</span><span>Break-even</span><span>Real, last 90 days</span></div>${body}</div>${how}`;
+}
 async function addGoalTargets() {
   /* ONE PLACE (2026-10-15, Cole: "why do I need to change this in Home?"): the goals and the ad rules are edited only in
-     Brand settings > Goals and ad rules. Home > Goals shows what they are and links there. */
+     Brand settings > Goals and ad rules. Home > Goals shows the same goal / break-even / real table and links there. */
   if (S.act === 'all' || S.tab !== 'plan') return;
   const a = S.accounts.find(x => x.act_id === S.act); if (!a) return;
   const run = RUN;
-  let g = null; try { g = await api(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`); } catch { return; }
+  const q = encodeURIComponent(a.act_id);
+  let g = null, pre = null;
+  try { [g, pre] = await Promise.all([api(`/api/brand/rules?act=${q}`), api(`/api/customers?act=${q}&days=90&journey=0`).catch(() => null)]); } catch { return; }
   const host = document.querySelector('#main .lx') || document.querySelector('#main > div') || document.querySelector('#main');
   if (run !== RUN || !host || host.querySelector('#gtCard')) return;
-  const r = g.rules || {}, cur = a.currency;
-  const NAME = { cpa: 'Cost per sale', ncpa: 'Cost per new customer', roas: 'ROAS', cpl: 'Cost per lead' };
-  const val = { cpa: r.target_cpa != null ? fmtMoney(r.target_cpa, cur) : null, ncpa: r.goal_ncpa > 0 ? fmtMoney(r.goal_ncpa, cur) : null, roas: g.goal_roas ? g.goal_roas + 'x' : null, cpl: r.goal_cpl > 0 ? fmtMoney(r.goal_cpl, cur) : null };
-  const m = r.goal_metric || 'cpa';
   const el = document.createElement('div'); el.className = 'card'; el.id = 'gtCard';
-  el.innerHTML = `<h3 style="margin:0 0 4px">What the ads are judged on</h3><p class="hint" style="margin:0 0 12px">Every call on Ads &gt; Today and every green or red on Meta &gt; Ads uses this goal.</p>
-    <div class="row" style="gap:22px;flex-wrap:wrap;align-items:baseline;margin:0">
-      <span><span class="tiny">${esc(NAME[m])} goal</span><br><b style="font-size:20px">${val[m] || 'not set'}</b></span>
-      ${Object.keys(NAME).filter(k => k !== m && val[k]).map(k => `<span><span class="tiny">${esc(NAME[k])}</span><br><b>${val[k]}</b></span>`).join('')}
-      <button class="btn" id="gtEdit">Change goals and ad rules</button></div>`;
+  el.innerHTML = `<div class="g-h"><h3 style="margin:0">Goals and break-even</h3><button class="btn" id="gtEdit">Change the goals</button></div>
+    <p class="hint" style="margin:4px 0 12px">What we agreed with the client, where the brand stops making money, and what it really ran at. Every call on Ads uses the highlighted goal.</p>
+    ${goalsGlance(a, g, pre)}`;
   host.appendChild(el);
   el.querySelector('#gtEdit').onclick = () => openGoals(a.act_id);
 }
@@ -5790,11 +5857,11 @@ function renderGuide() {
      (applyRole is a no-op since the v3 shell), so a button that changed nothing is not drawn. */
   $('#main').innerHTML = `<div class="gd v2 lx">${LX.head('guide', 'How to use Locus')}
     ${LX.say('What each page is for and what to do, in order. Find your role and follow the steps; every step has an Open button that takes you there.')}
+    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the creative review call, the client call, revisions and due dates. Set 2026-10-12; the words live in sop.js.</span></div></header>
+      ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>
     ${order.map(g => `<section class="gd-role"><header><div><h3>${esc(g.name)}</h3><span>${esc(g.sub)}</span></div></header>
       ${g.parts.map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}
     </section>`).join('')}
-    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, revisions and due dates. Set 2026-10-12; the words live in sop.js.</span></div></header>
-      ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>
     <section class="gd-role"><header><div><h3>Replay a tour</h3><span>Each page has a short walkthrough; it is also on the page itself under Tour, top right.</span></div></header>
       <div class="row" style="margin:0;gap:8px;flex-wrap:wrap">${Object.entries(TOURS).map(([k, t]) => `<button class="btn" data-tour="${k}">${esc(t.name)}</button>`).join('')}</div></section>
     <p class="hint" style="margin:0">Stuck on a number? Type the question in the ask bar at the top (Ctrl+K).</p>
@@ -11225,7 +11292,7 @@ async function renderSettings() {
     const r = g.rules, cur = a.currency, h = pre?.headline || {};
     const M = { metric: r.goal_metric || 'cpa', guard: r.roas_guard !== false, win: r.window_auto !== false, track: !!r.min_track };
     const margin = pre?.cm_ok !== false && h.margin > 0 && h.margin < 1 ? h.margin : null;
-    const be = { cpa: margin && h.new_aov ? h.new_aov * margin : null, ncpa: margin && h.new_aov ? h.new_aov * margin : null, roas: margin ? 1 / margin : null };
+    const be = { cpa: margin && (h.aov || h.new_aov) ? (h.aov || h.new_aov) * margin : null, ncpa: margin && h.new_aov ? h.new_aov * margin : null, roas: margin ? 1 / margin : null };
     const real = { ncpa: h.cac > 0 ? h.cac : null };
     const money = v => v == null ? '' : fmtMoney(v, cur);
     const inp = (k, v, unit, ph = '', w = 64) => `<span class="unit-in gr-in" style="width:${w + (unit === '$' ? 14 : 18)}px">${unit === '$' ? `<span>${sym(cur)}</span>` : ''}<input type="text" inputmode="decimal" data-g="${k}" value="${v == null || v === '' ? '' : v}" placeholder="${ph}">${unit && unit !== '$' ? `<span class="g-u">${unit}</span>` : ''}</span>`;
@@ -11234,11 +11301,13 @@ async function renderSettings() {
     const sec = (title, tag, hint, body, extra = '') => `<section class="g-sec"><div class="g-h"><h4>${title}${tag ? ` <span class="gtag${tag === 'Meta' ? ' meta' : ''}">${tag}</span>` : ''}</h4>${extra}</div>${hint ? `<p class="g-hint">${hint}</p>` : ''}${body}</section>`;
     const METRICS = [['cpa', 'Cost per sale', 'Any order an ad brings in.'], ['ncpa', 'Cost per new customer', 'First orders only (Triple Whale journeys).'], ['roas', 'ROAS', 'Revenue back for each ad dollar. For brands where order size swings.'], ['cpl', 'Cost per lead', 'Service brands and lead campaigns.']];
     const goalRow = (k, label, v, unit, hint, sug) => `<div class="g-row gr-goal${k === M.metric || (k === 'target_roas' && M.metric === 'roas') || (k === 'target_cpa' && M.metric === 'cpa') ? ' main' : ''}" data-gk="${k}"><span class="g-l"><b>${label}</b><small>${hint}</small>${sug ? `<small class="gr-sug">${sug}</small>` : ''}</span><span class="g-c">${inp(k, v, unit, 'not set', 76)}</span></div>`;
-    const sugLine = (realV, beV, unit, fill) => { const p = []; if (realV != null) p.push(`real, last 90 days: <b>${unit === 'x' ? realV.toFixed(2) + 'x' : money(realV)}</b>`); if (beV != null) p.push(`break-even on a first order: <b>${unit === 'x' ? beV.toFixed(2) + 'x' : money(beV)}</b>${fill ? ` <button type="button" class="v2link" data-fill="${fill}" data-v="${unit === 'x' ? Math.round(beV * 10) / 10 : Math.round(beV)}">Use it</button>` : ''}`); return p.join(' · '); };
+    /* Real and break-even are in the table at the top; the row keeps only a one-click fill. */
+    const sugLine = (realV, beV, unit, fill) => beV == null || !fill ? '' : `<button type="button" class="v2link" data-fill="${fill}" data-v="${unit === 'x' ? Math.round(beV * 10) / 10 : Math.round(beV)}">Use break-even (${unit === 'x' ? beV.toFixed(2) + 'x' : money(beV)})</button>`;
     const T = r.target_cpa, TR = g.goal_roas;
     const lowWarn = (goal, realV) => goal && realV && goal < realV * 0.7 ? `<p class="gr-warn">The goal is ${Math.round((1 - goal / realV) * 100)}% under what the brand really runs at (${money(realV)}). Every set at the normal cost will read Cut. Check it with the client.</p>` : '';
     const per = M.metric === 'roas' ? 'x' : '$';
     box.innerHTML = `<div class="gwrap2 grw">
+      ${sec('Goals and break-even at a glance', '', 'What we agreed with the client, where the brand stops making money, and what it really ran at. Change a goal in The goals below.', goalsGlance(a, g, pre))}
       ${sec('What this brand is judged on', '', 'Pick one. Every call on Ads > Today and every green or red on Meta > Ads uses it. The others are kept for reports and for campaigns built for them (a lead campaign always uses cost per lead).',
         `<div class="ds-seg gr-seg" role="tablist">${METRICS.map(([k, l]) => `<button type="button" data-metric="${k}" class="${M.metric === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <p class="tiny gr-mhint">${(METRICS.find(x => x[0] === M.metric) || [])[2] || ''}</p>`)}
