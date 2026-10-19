@@ -3690,6 +3690,25 @@ Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later
   Notify fallback as a Slack DM at post time, the tray's Unused filter, per-platform tweaks, saved captions, a tagged-in
   collector with creator credit. Meta posting for Lucky needs NO app review (Cole is an admin of the Mobius Tools app):
   two token scopes, `instagram_content_publish` + `pages_manage_posts`.
+- **Second pass, the same day (Cole's audit: "squished", "confusing", "Radhesh's read?", "how are winners chosen?",
+  "no way out of Present"). callscreen.js?v=2 SUPERSEDES the layout above.** One column of roomy section cards
+  (no rail or side panel), the steps as a row of pills on top, a sticky bar at the bottom (Back, where you are, the
+  clock as "6:40 left / 1:20 over", Next). Every section names its source in plain words with a tag: **Automatic**
+  (Locus pulled it in), **From Slack** (the team's posts), **You add** (+ **Optional**). The top strip of "When / In the
+  room / Talks / Types" is one plain sentence. Textareas grow as you type (`grow`, never a drag handle).
+- **Monday brand page**: Last week's to-dos; How last week went (Sales, Ad spend, MER vs goal, Orders, Cost per new
+  customer, each vs the week before; a By channel table from the report's channels; Best and worst ads = of the
+  report's ads that spent at least the floor, the 3 best and up to 3 worst by Triple Whale ROAS, never the same ad
+  twice, with "all of them together made X"; a tap opens `V2.playAd`, "See every ad in Locus" opens Ads with the brand);
+  **What the team posted in Slack** = every Monday post for the brand AS WRITTEN (`slackText`: user ids to names,
+  `*bold*`, "label (url)" to a short link), each with the person's team name and role; Notes from the call (optional,
+  goes in the Slack recap; stored as `brands[act].read`); New ads to make this week (rows from the strategist's or
+  Cole's post, never Radhesh's / Hamza's; "Already being made" folds the brand's Brief / Making / Review cards); New
+  to-dos (optional); What we need from them (Still waiting on, then Ask for something new).
+- **Present** = `body.cs-present` (rail, top bar and tabs hidden) + the page's full screen on `documentElement`, so the
+  page scrolls; the button reads "Exit (Esc)"; Esc or leaving full screen ends it.
+- Client call: the read warns when the newest weekly report has not been sent yet ("Check the numbers before you show
+  them"). Kickoff unchanged apart from the shared layout.
 
 ## 2026-10-19: SOCIAL, phase 2: THE WEEK and direct posting (`profit/socialweek.js`, `window.SocialWeek`). Read before touching it.
 

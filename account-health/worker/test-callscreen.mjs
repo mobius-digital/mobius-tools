@@ -9,8 +9,8 @@ const d = { ads: { floor: 50, top: [{ ad_id: '1', name: 'a', spend: 100 }, { ad_
   attr: { ads: { lastPlatformClick: { 1: { revenue: 400, orders: 4 }, 2: { revenue: 200, orders: 2 }, 4: { revenue: 300, orders: 3 } } } } };
 const wl = winnersLosers(d);
 ok(Math.abs(wl.bar - 900 / 430) < 1e-9, 'bar = revenue / spend of the attributed ads');
-ok(wl.winners.map(x => x.ad_id).join() === '1,4', 'winners beat the bar, best first');
-ok(wl.losers.map(x => x.ad_id).join() === '3,2', 'losers under the bar, worst first; an ad with no Triple Whale row reads 0');
+ok(wl.winners.map(x => x.ad_id).join() === '1,4,2', 'best 3 by ROAS, best first');
+ok(wl.losers.map(x => x.ad_id).join() === '3' && wl.pool === 4, 'worst after the best 3, worst first; never the same ad twice; an ad with no Triple Whale row reads 0');
 const nw = winnersLosers({ ads: { top: [{ ad_id: '9', spend: 10 }] } });
 ok(nw.basis === 'spend' && nw.losers.length === 0, 'no attribution = by spend, no losers');
 

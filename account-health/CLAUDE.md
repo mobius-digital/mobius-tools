@@ -2487,3 +2487,9 @@ Screens in profit/CLAUDE.md, same date.
     secrets; add `/social/google/callback` as a redirect on the Locus Google OAuth client, enable the YouTube Data
     API, set `GOOGLE_CLIENT_SECRET`; then Brand settings > Social > Connect a Page, Sign in to TikTok, Sign in to
     Google. Record the Week screen posting for the TikTok audit and the Google verification.
+- **Second pass (2026-10-19, same day):** `/api/calls/screen?kind=monday` brands carry `posts` (every Slack post in the
+  plan thread, as written: by, at, text), `making` (Production cards in Brief / Making / Review, `parked` ones left
+  out), and `read.channels` (every channel row of the report). `winnersLosers` = best 3 and worst 3 by Triple Whale ROAS
+  among the report's ads over the floor, never the same ad twice, plus `bar` (those ads together) and `pool`. The plan
+  split no longer seeds a "read" (the posts are shown instead); batches come only from Ahsan's, Noma's or Cole's posts
+  (hash prefix `v4:`). meetings.js `mondayScreen` reads every brand at once.
