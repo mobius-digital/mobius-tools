@@ -3624,3 +3624,31 @@ say gold plated" sat in an unshown field). Built only from data the page has, no
 4. Ask them on the call: not sure, blank must-haves (only when the form has answers), numbers that do not match.
 At a glance is not drawn on the Client answers view (the sheet carries it; "Edit our notes" opens `editProfile()`, the
 same modal). The full form stays folded under it. Only Ice & Gold, Yak and Grunk have filled forms (2026-10-19).
+
+## 2026-10-19: THE CALL SCREENS (`profit/callscreen.js`, `window.CallScreen`). Read before touching Work > Calls.
+
+Cole: "something pulled up that I would share the screen and go down every single week with the team." Approved mock:
+https://claude.ai/artifact/YbExG9VRV3untjLtPHjnJb (Monday call, client call, creative kickoff). Backend: account-health
+`src/callscreen.js` (its CLAUDE.md, same date).
+- **Entry**: Work > Calls opens with "Run a call" (three cards; calls.js `runHtml`, which replaced the Monday agenda block)
+  and `?open=calls&call=monday|client|kickoff[&act=]` (index.html sets `window.CALL_OPEN`). The screen draws into `#main`
+  with "← Calls"; Present = the browser's full screen on `#csRoot`.
+- **Every box is labelled where it comes from**: green "Locus fills it", blue "From <strategist>'s Slack plan", amber
+  "Typed on the call". Rail on the left = the order (Monday: Open, brands red first by `/api/hub/command`, Close; client:
+  six steps; kickoff: one per brief), a clock per step (Monday: 7 min red/amber, 2 min green, 4 unknown), Back / Next,
+  arrow keys, Ctrl+Enter = the last step. Side = what Finish will do, counted live.
+- **Monday brand step**: 1 last week's items (open p_action due by today, ticks are instant via `/api/calls/done`; due
+  later folds), 2 the read (the weekly report's numbers, winners and losers = ads that beat or fell under the ads' own
+  Triple Whale ROAS together that week, the strategist's read pre-filled from Slack, Google and Amazon rows with Radhesh's
+  and Hamza's Slack words, Google spend by campaign type loaded lazily), 3 batches (rows: what, who, due, keep tick; from
+  the Slack plan), 4 new jobs (type a sentence, Enter, `/api/calls/parse` reads owner and day), 5 client asks.
+- **Client call** shows only the client's own brand: their news, the read from the newest SENT report (week / month
+  toggle), This week from that report + promises typed, asks (open Requests + typed), Coming up (Calendar), recap +
+  "Post this recap in the client channel" tick. Internal tasks are NEVER shown on it (the client watches).
+- **Kickoff**: Production cards in the Brief column (parked templates / "Test" / bare numbers / 3 weeks with no due date
+  fold under "Show N older briefs"); the brief page from `/api/production/card`, the brand's winners, inspiration files,
+  the Drive folder, the designer's questions, then the deal (how many, format, who, due = kickoff + 2 working days) and
+  "Agreed: send it to Making".
+- Typing autosaves (`PUT /api/calls/state`, 700ms debounce, "Saved"). Finish asks first, then the server sends it all.
+- CSS `#cscss`, classes `.cs-*` (tokens only). callscreen.js?v=1, calls.js?v=4. Checked on the local pair against real
+  data (Monday, Grunk client call, kickoff; 1440 and 375). Finish was NOT pressed locally (it writes Asana and Slack).

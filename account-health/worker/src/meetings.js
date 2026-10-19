@@ -43,6 +43,7 @@ import { briefFor, ensureBoard } from './asana-brand.js';
 import { nextNumber } from './ideas.js';
 import { numOf } from './asana-brand.js';
 import { teamPost, tagOf, loadCard } from './morningcard.js';
+import { typedOnCall } from './callscreen.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
@@ -74,6 +75,7 @@ const SQL = [
   `CREATE INDEX IF NOT EXISTS p_meeting_date ON p_meeting (date DESC)`,
 ];
 let ensured = false;
+export async function ensureMeetings(env) { return ensure(env); }
 async function ensure(env) { if (ensured) return; for (const s of SQL) await env.DB.prepare(s).run(); ensured = true; }
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
@@ -160,7 +162,11 @@ async function extract(env, d, m, text) {
   const brands = await d.listBrands(env);
   const team = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
   const system = systemFor(brands, team, m.date);
-  const user = `MEETING: ${m.title || 'Untitled'} (${m.date}, ${Math.round(m.duration || 0)} min)\nATTENDEES: ${(m.attendees || []).map(a => a.displayName || a.email).filter(Boolean).join(', ') || 'unknown'}\n\nTRANSCRIPT:\n${text}`;
+  /* 2026-10-19: a call run on a Locus call screen was typed live and already sent where it lives. The read of the same
+     call returns only what was said and NOT typed ("Also said on the call"); nothing new = no card. */
+  const typed = await typedOnCall(env, m.date);
+  const typedBlock = typed.length ? `\n\nALREADY TYPED ON A LOCUS CALL SCREEN THAT DAY (already on the list, in Asana and in Requests). If this transcript is that call, return ONLY commitments that are NOT in this list (the same task in other words counts as typed). If everything was typed, return brands: []. If this transcript is a different call, ignore this list.\n${typed.slice(0, 200).map(x => `- ${x}`).join('\n')}` : '';
+  const user = `MEETING: ${m.title || 'Untitled'} (${m.date}, ${Math.round(m.duration || 0)} min)\nATTENDEES: ${(m.attendees || []).map(a => a.displayName || a.email).filter(Boolean).join(', ') || 'unknown'}${typedBlock}\n\nTRANSCRIPT:\n${text}`;
   const r = await d.xfetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -179,6 +185,7 @@ async function extract(env, d, m, text) {
     this_week: (b.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     need_from_client: (b.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
   }));
+  if (typed.length) out.also_said = true;
   return { notes: out, cost };
 }
 
@@ -202,6 +209,15 @@ export async function ingest(env, d, id, { force = false } = {}) {
   try {
     const { notes, cost } = await extract(env, d, m, text);
     if (thinned) notes.summary = `${notes.summary} (A long call: the transcript was thinned before reading.)`;
+    /* A call typed live on a Locus call screen: only what was missed comes back; nothing missed = nothing to approve. */
+    if (notes.also_said) {
+      const n = notes.brands.reduce((k, b) => k + b.items.length + b.this_week.length + b.need_from_client.length, 0);
+      if (!n) {
+        await env.DB.prepare(`UPDATE p_meeting SET kind = ?2, notes_json = ?3, status = 'skipped', error = 'everything said was typed on the call screen', cost = ?4, updated_at = ?5 WHERE id = ?1`).bind(m.id, notes.kind || 'other', JSON.stringify(notes), cost, now()).run();
+        return { id: m.id, skipped: 'all typed', cost };
+      }
+      notes.summary = `Also said on the call, not typed: ${notes.summary}`;
+    }
     await env.DB.prepare(`UPDATE p_meeting SET kind = ?2, notes_json = ?3, status = 'extracted', cost = ?4, updated_at = ?5 WHERE id = ?1`).bind(m.id, notes.kind || 'other', JSON.stringify(notes), cost, now()).run();
     await tellReady(env, d, m, notes).catch(() => {});
     return { id: m.id, ok: true, kind: notes.kind, brands: notes.brands.length, items: notes.brands.reduce((n, b) => n + b.items.length, 0), cost };
@@ -425,8 +441,8 @@ export async function mondayScreen(env, d) {
   const monday = mondayOf(today);
   const open = await openItems(env, d).catch(() => []);
   const theme = safe(await getSetting(env, 'mondayTheme'), null);
-  const out = [];
-  for (const b of brands) {
+  /* Every brand at once (2026-10-19: the call screen loads it; one brand at a time took ~7s). Order is kept. */
+  const out = await Promise.all(brands.map(async b => {
     const rep = await env.DB.prepare(`SELECT period, period_start, period_end, status, summary, data_json, slack_ts, slack_channel, sent_at FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(b.act_id).first().catch(() => null);
     let report = null, thread = [];
     if (rep) {
@@ -450,8 +466,8 @@ export async function mondayScreen(env, d) {
         thread = rows.map(r => ({ by: r.name || r.user || 'someone', text: String(r.text).slice(0, 4000), at: new Date(+String(r.ts).split('.')[0] * 1000).toISOString(), where: 'channel' }));
       }
     }
-    out.push({ act_id: b.act_id, name: b.name, report, thread, open: (open.find(o => o.brand_id === b.act_id) || {}).items || [] });
-  }
+    return { act_id: b.act_id, name: b.name, report, thread, open: (open.find(o => o.brand_id === b.act_id) || {}).items || [] };
+  }));
   return { monday, theme: theme && theme.date === monday ? theme.text : '', brands: out, agency_open: (open.find(o => o.brand_id === '') || {}).items || [] };
 }
 

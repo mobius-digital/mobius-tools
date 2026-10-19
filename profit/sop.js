@@ -1,5 +1,5 @@
 /* HOW WE WORK (2026-10-13). A section of How to use Locus (index.html renderGuide; it was Agency settings > How we work
- * until 2026-10-13): the week, the Monday call, the creative kickoff call, the creative review call, the client call, revisions and due dates, on one printable page. The words are Cole's reset of 2026-10-12
+ * until 2026-10-13): the week, the Monday call, the creative kickoff call, the client call, revisions and due dates, on one printable page. The words are Cole's reset of 2026-10-12
  * (docs/operating-cadence-2026-10-12.md); change them here when the rhythm changes. Static, no data.
  * Exports window.SopPage = { html(), mount(host) }.
  */
@@ -35,15 +35,6 @@
     'Agree the count, the format and the due date (kickoff plus two full working days).',
     'The strategist leaves one Asana comment: what we agreed, what changed, the due date. That comment is the record.',
   ];
-  const REVIEW = [
-    'Friday, before Cole approves. Also the call for any second round on the same ad (no second round in comments).',
-    'Each ad on screen in Frame, next to its brief. The strategist says the idea in one sentence first.',
-    'Does it say the idea in the first second? Does it look like the brand, and does it look different from what is already running?',
-    'The strategist calls each ad: approve, fix, or kill, with the reason in one line. The designer can push back; a better way wins.',
-    'Fixes are numbered while we talk, one owner each, back within 24 hours.',
-    'Agree what goes live Monday and what waits.',
-    'The strategist leaves one Asana comment per brief: approved, the numbered fixes, the new due date. That comment is the record.',
-  ];
   const CLIENT = [
     ['Before', 'The client report has gone out. The strategist knows the three numbers against goal, the winners and losers, and what is open on Requests.'],
     ['Their news, 5 minutes', 'Ask first, listen. Launches, stock, offers, what customers are saying, anything that changed on their side.'],
@@ -54,7 +45,7 @@
     ['After', 'The call notes land on Action items as a card to approve. Cole approves it once: tasks on the list, what the client owes into Requests, a short recap in the client channel the same day.'],
   ];
   const RULES = [
-    ['Revisions', 'Feedback is one numbered comment in Asana within 24 hours of delivery. One round. The designer turns a round in 24 hours. A second round on the same ad is a creative review call.'],
+    ['Revisions', 'Feedback is one numbered comment in Asana within 24 hours of delivery. One round. The designer turns a round in 24 hours. A second round on the same ad is a quick call.'],
     ['Due dates', 'The Asana due date is the deadline. If something is blocking you (assets, an unclear brief, too much on your plate), say so in the brand channel at least 24 hours before it is due.'],
     ['Creative', 'Last week’s winners and losers decide this week’s batches. More iterations on what works, kill what does not.'],
     ['Where things live', 'Action items live in Locus; a brief agreed on a call is made in Asana with its number, and briefs and creative production are still worked in Asana until the production board moves in. Locus is the memory: it reads Asana, Meta and Triple Whale and fills itself. Slack carries the headline, the reminders and the conversation; the report lives in Locus.'],
@@ -82,10 +73,9 @@
     return `<div class="sop">
       <div class="row" style="justify-content:flex-end;margin:0 0 12px"><button type="button" class="btn" onclick="window.print()">Print or save as PDF</button></div>
       ${card('The week', 'Set 2026-10-12. Every time is Central.', `<table class="sop-tbl"><tr><th>When</th><th>What</th><th>Who</th></tr>${WEEK.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</table>`)}
-      ${card('The Monday call', 'Same order every week, per brand, with a clock. Action items shows each brand’s numbers and plan on Mondays.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CALL.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
-      ${card('The creative kickoff call', 'Required for every brief. A real conversation about the idea, not a read-through. 15 to 20 minutes for a group of briefs.', `<ol>${KICKOFF.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
-      ${card('The creative review call', 'Strategist and designer, 15 minutes for a group of ads. Ads are judged against the brief, not by taste.', `<ol>${REVIEW.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
-      ${card('The client call', 'Strategist leads, Cole joins when it matters. 30 minutes, same order every time.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CLIENT.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
+      ${card('The Monday call', 'Same order every week, per brand, with a clock. Run it from Work > Calls > Monday call and share that screen.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CALL.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
+      ${card('The creative kickoff call', 'Required for every brief. A real conversation about the idea, not a read-through. 15 to 20 minutes for a group of briefs. Run it from Work > Calls > Creative kickoff.', `<ol>${KICKOFF.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
+      ${card('The client call', 'Strategist leads, Cole joins when it matters. 30 minutes, same order every time. Run it from Work > Calls > Client call.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CLIENT.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
       ${card('Revisions, due dates, creative', '', RULES.map(r => `<div class="sop-rule"><b>${esc(r[0])}</b>${esc(r[1])}</div>`).join(''))}
     </div>`;
   }

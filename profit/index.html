@@ -2360,12 +2360,13 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="clients.js?v=6"></script>
 <script src="requests.js?v=2"></script>
 <script src="actions.js?v=4"></script>
-<script src="calls.js?v=3"></script>
+<script src="calls.js?v=4"></script>
+<script src="callscreen.js?v=1"></script>
 <script src="tasks.js?v=5"></script>
 <script src="review-ui.js?v=9"></script>
 <script src="prodsheet.js?v=12"></script>
 <script src="production.js?v=10"></script>
-<script src="sop.js?v=4"></script>
+<script src="sop.js?v=5"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=35"></script>
@@ -2602,6 +2603,7 @@ async function boot() {
     /* A Slack note or reminder opens one task (?open=actions|tasks&item=<id>); the old call page ids open Calls. */
     if ((open === 'actions' || open === 'tasks') && qs.get('item')) window.ACT_OPEN = qs.get('item');
     if (qs.get('meeting')) window.ACT_MEETING = qs.get('meeting');   // a call from Slack (?open=actions|calls&meeting=<id>)
+    if (open === 'calls' && ['monday', 'client', 'kickoff'].includes(qs.get('call'))) window.CALL_OPEN = qs.get('call');   // a call screen (?open=calls&call=monday|client|kickoff&act=)
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
     // A Slack draft notice names one specific day. Without carrying the date
@@ -5839,7 +5841,7 @@ function renderGuide() {
      (applyRole is a no-op since the v3 shell), so a button that changed nothing is not drawn. */
   $('#main').innerHTML = `<div class="gd v2 lx">${LX.head('guide', 'How to use Locus')}
     ${LX.say('What each page is for and what to do, in order. Find your role and follow the steps; every step has an Open button that takes you there.')}
-    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the creative review call, the client call, revisions and due dates. Set 2026-10-12; the words live in sop.js.</span></div></header>
+    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the client call, revisions and due dates. Each call has a screen under Work > Calls. Set 2026-10-12; the words live in sop.js.</span></div></header>
       ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>
     ${order.map(g => `<section class="gd-role"><header><div><h3>${esc(g.name)}</h3><span>${esc(g.sub)}</span></div></header>
       ${g.parts.map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}
