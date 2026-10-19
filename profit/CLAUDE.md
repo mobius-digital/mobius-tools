@@ -3649,3 +3649,16 @@ Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later
   Clients see "save it and tell the team in Requests" instead.
 - CSS injected as `#soccss`, tokens only. Checked on the local trio (worktree statics + both dev workers) with real
   Lucky data at desktop width; the Takomo Make ours ran end to end live (Studio batch "Long Iron Dread: a PSA (statics)").
+- **Same day, after the demos (social.js?v=2).** Eight demo videos of Sandcastles, Virlo and Later were read as transcripts
+  (ScrapeCreators `/v1/youtube/video/transcript` through the team debug route `/api/social/raw`), and the plan page gained a
+  "What their demos actually showed" section (feature by feature: take / later / out). Built from it: a controls row under
+  the format chips with **Sort** (Breaking out first / Most views / Newest / Most engagement, `soc_sort`), **Posted in**
+  (everything / 7 / 14 / 30 days, `soc_win`; the backend keeps 30 days, so 30 is a no-op kept for when it keeps more),
+  a **search** over caption, handle, who, hook, format tag and sound (debounced, keeps the caret), **Hide paid-looking
+  posts** (engagement under 0.5% likes + comments per view, Kallaway's rule for dropping brand deals; `soc_paid`), and a
+  post count; the empty state offers "Clear search, window and paid filter". The ratio sort breaks ties on volume.
+  Phase 1.5 ideas (not built): transcript on Make ours once the clip is stored, a per-follow line (posts a week, median
+  views, best weekday), keep / change chips for Kallaway's seven variables. Phase 2 additions from Later's demo: the
+  Notify fallback as a Slack DM at post time, the tray's Unused filter, per-platform tweaks, saved captions, a tagged-in
+  collector with creator credit. Meta posting for Lucky needs NO app review (Cole is an admin of the Mobius Tools app):
+  two token scopes, `instagram_content_publish` + `pages_manage_posts`.
