@@ -199,7 +199,22 @@ function showDir() {
   const h = new Date().getHours();
   $('#daypart').textContent = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   const next = new URLSearchParams(location.search).get('next');
-  if (next && next.startsWith('/')) location.href = next;   // seamless hand-off back to the tool
+  if (next && next.startsWith('/') && !next.startsWith('//')) location.href = next;   // seamless hand-off back to the tool
+  else if (next) handToHub(next);
+}
+
+/* The Cashew link (one address for every set of books) cannot run Google's button on its own
+   origin, so it sends sign-in here and gets the session back in the URL fragment (never sent to
+   a server). Only the hub's exact origin may receive it. */
+const HUBS = ['https://cashew.mobius-digital.workers.dev'];
+function handToHub(next) {
+  let u; try { u = new URL(next); } catch { return; }
+  if (!HUBS.includes(u.origin) || u.pathname !== '/__cashew/signin') return;
+  const f = new URLSearchParams({
+    t: localStorage.getItem(LS.tok) || '', e: localStorage.getItem(LS.email) || '',
+    x: localStorage.getItem(LS.exp) || '0', r: localStorage.getItem('mobius_session_role') || '',
+  });
+  location.replace(u.origin + u.pathname + u.search + '#' + f);
 }
 
 function fail(msg) { const e = $('#err'); e.textContent = msg; e.style.display = ''; }
