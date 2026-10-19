@@ -34,12 +34,14 @@ function safePath(p) {
   return p && /^\/(?!\/)[\w\-./?=&%]*$/.test(p) ? p : null;
 }
 
-/* Stores the session HQ passed in the fragment the same way HQ does, then opens the books. */
+/* Stores the session the books' own address passed in the fragment, under the key that app
+   reads (Mobius: HQ's shared session; Lucky: its own token), then opens the books. */
 const SIGNIN_PAGE = `<!doctype html><meta charset="utf-8"><title>Signing in</title>
 <script>
-var f = new URLSearchParams(location.hash.slice(1)), then = __THEN__;
+var f = new URLSearchParams(location.hash.slice(1)), then = __THEN__, books = __BOOKS__;
 history.replaceState(null, '', location.pathname);
-if (f.get('t')) {
+if (f.get('t') && books === 'lucky') localStorage.setItem('lucky_token', f.get('t'));
+else if (f.get('t') && books === 'mobius') {
   localStorage.setItem('mobius_session', f.get('t'));
   localStorage.setItem('mobius_session_email', f.get('e') || '');
   localStorage.setItem('mobius_session_exp', f.get('x') || '0');
@@ -81,7 +83,7 @@ export default {
     }
     if (url.pathname === '/__cashew/signin') {
       const then = safePath(url.searchParams.get('then')) || b.home;
-      return new Response(SIGNIN_PAGE.replace('__THEN__', JSON.stringify(then)), {
+      return new Response(SIGNIN_PAGE.replace('__THEN__', JSON.stringify(then)).replace('__BOOKS__', JSON.stringify(id)), {
         headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
       });
     }
