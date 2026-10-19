@@ -2343,7 +2343,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="review-ui.js?v=9"></script>
 <script src="prodsheet.js?v=12"></script>
 <script src="production.js?v=10"></script>
-<script src="sop.js?v=3"></script>
+<script src="sop.js?v=4"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=35"></script>
@@ -5775,7 +5775,7 @@ function renderGuide() {
     ${order.map(g => `<section class="gd-role"><header><div><h3>${esc(g.name)}</h3><span>${esc(g.sub)}</span></div></header>
       ${g.parts.map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}
     </section>`).join('')}
-    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, revisions and due dates. Set 2026-10-12; the words live in sop.js.</span></div></header>
+    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the creative review call, the client call, revisions and due dates. Set 2026-10-12; the words live in sop.js.</span></div></header>
       ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>
     <section class="gd-role"><header><div><h3>Replay a tour</h3><span>Each page has a short walkthrough; it is also on the page itself under Tour, top right.</span></div></header>
       <div class="row" style="margin:0;gap:8px;flex-wrap:wrap">${Object.entries(TOURS).map(([k, t]) => `<button class="btn" data-tour="${k}">${esc(t.name)}</button>`).join('')}</div></section>
