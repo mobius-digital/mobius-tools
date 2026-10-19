@@ -678,6 +678,33 @@ await check("Production (2026-10-14): a client reads its own brand (Needs you + 
   assert.equal(team.status, 200); assert.ok(Array.isArray(team.j.cards), 'the team gets the board');
 });
 
+await check("Social phase 2 (2026-10-19): a client plans its own brand's week (never another's), posts and captions are its own rows, connecting accounts and the Pages list stay the team's", async () => {
+  const week = await ah(CLIENT, 'GET', '/api/social/week?act=brand_alpha&from=2026-11-02');
+  assert.equal(week.status, 200); assert.equal(week.j.act, 'brand_alpha'); assert.equal(week.j.days.length, 7);
+  assert.equal((await ah(CLIENT, 'GET', '/api/social/week?act=brand_beta&from=2026-11-02')).status, 403);
+  const acc = await ah(CLIENT, 'GET', '/api/social/accounts?act=brand_alpha');
+  assert.equal(acc.status, 200); assert.equal(acc.j.keys, undefined, "which server keys exist is not the client's"); assert.ok(!JSON.stringify(acc.j).includes('token'));
+  for (const [m, p, b] of [['GET', '/api/social/accounts/meta-pages'], ['POST', '/api/social/accounts/meta', { act: 'brand_alpha', page_id: '1' }], ['POST', '/api/social/connect/tiktok', { act: 'brand_alpha' }],
+    ['POST', '/api/social/connect/youtube', { act: 'brand_alpha' }], ['PUT', '/api/social/accounts/mode', { act: 'brand_alpha', plat: 'ig', mode: 'notify' }], ['DELETE', '/api/social/accounts?act=brand_alpha&plat=ig']])
+    assert.equal((await ah(CLIENT, m, p, b)).status, 403, `${m} ${p}`);
+  const mk = await ah(CLIENT, 'POST', '/api/social/post', { act: 'brand_alpha', at: '2026-11-03T15:00:00.000Z', caption: 'Hello', media: [{ ref: 'x', src: 'upload', kind: 'image', title: 't', file: 'https://files.test/a.jpg' }], targets: { ig: { on: true } }, status: 'draft' });
+  assert.equal(mk.status, 200); const id = mk.j.post.id;
+  assert.equal((await ah(CLIENT, 'POST', '/api/social/post', { act: 'brand_beta', at: '2026-11-03T15:00:00.000Z', caption: 'x', media: [], targets: {}, status: 'draft' })).status, 403, "another brand's week");
+  assert.equal((await ah(CLIENT, 'GET', `/api/social/post?id=${id}`)).status, 200);
+  db.prepare(`INSERT INTO social_post_out (id, act_id, at, status, caption) VALUES ('pbeta', 'brand_beta', '2026-11-03T15:00:00.000Z', 'draft', 'beta')`).run();
+  assert.equal((await ah(CLIENT, 'GET', '/api/social/post?id=pbeta')).status, 403, "another brand's post");
+  assert.equal((await ah(CLIENT, 'DELETE', '/api/social/post?id=pbeta')).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/social/post/byhand', { id: 'pbeta', plat: 'ig' })).status, 403);
+  const cap = await ah(CLIENT, 'POST', '/api/social/captions', { act: 'brand_alpha', text: 'Keep this one' });
+  assert.equal(cap.status, 200);
+  db.prepare(`INSERT INTO social_caption (id, act_id, text) VALUES ('cbeta', 'brand_beta', 'beta caption')`).run();
+  assert.equal((await ah(CLIENT, 'DELETE', '/api/social/captions?id=cbeta')).status, 403);
+  assert.equal((await ah(CLIENT, 'DELETE', `/api/social/captions?id=${cap.j.id}`)).status, 200);
+  assert.equal((await ah(CLIENT, 'DELETE', `/api/social/post?id=${id}`)).status, 200);
+  assert.ok(passed(await ah(TEAM, 'GET', '/api/social/accounts/meta-pages')), 'the team reaches the Pages list (it fails offline on Meta, which is fine)');
+  assert.ok(passed(await pf(CLIENT, 'GET', '/api/calendar?act=brand_alpha&from=2026-11-02&to=2026-11-08')), 'the calendar with its posts layer still answers a client');
+});
+
 globalThis.fetch = realFetch;
 const pass = results.filter(Boolean).length;
 console.log(`\n${pass}/${results.length} passed`);

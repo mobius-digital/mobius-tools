@@ -2409,10 +2409,48 @@ Screens in profit/CLAUDE.md, same date.
 - **Client rules** (brandguard, both copies): GET /api/social, /brands, /idea; PUT /brand; follow / unfollow / save /
   video for their own brand's rows. `test-clients.mjs` 27/27, `test-ideas.mjs` 49/50 (the one failure, the router
   check, fails the same on the commit before this work).
-- **Phase 2 (not built):** the Week (hour grid, ready tray, composer) and posting direct. For Lucky (Cole's own assets,
-  Cole is admin of the Mobius Tools Meta app) Instagram and Facebook posting need NO app review: Standard Access covers
-  accounts whose people have a role on the app; the system-user token needs `instagram_content_publish` and
-  `pages_manage_posts` added (Cole, Business settings). TikTok Content Posting (developers.tiktok.com, a different
-  product from the ads app) and YouTube upload (Google verification) both need a screen recording of the working
-  posting screen, so they are filed once phase 2's screen exists; until approved TikTok posts land as drafts / private,
-  YouTube uploads as private.
+- **Phase 2 is BUILT (2026-10-19, `src/socialpost.js`): the Week and direct posting.** Screens in profit/CLAUDE.md.
+  Tests: `node test-socialpost.mjs` (7) and the Social check in `test-clients.mjs`. NOT verified live: every real
+  publish, both OAuth callbacks, the Images JPEG transform, TikTok's domain check for photo posts.
+  - **Tables** (`ensureSocialPost`, also in schema.sql): `social_account` (one row per brand + platform, `token_json`
+    NEVER leaves the worker; `mode` live | draft | notify; `status` ok | error), `social_post_out` (the post: `at` UTC,
+    `status` draft | scheduled | posting | posted | partly | handoff | failed, `media_json` [{ref, src, kind, title,
+    thumb, url, key, staged, public}], `targets_json` {ig, fb, tt, yt: {on, caption, first_comment, title, privacy,
+    visibility}}, `results_json` per platform {id, url, posted_at, handoff, by_hand, error, views, likes, comments}),
+    `social_caption`, `social_media` (uploads at R2 `social/u/<key>`, and tagged-in posts), `social_oauth_state`.
+  - **Connections** (team only): Meta = pick a Page from `/api/social/accounts/meta-pages` (the Mobius Tools token's
+    `me/accounts`, each with its Instagram business account); the Page token is stored for Facebook, Instagram uses
+    META_TOKEN. `missing` names the scopes the token lacks (`instagram_content_publish`, `pages_manage_posts`). TikTok
+    = Login Kit OAuth (`POST /api/social/connect/tiktok` -> the URL; public `GET /social/tiktok/callback`; secrets
+    `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET`, a Content Posting app, NOT the ads app). YouTube = Google OAuth
+    (`/api/social/connect/youtube`, public `GET /social/google/callback`, `GOOGLE_CLIENT_ID` + new secret
+    `GOOGLE_CLIENT_SECRET`, scopes youtube.upload + youtube.readonly, refresh token kept). Mode per account
+    (`PUT /api/social/accounts/mode`): TikTok and YouTube start as `draft` (inbox draft / private) until the app
+    reviews pass; `notify` hands every post to a person.
+  - **The scheduler**: cron `*/5 * * * *` (wrangler.toml) runs `socialPostTick` alone; the hourly tick runs it too plus
+    `socialResultsTick`. A due row is CLAIMED by a conditional UPDATE (scheduled -> posting) so two ticks never post
+    twice; a row in `posting` for 30+ minutes is marked failed with a plain reason and never retried on its own
+    (it may be half out). `publishPost` stages every file once into R2 (pictures to JPEG through IMAGES, served public
+    at `/social-m/u/<key>` because every platform pulls from a URL), then per platform: Instagram container +
+    `media_publish` (REELS for a video, CAROUSEL for several), first comment; Facebook `/photos`, `/videos` or
+    `/feed` with attached media; TikTok FILE_UPLOAD chunks to the inbox (draft) or direct post (live), photo posts
+    PULL_FROM_URL; YouTube resumable upload, private unless live. A platform that is not connected, set to notify,
+    needs a video it does not have, or REFUSES THE LOGIN (the account is flagged `error`) is handed to a person:
+    `notifyHandoff` DMs the poster (users.lookupByEmail), else the brand's internal channel, with the file links,
+    the caption and a "Posted it" button (`soc_done`, routed by slack-router's `IDEA_ID`), which `markByHand` records.
+    Post now runs `publishPost` in `waitUntil`.
+  - **Results**: `socialResultsTick` pulls views / likes / comments once a day per post for 30 days (IG insights,
+    Page insights, YouTube statistics, TikTok video/query) and, once a day per brand, the posts others tagged the
+    brand's Instagram in (`/{ig}/tags`) into `social_media` source `tagged` (phase 2.5).
+  - **The tray** (`trayOf`): Studio approved finals (PROFIT `/api/studio`), creator link clips (`/api/amb`), the top 12
+    Meta ads by 30-day spend, Make ours drafts (`idea_thread`), uploads and tagged posts; `used` = its ref is on a post.
+  - **Calendar**: `calendarPosts` rides on `/api/calendar` as `social` (brand-local day). Rephrase = Haiku 5.5 with
+    the brand's voice guide, three options.
+  - **Client rules** (both brandguard copies): week, tray, upload, post (own rows), captions, rephrase (capped);
+    never accounts, connect, mode or the Pages list.
+  - **What Cole does** (nothing posts for real until then): regenerate the Mobius Tools system-user token with
+    `instagram_content_publish` + `pages_manage_posts` and make sure Lucky's Page is assigned to it; make the TikTok
+    Content Posting app (Login Kit + Content Posting API, redirect `/social/tiktok/callback`) and set the two
+    secrets; add `/social/google/callback` as a redirect on the Locus Google OAuth client, enable the YouTube Data
+    API, set `GOOGLE_CLIENT_SECRET`; then Brand settings > Social > Connect a Page, Sign in to TikTok, Sign in to
+    Google. Record the Week screen posting for the TikTok audit and the Google verification.

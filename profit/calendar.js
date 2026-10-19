@@ -24,6 +24,14 @@
   const tip = h => (U() ? U().tipAttr(h) : '');
   const KL = { drop: 'Drop or launch', sale: 'Sale or offer', adpush: 'Ad push', site: 'Site change', other: 'Teaser, list, other' };
   const CLS = k => (k === 'drop' ? 'drop' : k === 'sale' ? 'sale' : 'other');
+  /* Social posts (2026-10-19): the Week screen's posts ride on /api/calendar as `social`; a click opens them there. */
+  const PLN = { ig: 'Instagram', fb: 'Facebook', tt: 'TikTok', yt: 'YouTube' };
+  const postName = p => (p.caption || '').split('\n')[0].slice(0, 60) || (p.media && p.media.title) || 'no caption yet';
+  const postLine = p => esc(`${{ posted: 'Posted', scheduled: 'Scheduled', handoff: 'By hand, in Slack', failed: 'Failed', partly: 'Partly posted', posting: 'Posting' }[p.status] || 'Draft'} ${p.hm || ''}`) + ' &middot; ' + esc((p.plats || []).map(x => PLN[x] || x).join(', ') || 'no account picked');
+  function openPost(id, act) {
+    if (act && H.S.act !== act) { H.S.act = act; try { localStorage.setItem('pf_act', act); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = act; }
+    window.SOCIAL_POST = id; H.show('socialweek');
+  }
   /* The countdown offsets, a copy of account-health calendar.js STEPS (for the Add preview only). */
   const STEPS = {
     drop: [['assets', 'Photos in', -14], ['briefs', 'Ads briefed', -12], ['built', 'Ads built', -5], ['email', 'Email and text scheduled', -3], ['loaded', 'Ads loaded', -2]],
@@ -121,6 +129,11 @@
       .cal-chip.task{--c:var(--line-strong);background:var(--surface);color:var(--ink-2);font-weight:500;padding-left:17px}
       .cal-chip.task::before{content:"";position:absolute;left:5px;top:5px;width:6px;height:6px;border-radius:2px;border:1.5px solid var(--muted)}
       .cal-chip.task.late{border-color:var(--warn);color:var(--warn)} .cal-chip.task.late::before{border-color:var(--warn)}
+      .cal-chip.post{--c:var(--c-tiktok,#ff3b5c);background:transparent;border-color:transparent;color:var(--ink-2);font-weight:500;padding-left:14px}
+      .cal-chip.post::before{content:"";position:absolute;left:4px;top:5px;width:7px;height:7px;border-radius:2px;background:var(--c)} .cal-chip.post.pen::before{background:transparent;border:1.5px solid var(--c)}
+      .cal .cal-mo .dots i.post{--c:var(--c-tiktok,#ff3b5c);border-radius:2px}
+      .cal-post{position:absolute;width:14px;height:14px;transform:translateX(-7px);z-index:2;display:grid;place-items:center;border:0;background:none;padding:0;cursor:pointer}
+      .cal-post::after{content:"";width:8px;height:8px;border-radius:2px;background:var(--c-tiktok,#ff3b5c)} .cal-post.pen::after{background:transparent;border:1.5px solid var(--c-tiktok,#ff3b5c)}
       .cal .cal-mo .dots i.task{--c:var(--ink-2);border-radius:2px}
       .cal .cal-seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;padding:2px;gap:2px}
       .cal .cal-seg button{border:0;background:none;padding:4px 10px;border-radius:6px;font:inherit;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
@@ -259,8 +272,10 @@
         inner += `<button type="button" class="cal-bar ${CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${isOpen(x) ? 'open' : ''}" style="left:${l}%;width:${w}%;top:${top}px" data-ev="${esc(x.id)}"${tt}>${fits ? `<span class="in">${esc(nm)}</span>` : `<span class="af${nearEnd ? ' l' : ''}">${esc(nm)}</span>`}</button>`;
       }
       const mails = on('mail') ? d.emails.filter(m => m.act === b.id && m.date >= START && m.date <= END) : [];
+      const posts = on('post') ? (d.social || []).filter(p => p.act === b.id && p.day >= START && p.day <= END) : [];
       const has = d.items.some(x => x.act === b.id && endOf(x) >= START && x.start <= END);
-      const hgt = Math.max(1, rows.length) * 25 + 10 + (mails.length ? 14 : 0);
+      const hgt = Math.max(1, rows.length) * 25 + 10 + (mails.length || posts.length ? 14 : 0);
+      for (const p of posts) inner += `<button type="button" class="cal-post ${p.status === 'scheduled' || p.status === 'posted' ? '' : 'pen'}" style="left:${pct(p.day) + 50 / DAYS}%;top:${hgt - 17}px" data-post="${esc(p.id)}" data-pact="${esc(p.act)}"${tip(`<b>${esc(b.name)}: post, ${md(p.day)} ${esc(p.hm)}</b><br>${esc(postName(p))}<br>${postLine(p)}`)}></button>`;
       for (const m of mails) inner += `<i class="cal-mail ${m.status === 'scheduled' ? 'sch' : ''}" style="left:${pct(m.date) + 50 / DAYS}%;top:${hgt - 17}px"${tip(`<b>${esc(b.name)}: ${m.channel === 'sms' ? 'text' : 'email'}, ${md(m.date)}</b><br>${esc(mailName(m.name))}<br>${m.status} &middot; from Klaviyo`)}></i>`;
       if (!has) inner += `<div class="cal-empty"><b>Nothing planned in these 13 weeks.</b> Ask ${esc(b.name)} what is coming, or add what you know.</div>`;
       h += `<div class="cal-row"><button type="button" class="cal-nm" data-brand="${esc(b.id)}">${esc(b.name)}<span>${esc((b.team || {}).strat || '')}</span></button><div class="cal-tr" style="height:${has ? hgt : 42}px">${inner}</div></div>`;
@@ -278,6 +293,11 @@
       for (const x of withTeasers(d.items.filter(x => all || x.act === act))) items.push({ ...x, label: pre(x.act) + x.name });
       for (const e of d.emails.filter(e => all || e.act === act)) { const name = `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`; items.push({ id: `mail:${e.date}:${e.name}`, src: 'email', name, label: pre(e.act) + name, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e }); }
     }
+    if (f !== 'tasks' && on('post')) for (const p of d.social || []) {
+      if (!all && p.act !== act) continue;
+      const name = `Post: ${postName(p)}`;
+      items.push({ id: `post:${p.id}`, kind: 'post', name, label: pre(p.act) + name, start: p.day, end: p.day, status: p.status === 'scheduled' || p.status === 'posted' ? 'conf' : 'pen', post: p });
+    }
     if (f !== 'mkt') for (const t of d.tasks || []) {
       if (!all && t.act_id !== act) continue;
       const due = String(t.due).slice(0, 10);
@@ -290,12 +310,15 @@
     const list = monthItems(d, act).filter(x => x.start <= day && (x.end || '2099-12-31') >= day);
     const row = x => x.kind === 'mail'
       ? `<div class="cal-ev mail"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--good)"><i></i>${esc(x.mail.status)}, from Klaviyo</span></div>`
+      : x.kind === 'post'
+      ? `<button type="button" class="cal-ev" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--c-tiktok,#ff3b5c)"><i></i>${postLine(x.post)}</span></button>`
       : x.kind === 'task'
       ? `<button type="button" class="cal-ev" data-task="${esc(x.task.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.start < d.today ? '--warn' : '--ink-2'})"><i></i>Task &middot; ${esc(x.task.owner || 'nobody yet')}${x.start < d.today ? ' &middot; late' : ''}</span></button>`
       : `<button type="button" class="cal-ev" data-ev="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.kind === 'drop' ? '--c-meta' : x.kind === 'sale' ? '--c-email' : '--muted'})"><i></i>${esc(KL[x.kind] || '')} &middot; ${md(x.start)}${x.end && x.end !== x.start ? ` to ${md(x.end)}` : isOpen(x) ? ', no end date' : ''}</span></button>`;
     const body = U().panel(`${wd(day)} ${md(day)}`, `<div class="cal-pn cal-day">${list.length ? list.map(row).join('') : '<p class="v2hint" style="margin:0">Nothing on this day.</p>'}${day >= d.today ? '<div style="margin-top:6px"><button type="button" class="cal-btn pri" data-addday="1">+ Add a date on this day</button></div>' : ''}</div>`);
     body.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => openEv(d, b.dataset.ev));
     body.querySelectorAll('[data-task]').forEach(b => b.onclick = () => taskPanel(d, b.dataset.task));
+    body.querySelectorAll('[data-post]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); openPost(b.dataset.post, b.dataset.pact); });
     body.querySelectorAll('[data-addday]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); addModal(d, act, { start: day }); });
   }
   function month(el, d, act) {
@@ -313,10 +336,14 @@
         const e = x.end || '2099-12-31';
         if (e < a || x.start > z) continue;
         const c0 = Math.max(0, days(a, x.start)), c1 = Math.min(6, days(a, e));
-        for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(x.kind === 'mail' || x.kind === 'task' ? x.kind : CLS(x.kind));
+        for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(x.kind === 'mail' || x.kind === 'task' || x.kind === 'post' ? x.kind : CLS(x.kind));
         let r = used.findIndex(q => q < c0); if (r < 0) { r = used.length; used.push(-1); }
         if (r >= cap) { for (let c = c0; c <= c1; c++) hidden[c] = (hidden[c] || 0) + 1; continue; }
         used[r] = c1;
+        if (x.kind === 'post') {
+          bars += `<button type="button" class="cal-chip post${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"${tip(`<b>${esc(x.name)}</b><br>${postLine(x.post)}`)}>${esc(x.label)}</button>`;
+          continue;
+        }
         if (x.kind === 'task') {
           const t = x.task, late = x.start < d.today;
           bars += `<button type="button" class="cal-chip task${late ? ' late' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-task="${esc(t.id)}" draggable="true" data-drag="task:${esc(t.id)}"${tip(`<b>Task: ${esc(t.text)}</b><br>${esc(t.act_id ? brandName(d, t.act_id) : 'Agency-wide')} &middot; ${esc(t.owner || 'nobody yet')} &middot; due ${md(x.start)}${late ? ', late' : ''}`)}>${esc(x.label)}</button>`;
@@ -392,7 +419,7 @@
       <p class="cal-lead" style="margin:-4px 0 14px;font-size:15px;font-weight:600;max-width:80ch">${esc(headLine(d, d.items))}</p>
       ${tiles}
       ${viewOf('all') !== 'lanes' ? monthCard('all') : `<div class="cal-card"><div class="cal-ch"><h3>What customers see, every client</h3><span class="cal-seg" role="tablist"><button type="button" class="on" data-view="lanes">13 weeks</button><button type="button" data-view="month">Month</button><button type="button" data-view="week">Week</button></span><span class="cap">13 weeks. Click anything to open it; click a client to see their month.</span>
-        <div class="r">${lay('drop', 'var(--c-meta,#5b8def)', 'Drops')}${lay('sale', 'var(--c-email,#9b7bd8)', 'Sales and offers')}${lay('other', 'var(--muted)', 'Other')}${lay('mail', 'var(--good)', 'Emails')}
+        <div class="r">${lay('drop', 'var(--c-meta,#5b8def)', 'Drops')}${lay('sale', 'var(--c-email,#9b7bd8)', 'Sales and offers')}${lay('other', 'var(--muted)', 'Other')}${lay('mail', 'var(--good)', 'Emails')}${lay('post', 'var(--c-tiktok,#ff3b5c)', 'Posts')}
           <button type="button" class="cal-btn" data-nav="-4">&#8249;</button><button type="button" class="cal-btn" data-nav="0">Today</button><button type="button" class="cal-btn" data-nav="4">&#8250;</button>
           <button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
         <div class="cal-ln" id="calLanes"></div>
@@ -444,6 +471,7 @@
   /* ---------- clicks ---------- */
   function wire(root, d, act) {
     root.querySelectorAll('[data-ev]').forEach(b => b.onclick = e => { e.stopPropagation(); openEv(d, b.dataset.ev); });
+    root.querySelectorAll('[data-post]').forEach(b => b.onclick = e => { e.stopPropagation(); openPost(b.dataset.post, b.dataset.pact); });
     root.querySelectorAll('[data-brand]').forEach(b => b.onclick = () => pickAct(b.dataset.brand));
     root.querySelectorAll('[data-asana]').forEach(b => b.onclick = e => { e.stopPropagation(); makeAsana(b.dataset.asana, b); });
     root.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addModal(d, act || null));

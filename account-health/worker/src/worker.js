@@ -12,6 +12,7 @@ import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
+import { handleSocialPost, socialPostTick, socialResultsTick, handleSocialButton, useFetch as socialPostFetch } from './socialpost.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam } from './calendar.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
@@ -234,6 +235,9 @@ frameFetch(xfetch);
 klaviyoFetch(xfetch);
 calendarFetch(xfetch);
 socialFetch(xfetch);
+socialPostFetch(xfetch);
+/* Locus Social posting (socialpost.js): the Slack fallback, the tray's profit reads and the budget check. */
+function socialPostDeps() { return { slackPost, slackApi, mintSession, subCanAfford: n => subCanAfford(n), isAdmin, sessionEmail }; }
 googleFetch(xfetch);
 clarityFetch(xfetch);
 surveyFetch(xfetch);
@@ -6252,6 +6256,9 @@ async function handleSlackInteract(request, env, ctx) {
     /* An action item's Done button on its reminder line (actions.js, 2026-10-13). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^act_done/.test(a.action_id || '')))
       return await handleActionButton(env, ctx, payload, actionDeps(), { ACK, xfetch });
+    /* Locus Social's "Posted it" button on a Notify fallback DM (socialpost.js, 2026-10-19). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^soc_/.test(a.action_id || '')))
+      return await handleSocialButton(env, ctx, payload, socialPostDeps(), { ACK, xfetch });
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
       return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
@@ -7386,6 +7393,13 @@ const AH_APP = {
     // the configured hour in Central. That keeps the send time editable from the
     // dashboard and stable across daylight saving, without adding a trigger (the
     // account is at the free-plan limit of 5).
+    /* Locus Social posting (socialpost.js, 2026-10-19): every 5 minutes, posts whose time has come go out; the hourly
+       tick below also runs it as a catch-up and pulls the results once a day. */
+    if (event.cron === '*/5 * * * *') {
+      env = meterEnv(env); subReset(env);
+      ctx.waitUntil(socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)).catch(() => {}));
+      return;
+    }
     if (event.cron === '0 * * * *') {
       env = meterEnv(env); subReset(env);
       ctx.waitUntil((async () => {
@@ -7478,6 +7492,9 @@ const AH_APP = {
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Locus Social: each followed brand and topic pulled once a day, four a tick (social.js). */
         ran.social = await socialTick(env, n => subCanAfford(n)).catch(e => ({ error: e.message }));
+        /* Locus Social posting: a catch-up for the 5-minute tick, then views / likes / comments once a day (socialpost.js). */
+        ran.socialPost = await socialPostTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
+        ran.socialResults = await socialResultsTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
         /* Is Locus itself working: every page's routes, connections and freshness, once a Central morning (smoke.js). */
         ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
@@ -7622,6 +7639,8 @@ const AH_APP = {
     if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);
     /* Locus Social covers and copied videos (social.js): public by an unguessable key. */
     if (path.startsWith('/social-m/') && request.method === 'GET') return serveSocialMedia(env, path, request, CORS);
+    /* Locus Social posting: TikTok and Google send the person back here after the grant (socialpost.js). */
+    if ((path === '/social/tiktok/callback' || path === '/social/google/callback') && request.method === 'GET') return handleSocialPost(request, env, url, path, json, socialPostDeps());
     /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
     if (path.startsWith('/assets-img/') && request.method === 'GET') {
       /* A brand id (or an old act_ id in a link made before phase 3); the files stay under the brand's storage_prefix. */
@@ -7727,6 +7746,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
     /* ---- Locus Social, phase 1: Watch (social.js, 2026-10-19) ---- */
     if (path.startsWith('/api/social')) {
+      /* Phase 2 (socialpost.js): accounts, the Week, the tray, posts, captions. Answers null for Watch's routes. */
+      const r2 = await handleSocialPost(request, env, url, path, json, { ...socialPostDeps(), waitUntil: p => ctx.waitUntil(p) });
+      if (r2) return r2;
       const r = await handleSocial(request, env, url, path, json, { isAdmin, sessionEmail, waitUntil: p => ctx.waitUntil(p) });
       if (r) return r;
     }

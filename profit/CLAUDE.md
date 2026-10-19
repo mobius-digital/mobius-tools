@@ -3649,3 +3649,40 @@ Plan and UI research (Sandcastles' cards, Virlo's "usually X, this one Y", Later
   Clients see "save it and tell the team in Requests" instead.
 - CSS injected as `#soccss`, tokens only. Checked on the local trio (worktree statics + both dev workers) with real
   Lucky data at desktop width; the Takomo Make ours ran end to end live (Studio batch "Long Iron Dread: a PSA (statics)").
+
+## 2026-10-19: SOCIAL, phase 2: THE WEEK and direct posting (`profit/socialweek.js`, `window.SocialWeek`). Read before touching it.
+
+Built the same day as phase 1, for Lucky first. Backend and the scheduler rules: account-health/CLAUDE.md, same date.
+- **Rail**: `NAV.social` = Watch (`social`) + **Week** (`socialweek`); `SOCR(first, tab)` renders either through
+  `socialHost()`; a client sees Week for its own brand (`clientTabOk`). `?open=socialweek&act=<brand>&post=<id>` opens
+  one post (Slack's "Open in Locus" button; `BOOT_POST` is read at script load because share.js rewrites the URL).
+- **The screen** (own IIFE, CSS `#swcss`, tokens only): week nav (this week, previous, next; brand-local days from
+  `/api/social/week`), the four account bubbles (IG / FB / TT / YT; dimmed = not connected, amber dot = by hand, red
+  dot = needs reconnecting; a click opens Brand settings), **the tray** on the left ("Ready to post": Unused first,
+  then All, Studio, Creator, Meta ad, Make ours, Upload, Tagged in; drag an item onto an hour cell, or click it;
+  Upload a photo or video goes straight to `/api/social/upload`), **the grid** (7 days x 6am to 10pm, 56px an hour,
+  past hours hatched, today tinted; a post is a card at its minute with cover, state and the bubbles it goes to: Auto
+  9:00 / Scheduled / Draft dashed / Posted with views / In Slack: post by hand / Failed; drag a draft or scheduled
+  card to another hour = move it; click an empty hour = new post there). On a phone the tray is a bottom sheet
+  (Tray button) and the grid scrolls sideways.
+- **The composer** (`V2UI.panel`, wide; a bottom sheet on a phone): what goes out (thumbs, + From the tray, Upload),
+  when (date + time in the brand's zone, `atOf` converts through Intl in two passes for DST), where (the four
+  accounts as big bubbles with a one-line note each: live / to your TikTok drafts / private until approved / by hand
+  via Slack / not connected: Slack will hand it to you), one caption with **Rephrase in <brand>'s voice** (three
+  options from `/api/social/rephrase`), Saved captions (pick or remove) and Save this caption, then "Per-platform
+  tweaks (only where needed)" folded: Instagram first comment and caption, Facebook caption, TikTok title and who can
+  see it (live mode only), YouTube title, description and visibility (live only). Buttons: Schedule / Post now / Save
+  draft / Delete. A post already out shows "How it went": per platform Posted + open link + views, likes, comments,
+  "Handed to you in Slack" with a **Posted by hand** button (asks for the link, optional), the error, Try again now,
+  Post again (copy).
+- **Brand settings > Social > Connect accounts** (`SocialWeek.connect`, drawn by `SocialTab.settings` under the on/off
+  switch): four cards. Instagram + Facebook = "Connect a Page + Instagram" (a modal listing the Pages the Mobius Tools
+  token can see, each with its Instagram; a warning names the scopes the token still lacks). TikTok and YouTube =
+  "Sign in to TikTok / Google" (opens the OAuth URL in a new tab; Cole clicks the grant; "refresh this card" after),
+  or, while the server keys are not set, the exact setup steps with the callback URL. Each connected card has the
+  mode (Live / Draft / By hand) and Forget. Clients see the cards read only.
+- **Calendar**: `/api/calendar` carries `social`; calendar.js draws posts as a **Posts** layer (chips in the month and
+  the week, dots on the 13-week lanes and the phone month, rows in the day sheet; dashed = draft); a click switches
+  to the brand and opens the Week on that post (`window.SOCIAL_POST`).
+- Versions: calendar.js?v=14, social.js?v=3, socialweek.js?v=1. Checked offline only (syntax, the worker tests); the
+  screen was NOT opened in a browser (no sign-in here). Every real publish waits on Cole's three grants.
