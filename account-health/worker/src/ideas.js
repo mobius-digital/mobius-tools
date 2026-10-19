@@ -733,7 +733,7 @@ export const IDEA_SCHEMA = obj({
   destination: obj({ pick: en(...Object.keys(DESTS)), reason: S }),
   creator_link: obj({ section_id: S, new_section: S, new_section_line: S, duplicate_of: S, title: S, argument: S, who: S, format: S, products: S,
     openers: arr(S), shots: arr(obj({ label: S, text: S })), on_screen: S, do_text: S, dont_text: S, proof_note: S }),
-  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, problem: S, testing: S,
+  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, testing: S,
     ads: arr(S), creator: S, script: S, primary_text: S, headline: S, offer: S }),
   studio: obj({ name: S, angle: S, why: S, concept: S, testing: en(...STUDIO_TESTING), post_copy: S, use_photos: B, lines: arr(S) }),
   images: arr(obj({ label: S, kind: en('inspiration', 'product_studio', 'product_lifestyle', 'other'), note: S })),
@@ -765,7 +765,7 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 - asana_brief: only when a creator could not make it from a pitch: it needs our editor to build it from existing footage, a specific person or location, heavy motion graphics, or it is a structured paid test of several scripted versions the team must control. Also when the thread asks for a brief.
 - studio: static image ads the AI can make now from lines of words.
 
-For an Asana brief, leave problem empty (the brief is Angle / What we're testing / Why / the ads). Why = one plain sentence on why we test this now.
+An Asana brief is Angle / What we're testing / Why / the ads. Why = one plain sentence on why we test this now.
 
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
