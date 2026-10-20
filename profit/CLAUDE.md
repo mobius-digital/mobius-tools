@@ -3813,3 +3813,29 @@ calls" collided with Work > Calls. Findings and what changed: the audit page htt
   brand; a picked client = Home > Tasks, that brand's list (`tabInView` home/tasks, `tasks` in VIEW_BOTH). Meetings
   stays Agency view only (one call covers several brands). The hand-typed "BFCM ads: ..." rows were dropped: the
   Season page's to-do list derives the same deadlines from each phase's dates and moves with them.
+
+## 2026-10-20: SOCIAL REDESIGN (social.js?v=4, socialweek.js?v=2). Supersedes the two Social sections above for the UI.
+
+Cole rejected the first UI (pills everywhere, bare selects, a side play button, one carousel slide, settings with token
+instructions). Who uses Watch: a strategist on Monday deciding what to make this week, in this order: scan what broke out,
+watch the top few in the grid, open one for caption / slides / numbers vs usual, Make ours, send it on. Following is set-up
+work in its own Manage view. Screens before and after (desktop and phone): `docs/locus-social/screens/`.
+- **Watch**: view segment (All posts / Breaking out / Saved) + Manage follows + Follow; ONE filter bar of labelled selects
+  (Source, Platform, Format, Sort, Window, search, Hide paid-looking, N of M, Clear); a quiet "Doing well lately" line; 4:5
+  cards that play INLINE on hover (350ms) or tap, muted, with a sound toggle on the card (a copied MP4, or YouTube's player
+  via postMessage); one metric row per card (ratio chip, number, engagement, usually, age). Empty / loading / error states.
+- **A post** = `V2UI.panel` wide, TWO columns on desktop (media sticky left, details right; one column = bottom sheet on a
+  phone). A carousel or TikTok photo post loads every slide once (`POST /api/social/slides`, copied to R2, kept in
+  `social_post.media`) and shows them two side by side in a snap strip instead of the cover. Make ours shows a status pill
+  (Not started / Queued / Writing / Needs an answer / Draft ready / Sent on / Did not finish) and says what it does: a TEXT
+  brief in the brand's Slack channel, no images or video. Tested live 2026-10-20 on a golf-wedge TikTok: Writing, then
+  Needs an answer with the beats (the ideas bot could not download that clip, so it asked).
+- **Week**: 248px tray as a list with 44px thumbs (select filter Not used yet / Everything / per source), the hour grid with
+  seven columns that FIT (minmax(84px,1fr), no sideways scroll on desktop), posted cards with the same metric row; the
+  composer is one panel (Media, Caption, Accounts as labelled switches, When, per-platform tweaks folded, sticky footer).
+- **Brand settings > Social**: one table (Platform, Account, Status dot + short date, Mode select, Connect / Change the
+  Page / Forget; "Needs setup" chip with a tooltip when the server keys are missing). No token instructions on screen.
+- **Worker** (account-health social.js): YouTube reads use the YouTube Data API v3 with the NEW secret `YT_API_KEY`
+  (GOOGLE_SA_KEY is a service account and cannot read public YouTube); until it is set, YouTube falls back to
+  ScrapeCreators. Deployed 2026-10-20. Verification was done by injecting the worktree files into Cole's signed-in Chrome
+  (no sign-in from the built-in browser), desktop at 1280 and a 390px same-origin iframe for the phone.

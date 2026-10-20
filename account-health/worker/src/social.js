@@ -10,7 +10,11 @@
    4 calls a pull (IG posts, TikTok videos, YouTube Shorts, YouTube videos), a topic 2 to 3 (TikTok, IG Reels, YouTube
    search). 14 follows a day is about $3 a month. Covers are copied to R2 on the pull (social/t/), because Instagram's
    and TikTok's image links expire in days; a video is copied on the first Play (social/v/). Both are served public by
-   an unguessable key at /social-m/<key>. Nothing here posts anywhere; posting is phase 2. */
+   an unguessable key at /social-m/<key>. Nothing here posts anywhere; posting is phase 2.
+   2026-10-20: YouTube reads come from the free YouTube Data API v3 (secret YT_API_KEY: channels, playlistItems,
+   videos, search; about 5 quota units a brand pull, 100 a topic search, of 10,000 a day) and fall back to
+   ScrapeCreators only while the key is not set. A carousel's or photo post's slides are read on the first open
+   (POST /api/social/slides, one ScrapeCreators call), copied to R2 (social/t/<key>-<n>) and kept in social_post.media. */
 import { fetchSocialVideo, ideaFromLocus, ideaState, pushIdea, ideaRetry } from './ideas.js';
 import { clientScope } from './brandguard.js';
 
@@ -53,6 +57,7 @@ export async function ensureSocial(env) {
     `CREATE INDEX IF NOT EXISTS social_post_act ON social_post (act_id, posted_at)`,
     `CREATE INDEX IF NOT EXISTS social_post_follow ON social_post (follow_id)`,
   ]) await env.DB.prepare(sql).run();
+  await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN media TEXT`).run().catch(() => {});
   ready = true;
 }
 
@@ -66,6 +71,66 @@ async function sc(env, path, params, meter) {
   if (meter && j.credits_remaining != null) meter.left = +j.credits_remaining;
   if (!r.ok || j.success === false) throw Object.assign(new Error(clip(j.message || j.error || `ScrapeCreators said ${r.status}`, 200)), { status: r.status });
   return j;
+}
+
+
+/* ---------------- YouTube Data API v3 (free; YT_API_KEY) ---------------- */
+const YT = 'https://www.googleapis.com/youtube/v3';
+const hasYt = env => !!env.YT_API_KEY;
+async function yt(env, path, params) {
+  const q = new URLSearchParams({ ...Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')), key: env.YT_API_KEY }).toString();
+  const r = await F(`${YT}/${path}?${q}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(clip(j.error?.message || `YouTube said ${r.status}`, 200)), { status: r.status });
+  return j;
+}
+const isoDur = d => { const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(d || ''); return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : null; };
+/** A channel by handle: id, uploads playlist, title, subscribers. */
+async function ytChannel(env, handle) {
+  const j = await yt(env, 'channels', { part: 'snippet,contentDetails,statistics', forHandle: handle.replace(/^@/, '') });
+  const c = j.items?.[0];
+  if (!c) return null;
+  return { id: c.id, uploads: c.contentDetails?.relatedPlaylists?.uploads, title: c.snippet?.title, handle: (c.snippet?.customUrl || '').replace(/^@/, '') || handle, subs: num(c.statistics?.subscriberCount) };
+}
+/** Full video rows (stats, duration, cover) for up to 50 ids. */
+async function ytVideos(env, ids) {
+  if (!ids.length) return [];
+  const j = await yt(env, 'videos', { part: 'snippet,statistics,contentDetails', id: ids.slice(0, 50).join(','), maxResults: 50 });
+  return j.items || [];
+}
+function ytApiItem(v, handle, subs) {
+  if (!v?.id) return null;
+  const sn = v.snippet || {}, st = v.statistics || {};
+  const dur = isoDur(v.contentDetails?.duration);
+  const short = (dur != null && dur <= 60) || (/#shorts/i.test(`${sn.title} ${sn.description}`) && dur != null && dur <= 180);
+  const th = sn.thumbnails || {};
+  return { plat: 'yt', pid: String(v.id), fmt: short ? 'short' : 'video', handle: handle || sn.channelTitle || '',
+    url: short ? `https://www.youtube.com/shorts/${v.id}` : `https://www.youtube.com/watch?v=${v.id}`, caption: clip(sn.title || sn.description, 600),
+    thumb_src: (th.maxres || th.standard || th.high || th.medium || th.default || {}).url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`, posted_at: iso(sn.publishedAt),
+    views: num(st.viewCount), likes: num(st.likeCount), comments: num(st.commentCount), shares: null, saves: null, followers: subs ?? null,
+    dur, sound: null, slides: null };
+}
+/** The newest uploads of a channel (Shorts and videos together; the duration tells them apart). */
+async function ytChannelPosts(env, handle, n = 30) {
+  const c = await ytChannel(env, handle);
+  if (!c?.uploads) throw Object.assign(new Error(`No YouTube channel for @${handle}.`), { status: 404 });
+  const pl = await yt(env, 'playlistItems', { part: 'contentDetails', playlistId: c.uploads, maxResults: Math.min(50, n) });
+  const ids = (pl.items || []).map(x => x.contentDetails?.videoId).filter(Boolean);
+  return (await ytVideos(env, ids)).map(v => ytApiItem(v, c.handle, c.subs)).filter(Boolean);
+}
+/** This week's videos on a topic, by views, with each author's subscribers (the topic "usual"). */
+async function ytSearchPosts(env, query, n = 20) {
+  const after = new Date(Date.now() - 7 * DAY).toISOString();
+  const s = await yt(env, 'search', { part: 'id', q: query, type: 'video', order: 'viewCount', publishedAfter: after, maxResults: Math.min(50, n), safeSearch: 'none' });
+  const ids = (s.items || []).map(x => x.id?.videoId).filter(Boolean);
+  const vids = await ytVideos(env, ids);
+  const chans = [...new Set(vids.map(v => v.snippet?.channelId).filter(Boolean))];
+  const subs = {}, handles = {};
+  if (chans.length) {
+    const cj = await yt(env, 'channels', { part: 'snippet,statistics', id: chans.slice(0, 50).join(','), maxResults: 50 }).catch(() => ({}));
+    for (const c of cj.items || []) { subs[c.id] = num(c.statistics?.subscriberCount); handles[c.id] = (c.snippet?.customUrl || '').replace(/^@/, '') || c.snippet?.title; }
+  }
+  return vids.map(v => ytApiItem(v, handles[v.snippet?.channelId], subs[v.snippet?.channelId])).filter(Boolean);
 }
 
 /* ---------------- one shape for every platform ---------------- */
@@ -125,7 +190,9 @@ async function pullBrand(env, f, meter) {
   if (f.tt) await sc(env, '/v3/tiktok/profile/videos', { handle: f.tt, sort_by: 'latest' }, meter)
     .then(j => (j.aweme_list || []).forEach(a => { const p = ttItem(a); if (p) out.push(p); }))
     .catch(e => errs.push(`TikTok: ${e.message}`));
-  if (f.yt) {
+  if (f.yt && hasYt(env)) {
+    await ytChannelPosts(env, f.yt).then(list => list.forEach(p => out.push(p))).catch(e => errs.push(`YouTube: ${e.message}`));
+  } else if (f.yt) {
     await sc(env, '/v1/youtube/channel/shorts', { handle: f.yt, sort: 'newest' }, meter)
       .then(j => (j.shorts || []).forEach(v => { const p = ytItem(v, true, f.yt); if (p) out.push(p); }))
       .catch(e => errs.push(`YouTube Shorts: ${e.message}`));
@@ -143,7 +210,8 @@ async function pullTopic(env, f, meter) {
   await sc(env, '/v2/instagram/reels/search', { query: f.query, date_posted: 'last-week' }, meter)
     .then(j => (j.reels || j.items || []).forEach(it => { const p = igItem({ ...it, media_type: it.media_type || 2, product_type: it.product_type || 'clips' }); if (p) out.push(p); }))
     .catch(e => errs.push(`Instagram: ${e.message}`));
-  await sc(env, '/v1/youtube/search', { query: f.query, uploadDate: 'this_week' }, meter)
+  if (hasYt(env)) await ytSearchPosts(env, f.query).then(list => list.forEach(p => out.push(p))).catch(e => errs.push(`YouTube: ${e.message}`));
+  else await sc(env, '/v1/youtube/search', { query: f.query, uploadDate: 'this_week' }, meter)
     .then(j => [...(j.shorts || []).map(v => ytItem(v, true)), ...(j.videos || []).map(v => ytItem(v, false))].filter(Boolean).slice(0, 20).forEach(p => out.push(p)))
     .catch(e => errs.push(`YouTube: ${e.message}`));
   return { posts: out, errs };
@@ -207,7 +275,8 @@ async function lookUp(env, handle, meter) {
     const u = j.user || j.userInfo?.user || j.data?.user;
     if (u?.uniqueId || u?.unique_id) { found.tt = u.uniqueId || u.unique_id; if (u.nickname) names.push(u.nickname); }
   }).catch(() => {});
-  await sc(env, '/v1/youtube/channel', { handle }, meter).then(j => {
+  if (hasYt(env)) await ytChannel(env, handle).then(c => { if (c) { found.yt = c.handle || handle; if (c.title) names.push(c.title); } }).catch(() => {});
+  else await sc(env, '/v1/youtube/channel', { handle }, meter).then(j => {
     if (j.channelId || j.id || j.name || j.title) { found.yt = handle; if (j.name || j.title) names.push(j.name || j.title); }
   }).catch(() => {});
   return { found, name: names[0] || handle };
@@ -363,6 +432,31 @@ async function videoOf(env, post) {
   return { src: `${SELF}/social-m/${key}` };
 }
 
+
+/* Every slide of a carousel (Instagram) or photo post (TikTok): read once, copied to R2, kept in social_post.media. */
+async function slidesOf(env, post) {
+  if (!['carousel', 'photos'].includes(post.fmt)) return { slides: [] };
+  const had = safe(post.media, null);
+  if (Array.isArray(had) && had.length) return { slides: had.map(k => `${SELF}/social-m/${k}`) };
+  let srcs = [];
+  if (post.plat === 'ig') {
+    const j = await sc(env, '/v1/instagram/post', { url: post.url }, null);
+    const p = j.data?.xdt_shortcode_media || j.xdt_shortcode_media || {};
+    srcs = (p.edge_sidecar_to_children?.edges || []).map(e => e.node?.display_url).filter(Boolean);
+    if (!srcs.length && p.display_url) srcs = [p.display_url];
+  } else {
+    const j = await sc(env, '/v2/tiktok/video', { url: post.url }, null);
+    srcs = (j.aweme_detail?.image_post_info?.images || []).map(i => (i.display_image?.url_list || i.owner_watermark_image?.url_list || [])[0]).filter(Boolean);
+  }
+  const keys = [];
+  for (const [i, src] of srcs.slice(0, 12).entries()) {
+    const key = env.MEDIA ? await copyCover(env, `${post.id}|slide|${i}`, src) : null;
+    if (key) keys.push(key);
+  }
+  if (keys.length) await env.DB.prepare(`UPDATE social_post SET media = ?2 WHERE id = ?1`).bind(post.id, JSON.stringify(keys)).run();
+  return { slides: keys.length ? keys.map(k => `${SELF}/social-m/${k}`) : srcs.slice(0, 12) };
+}
+
 /* ---------------- routes ---------------- */
 /**
  * GET    /api/social/brands               which brands have Social on (the rail item)
@@ -374,6 +468,7 @@ async function videoOf(env, post) {
  * POST   /api/social/pull {act}           pull every follow of this brand now (team)
  * POST   /api/social/save {id, saved}     keep a post
  * POST   /api/social/video {id}           a playable copy (TikTok / Instagram) or the YouTube player
+ * POST   /api/social/slides {id}          every slide of a carousel or photo post (copied to R2 on the first call)
  * POST   /api/social/make {id, note}      Make ours: the ideas bot writes our version (in the brand's channel too)
  * GET    /api/social/idea?id=             the draft for a post
  * POST   /api/social/push {id, dest}      send the draft to the creator link, a brief (Asana, the Work board) or Studio
@@ -487,6 +582,11 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
       return json(await videoOf(env, p));
+    }
+    if (path === '/api/social/slides' && m === 'POST') {
+      const p = await postOf(body.id);
+      if (!p) return json({ error: 'That post is gone.' }, 404);
+      return json(await slidesOf(env, p).catch(e => ({ slides: [], error: e.message })));
     }
     if (path === '/api/social/make' && m === 'POST') {
       if (cs) return json({ error: 'Make ours is run by the Mobius team for now. Save the post and tell us in Requests.' }, 403);
