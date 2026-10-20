@@ -2584,3 +2584,9 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   footer says "✓ N done" (", all of it"); "Make the ad calls" shows only while the calls line is open. The thread's
   reminder reply (`reminderMessage`) is the head line + Done buttons (4) + Open in Locus, no repeated task lines.
 - Tests: test-actions 11, test-morningcard 14, test-today 3, test-callscreen 14, test-clients 28. Deployed 2026-10-20.
+
+## 2026-10-20 (later): social.js changes for the Locus Social rebuild (see profit/CLAUDE.md, same date)
+- Breaking out floor is server side: `MIN_N` 8 posts per group and `MIN_BASE` 1000 views (`MIN_BASE_LIKES` 100) before a
+  post gets `base` (its "usually"); below that `base` is null and the UI draws no ratio. `pub` adds `n` and `tag`.
+- `social_post.tag` (guarded ALTER): `/api/social/save {id, saved, tag?}` keeps the tag when `tag` is omitted on a save,
+  clears it on unsave, trims to 40 chars; `feed` returns `tags` from `tagsOf(rows)` (distinct tags with counts). NOT deployed.

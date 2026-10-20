@@ -58,6 +58,7 @@ export async function ensureSocial(env) {
     `CREATE INDEX IF NOT EXISTS social_post_follow ON social_post (follow_id)`,
   ]) await env.DB.prepare(sql).run();
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN media TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN tag TEXT`).run().catch(() => {});
   ready = true;
 }
 
@@ -285,7 +286,12 @@ async function lookUp(env, handle, meter) {
 /* ---------------- the feed ---------------- */
 const median = a => { const s = a.filter(n => n != null && n > 0).sort((x, y) => x - y); if (s.length < 4) return null; const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 /** Each post's "usually": its account's median on that platform (views where the platform counts them, else likes),
- *  or for a topic post the author's followers. ratio = this post / usually. */
+ *  or for a topic post the author's followers. ratio = this post / usually.
+ *  THE FLOOR (2026-10-20, the teardown spec): a ratio only when the account has MIN_N posts in our store on that
+ *  platform and its median is at least MIN_BASE (views) or MIN_BASE_LIKES; a topic post only when the author has
+ *  MIN_BASE followers. Below the floor a post shows its views alone and never enters Breaking out: the old rule
+ *  printed "1388x" for a 9-follower account. */
+const MIN_N = 8, MIN_BASE = 1000, MIN_BASE_LIKES = 100;
 const recent = p => p.posted_at && Date.now() - Date.parse(p.posted_at) <= 30 * DAY;
 export function scorePosts(posts, follows) {
   const kind = Object.fromEntries(follows.map(f => [f.id, f.kind]));
@@ -297,16 +303,19 @@ export function scorePosts(posts, follows) {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(p[metric]);
   }
-  const med = new Map([...groups].map(([k, v]) => [k, median(v)]));
+  const med = new Map([...groups].map(([k, v]) => [k, v.length >= MIN_N ? median(v) : null]));
   for (const p of posts) {
     if (kind[p.follow_id] === 'topic') {
       p.metric = p.views != null ? 'views' : 'likes';
-      p.base = p.followers || null; p.base_kind = 'followers';
+      p.base = p.followers >= MIN_BASE ? p.followers : null; p.base_kind = 'followers';
       p.ratio = p.base && p.views != null ? +(p.views / p.base).toFixed(2) : null;
       p.breaking = recent(p) && p.ratio != null && p.ratio >= BREAKOUT && p.views >= 20000;
     } else {
       p.metric = p.views != null && p.fmt !== 'carousel' && p.fmt !== 'post' ? 'views' : 'likes';
-      p.base = med.get(`${p.follow_id}|${p.plat}|${p.metric}`) || null; p.base_kind = 'usual';
+      const g = groups.get(`${p.follow_id}|${p.plat}|${p.metric}`) || [];
+      const m0 = med.get(`${p.follow_id}|${p.plat}|${p.metric}`) || null;
+      p.n = g.length;
+      p.base = m0 && m0 >= (p.metric === 'views' ? MIN_BASE : MIN_BASE_LIKES) ? m0 : null; p.base_kind = 'usual';
       p.ratio = p.base && p[p.metric] != null ? +(p[p.metric] / p.base).toFixed(2) : null;
       p.breaking = recent(p) && p.ratio != null && p.ratio >= BREAKOUT && (p[p.metric] || 0) >= (p.metric === 'views' ? 1000 : 100);
     }
@@ -329,8 +338,14 @@ export function trendsOf(posts) {
 const pub = p => ({ id: p.id, follow_id: p.follow_id, plat: p.plat, fmt: p.fmt, handle: p.handle, url: p.url, caption: p.caption, posted_at: p.posted_at,
   thumb: p.thumb ? `${SELF}/social-m/${p.thumb}` : p.thumb_src, views: p.views, likes: p.likes, comments: p.comments, shares: p.shares, saves: p.saves,
   dur: p.dur, sound: p.sound, slides: p.slides, hook: p.hook, ftag: p.ftag, saved: !!p.saved, idea_id: p.idea_id,
-  metric: p.metric, base: p.base, base_kind: p.base_kind, ratio: p.ratio, breaking: !!p.breaking });
+  metric: p.metric, base: p.base, base_kind: p.base_kind, ratio: p.ratio, breaking: !!p.breaking, n: p.n || 0, tag: p.tag || null });
 
+/** The brand's save tags: every distinct tag on a saved post, with its count (no table of its own). */
+export function tagsOf(rows) {
+  const m = new Map();
+  for (const p of rows) if (p.saved && p.tag) m.set(p.tag, (m.get(p.tag) || 0) + 1);
+  return [...m].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name));
+}
 async function feed(env, act) {
   const follows = (await env.DB.prepare(`SELECT * FROM social_follow WHERE act_id = ?1 ORDER BY created_at`).bind(act).all()).results || [];
   const rows = (await env.DB.prepare(`SELECT * FROM social_post WHERE act_id = ?1 AND (saved = 1 OR posted_at >= ?2) ORDER BY posted_at DESC LIMIT 1500`)
@@ -342,6 +357,7 @@ async function feed(env, act) {
       posts: rows.filter(p => p.follow_id === f.id).length })),
     posts: rows.map(p => ({ ...pub(p), who: fName[p.follow_id] || p.handle })),
     trends: trendsOf(rows),
+    tags: tagsOf(rows),
   };
 }
 
@@ -466,7 +482,7 @@ async function slidesOf(env, post) {
  * PUT    /api/social/follow {id, name, ig, tt, yt, query}     fix a handle; pulls again
  * DELETE /api/social/follow?id=           stop following (saved posts and posts made into ours stay)
  * POST   /api/social/pull {act}           pull every follow of this brand now (team)
- * POST   /api/social/save {id, saved}     keep a post
+ * POST   /api/social/save {id, saved, tag?} keep a post (tag = a word for the Saved tab; omitted keeps it)
  * POST   /api/social/video {id}           a playable copy (TikTok / Instagram) or the YouTube player
  * POST   /api/social/slides {id}          every slide of a carousel or photo post (copied to R2 on the first call)
  * POST   /api/social/make {id, note}      Make ours: the ideas bot writes our version (in the brand's channel too)
@@ -575,8 +591,9 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
     if (path === '/api/social/save' && m === 'POST') {
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
-      await env.DB.prepare(`UPDATE social_post SET saved = ?2 WHERE id = ?1`).bind(p.id, body.saved ? 1 : 0).run();
-      return json({ ok: true, saved: !!body.saved });
+      const tag = body.tag === undefined ? (body.saved ? p.tag : null) : (String(body.tag || '').trim().slice(0, 40) || null);
+      await env.DB.prepare(`UPDATE social_post SET saved = ?2, tag = ?3 WHERE id = ?1`).bind(p.id, body.saved ? 1 : 0, body.saved ? tag : null).run();
+      return json({ ok: true, saved: !!body.saved, tag: body.saved ? tag : null });
     }
     if (path === '/api/social/video' && m === 'POST') {
       const p = await postOf(body.id);
