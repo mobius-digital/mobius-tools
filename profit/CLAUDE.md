@@ -3885,3 +3885,33 @@ the UX audit kit (PR 36, lx.css / LxKit) is not on main, so the kit header appli
 - Checked in the built-in browser on a stub harness (not committed) at 800, 1280 and 375, dark and light: Feed, Filters
   popover, viewer with prev / next, Make ours end to end on stubs, tag picker, Saved, Week grid, List, composer sheet,
   Brand settings > Social. No console errors. NOT checked against the real workers; the worker is not deployed.
+
+## 2026-10-20 (evening): SOCIAL, the inventory features (social.js?v=8, socialweek.js?v=4). Read with the two sections above.
+
+Cole: "how are these brands getting it? If ScrapeCreators can get it, why can't we? I think you're wrong that we can't use
+Meta." He was right: Instagram posts of ANY business or creator account come free through Meta Business Discovery on the
+Mobius Tools token (account-health social.js `igDiscover`); only TikTok and topic searches still spend ScrapeCreators
+credits, and YouTube is free through the Data API once `YT_API_KEY` exists. Feature inventory of Later, Sandcastles and
+Virlo (55 gaps, ranked): the side-session notes folder `social-feature-inventory.md`; the teardown spec has a status section.
+- **Feed**: `SORTS` gained `added` (Just added = `p.seen`, the row's `first_seen`); the status line shows "N new since your
+  last visit" (`soc_seen_<act>` in localStorage, counted once per act per session, click = that sort) and "TikTok and
+  topics paused" when `d.paused`. `sourcesLine(d)` = the one honest line about where posts come from (`ig_meta`, `yt_key`,
+  `credits`, `low`, `paused` from `/api/social`); it replaced the credits line in Brand settings > Social and sits under
+  Manage follows. The empty state, the Follow modal and Manage's intro say Instagram and YouTube cost nothing.
+- **Manage follows**: "Seen in your topics" card (`d.suggest`: accounts behind topic posts not followed yet, with posts,
+  followers, best ratio, Follow = `followHandle(handle, plat)` which POSTs /api/social/follow with the platform override)
+  and three roll-up columns from the feed's per-follow stats (`posts30`, `per_week`, `usual` + `usual_kind`, `best`,
+  `last_at`); the compact table in Brand settings keeps the short shape. Error text wraps inside the table.
+- **Viewer**: "3 of 210" counter (`.vcount`), a Follow button beside the handle on a topic post (or any handle no brand
+  follow carries), Copy link on the platform line, Copy on the caption and on the transcript (`copyText`, clipboard with a
+  textarea fallback), a note box under the caption on a SAVED post (`/api/social/save {id, saved: true, note}` on blur;
+  shown on Saved cards as `.soc-note`; unsave clears it in the page), and keys S save / M make ours / C copy link /
+  T transcript / arrows (never while typing in an input). `followHandle` reloads the feed and reopens the same post.
+- **Week > Preview** (`igPreview`, `/api/social/grid`): the Instagram account header (pic, handle, count) and every post
+  through Locus that targets Instagram as a 3-across 4:5 grid, newest first; drafts faded, scheduled dashed, a tap opens
+  the composer. `sw_view` may be `preview` now.
+- **Morning card**: account-health morningcard.js adds one "Breaking out on Social" line (kind `social`) when a followed
+  account's post broke out since yesterday's card (`breakoutsFor`, the card stores `social_at`), tagged to the strategist.
+- Checked in Cole's signed-in Chrome by injecting the worktree files over the live page (a CORS file server on
+  127.0.0.1:8897; the page's `apiAH` is a global): feed 305 posts / 19 breaking out, Manage with 12 suggestions, the viewer
+  with every button, S saves then a note saved, Week > Preview (empty for Lucky: nothing targets Instagram yet).
