@@ -461,14 +461,14 @@
         <div><b>${n('tasks')}</b>to-dos on Tasks</div><div><b>${n('briefs')}</b>briefs on Production and in Asana</div><div><b>${n('asks')}</b>asks on Requests</div><div><b>${all.filter(b => b.report).length}</b>weekly reports got "This week"</div></div>
         ${(r.warnings || []).length ? `<div class="warnline">${r.warnings.map(esc).join('<br>')}</div>` : ''}
         ${r.recap ? `<p class="rule">${r.recap.posted ? 'The recap is in the client\'s Slack channel.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
-      + `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn2" data-go="tasks">Open Tasks</button><button class="btn2" data-go="production">Open Production</button><button class="btn2" data-go="calls">Back to Calls</button></div>`);
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn2" data-go="tasks">Open Tasks</button><button class="btn2" data-go="production">Open Production</button><button class="btn2" data-go="calls">${KIND === 'client' ? `Back to ${esc(D.name)}` : 'Back to Calls'}</button></div>`);
   }
   function paint() {
     const host = $('#main'); if (!host) return;
     const title = KIND === 'client' ? `Client call: ${D.name}` : TITLE[KIND];
     const finished = D.call && D.call.status === 'finished';
     host.innerHTML = `<div class="v2 cs" id="csRoot">
-      <div class="cs-head"><div class="t"><button class="cs-back" data-go="calls">← Calls</button><h1>${esc(title)}</h1><p class="cs-who">${whoLine()}</p></div>
+      <div class="cs-head"><div class="t"><button class="cs-back" data-go="calls">${KIND === 'client' ? '← Back' : '← Calls'}</button><h1>${esc(title)}</h1><p class="cs-who">${whoLine()}</p></div>
         <div style="display:flex;gap:8px;align-items:center"><span class="cs-saved" id="csSaved"></span><button class="btn2" id="csPresent">${document.body.classList.contains('cs-present') ? 'Exit (Esc)' : 'Present'}</button></div></div>
       ${finished ? finishedHtml() : `<nav class="cs-steps" id="csSteps">${stepsHtml()}</nav>
         <div id="csMain" style="display:flex;flex-direction:column;gap:20px">${mainHtml()}</div>

@@ -3776,3 +3776,8 @@ Page table and the two rails: https://claude.ai/artifact/R1RksAoFEWR2NF5J2X6C5L.
 - Checked on the local trio (worktree statics + both dev workers, headless Chrome) at 1440 and 375: both rails, the
   picker both ways, every switch rule, the deep links (calls&call=client, studio, tasks&act, monday), the client call
   and its back button, no page sideways scroll.
+- **2026-10-20 follow-ups:** a client call's back buttons read "← Back" / "Back to <brand>" (callscreen.js?v=3); the
+  Strategist's WHERE THINGS ARE IN LOCUS block (account-health strategist.js) names Agency view, Work, `ccall` and the
+  season's three pages. A client login was checked locally with `/api/me` stubbed to role client (CDP Fetch): rail =
+  Home, Ads, Email and SMS, Store, Products, Creative (with Production), Brand, Calendar, Social, Reports, the season;
+  no Work, no Client call; calls / tasks / ccall / workload and `?open=calls&call=client` all land on Overview.
