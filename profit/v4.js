@@ -1,4 +1,5 @@
-/* LOCUS v4, phase 1 (2026-10-20, docs/locus-v4/index.html): Today > Morning for one brand.
+/* LOCUS v4 (2026-10-20, docs/locus-v4/index.html): phase 1 Today > Morning, phase 2 Ads > Calls additions, phase 3 Money > Month.
+ * Phase 1: Today > Morning for one brand.
  * The page answers "did yesterday make money, is the month on plan, what do I touch today" on its first screen:
  *   the money river   sales flowing through ads, product, shipping and fees to what was kept, with a mark for a normal day
  *   the month ring    banked against plan by now; the outer arc is where the month lands against the full-month goal
@@ -40,11 +41,11 @@
       ${b.line ? `<p class="v4-line"><span class="lx-face" data-state="${(b.to_change || 0) + (b.to_fix || 0) > 0 ? 'found' : 'clear'}" aria-hidden="true"></span>${K.esc(b.line)}</p>` : ''}`;
   }
 
-  /* ---------- the month ring ---------- */
-  function ring(pct, label, sub, outer) {
+  /* ---------- the month ring (size scales the number: Cole, the number must fit inside the circle) ---------- */
+  function ring(pct, label, sub, outer, size = 132) {
     const r = 52, c = 2 * Math.PI * r, r2 = 60, c2 = 2 * Math.PI * r2, p = Math.max(0, Math.min(pct || 0, 1));
     const tone = pct == null ? 'var(--line-strong)' : pct >= 0.98 ? 'var(--good)' : pct >= 0.85 ? 'var(--warn)' : 'var(--bad)';
-    return `<div class="v4-ring"><svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="${tone}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}"/>${outer != null ? `<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-linecap="round" stroke-dasharray="${(c2 * Math.max(0, Math.min(outer, 1))).toFixed(1)} ${c2.toFixed(1)}"/>` : ''}</svg><div class="c"><b>${label}</b><small>${sub}</small></div></div>`;
+    return `<div class="v4-ring" style="--rs:${size}px"><svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="${tone}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}"/>${outer != null ? `<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-linecap="round" stroke-dasharray="${(c2 * Math.max(0, Math.min(outer, 1))).toFixed(1)} ${c2.toFixed(1)}"/>` : ''}</svg><div class="c"><b>${label}</b><small>${sub}</small></div></div>`;
   }
   function monthCard(a, cur) {
     const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, now.getDate() - 1);
@@ -74,7 +75,8 @@
   }
 
   /* ---------- the page ---------- */
-  async function render(host, first) {
+  async function render(host, first, page = 'morning') {
+    if (page === 'month') return month(host, first);
     H = host; K = window.V2 && window.V2.kit; if (!K) { $('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">The v2 kit did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'; return; }
     window.V2.setHost(host);
     const t = H.RUN(); const all = K.scopeAccts(); const a = all[0]; if (!a) return;
@@ -181,6 +183,106 @@
     host.innerHTML = `<div class="v4-adstrip">${ads.map((a, i) => `<button type="button" class="v4-ad${r.ad_id && String(a.id) === String(r.ad_id) ? ' is-call' : ''}" data-pid="${K.esc(a.id)}" data-pname="${K.esc(a.name || '')}"><span class="v4-ad-t" data-thumb="${K.esc(a.id)}">${a.media_type === 'video' ? '<i>&#9654;</i>' : ''}</span><b>${K.esc(a.name || a.id)}</b><small>${$(a.spend)} · ${a.cpa ? `${$(a.cpa)} per sale` : (a.purchases ? `${K.int(a.purchases)} sales` : 'no sale')}${i === 0 && ads.length > 1 ? ' · anchor' : ''}</small></button>`).join('')}</div>`;
     if (V.thumbs) V.thumbs(host, ads.map(a => a.id), r.act_id, H);
     host.querySelectorAll('[data-pid]').forEach(b => b.onclick = () => { if (V.playAd) V.playAd({ id: b.dataset.pid, name: b.dataset.pname, act: r.act_id, note: `In "${r.adset || ''}", ${r.brand || ''}.` }, H); });
+  }
+
+  /* ---------- Money > Month, phase 3 (2026-10-20): the month on one page ----------
+     Where the month lands (the ring: the forecast against the goal, two paths), the weeks against target, whether a customer is
+     worth what we pay, where the money went (the waterfall), who paid and through what. Reads /api/client (the P&L line, month
+     to date), /api/forecast (CTC's two layers: returning plus new at the trailing aMER), /api/customers (90 days) and
+     /api/hub/paid (first orders by channel). Goals (the plan page) is this page's edit mode: Edit the plan opens it. */
+  function dial(v, max) {
+    const cx = 90, cy = 86, r = 70, a = Math.PI * Math.max(0, Math.min(v || 0, max)) / max;
+    const x = cx + r * Math.cos(Math.PI - a), y = cy - r * Math.sin(a);
+    const tick = t => { const b = Math.PI * t / max; return `<line x1="${(cx + r * Math.cos(Math.PI - b)).toFixed(1)}" y1="${(cy - r * Math.sin(b)).toFixed(1)}" x2="${(cx + (r + 9) * Math.cos(Math.PI - b)).toFixed(1)}" y2="${(cy - (r + 9) * Math.sin(b)).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5"/>`; };
+    const tone = v == null ? 'var(--line-strong)' : v >= 3 ? 'var(--good)' : v >= 1.5 ? 'var(--warn)' : 'var(--bad)';
+    return `<svg class="v4-dial" viewBox="0 0 180 104" aria-hidden="true"><path d="M20 86 A70 70 0 0 1 160 86" fill="none" stroke="var(--surface-2)" stroke-width="12" stroke-linecap="round"/>${v ? `<path d="M20 86 A70 70 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${tone}" stroke-width="12" stroke-linecap="round"/>` : ''}${tick(1.5)}${tick(3)}<text x="90" y="80" text-anchor="middle" font-size="26" font-weight="650" fill="var(--ink)">${v != null ? K.x2(v) : '–'}</text><text x="90" y="98" text-anchor="middle" font-size="10.5" fill="var(--ink-2)">back per $1 spent, 90 days</text></svg>`;
+  }
+  function waterfall(t, cur, marginPct) {
+    const steps = marginPct != null
+      ? [['Revenue', t.sales, 'tot'], [`Costs at ${Math.round(marginPct * 100)}%`, -(t.sales - (t.gross_profit || 0))], ['Gross profit', t.gross_profit, 'sub'], ['Ad spend', -(t.spend || 0)], ['Kept', t.cm, 'tot']]
+      : [['Revenue', t.sales, 'tot'], ['Product', -(t.cogs || 0)], ['Shipping', -(t.ship_cost || 0)], ['Handling', -(t.handling || 0)], ['Fees', -(t.fees || 0)], ['Gross profit', t.gross_profit, 'sub'], ['Ad spend', -(t.spend || 0)], ['Kept', t.cm, 'tot']].filter(st => st[2] || st[1] !== 0);
+    const W = 600, Hh = 170, max = Math.max(t.sales || 1, 1), n = steps.length, gap = 12, bw = Math.floor((W - 20 - gap * (n - 1)) / n);
+    const y = v => Hh - 24 - Math.max(0, v) / max * (Hh - 48);
+    let run = 0, out = `<svg class="v4-fall" viewBox="0 0 ${W} ${Hh}" aria-hidden="true">`;
+    steps.forEach((st, i) => {
+      const x = 10 + i * (bw + gap); let top, bot, fill, v = st[1] || 0;
+      if (st[2]) { top = y(v); bot = y(0); fill = st[2] === 'tot' ? (v < 0 ? 'var(--bad)' : 'var(--brand)') : 'var(--line-strong)'; run = v; }
+      else { const from = run; run = from + v; top = y(Math.max(from, run)); bot = y(Math.min(from, run)); fill = 'var(--bad)'; }
+      out += `<rect x="${x}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(bot - top, 2).toFixed(1)}" rx="4" fill="${fill}" opacity="${st[2] ? 1 : .72}"><title>${K.esc(st[0])}: ${K.money(Math.abs(v), cur)}</title></rect>`;
+      out += `<text x="${x + bw / 2}" y="${(top - 6).toFixed(1)}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${v < 0 ? '−' : ''}${K.kmoney(Math.abs(v), cur)}</text>`;
+      out += `<text x="${x + bw / 2}" y="${Hh - 8}" font-size="11" text-anchor="middle" fill="var(--ink-2)">${K.esc(st[0])}</text>`;
+    });
+    return out + '</svg>';
+  }
+  async function month(host, first) {
+    H = host; K = window.V2 && window.V2.kit; if (!K) { $('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">The v2 kit did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'; return; }
+    window.V2.setHost(host);
+    const t0 = H.RUN(); const a = K.scopeAccts()[0]; if (!a) return;
+    const cur = a.currency, now = new Date(), monthName = now.toLocaleDateString('en-US', { month: 'long' });
+    const ym = now.toISOString().slice(0, 7), mStart = `${ym}-01`, today = now.toISOString().slice(0, 10);
+    const title = `${monthName}: ${K.esc(a.name)}`;
+    const shell = body => `<div class="v2 lx v4">${K.head('month', title)}${body}</div>`;
+    const acts = `<button type="button" class="v2btn" data-go="plan">Edit the plan</button><button type="button" class="v2btn ghost" data-go="customers">Customers</button>`;
+    if (first) { $('#main').innerHTML = shell(`<div class="v4-top v4-mo"><section class="v2card v2sk"><i class="h"></i></section><section class="v2card v2sk"><i class="h"></i></section><section class="v2card v2sk"><i class="h"></i></section></div>${K.skPage({ tiles: 0, chart: true, rows: 2 })}`); H.pageActions && H.pageActions(acts); }
+    const q = encodeURIComponent(H.S.act);
+    const [d, fc, cu, ch] = await Promise.all([
+      H.api(`/api/client?act=${q}&from=${mStart}&to=${today}`).catch(() => null),
+      H.api(`/api/forecast?act=${q}`).catch(() => null),
+      H.api(`/api/customers?act=${q}&days=90&journey=0`).catch(() => null),
+      K.get(`/api/hub/paid?platform=all&act=${q}&from=${mStart}&to=${today}${K.modelQ()}`).catch(() => null),
+    ]);
+    if (t0 !== H.RUN()) return;
+    if (!d) { $('#main').innerHTML = shell('<div class="v2card"><p class="v2hint">The month could not be loaded. Try again in a moment.</p></div>'); return; }
+    const mtd = d.mtd || {}, goal = (d.goals && d.goals.sales) || null, dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, Math.min(dim, mtd.days || now.getDate()));
+    const broken = a.cost_health && a.cost_health.verdict === 'broken';
+    const km = v => K.kmoney(v, cur), mo = v => K.money(v, cur);
+
+    /* 1. where the month lands: the ring is the forecast at the PLANNED spend over the goal; the outer arc is today's pace */
+    let land;
+    if (!goal) land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>${ring(null, km(mtd.sales), 'banked so far', null, 150)}<p class="v4-ring-cap">No plan for ${monthName} yet, so nothing to land against.</p><button type="button" class="v2btn v4-ring-go" data-go="plan">Set the goals</button>`;
+    else {
+      const proj = fc && fc.projected != null ? fc.projected : mtd.sales / elapsed * dim, pace = fc && fc.at_current_pace ? fc.at_current_pace.sales : mtd.sales / elapsed * dim;
+      const th = fc && fc.to_hit, gapP = proj - goal, gapC = pace - goal;
+      const line = (v, g) => `<b>${km(v)}</b>, ${g >= 0 ? `${km(g)} over` : `${km(-g)} short`}`;
+      land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>
+        ${ring(proj / goal, km(proj), `of ${km(goal)} goal`, pace / goal, 150)}
+        <p class="v4-ring-cap v4-paths"><span>Spending the budget: ${line(proj, gapP)}.</span><span>At today's pace: ${line(pace, gapC)}.</span>${th && !th.already_there && th.revenue_per_day > 0 ? `<span>To hit it: <b>${mo(th.revenue_per_day)} a day</b>${th.spend_per_day ? `, ${mo(th.spend_per_day)} of it ad spend` : ''}.</span>` : th && th.already_there ? '<span>Already there: the goal is banked.</span>' : ''}</p>
+        <button type="button" class="v2link v4-ring-go" data-go="plan">Edit the plan ›</button>`;
+    }
+
+    /* 2. the weeks against target (CTC: returning base plus new customers at the trailing aMER) */
+    const weeks = fc && Array.isArray(fc.weeks) ? fc.weeks.filter(w => w.days_done > 0) : [];
+    const wk = weeks.length && window.LxKit ? window.LxKit.bars(weeks.map(w => {
+      const tgt = w.target_to_date, dlt = tgt ? w.sales / tgt - 1 : null;
+      return { label: `${K.day(w.from)} to ${K.day(w.to).replace(/^\w+ /, '')}`, sub: w.complete ? '' : `${w.days_done} of ${w.days} days so far`, v: w.sales, ghost: tgt, value: km(w.sales), tone: dlt == null ? '' : dlt >= 0 ? 'good' : dlt > -0.08 ? 'warn' : 'bad', note: dlt == null ? '' : `${dlt >= 0 ? '+' : ''}${Math.round(dlt * 100)}%` };
+    }), { max: Math.max(...weeks.map(w => Math.max(w.sales || 0, w.target_to_date || 0))) }) : '<p class="v2hint">Not enough Triple Whale history for the week view yet.</p>';
+    const ret = mtd.ret_rev, nw = mtd.new_rev;
+    const wkCard = `<div class="v2h"><h3>Weeks against target</h3><span class="cap">${fc && fc.basis && fc.basis.amer ? `new customers at ${K.x2(fc.basis.amer)} aMER` : 'grey is the target'}</span></div>${wk}
+      <div class="v4-facts"><span>Banked <b>${km(mtd.sales)}</b></span>${ret != null ? `<span>Returning <b>${km(ret)}</b></span>` : ''}${nw != null ? `<span>New <b>${km(nw)}</b></span>` : ''}<span>Spent <b>${km(mtd.spend)}</b></span>${mtd.mer ? `<span>MER <b>${K.x2(mtd.mer)}</b></span>` : ''}</div>`;
+
+    /* 3. is a customer worth what we pay (90 days, from /api/customers) */
+    const h = cu && cu.headline;
+    const cuCard = h ? `<div class="v2h"><h3>Is a customer worth what we pay?</h3><span class="cap">${h.thin ? `only ${K.int(h.new_orders)} new customers, read it loosely` : `${K.int(h.new_orders)} new customers in 90 days`}</span></div>
+      <div class="v4-dialrow">${dial(h.payback, 4.5)}<div class="v4-dial-t">${h.cac != null ? `Costs <b>${mo(h.cac)}</b> to get.<br>` : ''}${h.new_aov != null ? `First order <b>${mo(h.new_aov)}</b>${h.first_order_gp != null ? `, leaves <b>${mo(h.first_order_gp)}</b> after costs` : ''}.<br>` : ''}${h.repeat_share != null ? `<b>${K.pct(h.repeat_share, 0)}</b> of orders are repeat orders${h.returning_aov ? `, at ${mo(h.returning_aov)} each` : ''}.` : ''}</div></div>
+      <p class="v4-ring-cap v4-left">Under 1.5x the first order does not pay for the customer; over 3x there is room to bid harder. <button type="button" class="v2link" data-go="customers">Customers ›</button></p>`
+      : `<div class="v2h"><h3>Is a customer worth what we pay?</h3></div><p class="v2hint">Customer numbers need Triple Whale orders synced for this brand.</p>`;
+
+    /* 4. where the money went, month to date */
+    const fallCard = K.card('Where the money went', broken ? 'The cost data for this brand failed its check, so what was kept is withheld.' : `${mo(mtd.sales)} came in; ${mtd.cm != null ? `<b>${mo(mtd.cm)}</b> was left after every variable cost${mtd.sales ? `, ${K.pct(mtd.cm / mtd.sales, 0)} of revenue` : ''}` : 'costs are still landing'}${mtd.mer ? `, at ${K.x2(mtd.mer)} MER` : ''}.`,
+      broken ? `<button type="button" class="v2link" data-go="costs">Open the cost check ›</button>` : waterfall(mtd, cur, d.margin_pct), `${monthName} to date`);
+
+    /* 5. who paid, and through what: new vs returning, then first orders by channel */
+    const chRows = (() => { if (!ch || !ch.brands) return []; const by = {}; for (const bb of ch.brands) for (const r of bb.rows || []) { const o = by[r.id] ||= { id: r.id, label: r.label, nc: 0, revenue: 0 }; o.nc += r.nc || 0; o.revenue += r.revenue || 0; } return Object.values(by).filter(r => r.nc > 0).sort((x, y) => y.nc - x.nc); })();
+    const ncTot = chRows.reduce((s, r) => s + r.nc, 0) || 1;
+    const split = nw != null && ret != null && nw + ret > 0 ? `<div class="v2stackbar"><i style="flex:${nw};background:var(--brand)"${K.tipAttr(`New customers · ${mo(nw)} · ${K.pct(nw / (nw + ret), 0)}`)}></i><i style="flex:${ret};background:var(--line-strong)"${K.tipAttr(`Returning · ${mo(ret)} · ${K.pct(ret / (nw + ret), 0)}`)}></i></div><div class="v4-river-l"><span><i style="background:var(--brand)"></i>New customers <b>${km(nw)}</b></span><span><i style="background:var(--line-strong)"></i>Returning <b>${km(ret)}</b></span></div>` : '';
+    const whoCard = K.card('Who paid, and through what', nw != null && ret != null && nw + ret > 0 ? `${K.pct(nw / (nw + ret), 0)} of revenue from first-time buyers.` : 'New against returning, then where first orders came from.',
+      `${split}${chRows.length && window.LxKit ? `<div class="v4-gap">${window.LxKit.bars(chRows.map(r => ({ label: r.label, v: r.nc, value: K.int(r.nc), note: K.pct(r.nc / ncTot, 0), tone: '' })), { max: chRows[0].nc })}</div><p class="v2hint v4-foot">First orders, credited under ${K.esc(K.MODEL_SHORT[H.S.model] || 'last platform click')}.</p>` : '<p class="v2hint">No first orders credited yet this month.</p>'}`, `${monthName} to date`);
+
+    $('#main').innerHTML = shell(`<div class="v4-top v4-mo"><section class="v2card v4-land">${land}</section><section class="v2card">${wkCard}</section><section class="v2card">${cuCard}</section></div>
+      <div class="v2two v4-two">${fallCard}${whoCard}</div>
+      ${K.foot(`Revenue is Shopify total sales less tax, through Triple Whale. The month lands on the P&amp;L line: returning revenue arrives on its own, new revenue is planned spend times the trailing aMER. Customer value is the last 90 days.`)}`);
+    H.pageActions && H.pageActions(acts);
+    K.wireGo($('#main'));
   }
   window.V4 = { render, extraCalls, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
 })();

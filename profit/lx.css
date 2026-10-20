@@ -263,9 +263,10 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 .lx-bar .l small{display:block;font-size:11.5px;color:var(--muted);font-weight:400;line-height:1.3}
 .lx-bar .t{position:relative;height:8px;border-radius:var(--r-pill);background:var(--surface-2);overflow:visible}
 .lx-bar .t i{position:absolute;left:0;top:0;bottom:0;border-radius:var(--r-pill);background:var(--brand);transition:width var(--t) var(--ease)}
-.lx-bar .t i.g{background:var(--v2-cmp);opacity:.55}
+.lx-bar .t i.g{background:var(--line-strong);opacity:.75}
 .lx-bar .t b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.8}
 .lx-bar.good .t i{background:var(--good)}.lx-bar.warn .t i{background:var(--warn)}.lx-bar.bad .t i{background:var(--bad)}.lx-bar.quiet .t i{background:var(--line-strong)}
+.lx-bar.good .t i.g,.lx-bar.warn .t i.g,.lx-bar.bad .t i.g{background:var(--line-strong)}
 .lx-bar .v{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;text-align:right;min-width:52px}
 .lx-bar .v small{font-weight:400;color:var(--muted);margin-left:6px;font-size:11.5px}
 .lx-bars.rows .lx-bar{min-height:36px;padding:0 0 6px;border-bottom:1px solid var(--line)}
@@ -360,10 +361,10 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 .v4 .v4-river-l .v4-norm{color:var(--ink-3,var(--ink-2));margin-left:auto}
 .v4 .v4-line{display:flex;align-items:flex-start;gap:8px;margin:14px 0 0;font-size:13.5px;line-height:1.45;color:var(--ink-2)}
 .v4 .v4-line .lx-face{margin-top:5px}
-.v4 .v4-ring{position:relative;width:132px;height:132px;margin:6px auto 0}
+.v4 .v4-ring{position:relative;width:var(--rs,132px);height:var(--rs,132px);margin:6px auto 0}
 .v4 .v4-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
 .v4 .v4-ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-.v4 .v4-ring .c b{font-size:24px;font-weight:600;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+.v4 .v4-ring .c b{font-size:calc(var(--rs,132px) * .17);font-weight:600;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
 .v4 .v4-ring .c small{font-size:11px;color:var(--ink-2);margin-top:4px}
 .v4 .v4-ring-cap{font-size:12.5px;color:var(--ink-2);text-align:center;margin:12px 0 0;line-height:1.45}
 .v4 .v4-ring-cap b{color:var(--ink);font-weight:600}
@@ -412,3 +413,16 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 .v4-ad.is-call .v4-ad-t{box-shadow:0 0 0 2px var(--warn)}
 .v4-ad .v4-ad-t i{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.9);color:#111;display:flex;align-items:center;justify-content:center;font-size:11px;font-style:normal}
 .v4-ad b{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v4-ad small{display:block;font-size:11.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* v4 phase 3: Money > Month */
+.v4 .v4-top.v4-mo{grid-template-columns:minmax(0,2fr) minmax(0,3fr) minmax(0,3fr)}
+.v4 .v4-land{align-items:center;text-align:center}.v4 .v4-land .v2h{align-self:stretch;text-align:left}
+.v4 .v4-paths{display:flex;flex-direction:column;gap:3px;text-align:center}
+.v4 .v4-ring-cap.v4-left{text-align:left}
+.v4 .v4-facts{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:14px;font-size:12.5px;color:var(--ink-2)}.v4 .v4-facts b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.v4 .v4-dialrow{display:flex;gap:16px;align-items:center;margin-top:6px}.v4 .v4-dial{width:180px;height:104px;flex:none}
+.v4 .v4-dial-t{font-size:12.5px;color:var(--ink-2);line-height:1.6}.v4 .v4-dial-t b{color:var(--ink);font-weight:600}
+.v4 .v4-fall{display:block;width:100%;height:auto;max-height:200px;overflow:visible}
+.v4 .v4-gap{margin-top:14px}.v4 .v4-foot{margin:8px 0 0}
+@media (max-width:1100px){.v4 .v4-top.v4-mo{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.v4 .v4-top.v4-mo > .v4-land{grid-column:auto}}
+@media (max-width:720px){.v4 .v4-top.v4-mo{grid-template-columns:minmax(0,1fr)}.v4 .v4-dialrow{flex-direction:column;align-items:flex-start}}
