@@ -1,6 +1,7 @@
-/* LOCUS SOCIAL: THE WEEK (rebuilt 2026-10-20 after Cole's review; first built 2026-10-19). The UI it follows: Later's
- * calendar density (docs/locus-social/shots/later-week.png: hour rows, a post is a small card with its cover and time,
- * the accounts as marks), docs/locus-social/proposal.html "A time grid, a tray of ready content".
+/* LOCUS SOCIAL: THE WEEK (rebuilt 2026-10-20 to the teardown spec, docs/locus-social/teardown/spec.html; first built
+ * 2026-10-19). Later's calendar is the page: 28px hours so the working day fits in 450px, the tray a thumbnail grid with
+ * an Unused filter and no spend or ROAS, the accounts as avatars in the controls row, a Week / List segment (List = a day
+ * list, the only view on a phone), the composer as quiet rows with the accounts as tappable avatars.
  *
  * WHO USES IT: the person filling the brand's week of posts, once a week and whenever something new is ready.
  *   1. see the week at a glance (seven brand-local days by the hour, today marked, past hours hatched)
@@ -27,7 +28,8 @@
   const PK = { ig: 'IG', fb: 'FB', tt: 'TT', yt: 'YT' };
   const SRC = { studio: 'Studio', creator: 'Creator', ad: 'Meta ad', make: 'Make ours', upload: 'Upload', tagged: 'Tagged in' };
   const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);   // 6am to 10pm
-  const ROW = 48;
+  const ROW = 28;
+  const SRC_IC = { studio: 'image', creator: 'users', ad: 'megaphone', make: 'sparkles', upload: 'plus', tagged: 'tag' };
   const k = n => { if (n == null) return '–'; const a = Math.abs(n); return a >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : a >= 1e3 ? `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : String(Math.round(n)); };
   const add = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const monday = s => { const d = new Date(s + 'T00:00:00Z'); const w = (d.getUTCDay() + 6) % 7; return add(s, -w); };
@@ -36,7 +38,7 @@
   const wd = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
   const h12 = h => (h % 12 || 12) + (h < 12 ? ' am' : ' pm');
   const hm12 = hm => { const [h, m] = hm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`; };
-  const ST = { act: null, from: null, data: null, tray: null, tf: store('sw_tf') || 'unused', loading: false };
+  const ST = { act: null, from: null, data: null, tray: null, tf: store('sw_tf') || 'unused', view: store('sw_view') || 'week', loading: false };
   const BOOT_POST = new URLSearchParams(location.search).get('post');   // ?open=socialweek&post=<id> (Slack, the calendar)
 
   function css() {
@@ -44,29 +46,35 @@
     const st = document.createElement('style'); st.id = 'swcss';
     st.textContent = `
       .sw{--sw-r:10px}
-      .sw .sw-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+      .sw .sw-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;min-height:36px}
       .sw .sw-top .r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-      .sw .sw-nav{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:2px}
-      .sw .sw-nav button{height:30px;min-width:30px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
-      .sw .sw-nav button:hover{background:var(--surface-2);color:var(--ink)}
-      .sw .sw-range{font-weight:650;font-size:15px;letter-spacing:-.01em}
-      .sw .sw-range small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
-      .sw-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 13px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer;color:var(--ink);white-space:nowrap;text-decoration:none}
+      .sw .sw-nav{display:inline-flex;align-items:center;gap:2px;background:var(--surface-2);border-radius:var(--r-sm,8px);padding:2px}
+      .sw .sw-nav button{height:28px;min-width:28px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+      .sw .sw-nav button:hover{background:var(--surface);color:var(--ink)}
+      .sw .sw-range{font-weight:650;font-size:14px;letter-spacing:-.01em;display:flex;gap:8px;align-items:baseline}
+      .sw .sw-range small{font-weight:500;font-size:12px;color:var(--muted)}
+      .sw .sw-seg{display:inline-flex;gap:2px;background:var(--surface-2);border-radius:var(--r-sm,8px);padding:2px}
+      .sw .sw-seg button{height:28px;padding:0 11px;border-radius:6px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;background:transparent;color:var(--muted);border:0}
+      .sw .sw-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+      .sw-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--r-sm,8px);border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer;color:var(--ink);white-space:nowrap;text-decoration:none}
       .sw-btn:hover{background:var(--surface-2)} .sw-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand)} .sw-btn.pri:hover{filter:brightness(1.05)}
-      .sw-btn:disabled{opacity:.55;cursor:default} .sw-btn.sm{height:30px;padding:0 10px;font-size:12.5px} .sw-btn.q{border-color:transparent;background:transparent;color:var(--ink-2)} .sw-btn.q:hover{background:var(--surface-2)}
+      .sw-btn:disabled{opacity:.55;cursor:default} .sw-btn.sm{height:28px;padding:0 10px;font-size:12.5px} .sw-btn.q{border-color:transparent;background:transparent;color:var(--ink-2)} .sw-btn.q:hover{background:var(--surface-2)}
       .sw-btn.bad{color:var(--bad)}
       /* account marks: a small square per platform; dim = not connected, dot = by hand or an error */
-      .sw-acc{display:inline-flex;gap:4px;align-items:center}
-      .sw-bub{width:24px;height:24px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface-2) center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;letter-spacing:.02em;color:var(--ink-2);position:relative;flex:none;cursor:default}
-      .sw-bub.on{border-color:var(--brand);background-color:var(--brand-soft);color:var(--brand)} .sw-bub.off{opacity:.35}
-      .sw-bub.sm{width:16px;height:16px;font-size:7px;border-radius:4px}
-      .sw-bub.bad::after,.sw-bub.hand::after{content:"";position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--surface)}
+      .sw-acc{display:inline-flex;gap:6px;align-items:center}
+      .sw-bub{width:28px;height:28px;border-radius:50%;border:1px solid var(--line-strong);background:var(--surface-2) center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;letter-spacing:.02em;color:var(--ink-2);position:relative;flex:none;cursor:default;padding:0;font-family:inherit}
+      .sw-bub.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)} .sw-bub.off{opacity:.35;filter:grayscale(1)}
+      .sw-bub.sm{width:16px;height:16px;font-size:7px}
+      .sw-bub.md{width:40px;height:40px;font-size:11px}
+      .sw-bub .pk{position:absolute;right:-4px;bottom:-4px;width:14px;height:14px;border-radius:4px;background:var(--surface);border:1px solid var(--line);font-size:6.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:var(--ink)}
+      .sw-bub.sm .pk{display:none}
+      .sw-bub.bad::after,.sw-bub.hand::after{content:"";position:absolute;right:-2px;top:-2px;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--surface)}
       .sw-bub.bad::after{background:var(--bad)} .sw-bub.hand::after{background:var(--warn)}
       button.sw-bub{cursor:pointer}
       .sw .sw-note{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:var(--sw-r);padding:10px 14px;font-size:13px;line-height:1.5;margin:0 0 12px;color:var(--ink-2);background:var(--surface)}
       .sw .sw-note b{color:var(--ink)}
       /* body: the tray and the grid */
-      .sw .sw-body{display:grid;grid-template-columns:248px minmax(0,1fr);gap:12px;align-items:start}
+      .sw .sw-body{display:grid;grid-template-columns:240px minmax(0,1fr);gap:12px;align-items:start}
       .sw .sw-tray{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);position:sticky;top:8px;max-height:calc(100vh - 110px);display:flex;flex-direction:column;min-height:0}
       .sw .sw-tray .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
       .sw .sw-tray .hd b{font-size:13px;font-weight:650} .sw .sw-tray .hd small{color:var(--muted);font-size:12px}
@@ -76,13 +84,15 @@
       .sw-sel select:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
       .sw-sel::after{content:"";position:absolute;right:10px;top:50%;width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
       .sw-sel.lg select{height:36px;font-size:13px;max-width:none;width:100%}
-      .sw-tl{overflow-y:auto;overflow-x:hidden;min-height:80px;flex:1;padding:6px}
-      .sw-ti{display:grid;grid-template-columns:44px minmax(0,1fr);min-width:0;overflow:hidden;gap:10px;align-items:center;border:1px solid transparent;border-radius:8px;padding:6px;background:transparent;cursor:grab;text-align:left;font:inherit;color:var(--ink);width:100%}
-      .sw-ti:hover{background:var(--surface-2);border-color:var(--line)} .sw-ti.used{opacity:.5} .sw-ti:active{cursor:grabbing}
-      .sw-ti .th{width:44px;height:44px;border-radius:6px;background:var(--surface-2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted);position:relative;border:1px solid var(--line)}
-      .sw-ti .th i{position:absolute;right:2px;bottom:2px;font-size:8.5px;font-style:normal;font-weight:700;background:rgba(16,16,20,.72);color:#fff;padding:1px 4px;border-radius:3px}
-      .sw-ti .t{font-size:12.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-      .sw-ti .s{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px} .sw-ti .s b{color:var(--ink-2);font-weight:600}
+      .sw-tl{overflow-y:auto;overflow-x:hidden;min-height:80px;flex:1;padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}
+      .sw-ti{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;cursor:grab;padding:0;font:inherit;color:var(--ink);display:flex;align-items:center;justify-content:center;min-width:0}
+      .sw-ti.sq{aspect-ratio:1} .sw-ti:hover{border-color:var(--brand)} .sw-ti.used{opacity:.45} .sw-ti:active{cursor:grabbing}
+      .sw-ti .ic{position:absolute;left:5px;top:5px;width:18px;height:18px;border-radius:5px;background:rgba(16,16,20,.66);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+      .sw-ti .ic svg{width:11px;height:11px}
+      .sw-ti .no{color:var(--muted)} .sw-ti .no svg{width:22px;height:22px}
+      .sw-ti .kd{position:absolute;right:5px;bottom:5px;font-size:8.5px;font-style:normal;font-weight:700;background:rgba(16,16,20,.66);color:#fff;padding:1px 4px;border-radius:3px}
+      .sw .sw-tray .hd .hd-period{position:relative} .sw .sw-tray .hd .hd-per-btn .hd-per-l{display:none} .sw .sw-tray .hd .hd-per-btn .hd-per-d{display:inline;color:var(--ink);font-size:12px;font-weight:600}
+      .sw .sw-tray .empty{grid-column:1 / -1}
       .sw .sw-tray .ft{padding:8px 10px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
       .sw .sw-tray .ft small{color:var(--muted);font-size:11.5px;line-height:1.4}
       .sw .sw-tray .empty{padding:24px 12px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5}
@@ -93,21 +103,32 @@
       .sw .sw-gh div b{font-size:16px;font-weight:650;color:var(--ink);letter-spacing:-.01em;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
       .sw .sw-gh div.td b{background:var(--brand);color:var(--on-brand)} .sw .sw-gh div.td{color:var(--brand)}
       .sw .sw-gb{display:grid;grid-template-columns:52px repeat(7,minmax(84px,1fr));position:relative}
-      .sw .sw-ht{height:${ROW}px;font-size:10.5px;color:var(--muted);text-align:right;padding:0 8px 0 0;font-variant-numeric:tabular-nums;transform:translateY(-7px);white-space:nowrap}
+      .sw .sw-ht{height:${ROW}px;font-size:10px;color:var(--muted);text-align:right;padding:0 8px 0 0;font-variant-numeric:tabular-nums;transform:translateY(-6px);white-space:nowrap}
+      .sw .sw-now{position:absolute;left:52px;right:0;height:0;border-top:1.5px solid var(--bad);z-index:3;pointer-events:none} .sw .sw-now::before{content:"";position:absolute;left:-4px;top:-4px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
       .sw .sw-cell{height:${ROW}px;border-top:1px solid var(--line);border-left:1px solid var(--line);position:relative}
       .sw .sw-cell.td{background:color-mix(in srgb,var(--brand) 4%,transparent)} .sw .sw-cell.past{background:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--line) 60%,transparent) 6px 7px)}
       .sw .sw-cell.over{background:color-mix(in srgb,var(--brand) 14%,transparent)} .sw .sw-cell:hover:not(.past)::after{content:"+";position:absolute;right:6px;top:3px;color:var(--muted);font-weight:600;font-size:12px}
-      .sw-post{position:absolute;left:3px;right:3px;border:1px solid var(--line-strong);border-left:3px solid var(--muted);border-radius:7px;background:var(--surface);padding:4px 6px 4px 6px;display:grid;grid-template-columns:30px minmax(0,1fr);gap:7px;align-items:center;cursor:pointer;text-align:left;font:inherit;color:var(--ink);box-shadow:var(--sh-card,none);z-index:2;min-height:44px}
+      .sw-post{position:absolute;left:3px;right:3px;border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:3px;display:grid;grid-template-columns:38px minmax(0,1fr);gap:6px;align-items:center;cursor:pointer;text-align:left;font:inherit;color:var(--ink);box-shadow:var(--sh-card,none);z-index:2;min-height:46px}
       .sw-post:hover{border-color:var(--brand);box-shadow:var(--sh-lift,0 6px 16px -10px rgba(0,0,0,.4))} .sw-post.drag{opacity:.5}
-      .sw-post .th{width:30px;height:36px;border-radius:4px;background:var(--surface-2) center/cover no-repeat;border:1px solid var(--line)}
-      .sw-post .tm{font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
-      .sw-post .tm .sw-acc{margin-left:auto}
-      .sw-post .st{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-      .sw-post.auto{border-left-color:var(--brand)} .sw-post.auto .st{color:var(--brand)}
-      .sw-post.posted{border-left-color:var(--good)} .sw-post.posted .st{color:var(--good)}
-      .sw-post.failed{border-left-color:var(--bad)} .sw-post.failed .st{color:var(--bad)}
-      .sw-post.handoff{border-left-color:var(--warn)} .sw-post.handoff .st{color:var(--warn)}
-      .sw-post.draft{border-style:dashed;border-left-style:solid}
+      .sw-post .th{width:38px;height:38px;border-radius:5px;background:var(--surface-2) center/cover no-repeat;border:1px solid var(--line)}
+      .sw-post .tm{font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;display:flex;gap:5px;align-items:center;white-space:nowrap;overflow:hidden}
+      .sw-post .tm .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+      .sw-post .st{display:flex;gap:3px;align-items:center;margin-top:3px}
+      .sw-post.auto .dot{background:var(--brand)} .sw-post.posted .dot{background:var(--good)} .sw-post.failed .dot{background:var(--bad)} .sw-post.handoff .dot{background:var(--warn)}
+      .sw-post.draft{border-style:dashed}
+      /* the day list (Week > List, and every phone) */
+      .sw-list{display:grid;gap:12px}
+      .sw-day{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);overflow:hidden}
+      .sw-day .dh{display:flex;align-items:baseline;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:650}
+      .sw-day .dh small{color:var(--muted);font-weight:500} .sw-day.td .dh b{color:var(--brand)} .sw-day .dh .sp{flex:1}
+      .sw-day .dh button{font:inherit;font-size:12.5px;color:var(--brand);background:none;border:0;cursor:pointer;padding:0}
+      .sw-dr{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);background:transparent;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left;font:inherit;color:var(--ink);cursor:pointer;min-height:56px}
+      .sw-dr:first-of-type{border-top:0} .sw-dr:hover{background:var(--surface-2)}
+      .sw-dr .th{width:56px;height:56px;border-radius:6px;background:var(--surface-2) center/cover no-repeat;border:1px solid var(--line)}
+      .sw-dr .cp{font-size:13px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--ink)}
+      .sw-dr .ln{display:flex;gap:8px;align-items:center;font-size:11.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+      .sw-dr .ln .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)} .sw-dr.auto .dot{background:var(--brand)} .sw-dr.posted .dot{background:var(--good)} .sw-dr.failed .dot{background:var(--bad)} .sw-dr.handoff .dot{background:var(--warn)}
+      .sw-day .none{padding:10px 12px;font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center} .sw-day .none button{font:inherit;font-size:12.5px;color:var(--brand);background:none;border:0;cursor:pointer;padding:0}
       /* states */
       .sw .sw-state{border:1px dashed var(--line-strong);border-radius:var(--sw-r);padding:40px 20px;text-align:center;display:grid;gap:8px;justify-items:center;background:var(--surface)}
       .sw .sw-state b{font-size:15px} .sw .sw-state p{margin:0;max-width:52ch;color:var(--muted);font-size:13px;line-height:1.5}
@@ -118,7 +139,7 @@
       /* the post editor: one panel */
       .sw-pn{display:grid;gap:18px}
       .sw-pn section{display:grid;gap:8px}
-      .sw-pn h4{margin:0;font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+      .sw-pn h4{margin:0;font-size:12.5px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;gap:8px}
       .sw-pn h4 .sp{flex:1} .sw-pn h4 small{font-weight:500;text-transform:none;letter-spacing:0;font-size:12px}
       .sw-pn .med{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
       .sw-pn .med .m{width:88px;height:88px;border-radius:8px;background:var(--surface-2) center/cover no-repeat;position:relative;border:1px solid var(--line)}
@@ -128,14 +149,16 @@
       .sw-pn .fld{display:grid;gap:4px} .sw-pn .fld > span{font-size:12px;font-weight:600;color:var(--ink-2)}
       .sw-pn input[type=date],.sw-pn input[type=time],.sw-pn input[type=text],.sw-pn select,.sw-pn textarea{padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;height:36px;min-height:36px}
       .sw-pn textarea{width:100%;min-height:120px;line-height:1.5;padding:9px 10px;resize:vertical;height:auto}
-      .sw-pn .when{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px;align-items:end}
-      .sw-pn .when .tz{grid-column:1 / -1;font-size:12px;color:var(--muted)}
-      .sw-pn .accs{display:grid;border:1px solid var(--line);border-radius:var(--sw-r);overflow:hidden}
-      .sw-pn .acc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);background:var(--surface)}
-      .sw-pn .acc:first-child{border-top:0}
-      .sw-pn .acc b{font-size:13px;font-weight:600;display:block} .sw-pn .acc small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .sw-pn .acc small.w{color:var(--warn)} .sw-pn .acc small.e{color:var(--bad)}
-      .sw-pn .acc.off b{color:var(--muted)}
+      .sw-pn .when{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      .sw-pn .when .tz{font-size:12px;color:var(--muted)}
+      .sw-pn .when input{border-radius:999px;height:32px;min-height:32px;padding:0 12px;font-size:12.5px;font-weight:500}
+      .sw-pn .accs{display:flex;gap:14px;flex-wrap:wrap}
+      .sw-pn .acc{display:grid;gap:5px;justify-items:center;width:64px;background:none;border:0;padding:0;font:inherit;color:var(--ink);cursor:pointer;text-align:center}
+      .sw-pn .acc:disabled{cursor:default}
+      .sw-pn .acc small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.3}
+      .sw-pn .acc.on small{color:var(--ink)} .sw-pn .acc small.w{color:var(--warn)} .sw-pn .acc small.e{color:var(--bad)}
+      .sw-pn .acc.on .sw-bub.md::before{content:"";position:absolute;left:-2px;top:-2px;width:12px;height:12px;border-radius:50%;background:var(--brand);border:2px solid var(--surface)}
+      .sw-pn .qa{display:flex;gap:10px;flex-wrap:wrap} .sw-pn .qa button{font:inherit;font-size:12.5px;color:var(--brand);background:none;border:0;padding:0;cursor:pointer}
       .sw-pn .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .sw-pn details{border:1px solid var(--line);border-radius:var(--sw-r);padding:10px 12px} .sw-pn details summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);list-style:none;display:flex;align-items:center;gap:6px} .sw-pn details summary::before{content:"";width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:rotate(-45deg);transition:transform .12s} .sw-pn details[open] summary::before{transform:rotate(45deg)} .sw-pn details .in{display:grid;gap:10px;margin-top:10px}
       .sw-pn .opts{display:grid;gap:6px} .sw-pn .opt{text-align:left;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;line-height:1.45;background:var(--surface);color:var(--ink);cursor:pointer;white-space:pre-wrap} .sw-pn .opt:hover{border-color:var(--brand)}
@@ -176,11 +199,13 @@
       .sw-m .pg{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;background:var(--surface);font:inherit;color:var(--ink);text-align:left;width:100%} .sw-m .pg:hover{border-color:var(--brand)}
       .sw-m .pg .av{width:36px;height:36px;border-radius:50%;background:var(--surface-2) center/cover} .sw-m .pg small{display:block;color:var(--muted);font-size:11.5px}
       @media (max-width:720px){
-        .sw .sw-body,.sw .sw-sk{grid-template-columns:1fr} .sw .sw-tray{display:none}
+        .sw .sw-body,.sw .sw-sk{grid-template-columns:1fr} .sw .sw-tray{display:none} .sw .sw-seg{display:none}
         .sw .sw-grid{max-height:none} .sw .sw-gh,.sw .sw-gb{grid-template-columns:44px repeat(7,140px)}
         .sw .sw-top .r{margin-left:0;width:100%} .sw .sw-top .r .sw-btn{flex:1 1 auto}
+        .sw-sheet-tray .sw-tl{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .sw .sw-tray .hd .hd-per-btn .hd-per-d{display:inline}
         .sw-pn .med .m,.sw-pn .med .add{width:76px;height:76px} .sw-pn .foot .sw-btn{min-height:44px;flex:1 1 auto}
-        .sw-pn .when{grid-template-columns:1fr}
+        .sw-pn .when input{flex:1 1 auto}
         .sw-pn{overflow-x:hidden} .sw-pn h4{flex-wrap:wrap} .sw-pn h4 .sp{flex:1 1 100%;display:none} .sw-pn textarea,.sw-pn input,.sw-pn select{max-width:100%;box-sizing:border-box}
         .sw .sw-ht{transform:none;padding-top:2px;text-align:left;padding-left:6px}
         .sw-conn table,.sw-conn thead,.sw-conn tbody,.sw-conn tr,.sw-conn td{display:block} .sw-conn thead{display:none}
@@ -226,7 +251,7 @@
     const a = acc || {}, cls = a.on ? (a.status === 'error' ? 'bad' : a.mode === 'notify' ? 'hand' : '') : 'off';
     const tipT = a.on ? `${PL[plat]}${a.handle ? ` @${a.handle}` : ''}${a.mode === 'notify' ? ': by hand (Slack tells you at post time)' : a.mode === 'draft' ? ': lands as a draft or private until the platform approves the app' : ''}${a.status === 'error' ? ': needs reconnecting' : ''}` : `${PL[plat]} is not connected (Brand settings > Social)`;
     const tag = asButton ? 'button type="button"' : 'span';
-    return `<${tag} class="sw-bub ${cls} ${extra}" ${a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''} ${U() ? U().tipAttr(esc(tipT)) : ''} data-bub="${plat}" aria-label="${esc(PL[plat])}">${a.pic ? '' : PK[plat]}</${asButton ? 'button' : 'span'}>`;
+    return `<${tag} class="sw-bub ${cls} ${extra}" ${a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''} ${U() ? U().tipAttr(esc(tipT)) : ''} data-bub="${plat}" aria-label="${esc(PL[plat])}">${a.pic ? '' : PK[plat]}${a.pic ? `<i class="pk">${PK[plat]}</i>` : ''}</${asButton ? 'button' : 'span'}>`;
   }
   function stateOf(p) {
     const res = p.results || {};
@@ -245,7 +270,7 @@
     const on = Object.keys(PL).filter(x => p.targets[x] && p.targets[x].on);
     return `<button type="button" class="sw-post ${cls}" style="top:${top}px" data-post="${esc(p.id)}" draggable="${['draft', 'scheduled'].includes(p.status) ? 'true' : 'false'}" ${U() ? U().tipAttr(esc(`${label}. ${p.caption || '(no caption)'}`.slice(0, 200))) : ''}>
       <span class="th" ${m && m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}></span>
-      <span><span class="tm">${esc(hm12(p.hm))}<span class="sw-acc">${on.map(x => bubble(x, (ST.data.accounts || {})[x], 'sm')).join('')}</span></span><span class="st">${esc(label)}</span></span></button>`;
+      <span style="min-width:0"><span class="tm"><i class="dot"></i>${esc(hm12(p.hm))}</span><span class="st">${on.map(x => bubble(x, (ST.data.accounts || {})[x], 'sm')).join('')}</span></span></button>`;
   }
   function grid() {
     const d = ST.data, days = d.days, nowDay = d.today;
@@ -258,6 +283,8 @@
         h += `<div class="sw-cell ${day === nowDay ? 'td' : ''} ${past ? 'past' : ''}" data-day="${day}" data-hour="${hr}"></div>`;
       }
     }
+    const nowM = +new Date().toLocaleTimeString('en-GB', { timeZone: d.tz, hour: '2-digit', minute: '2-digit' }).slice(3, 5);
+    if (days.includes(nowDay) && nowH >= HOURS[0] && nowH <= HOURS[HOURS.length - 1]) h += `<div class="sw-now" style="top:${(nowH - HOURS[0]) * ROW + Math.round(nowM / 60 * ROW)}px"></div>`;
     h += '</div>';
     return h;
   }
@@ -277,7 +304,7 @@
         const hr = Math.min(Math.max(hh, HOURS[0]), HOURS[HOURS.length - 1]);
         let top = (hr - HOURS[0]) * ROW + (hh === hr ? Math.round(mm / 60 * ROW) : 0) + 2;
         if (top < lastBottom + 4) top = lastBottom + 4;
-        lastBottom = top + 46;
+        lastBottom = top + 48;
         first.insertAdjacentHTML('beforeend', postCard(p, top));
         const el = first.lastElementChild; el.style.top = `${top}px`;
       }
@@ -288,10 +315,11 @@
     for (const s of Object.keys(SRC)) counts[s] = items.filter(i => i.src === s).length;
     const list = ST.tf === 'unused' ? items.filter(i => !i.used) : ST.tf === 'all' ? items : items.filter(i => i.src === ST.tf);
     const opts = [['unused', 'Not used yet'], ['all', 'Everything'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<option value="${f}" ${ST.tf === f ? 'selected' : ''}>${l} (${counts[f]})</option>`).join('');
-    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(`${SRC[it.src] || it.src}: ${it.title}${it.used ? ' (already on the week)' : ''}. ${inSheet ? 'Tap to post it.' : 'Drag onto a day and hour, or click.'}`)) : ''}>
-      <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? ic('pencil') : ic('image')}<i>${it.kind === 'video' ? 'VIDEO' : it.kind === 'text' ? 'SCRIPT' : 'PHOTO'}</i></span>
-      <span><span class="t">${esc(it.title)}</span><span class="s"><b>${esc(SRC[it.src] || it.src)}</b>${it.who ? ` · ${esc(it.who)}` : it.sub ? ` · ${esc(it.sub)}` : ''}</span></span></button>`;
-    return `<div class="hd"><b>Ready to post</b><span class="sp"></span><span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span></div>
+    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''} ${it.kind === 'video' ? '' : 'sq'}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''} ${U() ? U().tipAttr(esc(`${it.title}${it.who ? ` · ${it.who}` : ''} (${SRC[it.src] || it.src})${it.used ? ', already on the week' : ''}. ${inSheet ? 'Tap to post it.' : 'Drag onto a day and hour, or click.'}`)) : ''} aria-label="${esc(it.title)}">
+      ${it.thumb ? '' : `<span class="no">${it.kind === 'text' ? ic('pencil') : ic('image')}</span>`}<span class="ic">${ic(SRC_IC[it.src] || 'image')}</span>${it.kind === 'video' ? '<i class="kd">VIDEO</i>' : it.kind === 'text' ? '<i class="kd">SCRIPT</i>' : ''}</button>`;
+    const PM = window.PillMenu;
+    const pm = PM ? PM.html('swTf', 'Show', [['unused', 'Unused', `${counts.unused} not on the week yet`], ['all', 'All', `${counts.all} ready`], ...Object.entries(SRC).filter(([f]) => counts[f]).map(([f, l]) => [f, l, `${counts[f]}`])], ST.tf) : `<span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span>`;
+    return `<div class="hd"><b>Ready</b><small>${list.length}</small><span class="sp"></span>${pm}</div>
       <div class="sw-tl">${list.length ? list.map(item).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
       <div class="ft"><button type="button" class="sw-btn sm q" data-upload="1">${ic('plus')} Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"></div>`;
   }
@@ -299,16 +327,28 @@
     const d = ST.data, head = H.pageHead('socialweek', 'Social');
     const accs = d.accounts || {};
     const none = !Object.values(accs).some(a => a.on);
+    const list = PHONE() || ST.view === 'list';
     $('#main').innerHTML = `<div class="v2 sw">${head}
       <div class="sw-top"><span class="sw-nav"><button type="button" data-nav="-1" aria-label="Previous week">&#8249;</button><button type="button" data-nav="0">This week</button><button type="button" data-nav="1" aria-label="Next week">&#8250;</button></span>
         <span class="sw-range">${md(d.days[0])} to ${md(d.days[6])}<small>${esc(d.tz.replace(/_/g, ' '))}</small></span>
+        <span class="sw-seg" role="tablist"><button type="button" role="tab" data-sv="week" class="${ST.view === 'week' ? 'on' : ''}">Week</button><button type="button" role="tab" data-sv="list" class="${ST.view === 'list' ? 'on' : ''}">List</button></span>
         <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x], '', !CLI())).join('')}</span>
-          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready to post</button>` : ''}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
+          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
       ${none ? `<div class="sw-note"><div><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}</div>${CLI() ? '' : '<button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</div>` : ''}
-      <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div><div class="sw-grid" id="swGrid">${grid()}</div></div></div>`;
-    const g = $('#swGrid'); placePosts(g);
-    g.scrollTop = Math.max(0, (8 - HOURS[0]) * ROW - 10);
+      <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div>${list ? `<div class="sw-list" id="swList">${dayList()}</div>` : `<div class="sw-grid" id="swGrid">${grid()}</div>`}</div></div>`;
+    const g = $('#swGrid'); if (g) { placePosts(g); g.scrollTop = Math.max(0, (8 - HOURS[0]) * ROW - 10); }
     wire();
+  }
+  /* The day list: each day a header with its posts as 56px rows; an empty day is one grey line. The only view on a phone. */
+  function dayList() {
+    const d = ST.data;
+    return d.days.map(day => {
+      const posts = d.posts.filter(p => p.day === day).sort((a, b) => a.hm.localeCompare(b.hm));
+      const past = day < d.today;
+      const rows = posts.map(p => { const [cls, label] = stateOf(p); const m = p.media[0]; const on = Object.keys(PL).filter(x => p.targets[x] && p.targets[x].on);
+        return `<button type="button" class="sw-dr ${cls}" data-post="${esc(p.id)}"><span class="th" ${m && m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}></span><span style="min-width:0"><span class="cp">${esc(p.caption || '(no caption)')}</span><span class="ln"><i class="dot"></i>${esc(hm12(p.hm))} · ${esc(label)}</span></span><span class="sw-acc">${on.map(x => bubble(x, (d.accounts || {})[x], 'sm')).join('')}</span></button>`; }).join('');
+      return `<div class="sw-day ${day === d.today ? 'td' : ''}"><div class="dh"><b>${wd(day)} ${dnum(day)}</b>${day === d.today ? '<small>today</small>' : ''}<span class="sp"></span>${past ? '' : `<button type="button" data-newday="${day}">+ Post</button>`}</div>${rows || `<div class="none">Nothing yet${past ? '' : ` · <button type="button" data-newday="${day}">Post</button>`}</div>`}</div>`;
+    }).join('');
   }
   function wire() {
     const m = $('#main');
@@ -316,9 +356,15 @@
     m.querySelectorAll('[data-settings]').forEach(b => b.onclick = () => { try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
     $('#swAccs').querySelectorAll('button[data-bub]').forEach(b => b.onclick = () => { if (CLI()) return; try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
     $('#swNew').onclick = () => composer(null, { at: nextSlot() });
+    m.querySelectorAll('[data-sv]').forEach(b => b.onclick = () => { ST.view = b.dataset.sv; store('sw_view', ST.view); draw(); });
     const tb = $('#swTrayBtn'); if (tb) tb.onclick = traySheet;
     wireTray($('#swTray'), false);
-    const g = $('#swGrid');
+    const L = $('#swList');
+    if (L) {
+      L.querySelectorAll('.sw-dr').forEach(b => b.onclick = () => composer(ST.data.posts.find(p => p.id === b.dataset.post)));
+      L.querySelectorAll('[data-newday]').forEach(b => b.onclick = () => { const day = b.dataset.newday; composer(null, { at: day === ST.data.today ? nextSlot() : atOf(day, 9) }); });
+    }
+    const g = $('#swGrid'); if (!g) return;
     g.querySelectorAll('.sw-post').forEach(b => {
       b.onclick = () => composer(ST.data.posts.find(p => p.id === b.dataset.post));
       b.ondragstart = e => { e.dataTransfer.setData('text/plain', `post:${b.dataset.post}`); e.dataTransfer.effectAllowed = 'move'; b.classList.add('drag'); };
@@ -340,15 +386,20 @@
   function wireTray(root, inSheet) {
     if (!root) return;
     const sel = root.querySelector('[data-tf]'); if (sel) sel.onchange = () => { ST.tf = sel.value; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); };
+    const pm = root.querySelector('#swTf'); if (pm && window.PillMenu) window.PillMenu.wire(pm, v => { ST.tf = v; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); });
     root.querySelectorAll('.sw-ti').forEach(b => {
       const it = ST.tray.find(x => x.ref === b.dataset.ref);
-      b.onclick = () => { if (inSheet) { const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); } composer(null, { at: nextSlot(), items: [it] }); };
+      b.onclick = () => { if (inSheet) { const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); if (window.LxPhone) window.LxPhone.close(); } composer(null, { at: nextSlot(), items: [it] }); };
       b.ondragstart = e => { e.dataTransfer.setData('text/plain', it.ref); e.dataTransfer.effectAllowed = 'copy'; };
     });
     const up = root.querySelector('[data-upload]'), fi = root.querySelector('[data-file]');
     if (up && fi) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); toast('In the tray. Drag it onto the week.'); } catch (e) { toast(e.message); up.disabled = false; up.innerHTML = `${ic('plus')} Upload a photo or video`; } }; }
   }
-  function traySheet() { U().panel.wide = false; const body = U().panel('Ready to post', `<div class="sw sw-sheet-tray"><div class="sw-tray" style="display:flex;position:static;max-height:none;border:0">${trayHtml(ST.tray, true)}</div></div>`); wireTray(body.querySelector('.sw-tray'), true); }
+  function traySheet() {
+    const html = `<div class="sw sw-sheet-tray"><div class="sw-tray" style="display:flex;position:static;max-height:none;border:0">${trayHtml(ST.tray, true)}</div></div>`;
+    if (window.LxPhone && window.LxPhone.isPhone && window.LxPhone.isPhone()) { window.LxPhone.open('Ready', html, b => wireTray(b.querySelector('.sw-tray'), true)); return; }
+    U().panel.wide = false; const body = U().panel('Ready', html); wireTray(body.querySelector('.sw-tray'), true);
+  }
   async function upload(f) {
     if (f.size > 95 * 1024 * 1024) throw new Error('Files up to 95 MB.');
     const res = await fetch(`${H.AH_URL}/api/social/upload?act=${encodeURIComponent(ST.act)}&name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + H.S.tok, 'Content-Type': f.type || 'application/octet-stream' }, body: f });
@@ -403,11 +454,11 @@
     U().panel.wide = !PHONE();
     const body = U().panel(p ? (out ? 'Your post' : 'Edit the post') : 'New post', `<div class="sw-pn">
       ${out ? `<section><h4>How it went<span class="sp"></span><small>${esc(stLabel)}</small></h4><div id="cpRes"></div></section>` : ''}
-      <section><h4>Media</h4><div class="med" id="cpMed"></div></section>
-      <section><h4>Caption<span class="sp"></span>${out ? '' : `<button type="button" class="sw-btn sm q" id="cpRe">${ic('sparkles')} Rephrase in ${esc(brandName())}'s voice</button><button type="button" class="sw-btn sm q" id="cpSaved">Saved captions</button><button type="button" class="sw-btn sm q" id="cpSave">Save this one</button>`}</h4>
-        <textarea id="cpCap" placeholder="One caption for every account. Tweak a platform below only where it needs it." ${out ? 'readonly' : ''}>${esc(M.caption)}</textarea><div class="opts" id="cpOpts"></div></section>
-      <section><h4>Accounts</h4><div class="accs" id="cpAccs"></div></section>
-      <section><h4>When</h4><div class="when"><label class="fld"><span>Day</span><input type="date" id="cpDay" value="${lp.day}" ${out ? 'disabled' : ''}></label><label class="fld"><span>Time</span><input type="time" id="cpTime" value="${lp.hm}" ${out ? 'disabled' : ''}></label><span class="tz">${esc(ST.data.tz.replace(/_/g, ' '))}${M.auto && !out ? '. Posts itself at that time.' : ''}</span></div></section>
+      <section><div class="med" id="cpMed"></div></section>
+      <section><textarea id="cpCap" placeholder="One caption for every account. Tweak a platform below only where it needs it." ${out ? 'readonly' : ''}>${esc(M.caption)}</textarea>
+        ${out ? '' : `<div class="qa"><button type="button" id="cpRe">Rephrase in ${esc(brandName())}'s voice</button><button type="button" id="cpSaved">Saved captions</button><button type="button" id="cpSave">Save this caption</button></div>`}<div class="opts" id="cpOpts"></div></section>
+      <section><h4>Where</h4><div class="accs" id="cpAccs"></div></section>
+      <section><h4>When</h4><div class="when"><input type="date" id="cpDay" value="${lp.day}" ${out ? 'disabled' : ''} aria-label="Day"><input type="time" id="cpTime" value="${lp.hm}" ${out ? 'disabled' : ''} aria-label="Time"><span class="tz">${esc(ST.data.tz.replace(/_/g, ' '))}${M.auto && !out ? ', posts itself' : ''}</span></div></section>
       ${out ? '' : `<details><summary>Per-platform tweaks, only where needed</summary><div class="in">
         <label class="fld"><span>Instagram first comment</span><input type="text" id="tIgC" value="${esc(M.targets.ig?.first_comment || '')}" placeholder="Hashtags or the link, posted as the first comment"></label>
         <label class="fld"><span>Instagram caption, if different</span><textarea id="tIgCap" style="min-height:60px">${esc(M.targets.ig?.caption || '')}</textarea></label>
@@ -437,9 +488,10 @@
       body.querySelector('#cpAccs').innerHTML = Object.keys(PL).map(x => {
         const a = accs[x] || {}, t = M.targets[x] || {};
         const r = (M.results || {})[x];
-        const note = r && r.posted_at ? (r.by_hand ? 'Posted by hand' : 'Posted') : r && r.handoff ? 'In Slack, by hand' : r && r.error ? 'Failed' : !a.on ? 'Not connected: Slack hands it to you' : a.mode === 'notify' ? 'By hand, via Slack' : a.mode === 'draft' ? (x === 'tt' ? 'To your TikTok drafts' : x === 'yt' ? 'Private until approved' : 'Live') : 'Live';
+        const note = r && r.posted_at ? (r.by_hand ? 'By hand' : 'Posted') : r && r.handoff ? 'In Slack' : r && r.error ? 'Failed' : !a.on ? 'Not connected' : a.mode === 'notify' ? 'By hand' : a.mode === 'draft' ? 'Draft' : 'Live';
         const cls = r && r.error ? 'e' : (!a.on || a.mode === 'notify') ? 'w' : '';
-        return `<div class="acc ${a.on ? '' : 'off'}">${bubble(x, a, t.on ? 'on' : '')}<div><b>${PL[x]}${a.handle ? ` <span style="font-weight:500;color:var(--muted)">@${esc(a.handle)}</span>` : ''}</b><small class="${cls}">${esc(note)}</small></div><button type="button" class="v2sw ${t.on ? 'on' : ''}" data-acc="${x}" role="switch" aria-checked="${!!t.on}" aria-label="${esc(PL[x])}" ${out ? 'disabled' : ''}><i></i></button></div>`;
+        const tip = !a.on ? `${PL[x]} is not connected: Slack hands the post to you at post time` : a.mode === 'notify' ? `${PL[x]}: Slack tells the poster at post time` : a.mode === 'draft' ? (x === 'tt' ? 'Lands in your TikTok drafts' : x === 'yt' ? 'Private until the app is approved' : 'Live') : `Posts to ${PL[x]}${a.handle ? ` @${a.handle}` : ''}`;
+        return `<button type="button" class="acc ${t.on ? 'on' : ''}" data-acc="${x}" role="switch" aria-checked="${!!t.on}" aria-label="${esc(PL[x])}" ${out ? 'disabled' : ''} ${U() ? U().tipAttr(esc(tip)) : ''}>${bubble(x, a, `md ${t.on ? 'on' : ''}`)}<small class="${cls}">${esc(a.handle ? `@${a.handle}` : PL[x])}</small><small class="${cls}">${esc(note)}</small></button>`;
       }).join('');
       body.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { const x = b.dataset.acc; M.targets[x] = { ...(M.targets[x] || {}), on: !(M.targets[x] && M.targets[x].on) }; drawAccs(); });
     };
@@ -483,7 +535,7 @@
         o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt">${esc(c)}</button>`).join('') || '<p class="hint">Nothing came back.</p>';
         o.querySelectorAll('.opt').forEach(x => x.onclick = () => { body.querySelector('#cpCap').value = x.textContent; o.innerHTML = ''; });
       } catch (e) { err.textContent = e.message; }
-      b.disabled = false; b.innerHTML = `${ic('sparkles')} Rephrase in ${esc(brandName())}'s voice`;
+      b.disabled = false; b.textContent = `Rephrase in ${brandName()}'s voice`;
     });
     on('#cpSaved', async () => {
       const o = body.querySelector('#cpOpts'); o.innerHTML = '<p class="hint">Reading…</p>';

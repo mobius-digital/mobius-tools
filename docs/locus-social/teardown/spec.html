@@ -1,0 +1,476 @@
+<title>Locus Social Teardown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (72ch) for the argument, full-bleed figure strips for the evidence, a sticky section index on wide screens. */
+:root{
+  --bg:#f6f5f2; --paper:#ffffff; --ink:#191a1d; --ink-2:#44474d; --muted:#7a7e86; --line:#e3e1dc; --line-strong:#cfccc5;
+  --accent:#0f5ec9; --accent-bg:#e7efff; --ours:#b8431f; --ours-bg:#fbe9e1; --theirs:#1d7a55; --theirs-bg:#e2f3ea; --warn:#9a6a00; --warn-bg:#fff2d1;
+  --display:"Instrument Serif",Georgia,"Times New Roman",serif; --body:"Instrument Sans","Helvetica Neue",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141518;--paper:#1c1e22;--ink:#ecebe7;--ink-2:#c3c2bd;--muted:#8d8f95;--line:#2b2e34;--line-strong:#3c4047;--accent:#7fb0ff;--accent-bg:#1b2a44;--ours:#ff8a5c;--ours-bg:#3a2218;--theirs:#6fd3a4;--theirs-bg:#163327;--warn:#f0c04a;--warn-bg:#3a2e10;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141518;--paper:#1c1e22;--ink:#ecebe7;--ink-2:#c3c2bd;--muted:#8d8f95;--line:#2b2e34;--line-strong:#3c4047;--accent:#7fb0ff;--accent-bg:#1b2a44;--ours:#ff8a5c;--ours-bg:#3a2218;--theirs:#6fd3a4;--theirs-bg:#163327;--warn:#f0c04a;--warn-bg:#3a2e10;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;margin:0;padding-block:0 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+a{color:var(--accent)}
+.wrap{max-width:1180px;margin:0 auto}
+header.top{padding:40px 0 28px;border-bottom:1px solid var(--line);display:grid;gap:14px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(38px,6vw,64px);line-height:1.02;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{font-size:18px;color:var(--ink-2);max-width:68ch;margin:0}
+.meta{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:600}
+.grid{display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);padding-top:28px;font-size:13.5px}
+nav.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+nav.toc a{color:var(--ink-2);text-decoration:none;display:block;padding:4px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink);border-color:var(--line-strong)}
+nav.toc .lb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px 12px}
+@media (max-width:860px){nav.toc{position:static;padding-top:20px}nav.toc ol{display:flex;flex-wrap:wrap;gap:4px 14px}nav.toc a{border:0;padding:2px 0}}
+main{min-width:0;display:grid;gap:64px;padding-top:28px}
+section{display:grid;gap:18px;min-width:0}
+h2{font-family:var(--display);font-weight:400;font-size:36px;line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h3{font-size:19px;font-weight:600;margin:28px 0 0;letter-spacing:-.005em}
+h4{font-size:15px;font-weight:600;margin:0}
+p{margin:0;max-width:72ch}
+.prose{display:grid;gap:12px}
+.prose ul,.prose ol{margin:0;padding-left:22px;max-width:72ch;display:grid;gap:6px}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+/* findings */
+.findings{display:grid;gap:12px;counter-reset:f}
+.finding{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;padding:16px 18px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+.finding::before{counter-increment:f;content:counter(f);font-family:var(--display);font-size:34px;line-height:1;color:var(--accent)}
+.finding b{display:block;font-size:16px;margin-bottom:4px}
+.finding p{color:var(--ink-2);font-size:15px}
+/* figures */
+figure{margin:0;display:grid;gap:8px;min-width:0}
+figure img{display:block;width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#000}
+figcaption{font-size:13px;color:var(--muted);line-height:1.45}
+figcaption b{color:var(--ink);font-weight:600}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.strip.three{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.phones img{max-height:none}
+/* side by side with callouts */
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:760px){.vs{grid-template-columns:1fr}}
+.vs .side{display:grid;gap:8px;min-width:0}
+.tag{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:4px;width:max-content}
+.tag.theirs{background:var(--theirs-bg);color:var(--theirs)} .tag.ours{background:var(--ours-bg);color:var(--ours)}
+.shot{position:relative;min-width:0}
+.shot img{display:block;width:100%;max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px}
+.pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;font:600 12px/22px var(--mono);text-align:center;color:#fff;background:var(--ours);box-shadow:0 0 0 2px rgba(255,255,255,.9),0 2px 8px rgba(0,0,0,.35)}
+.theirs-side .pin{background:var(--theirs)}
+.legend{font-size:13.5px;color:var(--ink-2);display:grid;gap:5px;margin:0;padding:0;list-style:none}
+.legend li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start}
+.legend i{font:600 11px/18px var(--mono);width:18px;height:18px;border-radius:50%;text-align:center;color:#fff;background:var(--ours);font-style:normal;margin-top:2px}
+.theirs-side .legend i{background:var(--theirs)}
+/* spec blocks */
+.spec{display:grid;gap:10px;padding:18px 20px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+.spec h4{font-size:17px}
+.spec .row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;font-size:14.5px;border-top:1px solid var(--line);padding-top:10px}
+.spec .row:first-of-type{border-top:0;padding-top:0}
+.spec .row span:first-child{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+.spec .row span:last-child{color:var(--ink-2)}
+.spec .row b{color:var(--ink);font-weight:600}
+@media (max-width:600px){.spec .row{grid-template-columns:1fr;gap:3px}}
+table{border-collapse:collapse;width:100%;font-size:14px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
+tr:last-child td{border-bottom:0}
+td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+.pri{display:grid;gap:8px;counter-reset:p}
+.pri div{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:baseline;padding:12px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;font-size:15px}
+.pri div::before{counter-increment:p;content:counter(p);font-family:var(--mono);color:var(--accent);font-size:13px}
+.pri small{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pri .day{color:var(--theirs)} .pri .week{color:var(--warn)}
+@media (max-width:600px){.pri div{grid-template-columns:28px 1fr}.pri small{grid-column:2}}
+.note{padding:12px 16px;border-left:3px solid var(--warn);background:var(--warn-bg);border-radius:0 8px 8px 0;font-size:14.5px;color:var(--ink-2)}
+.note b{color:var(--ink)}
+.job{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.job:last-child{border-bottom:1px solid var(--line)}
+.job i{font-family:var(--display);font-style:normal;font-size:26px;line-height:1;color:var(--accent)}
+.job b{display:block;font-size:16px;margin-bottom:3px}
+.job p{font-size:14.5px;color:var(--ink-2)}
+code{font-family:var(--mono);font-size:.9em;background:var(--accent-bg);color:var(--ink);padding:1px 5px;border-radius:4px}
+@media (prefers-reduced-motion:no-preference){a:focus-visible,.finding:focus-visible{outline:2px solid var(--accent);outline-offset:2px}}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">Mobius Digital · Locus · Social · 2026-10-20</div>
+  <h1>Later, Sandcastles and Virlo from the inside, and the Social that Locus should build</h1>
+  <p class="lede">Three apps opened in Cole's own Chrome and clicked screen by screen: every page, menu, filter, modal and empty state, plus a 390px phone layout of each. Then the same eye on Locus Social as it shipped on 2026-10-20, and a spec for the version that replaces it.</p>
+  <div class="meta"><span><b>111</b> screenshots, in docs/locus-social/teardown/</span><span><b>Later</b> trial, Lucky Instagram connected Oct 20</span><span><b>Sandcastles</b> $5 Starter month since Oct 20</span><span><b>Virlo</b> 7-day trial, 100 credits</span></div>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Sections">
+  <div class="lb">On this page</div>
+  <ol>
+    <li><a href="#verdict">The verdict</a></li>
+    <li><a href="#seen">What could be seen</a></li>
+    <li><a href="#virlo">Virlo</a></li>
+    <li><a href="#sandcastles">Sandcastles</a></li>
+    <li><a href="#later">Later</a></li>
+    <li><a href="#side">Theirs vs ours</a></li>
+    <li><a href="#why">Why Locus looks amateur</a></li>
+    <li><a href="#spec">The spec</a></li>
+    <li><a href="#phone">The phone version</a></li>
+    <li><a href="#priority">Priority list</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="verdict">
+  <div class="kicker">The verdict</div>
+  <h2>Locus Social is a form with a feed under it. The good apps are a feed with a few controls on it.</h2>
+  <div class="prose">
+    <p>Virlo and Sandcastles put the media first and keep every control small and quiet. Later puts the calendar first and keeps the media library one drag away. Locus does the opposite on both screens: breadcrumb, title, two-line subtitle, three helper pills, a segmented view, a credits warning, a boxed filter form with uppercase labels, a trending line, and only then the cards. At 1280 x 609 the first card is below the fold. The cards themselves carry too much chrome, the numbers are in the wrong hierarchy, and the Week screen shows paid-ad vocabulary in an organic scheduler. None of it is broken. It just does not look like a product someone would pay for, which is the bar Cole set.</p>
+  </div>
+  <div class="findings">
+    <div class="finding"><div><b>Six layers of chrome before the first card</b><p>Virlo's agent page shows cards 180px from the top. Locus Watch needs 600px. Breadcrumb, H1, subtitle, helper pills, segment, warning, filter form and trending line all sit above the grid. Cut it to one line of title and one row of controls.</p></div></div>
+    <div class="finding"><div><b>The filter bar reads like a settings form</b><p>A bordered card with SOURCE / PLATFORM / FORMAT in uppercase over full-height selects is how Locus styles a brand settings page. Research tools use compact pill menus in one row (Virlo) or a quiet left rail (Sandcastles). Same selects, no box, no labels, 30px tall.</p></div></div>
+    <div class="finding"><div><b>Cards are 4:5 with eight things on them</b><p>Format tag, platform tag, bookmark, play button, duration, two caption lines, a metric row that truncates. Every competitor uses the native 9:16 frame and two or three numbers as chips. Our "1388x" next to "12k views" is also wrong on its face: a 9-follower account should never top the list. Outlier needs a baseline floor.</p></div></div>
+    <div class="finding"><div><b>The post panel is a dashboard, not a viewer</b><p>Five KPI tiles, an uppercase "THE NUMBERS" row, a status pill and a wall of AI prose. Virlo's viewer is the video at full height with a narrow column: handle, one big number, two small ones, one bar, the caption, three buttons at the bottom. Nothing else.</p></div></div>
+    <div class="finding"><div><b>Week shows the wrong things in the tray and nothing in the grid</b><p>"Black Wedges - 9, Meta ad, $2,647 spent, 1.3x" is media-buyer language inside an organic scheduler. Later's tray is a thumbnail grid of media with an "unused" filter and nothing else. Our grid is empty for a week and the phone version shows two days of empty hour cells.</p></div></div>
+  </div>
+</section>
+
+<section id="seen">
+  <div class="kicker">What could and could not be seen</div>
+  <h2>Two of the three apps gate the good parts behind a card</h2>
+  <div class="tbl"><table>
+    <tr><th>App</th><th>State in Cole's Chrome</th><th>Seen</th><th>Blocked, and what unlocks it</th></tr>
+    <tr><td>Later</td><td>Growth plan, 14 days left on trial, 0 social profiles</td><td>Calendar week / month / list, media menu, inbox, analytics, post tagging, custom analytics, settings, social sets, getting-started checklist, trending hashtags, send-posts link, the 390px layout</td><td>The composer, the preview grid, best time to post, analytics with data, the inbox with messages. All need one connected Instagram or TikTok. Cole connects Lucky's Instagram in Later (the trial is being cancelled anyway, so a throwaway connection is fine).</td></tr>
+    <tr><td>Sandcastles</td><td>Account created, feed set up for golf gear, no plan</td><td>Onboarding, the Videos feed with real golf cards, filter rail, channels watchlist, collections index, the script wizard's first step, every empty state, the 390px layout</td><td>Opening a video, Analyze, Ideas, Hooks, Reports, Projects, Persona, any collection. The app shows "Try Sandcastles for $5" on every page load. Cole starts the $5 month.</td></tr>
+    <tr><td>Virlo</td><td>7-day free trial active after onboarding, 100 credits</td><td>Everything: agent builder, agent dashboard with 2,413 golf videos, all nine sub-tabs, viewer with transcript, filters, sort, outlier feed, trends, tags, tracking, library, copilot, automations, account, the 390px layout</td><td>Nothing. Copilot refused to write a script twice (it wants the transcript in context first). The trial converts to $49 a month on Oct 27 unless cancelled.</td></tr>
+  </table></div>
+  <div class="note"><b>Phone layouts</b> were captured with a 390px same-origin frame inside each app, because Chrome refused to shrink the maximized window. Virlo and Sandcastles are responsive. Later is not: the web app scrolls sideways at phone width and its phone experience is a native app.</div>
+</section>
+
+<section id="virlo">
+  <div class="kicker">App 1 of 3</div>
+  <h2>Virlo: the research agent, and the best cards of the three</h2>
+  <div class="prose">
+    <p><b>Navigation.</b> Dark app, left rail with two groups (Home: Copilot, Library, Dashboard; Research: Agents, Outlier, Trends, Ideas, Admin) plus a "Quick access" list of your agents. A trial banner across the top, a credits counter top right. Every page has one title row with the page name on the left and actions on the right, then content. No breadcrumbs, no subtitles longer than one clause.</p>
+    <p><b>Onboarding.</b> Seven steps with a progress bar. Describe what you sell in one line, it extracts ten search terms as chips you can edit, a filter-out list, then builds a "research agent". While it collects, you pick an avatar. Then five "how it works" cards (read your brief, search every platform, keep what fits, score every keeper, do more with your finds) each with a live example from your own niche. Then "Your initial run found 9 outlier videos" with real cards and a hover tooltip explaining the score. This is the best onboarding of the three: it teaches the one number you will see everywhere before you see the feed.</p>
+    <p><b>The agent dashboard.</b> A status strip (Queued, Collecting, Analysis, Ready) with live counts. Nine sub-tabs: All Content, Insights &amp; Trends, Creators, Outlier Videos, TikTok Shop Videos, Slideshows, Stitches &amp; Duets, Posting Times Heatmap, Trending Sounds, Hashtags. Under them: a "content by region" row of flag tiles, then the grid.</p>
+    <p><b>A card.</b> 9:16 media, two pills on the media at the top (views with an eye icon, virality score in a hot-pink pill with a flame), platform flag chip at the top left, handle with avatar and date at the bottom over a dark fade, a copy-link icon. Above the card, two quiet ghost buttons: Track and Tag. That is all. Four columns at 1280. Hover plays nothing; a click opens the viewer.</p>
+    <p><b>Outlier logic.</b> Virality Score 0 to 100, in bands: 35+ Exceptional, 25 to 35 Very strong, 18 to 25 Strong, 10 to 18 Promising, under 10 Emerging. Tooltip: "A creator with 18K followers gets 2.1M views. That's 117x their usual audience." Score is views against audience size, not raw views. The Creators tab sorts creators the same way (avg score, best score, overperforming videos).</p>
+    <p><b>Filters and sorting.</b> One row: content type menu (All videos, Slideshows, TikTok Shop, Stitches, Duets), a Filters popover (platform segment, regions, minimum views, date range, engagement floors for likes, comments, shares, saves, on-screen format and face), a sort menu (Just added, Most viral, Most recent, Most views, Most engaged, Most comments, Emerging). On the global Outlier page the filters are five stacked pill-menus: Fresh content, All content, Filter by date, All platforms, All of Virlo or one agent.</p>
+    <p><b>The viewer.</b> Full-height dark overlay. Video at phone proportions in the middle with prev and next arrows. Right column: avatar, handle, follower count, platform and age and length and country, then one big number (6.6M views) with a "2467x followers" green pill, likes and comments, a note when the platform hides a number, an Engagement / Virality bar, CAPTION. Bottom bar: Open on YouTube, Transcript (with "copy transcript, 140 words"), Tag.</p>
+    <p><b>Save and collect.</b> Tag is the save: a popover to create a coloured tag, then tags live on a Tags page with a tag rail on the left and its items on the right. Track puts a creator or a video on a radar with a check schedule priced in credits (every 6 hours to monthly).</p>
+    <p><b>Script flow.</b> Chat only. Copilot has "Make script" buttons on hook cards and can "turn a find into a script", but twice it declined because the video had no transcript in context. The flow is: open the video, Transcript, ask Copilot with the transcript. Automations can mail "A script to shoot" weekly. There is no script editor screen.</p>
+    <p><b>Insights.</b> A Key Insight sentence, then trend cards: name, NEW chip, counts per platform, a one-line why, Views, Creators, Tactics as chips ("use POV hooks", "reference '3-putt gang'"). Posting-times heatmap with the three best hours as pills. Trending sounds table. Popular hashtags as count chips.</p>
+    <p><b>Copy voice.</b> First person from the agent ("I'll run every term across TikTok, YouTube and Instagram", "Still collecting · +297 new videos since you got here"). Short. Every empty state says what will appear and has one button.</p>
+    <p><b>Polish.</b> Animated count-up numbers, live counters, a glowing progress ring, sub-tab dots when a tab has new data, a floating Copilot bar on every page with a rotating placeholder ("Which formats are winning here?"). What feels cheap: the trial banner never leaves, the pink-on-black gets loud, the copilot bar covers the fourth card's bottom on every grid.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="virlo/03-onboarding-plan-terms.jpg" alt="Virlo onboarding plan with ten search term chips"><figcaption><b>Onboarding, step 2.</b> Your one-line brief becomes ten term chips and a filter-out list. Right: what happens when you start.</figcaption></figure>
+    <figure><img src="virlo/08-howitworks-4-score.jpg" alt="Virlo explains the virality score with an example"><figcaption><b>The score, taught once.</b> 18K followers, 2.1M views, 117x. Everything after this uses the same number.</figcaption></figure>
+    <figure><img src="virlo/10-first-finds-videos-tooltip.jpg" alt="Virlo first finds with a score tooltip"><figcaption><b>First finds.</b> Real cards from your niche before you have seen the app, with the score bands on hover.</figcaption></figure>
+    <figure><img src="virlo/16-agent-cards.jpg" alt="Virlo agent dashboard cards"><figcaption><b>The card.</b> 9:16, views pill, score pill, flag, handle and date over a fade. Track and Tag above as ghost buttons.</figcaption></figure>
+    <figure><img src="virlo/18-video-viewer.jpg" alt="Virlo video viewer"><figcaption><b>The viewer.</b> One big number, two small, one bar, the caption, three buttons. Nothing to configure.</figcaption></figure>
+    <figure><img src="virlo/19-filters-menu.jpg" alt="Virlo filters popover"><figcaption><b>Filters.</b> A popover, not a bar: platform, regions, minimum views, date, engagement floors, on-screen format.</figcaption></figure>
+    <figure><img src="virlo/23-insights-trend-cards.jpg" alt="Virlo trend cards"><figcaption><b>Insights.</b> A trend = name, why, views, creators, tactics as chips. This is the "Doing well lately" line done properly.</figcaption></figure>
+    <figure><img src="virlo/24-creators-tab.jpg" alt="Virlo creators tab"><figcaption><b>Creators.</b> Ranked by how far their reach beats their size, with a one-line description and topic chips.</figcaption></figure>
+    <figure><img src="virlo/26-posting-times-heatmap.jpg" alt="Virlo posting times heatmap"><figcaption><b>Posting times.</b> Three best hours as pills, then the heatmap. We said no to best-time in phase 2; this is how it looks when it earns its place.</figcaption></figure>
+    <figure><img src="virlo/33-viral-outliers-page.jpg" alt="Virlo global outlier page"><figcaption><b>Global outliers.</b> The same card, five stacked pill-menus on the right. All of the internet, not your niche.</figcaption></figure>
+    <figure><img src="virlo/42-copilot-script-needs-transcript.jpg" alt="Virlo copilot refusing to script without transcript"><figcaption><b>Script flow.</b> Chat first, and it will not invent: "Send the spoken lines or a transcript". Our Make ours already does this with beats, which is better.</figcaption></figure>
+    <figure><img src="virlo/47-automations.jpg" alt="Virlo automations"><figcaption><b>Automations.</b> Six templates: post ideas, breakout videos, hooks, a script to shoot, competitor report, breaking alerts. Our Monday plan and the 5am card are the same idea.</figcaption></figure>
+  </div>
+  <figure><img src="virlo/49-phone-390-iframe.jpg" alt="Virlo at 390px: outlier page, agent page, copilot"><figcaption><b>Virlo on a phone (390px).</b> Bottom tab bar with four icons and a More, an "Ask Copilot" pill above it, filters as full-width stacked selects, the card grid directly under. The agent page keeps the status strip and tabs, scrolled sideways.</figcaption></figure>
+</section>
+
+<section id="sandcastles">
+  <div class="kicker">App 2 of 3</div>
+  <h2>Sandcastles: the quietest feed, and the filter rail we should copy</h2>
+  <div class="prose">
+    <p><b>Navigation.</b> Light app, left rail in three groups: Research (Videos, Reports, Ideas, Hooks, Collections), Create (Scripts, Projects, Exports), Configure (Channels, Persona). A workspace switcher at the top. Every page: title, one-line subtitle, a toolbar row of icon buttons, content.</p>
+    <p><b>Onboarding.</b> One modal: three cards (Explore feed, Review ideas, Create script), then "Describe your content niche", then three chip questions (how long, followers, videos a week), then "Your feed is ready" with ten channel avatars, then the $5 offer. Fast. The feed is already full when you land.</p>
+    <p><b>The Videos page.</b> A fixed left rail of filters (Channels select, Keywords search, Outlier score from and to, Views from and to, Engagement from and to, Posted in last N months, Platform, Browsing mode, Save filter) and a four-column grid. Toolbar icons top right: channels, link, analyze, filter, sort, export.</p>
+    <p><b>A card.</b> 9:16 cover with the platform badge top right, one line of caption, handle and age in grey, then three chips in a row: outlier ratio (0.4x, 2.1x), views with an eye, engagement with a flame. Chips are pastel, text is 12px. Nothing else on the card. Hover shows an Analyze button. Cards do not play.</p>
+    <p><b>Outlier logic.</b> A plain multiplier of the channel's typical views: 0x to 100x. Shown raw, not banded. The feed default is newest first, so 0x cards from today sit at the top; sort by outlier is a toolbar icon.</p>
+    <p><b>Save and collect.</b> "Collections" are curated by Sandcastles, grouped by format, visual hook and story structure (3P Crash Zoom, A vs B, Breakdowns / Explainers, Case Studies, Car Yap). Your own saves are "Save filter" and the Ideas list generated from videos you Analyze.</p>
+    <p><b>Script flow.</b> New script = four steps as pills: Topic, Research, Hook, Script, with "Fix an existing script" as the alternative. The first step is a single textarea: "Describe the topic of the video you want to create". Everything past that is paid.</p>
+    <p><b>Analytics.</b> The dashboard is a personal-analytics upsell with blurred demo data (84,231 followers, 1.2M views).</p>
+    <p><b>Copy voice.</b> Neutral product copy. Empty states are one sentence and one button ("Use data-backed elements to write winning scripts. Write your first script"). Errors are blunt: "Error fetching hooks. Please try refreshing the page."</p>
+    <p><b>Polish.</b> Very little motion. What feels premium: restraint, 14px type everywhere, a 240px rail that never moves. What feels cheap: the $5 modal on every page load, five pages that error without a plan, placeholder avatars.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="sandcastles/02-onboarding-welcome.jpg" alt="Sandcastles welcome modal"><figcaption><b>Onboarding.</b> Three steps in one modal, each with a real screenshot. Then one textarea.</figcaption></figure>
+    <figure><img src="sandcastles/08-videos-feed-cards-metrics.jpg" alt="Sandcastles feed with filter rail and cards"><figcaption><b>The feed.</b> Filter rail on the left, 9:16 cards, three chips under each. The whole screen is cards.</figcaption></figure>
+    <figure><img src="sandcastles/18-channels-watchlist.jpg" alt="Sandcastles channels watchlist"><figcaption><b>Channels.</b> Suggested / Describe / Search / Add URL tabs on the left, the watchlist with followers and total views on the right. Our Manage follows table is close.</figcaption></figure>
+    <figure><img src="sandcastles/20-collections-locked.jpg" alt="Sandcastles collections"><figcaption><b>Collections.</b> Curated by format and hook type. Locked without the plan.</figcaption></figure>
+    <figure><img src="sandcastles/15-new-script-steps.jpg" alt="Sandcastles new script steps"><figcaption><b>Script wizard.</b> Topic, Research, Hook, Script as pills. One box per step.</figcaption></figure>
+    <figure><img src="sandcastles/21-phone-390-iframe.jpg" alt="Sandcastles at 390px"><figcaption><b>Sandcastles on a phone.</b> Hamburger rail, the title and subtitle, the toolbar icons, then cards. The filter rail hides behind the filter icon.</figcaption></figure>
+  </div>
+</section>
+
+<section id="later">
+  <div class="kicker">App 3 of 3</div>
+  <h2>Later: the calendar is the page, everything else is a drawer</h2>
+  <div class="prose">
+    <p><b>Navigation.</b> Light app with a purple accent. Left rail: Calendar, Media, Social Inbox, Analytics, Post Tagging, Custom Analytics, then Notifications, Settings, Help, What's New, and the group switcher at the bottom. Settings is a separate full page with its own rail (Account, Social Sets &amp; Access Groups, Users, Subscription, Devices).</p>
+    <p><b>Page anatomy.</b> One top bar: Upload Media, Dropbox, a Select Profiles menu, eight platform avatars with plus badges, the trial counter. Below it two panes: the media library (about 300px) and the calendar. No page title at all.</p>
+    <p><b>The calendar.</b> Week, Month and List as a three-way segment, Today and arrows, the timezone, a settings cog, Send Posts. Week is seven columns of hour rows from 7am, 24px per hour, with a thin purple "now" line. Month is a plain month grid. List has date range, Status and Sort menus and the empty state "No posts found. Try selecting different dates, statuses, or social profiles. You can also drag and drop media here to create a post."</p>
+    <p><b>The tray.</b> "Drop Media Here to Upload. Then drag media to the Calendar to schedule posts." with a filter row (an "unused" chip you can clear) and a star for favourites. Media menu: Manage your media, Collect UGC (Tags, Mentions, Search by Profile, Search by Hashtag), Submitted media (Contributors).</p>
+    <p><b>Composer.</b> Not reachable without a profile. Clicking an hour cell did nothing.</p>
+    <p><b>Content ideas.</b> "Get Content Ideas" button and "Future trending hashtags" (a list of hashtags expected to trend in the next two weeks with one sentence each and an arrow). Both open in-place popovers.</p>
+    <p><b>Onboarding.</b> A floating "Getting Started" pill bottom right with a four-step checklist and a 0% bar: Connect your social profiles, Upload your media, Schedule your first post, Elevate your strategy.</p>
+    <p><b>Copy voice.</b> Friendly product copy. A "Heads up! Instagram Stories can't be sent via link just yet" toast after Send Posts. "Love using Later? Get $20 when a friend joins too" inside the rail.</p>
+    <p><b>Polish.</b> Everything is 13px, grey on white, with the one purple. What feels premium: the week grid is dense and quiet, the avatars row says at a glance what is connected. What feels cheap: three different marketing nudges on one screen, no responsive layout.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="later/01-week-calendar.jpg" alt="Later week calendar with media tray"><figcaption><b>Week.</b> Media tray left, hour grid right, platform avatars in the top bar. No title, no subtitle.</figcaption></figure>
+    <figure><img src="later/03-month.jpg" alt="Later month calendar"><figcaption><b>Month.</b> The same frame, one segment click away.</figcaption></figure>
+    <figure><img src="later/05-future-trending-hashtags.jpg" alt="Later future trending hashtags"><figcaption><b>Future trending hashtags.</b> A popover of tags expected in two weeks, one sentence each.</figcaption></figure>
+    <figure><img src="later/02-getting-started-checklist.jpg" alt="Later getting started checklist"><figcaption><b>Getting started.</b> A floating pill with four steps and a progress bar. It stays until dismissed.</figcaption></figure>
+    <figure><img src="later/07-media-menu.jpg" alt="Later media menu"><figcaption><b>Media menu.</b> Library thumbnails, Collect UGC by tag, mention, profile or hashtag, Contributors.</figcaption></figure>
+    <figure><img src="later/14-phone-390-iframe.jpg" alt="Later at 390px, not responsive"><figcaption><b>Later on a phone.</b> Not responsive: the desktop layout scrolls sideways. Their phone app is native.</figcaption></figure>
+  </div>
+</section>
+
+<section id="side">
+  <div class="kicker">Side by side</div>
+  <h2>Theirs vs ours, with the problems marked</h2>
+
+  <h3>The feed</h3>
+  <div class="vs">
+    <div class="side theirs-side">
+      <span class="tag theirs">Virlo, agent page</span>
+      <div class="shot"><img src="virlo/15-agent-dashboard-top.jpg" alt="Virlo agent page top"><span class="pin" style="left:30%;top:14%">1</span><span class="pin" style="left:43%;top:72%">2</span><span class="pin" style="left:79%;top:72%">3</span><span class="pin" style="left:60%;top:46%">4</span></div>
+      <ul class="legend"><li><i>1</i>One title row: name, Tutorial, credits. Nothing under it but the content.</li><li><i>2</i>Section head with the one set of controls on the right, 36px tall, no labels.</li><li><i>3</i>Sort is a word, not a form field.</li><li><i>4</i>Status strip tells you what the system is doing right now.</li></ul>
+    </div>
+    <div class="side">
+      <span class="tag ours">Locus, Watch</span>
+      <div class="shot"><img src="locus/after-desktop-watch.jpg" alt="Locus Watch top"><span class="pin" style="left:30%;top:24%">1</span><span class="pin" style="left:48%;top:35%">2</span><span class="pin" style="left:90%;top:36%">3</span><span class="pin" style="left:30%;top:46%">4</span><span class="pin" style="left:58%;top:58%">5</span><span class="pin" style="left:40%;top:72%">6</span><span class="pin" style="left:30%;top:85%">7</span><span class="pin" style="left:30%;top:96%">8</span></div>
+      <ul class="legend"><li><i>1</i>Breadcrumb "Social / Watch" under tabs that already say Watch.</li><li><i>2</i>A 32px H1 "Social" plus a 2-line subtitle: 100px of nothing a returning user reads.</li><li><i>3</i>Tour / Metrics / Help pills on every visit.</li><li><i>4</i>Segment with counts, then two more buttons.</li><li><i>5</i>A credits warning in the content column.</li><li><i>6</i>Uppercase labels over 40px selects inside a bordered card.</li><li><i>7</i>A second row: search, switch, count.</li><li><i>8</i>"Doing well lately" as underlined text, and still no card.</li></ul>
+    </div>
+  </div>
+
+  <h3>The card</h3>
+  <div class="vs">
+    <div class="side theirs-side">
+      <span class="tag theirs">Virlo and Sandcastles</span>
+      <div class="shot"><img src="sandcastles/08-videos-feed-cards-metrics.jpg" alt="Sandcastles cards"><span class="pin" style="left:48%;top:25%">1</span><span class="pin" style="left:52%;top:56%">2</span><span class="pin" style="left:44%;top:65%">3</span></div>
+      <ul class="legend"><li><i>1</i>9:16, the native frame. One badge on the media.</li><li><i>2</i>One caption line, handle and age in grey.</li><li><i>3</i>Three chips, each with an icon. Pastel, never truncated.</li></ul>
+    </div>
+    <div class="side">
+      <span class="tag ours">Locus cards</span>
+      <div class="shot"><img src="locus/after-desktop-watch-cards.jpg" alt="Locus cards"><span class="pin" style="left:24%;top:15%">1</span><span class="pin" style="left:38%;top:20%">2</span><span class="pin" style="left:30%;top:35%">3</span><span class="pin" style="left:23%;top:56%">4</span><span class="pin" style="left:26%;top:72%">5</span><span class="pin" style="left:30%;top:77%">6</span></div>
+      <ul class="legend"><li><i>1</i>4:5 crops a vertical video; faces lose their heads.</li><li><i>2</i>Format tag, platform tag, bookmark, play button and duration: five overlays.</li><li><i>3</i>A 40px play circle that hides the thumbnail.</li><li><i>4</i>Who line in bold plus two caption lines: three lines of text per card.</li><li><i>5</i>"1388x" in green for a 12k-view post from a 9-follower account. The baseline is too small to mean anything.</li><li><i>6</i>Ratio, views, engagement, age in one 12px line that clips at "6d ag".</li></ul>
+    </div>
+  </div>
+
+  <h3>One post</h3>
+  <div class="vs">
+    <div class="side theirs-side">
+      <span class="tag theirs">Virlo viewer</span>
+      <div class="shot"><img src="virlo/18-video-viewer.jpg" alt="Virlo viewer"><span class="pin" style="left:34%;top:50%">1</span><span class="pin" style="left:73%;top:19%">2</span><span class="pin" style="left:72%;top:39%">3</span><span class="pin" style="left:85%;top:95%">4</span></div>
+      <ul class="legend"><li><i>1</i>The video at full height, arrows to the next one. The media is the page.</li><li><i>2</i>One number that matters, with the ratio as a pill beside it.</li><li><i>3</i>Engagement and virality share one bar.</li><li><i>4</i>Three buttons pinned at the bottom.</li></ul>
+    </div>
+    <div class="side">
+      <span class="tag ours">Locus post panel</span>
+      <div class="shot"><img src="locus/after-desktop-post.jpg" alt="Locus post panel"><span class="pin" style="left:30%;top:10%">1</span><span class="pin" style="left:62%;top:28%">2</span><span class="pin" style="left:75%;top:40%">3</span><span class="pin" style="left:60%;top:55%">4</span><span class="pin" style="left:75%;top:82%">5</span></div>
+      <ul class="legend"><li><i>1</i>Title "TikTok from golf wedges": the topic name reads as the account name.</li><li><i>2</i>An uppercase caption row "THE NUMBERS · 1388X · WHAT THIS ACCOUNT USUALLY GETS" is three ideas in one line.</li><li><i>3</i>Five KPI tiles for views, likes, comments, shares, engagement; the fifth wraps alone and clips "likes and comme…".</li><li><i>4</i>The video is 320px wide inside a 400px column with a stray mic button.</li><li><i>5</i>Make ours opens as a card with a status pill and a paragraph of model prose in the panel.</li></ul>
+    </div>
+  </div>
+
+  <h3>The scheduler</h3>
+  <div class="vs">
+    <div class="side theirs-side">
+      <span class="tag theirs">Later week</span>
+      <div class="shot"><img src="later/01-week-calendar.jpg" alt="Later week"><span class="pin" style="left:28%;top:40%">1</span><span class="pin" style="left:70%;top:5%">2</span><span class="pin" style="left:70%;top:55%">3</span><span class="pin" style="left:84%;top:16%">4</span></div>
+      <ul class="legend"><li><i>1</i>The tray is a thumbnail grid with one "unused" filter. No names, no spend.</li><li><i>2</i>Connected accounts are avatars in the top bar, one glance.</li><li><i>3</i>24px hours: a whole day fits above the fold.</li><li><i>4</i>Week / Month / List as one segment.</li></ul>
+    </div>
+    <div class="side">
+      <span class="tag ours">Locus week</span>
+      <div class="shot"><img src="locus/after-desktop-week.jpg" alt="Locus week"><span class="pin" style="left:30%;top:36%">1</span><span class="pin" style="left:31%;top:72%">2</span><span class="pin" style="left:84%;top:46%">3</span><span class="pin" style="left:70%;top:85%">4</span></div>
+      <ul class="legend"><li><i>1</i>Same six layers of chrome before the grid.</li><li><i>2</i>"Black Wedges - 9 · Meta ad · $2,647 spent, 1.3x": paid-media words in the organic tray.</li><li><i>3</i>Four small platform bubbles, two greyed, no names.</li><li><i>4</i>48px hours, so 8am to 12pm is all you see, and it is empty.</li></ul>
+    </div>
+  </div>
+</section>
+
+<section id="why">
+  <div class="kicker">Diagnosis</div>
+  <h2>Why Locus Social looks weird, in the order to fix it</h2>
+  <div class="tbl"><table>
+    <tr><th>Where</th><th>What is wrong</th><th>What the good apps do</th></tr>
+    <tr><td>Density</td><td>Page chrome is 600px tall at 1280 wide; 6 to 8 controls stacked before content; 14px gaps everywhere so nothing groups.</td><td>Title row 48px, one controls row 36px, cards. 4 columns of 9:16 at 1280.</td></tr>
+    <tr><td>Type scale</td><td>A 32px serif-weight H1 "Social" for a screen whose tab already says Social; uppercase 10.5px labels on selects, tiles and section heads; bold who-lines on every card.</td><td>One 18 to 20px page name, 13 to 14px everything else, uppercase only for a real table header.</td></tr>
+    <tr><td>Card ratio</td><td>4:5 crops TikToks and Shorts, which are 9:16. The play circle covers the subject.</td><td>9:16 media, no play circle (a click plays), the thumbnail is the hook.</td></tr>
+    <tr><td>Control styling</td><td>Filter selects inside a bordered card with labels: a settings form. Switch plus "Hide paid-looking" plus "149 of 149" plus Clear in a second row.</td><td>Pill menus with the current value as the label ("Most Viral", "All Platforms"). Secondary filters in one popover.</td></tr>
+    <tr><td>Hierarchy</td><td>The ratio chip, views, engagement and age have equal weight. KPI tiles give likes the same size as views.</td><td>One big number per post (views), ratio as a pill next to it, the rest small.</td></tr>
+    <tr><td>Outlier logic</td><td>Ratio with no floor: a 9-follower account at 1388x tops Breaking out.</td><td>Score banded and floored (Virlo: audience-size aware; Sandcastles: channel median). Minimum 10 posts or 1k median views before a ratio shows.</td></tr>
+    <tr><td>Empty and loading states</td><td>A credits warning in the content column; a dashed box with a long sentence.</td><td>A status strip (Collecting · 1,533 ready) and one button. Warnings in settings, not the feed.</td></tr>
+    <tr><td>Copy</td><td>Subtitle of 27 words. "Doing well lately" as underlined links. "Our version started". "What this account usually gets".</td><td>One clause under the title or none. "usually 4k" under the number. "Exceptional" as a band name.</td></tr>
+    <tr><td>Vocabulary</td><td>Tray items say Meta ad, $ spent, ROAS multiple. The topic follow "golf wedges" prints where an account name goes.</td><td>Organic words only (views, usually, posted). Topic posts show the creator's handle, and the topic as a small chip.</td></tr>
+    <tr><td>Phone</td><td>Three screens of chrome before the first card; the Week grid is two empty days of hour cells.</td><td>Bottom tab bar, stacked full-width selects, cards from the second screen; Week on a phone is a list by day.</td></tr>
+  </table></div>
+</section>
+
+<section id="spec">
+  <div class="kicker">The spec</div>
+  <h2>What Locus Social should be</h2>
+  <div class="prose">
+    <p>One rail item, Social, still per brand and still switched on in Brand settings. Three tabs inside it: <b>Feed</b>, <b>Saved</b>, <b>Week</b>. Follows and connected accounts stay in Brand settings. Make ours stays inside the post viewer. No new rail items, no Hooks vault, no Ideas page, no node canvas, no copilot bar. The Ask bar at the top of Locus already is the copilot.</p>
+  </div>
+
+  <h3>The jobs a user comes for</h3>
+  <div>
+    <div class="job"><i>1</i><div><b>Research: what is working in my space this week</b><p>Scan the feed for the brands and topics the brand follows, breakouts first, watch the top few in place, open one for the numbers and caption.</p></div></div>
+    <div class="job"><i>2</i><div><b>Save what I like</b><p>One tap to save, with an optional tag (a colour and a word). Saved is its own tab with the same cards and a tag filter.</p></div></div>
+    <div class="job"><i>3</i><div><b>Build a script from a video</b><p>From any post: Make ours writes the beats (Hook, Setup, Demo, Payoff, CTA) from the transcript and the slides, in the brand's voice, and sends it to the creator link, the Work board or Studio.</p></div></div>
+    <div class="job"><i>4</i><div><b>Recreate another brand's post</b><p>The same flow with the format locked: keep the structure, swap the subject. For a carousel, the slide list with our product per slide. For a static, a Studio draft.</p></div></div>
+    <div class="job"><i>5</i><div><b>Schedule posts</b><p>Drag a ready item onto a day, one caption, pick accounts, Schedule. It goes out on its own.</p></div></div>
+    <div class="job"><i>6</i><div><b>An advanced scheduler, later</b><p>Queues (post the next ready item every Tuesday 9am), per-platform tweaks, first comment, repost a winner, best hours from our own posted results. Phase 3, not now.</p></div></div>
+  </div>
+
+  <h3>Screen 1: Feed</h3>
+  <div class="spec">
+    <div class="row"><span>Title row</span><span><b>Social</b> at 20px on the left (the page name, nothing above it), then the Feed / Saved / Week tabs in the same row as Locus page tabs already are. Right side: <b>Follow</b> (primary) and a quiet gear that opens Manage follows. No breadcrumb, no subtitle, no Tour / Metrics / Help pills (they move to the ? in the top bar).</span></div>
+    <div class="row"><span>Controls row</span><span>One 36px row, left to right: view segment <b>All · Breaking out · Saved</b> (counts in grey), then pill menus whose label is the value: <b>All followed</b> (source), <b>All platforms</b>, <b>All formats</b>, <b>Breaking out first</b> (sort), <b>Last 30 days</b>. Right: a search icon that expands to a field, and a <b>Filters</b> pill that opens a popover with Hide paid-looking, minimum views, engagement floor. No labels over the selects, no bordered card, no count text (the count lives in the segment).</span></div>
+    <div class="row"><span>Status line</span><span>Where the credits warning was: one quiet 13px line, only when something is happening: "Pulling Takomo, Vice Golf and 2 more · last pull 2h ago". Credits low moves to Brand settings &gt; Social and the 5am card.</span></div>
+    <div class="row"><span>Trending</span><span>Cut from the feed. Sounds and hashtags doing well become a <b>Trends</b> section at the top of the Breaking out view only, as a row of chips (sound name · 3 posts), max 8, with a click filtering the grid.</span></div>
+    <div class="row"><span>Grid</span><span>4 columns at 1280, 3 at 1024, 2 on a phone. 16px gap. Cards are 9:16 with the body under them, 236px wide at 1280.</span></div>
+    <div class="row"><span>Card</span><span>Media 9:16, <code>object-fit: cover</code>, no play circle. On the media: a platform mark top left (IG, TT, YT as a 20px monochrome glyph), the saved bookmark top right only when saved, the duration bottom left. Breakouts get the ratio pill bottom right on the media: <b>23x</b> in warn colour, <b>3x</b> in good colour, none under 1.5x. Hover (desktop) plays muted after 350ms as today; a tap on a phone opens the viewer. Under the media: handle in 13px semibold with the age in grey on the same line, one caption line at 12.5px grey, then one row: <b>55k views</b> in ink, "usually 4k" in grey, "0.9%" in grey. Nothing truncates because nothing else is on the row. For a topic follow the handle shows, with the topic as a 11px chip on the right of the who line.</span></div>
+    <div class="row"><span>Breakout rule</span><span>Ratio = views over the account's median views across its last 20 posts in our store. Show it only when the account has 8+ posts and a median of 1,000+ views. Otherwise the card shows views alone and never enters Breaking out. Bands: 10x+ warn colour, 3x+ good colour, 1.5x+ grey. The sort "Breaking out first" uses ratio, tie broken by views. This fixes "1388x" from a 9-follower account.</span></div>
+    <div class="row"><span>Empty states</span><span>No follows: one centred block, "Follow the brands and topics you want to watch", one Follow button. No results for a filter: "Nothing posted in the last 7 days matches", one Clear link. Pull running: a shimmer grid and the status line, no words.</span></div>
+  </div>
+
+  <h3>Screen 2: One post (the viewer)</h3>
+  <div class="spec">
+    <div class="row"><span>Frame</span><span>Full-height dark overlay (not the white V2UI.panel): the media sits in the middle at phone proportions with ← → to the previous and next card in the current grid, Esc closes. On a phone it is a full-screen sheet from the bottom. Vertical video fills the height; a carousel is the same frame with dots and swipe.</span></div>
+    <div class="row"><span>Right column</span><span>340px, surface colour, in this order: avatar + handle + follower count; platform · format · age · length in one grey line; one big number <b>12k views</b> with the ratio pill beside it ("3.1x usual" or nothing); likes · comments · shares in one small row; the caption; tags (hook type, format) as grey chips; the sound. That is the whole column. No tiles, no uppercase "THE NUMBERS".</span></div>
+    <div class="row"><span>Bottom bar</span><span>Pinned: <b>Make ours</b> (primary), <b>Save</b> (toggles, with a tag picker on long press or a small chevron), <b>Open on TikTok</b>, <b>Transcript</b>. Clients see Save, Open and "Ask the team" in place of Make ours.</span></div>
+    <div class="row"><span>Make ours</span><span>Opens as a second step inside the same column (the media stays): a one-line steer field, then the status as a sentence under it ("Writing, about a minute" / "Needs an answer: what does the clip show?" / "Ready"). The result is the beats list (Hook / Setup / Demo / Payoff / CTA, each one line), on-screen text, and three send buttons: Creator link, Brief, Studio. The long prose the ideas bot writes stays in Slack; here only the beats.</span></div>
+    <div class="row"><span>Recreate</span><span>The same step with "Keep the structure" on: for a carousel, a slide-by-slide list where each slide names our product and the text; for a static, straight to a Studio draft with the reference attached.</span></div>
+  </div>
+
+  <h3>Screen 3: Saved</h3>
+  <div class="spec">
+    <div class="row"><span>What it is</span><span>The same grid, filtered to saved posts, with a tag row on top (All · Hooks · For Ravo · BFCM, each a colour dot and a count) and a <b>New tag</b> at the end. Tags are per brand, created in the Save tag picker. Nothing else is new. "Our version started" shows as a small chip on cards that already went to Make ours.</span></div>
+  </div>
+
+  <h3>Screen 4: Week</h3>
+  <div class="spec">
+    <div class="row"><span>Title row</span><span>Same row as the Feed (Social, the three tabs). Right: the connected accounts as 28px avatars with the platform glyph badged (greyed = not connected; a click opens Brand settings), then <b>Post</b> (primary).</span></div>
+    <div class="row"><span>Controls row</span><span>‹ This week › and the date range in one group, the brand's time zone in grey, and a <b>Week · List</b> segment. No Month (the Locus Calendar already shows posts by month).</span></div>
+    <div class="row"><span>Tray</span><span>240px, titled <b>Ready</b>, a thumbnail grid (two across, 9:16 or 1:1 thumbs, 8px gap), one pill filter <b>Unused</b> / All / by source. Hover shows the name; no spend, no ROAS, no "Meta ad" label. The source is a 16px glyph in the thumb corner (Studio, creator, ad, upload). Drag to the grid or tap to open the composer.</span></div>
+    <div class="row"><span>Grid</span><span>Seven columns, hours 6am to 10pm at 28px each so the whole working day fits in 450px. Today tinted, past hatched, a now line. A post is a 1:1 thumb with the platform glyphs under it and a state dot (grey draft, blue scheduled, green posted with views on hover, red failed). Click an empty cell = composer at that hour.</span></div>
+    <div class="row"><span>Composer</span><span>A right-side panel on desktop, a bottom sheet on a phone. Media strip on top (thumbs + From the tray + Upload). Then the caption with the three quiet links (Rephrase in brand voice, Saved captions, Save). Then accounts as a row of the same avatars, tap to toggle, a one-word state under each (Live / Draft / By hand). Then date and time as two pills. Per-platform tweaks folded. Footer: Schedule, Post now, Save draft. The order media → caption → where → when is right; the styling changes from form labels to the same quiet rows as the rest of Locus.</span></div>
+    <div class="row"><span>Posted</span><span>A posted card opens the same panel with "How it went": per platform, posted time, views, likes, comments and an Open link, plus Post again. No new screen.</span></div>
+  </div>
+
+  <h3>Brand settings &gt; Social</h3>
+  <div class="spec">
+    <div class="row"><span>Keep</span><span>The on/off switch, the accounts table (Platform, Account, Status, Mode, Connect / Forget), and the follows table (Who, Where, Last pull, Posts, Stop). Add the ScrapeCreators credits line here with a Top up link. This is the only place the credit warning lives.</span></div>
+  </div>
+
+  <h3>Components to reuse from the rest of Locus</h3>
+  <div class="tbl"><table>
+    <tr><th>Need</th><th>Reuse</th><th>Change</th></tr>
+    <tr><td>Page tabs</td><td>The v3 shell page tabs (Watch / Week today)</td><td>Rename to Feed / Saved / Week; drop the breadcrumb and H1 block below them.</td></tr>
+    <tr><td>Pill menus</td><td><code>.hd-period</code> menu from the Home header (a value-as-label pill with a bottom sheet on phones)</td><td>Use it for every filter instead of <code>.soc-sel</code>. One component, no uppercase labels.</td></tr>
+    <tr><td>Filters popover</td><td>The Ads tab's "Columns" popover</td><td>Same shell, holds Hide paid, min views, engagement floor.</td></tr>
+    <tr><td>Metric chip</td><td>The ROAS chip on the Ads cards (good / warn / grey)</td><td>Same chip for the ratio pill, on the media.</td></tr>
+    <tr><td>Viewer</td><td>Studio's dark full-screen image viewer (arrows, Esc)</td><td>Add the right column and the bottom bar. Replace <code>V2UI.panel</code> for posts.</td></tr>
+    <tr><td>Tag picker</td><td>Tasks' label picker (colour dot + word)</td><td>Reuse as the Save tag picker and the Saved tab's tag row.</td></tr>
+    <tr><td>Phone sheets</td><td><code>LxPhone.open</code> bottom sheets</td><td>Viewer, composer, filters and the tray all open from the bottom.</td></tr>
+    <tr><td>Tray thumbs</td><td>Studio's library picker tiles</td><td>Same tile, with the source glyph in the corner.</td></tr>
+    <tr><td>Calendar posts</td><td>calendar.js Posts layer</td><td>Unchanged. Month view of posts lives there, so Week drops its own Month.</td></tr>
+    <tr><td>Status line</td><td>The Supply "On the way" sub-line style</td><td>For "Pulling Takomo and 3 more · last pull 2h ago".</td></tr>
+  </table></div>
+</section>
+
+<section id="phone">
+  <div class="kicker">Phone</div>
+  <h2>The phone version is the same three tabs, with everything from the bottom</h2>
+  <div class="prose">
+    <ul>
+      <li><b>Feed.</b> Title row (Social, the three tabs scroll if needed). One row of pills that scrolls sideways: All · Breaking out · Saved, then Filters. Everything else is inside the Filters sheet (source, platform, format, sort, window, hide paid). Two 9:16 columns with 10px gaps start 110px from the top. A tap opens the viewer as a full-screen sheet.</li>
+      <li><b>Viewer.</b> Media fills the width at the top (9:16, about 60% of the height), the column scrolls under it, the bottom bar is fixed with Make ours, Save, Open. Swipe left and right for the next card.</li>
+      <li><b>Saved.</b> The same two-column grid with the tag row scrolling sideways.</li>
+      <li><b>Week.</b> Not an hour grid. A day list: each day is a header (Tue 20, today) with its posts as 56px rows (thumb, caption start, time, platform glyphs, state dot). Empty days are one grey line "Nothing yet · Post". The tray is a <b>Ready</b> button that opens a bottom sheet of thumbs; tapping one opens the composer sheet with the time preset to the next free 9am.</li>
+      <li><b>Composer.</b> A bottom sheet that slides to full height, same order as desktop, footer buttons fixed.</li>
+      <li><b>No chrome.</b> No breadcrumb, no subtitle, no Metrics / Help pills, no credits strip. The phone shots today show three screens of this before a card.</li>
+    </ul>
+  </div>
+  <div class="phones">
+    <figure><img src="locus/after-phone-watch.png" alt="Locus phone Watch today"><figcaption><b>Ours today.</b> Title, subtitle, pills, segment, buttons, warning. No card.</figcaption></figure>
+    <figure><img src="locus/after-phone-week.png" alt="Locus phone Week today"><figcaption><b>Ours today, Week.</b> Two days of empty hour cells.</figcaption></figure>
+    <figure><img src="locus/after-phone-post-sheet.png" alt="Locus phone post sheet today"><figcaption><b>Ours today, a post.</b> The sheet is the desktop panel squeezed.</figcaption></figure>
+  </div>
+  <figure><img src="virlo/49-phone-390-iframe.jpg" alt="Virlo phone layouts"><figcaption><b>The reference.</b> Virlo at 390px: outlier feed, agent page, copilot. Cards by the second screen; filters are full-width stacked pills; a bottom bar.</figcaption></figure>
+</section>
+
+<section id="priority">
+  <div class="kicker">Priority list</div>
+  <h2>Changes in the order they pay off</h2>
+  <div class="pri">
+    <div>Remove the breadcrumb, H1, subtitle and helper pills from Feed and Week; the page name sits in the tabs row.<small class="day">hours</small></div>
+    <div>Replace the boxed filter form with one row of value-as-label pill menus and a Filters popover; move the search behind an icon.<small class="day">half a day</small></div>
+    <div>Cards to 9:16 with one overlay per corner, no play circle, one metric row (views, usually, engagement), handle and age on one line.<small class="day">half a day</small></div>
+    <div>Breakout floor: ratio only with 8+ posts and a 1k+ median; bands 1.5x / 3x / 10x; Breaking out sorts by ratio then views.<small class="day">hours</small></div>
+    <div>Move the credits warning to Brand settings and the 5am card; replace it with the one-line pull status.<small class="day">hours</small></div>
+    <div>Rebuild the viewer as a dark full-height overlay: media centre, 340px column, pinned bottom bar, prev and next.<small class="week">1 to 2 days</small></div>
+    <div>Make ours inside the viewer as a second step: steer, status sentence, beats, three send buttons. Prose stays in Slack.<small class="week">1 day</small></div>
+    <div>Saved tab with tags (reuse the Tasks label picker); Save on the card and in the viewer.<small class="week">1 day</small></div>
+    <div>Week: tray as a thumbnail grid with Unused, no spend or ROAS; 28px hours; avatars for accounts in the title row; Week · List segment; drop Month.<small class="week">1 day</small></div>
+    <div>Composer restyled from form labels to quiet rows; accounts as tappable avatars.<small class="day">half a day</small></div>
+    <div>Phone: Feed with the Filters sheet and two columns; Week as a day list; viewer and composer as full-height bottom sheets.<small class="week">1 to 2 days</small></div>
+    <div>Trends row at the top of Breaking out (sounds and hashtags as count chips), replacing "Doing well lately".<small class="day">hours</small></div>
+    <div>Advanced scheduler (queues, repost a winner, best hours from our own results). Phase 3, after the above is live and used for two weeks.<small>later</small></div>
+  </div>
+  <div class="note"><b>Unlocked on Oct 20, in Cole's Chrome.</b> Sandcastles is on the $5 Starter month and Lucky's Instagram (@luckygolfofficial) is connected in Later. Virlo still converts to $49 on Oct 27 unless cancelled. What the locked screens showed is below; none of it changes the spec above.</div>
+</section>
+
+<section id="unlocked">
+  <div class="kicker">After unlocking</div>
+  <h2>Sandcastles behind the $5: Analyze is a report, not a viewer</h2>
+  <div class="prose">
+    <p><b>Opening a video is not a thing.</b> The play button on a card opens the post on Instagram in a new tab. Analyze queues the video ("Queued for analysis", the result lands in the Ideas inbox a minute later). There is no in-app viewer: the feed is the only place you look at cards, which is why their cards carry everything.</p>
+    <p><b>Ideas = Inbox and Shortlist.</b> One card per analyzed video (format tag, a one-line title, the same three chips as the feed). Clicking it opens a reading pane: a title, a paragraph, Your Notes, then boxes with small-caps labels: Content Positioning (Unique angle), Storytelling Format (Category chip, Why it works), Contrast Mechanism (Common belief, Contrarian reality), Hook Alignment, and "How to personalize this video for your content niche" with three options written for golf gear. Keys: S shortlist, D discard, A analysis, C turn into script. This is Virlo's take and beats in a different coat; ours is the Make ours step, which already writes beats and a hook.</p>
+    <p><b>Hooks = a vault.</b> Every analyzed video adds a template line ("I just need [the target] to [the required action].") with a category chip, the ratio, views and a heart; 26 default hooks under it. We do not need a hooks screen: the hook is a line on our viewer.</p>
+    <p><b>Reports stays locked</b> on Starter ("Upgrade required"). Scripts and Projects are empty states with one button. Channels is the watchlist page: Suggested / Describe / Search / Add URL, grouped suggestions with Add all, the watchlist on the right with Remove all and Export. That page is the closest thing to our Manage follows, and it is still a list with avatars, followers and views per channel, which ours should show too.</p>
+    <p><b>Feed sort menu:</b> Saved recently, Newest, Oldest, Outlier score, Views, Engagement rate. Same six as ours minus Saved.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="sandcastles/u02-feed-cards-metrics.jpg" alt="Sandcastles feed after the plan, cards with chips"><figcaption><b>The feed, paid.</b> Same cards; hover shows Analyze, play (opens Instagram) and collect.</figcaption></figure>
+    <figure><img src="sandcastles/u05-idea-detail-top.jpg" alt="Sandcastles idea detail reading pane"><figcaption><b>An idea.</b> Title, paragraph, notes, the video on the right, keyboard actions on top.</figcaption></figure>
+    <figure><img src="sandcastles/u07-idea-detail-personalize.jpg" alt="Sandcastles personalize options"><figcaption><b>Personalize.</b> Three golf-gear versions of the idea. Ours is one, with beats.</figcaption></figure>
+  </div>
+  <div class="strip three">
+    <figure><img src="sandcastles/u08-hooks-vault.jpg" alt="Sandcastles hooks vault"><figcaption><b>Hooks.</b> A template line per analyzed video plus 26 defaults.</figcaption></figure>
+    <figure><img src="sandcastles/u10-channels-watchlist.jpg" alt="Sandcastles channels page"><figcaption><b>Channels.</b> Suggested groups with Add all, the watchlist on the right.</figcaption></figure>
+    <figure><img src="sandcastles/u12-reports-still-locked.jpg" alt="Sandcastles reports locked on Starter"><figcaption><b>Reports.</b> Still gated above $5.</figcaption></figure>
+  </div>
+
+  <h2>Later with a profile: the composer is one tall card, the grid is the sell</h2>
+  <div class="prose">
+    <p><b>Connecting</b> was one click on the Instagram bubble, then Instagram's own consent page (five toggles: profile and media required, comments, messages, publish, insights), then back to the calendar with the profile in the title row and a 25% checklist.</p>
+    <p><b>The composer</b> (Create Post, or a calendar slot): profile picker top left, Auto Publish and the date top right, an Activity row with comments, then media on the left (a dashed drop box, "Instagram posts need at least 1 media item", Add Media) and the caption on the right with "Need help writing a caption?", Saved Captions and Hashtag Suggestions under it. More options: Add first comment, Claim your Link in Bio page, Add location, Invite collaborator; Later tools: Post tags, Campaign tags. Footer: trash, Submit for review, Schedule Post with a split arrow. Ours already matches the shape (media, caption, where, when, tweaks folded); theirs has no "where" because a post is one profile.</p>
+    <p><b>Preview</b> is the Instagram grid drawn on a phone with Lucky's real posts, a Reels / Drafts toggle, and "Visual Planner Scheduling" (Quick Schedule) on the right. The week view gained two placeholder cards, "Find your best time to post" and "Create note". Analytics opens on Overview (Profile summary, Growth and discovery, "Data not ready yet" for a day) with tabs Audience, Post performance (highlights: engagement rate, engagements, views; a sortable table with Customize metrics and Export CSV), Reel, Story, Hashtag, Linkin.bio. Social Inbox lists real DMs on the left with the thread on the right.</p>
+    <p><b>Takeaways for ours:</b> the grid preview is worth adding to Week once Lucky posts from Locus (a Preview tab beside Week and List); the best-time card is a placeholder until data exists, so ours can stay out until we have two weeks of posts; the inbox stays out.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="later/u03-preview-grid.jpg" alt="Later preview grid with Lucky's Instagram"><figcaption><b>Preview.</b> The real grid on a phone frame, Reels and Drafts toggles.</figcaption></figure>
+    <figure><img src="later/u07-composer-top.jpg" alt="Later composer"><figcaption><b>Composer.</b> Media left, caption right, options as rows, one footer.</figcaption></figure>
+    <figure><img src="later/u05-analytics-post-performance.jpg" alt="Later post performance analytics"><figcaption><b>Analytics.</b> Three highlights, a table with Customize metrics.</figcaption></figure>
+  </div>
+  <div class="strip three">
+    <figure><img src="later/u02-week-with-profile.jpg" alt="Later week view after connecting"><figcaption><b>Week, connected.</b> Profile bubble in the title row; "best time" and "note" placeholders on Thursday.</figcaption></figure>
+    <figure><img src="later/u04-analytics-overview.jpg" alt="Later analytics overview"><figcaption><b>Analytics overview.</b> "Data not ready yet" for the first day.</figcaption></figure>
+    <figure><img src="later/u08-composer-more-options.jpg" alt="Later composer more options"><figcaption><b>More options.</b> First comment, link in bio, location, collaborator, tags.</figcaption></figure>
+  </div>
+</section>
+
+</main>
+</div>
+</div>

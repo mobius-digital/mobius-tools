@@ -3839,3 +3839,49 @@ work in its own Manage view. Screens before and after (desktop and phone): `docs
   (GOOGLE_SA_KEY is a service account and cannot read public YouTube); until it is set, YouTube falls back to
   ScrapeCreators. Deployed 2026-10-20. Verification was done by injecting the worktree files into Cole's signed-in Chrome
   (no sign-in from the built-in browser), desktop at 1280 and a 390px same-origin iframe for the phone.
+
+## 2026-10-20 (later): SOCIAL REBUILD to the teardown spec (social.js?v=5, socialweek.js?v=3). Supersedes the Social UI sections above.
+
+Spec: `docs/locus-social/teardown/spec.html` (page https://claude.ai/artifact/N3GWj34WJnJFjAYij5KKEh), from the Later,
+Sandcastles and Virlo teardowns in `docs/locus-social/teardown/<app>/`. Built against main's `pageHead` and `PillMenu`;
+the UX audit kit (PR 36, lx.css / LxKit) is not on main, so the kit header applies on its own once that PR lands.
+- **Three tabs**: `NAV.social` = Feed (`social`), Saved (`socialsaved`, new page id in every index.html list: `?open=`,
+  TAB_PURPOSE, PAGE_BRIEF, TAB_CRUMB, TAB_WHO, clientTabOk, TAB_TITLE, SHOWABLE, the show map), Week (`socialweek`).
+  `SOCR(f, tab)` calls `SocialTab.render(tab, socialHost(), first)`. Saved is the Feed filtered to saved posts plus a
+  tag row.
+- **Feed** (`social.js`, IIFE, CSS `#soccss`, tokens only, state `ST`): segment All / Breaking out, then ONE controls
+  row of `PillMenu` pills (source `socSrc`, platform, format, sort, window; the pill shows its VALUE, `.hd-per-l`
+  hidden, `.hd-per-d` forced visible in the phone block because index.html hides it under 720), a search icon that
+  expands to a field, a Filters popover (`.soc-filt`, a `.hd-per-menu` opened by `.soc-filt.open`; holds hide paid,
+  min views, mine, and on a phone the platform / format / sort / window selects), a gear (`#socManage` = the Manage
+  follows view) and + Follow. A status line (following, last pull, problems). Trend chips only in Breaking out.
+  Cards are 9:16 (`.soc-grid` 2 / 3 / 4 columns), platform mark, duration, the ratio pill bottom right (`.soc-x`:
+  warn 10x+, good 3x+, grey 1.5x+), who + age, one caption line, one metric row. Inline play on hover / tap.
+- **Breaking out is decided server side** (account-health social.js): `MIN_N` 8 posts in the group, `MIN_BASE` 1000
+  views (`MIN_BASE_LIKES` 100) before a "usually" exists; posts carry `n` and `base` (null = no floor met, no ratio
+  drawn, `okRatio`). Topic posts use follower count as the base.
+- **Saved tags**: `social_post.tag` (ALTER on first use), `/api/social/save {id, saved, tag?}` (tag kept when saving
+  without one, cleared on unsave), `feed` returns `tags: [{tag, n}]` (`tagsOf`). The viewer's Save button has a chevron
+  = the tag picker (No tag / existing tags / New tag); the Saved tab filters by tag chips.
+- **The viewer** (`openPost(p, list)`): a dark full-screen overlay, media left (video, YouTube, or the slides strip with
+  dots), a 340px column right (who, platform · date · duration, the big number vs usually, likes / comments / saves /
+  engagement, caption, tags), prev / next (arrows and keys), and a bar: **Make ours** (the step: Writing → Ready beats →
+  send to Creator link / Brief / Studio via `/api/social/push`, polled every 5s), Save (+ tag chevron), Open on the
+  platform. On a phone: stacked, media 56vh, the bar fixed at the bottom, the tag picker fixed.
+- **Manage follows** (gear) and **Brand settings > Social** share `followTable` / `wireFollowTable` (handles, last pull,
+  errors, Stop, Pull now) plus the credits line; settings keep the on/off switch and `SocialWeek.connect` cards.
+- **Week** (`socialweek.js`): controls row (week nav, range, Week / List segment `sw_view`), 28px round account bubbles
+  with a `.pk` badge, the tray as 2-across 9:16 thumbs with a source glyph (`SRC_IC`; the sprite has no upload or
+  at-sign icon, so Upload = plus, Tagged = tag) and a Show pill; the grid has a now line (`.sw-now`); `.sw-post` = 38px
+  thumb + state dot + time + account glyphs; **List** = one card per day (`dayList`, forced on phones) with + Post per
+  day; the composer = media, caption with quiet Rephrase / Saved captions / Save links, Where as avatar buttons
+  (`.acc`), When as pill inputs. The tray is `LxPhone.open` on a phone.
+- **Transcript and Recreate (2026-10-20, social.js?v=6).** The viewer column has a Transcript button on video posts
+  (`transcript(p)` -> account-health `POST /api/social/transcript {id}`, one scraper credit the first time, then cached on
+  the row; shown as a scrolling "What they say" box, or "No speech was found"; pictures get none). Make ours has a two-way
+  choice above the steer box: Our own take (default) or Recreate it (same hook shape, beats, pacing; only product and words
+  change), sent as `mode` in the make body; the worker also hands the brief writer the stored transcript.
+- **Not built**: Later-style best-time suggestions and the advanced scheduler, the LxKit header (waits on PR 36).
+- Checked in the built-in browser on a stub harness (not committed) at 800, 1280 and 375, dark and light: Feed, Filters
+  popover, viewer with prev / next, Make ours end to end on stubs, tag picker, Saved, Week grid, List, composer sheet,
+  Brand settings > Social. No console errors. NOT checked against the real workers; the worker is not deployed.
