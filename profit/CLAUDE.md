@@ -3786,7 +3786,7 @@ Page table and the two rails: https://claude.ai/artifact/R1RksAoFEWR2NF5J2X6C5L.
 
 Cole: the task list and board "just aren't good" (no right-click, not like Asana, far too much text per task), most items a
 call proposes "aren't really tasks", the Slack note after approving a call is "so weird", and the 5am card's "Today's
-calls" collided with Work > Calls. Findings and what changed: the audit page https://claude.ai/artifact/ (see the chat).
+calls" collided with Work > Calls. Findings and what changed: the audit page https://claude.ai/artifact/BpuvtVhdgdJqYUyTMxACaU.
 - **A task is a SHORT TITLE plus `detail`** (p_action.detail, account-health actions.js `splitTitle`: every writer, and
   the 24 open rows were migrated on 2026-10-20). `profit/tasks.js` (v6, rewritten): row = tick · title · brand chip
   (only when not grouped by brand) · avatar · due · hover ⋯; a details mark (≡) when there are details; right-click or
