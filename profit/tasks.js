@@ -449,7 +449,7 @@
     $$('[data-b]', b).forEach(x => x.onclick = async () => {
       const list = selected(); const k = x.dataset.b;
       if (k === 'x') return clearSel();
-      if (k === 'done') { for (const it of list) await tick(it.id, true, true); clearSel(); toast(`${plural(list.length, 'task')} done.`); return reload(); }
+      if (k === 'done') { for (const it of list) await tick(it.id, true, true); clearSel(); toast(`${plural(list.length, 'task')} done.`); return paint(); }
       if (k === 'who') return ownerMenu(x, '', o => many(list, { owner: o }), { title: 'Who does all of them' });
       if (k === 'due') return dueMenu(x, '', d => many(list, { due: d }), { title: 'Due, all of them' });
       if (k === 'brand') return brandMenu(x, '', v => many(list, { act: v }));
@@ -459,7 +459,8 @@
   async function many(list, patch) {
     let n = 0;
     for (const it of list) { try { const r = await post('/api/actions/edit', { id: it.id, ...patch }); if (!r || r.error) throw new Error((r && r.error) || 'no'); n++; } catch {} }
-    clearSel(); toast(`Changed ${plural(n, 'task')}.`); await reload();
+    for (const it of list) { if ('act' in patch) it.act_id = patch.act; for (const k of ['owner', 'due']) if (k in patch) it[k] = patch[k]; }
+    clearSel(); toast(`Changed ${plural(n, 'task')}.`); paint();
   }
 
   /* ---------- writes ---------- */
@@ -471,11 +472,24 @@
       paint();
     } catch (e) { toast(e.message || 'Could not save it.'); await reload(); }
   }
+  /* Ticking a task changes it here and redraws in place: no reload, the scroll stays put (2026-10-20, Cole). */
+  function markLocal(id, done) {
+    if (done) {
+      const it = D.items.find(x => x.id === id); if (!it) return;
+      D.items = D.items.filter(x => x.id !== id); SEL.delete(id);
+      D.done = [{ ...it, status: 'done', done_at: new Date().toISOString() }, ...(D.done || []).filter(x => x.id !== id)];
+    } else {
+      const it = (D.done || []).find(x => x.id === id); if (!it) return;
+      D.done = D.done.filter(x => x.id !== id);
+      D.items = [...D.items, { ...it, status: 'open', done_at: null }];
+    }
+  }
   async function tick(id, done, quiet = false) {
     const row = $(`#main .tk [data-id="${CSS.escape(id)}"]`); if (row) row.classList.toggle('done', done);
     try {
       const r = await post('/api/actions/done', { id, done }); if (r && r.error) throw new Error(r.error);
-      if (!quiet) { toast(done ? 'Done.' : 'Back on the list.'); setTimeout(reload, done ? 450 : 0); }
+      markLocal(id, done);
+      if (!quiet) { toast(done ? 'Done.' : 'Back on the list.'); setTimeout(paint, done ? 450 : 0); }
     } catch (e) { toast(e.message); if (row) row.classList.toggle('done', !done); }
   }
   async function drop(list) {
@@ -500,7 +514,17 @@
   }
 
   /* ---------- the page ---------- */
+  /* Every redraw keeps the page, the board and each column where they were scrolled. */
   function paint() {
+    const sc = [document.scrollingElement, document.querySelector('.content'), document.getElementById('main')].filter(Boolean).map(el => [el, el.scrollTop]);
+    const bd = $('#main .tk-board'), bx = bd ? bd.scrollLeft : 0;
+    const cols = {}; $$('#main .tk-col[data-col]').forEach(c => { const k = $('.cards', c); if (k) cols[c.dataset.col] = k.scrollTop; });
+    draw();
+    sc.forEach(([el, y]) => { el.scrollTop = y; });
+    const nb = $('#main .tk-board'); if (nb) nb.scrollLeft = bx;
+    $$('#main .tk-col[data-col]').forEach(c => { const k = $('.cards', c); if (k && cols[c.dataset.col] != null) k.scrollTop = cols[c.dataset.col]; });
+  }
+  function draw() {
     closePop();
     const all = D.items.filter(inAct), t = today();
     const late = all.filter(i => i.due && i.due < t).length, waitN = D.waiting.filter(inAct).filter(w => w.status === 'open').length;
