@@ -2237,7 +2237,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=6">
+<link rel="stylesheet" href="lx.css?v=8">
 <link rel="stylesheet" href="phone.css?v=15">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2362,7 +2362,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="brand.js?v=24"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=6"></script>
-<script src="requests.js?v=2"></script>
+<script src="requests.js?v=3"></script>
 <script src="actions.js?v=4"></script>
 <script src="calls.js?v=7"></script>
 <script src="callscreen.js?v=7"></script>
@@ -2383,9 +2383,9 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
 <script src="lx.js?v=7"></script>
-<script src="v2.js?v=61"></script>
+<script src="v2.js?v=62"></script>
 <script src="leaks.js?v=7"></script>
-<script src="desk.js?v=27"></script>
+<script src="desk.js?v=28"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=7"></script>
@@ -5527,8 +5527,11 @@ function goalsGlance(a, g, pre) {
   const how = !pre ? `<p class="gt-how">Break-even and the real numbers did not load. Refresh to try again.</p>`
     : !margin ? `<p class="gt-how">Break-even needs the brand's costs, and the cost check says they are not right yet. Fix them in Brand settings, Data and costs, or set a margin override there.</p>`
     : `<p class="gt-how"><b>How break-even is worked out.</b> After product, shipping and fees, an order keeps <b>${Math.round(margin * 100)}%</b> of its price${pre.margin_pct != null ? ' (the margin override)' : ' (Triple Whale costs)'}. The average order is <b>${mo(h.aov)}</b> and a first order <b>${mo(h.new_aov)}</b>, so an order can cost up to ${mo(h.aov && h.aov * margin)} (a new customer ${mo(h.new_aov && h.new_aov * margin)}) in ads before it loses money, and ROAS breaks even at ${X(1 / margin)}. Spend past break-even only pays back if customers order again. Last 90 days, ${(h.orders || 0).toLocaleString()} orders.</p>`;
-  return `<div class="gt"><div class="gt-r gt-hd"><span>Measure</span><span>Goal</span><span>Break-even</span><span>Real, last 90 days</span></div>${body}</div>${how}`;
+  const quiet = !pre || !margin;   // a problem reads on the page; the method waits in the card's "..."
+  return `<div class="gt"><div class="gt-r gt-hd"><span>Measure</span><span>Goal</span><span>Break-even</span><span>Real, last 90 days</span></div>${body}</div>${quiet ? how : `<span class="lx-tohead" data-gt-how>${how}</span>`}`;
 }
+/* the glance card's "..." holds the break-even method (phase 7) */
+function goalsGlanceWhy(el) { const w = el.querySelector('[data-gt-how]'); if (!w || !window.LxKit) return ''; const t = w.textContent.trim(); w.remove(); return t ? LxKit.cardMenu(t.replace(/&/g, '&amp;').replace(/</g, '&lt;')) : ''; }
 async function addGoalTargets() {
   /* ONE PLACE (2026-10-15, Cole: "why do I need to change this in Home?"): the goals and the ad rules are edited only in
      Brand settings > Goals and ad rules. Home > Goals shows the same goal / break-even / real table and links there. */
@@ -5541,9 +5544,9 @@ async function addGoalTargets() {
   const host = document.querySelector('#main .lx') || document.querySelector('#main > div') || document.querySelector('#main');
   if (run !== RUN || !host || host.querySelector('#gtCard')) return;
   const el = document.createElement('div'); el.className = 'card'; el.id = 'gtCard';
-  el.innerHTML = `<div class="g-h"><h3 style="margin:0">Goals and break-even</h3><button class="btn" id="gtEdit">Change the goals</button></div>
-    <p class="hint" style="margin:4px 0 12px">What we agreed with the client, where the brand stops making money, and what it really ran at. Every call on Ads uses the highlighted goal.</p>
+  el.className = 'v2card'; el.innerHTML = `<div class="v2h"><h3>Goals and break-even</h3><span class="find">the goal we agreed, where the brand breaks even, what it ran at over 90 days</span><span class="cap"><button class="btn" id="gtEdit">Change the goals</button></span></div>
     ${goalsGlance(a, g, pre)}`;
+  const gh = goalsGlanceWhy(el); if (gh) el.querySelector('.v2h').insertAdjacentHTML('beforeend', gh);
   host.appendChild(el);
   el.querySelector('#gtEdit').onclick = () => openGoals(a.act_id);
 }
@@ -7621,7 +7624,7 @@ function rhythmCard(rh, cur, showCm) {
     : `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div><b>No reliable weekly rhythm.</b> This client's weekdays swing about as much from month to month as they do from each other, so the shares below are close to chance - a month only contains four of each weekday. Read this as "every day is much the same", and do not build a story around it for the client.</div></div>`;
 
   return `<div class="card"><h3 style="margin-bottom:2px">How a week actually runs <span class="info-i" title="Share of revenue by weekday across the last complete months. The index range is that weekday compared with an average day, one figure per month - a day is only called consistent when every month agreed. This is history for context, NOT the plan: the monthly plan is split evenly across the days on purpose, because a day-of-week curve was measured to predict worse than an even split.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">Based on ${esc(monthsLbl)} - the last ${rh.months.length} <b>complete</b> months, which roll forward on their own (in September this reads June–August). Three months rather than one because a single month holds only four of each weekday, which is far too few to tell a real pattern from chance - and with one month there is nothing to check it against. <b>This is what happened, not a target.</b> Your plan is still measured evenly across the month.</p>
+    <p class="hint" style="margin-bottom:10px">${esc(monthsLbl)}, the last ${rh.months.length} complete months. What happened, not a target.</p>
     ${verdict}
     <div class="tbl-wrap" style="margin-top:12px"><table>
       <thead><tr><th>Day</th>
@@ -10601,7 +10604,7 @@ async function renderPlan(first) {
 
   $('#main').innerHTML = `<div class="v2 lx">${LX.head('plan', `Plan: ${esc(p.account.name)}`)}
     <div class="pl-months">
-      ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
+      <div class="v2jobs" role="group" aria-label="Month">${picker.map(m => `<button type="button" class="${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}</div>
       <span id="plChip" style="margin-left:6px">${statusPill}</span>
     </div>
     ${LX.say(leadHtml(), 'plLead')}

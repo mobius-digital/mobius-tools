@@ -304,3 +304,17 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 [data-ui="v2"] .dk-counts.v2jobs{margin:0 0 14px}
 [data-ui="v2"] .dk-counts.v2jobs button b{font-weight:650;margin-right:5px;font-variant-numeric:tabular-nums}
 [data-ui="v2"] .dk-counts.v2jobs button.on b{color:var(--brand)}
+
+/* the older .tbl-wrap tables (P&L, Costs, Customers) fit the same way: names wrap, no sideways scroll on desktop */
+[data-ui="v2"] .tbl-wrap{overflow:visible}
+[data-ui="v2"] .tbl-wrap table{width:100%;table-layout:auto}
+[data-ui="v2"] .tbl-wrap td:first-child,[data-ui="v2"] .tbl-wrap th:first-child{white-space:normal;overflow-wrap:normal}
+[data-ui="v2"] .tbl-wrap td,[data-ui="v2"] .tbl-wrap th{padding:8px 8px;font-variant-numeric:tabular-nums}
+@media (max-width:600px){[data-ui="v2"] .tbl-wrap{overflow-x:auto}}
+/* PHASE 7 (2026-10-20): sortable headers were padded twice (the th and its button), which alone pushed wide tables
+   into sideways scroll; headers may wrap to two lines, a running-total note wraps too */
+[data-ui="v2"] .v2tbl th.v2srt{padding:0 4px}
+[data-ui="v2"] .v2tbl th.v2srt button{padding:6px 6px;white-space:normal;text-align:right;line-height:1.25}
+[data-ui="v2"] .v2tbl th{white-space:normal;overflow-wrap:normal;hyphens:none}
+[data-ui="v2"] .v2tbl .lx-aft{flex-direction:column;align-items:flex-end;gap:2px}
+[data-ui="v2"] .v2tbl .lx-aft em{white-space:nowrap;line-height:1.2;font-size:11px}

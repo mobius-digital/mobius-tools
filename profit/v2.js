@@ -2539,17 +2539,26 @@
     return `<svg class="v2spark kl-rate" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" data-spk="${esc(JSON.stringify(tips))}"><line x1="0" x2="${w}" y1="${Y(bench).toFixed(1)}" y2="${Y(bench).toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>${pv.length > 1 && H.S.cmp !== 'none' ? `<polyline points="${pts(pv)}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}<polyline points="${pts(v)}" fill="none" stroke="var(--brand)" stroke-width="1.9" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
   }
   /** Stacked bars (campaigns, flows) with the compare period's total as a dashed line over them. */
+  /* PHASE 7 (2026-10-20): stacked areas (flows as the base, campaigns on top) with the compare window as the dashed
+     line, in the one chart style. Same inputs and the same hover as before. */
   function emStack(id, rows, prev, series, cur) {
     const w = 1000, h = 210, pl = 48, pr = 10, pt = 10, pb = 24, n = rows.length; if (n < 2) return '';
     const tot = r => series.reduce((s, k) => s + (+r[k.key] || 0), 0);
     const ptot = (prev || []).map(r => r.email != null ? +r.email : tot(r));
     const mx = Math.max(...rows.map(tot), ...(H.S.cmp !== 'none' ? ptot : []), 1) * 1.12;
-    const bw = (w - pl - pr) / n, Y = v => pt + (1 - v / mx) * (h - pt - pb);
-    let out = [0.5, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f).toFixed(1)}" y2="${Y(mx * f).toFixed(1)}" stroke="var(--v2-grid)"/><text x="${pl - 6}" y="${(Y(mx * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--muted)">${kmoney(mx * f, cur)}</text>`).join('');
-    rows.forEach((r, i) => { let base = 0; series.forEach(sr => { const v = +r[sr.key] || 0; if (v <= 0) return; const y0 = Y(base + v), y1 = Y(base); out += `<rect x="${(pl + i * bw + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(1, bw - 3).toFixed(1)}" height="${Math.max(0, y1 - y0 - 1).toFixed(1)}" rx="2" fill="var(${sr.color})"/>`; base += v; }); });
-    if (H.S.cmp !== 'none' && ptot.length > 1) out += `<polyline points="${ptot.slice(0, n).map((v, i) => `${(pl + i * bw + bw / 2).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+    const bw = (w - pl - pr) / n, Y = v => pt + (1 - v / mx) * (h - pt - pb), X = i => pl + i * bw + bw / 2;
+    let out = [0.5, 1].map(f => `<line x1="${pl}" x2="${w - pr}" y1="${Y(mx * f).toFixed(1)}" y2="${Y(mx * f).toFixed(1)}" stroke="var(--v2-grid)" stroke-dasharray="2 4"/><text x="${pl - 6}" y="${(Y(mx * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--muted)">${kmoney(mx * f, cur)}</text>`).join('');
+    const base = rows.map(() => 0);
+    series.forEach(sr => {
+      const top = rows.map((r, i) => base[i] + Math.max(0, +r[sr.key] || 0));
+      if (!top.some((v, i) => v > base[i])) return;
+      const up = top.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`), down = base.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).reverse();
+      out += `<path d="M${up.join(' L')} L${down.join(' L')}Z" fill="var(${sr.color})" fill-opacity=".28" stroke="none"/><polyline points="${up.join(' ')}" fill="none" stroke="var(${sr.color})" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+      for (let i = 0; i < n; i++) base[i] = top[i];
+    });
+    if (H.S.cmp !== 'none' && ptot.length > 1) out += `<polyline points="${ptot.slice(0, n).map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--v2-cmp)" stroke-width="1.5" stroke-dasharray="4 4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
     const idx = n <= 10 ? rows.map((_, i) => i) : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)))];
-    out += idx.map(i => `<text x="${(pl + i * bw + bw / 2).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
+    out += idx.map(i => `<text x="${X(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
     return `<div class="v2chart"><svg id="${id}" viewBox="0 0 ${w} ${h}">${out}<rect class="hov" x="0" y="${pt}" width="0" height="${h - pt - pb}" fill="var(--ink)" opacity="0"/></svg><div class="v2tip"></div></div>`;
   }
   function wireEmStack(id, rows, prev, series, cur) {
@@ -2566,17 +2575,19 @@
     el.onpointerleave = () => { tip.style.display = 'none'; hov.setAttribute('opacity', '0'); };
   }
   /** Subscribers gained (up) and lost (down) per day or week, the net as a line. */
+  /* PHASE 7 (2026-10-20): joined as a soft area above the zero line, left as a soft area below it, the net as the
+     brand stroke. Areas and thin strokes, the one chart style; same inputs and the same hover. */
   function growthChart(id, rows, gk = 'gained', lk = 'lost') {
     const w = 560, h = 200, pl = 40, pr = 10, pt = 10, pb = 24, n = rows.length; if (n < 2) return '';
     const mx = Math.max(...rows.map(r => Math.max(+r[gk] || 0, +r[lk] || 0)), 1) * 1.1;
-    const mid = pt + (h - pt - pb) / 2, sc = (h - pt - pb) / 2 / mx, bw = (w - pl - pr) / n;
+    const mid = pt + (h - pt - pb) / 2, sc = (h - pt - pb) / 2 / mx, bw = (w - pl - pr) / n, X = i => pl + i * bw + bw / 2;
     let out = `<line x1="${pl}" x2="${w - pr}" y1="${mid}" y2="${mid}" stroke="var(--line-strong)"/><text x="${pl - 6}" y="${pt + 8}" font-size="10" text-anchor="end" fill="var(--muted)">+${int(mx)}</text><text x="${pl - 6}" y="${h - pb}" font-size="10" text-anchor="end" fill="var(--muted)">-${int(mx)}</text>`;
-    rows.forEach((r, i) => { const g = +r[gk] || 0, l = +r[lk] || 0, x = pl + i * bw + 1, bwi = Math.max(1, bw - 3);
-      if (g) out += `<rect x="${x.toFixed(1)}" y="${(mid - g * sc).toFixed(1)}" width="${bwi.toFixed(1)}" height="${(g * sc).toFixed(1)}" rx="2" fill="var(--good)" opacity=".85"/>`;
-      if (l) out += `<rect x="${x.toFixed(1)}" y="${mid.toFixed(1)}" width="${bwi.toFixed(1)}" height="${(l * sc).toFixed(1)}" rx="2" fill="var(--bad)" opacity=".75"/>`; });
-    out += `<polyline points="${rows.map((r, i) => `${(pl + i * bw + bw / 2).toFixed(1)},${(mid - ((+r[gk] || 0) - (+r[lk] || 0)) * sc).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--ink-2)" stroke-width="1.6"/>`;
+    const pts = (k, sign) => rows.map((r, i) => `${X(i).toFixed(1)},${(mid - sign * (+r[k] || 0) * sc).toFixed(1)}`);
+    const area = (k, sign, col) => { const up = pts(k, sign); return `<path d="M${X(0).toFixed(1)},${mid.toFixed(1)} L${up.join(' L')} L${X(n - 1).toFixed(1)},${mid.toFixed(1)}Z" fill="var(${col})" fill-opacity=".22" stroke="none"/><polyline points="${up.join(' ')}" fill="none" stroke="var(${col})" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`; };
+    out += area(gk, 1, '--good') + area(lk, -1, '--bad');
+    out += `<polyline points="${rows.map((r, i) => `${X(i).toFixed(1)},${(mid - ((+r[gk] || 0) - (+r[lk] || 0)) * sc).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
     const idx = n <= 10 ? rows.map((_, i) => i) : [...new Set(Array.from({ length: 6 }, (_, k) => Math.round(k * (n - 1) / 5)))];
-    out += idx.map(i => `<text x="${(pl + i * bw + bw / 2).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
+    out += idx.map(i => `<text x="${X(i).toFixed(1)}" y="${h - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${day(rows[i].date)}</text>`).join('');
     return `<div class="v2chart"><svg id="${id}" viewBox="0 0 ${w} ${h}">${out}<rect class="hov" x="0" y="${pt}" width="0" height="${h - pt - pb}" fill="var(--ink)" opacity="0"/></svg><div class="v2tip"></div></div>`;
   }
   function wireGrowth(id, rows, gk = 'gained', lk = 'lost') {
@@ -2759,9 +2770,9 @@
         tile({ compact: true, label: 'Share of store revenue', value: pct(c.share, 0), delta: delta(c.share, p.share, false, true), sub: c.share == null ? '' : `<span class="lx-vs ${c.share >= 0.25 ? 'good' : 'warn'}">${c.share >= 0.25 ? 'In' : 'Under'} the healthy range (25 to 35%)</span>` }),
         tile({ compact: true, label: 'Campaigns', value: kmoney(c.campaigns, cur), delta: delta(c.campaigns, p.campaigns), sub: c.email ? `${pct(c.campaigns / c.email, 0)} of email` : '', spark: tspark(rows, prows, 'campaigns', v => kmoney(v, cur), 'campaigns') }),
         tile({ compact: true, label: 'Flows', value: kmoney(c.flows, cur), delta: delta(c.flows, p.flows), sub: c.email ? `${pct(c.flows / c.email, 0)} of email` : '', spark: tspark(rows, prows, 'flows', v => kmoney(v, cur), 'flows') })].join('')}</div>
-      ${rows.length > 1 ? cardL('Email and SMS revenue by day', `${kmoney(c.email, cur)} in this window${p.email ? `, ${c.email >= p.email ? 'up' : 'down'} from ${kmoney(p.email, cur)}` : ''}. Flows are the base; campaigns are the spikes.`, legend([{ color: '--c-email', label: 'Flows' }, { color: '--brand', label: 'Campaigns' }, ...(H.S.cmp !== 'none' && prows ? [{ dash: true, label: `Total, ${cmpLabel()}` }] : [])]) + emStack('v2em', rows, prows, SER, cur), 'Triple Whale') : ''}
+      ${rows.length > 1 ? cardL('Email and SMS revenue by day', `${kmoney(c.email, cur)} in this window${p.email ? `, ${c.email >= p.email ? 'up' : 'down'} from ${kmoney(p.email, cur)}` : ''} · flows are the base, campaigns the spikes`, legend([{ color: '--c-email', label: 'Flows' }, { color: '--brand', label: 'Campaigns' }, ...(H.S.cmp !== 'none' && prows ? [{ dash: true, label: `Total, ${cmpLabel()}` }] : [])]) + emStack('v2em', rows, prows, SER, cur), 'Triple Whale') : ''}
       <div id="v2kl" class="lx-stack"></div>`;
-    $('#main').innerHTML = shell('email', title, body0 + foot(isAttentive(a) ? 'Revenue above is Klaviyo’s as Triple Whale carries it; this brand sends with Attentive, read below through Triple Whale.' : 'Headline revenue is Klaviyo’s placed-order attribution as Triple Whale carries it. Everything below is read from Klaviyo itself with the brand’s own key: day-by-day lines by event date (kept 6 hours), campaign and flow results for the last 90 days. Benchmarks are Klaviyo’s published averages.')); mountLeaks('email');
+    $('#main').innerHTML = shell('email', title, body0 + foot(isAttentive(a) ? 'Revenue is Klaviyo’s as Triple Whale carries it; this brand sends with Attentive, read below through Triple Whale.' : 'Revenue is Klaviyo’s placed-order attribution as Triple Whale carries it. The rest is read from Klaviyo with the brand’s own key, last 90 days.')); mountLeaks('email');
     if (rows.length > 1) wireEmStack('v2em', rows, prows, SER, cur);
     /* THE KLAVIYO PART LOADS ON ITS OWN (2026-10-09, Cole: "Klaviyo felt slow and sometimes did not load"). The rest of
        the screen is already painted; the cards show their shape in shimmer while Klaviyo answers, and an error with Try
@@ -2781,7 +2792,8 @@
   }
   /* The campaigns table uses the Ads tables' own TBL helper (sort on a header, the Columns menu, saved per person as
      pf_tbl_kl-camps), so it behaves exactly like Ads > Campaigns. */
-  const KL_DEFAULT = ['sent', 'channel', 'recipients', 'open', 'click', 'por', 'rev', 'rpr', 'unsub', 'after'];
+  /* PHASE 7: seven columns fit at 1024 without sideways scroll; open, click, unsub, spam and bounce wait in Columns */
+  const KL_DEFAULT = ['sent', 'channel', 'recipients', 'por', 'rev', 'rpr', 'after'];
   const KLS = { all: false };
   const FLOW_OPEN = new Set();
   async function klaviyoCards(a, cur, t) {
@@ -2819,25 +2831,25 @@
     /* engagement and deliverability */
     const RATES = [['Open', 'opened', BENCH.open, false, 1], ['Click', 'clicked', BENCH.click, false, 2], ['Placed order', 'orders_email', BENCH.por, false, 3], ['Unsubscribe', 'unsub', BENCH.unsub, true, 2], ['Spam complaints', 'spam', BENCH.spam, true, 3], ['Bounce', 'bounced', BENCH.bounce, true, 2]];
     const rateKey = { opened: 'open', clicked: 'click', orders_email: 'por', unsub: 'unsub', spam: 'spam', bounced: 'bounce' };
-    const rates = D ? cardL('Engagement and deliverability', `Per email received, ${weekly ? 'week by week' : 'day by day'}. The amber dashed line is Klaviyo’s average.${(D.metrics_missing || []).length ? ` Not in this account: ${esc(D.metrics_missing.join(', ').replace(/_/g, ' '))}.` : ''}`,
+    const rates = D ? cardL('Engagement and deliverability', `per email received, ${weekly ? 'week by week' : 'day by day'} · dashed line is Klaviyo’s average${(D.metrics_missing || []).length ? ` · not in this account: ${esc(D.metrics_missing.join(', ').replace(/_/g, ' '))}` : ''}`,
       `${flagHtml(flags)}<div class="kl-rates">${RATES.map(([l, key, bn, lower, dp]) => { const v = K[rateKey[key]], pv = KP && KP[rateKey[key]]; const f = r => r.received >= 200 ? (r[key] || 0) / r.received : null;
         return `<div class="kl-r"><div class="kl-rh"><span>${l}</span>${benchPill(v, bn, lower)}</div><div class="kl-rv">${pct(v, dp)} ${pv != null ? delta(v, pv, lower) : ''}</div>${rateSpark(kb, kpb, f, bn, x => pct(x, dp), l.toLowerCase())}</div>`; }).join('')}</div>`, 'Klaviyo · opens include Apple’s automatic opens') : '';
     /* list growth + email vs SMS */
-    const growth = D ? cardL('List growth', `${int(K.gained)} joined and ${int(K.lost)} left ${weekly ? 'by week' : 'by day'} (${esc(String(D.metrics_used?.gained || 'subscribed'))} vs ${esc(String(D.metrics_used?.lost || 'unsubscribed'))}).`, growthChart('v2klg', kb) || '<p class="v2hint">Not enough days.</p>', 'Klaviyo') : '';
-    const split = D ? cardL('Email vs SMS', K.rev ? `SMS is ${pct(K.sms_share, 0)} of Klaviyo-attributed revenue in this window.` : 'No Klaviyo-attributed revenue in this window.',
+    const growth = D ? cardL('List growth', `${int(K.gained)} joined, ${int(K.lost)} left, ${weekly ? 'by week' : 'by day'}`, growthChart('v2klg', kb) || '<p class="v2hint">Not enough days.</p>', 'Klaviyo') : '';
+    const split = D ? cardL('Email vs SMS', K.rev ? `SMS is ${pct(K.sms_share, 0)} of Klaviyo-attributed revenue` : 'No Klaviyo-attributed revenue in this window',
       `<div class="kl-split"><i style="width:${K.rev ? (K.rev_email / K.rev * 100).toFixed(1) : 0}%;background:var(--c-email)"></i><i style="width:${K.rev ? (K.rev_sms / K.rev * 100).toFixed(1) : 0}%;background:var(--brand)"></i></div>
       <div class="v2tbl"><table><thead><tr><th>Channel</th><th>Revenue</th><th>Orders</th><th>Sends</th></tr></thead><tbody>
-        <tr><td><span class="sw" style="background:var(--c-email)"></span>Email</td><td>${kmoney(K.rev_email, cur)} ${KP ? delta(K.rev_email, KP.rev_email) : ''}</td><td>${int(K.orders_email)}</td><td>${int(K.received)}<span class="sub">${money2(K.rpr, cur)} each</span></td></tr>
-        <tr><td><span class="sw" style="background:var(--brand)"></span>SMS</td><td>${kmoney(K.rev_sms, cur)} ${KP && KP.rev_sms ? delta(K.rev_sms, KP.rev_sms) : ''}</td><td>${int(K.orders_sms)}</td><td>${D.metrics_used?.sms_received ? `${int(K.sms_received)}<span class="sub">${K.sms_received ? money2(K.rev_sms / K.sms_received, cur) : '–'} each</span>` : '<span class="faint"' + tipAttr('This Klaviyo account has no Received SMS metric: it does not send SMS through Klaviyo, or has not yet.') + '>none</span>'}</td></tr></tbody></table></div>`, 'Klaviyo') : '';
+        <tr><td><span class="sw" style="background:var(--c-email)"></span>Email</td><td>${kmoney(K.rev_email, cur)} ${KP ? delta(K.rev_email, KP.rev_email) : ''}</td><td>${int(K.orders_email)}</td><td${tipAttr(`${money2(K.rpr, cur)} per email received`)}>${int(K.received)}</td></tr>
+        <tr><td><span class="sw" style="background:var(--brand)"></span>SMS</td><td>${kmoney(K.rev_sms, cur)} ${KP && KP.rev_sms ? delta(K.rev_sms, KP.rev_sms) : ''}</td><td>${int(K.orders_sms)}</td><td>${D.metrics_used?.sms_received ? `<span${tipAttr(`${K.sms_received ? money2(K.rev_sms / K.sms_received, cur) : '–'} per SMS received`)}>${int(K.sms_received)}</span>` : '<span class="faint"' + tipAttr('This Klaviyo account has no Received SMS metric: it does not send SMS through Klaviyo, or has not yet.') + '>none</span>'}</td></tr></tbody></table></div>`, 'Klaviyo') : '';
     /* flows */
     const fmx = Math.max(...flowRows.map(x => x.revenue || 0), 1);
     const CORE = /welcome|abandon|cart|checkout|browse|post.?purchase|thank|win.?back|sunset/i;
     const STATUS = [['live', 'Live', 'Sending to everyone who triggers it'], ['manual', 'Manual', 'Built but switched off: nobody new enters'], ['draft', 'Draft', 'Unfinished and off']];
     const flowRow = x => `<tr data-flow="${esc(x.id)}"><td>${x.messages && x.messages.length ? `<button type="button" class="v2ex${FLOW_OPEN.has(x.id) ? ' open' : ''}" data-ftog="${esc(x.id)}" aria-label="Show its messages">›</button>` : '<span class="v2ex-sp"></span>'}${CORE.test(x.name) ? '<span class="v2pill good">core</span> ' : ''}<span class="nm" title="${esc(x.name)}">${esc(x.name)}</span>${x.trigger ? `<span class="sub">${esc(x.trigger)}${(x.channels || []).length ? ` · ${esc(x.channels.map(c => c === 'sms' ? 'SMS' : 'email').join(' + '))}` : ''}</span>` : ''}</td>
       <td>${stChip(x.status, writeOK.flows ? x.id : null)}</td>
-      <td>${ib(x.revenue || 0, fmx, '--c-email', kmoney(x.revenue, cur))}</td><td class="kl-linecell">${flowSpark(x.id, D, W.from, W.to)}</td><td>${int(x.recipients)}</td><td>${(x.channels || []).length === 1 && x.channels[0] === 'sms' ? '–' : pct(x.open_rate, 1)}</td><td>${pct(x.click_rate, 1)}</td><td>${pct(x.conversion_rate, 2)}</td><td>${money2(x.revenue_per_recipient, cur)}</td><td>${pct(x.unsubscribe_rate, 2)}</td></tr>`;
-    const flowsCard = cardL('Flows', flowRows.length ? `${flowRows.filter(x => x.status === 'live').length} live of ${flowRows.length}. Results are the last 90 days; the line is ${esc(day(W.from))} to ${esc(day(W.to))}. Open a flow for its messages, then click a message to see it.` : esc(flows?.results_note || 'No flow results came back.'),
-      `${writeOK.flows ? '' : lock('flows')}${flowRows.length ? `<div class="v2tbl wide"><table id="v2klflows"><thead><tr><th>Flow</th><th>Status</th><th>Revenue, 90 days</th><th>Line</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${flowRows.map(x => flowRow(x) + (FLOW_OPEN.has(x.id) ? `<tr class="kl-sub" data-fsub="${esc(x.id)}"><td colspan="10"><p class="v2hint">Reading the messages…</p></td></tr>` : '')).join('')}</tbody></table></div>` : ''}`, 'Klaviyo');
+      <td>${ib(x.revenue || 0, fmx, '--c-email', kmoney(x.revenue, cur))}</td><td class="kl-linecell">${flowSpark(x.id, D, W.from, W.to)}</td><td>${int(x.recipients)}</td><td${tipAttr(`open ${(x.channels || []).length === 1 && x.channels[0] === 'sms' ? '–' : pct(x.open_rate, 1)} · click ${pct(x.click_rate, 1)} · unsubscribe ${pct(x.unsubscribe_rate, 2)}`)}>${pct(x.conversion_rate, 2)}</td><td>${money2(x.revenue_per_recipient, cur)}</td></tr>`;
+    const flowsCard = cardL('Flows', flowRows.length ? `${flowRows.filter(x => x.status === 'live').length} live of ${flowRows.length} · results are the last 90 days, the line is ${esc(day(W.from))} to ${esc(day(W.to))} · open a flow for its messages` : esc(flows?.results_note || 'No flow results came back.'),
+      `${writeOK.flows ? '' : lock('flows')}${flowRows.length ? `<div class="v2tbl"><table id="v2klflows"><thead><tr><th>Flow</th><th>Status</th><th>Revenue, 90 days</th><th>Line</th><th>Recipients</th><th>Placed order</th><th>Per recipient</th></tr></thead><tbody>${flowRows.map(x => flowRow(x) + (FLOW_OPEN.has(x.id) ? `<tr class="kl-sub" data-fsub="${esc(x.id)}"><td colspan="7"><p class="v2hint">Reading the messages…</p></td></tr>` : '')).join('')}</tbody></table></div>` : ''}`, 'Klaviyo');
     /* campaigns */
     const sentAll = (camps?.campaigns || []).filter(x => x.recipients != null);
     const up = camps?.upcoming || [];
@@ -2858,7 +2870,7 @@
       { k: 'bounce', l: 'Bounce', lo: 1, v: x => sms(x) ? null : x.bounce_rate, cell: x => sms(x) ? '–' : rateCell(x.bounce_rate, BENCH.bounce, true, 2) },
       { k: 'after', l: 'Money after send', v: afterTot, cell: x => afterSend(x, D), tip: 'How fast the money came in: the running total over the 14 days after the send. Hover a day to read it; sorts by the 14-day total' },
     ];
-    const st = TBL.load('kl-camps', defs, KL_DEFAULT);
+    const st = TBL.load('kl-camps2', defs, KL_DEFAULT);
     const table = () => { const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs);
       const list = by ? sentAll.slice().sort(by) : sentAll.slice().sort((x, y) => String(y.send_time || '').localeCompare(String(x.send_time || '')));
       const shown = KLS.all ? list : list.slice(0, 20);
@@ -2893,7 +2905,7 @@
       try {
         const r = await klGet(a.act_id, 'flow', `&id=${encodeURIComponent(id)}`);
         const ms = r.messages || [];
-        row.innerHTML = ms.length ? `<table class="kl-msgs"><thead><tr><th>Message</th><th>Channel</th><th>Recipients</th><th>Open</th><th>Click</th><th>Placed order</th><th>Revenue</th><th>Per recipient</th><th>Unsub</th></tr></thead><tbody>${ms.map((m, i) => `<tr class="link" data-fmsg="${esc(m.id || '')}" data-fi="${i}" tabindex="0"${tipAttr('Click to see this message and its results')}><td><b>${i + 1}.</b> ${esc(m.name || m.id || 'Message')}${m.subject ? `<span class="sub">${esc(m.subject)}</span>` : ''}</td><td><span class="ds-chip lx-chip">${m.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td>${int(m.recipients)}</td><td>${m.channel === 'sms' ? '–' : rateCell(m.open_rate, BENCH.open, false, 1)}</td><td>${m.channel === 'sms' ? pct(m.click_rate, 2) : rateCell(m.click_rate, BENCH.click, false, 2)}</td><td>${pct(m.conversion_rate, 2)}</td><td>${kmoney(m.revenue, cur)}</td><td>${money2(m.revenue_per_recipient, cur)}</td><td>${pct(m.unsubscribe_rate, 2)}</td></tr>`).join('')}</tbody></table>` : '<p class="v2hint">No message sent in 90 days.</p>';
+        row.innerHTML = ms.length ? `<table class="kl-msgs"><thead><tr><th>Message</th><th>Channel</th><th>Recipients</th><th>Placed order</th><th>Revenue</th><th>Per recipient</th></tr></thead><tbody>${ms.map((m, i) => `<tr class="link" data-fmsg="${esc(m.id || '')}" data-fi="${i}" tabindex="0"${tipAttr('Click to see this message and its results')}><td><b>${i + 1}.</b> ${esc(m.name || m.id || 'Message')}${m.subject ? `<span class="sub">${esc(m.subject)}</span>` : ''}</td><td><span class="ds-chip lx-chip">${m.channel === 'sms' ? 'SMS' : 'Email'}</span></td><td>${int(m.recipients)}</td><td${tipAttr(`open ${m.channel === 'sms' ? '–' : pct(m.open_rate, 1)} · click ${pct(m.click_rate, 2)} · unsubscribe ${pct(m.unsubscribe_rate, 2)}`)}>${pct(m.conversion_rate, 2)}</td><td>${kmoney(m.revenue, cur)}</td><td>${money2(m.revenue_per_recipient, cur)}</td></tr>`).join('')}</tbody></table>` : '<p class="v2hint">No message sent in 90 days.</p>';
         const fname = flowRows.find(f => f.id === id)?.name || 'Flow';
         row.querySelectorAll('tr[data-fmsg]').forEach(tr => { const m = ms[+tr.dataset.fi]; if (!m || !m.id) return;
           const open = () => klPreview(a, cur, { kind: 'flow', id: m.id, channel: m.channel, name: `${fname}: ${m.name || 'message ' + (+tr.dataset.fi + 1)}`, subject: m.subject, link: `https://www.klaviyo.com/flow/${encodeURIComponent(id)}/edit`, stats: pvStats(m, cur) });

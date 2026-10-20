@@ -148,9 +148,9 @@
       ${sign(s.outage ? s.outage.length > 0 : null, 'Meta\'s status page', s.outage && s.outage.length ? 'Meta posted a problem' : 'No problem posted', s.outage && s.outage.length ? esc(s.outage.slice(0, 2).join('; ')) : 'Meta only posts real outages there.', 'Read every 5 minutes by Pulse. Expensive or slow days never show here, only outages.')}
       ${sign(ch ? ch.issues : null, 'Advertisers online', !ch ? 'Not checked' : ch.issues ? 'People reported problems' : 'Nothing unusual', ch ? `${esc(ch.summary || '')}${(ch.sources || []).length ? '<br>' + ch.sources.slice(0, 2).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title || x.url).slice(0, 50))}</a>`).join('<br>') : ''}` : 'Checked for the latest days only.', 'A daily search of X and Reddit, reading the media buyers Cole follows first.')}
     </div>`;
-    const brands = isLatest && (m.brands || []).length ? U().card(agency ? 'Our brands that day' : 'Your brand that day', 'Meta cost per sale against each brand\'s own last 28 days (Meta\'s count).',
+    const brands = isLatest && (m.brands || []).length ? U().card(agency ? 'Our brands that day' : 'Your brand that day', 'Meta cost per sale against each brand\'s last 28 days',
       `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Meta spend</th><th>Cost per sale</th><th>Its normal</th><th></th></tr></thead><tbody>${m.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${U().money(b.spend)}</td><td>${b.cpa != null ? U().money(b.cpa) : 'no sale'}</td><td>${b.cpa_normal != null ? U().money(b.cpa_normal) : '–'}</td><td>${b.change == null ? '' : `<span class="v2pill ${b.change >= 0.15 ? 'bad' : b.change <= -0.15 ? 'good' : ''}">${b.change >= 0 ? '+' : ''}${Math.round(b.change * 100)}%</span>`}</td></tr>`).join('')}</tbody></table></div>`) : '';
-    $('#main').innerHTML = shell('yesterday', title, `<div id="dkNow"></div><p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? A bad day when two or more of four signs agree.</p>
+    $('#main').innerHTML = shell('yesterday', title, `<div id="dkNow"></div><p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? Bad when two or more of four signs agree.</p>
       ${answer}${isLatest ? `<div id="dkVerdict"></div>` : ''}${U().card('The last 30 days', '', strip)}${U().card(`The four signs, ${wdl(sel.date)} ${md(sel.date)}`, '', signs)}${brands}`);
     const root = $('#main');
     root.querySelectorAll('.dk-day').forEach(el => el.onclick = () => { MDSEL = el.dataset.d; yesterday(false); });
@@ -166,21 +166,22 @@
   async function fillNow(t, opt = {}) {
     const el = document.getElementById('dkNow'); if (!el) return;
     const act = H.S.act || 'all', key = act;
-    const draw = (body, sub) => { const e2 = document.getElementById('dkNow'); if (e2 && t === H.RUN()) e2.innerHTML = U().card('Right now', `<span class="dk-acts"><button type="button" class="v2btn ghost" id="dkNowRef">Refresh</button><button type="button" class="v2btn ghost" id="dkNowWeb">What are advertisers saying?</button></span>`, `${sub ? `<p class="v2hint" style="margin:0 0 10px">${sub}</p>` : ''}${body}`); wireNow(t); };
-    if (!opt.fresh && !opt.web && NOWC && NOWC.key === key && Date.now() - NOWC.at < 5 * 60e3) { draw(nowBody(NOWC.data), nowSub(NOWC.data)); return; }
+    /* PHASE 7: title, the time as the caption, the two buttons on the right, the method in the card's "..." */
+    const draw = (body, sub, how) => { const e2 = document.getElementById('dkNow'); if (e2 && t === H.RUN()) e2.innerHTML = `<section class="v2card"><div class="v2h"><h3>Right now</h3>${sub ? `<span class="find">${sub}</span>` : ''}<span class="cap"><button type="button" class="v2btn ghost" id="dkNowRef">Refresh</button><button type="button" class="v2btn ghost" id="dkNowWeb">What are advertisers saying?</button></span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([how ? esc(how) : '', 'Want a ping when this happens? Ask Locus: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.']) : ''}</div>${body}</section>`; wireNow(t); };
+    if (!opt.fresh && !opt.web && NOWC && NOWC.key === key && Date.now() - NOWC.at < 5 * 60e3) { draw(nowBody(NOWC.data), nowSub(NOWC.data), NOWC.data.how); return; }
     if (!NOWC || NOWC.key !== key) draw('<p class="v2hint" style="margin:0">Checking today so far against a normal day&hellip;</p>');
     let r; try { r = await H.apiAH(`/api/daycheck/now?act=${encodeURIComponent(act)}${opt.fresh ? '&fresh=1' : ''}${opt.web ? '&web=1' : ''}`); }
     catch (e) { draw(`<p class="v2bad" style="margin:0">Could not check: ${esc(e.message)}</p>`); return; }
     if (opt.web === false && NOWC?.data?.chatter && !r.chatter) r.chatter = NOWC.data.chatter;
     NOWC = { key, at: Date.now(), data: r };
-    draw(nowBody(r), nowSub(r));
+    draw(nowBody(r), nowSub(r), r.how);
   }
   function wireNow(t) {
     const a = document.getElementById('dkNowRef'), b = document.getElementById('dkNowWeb');
     if (a) a.onclick = () => { a.disabled = true; a.textContent = 'Checking…'; fillNow(t, { fresh: true }); };
     if (b) b.onclick = () => { b.disabled = true; b.textContent = 'Searching…'; fillNow(t, { web: true }); };
   }
-  const nowSub = r => `${esc(r.how || '')} As of ${new Date(r.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central.`;
+  const nowSub = r => `As of ${new Date(r.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central · today so far against a normal day by this hour`;
   function nowBody(r) {
     const u = U(), list = r.brands || [], one = list.length === 1;
     const vsPill = v => v == null ? '' : `<span class="v2pill ${v < 0.75 ? 'bad' : v > 1.25 ? 'good' : ''}">${Math.round(v * 100)}% of normal</span>`;
@@ -215,7 +216,6 @@
     const ch = r.chatter;
     if (ch) mk.push(ch.status === 'ok' ? `<b>Advertisers online, last few hours:</b> ${esc(ch.summary || (ch.meta === 'issues' ? 'people are reporting Meta problems' : 'nothing unusual'))}${(ch.sources || []).length ? ' ' + ch.sources.slice(0, 3).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title || x.url).slice(0, 50))}</a>`).join(' · ') : ''}` : `Could not search what advertisers are saying: ${esc(ch.error || '')}`);
     out += `<div class="dk-key" style="display:block;margin-top:12px">${mk.map(x => `<p class="v2say" style="margin:0 0 4px">${x}</p>`).join('')}</div>`;
-    out += `<p class="v2hint" style="margin:8px 0 0">Want a ping when this happens? Ask Locus: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.</p>`;
     return out;
   }
   const AHC = new Map();
