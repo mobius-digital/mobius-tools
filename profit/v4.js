@@ -378,6 +378,7 @@
      brand) and From you (open Requests). Nothing is drawn when both are empty; the client archive never calls this. */
   async function reportExtras(root, host, o) {
     H = host; K = window.V2 && window.V2.kit; if (!K || !root) return;
+    window.V2.setHost(host);
     const sum = root.querySelector('.rp-sumcard') || root.querySelector('#rpsec-summary') || root.querySelector('.rp-four');
     if (!sum || root.querySelector('#v4rep')) return;
     const act = H.S.act; if (!act || act === 'all') return;
@@ -398,5 +399,27 @@
     sum.insertAdjacentElement('afterend', el);
     K.wireGo(el);
   }
-  window.V4 = { render, extraCalls, reportExtras, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
+
+  /* ---------- Make > Pipeline, phase 6: the Ideas column ----------
+     What could become the next brief, in front of Brief: saved Social posts (with the picture), the call rows that ask for
+     a new version (Refresh), and the biggest leaks. "Brief it" opens the board's own New brief window with the words filled. */
+  async function ideasCol(wrap, host, act) {
+    H = host; K = window.V2 && window.V2.kit; if (!K || !wrap || wrap.querySelector('.v4-ideas')) return;
+    window.V2.setHost(host);
+    const t = H.RUN(), q = encodeURIComponent(act);
+    const [soc, td, lk] = await Promise.all([H.apiAH(`/api/social?act=${q}`).catch(() => null), K.get(`/api/hub/today?act=${q}`).catch(() => null), window.LeaksCard && window.LeaksCard.load ? (window.LeaksCard.setHost(H), window.LeaksCard.load(act).catch(() => null)) : null]);
+    if (t !== H.RUN() || !wrap.isConnected || wrap.querySelector('.v4-ideas')) return;
+    const items = [];
+    for (const p of ((soc && soc.posts) || []).filter(x => x.saved || x.idea_id).slice(0, 4)) items.push({ img: p.cover || p.thumb || '', title: p.caption ? String(p.caption).slice(0, 80) : (p.handle ? `@${p.handle}` : 'Saved post'), sub: `saved post${p.ratio != null && p.base != null ? ` · ${Math.round(p.ratio)}x its usual` : ''}${p.handle ? ` · @${p.handle}` : ''}`, text: `Our version of ${p.handle ? '@' + p.handle + "'s" : 'the saved'} post: ${String(p.caption || '').slice(0, 60)}`, go: 'social' });
+    for (const r of ((td && td.rows) || []).filter(x => x.kind === 'refresh').sort((a, b) => (b.stake || 0) - (a.stake || 0)).slice(0, 3)) items.push({ ad: r.anchor && r.anchor.ad_id ? r.anchor.ad_id : (r.top_ad && r.top_ad.ad_id) || r.ad_id, title: `Refresh ${r.adset || r.ad || ''}`, sub: `from the call${r.spend != null ? ` · ${K.money(r.spend, r.currency)} spent` : ''}`, text: `New version of ${r.adset || r.ad || ''}: ${String(r.why || '').slice(0, 80)}`, go: 'today' });
+    for (const l of ((lk && lk.leaks) || []).filter(x => x.cost_month > 0 && !/negative/.test((x.apply && x.apply.kind) || '')).sort((a, b) => (b.cost_month || 0) - (a.cost_month || 0)).slice(0, 2)) items.push({ title: l.title, sub: `from a leak · ${K.money(l.cost_month, lk.currency)} a month`, text: `Fix: ${l.title}${l.fix ? '. ' + l.fix : ''}`, go: 'leaks' });
+    const col = document.createElement('div'); col.className = 'pd-col v4-ideas'; col.dataset.col = 'ideas';
+    col.innerHTML = `<div class="pd-ch"><span class="dot" style="background:var(--brand)"></span><b>Ideas</b><span class="n">${items.length}</span><span class="sp n2"></span></div>
+      <div class="pd-cards">${items.length ? items.map((it, i) => `<div class="v4-ic"${it.ad ? ` data-thumb="${K.esc(it.ad)}"` : ''}>${it.img ? `<img src="${K.esc(it.img)}" alt="" loading="lazy">` : it.ad ? `<span class="v4-ic-t" data-thumb="${K.esc(it.ad)}"></span>` : ''}<b>${K.esc(it.title)}</b><small>${K.esc(it.sub)}</small><div class="v4-ic-a"><button type="button" class="pd-btn pri" data-brief="${i}">Brief it</button><button type="button" class="pd-btn" data-go="${K.esc(it.go)}">Open</button></div></div>`).join('') : '<div class="pd-empty">Save a post on Social, or make a call on Ads, and it lands here.</div>'}</div>`;
+    wrap.insertBefore(col, wrap.firstChild);
+    col.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { const it = items[+b.dataset.brief]; if (window.ProductionTab && window.ProductionTab.newBrief) window.ProductionTab.newBrief({ act, text: it.text }); });
+    K.wireGo(col);
+    const ids = items.filter(x => x.ad).map(x => x.ad); if (ids.length && window.V2 && window.V2.thumbs) window.V2.thumbs(col, ids, act, H);
+  }
+  window.V4 = { render, extraCalls, reportExtras, ideasCol, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
 })();
