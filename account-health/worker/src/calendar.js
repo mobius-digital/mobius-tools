@@ -516,9 +516,9 @@ const clientName = n => String(n || '').replace(/\s*\([^)]*\)/g, '').replace(/\s
 const mailNameC = n => { const parts = String(n || '').split(/\s+-\s+/); const i = parts.map(p => /\d{1,2}\/\d{1,2}(\/\d{2,4})?/.test(p)).lastIndexOf(true); return (i >= 0 && i < parts.length - 1 ? parts.slice(i + 1).join(' - ') : parts[parts.length - 1]).trim() || n; };
 /** The pieces a client hears about: confirmed dates going live in 14 days, scheduled sends, what we need from them,
  *  what goes live tomorrow. ONE computation, read by clientMessages (the preview) and clientCalendarFor (the weekly). */
-export function clientBits(data, b, today) {
+export function clientBits(data, b, today, days = 13) {
   const mine = data.items.filter(e => e.act === b.id);
-  const soon = mine.filter(e => e.status === 'conf' && e.start >= today && e.start <= add(today, 13)).sort((x, y) => x.start.localeCompare(y.start));
+  const soon = mine.filter(e => e.status === 'conf' && e.start >= today && e.start <= add(today, days)).sort((x, y) => x.start.localeCompare(y.start));
   const sends = (data.emails || []).filter(m => m.act === b.id && m.status === 'scheduled' && m.date >= today && m.date <= add(today, 13)).sort((x, y) => x.date.localeCompare(y.date));
   const need = [];
   for (const e of mine) {
@@ -530,13 +530,13 @@ export function clientBits(data, b, today) {
   const tomorrow = mine.filter(e => e.start === add(today, 1) && e.status === 'conf');
   return { soon, sends, need: [...new Set(need)], tomorrow };
 }
-/** For the weekly client post (worker.js clientReportText): the brand's confirmed dates going live in the next 14 days
+/** For the weekly client post (worker.js clientReportText, which asks for 7 days): the brand's confirmed dates going live soon
  *  as plain lines, and what we need from the client. Empty lists when the brand is not on the calendar. */
-export async function clientCalendarFor(env, act, today = centralToday()) {
+export async function clientCalendarFor(env, act, today = centralToday(), { days = 13 } = {}) {
   const data = await calendarData(env, { act, from: add(today, -60), to: add(today, 30), today });
   const b = (data.brands || []).find(x => x.id === act);
   if (!b) return { going_live: [], need: [] };
-  const bits = clientBits(data, b, today);
+  const bits = clientBits(data, b, today, days);
   return {
     going_live: bits.soon.map(e => `${clientName(e.name)} goes live ${wd(e.start)} ${md(e.start)}${e.end && e.end !== e.start ? ` (to ${md(e.end)})` : ''}`),
     need: bits.need,

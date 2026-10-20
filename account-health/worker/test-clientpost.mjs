@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { dailyPost, weeklyPost, headlineOf, sentenceOf, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel } from './src/clientpost.js';
+import { dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS } from './src/clientpost.js';
 import { clientBits, clientMessages } from './src/calendar.js';
 import { confirm, ensureMeetings } from './src/meetings.js';
 import { allowedChannels } from './src/askschedule.js';
@@ -37,12 +37,11 @@ db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, source, inter
 /* ---------------- the daily ---------------- */
 const DAY = { sales: 719, spend: 489, mer: 1.47, plan: 1800 };
 const MONTH = { ym: '2026-10', sales: 19574, goal: 30603, day_of_month: 17 };
-await check('the daily: title, headline, labelled bullets for yesterday and the month, Next only when written, no opener', () => {
-  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-15', headline: 'Strongest day of the week, with Meta returning 3.24 per dollar', day: { sales: 1458, spend: 519, mer: 2.81, amer: 1.95, plan: 1800 }, month: { ym: '2026-10', sales: 17800, plan: 27000, spend: 8100, day_of_month: 15, days_in_month: 31 }, others: [1018, 1600, 822], next: 'Ahsan steps Meta back up Monday.' });
+await check('the daily: title, Yesterday with its date, labelled bullets, the month, Next only when written; no headline, no weekday title', () => {
+  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-15', day: { sales: 1458, spend: 519, mer: 2.81, amer: 1.95, plan: 1800 }, month: { ym: '2026-10', sales: 17800, plan: 27000, spend: 8100, day_of_month: 15, days_in_month: 31 }, others: [1018, 1600, 822], next: 'Ahsan steps the ads back up Monday.' });
   assert.equal(t, [
-    '*Dartee Golf \u00b7 Thursday, Oct 15*',
-    '_Strongest day of the week, with Meta returning 3.24 per dollar_',
-    '', '*Yesterday*',
+    '*Dartee Golf \u00b7 Daily update*',
+    '*Yesterday, Thursday Oct 15*',
     '\u2022 Sales: *$1,458* (plan $1,800, under plan)',
     '\u2022 Ad spend: *$519*',
     '\u2022 MER: *2.81x*',
@@ -51,13 +50,13 @@ await check('the daily: title, headline, labelled bullets for yesterday and the 
     '\u2022 Sales: *$17.8K* of $27K planned',
     '\u2022 Ad spend: *$8,100*',
     '\u2022 MER: *2.20x*',
-    '', '*Next:* Ahsan steps Meta back up Monday.',
-    '', '_Full update in the thread._'].join('\n'));
-  assert.ok(!/Hey Team|[\u2014\u2013]/.test(t), 'no opener, no em dashes');
+    '', '*Next:* Ahsan steps the ads back up Monday.',
+    '', '_More numbers in the thread._'].join('\n'));
+  assert.ok(!/Hey Team|Meta|Google|[\u2014\u2013]/.test(t), 'no opener, no channel named, no em dashes');
 });
-await check('no Next line when nobody wrote one; no headline line on a v1 brief; "best day this month" beats the plan read', () => {
-  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-17', headline: null, day: { sales: 1500, spend: 489, mer: 3.07, plan: 1800 }, month: { ym: '2026-10', sales: 19574, plan: 30603, day_of_month: 17 }, others: [1018, 1438, 822], next: '' });
-  assert.ok(!t.includes('Next'), t); assert.equal(t.split('\n')[1], '');
+await check('no Next line when nobody wrote one; "best day this month" beats the plan read', () => {
+  const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-17', day: { sales: 1500, spend: 489, mer: 3.07, plan: 1800 }, month: { ym: '2026-10', sales: 19574, plan: 30603, day_of_month: 17 }, others: [1018, 1438, 822], next: '' });
+  assert.ok(!t.includes('Next'), t);
   assert.ok(t.includes('\u2022 Sales: *$1,500* (plan $1,800, best day this month)'), t);
   assert.ok(!t.includes('aMER'), 'no aMER line when it is unknown');
   assert.equal(dailyVerdict({ sales: 1900, plan: 1800, others: [2500, 2200] }), 'on plan');
@@ -67,57 +66,81 @@ await check('no Next line when nobody wrote one; no headline line on a v1 brief;
   const noGoal = dailyPost({ brand: 'B', date: '2026-10-03', day: { sales: 800, spend: 300, mer: 2.67 }, month: { ym: '2026-10', sales: 2400, plan: null, day_of_month: 3 } });
   assert.ok(noGoal.includes('\u2022 Sales: *$2,400*\n'), noGoal);
 });
-await check('headlineOf reads the stored brief\'s bold line after the opener; shortMoney and pctChange', () => {
-  assert.equal(headlineOf('Hey Team :wave: Here\'s the Daily Update for October 17 →\n*Friday only just paid for itself*\n\n*October 17*\nNet Sales: $719'), 'Friday only just paid for itself');
-  assert.equal(headlineOf('Hey Team :wave: Here\'s the Daily Update for October 17 →\n\n*October 17*'), null, 'a v1 brief has no headline');
+await check('the thread is numbers only: orders, new vs returning, every ad channel that spent (biggest first, Triple Whale sales), contribution margin only when trusted', () => {
+  const day = { sales: 1458, orders: 38, new_orders: 12, new_rev: 520, ret_rev: 938, cm: 312, attr: true,
+    channels: [{ name: 'Google', spend: 69, roas: 2.19, purchases: 3 }, { name: 'Meta', spend: 450, roas: 3.24, purchases: 11 }, { name: 'TikTok', spend: 0, roas: null, purchases: 0 }] };
+  const t = dailyThread({ date: '2026-10-15', day, cm_ok: true });
+  assert.equal(t, [
+    '*More on Thursday Oct 15*',
+    '\u2022 Orders: *38* (12 from new customers), average order $38',
+    '\u2022 Sales from new customers: *$520*, returning *$938*',
+    '\u2022 Meta: *$450* spent, *$1,458* in sales tracked to it (3.24x)',
+    '\u2022 Google: *$69* spent, *$151* in sales tracked to it (2.19x)',
+    '\u2022 Contribution margin: *$312*',
+    '', `_Sales tracked to a channel are Triple Whale\u2019s count, so the channels can add up to more than the day. ${CM_WORDS}_`].join('\n'));
+  const broken = dailyThread({ date: '2026-10-15', day: { ...day, channels: [{ name: 'Google', spend: 122, roas: 0.16, purchases: 1 }] }, cm_ok: false });
+  assert.ok(broken.includes('\u2022 Google: *$122* spent, too few tracked orders to rate yet'), broken);
+  assert.ok(!broken.includes('Contribution margin'), 'no CM when the cost data is not trusted');
+  const unsynced = dailyThread({ date: '2026-10-15', day: { ...day, attr: false }, cm_ok: true });
+  assert.ok(unsynced.includes('\u2022 Meta: *$450* spent\n'), 'spend only when attribution is not synced');
+  assert.equal(dailyThread({ date: '2026-10-15', day: {} }), '', 'nothing to say = no thread');
+  assert.ok(!/What we saw|What it means|What we|Hey Team/.test(t), 'no narrative');
+});
+await check('shortMoney and pctChange', () => {
   assert.equal(shortMoney(19574), '$19.6K'); assert.equal(shortMoney(7318), '$7,318'); assert.equal(shortMoney(30000), '$30K');
   assert.equal(pctChange(5890, 6958), '▼15%'); assert.equal(pctChange(3105, 3140), 'flat'); assert.equal(pctChange(7318, 6840), '▲7%'); assert.equal(pctChange(5, null), '');
 });
 
 /* ---------------- the weekly ---------------- */
 const TOTALS = { sales: 5890, spend: 3105, mer: 1.90, cm: 1784 }, PREV = { sales: 6958, spend: 3140, mer: 2.22, cm: 2620 };
-await check('the weekly: title, one sentence, labelled bullets with ONE comparison each, This week, We need from you, the link', () => {
+await check('the weekly: title, the rule sentence, labelled bullets with ONE comparison each, contribution margin defined, This week, We need from you with dates, the link', () => {
   const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'weekly', start: '2026-10-12', end: '2026-10-18', totals: { ...TOTALS, amer: 1.2 }, previous: { ...PREV, amer: 1.41 },
-    sentence: 'A slower week: same spend, fewer sales, mostly from the Burgundy drop cooling off.',
     this_week: ['Splatter Collection goes live Friday; the drop email goes today', 'Three Splatter ads into testing by Thursday'],
-    from_you: ['Is Splatter full price or a deal? Need it by Wednesday.'], url: 'https://tools.go-mobius-digital.com/profit/?reports=abc' });
+    from_you: [{ text: 'Is Splatter full price or a deal?', asked: '2026-10-13', due: '2026-10-22' }, 'Photos for Splatter Collection (live Fri Oct 23)'], url: 'https://tools.go-mobius-digital.com/profit/?reports=abc' });
   assert.equal(t, [
     '*Grunk Dolfer \u00b7 Weekly report, Oct 12 to 18*',
-    '_A slower week: same spend, fewer sales, mostly from the Burgundy drop cooling off._',
+    '_A quieter week: sales down 15% on the same ad spend._',
     '', '*The week* (compared with the week before)',
     '\u2022 Sales: *$5,890* (down 15%)',
     '\u2022 Ad spend: *$3,105* (flat)',
     '\u2022 MER: *1.90x* (was 2.22x)',
     '\u2022 aMER (new customers): *1.20x* (was 1.41x)',
-    '\u2022 Profit: *$1,784* (was $2,620)',
+    '\u2022 Contribution margin: *$1,784* (was $2,620)',
+    `_${CM_WORDS}_`,
     '', '*This week*',
     '\u2022 Splatter Collection goes live Friday; the drop email goes today',
     '\u2022 Three Splatter ads into testing by Thursday',
     '', '*We need from you*',
-    '\u2022 Is Splatter full price or a deal? Need it by Wednesday.',
+    '\u2022 Is Splatter full price or a deal? (asked Oct 13, needed by Oct 22)',
+    '\u2022 Photos for Splatter Collection (live Fri Oct 23)',
     '', '<https://tools.go-mobius-digital.com/profit/?reports=abc|Open the full report>'].join('\n'));
-  assert.ok(!/vs plan|Hey Team|\u25B2|\u25BC/.test(t), 'no plan comparison, no opener, no arrows');
+  assert.ok(!/vs plan|Hey Team|Profit|\u25B2|\u25BC/.test(t), 'no plan comparison, no opener, no "Profit", no arrows');
 });
-await check('the weekly without a call: no This week block; the monthly says the month; profit left out when CM is unknown; long asks are clipped, 3 at most', () => {
+await check('weekSentence: one fixed sentence per shape of the week, never a model', () => {
+  assert.equal(weekSentence({ sales: 7318, spend: 3650, mer: 2.01 }, { sales: 6840, spend: 4680, mer: 1.46 }), 'Sales up 7% on 22% less ad spend, so each ad dollar brought back more.');
+  assert.equal(weekSentence({ sales: 8000, spend: 4000, mer: 2 }, { sales: 7000, spend: 3200, mer: 2.19 }), 'Sales up 14% on 25% more ad spend, but each ad dollar brought back a little less.');
+  assert.equal(weekSentence({ sales: 8000, spend: 4000, mer: 2 }, { sales: 7000, spend: 3450, mer: 2.03 }), 'Sales up 14% on 16% more ad spend, with each ad dollar bringing back about the same.');
+  assert.equal(weekSentence({ sales: 6000, spend: 4000, mer: 1.5 }, { sales: 7000, spend: 3200, mer: 2.19 }), 'Sales down 14% on 25% more ad spend, so each ad dollar brought back less.');
+  assert.equal(weekSentence({ sales: 7000, spend: 3200 }, { sales: 7000, spend: 3200 }), 'A steady week: sales and ad spend both about where they were.');
+  assert.equal(weekSentence({ sales: 7000, spend: 2500, mer: 2.8 }, { sales: 7000, spend: 3200, mer: 2.19 }), 'Sales held on 22% less ad spend, so each ad dollar brought back more.');
+  assert.equal(weekSentence({ sales: 7000 }, {}), null, 'nothing to compare = no sentence');
+  assert.equal(weekSentence({ sales: 24000, spend: 9000 }, { sales: 20000, spend: 9000 }, 'month'), 'Sales up 20% on the same ad spend.');
+});
+await check('the weekly without a call: no This week block; the monthly says the month; contribution margin left out when CM is unknown; long asks are clipped, 3 at most', () => {
   const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'monthly', start: '2026-09-01', totals: { sales: 24000, spend: 9000, mer: 2.67, cm: null }, previous: { sales: 20000, spend: 8000, mer: 2.5 }, url: 'https://x/y',
     from_you: ['aaaaa ' + 'word '.repeat(40), 'two', 'three', 'four'] });
   const L = t.split('\n');
   assert.equal(L[0], '*Grunk Dolfer \u00b7 September report*');
-  assert.equal(L[2], '*The month* (compared with the month before)');
-  assert.equal(L[3], '\u2022 Sales: *$24,000* (up 20%)');
-  assert.ok(!t.includes('Profit') && !t.includes('This month'), t);
+  assert.equal(L[1], '_Sales up 20% on 13% more ad spend, and it paid: each ad dollar brought back more._');
+  assert.equal(L[3], '*The month* (compared with the month before)');
+  assert.equal(L[4], '\u2022 Sales: *$24,000* (up 20%)');
+  assert.ok(!t.includes('Contribution margin') && !t.includes('This month'), t);
   const asks = L.slice(L.indexOf('*We need from you*') + 1).filter(l => l.startsWith('\u2022'));
-  assert.equal(asks.length, 3); assert.ok(asks[0].length <= 124 && asks[0].endsWith('...'), asks[0]);
-});
-await check('sentenceOf borrows the first sentence of What it means from the frozen summary', () => {
-  const s = 'What we saw\n• Sales fell 15% on the same spend.\nWhat it means\nThe Burgundy drop cooled off and nothing replaced it, so the same ad money bought fewer sales. Next week the Splatter launch should lift it.\nWhat we\'re doing\n• Three ads into testing.';
-  assert.equal(sentenceOf(s), 'The Burgundy drop cooled off and nothing replaced it, so the same ad money bought fewer sales.');
-  assert.equal(sentenceOf('nothing here'), null);
-  assert.equal(sentenceOf('What we saw\n• x.\n\nWhat it means\n\nSame spend bought fewer sales. More.'), 'Same spend bought fewer sales.', 'a blank line after the title is fine');
+  assert.equal(asks.length, 3); assert.ok(asks[0].length <= 164 && asks[0].endsWith('...'), asks[0]);
 });
 
 /* ---------------- the calendar pieces for the weekly ---------------- */
-await check('clientBits: confirmed dates in 14 days and the asks, one computation shared with the preview; no bot post to clients left in calendar.js', () => {
+await check('clientBits: confirmed dates in the window (7 days for the weekly) and the asks; no bot post to clients left in calendar.js', () => {
   const data = { items: [
     { act: 'brand_alpha', src: 'cal', kind: 'drop', name: 'Splatter Collection (name TBD)', status: 'conf', start: '2026-10-23', end: '2026-10-23', assets: false, offer: false },
     { act: 'brand_alpha', src: 'cal', kind: 'sale', name: 'Old sale', status: 'conf', start: '2026-10-01', end: null },
@@ -126,6 +149,8 @@ await check('clientBits: confirmed dates in 14 days and the asks, one computatio
   const b = { id: 'brand_alpha', name: 'Alpha Golf' };
   const bits = clientBits(data, b, '2026-10-19');
   assert.deepEqual(bits.soon.map(e => e.name), ['Splatter Collection (name TBD)']);
+  assert.deepEqual(clientBits(data, b, '2026-10-19', 3).soon, [], 'Oct 23 is outside a 3-day window');
+  assert.deepEqual(clientBits(data, b, '2026-10-19', 6).soon.map(e => e.name), ['Splatter Collection (name TBD)'], 'inside 7 days');
   assert.deepEqual(bits.need, ['Photos for Splatter Collection (live Fri Oct 23)', 'What customers get with Splatter Collection: full price or a deal?', 'Is Old sale still running? It has no end date yet.']);
   const m = clientMessages(data, b, '2026-10-19');
   assert.equal(m.length, 1); assert.match(m[0].text, /Splatter Collection goes live/);

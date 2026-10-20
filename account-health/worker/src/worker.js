@@ -14,7 +14,7 @@ import { handleAlerts, alertTick } from './alerts.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
-import { dailyPost, weeklyPost, headlineOf, sentenceOf, internalChannel } from './clientpost.js';
+import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls } from './callscreen.js';
@@ -3197,7 +3197,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
       await upsertBrief(env, acct.act_id, d, 'sent', channel, prow?.text || mp, full);
     }
     const top = await slackPost(env, channel, out, null, { asUser: true });
-    const rest = briefThreadText(text);
+    const rest = clientDailyThreadFor(acct, date, full);
     /* The reply failing must not unsend the headline the client already has: the send is recorded either way,
        and the internal channel hears about the missing thread. */
     if (rest && top?.ts) {
@@ -3233,14 +3233,23 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   }
 }
 
-/** The thread reply under the short daily: the whole brief minus its opener paragraph, which the short post
- *  already carries. Empty when nothing is left (a brief that is only an opener). */
-function briefThreadText(text) {
-  const parts = String(text || '').split(/\n\s*\n/);
-  return parts.slice(1).join('\n\n').trim();
+/** The thread reply under the client daily (clientpost.js dailyThread): more numbers for the same day, nothing a model
+ *  wrote. Orders and new vs returning, each ad channel that spent (Meta, Google) with the sales Triple Whale tracked to
+ *  it, contribution margin only when judgeCogs trusts the cost data. Empty when the day has no numbers. */
+function clientDailyThreadFor(acct, date, data) {
+  const day = (data?.days || []).find(x => x.date === date);
+  const a = day?.a;
+  if (!a || a.sales == null) return '';
+  const q = data?.cogs_quality?.verdict;
+  return dailyThread({
+    date, currency: acct.currency, cm_ok: !!q && q !== 'broken' && q !== 'none',
+    day: { sales: a.sales, orders: a.orders ?? null, new_orders: a.new_orders ?? null, new_rev: a.new_rev ?? null, ret_rev: a.ret_rev ?? null, cm: a.cm ?? null,
+      attr: !!a.attr_source,
+      channels: [{ name: 'Meta', spend: a.meta_spend, roas: a.meta_roas, purchases: a.meta_purchases }, { name: 'Google', spend: a.google_spend, roas: a.google_roas, purchases: a.google_purchases }] },
+  });
 }
 
-/** The six-line client daily for one date (clientpost.js dailyPost) from the brief data and the stored text.
+/** The client daily for one date (clientpost.js dailyPost) from the brief data: numbers only, no headline.
  *  `next` = the human Next line: for phase 1 the buyer's note box (settings briefNote:<act>, kept 2 days). */
 async function clientDailyFor(env, acct, date, text, data, { next = true } = {}) {
   const days = (data?.days || []).filter(x => x.a?.sales != null && x.date <= date);
@@ -3248,7 +3257,7 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
   const mtd = days.reduce((n, x) => n + (x.a.sales || 0), 0);
   const nextLine = next ? await briefNoteFor(env, acct.act_id, date).catch(() => null) : null;
   return dailyPost({
-    brand: acct.name, date, currency: acct.currency, headline: headlineOf(text),
+    brand: acct.name, date, currency: acct.currency,
     day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
     /* "of $27K planned" = the plan TO DATE (the forecast days so far), not the whole month's goal. */
     month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null),
@@ -3260,35 +3269,24 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
 }
 
 /** The weekly / monthly client post (clientpost.js weeklyPost) for a report row: the frozen totals against the prior
- *  period, one sentence, This week = the call's confirmed lines + the calendar's confirmed dates in 14 days, From you =
- *  the call's asks + the calendar's asks + open Requests, then the archive link. The draft card shows the same text. */
+ *  period, one sentence written by a rule from those numbers, This week = the Monday call's lines (meetings.js confirm)
+ *  + the calendar's confirmed dates in the next 7 days, We need from you = the call's asks + the calendar's asks + open
+ *  Requests asks (each with when it was asked and when it is needed), then the archive link. The draft card shows the
+ *  same text. No model writes any of it. */
 async function clientReportText(env, acct, row, data) {
   const period = row.period, start = row.period_start;
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
-  const sentence = sentenceOf(row.summary) || await reportSentence(env, acct, data).catch(() => null);
-  const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ)).catch(() => null) : null;
-  const asks = (await env.DB.prepare(`SELECT title FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
+  const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ), { days: 6 }).catch(() => null) : null;
+  const asks = (await env.DB.prepare(`SELECT title, body, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
     .bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const askOf = a => ({ text: a.title, asked: String(a.created_at || '').slice(0, 10) || null, due: (String(a.body || '').match(/Needed by (\d{4}-\d{2}-\d{2})/) || [])[1] || null });
   return weeklyPost({
-    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous, sentence,
+    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
+    sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
-    from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(a => a.title)],
+    from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(askOf)],
     url,
   });
-}
-
-/** One sentence on the period from the frozen totals, when the summary has no "What it means" to borrow from. */
-async function reportSentence(env, acct, data) {
-  const t = data?.totals || {}, p = data?.previous || {};
-  const f2 = n => n == null ? 'n/a' : String(Math.round(n * 100) / 100);
-  const label = data?.period === 'monthly' ? 'month' : 'week';
-  const out = await claude(env, {
-    system: `Write ONE plain sentence of 20 words or fewer on how a client's ${label} went, for the brand owner, from the numbers given. Say what changed and the most likely reason only if the numbers show it. No greeting, no figures beyond one, no em dashes, no jargon. Return the sentence only.`,
-    user: `Brand ${acct.name}. This ${label}: sales ${f2(t.sales)}, ad spend ${f2(t.spend)}, MER ${f2(t.mer)}, new customer share ${f2(t.new_share)}, profit ${f2(t.cm)}. Prior ${label}: sales ${f2(p.sales)}, ad spend ${f2(p.spend)}, MER ${f2(p.mer)}, profit ${f2(p.cm)}.`,
-    maxTokens: 2000,
-  });
-  const line = String(out || '').split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
-  return line && line.length <= 260 ? line.replace(/[\u2014\u2013]/g, ',') : null;
 }
 
 /** A brief that fails silently is worse than no brief - nobody notices for weeks.
@@ -7906,7 +7904,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!acct) return json({ error: 'unknown account' }, 404);
       const out = { brand: acct.name };
       const brow = await env.DB.prepare(`SELECT date, text FROM briefs WHERE act_id = ?1 AND text IS NOT NULL ORDER BY (status = 'sent') DESC, date DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
-      if (brow) { const data = await briefData(env, acct, brow.date).catch(() => null); out.daily = { date: brow.date, text: await clientDailyFor(env, acct, brow.date, brow.text, data) }; }
+      if (brow) { const data = await briefData(env, acct, brow.date).catch(() => null); out.daily = { date: brow.date, text: await clientDailyFor(env, acct, brow.date, brow.text, data), thread: clientDailyThreadFor(acct, brow.date, data) }; }
       const rrow = await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
       if (rrow) out.weekly = { start: rrow.period_start, status: rrow.status, text: await clientReportText(env, acct, rrow, safeJson(rrow.data_json, null)) };
       if (url.searchParams.get('post') === '1') {
@@ -7918,6 +7916,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           if (!out[k]) continue;
           const p = await slackPost(env, ch, `_Preview: ${acct.name} ${k}, exactly as the client sees it_\n\n${out[k].text}`, null, { username: 'Locus' });
           const link = p?.ts ? await slackApi(env, 'chat.getPermalink', { channel: p.channel || ch, message_ts: p.ts }).catch(() => null) : null;
+          if (k === 'daily' && out.daily.thread && p?.ts) await slackPost(env, ch, out.daily.thread, null, { username: 'Locus', thread_ts: p.ts }).catch(() => {});
           out.posted.push({ kind: k, ts: p?.ts || null, link: link?.permalink || null });
         }
       }

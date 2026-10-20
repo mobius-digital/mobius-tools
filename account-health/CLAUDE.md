@@ -2488,3 +2488,14 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   Weekly: `*Brand · Weekly report, Oct 12 to 18*`, the sentence in italics, `*The week* (compared with the week before)` with
   Sales / Ad spend "(up 7%)" in words, MER / aMER / Profit "(was ...)", then This week, `*We need from you*` (3 at most, clipped
   at 120 characters), "Open the full report". The preview route posts the daily and the weekly as two messages with permalinks.
+- **Third pass the same night (Cole: "it shouldn't sound like AI"; the loop on one page: docs/client-reporting-how-it-works.html).
+  NO MODEL WRITES A LINE A CLIENT READS.** The daily's AI headline is gone (title `*Brand · Daily update*`, then `*Yesterday, Thursday
+  Oct 15*`); the thread reply is `dailyThread` (numbers only: orders, new vs returning, every ad channel that spent with the sales Triple
+  Whale tracked to it, the rate withheld under two orders, contribution margin only when judgeCogs trusts the costs, one line of
+  definitions), never the brief's narrative (`briefThreadText` deleted). The weekly's sentence is `weekSentence` (nine fixed shapes
+  from sales and spend vs the period before; `sentenceOf` / `reportSentence` deleted), "Profit" is "Contribution margin" with
+  `CM_WORDS` under it, This week takes calendar dates in the next 7 days (`clientCalendarFor(..., {days: 6})`), and a Requests ask
+  reads "(asked Oct 13, needed by Oct 22)" from `created_at` and the body's "Needed by". The only non-number words a client gets are
+  typed: Next (the buyer's note), This week (callscreen.js `clientLines` tidies the call's typed batches into client words; a
+  "for the client" box would remove even that), the asks. The preview route posts the daily's thread too. test-clientpost.mjs 13.
+
