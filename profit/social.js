@@ -74,7 +74,8 @@
       .soc .soc-q{display:inline-flex;align-items:center;gap:4px}
       .soc .soc-q input{width:0;opacity:0;height:32px;padding:0;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;transition:width .16s,opacity .16s,padding .16s}
       .soc .soc-q.open input{width:190px;opacity:1;padding:0 10px}
-      .soc .soc-filt .hd-per-menu{min-width:280px;padding:10px 12px;gap:10px;left:auto;right:0}
+      .soc .soc-filt{position:relative}
+      .soc .soc-filt .hd-per-menu{min-width:280px;padding:10px 12px;gap:10px;left:0;right:auto;z-index:60}
       .soc .soc-filt.open .hd-per-menu{display:grid}
       .soc .soc-filt .fr{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--ink)}
       .soc .soc-filt .fr > div:first-child{flex:1;min-width:0}
