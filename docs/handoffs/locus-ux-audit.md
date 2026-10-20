@@ -41,7 +41,11 @@ Checked locally with real data at 1280 / 768 / 390, Agency view and Lucky, dark 
    detail window on the client archive), everything else under "More detail"; status is one chip in the control row;
    Send / Edit / More in the page header. Daily Brief and Dashboards: actions in the page header through hidden
    originals (`press()` pattern: the header buttons click the page's own buttons, every handler untouched).
-   NOT done (worker changes): call lines feeding the Brief's "What we're doing"; "Open the call" from a leak.
+   Follow-up PR (2026-10-20, branch claude/locus-ux-followups): a finished call appends its team jobs, briefs and promises to the
+   brand's buyer note (account-health callscreen.js `appendBriefNote`, settings `briefNote:<brand>`, deployed), so the Brief's
+   "What we're doing" carries them; Home > Leaks has "Put it on the call" (leaks.js sets `window.CCALL_ADD`, callscreen.js adds
+   the promised line and opens on This week); Today's calls rows are one primary + Done + a "..." menu (desk.js, a bottom sheet
+   on a phone whose buttons press the row's own).
 4. Social: the sibling session's branch `claude/social-teardown-51ff4c`, not this PR.
 5. Copy and connective tissue: Find reaches open tasks and Production cards (team only, one read per 5 minutes); a leak
    row has "Make it a task" (POST /api/actions, source `leak`); empty states one line + one verb across the rebuilt pages.

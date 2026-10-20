@@ -48,8 +48,15 @@
       .dk .dk-counts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
       .dk .dk-cnt{border:1px solid var(--line);border-radius:8px;padding:7px 12px;background:var(--surface);display:flex;gap:8px;align-items:baseline;cursor:pointer;color:var(--ink)}
       .dk .dk-cnt b{font-size:17px}.dk .dk-cnt.on{border-color:var(--brand)}
-      .dk .dk-row{display:grid;grid-template-columns:72px minmax(0,1.2fr) minmax(0,1.6fr) auto;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
+      .dk .dk-row{display:grid;grid-template-columns:72px minmax(140px,1.2fr) minmax(0,1.6fr) max-content;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
       @media (max-width:820px){.dk .dk-row{grid-template-columns:1fr}}
+      /* THE KIT (2026-10-20): one primary button, Done, and a "..." menu for the rest (Ads Manager, Open in Locus, Something else, Not now). */
+      .dk .dk-more{position:relative;display:inline-flex}
+      .dk .dk-more-b{width:30px;padding:0!important;font-size:15px!important;letter-spacing:.5px}
+      .dk .dk-menu{display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:190px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,10px);box-shadow:var(--sh-pop);padding:4px;z-index:30;flex-direction:column}
+      .dk .dk-more.open .dk-menu{display:flex}
+      .dk .dk-menu button,.dk .dk-menu a{display:block;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);background:none;border:0;border-radius:var(--r-sm,6px);padding:8px 10px;cursor:pointer;text-decoration:none}
+      .dk .dk-menu button:hover,.dk .dk-menu a:hover{background:var(--line)}
       .dk .dk-k{font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:5px;text-align:center}
       .dk .dk-k.scale{background:var(--good-bg);color:var(--good)}.dk .dk-k.cut{background:var(--bad-bg);color:var(--bad)}.dk .dk-k.trim{background:var(--warn-bg);color:var(--warn)}.dk .dk-k.fix{background:var(--surface-2);color:var(--ink)}.dk .dk-k.refresh,.dk .dk-k.call{background:var(--brand-soft);color:var(--brand)}
       .dk .dk-row .nm{font-weight:600;word-break:break-word}.dk .dk-row .meta{font-size:12px;color:var(--muted)}.dk .dk-row .why{font-size:12.5px;color:var(--ink-2)}
@@ -337,7 +344,7 @@
       return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>${th}</div>
         <div><div class="nm">${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
         <div class="why">${esc(r.why || '')}${anchor}</div>
-        <div class="dk-acts">${primary}${am && r.kind !== 'fix' ? `<a class="v2btn ghost" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-locus="${k}"`, 'Open in Locus', ' title="See it on Ads > Meta with the numbers around it."')}${gb(`data-else="${k}"`, 'Something else', ' title="Give it to someone as an action item instead."')}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; };
+        <div class="dk-acts">${primary}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}<span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu">${am && r.kind !== 'fix' ? `<a href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-locus="${k}">Open in Locus</button><button type="button" data-else="${k}">Something else</button><button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
       return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b></span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
@@ -351,6 +358,23 @@
     const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
     const unDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); };
     root.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { KIND = b.dataset.k; today(false); });
+    const closeMore = () => root.querySelectorAll('.dk-more.open').forEach(m => { m.classList.remove('open'); const b = m.querySelector('.dk-more-b'); if (b) b.setAttribute('aria-expanded', 'false'); });
+    root.querySelectorAll('.dk-more-b').forEach(b => b.onclick = e => {
+      e.stopPropagation(); const w = b.closest('.dk-more'), menu = w.querySelector('.dk-menu');
+      if (window.LxPhone && LxPhone.isPhone && LxPhone.isPhone()) {
+        const name = (b.closest('.dk-row')?.querySelector('.nm') || {}).textContent || 'This call';
+        LxPhone.open(name.trim(), `<div class="dk-menu" style="display:flex;position:static;box-shadow:none;border:0">${menu.innerHTML}</div>`, box => box.addEventListener('click', ev => {
+          const t = ev.target.closest('button,a'); if (!t) return;
+          if (t.tagName === 'BUTTON') { ev.preventDefault(); const sel = [...t.attributes].filter(a => a.name.startsWith('data-')).map(a => `[${a.name}="${a.value.replace(/"/g, '\\"')}"]`).join(''); const orig = sel && menu.querySelector(sel); if (orig) orig.click(); }
+          setTimeout(() => LxPhone.close(), 0);
+        }));
+        return;
+      }
+      const open = w.classList.contains('open'); closeMore(); if (!open) { w.classList.add('open'); b.setAttribute('aria-expanded', 'true'); }
+    });
+    root.querySelectorAll('.dk-menu button').forEach(b => b.addEventListener('click', closeMore));
+    document.addEventListener('click', closeMore, { once: true });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore(); }, { once: true });
     root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { OPEN[b.dataset.more] = !OPEN[b.dataset.more]; today(false); });
     root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
     root.querySelectorAll('[data-snooze]').forEach(b => b.onclick = () => { const s2 = store('pf_today_snooze'); s2[todayKey] = { ...(s2[todayKey] || {}), [b.dataset.snooze]: 1 }; Object.keys(s2).forEach(k => { if (k !== todayKey) delete s2[k]; }); store('pf_today_snooze', s2); today(false); });

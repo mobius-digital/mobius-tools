@@ -368,6 +368,16 @@ export async function finishCall(env, d, body, who) {
   await env.DB.prepare(`INSERT INTO p_meeting (id, title, date, at, duration, organizer, attendees_json, chars, kind, notes_json, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, NULL, ?5, '[]', 0, ?6, ?7, 'extracted', ?4, ?4)
     ON CONFLICT(id) DO UPDATE SET notes_json = excluded.notes_json, status = 'extracted', updated_at = excluded.updated_at`).bind(mid, title, c.date, now(), who, notes.kind, JSON.stringify(notes)).run();
   const result = await confirmMeeting(env, d, { id: mid, summary: notes.summary, brands: notes.brands }, nameOfEmail(who));
+  /* THE KIT (2026-10-20): what the call decided feeds the brand's Daily Brief. The brief's "What we're doing" is written
+     only from the buyer's note (settings briefNote:<brand>, read for 2 days) and the Change Log, so the call's team jobs,
+     briefs and promises are appended there, one line each, never a line twice. A failure here never fails the call. */
+  try {
+    for (const b of notes.brands) {
+      if (!b.brand_id) continue;
+      const lines = (b.items || []).filter(x => x && x.kind !== 'client_owes' && clean(x.text, 300)).map(x => clean(x.text, 300));
+      if (lines.length) await appendBriefNote(env, b.brand_id, lines);
+    }
+  } catch (e) { console.log('brief note from call', e.message); }
   /* The client call's recap, only when the person ticked it and read it on the screen. */
   let recap = null;
   if (c.kind === 'client' && body.recap && clean(body.recap, 4000)) {
@@ -378,6 +388,17 @@ export async function finishCall(env, d, body, who) {
   await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, meeting_id = ?4, result_json = ?5 WHERE id = ?1`)
     .bind(c.id, who, now(), mid, JSON.stringify({ ...result, recap })).run();
   return { ok: true, kind: c.kind, meeting: mid, result, recap };
+}
+
+/** The buyer's note the Daily Brief reads (worker.js briefNoteFor): keep what is under 2 days old, add the new lines. */
+async function appendBriefNote(env, brandId, lines) {
+  const key = `briefNote:${brandId}`;
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
+  let cur = null; try { cur = row && row.value ? JSON.parse(row.value) : null; } catch {}
+  const fresh = cur && cur.at && Date.now() - Date.parse(cur.at) < 48 * 3600e3 ? String(cur.text || '') : '';
+  const have = new Set(fresh.split('\n').map(x => x.trim()).filter(Boolean));
+  const next = [...have, ...lines.filter(l => !have.has(l))].join('\n').slice(0, 1500);
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify({ text: next, at: new Date().toISOString() })).run();
 }
 
 /** What a finished call of that date already typed, for the Fireflies read of the same call (meetings.js extract). */

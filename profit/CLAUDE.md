@@ -3892,8 +3892,14 @@ work in its own Manage view. Screens before and after (desktop and phone): `docs
   labels), `body.nav-open` expands it to 248px over the page with the old drawer's scrim; the logo, `#pfPickBtn` and
   `#pfMeBtn` open it, a pick closes it, lx.js fires `resize` on `transitionend` so polish.js re-measures the sliding
   highlight. Rail items need nothing new; keep labels inside the button's `<span>` so the collapsed rule hides them.
-- Not done, needs a worker change: call lines feeding the Brief's "What we're doing"; "Open the call" from a leak.
-  Phase 4 (Social) is in `claude/social-teardown-51ff4c`.
+- **Call to Brief** (account-health callscreen.js `finishCall` > `appendBriefNote`): a finished Monday or client call appends
+  its team jobs, briefs and promises (never client_owes) to settings `briefNote:<brand>`, the buyer's note the Brief's "What
+  we're doing" reads for 2 days. One line each, never twice, capped at 1500 chars; a failure never fails the call.
+- **Leak to call** (leaks.js `[data-lkcall]` > `window.CCALL_ADD` > callscreen.js `open`): the client call opens on This week
+  with the leak as a promised line, saved once through PUT /api/calls/state.
+- **Today's calls row** (desk.js): primary, Done, then a `.dk-more` "..." menu (Ads Manager, Open in Locus, Something else,
+  Not now). The menu's buttons keep their data-* attributes, so the per-element wiring is unchanged; on a phone the menu is an
+  `LxPhone` sheet whose buttons press the row's own by matching those attributes.
 ## 2026-10-20 (later): SOCIAL REBUILD to the teardown spec (social.js?v=5, socialweek.js?v=3). Supersedes the Social UI sections above.
 
 Spec: `docs/locus-social/teardown/spec.html` (page https://claude.ai/artifact/N3GWj34WJnJFjAYij5KKEh), from the Later,
