@@ -86,10 +86,10 @@
       .cs .cs-tbl small{font-size:12px;margin-left:5px;font-weight:600}
       .cs .cs-tbl small.up{color:var(--good)}.cs .cs-tbl small.down{color:var(--bad)}
       .cs .cs-tw{overflow-x:auto}
-      .cs .ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+      .cs .ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:10px}
       .cs .ad{border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--bg);min-width:0;display:flex;flex-direction:column;text-align:left;padding:0;cursor:pointer;font:inherit;color:inherit;transition:border-color var(--t-fast) var(--ease)}
       .cs .ad:hover{border-color:var(--line-strong)}
-      .cs .ad .th{aspect-ratio:4/5;max-height:190px;width:100%;background:var(--line) center/cover no-repeat;position:relative;display:grid;place-items:center;font-size:12px;color:var(--muted);text-align:center;padding:8px}
+      .cs .ad .th{aspect-ratio:4/5;width:100%;background:var(--line) center/cover no-repeat;position:relative;display:grid;place-items:center;font-size:12px;color:var(--muted);text-align:center;padding:8px}
       .cs .ad .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;font-size:13px}
       .cs .ad .m{padding:8px 10px 0;font-size:13px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;display:flex;justify-content:space-between;gap:6px}
       .cs .ad .m.lose{color:var(--bad)}

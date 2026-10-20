@@ -196,7 +196,7 @@
     const x = cx + r * Math.cos(Math.PI - a), y = cy - r * Math.sin(a);
     const tick = t => { const b = Math.PI * t / max; return `<line x1="${(cx + r * Math.cos(Math.PI - b)).toFixed(1)}" y1="${(cy - r * Math.sin(b)).toFixed(1)}" x2="${(cx + (r + 9) * Math.cos(Math.PI - b)).toFixed(1)}" y2="${(cy - (r + 9) * Math.sin(b)).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5"/>`; };
     const tone = v == null ? 'var(--line-strong)' : v >= 3 ? 'var(--good)' : v >= 1.5 ? 'var(--warn)' : 'var(--bad)';
-    return `<svg class="v4-dial" viewBox="0 0 180 104" aria-hidden="true"><path d="M20 86 A70 70 0 0 1 160 86" fill="none" stroke="var(--surface-2)" stroke-width="12" stroke-linecap="round"/>${v ? `<path d="M20 86 A70 70 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${tone}" stroke-width="12" stroke-linecap="round"/>` : ''}${tick(1.5)}${tick(3)}<text x="90" y="80" text-anchor="middle" font-size="26" font-weight="650" fill="var(--ink)">${v != null ? K.x2(v) : '–'}</text><text x="90" y="98" text-anchor="middle" font-size="10.5" fill="var(--ink-2)">back per $1 spent, 90 days</text></svg>`;
+    return `<svg class="v4-dial" viewBox="0 0 180 114" aria-hidden="true"><path d="M20 86 A70 70 0 0 1 160 86" fill="none" stroke="var(--surface-2)" stroke-width="12" stroke-linecap="round"/>${v ? `<path d="M20 86 A70 70 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${tone}" stroke-width="12" stroke-linecap="round"/>` : ''}${tick(1.5)}${tick(3)}<text x="90" y="80" text-anchor="middle" font-size="26" font-weight="650" fill="var(--ink)">${v != null ? K.x2(v) : '–'}</text><text x="90" y="109" text-anchor="middle" font-size="10.5" fill="var(--ink-2)">back per $1 spent, 90 days</text></svg>`;
   }
   function waterfall(t, cur, marginPct) {
     const steps = marginPct != null
@@ -244,10 +244,11 @@
     else {
       const proj = fc && fc.projected != null ? fc.projected : mtd.sales / elapsed * dim, pace = fc && fc.at_current_pace ? fc.at_current_pace.sales : mtd.sales / elapsed * dim;
       const th = fc && fc.to_hit, gapP = proj - goal, gapC = pace - goal;
-      const line = (v, g) => `<b>${km(v)}</b>, ${g >= 0 ? `${km(g)} over` : `${km(-g)} short`}`;
+      /* three rows, one path each: label, the number, and how far from the goal (green over, red short) */
+      const prow = (l, v, g) => `<div class="v4-pr"><span>${l}</span><b>${km(v)}</b><small class="${g >= 0 ? 'good' : 'bad'}">${g >= 0 ? `${km(g)} over` : `${km(-g)} short`}</small></div>`;
       land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>
         ${ring(proj / goal, km(proj), `of ${km(goal)} goal`, pace / goal, 150)}
-        <p class="v4-ring-cap v4-paths"><span>Spending the budget: ${line(proj, gapP)}.</span><span>At today's pace: ${line(pace, gapC)}.</span>${th && !th.already_there && th.revenue_per_day > 0 ? `<span>To hit it: <b>${mo(th.revenue_per_day)} a day</b>${th.spend_per_day ? `, ${mo(th.spend_per_day)} of it ad spend` : ''}.</span>` : th && th.already_there ? '<span>Already there: the goal is banked.</span>' : ''}</p>
+        <div class="v4-paths">${prow('Spending the budget', proj, gapP)}${prow("At today's pace", pace, gapC)}${th && !th.already_there && th.revenue_per_day > 0 ? `<div class="v4-pr"><span>To hit it</span><b>${mo(th.revenue_per_day)} a day</b><small>${th.spend_per_day ? `${mo(th.spend_per_day)} of it ads` : ''}</small></div>` : th && th.already_there ? `<div class="v4-pr"><span>Already there</span><b>banked</b><small class="good">goal met</small></div>` : ''}</div>
         <button type="button" class="v2link v4-ring-go" data-go="plan">Edit the plan ›</button>`;
     }
 
@@ -259,13 +260,13 @@
     }), { max: Math.max(...weeks.map(w => Math.max(w.sales || 0, w.target_to_date || 0))) }) : '<p class="v2hint">Not enough Triple Whale history for the week view yet.</p>';
     const ret = mtd.ret_rev, nw = mtd.new_rev;
     const wkCard = `<div class="v2h"><h3>Weeks against target</h3><span class="cap">${fc && fc.basis && fc.basis.amer ? `new customers at ${K.x2(fc.basis.amer)} aMER` : 'grey is the target'}</span></div>${wk}
-      <div class="v4-facts"><span>Banked <b>${km(mtd.sales)}</b></span>${ret != null ? `<span>Returning <b>${km(ret)}</b></span>` : ''}${nw != null ? `<span>New <b>${km(nw)}</b></span>` : ''}<span>Spent <b>${km(mtd.spend)}</b></span>${mtd.mer ? `<span>MER <b>${K.x2(mtd.mer)}</b></span>` : ''}</div>`;
+      <div class="v4-facts"><span><small>Banked</small><b>${km(mtd.sales)}</b></span>${ret != null ? `<span><small>Returning</small><b>${km(ret)}</b></span>` : ''}${nw != null ? `<span><small>New</small><b>${km(nw)}</b></span>` : ''}<span><small>Spent</small><b>${km(mtd.spend)}</b></span>${mtd.mer ? `<span><small>MER</small><b>${K.x2(mtd.mer)}</b></span>` : ''}</div>`;
 
     /* 3. is a customer worth what we pay (90 days, from /api/customers) */
     const h = cu && cu.headline;
     const cuCard = h ? `<div class="v2h"><h3>Is a customer worth what we pay?</h3><span class="cap">${h.thin ? `only ${K.int(h.new_orders)} new customers, read it loosely` : `${K.int(h.new_orders)} new customers in 90 days`}</span></div>
-      <div class="v4-dialrow">${dial(h.payback, 4.5)}<div class="v4-dial-t">${h.cac != null ? `Costs <b>${mo(h.cac)}</b> to get.<br>` : ''}${h.new_aov != null ? `First order <b>${mo(h.new_aov)}</b>${h.first_order_gp != null ? `, leaves <b>${mo(h.first_order_gp)}</b> after costs` : ''}.<br>` : ''}${h.repeat_share != null ? `<b>${K.pct(h.repeat_share, 0)}</b> of orders are repeat orders${h.returning_aov ? `, at ${mo(h.returning_aov)} each` : ''}.` : ''}</div></div>
-      <p class="v4-ring-cap v4-left">Under 1.5x the first order does not pay for the customer; over 3x there is room to bid harder. <button type="button" class="v2link" data-go="customers">Customers ›</button></p>`
+      <div class="v4-dialrow">${dial(h.payback, 4.5)}<div class="v4-cfacts">${h.cac != null ? `<div><b>${mo(h.cac)}</b><small>to get a customer</small></div>` : ''}${h.new_aov != null ? `<div><b>${mo(h.new_aov)}</b><small>first order</small></div>` : ''}${h.first_order_gp != null ? `<div><b>${mo(h.first_order_gp)}</b><small>left after costs</small></div>` : ''}${h.repeat_share != null ? `<div><b>${K.pct(h.repeat_share, 0)}</b><small>repeat orders${h.returning_aov ? `, ${mo(h.returning_aov)} each` : ''}</small></div>` : ''}</div></div>
+      <p class="v4-ring-cap v4-left">Under 1.5x the first order does not pay for the customer. Over 3x there is room to bid harder. <button type="button" class="v2link" data-go="customers">Customers ›</button></p>`
       : `<div class="v2h"><h3>Is a customer worth what we pay?</h3></div><p class="v2hint">Customer numbers need Triple Whale orders synced for this brand.</p>`;
 
     /* 4. where the money went, month to date */
@@ -339,7 +340,8 @@
       const first = rs[0], gaps = rs.filter(x => x.sev === 'info'), real = rs.filter(x => x.sev !== 'info');
       const keptCell = !k || !k.has ? '<span class="v4-quiet">not synced yet</span>' : k.kept == null ? '<span class="v4-quiet">cost data needed</span>' : `<div class="v4-kb"><span class="tr"><i class="${k.kept < 0 ? 'bad' : ''}" style="width:${(Math.max(0, k.kept) / maxKept * 100).toFixed(1)}%"></i>${k.normal != null && k.normal > 0 ? `<b style="left:${Math.min(100, k.normal / maxKept * 100).toFixed(1)}%" title="a normal day"></b>` : ''}</span><b class="${k.kept < 0 ? 'bad' : ''}">${K.money(k.kept, cur)}</b></div><small>on ${K.money(k.sales, cur)} of sales${k.normal != null ? ` · normal ${K.money(k.normal, cur)}` : ''}</small>`;
       const why = real.length ? `<span class="v4-chip ${r.sev === 'bad' ? 'cut' : 'refresh'}">${r.sev === 'bad' ? 'act now' : 'look'}</span><span class="v4-whyt">${real.slice(0, 2).map(x => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:${K.esc(x.go || 'morning')}">${K.esc(x.text)}</button>`).join('')}${real.length > 2 ? `<small>${real.length - 2} more</small>` : ''}</span>` : `<span class="v4-ok">Nothing needs you here.</span>`;
-      const chips = gaps.length ? gaps.map(g => `<span class="v4-gap-c">${K.esc(g.text.replace(/\.$/, ''))}</span>`).join('') : '';
+      /* the chip is the count and the kind, never the task names: "4 Asana tasks overdue", "2 tasks stuck 10+ days" */
+      const chips = gaps.length ? gaps.map(g => `<span class="v4-gap-c">${K.esc(String(g.text).split(':')[0].replace(' in the same stage', '').replace(/\.$/, '').trim())}</span>`).join('') : '';
       return `<div class="v4-brow">${brandCell(a, r.sev, chips)}<div>${keptCell}</div><div>${pct != null ? ring(pct, `${Math.round(pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div><div class="v4-why">${why}</div><div class="v4-wk"><b>${K.kmoney(w.sales, cur)}</b>${p.sales ? K.delta(w.sales, p.sales) : ''}<span class="v4-quiet">MER ${K.x2(w.spend ? w.sales / w.spend : null)}</span></div></div>`;
     };
     $('#main').innerHTML = shell(`${book}<section class="v2card v4-boardc"><div class="v4-bhead"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>${K.esc(H.rangeLabel())}</span></div>${rows.map(rowHtml).join('')}
