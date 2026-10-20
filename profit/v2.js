@@ -2388,9 +2388,9 @@
     if (!boards.length) { $('#main').innerHTML = shell('inspo', title, card('No board yet', '', '<p class="v2hint">Make a board for this brand in Atria and save reference ads into it; they show here for the whole team.</p>')); return; }
     const pick = INSPO.get(a.act_id) || boards[0].id;
     $('#main').innerHTML = shell('inspo', title, `<p class="v2say lead">Reference ads the team saved in Atria. Long-running ads are usually the profitable ones: a signal, not proof.</p>
-      <div class="v2jobs">${boards.map(b => `<button type="button" data-board="${esc(b.id)}" class="${b.id === pick ? 'on' : ''}">${esc(b.name)}</button>`).join('')}</div><div id="v2inspo"><section class="v2card v2sk"><i class="h"></i>${skGal(8)}</section></div>`);
+      <div class="v2libbar" style="margin:0 0 14px">${PM().html('inspoBoard', 'Board', boards.map(b => [b.id, b.name, '']), pick)}</div><div id="v2inspo"><section class="v2card v2sk"><i class="h"></i>${skGal(8)}</section></div>`);
     const root = $('#main');
-    root.querySelectorAll('[data-board]').forEach(b => b.onclick = () => { INSPO.set(a.act_id, b.dataset.board); inspo(false); });
+    PM().wire(root.querySelector('#inspoBoard'), v => { INSPO.set(a.act_id, v); inspo(false); });
     let r; try { r = await H.apiAH(`/api/atria/board?board_id=${encodeURIComponent(pick)}&act=${encodeURIComponent(a.act_id)}`); } catch (e) { r = { error: e.message }; }
     if (t !== H.RUN()) return; const host = document.getElementById('v2inspo'); if (!host) return;
     if (r.reason === 'not_connected') { host.innerHTML = card('Atria is not connected', '', '<p class="v2hint">Cole connects it once for the whole team: Studio > Connections > Connect Atria.</p>'); return; }
@@ -3235,18 +3235,18 @@
     const c = d.counts || {}, total = (c.tagged || 0) + (c.new || 0), base = H.AH_URL || '';
     const img = x => `${base}/assets-img/${encodeURIComponent(a.act_id)}/${encodeURIComponent(x.file_id)}`;
     const SET = (d.settings || []).filter(s => s.setting);
-    const body = `<p class="v2say lead">${int(total - (d.looks || 0))} images from ${esc(a.name)}’s Drive${d.looks ? ` and ${int(d.looks)} made by Locus` : ''}${c.new ? `, ${int(c.new)} still being tagged` : ''}. ${d.synced_at ? `Checked ${esc(new Date(d.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}.` : 'Not read yet.'} New files anywhere in the folder are picked up within the hour.</p>
+    const body = `<p class="v2say lead">${int(total - (d.looks || 0))} images from ${esc(a.name)}’s Drive${d.looks ? ` and ${int(d.looks)} made by Locus` : ''}${c.new ? `, ${int(c.new)} still being tagged` : ''}. ${d.synced_at ? `Checked ${esc(new Date(d.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}.` : 'Not read yet.'}</p>
       <div class="v2libbar"><input type="search" id="libQ" placeholder="Search: man in a polo on a white background, wedge close-up, golf course…" value="${esc(LIBF.q)}">
         <div class="v2jobs">${[['', 'Everything'], ['yes', 'With people'], ['no', 'No people'], ...(d.looks ? [['locus', 'Made by Locus']] : [])].map(([k, l]) => `<button type="button" data-ppl="${k}" class="${LIBF.people === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        <div class="v2jobs">${[{ setting: '', n: total }, ...SET].map(s => `<button type="button" data-set="${esc(s.setting)}" class="${LIBF.setting === s.setting ? 'on' : ''}">${esc(s.setting || 'Any setting')}${s.setting ? ` <em>${s.n}</em>` : ''}</button>`).join('')}</div>
+        ${PM().html('libSet', 'Setting', [['', 'Any setting', ''], ...SET.map(s => [s.setting, s.setting, `${s.n} images`])], LIBF.setting, { cls: LIBF.setting ? 'on' : '' })}
         <button type="button" class="v2btn" id="libSync" style="margin:0">Check Drive now</button></div>
       ${(d.items || []).length ? `<div class="v2lib">${d.items.map((x, i) => `<button type="button" class="it" data-i="${i}"${tipAttr(esc(x.descr || x.name))}>${x.thumb_key ? `<img loading="lazy" src="${img(x)}" alt="">` : `<span class="v2hint">Tagging…</span>`}${x.people ? `<em>${x.people} ${x.people === 1 ? 'person' : 'people'}</em>` : ''}${x.source === 'locus' ? '<em style="top:6px;bottom:auto;background:var(--brand);color:var(--on-brand)">Made by Locus</em>' : ''}</button>`).join('')}</div>`
         : card(total ? 'Nothing matches' : 'No images yet', '', `<p class="v2hint">${total ? 'Try fewer words or another filter.' : `Locus reads ${esc(a.name)}’s Drive folder from Brand settings > Integrations. Press Check Drive now to read it.`}</p>`)}
-      ${foot('Images stay where they are in Drive; nothing is moved, renamed or copied there. Each new image is tagged once by a small AI model (about a tenth of a cent); after that, searching is free.')}`;
+      ${foot('New files anywhere in the folder are picked up within the hour. Images stay where they are in Drive; nothing is moved, renamed or copied. Each new image is tagged once by a small AI model; after that, searching is free.')}`;
     $('#main').innerHTML = shell('library', title, body); const root = $('#main');
     const q = root.querySelector('#libQ'); let tm = null; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { LIBF.q = q.value; library(false); }, 350); };
     root.querySelectorAll('[data-ppl]').forEach(b => b.onclick = () => { LIBF.people = b.dataset.ppl; library(false); });
-    root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { LIBF.setting = b.dataset.set; library(false); });
+    PM().wire(root.querySelector('#libSet'), v => { LIBF.setting = v; library(false); });
     root.querySelector('#libSync').onclick = async e => { const b = e.target; b.disabled = true; b.textContent = 'Reading Drive and tagging…'; try { const r = await H.apiAH(`/api/assets/sync?act=${encodeURIComponent(a.act_id)}&tag=30`, { method: 'POST' }); b.textContent = r.sync?.error ? r.sync.error : `Found ${int(r.sync?.files)} images; tagged ${int(r.tag?.tagged)} more`; setTimeout(() => library(false), 1200); } catch (err) { b.textContent = err.message; } };
     /* Studio's Dress step and "Use as the ad" (studio.js, 2026-10-08). A look (made by Locus) shows how it was made instead of a Drive link. */
     const st = { tok: H.S.tok, url: H.S.url, act: a.act_id };

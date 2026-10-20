@@ -46,7 +46,9 @@
       .ag .ag-mrow select{font:inherit;font-size:13px;height:30px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);padding:0 8px}
       .ag .ag-mrow .amt{text-align:right;font-variant-numeric:tabular-nums}
       .ag .ag-wl{overflow-x:auto;margin:0 -4px;padding:0 4px}
-      .ag .ag-grid{display:grid;grid-template-columns:150px repeat(8,minmax(118px,1fr));min-width:1100px;border-top:1px solid var(--line)}
+      /* PHASE 7: the week fits the page at 1024 and up (no sideways scroll); under that the board scrolls */
+      .ag .ag-grid{display:grid;grid-template-columns:118px repeat(8,minmax(0,1fr));min-width:0;border-top:1px solid var(--line)}
+      @media (max-width:1000px){.ag .ag-grid{grid-template-columns:150px repeat(8,minmax(118px,1fr));min-width:1100px}}
       .ag .ag-grid>div{border-bottom:1px solid var(--line);padding:10px 8px;min-width:0}
       .ag .ag-grid .gh{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:10px 8px 8px}
       .ag .ag-grid .gh small{display:block;font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}

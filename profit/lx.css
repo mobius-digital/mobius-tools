@@ -321,3 +321,12 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 
 /* Website > Who visits: two half-width tables, the first column needs no 140px floor */
 [data-ui="v2"] .lx-who .v2tbl td:first-child,[data-ui="v2"] .v2two .v2tbl td:first-child{min-width:0}
+/* Settings > Social (phase 7, Cole saw it scroll sideways): the section grid is one fitted column, the following
+   table's handles wrap instead of forcing the width */
+[data-ui="v2"] .soc-set{grid-template-columns:minmax(0,1fr)}
+[data-ui="v2"] .soc-set .soc-tbl td:first-child,[data-ui="v2"] .soc-set .soc-tbl td:first-child *{white-space:normal}
+[data-ui="v2"] .soc-set .soc-tbl td:first-child{min-width:0}
+/* two small fits (phase 7): the ingredient tables and a card caption never push their card wider */
+[data-ui="v2"] .v2tgrid{grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr))}
+[data-ui="v2"] .v2tg{min-width:0;overflow:hidden}
+[data-ui="v2"] .v2h > .cap{min-width:0;max-width:100%}

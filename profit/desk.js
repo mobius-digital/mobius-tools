@@ -595,7 +595,10 @@
     return { text: 'Rework the offer, consider turning ads off', cls: 'bad', ok: 1 };
   }
   const kpi = (label, value, sub, tone, tip) => `<div class="wr-k${tone ? ' ' + tone : ''}"${tip ? U().tipAttr(tip) : ''}><span class="l">${label}</span><b>${value}</b>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
-  const sec = (id, n, done, title, sub, body, cap) => `<section class="v2card wr-sec" id="${id}"><div class="v2h"><h3><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span>${esc(title)}</h3>${cap ? `<span class="cap">${cap}</span>` : ''}</div>${sub ? `<p class="v2hint wr-sub">${sub}</p>` : ''}${body}</section>`;
+  /* PHASE 7 (2026-10-20): the first sentence of a step's note is its one caption under the title; the rest waits in the
+     card's "..." so no step opens with a paragraph. */
+  const sec = (id, n, done, title, sub, body, cap) => { const m = /^(.*?[.!?])\s+(\S[\s\S]*)$/.exec(sub || ''); const find = m ? m[1] : sub || '', rest = m ? m[2] : '';
+    return `<section class="v2card wr-sec" id="${id}"><div class="v2h"><h3><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span>${esc(title)}</h3>${find ? `<span class="find">${find.replace(/[.!?]$/, '')}</span>` : ''}${cap ? `<span class="cap">${cap}</span>` : ''}${rest && window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(rest) : ''}</div>${body}</section>`; };
 
   function warStop() { if (WR.timer && !WR.tv) { clearInterval(WR.timer); WR.timer = null; } }
   /** page = 'warplan' | 'warlive' | 'war' (old id: the mode comes from window.WAR_MODE, then the switch, then the date). */
