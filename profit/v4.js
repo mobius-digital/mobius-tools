@@ -131,5 +131,56 @@
     if (window.LeaksCard && (window.LeaksCard.strip || window.LeaksCard.full)) (window.LeaksCard.strip || window.LeaksCard.full)($('#v4strip'), H, 'home');
     if (window.CalendarTab) window.CalendarTab.homeCard($('#v4cal'), H);
   }
-  window.V4 = { render };
+  /* ---------- Ads > Calls, phase 2: Google negatives in the queue and the ad set panel ---------- */
+  /* One call per Google search-term leak: the leak finder already lists the wasted searches and can write the negatives.
+     desk.js today() pushes these rows into its ranked list (kind 'neg'); the primary button runs the same Add all modal. */
+  async function extraCalls(H, one) {
+    const L = window.LeaksCard; if (!L || !L.load) return [];
+    L.setHost(H);
+    const accts = (one ? [one] : (H.S.accounts || []).filter(a => !a.internal)).slice(0, 12);
+    const M = window.V2 && window.V2.kit;
+    const out = [];
+    await Promise.all(accts.map(async a => {
+      let d; try { d = await L.load(a.act_id); } catch { return; }
+      for (const l of (d && d.leaks) || []) {
+        if (!(l.apply && l.apply.kind === 'negative') || !(l.items || []).length) continue;
+        const n = l.items.length, spend = l.items.reduce((s, x) => s + (x.spend || 0), 0), cur = d.currency || a.currency || 'USD';
+        out.push({ kind: 'neg', act_id: a.act_id, brand: a.name, currency: cur, key: `neg:${a.act_id}:${l.id || l.title}`, stake: l.cost_month || spend, leak: l, leakData: d, acct: a,
+          adset: l.title || 'Wasted searches on Google', spend, orders: 0, n_ads: null,
+          why: `${n} search${n === 1 ? '' : 'es'} spent ${M ? M.money(spend, cur) : spend} with no sale${l.cost_month ? `, about ${M ? M.money(l.cost_month, cur) : l.cost_month} a month` : ''}. ${l.fix || 'Each becomes an exact negative keyword on its own campaign.'}` });
+      }
+    }));
+    return out;
+  }
+  function negatives(H, r, after) { const L = window.LeaksCard; if (!L || !L.addAll) return; L.setHost(H); L.addAll(r.acct, r.leakData, r.leak, after); }
+
+  /* The ad set panel: the reason as a sentence, the numbers against the goal, the ads in the set (anchor first), the one
+     button. Opened from a row's name on Ads > Calls; a bottom sheet on a phone (V2.panel). */
+  async function setPanel(H, r, opts = {}) {
+    const V = window.V2; if (!V || !V.panel) return;
+    V.setHost(H); K = V.kit;
+    const cur = r.currency || 'USD', $ = v => K.money(v, cur);
+    const DO = { scale: 'Raise the budget 20%', cut: 'Pause the ad set', trim: 'Turn off the ad' };
+    const nums = [['Spent', r.spend != null ? $(r.spend) : '–'], [r.metric === 'roas' ? 'Sales' : 'Sales', K.int(r.orders)], ['Per sale', r.cpa ? $(r.cpa) : (r.spend ? 'no sale' : '–')], ['Goal', r.goal ? $(r.goal) : '–'], ['ROAS', r.roas ? K.x2(r.roas) : '–'], ['Days judged', r.days != null ? String(r.days) : '–']];
+    const tone = r.goal && r.cpa ? (r.cpa <= r.goal ? 'good' : r.cpa > r.goal * 1.5 ? 'bad' : 'warn') : '';
+    V.panel(r.adset || r.ad || 'Ad set', `<div class="v4-pan">
+      <div class="v4-pan-top"><span class="v4-chip ${K.esc(r.kind)}">${K.esc(r.kind)}</span><span class="v4-pan-brand">${K.esc(r.brand || '')}${r.campaign ? ` · ${K.esc(r.campaign)}` : ''}</span></div>
+      <p class="v4-why">${K.esc(r.why || '')}${r.anchor && r.n_ads > 1 ? ` <span class="faint">The anchor is "${K.esc(r.anchor.name || '')}", ${Math.round((r.anchor.share || 0) * 100)}% of the set's spend.</span>` : ''}</p>
+      <div class="v4-nums">${nums.map(([l, v], i) => `<div${i === 2 && tone ? ` class="${tone}"` : ''}><small>${l}</small><b>${v}</b></div>`).join('')}</div>
+      <div class="v4-pacts">${opts.doIt && DO[r.kind] ? `<button type="button" class="v2btn" id="v4pDo">${DO[r.kind]}</button>` : ''}${opts.locus ? `<button type="button" class="v2btn ghost" id="v4pLocus">Open in Locus</button>` : ''}${opts.am ? `<a class="v2btn ghost" href="${K.esc(opts.am)}" target="_blank" rel="noopener">Ads Manager</a>` : ''}</div>
+      <h4 class="v4-pan-h">The ads in this set</h4><div id="v4pads"><p class="v2hint">Loading…</p></div></div>`);
+    const p = document.getElementById('v2panel'); if (!p) return;
+    const b1 = p.querySelector('#v4pDo'); if (b1) b1.onclick = () => { V.closePanel(); opts.doIt(); };
+    const b2 = p.querySelector('#v4pLocus'); if (b2) b2.onclick = () => { V.closePanel(); opts.locus(); };
+    const host = p.querySelector('#v4pads');
+    if (!r.adset_id) { host.innerHTML = ''; return; }
+    let d; try { d = await K.get(`/api/hub/creative?act=${encodeURIComponent(r.act_id)}&${H.rangeQ()}${K.modelQ()}`); } catch { host.innerHTML = '<p class="v2hint">Could not load the ads.</p>'; return; }
+    if (!document.body.contains(host)) return;
+    const ads = (d.ads || []).filter(x => String(x.adset_id) === String(r.adset_id)).sort((a, b) => (b.spend || 0) - (a.spend || 0));
+    if (!ads.length) { host.innerHTML = `<p class="v2hint">No ad in this set spent in ${K.esc(H.rangeLabel())}.</p>`; return; }
+    host.innerHTML = `<div class="v4-adstrip">${ads.map((a, i) => `<button type="button" class="v4-ad${r.ad_id && String(a.id) === String(r.ad_id) ? ' is-call' : ''}" data-pid="${K.esc(a.id)}" data-pname="${K.esc(a.name || '')}"><span class="v4-ad-t" data-thumb="${K.esc(a.id)}">${a.media_type === 'video' ? '<i>&#9654;</i>' : ''}</span><b>${K.esc(a.name || a.id)}</b><small>${$(a.spend)} · ${a.cpa ? `${$(a.cpa)} per sale` : (a.purchases ? `${K.int(a.purchases)} sales` : 'no sale')}${i === 0 && ads.length > 1 ? ' · anchor' : ''}</small></button>`).join('')}</div>`;
+    if (V.thumbs) V.thumbs(host, ads.map(a => a.id), r.act_id, H);
+    host.querySelectorAll('[data-pid]').forEach(b => b.onclick = () => { if (V.playAd) V.playAd({ id: b.dataset.pid, name: b.dataset.pname, act: r.act_id, note: `In "${r.adset || ''}", ${r.brand || ''}.` }, H); });
+  }
+  window.V4 = { render, extraCalls, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
 })();

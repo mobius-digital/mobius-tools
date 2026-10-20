@@ -2240,7 +2240,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=13">
+<link rel="stylesheet" href="lx.css?v=14">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2396,14 +2396,14 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="nudge.js?v=4"></script>
 <script src="lx.js?v=7"></script>
 <script src="v2.js?v=68"></script>
-<script src="leaks.js?v=7"></script>
-<script src="desk.js?v=29"></script>
+<script src="leaks.js?v=8"></script>
+<script src="desk.js?v=31"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=8"></script>
 <script src="socialweek.js?v=4"></script>
 <script src="supply.js?v=7"></script>
-<script src="v4.js?v=1"></script>
+<script src="v4.js?v=2"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -3578,6 +3578,7 @@ const TAB_CRUMB = {
   brief: ['Reports', 'Daily Brief'], reports: ['Reports', 'Weekly and monthly'], dash: ['Reports', 'Dashboards'],
   settings: ['Settings', 'Settings'], health: ['Settings', 'Data check'], costs: ['Settings', 'Cost check'],
 };
+if (V4) Object.assign(TAB_CRUMB, { today: ['Ads', 'Calls'], channels: ['Ads', 'Accounts'], meta: ['Ads', 'Accounts'], campaigns: ['Ads', 'Accounts'], mtoday: ['Ads', 'Accounts'], google: ['Ads', 'Accounts'], gcampaigns: ['Ads', 'Accounts'], gads: ['Ads', 'Accounts'], gterms: ['Ads', 'Accounts'], tiktok: ['Ads', 'Accounts'], adcreative: ['Ads', 'Ads'], mbrowser: ['Ads', 'Ads'], angles: ['Ads', 'Tests'], tests: ['Ads', 'Tests'], changes: ['Ads', 'Changes'], gchanges: ['Ads', 'Changes'] });
 if (V4) Object.assign(TAB_CRUMB, { morning: ['Today', 'Morning'], overview: ['Today', 'Overview'], yesterday: ['Today', 'Day check'], leaks: ['Today', 'Leaks'], brief: ['Today', 'Brief'],
   profit: ['Money', 'P&amp;L'], plan: ['Money', 'Goals'], customers: ['Money', 'Customers'], store: ['Money', 'Store'], website: ['Money', 'Site'], search: ['Money', 'Search'], email: ['Money', 'Email'], stock: ['Money', 'Stock'], buying: ['Money', 'Buying'], drops: ['Money', 'Drops'],
   today: ['Ads', 'Calls'], tests: ['Ads', 'Calls &nbsp;/&nbsp; Test calls'], channels: ['Ads', 'Overview'],
@@ -4937,7 +4938,7 @@ const NAV = {
 const NAV4 = {
   today: { label: 'Today', tabs: [['morning', 'Morning'], ['leaks', 'Leaks'], ['yesterday', 'Day check'], ['brief', 'Brief']] },
   money: { label: 'Money', tabs: [['profit', 'P&L'], ['plan', 'Goals'], ['customers', 'Customers'], ['store', 'Store', 'b-shopify'], ['website', 'Site', 'b-ga'], ['search', 'Search', 'b-google'], ['email', 'Email', 'b-klaviyo'], ['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']] },
-  ads: { label: 'Ads', tabs: [['today', 'Calls'], ['channels', 'Overview'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['angles', 'Tests and angles']] },
+  ads: { label: 'Ads', tabs: [['today', 'Calls'], ['channels', 'Accounts'], ['adcreative', 'Ads'], ['angles', 'Tests'], ['changes', 'Changes']] },
   make: { label: 'Make', tabs: [['production', 'Pipeline'], ['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration'], ['social', 'Social'], ['amb', 'Creators'], ['answers', 'Brand']] },
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar'], ['warplan', 'Season']] },
   reports: { label: 'Reports', tabs: [['reports', 'Weekly and monthly'], ['dash', 'Dashboards'], ['requests', 'Requests']] },
@@ -4948,7 +4949,12 @@ if (V4) { for (const k of Object.keys(NAV)) delete NAV[k]; Object.assign(NAV, NA
 const SOCIAL_JOBS = [['social', 'Feed'], ['socialsaved', 'Saved'], ['socialweek', 'Week']];
 const BRAND_JOBS = [['answers', 'Client answers'], ['research', 'Research'], ['voice', 'Voice']];
 const SEASON_JOBS = [['warplan', 'The plan'], ['warlive', 'Live'], ['season', 'Offers and dates']];
-const V4_HOME = { socialsaved: 'social', socialweek: 'social', research: 'answers', voice: 'answers', brand: 'answers', copy: 'studio', warlive: 'warplan', season: 'warplan', war: 'warplan', ccall: 'calls', tests: 'today', overview: 'morning' };
+const V4_HOME = { socialsaved: 'social', socialweek: 'social', research: 'answers', voice: 'answers', brand: 'answers', copy: 'studio', warlive: 'warplan', season: 'warplan', war: 'warplan', ccall: 'calls', overview: 'morning',
+  meta: 'channels', campaigns: 'channels', mtoday: 'channels', google: 'channels', gcampaigns: 'channels', gads: 'channels', gterms: 'channels', tiktok: 'channels', mbrowser: 'adcreative', tests: 'angles', gchanges: 'changes' };
+/* Ads > Accounts: every platform table under one tab (phase 2). Google's own jobs show only with a direct Google Ads link. */
+const ACCOUNT_JOBS = [['channels', 'All'], ['meta', 'Meta'], ['campaigns', 'Meta campaigns'], ['google', 'Google'], ['gcampaigns', 'Google campaigns'], ['gterms', 'Search terms'], ['tiktok', 'TikTok']];
+const TEST_JOBS = [['angles', 'Angles'], ['tests', 'Test calls']];
+const CHANGE_JOBS = [['changes', 'Meta'], ['gchanges', 'Google']];
 const META_KIDS = ['meta', 'campaigns', 'adcreative', 'tests', 'changes', 'mtoday', 'mbrowser'];
 /* Google's jobs (2026-10-09): where the brand has a direct Google Ads link, the same depth as Meta: Overview,
    Campaigns, Ads (headlines as chips, Performance Max asset groups), Search terms and Changes (account-health google.js). */
@@ -5405,7 +5411,7 @@ function show(tab, opt) {
   const seg = $('#v2seg');
   if (seg) {
     const def = grp && NAV[grp];
-    const chan = grp === 'ads' && META_KIDS.includes(tab) ? 'meta' : grp === 'ads' && GOOGLE_KIDS.includes(tab) ? 'google' : tab === 'copy' ? 'studio' : (V4 && V4_HOME[tab] && tab !== 'overview') ? V4_HOME[tab] : tab;
+    const chan = (V4 && V4_HOME[tab] && tab !== 'overview') ? V4_HOME[tab] : grp === 'ads' && META_KIDS.includes(tab) ? 'meta' : grp === 'ads' && GOOGLE_KIDS.includes(tab) ? 'google' : tab === 'copy' ? 'studio' : tab;
     /* Stock is every brand's; Buying and Drops only where the brand has them switched on (supply.js). */
     /* Platform tabs show only where the brand has that platform (2026-10-09): connected, or spending through Triple Whale. All clients shows every tab. */
     const oneA = S.act !== 'all' ? S.accounts.find(x => x.act_id === S.act) : null;
@@ -5421,9 +5427,9 @@ function show(tab, opt) {
     if (window.SocialTab && !window.__socBrands && S.tok) { window.__socBrands = 1; window.SocialTab.setHost(socialHost()); window.SocialTab.loadBrands().then(() => { const r3 = $('#railSocial'); if (r3) r3.hidden = inAgency() || !(window.SocialTab.tabOk(S.act) || S.tab === 'social' || S.tab === 'socialsaved' || S.tab === 'socialweek'); }).catch(() => {}); }
     if (window.SupplyTab && !window.__spBrands && S.tok && (!isClient() || S.accounts.length)) { window.__spBrands = 1; window.SupplyTab.setHost(supplyHost()); window.SupplyTab.loadBrands().then(() => { const r2 = $('#railProducts'); if (r2) r2.hidden = inAgency() || !window.SupplyTab.tabOk('stock', S.act); if (NAV_OF(S.tab) === 'products' && !['stock', 'buying', 'drops'].includes(S.tab)) show(S.tab); }).catch(() => {}); }
     const gDirect = !!(oneA && Array.isArray(oneA.conn_kinds) && oneA.conn_kinds.includes('google_ads'));
-    const jobs0 = grp === 'ads' && chan === 'meta' ? META_JOBS : grp === 'ads' && chan === 'google' && gDirect ? GOOGLE_JOBS : (grp === 'creative' || grp === 'make') && chan === 'studio' ? STUDIO_JOBS : grp === 'make' && chan === 'social' ? SOCIAL_JOBS : grp === 'make' && chan === 'answers' ? BRAND_JOBS : grp === 'calendar' && chan === 'warplan' ? SEASON_JOBS : null;
+    const jobs0 = V4 && grp === 'ads' && chan === 'channels' ? ACCOUNT_JOBS.filter(([k]) => (k !== 'google' || platOk('google')) && (!['gcampaigns', 'gterms'].includes(k) || gDirect) && (k !== 'tiktok' || platOk('tiktok'))) : V4 && grp === 'ads' && chan === 'angles' ? TEST_JOBS : V4 && grp === 'ads' && chan === 'changes' ? (gDirect ? CHANGE_JOBS : null) : grp === 'ads' && chan === 'meta' ? META_JOBS : grp === 'ads' && chan === 'google' && gDirect ? GOOGLE_JOBS : (grp === 'creative' || grp === 'make') && chan === 'studio' ? STUDIO_JOBS : grp === 'make' && chan === 'social' ? SOCIAL_JOBS : grp === 'make' && chan === 'answers' ? BRAND_JOBS : grp === 'calendar' && chan === 'warplan' ? SEASON_JOBS : null;
     const jobs = jobs0 && isClient() ? jobs0.filter(j => clientTabOk(j[0])) : jobs0;
-    const lit = k => k === tab || (k === 'adcreative' && tab === 'mbrowser') || (k === 'meta' && tab === 'mtoday');
+    const lit = k => k === tab || (k === 'adcreative' && tab === 'mbrowser') || (k === 'meta' && tab === 'mtoday') || (k === 'gcampaigns' && tab === 'gads');
     seg.hidden = !(row1 || jobs) || !S.tok;
     if (!seg.hidden) {
       seg.innerHTML = (row1 ? `<div class="v2tabs" role="tablist">${row1.map(([k, l, ic]) => `<button type="button" role="tab" data-nav="${k}" class="${k === chan ? 'on' : ''}" aria-selected="${k === chan}">${ic ? `<svg class="bi ${ic}" aria-hidden="true"><use href="#${ic}"/></svg>` : ''}${esc(l)}</button>`).join('')}</div>` : '')

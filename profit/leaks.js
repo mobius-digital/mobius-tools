@@ -414,5 +414,5 @@
     host.querySelectorAll('[data-lkbrand]').forEach(tr => { const go = () => pick ? pick(tr.dataset.lkbrand, 'leaks') : null; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
   }
 
-  window.LeaksCard = { top, strip, full, brands, drop: act => CACHE.delete(act) };
+  window.LeaksCard = { top, strip, full, brands, drop: act => CACHE.delete(act), load, addAll, setHost: h => { H = h; css(); } };
 })();
