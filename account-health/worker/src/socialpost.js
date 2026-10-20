@@ -195,7 +195,7 @@ async function ytCallback(env, url) {
   const ch = await F('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', { headers: { Authorization: `Bearer ${tok.access}` } }).then(r => r.json()).catch(() => ({}));
   const c = ch.items?.[0];
   if (!c) throw new Error('That Google account has no YouTube channel. Sign in with the account that owns the channel.');
-  await putAccount(env, st.act_id, 'yt', { ext_id: c.id, name: c.snippet?.title || 'YouTube', handle: c.snippet?.customUrl || null, pic: c.snippet?.thumbnails?.default?.url || null, token: tok, scopes: tok.scope, mode: 'draft' }, st.email);
+  await putAccount(env, st.act_id, 'yt', { ext_id: c.id, name: c.snippet?.title || 'YouTube', handle: (c.snippet?.customUrl || '').replace(/^@/, '') || null, pic: c.snippet?.thumbnails?.default?.url || null, token: tok, scopes: tok.scope, mode: 'draft' }, st.email);
   return { act: st.act_id, name: c.snippet?.title || 'YouTube' };
 }
 async function ytAccess(env, acc) {
