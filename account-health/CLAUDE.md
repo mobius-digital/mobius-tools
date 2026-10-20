@@ -2597,3 +2597,27 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   6000 chars and stored even when empty so a silent post never costs twice. Photo and carousel posts answer `why` without a call.
   `/api/social/make` takes `mode: 'recreate'` (a RECREATE IT steer line in the note: same structure, change only product,
   setting and words) and appends the stored transcript as "What they say in it" when one exists. Deployed 2026-10-20.
+
+## 2026-10-20 (evening): Social reads Instagram through Meta, pauses the scraper, and feeds the morning card
+
+- **Instagram is FREE through Meta Business Discovery** (`igIdOf`, `igDiscover`, `igMetaItem` in social.js): the Mobius
+  Tools token reads any business or creator account's last 50 posts (`business_discovery.username(handle){media.limit(50)
+  {... media_url, thumbnail_url, children{...}}}`) with id, caption, likes, comments, views, type, product type, slides and
+  the video link. `pullBrand` tries Meta first and falls back to ScrapeCreators only when Meta failed (`meter.ig_meta_err`
+  is prefixed to the follow's error as "Instagram (Meta): ..."); `lookUp` tries Meta first too. A handle that is not a
+  business or creator account answers "Invalid user id" (Bad Birdie is @badbirdiegolf). New columns `slides_src` (JSON)
+  and `video_src` ride in from Meta so `slidesOf` and `videoOf` need no scraper call for Instagram. Proven 2026-10-20:
+  Takomo, Vice Golf, Bad Birdie 50 posts each, zero credits.
+- **The scraper PAUSES, never stops the pull**: `sc()` throws at once when `meter.paused`; `socialTick` sets `paused` from
+  `!DOWNLOADER_KEY || credits < LOW_CREDITS` and still runs every due follow, so Instagram and YouTube keep coming while
+  TikTok and topic searches wait. `GET /api/social` returns `paused`, `ig_meta` (META_TOKEN set), `yt_key` (YT_API_KEY set)
+  for the UI's source line. ScrapeCreators was at 0 credits on 2026-10-20 (the cached 58 was stale); YouTube falls back to
+  the scraper until Cole creates the Data API key in Google Cloud (the API is enabled on mobius-tools-506114; creating a
+  credential was blocked for the agent).
+- **feed()** adds per-follow stats (`followStats`: posts30, per_week, usual + usual_kind, best {id, ratio}, last_at) and
+  `suggest` (`suggestFrom`: accounts behind topic posts that no brand follow carries, by posts then views, top 12). `pub`
+  adds `seen` (first_seen as ISO) and `note`. `social_post.note` (guarded ALTER): `/api/social/save` takes `note`
+  (omitted = unchanged, '' = cleared, 600 chars). `breakoutsFor(env, act, sinceIso)` = breaking-out posts first seen after
+  a time, for morningcard.js (one line, kind `social`, the card keeps `social_at`). socialpost.js: `GET /api/social/grid
+  ?act=` = the Instagram account and the last 30 posts through Locus that target Instagram (Week > Preview). routes.js
+  rebuilt (transcript, slides and grid carry their comments).

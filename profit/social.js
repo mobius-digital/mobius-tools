@@ -18,6 +18,10 @@
  * pill), then handle + age on one line, one caption line, one metric row (views, usually, engagement).
  * The ratio only exists above the worker's floor (8+ posts and a 1k+ median; MIN_N / MIN_BASE in social.js there).
  * Data: account-health /api/social. CSS tokens only, no inline styles that fight phone.css. Never prompt() or alert().
+ * 2026-10-20 additions (from the feature inventory, docs/locus-social/teardown/): Follow @handle from a topic post, "Seen in your
+ * topics" suggestions and the Accounts roll-up in Manage follows, "N new since your last visit" + the Just added sort, notes on a
+ * saved post, S / M / C / T keys in the viewer, Copy link / caption / transcript, the "12 of 48" counter. Instagram comes free
+ * through Meta, YouTube free through the Data API; only TikTok and topic searches spend ScrapeCreators credits.
  * No em dashes. */
 (() => {
   let H = null;
@@ -35,7 +39,7 @@
   const FMP = { reel: 'Reels', carousel: 'Carousels', post: 'Posts', tiktok: 'TikToks', photos: 'TikTok photo posts', short: 'Shorts', video: 'YouTube videos' };
   const VIDEO = new Set(['reel', 'tiktok', 'short', 'video']);
   const MULTI = new Set(['carousel', 'photos']);
-  const SORTS = [['hot', 'Breaking out first', 'Ratio against what the account usually gets, then views'], ['views', 'Most views', ''], ['eng', 'Most engagement', 'Likes and comments per view'], ['new', 'Newest', '']];
+  const SORTS = [['hot', 'Breaking out first', 'Ratio against what the account usually gets, then views'], ['views', 'Most views', ''], ['eng', 'Most engagement', 'Likes and comments per view'], ['new', 'Newest', ''], ['added', 'Just added', 'What Locus pulled in most recently']];
   const WINS = [[7, 'Last 7 days'], [14, 'Last 14 days'], [30, 'Last 30 days'], [90, 'Last 90 days'], [0, 'Everything kept']];
   const MINV = [[0, 'Any views'], [1000, '1k+ views'], [10000, '10k+ views'], [100000, '100k+ views']];
   const MINE = [[0, 'Any engagement'], [0.01, '1%+ engagement'], [0.03, '3%+ engagement'], [0.05, '5%+ engagement']];
@@ -46,7 +50,7 @@
   const engOf = p => p.views ? (((p.likes || 0) + (p.comments || 0)) / p.views) : null;
   const dur = s => s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '';
   const ST = { on: [], loaded: false, data: null, act: null, page: 'social', view: store('soc_view2') || 'feed', src: '', plat: '', fmt: '', sort: store('soc_sort') || 'hot',
-    win: store('soc_win2') == null ? 30 : Number(store('soc_win2')) || 0, paid: store('soc_paid') === '1', minv: Number(store('soc_minv')) || 0, mine: Number(store('soc_mine')) || 0, q: '', qOpen: false, tag: '' };
+    win: store('soc_win2') == null ? 30 : Number(store('soc_win2')) || 0, paid: store('soc_paid') === '1', minv: Number(store('soc_minv')) || 0, mine: Number(store('soc_mine')) || 0, q: '', qOpen: false, tag: '', lastVisit: 0, newN: 0 };
   const VID = {};        // post id -> { src } | { embed } | { error }
   const SLIDES = {};     // post id -> [urls]
   const tagColor = name => `var(--${TAGC[[...String(name)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % TAGC.length]})`;
@@ -145,8 +149,22 @@
       .soc .soc-kind{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:600;background:var(--unk-bg);color:var(--ink-2)}
       .soc .soc-st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}
       .soc .soc-st i{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none} .soc .soc-st.bad i{background:var(--bad)} .soc .soc-st.wait i{background:var(--muted)}
+      .soc .soc-tbl .soc-st{white-space:normal;align-items:flex-start;max-width:260px;line-height:1.35} .soc .soc-tbl .soc-st i{margin-top:5px}
       .soc .soc-manage-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
       .soc .soc-manage-top p{margin:0;color:var(--muted);font-size:13px;flex:1 1 300px}
+      .soc .soc-sug{border:1px solid var(--line);border-radius:var(--soc-r);background:var(--surface);padding:14px 16px;margin:0 0 14px;display:grid;gap:8px}
+      .soc .soc-sug h4{margin:0;font-size:13.5px;font-weight:650} .soc .soc-sug p{margin:0;color:var(--muted);font-size:12.5px}
+      .soc .soc-sug .row{display:flex;align-items:center;gap:10px;font-size:13px;min-width:0} .soc .soc-sug .row b{font-weight:600} .soc .soc-sug .row small{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      .soc .soc-sug .row .soc-btn{margin-left:auto;flex:none}
+      .soc .soc-status .nw{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--brand-soft);color:var(--brand-ink,var(--brand));font-weight:600;border:0;font:inherit;font-size:12px;cursor:pointer}
+      .soc .soc-status .pz{color:var(--warn)}
+      .soc-view .vcount{position:absolute;top:26px;left:64px;font-size:12px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+      .soc-view .vcopy{font:inherit;font-size:11.5px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;margin-left:8px} .soc-view .vcopy:hover{color:var(--ink)}
+      .soc-view .vcap-h,.soc-view .vtr b{display:flex;align-items:center}
+      .soc-view .vnote textarea{width:100%;min-height:54px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;padding:7px 9px;resize:vertical}
+      .soc-view .vnote small{display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
+      .soc .soc-note{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .soc-view .vkeys{color:var(--muted);font-size:11px;letter-spacing:.02em}
       /* THE VIEWER: a dark full-height overlay, the media in the middle at phone proportions, a 340px column, a pinned bar */
       .soc-view{position:fixed;inset:0;z-index:9000;background:rgba(10,10,12,.96);display:grid;grid-template-columns:minmax(0,1fr) 340px;color:#fff;opacity:0;visibility:hidden;transition:opacity var(--t-fast,.14s)}
       .soc-view.on{opacity:1;visibility:visible}
@@ -279,7 +297,7 @@
       c.innerHTML = '<p class="v2hint">Reading the follows…</p>';
       try {
         const d = await H.apiAH(`/api/social?act=${encodeURIComponent(act)}`, { fresh: true });
-        const cred = d.credits == null ? '' : `<p class="cred ${d.credits < 1000 ? 'low' : ''}">ScrapeCreators: <b>${Number(d.credits).toLocaleString('en-US')} credits</b> left${d.credits < d.low ? ', the daily pull has stopped' : d.credits < 1000 ? `, the daily pull stops at ${d.low}` : ''}. ${CLI() ? '' : 'Top up at <a href="https://app.scrapecreators.com" target="_blank" rel="noopener">scrapecreators.com</a>: $47 buys 25,000, more than a year of this.'}</p>`;
+        const cred = CLI() ? '' : sourcesLine(d);
         c.innerHTML = `<h4>Following<span class="sp"></span>${CLI() ? '' : `<button type="button" class="soc-btn sm" id="socSetAdd">${ic('plus')} Follow</button>`}</h4>${followTable(d.follows || [], { act, compact: true })}${cred}`;
         wireFollowTable(c, d.follows || [], act, follows);
         const a = c.querySelector('#socSetAdd'); if (a) a.onclick = () => followModal(act, follows);
@@ -293,6 +311,15 @@
       catch (err) { msg.textContent = err.message; }
       b.disabled = false;
     };
+  }
+  /* Where the posts come from, in plain words (2026-10-20): Instagram is free through Meta, YouTube free through Google's
+     API once the key is set, only TikTok and topic searches spend ScrapeCreators credits. */
+  function sourcesLine(d) {
+    const parts = [`Instagram: ${d.ig_meta === false ? 'needs the Meta token' : 'free, through Meta'}`, `YouTube: ${d.yt_key === false ? 'free once the YouTube key is set (until then it uses ScrapeCreators)' : 'free, through Google'}`];
+    const c = d.credits == null ? null : Number(d.credits);
+    const paused = d.paused || (c != null && d.low != null && c < d.low);
+    parts.push(`TikTok and topic searches: ScrapeCreators, ${c == null ? 'credits unknown' : `${c.toLocaleString('en-US')} credits left`}${paused ? ', PAUSED until a top-up' : ''}`);
+    return `<p class="cred ${paused ? 'low' : ''}">${parts.map(esc).join(' · ')}.${paused ? ' Instagram and YouTube keep pulling; TikTok and topics wait. Top up at <a href="https://app.scrapecreators.com" target="_blank" rel="noopener">scrapecreators.com</a> ($47 = 25,000 credits).' : ''}</p>`;
   }
   function rail(act) { const b = document.getElementById('railSocial'); if (b) b.hidden = !tabOk(act); }
   function brandNameOf(act) { return ((H.S.accounts || []).find(a => a.act_id === act) || {}).name || 'this brand'; }
@@ -316,6 +343,8 @@
       return;
     }
     if (t !== H.RUN()) return;
+    if (ST.act !== act || !ST.lastVisit) { ST.lastVisit = Number(store(`soc_seen_${act}`)) || 0; store(`soc_seen_${act}`, String(Date.now())); }
+    ST.newN = ST.lastVisit ? (d.posts || []).filter(p => p.seen && Date.parse(p.seen) > ST.lastVisit).length : 0;
     ST.data = d; ST.act = act;
     if (ST.src && !(d.follows || []).some(f => f.id === ST.src)) ST.src = '';
     if (ST.view === 'manage' && ST.page === 'socialsaved') ST.view = 'feed';
@@ -339,7 +368,7 @@
     if (ST.q) { const q = ST.q.toLowerCase(); list = list.filter(p => [p.caption, p.handle, p.who, p.hook, p.ftag, p.sound, p.tag].some(x => String(x || '').toLowerCase().includes(q))); }
     const vol = p => p.views != null ? p.views : (p.likes || 0);
     const r = p => okRatio(p) ? p.ratio : 0;
-    const by = { hot: (a, b) => r(b) - r(a) || vol(b) - vol(a), views: (a, b) => vol(b) - vol(a), new: (a, b) => Date.parse(b.posted_at || 0) - Date.parse(a.posted_at || 0), eng: (a, b) => (engOf(b) || 0) - (engOf(a) || 0) };
+    const by = { hot: (a, b) => r(b) - r(a) || vol(b) - vol(a), views: (a, b) => vol(b) - vol(a), new: (a, b) => Date.parse(b.posted_at || 0) - Date.parse(a.posted_at || 0), eng: (a, b) => (engOf(b) || 0) - (engOf(a) || 0), added: (a, b) => Date.parse(b.seen || 0) - Date.parse(a.seen || 0) || r(b) - r(a) };
     return [...list].sort(by[ST.sort] || by.hot);
   }
   const narrowed = () => !!(ST.src || ST.plat || ST.fmt || ST.paid || ST.q || ST.minv || ST.mine || (ST.win !== 30 && !saved()));
@@ -349,7 +378,9 @@
     const who = names.length <= 3 ? names.join(', ').replace(/, ([^,]*)$/, ' and $1') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
     const last = fol.map(f => f.pulled_at ? Date.parse(f.pulled_at.replace(' ', 'T') + 'Z') : 0).filter(Boolean).sort((a, b) => b - a)[0];
     const errs = fol.filter(f => f.error).length;
-    return `<div class="soc-status"><span>Following <b>${esc(who)}</b></span>${last ? `<span>last pull ${esc(agoLong(new Date(last).toISOString()))}</span>` : '<span>first pull on its way</span>'}${errs ? `<span>${errs} with a problem, see Manage follows</span>` : ''}</div>`;
+    const d = ST.data || {};
+    const paused = !CLI() && (d.paused || (d.credits != null && d.low != null && d.credits < d.low));
+    return `<div class="soc-status"><span>Following <b>${esc(who)}</b></span>${last ? `<span>last pull ${esc(agoLong(new Date(last).toISOString()))}</span>` : '<span>first pull on its way</span>'}${ST.newN ? `<button type="button" class="nw ${ST.sort === 'added' ? 'on' : ''}" data-sort-added="1" ${U() ? U().tipAttr('Pulled in since you last opened Social. Click to sort by it.') : ''}>${ST.newN} new since your last visit</button>` : ''}${errs ? `<span>${errs} with a problem, see Manage follows</span>` : ''}${paused ? `<span class="pz">TikTok and topics paused (ScrapeCreators credits)</span>` : ''}</div>`;
   }
   function draw() {
     stopAll();
@@ -407,7 +438,7 @@
     wire(list);
   }
   function emptyState() {
-    return `<div class="soc-state"><b>Follow the brands and topics you want to watch</b><p>Type a brand's handle (like @takomogolf) and Locus finds it on Instagram, TikTok and YouTube, then pulls every new post once a day. Or follow a topic (like "golf short game").</p><div class="acts"><button type="button" class="soc-btn pri" id="socAdd2">${ic('plus')} Follow</button></div></div>`;
+    return `<div class="soc-state"><b>Follow the brands and topics you want to watch</b><p>Type a brand's handle (like @takomogolf) and Locus finds it on Instagram, TikTok and YouTube, then pulls every new post once a day. Instagram and YouTube cost nothing; TikTok and topic searches use ScrapeCreators credits. Or follow a topic (like "golf short game").</p><div class="acts"><button type="button" class="soc-btn pri" id="socAdd2">${ic('plus')} Follow</button></div></div>`;
   }
   function ratioPill(p, tip = true) {
     if (!okRatio(p) || p.ratio < 1.5) return '';
@@ -434,13 +465,15 @@
       <div class="soc-body"><span class="soc-who"><b>${esc(p.handle ? `@${p.handle}` : p.who)}</b><small>${esc(ago(p.posted_at))}</small>${topic ? `<span class="tp">${esc(topic)}</span>` : ''}</span>
         <span class="soc-cap">${esc((p.caption || '').replace(/\s+/g, ' '))}</span>
         ${metricRow(p)}
-        ${p.idea_id ? `<span class="soc-made">${ic('sparkles')} Our version started</span>` : saved() && p.tag ? `<span class="soc-tg"><i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i>${esc(p.tag)}</span>` : ''}</div></article>`;
+        ${p.idea_id ? `<span class="soc-made">${ic('sparkles')} Our version started</span>` : saved() && p.tag ? `<span class="soc-tg"><i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i>${esc(p.tag)}</span>` : ''}
+        ${saved() && p.note ? `<span class="soc-note" ${U() ? U().tipAttr(esc(p.note)) : ''}>${esc(p.note)}</span>` : ''}</div></article>`;
   }
   function wire(list) {
     const m = $('#main'), PM = window.PillMenu;
     m.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { ST.view = b.dataset.view; store('soc_view2', ST.view); draw(); });
     m.querySelectorAll('[data-tag-q]').forEach(b => b.onclick = () => { ST.q = ST.q === b.dataset.tagQ ? '' : b.dataset.tagQ; draw(); });
     m.querySelectorAll('[data-tag]').forEach(b => b.onclick = () => { ST.tag = b.dataset.tag; draw(); });
+    m.querySelectorAll('[data-sort-added]').forEach(b => b.onclick = () => { ST.sort = ST.sort === 'added' ? 'hot' : 'added'; store('soc_sort', ST.sort); draw(); });
     if (PM) {
       PM.wire(m.querySelector('#socSrc'), v => { ST.src = v; draw(); });
       PM.wire(m.querySelector('#socPlat'), v => { ST.plat = v; if (ST.fmt && !(ST.data.posts || []).some(p => p.fmt === ST.fmt && (!v || p.plat === v))) ST.fmt = ''; draw(); });
@@ -538,12 +571,12 @@
     const { w, done } = modal(`<div class="fl"><h3>Follow</h3>
       <span class="soc-seg" style="justify-self:start"><button type="button" data-k="brand" class="on">A brand</button><button type="button" data-k="topic">A topic</button></span>
       <label class="f"><span id="smL">The brand's handle</span><input type="text" id="smT" maxlength="80" placeholder="@takomogolf" autocomplete="off"></label>
-      <p class="hint" id="smH">Locus looks for the same handle on Instagram, TikTok and YouTube. A different handle somewhere? Add it below.</p>
+      <p class="hint" id="smH">Locus looks for the same handle on Instagram, TikTok and YouTube. A different handle somewhere? Add it below. Instagram needs a business or creator account.</p>
       <details id="smD"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Different handle on a platform</summary><div class="three" style="margin-top:8px">
         <label class="f">Instagram<input type="text" id="smIg" placeholder="@" autocomplete="off"></label><label class="f">TikTok<input type="text" id="smTt" placeholder="@" autocomplete="off"></label><label class="f">YouTube<input type="text" id="smYt" placeholder="@" autocomplete="off"></label></div></details>
       <div class="err" id="smE"></div>
       <div class="foot"><button type="button" class="soc-btn" data-x="1">Cancel</button><button type="button" class="soc-btn pri" id="smS">Follow</button></div></div>`);
-    const set = v => { kind = v; w.querySelectorAll('[data-k]').forEach(b => b.classList.toggle('on', b.dataset.k === v)); w.querySelector('#smL').textContent = v === 'topic' ? 'The topic' : 'The brand’s handle'; w.querySelector('#smT').placeholder = v === 'topic' ? 'golf short game' : '@takomogolf'; w.querySelector('#smH').textContent = v === 'topic' ? 'Searches TikTok, Instagram Reels and YouTube for this week’s posts on it, and flags the ones doing far better than the account’s size.' : 'Locus looks for the same handle on Instagram, TikTok and YouTube. A different handle somewhere? Add it below.'; w.querySelector('#smD').hidden = v === 'topic'; };
+    const set = v => { kind = v; w.querySelectorAll('[data-k]').forEach(b => b.classList.toggle('on', b.dataset.k === v)); w.querySelector('#smL').textContent = v === 'topic' ? 'The topic' : 'The brand’s handle'; w.querySelector('#smT').placeholder = v === 'topic' ? 'golf short game' : '@takomogolf'; w.querySelector('#smH').textContent = v === 'topic' ? `Searches TikTok, Instagram Reels and YouTube for this week’s posts on it, and flags the ones doing far better than the account’s size. Uses ScrapeCreators credits${ST.data && ST.data.paused ? ' (paused right now: out of credits)' : ''}.` : 'Locus looks for the same handle on Instagram, TikTok and YouTube. A different handle somewhere? Add it below. Instagram needs a business or creator account.'; w.querySelector('#smD').hidden = v === 'topic'; };
     w.querySelectorAll('[data-k]').forEach(b => b.onclick = () => set(b.dataset.k));
     const inp = w.querySelector('#smT'); inp.focus();
     const go = async () => {
@@ -571,11 +604,12 @@
     if (!fol.length) return o.compact ? '<p class="v2hint">Following nothing yet.</p>' : emptyState();
     const row = f => {
       const st = f.error ? `<span class="soc-st bad"><i></i>${esc(f.error)}</span>` : !f.pulled_at ? '<span class="soc-st wait"><i></i>Not pulled yet</span>' : `<span class="soc-st"><i></i>Pulled ${esc(agoLong(f.pulled_at.replace(' ', 'T') + 'Z'))}</span>`;
+      const usual = f.usual ? `${k(f.usual)} ${f.usual_kind || 'views'}` : '';
       return `<tr data-fid="${esc(f.id)}"><td><b>${esc(f.name)}</b><span class="sub">${f.kind === 'topic' ? 'TikTok, Instagram Reels and YouTube search' : ['ig', 'tt', 'yt'].filter(x => f[x]).map(x => `${PL[x]} @${esc(f[x])}`).join(' · ') || 'No handles'}</span></td>
-        <td><span class="soc-kind">${f.kind === 'topic' ? 'Topic' : 'Brand'}</span></td><td class="num">${f.posts}</td><td>${st}</td>
+        <td><span class="soc-kind">${f.kind === 'topic' ? 'Topic' : 'Brand'}</span></td><td class="num">${f.posts}${o.compact ? '' : `<span class="sub">${f.posts30 != null ? `${f.posts30} in 30 days` : ''}${f.per_week ? `, ${f.per_week} a week` : ''}</span>`}</td>${o.compact ? '' : `<td class="num">${usual ? `${usual}${f.best && f.best.ratio >= 1.5 ? `<span class="sub">best ${f.best.ratio >= 10 ? Math.round(f.best.ratio) : f.best.ratio}x usual</span>` : ''}` : '<span class="sub">not enough yet</span>'}</td><td class="num">${f.last_at ? esc(agoLong(f.last_at)) : ''}</td>`}<td>${st}</td>
         <td class="r">${CLI() ? '' : `<span class="acts">${f.kind === 'brand' ? `<button type="button" class="soc-btn sm" data-ed="1">Handles</button>` : ''}<button type="button" class="soc-btn sm q bad" data-rm="1">Stop</button></span>`}</td></tr>`;
     };
-    return `<div class="soc soc-tbl"><table><thead><tr><th>Following</th><th>Kind</th><th>Posts</th><th>Last pull</th><th></th></tr></thead><tbody>${fol.map(row).join('')}</tbody></table></div>`;
+    return `<div class="soc soc-tbl"><table><thead><tr><th>Following</th><th>Kind</th><th>Posts</th>${o.compact ? '' : '<th>Usually</th><th>Last post</th>'}<th>Last pull</th><th></th></tr></thead><tbody>${fol.map(row).join('')}</tbody></table></div>`;
   }
   function wireFollowTable(root, fol, act, after) {
     root.querySelectorAll('[data-fid]').forEach(el => {
@@ -604,14 +638,36 @@
     const fol = ST.data.follows || [];
     $('#main').innerHTML = `<div class="v2 soc">${head}
       <div class="soc-ctl"><button type="button" class="soc-btn q" id="socBack">&#8249; Back to the feed</button><span class="sp"></span>${CLI() ? '' : '<button type="button" class="soc-btn" id="sfPull">Pull everything now</button>'}<button type="button" class="soc-btn pri" id="sfAdd">${ic('plus')} Follow</button></div>
-      <div class="soc-manage-top"><p>${brandName()} follows ${fol.length} ${fol.length === 1 ? 'account or topic' : 'accounts and topics'}. Each one is pulled once a day, about a fifth of a cent per platform. Up to 40.</p></div>
-      ${followTable(fol)}</div>`;
+      <div class="soc-manage-top"><p>${brandName()} follows ${fol.length} ${fol.length === 1 ? 'account or topic' : 'accounts and topics'}. Each one is pulled once a day. Instagram and YouTube cost nothing; TikTok and topic searches use ScrapeCreators credits. Up to 40.</p></div>
+      ${suggestHtml(ST.data.suggest || [])}
+      ${followTable(fol)}
+      ${CLI() ? '' : sourcesLine(ST.data)}</div>`;
     const m = $('#main');
     m.querySelector('#socBack').onclick = () => { ST.view = store('soc_view2') === 'hot' ? 'hot' : 'feed'; draw(); };
     [m.querySelector('#sfAdd'), m.querySelector('#socAdd2')].forEach(b => b && (b.onclick = () => followModal(ST.act, reload)));
     const pull = m.querySelector('#sfPull');
     if (pull) pull.onclick = async () => { pull.disabled = true; pull.textContent = 'Pulling…'; try { const r = await H.apiAH('/api/social/pull', { method: 'POST', body: JSON.stringify({ act: ST.act }) }); toast(`Pulled ${r.pulled.length}: ${r.pulled.reduce((s, x) => s + (x.added || 0), 0)} new posts.`); await reload(); } catch (e) { pull.textContent = e.message; } };
     wireFollowTable(m, fol, ST.act, reload);
+    m.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => followHandle(b.dataset.sug, b.dataset.plat, b));
+  }
+  /* "Seen in your topics": accounts behind topic posts this brand does not follow yet (server side suggestFrom). */
+  function suggestHtml(sug) {
+    if (!sug.length || CLI()) return '';
+    return `<div class="soc-sug"><h4>Seen in your topics</h4><p>Accounts whose posts came up in your topic searches. Follow one to pull everything it posts.</p>
+      ${sug.slice(0, 8).map(s => `<div class="row"><b>@${esc(s.handle)}</b><small>${esc([s.plats.map(x => PL[x]).join(', '), `${s.posts} post${s.posts === 1 ? '' : 's'} in your topics`, s.followers ? `${k(s.followers)} followers` : '', s.best >= 1.5 ? `best ${s.best >= 10 ? Math.round(s.best) : s.best}x` : ''].filter(Boolean).join(' · '))}</small><button type="button" class="soc-btn sm" data-sug="${esc(s.handle)}" data-plat="${esc(s.plats[0])}">Follow</button></div>`).join('')}</div>`;
+  }
+  /* Follow an account straight from a post or a suggestion: the handle on the platform we saw it on, looked up on the others. */
+  async function followHandle(handle, plat, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Following…'; }
+    try {
+      const body = { act: ST.act, kind: 'brand', text: handle };
+      if (plat) body[plat] = handle;
+      const r = await H.apiAH('/api/social/follow', { method: 'POST', body: JSON.stringify(body) });
+      const f = r.follow || {}, pl = r.pulled || {};
+      toast(`Following ${f.name || handle}: ${pl.posts || 0} posts in.${pl.error ? ` ${pl.error}` : ''}`);
+      await reload();
+      if (V) { const p = ST.data.posts.find(x => x.id === V.p.id); if (p) openPost(p, filtered()); }
+    } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Follow'; } }
   }
 
   /* ---------- THE VIEWER: dark, full height, the media in the middle, a column, a pinned bar, prev and next ---------- */
@@ -621,7 +677,7 @@
     let el = document.getElementById('socView');
     if (el) return el;
     document.body.insertAdjacentHTML('beforeend', `<div id="socView" class="soc-view" role="dialog" aria-label="Post" hidden>
-      <div class="vstage"><button type="button" class="vx" aria-label="Close">&#215;</button><button type="button" class="vprev" aria-label="Previous">&#8249;</button><button type="button" class="vnext" aria-label="Next">&#8250;</button><div class="vmed"></div></div>
+      <div class="vstage"><button type="button" class="vx" aria-label="Close">&#215;</button><span class="vcount"></span><button type="button" class="vprev" aria-label="Previous">&#8249;</button><button type="button" class="vnext" aria-label="Next">&#8250;</button><div class="vmed"></div></div>
       <aside class="vcol"><div class="vbody"></div><div class="vbar"></div></aside></div>`);
     el = document.getElementById('socView');
     el.querySelector('.vx').onclick = closePost;
@@ -632,6 +688,14 @@
       if (!V) return;
       if (e.key === 'Escape') { e.stopPropagation(); closePost(); }
       else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) {
+        /* One-key shortcuts (2026-10-20, Sandcastles' S / M keys): S save, M make ours, C copy the link, T transcript. */
+        const p = V.p, kk = e.key.toLowerCase();
+        if (kk === 's') { e.preventDefault(); saveToggle(p, p.saved ? null : p.tag, !p.saved); }
+        else if (kk === 'm' && !CLI()) { e.preventDefault(); makeStep(p); }
+        else if (kk === 'c') { e.preventDefault(); copyText(p.url, 'Link copied.'); }
+        else if (kk === 't' && p.transcript == null && !['photo', 'carousel', 'post', 'photos'].includes(p.fmt)) { e.preventDefault(); transcript(p); }
+      }
     }, true);
     let x0 = null;
     el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
@@ -654,6 +718,7 @@
     el.hidden = false; document.body.classList.add('soc-view-on');
     requestAnimationFrame(() => el.classList.add('on'));
     el.querySelector('.vprev').disabled = V.i <= 0; el.querySelector('.vnext').disabled = V.i >= list.length - 1;
+    el.querySelector('.vcount').textContent = list.length > 1 ? `${V.i + 1} of ${list.length}` : '';
     media(p); column(p); bar(p);
   }
   function media(p) {
@@ -688,22 +753,37 @@
     const big = p.views != null ? [k(p.views), 'views'] : p.likes != null ? [k(p.likes), 'likes'] : ['', ''];
     const small = [[p.likes, 'likes'], [p.comments, 'comments'], [p.shares ?? p.saves, p.shares != null ? 'shares' : 'saves']].filter(x => x[0] != null && !(x[1] === big[1]));
     const posted = p.posted_at ? new Date(p.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    b.innerHTML = `<div class="vwho"><span class="vav">${esc((p.handle || p.who || '?').slice(0, 2).toUpperCase())}</span><div style="min-width:0"><b>${esc(p.handle ? `@${p.handle}` : p.who)}</b><small>${esc([p.who && p.who !== p.handle ? p.who : '', f && f.kind === 'topic' ? `topic: ${f.name}` : '', p.followers ? `${k(p.followers)} followers` : ''].filter(Boolean).join(' · '))}</small></div></div>
-      <div class="vline">${esc([PL[p.plat], (FM[p.fmt] || 'Post') === PL[p.plat] ? '' : FM[p.fmt] || 'Post', posted, p.dur ? dur(p.dur) : '', p.slides ? `${p.slides} slides` : ''].filter(Boolean).join(' · '))}</div>
+    const followed = p.handle && (ST.data && ST.data.follows || []).some(x => x.kind === 'brand' && [x.ig, x.tt, x.yt].some(h => h && h.toLowerCase() === p.handle.toLowerCase()));
+    const canFollow = !CLI() && p.handle && !followed && (!f || f.kind === 'topic');
+    b.innerHTML = `<div class="vwho"><span class="vav">${esc((p.handle || p.who || '?').slice(0, 2).toUpperCase())}</span><div style="min-width:0"><b>${esc(p.handle ? `@${p.handle}` : p.who)}</b><small>${esc([p.who && p.who !== p.handle ? p.who : '', f && f.kind === 'topic' ? `topic: ${f.name}` : '', p.followers ? `${k(p.followers)} followers` : ''].filter(Boolean).join(' · '))}</small></div>${canFollow ? `<button type="button" class="soc-btn sm" id="svFollow" style="margin-left:auto;flex:none" ${U() ? U().tipAttr(`Follow @${esc(p.handle)}: every post it makes, once a day`) : ''}>Follow</button>` : ''}</div>
+      <div class="vline">${esc([PL[p.plat], (FM[p.fmt] || 'Post') === PL[p.plat] ? '' : FM[p.fmt] || 'Post', posted, p.dur ? dur(p.dur) : '', p.slides ? `${p.slides} slides` : ''].filter(Boolean).join(' · '))}<button type="button" class="vcopy" id="svCopyLink">Copy link</button></div>
       <div class="vbig"><b>${big[0]}</b><span>${big[1]}</span>${ratioPill(p, true)}${us ? `<span>${esc(us)}</span>` : ''}</div>
       ${small.length || eng != null ? `<div class="vsmall">${small.map(([n, l]) => `<span><b>${k(n)}</b> ${l}</span>`).join('')}${eng != null ? `<span ${U() ? U().tipAttr('Likes and comments per view') : ''}><b>${(eng * 100).toFixed(1)}%</b> engagement</span>` : ''}</div>` : ''}
       ${p.base == null ? '<div class="vline">Not enough posts from this account yet to say what is usual.</div>' : ''}
-      ${p.caption ? `<div class="vcap">${esc(p.caption)}</div>` : ''}
+      ${p.caption ? `<div class="vcap-h vline">Caption<button type="button" class="vcopy" id="svCopyCap">Copy</button></div><div class="vcap">${esc(p.caption)}</div>` : ''}
       ${p.hook || p.ftag || p.tag ? `<div class="vtags">${p.hook ? `<span>Hook: ${esc(p.hook)}</span>` : ''}${p.ftag ? `<span>${esc(p.ftag)}</span>` : ''}${p.tag ? `<span><i class="soc-tagdot" style="background:${tagColor(p.tag)};margin-right:5px"></i>${esc(p.tag)}</span>` : ''}</div>` : ''}
       ${p.sound ? `<div class="vline">&#9835; ${esc(p.sound)}</div>` : ''}
       ${transcriptHtml(p)}
-      ${p.idea_id ? `<div class="soc-made" style="font-size:12.5px">${ic('sparkles')} Our version started</div>` : ''}`;
+      ${p.saved ? `<div class="vnote"><textarea id="svNote" placeholder="Why you saved it, what to steal (optional)" maxlength="600">${esc(p.note || '')}</textarea><small>Saved with the post. Shows on the Saved tab.</small></div>` : ''}
+      ${p.idea_id ? `<div class="soc-made" style="font-size:12.5px">${ic('sparkles')} Our version started</div>` : ''}
+      <div class="vkeys">Keys: S save · ${CLI() ? '' : 'M make ours · '}C copy link · T transcript · arrows</div>`;
     const tb = b.querySelector('#svTr'); if (tb) tb.onclick = () => transcript(p);
+    const fb = b.querySelector('#svFollow'); if (fb) fb.onclick = () => followHandle(p.handle, p.plat, fb);
+    const cl = b.querySelector('#svCopyLink'); if (cl) cl.onclick = () => copyText(p.url, 'Link copied.');
+    const cc = b.querySelector('#svCopyCap'); if (cc) cc.onclick = () => copyText(p.caption, 'Caption copied.');
+    const ct = b.querySelector('#svCopyTr'); if (ct) ct.onclick = () => copyText(p.transcript, 'Transcript copied.');
+    const nt = b.querySelector('#svNote');
+    if (nt) { let was = p.note || ''; nt.onblur = async () => { const v = nt.value.trim(); if (v === was) return; try { const r = await H.apiAH('/api/social/save', { method: 'POST', body: JSON.stringify({ id: p.id, saved: true, note: v }) }); p.note = r.note || null; was = p.note || ''; toast(v ? 'Note saved.' : 'Note removed.'); } catch (e) { toast(e.message); } }; }
+  }
+  async function copyText(t, msg) {
+    if (!t) { toast('Nothing to copy.'); return; }
+    try { await navigator.clipboard.writeText(String(t)); toast(msg || 'Copied.'); }
+    catch { const ta = document.createElement('textarea'); ta.value = String(t); document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(msg || 'Copied.'); } catch { toast('Could not copy.'); } ta.remove(); }
   }
   /* The transcript: fetched once per post (one scraper credit), kept on the post row server side. */
   function transcriptHtml(p) {
     if (p.fmt === 'photo' || p.fmt === 'carousel') return '';
-    if (p.transcript != null) return p.transcript ? `<div class="vtr"><b>What they say</b><div>${esc(p.transcript)}</div></div>` : `<div class="vline">${esc(p.transcript_why || 'No speech was found in this post.')}</div>`;
+    if (p.transcript != null) return p.transcript ? `<div class="vtr"><b>What they say<button type="button" class="vcopy" id="svCopyTr">Copy</button></b><div>${esc(p.transcript)}</div></div>` : `<div class="vline">${esc(p.transcript_why || 'No speech was found in this post.')}</div>`;
     return `<div class="vrow"><button type="button" class="soc-btn sm" id="svTr">${ic('file-text')} Transcript</button></div>`;
   }
   async function transcript(p) {
@@ -729,6 +809,7 @@
       const r = await H.apiAH('/api/social/save', { method: 'POST', body: JSON.stringify({ id: p.id, saved: next, tag: next ? (tag || null) : null }) });
       p.saved = next; p.tag = r.tag || null;
       if (ST.data) { const tags = ST.data.tags || []; const m = new Map(); for (const x of ST.data.posts) if (x.saved && x.tag) m.set(x.tag, (m.get(x.tag) || 0) + 1); ST.data.tags = [...m].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name)); if (!tags.length && !ST.data.tags.length) ST.data.tags = []; }
+      if (!next) p.note = null;
       if (V && V.p === p) { bar(p); column(p); }
       const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"]`);
       if (c) { const med = c.querySelector('.soc-med'), sv = med.querySelector('.sv'); if (next && !sv) med.insertAdjacentHTML('beforeend', `<span class="sv">${ic('bookmark')}</span>`); if (!next && sv) sv.remove(); if (saved() && !next) c.remove(); }

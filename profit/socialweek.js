@@ -198,6 +198,14 @@
       .sw-m input[type=text]{width:100%;height:36px;padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit}
       .sw-m .pg{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;background:var(--surface);font:inherit;color:var(--ink);text-align:left;width:100%} .sw-m .pg:hover{border-color:var(--brand)}
       .sw-m .pg .av{width:36px;height:36px;border-radius:50%;background:var(--surface-2) center/cover} .sw-m .pg small{display:block;color:var(--muted);font-size:11.5px}
+      .sw .sw-ig{flex:1;min-width:0;max-width:640px;margin:0 auto}
+      .sw .ig-head{display:flex;align-items:center;gap:12px;padding:6px 2px 14px} .sw .ig-head .av{width:56px;height:56px;border-radius:50%;background:var(--surface-2) center/cover;flex:none;border:1px solid var(--line)}
+      .sw .ig-head b{display:block;font-size:15px;font-weight:650} .sw .ig-head small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px} .sw .ig-head .sp{flex:1}
+      .sw .ig-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px}
+      .sw .ig-cell{position:relative;aspect-ratio:4/5;background:var(--surface-2) center/cover;border:0;padding:0;cursor:pointer;display:block;border-radius:2px;overflow:hidden}
+      .sw .ig-cell.draft{opacity:.55} .sw .ig-cell.scheduled{outline:2px dashed var(--brand);outline-offset:-2px}
+      .sw .ig-cell .multi{position:absolute;top:6px;right:6px;color:#fff;font-size:12px;font-style:normal;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+      .sw .ig-cell .st{position:absolute;left:0;right:0;bottom:0;font-size:10.5px;font-weight:600;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:14px 6px 5px;text-align:left}
       @media (max-width:720px){
         .sw .sw-body,.sw .sw-sk{grid-template-columns:1fr} .sw .sw-tray{display:none} .sw .sw-seg{display:none}
         .sw .sw-grid{max-height:none} .sw .sw-gh,.sw .sw-gb{grid-template-columns:44px repeat(7,140px)}
@@ -331,13 +339,27 @@
     $('#main').innerHTML = `<div class="v2 sw">${head}
       <div class="sw-top"><span class="sw-nav"><button type="button" data-nav="-1" aria-label="Previous week">&#8249;</button><button type="button" data-nav="0">This week</button><button type="button" data-nav="1" aria-label="Next week">&#8250;</button></span>
         <span class="sw-range">${md(d.days[0])} to ${md(d.days[6])}<small>${esc(d.tz.replace(/_/g, ' '))}</small></span>
-        <span class="sw-seg" role="tablist"><button type="button" role="tab" data-sv="week" class="${ST.view === 'week' ? 'on' : ''}">Week</button><button type="button" role="tab" data-sv="list" class="${ST.view === 'list' ? 'on' : ''}">List</button></span>
+        <span class="sw-seg" role="tablist"><button type="button" role="tab" data-sv="week" class="${ST.view === 'week' ? 'on' : ''}">Week</button><button type="button" role="tab" data-sv="list" class="${ST.view === 'list' ? 'on' : ''}">List</button><button type="button" role="tab" data-sv="preview" class="${ST.view === 'preview' ? 'on' : ''}" ${U() ? U().tipAttr('How the Instagram grid will look with what is scheduled') : ''}>Preview</button></span>
         <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x], '', !CLI())).join('')}</span>
           ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
       ${none ? `<div class="sw-note"><div><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}</div>${CLI() ? '' : '<button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</div>` : ''}
-      <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div>${list ? `<div class="sw-list" id="swList">${dayList()}</div>` : `<div class="sw-grid" id="swGrid">${grid()}</div>`}</div></div>`;
+      <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div>${ST.view === 'preview' ? `<div class="sw-ig" id="swIg"><p class="hint">Reading the grid…</p></div>` : list ? `<div class="sw-list" id="swList">${dayList()}</div>` : `<div class="sw-grid" id="swGrid">${grid()}</div>`}</div></div>`;
+    if (ST.view === 'preview') igPreview();
     const g = $('#swGrid'); if (g) { placePosts(g); g.scrollTop = Math.max(0, (8 - HOURS[0]) * ROW - 10); }
     wire();
+  }
+  /* The Instagram grid preview (2026-10-20, Later's Preview): the account's header, then the last 30 posts through Locus that go to
+     Instagram as a 3-across grid, newest first, scheduled and drafts marked. A tap opens the post. Reads /api/social/grid. */
+  async function igPreview() {
+    const host = $('#swIg'); if (!host) return;
+    let r; try { r = await H.apiAH(`/api/social/grid?act=${encodeURIComponent(ST.act)}`, { fresh: true }); } catch (e) { host.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    if (!$('#swIg')) return;
+    const a = r.account || null, posts = r.posts || [];
+    const st = p => p.status === 'draft' ? 'Draft' : p.status === 'scheduled' ? `Scheduled ${new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : p.status === 'posting' ? 'Posting' : '';
+    host.innerHTML = `<div class="ig-head"><span class="av" ${a && a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''}></span><div><b>${esc(a ? (a.handle ? `@${a.handle}` : a.name || 'Instagram') : 'Instagram not connected')}</b><small>${posts.length} post${posts.length === 1 ? '' : 's'} through Locus${a ? '' : ' · connect the account in Brand settings to post'}</small></div><span class="sp"></span><button type="button" class="sw-btn sm" id="igNew">${ic('plus')} Post</button></div>
+      ${posts.length ? `<div class="ig-grid">${posts.map(p => { const m = p.media[0] || {}; const s = st(p); return `<button type="button" class="ig-cell ${p.status}" data-post="${esc(p.id)}" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''} aria-label="${esc(p.caption || 'Post')}">${p.media.length > 1 ? '<i class="multi">&#9638;</i>' : m.kind === 'video' ? '<i class="multi">&#9654;</i>' : ''}${s ? `<span class="st">${esc(s)}</span>` : ''}</button>`; }).join('')}</div>` : '<div class="sw-note"><div>Nothing goes to Instagram yet. Schedule a post with Instagram switched on and it shows here in the order the grid will read.</div></div>'}`;
+    host.querySelectorAll('[data-post]').forEach(b => b.onclick = () => { const p = (ST.data.posts || []).find(x => x.id === b.dataset.post) || posts.find(x => x.id === b.dataset.post); if (p) composer(p); });
+    const nb = host.querySelector('#igNew'); if (nb) nb.onclick = () => composer(null, { at: nextSlot() });
   }
   /* The day list: each day a header with its posts as 56px rows; an empty day is one grey line. The only view on a phone. */
   function dayList() {

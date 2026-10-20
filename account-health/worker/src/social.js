@@ -6,7 +6,8 @@
    Photos, Short, Video) with "usually X, this one Y": a followed account's median for that platform, or a topic post's
    author's followers. Breaking out = 3x usual. "Make ours" hands the post to the ideas bot (ideas.js ideaFromLocus).
 
-   DATA: ScrapeCreators (DOWNLOADER_KEY, the ideas bot's key), 1 credit a call, about $0.002. A brand follow is up to
+   DATA (2026-10-20): Instagram through Meta's Business Discovery (free, igDiscover), YouTube through the Data API (free),
+   TikTok and the topic searches through ScrapeCreators (DOWNLOADER_KEY, the ideas bot's key), 1 credit a call. Before: all ScrapeCreators; a brand follow was up to
    4 calls a pull (IG posts, TikTok videos, YouTube Shorts, YouTube videos), a topic 2 to 3 (TikTok, IG Reels, YouTube
    search). 14 follows a day is about $3 a month. Covers are copied to R2 on the pull (social/t/), because Instagram's
    and TikTok's image links expire in days; a video is copied on the first Play (social/v/). Both are served public by
@@ -60,12 +61,16 @@ export async function ensureSocial(env) {
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN media TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN tag TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN transcript TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN slides_src TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN video_src TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN note TEXT`).run().catch(() => {});
   ready = true;
 }
 
 /* ---------------- ScrapeCreators ---------------- */
 async function sc(env, path, params, meter) {
   if (!env.DOWNLOADER_KEY) throw Object.assign(new Error('The ScrapeCreators key (DOWNLOADER_KEY) is not set on the server.'), { plain: true });
+  if (meter?.paused) throw Object.assign(new Error('ScrapeCreators paused: credits low (only TikTok needs it; top up to resume)'), { plain: true });
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
   const r = await F(`${SC}${path}?${q}`, { headers: { 'x-api-key': env.DOWNLOADER_KEY } });
   if (meter) meter.credits = (meter.credits || 0) + 1;
@@ -154,6 +159,48 @@ async function ytSearchPosts(env, query, n = 20) {
   return vids.map(v => ytApiItem(v, handles[v.snippet?.channelId], subs[v.snippet?.channelId])).filter(Boolean);
 }
 
+
+/* ---------------- Instagram via Meta's own Graph API (free, no scraper) ----------------
+ * Business Discovery: any Instagram business account we are connected to may read another business or creator
+ * account's public media by username. Measured 2026-10-20 on Takomo through Lucky's account: 25 posts a call with
+ * caption, like_count, comments_count, view_count (Reels), media_type, media_product_type, thumbnail_url, permalink,
+ * timestamp, children (carousel slides); media_url comes back on some videos only. No transcript (ScrapeCreators
+ * keeps that, on demand). Private or personal accounts answer an error and we fall back to the scraper. */
+const G = 'https://graph.facebook.com/v23.0';
+async function igIdOf(env) {
+  if (!env.META_TOKEN) return null;
+  const a = await env.DB.prepare(`SELECT ext_id FROM social_account WHERE plat = 'ig' AND ext_id IS NOT NULL AND status != 'gone' LIMIT 1`).first().catch(() => null);
+  if (a?.ext_id) return a.ext_id;
+  const c = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'socialIgId'`).first().catch(() => null);
+  if (c?.value) return c.value;
+  const r = await F(`${G}/me/accounts?${new URLSearchParams({ fields: 'instagram_business_account{id}', limit: 100, access_token: env.META_TOKEN })}`).then(r => r.json()).catch(() => null);
+  const id = (r?.data || []).map(p => p.instagram_business_account?.id).find(Boolean) || null;
+  if (id) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('socialIgId', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(id).run().catch(() => {});
+  return id;
+}
+async function igDiscover(env, handle, n = 50) {
+  const igid = await igIdOf(env);
+  if (!igid) throw Object.assign(new Error('No Instagram account is connected in Locus (needed to read others)'), { plain: true });
+  const fields = `business_discovery.username(${handle}){username,name,followers_count,media_count,media.limit(${n}){id,caption,like_count,comments_count,view_count,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,children{media_url,media_type,thumbnail_url}}}`;
+  const r = await F(`${G}/${igid}?${new URLSearchParams({ fields, access_token: env.META_TOKEN })}`);
+  const j = await r.json().catch(() => ({}));
+  if (j.error) throw Object.assign(new Error(`Meta: ${clip(j.error.message, 160)}`), { meta: j.error });
+  const bd = j.business_discovery || {};
+  const posts = (bd.media?.data || []).map(m => igMetaItem(m, bd.username || handle, bd.followers_count)).filter(Boolean);
+  return { handle: bd.username || handle, name: bd.name || null, followers: num(bd.followers_count), posts };
+}
+function igMetaItem(m, handle, followers) {
+  const code = (/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/.exec(m.permalink || '') || [])[1];
+  if (!code) return null;
+  const fmt = m.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : m.media_product_type === 'REELS' || m.media_type === 'VIDEO' ? 'reel' : 'post';
+  const kids = (m.children?.data || []).map(c => c.media_type === 'VIDEO' ? c.thumbnail_url || c.media_url : c.media_url).filter(Boolean);
+  return { plat: 'ig', pid: String(code), fmt, handle, url: `https://www.instagram.com/${fmt === 'reel' ? 'reel' : 'p'}/${code}/`,
+    caption: clip(m.caption, 2200), thumb_src: m.thumbnail_url || (m.media_type === 'IMAGE' ? m.media_url : null) || kids[0] || null,
+    posted_at: iso(m.timestamp), views: num(m.view_count), likes: num(m.like_count), comments: num(m.comments_count),
+    shares: null, saves: null, followers: num(followers), dur: null, sound: null, slides: kids.length || null,
+    slides_src: kids.length ? kids : null, video_src: m.media_type === 'VIDEO' && m.media_url ? m.media_url : null };
+}
+
 /* ---------------- one shape for every platform ---------------- */
 function igItem(raw, followers) {
   const it = raw?.media || raw;
@@ -198,7 +245,12 @@ function ytItem(v, short, handle) {
 /* ---------------- what a follow pulls ---------------- */
 async function pullBrand(env, f, meter) {
   const out = [], errs = [];
-  if (f.ig) {
+  let igDone = false;
+  if (f.ig && env.META_TOKEN) {
+    await igDiscover(env, f.ig).then(d => { igDone = true; d.posts.forEach(p => out.push({ ...p, handle: p.handle || f.ig })); meter.ig_meta = d.posts.length; })
+      .catch(e => { meter.ig_meta_err = e.message; });
+  }
+  if (f.ig && !igDone) {
     await sc(env, '/v2/instagram/user/posts', { handle: f.ig }, meter)
       .then(j => (j.items || []).forEach(it => { const p = igItem(it, j.user?.follower_count); if (p) out.push({ ...p, handle: p.handle || f.ig }); }))
       .catch(e => errs.push(`Instagram: ${e.message}`));
@@ -239,9 +291,9 @@ async function pullTopic(env, f, meter) {
 }
 
 /** Pull one follow now: upsert its posts (fresh counts on posts we already have), copy new covers to R2. */
-export async function pullFollow(env, f, { can = () => true } = {}) {
+export async function pullFollow(env, f, { can = () => true, paused = false } = {}) {
   await ensureSocial(env);
-  const meter = { credits: 0 };
+  const meter = { credits: 0, paused };
   const got = f.kind === 'topic' ? await pullTopic(env, f, meter) : await pullBrand(env, f, meter);
   const errs = got.errs;
   /* One row per post: the same Reel can come from the posts list and the Reels list; keep every number either one had. */
@@ -255,19 +307,22 @@ export async function pullFollow(env, f, { can = () => true } = {}) {
     if (p.posted_at && Date.parse(p.posted_at) < cutoff) continue;
     const id = `${f.act_id}|${p.plat}|${p.pid}`;
     const had = await env.DB.prepare(`SELECT thumb FROM social_post WHERE id = ?1`).bind(id).first();
-    await env.DB.prepare(`INSERT INTO social_post (id, act_id, follow_id, plat, pid, fmt, handle, url, caption, thumb_src, posted_at, views, likes, comments, shares, saves, followers, dur, sound, slides)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
+    await env.DB.prepare(`INSERT INTO social_post (id, act_id, follow_id, plat, pid, fmt, handle, url, caption, thumb_src, posted_at, views, likes, comments, shares, saves, followers, dur, sound, slides, slides_src, video_src)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
       ON CONFLICT(id) DO UPDATE SET views = COALESCE(excluded.views, views), likes = COALESCE(excluded.likes, likes), comments = COALESCE(excluded.comments, comments),
         shares = COALESCE(excluded.shares, shares), saves = COALESCE(excluded.saves, saves), followers = COALESCE(excluded.followers, followers),
         thumb_src = COALESCE(excluded.thumb_src, thumb_src), caption = CASE WHEN excluded.caption != '' THEN excluded.caption ELSE caption END,
+        slides_src = COALESCE(excluded.slides_src, slides_src), video_src = COALESCE(excluded.video_src, video_src),
         posted_at = COALESCE(posted_at, excluded.posted_at), updated_at = datetime('now')`)
-      .bind(id, f.act_id, f.id, p.plat, p.pid, p.fmt, p.handle || '', p.url, p.caption || '', p.thumb_src, p.posted_at, p.views, p.likes, p.comments, p.shares, p.saves, p.followers, p.dur, p.sound, p.slides).run();
+      .bind(id, f.act_id, f.id, p.plat, p.pid, p.fmt, p.handle || '', p.url, p.caption || '', p.thumb_src, p.posted_at, p.views, p.likes, p.comments, p.shares, p.saves, p.followers, p.dur, p.sound, p.slides,
+        p.slides_src ? JSON.stringify(p.slides_src) : null, p.video_src || null).run();
     if (!had) added++;
     if (!had?.thumb && p.thumb_src && env.MEDIA && covers < 40 && can()) {
       const key = await copyCover(env, id, p.thumb_src);
       if (key) { covers++; await env.DB.prepare(`UPDATE social_post SET thumb = ?2 WHERE id = ?1`).bind(id, key).run(); }
     }
   }
+  if (meter.ig_meta_err && !errs.some(e => /^Instagram/.test(e))) errs.unshift(`Instagram (Meta): ${meter.ig_meta_err}`);
   const error = posts.length ? (errs.length ? errs.join(' / ') : null) : (errs.join(' / ') || 'Nothing came back. Check the handles.');
   await env.DB.prepare(`UPDATE social_follow SET pulled_at = datetime('now'), error = ?2, credits = credits + ?3 WHERE id = ?1`).bind(f.id, error, meter.credits).run();
   return { follow: f.id, name: f.name, posts: posts.length, added, covers, credits: meter.credits, error };
@@ -288,7 +343,9 @@ async function copyCover(env, id, src) {
 /* ---------------- following: a handle looked up everywhere, or a topic ---------------- */
 async function lookUp(env, handle, meter) {
   const found = { ig: null, tt: null, yt: null }, names = [];
-  await sc(env, '/v1/instagram/profile', { handle }, meter).then(j => {
+  let igMeta = false;
+  if (env.META_TOKEN) await igDiscover(env, handle, 1).then(d => { igMeta = true; found.ig = d.handle; if (d.name) names.push(d.name); }).catch(() => {});
+  if (!igMeta) await sc(env, '/v1/instagram/profile', { handle }, meter).then(j => {
     const u = j.data?.user || j.user || j;
     if (u?.username && !u.is_private) { found.ig = u.username; if (u.full_name) names.push(u.full_name); }
   }).catch(() => {});
@@ -358,7 +415,8 @@ export function trendsOf(posts) {
 const pub = p => ({ id: p.id, follow_id: p.follow_id, plat: p.plat, fmt: p.fmt, handle: p.handle, url: p.url, caption: p.caption, posted_at: p.posted_at,
   thumb: p.thumb ? `${SELF}/social-m/${p.thumb}` : p.thumb_src, views: p.views, likes: p.likes, comments: p.comments, shares: p.shares, saves: p.saves,
   dur: p.dur, sound: p.sound, slides: p.slides, hook: p.hook, ftag: p.ftag, saved: !!p.saved, idea_id: p.idea_id,
-  metric: p.metric, base: p.base, base_kind: p.base_kind, ratio: p.ratio, breaking: !!p.breaking, n: p.n || 0, tag: p.tag || null, has_transcript: !!p.transcript });
+  metric: p.metric, base: p.base, base_kind: p.base_kind, ratio: p.ratio, breaking: !!p.breaking, n: p.n || 0, tag: p.tag || null, has_transcript: !!p.transcript,
+  seen: p.first_seen ? p.first_seen.replace(' ', 'T') + 'Z' : null, note: p.note || null });
 
 /** The brand's save tags: every distinct tag on a saved post, with its count (no table of its own). */
 export function tagsOf(rows) {
@@ -374,11 +432,51 @@ async function feed(env, act) {
   const fName = Object.fromEntries(follows.map(f => [f.id, f.name]));
   return {
     follows: follows.map(f => ({ id: f.id, kind: f.kind, name: f.name, ig: f.ig, tt: f.tt, yt: f.yt, query: f.query, pulled_at: f.pulled_at, error: f.error,
-      posts: rows.filter(p => p.follow_id === f.id).length })),
+      posts: rows.filter(p => p.follow_id === f.id).length, ...followStats(rows.filter(p => p.follow_id === f.id)) })),
     posts: rows.map(p => ({ ...pub(p), who: fName[p.follow_id] || p.handle })),
     trends: trendsOf(rows),
     tags: tagsOf(rows),
+    suggest: suggestFrom(rows, follows),
   };
+}
+/** The Accounts roll-up (2026-10-20): posts in the last 30 days, posts a week, the usual number (median views, else likes),
+ *  the best post's ratio, and the last post's date. Read off the feed itself, no calls. */
+function followStats(ps) {
+  const last30 = ps.filter(p => p.posted_at && Date.now() - Date.parse(p.posted_at) <= 30 * DAY);
+  const vol = p => p.views != null ? p.views : p.likes;
+  const med = median(last30.map(vol));
+  const best = ps.filter(p => p.ratio != null).sort((a, b) => b.ratio - a.ratio)[0];
+  const lastAt = ps.map(p => p.posted_at).filter(Boolean).sort().pop() || null;
+  return { posts30: last30.length, per_week: +(last30.length / 30 * 7).toFixed(1), usual: med, usual_kind: last30.some(p => p.views != null) ? 'views' : 'likes',
+    best: best ? { id: best.id, ratio: best.ratio } : null, last_at: lastAt };
+}
+/** "Seen in your topics" (2026-10-20, the Virlo and Sandcastles creator-discovery idea without a scraper call): the accounts behind
+ *  topic posts that this brand does not follow yet, by how many posts and their best ratio. */
+export function suggestFrom(rows, follows) {
+  const kind = Object.fromEntries(follows.map(f => [f.id, f.kind]));
+  const had = new Set(follows.flatMap(f => [f.ig, f.tt, f.yt].filter(Boolean).map(h => h.toLowerCase())));
+  const m = new Map();
+  for (const p of rows) {
+    if (kind[p.follow_id] !== 'topic' || !p.handle || had.has(p.handle.toLowerCase())) continue;
+    const k = p.handle.toLowerCase();
+    const x = m.get(k) || { handle: p.handle, plats: new Set(), posts: 0, best: 0, followers: null, views: 0, sample: null };
+    x.plats.add(p.plat); x.posts++; x.views += p.views || 0;
+    if (p.followers && (!x.followers || p.followers > x.followers)) x.followers = p.followers;
+    if ((p.ratio || 0) > x.best) { x.best = p.ratio; x.sample = p.id; }
+    m.set(k, x);
+  }
+  return [...m.values()].map(x => ({ ...x, plats: [...x.plats] })).sort((a, b) => b.posts - a.posts || b.views - a.views).slice(0, 12);
+}
+/** Posts breaking out that appeared since a time (the morning card's line, 2026-10-20). */
+export async function breakoutsFor(env, act, sinceIso) {
+  await ensureSocial(env);
+  const on = await env.DB.prepare(`SELECT 1 FROM social_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  if (!on) return [];
+  const d = await feed(env, act);
+  const since = sinceIso ? Date.parse(sinceIso) : 0;
+  return d.posts.filter(p => p.breaking && (!since || (p.seen && Date.parse(p.seen) > since)))
+    .sort((a, b) => (b.ratio || 0) - (a.ratio || 0))
+    .map(p => ({ id: p.id, handle: p.handle, who: p.who, plat: p.plat, fmt: p.fmt, views: p.views, likes: p.likes, metric: p.metric, base: p.base, ratio: p.ratio, url: p.url }));
 }
 
 /* ---------------- hook and format tags (Haiku, a fraction of a cent a batch) ---------------- */
@@ -419,22 +517,22 @@ async function creditsLeft(env) {
 /* ---------------- the daily pull (hourly tick; each follow at most once every 20 hours) ---------------- */
 export async function socialTick(env, can = () => true) {
   await ensureSocial(env);
-  if (!env.DOWNLOADER_KEY) return { skipped: 'no key' };
-  /* The ideas bot downloads videos on the same ScrapeCreators credits: the daily pull stops before it eats the last ones. */
+  /* Instagram (Meta) and YouTube (Google) cost nothing; only TikTok still goes through ScrapeCreators. When its credits
+     run low the TikTok half pauses (the ideas bot downloads videos on the same credits) and the rest keeps pulling. */
   const cred = await creditsLeft(env);
-  if (cred != null && cred < LOW_CREDITS) return { skipped: `only ${cred} ScrapeCreators credits left` };
+  const paused = !env.DOWNLOADER_KEY || (cred != null && cred < LOW_CREDITS);
   const due = (await env.DB.prepare(`SELECT f.* FROM social_follow f JOIN social_brand b ON b.act_id = f.act_id
     WHERE f.pulled_at IS NULL OR f.pulled_at < ?1 ORDER BY COALESCE(f.pulled_at, '') LIMIT 4`).bind(new Date(Date.now() - PULL_EVERY).toISOString().replace('T', ' ').slice(0, 19)).all()).results || [];
   const ran = [];
   for (const f of due) {
     if (!can(60)) { ran.push({ deferred: 'out of budget' }); break; }
-    ran.push(await pullFollow(env, f, { can: () => can(10) }).catch(e => ({ follow: f.id, error: e.message })));
+    ran.push(await pullFollow(env, f, { can: () => can(10), paused }).catch(e => ({ follow: f.id, error: e.message })));
   }
   const tags = due.length && can(5) ? await tagPosts(env).catch(e => ({ error: e.message })) : null;
   /* Old posts go (saved ones stay), with their covers. */
   const old = (await env.DB.prepare(`SELECT id, thumb, video FROM social_post WHERE saved = 0 AND idea_id IS NULL AND posted_at < ?1 LIMIT 200`).bind(new Date(Date.now() - KEEP_DAYS * DAY).toISOString()).all()).results || [];
   for (const o of old) { for (const k of [o.thumb, o.video].filter(Boolean)) await env.MEDIA?.delete(`social/${k}`).catch(() => {}); await env.DB.prepare(`DELETE FROM social_post WHERE id = ?1`).bind(o.id).run(); }
-  return { pulled: ran, tags, pruned: old.length };
+  return { pulled: ran, tags, pruned: old.length, scraper_paused: paused };
 }
 
 /* ---------------- public media: covers and videos by an unguessable key ---------------- */
@@ -457,7 +555,12 @@ async function videoOf(env, post) {
   if (post.plat === 'yt') return { embed: `https://www.youtube-nocookie.com/embed/${post.pid}?autoplay=1&rel=0` };
   if (post.video) return { src: `${SELF}/social-m/${post.video}` };
   if (['carousel', 'post', 'photos'].includes(post.fmt)) return { none: true };
-  const v = await fetchSocialVideo(post.url, env);
+  let v = null;
+  if (post.video_src) {
+    const r = await F(post.video_src, { headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => null);
+    if (r?.ok && /video|octet/.test(r.headers.get('content-type') || '')) v = { ok: true, res: r, size: +(r.headers.get('content-length') || 0) };
+  }
+  if (!v) v = await fetchSocialVideo(post.url, env);
   if (!v.ok) return { error: v.reason === 'not_video' ? 'That post is a picture, not a video.' : `The video would not download (${v.message || v.reason}). Open it on ${PLATS[post.plat]} instead.` };
   const size = v.size || 0;
   if (size > 95 * 1024 * 1024) return { error: 'That video is too big to copy. Open it on the platform instead.' };
@@ -474,8 +577,9 @@ async function slidesOf(env, post) {
   if (!['carousel', 'photos'].includes(post.fmt)) return { slides: [] };
   const had = safe(post.media, null);
   if (Array.isArray(had) && had.length) return { slides: had.map(k => `${SELF}/social-m/${k}`) };
-  let srcs = [];
-  if (post.plat === 'ig') {
+  let srcs = safe(post.slides_src, null) || [];
+  if (srcs.length) { /* Meta gave us every slide at pull time */ }
+  else if (post.plat === 'ig') {
     const j = await sc(env, '/v1/instagram/post', { url: post.url }, null);
     const p = j.data?.xdt_shortcode_media || j.xdt_shortcode_media || {};
     srcs = (p.edge_sidecar_to_children?.edges || []).map(e => e.node?.display_url).filter(Boolean);
@@ -502,7 +606,9 @@ async function slidesOf(env, post) {
  * PUT    /api/social/follow {id, name, ig, tt, yt, query}     fix a handle; pulls again
  * DELETE /api/social/follow?id=           stop following (saved posts and posts made into ours stay)
  * POST   /api/social/pull {act}           pull every follow of this brand now (team)
- * POST   /api/social/save {id, saved, tag?} keep a post (tag = a word for the Saved tab; omitted keeps it)
+ * POST   /api/social/save {id, saved, tag?, note?} keep a post (tag = a word for the Saved tab; note = why; omitted keeps either)
+ * POST   /api/social/transcript {id}      what they say in a video post (one scraper credit, then cached on the row)
+ * POST   /api/social/slides {id}          every slide of a carousel or photo post
  * POST   /api/social/video {id}           a playable copy (TikTok / Instagram) or the YouTube player
  * POST   /api/social/slides {id}          every slide of a carousel or photo post (copied to R2 on the first call)
  * POST   /api/social/make {id, note}      Make ours: the ideas bot writes our version (in the brand's channel too)
@@ -542,7 +648,8 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       const act = url.searchParams.get('act') || '';
       if (!act || act === 'all') return json({ error: 'Pick a brand to see what the brands it follows are posting.' }, 400);
       const on = !!(await env.DB.prepare(`SELECT 1 FROM social_brand WHERE act_id = ?1`).bind(act).first());
-      return json({ on, ...(await feed(env, act)), ...(cs ? {} : { credits: await creditsLeft(env), low: LOW_CREDITS }) });
+      const cred = cs ? null : await creditsLeft(env);
+      return json({ on, ...(await feed(env, act)), ...(cs ? {} : { credits: cred, low: LOW_CREDITS, paused: !env.DOWNLOADER_KEY || (cred != null && cred < LOW_CREDITS), ig_meta: !!env.META_TOKEN, yt_key: hasYt(env) }) });
     }
     if (path === '/api/social/follow' && m === 'POST') {
       const act = String(body.act || '');
@@ -612,14 +719,17 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
       const tag = body.tag === undefined ? (body.saved ? p.tag : null) : (String(body.tag || '').trim().slice(0, 40) || null);
-      await env.DB.prepare(`UPDATE social_post SET saved = ?2, tag = ?3 WHERE id = ?1`).bind(p.id, body.saved ? 1 : 0, body.saved ? tag : null).run();
-      return json({ ok: true, saved: !!body.saved, tag: body.saved ? tag : null });
+      /* A note rides with Save (2026-10-20): "why I saved this", kept on the row; omitted = unchanged, '' = cleared. */
+      const note = body.note === undefined ? p.note : (clip(body.note, 600) || null);
+      await env.DB.prepare(`UPDATE social_post SET saved = ?2, tag = ?3, note = ?4 WHERE id = ?1`).bind(p.id, body.saved ? 1 : 0, body.saved ? tag : null, note).run();
+      return json({ ok: true, saved: !!body.saved, tag: body.saved ? tag : null, note });
     }
     if (path === '/api/social/video' && m === 'POST') {
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
       return json(await videoOf(env, p));
     }
+    /* The transcript of a video post (what they say), one ScrapeCreators credit the first time, then kept on the row. */
     if (path === '/api/social/transcript' && m === 'POST') {
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
@@ -627,6 +737,7 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       const r = await transcriptOf(env, p);
       return json({ text: r.text, cached: r.cached, left: r.left, why: r.text ? null : 'No speech was found in this post.' });
     }
+    /* Every slide of a carousel or TikTok photo post (Meta gives them free; else one scraper call), copied to R2 once. */
     if (path === '/api/social/slides' && m === 'POST') {
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
