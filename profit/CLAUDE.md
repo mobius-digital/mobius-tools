@@ -4036,3 +4036,42 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
 - Checked 2026-10-20 in Cole's signed-in Chrome by loading the worktree's files from a local CORS server into a same-
   origin srcdoc iframe (document.write into the live tab fails: top-level consts survive document.open). Brand and
   agency scope, every group, old ids, dark and light, 390px, flag off = the old rail untouched.
+
+### 2026-10-20 (night): LOCUS v4, phases 2 to 6, all behind the same switch. Read with the phase 1 section above.
+
+- **`V4` is a top-level const in index.html's boot script (the flag), and top-level consts are GLOBAL LEXICAL scope shared by every
+  classic script.** In desk.js, `V4.on` resolved to the boolean's missing property, so the Google rows and the ad set panel silently
+  never drew. Every other file must write `window.V4.…` for the v4 object. The same trap waits for any other top-level const name.
+- **Phase 2, Ads as one queue.** `NAV4.ads` = Calls (`today`), Accounts (`channels`; jobs row `ACCOUNT_JOBS` = All, Meta, Meta
+  campaigns, Google, Google campaigns, Search terms, TikTok, filtered by the brand's connections), Ads (`adcreative`), Tests (`angles`;
+  `TEST_JOBS` = Angles, Test calls), Changes (`changes`; `CHANGE_JOBS` = Meta, Google). Today's calls gains Google rows
+  (`V4.extraCalls`: one row per search-term leak with `apply.kind === 'negative'`, kind `neg`, button "Add N negatives" = the leak
+  finder's own Add all modal) and a tap on an ad set's name opens `V4.setPanel` (the reason, six numbers against the goal, the ads in
+  the set with covers via `V2.thumbs`, the one button). `LeaksCard.setHost` exists for this.
+- **Phase 3, Money > Month** (`V4.render(host, first, 'month')`): where the month lands (ring = the forecast at the planned spend over
+  the goal, outer arc = today's pace, three sentences from `/api/forecast` `projected` / `at_current_pace` / `to_hit`), weeks against
+  target (`fc.weeks`, kit bars with the target as the ghost bar), customer payback dial (`/api/customers` headline `payback`, 1.5x and
+  3x ticks), the waterfall from `/api/client` `mtd` (a margin override collapses the cost steps into one), who paid (new vs returning,
+  first orders by channel from `/api/hub/paid` with the month as the window). **Goals (`plan`) is this page's edit mode**: it left the
+  tab row (`V4_HOME.plan = 'month'`), "Edit the plan" opens it. The ring's number scales with the ring (`--rs`; under 80px the caption
+  hides and the number is 12.5px: Cole, "the numbers aren't fitting inside the circle"). Stock / Buying / Drops tabs appear once the
+  Supply brand list loads (`show()` reruns once for Money).
+- **Phase 4, Agency view.** `V4R` no longer falls back: `V4.render(..., agency = true)` draws the brand board on Today (the book
+  yesterday from `/api/hub/kept`, the counts from `/api/hub/today` + `ovTodayLoad`, then one row per brand: kept against a normal day,
+  the month ring at 56px, the reasons from `CommandCenter.reasonsFor` (command.js now exports reasonsFor / worst / score / cached),
+  the week) and the month board on Money (banked vs planned by now, where it lands vs the goal, spend vs plan, MER vs goal, worst
+  first). Paused brands (`/api/hub/command` `paused`, The Golf Sock) sit on one unflagged line on both. A row opens that brand's page
+  through `data-go="act:<id>:<tab>"` (v2.js wireGo).
+- **Phase 5, the flow.** Reports: `V4.reportExtras` (called by `renderReports` after paint, internal page only) inserts Done (tasks
+  ticked inside the report window, `/api/actions?status=done`) and From you (open Requests) under the summary; nothing is drawn when
+  both are empty. Leaks: "Make it a task" becomes "On Tasks" the moment a task is made (localStorage `lk_task:<act>:<leak>` for 14
+  days) and `confirmTasked` checks the open task list after each paint (`source === 'leak'`), so a task made elsewhere shows too.
+  The Monday call runner, Finish bar and client lines were already callscreen.js.
+- **Phase 6, Make.** production.js inserts `V4.ideasCol` in front of Brief for one brand: saved Social posts (cover, "Nx its usual"),
+  Refresh call rows (the set's main ad as the cover), the two biggest leaks; "Brief it" opens `ProductionTab.newBrief({act, text})`
+  (newBrief takes a prefill now and is exported). `cardHtml` shows `c.thumb` on EVERY stage that has one (Cole: "will those show
+  inside those tabs like before?").
+- **Phase 7 so far:** 390px checked on Month and the boards (no sideways scroll), the audit page carries a superseded note, the
+  design page's phases carry their status. Old renderers stay until the switch is on by default.
+- Script versions: v4.js?v=7, lx.css?v=19, desk.js?v=31, leaks.js?v=10, command.js?v=6, production.js?v=12. All checked in Cole's
+  signed-in Chrome through the CORS server + srcdoc iframe recipe (phase 1 section); nothing deployed, nothing merged.
