@@ -3813,3 +3813,30 @@ calls" collided with Work > Calls. Findings and what changed: the audit page htt
   brand; a picked client = Home > Tasks, that brand's list (`tabInView` home/tasks, `tasks` in VIEW_BOTH). Meetings
   stays Agency view only (one call covers several brands). The hand-typed "BFCM ads: ..." rows were dropped: the
   Season page's to-do list derives the same deadlines from each phase's dates and moves with them.
+
+## 2026-10-20: THE LOCUS KIT, phase 1 of the UX audit (lx.css, lx.js). Read before adding a page header, a strip or a popover.
+
+Audit page (findings per screen, research, the system, before/after mocks, build order, trials):
+https://claude.ai/artifact/M5QhcBYdD8ueFq8LJPFYWa (source `docs/locus-audit/index.html`, screenshots in `docs/locus-audit/shots/`,
+research in `docs/locus-audit/research/`). Handoff: `docs/handoffs/locus-ux-audit.md`. Diagnosis in one line: Locus has no shared
+skeleton; every feature since the v3 shell brought its own page layout, filter form and card size.
+- **`profit/lx.css` is the look, `profit/lx.js` the behaviour.** lx.css loads after supply.css and BEFORE phone.css (phone rules stay
+  in phone.css, loaded last, Cole's rule). Tokens: radius `--r-xs 4 / --r-sm 6 / --r-md 6 / --r-lg 8 / --r-xl 12`, motion `--t-fast
+  120ms / --t 160ms / --t-panel 200ms / --t-sheet 240ms`, a type scale `--fs-*` (11 to 36), `--ctl-h 32px`, `--row-h 40px`, body 14px.
+- **The page header is ONE row**: crumb, 22px title (accent.js italic word), the page's own actions in `.ph-acts` (written by
+  `pageActions(html)` when the head exists, else `#hdActions` as before), the Export menu (share.js), and a `.ph-more` "..." button
+  whose popover holds the page purpose (TAB_PURPOSE) and Tour / Metrics / Help (their data-tour / data-gloss / data-help handlers are
+  unchanged, delegated on document). The subtitle under the title is hidden. On a phone the "..." menu opens in `LxPhone.open` (the
+  shared bottom sheet) as a clone of the menu node: never position a popover fixed inside `#main`, it carries a transform.
+- **Platform jobs (`#v2seg .v2jobs`) are a segmented control**, page tabs (`.v2tabs`) are underlined text; both restyled in lx.css only.
+- **The strip** (`LxKit.strip({tone, lead, n, text, fold, go, goLabel})` + `LxKit.wireStrip(host, onOpen)`): one 44px line with a
+  tone border (warn / bad / good / brand / quiet), a fold button that opens `.lx-strip-body` under it, and a go button. The leak
+  finder uses it: `LeaksCard.strip(host, H, page)` on Home (the brand's leaks to act on) and on Meta / Google / TikTok / Website / Email
+  (`mountLeaks` in v2.js prefers `strip` over `top`). The full list moved to **Home > Leaks** (`leaks` page id, VIEW_BOTH: one brand =
+  `LeaksCard.full` with every leak open, Agency view = `LeaksCard.brands`); Home's old 6-row card is gone, the strip links there.
+- **The side panel is shared**: `window.V2.panel(title, html)` / `V2.closePanel()` (v2.js's own panel, a bottom sheet on a phone),
+  wrapped as `LxKit.panel`. The rail tightens under 780px and 640px tall windows (`max-height` media rules) instead of scrolling.
+- **Not built in phase 1** (the audit's phases 2 to 6): the 56px icon rail for iPads, Tasks / Meetings / call screens on the kit, the
+  Reports and Social rebuilds, the copy pass, the iPad pass. The audit page lists them with the mocks.
+- Checked on the local trio with real data at 1280, 768 and 390, Agency view and Lucky, dark and light (Chrome in Cole's profile; the
+  Browser pane refused localhost that day). A new Chrome tab group starts with empty localStorage: set pf_worker / pf_ah / pf_token again.

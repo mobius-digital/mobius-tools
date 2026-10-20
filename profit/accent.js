@@ -7,7 +7,7 @@
 (() => {
   /* tab id -> the words to try, in order. Titles are usually "<page>: <brand>", a few are sentences. */
   const WORDS = {
-    overview: ['Overview'], yesterday: ['check'], today: ['calls'], profit: ['P&amp;L', 'P&L', 'Profit'], plan: ['Goals', 'Plan'], requests: ['Requests'],
+    overview: ['Overview'], yesterday: ['check'], leaks: ['Leaks'], today: ['calls'], profit: ['P&amp;L', 'P&L', 'Profit'], plan: ['Goals', 'Plan'], requests: ['Requests'],
     channels: ['channels'], meta: ['Meta'], campaigns: ['campaigns'], adcreative: ['ads'], changes: ['changes'], mtoday: ['Today'], mbrowser: ['browser'],
     google: ['Google'], gcampaigns: ['campaigns'], gads: ['ads'], gterms: ['terms'], gchanges: ['changes'], tiktok: ['TikTok'],
     angles: ['angles'], tests: ['calls'], email: ['SMS', 'Attentive', 'Email'], store: ['Sales'], customers: ['Customers'], website: ['Website'], search: ['Search'],

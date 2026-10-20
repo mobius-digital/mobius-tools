@@ -190,7 +190,7 @@
     host.querySelectorAll('.lk-add').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lk); addOne(a, d, l.items[+b.dataset.i], redraw); });
     host.querySelectorAll('.lk-all').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lk); addAll(a, d, l, redraw); });
     host.querySelectorAll('[data-lkall]').forEach(b => b.onclick = () => { host.dataset.all = '1'; redraw(); });
-    host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('overview'));
+    host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('leaks'));
     host.querySelectorAll('[data-lkpb]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkpb); if (l) pushBack(a, d, l, redraw); });
     wireCalls(host, a, () => { CACHE.delete(a.act_id); redraw(true); });
     host.querySelectorAll('[data-lkai]').forEach(b => b.onclick = async () => {
@@ -293,6 +293,38 @@
     draw();
   }
 
+  /* ---------- THE STRIP (2026-10-20, the kit): one line under the page head ----------
+     Cole: "the leak finder takes far too much room". A page shows ONE line: the total a month, how many, the biggest
+     one, "See all" (folds that page's rows open in place) and "All leaks" (Home > Leaks). Home shows the brand's total
+     and its biggest leak with "Open leaks". Nothing is drawn when the page has no leak. */
+  const AREA_LEAD = { google: 'Google', gterms: 'Google search', meta: 'Meta', tiktok: 'TikTok', website: 'The site', email: 'Email' };
+  async function strip(host, h, page) {
+    H = h; css();
+    if (!host) return;
+    const a = H.S.act !== 'all' ? (H.S.accounts || []).find(x => x.act_id === H.S.act) : null;
+    if (!a || !window.LxKit || (page !== 'home' && !PAGE[page])) { host.innerHTML = ''; return; }
+    const t = H.RUN();
+    let d; try { d = await load(a.act_id); } catch { host.innerHTML = ''; return; }
+    if (t !== H.RUN() || !d || d.error) { if (d && d.error && t === H.RUN()) host.innerHTML = ''; return; }
+    const draw = fresh => {
+      if (fresh) return load(a.act_id, fresh).then(x => { d = x; draw(); }).catch(e => toast(e.message));
+      CHECKED = checkedOn(d);
+      const mine = page === 'home' ? (d.leaks || []).filter(ACT_ON) : (d.leaks || []).filter(l => PAGE[page].includes(l.area));
+      if (!mine.length) { host.innerHTML = ''; return; }
+      const act = mine.filter(ACT_ON), sum = act.reduce((s, l) => s + (l.cost || 0), 0), first = act[0] || mine[0];
+      const lead = page === 'home' ? `${esc(d.brand)} is leaking about ${km(sum, d.currency)} a month` : `${AREA_LEAD[page]} is leaking${sum ? ` about ${km(sum, d.currency)} a month` : ''}`;
+      host.innerHTML = window.LxKit.strip({ tone: sum >= 5000 ? 'bad' : 'warn', lead, n: `${mine.length} leak${mine.length === 1 ? '' : 's'}`, text: first ? esc(first.title) : '', fold: page === 'home' ? '' : (mine.length === 1 ? 'See it' : `See all ${mine.length}`), go: 'leaks', goLabel: page === 'home' ? 'Open leaks' : 'All leaks' });
+      host.querySelectorAll('[data-go="leaks"]').forEach(b => b.onclick = () => H.show('leaks'));
+      window.LxKit.wireStrip(host, body => {
+        const max = Math.max(...mine.map(l => l.cost || 0), 1);
+        body.innerHTML = `<section class="v2card lk-card"><div class="lk-rows">${mine.map(l => row(l, d.currency, max)).join('')}</div>
+          <div class="lk-more"><span>${d.ai_check && d.ai_check.at ? `AI check ${esc(checkedOn(d))}.` : 'Not cross-checked yet.'}</span><button type="button" class="lk-link" data-lkhome="1">Every leak for ${esc(d.brand)} ›</button></div></section>`;
+        wire(body, d, a, draw);
+      });
+    };
+    draw();
+  }
+
   const checkedOn = d => d.ai_check && d.ai_check.at ? new Date(d.ai_check.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : null;
   const ACT_ON = l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement';
 
@@ -356,8 +388,8 @@
         <td>${r.d.ai_check && r.d.ai_check.at ? esc(checkedOn(r.d)) : '<span class="faint">not yet</span>'}</td></tr>`; }).join('')}
       </tbody></table></div>
       <p class="v2hint" style="margin:0">The AI check runs for every brand on Monday's morning card, or on a brand's Overview with Run the AI check (about 6 cents). Between checks the list is the plain rules plus the last check's verdicts, free.</p></section>`;
-    host.querySelectorAll('[data-lkbrand]').forEach(tr => { const go = () => pick ? pick(tr.dataset.lkbrand, 'overview') : null; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+    host.querySelectorAll('[data-lkbrand]').forEach(tr => { const go = () => pick ? pick(tr.dataset.lkbrand, 'leaks') : null; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
   }
 
-  window.LeaksCard = { top, full, brands, drop: act => CACHE.delete(act) };
+  window.LeaksCard = { top, strip, full, brands, drop: act => CACHE.delete(act) };
 })();

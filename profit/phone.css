@@ -27,11 +27,29 @@
   [data-ui="v2"] .v2sw,[data-ui="v2"] .toggle,[data-ui="v2"] .pd-fmt,[data-ui="v2"] .pd-avb,[data-ui="v2"] .pd-due,[data-ui="v2"] .tk-tick,[data-ui="v2"] .tk-av,[data-ui="v2"] .tk-due,[data-ui="v2"] .cal-btn.cal-mini,[data-ui="v2"] .ds-logo,[data-ui="v2"] .v2ex,[data-ui="v2"] .v2rm,[data-ui="v2"] .v2cell{min-height:0}
   /* Platform status: the letters inside a tiny logo box had shrunk to 5px */
   [data-ui="v2"] .dk .ds-logo b{font-size:max(9px,calc(var(--lg,32px) * .36))}
-  /* page head: the title gets the whole width, the quiet actions sit under it */
-  [data-ui="v2"] .ph,[data-ui="v2"] .v2 > .ph,[data-ui="v2"] .lx > .ph{flex-wrap:wrap;align-items:flex-start;gap:2px 0}
-  [data-ui="v2"] .ph > div:first-child{flex:1 1 100%}
-  [data-ui="v2"] .ph-r{width:100%;justify-content:flex-end;margin:0 -7px 0 0}
-  [data-ui="v2"] .ph-ico[data-tour]{display:none}
+  /* page head (2026-10-20, the kit): ONE row, the title and the "..." button; the page's own actions, when it has
+     any, are a full-width row under it. The purpose line, Tour, Metrics and Help are in the menu. */
+  [data-ui="v2"] main .ph{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px 8px;margin:4px 0 12px;padding-bottom:10px}
+  [data-ui="v2"] main .ph-r > .lx-exp-page{grid-column:2;grid-row:1}
+  [data-ui="v2"] main .ph-r > .lx-exp-page .btn,[data-ui="v2"] main .ph-r > .lx-exp-page button{min-height:0;width:40px;height:40px}
+  [data-ui="v2"] main .ph > div:first-child{grid-column:1;grid-row:1;min-width:0}
+  [data-ui="v2"] main .ph-t,[data-ui="v2"] main h2.ph-t{font-size:20px}
+  [data-ui="v2"] main .ph .ph-crumb{display:none}
+  [data-ui="v2"] main .ph-r{display:contents}
+  [data-ui="v2"] main .ph-r .ph-menu-w{grid-column:3;grid-row:1}
+  [data-ui="v2"] main .ph-r .ph-acts{grid-column:1 / -1;grid-row:2;display:flex;gap:8px;flex-wrap:wrap}
+  [data-ui="v2"] main .ph-r .ph-acts:empty{display:none}
+  [data-ui="v2"] main .ph-r .ph-acts .btn,[data-ui="v2"] main .ph-r .ph-acts .v2btn{flex:1 1 auto;justify-content:center;min-height:40px}
+  [data-ui="v2"] main .ph-r > .ph-ico{display:none}
+  [data-ui="v2"] .ph-more{width:40px;height:40px;min-height:0}
+  /* the "..." menu opens in the shared bottom sheet (lx.js hands it to LxPhone.open); inside the sheet it is a plain list */
+  #lxSheet .ph-menu{display:block;position:static;max-width:none;min-width:0;border:0;box-shadow:none;padding:0 2px;animation:none;background:transparent}
+  #lxSheet .ph-menu .ph-why{font-size:14px;line-height:1.45;padding:4px 8px 12px}
+  #lxSheet .ph-menu .ph-ico{min-height:48px;font-size:15px;width:100%}
+  /* the strip on a phone: the lead on one line, the rest under it */
+  .lx-strip{padding:10px 12px}
+  .lx-strip .d{flex:1 1 100%;white-space:normal}
+  .lx-strip .go,.lx-strip .lx-fold{margin-left:0;min-height:0}
   /* today's calls: a grid item never widens the row, an ad name with no spaces wraps, the kind label reads,
      the row's buttons are thumb-sized */
   [data-ui="v2"] .dk .dk-row > *{min-width:0}
