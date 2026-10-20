@@ -26,7 +26,7 @@
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1,"cv11" 1;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 80px}
 a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
-.wrap{max-width:1240px;margin:0 auto}
+.wrap{max-width:1400px;margin:0 auto}
 .col{max-width:760px}
 h1{font-size:44px;font-weight:650;letter-spacing:-.02em;line-height:1.08;margin:48px 0 10px;text-wrap:balance}
 h1 i,h2 i,.ser{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:0}
@@ -46,15 +46,15 @@ kbd{font:inherit;font-size:11px;padding:1px 5px;border:1px solid var(--line-stro
 
 /* IA map */
 .ia{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0 8px}
-.ia .d{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 14px 12px;min-width:0}
-.ia .d h4{margin:0 0 2px;font-size:15px;font-weight:650;display:flex;align-items:center;gap:8px}
-.ia .d .ask{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4}
-.ia .d ul{margin:0;padding:0;list-style:none;font-size:13px;color:var(--ink-2)}
-.ia .d li{padding:3px 0;border-top:1px solid var(--line)}
-.ia .d li small{display:block;color:var(--faint);font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0;line-height:1.3;margin-top:1px}
-.ia .d .who{margin-top:10px;display:flex;flex-wrap:wrap;gap:4px}
-.ia .d .who span{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:4px}
-.ia .d.foot{background:transparent;border-style:dashed}
+.ia .dest{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 14px 12px;min-width:0}
+.ia .dest h4{margin:0 0 2px;font-size:15px;font-weight:650;display:flex;align-items:center;gap:8px}
+.ia .dest .ask{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4}
+.ia .dest ul{margin:0;padding:0;list-style:none;font-size:13px;color:var(--ink-2)}
+.ia .dest li{padding:3px 0;border-top:1px solid var(--line)}
+.ia .dest li small{display:block;color:var(--faint);font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0;line-height:1.3;margin-top:1px}
+.ia .dest .who{margin-top:10px;display:flex;flex-wrap:wrap;gap:4px}
+.ia .dest .who span{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:4px}
+.ia .dest.foot{background:transparent;border-style:dashed}
 table.map{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
 table.map th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line-strong)}
 table.map td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
@@ -74,7 +74,7 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
 .phcap b{color:var(--ink);font-weight:600}
 
 /* App shell inside frames */
-.app{display:grid;grid-template-columns:232px 1fr;min-height:900px}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:720px}
 .rail{background:var(--surface);border-right:1px solid var(--line);padding:14px 12px;display:flex;flex-direction:column;gap:4px}
 .rail .logo{display:flex;align-items:center;gap:8px;padding:4px 8px 12px;font-weight:650;font-size:15px}
 .rail .logo i{width:22px;height:22px;border-radius:7px;background:var(--blue);display:inline-block}
@@ -136,7 +136,7 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
 .rows{display:flex;flex-direction:column}
 .row{display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
 .row:first-child{border-top:0}
-.row .t{flex:1;min-width:0}.row .t b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .t small{color:var(--muted);display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t{flex:1;min-width:0}.row .btn{flex:none}.row .t b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .t small{color:var(--muted);display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .m{font-weight:600;white-space:nowrap}
 .row .go{color:var(--muted)}
 .thumb{width:40px;height:50px;border-radius:6px;background:linear-gradient(135deg,#2a2a31,#3a3a43);flex:none;position:relative;overflow:hidden}
@@ -236,8 +236,17 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
   <h1>Locus v4: the app <i>rebuilt</i> around the questions people bring to it</h1>
   <p class="lead">Seven destinations, each named for a job. Every page opens on its answer. One object model, so a leak becomes a call, a call becomes a task, and the task shows up in the report. Every number on these mocks is Lucky Golf's, read from the live Locus workers on 20 October (Triple Whale last platform click, Oct 13 to 19 unless the mock says otherwise).</p>
   <nav class="toc">
-    <a href="#why">Why a new app</a><a href="#ia">The map</a><a href="#nav">Nav</a><a href="#today">Today</a><a href="#agency">Agency</a><a href="#ads">Ads</a><a href="#wall">Ad wall</a><a href="#money">Money</a><a href="#make">Make</a><a href="#reports">Reports</a><a href="#work">Work</a><a href="#client">Client</a><a href="#phone">iPhone</a><a href="#borrow">Who we borrow from</a><a href="#inside">Inside a tab</a><a href="#flow">The flow</a><a href="#plan">Build plan</a>
+    <a href="#why">Why a new app</a><a href="#ia">The map</a><a href="#nav">Nav</a><a href="#today">Today</a><a href="#agency">Agency</a><a href="#ads">Ads</a><a href="#wall">Ad wall</a><a href="#money">Money</a><a href="#make">Make</a><a href="#reports">Reports</a><a href="#work">Work</a><a href="#client">Client</a><a href="#phone">iPhone</a><a href="#research">Research</a><a href="#borrow">Who we borrow from</a><a href="#inside">Inside a tab</a><a href="#flow">The flow</a><a href="#plan">Build plan</a>
   </nav>
+  <div class="card" style="margin:22px 0 0;padding:18px 20px;border-color:var(--blue-line);background:var(--blue-soft)">
+    <h5 style="font-size:15px">How to read this page, in three steps</h5>
+    <ol style="margin:8px 0 0;padding-left:20px;font-size:14.5px;color:var(--ink);line-height:1.6">
+      <li><b>The map.</b> Seven cards, one per rail item. Check that nothing you use is missing a home. One yes or no.</li>
+      <li><b>Eight screens.</b> Each one is a full picture of the new app at desktop size with a one-line question above it. Look at Today, Ads and Money first; they set the shape for the rest. For each: does it answer the question faster than today, and does it look like a product you would pay for?</li>
+      <li><b>The phone, the flow, the build plan.</b> Four phone screens, the one path through the app, and seven weekly phases. The only answer I need there is "build it in this order" or "change the order".</li>
+    </ol>
+    <p style="font-size:13px;margin:10px 0 0;color:var(--ink-2)">What these are: HTML mocks drawn with the real kit sizes and Lucky Golf's real numbers, scaled to fit this page. They are not the build. Anything you circle becomes the spec for that phase.</p>
+  </div>
 </header>
 
 <section class="col" id="why">
@@ -315,7 +324,7 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
   <h2>Make: ideas to <i>live</i> ads on one board</h2>
   <div class="col"><p class="q"><b>Answers</b> What are we making next, where is each piece, and what should the next batch look like?</p></div>
   <div class="mock"><div class="fw" id="m-make"></div></div>
-  <p class="note">Pipeline is the first tab: Ideas (saved posts, leaks that asked for an ad, call rows) flow into Briefs, Studio, Review, Ready and Live, with the ages that matter on each card. The right rail is the brief for the next batch, written from the ad wall: what ingredients are winning, what is leaning on old ads (6% of spend on ads under 14 days), what the Strategist suggests. Studio, Library, Social, Creators and Brand are tabs, so the brand's voice sits one click from the brief that needs it.</p>
+  <p class="note">Pipeline is the first tab, with the stage names your Asana boards already use (Creative Briefs, Creative Studio, Ready to Launch, Launched and testing, Analyze results) so nothing is renamed on the team. Ideas (saved posts, leaks that asked for an ad, call rows) sit before the first stage; the ages that matter are on each card. The right rail is the brief for the next batch, written from the ad wall: what ingredients are winning, what is leaning on old ads (6% of spend on ads under 14 days), what the Strategist suggests. Studio, Library, Social, Creators and Brand are tabs, so the brand's voice sits one click from the brief that needs it.</p>
 </section>
 
 <section id="reports">
@@ -347,24 +356,40 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
 </section>
 
 
+
+<section id="research">
+  <h2>What I looked at in your accounts <i>today</i></h2>
+  <div class="col"><p>Opened in your Chrome, signed in as you, on 20 October. Each screenshot is followed by the one pattern taken into the mocks and where it landed. Full-size files are in docs/locus-v4/refs.</p></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:18px 0">
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/triplewhale-summary.jpg" alt="Triple Whale Summary for Lucky Golf" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>Triple Whale, Summary (Lucky)</h5><p style="font-size:13px;margin:6px 0 0">Left rail: Moby on top, then Essentials (Summary, Acquisition, Creative, Conversion, Retention, Discovery), custom workspaces, Data / Help / Settings in the foot. The page is an Ask bar with suggested questions, then Pins: label, big number, delta, sparkline. Period and compare are two pills in the title row.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: the rail order and foot, Pins as the Today tiles, Ask with suggested questions on Today. The suggestions are Locus's own leaks.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/atria-inspo.jpg" alt="Atria Inspo feed" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>Atria, Inspo</h5><p style="font-size:13px;margin:6px 0 0">A 56px icon rail (Inspo, Raya, Analytics, AI Gen, Assets, Brands) with a second column for the section's own list (Ads, Brands, Advertisers, Top picks, Following, Saved, Boards). Views as pills (All ads, Trending, Following, + New view), then filters as pill menus in four named groups (Lifecycle, Targeting, Creative, Performance). Cards carry the brand, days running, two numbers and the thumbnail; everything else is on hover.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: the icon rail plus section column for iPad; grouped filter pills on the Ad wall and Social; the card anatomy for every ad and post in Locus.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/trendtrack-brandtracker.jpg" alt="TrendTrack Brandtracker" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>TrendTrack, Brandtracker</h5><p style="font-size:13px;margin:6px 0 0">One row per shop: logo and site, niche chips, three best-seller thumbnails, revenue a month with a per-day line under it, visits with a sparkline, Meta ads live with a sparkline and "launched in 7 days". Period as a 24H / 7D / 14D / 30D segment; list or card toggle; a Compare tab.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: the row anatomy for the Agency brand board (number, per-day line, sparkline in one cell) and for Make &rsaquo; Social's followed brands.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/asana-board.jpg" alt="Asana board for Bonk Golf" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>Asana, the Bonk Golf board</h5><p style="font-size:13px;margin:6px 0 0">Project tabs are views of one list (Overview, List, Board, Timeline, Dashboard, Calendar, Messages, Files). Columns are your real stages: Creative Briefs, Creative Studio, Ready to Launch, Launched and Testing, Analyze Results, Complete. A card is the number and name, two tags, the owner, a comment count. Inbox is a feed of stage changes.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: those stage names on Make &rsaquo; Pipeline, unchanged, so the team's vocabulary carries over; the Inbox feed is Today &rsaquo; Brief's "what moved" line.</p></div></div>
+  </div>
+  <div class="grid g2" style="gap:10px">
+    <div class="card"><h5>Could not reach, and why</h5><ul style="margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink-2);line-height:1.6"><li><b style="color:var(--ink)">ClickUp</b>: Chrome is signed out of app.clickup.com. I do not type passwords, so sign in once and I will go through it.</li><li><b style="color:var(--ink)">Atria &rsaquo; Analytics</b>: the Lucky Golf ad account says "expired session, reconnect". Reconnect it and the Radar page becomes readable.</li><li><b style="color:var(--ink)">Motion</b>: no account exists, and I cannot create one. If you want it, start the 14-day trial at motionapp.com with the Lucky Meta account and I will click through it.</li><li><b style="color:var(--ink)">TrendTrack shop pages</b>: the brand page froze Chrome's tab twice; Brandtracker and Home were enough for the pattern.</li></ul></div>
+    <div class="card"><h5>Already enough from public material</h5><p style="font-size:13.5px;margin:8px 0 0">Linear (side peek, command palette, motion), Attio (settings, record peek), Polar (compare pill, saved views), Northbeam (attribution captions), Mercury (confirm card), Stripe (page anatomy), Foreplay (boards, briefs), Sandcastles (outlier cards), Fellow (agenda as the page). These are in the audit's research notes with URLs and are already folded into the kit rules.</p></div>
+  </div>
+</section>
+
 <section id="borrow">
   <h2>Who each screen <i>borrows</i> from, and what I need from you</h2>
-  <div class="col"><p>The yardstick is per job, not one product. Each destination copies the best product for that job, down to the pattern. The last column is what I need from you: most of this I can research from public docs, demos and walkthrough videos myself; a sign-in only helps where the real product behaves differently from its marketing, which is the four marked.</p></div>
+  <div class="col"><p>The yardstick is per job, not one product. Each destination copies the best product for that job, down to the pattern. The last column is what is still open after the pass through your accounts today.</p></div>
   <div class="scroll"><table class="map">
     <thead><tr><th>Destination</th><th>Borrow from</th><th>The pattern we take</th><th>From you</th></tr></thead>
     <tbody>
-      <tr><td>Today</td><td>Triple Whale Summary, Mercury</td><td>One operating view: pinned numbers with sparklines, Moby one click from any tile. Mercury's "money first, one hero, tables below" and its confirm card that says exactly what a button will do.</td><td><b>Triple Whale: you have it.</b> Open the new Summary with Pins and the mobile app once with me watching in Chrome (20 min).</td></tr>
+      <tr><td>Today</td><td>Triple Whale Summary, Mercury</td><td>One operating view: pinned numbers with sparklines, Moby one click from any tile. Mercury's "money first, one hero, tables below" and its confirm card that says exactly what a button will do.</td><td>Done today (Summary read). The phone app is still worth 10 minutes with me watching.</td></tr>
       <tr><td>Money</td><td>Polar Analytics, Northbeam, Lifetimely</td><td>Date and compare as one pill, saved views, a column chooser on every table, attribution model as a caption under every chart. Lifetimely's cohort curve for Customers.</td><td>Nothing. Polar's docs and demo videos are enough; Northbeam's docs are public.</td></tr>
-      <tr><td>Ads</td><td>Motion, Northbeam, Google Ads' recommendations page</td><td>Motion: the creative is a card because the thumbnail is the content; the drawer holds results, tags (format, angle, who is on screen) and the comparison. Reports as tiles with up to six metrics. Google's recommendations: one row, one Apply, the reason in a sentence.</td><td><b>Motion: a 14-day trial would help.</b> Its tag rollups and the drawer behave differently from the screenshots. Start it and I click through in your Chrome.</td></tr>
-      <tr><td>Ad wall, Social, Library</td><td>Atria, TrendTrack, Foreplay, Sandcastles</td><td>Atria: every ad tagged (hook, angle, CTA, visual style), letter grades, filters as pills. TrendTrack: a brand's whole ad history, scaled formats, landing pages, ranked by spend signals. Foreplay: boards, one brief to many creators, Spyder's timeline. Sandcastles: 9:16 cards with the outlier multiple.</td><td><b>Atria: you have it.</b> TrendTrack: a Starter month ($49) is worth it for the brand-history view. Foreplay and Sandcastles: public is enough.</td></tr>
-      <tr><td>Make &rsaquo; Pipeline</td><td>Asana, ClickUp 4.0, Linear</td><td>Asana: list, board and calendar as views of one list; the task pane slides in; the tick animates. ClickUp 4.0: Home with Inbox and a Planner, hubs you pin, hierarchy in the sidebar. Linear: the side peek, keyboard first, status as a small icon, the triage inbox.</td><td><b>Asana: you have it.</b> ClickUp: a free workspace, 20 minutes in your Chrome. Linear: free, I can do it alone.</td></tr>
+      <tr><td>Ads</td><td>Motion, Northbeam, Google Ads' recommendations page</td><td>Motion: the creative is a card because the thumbnail is the content; the drawer holds results, tags (format, angle, who is on screen) and the comparison. Reports as tiles with up to six metrics. Google's recommendations: one row, one Apply, the reason in a sentence.</td><td>Motion: start the 14-day trial yourself (I cannot create accounts); I click through it after.</td></tr>
+      <tr><td>Ad wall, Social, Library</td><td>Atria, TrendTrack, Foreplay, Sandcastles</td><td>Atria: every ad tagged (hook, angle, CTA, visual style), letter grades, filters as pills. TrendTrack: a brand's whole ad history, scaled formats, landing pages, ranked by spend signals. Foreplay: boards, one brief to many creators, Spyder's timeline. Sandcastles: 9:16 cards with the outlier multiple.</td><td>Atria Inspo and TrendTrack Brandtracker read today. Reconnect the Lucky ad account in Atria for Radar.</td></tr>
+      <tr><td>Make &rsaquo; Pipeline</td><td>Asana, ClickUp 4.0, Linear</td><td>Asana: list, board and calendar as views of one list; the task pane slides in; the tick animates. ClickUp 4.0: Home with Inbox and a Planner, hubs you pin, hierarchy in the sidebar. Linear: the side peek, keyboard first, status as a small icon, the triage inbox.</td><td>Asana read today. ClickUp: sign in to app.clickup.com in Chrome once. Linear: public.</td></tr>
       <tr><td>Reports</td><td>Stripe Dashboard, Triple Whale weekly report, Whatagraph</td><td>Stripe's fixed page anatomy; the report as four numbers, a sentence, three lists, the ads as cards; one Send with a preview of what the client gets.</td><td>Nothing.</td></tr>
       <tr><td>Work</td><td>Fellow, Notion meeting notes, Linear triage</td><td>Fellow: the agenda is the page, each item has an owner and becomes an action item on Finish. Notion: the meeting note is a page with linked tasks. Linear: triage one at a time with a Next button.</td><td>Nothing.</td></tr>
       <tr><td>Shell, Find, settings</td><td>Linear, Attio, Vercel, Superhuman</td><td>Linear's command palette and motion; Attio's two-column settings and record peek; Vercel's grey scale and tabular numbers; Superhuman's palette rules.</td><td>Linear and Attio are free; I do them alone.</td></tr>
     </tbody>
   </table></div>
   <div class="grid g2" style="gap:10px;margin:14px 0 0">
-    <div class="card"><h5>What I need from you, in order</h5><ol style="margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink-2);line-height:1.6"><li><b style="color:var(--ink)">Motion</b> 14-day trial (motionapp.com), connected to the Lucky Meta account. Biggest payoff: Ads and the ad wall.</li><li><b style="color:var(--ink)">Triple Whale</b>: 20 minutes with the new Summary and the phone app open in Chrome while I read it.</li><li><b style="color:var(--ink)">ClickUp</b> free workspace, one Space with a few tasks, 20 minutes in Chrome.</li><li><b style="color:var(--ink)">TrendTrack</b> Starter for a month, optional.</li></ol><p class="note">Atria, Asana and Triple Whale you already have. Linear, Attio, Polar docs, Foreplay, Sandcastles, Fellow, Stripe: public, I do them alone.</p></div>
+    <div class="card"><h5>Still open, three things</h5><ol style="margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink-2);line-height:1.6"><li><b style="color:var(--ink)">Sign in to ClickUp</b> in Chrome once (app.clickup.com).</li><li><b style="color:var(--ink)">Reconnect Lucky Golf in Atria</b> (Analytics &rsaquo; ad accounts &rsaquo; Reconnect).</li><li><b style="color:var(--ink)">Motion</b>: start the trial if you want it in; it is the one product I cannot open for you.</li></ol><p class="note">Everything else was read today or comes from public material.</p></div>
     <div class="card"><h5>How the research turns into screens</h5><p style="font-size:13.5px;margin:8px 0 0">For each product: 20 minutes of clicking in your Chrome, screenshots into docs/locus-v4/refs, and one line per pattern ("Motion: the drawer opens on the right, 480px, tags as pills under the thumbnail, six metrics max"). The pattern goes into the matching mock here, with the source named under it. You review the mocks, not the research.</p></div>
   </div>
 </section>
@@ -485,8 +510,8 @@ function mount(id,html,h){const fw=document.getElementById(id);fw.innerHTML=`<di
     ['rep','Reports','What happened, what do we need from you?',['Weekly','Monthly','Requests','Dashboards'],'reports dash requests',['Cole','Client']],
     ['work','Work','What do we decide and who does it?',['Meetings','Tasks','Monday call','Client call','Kickoff'],'calls meetings monday ccall tasks actions',['Team only']],
   ];
-  document.getElementById('iaGrid').innerHTML=D.map(([k,n,a,t,ids,who])=>`<div class="d"><h4><span style="width:18px;height:18px;display:inline-flex;color:var(--blue)">${I[k].replace('<svg','<svg style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"')}</span>${n}</h4><p class="ask">${a}</p><ul>${t.map(x=>`<li>${x}</li>`).join('')}<li style="border-top:1px solid var(--line-strong)"><small>${ids}</small></li></ul><div class="who">${who.map(w=>`<span>${w}</span>`).join('')}</div></div>`).join('')+
-  `<div class="d foot"><h4>Foot</h4><p class="ask">Find, Ask, Tools, Settings</p><ul><li>Find ⌘K</li><li>Ask (the Strategist)</li><li>Tools</li><li>Settings</li><li><small>calc pulse economics workload settings guide clients</small></li></ul></div>`;
+  document.getElementById('iaGrid').innerHTML=D.map(([k,n,a,t,ids,who])=>`<div class="dest"><h4><span style="width:18px;height:18px;display:inline-flex;color:var(--blue)">${I[k].replace('<svg','<svg style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"')}</span>${n}</h4><p class="ask">${a}</p><ul>${t.map(x=>`<li>${x}</li>`).join('')}<li style="border-top:1px solid var(--line-strong)"><small>${ids}</small></li></ul><div class="who">${who.map(w=>`<span>${w}</span>`).join('')}</div></div>`).join('')+
+  `<div class="dest foot"><h4>Foot</h4><p class="ask">Find, Ask, Tools, Settings</p><ul><li>Find ⌘K</li><li>Ask (the Strategist)</li><li>Tools</li><li>Settings</li><li><small>calc pulse economics workload settings guide clients</small></li></ul></div>`;
 })();
 
 /* ---------- NAV mock ---------- */
@@ -670,22 +695,22 @@ mount('m-make',`<div class="app">${rail('make','brand')}<div class="main" style=
         <div class="kc"><b>Refresh 322 B | Still</b><small>from the call · clicks down 41%</small></div>
         <div class="kc"><b>Hands-only wedge demo</b><small>from the ad wall · $46 a sale</small></div>
       </div>
-      <div class="colm"><h6>Briefs <span>13</span></h6>
+      <div class="colm"><h6>Creative Briefs <span>13</span></h6>
         <div class="kc" style="border-color:var(--warn)"><b>401 What you're really paying for</b><small>Hybrid Stryker · 70 days here</small></div>
         <div class="kc" style="border-color:var(--bad)"><b>419-1 Stop hitting worm burners</b><small>Nomaqhawe · 5 days late</small></div>
         <div class="kc"><b>Walk the phone cart, then brief</b><small>Noma · from Monday's call</small></div>
         <div class="kc" style="opacity:.6"><b>+10 more</b><small>9 older than 10 days</small></div>
       </div>
-      <div class="colm"><h6>Studio <span>3</span></h6>
+      <div class="colm"><h6>Creative Studio <span>3</span></h6>
         <div class="kc"><b>Early Bird: towel with any club</b><small>6 statics · real cut-out · Nov 1</small></div>
         <div class="kc"><b>Black Wedge v2 (hands only)</b><small>4 statics · dressing</small></div>
         <div class="kc"><b>Putter demo, 3 beats</b><small>video · script from the saved post</small></div>
       </div>
-      <div class="colm"><h6>Review <span>2</span></h6>
+      <div class="colm"><h6>Ready to Launch <span>2</span></h6>
         <div class="kc"><b>Fit Your Foursome, round 2</b><small>Cole to approve · 8 files</small></div>
         <div class="kc"><b>322 B iteration</b><small>Ravo · version 2 uploaded</small></div>
       </div>
-      <div class="colm"><h6>Live this week <span>17</span></h6>
+      <div class="colm"><h6>Launched, testing <span>17</span></h6>
         <div class="kc"><b>396 A | Still</b><small>7 days · $36 · not judged yet</small></div>
         <div class="kc"><b>Black Wedges 40 to 44</b><small>relaunched Oct 18 to 19</small></div>
         <div class="kc" style="opacity:.6"><b>+11 more</b><small>6% of spend on ads under 14 days</small></div>
