@@ -55,7 +55,8 @@ export async function ensureSched(env) {
 /** The channels a schedule may post to: every active brand's internal channel + the Strategist's. */
 export async function allowedChannels(env, d) {
   const out = new Map();
-  for (const a of await d.listAccounts(env, true)) if (a.slack_channel) out.set(a.slack_channel, `${a.name} internal`);
+  /* A brand whose internal channel is its client channel is left out (2026-10-19): nothing scheduled reaches a client. */
+  for (const a of await d.listAccounts(env, true)) if (a.slack_channel && a.slack_channel !== a.brief_channel) out.set(a.slack_channel, `${a.name} internal`);
   const sc = String((await d.getSetting(env, 'strategistChannel')) || '').trim();
   if (/^[CG][A-Z0-9]{6,}$/.test(sc) && !out.has(sc)) out.set(sc, 'Strategist channel');
   return out;

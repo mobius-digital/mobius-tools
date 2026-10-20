@@ -71,8 +71,9 @@ export async function minOffTick(env, d) {
   const team = d.teamOf ? await d.teamOf(env, brands.map(a => a.act_id)).catch(() => ({})) : {};
   const out = { date: today, posted: [], quiet: [], waiting: [], skipped: [], failed: [] };
   for (const a of brands) {
-    if (!a.slack_channel) { st.acts[a.act_id] = 'no internal channel'; out.skipped.push(a.name); continue; }
-    const cardCan = cards && a.slack_channel !== a.brief_channel;
+    /* No internal channel, or one that is the client's (2026-10-19): nothing posts. */
+    if (!a.slack_channel || a.slack_channel === a.brief_channel) { st.acts[a.act_id] = 'no internal channel'; out.skipped.push(a.name); continue; }
+    const cardCan = cards;
     if (cardCan && hour < from + WAIT_FOR_CARD && !(await todaysCard(env, a.slack_channel, today).catch(() => null))) { out.waiting.push(a.name); continue; }
     /* BEFORE the brand, never mid-brand (the subrequest budget rule). */
     if (!d.canAfford(COST_MINOFF_BRAND)) { out.deferred = 'budget'; break; }
