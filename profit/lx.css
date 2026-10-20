@@ -139,3 +139,37 @@
 [data-ui="v2"] .lx-leaks-page .v2tbl td{white-space:normal}
 [data-ui="v2"] .lx-leaks-page .v2tbl td.n{white-space:nowrap}
 [data-ui="v2"] .lx-leaks-page .lk-btbl td:last-child{white-space:nowrap}
+
+/* ---------- Reports on the kit (2026-10-20): four numbers, the sentence, This week, the ads as cards, the rest folded ---------- */
+[data-ui="v2"] .rp-kpis.rp-four{grid-template-columns:repeat(4,minmax(0,1fr))}
+[data-ui="v2"] .rp-pick.lx-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 14px}
+[data-ui="v2"] .rp-pick .rp-st{font-size:12.5px;color:var(--muted)}
+[data-ui="v2"] .rp-ads .rp-cap{margin:0 0 10px;font-size:12px;font-weight:500;color:var(--muted)}
+[data-ui="v2"] .rp-adc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+[data-ui="v2"] .rp-adc-gap{width:1px;background:var(--line);margin:4px 2px}
+[data-ui="v2"] .rp-adc{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:150px;padding:0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer;overflow:hidden;transition:border-color var(--t-fast) var(--ease)}
+[data-ui="v2"] .rp-adc:hover{border-color:var(--ink-2)}
+[data-ui="v2"] .rp-adc-m{display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2) center/cover no-repeat;color:var(--faint);font-size:22px;text-align:center;line-height:1}
+[data-ui="v2"] .rp-adc-m i{display:block;padding-top:60px;font-style:normal}
+[data-ui="v2"] .rp-adc-r{font-size:18px;font-weight:600;letter-spacing:-.01em;padding:6px 10px 0;font-variant-numeric:tabular-nums}
+[data-ui="v2"] .rp-adc-r.good{color:var(--good)}[data-ui="v2"] .rp-adc-r.bad{color:var(--bad)}[data-ui="v2"] .rp-adc-r.none{color:var(--muted);font-size:14px}
+[data-ui="v2"] .rp-adc-n{font-size:12.5px;font-weight:500;padding:0 10px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-ui="v2"] .rp-adc-s{font-size:11.5px;color:var(--muted);padding:0 10px 10px}
+[data-ui="v2"] details.rp-more{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);margin:16px 0}
+[data-ui="v2"] details.rp-more > summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;font-size:14px;font-weight:550;cursor:pointer;color:var(--ink-2)}
+[data-ui="v2"] details.rp-more > summary::-webkit-details-marker{display:none}
+[data-ui="v2"] details.rp-more > summary svg{transition:transform var(--t-fast) var(--ease)}
+[data-ui="v2"] details.rp-more[open] > summary{border-bottom:1px solid var(--line);color:var(--ink)}
+[data-ui="v2"] details.rp-more[open] > summary svg{transform:rotate(180deg)}
+[data-ui="v2"] .rp-more-b{padding:14px 16px 4px}
+[data-ui="v2"] .rp-more-b .rp-jump{position:static;margin-bottom:12px}
+@media (max-width:720px){[data-ui="v2"] .rp-kpis.rp-four{grid-template-columns:repeat(2,minmax(0,1fr))}[data-ui="v2"] .rp-adc{width:calc(50% - 5px)}[data-ui="v2"] .rp-adc-gap{display:none}}
+
+/* ==========================================================================
+   PHASE 5 (2026-10-20): page actions live in the page header. A page whose buttons moved up keeps them in the DOM
+   (the handlers are untouched) inside .lx-tohead, which never shows; a bar that still has live controls (the
+   Brief's Save / Cancel / message) hides only the moved buttons (.lx-tohead-bar).
+   ========================================================================== */
+.lx .lx-tohead,[data-ui="v2"] .lx-tohead{display:none!important}
+.lx .lx-tohead-bar>#bfPost,.lx .lx-tohead-bar>#bfEditBtn,.lx .lx-tohead-bar>#bfWrite,.lx .lx-tohead-bar>#bfCopy,.lx .lx-tohead-bar>#bfSkip,.lx .lx-tohead-bar>.sp{display:none!important}
+.lx .lx-tohead-bar:empty{display:none}

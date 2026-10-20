@@ -26,12 +26,27 @@ SHOWABLE / `?open=` / show() / TAB_* tables), `profit/v2.js` (home, meta, `leaks
 Checked locally with real data at 1280 / 768 / 390, Agency view and Lucky, dark and light; after-screenshots in
 `docs/locus-audit/shots/after-*.jpg`.
 
-## Phases 2 to 6 (not built; the audit page has the mocks)
-2. Work on the kit: Tasks (four pills, side panel), Meetings, the call screens, the Production card; the iPad icon rail.
-3. Reports, Daily Brief and Dashboards on the kit; one report reader.
-4. Social rebuilt around the five jobs (Watch, Saved, Scripts, Week, Results), the teardown rules applied.
-5. The copy pass (voice rules on the audit page) and empty states.
-6. iPad and iPhone pass across every page; day lists instead of hour grids on a phone.
+## Phases 2, 3, 5, 6 (built 2026-10-20 in the same PR, no worker changes)
+2. Work on the kit. `tasks.js`: host header + one `+ Task` action, one control row (List / Board / Calendar segmented,
+   Group / brand / area / mine pills), sections as title lines, a task opens in `V2.panel` (editable title, source line with
+   a way back: the call, Today, the leak), Board hides empty columns. `calls.js` + `callscreen.js`: host header, Present as
+   the one action, step pills with "+N" overflow, sections = title + one caption, kit tiles and ad cards, rows with owner
+   and date pills (no selects), sticky Back / Brand n of m / time / Next bar. `production.js` + `prodsheet.js`: host
+   header + `+ New brief`, one pill row of filters, one status chip per card, sheet fields as pills with a shared date
+   menu; the save body is unchanged. The iPad icon rail is NOT done (menus clip in a 56px rail without a portal).
+3. Reports: four numbers on top, Summary, The week, Best and worst ads (cards that open the ad in the side panel, the
+   detail window on the client archive), everything else under "More detail"; status is one chip in the control row;
+   Send / Edit / More in the page header. Daily Brief and Dashboards: actions in the page header through hidden
+   originals (`press()` pattern: the header buttons click the page's own buttons, every handler untouched).
+   NOT done (worker changes): call lines feeding the Brief's "What we're doing"; "Open the call" from a leak.
+4. Social: the sibling session's branch `claude/social-teardown-51ff4c`, not this PR.
+5. Copy and connective tissue: Find reaches open tasks and Production cards (team only, one read per 5 minutes); a leak
+   row has "Make it a task" (POST /api/actions, source `leak`); empty states one line + one verb across the rebuilt pages.
+6. Phone: under 600px `.v2tiles` is a list of 48px rows (label left, number + change right; the hero tile keeps its card;
+   `.sub` and the sparkline wait for the panel); the "..." menu is an `LxPhone` sheet. Real-device pass is Cole's.
+Verified locally with real data (Reports / Brief need the dev account-health worker: in the page, route the PROXY_PATHS
+to `apiAH` from the console, since the dev profit worker proxies them to production). Phone shot:
+`docs/locus-audit/shots/after-phone-tiles-390.png`.
 
 ## Testing recipe that worked
 Static python server on a spare port from the worktree + `profit-worker-dev` (:8799) + `ah-worker-dev` (:8798) with the dev token in

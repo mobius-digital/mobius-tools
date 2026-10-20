@@ -3865,3 +3865,28 @@ work in its own Manage view. Screens before and after (desktop and phone): `docs
   (GOOGLE_SA_KEY is a service account and cannot read public YouTube); until it is set, YouTube falls back to
   ScrapeCreators. Deployed 2026-10-20. Verification was done by injecting the worktree files into Cole's signed-in Chrome
   (no sign-in from the built-in browser), desktop at 1280 and a 390px same-origin iframe for the phone.
+
+
+## 2026-10-20: THE LOCUS KIT, phases 2 to 6 (Work, Reports, Find, phone rows). Read before touching Tasks, the call screens, Production, Reports, the Brief or Dashboards.
+- **Page actions live in the header.** A page whose buttons already had handlers keeps those buttons in the DOM, hidden
+  (`<span hidden>` or the `.lx-tohead` / `.lx-tohead-bar` classes in lx.css), and the header buttons `press()` them by id
+  (Reports `data-rpa`, Brief `data-bfa`, Dashboards `data-dsa`). Add an action by adding the hidden original and a header
+  button that presses it, never by moving the handler. Call `pageActions()` AFTER the `innerHTML` paint: the kit's
+  `pageHead` draws the `.ph-acts` slot the actions go in.
+- **Reports** (`reportBodyHTML`): the first four `kpi()`s are the top row (`rp-four`), the rest go under `details.rp-more`
+  with the chart, pace, customers, attribution, Meta and changes. Best and worst ads (`adCardsHtml`) rank ads that spent by
+  ROAS under the model on the page; `RP_LAST` carries ads / act / currency / internal so `wireReportJump` can open an ad
+  in `V2.playAd` (internal) or `adDetailModal` (client archive). Both renderers set `RP_LAST` before `wireReportJump`.
+- **Find** (`askObjects`): open tasks and Production cards, read once per 5 minutes through `apiAH`, team only, matched by
+  name from two letters; kinds `task` (sets `ACT_OPEN`, switches brand, `show('tasks')`) and `brief` (`PD_CARD`,
+  `show('production')`).
+- **Leaks > Make it a task** (`leaks.js makeTask`): POST `/api/actions` with `source:'leak'` (falls back to `manual` if the
+  worker rejects the source), `detail` = number + fix; the toast's button opens Tasks with `ACT_OPEN`. Hidden for clients.
+- **Tasks / calls / Production on the kit**: each file draws its header with the host's `pageHead` and its one action with
+  `pageActions`; every control is a pill or segmented control opening the file's own menu (`LxPhone.open` on a phone),
+  never a native select; a task opens in `V2.panel`; the request bodies and `tk_prefs` / `pd_*` keys are unchanged.
+- **Phone rows** (phone.css, under 600px): `.v2tiles` is one column of 48px rows, `.v2tile:not(.hero)` is a two-column grid
+  (label, number + delta), `.sub` / `.v2spark` / `.v2bul` hidden, the hero tile keeps its card. A new tile needs nothing;
+  a tile that must stay a card on a phone gets `.hero`.
+- Not done, needs a worker change: call lines feeding the Brief's "What we're doing"; "Open the call" from a leak; the iPad
+  56px icon rail (menus need a portal first). Phase 4 (Social) is in `claude/social-teardown-51ff4c`.

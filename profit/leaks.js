@@ -105,7 +105,7 @@
         <div class="lk-fix"><em>Suggestion</em>${esc(l.fix)}</div>
         <div class="lk-who">${esc(l.who || '')}${l.cost_how ? ` · cost = ${esc(l.cost_how)}` : ''}</div>
       </div>
-      <div class="lk-act">${btn}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
+      <div class="lk-act">${btn}${isClient() ? '' : `<button type="button" class="lk-link lk-task" data-lktask="${esc(l.id)}">Make it a task</button>`}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
     </div>`;
   }
 
@@ -192,6 +192,7 @@
     host.querySelectorAll('[data-lkall]').forEach(b => b.onclick = () => { host.dataset.all = '1'; redraw(); });
     host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('leaks'));
     host.querySelectorAll('[data-lkpb]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkpb); if (l) pushBack(a, d, l, redraw); });
+    host.querySelectorAll('[data-lktask]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lktask); if (l) makeTask(a, l, b); });
     wireCalls(host, a, () => { CACHE.delete(a.act_id); redraw(true); });
     host.querySelectorAll('[data-lkai]').forEach(b => b.onclick = async () => {
       b.disabled = true; b.textContent = 'Checking every leak against the other channels (about 30 seconds)...';
@@ -202,6 +203,22 @@
       if (r.error) { msg(r.error, true); return; }
       close(); CACHE.delete(a.act_id); redraw(true);
     }));
+  }
+
+  /* ---------- Make it a task (2026-10-20, the kit's connective tissue): one task on Work > Tasks, owner and due
+     blank, the leak's number and suggestion as the details, the leak id as the source so the task links back. ---------- */
+  function isClient() { return typeof window.isClient === 'function' && window.isClient(); }
+  async function makeTask(a, l, b) {
+    b.disabled = true; const was = b.textContent; b.textContent = 'Adding...';
+    const body = { act: a.act_id, text: l.title, detail: [l.number, l.fix].filter(Boolean).join('. ') + ' From the leak finder.', owner: '', due: '', area: 'ads', kind: 'team', source: 'leak', source_id: l.id };
+    const send = o => H.apiAH('/api/actions', { method: 'POST', body: JSON.stringify(o) });
+    let r = await send(body).catch(e => ({ error: e.message }));
+    if (r && r.error) r = await send({ ...body, source: 'manual' }).catch(e => ({ error: e.message }));
+    b.disabled = false; b.textContent = was;
+    if (!r || r.error) { toast(`Could not add the task: ${(r && r.error) || 'no answer'}`); return; }
+    const id = r.item ? r.item.id : r.id;
+    b.textContent = 'On Tasks'; b.disabled = true;
+    toast('Added to Tasks', { label: 'Open', run: () => { if (id) window.ACT_OPEN = id; H.show('tasks'); } });
   }
 
   /* ---------- the modal (in-app, never a browser dialog) ---------- */
@@ -223,8 +240,9 @@
   function toast(text, undo) {
     document.querySelectorAll('.lx-toast.lkt').forEach(x => x.remove());
     const t = document.createElement('div'); t.className = 'lx-toast lkt'; t.setAttribute('role', 'status');
-    t.innerHTML = `<span>${esc(text)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
-    if (undo) t.querySelector('button').onclick = () => { t.remove(); undo(); };
+    const lbl = undo && typeof undo === 'object' ? undo.label : 'Undo', run = undo && typeof undo === 'object' ? undo.run : undo;
+    t.innerHTML = `<span>${esc(text)}</span>${undo ? `<button type="button">${esc(lbl)}</button>` : ''}`;
+    if (undo) t.querySelector('button').onclick = () => { t.remove(); run(); };
     document.body.appendChild(t); setTimeout(() => t.remove(), undo ? 15000 : 4000);
   }
   const post = (path, body) => H.apiAH(path, { method: 'POST', body: JSON.stringify(body) });
