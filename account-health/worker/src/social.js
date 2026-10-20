@@ -87,6 +87,9 @@ async function transcriptOf(env, p) {
   if (p.plat === 'tt') text = vttText((await sc(env, '/v1/tiktok/video/transcript', { url: p.url }, meter)).transcript);
   else if (p.plat === 'yt') { const j = await sc(env, '/v1/youtube/video/transcript', { url: p.url }, meter); text = String(j.transcript_only_text || (Array.isArray(j.transcript) ? j.transcript.map(x => x.text).join(' ') : '')).replace(/\s+/g, ' ').trim(); }
   else if (p.plat === 'ig') { const j = await sc(env, '/v2/instagram/media/transcript', { url: p.url }, meter); text = String((j.transcripts || [])[0]?.text || '').replace(/\s+/g, ' ').trim(); }
+  // YouTube auto-captions carry [Music] / [Applause] tags and >> speaker marks; a music-only short is "no speech".
+  text = text.replace(/\[[^\]]{1,30}\]/g, ' ').replace(/>>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (text.split(' ').filter(w => /[a-z]{2,}/i.test(w)).length < 3) text = '';
   text = clip(text, 6000);
   await env.DB.prepare(`UPDATE social_post SET transcript = ?2 WHERE id = ?1`).bind(p.id, text).run();
   return { text, cached: false, left: meter.left };
