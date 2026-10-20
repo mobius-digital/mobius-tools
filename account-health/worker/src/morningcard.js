@@ -31,6 +31,7 @@
 import { SKIP as PAUSED } from './moved.js';
 import { readToday, messageFor } from './todaypost.js';
 import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
+import { breakoutsFor } from './social.js';
 
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
@@ -240,6 +241,18 @@ export async function buildCard(env, d, a, today, shared = {}) {
       } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `New leak: ${clean(nw.title, 90)} · ${moneyK(nw.cost, a.currency)} a month, est. (full list on Overview)`, who: nw.owner || '', rank: nw.cost });
     } catch (e) { notes.push(`leaks: ${e.message}`); }
   }
+  /* Social (2026-10-20): ONE line when a followed account's post broke out (3x its usual) since yesterday's card, tagged to
+     the strategist; the card remembers when it looked so nothing is announced twice. Brands with Social off get nothing. */
+  const socialAt = new Date().toISOString();
+  try {
+    const prevAt = (await loadCard(env, a.act_id, yday))?.social_at || new Date(Date.now() - 864e5).toISOString();
+    const hot = await breakoutsFor(env, a.act_id, prevAt);
+    if (hot.length) {
+      const h = hot[0], n = h.metric === 'views' ? h.views : h.likes, kk = v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(Math.round(v || 0));
+      const fmt = { reel: 'Reel', carousel: 'carousel', post: 'post', tiktok: 'TikTok', photos: 'photo post', short: 'Short', video: 'video' }[h.fmt] || 'post';
+      items.push({ key: `social:${h.id}`, kind: 'social', text: `Breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
+    }
+  } catch (e) { notes.push(`social: ${e.message}`); }
   items.sort((p, q) => q.rank - p.rank);
   /* The ad calls line always fits; then at most MAX_LINES other lines (2026-10-20). */
   const shown = items.filter(i => i.kind === 'calls').concat(items.filter(i => i.kind !== 'calls').slice(0, MAX_LINES));
@@ -256,7 +269,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   return {
     act: a.act_id, name: a.name, date: today, channel: a.slack_channel || null, ts: null,
     nums: numbersLine(a, brief), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
-    owes, weekly, calls: calls.length > 0, notes, leaks: leakIds,
+    owes, weekly, calls: calls.length > 0, notes, leaks: leakIds, social_at: socialAt,
     /* For the thread only; never stored. */
     _rows: rows || [], _tasks: tasks,
   };

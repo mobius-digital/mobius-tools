@@ -658,7 +658,7 @@ export async function handleSocialPost(request, env, url, path, json, d) {
     try { const r = await ytCallback(env, url); return new Response(`<p style="font:16px system-ui;padding:40px">YouTube is connected: ${String(r.name).replace(/</g, '&lt;')}. Close this tab and go back to Locus.</p>`, { headers: { 'Content-Type': 'text/html' } }); }
     catch (e) { return new Response(`<p style="font:16px system-ui;padding:40px">YouTube did not connect: ${String(e.message).replace(/</g, '&lt;')}</p>`, { status: 400, headers: { 'Content-Type': 'text/html' } }); }
   }
-  const mine = ['/api/social/accounts', '/api/social/connect/', '/api/social/week', '/api/social/tray', '/api/social/upload', '/api/social/post', '/api/social/captions', '/api/social/rephrase'];
+  const mine = ['/api/social/accounts', '/api/social/connect/', '/api/social/week', '/api/social/grid', '/api/social/tray', '/api/social/upload', '/api/social/post', '/api/social/captions', '/api/social/rephrase'];
   if (!mine.some(p => path === p || path.startsWith(p + '/') || (p.endsWith('/') && path.startsWith(p)))) return null;
   if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   await ensureSocialPost(env);
@@ -695,6 +695,15 @@ export async function handleSocialPost(request, env, url, path, json, d) {
       if (!PLATS[plat]) return json({ error: 'plat' }, 400);
       await env.DB.prepare(`DELETE FROM social_account WHERE act_id = ?1 AND plat = ?2`).bind(act, plat).run();
       return json({ ok: true });
+    }
+    /* The Instagram grid preview (2026-10-20, Later's Preview): the brand's Instagram account and its last 30 posts through
+       Locus that target Instagram (posted, scheduled, drafts), newest first, the way the profile grid will read. */
+    if (path === '/api/social/grid' && m === 'GET') {
+      const act = actOf(url.searchParams.get('act'));
+      const accs = await accountsOf(env, act);
+      const rows = (await env.DB.prepare(`SELECT * FROM social_post_out WHERE act_id = ?1 AND status IN ('posted', 'partly', 'handoff', 'scheduled', 'draft', 'posting') ORDER BY at DESC LIMIT 60`).bind(act).all()).results || [];
+      const posts = rows.map(pubPost).filter(p => p.targets && p.targets.ig && p.targets.ig.on).slice(0, 30);
+      return json({ act, account: pubAccount(accs.ig), posts });
     }
     if (path === '/api/social/week' && m === 'GET') {
       const act = actOf(url.searchParams.get('act'));
