@@ -313,9 +313,11 @@ export async function kickoffDone(env, d, body, who) {
 
 /* ---------- Finish: the typed call, through the same confirm a Fireflies call takes ---------- */
 const WEEK_SCHEMA = { type: 'object', additionalProperties: false, required: ['brands'], properties: { brands: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['brand_id', 'this_week'], properties: { brand_id: { type: 'string' }, this_week: { type: 'array', items: { type: 'string' } } } } } } };
-/** The 2 to 4 "This week" lines each client reads in the report, written from what the call agreed. */
+/** The "For the client" box, typed on the call: one line per non-empty line, verbatim (only whitespace and dashes tidied), 5 max. */
+const typedLines = s => String(s ?? '').replace(/\r/g, '').split('\n').map(x => noDash(clean(x.replace(/^\s*[-*\u2022]\s*/, ''), 300))).filter(Boolean).slice(0, 5);
+/** FALLBACK ONLY, for a brand whose "For the client" box is empty: 2 to 4 "This week" lines written from what the call agreed. */
 async function clientLines(env, d, rows) {
-  const has = rows.filter(r => r.read || r.batches.length);
+  const has = rows.filter(r => !r.client.length && (r.read || r.batches.length));
   if (!has.length) return {};
   const system = `You write the "This week" lines a Mobius Digital client reads in their weekly report, from what the team agreed on its Monday call. 2 to 4 lines per brand. Say what we are doing this week and why, in plain words the client uses. Never a team member's name, never a cost or a ROAS, never another brand, never "the AI", no em dashes. Never invent anything that is not in the notes.`;
   const user = has.map(r => `BRAND ${r.brand_id} (${r.name})\nThe read: ${r.read || '(none)'}\nAgreed batches:\n${r.batches.map(x => `- ${x.text}`).join('\n') || '(none)'}`).join('\n\n');
@@ -341,11 +343,11 @@ export async function finishCall(env, d, body, who) {
   if (c.kind === 'monday') {
     for (const [act, s] of Object.entries(st.brands || {})) {
       if (!brands.some(b => b.act_id === act)) continue;
-      const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), batches: (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
-      if (r.read || r.batches.length || r.jobs.length || r.asks.length) rows.push(r);
+      const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), client: typedLines(s.client), batches: (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
+      if (r.read || r.client.length || r.batches.length || r.jobs.length || r.asks.length) rows.push(r);
     }
     const lines = await clientLines(env, d, rows);
-    for (const r of rows) notes.brands.push({ brand_id: r.brand_id, decisions: r.read ? [r.read] : [], items: [...r.jobs.map(x => item('team', x)), ...r.batches.map(x => item('brief', x)), ...r.asks.map(x => item('client_owes', x))], this_week: lines[r.brand_id] || [], need_from_client: r.asks.map(x => clean(x.text, 300)) });
+    for (const r of rows) notes.brands.push({ brand_id: r.brand_id, decisions: r.read ? [r.read] : [], items: [...r.jobs.map(x => item('team', x)), ...r.batches.map(x => item('brief', x)), ...r.asks.map(x => item('client_owes', x))], this_week: r.client.length ? r.client : (lines[r.brand_id] || []), need_from_client: r.asks.map(x => clean(x.text, 300)) });
     const theme = clean(st.theme, 600);
     const agencyJobs = (st.agency || []).filter(x => x && clean(x.text, 300));
     if (theme || agencyJobs.length) notes.brands.unshift({ brand_id: '', decisions: theme ? [theme] : [], items: agencyJobs.map(x => item('team', x)), this_week: [], need_from_client: [] });
@@ -453,4 +455,4 @@ export async function handleCalls(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status >= 400 && e.status < 600 ? e.status : 500); }
 }
 
-export const _test = { winnersLosers, readOf, callId, mondayOf, parked };
+export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines };

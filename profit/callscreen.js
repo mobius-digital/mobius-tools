@@ -178,7 +178,7 @@
       catch (e) { const t = $('#csSaved'); if (t) t.textContent = 'Not saved: ' + e.message; }
     }, 700);
   }
-  const brandState = act => { STATE.brands = STATE.brands || {}; return (STATE.brands[act] = STATE.brands[act] || { read: '', batches: [], jobs: [], asks: [] }); };
+  const brandState = act => { STATE.brands = STATE.brands || {}; return (STATE.brands[act] = STATE.brands[act] || { read: '', client: '', batches: [], jobs: [], asks: [] }); };
   const grow = t => { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
 
   /* ---------- the clock: per step ---------- */
@@ -287,6 +287,8 @@
         <div class="rows" data-list="batches" data-act="${esc(b.act_id)}">${rowsHtml(s.batches)}</div>
         <button class="add" data-add="batches" data-act="${esc(b.act_id)}">+ Add a batch of ads</button>
         ${(b.making || []).length ? `<details class="cs-more"><summary>Already being made for ${esc(b.name)} (${b.making.length})</summary><ul class="chk">${b.making.map(c => `<li><span class="tx">#${esc(c.num)} ${esc(c.title)}</span><span class="o">${esc({ brief: 'Brief', making: 'Making', review: 'In review' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ''}${c.due ? ' · due ' + short(c.due) : ''}</span></li>`).join('')}</ul></details>` : ''}`)}
+      ${sec('For the client', 'you', `What ${esc(b.name)} reads under "This week" in their weekly report, one line per line, word for word as you type it (5 lines at most). Leave it empty and Locus writes it from the batches above.`,
+        `<textarea data-client="${esc(b.act_id)}" placeholder="For example:\nThree new ads on the Burgundy couch video go live Thursday.\nWe keep spend flat until the new photos land.">${esc(s.client || '')}</textarea>`, { optional: true })}
       ${sec('New to-dos', 'you', 'Anything someone has to do that is not an ad. Type it the way you would say it and press Enter. Locus works out who and when. They go on Tasks when you press Finish.',
         `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs)}</div>
         <input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="For example: Ahsan pause the retargeting ad set Friday">`, { optional: true })}
@@ -316,16 +318,16 @@
   }
   function mondayClose() {
     const c = mondayCounts();
-    const lines = mondayList().map(b => { const s = (STATE.brands || {})[b.act_id] || {}; return { b, bt: (s.batches || []).filter(x => x.text && x.on !== false).length, j: (s.jobs || []).filter(x => x.text).length, a: (s.asks || []).filter(x => x.text && x.on !== false).length, n: !!s.read }; }).filter(x => x.bt || x.j || x.a || x.n);
+    const lines = mondayList().map(b => { const s = (STATE.brands || {})[b.act_id] || {}; return { b, bt: (s.batches || []).filter(x => x.text && x.on !== false).length, j: (s.jobs || []).filter(x => x.text).length, a: (s.asks || []).filter(x => x.text && x.on !== false).length, n: !!s.read, cl: !!(s.client || '').trim() }; }).filter(x => x.bt || x.j || x.a || x.n || x.cl);
     return `<div class="cs-title"><h2>Wrap up</h2><p>Check it, then press Finish</p></div>
       ${sec('What happens when you press Finish', 'auto', 'Everything typed on this call goes to where the team already works. Nothing needs approving after.',
         `<div class="out">
           <div><b>${c.jobs}</b>to-do${c.jobs === 1 ? '' : 's'} go on Tasks. Slack reminds each person the morning it is due.</div>
           <div><b>${c.briefs}</b>new ad batch${c.briefs === 1 ? '' : 'es'} become numbered briefs on Production and in Asana.</div>
           <div><b>${c.asks}</b>ask${c.asks === 1 ? '' : 's'} go to the client's Requests page and their weekly report.</div>
-          <div><b>"This week"</b> lines are written for each client's weekly report from what you agreed.</div>
+          <div><b>"This week"</b> in each client's weekly report is your "For the client" box, word for word. Brands with an empty box get lines written from the batches.</div>
         </div>
-        ${lines.length ? `<ul class="chk">${lines.map(x => `<li><span class="tx"><b>${esc(x.b.name)}</b></span><span class="o">${[x.bt ? plural(x.bt, 'ad batch', 'ad batches') : '', x.j ? plural(x.j, 'to-do') : '', x.a ? plural(x.a, 'ask') : '', x.n ? 'notes' : ''].filter(Boolean).join(', ')}</span></li>`).join('')}</ul>` : empty('Nothing typed yet.')}
+        ${lines.length ? `<ul class="chk">${lines.map(x => `<li><span class="tx"><b>${esc(x.b.name)}</b></span><span class="o">${[x.bt ? plural(x.bt, 'ad batch', 'ad batches') : '', x.j ? plural(x.j, 'to-do') : '', x.a ? plural(x.a, 'ask') : '', x.n ? 'notes' : '', x.cl ? 'for the client' : ''].filter(Boolean).join(', ')}</span></li>`).join('')}</ul>` : empty('Nothing typed yet.')}
         <p class="rule">One recap per brand posts in its Slack channel. Fireflies still records the call; about ten minutes after, anything said but not typed shows up on Calls as "Also said on the call".</p>
         <div><button class="btn2 pri" data-finish ${BUSY ? 'disabled' : ''}>Finish the call</button></div>`)}`;
   }
@@ -530,6 +532,7 @@
       try { await post('/api/calls/done', { item: li.dataset.item, done: cb.checked }); } catch (e) { cb.checked = !cb.checked; li.classList.toggle('off', cb.checked); toast(e.message); }
     });
     $$('[data-read]', root).forEach(t => t.oninput = () => { const st = brandState(t.dataset.read); st.read = t.value; st.edited = true; grow(t); save(); });
+    $$('[data-client]', root).forEach(t => t.oninput = () => { const st = brandState(t.dataset.client); st.client = t.value; grow(t); save(); });
     const th = $('[data-theme]', root); if (th) th.oninput = () => { STATE.theme = th.value; grow(th); save(); };
     const nw = $('[data-news]', root); if (nw) nw.oninput = () => { STATE.news = nw.value; grow(nw); save(); };
     const rc = $('[data-recap]', root); if (rc) rc.oninput = () => { STATE.recap = rc.value; grow(rc); save(); };
