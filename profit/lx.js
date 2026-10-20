@@ -59,4 +59,20 @@
   const closePanel = () => { if (window.V2 && window.V2.closePanel) window.V2.closePanel(); };
 
   window.LxKit = { strip, wireStrip, panel, closePanel };
+
+  /* THE ICON RAIL (2026-10-20): html.lx-irail between 721 and 1180px (lx.css draws it). The logo, the client picker and
+     the account button open the wide rail (body.nav-open + the scrim, the old drawer's own state, so index.html's
+     close-on-pick and Escape still work); the two menus then open inside the wide rail, nothing clips. */
+  const irail = matchMedia('(min-width:721px) and (max-width:1180px)');
+  const setRail = () => document.documentElement.classList.toggle('lx-irail', irail.matches);
+  const openRail = open => { document.body.classList.toggle('nav-open', open); const s = document.getElementById('navScrim'); if (s) s.hidden = !open; const t = document.getElementById('navToggle'); if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false'); setTimeout(() => dispatchEvent(new Event('resize')), 240); /* polish.js re-measures the rail's sliding highlight on resize */ };
+  setRail(); irail.addEventListener('change', () => { setRail(); if (!irail.matches) openRail(false); });
+  const sideEl = document.getElementById('side'); if (sideEl) sideEl.addEventListener('transitionend', e => { if (e.propertyName === 'width') dispatchEvent(new Event('resize')); });   /* a background tab stalls the transition; re-measure when it really ends */
+  document.addEventListener('click', e => {
+    if (!document.documentElement.classList.contains('lx-irail')) return;
+    const open = document.body.classList.contains('nav-open');
+    if (e.target.closest('.side-brand')) { e.preventDefault(); e.stopPropagation(); openRail(!open); return; }
+    if (!open && e.target.closest('#pfPickBtn, #pfMeBtn')) openRail(true);
+    else if (open && e.target.closest('#tabs button[data-t], .side-foot .v2settings, .lc-pick-menu button, .lc-me-menu button')) setTimeout(() => openRail(false), 0);
+  }, true);
 })();

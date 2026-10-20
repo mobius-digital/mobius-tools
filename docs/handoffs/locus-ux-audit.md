@@ -33,7 +33,10 @@ Checked locally with real data at 1280 / 768 / 390, Agency view and Lucky, dark 
    the one action, step pills with "+N" overflow, sections = title + one caption, kit tiles and ad cards, rows with owner
    and date pills (no selects), sticky Back / Brand n of m / time / Next bar. `production.js` + `prodsheet.js`: host
    header + `+ New brief`, one pill row of filters, one status chip per card, sheet fields as pills with a shared date
-   menu; the save body is unchanged. The iPad icon rail is NOT done (menus clip in a 56px rail without a portal).
+   menu; the save body is unchanged. The iPad icon rail IS done (lx.css + lx.js, `html.lx-irail` between 721 and 1180px): a 56px column of icons, the
+   logo / client picker / account button expand it over the page (body.nav-open, the old drawer's state and scrim), a pick
+   closes it; the two rail menus open inside the expanded rail, so nothing clips. Shots: `after-ipad-rail-1024.png`,
+   `after-ipad-rail-open-1024.png`.
 3. Reports: four numbers on top, Summary, The week, Best and worst ads (cards that open the ad in the side panel, the
    detail window on the client archive), everything else under "More detail"; status is one chip in the control row;
    Send / Edit / More in the page header. Daily Brief and Dashboards: actions in the page header through hidden

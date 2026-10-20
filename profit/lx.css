@@ -173,3 +173,36 @@
 .lx .lx-tohead,[data-ui="v2"] .lx-tohead{display:none!important}
 .lx .lx-tohead-bar>#bfPost,.lx .lx-tohead-bar>#bfEditBtn,.lx .lx-tohead-bar>#bfWrite,.lx .lx-tohead-bar>#bfCopy,.lx .lx-tohead-bar>#bfSkip,.lx .lx-tohead-bar>.sp{display:none!important}
 .lx .lx-tohead-bar:empty{display:none}
+
+/* ==========================================================================
+   THE ICON RAIL (2026-10-20, phase 2 of the UX audit, the iPad band). Between 721 and 1180px the rail stays docked as a
+   56px column of icons (their title attributes are the labels); the hamburger drawer is gone in this band. A tap on the
+   logo, the client picker or the account button expands the rail over the page (body.nav-open, the same class and scrim
+   the old drawer used, so index.html's close-on-pick and Escape handling carry over). lx.js sets html.lx-irail.
+   ========================================================================== */
+html.lx-irail[data-ui="v2"] .app{grid-template-columns:56px minmax(0,1fr)}
+html.lx-irail[data-ui="v2"] .nav-toggle{display:none}
+html.lx-irail[data-ui="v2"] .side{position:sticky;top:0;left:auto;bottom:auto;width:56px;height:100vh;transform:none;transition:width var(--t-panel) var(--ease),box-shadow var(--t-panel) var(--ease);padding:10px 8px 10px;z-index:40;overflow:hidden}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand{padding:4px 0 10px;justify-content:center}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand>span,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-cap,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-one,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .v2theme,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-pick-btn svg,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me-btn svg,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me-t,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) nav.tabs .v2nav button[data-t]>span,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .v2settings>span{display:none}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-pick-btn{width:40px;height:40px;padding:0;justify-content:center;margin:0 auto;font-size:15px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-pick-btn #pfPickLbl{display:block;width:.8em;overflow:hidden;white-space:nowrap;text-overflow:clip;text-align:left}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-client{padding:0 0 8px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) nav.tabs .v2nav button[data-t]{justify-content:center;padding:0;min-height:40px;gap:0}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) nav.tabs .v2nav button[data-t] .ic{width:20px;height:20px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .v2settings{justify-content:center;padding:0;min-height:36px;gap:0}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me{margin:4px 0 0}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me-btn{width:40px;height:40px;padding:0;justify-content:center;margin:0 auto}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-scroll{scrollbar-width:none}
+/* expanded over the page */
+html.lx-irail[data-ui="v2"] body.nav-open .side{position:fixed;left:0;top:0;bottom:0;width:248px;height:100dvh;padding:14px 12px 12px;z-index:55;box-shadow:var(--sh-pop)}
+html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
+@media (prefers-reduced-motion:reduce){html.lx-irail[data-ui="v2"] .side{transition:none}}

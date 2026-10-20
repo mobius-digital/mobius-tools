@@ -3888,5 +3888,9 @@ work in its own Manage view. Screens before and after (desktop and phone): `docs
 - **Phone rows** (phone.css, under 600px): `.v2tiles` is one column of 48px rows, `.v2tile:not(.hero)` is a two-column grid
   (label, number + delta), `.sub` / `.v2spark` / `.v2bul` hidden, the hero tile keeps its card. A new tile needs nothing;
   a tile that must stay a card on a phone gets `.hero`.
-- Not done, needs a worker change: call lines feeding the Brief's "What we're doing"; "Open the call" from a leak; the iPad
-  56px icon rail (menus need a portal first). Phase 4 (Social) is in `claude/social-teardown-51ff4c`.
+- **The iPad icon rail** (lx.css, lx.js): `html.lx-irail` between 721 and 1180px; the rail is 56px of icons (titles are the
+  labels), `body.nav-open` expands it to 248px over the page with the old drawer's scrim; the logo, `#pfPickBtn` and
+  `#pfMeBtn` open it, a pick closes it, lx.js fires `resize` on `transitionend` so polish.js re-measures the sliding
+  highlight. Rail items need nothing new; keep labels inside the button's `<span>` so the collapsed rule hides them.
+- Not done, needs a worker change: call lines feeding the Brief's "What we're doing"; "Open the call" from a leak.
+  Phase 4 (Social) is in `claude/social-teardown-51ff4c`.
