@@ -104,7 +104,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   <div class="eyebrow">Mobius Digital · Locus · Social · 2026-10-20</div>
   <h1>Later, Sandcastles and Virlo from the inside, and the Social that Locus should build</h1>
   <p class="lede">Three apps opened in Cole's own Chrome and clicked screen by screen: every page, menu, filter, modal and empty state, plus a 390px phone layout of each. Then the same eye on Locus Social as it shipped on 2026-10-20, and a spec for the version that replaces it.</p>
-  <div class="meta"><span><b>89</b> screenshots, in docs/locus-social/teardown/</span><span><b>Later</b> paid trial, no profile connected</span><span><b>Sandcastles</b> feed only, $5 plan not started</span><span><b>Virlo</b> 7-day trial, 100 credits</span></div>
+  <div class="meta"><span><b>111</b> screenshots, in docs/locus-social/teardown/</span><span><b>Later</b> trial, Lucky Instagram connected Oct 20</span><span><b>Sandcastles</b> $5 Starter month since Oct 20</span><span><b>Virlo</b> 7-day trial, 100 credits</span></div>
 </header>
 
 <div class="grid">
@@ -428,7 +428,47 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
     <div>Trends row at the top of Breaking out (sounds and hashtags as count chips), replacing "Doing well lately".<small class="day">hours</small></div>
     <div>Advanced scheduler (queues, repost a winner, best hours from our own results). Phase 3, after the above is live and used for two weeks.<small>later</small></div>
   </div>
-  <div class="note"><b>What to unlock to see more.</b> Later needs one connected profile to show its composer and preview grid; Sandcastles needs the $5 month to open a video, Analyze, Ideas and Hooks; Virlo showed everything on the trial and converts to $49 on Oct 27 unless cancelled. None of the three changes the spec above: the composer pattern is already known from Later's demos, and Sandcastles' locked pages are the same jobs Virlo showed open.</div>
+  <div class="note"><b>Unlocked on Oct 20, in Cole's Chrome.</b> Sandcastles is on the $5 Starter month and Lucky's Instagram (@luckygolfofficial) is connected in Later. Virlo still converts to $49 on Oct 27 unless cancelled. What the locked screens showed is below; none of it changes the spec above.</div>
+</section>
+
+<section id="unlocked">
+  <div class="kicker">After unlocking</div>
+  <h2>Sandcastles behind the $5: Analyze is a report, not a viewer</h2>
+  <div class="prose">
+    <p><b>Opening a video is not a thing.</b> The play button on a card opens the post on Instagram in a new tab. Analyze queues the video ("Queued for analysis", the result lands in the Ideas inbox a minute later). There is no in-app viewer: the feed is the only place you look at cards, which is why their cards carry everything.</p>
+    <p><b>Ideas = Inbox and Shortlist.</b> One card per analyzed video (format tag, a one-line title, the same three chips as the feed). Clicking it opens a reading pane: a title, a paragraph, Your Notes, then boxes with small-caps labels: Content Positioning (Unique angle), Storytelling Format (Category chip, Why it works), Contrast Mechanism (Common belief, Contrarian reality), Hook Alignment, and "How to personalize this video for your content niche" with three options written for golf gear. Keys: S shortlist, D discard, A analysis, C turn into script. This is Virlo's take and beats in a different coat; ours is the Make ours step, which already writes beats and a hook.</p>
+    <p><b>Hooks = a vault.</b> Every analyzed video adds a template line ("I just need [the target] to [the required action].") with a category chip, the ratio, views and a heart; 26 default hooks under it. We do not need a hooks screen: the hook is a line on our viewer.</p>
+    <p><b>Reports stays locked</b> on Starter ("Upgrade required"). Scripts and Projects are empty states with one button. Channels is the watchlist page: Suggested / Describe / Search / Add URL, grouped suggestions with Add all, the watchlist on the right with Remove all and Export. That page is the closest thing to our Manage follows, and it is still a list with avatars, followers and views per channel, which ours should show too.</p>
+    <p><b>Feed sort menu:</b> Saved recently, Newest, Oldest, Outlier score, Views, Engagement rate. Same six as ours minus Saved.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="sandcastles/u02-feed-cards-metrics.jpg" alt="Sandcastles feed after the plan, cards with chips"><figcaption><b>The feed, paid.</b> Same cards; hover shows Analyze, play (opens Instagram) and collect.</figcaption></figure>
+    <figure><img src="sandcastles/u05-idea-detail-top.jpg" alt="Sandcastles idea detail reading pane"><figcaption><b>An idea.</b> Title, paragraph, notes, the video on the right, keyboard actions on top.</figcaption></figure>
+    <figure><img src="sandcastles/u07-idea-detail-personalize.jpg" alt="Sandcastles personalize options"><figcaption><b>Personalize.</b> Three golf-gear versions of the idea. Ours is one, with beats.</figcaption></figure>
+  </div>
+  <div class="strip three">
+    <figure><img src="sandcastles/u08-hooks-vault.jpg" alt="Sandcastles hooks vault"><figcaption><b>Hooks.</b> A template line per analyzed video plus 26 defaults.</figcaption></figure>
+    <figure><img src="sandcastles/u10-channels-watchlist.jpg" alt="Sandcastles channels page"><figcaption><b>Channels.</b> Suggested groups with Add all, the watchlist on the right.</figcaption></figure>
+    <figure><img src="sandcastles/u12-reports-still-locked.jpg" alt="Sandcastles reports locked on Starter"><figcaption><b>Reports.</b> Still gated above $5.</figcaption></figure>
+  </div>
+
+  <h2>Later with a profile: the composer is one tall card, the grid is the sell</h2>
+  <div class="prose">
+    <p><b>Connecting</b> was one click on the Instagram bubble, then Instagram's own consent page (five toggles: profile and media required, comments, messages, publish, insights), then back to the calendar with the profile in the title row and a 25% checklist.</p>
+    <p><b>The composer</b> (Create Post, or a calendar slot): profile picker top left, Auto Publish and the date top right, an Activity row with comments, then media on the left (a dashed drop box, "Instagram posts need at least 1 media item", Add Media) and the caption on the right with "Need help writing a caption?", Saved Captions and Hashtag Suggestions under it. More options: Add first comment, Claim your Link in Bio page, Add location, Invite collaborator; Later tools: Post tags, Campaign tags. Footer: trash, Submit for review, Schedule Post with a split arrow. Ours already matches the shape (media, caption, where, when, tweaks folded); theirs has no "where" because a post is one profile.</p>
+    <p><b>Preview</b> is the Instagram grid drawn on a phone with Lucky's real posts, a Reels / Drafts toggle, and "Visual Planner Scheduling" (Quick Schedule) on the right. The week view gained two placeholder cards, "Find your best time to post" and "Create note". Analytics opens on Overview (Profile summary, Growth and discovery, "Data not ready yet" for a day) with tabs Audience, Post performance (highlights: engagement rate, engagements, views; a sortable table with Customize metrics and Export CSV), Reel, Story, Hashtag, Linkin.bio. Social Inbox lists real DMs on the left with the thread on the right.</p>
+    <p><b>Takeaways for ours:</b> the grid preview is worth adding to Week once Lucky posts from Locus (a Preview tab beside Week and List); the best-time card is a placeholder until data exists, so ours can stay out until we have two weeks of posts; the inbox stays out.</p>
+  </div>
+  <div class="strip three">
+    <figure><img src="later/u03-preview-grid.jpg" alt="Later preview grid with Lucky's Instagram"><figcaption><b>Preview.</b> The real grid on a phone frame, Reels and Drafts toggles.</figcaption></figure>
+    <figure><img src="later/u07-composer-top.jpg" alt="Later composer"><figcaption><b>Composer.</b> Media left, caption right, options as rows, one footer.</figcaption></figure>
+    <figure><img src="later/u05-analytics-post-performance.jpg" alt="Later post performance analytics"><figcaption><b>Analytics.</b> Three highlights, a table with Customize metrics.</figcaption></figure>
+  </div>
+  <div class="strip three">
+    <figure><img src="later/u02-week-with-profile.jpg" alt="Later week view after connecting"><figcaption><b>Week, connected.</b> Profile bubble in the title row; "best time" and "note" placeholders on Thursday.</figcaption></figure>
+    <figure><img src="later/u04-analytics-overview.jpg" alt="Later analytics overview"><figcaption><b>Analytics overview.</b> "Data not ready yet" for the first day.</figcaption></figure>
+    <figure><img src="later/u08-composer-more-options.jpg" alt="Later composer more options"><figcaption><b>More options.</b> First comment, link in bio, location, collaborator, tags.</figcaption></figure>
+  </div>
 </section>
 
 </main>
