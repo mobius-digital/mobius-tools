@@ -206,3 +206,142 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-scroll{scrollbar-width:non
 html.lx-irail[data-ui="v2"] body.nav-open .side{position:fixed;left:0;top:0;bottom:0;width:248px;height:100dvh;padding:14px 12px 12px;z-index:55;box-shadow:var(--sh-pop)}
 html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 @media (prefers-reduced-motion:reduce){html.lx-irail[data-ui="v2"] .side{transition:none}}
+
+/* ==========================================================================
+   PHASE 7 (2026-10-20): THE CONTENT PASS. Every card, table, chart and control inside a page on the kit.
+   Cole: "it reads as a few small changes, not the whole new app". The chrome was on the kit; the content was not.
+   One card anatomy: 15px/600 title, ONE 12px/500 caption UNDER it (never a sentence beside the title), the
+   card's own controls on the title row's right, a "..." per card for any explanation (the same .ph-menu-w the
+   page header uses, so lx.js's one delegated listener serves it), then the body.
+   ========================================================================== */
+[data-ui="v2"] .v2h{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-auto-rows:auto;align-items:center;column-gap:12px;row-gap:3px;margin-bottom:12px;flex-wrap:nowrap}
+[data-ui="v2"] .v2h > h3{grid-column:1;grid-row:1;margin:0;min-width:0;font-size:var(--fs-h3);font-weight:600;line-height:1.35}
+[data-ui="v2"] .v2h > .find{grid-column:1;grid-row:2;margin:0;min-width:0;font-size:var(--fs-meta);font-weight:500;line-height:1.45;color:var(--muted);flex:none}
+[data-ui="v2"] .v2h > .find b{font-weight:600;color:var(--ink-2)}
+[data-ui="v2"] .v2h > .find:empty{display:none}
+[data-ui="v2"] .v2h > .cap{grid-column:2;grid-row:1;margin:0;justify-self:end;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;font-size:var(--fs-meta);font-weight:500;color:var(--muted);white-space:nowrap}
+[data-ui="v2"] .v2h > .cap:empty{display:none}
+[data-ui="v2"] .v2h > .cap .v2btn,[data-ui="v2"] .v2h > .cap .btn{height:28px;padding:0 10px;font-size:12.5px}
+[data-ui="v2"] .v2h > .cap .v2link{font-size:12.5px;font-weight:600}
+[data-ui="v2"] .v2h > .v2h-m{grid-column:3;grid-row:1}
+[data-ui="v2"] .v2h:has(> .v2h-m){grid-template-columns:minmax(0,1fr) auto auto}
+[data-ui="v2"] .v2h .v2h-m .ph-more{width:28px;height:28px;border-color:transparent;color:var(--muted)}
+[data-ui="v2"] .v2h .v2h-m .ph-more:hover,[data-ui="v2"] .v2h .v2h-m.open .ph-more{border-color:var(--line-strong);color:var(--ink)}
+[data-ui="v2"] .v2h .v2h-m .ph-menu{min-width:280px;max-width:360px}
+[data-ui="v2"] .v2h .v2h-m .ph-menu .ph-why{border-bottom:0;margin:0;padding:8px 10px}
+[data-ui="v2"] .v2h .v2h-m .ph-menu .ph-why + .ph-why{border-top:1px solid var(--line)}
+/* a renderer that still carries its explanation as a block (the older markup) hides it: the "..." holds it */
+[data-ui="v2"] .v2card > .v2what,[data-ui="v2"] .v2card > .v2rule{display:none}
+[data-ui="v2"] .v2concl{margin:-4px 0 12px;font-size:13px;line-height:1.5;color:var(--ink-2)}
+[data-ui="v2"] .v2sortbar{margin:0 0 10px;font-size:var(--fs-meta);font-weight:500;color:var(--muted)}
+[data-ui="v2"] .v2hint{font-size:13px;line-height:1.5}
+[data-ui="v2"] .v2card > .v2hint:last-child,[data-ui="v2"] .v2card > p.v2hint:last-child{font-size:var(--fs-meta);margin-top:8px}
+/* the older `.card h3 + .hint` anatomy (Settings, Brand, the Plan) reads the same way */
+[data-ui="v2"] .card > h3,[data-ui="v2"] .set-card > h3{margin:0 0 2px;font-size:var(--fs-h3);font-weight:600}
+[data-ui="v2"] .card > h3 + .hint,[data-ui="v2"] .set-card > h3 + .hint,[data-ui="v2"] .card > h3 + p.hint,[data-ui="v2"] .card > .hint:first-child{font-size:var(--fs-meta);font-weight:500;color:var(--muted);margin:0 0 12px;line-height:1.45}
+
+/* ---------- tables: they fit; names wrap, numbers never; one "..." per row; cards on a phone (phone.css) ---------- */
+[data-ui="v2"] .v2tbl table{table-layout:auto;width:100%}
+[data-ui="v2"] .v2tbl td{font-variant-numeric:tabular-nums}
+[data-ui="v2"] .v2tbl td:first-child,[data-ui="v2"] .v2tbl.wide td:first-child{white-space:normal;overflow-wrap:normal;word-break:normal;min-width:140px;max-width:none;line-height:1.35}
+[data-ui="v2"] .v2tbl .nm{display:inline;max-width:none;white-space:normal;overflow:visible;text-overflow:clip;vertical-align:baseline}
+[data-ui="v2"] .v2tbl td:first-child b{font-weight:600}
+[data-ui="v2"] .v2tbl th{white-space:nowrap}
+[data-ui="v2"] .v2tbl td.txt,[data-ui="v2"] .v2tbl th.txt{text-align:left;white-space:normal}
+[data-ui="v2"] .v2tbl td.txt .nm{display:inline-block;max-width:100%}
+[data-ui="v2"] .v2tbl tr.tot td{font-weight:600}
+/* the row menu: one quiet "..." at the row's end, its buttons in a popover (lx.js wires .ph-menu-w anywhere) */
+[data-ui="v2"] .v2tbl td.lx-rm{width:36px;padding:0 4px;text-align:right}
+[data-ui="v2"] .v2tbl .lx-rm .ph-more{width:28px;height:28px;border-color:transparent;color:var(--muted);opacity:.7}
+[data-ui="v2"] .v2tbl tr:hover .lx-rm .ph-more,[data-ui="v2"] .v2tbl .lx-rm .ph-menu-w.open .ph-more{opacity:1;border-color:var(--line-strong);color:var(--ink)}
+[data-ui="v2"] .v2tbl .lx-rm .ph-menu{min-width:200px;text-align:left}
+
+/* ---------- the kit bar list: label, bar, value on one row (replaces every column chart) ---------- */
+.lx-bars{display:grid;gap:6px;margin:0}
+.lx-bar{display:grid;grid-template-columns:minmax(90px,160px) minmax(0,1fr) auto;align-items:center;gap:12px;min-height:28px;font-size:13px;color:var(--ink)}
+.lx-bar .l{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);font-weight:500}
+.lx-bar .l small{display:block;font-size:11.5px;color:var(--muted);font-weight:400;line-height:1.3}
+.lx-bar .t{position:relative;height:8px;border-radius:var(--r-pill);background:var(--surface-2);overflow:visible}
+.lx-bar .t i{position:absolute;left:0;top:0;bottom:0;border-radius:var(--r-pill);background:var(--brand);transition:width var(--t) var(--ease)}
+.lx-bar .t i.g{background:var(--v2-cmp);opacity:.55}
+.lx-bar .t b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.8}
+.lx-bar.good .t i{background:var(--good)}.lx-bar.warn .t i{background:var(--warn)}.lx-bar.bad .t i{background:var(--bad)}.lx-bar.quiet .t i{background:var(--line-strong)}
+.lx-bar .v{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;text-align:right;min-width:52px}
+.lx-bar .v small{font-weight:400;color:var(--muted);margin-left:6px;font-size:11.5px}
+.lx-bars.rows .lx-bar{min-height:36px;padding:0 0 6px;border-bottom:1px solid var(--line)}
+.lx-bars.rows .lx-bar:last-child{border-bottom:0}
+.lx-bars-foot{margin:8px 0 0;font-size:var(--fs-meta);color:var(--muted)}
+
+/* ---------- controls: a native select reads as a pill (the menu is the system's, a sheet on a phone) ---------- */
+[data-ui="v2"] main select:not([multiple]):not(.lx-raw),[data-ui="v2"] #v2panel select:not([multiple]):not(.lx-raw){
+  appearance:none;-webkit-appearance:none;height:var(--ctl-h);padding:0 30px 0 12px;border:1px solid var(--line-strong);border-radius:var(--r-pill);
+  background-color:var(--surface);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;
+  color:var(--ink);font:inherit;font-size:13px;font-weight:550;line-height:1;cursor:pointer;max-width:100%}
+[data-ui="v2"] main select:not([multiple]):not(.lx-raw):hover,[data-ui="v2"] #v2panel select:not([multiple]):not(.lx-raw):hover{border-color:var(--ink-2)}
+[data-ui="v2"] main select:not([multiple]):not(.lx-raw):focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+/* a select that sits in a form (a label above it, full width) stays a field, 6px corners */
+[data-ui="v2"] main .spx-f select,[data-ui="v2"] main .set-form select,[data-ui="v2"] main label > select,[data-ui="v2"] main .field select,[data-ui="v2"] main .set-row select,[data-ui="v2"] main .set-card select{border-radius:var(--r-sm);height:36px}
+/* empty states: one line, one verb, never a dashed box */
+[data-ui="v2"] main .empty,[data-ui="v2"] main .lx-empty{border:0!important;background:transparent!important;padding:10px 0!important;text-align:left!important;font-size:13px;color:var(--muted);line-height:1.5}
+[data-ui="v2"] main .empty .btn,[data-ui="v2"] main .lx-empty .btn,[data-ui="v2"] main .lx-empty .v2link{margin-left:8px;vertical-align:middle}
+
+/* ---------- media cards (ads, posts, library, creators): the cover, one status chip, the name, one metric row ---------- */
+[data-ui="v2"] .v2gal .g{border-radius:var(--r-lg)}
+[data-ui="v2"] .v2gal .b{padding:10px 12px 11px;gap:5px}
+[data-ui="v2"] .v2gal .b > b{font-size:13px;font-weight:600;line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+[data-ui="v2"] .v2gal .kv{display:flex;flex-wrap:nowrap;gap:0;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:2px}
+[data-ui="v2"] .v2gal .kv > span{display:flex;flex-direction:column;gap:1px;align-items:flex-start;min-width:0}
+[data-ui="v2"] .v2gal .kv > span > b{font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+[data-ui="v2"] .v2gal .kv > span > b.good{color:var(--good)}[data-ui="v2"] .v2gal .kv > span > b.bad{color:var(--bad)}
+[data-ui="v2"] .v2gal .kv > span + span{align-items:flex-end;text-align:right}
+[data-ui="v2"] .v2gal .v2one{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- the chart style: one legend line, the series and the compare, nothing boxed ---------- */
+[data-ui="v2"] .v2lg{font-size:var(--fs-meta);font-weight:500;gap:12px}
+[data-ui="v2"] .v2lgline{font-size:var(--fs-meta);font-weight:500}
+
+/* Today's calls (phase 7): the kinds are one segmented control with a count per kind */
+[data-ui="v2"] .dk-counts.v2jobs{margin:0 0 14px}
+[data-ui="v2"] .dk-counts.v2jobs button b{font-weight:650;margin-right:5px;font-variant-numeric:tabular-nums}
+[data-ui="v2"] .dk-counts.v2jobs button.on b{color:var(--brand)}
+
+/* the older .tbl-wrap tables (P&L, Costs, Customers) fit the same way: names wrap, no sideways scroll on desktop */
+[data-ui="v2"] .tbl-wrap{overflow:visible}
+[data-ui="v2"] .tbl-wrap table{width:100%;table-layout:auto}
+[data-ui="v2"] .tbl-wrap td:first-child,[data-ui="v2"] .tbl-wrap th:first-child{white-space:normal;overflow-wrap:normal}
+[data-ui="v2"] .tbl-wrap td,[data-ui="v2"] .tbl-wrap th{padding:8px 8px;font-variant-numeric:tabular-nums}
+@media (max-width:600px){[data-ui="v2"] .tbl-wrap{overflow-x:auto}}
+/* PHASE 7 (2026-10-20): sortable headers were padded twice (the th and its button), which alone pushed wide tables
+   into sideways scroll; headers may wrap to two lines, a running-total note wraps too */
+[data-ui="v2"] .v2tbl th.v2srt{padding:0 4px}
+[data-ui="v2"] .v2tbl th.v2srt button{padding:6px 6px;white-space:normal;text-align:right;line-height:1.25}
+[data-ui="v2"] .v2tbl th{white-space:normal;overflow-wrap:normal;hyphens:none}
+[data-ui="v2"] .v2tbl .lx-aft{flex-direction:column;align-items:flex-end;gap:2px}
+[data-ui="v2"] .v2tbl .lx-aft em{white-space:nowrap;line-height:1.2;font-size:11px}
+
+/* Website > Who visits: two half-width tables, the first column needs no 140px floor */
+[data-ui="v2"] .lx-who .v2tbl td:first-child,[data-ui="v2"] .v2two .v2tbl td:first-child{min-width:0}
+/* Settings > Social (phase 7, Cole saw it scroll sideways): the section grid is one fitted column, the following
+   table's handles wrap instead of forcing the width */
+[data-ui="v2"] .soc-set{grid-template-columns:minmax(0,1fr)}
+[data-ui="v2"] .soc-set .soc-tbl td:first-child,[data-ui="v2"] .soc-set .soc-tbl td:first-child *{white-space:normal}
+[data-ui="v2"] .soc-set .soc-tbl td:first-child{min-width:0}
+/* two small fits (phase 7): the ingredient tables and a card caption never push their card wider */
+[data-ui="v2"] .v2tgrid{grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr))}
+[data-ui="v2"] .v2tg{min-width:0;overflow:hidden}
+[data-ui="v2"] .v2h > .cap{min-width:0;max-width:100%}
+
+/* iPad (phase 7): tables tighten before they would scroll sideways; the bars inside cells give first */
+@media (max-width:1100px){
+  [data-ui="v2"] .v2tbl td,[data-ui="v2"] .v2tbl th{padding:8px 6px;font-size:12.5px}
+  [data-ui="v2"] .v2tbl th.v2srt button{padding:6px 4px;font-size:10.5px}
+  [data-ui="v2"] .v2tbl .v2ib{grid-template-columns:36px auto;gap:6px}
+  [data-ui="v2"] .v2tbl .v2ib span{min-width:40px}
+  [data-ui="v2"] .v2tbl td:first-child{min-width:110px}
+  [data-ui="v2"] .dk .dk-row .why{white-space:normal}
+  [data-ui="v2"] .v2tbl .lx-aft .v2spark{width:64px}
+  [data-ui="v2"] .v2tbl table,[data-ui="v2"] .v2tg table{font-size:12px}
+  [data-ui="v2"] .v2tg td,[data-ui="v2"] .v2tg th{padding:7px 4px;white-space:normal}
+  [data-ui="v2"] .dk .dk-row .why,[data-ui="v2"] .dk .dk-row .why *{white-space:normal;overflow-wrap:anywhere}
+  [data-ui="v2"] .v2tbl .v2ib span{min-width:0}
+}

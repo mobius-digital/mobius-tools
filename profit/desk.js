@@ -45,9 +45,7 @@
       .dk .dk-lk{border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:flex;flex-direction:column;gap:2px}
       .dk .dk-lk .l{font-size:11.5px;color:var(--muted)}.dk .dk-lk .v{font-weight:600}
       .dk .dk-lk.worse{border-color:var(--bad)}.dk .dk-lk.better{border-color:var(--good)}
-      .dk .dk-counts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
-      .dk .dk-cnt{border:1px solid var(--line);border-radius:8px;padding:7px 12px;background:var(--surface);display:flex;gap:8px;align-items:baseline;cursor:pointer;color:var(--ink)}
-      .dk .dk-cnt b{font-size:17px}.dk .dk-cnt.on{border-color:var(--brand)}
+      .dk .dk-counts{margin:0 0 14px}
       .dk .dk-row{display:grid;grid-template-columns:72px minmax(140px,1.2fr) minmax(0,1.6fr) max-content;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
       @media (max-width:820px){.dk .dk-row{grid-template-columns:1fr}}
       /* THE KIT (2026-10-20): one primary button, Done, and a "..." menu for the rest (Ads Manager, Open in Locus, Something else, Not now). */
@@ -150,9 +148,9 @@
       ${sign(s.outage ? s.outage.length > 0 : null, 'Meta\'s status page', s.outage && s.outage.length ? 'Meta posted a problem' : 'No problem posted', s.outage && s.outage.length ? esc(s.outage.slice(0, 2).join('; ')) : 'Meta only posts real outages there.', 'Read every 5 minutes by Pulse. Expensive or slow days never show here, only outages.')}
       ${sign(ch ? ch.issues : null, 'Advertisers online', !ch ? 'Not checked' : ch.issues ? 'People reported problems' : 'Nothing unusual', ch ? `${esc(ch.summary || '')}${(ch.sources || []).length ? '<br>' + ch.sources.slice(0, 2).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title || x.url).slice(0, 50))}</a>`).join('<br>') : ''}` : 'Checked for the latest days only.', 'A daily search of X and Reddit, reading the media buyers Cole follows first.')}
     </div>`;
-    const brands = isLatest && (m.brands || []).length ? U().card(agency ? 'Our brands that day' : 'Your brand that day', 'Meta cost per sale against each brand\'s own last 28 days (Meta\'s count).',
+    const brands = isLatest && (m.brands || []).length ? U().card(agency ? 'Our brands that day' : 'Your brand that day', 'Meta cost per sale against each brand\'s last 28 days',
       `<div class="v2tbl"><table><thead><tr><th>Brand</th><th>Meta spend</th><th>Cost per sale</th><th>Its normal</th><th></th></tr></thead><tbody>${m.brands.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${U().money(b.spend)}</td><td>${b.cpa != null ? U().money(b.cpa) : 'no sale'}</td><td>${b.cpa_normal != null ? U().money(b.cpa_normal) : '–'}</td><td>${b.change == null ? '' : `<span class="v2pill ${b.change >= 0.15 ? 'bad' : b.change <= -0.15 ? 'good' : ''}">${b.change >= 0 ? '+' : ''}${Math.round(b.change * 100)}%</span>`}</td></tr>`).join('')}</tbody></table></div>`) : '';
-    $('#main').innerHTML = shell('yesterday', title, `<div id="dkNow"></div><p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? A bad day when two or more of four signs agree.</p>
+    $('#main').innerHTML = shell('yesterday', title, `<div id="dkNow"></div><p class="v2say lead" style="margin:0 0 12px">Was it a bad day on Meta? Bad when two or more of four signs agree.</p>
       ${answer}${isLatest ? `<div id="dkVerdict"></div>` : ''}${U().card('The last 30 days', '', strip)}${U().card(`The four signs, ${wdl(sel.date)} ${md(sel.date)}`, '', signs)}${brands}`);
     const root = $('#main');
     root.querySelectorAll('.dk-day').forEach(el => el.onclick = () => { MDSEL = el.dataset.d; yesterday(false); });
@@ -168,21 +166,22 @@
   async function fillNow(t, opt = {}) {
     const el = document.getElementById('dkNow'); if (!el) return;
     const act = H.S.act || 'all', key = act;
-    const draw = (body, sub) => { const e2 = document.getElementById('dkNow'); if (e2 && t === H.RUN()) e2.innerHTML = U().card('Right now', `<span class="dk-acts"><button type="button" class="v2btn ghost" id="dkNowRef">Refresh</button><button type="button" class="v2btn ghost" id="dkNowWeb">What are advertisers saying?</button></span>`, `${sub ? `<p class="v2hint" style="margin:0 0 10px">${sub}</p>` : ''}${body}`); wireNow(t); };
-    if (!opt.fresh && !opt.web && NOWC && NOWC.key === key && Date.now() - NOWC.at < 5 * 60e3) { draw(nowBody(NOWC.data), nowSub(NOWC.data)); return; }
+    /* PHASE 7: title, the time as the caption, the two buttons on the right, the method in the card's "..." */
+    const draw = (body, sub, how) => { const e2 = document.getElementById('dkNow'); if (e2 && t === H.RUN()) e2.innerHTML = `<section class="v2card"><div class="v2h"><h3>Right now</h3>${sub ? `<span class="find">${sub}</span>` : ''}<span class="cap"><button type="button" class="v2btn ghost" id="dkNowRef">Refresh</button><button type="button" class="v2btn ghost" id="dkNowWeb">What are advertisers saying?</button></span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([how ? esc(how) : '', 'Want a ping when this happens? Ask Locus: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.']) : ''}</div>${body}</section>`; wireNow(t); };
+    if (!opt.fresh && !opt.web && NOWC && NOWC.key === key && Date.now() - NOWC.at < 5 * 60e3) { draw(nowBody(NOWC.data), nowSub(NOWC.data), NOWC.data.how); return; }
     if (!NOWC || NOWC.key !== key) draw('<p class="v2hint" style="margin:0">Checking today so far against a normal day&hellip;</p>');
     let r; try { r = await H.apiAH(`/api/daycheck/now?act=${encodeURIComponent(act)}${opt.fresh ? '&fresh=1' : ''}${opt.web ? '&web=1' : ''}`); }
     catch (e) { draw(`<p class="v2bad" style="margin:0">Could not check: ${esc(e.message)}</p>`); return; }
     if (opt.web === false && NOWC?.data?.chatter && !r.chatter) r.chatter = NOWC.data.chatter;
     NOWC = { key, at: Date.now(), data: r };
-    draw(nowBody(r), nowSub(r));
+    draw(nowBody(r), nowSub(r), r.how);
   }
   function wireNow(t) {
     const a = document.getElementById('dkNowRef'), b = document.getElementById('dkNowWeb');
     if (a) a.onclick = () => { a.disabled = true; a.textContent = 'Checking…'; fillNow(t, { fresh: true }); };
     if (b) b.onclick = () => { b.disabled = true; b.textContent = 'Searching…'; fillNow(t, { web: true }); };
   }
-  const nowSub = r => `${esc(r.how || '')} As of ${new Date(r.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central.`;
+  const nowSub = r => `As of ${new Date(r.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central · today so far against a normal day by this hour`;
   function nowBody(r) {
     const u = U(), list = r.brands || [], one = list.length === 1;
     const vsPill = v => v == null ? '' : `<span class="v2pill ${v < 0.75 ? 'bad' : v > 1.25 ? 'good' : ''}">${Math.round(v * 100)}% of normal</span>`;
@@ -217,7 +216,6 @@
     const ch = r.chatter;
     if (ch) mk.push(ch.status === 'ok' ? `<b>Advertisers online, last few hours:</b> ${esc(ch.summary || (ch.meta === 'issues' ? 'people are reporting Meta problems' : 'nothing unusual'))}${(ch.sources || []).length ? ' ' + ch.sources.slice(0, 3).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc((x.title || x.url).slice(0, 50))}</a>`).join(' · ') : ''}` : `Could not search what advertisers are saying: ${esc(ch.error || '')}`);
     out += `<div class="dk-key" style="display:block;margin-top:12px">${mk.map(x => `<p class="v2say" style="margin:0 0 4px">${x}</p>`).join('')}</div>`;
-    out += `<p class="v2hint" style="margin:8px 0 0">Want a ping when this happens? Ask Locus: "tell me if revenue is under half of normal by noon". Alerts live on Reports > Dashboards.</p>`;
     return out;
   }
   const AHC = new Map();
@@ -320,8 +318,8 @@
     const cnt = k => vis.filter(r => k === 'all' || r.kind === k).length;
     const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
     const doList = vis.filter(r => DO_TIP[r.kind] && !dn[r.key]).sort((a, b) => (b.stake || 0) - (a.stake || 0));
-    const doBar = doList.length ? `<div class="dk-doall"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button><span class="v2hint">Every Scale, Cut and Trim on this list. You see each change and confirm once; nothing is written before that.</span></div>` : '';
-    const counts = `<div class="dk-counts">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
+    const doBar = doList.length ? `<span class="lx-tohead"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button></span>` : '';
+    const counts = `<div class="v2jobs dk-counts" role="group" aria-label="Kind of call">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
     const shown = vis.filter(r => KIND === 'all' || r.kind === KIND);
     const by = {}; for (const r of shown) (by[r.act_id] ??= []).push(r);
     const order = Object.entries(by).sort((a, b) => b[1].reduce((s, r) => s + (r.stake || 0), 0) - a[1].reduce((s, r) => s + (r.stake || 0), 0));
@@ -333,7 +331,7 @@
         return `<div class="dk-row"><span class="dk-k call">CALL</span>
           <div><div class="nm">${esc(r.adset)}</div><div class="meta">${meta}</div></div>
           <div class="why">${esc(r.why || '')}</div>
-          <div class="dk-acts"><button type="button" class="v2btn dk-p" data-verdict="winner" data-key="${k}" title="Close the test as a winner. One line on what it taught us.">Winner</button><button type="button" class="v2btn ghost" data-verdict="keep" data-key="${k}" title="Leave it running with a reason and a date to check again.">Keep running</button><button type="button" class="v2btn ghost" data-verdict="loser" data-key="${k}" title="Close the test as a loser. One line on what it taught us.">Loser</button>${gb(`data-go="act:${esc(r.act_id)}:tests"`, 'Open the test')}${c.ads_manager ? `<a class="v2btn ghost" href="${esc(c.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; }
+          <div class="dk-acts"><button type="button" class="v2btn dk-p" data-verdict="winner" data-key="${k}" title="Close the test as a winner. One line on what it taught us.">Winner</button><button type="button" class="v2btn ghost" data-verdict="keep" data-key="${k}" title="Leave it running with a reason and a date to check again.">Keep running</button><span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu"><button type="button" data-verdict="loser" data-key="${k}">Loser</button><button type="button" data-go="act:${esc(r.act_id)}:tests">Open the test</button>${c.ads_manager ? `<a href="${esc(c.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; }
       const meta = r.spend != null ? `${U().money(r.spend, cur)} spent · ${U().int(r.orders)} sale${Math.round(r.orders) === 1 ? '' : 's'} · ${r.cpa ? U().money(r.cpa, cur) + ' per sale' : 'no sale'}${r.goal ? ` · goal ${U().money(r.goal, cur)}` : ''}${r.n_ads ? ` · ${r.n_ads} ad${r.n_ads === 1 ? '' : 's'}` : ''}` : '';
       const anchor = (r.kind === 'cut' || r.kind === 'scale') && r.anchor && r.n_ads > 1 ? ` <span class="faint">Anchor: "${esc(r.anchor.name)}" (${Math.round((r.anchor.share || 0) * 100)}% of the set's spend).</span>` : '';
       const primary = DO_TIP[r.kind] ? `<button type="button" class="v2btn dk-p" data-do="${k}" title="${esc(DO_TIP[r.kind])}">Do it</button>`
@@ -346,14 +344,17 @@
         <div class="why">${esc(r.why || '')}${anchor}</div>
         <div class="dk-acts">${primary}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}<span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu">${am && r.kind !== 'fix' ? `<a href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-locus="${k}">Open in Locus</button><button type="button" data-else="${k}">Something else</button><button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
-      return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b></span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
+      return `<section class="v2card"><div class="v2h"><h3>${esc(name)}</h3><span class="cap">${rs.length} to do</span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([esc(d.rules_note || ''), 'Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Tasks. Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.']) : ''}</div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
-    const sub = win ? `<b>What the media buyer changes today, ad set first.</b> Ranked by money at stake. Judged on Triple Whale last platform click, ${md(win.from)} to ${md(win.to)}, with each brand's Ads rules.` : '<b>What the media buyer changes today, ad set first.</b>';
+    const nAll = vis.length;
+    const sub = `<b>${nAll} call${nAll === 1 ? '' : 's'} today, ad set first</b>, ranked by money at stake.${win ? ` Judged on last platform click, ${md(win.from)} to ${md(win.to)}.` : ''}`;
     $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${doBar}${counts}
       ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
-      ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day</button></p>` : ''}
-      ${U().foot(`${esc(d.rules_note || '')} Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Action items (Slack reminds the owner when it is due). Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
+      ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day ›</button></p>` : ''}`);
     const root = $('#main');
+    /* the one page action lives in the header and presses the hidden original (its handler is wired below) */
+    if (doList.length && typeof H.pageActions === 'function') { H.pageActions(`<button type="button" class="btn primary" data-press="dkDoAll" title="Every Scale, Cut and Trim on this list. You see each change and confirm once; nothing is written before that.">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button>`); root.querySelectorAll('.ph-acts [data-press]').forEach(b => b.onclick = () => { const o = document.getElementById(b.dataset.press); if (o) o.click(); }); }
+    else if (typeof H.pageActions === 'function') H.pageActions('');
     const find = k => rows.find(x => x.key === k);
     const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
     const unDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); };
@@ -594,7 +595,10 @@
     return { text: 'Rework the offer, consider turning ads off', cls: 'bad', ok: 1 };
   }
   const kpi = (label, value, sub, tone, tip) => `<div class="wr-k${tone ? ' ' + tone : ''}"${tip ? U().tipAttr(tip) : ''}><span class="l">${label}</span><b>${value}</b>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
-  const sec = (id, n, done, title, sub, body, cap) => `<section class="v2card wr-sec" id="${id}"><div class="v2h"><h3><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span>${esc(title)}</h3>${cap ? `<span class="cap">${cap}</span>` : ''}</div>${sub ? `<p class="v2hint wr-sub">${sub}</p>` : ''}${body}</section>`;
+  /* PHASE 7 (2026-10-20): the first sentence of a step's note is its one caption under the title; the rest waits in the
+     card's "..." so no step opens with a paragraph. */
+  const sec = (id, n, done, title, sub, body, cap) => { const m = /^(.*?[.!?])\s+(\S[\s\S]*)$/.exec(sub || ''); const find = m ? m[1] : sub || '', rest = m ? m[2] : '';
+    return `<section class="v2card wr-sec" id="${id}"><div class="v2h"><h3><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span>${esc(title)}</h3>${find ? `<span class="find">${find.replace(/[.!?]$/, '')}</span>` : ''}${cap ? `<span class="cap">${cap}</span>` : ''}${rest && window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(rest) : ''}</div>${body}</section>`; };
 
   function warStop() { if (WR.timer && !WR.tv) { clearInterval(WR.timer); WR.timer = null; } }
   /** page = 'warplan' | 'warlive' | 'war' (old id: the mode comes from window.WAR_MODE, then the switch, then the date). */

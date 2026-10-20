@@ -60,3 +60,39 @@ Static python server on a spare port from the worktree + `profit-worker-dev` (:8
 the gitignored `.dev.vars`; Chrome in Cole's profile with `pf_worker` / `pf_ah` / `pf_token` in localStorage; an iframe harness page
 served from the SAME origin for 768 and 390 (so `contentDocument` is reachable). `find` in Claude in Chrome spends model calls; use
 coordinates or `javascript_tool`. A new Chrome tab group starts with empty localStorage: set the three keys again.
+
+## Phase 7, the content pass (built 2026-10-20, branch claude/locus-phase7-7435d9)
+
+Cole's read of phases 1 to 6: "a few small changes". The chrome changed; the content inside the pages did not. Phase 7
+redrew the content on every page to the kit. What changed, in order:
+
+- Ads > Meta > Ads: card anatomy everywhere (title, one caption under it, the rule in the "..."), ads as 4:5 media
+  cards with one metric row, fatigue and cadence as kit bar lists, the stacked spend chart as stacked areas, the
+  "counts as one" and "customers who come back" cards as short captions with wrapping names.
+- Meta > Campaigns: eight default columns (new saved key meta-camps2), sortable headers fixed (they were padded twice,
+  which alone forced sideways scroll on most wide tables).
+- Meta > Changes: kit header with header actions, a period pill menu, one-line lead.
+- Today's calls: Do all in the header, kinds as one segmented control with counts, brand cards with the rules in the
+  "...", test rows with Winner, Keep running and a "..." for the rest.
+- All channels and the four Google pages: stacked areas, the Google-reported banner moved into the card menus, fewer
+  columns (campaigns 8, search terms 7), four numbers per Google ad card.
+- Home: Day check's Right now card (time as caption, method in the menu), Goals as one card with a segmented month
+  control, Requests as group cards with header actions and one-verb empties.
+- Email and SMS: revenue by day and list growth as areas, Flows / Email vs SMS / Campaigns sent fit (7 columns, the
+  rest on hover or in Columns).
+- Store: Customers (four tiles + a fold, kit cards with method menus), Website (how-to-read in the menus, Who visits
+  fits), Search (query table fits its half card).
+- Products: captions trimmed, checked in code only (Supply needs the Google sign-in locally).
+- Creative: Library's setting filter and Inspiration's boards are pill menus (they were rows of 8 and 9 buttons).
+- Black Friday > The Plan: each step opens with one caption, the rest in its "...".
+- Tools > Team workload fits at 1024+; Settings > Social no longer scrolls sideways.
+- ?open= deep links: the allow list now matches SHOWABLE (nine ids were missing).
+- iPad: tables tighten under 1100px (padding, font, inline bars). Phone: `.v2tbl` clips, text cells wrap; the Ads
+  page no longer scrolls the whole page sideways.
+
+Checked at 1280, 1024 and 390 as Lucky Golf, in Agency view (workload, economics, Today's calls) and as a client
+login (role simulated in the console: Home, Ads, Reports, Requests). No console errors. Shots: docs/locus-audit/shots/p7-*.
+
+Not done / for a later pass: Scenarios and Platform status keep their explanatory paragraphs (a calculator and a
+status board); the Platform status 14-day histogram is still a column chart; the Settings > Goals section keeps its
+four form hints; Supply pages with real data, Reports and Live could not be opened locally.

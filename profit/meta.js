@@ -76,6 +76,8 @@ function setupNote() {
 const U = () => window.V2UI;
 const MT_CRUMB = { changes: 'Changes', mtoday: 'Today', mbrowser: 'Creative browser' };
 function mtHead(key, title, help) {
+  /* PHASE 7 (2026-10-20): the host's kit header; the page's own Help (META_HELP) replaces the generic one in the "..." */
+  if (typeof pageHead === 'function') return pageHead(MSUB_TAB[key] || 'changes', title).replace(/data-help="[^"]*"/, `data-mhelp="${help}"`);
   return `<div class="ph"><div><div class="ph-crumb">Ads &nbsp;/&nbsp; Meta &nbsp;/&nbsp; <b>${MT_CRUMB[key] || ''}</b></div><div class="ph-t">${title}</div></div>
     <div class="ph-r"><button type="button" class="ph-ico" data-gloss="1" title="What every metric means">Metrics</button><button type="button" class="ph-ico" data-mhelp="${help}" title="How to use this page">Help</button></div></div>`;
 }
@@ -435,16 +437,17 @@ async function renderChangeLog() {
   CL.mainShown = 100; CL.restShown = 50; CL.restOpen = null; CL.open = new Set(); CL.series = null; CL.rows = []; CL.loaded = false; CL.helpLine = '';
   const one = act !== 'all' ? acctOf(act) : null;
   if (one && !hasMeta(one)) { $('#main').innerHTML = CL_CSS + mtPage('changes', `What changed on ${esc(one.name)}`, 'changelog', noMetaCard(one)); return; }
-  $('#main').innerHTML = CL_CSS + mtPage('changes', one ? `What changed on ${esc(one.name)}` : 'What changed on the accounts', 'changelog', `
+  const PMx = window.PillMenu;
+  $('#main').innerHTML = CL_CSS + mtPage('changes', one ? `Meta changes: ${esc(one.name)}` : 'Meta changes', 'changelog', `
     <p class="v2say lead" id="clSay"><span class="mt-sk"></span></p>
     ${setupNote()}
     <div class="mt-bar">
-      <div class="v2jobs" role="group" aria-label="Period">${CL_RANGES.map(([v, l]) => `<button type="button" data-clr="${v}" class="${CL.range === v ? 'on' : ''}" aria-pressed="${CL.range === v}">${l}</button>`).join('')}</div>
+      ${PMx ? PMx.html('clRange', 'Period', CL_RANGES.map(([v, l]) => [v, l, '']), CL.range) : `<div class="v2jobs" role="group" aria-label="Period">${CL_RANGES.map(([v, l]) => `<button type="button" data-clr="${v}" class="${CL.range === v ? 'on' : ''}" aria-pressed="${CL.range === v}">${l}</button>`).join('')}</div>`}
       ${CL.range === 'custom' ? `<label class="mt-lbl">From <input class="mt-in" type="date" id="clFrom" value="${from}" max="${today}"></label>
       <label class="mt-lbl">To <input class="mt-in" type="date" id="clTo" value="${to}" max="${today}"></label>` : ''}
       <span class="mt-gap"></span>
-      <button type="button" class="mt-b" id="clAddBtn">+ Add a change</button>
-      <button type="button" class="mt-b pri" id="clSumBtn">Summarise</button>
+      <span class="lx-tohead"><button type="button" class="mt-b" id="clAddBtn">+ Add a change</button>
+      <button type="button" class="mt-b pri" id="clSumBtn">Summarise</button></span>
     </div>
     <div id="clPanel"></div>
     <div class="v2tiles" id="clTiles"></div>
@@ -457,11 +460,15 @@ async function renderChangeLog() {
     <div id="clFeed" class="mt-stack"><section class="v2card"><p class="v2hint">Loading changes…</p></section></div>
     ${U().foot('Changes come from Meta’s activity log with every sync, plus anything added by hand. CPA is Meta spend over Triple Whale purchases (last platform click); a day Triple Whale has not synced is left out, never counted as zero.')}`);
 
-  $('#main').querySelectorAll('[data-clr]').forEach(b => b.onclick = () => {
-    const v = b.dataset.clr; if (v === CL.range) return;
+  const pickRange = v => {
+    if (v === CL.range) return;
     if (v === 'custom') [CL.from, CL.to] = clDates();   // start Custom from the dates on screen
     CL.range = v; try { localStorage.setItem('ah_cl_range', CL.range); } catch { /* private mode */ } renderChangeLog();
-  });
+  };
+  $('#main').querySelectorAll('[data-clr]').forEach(b => b.onclick = () => pickRange(b.dataset.clr));
+  if (PMx && $('#clRange')) PMx.wire($('#clRange'), pickRange);
+  /* the page's two actions live in the header; the originals stay hidden with their handlers (the press pattern) */
+  if (typeof pageActions === 'function') { pageActions(`<button type="button" class="btn" data-press="clAddBtn">+ Add a change</button><button type="button" class="btn primary" data-press="clSumBtn">Summarise</button>`); $('#main').querySelectorAll('.ph-acts [data-press]').forEach(b => b.onclick = () => { const o = document.getElementById(b.dataset.press); if (o) o.click(); }); }
   const onDate = () => {
     CL.from = $('#clFrom').value; CL.to = $('#clTo').value;
     if (CL.from && CL.to && CL.from <= CL.to) renderChangeLog();
@@ -560,7 +567,7 @@ function clDrawSummary() {
   const help = '<span id="clSayHelp"></span>';
   say.innerHTML = !CL.rows.length ? `No changes on the account ${esc(per)}.${help}`
     : !n ? `Nothing that matters changed ${esc(per)}. ${rest.length} housekeeping change${rest.length === 1 ? ' is' : 's are'} under Everything else.${help}`
-    : need ? `<b>${n} change${n === 1 ? ' that matters' : 's that matter'}</b> ${esc(per)}, <b class="warn">${need} without a why</b>. Add why to ${need === 1 ? 'it' : 'them'}: the client’s Daily Brief writes “What we’re doing” only from these reasons.${help}`
+    : need ? `<b>${n} change${n === 1 ? ' that matters' : 's that matter'}</b> ${esc(per)}, <b class="warn">${need} without a why</b>.${help}`
     : `<b>${n} change${n === 1 ? ' that matters' : 's that matter'}</b> ${esc(per)}, <b class="good">every one with a reason</b>.${help}`;
   if (CL.helpLine) { const h = $('#clSayHelp'); if (h) h.innerHTML = CL.helpLine; }
   tl.innerHTML = [
@@ -743,7 +750,7 @@ function clDrawFeed() {
   const restOpen = CL.restOpen ?? (!!CL.q.trim() || (!!CL.type && !main.length));
   const mainNow = main.slice(0, CL.mainShown), restNow = restOpen ? rest.slice(0, CL.restShown) : [];
   feed.innerHTML = `<section class="v2card cl2-sec">
-      <div class="v2h"><h3>Changes that matter</h3><span class="find">Budgets, campaigns and ad sets, bid strategy, targeting, new ads, and anything added by hand. Newest first.</span><span class="cap"><b>${main.length}</b> in this list</span></div>
+      <div class="v2h"><h3>Changes that matter</h3><span class="find">Budgets, bids, targeting, campaigns and ad sets, new ads, and anything added by hand. Newest first.</span><span class="cap"><b>${main.length}</b> in this list</span></div>
       ${main.length ? clDaysHtml(mainNow, it => it.lead, clItemHtml, true) : `<p class="v2hint">Nothing in this group for this period.</p>`}
       ${main.length > mainNow.length ? `<button type="button" class="mt-b cl2-more" data-do="more-main">Show 50 more</button>` : ''}
     </section>
@@ -762,7 +769,7 @@ function clDrawPanel() {
   const [from, to] = clDates();
   const active = S.accounts.filter(metaOn);
   if (CL.panel === 'add') {
-    el.innerHTML = `<section class="v2card"><div class="v2h"><h3>Add a change</h3><span class="find">For things Meta’s log can’t see: landing page swaps, promo starts, tracking fixes. It lands in Changes that matter.</span></div>
+    el.innerHTML = `<section class="v2card"><div class="v2h"><h3>Add a change</h3><span class="find">Things Meta’s log can’t see: a landing page swap, a promo start, a tracking fix.</span></div>
       <div class="mt-form">
         <select class="mt-in" id="adAct" aria-label="Brand">${active.map(a => `<option value="${a.act_id}" ${a.act_id===S.act?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
         <input class="mt-in" type="datetime-local" id="adTime" aria-label="When" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60e3).toISOString().slice(0,16)}">

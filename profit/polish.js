@@ -124,9 +124,17 @@
     t.classList.toggle('lx-fits', fits);
     t.classList.toggle('lx-more', !fits && t.scrollLeft + t.clientWidth < t.scrollWidth - 2);
   }
+  /* PHASE 7 (2026-10-20): every cell carries its column's name in data-l, so under 600px phone.css can draw the
+     row as a card ("Spend  $1,405"). Cheap: once per table, skipped when the head has no text. */
+  function labelCells(t) {
+    const tbl = t.querySelector('table'); if (!tbl || tbl.__lxL) return;
+    const ths = [...tbl.querySelectorAll('thead th, thead td')].map(th => (th.textContent || '').replace(/[▲▼]/g, '').trim());
+    if (!ths.length) return; tbl.__lxL = 1;
+    tbl.querySelectorAll('tbody tr').forEach(tr => { let i = 0; for (const td of tr.children) { const span = td.colSpan || 1; if (i > 0 && ths[i] && !td.hasAttribute('data-l')) td.setAttribute('data-l', ths[i]); i += span; } });
+  }
   function tables(root) {
     root.querySelectorAll('.v2tbl').forEach(t => {
-      fitCheck(t);
+      fitCheck(t); labelCells(t);
       if (t.__lxTh) return; t.__lxTh = 1;
       t.addEventListener('scroll', () => fitCheck(t), { passive: true });
       const ths = [...t.querySelectorAll('thead th, tr:first-child > th')].filter(th => (th.textContent || '').trim());

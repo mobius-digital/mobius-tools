@@ -3945,3 +3945,39 @@ the UX audit kit (PR 36, lx.css / LxKit) is not on main, so the kit header appli
 - Checked in the built-in browser on a stub harness (not committed) at 800, 1280 and 375, dark and light: Feed, Filters
   popover, viewer with prev / next, Make ours end to end on stubs, tag picker, Saved, Week grid, List, composer sheet,
   Brand settings > Social. No console errors. NOT checked against the real workers; the worker is not deployed.
+
+## 2026-10-20 (latest): THE LOCUS KIT, phase 7, the CONTENT pass. Read before adding a card, a chart or a table.
+
+Every page now reads as one product inside the cards, not just the chrome. The rules, and where they live:
+
+- **One card anatomy.** `.v2h` is a grid: `h3` (15px/600) on row one, ONE `.find` caption (12px/500, muted) UNDER it,
+  `.cap` on the right of row one for the card's controls or source, and an optional "..." (`LxKit.cardMenu(why, buttons)`)
+  as the last child. The "..." holds the method, the rule, the footnote: never a sentence beside a title and never a
+  block of prose under it. `card(title, find, body, cap, why)`, `ccard(..., what)` and `cardL(title, lead, body, cap,
+  cls, why)` in v2.js all take the why. desk.js's War Room `sec()` splits a step's note itself: first sentence = caption,
+  the rest = the menu. `.v2what` and `.v2rule` blocks are hidden by lx.css; put that text in the why instead.
+- **Numbers are tiles.** Four per row (`.v2tiles`, `.lx-t4`), the rest under a fold (`details.rp-more`). Phone rows come
+  from phone.css on their own.
+- **One chart style.** `lineChart` (thin brand stroke, soft area, dashed compare, hover answers) or stacked AREAS
+  (`stackChart`, `emStack`, `growthChart`), or a kit bar list `LxKit.bars(rows, {max, foot})` (label, bar, value on one
+  row, a goal tick, tones). No column charts, no boxed legends.
+- **Tables fit.** `.v2tbl` with a sticky head, tabular numbers, the first column wraps (never letter by letter), `td.txt`
+  for text columns, row actions as `LxKit.rowMenu(buttons)`. Sortable `th.v2srt` headers were padded twice (the th and
+  its button): fixed in lx.css, which alone pushed wide tables into sideways scroll. Headers may wrap to two lines.
+  Default column sets are what fits at 1024: META_DEF (8), G_DEF (8), KL_DEFAULT (7), under NEW saved keys
+  (`meta-camps2`, `kl-camps2`) so an old saved set does not bring the wide table back. Under 1100px lx.css tightens
+  padding, font and the inline bars (`.v2ib`). On a phone polish.js writes `data-l` on every td and phone.css draws
+  the rows as cards; `.v2tbl` is `overflow-x:clip` there.
+- **Ad lists are media cards.** `.v2gal .g`: 4:5 media, name, one `.kv` metric row (label over value), one `.v2one`
+  quiet line; tap = `V2.playAd`.
+- **Controls.** A segmented control (`.v2jobs`) for page jobs, a pill menu (`PillMenu.html/wire`) that shows its value
+  for anything with more than five options (Library setting, Inspiration board), never a native select in a page
+  (lx.css draws any stray `select` in #main as a pill; form selects are fine), never a row of six buttons.
+- **Copy.** Labels, not sentences; captions start lower-case and use " · " between facts; one verb per empty state
+  (`<p class="lx-empty">`); no "team only"; no em dashes.
+- **Deep links.** The `?open=` allow list in index.html now matches SHOWABLE (website, search, inspo, library, guide,
+  mtoday, mbrowser, economics, workload were missing and fell back to the last page).
+
+Not reachable locally, checked in code only: Stock/Buying/Drops with data (Supply needs the Google sign-in), Reports
+and Live (proxied Triple Whale), TikTok (no brand shows the tab). Shots: docs/locus-audit/shots/p7-*; the audit page's
+Phase 7 section lists what changed per page.
