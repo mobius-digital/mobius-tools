@@ -2040,6 +2040,9 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 .lx .v2say .good{color:var(--good)} .lx .v2say .bad{color:var(--bad)} .lx .v2say .warn{color:var(--warn)}
 .lx .v2tiles .v2tile .sub .pill{margin-left:0}
 .lx-t3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.lx-t4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.lx-t4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lx .jr-then .pill{white-space:normal;text-align:left;line-height:1.3}
 @media (max-width:900px){.lx-t3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .lx-t5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
 @media (max-width:1150px){.lx-t5{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -2237,7 +2240,8 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="phone.css?v=11">
+<link rel="stylesheet" href="lx.css?v=12">
+<link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
 <script src="strategist.js?v=4"></script>
@@ -2355,20 +2359,20 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=12"></script>
+<script src="meta.js?v=13"></script>
 <script src="amb.js?v=25"></script>
 <script src="../onboard/questions.js?v=12"></script>
 <script src="brand.js?v=24"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=6"></script>
-<script src="requests.js?v=2"></script>
+<script src="requests.js?v=3"></script>
 <script src="actions.js?v=4"></script>
-<script src="calls.js?v=6"></script>
-<script src="callscreen.js?v=5"></script>
-<script src="tasks.js?v=8"></script>
+<script src="calls.js?v=7"></script>
+<script src="callscreen.js?v=7"></script>
+<script src="tasks.js?v=9"></script>
 <script src="review-ui.js?v=9"></script>
-<script src="prodsheet.js?v=12"></script>
-<script src="production.js?v=10"></script>
+<script src="prodsheet.js?v=13"></script>
+<script src="production.js?v=11"></script>
 <script src="sop.js?v=5"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
@@ -2377,22 +2381,23 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="season.js?v=18"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=5"></script>
-<script src="accent.js?v=1"></script>
+<script src="accent.js?v=2"></script>
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
-<script src="v2.js?v=56"></script>
-<script src="leaks.js?v=4"></script>
-<script src="desk.js?v=24"></script>
-<script src="agency.js?v=2"></script>
+<script src="lx.js?v=7"></script>
+<script src="v2.js?v=67"></script>
+<script src="leaks.js?v=7"></script>
+<script src="desk.js?v=29"></script>
+<script src="agency.js?v=3"></script>
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=8"></script>
 <script src="socialweek.js?v=4"></script>
-<script src="supply.js?v=6"></script>
+<script src="supply.js?v=7"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
-<script src="polish.js?v=2" defer></script>
+<script src="polish.js?v=3" defer></script>
 <script src="phone.js?v=4" defer></script>
 <script>
 'use strict';
@@ -2598,7 +2603,7 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['calls', 'ccall', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'social', 'socialsaved', 'socialweek', 'yesterday', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['calls', 'ccall', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'social', 'socialsaved', 'socialweek', 'yesterday', 'leaks', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta', 'guide', 'website', 'inspo', 'library', 'search', 'mtoday', 'mbrowser', 'economics', 'workload'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -3447,6 +3452,7 @@ const TAB_PURPOSE = {
   socialsaved: 'The posts you saved from the feed, filtered by tag, ready to open, make ours or send on.',
   socialweek: 'Your week of posts as a time grid: drag ready content on, write one caption, and Locus posts it to Instagram, Facebook, TikTok and YouTube at the hour you set.',
   calendar:  'What customers see and when, for every client, and what has to be ready for each date. The countdown ticks itself from Asana, Klaviyo and Meta.',
+  leaks: 'Every place the brand is losing money, ranked by what it costs a month: ads, search terms, the site, email. Each one opens with its number, what good looks like and the fix.',
   yesterday: 'Was yesterday a bad day on Meta? One answer a day from four signs; red when two or more agree. The last 30 days as squares, and how our brands did that day.',
   gads: 'The top Google ads by spend, with headlines as chips, descriptions and Google-reported numbers, plus Performance Max asset groups.',
   gterms: 'The top 50 Google search terms by spend, with brand terms and terms that never converted marked.',
@@ -3542,7 +3548,7 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
   calendar: ['Calendar', 'Calendar'], social: ['Social', 'Feed'], socialsaved: ['Social', 'Saved'], socialweek: ['Social', 'Week'], actions: ['Work', 'Tasks'], calls: ['Work', 'Meetings'], ccall: ['Home', 'Client call'], tasks: ['Work', 'Tasks'], production: ['Work', 'Production'],
-  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'Offers and dates'], war: ['Season', 'War Room'], warplan: ['Season', 'The Plan'], warlive: ['Season', 'Live'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
+  overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], leaks: ['Home', 'Leaks'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'Offers and dates'], war: ['Season', 'War Room'], warplan: ['Season', 'The Plan'], warlive: ['Season', 'Live'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], gads: ['Ads', 'Google &nbsp;/&nbsp; Ads'], gterms: ['Ads', 'Google &nbsp;/&nbsp; Search terms'], gchanges: ['Ads', 'Google &nbsp;/&nbsp; Changes'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Ads'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
   google: ['Ads', 'Google'], tiktok: ['Ads', 'TikTok'], channels: ['Ads', 'All channels'],
@@ -3554,7 +3560,7 @@ const TAB_CRUMB = {
 };
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
-const TAB_WHO = { calls: 'everyone', ccall: 'everyone', tasks: 'everyone', production: 'everyone', actions: 'everyone', calendar: 'everyone', social: 'everyone', socialsaved: 'everyone', socialweek: 'everyone', yesterday: 'everyone', today: 'buyer', war: 'everyone', warplan: 'everyone', warlive: 'everyone', pulse: 'everyone', answers: 'strategist', research: 'strategist', voice: 'strategist', overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', channels: 'buyer', campaigns: 'buyer', adcreative: 'everyone', changes: 'buyer', mtoday: 'buyer', mbrowser: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
+const TAB_WHO = { calls: 'everyone', ccall: 'everyone', tasks: 'everyone', production: 'everyone', actions: 'everyone', calendar: 'everyone', social: 'everyone', socialsaved: 'everyone', socialweek: 'everyone', yesterday: 'everyone', leaks: 'everyone', today: 'buyer', war: 'everyone', warplan: 'everyone', warlive: 'everyone', pulse: 'everyone', answers: 'strategist', research: 'strategist', voice: 'strategist', overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', channels: 'buyer', campaigns: 'buyer', adcreative: 'everyone', changes: 'buyer', mtoday: 'buyer', mbrowser: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
   angles: 'strategist', studio: 'strategist', brand: 'strategist', copy: 'strategist', amb: 'strategist',
   profit: 'owner', customers: 'owner', plan: 'owner', settings: 'owner', health: 'owner', costs: 'owner' };
 const WHO_LABEL = { everyone: 'Shows for every role', buyer: 'Shows for the media buyer', strategist: 'Shows for the strategist', owner: 'Shows for Cole only' };
@@ -3585,11 +3591,14 @@ document.addEventListener('click', e => {
 });
 /** The page's own actions, in the top bar (Share with client, Save plan, Sync
  *  now). Call with '' to clear. Renderers own it; show() clears it on switch. */
-function pageActions(html) { const h = $('#hdActions'); if (h) h.innerHTML = html || ''; }
+function pageActions(html) { const a = document.querySelector('#main .ph .ph-acts'); const h = $('#hdActions'); if (a) { a.innerHTML = html || ''; if (h) h.innerHTML = ''; } else if (h) h.innerHTML = html || ''; }
 
 function pageHead(tab, title, extra) {
   const purpose = TAB_PURPOSE[tab] || '';
   const crumb = crumbFor(tab);
+  /* THE KIT (2026-10-20, lx.css): crumb, the 22px title, then the page's own actions (pageActions writes into
+     .ph-acts) and ONE "..." menu holding the purpose line, Tour, Metrics and Help. The three buttons keep their
+     data-tour / data-gloss / data-help attributes, so index.html's handlers are unchanged. */
   return `<div class="ph">
       <div>
         ${crumb ? `<div class="ph-crumb">${crumb}</div>` : ''}
@@ -3597,9 +3606,13 @@ function pageHead(tab, title, extra) {
         ${purpose ? `<p class="ph-sub">${purpose}</p>` : ''}
       </div>
       <div class="ph-r">
-        <button class="ph-ico" data-tour="${tab}" title="Show me round this page">Tour</button>
-        <button class="ph-ico" data-gloss="1" title="What every metric means">Metrics</button>
-        <button class="ph-ico" data-help="${tab}" title="How to use this page">Help</button>
+        <span class="ph-acts"></span>
+        <span class="ph-menu-w"><button type="button" class="ph-more" aria-haspopup="true" aria-expanded="false" aria-label="More about this page" title="Tour, Metrics, Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+          <div class="ph-menu" role="menu">${purpose ? `<p class="ph-why">${purpose}</p>` : ''}
+            <button type="button" class="ph-ico" role="menuitem" data-tour="${tab}">Tour<small>show me round</small></button>
+            <button type="button" class="ph-ico" role="menuitem" data-gloss="1">Metrics<small>what every number means</small></button>
+            <button type="button" class="ph-ico" role="menuitem" data-help="${tab}">Help<small>how to use this page</small></button>
+          </div></span>
       </div>
     </div>
     ${extra ? `<p class="ph-sub" style="margin:-8px 0 18px">${extra}</p>` : ''}`;
@@ -4872,7 +4885,7 @@ const NAV = {
   /* 2026-10-09 (later): Goals moved to Home (they change every month; Brand is what rarely changes). Creative is
      grouped by where ads come from: AI ads (Studio, with Words), Creators (the creator link), Library, Inspiration. */
   /* Requests (2026-10-10, requests.js): approvals sent to the client and what the client asked us for. */
-  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['profit', 'P&L'], ['plan', 'Goals'], ['requests', 'Requests'], ['tasks', 'Tasks'], ['ccall', 'Client call']] },   // tasks (2026-10-20): that client's to-dos, team only (AGENCY_TABS); every brand's list is Work > Tasks   // ccall (2026-10-19): the client call screen for the picked client, team only
+  home: { label: 'Home', tabs: [['overview', 'Overview'], ['yesterday', 'Day check'], ['leaks', 'Leaks'], ['profit', 'P&L'], ['plan', 'Goals'], ['requests', 'Requests'], ['tasks', 'Tasks'], ['ccall', 'Client call']] },   // tasks (2026-10-20): that client's to-dos, team only (AGENCY_TABS); every brand's list is Work > Tasks   // ccall (2026-10-19): the client call screen for the picked client, team only
   /* Ads order (2026-10-09, Cole): the buyer's list first, then the blended view that matches Home, then each platform. */
   ads: { label: 'Ads', tabs: [['today', 'Today’s calls'], ['channels', 'All channels'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['angles', 'Tests and angles']] },
   email: { label: 'Email and SMS', tabs: [['email', 'Klaviyo', 'b-klaviyo']] },
@@ -4974,7 +4987,7 @@ function clientTabOk(t) {
    what they can open. */
 const AGENCY_VIEW = 'Agency view';
 const AGENCY_ONLY = new Set(['calls', 'economics', 'workload', 'actions', 'meetings', 'monday']);
-const VIEW_BOTH = new Set(['overview', 'yesterday', 'plan', 'requests', 'tasks', 'production', 'today', 'calendar', 'brief', 'reports', 'dash', 'warplan', 'warlive', 'war', 'season', 'pulse', 'settings', 'guide', 'health']);
+const VIEW_BOTH = new Set(['overview', 'yesterday', 'leaks', 'plan', 'requests', 'tasks', 'production', 'today', 'calendar', 'brief', 'reports', 'dash', 'warplan', 'warlive', 'war', 'season', 'pulse', 'settings', 'guide', 'health']);
 const inAgency = () => !isClient() && S.act === 'all';
 const tabScope = t => AGENCY_ONLY.has(t) ? 'agency' : VIEW_BOTH.has(t) ? 'both' : 'client';
 function tabInView(g, t, agency = inAgency()) {
@@ -5029,7 +5042,7 @@ function applyClientMode() {
    the two rows are parallel. Meta's Ads job IS the creative gallery (page id adcreative kept, so every old link and ?open= works). */
 const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreative', 'Ads'], ['changes', 'Changes']];
 /** Tab titles, so an error page can still say which tab it is. */
-const TAB_TITLE = { actions: 'Tasks', calls: 'Meetings', ccall: 'Client call', tasks: 'Tasks', production: 'Production', warplan: 'The Plan', warlive: 'Live', monday: 'Meetings', meetings: 'Meetings', requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', social: 'Social', socialsaved: 'Social', socialweek: 'Social', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
+const TAB_TITLE = { leaks: 'Leaks', actions: 'Tasks', calls: 'Meetings', ccall: 'Client call', tasks: 'Tasks', production: 'Production', warplan: 'The Plan', warlive: 'Live', monday: 'Meetings', meetings: 'Meetings', requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', social: 'Social', socialsaved: 'Social', socialweek: 'Social', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Scenarios', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
   health: 'Data Health', economics: 'Agency economics', workload: 'Team workload', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
@@ -5279,7 +5292,7 @@ window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
 let LAST_VIEW = null;   // was the last page shown in Agency view (show())
-const SHOWABLE = new Set(["calls", "ccall", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "social", "socialsaved", "socialweek", "yesterday", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["calls", "ccall", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "social", "socialsaved", "socialweek", "yesterday", "leaks", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
   const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
@@ -5423,7 +5436,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), ccall: f => CCALL(f), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, AH_URL, confirmModal, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), social: f => SOCR(f), socialsaved: f => SOCR(f, 'socialsaved'), socialweek: f => SOCR(f, 'socialweek'), yesterday: f => DR('yesterday', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), ccall: f => CCALL(f), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, AH_URL, confirmModal, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), social: f => SOCR(f), socialsaved: f => SOCR(f, 'socialsaved'), socialweek: f => SOCR(f, 'socialweek'), yesterday: f => DR('yesterday', f), leaks: f => V2R('leaks', f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -5517,8 +5530,11 @@ function goalsGlance(a, g, pre) {
   const how = !pre ? `<p class="gt-how">Break-even and the real numbers did not load. Refresh to try again.</p>`
     : !margin ? `<p class="gt-how">Break-even needs the brand's costs, and the cost check says they are not right yet. Fix them in Brand settings, Data and costs, or set a margin override there.</p>`
     : `<p class="gt-how"><b>How break-even is worked out.</b> After product, shipping and fees, an order keeps <b>${Math.round(margin * 100)}%</b> of its price${pre.margin_pct != null ? ' (the margin override)' : ' (Triple Whale costs)'}. The average order is <b>${mo(h.aov)}</b> and a first order <b>${mo(h.new_aov)}</b>, so an order can cost up to ${mo(h.aov && h.aov * margin)} (a new customer ${mo(h.new_aov && h.new_aov * margin)}) in ads before it loses money, and ROAS breaks even at ${X(1 / margin)}. Spend past break-even only pays back if customers order again. Last 90 days, ${(h.orders || 0).toLocaleString()} orders.</p>`;
-  return `<div class="gt"><div class="gt-r gt-hd"><span>Measure</span><span>Goal</span><span>Break-even</span><span>Real, last 90 days</span></div>${body}</div>${how}`;
+  const quiet = !pre || !margin;   // a problem reads on the page; the method waits in the card's "..."
+  return `<div class="gt"><div class="gt-r gt-hd"><span>Measure</span><span>Goal</span><span>Break-even</span><span>Real, last 90 days</span></div>${body}</div>${quiet ? how : `<span class="lx-tohead" data-gt-how>${how}</span>`}`;
 }
+/* the glance card's "..." holds the break-even method (phase 7) */
+function goalsGlanceWhy(el) { const w = el.querySelector('[data-gt-how]'); if (!w || !window.LxKit) return ''; const t = w.textContent.trim(); w.remove(); return t ? LxKit.cardMenu(t.replace(/&/g, '&amp;').replace(/</g, '&lt;')) : ''; }
 async function addGoalTargets() {
   /* ONE PLACE (2026-10-15, Cole: "why do I need to change this in Home?"): the goals and the ad rules are edited only in
      Brand settings > Goals and ad rules. Home > Goals shows the same goal / break-even / real table and links there. */
@@ -5531,9 +5547,9 @@ async function addGoalTargets() {
   const host = document.querySelector('#main .lx') || document.querySelector('#main > div') || document.querySelector('#main');
   if (run !== RUN || !host || host.querySelector('#gtCard')) return;
   const el = document.createElement('div'); el.className = 'card'; el.id = 'gtCard';
-  el.innerHTML = `<div class="g-h"><h3 style="margin:0">Goals and break-even</h3><button class="btn" id="gtEdit">Change the goals</button></div>
-    <p class="hint" style="margin:4px 0 12px">What we agreed with the client, where the brand stops making money, and what it really ran at. Every call on Ads uses the highlighted goal.</p>
+  el.className = 'v2card'; el.innerHTML = `<div class="v2h"><h3>Goals and break-even</h3><span class="find">the goal we agreed, where the brand breaks even, what it ran at over 90 days</span><span class="cap"><button class="btn" id="gtEdit">Change the goals</button></span></div>
     ${goalsGlance(a, g, pre)}`;
+  const gh = goalsGlanceWhy(el); if (gh) el.querySelector('.v2h').insertAdjacentHTML('beforeend', gh);
   host.appendChild(el);
   el.querySelector('#gtEdit').onclick = () => openGoals(a.act_id);
 }
@@ -5570,7 +5586,7 @@ function AGR(tab, first) {
 function DR(tab, first) {
   if (!window.DeskTab) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
   window.WAR_MODE = ({ warplan: 'plan', warlive: 'live' })[tab] || null;
-  return window.DeskTab.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
+  return window.DeskTab.render(tab, { S, api, apiAH, show, pageHead, pageActions, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
 }
 window.SEASON_TAB = () => ({ label: SEASON.label, mode: SEASON.mode });
 window.SET_SEASON_TAB = st => { Object.assign(SEASON, st); try { localStorage.setItem('pf_season', JSON.stringify(SEASON)); } catch {} seasonRail(); if (['war', 'warplan', 'warlive', 'season'].includes(S.tab)) show(S.tab); };
@@ -5697,7 +5713,21 @@ const ASK_SUGGEST = {
 const askScope = () => S.act === 'all' ? 'the book' : ((S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand');
 const askList = () => (ASK_SUGGEST[S.tab] || ASK_SUGGEST.overview).map(q => q.replace(/\{b\}/g, askScope()));
 function askPlaceholder() { const i = $('#v2askIn'); if (i && document.activeElement !== i) i.placeholder = `Ask: “${askList()[0]}”`; }
-const ASKB = { items: [], hi: 0, found: [], q: '', timer: null };
+const ASKB = { items: [], hi: 0, found: [], q: '', timer: null, objs: null, objsAt: 0 };
+/* Tasks and Production cards for Find: one read of each list, kept 5 minutes, never for a client login. */
+function askObjects() {
+  if (isClient() || !S.tok) return [];
+  if (ASKB.objs && Date.now() - ASKB.objsAt < 5 * 60e3) return ASKB.objs;
+  if (ASKB.objs === null) {
+    ASKB.objs = []; ASKB.objsAt = Date.now();
+    const name = id => (S.accounts.find(a => a.act_id === id) || {}).name || '';
+    Promise.all([
+      apiAH('/api/actions?act=all&status=open').then(r => (r.items || []).map(i => ({ kind: 'task', id: i.id, act: i.act_id || i.act || 'all', label: i.text || i.title || '', where: `Task · ${name(i.act_id || i.act) || 'Agency'}` }))).catch(() => []),
+      apiAH('/api/production?act=all').then(r => (r.cards || []).filter(c => c.stage !== 'done').map(c => ({ kind: 'brief', id: c.id, act: c.act_id || c.act || 'all', label: `${c.num ? '#' + c.num + ' ' : ''}${c.title || 'Untitled brief'}`, where: `Brief · ${name(c.act_id || c.act)}` }))).catch(() => [])
+    ]).then(([t, b]) => { ASKB.objs = [...t, ...b]; ASKB.objsAt = Date.now(); const inp = $('#v2askIn'); if (inp && document.activeElement === inp && inp.value.trim()) askPaint(); });
+  }
+  return ASKB.objs;
+}
 function askPages() {
   const out = [];
   for (const [g, v] of Object.entries(NAV)) for (const [k, l] of v.tabs) if ((k !== 'economics' || S.role === 'owner') && (!isClient() || clientTabOk(k))) out.push({ kind: 'go', tab: k, label: l, where: v.label });
@@ -5717,8 +5747,9 @@ function askPaint() {
     /* Any Meta campaign or ad by name (hub /api/hub/find), fetched as you type. */
     if (t.length >= 3 && ASKB.q !== t) { ASKB.q = t; clearTimeout(ASKB.timer); ASKB.timer = setTimeout(() => api(`/api/hub/find?act=${encodeURIComponent(S.act)}&q=${encodeURIComponent(q)}`).then(r => { if (ASKB.q === t) { ASKB.found = r.items || []; if (document.activeElement === inp) askPaint(); } }).catch(() => {}), 220); }
     const found = t.length >= 3 ? ASKB.found.map(x => ({ ...x, where: `${x.kind === 'camp' ? 'Campaign' : 'Ad'} · ${x.brand || ''}` })) : [];
+    const objs = t.length >= 2 ? askObjects().filter(o => o.label.toLowerCase().includes(t)).slice(0, 6) : [];
     const wordy = q.split(/\s+/).length > 2 || /\?$/.test(q);
-    items = wordy ? [ask, ...pages, ...brands, ...found] : [...pages, ...brands, ...found, ask];
+    items = wordy ? [ask, ...pages, ...brands, ...objs, ...found] : [...pages, ...brands, ...objs, ...found, ask];
     head = '';
   }
   ASKB.items = items; ASKB.hi = Math.min(ASKB.hi, items.length - 1);
@@ -5732,6 +5763,8 @@ function askDo(i) {
   const x = ASKB.items[i], inp = $('#v2askIn'); if (!x) return;
   $('#v2askPop').hidden = true; inp.value = ''; inp.blur();
   if (x.kind === 'go') show(x.tab);
+  else if (x.kind === 'task') { window.ACT_OPEN = x.id; if (x.act && x.act !== 'all' && S.accounts.some(a => a.act_id === x.act)) { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; } show('tasks'); }
+  else if (x.kind === 'brief') { window.PD_CARD = x.id; if (x.act && S.accounts.some(a => a.act_id === x.act)) { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; } show('production'); }
   else if (x.kind === 'ad' || x.kind === 'camp') { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; window.V2PENDING = x.kind === 'ad' ? { ad: x.id } : { campaign: x.id }; show(x.kind === 'ad' ? 'adcreative' : 'campaigns'); }
   else if (x.kind === 'brand') { S.act = x.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show(S.tab); }
   else AskUI.ask(x.q, { fresh: true });
@@ -7209,15 +7242,21 @@ async function renderDash(first) {
       <span class="ds-scope">${esc(scopeName)} &middot; ${DASH_RANGE_L[spec.range] || 'Last 30 days'}${spec.compare !== 'none' ? ` &middot; vs ${esc(CMP_LABEL[spec.compare])}` : ''}${d.for_who ? ` &middot; for ${esc(d.for_who)}` : ''}</span>
       <span class="ds-ctl"><label>Posts to Slack <select id="dsSched">${Object.entries(DASH_SCHED_L).map(([k, l]) => `<option value="${k}" ${k === (d.schedule || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label>Channel <select id="dsChan">${chanOpts.map(([v, l]) => `<option value="${esc(v)}" ${v === (d.channel || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-        <button class="btn" type="button" id="dsPost">Post to Slack now</button>
+        <span class="lx-tohead"><button class="btn" type="button" id="dsPost">Post to Slack now</button>
         <button class="btn" type="button" id="dsAskCh">Change it with Locus</button>
         <button class="btn" type="button" id="dsEdit">Edit by hand</button>
-        <button class="btn" type="button" id="dsDel" style="color:var(--bad)">Delete</button></span>
+        <button class="btn" type="button" id="dsDel" style="color:var(--bad)">Delete</button></span></span>
     </div>
     <p class="lx-msg" id="dsMsg" style="min-height:16px;margin:-6px 0 0">${d.last_posted ? `Last posted ${esc(String(d.last_posted).slice(0, 16).replace('T', ' '))} UTC.` : ''}</p>
     ${blocks || '<div class="card"><p class="hint">This dashboard has no blocks Locus can draw.</p></div>'}
     <details class="footnote"><summary>How this dashboard is drawn</summary><div class="fn-body">Every number is read live from the same source as Home when the page opens: Triple Whale store-level money, platform spend, Triple Whale last platform click per platform, Klaviyo placed orders for email. The range and compare period belong to this dashboard, not to the date picker; a block that shows its own dates under its title reads those instead. The Slack post carries the tiles, the brand table, email and notes; charts and the channel split live here.</div></details></div>`;
   const msg = t => { const el = $('#dsMsg'); if (el) el.textContent = t; };
+  /* THE KIT (2026-10-20): Edit by hand is the one header action; Post now, Change it with Locus and Delete sit under
+     More. The header's buttons press the page's own (hidden) buttons, so every handler below stays as it was. */
+  pageActions(`<button class="btn quiet" data-dsa="dsEdit">Edit by hand</button>${pillMenu('dsMore', 'More', [['dsPost', 'Post to Slack now'], ['dsAskCh', 'Change it with Locus'], ['dsDel', 'Delete this dashboard']], '', { curText: '' })}`);
+  const dsPress = id => { const b = document.getElementById(id); if (b) b.click(); };
+  document.querySelectorAll('#main .ph-acts [data-dsa], #hdActions [data-dsa]').forEach(b => b.onclick = () => dsPress(b.dataset.dsa));
+  wirePillMenu(document.getElementById('dsMore'), v => dsPress(v));
   $('#main').querySelectorAll('[data-adsblk]').forEach(el => { if (window.V2 && V2.adsBlock) { let b = {}; try { b = JSON.parse(el.dataset.adsblk); } catch {} V2.adsBlock(el, b, el.dataset.q, v2Host()); } });
   $('#dsBack').onclick = () => { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} show('dash'); };
   const save = async () => { try { await api('/api/dashboard', { method: 'PUT', body: JSON.stringify({ id: d.id, name: d.name, act: d.act || 'all', spec, schedule: $('#dsSched').value, channel: $('#dsChan').value, for_who: d.for_who, pinned: d.pinned }) }); msg($('#dsSched').value ? `Saved. Posts ${DASH_SCHED_L[$('#dsSched').value].toLowerCase()} at 8am Central${$('#dsChan').value ? '.' : ', once a channel is set.'}` : 'Saved. It will not post itself.'); } catch (e) { msg(e.message); } };
@@ -7588,7 +7627,7 @@ function rhythmCard(rh, cur, showCm) {
     : `<div class="notice warn"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div><b>No reliable weekly rhythm.</b> This client's weekdays swing about as much from month to month as they do from each other, so the shares below are close to chance - a month only contains four of each weekday. Read this as "every day is much the same", and do not build a story around it for the client.</div></div>`;
 
   return `<div class="card"><h3 style="margin-bottom:2px">How a week actually runs <span class="info-i" title="Share of revenue by weekday across the last complete months. The index range is that weekday compared with an average day, one figure per month - a day is only called consistent when every month agreed. This is history for context, NOT the plan: the monthly plan is split evenly across the days on purpose, because a day-of-week curve was measured to predict worse than an even split.">i</span></h3>
-    <p class="hint" style="margin-bottom:10px">Based on ${esc(monthsLbl)} - the last ${rh.months.length} <b>complete</b> months, which roll forward on their own (in September this reads June–August). Three months rather than one because a single month holds only four of each weekday, which is far too few to tell a real pattern from chance - and with one month there is nothing to check it against. <b>This is what happened, not a target.</b> Your plan is still measured evenly across the month.</p>
+    <p class="hint" style="margin-bottom:10px">${esc(monthsLbl)}, the last ${rh.months.length} complete months. What happened, not a target.</p>
     ${verdict}
     <div class="tbl-wrap" style="margin-top:12px"><table>
       <thead><tr><th>Day</th>
@@ -8311,7 +8350,8 @@ async function renderBrief(first) {
   /* The draft is the job; the numbers are context. ONE primary button (Send
      to client, or Write the brief when there is nothing yet); everything else
      is a quiet secondary. */
-  const bfActs = `<div class="bf-acts lx-bar">
+  const bfHead = `${bfDraft && bfCanSend ? '<button class="btn primary" data-bfa="bfPost">Send to client</button>' : ''}${bfDraft && !bfSent ? '<button class="btn quiet" data-bfa="bfEditBtn">Edit wording</button>' : ''}${bfSent ? '' : (bfDraft ? '' : '<button class="btn primary" data-bfa="bfWrite">Write the brief</button>')}${pillMenu('bfMore', 'More', [...(bfDraft && !bfSent ? [['bfWrite', 'Rewrite with AI']] : []), ...(bfDraft || bfSent ? [['bfCopy', 'Copy the text']] : []), ...(bfSent || internalOnly ? [] : [['bfSkip', "Don't send this one"]])], '', { curText: '' })}`;
+  const bfActs = `<div class="bf-acts lx-bar lx-tohead-bar">
         <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
         ${bfDraft ? '<button class="btn quiet" id="bfEditBtn"><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn quiet" id="bfCancel" style="display:none">Cancel</button>' : ''}
         ${bfSent ? '' : `<button class="btn ${bfDraft ? 'quiet' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log. Takes about 20 seconds.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(dayLbl)}</button>`}
@@ -8492,6 +8532,10 @@ async function renderBrief(first) {
       $('#bfMsg').textContent = 'Saved ✓ - this is exactly what will send';
     } catch (e) { $('#bfMsg').textContent = e.message; }
   };
+  pageActions(bfHead);
+  const bfPress = id => { const b = document.getElementById(id); if (b) b.click(); };
+  document.querySelectorAll('#main .ph-acts [data-bfa], #hdActions [data-bfa]').forEach(b => b.onclick = () => bfPress(b.dataset.bfa));
+  wirePillMenu(document.getElementById('bfMore'), v => bfPress(v));
   $('#bfPost').onclick = async () => {
     const dest = acct?.brief_channel;
     if (!dest) return noteModal('Nothing to send to', `<p>${esc(acct?.name || 'This brand')} has no external client channel, so nothing was sent.</p><p class="tiny">If it should have one, set the <b>client channel</b> in Settings. A send never falls back to your internal channel.</p>`);
@@ -8768,7 +8812,28 @@ function reportBodyHTML(d, summary, opts = {}) {
     kpi('New-customer CPA', t.ncpa, money, null, p.ncpa, true, 'Total ad spend ÷ new customers acquired. Blended - not any platform’s self-reported CPA.'),
     kpi('Orders', t.orders, fmtInt, null, p.orders, false, 'Total store orders in the period.'),
     kpi('Average order value', t.aov, money, null, p.aov, false, 'Revenue ÷ orders.'),
-  ].join('');
+  ].filter(Boolean);
+  /* THE KIT (2026-10-20): four numbers on top (revenue, ad spend, MER, contribution margin or aMER), one comparison
+     each; the other numbers sit under More detail. Same on the client's archive, because this function draws both. */
+  const kpisTop = kpis.slice(0, 4).join(''), kpisMore = kpis.slice(4).join('');
+  /* Best and worst ads as cards that open the ad: of the ads that spent, the three best and up to three worst by
+     ROAS under the model on the page, never the same ad twice. */
+  const adCardsHtml = (() => {
+    const top = (d.ads && d.ads.top) || []; if (!top.length) return '';
+    const spent = top.filter(a => a.spend > 0);
+    if (spent.length < 2) return '';
+    const roasOf = a => { const x = attrAd(a.ad_id); return x ? (a.spend ? x.revenue / a.spend : null) : (a.roas ?? null); };
+    const ranked = spent.map(a => ({ a, r: roasOf(a) })).sort((x, y) => (y.r ?? -1) - (x.r ?? -1));
+    const best = ranked.slice(0, 3), rest = ranked.slice(3), worst = rest.slice(-3).reverse();
+    const floor = Math.min(...spent.map(a => a.spend));
+    const card = ({ a, r }, kind) => `<button type="button" class="rp-adc ${kind}" data-rpi="${top.indexOf(a)}">
+        <span class="rp-adc-m"${a.thumb ? ` style="background-image:url('${a.thumb}')"` : ''}>${a.thumb ? '' : '<i aria-hidden="true">▣</i>'}</span>
+        <span class="rp-adc-r ${r == null ? 'none' : r >= 2 ? 'good' : r < 1 ? 'bad' : ''}">${r == null ? 'no sale' : fmtX(r)}</span>
+        <span class="rp-adc-n" title="${esc(a.name)}">${esc(a.name)}</span>
+        <span class="rp-adc-s">${money(a.spend)} spent</span></button>`;
+    return `<div class="card rp-ads"><h3 style="margin:0 0 2px">Best and worst ads</h3><p class="rp-cap">of the ${spent.length} that spent ${money(floor)} or more · tap to open</p>
+      <div class="rp-adc-row">${best.map(x => card(x, 'best')).join('')}${worst.length ? `<span class="rp-adc-gap" aria-hidden="true"></span>${worst.map(x => card(x, 'worst')).join('')}` : ''}</div></div>`;
+  })();
 
   const pc = d.pacing;
   const pacingHtml = pc && pc.goal_sales ? (() => {
@@ -9143,14 +9208,19 @@ function reportBodyHTML(d, summary, opts = {}) {
   const changesSec = sec('changes', 'Changes', changesHtml);
   const jumpHtml = jump.length > 1 ? `<nav class="rp-jump" aria-label="Jump to a section of this report"><span class="rp-jump-l">Jump to</span>${
     jump.map(([id, label]) => `<button class="chip" type="button" data-jump="rpsec-${esc(id)}">${esc(label)}</button>`).join('')}</nav>` : '';
-  return `${jumpHtml}<div class="v2tiles rp-kpis">${kpis}</div>
+  const adsSec = sec('ads', 'Ads', adCardsHtml);
+  const moreList = jump.filter(([id]) => !['summary', 'week', 'ads'].includes(id)).map(([, l]) => l.toLowerCase());
+  return `<div class="v2tiles rp-kpis rp-four">${kpisTop}</div>
+    ${sumSec}${weekSec}${adsSec}
+    <details class="rp-more"><summary><span>More detail${moreList.length ? `: ${esc(moreList.join(', '))}` : ''}</span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></summary>
+    <div class="rp-more-b">${jumpHtml}${kpisMore ? `<div class="v2tiles rp-kpis">${kpisMore}</div>` : ''}
     <div class="two rp-two">
-      <div>${sumSec}${weekSec}${chartSec}</div>
+      <div>${chartSec}</div>
       <div>${paceSec}${splitSec}${weeksSec}</div>
     </div>
     ${attrHtml}${metaHtml}
     ${otherHtml.length ? `<div class="rp-grid">${otherHtml.join('')}</div>` : ''}
-    ${changesSec}
+    ${changesSec}</div></details>
     <p class="tiny"><b>Revenue, MER, aMER${t.cm != null ? ', Contribution Margin' : ''} and New-customer CPA are blended</b> - real store revenue and real total ad spend, with no platform's attribution involved - which is why they will not match what Meta or Google report on their own dashboards. The platform sections show each platform's own attributed numbers, and those are directional.</p>`;
 }
 
@@ -9184,14 +9254,25 @@ async function channelUsable(id) {
   return !!CHAN_CACHE[id];
 }
 
+/* What the last drawn report carried, for the ad cards (set by both renderers before wireReportJump). */
+const RP_LAST = { ads: null, act: null, cur: null, prevTag: 'week', internal: false };
 /** Wire the sticky "Jump to" chips. Called by BOTH report renderers after paint.
  *  Listeners go on the chips (replaced with every render), never on #main. The
  *  target cards carry `scroll-margin-top` (.rp-sec) so a heading is never left
  *  hidden under the sticky row. This is the one place a click scrolls the page,
  *  because scrolling is the thing the reader asked for. */
 function wireReportJump() {
+  /* The kit's ad cards (2026-10-20): on the internal page the ad opens in the shared side panel (v2.js playAd, the
+     same panel as Ads, Today's calls and the leaks); on the client's archive the detail window, which needs no session. */
+  const rows = (RP_LAST.ads && RP_LAST.ads.top) || [];
+  document.querySelectorAll('#main .rp-ads [data-rpi]').forEach(b => b.onclick = () => {
+    const a = rows[+b.dataset.rpi]; if (!a) return;
+    if (RP_LAST.internal && window.V2 && window.V2.playAd && a.ad_id) window.V2.playAd({ id: a.ad_id, name: a.name, act: RP_LAST.act }, v2Host());
+    else adDetailModal(a, RP_LAST.cur, RP_LAST.prevTag);
+  });
   const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   document.querySelectorAll('#main .rp-jump [data-jump]').forEach(b => b.onclick = () => {
+    const fold = b.closest('details.rp-more'); if (fold && !fold.open) fold.open = true;
     const el = document.getElementById(b.dataset.jump);
     if (el) el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
   });
@@ -9750,12 +9831,11 @@ async function renderReports(first) {
     : internalOnly ? { tone: 'ok', pill: ['good', 'Handled automatically'], d: `${esc(acct?.name || 'This brand')} has no client channel, so nothing goes out and nothing is waiting on you.`, a: regenBtn + editTop }
     : canSend ? { tone: 'wn', pill: ['warn', rep.status === 'skipped' ? 'Skipped, not sent' : 'Draft, waiting on you'], d: 'The client has not seen this.', a: '<button class="btn primary" id="rpSend">Send to client</button>' + regenBtn + editTop + linkBtnHtml }
     : { tone: 'bd', pill: ['bad', 'Draft, nowhere to send'], d: `${esc(acct?.name || 'This brand')} ${clientChan ? `points at a Slack channel that no longer exists (<code>${esc(clientChan)}</code> was archived or deleted)` : 'has no client channel set'}. Pick one in Settings under <b>Client channel</b> and Send to client appears here. A send never falls back to an internal channel.`, a: regenBtn + editTop + linkBtnHtml };
-  const banner = rpSt ? `<div class="st-line ${rpSt.tone}">
-      <div class="st-t"><h2>${rep.period === 'weekly' ? 'Weekly report' : 'Monthly report'}, ${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}</h2>
-        <span class="pill ${rpSt.pill[0]}">${rpSt.pill[1]}</span>
-        <div class="st-d" style="margin-top:3px">${rpSt.d}${rep.generated_at ? ` Generated ${fmtAgo(rep.generated_at)}.` : ''} <span class="tiny" id="rpMsg"></span></div></div>
-      <div class="st-a">${rpSt.a}</div>
-    </div>` : '';
+  /* THE KIT (2026-10-20): the status is one chip in the control row and the actions sit in the page header
+     (pageActions): Send to client as the one primary, Edit quiet, the rest under More. The old banner is gone. */
+  const banner = rpSt ? `<span class="pill ${rpSt.pill[0]}">${rpSt.pill[1]}</span><span class="lx-msg rp-st">${rpSt.d}${rep.generated_at ? ` Generated ${fmtAgo(rep.generated_at)}.` : ''} <span class="tiny" id="rpMsg"></span></span>` : '';
+  const moreOpts = [['regen', 'Rewrite with AI'], ['link', 'Copy client link'], ['genw', 'Generate last week'], ['genm', 'Generate last month']];
+  const hiddenActs = `<span hidden>${rpSt ? rpSt.a : ''}<button class="btn" id="rpGenW">Generate last week</button><button class="btn" id="rpGenM">Generate last month</button></span>`;
 
   const body = rep
     ? `${warn}${reportBodyHTML(d || {}, rep.summary, { internal: true, editable: !sent, attr: attrOf(cfg) })}`
@@ -9772,13 +9852,19 @@ async function renderReports(first) {
     const w = (o, up, dn) => `<b class="${o >= -0.02 ? 'good' : o > -0.12 ? 'warn' : 'bad'}">${Math.abs(Math.round(o * 100))}% ${o >= 0 ? up : dn}</b>`;
     return `<b>${esc(repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end }))}</b>: ${fmtMoney(t.sales, cur)} revenue at ${fmtX(t.mer)} MER${vp != null ? `, ${w(vp, 'up on', 'down on')} the prior ${tag}` : ''}${vf != null ? `, ${w(vf, 'over', 'under')} forecast` : ''}.${t.cm != null ? ` ${fmtMoney(t.cm, cur)} kept after every cost.` : ''}`;
   })() : '';
-  pageActions(`<button class="btn" id="rpGenW">Generate last week</button><button class="btn" id="rpGenM">Generate last month</button>`);
+  const sendTop = rep && !sent && canSend ? '<button class="btn primary" data-rpa="send">Send to client</button>' : '';
+  const editTopK = rep && !sent && rep.summary ? '<button class="btn quiet" data-rpa="edit">Edit</button>' : '';
   $('#main').innerHTML = shell(`
     ${lead ? LX.say(lead) : ''}
-    ${banner}
-    ${chips ? `<div class="rp-pick lx-bar">${chips}<span class="lx-msg" id="rpGenMsg"></span></div>` : `<p class="lx-msg" id="rpGenMsg"></p>`}
+    <div class="rp-pick lx-bar">${chips}${banner}<span class="lx-msg" id="rpGenMsg"></span></div>
     ${body}
-    ${isClient() ? '' : configCard}`);
+    ${isClient() ? '' : configCard}${hiddenActs}`);
+  pageActions(`${sendTop}${editTopK}${pillMenu('rpMore', 'More', moreOpts, '', { curText: '' })}`);   // after the paint: shell() draws the header the actions live in
+  /* the header's buttons press the page's own (hidden) buttons, so every handler below stays as it was */
+  const press = id => { const b = document.getElementById(id); if (b) b.click(); else noteModal('Not available', '<p>That action is not available on this report.</p>'); };
+  document.querySelectorAll('#main .ph-acts [data-rpa], #hdActions [data-rpa]').forEach(b => b.onclick = () => press(b.dataset.rpa === 'send' ? 'rpSend' : 'rpEditTop'));
+  wirePillMenu(document.getElementById('rpMore'), v => press({ regen: 'rpRegen', link: 'rpLink', genw: 'rpGenW', genm: 'rpGenM' }[v]));
+  Object.assign(RP_LAST, { ads: d ? d.ads : null, act: S.act, cur: acct?.currency, prevTag: rep && rep.period === 'weekly' ? 'week' : 'month', internal: true });
   /* One document listener for the whole session closes an open report menu on an outside
      click or Escape. Added once, so it never stacks per render. */
   if (!window.__rpMenuClose) {
@@ -9959,6 +10045,7 @@ async function renderReportsShare(token, sel) {
     ${picker}
     ${reportBodyHTML({ ...r.data, account: { currency: cur } }, r.summary, { attr: attrOf({ attr: d.attr }), client: true })}</div>`;
   wireReportChart(r.data || {}, cur, false);
+  Object.assign(RP_LAST, { ads: (r.data || {}).ads || null, act: null, cur, prevTag: r.period === 'weekly' ? 'week' : 'month', internal: false });
   wireReportJump();
   wireAdCards(r.data?.ads, cur, r.period === 'weekly' ? 'week' : 'month');
   document.querySelectorAll('#main [data-rs]').forEach(b => b.onclick = () => { const [pp, ss] = b.dataset.rs.split('|'); renderReportsShare(token, { period: pp, start: ss }); });
@@ -10520,7 +10607,7 @@ async function renderPlan(first) {
 
   $('#main').innerHTML = `<div class="v2 lx">${LX.head('plan', `Plan: ${esc(p.account.name)}`)}
     <div class="pl-months">
-      ${picker.map(m => `<button class="chip ${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}
+      <div class="v2jobs" role="group" aria-label="Month">${picker.map(m => `<button type="button" class="${m === p.month ? 'on' : ''}" data-m="${m}">${esc(monthLabel(m))}${m === nowYm ? ' · now' : ''}</button>`).join('')}</div>
       <span id="plChip" style="margin-left:6px">${statusPill}</span>
     </div>
     ${LX.say(leadHtml(), 'plLead')}
@@ -10943,7 +11030,7 @@ function ltvCurve(j, cur) {
       lines: cac ? [{ v: cac, color: '--bad', label: `Cost to get one ${fmtMoney(cac, cur)}` }, { v: cac * 3, color: '--good', label: '3x the cost' }] : [], tips }) : '';
   return `<section class="v2card"><div class="v2h"><h3>How much they spend after the first order</h3><span class="find">${last.ltv != null ? `${fmtMoney(last.ltv, cur)} per customer by day ${last.days}.` : ''}</span></div>
     ${chart}
-    <p style="margin:12px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.55">${read}${j.first_aov != null && j.returning_aov != null ? ` A first order averages ${fmtMoney(j.first_aov, cur)}; a repeat order ${fmtMoney(j.returning_aov, cur)}.` : ''}</p>
+    <p class="v2concl">${read}${j.first_aov != null && j.returning_aov != null ? ` A first order averages ${fmtMoney(j.first_aov, cur)}; a repeat order ${fmtMoney(j.returning_aov, cur)}.` : ''}</p>
     <details class="footnote" style="margin-top:10px"><summary>The numbers behind the curve</summary>
     <div class="tbl-wrap" style="margin-top:8px"><table class="ltv-tbl"><thead><tr><th>After their first order</th><th class="num">Spent so far, per customer</th><th class="num">Have ordered again</th><th class="num">Customers counted</th></tr></thead>
       <tbody>${pts.map(p => `<tr><td><b>${p.days} days</b></td><td class="num"><b>${fmtMoney(p.ltv, cur)}</b></td><td class="num">${fmtPct(p.repeat_rate)}</td><td class="num" style="color:var(--muted)">${fmtN(p.customers)}</td></tr>`).join('')}</tbody></table></div>
@@ -10954,12 +11041,11 @@ function ltvCurve(j, cur) {
 function journeyCard(j, cur) {
   const p = j.products || {};
   const first = p.first || [];
-  if (!first.length) return `<div class="card"><h3 style="margin-bottom:4px">What they buy first, and what they buy next</h3><p class="hint" style="margin:0">No product detail yet. Triple Whale records what each shopper put in the cart; once more orders carry it, this fills in.</p></div>`;
-  return `<div class="card"><h3 style="margin-bottom:2px">What they buy first, and what they buy next <span class="info-i" title="Products come from what the shopper put in the cart before each order (Triple Whale's add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey. Connecting Shopify would make them exact.">i</span></h3>
-    <p class="hint" style="margin-bottom:8px">Each row is a product new customers start with. Under it: how many of those customers order again within 90 days, and what the ones who come back choose next.${p.coverage != null && p.coverage < 0.9 ? ` (Cart detail exists for ${fmtPct(p.coverage)} of first orders.)` : ''}</p>
+  const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
+  if (!first.length) return `<section class="v2card"><div class="v2h"><h3>What they buy first, and what they buy next</h3></div><p class="lx-empty">No product detail yet. It fills in as more orders carry cart detail.</p></section>`;
+  return `<section class="v2card"><div class="v2h"><h3>What they buy first, and what they buy next</h3><span class="find">the first product, who orders again within 90 days, what they choose next${p.coverage != null && p.coverage < 0.9 ? ` · cart detail for ${fmtPct(p.coverage)} of first orders` : ''}</span>${menu(['Products come from what the shopper put in the cart before each order (Triple Whale add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey; connecting Shopify would make them exact.', 'Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.'])}</div>
     <div class="jr-list">${first.map(f => `<div class="jr-row"><div class="jr-first"><b>${esc(f.name)}</b><span class="tiny">${fmtN(f.customers)} customers started here${f.share != null ? ` (${fmtPct(f.share)} of new customers)` : ''}${f.repeat_rate != null ? ` · <b>${fmtPct(f.repeat_rate)}</b> order again within 90 days` : ''}</span></div>
-      <div class="jr-then"><span class="tiny" style="margin-right:4px">then:</span>${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">nobody has ordered again yet</span>'}</div></div>`).join('')}</div>
-    <p class="tiny" style="margin-top:8px">Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.</p></div>`;
+      <div class="jr-then"><span class="tiny" style="margin-right:4px">then:</span>${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">nobody has ordered again yet</span>'}</div></div>`).join('')}</div></section>`;
 }
 
 /** Do repeat orders need ads, or do they arrive on their own? */
@@ -10968,10 +11054,10 @@ function sourcesCard(j) {
   if (!(s.first || []).length) return '';
   const row = (label, list) => `<div class="src-row"><div class="src-l">${label}</div><div class="src-bar">${list.map(x => `<i class="src-${esc(x.source)}" style="width:${(x.share * 100).toFixed(1)}%" title="${esc(srcLabel(x.source))} ${fmtPct(x.share)}"></i>`).join('')}</div><div class="tiny">${list.slice(0, 4).map(x => `${esc(srcLabel(x.source))} ${fmtPct(x.share)}`).join(' · ')}</div></div>`;
   const own = (s.repeat || []).filter(x => x.source === 'own' || x.source === 'email').reduce((a, x) => a + x.share, 0);
-  return `<div class="card"><h3 style="margin-bottom:2px">Do repeat orders need ads?</h3>
-    <p class="hint" style="margin-bottom:10px">What the shopper last clicked before buying (Triple Whale). "On their own" means they came straight to the site or from organic social; "Email and SMS" means a Klaviyo or SMS message.</p>
+  const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
+  return `<section class="v2card"><div class="v2h"><h3>Do repeat orders need ads?</h3><span class="find">what the shopper last clicked before buying</span>${menu('Triple Whale last click. "On their own" means they came straight to the site or from organic social; "Email and SMS" means a Klaviyo or SMS message.')}</div>
     ${row('First orders', s.first)}${row('Repeat orders', s.repeat || [])}
-    <p style="margin:10px 0 0;font-size:13.5px;color:var(--ink-2)">${own >= 0.6 ? `<b>${fmtPct(own)} of repeat orders arrive without an ad click.</b> The product and the emails are bringing people back; retargeting past customers is mostly paying for orders that would have come anyway.` : `<b>Only ${fmtPct(own)} of repeat orders arrive without an ad click.</b> The brand is paying ads to bring its own customers back. Email and SMS flows do that for a fraction of the cost.`}</p></div>`;
+    <p class="v2concl">${own >= 0.6 ? `<b>${fmtPct(own)} of repeat orders arrive without an ad click.</b> The product and the emails are bringing people back; retargeting past customers is mostly paying for orders that would have come anyway.` : `<b>Only ${fmtPct(own)} of repeat orders arrive without an ad click.</b> The brand is paying ads to bring its own customers back. Email and SMS flows do that for a fraction of the cost.`}</p></section>`;
 }
 
 /** Each month's new customers: what they cost, what they have spent since. */
@@ -10979,9 +11065,9 @@ function cohortTable(j, cur) {
   const rows = (j.cohorts || []).slice().reverse();
   if (!rows.length) return '';
   const anyYear = rows.some(r => r.ltv_365 != null);
-  return `<div class="card"><h3 style="margin-bottom:2px">Each month's new customers, followed since</h3>
-    <p class="hint" style="margin-bottom:8px">Everyone who bought for the first time in that month. "Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them. A month needs 90 days to show a figure.</p>
-    <div class="tbl-wrap"><table>
+  const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
+  return `<section class="v2card"><div class="v2h"><h3>Each month's new customers, followed since</h3><span class="find">everyone who bought for the first time that month · a month needs 90 days to show a figure</span>${menu([`"Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them.`, 'Cost to get each = that month\'s ad spend across every platform divided by its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.'])}</div>
+    <div class="v2tbl"><table>
       <thead><tr><th>First bought</th><th class="num">New customers</th><th class="num">Cost to get each</th><th class="num">Spent in 90 days</th>${anyYear ? '<th class="num">Spent in a year</th>' : ''}<th class="num">Back per $1</th><th class="num">Ordered again</th></tr></thead>
       <tbody>${rows.map(r => { const lc = r.ltv_cac_365 ?? r.ltv_cac_90; return `<tr${r.uncertain ? ' style="opacity:.55"' : ''}>
         <td><b>${esc(monthLabel(r.month))}</b>${r.uncertain ? ' <span class="tiny" title="Our history starts just before this month, so some of these people may have bought earlier">first months on record</span>' : ''}</td>
@@ -10989,8 +11075,7 @@ function cohortTable(j, cur) {
         <td class="num">${r.ltv_90 != null ? fmtMoney(r.ltv_90, cur) : '<span class="tiny">under 90 days old</span>'}</td>
         ${anyYear ? `<td class="num">${r.ltv_365 != null ? fmtMoney(r.ltv_365, cur) : '<span class="tiny">under a year old</span>'}</td>` : ''}
         <td class="num">${lc != null ? `<span class="pill ${lc >= 3 ? 'good' : lc >= 1.5 ? 'warn' : 'bad'}">${lc.toFixed(1)}x</span>` : ' - '}</td>
-        <td class="num">${fmtPct(r.repeat_rate)}</td></tr>`; }).join('')}</tbody></table></div>
-    <p class="tiny" style="margin-top:8px">Cost to get each = that month's ad spend across every platform ÷ its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.</p></div>`;
+        <td class="num">${fmtPct(r.repeat_rate)}</td></tr>`; }).join('')}</tbody></table></div></section>`;
 }
 
 async function renderCustomersAll() {
@@ -11074,7 +11159,8 @@ async function renderCustomers(first) {
     LX.tile({ compact: true, label: 'Spent in their first 90 days', value: c90 && c90.ltv != null ? fmtMoney(c90.ltv, cur) : '<span style="color:var(--muted)">–</span>', sub: c90 && c90.ltv != null ? `per customer, ${fmtN(c90.customers)} old enough to count` : 'needs 90 days of history', info: 'Everything the average customer has spent in the 90 days after their first order, from Triple Whale order history.' }),
     LX.tile({ compact: true, label: 'Spent in their first year', value: c365 && c365.ltv != null ? fmtMoney(c365.ltv, cur) : '<span style="color:var(--muted)">–</span>', sub: c365 && c365.ltv != null ? `per customer, ${fmtN(c365.customers)} old enough to count` : 'needs a year of history', info: 'Everything the average customer has spent in the 365 days after their first order.' }),
     LX.tile({ compact: true, label: 'Order again', value: have && j.repeat_rate_ever != null ? fmtPct(j.repeat_rate_ever) : fmtPct(h.repeat_share), sub: have && j.days_to_second != null ? `the second order usually comes after ${fmtDays(j.days_to_second)}` : have ? 'of customers ever place a second order' : 'of orders were from past customers', info: have ? 'Share of customers who placed a second order, and how long the typical one took. Time the post-purchase emails to land just before that.' : 'Share of orders placed by someone who had bought before.' }),
-  ].join('');
+  ];
+  const tileRow = tiles.slice(0, 3).concat(tiles[5]).join(''), tileMore = tiles.slice(3, 5).join('');
 
   $('#main').innerHTML = shell(`
     <section class="card sc ${v.tone}"><div class="cu-ver ${v.tone}">
@@ -11083,9 +11169,10 @@ async function renderCustomers(first) {
         <p style="margin:0;color:var(--ink-2);font-size:13.5px;max-width:86ch;line-height:1.6">${v.body}</p></div>
       ${gauge}</div></section>
     ${h.thin ? `<div class="notice warn"><div><b>Only ${h.new_orders} new customers in this window.</b> The cost to get a customer swings on small numbers. Widen the date range, or read the month-by-month table.</div></div>` : ''}
-    <div class="lx-t3">${tiles}</div>
+    <div class="lx-t4">${tileRow}</div>
+    <details class="rp-more"><summary><span>Spent in their first 90 days and first year</span></summary><div class="lx-t4" style="padding:0 16px 16px">${tileMore}</div></details>
     ${have ? `${ltvCurve(j, cur)}${cohortTable(j, cur)}<div class="v2two eq">${journeyCard(j, cur)}${sourcesCard(j)}</div>`
-    : `<div class="card"><h3 style="margin-bottom:4px">What they spend over time, and what they buy</h3><p class="hint" style="margin:0">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'} Until then this page shows the first-order numbers only.</p></div>`}
+    : `<section class="v2card"><div class="v2h"><h3>What they spend over time, and what they buy</h3></div><p class="lx-empty">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'}</p></section>`}
     <div id="cuSurvey"></div>
     <details class="footnote"><summary>Where these numbers come from, and what is approximate</summary>
       <div class="fn-body">The cost to get a customer and the first-order figures are Triple Whale store totals for the selected window. Spend over time, who orders again, how fast, and what they buy follow real customers through Triple Whale’s order history${have ? ` (${j.history.days} days on record, ${fmtN(j.customers)} customers; ${fmtN(j.guest_orders)} guest orders cannot be followed)` : ''}. People first seen in the first 60 days of that history may have bought before it starts, so they are left out of the averages. Products are what the shopper put in the cart, not the receipt. Connect Shopify (Settings) for exact order lines.</div></details>`);

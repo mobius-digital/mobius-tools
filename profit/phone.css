@@ -27,11 +27,29 @@
   [data-ui="v2"] .v2sw,[data-ui="v2"] .toggle,[data-ui="v2"] .pd-fmt,[data-ui="v2"] .pd-avb,[data-ui="v2"] .pd-due,[data-ui="v2"] .tk-tick,[data-ui="v2"] .tk-av,[data-ui="v2"] .tk-due,[data-ui="v2"] .cal-btn.cal-mini,[data-ui="v2"] .ds-logo,[data-ui="v2"] .v2ex,[data-ui="v2"] .v2rm,[data-ui="v2"] .v2cell{min-height:0}
   /* Platform status: the letters inside a tiny logo box had shrunk to 5px */
   [data-ui="v2"] .dk .ds-logo b{font-size:max(9px,calc(var(--lg,32px) * .36))}
-  /* page head: the title gets the whole width, the quiet actions sit under it */
-  [data-ui="v2"] .ph,[data-ui="v2"] .v2 > .ph,[data-ui="v2"] .lx > .ph{flex-wrap:wrap;align-items:flex-start;gap:2px 0}
-  [data-ui="v2"] .ph > div:first-child{flex:1 1 100%}
-  [data-ui="v2"] .ph-r{width:100%;justify-content:flex-end;margin:0 -7px 0 0}
-  [data-ui="v2"] .ph-ico[data-tour]{display:none}
+  /* page head (2026-10-20, the kit): ONE row, the title and the "..." button; the page's own actions, when it has
+     any, are a full-width row under it. The purpose line, Tour, Metrics and Help are in the menu. */
+  [data-ui="v2"] main .ph{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px 8px;margin:4px 0 12px;padding-bottom:10px}
+  [data-ui="v2"] main .ph-r > .lx-exp-page{grid-column:2;grid-row:1}
+  [data-ui="v2"] main .ph-r > .lx-exp-page .btn,[data-ui="v2"] main .ph-r > .lx-exp-page button{min-height:0;width:40px;height:40px}
+  [data-ui="v2"] main .ph > div:first-child{grid-column:1;grid-row:1;min-width:0}
+  [data-ui="v2"] main .ph-t,[data-ui="v2"] main h2.ph-t{font-size:20px}
+  [data-ui="v2"] main .ph .ph-crumb{display:none}
+  [data-ui="v2"] main .ph-r{display:contents}
+  [data-ui="v2"] main .ph-r .ph-menu-w{grid-column:3;grid-row:1}
+  [data-ui="v2"] main .ph-r .ph-acts{grid-column:1 / -1;grid-row:2;display:flex;gap:8px;flex-wrap:wrap}
+  [data-ui="v2"] main .ph-r .ph-acts:empty{display:none}
+  [data-ui="v2"] main .ph-r .ph-acts .btn,[data-ui="v2"] main .ph-r .ph-acts .v2btn{flex:1 1 auto;justify-content:center;min-height:40px}
+  [data-ui="v2"] main .ph-r > .ph-ico{display:none}
+  [data-ui="v2"] .ph-more{width:40px;height:40px;min-height:0}
+  /* the "..." menu opens in the shared bottom sheet (lx.js hands it to LxPhone.open); inside the sheet it is a plain list */
+  #lxSheet .ph-menu{display:block;position:static;max-width:none;min-width:0;border:0;box-shadow:none;padding:0 2px;animation:none;background:transparent}
+  #lxSheet .ph-menu .ph-why{font-size:14px;line-height:1.45;padding:4px 8px 12px}
+  #lxSheet .ph-menu .ph-ico{min-height:48px;font-size:15px;width:100%}
+  /* the strip on a phone: the lead on one line, the rest under it */
+  .lx-strip{padding:10px 12px}
+  .lx-strip .d{flex:1 1 100%;white-space:normal}
+  .lx-strip .go,.lx-strip .lx-fold{margin-left:0;min-height:0}
   /* today's calls: a grid item never widens the row, an ad name with no spaces wraps, the kind label reads,
      the row's buttons are thumb-sized */
   [data-ui="v2"] .dk .dk-row > *{min-width:0}
@@ -360,4 +378,68 @@ body.lxs-open{overflow:hidden}
   #askForm.lxa-has .lxa-send{background:var(--brand);color:var(--on-brand,#fff)}
   #askForm .lxa-send .lxa-send-t{display:none}
   #askForm .lxa-send .lxa-send-i{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+}
+
+/* ==========================================================================
+   PHASE 6 (2026-10-20, the iPhone-shell mock): under 600px a tile is a ROW, not a card. Label left, the number and
+   its change right, one line each; the sentence under the number and the sparkline wait for the panel. The hero
+   tile keeps its card shape so the page still opens on one big number.
+   ========================================================================== */
+@media (max-width:600px){
+  [data-ui="v2"] .v2tiles,[data-ui="v2"] .v2tiles.home8{grid-template-columns:minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
+  [data-ui="v2"] .v2tiles>.v2tile:not(.hero){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px;padding:11px 14px;border:0;border-radius:0;box-shadow:none;background:transparent;min-height:48px}
+  [data-ui="v2"] .v2tiles>.v2tile:not(.hero)+.v2tile{border-top:1px solid var(--line)}
+  [data-ui="v2"] .v2tiles>.v2tile:not(.hero) .l{font-size:14px;color:var(--ink);font-weight:500;line-height:1.3;display:block}
+  [data-ui="v2"] .v2tiles>.v2tile:not(.hero) .l em,[data-ui="v2"] .v2tiles>.v2tile:not(.hero) .l .v2src{display:none}
+  [data-ui="v2"] .v2tiles>.v2tile:not(.hero) .v{font-size:16px;font-weight:650;letter-spacing:-.01em;justify-content:flex-end;flex-wrap:nowrap;white-space:nowrap;gap:6px}
+  [data-ui="v2"] .v2tiles>.v2tile:not(.hero) .sub,[data-ui="v2"] .v2tiles>.v2tile:not(.hero) .v2spark,[data-ui="v2"] .v2tiles>.v2tile:not(.hero) .v2bul{display:none}
+  [data-ui="v2"] .v2tiles>.v2tile.hero{grid-column:1/-1;border:0;border-radius:0;box-shadow:none;background:transparent;padding:14px}
+  [data-ui="v2"] .v2tiles>.v2tile.hero+.v2tile{border-top:1px solid var(--line)}
+  [data-ui="v2"] .v2tiles.v2sk>.v2tile{display:block;padding:11px 14px}
+  [data-ui="v2"] .v2tiles.v2sk>.v2tile .c{display:none}
+}
+
+/* ==========================================================================
+   PHASE 7 (2026-10-20): on a phone a table is a list of cards. polish.js writes each cell's column name into
+   data-l, so a cell reads "label  value"; the first cell is the card's title, a row's "..." stays at its top right.
+   ========================================================================== */
+@media (max-width:600px){
+  [data-ui="v2"] .v2tbl{overflow:visible}
+  [data-ui="v2"] .v2tbl table,[data-ui="v2"] .v2tbl tbody{display:block;width:100%}
+  [data-ui="v2"] .v2tbl thead{display:none}
+  [data-ui="v2"] .v2tbl tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:2px;padding:10px 0;border-bottom:1px solid var(--line)}
+  [data-ui="v2"] .v2tbl tbody tr:last-child{border-bottom:0}
+  [data-ui="v2"] .v2tbl tbody tr.tot{border-top:1px solid var(--line-strong)}
+  [data-ui="v2"] .v2tbl td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;grid-column:1 / -1;height:auto;min-height:0;padding:2px 0;border:0;text-align:right;white-space:normal;font-size:13px}
+  [data-ui="v2"] .v2tbl td[data-l]::before{content:attr(data-l);color:var(--muted);font-weight:500;font-size:12px;text-align:left;flex:none}
+  [data-ui="v2"] .v2tbl td:first-child{grid-column:1;display:block;text-align:left;font-size:14px;font-weight:600;padding:0 0 4px;min-width:0}
+  [data-ui="v2"] .v2tbl td:first-child::before{display:none}
+  [data-ui="v2"] .v2tbl td:first-child .sub{font-weight:400}
+  [data-ui="v2"] .v2tbl td.lx-rm{grid-column:2;grid-row:1;display:block;width:auto;padding:0;text-align:right}
+  [data-ui="v2"] .v2tbl td:empty{display:none}
+  [data-ui="v2"] .v2tbl tr.lvl1 td:first-child,[data-ui="v2"] .v2tbl tr.lvl2 td:first-child{padding-left:0}
+  [data-ui="v2"] .v2tbl tr.lvl1{margin-left:12px}[data-ui="v2"] .v2tbl tr.lvl2{margin-left:24px}
+  [data-ui="v2"] .v2tbl .v2ib{grid-template-columns:48px auto}
+  /* a card's title row on a phone: the title and the "..." on row 1, the caption under, the controls or meta under that */
+  [data-ui="v2"] .v2h,[data-ui="v2"] .v2h:has(> .v2h-m){grid-template-columns:minmax(0,1fr) auto}
+  [data-ui="v2"] .v2h > .find{grid-column:1 / -1;grid-row:2}
+  [data-ui="v2"] .v2h > .cap{grid-column:1 / -1;grid-row:3;justify-self:start;justify-content:flex-start;white-space:normal}
+  [data-ui="v2"] .v2h > .cap:empty{display:none}
+  [data-ui="v2"] .v2h > .v2h-m{grid-column:2;grid-row:1}
+  /* the ad card's one metric row at two across */
+  [data-ui="v2"] .v2gal .kv{font-size:11px;gap:4px}
+  [data-ui="v2"] .v2gal .kv > span > b{font-size:12.5px}
+  /* bar lists: the label gets a third of the width */
+  .lx-bar{grid-template-columns:minmax(72px,34%) minmax(0,1fr) auto;gap:8px}
+  /* a scatter or any svg chart never pushes the page sideways */
+  [data-ui="v2"] .v2chart{max-width:100%;overflow:hidden}
+  /* the two-column card rows stack (they already do under 1150); the gallery is two across */
+  [data-ui="v2"] .v2gal{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+}
+/* PHASE 7 (2026-10-20), the Ads page's "counts as one" rows: a text cell's names wrap, and a card-row table never
+   pushes the page sideways */
+@media (max-width:600px){
+  [data-ui="v2"] .v2tbl{overflow-x:clip}
+  [data-ui="v2"] .v2tbl td.txt,[data-ui="v2"] .v2tbl td.txt *{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+  [data-ui="v2"] .v2tbl td b{white-space:normal;overflow-wrap:anywhere}
 }

@@ -28,8 +28,10 @@
       .rq .rq-sec{margin:0 0 22px}
       .rq .rq-lbl{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;display:flex;align-items:center;gap:8px}
       .rq .rq-top{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
-      .rq .rq-item{border:1px solid var(--line);border-radius:var(--r-lg,14px);background:var(--surface);padding:18px 20px;margin:0 0 12px;min-width:0}
-      .rq .rq-item.key{box-shadow:inset 0 0 0 1px var(--brand)}
+      .rq .rq-item{border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;padding:14px 0 16px;margin:0;min-width:0}
+      .rq .rq-item:last-child{padding-bottom:4px}
+      .rq .rq-item.key h3::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--brand);margin:0 8px 2px 0}
+      .rq .rq-done .rq-item{padding:12px 0}
       .rq .rq-h{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
       .rq .rq-h h3{margin:0;font-size:15px;font-weight:600;flex:1;min-width:200px}
       .rq .rq-meta{font-size:12px;color:var(--muted);margin:3px 0 0}
@@ -144,7 +146,7 @@
     const title = all ? 'Requests' : `Requests: ${esc(brand ? brand.name : '')}`;
     const sub = isClient() ? 'Things we need you to approve, and anything you would like from us. Every message reaches the team straight away.'
       : all ? 'What clients asked us for and what we are waiting on them to approve, across every brand.' : 'Send the client something to approve, and answer what they ask for.';
-    const head = H.pageHead('requests', title, sub);
+    const head = H.pageHead('requests', title);
     if (first) $('#main').innerHTML = `<div class="v2 rq">${head}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
     let d;
     try { d = await H.apiAH(`/api/requests?act=${encodeURIComponent(act)}`); }
@@ -163,11 +165,17 @@
       const ok = open.filter(i => !us.includes(i) && !them.includes(i));
       secs = [[`Waiting for us${us.length ? ` (${us.length})` : ''}`, us, 'Nothing waiting for the team.'], [`Waiting for the client${them.length ? ` (${them.length})` : ''}`, them, 'Nothing sent for approval right now.'], ['Approved, not closed yet', ok, null]];
     }
-    const top = all ? '' : `<div class="rq-top">${isClient() ? '<button class="btn primary" id="rqNew">Ask the team for something</button>' : '<button class="btn primary" id="rqSend">Send for approval</button><button class="btn" id="rqNew">Add a request</button>'}</div>`;
+    /* PHASE 7 (2026-10-20): the two actions live in the page header (hidden originals keep the handlers); each
+       group is one card with a title, a count and the items as rows; an empty group is one line with one verb. */
+    const top = all ? '' : `<span class="lx-tohead">${isClient() ? '<button class="btn primary" id="rqNew">Ask the team for something</button>' : '<button class="btn primary" id="rqSend">Send for approval</button><button class="btn" id="rqNew">Add a request</button>'}</span>`;
+    const EMPTY = { 'Nothing waiting for the team.': 'Nothing waiting for us.', 'Nothing sent for approval right now.': 'Nothing sent for approval. <button type="button" class="v2link" data-press="rqSend">Send something</button>', 'Nothing to approve right now.': 'Nothing to approve.', 'Nothing open. Ask the team for anything with the button above.': 'Nothing open. <button type="button" class="v2link" data-press="rqNew">Ask the team for something</button>' };
+    const secCard = (lbl, list, empty) => { const m = /^(.*?)(?: \((\d+)\))?$/.exec(lbl) || []; return `<section class="v2card rq-sec"><div class="v2h"><h3>${esc(m[1] || lbl)}</h3><span class="cap">${list.length ? `${list.length} open` : ''}</span></div>${list.length ? list.map(i => itemHTML(i, all)).join('') : `<p class="lx-empty">${EMPTY[empty] || esc(empty)}</p>`}</section>`; };
     $('#main').innerHTML = `<div class="v2 rq">${head}${top}
-      ${secs.filter(([, list, empty]) => list.length || empty).map(([lbl, list, empty]) => `<div class="rq-sec"><div class="rq-lbl">${esc(lbl)}</div>${list.length ? list.map(i => itemHTML(i, all)).join('') : `<div class="rq-empty">${esc(empty)}</div>`}</div>`).join('')}
+      ${secs.filter(([, list, empty]) => list.length || empty).map(([lbl, list, empty]) => secCard(lbl, list, empty)).join('')}
       ${done.length ? `<details class="rq-sec rq-done"><summary>Done in the last 60 days (${done.length})</summary>${done.map(i => itemHTML(i, all)).join('')}</details>` : ''}
     </div>`;
+    if (typeof window.pageActions === 'function') { window.pageActions(all ? '' : isClient() ? '<button type="button" class="btn primary" data-press="rqNew">Ask the team for something</button>' : '<button type="button" class="btn primary" data-press="rqSend">Send for approval</button><button type="button" class="btn" data-press="rqNew">Add a request</button>'); }
+    $('#main').querySelectorAll('[data-press]').forEach(b => b.onclick = () => { const o = document.getElementById(b.dataset.press); if (o) o.click(); });
     wire(act);
   }
 

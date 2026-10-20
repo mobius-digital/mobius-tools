@@ -185,6 +185,9 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
   throw new Error('The image model kept rejecting the request.');
 }
 
+/* Cole 2026-10-20: anything that should look PHOTOGRAPHED (people, lifestyle, on course, the product in a real place) must look
+   like a real camera took it, never too-perfect AI. Graphic design is exempt. Memory: feedback-photoreal-not-perfect. */
+const PHOTO_REAL = 'Wherever the picture shows a real place, real people or the product in a scene, it must look PHOTOGRAPHED, not generated: a real camera or phone look with slight grain, a little softness and imperfect focus, natural uneven light, real clutter and imperfect framing. People are candid and imperfect: mid-motion or partly turned away, real skin texture, wrinkled clothes, never posed model smiles, never perfectly symmetrical faces; if a face would look fake, frame it out (back, hands, chest down, distance). No glossy CGI, no plastic skin, no over-clean colour. Flat graphic design parts (type, labels, shapes) stay clean.';
 const TYPE_RULES = 'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.';
 function textLines(spec) {
   const lines = [];
@@ -253,6 +256,7 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     'A callout that names a part of the product (heel, toe, face, sole, neck, grip, crown, collar and so on) must point at that exact part of the product itself, never at anything else in the scene. On a golf club the heel is the end nearest the shaft and the toe is the far end.',
     TYPE_RULES,
     'It must look like a real photograph with real design on top, not a CGI render: natural light, real materials, real depth of field.',
+    PHOTO_REAL,
     spec.notes ? `Also: ${spec.notes}` : '',
     'The scene and look notes above are directions for you. Never write any of them on the ad; the only words on the ad are the ones listed.',
     'Every word must fit completely: size each label or badge so no word is ever cut off.',
@@ -396,6 +400,7 @@ function realPrompt(spec, brand, inspo = 0) {
     `Photoreal Instagram ad, ${spec.square ? 'square' : '4:5 portrait'}, for ${brand}. The product in this image${names.length ? ` (${names.join(', ')})` : ''} is a REAL product photo already placed where it belongs. Paint the whole scene around it. The product is FIXED: its position, size, angle and which way it faces stay exactly as placed; never move, resize, rotate, flip or mirror it. Compose the scene and the words around where it already is.`,
     spec.look ? `The scene: ${spec.look} (Where these notes describe the product's position, size, angle or facing, ignore that part: it is already placed.)` : 'The scene: a real setting that suits the product, natural light.',
     'Match the scene light, perspective and scale to the product so it looks photographed there: the surface it rests on, a soft contact shadow where it touches, reflections of the surroundings on polished metal. Where the product runs off an edge of the frame, the scene continues behind it.',
+    PHOTO_REAL,
     'Keep the product exactly as it is: same shape, position, logos, marks and colours. Do not add a second product and do not draw any other club or logo.',
     /* 2026-10-15: the Carver photo ends at its thin black shaft band; when the model drew the rest of the shaft it carried
        the black on (the real shaft is gold). The fingerprint tells it what the unseen part looks like. */

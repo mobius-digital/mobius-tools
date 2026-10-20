@@ -74,29 +74,37 @@ function css() {
   if ($('#pd-css')) return;
   const s = document.createElement('style'); s.id = 'pd-css';
   s.textContent = `
-.pd{display:flex;flex-direction:column;gap:12px;min-width:0}
+.pd{display:flex;flex-direction:column;gap:12px;min-width:0;font-size:14px}
 .pd-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
-.pd-head h1{font-size:22px;font-weight:700;margin:0 0 2px;color:var(--ink)}
-.pd-head p{margin:0;color:var(--ink-2);font-size:13.5px;max-width:720px}
+.pd-head h1{font-size:22px;font-weight:650;margin:0 0 2px;color:var(--ink);letter-spacing:-.015em}
 .pd-head .pd-r{margin-left:auto;display:flex;align-items:center;gap:10px}
-.pd-sync{font-size:12px;color:var(--muted)}
-.pd-btn{height:34px;padding:0 14px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.pd-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--surface)}
+.pd-sync{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.pd-btn{height:var(--ctl-h,32px);padding:0 12px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:border-color var(--t-fast,.12s) var(--ease,ease),background var(--t-fast,.12s) var(--ease,ease)}
+.pd-btn:hover{border-color:var(--ink-2)}
+.pd-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand,var(--surface))}
 .pd-btn.on{background:var(--ink);border-color:var(--ink);color:var(--surface)}
 .pd-btn:disabled{opacity:.5;cursor:default}
+/* the control bar (2026-10-20, the kit): one row of pills that show their value, a quiet pill for Archived */
 .pd-filt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative;z-index:2}
-.pd-filt .lb{font-size:12px;color:var(--muted);margin-right:2px}
-.pd-filt .gap{width:12px}
 .pd-filt .sp{flex:1}
-.pd-chip{height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.pd-ctl{height:var(--ctl-h,32px);padding:0 9px 0 11px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;max-width:240px;transition:border-color var(--t-fast,.12s) var(--ease,ease)}
+.pd-ctl:hover{border-color:var(--ink-2)}
+.pd-ctl .v{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pd-ctl .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.pd-ctl svg{flex:none;color:var(--muted)}
+.pd-ctl.set{border-color:var(--ink-2)}
+.pd-ctl.quiet{border-color:transparent;background:transparent;color:var(--ink-2)}
+.pd-ctl.quiet:hover{background:var(--surface-2);color:var(--ink)}
+.pd-ctl.on{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.pd-ph{display:none}
+.pd-chip{height:var(--ctl-h,32px);padding:0 11px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
 .pd-chip.on{background:var(--cc,var(--ink));border-color:var(--cc,var(--ink));color:var(--surface);font-weight:600}
-.pd-sel{height:34px;padding:0 30px 0 10px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:500;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2.2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
 /* the board: columns side by side, each its own scroll, the board scrolls sideways under the bar */
 .pd-wrap{display:flex;gap:12px;align-items:stretch;overflow-x:auto;overflow-y:hidden;min-width:0;height:var(--pd-h,70vh);padding-bottom:6px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;outline:none}
 /* 2026-10-15 polish: the arrow is the cursor on a card (Asana); the hand shows only while a drag or a pan is under way */
 .pd-wrap.pan,.pd-wrap.pan *{cursor:grabbing!important}
 .pd.dragging .pd-card{cursor:grabbing}
-.pd-col{flex:0 0 300px;min-width:0;display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;transition:border-color .12s,background .12s,flex-basis .15s}
+.pd-col{flex:0 0 300px;min-width:0;display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-lg,8px);transition:border-color .12s,background .12s,flex-basis .15s}
 .pd-col.over{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,var(--surface-2))}
 .pd-col.cl{flex-basis:44px}
 .pd-col.cl .pd-cards,.pd-col.cl .pd-ch .n2,.pd-col.cl .pd-ch .ic{display:none}
@@ -108,12 +116,12 @@ function css() {
 .pd-ch .sp{flex:1}
 .pd-ch .ic{display:flex;gap:1px;opacity:0;transition:opacity .12s}
 .pd-col:hover .pd-ch .ic,.pd-ch .ic:focus-within{opacity:1}
-.pd-ch .ic button{width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;font:inherit}
+.pd-ch .ic button{width:24px;height:24px;border:0;border-radius:var(--r-sm,6px);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;font:inherit}
 .pd-ch .ic button:hover{background:var(--surface);color:var(--ink)}
 /* overscroll-behavior-Y only: a column swallows its own vertical overscroll, but a sideways trackpad swipe or Shift+wheel
    over a column must reach the board (contain on both axes ate every horizontal swipe) */
 .pd-cards{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px;padding:0 12px 12px;scrollbar-width:thin;overscroll-behavior-y:contain}
-.pd-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 13px 11px;display:flex;flex-direction:column;gap:7px;cursor:default;user-select:none;box-shadow:0 1px 0 rgba(15,15,20,.02);outline:none}
+.pd-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,8px);padding:11px 13px 11px;display:flex;flex-direction:column;gap:7px;cursor:default;user-select:none;box-shadow:0 1px 0 rgba(15,15,20,.02);outline:none}
 .pd-card:hover{border-color:var(--line-strong)}
 .pd-card:focus-visible{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
 .pd-card.sel{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
@@ -126,7 +134,7 @@ function css() {
 .pd-card:hover .pd-r1,.pd-card.sel .pd-r1,.pd.selmode .pd-r1,.pd-card:focus-visible .pd-r1{padding-left:22px}
 .pd-card.has-img:hover .pd-r1,.pd-card.has-img.sel .pd-r1,.pd.selmode .pd-card.has-img .pd-r1{padding-left:0}
 .pd-card.has-img .pd-tick{top:8px;left:8px;box-shadow:0 1px 4px rgba(0,0,0,.25)}
-.pd-pen{position:absolute;top:7px;right:8px;width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center;opacity:0;cursor:pointer;padding:0;z-index:1}
+.pd-pen{position:absolute;top:7px;right:8px;width:22px;height:22px;border-radius:var(--r-sm,6px);border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center;opacity:0;cursor:pointer;padding:0;z-index:1}
 .pd-card:hover .pd-pen,.pd-card:focus-visible .pd-pen{opacity:1}
 .pd-card.has-img .pd-pen{box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .pd-pen:hover{color:var(--ink);border-color:var(--line-strong)}
@@ -136,16 +144,16 @@ function css() {
 .pd-r1 .sp{flex:1}
 .pd-fmt{font-size:10.5px;padding:1px 7px;border-radius:999px;font-weight:600;color:var(--fc);background:color-mix(in srgb,var(--fc) 14%,transparent);white-space:nowrap;border:0;font-family:inherit;cursor:pointer}
 .pd-fmt:hover{background:color-mix(in srgb,var(--fc) 26%,transparent)}
-.pd-t{color:var(--ink);line-height:1.3;font-size:13.5px;font-weight:600;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pd-t{color:var(--ink);line-height:1.3;font-size:14px;font-weight:600;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pd-pills{display:flex;flex-wrap:wrap;gap:4px}
 .pd-pill{font-size:10.5px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--line-strong);color:var(--ink-2);white-space:nowrap}
 .pd-pill.w{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:transparent;font-weight:600}
 .pd-pill.b{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);border-color:transparent;font-weight:600}
 .pd-pill.g{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good);border-color:transparent;font-weight:600}
-.pd-r3{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);min-width:0}
+.pd-r3{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--muted);min-width:0}
 .pd-r3 .sp{flex:1}
-.pd-r3 .m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pd-due{font:inherit;font-size:11.5px;color:var(--muted);background:none;border:0;padding:1px 4px;margin-left:-4px;border-radius:4px;cursor:pointer;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pd-r3 .m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none}
+.pd-due{font:inherit;font-size:12px;font-weight:500;color:var(--muted);background:none;border:0;padding:1px 4px;margin-left:-4px;border-radius:var(--r-xs,4px);cursor:pointer;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .pd-due:hover{background:var(--surface-2);color:var(--ink)}
 .pd-due.late{color:var(--bad);font-weight:600}
 .pd-due.soon{color:var(--good)}
@@ -153,22 +161,22 @@ function css() {
 .pd-avb:hover{box-shadow:0 0 0 2px var(--brand-soft)}
 /* the card's action (Launch to Meta, Open review) is its own last row: a small full-width button that cannot run past the edge */
 .pd-r4{display:flex;min-width:0;margin-top:1px}
-.pd-act{flex:1;min-width:0;height:28px;padding:0 10px;font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,transparent);border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);border-radius:7px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.pd-act{flex:1;min-width:0;height:28px;padding:0 10px;font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,transparent);border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);border-radius:var(--r-sm,6px);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .pd-act:hover{background:color-mix(in srgb,var(--brand) 16%,transparent);border-color:var(--brand)}
 .pd-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--surface);background:var(--line-strong);flex:none}
 .pd-av.pd-none{background:var(--line-strong);color:var(--ink)}
-.pd-card .pd-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:var(--surface-2);display:block}
-.pd-add{height:30px;border:1px dashed var(--line-strong);border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;flex:none}
+.pd-card .pd-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-sm,6px);background:var(--surface-2);display:block}
+.pd-add{height:32px;border:1px dashed var(--line-strong);border-radius:var(--r-sm,6px);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:550;cursor:pointer;flex:none}
 .pd-add:hover{color:var(--ink);border-color:var(--ink-2)}
 .pd-more{font:inherit;font-size:12px;color:var(--brand);background:none;border:0;padding:4px 2px;cursor:pointer;text-align:left;flex:none}
-.pd-empty{font-size:12px;color:var(--faint);padding:6px 2px}
-.pd-sk{height:84px;border-radius:8px;background:var(--surface);opacity:.6;flex:none}
+.pd-empty{font-size:12px;font-weight:500;color:var(--muted);padding:6px 2px}
+.pd-sk{height:84px;border-radius:var(--r-lg,8px);background:var(--surface);opacity:.6;flex:none}
 /* the menu (right-click, the pencil, a long press), also the pickers */
-.pd-menu{position:fixed;z-index:9860;width:236px;max-height:min(70vh,520px);overflow-y:auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.22),0 2px 6px rgba(15,15,25,.06));padding:6px;font-size:13px;animation:pd-pop .14s var(--ease,ease) both}
+.pd-menu{position:fixed;z-index:9860;width:236px;max-height:min(70vh,520px);overflow-y:auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-lg,8px);box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.22),0 2px 6px rgba(15,15,25,.06));padding:6px;font-size:13px;animation:pd-pop .14s var(--ease,ease) both}
 .pd-menu .mh{display:flex;align-items:center;gap:8px;padding:6px 10px 4px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .pd-menu .mh span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-menu .mh button{flex:none;font:inherit;font-size:12px;letter-spacing:0;text-transform:none;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer}
-.pd-menu .mi{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer;min-height:32px}
+.pd-menu .mi{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:0;border-radius:var(--r-sm,6px);background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer;min-height:32px}
 .pd-menu .mi:hover,.pd-menu .mi:focus-visible{background:var(--surface-2);outline:none}
 .pd-menu .mi.on{background:var(--brand-soft)}
 .pd-menu .mi .k{margin-left:auto;color:var(--faint);font-size:11px;padding-left:8px}
@@ -177,11 +185,11 @@ function css() {
 .pd-menu .mi .pd-av{width:20px;height:20px;font-size:10px}
 .pd-menu hr{border:0;border-top:1px solid var(--line);margin:5px 2px}
 .pd-menu .dq{display:flex;flex-wrap:wrap;gap:4px;padding:4px 6px 6px}
-.pd-menu .dq button{font:inherit;font-size:12px;font-weight:500;color:var(--ink-2);background:var(--surface-2);border:0;border-radius:999px;padding:5px 10px;cursor:pointer}
+.pd-menu .dq button{font:inherit;font-size:12.5px;font-weight:550;color:var(--ink-2);background:var(--surface-2);border:0;border-radius:var(--r-sm,6px);height:28px;padding:0 10px;cursor:pointer}
 .pd-menu .dq button:hover{color:var(--ink);background:var(--line-strong)}
 .pd-menu .di{display:flex;gap:6px;padding:2px 6px 6px}
-.pd-menu .di input{flex:1;min-width:0;font:inherit;font-size:13px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:7px 9px}
-.pd-menu .di button{font:inherit;font-size:12px;font-weight:600;color:var(--surface);background:var(--brand);border:0;border-radius:8px;padding:0 12px;cursor:pointer}
+.pd-menu .di input{flex:1;min-width:0;height:32px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--r-sm,6px);padding:0 9px;box-sizing:border-box}
+.pd-menu .di button{font:inherit;font-size:12.5px;font-weight:600;color:var(--on-brand,var(--surface));background:var(--brand);border:0;border-radius:var(--r-sm,6px);height:32px;padding:0 12px;cursor:pointer}
 .pd-mscrim{position:fixed;inset:0;z-index:9855;background:transparent}
 .pd-mscrim.dim{background:rgba(10,10,12,.35)}
 .pd-menu.sheet{left:0;right:0;bottom:0;top:auto;width:auto;max-height:80dvh;border-radius:16px 16px 0 0;padding:8px 12px calc(14px + env(safe-area-inset-bottom));animation:pd-up .18s var(--ease,ease) both}
@@ -193,7 +201,7 @@ function css() {
 /* the bulk bar */
 .pd-bulk{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9840;display:flex;align-items:center;gap:4px;max-width:calc(100vw - 24px);overflow-x:auto;scrollbar-width:none;background:var(--ink);color:var(--surface);border-radius:12px;padding:6px 6px 6px 14px;font-size:12.5px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.4));animation:pd-up .18s var(--ease,ease) both}
 .pd-bulk b{white-space:nowrap;margin-right:8px;font-weight:600}
-.pd-bulk button{font:inherit;font-size:12.5px;font-weight:500;color:var(--surface);background:rgba(255,255,255,.1);border:0;border-radius:7px;padding:6px 9px;cursor:pointer;white-space:nowrap}
+.pd-bulk button{font:inherit;font-size:12.5px;font-weight:500;color:var(--surface);background:rgba(255,255,255,.1);border:0;border-radius:var(--r-sm,6px);padding:6px 9px;cursor:pointer;white-space:nowrap}
 .pd-bulk button:hover{background:rgba(255,255,255,.18)}
 .pd-bulk button.p{background:var(--brand);font-weight:600}
 .pd-bulk button.x{background:none;color:var(--faint);font-size:16px;padding:4px 8px}
@@ -201,28 +209,29 @@ function css() {
 /* toasts */
 .pd-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 12px 10px 16px;border-radius:12px;font-size:13.5px;z-index:9900;display:flex;align-items:center;gap:12px;box-shadow:var(--sh-pop,0 8px 24px rgba(0,0,0,.25))}
 .pd-toast.bad{background:var(--bad)}
-.pd-toast .pd-undo{font:inherit;font-size:12.5px;font-weight:700;color:var(--surface);background:rgba(255,255,255,.14);border:0;border-radius:8px;padding:5px 10px;cursor:pointer}
+.pd-toast .pd-undo{font:inherit;font-size:12.5px;font-weight:700;color:var(--surface);background:rgba(255,255,255,.14);border:0;border-radius:var(--r-sm,6px);padding:5px 10px;cursor:pointer}
 /* modals (New brief, confirms) */
 .pd-scrim{position:fixed;inset:0;background:rgba(10,10,12,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9850;padding:16px;animation:pd-fade var(--t,.2s) var(--ease,ease) both}
 .pd-modal{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-xl,18px);padding:22px 22px 18px;width:min(440px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:var(--sh-sheet,0 30px 70px -20px rgba(0,0,0,.6));animation:pd-pop var(--t,.2s) var(--ease,ease) both}
 @keyframes pd-fade{from{opacity:0}to{opacity:1}}@keyframes pd-pop{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
 .pd-modal h3{margin:0;font-size:16px;font-weight:650;letter-spacing:-.005em}
-.pd-modal p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
-.pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2)}
-.pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box}
+.pd-modal p{margin:0;font-size:14px;line-height:1.5;color:var(--ink-2)}
+.pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;color:var(--muted)}
+.pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--r-sm,6px);padding:7px 10px;width:100%;box-sizing:border-box}
+.pd-modal input,.pd-modal select{height:var(--ctl-h,32px);padding:0 10px}
 .pd-modal textarea{min-height:56px;resize:vertical}
-.pd-modal .pd-hint{font-size:11.5px;color:var(--ink-3)}
+.pd-modal .pd-hint{font-size:12px;font-weight:500;color:var(--muted)}
 .pd-modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pd-modal .ft{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 .pd-modal .err{color:var(--bad);font-size:12.5px}
 .pd-modal .pd-fchips{display:flex;flex-wrap:wrap;gap:6px}
 /* Archived (the list behind "Delete card") */
 .pd-arch{display:flex;flex-direction:column;gap:6px;max-height:min(56vh,480px);overflow-y:auto;margin:0 -4px;padding:0 4px}
-.pd-arch .ar{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);min-width:0}
+.pd-arch .ar{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-lg,8px);background:var(--surface-2);min-width:0}
 .pd-arch .ar .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .pd-arch .ar .t b{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pd-arch .ar .t span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pd-arch .ar .pd-btn{height:30px;padding:0 11px;font-size:12.5px;flex:none}
+.pd-arch .ar .t span{font-size:12px;font-weight:500;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-arch .ar .pd-btn{flex:none}
 .pd-arch .ar.gone{opacity:.45;pointer-events:none}
 /* iPad and touch: the pencil always there (no hover on touch) */
 @media (pointer:coarse){.pd-pen{opacity:1}.pd-ch .ic{opacity:1}}
@@ -230,11 +239,12 @@ function css() {
 .pd-seg{display:none}
 @media (max-width:600px){
   .pd{gap:10px}
-  .pd-head p,.pd-sync{display:none}
+  .pd-sync{display:none}
   .pd-head .pd-r{margin-left:auto;gap:8px}
-  .pd-filt{display:none}
+  .pd-filt .pd-dk{display:none}
+  .pd-ph{display:inline-flex}
   .pd-seg{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin:0 -2px}
-  .pd-seg button{flex:none;height:36px;min-height:0;padding:0 12px;border-radius:999px;border:0;background:var(--surface-2);color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .pd-seg button{flex:none;height:36px;min-height:0;padding:0 12px;border-radius:var(--r-sm,6px);border:0;background:var(--surface-2);color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
   .pd-seg button.on{background:var(--ink);color:var(--surface);font-weight:600}
   .pd-seg button i{font-style:normal;opacity:.65;font-size:12px}
   .pd-wrap{scroll-snap-type:x mandatory;scrollbar-width:none;gap:12px}
@@ -255,7 +265,7 @@ function css() {
   html .pd-scrim{align-items:flex-end;padding:0}
   html .pd-modal{width:100%;border-radius:16px 16px 0 0;max-height:92dvh;overflow-y:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
   html .pd-modal .row{grid-template-columns:1fr}
-  .pd-modal .pd-chip{height:40px;font-size:13.5px}
+  .pd-modal .pd-chip{height:40px;font-size:14px}
 }
 @media (prefers-reduced-motion:reduce){.pd-menu,.pd-bulk,.pd-scrim,.pd-modal,.pd-col{animation:none;transition:none}}
 `;
@@ -289,9 +299,19 @@ function listOf(k) {
   return list;
 }
 
+/* the page head: the host's kit header (crumb, title, .ph-acts, the "..." menu) when it offers one, else the board's own */
+const head = () => H && typeof H.pageHead === 'function' ? H.pageHead('production', 'Production') : '<div class="pd-head"><div><h1>Production</h1></div></div>';
+/* the page's own buttons go through the host's pageActions (the kit writes them into .ph-acts, else #hdActions) */
+function actions() {
+  const pa = H && typeof H.pageActions === 'function' ? H.pageActions : (typeof window.pageActions === 'function' ? window.pageActions : null);
+  if (!pa) return;
+  pa('<button type="button" class="btn primary" id="pdNewBrief">+ New brief</button>');
+  const b = document.getElementById('pdNewBrief'); if (b) b.onclick = () => newBrief();
+}
 function skeleton() {
-  $('#main').innerHTML = `<div class="pd"><div class="pd-head"><div><h1>Production</h1><p>Loading the board...</p></div></div>
+  $('#main').innerHTML = `<div class="pd">${head()}<div class="pd-filt"><span class="pd-sync">Loading the board...</span></div>
     <div class="pd-wrap">${COLS.map(c => `<div class="pd-col"><div class="pd-ch"><span class="dot" style="background:${c.dot}"></span><b>${c.label}</b></div><div class="pd-cards"><div class="pd-sk"></div><div class="pd-sk"></div></div></div>`).join('')}</div></div>`;
+  actions();
   size();
 }
 
@@ -311,12 +331,12 @@ function cardHtml(c) {
   const act = c.board === 'review' && c.versions ? `<button type="button" class="pd-act" data-review="${esc(c.id)}">Open review</button>`
     : c.board === 'ready' ? `<button type="button" class="pd-act" data-launch="${esc(c.id)}">Launch to Meta</button>` : '';
   const img = c.thumb && (c.board === 'review' || c.board === 'ready' || c.board === 'live');
-  const pills = [];
-  if (c.needs_client) pills.push(`<span class="pd-pill w">Waiting on the client${c.needs_client === 'idea' ? ' (the idea)' : ''}</span>`);
-  if (c.open_notes) pills.push(`<span class="pd-pill b">${plural(c.open_notes, 'open note')}</span>`);
-  if (c.versions && c.board !== 'live') pills.push(`<span class="pd-pill">${plural(c.versions, 'upload')}</span>`);
-  if (c.board === 'ready' && c.approved_by) pills.push(`<span class="pd-pill g">Approved</span>`);
-  if (c.board === 'live' && c.result) pills.push(`<span class="pd-pill">${esc(c.result)}</span>`);
+  /* ONE status chip per card (2026-10-20): the thing that needs a person first; the upload count is a muted word on the date row */
+  const status = c.needs_client ? `<span class="pd-pill w">Waiting on the client${c.needs_client === 'idea' ? ' (the idea)' : ''}</span>`
+    : c.open_notes ? `<span class="pd-pill b">${plural(c.open_notes, 'open note')}</span>`
+    : c.board === 'ready' && c.approved_by ? `<span class="pd-pill g">Approved</span>`
+    : c.board === 'live' && c.result ? `<span class="pd-pill">${esc(c.result)}</span>` : '';
+  const ups = c.versions && c.board !== 'live' ? `<span class="m">${plural(c.versions, 'upload')}</span>` : '';
   const due = dueOf(c);
   return `<div class="pd-card${SEL.has(c.id) ? ' sel' : ''}${img ? ' has-img' : ''}" draggable="${TOUCH() ? 'false' : 'true'}" data-id="${esc(c.id)}" tabindex="0" aria-label="${esc(`#${c.num} ${c.title || 'Untitled brief'}`)}">
     <span class="pd-tick" data-tick="${esc(c.id)}" role="checkbox" aria-checked="${SEL.has(c.id)}" aria-label="Select"></span>
@@ -324,8 +344,8 @@ function cardHtml(c) {
     ${img ? `<img class="pd-img" src="${esc(c.thumb)}" alt="" loading="lazy" draggable="false">` : ''}
     <div class="pd-r1"><span class="num">${esc(initials(c.brand))} #${esc(c.num)}</span>${D.act === 'all' && BRAND === 'all' ? `<span class="br">${esc(c.brand)}</span>` : ''}<span class="sp"></span><button type="button" class="pd-fmt" data-pop="format" data-id="${esc(c.id)}" style="--fc:${FMT[c.format] || 'var(--brand)'}" title="Change the format">${esc(c.format || 'Static')}</button></div>
     <div class="pd-t">${esc(c.title || 'Untitled brief')}</div>
-    ${pills.length ? `<div class="pd-pills">${pills.join('')}</div>` : ''}
-    <div class="pd-r3"><button type="button" class="pd-avb" data-pop="owner" data-id="${esc(c.id)}" title="${esc(c.assignee ? `${c.assignee} makes it. Change who.` : 'Nobody yet. Pick who makes it.')}">${av(c.assignee, 20)}</button><button type="button" class="pd-due ${due.cls}" data-pop="due" data-id="${esc(c.id)}" title="Change the due date">${esc(due.text)}</button><span class="sp"></span></div>
+    ${status ? `<div class="pd-pills">${status}</div>` : ''}
+    <div class="pd-r3"><button type="button" class="pd-avb" data-pop="owner" data-id="${esc(c.id)}" title="${esc(c.assignee ? `Owner: ${c.assignee}` : 'Owner: nobody yet')}">${av(c.assignee, 20)}</button><button type="button" class="pd-due ${due.cls}" data-pop="due" data-id="${esc(c.id)}" title="Due date">${esc(due.text)}</button><span class="sp"></span>${ups}</div>
     ${act ? `<div class="pd-r4">${act}</div>` : ''}
   </div>`;
 }
@@ -339,38 +359,43 @@ function colHtml(c) {
   if (c.k === 'live') {
     const total = D.live?.total || list.length;
     if (!ALL_LIVE && total > list.length) more = `<button class="pd-more" id="pdAllLive">Show all ${total}</button>`;
-    else if (ALL_LIVE && total > list.length) more = `<div class="pd-empty">Older live ads stay in Asana, Analyze Results.</div>`;
+    else if (ALL_LIVE && total > list.length) more = `<div class="pd-empty">Older live ads are in Asana, Analyze Results.</div>`;
   }
+  const EMPTY = { brief: 'No briefs yet. Add one.', making: 'Nothing being made.', review: 'Nothing to review.', ready: 'Nothing ready to launch.', live: 'Nothing live yet.' };
   const n = c.k === 'live' && BRAND === 'all' && FORMAT === 'all' ? (D.live?.total ?? list.length) : list.length;
   const cl = COLLAPSED.has(c.k) && !PHONE();
   return `<div class="pd-col${cl ? ' cl' : ''}" data-col="${c.k}">
     <div class="pd-ch" ${cl ? `data-expand="${c.k}" title="Expand ${c.label}"` : ''}><span class="dot" style="background:${c.dot}"></span><b>${c.label}</b><span class="n">${n}</span><span class="sp n2"></span>
       <span class="ic"><button type="button" data-collapse="${c.k}" title="Collapse" aria-label="Collapse ${c.label}">${ico('chevron-left', 14) || '‹'}</button>${c.k === 'brief' ? `<button type="button" data-newbrief title="New brief" aria-label="New brief">${ico('plus', 14) || '+'}</button>` : ''}<button type="button" data-colmenu="${c.k}" title="More" aria-label="${c.label} menu">${ico('more-horizontal', 14) || '…'}</button></span></div>
-    <div class="pd-cards" data-cards="${c.k}">${list.map(cardHtml).join('') || '<div class="pd-empty">Nothing here.</div>'}${more}${c.k === 'brief' && !PHONE() ? '<button class="pd-add" data-newbrief>+ Brief</button>' : ''}</div>
+    <div class="pd-cards" data-cards="${c.k}">${list.map(cardHtml).join('') || `<div class="pd-empty">${EMPTY[c.k]}</div>`}${more}${c.k === 'brief' && !PHONE() ? '<button class="pd-add" data-newbrief>+ Brief</button>' : ''}</div>
   </div>`;
 }
 
 function paint() {
-  if (D.error) { $('#main').innerHTML = `<div class="pd"><div class="pd-head"><div><h1>Production</h1><p style="color:var(--bad)">${esc(D.error)}</p></div><div class="pd-r"><button class="pd-btn" id="pdRetry">Try again</button></div></div></div>`; $('#pdRetry').onclick = () => render(H, true); return; }
+  if (D.error) { $('#main').innerHTML = `<div class="pd">${head()}<div class="pd-filt"><span class="pd-sync" style="color:var(--bad)">${esc(D.error)}</span><button type="button" class="pd-btn" id="pdRetry">Try again</button></div></div>`; actions(); $('#pdRetry').onclick = () => render(H, true); return; }
   /* keep every scroll position across a repaint */
   const old = $('#main .pd');
   const scrolls = {}; let left = 0;
   if (old) { $$('.pd-cards', old).forEach(el => { scrolls[el.dataset.cards] = el.scrollTop; }); const w = $('.pd-wrap', old); left = w ? w.scrollLeft : 0; }
-  const nWork = D.cards.filter(c => c.board !== 'live').length, nReady = D.cards.filter(c => c.board === 'ready').length;
-  const brandChips = D.act === 'all' && D.brands.length > 1
-    ? `<span class="lb">Brand</span><button class="pd-chip${BRAND === 'all' ? ' on' : ''}" data-brand="all">All</button>${D.brands.filter(b => D.cards.some(c => c.act_id === b.act_id)).map(b => `<button class="pd-chip${BRAND === b.act_id ? ' on' : ''}" data-brand="${esc(b.act_id)}">${esc(b.name)}</button>`).join('')}<span class="gap"></span>` : '';
-  const fmtChips = `<span class="lb">Format</span><button class="pd-chip${FORMAT === 'all' ? ' on' : ''}" data-fmt="all">All</button>${Object.keys(FMT).map(f => `<button class="pd-chip${FORMAT === f ? ' on' : ''}" style="--cc:${FMT[f]}" data-fmt="${f}">${f}</button>`).join('')}`;
+  const chev = ico('chevron-down', 14) || '<span aria-hidden="true">⌄</span>';
+  const brandName = BRAND === 'all' ? 'All brands' : ((D.brands.find(b => b.act_id === BRAND) || {}).name || 'Brand');
+  const brandPill = D.act === 'all' && D.brands.length > 1
+    ? `<button type="button" class="pd-ctl pd-dk${BRAND !== 'all' ? ' set' : ''}" data-brandmenu aria-haspopup="menu"><span class="v">${esc(brandName)}</span>${chev}</button>` : '';
+  const fmtPill = `<button type="button" class="pd-ctl pd-dk${FORMAT !== 'all' ? ' set' : ''}" data-fmtmenu aria-haspopup="menu">${FORMAT !== 'all' ? `<span class="dot" style="background:${FMT[FORMAT]}"></span>` : ''}<span class="v">${FORMAT === 'all' ? 'All formats' : esc(FORMAT)}</span>${chev}</button>`;
+  const sortPill = `<button type="button" class="pd-ctl pd-dk" data-sortmenu aria-haspopup="menu"><span class="v">Sort: ${esc((SORTS.find(s => s[0] === SORT) || SORTS[0])[1])}</span>${chev}</button>`;
   const nFilt = (BRAND !== 'all' ? 1 : 0) + (FORMAT !== 'all' ? 1 : 0);
   const seg = `<div class="pd-seg" role="tablist" aria-label="Column">${COLS.map(c => `<button type="button" role="tab" class="${PHONE_COL === c.k ? 'on' : ''}" data-seg="${c.k}" aria-selected="${PHONE_COL === c.k}">${c.label}<i>${c.k === 'live' && BRAND === 'all' && FORMAT === 'all' ? (D.live?.total ?? listOf(c.k).length) : listOf(c.k).length}</i></button>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="pd${SELMODE ? ' selmode' : ''}">
-    <div class="pd-head"><div><h1>Production</h1><p>Every ad from brief to live. Click a card to write its brief, drag it to move it; right-click it for everything else. ${nWork} ads in progress, ${nReady} ready to launch.</p></div>
-      <div class="pd-r"><span class="pd-sync">${D.mirror === false ? 'Asana mirror off' : `Mirrored to Asana${D.synced_at ? ` · synced ${ago(D.synced_at)}` : ''}`}</span>
-        ${PHONE() ? `<button class="pd-btn" data-filters>Filters${nFilt ? ` · ${nFilt}` : ''}</button><button class="pd-btn${SELMODE ? ' on' : ''}" data-selmode>${SELMODE ? 'Done' : 'Select'}</button>` : ''}
-        <button class="pd-btn pri" data-newbrief>${PHONE() ? '+' : '+ New brief'}</button></div></div>
-    <div class="pd-filt">${brandChips}${fmtChips}<span class="sp"></span><select class="pd-sel" data-sort aria-label="Sort">${SORTS.map(([k, l]) => `<option value="${k}"${SORT === k ? ' selected' : ''}>Sort: ${l}</option>`).join('')}</select><button class="pd-btn${SELMODE ? ' on' : ''}" data-selmode>${SELMODE ? 'Done selecting' : 'Select'}</button><button class="pd-btn" data-archived title="Cards deleted in the last 60 days">Archived</button></div>
+    ${head()}
+    <div class="pd-filt">${brandPill}${fmtPill}${sortPill}<button type="button" class="pd-ctl quiet pd-dk" data-archived title="Deleted in the last 60 days">Archived</button>
+      <button type="button" class="pd-ctl pd-ph${nFilt ? ' set' : ''}" data-filters>Filters${nFilt ? ` · ${nFilt}` : ''}${chev}</button>
+      <span class="sp"></span>
+      <span class="pd-sync">${D.mirror === false ? 'Asana mirror off' : `Mirrored to Asana${D.synced_at ? `, synced ${ago(D.synced_at)}` : ''}`}</span>
+      <button type="button" class="pd-ctl quiet${SELMODE ? ' on' : ''}" data-selmode>${SELMODE ? 'Done' : 'Select'}</button></div>
     ${seg}
     <div class="pd-wrap" tabindex="-1">${COLS.map(colHtml).join('')}</div>
   </div>`;
+  actions();
   const root = $('#main .pd');
   $$('.pd-cards', root).forEach(el => { if (scrolls[el.dataset.cards]) el.scrollTop = scrolls[el.dataset.cards]; });
   size();
@@ -405,13 +430,21 @@ function patch(id) {
 
 function wire() {
   const root = $('#main .pd');
-  $$('[data-brand]', root).forEach(b => b.onclick = () => { BRAND = b.dataset.brand; paint(); });
-  $$('[data-fmt]', root).forEach(b => b.onclick = () => { FORMAT = b.dataset.fmt; paint(); });
+  /* the control pills: each opens the same menu helper the cards use, with the current value marked */
+  const bm = $('[data-brandmenu]', root); if (bm) bm.onclick = () => {
+    const brands = D.brands.filter(b => D.cards.some(c => c.act_id === b.act_id));
+    showMenu({ anchor: bm, title: 'Brand', items: [{ k: 'all', l: 'All brands', on: BRAND === 'all' }, 'sep', ...brands.map(b => ({ k: b.act_id, l: b.name, on: BRAND === b.act_id }))], onPick: k => { closeMenu(); BRAND = k; paint(); } });
+  };
+  const fm = $('[data-fmtmenu]', root); if (fm) fm.onclick = () => {
+    showMenu({ anchor: fm, title: 'Format', items: [{ k: 'all', l: 'All formats', on: FORMAT === 'all' }, 'sep', ...Object.keys(FMT).map(f => ({ k: f, l: f, on: FORMAT === f, ico: `<span class="dot" style="width:8px;height:8px;border-radius:50%;background:${FMT[f]}"></span>` }))], onPick: k => { closeMenu(); FORMAT = k; paint(); } });
+  };
+  const sm = $('[data-sortmenu]', root); if (sm) sm.onclick = () => {
+    showMenu({ anchor: sm, title: 'Sort', items: SORTS.map(([k, l]) => ({ k, l, on: SORT === k })), onPick: k => { closeMenu(); SORT = k; remember('pd_sort', SORT); paint(); } });
+  };
   $$('[data-newbrief]', root).forEach(b => b.onclick = () => newBrief());
   $$('[data-selmode]', root).forEach(b => b.onclick = () => { SELMODE = !SELMODE; if (!SELMODE) SEL.clear(); paint(); });
   $$('[data-filters]', root).forEach(b => b.onclick = () => filtersSheet());
   $$('[data-archived]', root).forEach(b => b.onclick = () => archivedBox());
-  const sort = $('[data-sort]', root); if (sort) sort.onchange = () => { SORT = sort.value; remember('pd_sort', SORT); paint(); };
   const all = $('#pdAllLive', root); if (all) all.onclick = () => { ALL_LIVE = true; paint(); };
   $$('[data-collapse]', root).forEach(b => b.onclick = e => { e.stopPropagation(); COLLAPSED.add(b.dataset.collapse); remember('pd_collapsed', JSON.stringify([...COLLAPSED])); paint(); });
   $$('[data-expand]', root).forEach(h => h.onclick = () => { COLLAPSED.delete(h.dataset.expand); remember('pd_collapsed', JSON.stringify([...COLLAPSED])); paint(); });
@@ -644,17 +677,37 @@ function pick(kind, ids, where = {}) {
     showMenu({ ...where, back: !!back, onBack, title: `Format of ${label}`, items: Object.keys(FMT).map(f => ({ k: f, l: f, on: f === cur, ico: `<span class="dot" style="width:8px;height:8px;border-radius:50%;background:${FMT[f]}"></span>` })), onPick: k => { closeMenu(); setMany(ids, { format: k }, `${label}: ${k}.`); } });
   } else if (kind === 'due') {
     const cur = same(c => c.due) || '';
-    const t = today(), d = new Date(t + 'T12:00:00Z');
-    const plus = n => new Date(d.getTime() + n * 864e5).toISOString().slice(0, 10);
-    const mon = plus(((8 - d.getUTCDay()) % 7) || 7);
-    const quick = [['Today', t], ['Tomorrow', plus(1)], ['Next Monday', mon], ['In a week', plus(7)], ['Clear', '']];
-    const html = `<div class="dq">${quick.map(([l, v]) => `<button type="button" data-q="${v}">${l}</button>`).join('')}</div><div class="di"><input type="date" value="${esc(cur)}" aria-label="Due date"><button type="button" data-set>Set</button></div>`;
-    const m = showMenu({ ...where, back: !!back, onBack, title: `Due date of ${label}${cur ? ` (now ${short(cur)})` : ''}`, items: [{ html }], onPick: () => {} });
-    const go = v => { closeMenu(); setMany(ids, { due: v }, v ? `${label}: due ${short(v)}.` : `${label}: no due date.`); };
-    $$('[data-q]', m).forEach(b => b.onclick = () => go(b.dataset.q));
-    const inp = $('input', m); $('[data-set]', m).onclick = () => go(inp.value);
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(inp.value); } });
-    if (!PHONE()) inp.focus();
+    dateMenu({ ...where, back: !!back, onBack, title: `Due date of ${label}`, value: cur, onPick: v => setMany(ids, { due: v }, v ? `${label}: due ${short(v)}.` : `${label}: no due date.`) });
+  }
+}
+/** A small date popover: quick picks (Today, Tomorrow, Friday, Next Monday, Clear) and a date input inside it. */
+function dateMenu({ title, value, onPick, ...where }) {
+  const cur = value || '';
+  const t = today(), d = new Date(t + 'T12:00:00Z');
+  const plus = n => new Date(d.getTime() + n * 864e5).toISOString().slice(0, 10);
+  const fri = plus(((5 - d.getUTCDay()) + 7) % 7 || 7), mon = plus(((8 - d.getUTCDay()) % 7) || 7);
+  const quick = [['Today', t], ['Tomorrow', plus(1)], ['Friday', fri], ['Next Monday', mon], ['Clear', '']];
+  const html = `<div class="dq">${quick.map(([l, v]) => `<button type="button" data-q="${v}"${v && v === cur ? ' style="color:var(--brand)"' : ''}>${l}</button>`).join('')}</div><div class="di"><input type="date" value="${esc(cur)}" aria-label="${esc(title || 'Date')}"><button type="button" data-set>Set</button></div>`;
+  const m = showMenu({ ...where, title: `${title || 'Date'}${cur ? `, now ${short(cur)}` : ''}`, items: [{ html }], onPick: () => {} });
+  const go = v => { closeMenu(); onPick(v); };
+  $$('[data-q]', m).forEach(b => b.onclick = () => go(b.dataset.q));
+  const inp = $('input', m); $('[data-set]', m).onclick = () => go(inp.value);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(inp.value); } });
+  if (!PHONE()) inp.focus();
+  return m;
+}
+/** The same pickers for the card sheet (prodsheet.js): kind owner | format | due | launch, the current value, the
+ *  button that opened it, onPick(value). Nothing is written here; the sheet saves through its own route. */
+function pickMenu({ kind, value, anchor, team, title, onPick }) {
+  const cur = value == null ? '' : String(value);
+  const done = v => { closeMenu(); onPick(v); };
+  if (kind === 'owner') {
+    const names = [...new Set([...(team && team.length ? team : teamOf()), cur].filter(Boolean))];
+    showMenu({ anchor, title: title || 'Owner', items: [...names.map(n => ({ k: n, l: n, on: n === cur, ico: av(n, 20) })), 'sep', { k: '', l: 'Nobody yet', on: cur === '' }], onPick: done });
+  } else if (kind === 'format') {
+    showMenu({ anchor, title: title || 'Format', items: Object.keys(FMT).map(f => ({ k: f, l: f, on: f === cur, ico: `<span class="dot" style="width:8px;height:8px;border-radius:50%;background:${FMT[f]}"></span>` })), onPick: done });
+  } else {
+    dateMenu({ anchor, title: title || (kind === 'launch' ? 'Launch date' : 'Due date'), value: cur, onPick });
   }
 }
 
@@ -701,7 +754,7 @@ async function sendMany(ids) {
   const back = cards.every(c => c.needs_client);
   const what = c => back ? '' : (c.versions ? 'ad' : 'idea');
   const title = back ? (cards.length === 1 ? 'Take it back from the client?' : `Take ${cards.length} back from the client?`) : (cards.length === 1 ? `Send #${cards[0].num} to the client?` : `Send ${cards.length} cards to the client?`);
-  const text = back ? 'It leaves their Needs you list.' : 'A card with an uploaded ad sends the ad (and moves to Review); a card without one sends the idea. Each shows under Needs you on their Production page.';
+  const text = back ? 'It leaves their Needs you list.' : 'Goes to their Needs you list: the newest ad when one is uploaded, else the idea.';
   if (!(await confirmBox(title, text, back ? 'Take back' : 'Send'))) return;
   let ok = 0; const why = [];
   for (const c of cards) { try { const r = await post('/api/production/send', { id: c.id, what: what(c) }); if (r.error) throw new Error(r.error); ok++; } catch (e) { why.push(`#${c.num}: ${e.message}`); } }
@@ -712,7 +765,7 @@ async function sendMany(ids) {
 async function archiveMany(ids) {
   const cards = ids.map(cardOf).filter(Boolean); if (!cards.length) return;
   const title = cards.length === 1 ? `Delete #${cards[0].num}?` : `Delete ${cards.length} cards?`;
-  if (!(await confirmBox(title, `${cards.length === 1 ? 'It leaves' : 'They leave'} the board and the Asana task is marked complete. Nothing is destroyed: Undo on the message that follows puts ${cards.length === 1 ? 'it' : 'them'} back, and for 60 days ${cards.length === 1 ? 'it' : 'each'} can be put back from Archived.`, 'Delete'))) return;
+  if (!(await confirmBox(title, `Goes to Archived for 60 days; the Asana task is marked complete.`, 'Delete'))) return;
   const done = []; const why = [];
   for (const c of cards) { try { const r = await post('/api/production/card/delete', { id: c.id }); if (r.error) throw new Error(r.error); done.push({ id: c.id, to: r.was || c.board }); } catch (e) { why.push(`#${c.num}: ${e.message}`); } }
   D.cards = D.cards.filter(c => !done.some(x => x.id === c.id)); done.forEach(x => SEL.delete(x.id)); paint();
@@ -819,15 +872,15 @@ function filtersSheet() {
   w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-label="Filters"><h3>Filters</h3>
     ${brands ? `<label>Brand${chips(brands, BRAND, 'brand')}</label>` : ''}
     <label>Format${chips([['all', 'All formats'], ...Object.keys(FMT).map(f => [f, f, FMT[f]])], FORMAT, 'fmt')}</label>
-    <label>Sort<select data-sort>${SORTS.map(([k, l]) => `<option value="${k}"${SORT === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-    <button type="button" class="pd-btn" data-archived style="width:100%;justify-content:center">Archived cards</button>
+    <label>Sort${chips(SORTS.map(([k, l]) => [k, l]), SORT, 'sortv')}</label>
+    <button type="button" class="pd-btn" data-archived style="width:100%;justify-content:center">Archived</button>
     <div class="ft"><button type="button" class="pd-btn" data-clear>Clear</button><button type="button" class="pd-btn pri" data-done>Done</button></div></div>`;
   document.body.appendChild(w);
   const close = () => { w.remove(); paint(); };
   $('[data-archived]', w).onclick = () => { close(); archivedBox(); };
   $$('[data-brand]', w).forEach(b => b.onclick = () => { BRAND = b.dataset.brand; $$('[data-brand]', w).forEach(x => x.classList.toggle('on', x === b)); });
   $$('[data-fmt]', w).forEach(b => b.onclick = () => { FORMAT = b.dataset.fmt; $$('[data-fmt]', w).forEach(x => x.classList.toggle('on', x === b)); });
-  $('[data-sort]', w).onchange = e => { SORT = e.target.value; remember('pd_sort', SORT); };
+  $$('[data-sortv]', w).forEach(b => b.onclick = () => { SORT = b.dataset.sortv; remember('pd_sort', SORT); $$('[data-sortv]', w).forEach(x => x.classList.toggle('on', x === b)); });
   $('[data-clear]', w).onclick = () => { BRAND = 'all'; FORMAT = 'all'; close(); };
   $('[data-done]', w).onclick = close;
   w.addEventListener('mousedown', e => { if (e.target === w) close(); });
@@ -840,7 +893,7 @@ function archivedBox() {
   const w = document.createElement('div'); w.className = 'pd-scrim';
   const brandName = D.act !== 'all' ? (D.brands.find(b => b.act_id === D.act) || {}).name : (BRAND !== 'all' ? (D.brands.find(b => b.act_id === BRAND) || {}).name : '');
   w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pdArT"><h3 id="pdArT">Archived</h3>
-    <p>Cards deleted from the board in the last 60 days${brandName ? ` for ${esc(brandName)}` : ''}. Put back returns one to the board${D.mirror === false ? '' : ' and reopens its Asana task'}.</p>
+    <p class="pd-hint">Deleted in the last 60 days${brandName ? `, ${esc(brandName)}` : ''}. Put back returns a card to the board${D.mirror === false ? '' : ' and its Asana task'}.</p>
     <div class="pd-arch" id="pdArList"><div class="pd-sk" style="height:44px"></div><div class="pd-sk" style="height:44px"></div></div>
     <div class="ft"><button type="button" class="pd-btn" data-x>Close</button></div></div>`;
   document.body.appendChild(w);
@@ -880,10 +933,10 @@ function newBrief() {
   const w = document.createElement('div'); w.className = 'pd-scrim';
   w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pdNbT">
     <h3 id="pdNbT">New brief</h3>
-    <p>${D.mirror === false ? 'Locus makes the next numbered brief and its card lands in Brief.' : "Locus makes the next numbered brief in the brand's Asana project, in Creative Brief(s), and its card lands in Brief."} Then you write the brief on the page that opens.</p>
+    <p class="pd-hint">${D.mirror === false ? 'Goes to the Brief column with the next number.' : "Goes to the Brief column and the brand's Asana project with the next number."}</p>
     <label>Brand<select id="pdNbAct"><option value="">Pick the brand</option>${brands.map(b => `<option value="${esc(b.act_id)}"${b.act_id === act0 ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select></label>
-    <label>Name of the brief<textarea id="pdNbText" maxlength="300" placeholder="Fall polo UGC hooks"></textarea><span class="pd-hint">Short, like a test title. Locus adds the number in front (48 - Fall polo UGC hooks).</span></label>
-    <div class="row"><label>Who makes it<select id="pdNbOwner"><option value="">Nobody yet</option>${team.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
+    <label>Name<textarea id="pdNbText" maxlength="300" placeholder="Fall polo UGC hooks"></textarea><span class="pd-hint">Short, like a test title. The number goes in front.</span></label>
+    <div class="row"><label>Owner<select id="pdNbOwner"><option value="">Nobody yet</option>${team.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
       <label>Due<input type="date" id="pdNbDue"></label></div>
     <div class="err" id="pdNbErr" hidden></div>
     <div class="ft"><button class="pd-btn" id="pdNbX">Cancel</button><button class="pd-btn pri" id="pdNbGo">Make the brief</button></div>
@@ -905,7 +958,7 @@ function newBrief() {
       const r = await post('/api/production/brief', { act, text, owner: $('#pdNbOwner', w).value, due: $('#pdNbDue', w).value });
       if (r.error) throw new Error(r.error);
       close();
-      toast(r.local ? `Brief #${r.num} is on the board. Write it now.` : r.asana_later ? `Brief #${r.num} is on the board. Write it now; its Asana task is being made.` : r.num ? `Brief #${r.num} is in Asana and on the board. Write it now.` : 'The brief is on the board.');
+      toast(r.local ? `Brief #${r.num} is on the board.` : r.asana_later ? `Brief #${r.num} is on the board. Its Asana task follows.` : r.num ? `Brief #${r.num} is on the board and in Asana.` : 'The brief is on the board.');
       await render(H, false);
       if (r.id) openCard(r.id);
     } catch (e) { err.textContent = e.message || 'Could not make the brief.'; err.hidden = false; go.disabled = false; go.textContent = 'Make the brief'; }
@@ -935,5 +988,5 @@ const leaving = () => { if (!$('#main .pd')) { const b = $('.pd-bulk'); if (b) b
 new MutationObserver(leaving).observe(document.body, { childList: true, subtree: false });
 document.addEventListener('click', e => { if ($('#main .pd') === null) leaving(); else if (!e.target.closest('#main')) { /* a click elsewhere keeps the selection */ } });
 
-window.ProductionTab = { render, mirrorCard: (el, h) => window.ProdSheet && window.ProdSheet.mirrorCard(el, h), move, launch };
+window.ProductionTab = { render, mirrorCard: (el, h) => window.ProdSheet && window.ProdSheet.mirrorCard(el, h), move, launch, pickMenu, closeMenu };
 })();

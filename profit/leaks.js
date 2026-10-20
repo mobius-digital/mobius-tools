@@ -105,7 +105,7 @@
         <div class="lk-fix"><em>Suggestion</em>${esc(l.fix)}</div>
         <div class="lk-who">${esc(l.who || '')}${l.cost_how ? ` · cost = ${esc(l.cost_how)}` : ''}</div>
       </div>
-      <div class="lk-act">${btn}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
+      <div class="lk-act">${btn}${isClient() ? '' : `<button type="button" class="lk-link lk-task" data-lktask="${esc(l.id)}">Make it a task</button><button type="button" class="lk-link lk-call" data-lkcall="${esc(l.id)}" title="Open this brand's client call with this leak on it">Put it on the call</button>`}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
     </div>`;
   }
 
@@ -190,8 +190,14 @@
     host.querySelectorAll('.lk-add').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lk); addOne(a, d, l.items[+b.dataset.i], redraw); });
     host.querySelectorAll('.lk-all').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lk); addAll(a, d, l, redraw); });
     host.querySelectorAll('[data-lkall]').forEach(b => b.onclick = () => { host.dataset.all = '1'; redraw(); });
-    host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('overview'));
+    host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('leaks'));
     host.querySelectorAll('[data-lkpb]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkpb); if (l) pushBack(a, d, l, redraw); });
+    host.querySelectorAll('[data-lktask]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lktask); if (l) makeTask(a, l, b); });
+    host.querySelectorAll('[data-lkcall]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkcall); if (!l) return;
+      /* callscreen.js reads CCALL_ADD when the client call opens and adds the line under "This week" (promised). */
+      window.CCALL_ADD = { act: a.act_id, text: `Fix: ${l.title}${l.fix ? '. ' + l.fix : ''}`, source: 'leak', source_id: l.id };
+      if (H.S && H.S.act !== a.act_id) { H.S.act = a.act_id; try { localStorage.setItem('pf_act', a.act_id); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = a.act_id; }
+      H.show('ccall'); });
     wireCalls(host, a, () => { CACHE.delete(a.act_id); redraw(true); });
     host.querySelectorAll('[data-lkai]').forEach(b => b.onclick = async () => {
       b.disabled = true; b.textContent = 'Checking every leak against the other channels (about 30 seconds)...';
@@ -202,6 +208,22 @@
       if (r.error) { msg(r.error, true); return; }
       close(); CACHE.delete(a.act_id); redraw(true);
     }));
+  }
+
+  /* ---------- Make it a task (2026-10-20, the kit's connective tissue): one task on Work > Tasks, owner and due
+     blank, the leak's number and suggestion as the details, the leak id as the source so the task links back. ---------- */
+  function isClient() { return typeof window.isClient === 'function' && window.isClient(); }
+  async function makeTask(a, l, b) {
+    b.disabled = true; const was = b.textContent; b.textContent = 'Adding...';
+    const body = { act: a.act_id, text: l.title, detail: [l.number, l.fix].filter(Boolean).join('. ') + ' From the leak finder.', owner: '', due: '', area: 'ads', kind: 'team', source: 'leak', source_id: l.id };
+    const send = o => H.apiAH('/api/actions', { method: 'POST', body: JSON.stringify(o) });
+    let r = await send(body).catch(e => ({ error: e.message }));
+    if (r && r.error) r = await send({ ...body, source: 'manual' }).catch(e => ({ error: e.message }));
+    b.disabled = false; b.textContent = was;
+    if (!r || r.error) { toast(`Could not add the task: ${(r && r.error) || 'no answer'}`); return; }
+    const id = r.item ? r.item.id : r.id;
+    b.textContent = 'On Tasks'; b.disabled = true;
+    toast('Added to Tasks', { label: 'Open', run: () => { if (id) window.ACT_OPEN = id; H.show('tasks'); } });
   }
 
   /* ---------- the modal (in-app, never a browser dialog) ---------- */
@@ -223,8 +245,9 @@
   function toast(text, undo) {
     document.querySelectorAll('.lx-toast.lkt').forEach(x => x.remove());
     const t = document.createElement('div'); t.className = 'lx-toast lkt'; t.setAttribute('role', 'status');
-    t.innerHTML = `<span>${esc(text)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
-    if (undo) t.querySelector('button').onclick = () => { t.remove(); undo(); };
+    const lbl = undo && typeof undo === 'object' ? undo.label : 'Undo', run = undo && typeof undo === 'object' ? undo.run : undo;
+    t.innerHTML = `<span>${esc(text)}</span>${undo ? `<button type="button">${esc(lbl)}</button>` : ''}`;
+    if (undo) t.querySelector('button').onclick = () => { t.remove(); run(); };
     document.body.appendChild(t); setTimeout(() => t.remove(), undo ? 15000 : 4000);
   }
   const post = (path, body) => H.apiAH(path, { method: 'POST', body: JSON.stringify(body) });
@@ -293,6 +316,38 @@
     draw();
   }
 
+  /* ---------- THE STRIP (2026-10-20, the kit): one line under the page head ----------
+     Cole: "the leak finder takes far too much room". A page shows ONE line: the total a month, how many, the biggest
+     one, "See all" (folds that page's rows open in place) and "All leaks" (Home > Leaks). Home shows the brand's total
+     and its biggest leak with "Open leaks". Nothing is drawn when the page has no leak. */
+  const AREA_LEAD = { google: 'Google', gterms: 'Google search', meta: 'Meta', tiktok: 'TikTok', website: 'The site', email: 'Email' };
+  async function strip(host, h, page) {
+    H = h; css();
+    if (!host) return;
+    const a = H.S.act !== 'all' ? (H.S.accounts || []).find(x => x.act_id === H.S.act) : null;
+    if (!a || !window.LxKit || (page !== 'home' && !PAGE[page])) { host.innerHTML = ''; return; }
+    const t = H.RUN();
+    let d; try { d = await load(a.act_id); } catch { host.innerHTML = ''; return; }
+    if (t !== H.RUN() || !d || d.error) { if (d && d.error && t === H.RUN()) host.innerHTML = ''; return; }
+    const draw = fresh => {
+      if (fresh) return load(a.act_id, fresh).then(x => { d = x; draw(); }).catch(e => toast(e.message));
+      CHECKED = checkedOn(d);
+      const mine = page === 'home' ? (d.leaks || []).filter(ACT_ON) : (d.leaks || []).filter(l => PAGE[page].includes(l.area));
+      if (!mine.length) { host.innerHTML = ''; return; }
+      const act = mine.filter(ACT_ON), sum = act.reduce((s, l) => s + (l.cost || 0), 0), first = act[0] || mine[0];
+      const lead = page === 'home' ? `${esc(d.brand)} is leaking about ${km(sum, d.currency)} a month` : `${AREA_LEAD[page]} is leaking${sum ? ` about ${km(sum, d.currency)} a month` : ''}`;
+      host.innerHTML = window.LxKit.strip({ tone: sum >= 5000 ? 'bad' : 'warn', lead, n: `${mine.length} leak${mine.length === 1 ? '' : 's'}`, text: first ? esc(first.title) : '', fold: page === 'home' ? '' : (mine.length === 1 ? 'See it' : `See all ${mine.length}`), go: 'leaks', goLabel: page === 'home' ? 'Open leaks' : 'All leaks' });
+      host.querySelectorAll('[data-go="leaks"]').forEach(b => b.onclick = () => H.show('leaks'));
+      window.LxKit.wireStrip(host, body => {
+        const max = Math.max(...mine.map(l => l.cost || 0), 1);
+        body.innerHTML = `<section class="v2card lk-card"><div class="lk-rows">${mine.map(l => row(l, d.currency, max)).join('')}</div>
+          <div class="lk-more"><span>${d.ai_check && d.ai_check.at ? `AI check ${esc(checkedOn(d))}.` : 'Not cross-checked yet.'}</span><button type="button" class="lk-link" data-lkhome="1">Every leak for ${esc(d.brand)} ›</button></div></section>`;
+        wire(body, d, a, draw);
+      });
+    };
+    draw();
+  }
+
   const checkedOn = d => d.ai_check && d.ai_check.at ? new Date(d.ai_check.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : null;
   const ACT_ON = l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement';
 
@@ -356,8 +411,8 @@
         <td>${r.d.ai_check && r.d.ai_check.at ? esc(checkedOn(r.d)) : '<span class="faint">not yet</span>'}</td></tr>`; }).join('')}
       </tbody></table></div>
       <p class="v2hint" style="margin:0">The AI check runs for every brand on Monday's morning card, or on a brand's Overview with Run the AI check (about 6 cents). Between checks the list is the plain rules plus the last check's verdicts, free.</p></section>`;
-    host.querySelectorAll('[data-lkbrand]').forEach(tr => { const go = () => pick ? pick(tr.dataset.lkbrand, 'overview') : null; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+    host.querySelectorAll('[data-lkbrand]').forEach(tr => { const go = () => pick ? pick(tr.dataset.lkbrand, 'leaks') : null; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
   }
 
-  window.LeaksCard = { top, full, brands, drop: act => CACHE.delete(act) };
+  window.LeaksCard = { top, strip, full, brands, drop: act => CACHE.delete(act) };
 })();
