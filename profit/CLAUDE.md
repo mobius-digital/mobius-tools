@@ -3981,3 +3981,28 @@ Every page now reads as one product inside the cards, not just the chrome. The r
 Not reachable locally, checked in code only: Stock/Buying/Drops with data (Supply needs the Google sign-in), Reports
 and Live (proxied Triple Whale), TikTok (no brand shows the tab). Shots: docs/locus-audit/shots/p7-*; the audit page's
 Phase 7 section lists what changed per page.
+
+## 2026-10-20: LOCUS v4, phase 1 (behind a switch). Read before touching the rail, NAV or the Morning page.
+
+Design page: https://claude.ai/artifact/GYvCTrYpSf52GAZAm535LH (source `docs/locus-v4/index.html`, seven phases). Phase 1 is
+the shell plus Today > Morning, OFF by default so the team keeps the old rail until Cole has looked.
+- **The switch** = `localStorage.pf_v4 === '1'` (`V4` const at the top of the boot script; `?v4=1` sets it, `?v4=0` clears it;
+  the profile menu's "Try the new Locus" / "Back to the old Locus" toggles it and reloads). `<html class="lx-v4">` while on.
+- **Seven destinations** (`NAV4`, copied over `NAV` in place when V4 is on, so navGo / NAV_OF / show / the seg code are
+  unchanged): Today (morning, leaks, yesterday, brief), Money (profit, plan, customers, store, website, search, email,
+  stock, buying, drops), Ads (today "Calls", channels, meta, google, tiktok, angles), Make (production "Pipeline", studio,
+  library, inspo, social, amb, answers "Brand"), Calendar (calendar, warplan "Season"), Reports (reports, dash, requests),
+  Work (calls "Meetings", tasks). Second-level jobs are segmented controls like META_JOBS: `SOCIAL_JOBS`, `BRAND_JOBS`,
+  `SEASON_JOBS`, and STUDIO_JOBS under Make. `V4_HOME` maps the ids that are now jobs (socialsaved, research, voice,
+  warlive, season, copy...) to the tab that hosts them; every old id still routes. The rail has two `.grp-btns[data-v]`
+  blocks; the one that does not match the flag is removed before wiring. The phone bar maps home -> morning and store ->
+  profit when V4 is on; `TAB_CRUMB` gets v4 crumbs; `TAB_TITLE.morning = 'Morning'`.
+- **Today > Morning** = `profit/v4.js` (`window.V4.render(H, first)`), drawn with `window.V2.kit` (v2.js now exports its
+  helpers and `setHost`) so every number matches Home: the leak strip, the money river (LxHero.load: sales through the
+  bites to kept, dashed tick = a normal day), the month ring (mtd vs plan by now, outer arc = where the month lands vs
+  the goal), Needs you (top /api/hub/today rows by stake, tests to call, the next season date), four tiles with their
+  lines, the share bar with a card per channel, the site funnel as kit bars, the calendar card. **Agency view falls back
+  to the old Overview** (`V4R`) until the brand board (phase 4). CSS at the end of lx.css (`.v4-*`, tokens only).
+- Checked 2026-10-20 in Cole's signed-in Chrome by loading the worktree's files from a local CORS server into a same-
+  origin srcdoc iframe (document.write into the live tab fails: top-level consts survive document.open). Brand and
+  agency scope, every group, old ids, dark and light, 390px, flag off = the old rail untouched.

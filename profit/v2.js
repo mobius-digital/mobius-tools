@@ -3282,6 +3282,9 @@
 
   window.V2 = {
     adsBlock,
+    /* Locus v4 (2026-10-20): v4.js draws the new Today with the same tiles, lines and words as every v2 page. */
+    setHost(host) { H = host; },
+    kit: { esc, money, money2, kmoney, int, pct, x2, day, delta, tile, tspark, card, foot, legend, lineChart, wireLine, wireGo, mergeDays, cmpLabel, isPlat, modelQ, get, scopeAccts, oneCur, head, skPage, tipAttr, bullet, CH, MODEL_SHORT },
     render(tab, host, first) {
       H = host;
       if (tab === 'overview') return home(first);
