@@ -24,7 +24,7 @@ const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', 
 /* ---------- 1. the judgement: asana-brand.js testMinimumsDue on a real (in-memory) brand, Meta mocked ---------- */
 const TODAY = new Date().toISOString().slice(0, 10);
 const ago = k => { const d = new Date(TODAY + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - k); return d.toISOString().slice(0, 10); };
-db.exec(`CREATE TABLE brand_accounts (act_id TEXT, name TEXT, target_cpa REAL, target_roas REAL, slack_channel TEXT, meta_act TEXT);
+db.exec(`CREATE TABLE brand_accounts (act_id TEXT, name TEXT, target_cpa REAL, target_roas REAL, slack_channel TEXT, meta_act TEXT, brief_channel TEXT);
   CREATE TABLE p_br_doc (act_id TEXT, line_id TEXT, key TEXT, data_json TEXT);
   CREATE TABLE p_br_batch (id TEXT, act_id TEXT, num TEXT, title TEXT, stage TEXT, verdict TEXT);
   CREATE TABLE connections (brand_id TEXT, kind TEXT, external_id TEXT, is_primary INTEGER, added_at TEXT);
@@ -32,7 +32,7 @@ db.exec(`CREATE TABLE brand_accounts (act_id TEXT, name TEXT, target_cpa REAL, t
   CREATE TABLE p_br_adtag (ad_id TEXT, act_id TEXT, batch_id TEXT);
   CREATE TABLE ad_daily (act_id TEXT, ad_id TEXT, date TEXT, spend REAL, impressions REAL, link_clicks REAL, video_3s REAL, video_thruplay REAL, add_to_cart REAL);
   CREATE TABLE tw_ad_attr (act_id TEXT, ad_id TEXT, date TEXT, model TEXT, revenue REAL, orders REAL);`);
-db.exec(`INSERT INTO brand_accounts VALUES ('brand_alpha', 'Alpha Golf', 40, NULL, 'C_ALPHA', 'act_1');
+db.exec(`INSERT INTO brand_accounts VALUES ('brand_alpha', 'Alpha Golf', 40, NULL, 'C_ALPHA', 'act_1', 'C_ALPHA_CLIENT');
   INSERT INTO connections VALUES ('brand_alpha', 'meta', 'act_1', 1, '2026-01-01');
   INSERT INTO p_br_doc VALUES ('brand_alpha', '', 'rules', '{"min_days":3}');`);
 /* min_days 3 here (a minimum due off before the judge days are up only happens when min_days < judge_days).

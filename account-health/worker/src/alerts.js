@@ -264,7 +264,8 @@ export async function postTo(env, d, channel, msg, { thread = true } = {}) {
 /** Where a rule posts: its channel, else the brand's internal channel, else the Strategist's channel. */
 async function channelOf(env, d, row) {
   if (row.channel) return row.channel;
-  if (row.act !== 'all') { const a = (await d.listAccounts(env, false)).find(x => x.act_id === row.act); if (a?.slack_channel) return a.slack_channel; }
+  /* Never a one-channel brand's channel (it is the client's): such a brand's alerts go to the Strategist channel (2026-10-19). */
+  if (row.act !== 'all') { const a = (await d.listAccounts(env, false)).find(x => x.act_id === row.act); if (a?.slack_channel && a.slack_channel !== a.brief_channel) return a.slack_channel; }
   const sc = String((await d.getSetting(env, 'strategistChannel')) || '').trim();
   return sc || null;
 }

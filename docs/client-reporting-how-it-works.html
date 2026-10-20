@@ -1,0 +1,130 @@
+<title>Client Reporting Loop</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: one narrow column of plain prose with the week drawn as a timeline; the two Slack posts shown as they are. */
+  :root {
+    --bg: #faf9f6; --fg: #1d1c19; --muted: #6b675d; --line: #e4e0d6; --card: #ffffff; --accent: #1f5e3f; --soft: #eef3ee;
+    --display: 'Instrument Serif', Georgia, serif; --body: 'Instrument Sans', system-ui, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #171613; --fg: #ece8df; --muted: #a39e92; --line: #2e2c26; --card: #1f1e1a; --accent: #7fc39b; --soft: #1e2a22; color-scheme: dark } }
+  :root[data-theme="dark"] { --bg: #171613; --fg: #ece8df; --muted: #a39e92; --line: #2e2c26; --card: #1f1e1a; --accent: #7fc39b; --soft: #1e2a22; color-scheme: dark }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.55; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: 40px; line-height: 1.1; margin: 0 0 8px; text-wrap: balance; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 44px 0 10px; text-wrap: balance; }
+  p, li { max-width: 65ch; }
+  .lead { color: var(--muted); font-size: 16px; margin: 0 0 28px; }
+  .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+  ol.week { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; border-left: 2px solid var(--line); }
+  ol.week li { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 10px 0 10px 16px; position: relative; }
+  ol.week li::before { content: ''; position: absolute; left: -6px; top: 17px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  ol.week li b { font-weight: 600; font-size: 13px; color: var(--muted); }
+  ol.week li span { min-width: 0; }
+  @media (max-width: 480px) { ol.week li { grid-template-columns: 1fr; gap: 2px; } }
+  .post { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; font-size: 13.5px; white-space: pre-wrap; margin: 12px 0 0; overflow-x: auto; }
+  .post b { font-weight: 600; } .post i { color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+  th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+  .wrap { overflow-x: auto; }
+  .rule { background: var(--soft); border-radius: 8px; padding: 12px 16px; margin: 14px 0; }
+  .rule p { margin: 0; }
+  ul { padding-left: 20px; } li { margin: 0 0 6px; }
+</style>
+<main>
+  <p class="eyebrow">Locus, client channels</p>
+  <h1>How the client reporting loop works</h1>
+  <p class="lead">Two posts a week-day, both from Cole, both built from numbers and from what a person typed. Locus writes no sentence a client reads.</p>
+
+  <h2>The week, start to finish</h2>
+  <ol class="week">
+    <li><b>Every morning, 5am</b><span>Locus pulls yesterday from Triple Whale and Meta and posts the <b>daily</b> to each client channel as Cole. No daily on a Monday or the 1st: the report covers that day.</span></li>
+    <li><b>Monday, 5am</b><span>The <b>weekly draft</b> posts to #daily-briefs, numbers only. Nothing goes to the client yet.</span></li>
+    <li><b>Monday, 8am call</b><span>The strategist reads the week in their own words and types the batches, the jobs and the asks on the call screen (Work &gt; Calls). Those typed lines are the only words on the weekly.</span></li>
+    <li><b>Finish on the call screen</b><span>Batches become numbered briefs in Asana and Production cards. Asks go into Requests with a date. "This week" lands on the weekly draft. The draft card in #daily-briefs is redrawn with the client text.</span></li>
+    <li><b>Monday, after the call</b><span>Cole presses Send on the card. The <b>weekly</b> goes to the client channel. If nobody presses it, nothing goes.</span></li>
+    <li><b>Tuesday to Sunday</b><span>Dailies only. A buyer who wants a line under the numbers types it in the brief's note box; it shows as <b>Next</b> for two days. Fireflies reads the call afterwards and adds anything said and not typed, as a card to approve, never to the client.</span></li>
+  </ol>
+
+  <h2>Where every line comes from</h2>
+  <div class="wrap"><table>
+    <tr><th>Line</th><th>Source</th><th>Written by</th></tr>
+    <tr><td>Sales, ad spend, MER, aMER</td><td>Triple Whale (sales, spend). Spend is checked against Meta's own figure.</td><td>Numbers</td></tr>
+    <tr><td>plan $1,800 / under plan</td><td>The brand's monthly goal on Home &gt; Goals, split by weekday. "Best day this month" when it beats every other day.</td><td>A rule</td></tr>
+    <tr><td>October so far</td><td>The month to date against the plan to date (not the whole month's goal).</td><td>Numbers</td></tr>
+    <tr><td>Next</td><td>The buyer's note box on the brief. Empty box, no line.</td><td>A person</td></tr>
+    <tr><td>The thread</td><td>Orders, new vs returning, each ad channel that spent (Meta, Google) with the sales Triple Whale tracked to it, contribution margin when the cost data is trusted.</td><td>Numbers</td></tr>
+    <tr><td>Weekly sentence</td><td>Sales and ad spend against last week, and what that did to each ad dollar. One of nine fixed sentences.</td><td>A rule</td></tr>
+    <tr><td>Contribution margin</td><td>Sales minus product cost, shipping, handling, payment fees and all ad spend. Left out when Triple Whale's cost data is incomplete for the brand.</td><td>Numbers</td></tr>
+    <tr><td>This week</td><td>The batches and the read typed on the Monday call, put into client words (no names, no costs), plus calendar dates going live in the next 7 days.</td><td>A person, tidied</td></tr>
+    <tr><td>We need from you</td><td>The asks typed on the call (Requests), with the date they were asked and the date they are needed, plus the calendar's asks (photos, an offer to decide).</td><td>A person</td></tr>
+  </table></div>
+
+  <h2>The rule on channels</h2>
+  <div class="rule"><p>The top post never names a channel. The thread names every ad channel that spent that day, biggest first, with the sales Triple Whale tracked to it. Under two tracked orders the rate is withheld ("too few tracked orders to rate yet"). Attribution not synced yet: spend only. Meta and Google appear because the agency runs ads there; TikTok joins the same way the day it spends.</p></div>
+
+  <h2>The daily, as the client sees it</h2>
+  <div class="post"><b>Dartee Golf · Daily update</b>
+<b>Yesterday, Thursday Oct 15</b>
+• Sales: <b>$1,458</b> (plan $1,800, under plan)
+• Ad spend: <b>$519</b>
+• MER: <b>2.81x</b>
+• aMER (new customers): <b>1.89x</b>
+
+<b>October so far</b> (15 of 31 days)
+• Sales: <b>$17.8K</b> of $27K planned
+• Ad spend: <b>$9,064</b>
+• MER: <b>1.97x</b>
+
+<i>More numbers in the thread.</i></div>
+  <p class="eyebrow" style="margin-top:14px">The thread reply</p>
+  <div class="post"><b>More on Thursday Oct 15</b>
+• Sales from new customers: <b>$982</b>, returning <b>$476</b>
+• Meta: <b>$396</b> spent, <b>$1,280</b> in sales tracked to it (3.23x)
+• Google: <b>$123</b> spent, <b>$269</b> in sales tracked to it (2.19x)
+• Contribution margin: <b>$601</b>
+
+<i>Sales tracked to a channel are Triple Whale's count, so the channels can add up to more than the day. Contribution margin = sales minus product cost, shipping, fees and ad spend.</i></div>
+
+  <h2>The weekly, as the client sees it</h2>
+  <div class="post"><b>Dartee Golf · Weekly report, Oct 12 to 18</b>
+<i>Sales up 7% on 22% less ad spend, so each ad dollar brought back more.</i>
+
+<b>The week</b> (compared with the week before)
+• Sales: <b>$7,318</b> (up 7%)
+• Ad spend: <b>$3,650</b> (down 22%)
+• MER: <b>2.01x</b> (was 1.46x)
+• aMER (new customers): <b>1.50x</b> (was 1.09x)
+• Contribution margin: <b>$1,907</b> (was $355)
+<i>Contribution margin = sales minus product cost, shipping, fees and ad spend.</i>
+
+<b>This week</b>
+• (the lines typed on the Monday call go here)
+
+<b>We need from you</b>
+• Film two higher production concepts this week: switching ball markers on the belt and switching the belt across outfits (asked Oct 13, needed by Oct 16)
+
+Open the full report</div>
+
+  <h2>Personality, and where it lives</h2>
+  <p>Locus does not write voice. A machine that tries to sound like the team sounds like a machine, and the client learns to skim it. So the posts are plain and the same every day, and the personality lives in the three places a person types: the daily's <b>Next</b>, the weekly's <b>This week</b>, and the asks. A good week gets a good sentence because the numbers earned it, not because a model felt like it. When something deserves a joke or an emoji, the strategist types it in Next, and that is the line the client reads first.</p>
+
+  <h2>What changed in this pass</h2>
+  <ul>
+    <li>The daily lost its AI headline ("Meta returning 3.24 per dollar"). The title is "Daily update"; the date sits on the Yesterday line.</li>
+    <li>The thread is numbers only. The AI narrative (What we saw, What it means, What we're doing) no longer reaches a client.</li>
+    <li>The weekly sentence is written by a rule from the two numbers that moved, not by a model.</li>
+    <li>"Profit" is "Contribution margin", defined under the number.</li>
+    <li>"This week" only takes calendar dates in the next 7 days (Nov 1 no longer shows on Oct 19).</li>
+    <li>Asks carry when they were asked and when they are needed.</li>
+  </ul>
+
+  <h2>Still to do</h2>
+  <ul>
+    <li>A "for the client" box per brand on the call screen, so This week is the strategist's own words with no tidying step.</li>
+    <li>The daily's Next line stored on the brief (three doors: the brief, the call screen, Slack) with a seven-day expiry, instead of the buyer's note box.</li>
+    <li>The one-screen report page behind "Open the full report".</li>
+  </ul>
+</main>

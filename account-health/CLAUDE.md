@@ -2495,3 +2495,71 @@ Screens in profit/CLAUDE.md, same date.
   among the report's ads over the floor, never the same ad twice, plus `bar` (those ads together) and `pool`. The plan
   split no longer seeds a "read" (the posts are shown instead); batches come only from Ahsan's, Noma's or Cole's posts
   (hash prefix `v4:`). meetings.js `mondayScreen` reads every brand at once.
+- **Phase 2 (not built):** the Week (hour grid, ready tray, composer) and posting direct. For Lucky (Cole's own assets,
+  Cole is admin of the Mobius Tools Meta app) Instagram and Facebook posting need NO app review: Standard Access covers
+  accounts whose people have a role on the app; the system-user token needs `instagram_content_publish` and
+  `pages_manage_posts` added (Cole, Business settings). TikTok Content Posting (developers.tiktok.com, a different
+  product from the ads app) and YouTube upload (Google verification) both need a screen recording of the working
+  posting screen, so they are filed once phase 2's screen exists; until approved TikTok posts land as drafts / private,
+  YouTube uploads as private.
+
+## 2026-10-19: CLIENT CHANNELS, ONE SENDER, ONE POST A DAY (`src/clientpost.js`). The reporting audit, phase 1. Read before posting anything to a client.
+
+Audit and the approved shapes: `docs/locus-reporting-audit.html` (https://claude.ai/artifact/NnXTs45GGJpURc7zmKtSEB). Cole: client posts were stacked and
+text heavy, from three senders (his token, a bot renamed Mobius Digital, the Locus bot), the weekly went out at 6am with an empty "This week" because the
+Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
+- **Only Cole's user token posts to a client channel (`brief_channel`), and only two shapes.** `clientpost.js` draws both from stored numbers:
+  `dailyPost` = `*Brand · Saturday, Oct 17*` / `Sales $719 · Ads $489 · 1.47x   under plan` (one verdict word: on plan, under plan, best day this month;
+  no bracketed percentages) / the brief's headline (`headlineOf`, the bold line in the opener paragraph) / `October: $19.6K of $30.6K planned, 17 days in.` /
+  `*Next:* ...` ONLY when a person wrote one (phase 1: the buyer's note box, `briefNote:<act>`, kept 2 days; the model never fills it). No "Hey Team" opener.
+  `sendBrief` posts it (`clientDailyFor`) and the full brief as ONE thread reply (`briefThreadText`). **One day per post**: a brief covering missed days posts
+  one six-line message per missed day first (oldest first, marked sent), and a day more than two days old is not posted at all. `shortBriefText`,
+  `brandHasClientLogin` and the `briefClientStyle` switch are gone from the send path (the Locus setting is dead; its card can go in a later pass).
+- **The weekly and monthly** (`sendReport` -> `clientReportText` -> `weeklyPost`): `*Brand · week of Oct 12*` / four numbers with ONE comparison each vs the
+  prior period (`▲7%` `▼15%` `flat`, MER as `(was 1.46x)`, Profit left out when CM is unknown) / one sentence (`sentenceOf` = the first sentence of the
+  summary's What it means, else `reportSentence`, one small model call) / `*This week*` = `reports.data_json.this_week` (the Monday call's confirm) merged
+  with the calendar's confirmed dates in the next 14 days (calendar.js `clientCalendarFor`, the same `clientBits` the preview route reads) / `*From you:*` =
+  `need_from_you` + the calendar's asks + open `p_request` asks / `<link|Open the report>`. Nothing else. The draft card (`reportCard`) shows this exact text.
+- **When the weekly sends:** on the Monday call's confirm (meetings.js `confirm`, step 2: `d.sendReport` for a brand with `review_first` OFF; a review-first
+  brand gets its card redrawn so Send carries the new text, and a person presses it), else `reportFallbackPass` at 11am Central sends a review-first-OFF
+  brand's draft as it stands (no This week block). `reportsPass` at 6am DRAFTS ONLY now, whatever `review_first` says: the old auto-send is gone, so the
+  code matches "nothing reaches a client automatically". Every brand has review_first on today, so in practice a person presses Send after the call.
+- **Bot posts into client channels, removed:** calendar.js `calendarClient` branch deleted (the Monday "This week and next" and "we need from you" ride in
+  the weekly's This week / From you); `POST /api/share/slack` refuses `to: 'client'` and GET answers `client: null`; the connect-link "Copy message" was
+  already copy-only (profit index.html; nothing posts it). **"Grunk Dolfer Inventory Alerts" is NOT this codebase**: Supply / the Restock engine only know
+  Lucky (`STORES`, D1 `brands`, KV `settings.stores`), and no file here says "Don't Advertise". It is a separate Slack app; its channel is changed in that
+  app, not here.
+- **The one-channel guard everywhere** (`oneChannel` / `internalChannel`: `slack_channel === brief_channel` means the brand has no internal channel):
+  `deliveryPass` (falls to the agency `slackChannel`), actions.js `actionTick` (falls to the owner's DM), minoff.js (skipped), askschedule
+  `allowedChannels` (left out), alerts.js `channelOf` (falls to the Strategist channel), calendar.js `calendarTick` (skipped), asana-brand.js
+  `mondayCalls` (no channel). `meetingDeps().listBrands` now carries `brief_channel` and `review_first`.
+- **Preview** (admin): `GET /api/client-post/preview?act=<brand>[&post=1]` = the daily from the brand's latest brief and the weekly from its latest weekly
+  report, as text; `post=1` posts ONE preview message to `strategistChannel`, never to a client.
+- **Second pass the same day (Cole: "structured, bulleted, clear on what everything is").** Both posts are now labelled bullets.
+  Daily: title, the headline in italics, `*Yesterday*` (Sales with "(plan $X, under plan)", Ad spend, MER, aMER (new customers)),
+  `*October so far* (15 of 31 days)` (Sales of plan to date, Ad spend, MER), Next only when written, "_Full update in the thread._".
+  Weekly: `*Brand · Weekly report, Oct 12 to 18*`, the sentence in italics, `*The week* (compared with the week before)` with
+  Sales / Ad spend "(up 7%)" in words, MER / aMER / Profit "(was ...)", then This week, `*We need from you*` (3 at most, clipped
+  at 120 characters), "Open the full report". The preview route posts the daily and the weekly as two messages with permalinks.
+- **Third pass the same night (Cole: "it shouldn't sound like AI"; the loop on one page: docs/client-reporting-how-it-works.html).
+  NO MODEL WRITES A LINE A CLIENT READS.** The daily's AI headline is gone (title `*Brand · Daily update*`, then `*Yesterday, Thursday
+  Oct 15*`); the thread reply is `dailyThread` (numbers only: orders, new vs returning, every ad channel that spent with the sales Triple
+  Whale tracked to it, the rate withheld under two orders, contribution margin only when judgeCogs trusts the costs, one line of
+  definitions), never the brief's narrative (`briefThreadText` deleted). The weekly's sentence is `weekSentence` (nine fixed shapes
+  from sales and spend vs the period before; `sentenceOf` / `reportSentence` deleted), "Profit" is "Contribution margin" with
+  `CM_WORDS` under it, This week takes calendar dates in the next 7 days (`clientCalendarFor(..., {days: 6})`), and a Requests ask
+  reads "(asked Oct 13, needed by Oct 22)" from `created_at` and the body's "Needed by". The only non-number words a client gets are
+  typed: Next (the buyer's note), This week (callscreen.js `clientLines` tidies the call's typed batches into client words; a
+  "for the client" box would remove even that), the asks. The preview route posts the daily's thread too. test-clientpost.mjs 13.
+- **2026-10-20: THE DRAFT CARD SHOWS THE CLIENT TEXT.** Cole saw the morning's six cards in #daily-briefs as "long messages":
+  `briefCard` still drew the stored AI brief (row.text), which a client never receives any more. Now `slackSyncBrief` (and the fresh
+  post in `draftBrief`) builds `clientPreviewFor` = `clientDailyFor` + `clientDailyThreadFor` from one `briefData` read (no model)
+  and the card body is that daily with "_In the thread under it:_" and the thread, header "what the client gets, word for word".
+  "Edit the wording" and "Rewrite with AI" are gone from a client brand's card (they edit text nobody reads); "Open in Locus" reads
+  "Write the Next line in Locus". An internal-only brand (no brief_channel, e.g. Lucky) keeps the AI brief and both buttons: the
+  team is its reader. `clientCardsOnce` (keyed `clientCardsUpgrade`) redrew the live draft cards of the last two days on the first
+  hourly tick after deploy. Still open: `makeBrief` still pays for a narrative nobody sends for review-first client brands; the
+  Locus Brief page still shows it (as history) with the client daily above it.
+  ALSO THAT MORNING: a deploy from a branch without this audit (PR #29's) rolled the live worker back to the pre-audit code for
+  about twenty minutes (10:34Z to 10:52Z); nothing was sent in that window. Deploy from main or a branch that has main merged.
+

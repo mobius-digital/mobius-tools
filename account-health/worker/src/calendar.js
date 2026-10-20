@@ -461,7 +461,8 @@ export async function calendarTick(env, d) {
   const team = await teamNames(env);
   const { results: logs } = await env.CAL.prepare(`SELECT * FROM changelog WHERE created_at > ?1 ORDER BY created_at LIMIT 50`).bind(cur).all().catch(() => ({ results: [] }));
   const brands = await brandsList(env, 'all');
-  const chanOf = slug => (brands.find(b => b.act_id === idOfSlug(slug)) || {}).slack_channel || null;
+  /* 2026-10-19: a brand whose internal channel IS its client channel gets no team post here. */
+  const chanOf = slug => { const b = brands.find(x => x.act_id === idOfSlug(slug)); return b && b.slack_channel && b.slack_channel !== b.brief_channel ? b.slack_channel : null; };
   /* 2026-10-13: team posts go under today's morning card in the brand channel (a reply, the strategist tagged);
      with no card today they post top-level as before (morningcard.js teamPost). */
   const leads = await teamOf(env, brands.map(b => b.act_id)).catch(() => ({}));
@@ -484,7 +485,7 @@ export async function calendarTick(env, d) {
      "Live tomorrow" rides on the morning card while it is on (2026-10-13), so it is not posted twice. */
   const carded = await cardOn(env).catch(() => false);
   for (const b of data.brands) {
-    if (!b.channel) continue;
+    if (!b.channel || b.channel === b.client_channel) continue;
     const mine = data.items.filter(e => e.act === b.id);
     const lines = [];
     for (const e of mine) {
@@ -499,17 +500,9 @@ export async function calendarTick(env, d) {
     const text = lines.join('\n');
     try { await teamPost(env, d, b.channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open the calendar' }, url: `${LOCUS}?open=calendar&act=${b.id}` }] }], { username: 'Locus', tagName: leadOf(b.id) }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
   }
-  /* External: the client's channel, two posts only (clientMessages). Off until settings calendarClient = 'on'. */
-  if ((await d.getSetting(env, 'calendarClient').catch(() => null)) === 'on') {
-    out.client = [];
-    for (const b of data.brands) {
-      /* A brand with ONE channel (Lucky Golf: our own brand, its channel is the client's) gets the client posts there. */
-      const ch = b.client_channel || b.channel; if (!ch) continue;
-      for (const m of clientMessages(data, b, today)) {
-        try { await d.slackPost(env, ch, m.text, [{ type: 'section', text: { type: 'mrkdwn', text: m.text.slice(0, 2900) } }], { username: 'Mobius Digital' }); out.client.push(`${b.name}:${m.kind}`); } catch (e) { out.error = e.message; }
-      }
-    }
-  }
+  /* The calendar posts NOTHING to a client channel any more (the reporting audit, 2026-10-19): what used to be the
+     Monday "This week and next" and "we need from you" posts rides inside the weekly report's This week and From you
+     (worker.js clientReportText, through clientCalendarFor below). settings.calendarClient is dead. */
   return out;
 }
 
@@ -524,26 +517,44 @@ export async function calendarTick(env, d) {
  * calendarClient = 'on' (off until Cole says go); GET /api/calendar/client-preview shows what would post. */
 const clientName = n => String(n || '').replace(/\s*\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
 const mailNameC = n => { const parts = String(n || '').split(/\s+-\s+/); const i = parts.map(p => /\d{1,2}\/\d{1,2}(\/\d{2,4})?/.test(p)).lastIndexOf(true); return (i >= 0 && i < parts.length - 1 ? parts.slice(i + 1).join(' - ') : parts[parts.length - 1]).trim() || n; };
+/** The pieces a client hears about: confirmed dates going live in 14 days, scheduled sends, what we need from them,
+ *  what goes live tomorrow. ONE computation, read by clientMessages (the preview) and clientCalendarFor (the weekly). */
+export function clientBits(data, b, today, days = 13) {
+  const mine = data.items.filter(e => e.act === b.id);
+  const soon = mine.filter(e => e.status === 'conf' && e.start >= today && e.start <= add(today, days)).sort((x, y) => x.start.localeCompare(y.start));
+  const sends = (data.emails || []).filter(m => m.act === b.id && m.status === 'scheduled' && m.date >= today && m.date <= add(today, 13)).sort((x, y) => x.date.localeCompare(y.date));
+  const need = [];
+  for (const e of mine) {
+    if (e.src === 'cal' && e.kind === 'drop' && !e.assets && e.start >= today && e.start <= add(today, 28)) need.push(`Photos for ${clientName(e.name)} (live ${wd(e.start)} ${md(e.start)})${e.assets_due ? `, by ${md(e.assets_due)}` : ''}`);
+    if (e.src === 'cal' && ['sale', 'drop'].includes(e.kind) && !e.offer && e.start >= today && e.start <= add(today, 21)) need.push(`What customers get with ${clientName(e.name)}: full price or a deal?`);
+    if (e.src === 'season' && e.status === 'miss' && e.start >= today && e.start <= add(today, 35)) need.push(`Your ${clientName(e.name)} offer (starts ${md(e.start)})`);
+    if (e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7)) need.push(`Is ${clientName(e.name)} still running? It has no end date yet.`);
+  }
+  const tomorrow = mine.filter(e => e.start === add(today, 1) && e.status === 'conf');
+  return { soon, sends, need: [...new Set(need)], tomorrow };
+}
+/** For the weekly client post (worker.js clientReportText, which asks for 7 days): the brand's confirmed dates going live soon
+ *  as plain lines, and what we need from the client. Empty lists when the brand is not on the calendar. */
+export async function clientCalendarFor(env, act, today = centralToday(), { days = 13 } = {}) {
+  const data = await calendarData(env, { act, from: add(today, -60), to: add(today, 30), today });
+  const b = (data.brands || []).find(x => x.id === act);
+  if (!b) return { going_live: [], need: [] };
+  const bits = clientBits(data, b, today, days);
+  return {
+    going_live: bits.soon.map(e => `${clientName(e.name)} goes live ${wd(e.start)} ${md(e.start)}${e.end && e.end !== e.start ? ` (to ${md(e.end)})` : ''}`),
+    need: bits.need,
+  };
+}
 export function clientMessages(data, b, today) {
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
-  const mine = data.items.filter(e => e.act === b.id);
-  const tomorrow = mine.filter(e => e.start === add(today, 1) && e.status === 'conf');
+  const { soon, sends, need, tomorrow } = clientBits(data, b, today);
   const out = [];
   if (monday) {
-    const soon = mine.filter(e => e.status === 'conf' && e.start >= today && e.start <= add(today, 13)).sort((x, y) => x.start.localeCompare(y.start));
-    const sends = (data.emails || []).filter(m => m.act === b.id && m.status === 'scheduled' && m.date >= today && m.date <= add(today, 13)).sort((x, y) => x.date.localeCompare(y.date));
-    const need = [];
-    for (const e of mine) {
-      if (e.src === 'cal' && e.kind === 'drop' && !e.assets && e.start >= today && e.start <= add(today, 28)) need.push(`Photos for ${clientName(e.name)} (live ${wd(e.start)} ${md(e.start)})${e.assets_due ? `, by ${md(e.assets_due)}` : ''}`);
-      if (e.src === 'cal' && ['sale', 'drop'].includes(e.kind) && !e.offer && e.start >= today && e.start <= add(today, 21)) need.push(`What customers get with ${clientName(e.name)}: full price or a deal?`);
-      if (e.src === 'season' && e.status === 'miss' && e.start >= today && e.start <= add(today, 35)) need.push(`Your ${clientName(e.name)} offer (starts ${md(e.start)})`);
-      if (e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7)) need.push(`Is ${clientName(e.name)} still running? It has no end date yet.`);
-    }
     if (!soon.length && !sends.length && !need.length) return out;
     const L = [soon.length || sends.length ? `*This week and next at ${b.name}*` : `*From Mobius Digital: what we need from you*`];
     if (soon.length) L.push(...soon.map(e => `• ${wd(e.start)} ${md(e.start)}: ${clientName(e.name)} goes live${e.end && e.end !== e.start ? ` (to ${md(e.end)})` : ''}`));
     if (sends.length) L.push(`• Emails and texts going out: ${sends.slice(0, 8).map(m => `${wd(m.date)} ${md(m.date)} "${mailNameC(m.name)}"`).join(', ')}${sends.length > 8 ? `, and ${sends.length - 8} more` : ''}`);
-    if (need.length) L.push(...(soon.length || sends.length ? ['', '*We need from you*'] : []), ...[...new Set(need)].slice(0, 5).map(x => `• ${x}`));
+    if (need.length) L.push(...(soon.length || sends.length ? ['', '*We need from you*'] : []), ...need.slice(0, 5).map(x => `• ${x}`));
     out.push({ kind: 'monday', text: L.join('\n') });
     return out;
   }
