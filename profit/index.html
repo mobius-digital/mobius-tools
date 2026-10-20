@@ -2040,6 +2040,9 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 .lx .v2say .good{color:var(--good)} .lx .v2say .bad{color:var(--bad)} .lx .v2say .warn{color:var(--warn)}
 .lx .v2tiles .v2tile .sub .pill{margin-left:0}
 .lx-t3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.lx-t4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.lx-t4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lx .jr-then .pill{white-space:normal;text-align:left;line-height:1.3}
 @media (max-width:900px){.lx-t3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .lx-t5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
 @media (max-width:1150px){.lx-t5{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -2237,7 +2240,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=8">
+<link rel="stylesheet" href="lx.css?v=9">
 <link rel="stylesheet" href="phone.css?v=15">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2383,7 +2386,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
 <script src="lx.js?v=7"></script>
-<script src="v2.js?v=62"></script>
+<script src="v2.js?v=64"></script>
 <script src="leaks.js?v=7"></script>
 <script src="desk.js?v=28"></script>
 <script src="agency.js?v=2"></script>
@@ -2600,7 +2603,7 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['calls', 'ccall', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'social', 'socialsaved', 'socialweek', 'yesterday', 'leaks', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta'].includes(open)) {
+  if (open && ['calls', 'ccall', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'social', 'socialsaved', 'socialweek', 'yesterday', 'leaks', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta', 'guide', 'website', 'inspo', 'library', 'search', 'mtoday', 'mbrowser', 'economics', 'workload'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -11027,7 +11030,7 @@ function ltvCurve(j, cur) {
       lines: cac ? [{ v: cac, color: '--bad', label: `Cost to get one ${fmtMoney(cac, cur)}` }, { v: cac * 3, color: '--good', label: '3x the cost' }] : [], tips }) : '';
   return `<section class="v2card"><div class="v2h"><h3>How much they spend after the first order</h3><span class="find">${last.ltv != null ? `${fmtMoney(last.ltv, cur)} per customer by day ${last.days}.` : ''}</span></div>
     ${chart}
-    <p style="margin:12px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.55">${read}${j.first_aov != null && j.returning_aov != null ? ` A first order averages ${fmtMoney(j.first_aov, cur)}; a repeat order ${fmtMoney(j.returning_aov, cur)}.` : ''}</p>
+    <p class="v2concl">${read}${j.first_aov != null && j.returning_aov != null ? ` A first order averages ${fmtMoney(j.first_aov, cur)}; a repeat order ${fmtMoney(j.returning_aov, cur)}.` : ''}</p>
     <details class="footnote" style="margin-top:10px"><summary>The numbers behind the curve</summary>
     <div class="tbl-wrap" style="margin-top:8px"><table class="ltv-tbl"><thead><tr><th>After their first order</th><th class="num">Spent so far, per customer</th><th class="num">Have ordered again</th><th class="num">Customers counted</th></tr></thead>
       <tbody>${pts.map(p => `<tr><td><b>${p.days} days</b></td><td class="num"><b>${fmtMoney(p.ltv, cur)}</b></td><td class="num">${fmtPct(p.repeat_rate)}</td><td class="num" style="color:var(--muted)">${fmtN(p.customers)}</td></tr>`).join('')}</tbody></table></div>
@@ -11038,12 +11041,11 @@ function ltvCurve(j, cur) {
 function journeyCard(j, cur) {
   const p = j.products || {};
   const first = p.first || [];
-  if (!first.length) return `<div class="card"><h3 style="margin-bottom:4px">What they buy first, and what they buy next</h3><p class="hint" style="margin:0">No product detail yet. Triple Whale records what each shopper put in the cart; once more orders carry it, this fills in.</p></div>`;
-  return `<div class="card"><h3 style="margin-bottom:2px">What they buy first, and what they buy next <span class="info-i" title="Products come from what the shopper put in the cart before each order (Triple Whale's add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey. Connecting Shopify would make them exact.">i</span></h3>
-    <p class="hint" style="margin-bottom:8px">Each row is a product new customers start with. Under it: how many of those customers order again within 90 days, and what the ones who come back choose next.${p.coverage != null && p.coverage < 0.9 ? ` (Cart detail exists for ${fmtPct(p.coverage)} of first orders.)` : ''}</p>
+  const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
+  if (!first.length) return `<section class="v2card"><div class="v2h"><h3>What they buy first, and what they buy next</h3></div><p class="lx-empty">No product detail yet. It fills in as more orders carry cart detail.</p></section>`;
+  return `<section class="v2card"><div class="v2h"><h3>What they buy first, and what they buy next</h3><span class="find">the first product, who orders again within 90 days, what they choose next${p.coverage != null && p.coverage < 0.9 ? ` · cart detail for ${fmtPct(p.coverage)} of first orders` : ''}</span>${menu(['Products come from what the shopper put in the cart before each order (Triple Whale add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey; connecting Shopify would make them exact.', 'Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.'])}</div>
     <div class="jr-list">${first.map(f => `<div class="jr-row"><div class="jr-first"><b>${esc(f.name)}</b><span class="tiny">${fmtN(f.customers)} customers started here${f.share != null ? ` (${fmtPct(f.share)} of new customers)` : ''}${f.repeat_rate != null ? ` · <b>${fmtPct(f.repeat_rate)}</b> order again within 90 days` : ''}</span></div>
-      <div class="jr-then"><span class="tiny" style="margin-right:4px">then:</span>${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">nobody has ordered again yet</span>'}</div></div>`).join('')}</div>
-    <p class="tiny" style="margin-top:8px">Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.</p></div>`;
+      <div class="jr-then"><span class="tiny" style="margin-right:4px">then:</span>${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">nobody has ordered again yet</span>'}</div></div>`).join('')}</div></section>`;
 }
 
 /** Do repeat orders need ads, or do they arrive on their own? */
@@ -11052,10 +11054,10 @@ function sourcesCard(j) {
   if (!(s.first || []).length) return '';
   const row = (label, list) => `<div class="src-row"><div class="src-l">${label}</div><div class="src-bar">${list.map(x => `<i class="src-${esc(x.source)}" style="width:${(x.share * 100).toFixed(1)}%" title="${esc(srcLabel(x.source))} ${fmtPct(x.share)}"></i>`).join('')}</div><div class="tiny">${list.slice(0, 4).map(x => `${esc(srcLabel(x.source))} ${fmtPct(x.share)}`).join(' · ')}</div></div>`;
   const own = (s.repeat || []).filter(x => x.source === 'own' || x.source === 'email').reduce((a, x) => a + x.share, 0);
-  return `<div class="card"><h3 style="margin-bottom:2px">Do repeat orders need ads?</h3>
-    <p class="hint" style="margin-bottom:10px">What the shopper last clicked before buying (Triple Whale). "On their own" means they came straight to the site or from organic social; "Email and SMS" means a Klaviyo or SMS message.</p>
+  const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
+  return `<section class="v2card"><div class="v2h"><h3>Do repeat orders need ads?</h3><span class="find">what the shopper last clicked before buying</span>${menu('Triple Whale last click. "On their own" means they came straight to the site or from organic social; "Email and SMS" means a Klaviyo or SMS message.')}</div>
     ${row('First orders', s.first)}${row('Repeat orders', s.repeat || [])}
-    <p style="margin:10px 0 0;font-size:13.5px;color:var(--ink-2)">${own >= 0.6 ? `<b>${fmtPct(own)} of repeat orders arrive without an ad click.</b> The product and the emails are bringing people back; retargeting past customers is mostly paying for orders that would have come anyway.` : `<b>Only ${fmtPct(own)} of repeat orders arrive without an ad click.</b> The brand is paying ads to bring its own customers back. Email and SMS flows do that for a fraction of the cost.`}</p></div>`;
+    <p class="v2concl">${own >= 0.6 ? `<b>${fmtPct(own)} of repeat orders arrive without an ad click.</b> The product and the emails are bringing people back; retargeting past customers is mostly paying for orders that would have come anyway.` : `<b>Only ${fmtPct(own)} of repeat orders arrive without an ad click.</b> The brand is paying ads to bring its own customers back. Email and SMS flows do that for a fraction of the cost.`}</p></section>`;
 }
 
 /** Each month's new customers: what they cost, what they have spent since. */
@@ -11063,9 +11065,9 @@ function cohortTable(j, cur) {
   const rows = (j.cohorts || []).slice().reverse();
   if (!rows.length) return '';
   const anyYear = rows.some(r => r.ltv_365 != null);
-  return `<div class="card"><h3 style="margin-bottom:2px">Each month's new customers, followed since</h3>
-    <p class="hint" style="margin-bottom:8px">Everyone who bought for the first time in that month. "Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them. A month needs 90 days to show a figure.</p>
-    <div class="tbl-wrap"><table>
+  const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
+  return `<section class="v2card"><div class="v2h"><h3>Each month's new customers, followed since</h3><span class="find">everyone who bought for the first time that month · a month needs 90 days to show a figure</span>${menu([`"Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them.`, 'Cost to get each = that month\'s ad spend across every platform divided by its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.'])}</div>
+    <div class="v2tbl"><table>
       <thead><tr><th>First bought</th><th class="num">New customers</th><th class="num">Cost to get each</th><th class="num">Spent in 90 days</th>${anyYear ? '<th class="num">Spent in a year</th>' : ''}<th class="num">Back per $1</th><th class="num">Ordered again</th></tr></thead>
       <tbody>${rows.map(r => { const lc = r.ltv_cac_365 ?? r.ltv_cac_90; return `<tr${r.uncertain ? ' style="opacity:.55"' : ''}>
         <td><b>${esc(monthLabel(r.month))}</b>${r.uncertain ? ' <span class="tiny" title="Our history starts just before this month, so some of these people may have bought earlier">first months on record</span>' : ''}</td>
@@ -11073,8 +11075,7 @@ function cohortTable(j, cur) {
         <td class="num">${r.ltv_90 != null ? fmtMoney(r.ltv_90, cur) : '<span class="tiny">under 90 days old</span>'}</td>
         ${anyYear ? `<td class="num">${r.ltv_365 != null ? fmtMoney(r.ltv_365, cur) : '<span class="tiny">under a year old</span>'}</td>` : ''}
         <td class="num">${lc != null ? `<span class="pill ${lc >= 3 ? 'good' : lc >= 1.5 ? 'warn' : 'bad'}">${lc.toFixed(1)}x</span>` : ' - '}</td>
-        <td class="num">${fmtPct(r.repeat_rate)}</td></tr>`; }).join('')}</tbody></table></div>
-    <p class="tiny" style="margin-top:8px">Cost to get each = that month's ad spend across every platform ÷ its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.</p></div>`;
+        <td class="num">${fmtPct(r.repeat_rate)}</td></tr>`; }).join('')}</tbody></table></div></section>`;
 }
 
 async function renderCustomersAll() {
@@ -11158,7 +11159,8 @@ async function renderCustomers(first) {
     LX.tile({ compact: true, label: 'Spent in their first 90 days', value: c90 && c90.ltv != null ? fmtMoney(c90.ltv, cur) : '<span style="color:var(--muted)">–</span>', sub: c90 && c90.ltv != null ? `per customer, ${fmtN(c90.customers)} old enough to count` : 'needs 90 days of history', info: 'Everything the average customer has spent in the 90 days after their first order, from Triple Whale order history.' }),
     LX.tile({ compact: true, label: 'Spent in their first year', value: c365 && c365.ltv != null ? fmtMoney(c365.ltv, cur) : '<span style="color:var(--muted)">–</span>', sub: c365 && c365.ltv != null ? `per customer, ${fmtN(c365.customers)} old enough to count` : 'needs a year of history', info: 'Everything the average customer has spent in the 365 days after their first order.' }),
     LX.tile({ compact: true, label: 'Order again', value: have && j.repeat_rate_ever != null ? fmtPct(j.repeat_rate_ever) : fmtPct(h.repeat_share), sub: have && j.days_to_second != null ? `the second order usually comes after ${fmtDays(j.days_to_second)}` : have ? 'of customers ever place a second order' : 'of orders were from past customers', info: have ? 'Share of customers who placed a second order, and how long the typical one took. Time the post-purchase emails to land just before that.' : 'Share of orders placed by someone who had bought before.' }),
-  ].join('');
+  ];
+  const tileRow = tiles.slice(0, 3).concat(tiles[5]).join(''), tileMore = tiles.slice(3, 5).join('');
 
   $('#main').innerHTML = shell(`
     <section class="card sc ${v.tone}"><div class="cu-ver ${v.tone}">
@@ -11167,9 +11169,10 @@ async function renderCustomers(first) {
         <p style="margin:0;color:var(--ink-2);font-size:13.5px;max-width:86ch;line-height:1.6">${v.body}</p></div>
       ${gauge}</div></section>
     ${h.thin ? `<div class="notice warn"><div><b>Only ${h.new_orders} new customers in this window.</b> The cost to get a customer swings on small numbers. Widen the date range, or read the month-by-month table.</div></div>` : ''}
-    <div class="lx-t3">${tiles}</div>
+    <div class="lx-t4">${tileRow}</div>
+    <details class="rp-more"><summary><span>Spent in their first 90 days and first year</span></summary><div class="lx-t4" style="padding:0 16px 16px">${tileMore}</div></details>
     ${have ? `${ltvCurve(j, cur)}${cohortTable(j, cur)}<div class="v2two eq">${journeyCard(j, cur)}${sourcesCard(j)}</div>`
-    : `<div class="card"><h3 style="margin-bottom:4px">What they spend over time, and what they buy</h3><p class="hint" style="margin:0">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'} Until then this page shows the first-order numbers only.</p></div>`}
+    : `<section class="v2card"><div class="v2h"><h3>What they spend over time, and what they buy</h3></div><p class="lx-empty">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'}</p></section>`}
     <div id="cuSurvey"></div>
     <details class="footnote"><summary>Where these numbers come from, and what is approximate</summary>
       <div class="fn-body">The cost to get a customer and the first-order figures are Triple Whale store totals for the selected window. Spend over time, who orders again, how fast, and what they buy follow real customers through Triple Whale’s order history${have ? ` (${j.history.days} days on record, ${fmtN(j.customers)} customers; ${fmtN(j.guest_orders)} guest orders cannot be followed)` : ''}. People first seen in the first 60 days of that history may have bought before it starts, so they are left out of the averages. Products are what the shopper put in the cart, not the receipt. Connect Shopify (Settings) for exact order lines.</div></details>`);

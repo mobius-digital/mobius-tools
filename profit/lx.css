@@ -318,3 +318,6 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 [data-ui="v2"] .v2tbl th{white-space:normal;overflow-wrap:normal;hyphens:none}
 [data-ui="v2"] .v2tbl .lx-aft{flex-direction:column;align-items:flex-end;gap:2px}
 [data-ui="v2"] .v2tbl .lx-aft em{white-space:nowrap;line-height:1.2;font-size:11px}
+
+/* Website > Who visits: two half-width tables, the first column needs no 140px floor */
+[data-ui="v2"] .lx-who .v2tbl td:first-child,[data-ui="v2"] .v2two .v2tbl td:first-child{min-width:0}
