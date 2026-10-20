@@ -436,3 +436,10 @@ body.lxs-open{overflow:hidden}
   /* the two-column card rows stack (they already do under 1150); the gallery is two across */
   [data-ui="v2"] .v2gal{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 }
+/* PHASE 7 (2026-10-20), the Ads page's "counts as one" rows: a text cell's names wrap, and a card-row table never
+   pushes the page sideways */
+@media (max-width:600px){
+  [data-ui="v2"] .v2tbl{overflow-x:clip}
+  [data-ui="v2"] .v2tbl td.txt,[data-ui="v2"] .v2tbl td.txt *{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+  [data-ui="v2"] .v2tbl td b{white-space:normal;overflow-wrap:anywhere}
+}

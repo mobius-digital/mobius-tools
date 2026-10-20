@@ -1200,7 +1200,8 @@
     { k: 'purchase_rate', l: 'Cart to purchase', v: x => x.purchase_rate },
     { k: 'platform_revenue', l: 'Meta revenue', v: x => x.platform_revenue, tip: 'Meta’s own purchase value.', hide: () => isPlat() },
   ];
-  const META_DEF = ['status', 'budget', 'spend', 'purchases', 'platform_purchases', 'revenue', 'roas', 'cpa', 'cpm', 'ctr', 'frequency', 'hook', 'hold'];
+  /* PHASE 7: eight columns fit at 1024 without a sideways scroll; Meta's own count, CPM, CTR, hook and hold wait in Columns */
+  const META_DEF = ['status', 'budget', 'spend', 'purchases', 'revenue', 'roas', 'cpa', 'frequency'];
 
   /* ---------- live state and edits (Meta) ---------- */
   let MLIVE = null, MLIVE_ACT = null, MLIVE_AT = 0;
@@ -1243,7 +1244,7 @@
 
   const CAMP_OPEN = new Set();
   function campTable(b, cur, full) {
-    const defs = META_COLS(), st = TBL.load('meta-camps', defs, META_DEF);
+    const defs = META_COLS(), st = TBL.load('meta-camps2', defs, META_DEF);
     /* OVERVIEW SHOWS THE TOP 5, CAMPAIGNS SHOWS ALL (2026-10-09, Cole asked what the difference was). Overview is the
        read: the five campaigns that spent most. The Campaigns page is the work: every campaign, ad set and ad, edited. */
     const nC = (b.campaigns || []).length;
@@ -1310,7 +1311,7 @@
     const full = H.S.tab === 'campaigns';
     const adsById = new Map(); for (const cp of b.campaigns || []) for (const st of cp.adsets || []) for (const a of st.ads || []) adsById.set(a.id, a);
     MED = medians([...adsById.values()], (b.goals || {}).cpa || 50);
-    const defs = META_COLS(), st = TBL.load('meta-camps', defs, META_DEF);
+    const defs = META_COLS(), st = TBL.load('meta-camps2', defs, META_DEF);
     const wrap = root.querySelector('#v2campwrap'); if (!wrap) return;
     const card0 = wrap.closest('.v2card');
     const redraw = () => { wrap.innerHTML = campRows(b, cur, full, st, defs); wireRowsCamp(); };

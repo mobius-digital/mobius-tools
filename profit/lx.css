@@ -330,3 +330,18 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 [data-ui="v2"] .v2tgrid{grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr))}
 [data-ui="v2"] .v2tg{min-width:0;overflow:hidden}
 [data-ui="v2"] .v2h > .cap{min-width:0;max-width:100%}
+
+/* iPad (phase 7): tables tighten before they would scroll sideways; the bars inside cells give first */
+@media (max-width:1100px){
+  [data-ui="v2"] .v2tbl td,[data-ui="v2"] .v2tbl th{padding:8px 6px;font-size:12.5px}
+  [data-ui="v2"] .v2tbl th.v2srt button{padding:6px 4px;font-size:10.5px}
+  [data-ui="v2"] .v2tbl .v2ib{grid-template-columns:36px auto;gap:6px}
+  [data-ui="v2"] .v2tbl .v2ib span{min-width:40px}
+  [data-ui="v2"] .v2tbl td:first-child{min-width:110px}
+  [data-ui="v2"] .dk .dk-row .why{white-space:normal}
+  [data-ui="v2"] .v2tbl .lx-aft .v2spark{width:64px}
+  [data-ui="v2"] .v2tbl table,[data-ui="v2"] .v2tg table{font-size:12px}
+  [data-ui="v2"] .v2tg td,[data-ui="v2"] .v2tg th{padding:7px 4px;white-space:normal}
+  [data-ui="v2"] .dk .dk-row .why,[data-ui="v2"] .dk .dk-row .why *{white-space:normal;overflow-wrap:anywhere}
+  [data-ui="v2"] .v2tbl .v2ib span{min-width:0}
+}
