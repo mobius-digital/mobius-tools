@@ -2393,9 +2393,11 @@ The screen Cole shares on the Monday call, a client call and the creative kickof
 - **Finish (Monday, client)** builds notes and writes a `p_meeting` row `live_<call id>` (kind monday_call /
   client_call, status extracted), then runs meetings.js `confirm` (the same path as an approved Fireflies call: team
   items -> p_action, batches -> numbered Asana briefs + Production cards, asks -> Requests, "This week" -> the open
-  weekly draft, one Slack note per brand). "This week" lines are written by one Sonnet 5.5 call from each brand's read
-  and batches (`clientLines`, client words, no names or costs). The client recap posts to `brief_channel` only when the
-  person ticked it.
+  weekly draft, one Slack note per brand). "This week" = the brand's "For the client" box on the Monday screen
+  (`state.brands[act].client`, `typedLines`: one line per typed line, word for word, only clean/noDash, 5 max), so the
+  strategist's own words reach the client with no model in between (Cole's rule 2026-10-19: no model writes a line a
+  client reads). Only a brand whose box is empty falls back to `clientLines` (one Sonnet 5.5 call from the read and
+  batches). The client recap posts to `brief_channel` only when the person ticked it.
 - **Fireflies afterwards**: meetings.js `extract` reads `typedOnCall(env, date)` and tells the model those items were
   already typed; it returns only what was said and not typed (summary prefixed "Also said on the call, not typed").
   Nothing new = the meeting is `skipped` with "everything said was typed on the call screen".

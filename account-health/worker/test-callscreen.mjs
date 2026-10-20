@@ -1,6 +1,6 @@
 // Offline checks for the call screens (src/callscreen.js). Run: node test-callscreen.mjs
 import { _test, handleCalls } from './src/callscreen.js';
-const { winnersLosers, callId, parked } = _test;
+const { winnersLosers, callId, parked, typedLines } = _test;
 let n = 0, bad = 0;
 const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
 
@@ -23,7 +23,13 @@ ok(parked({ title: 'UGC/Video Template', num: '381', since: T }, T) && parked({ 
 ok(!parked({ title: 'Ratchet Precision', num: '259', since: '2026-10-13' }, T), 'a recent brief is not parked');
 ok(parked({ title: 'Old idea', num: '5', since: '2026-09-01', due: '' }, T) && !parked({ title: 'Old idea', num: '5', since: '2026-09-01', due: '2026-10-30' }, T), 'three weeks with no due date = parked; a due date keeps it');
 
-// 4. The routes are the team's: a client login gets 403, no login 401.
+// 4. "For the client": one line per typed line, word for word (bullets, dashes and spare spaces tidied), 5 max, empty = none (so Finish falls back to the written lines).
+const tl = typedLines('- Three new ads on the Burgundy couch video go live Thursday.\r\n\n  We keep spend flat \u2014 until the new photos land.  \n\u2022 six\nseven\neight\nnine\nten');
+ok(tl[0] === 'Three new ads on the Burgundy couch video go live Thursday.' && tl[1] === 'We keep spend flat, until the new photos land.', 'typed lines are kept word for word, bullets and dashes tidied');
+ok(tl.length === 5 && tl[4] === 'eight', 'five lines at most, blank lines skipped');
+ok(typedLines('').length === 0 && typedLines('  \n ').length === 0 && typedLines(undefined).length === 0, 'an empty box = no lines');
+
+// 5. The routes are the team's: a client login gets 403, no login 401.
 const json = (b, s = 200) => ({ status: s, body: b });
 const env = { DB: { prepare: () => ({ run: async () => ({}), bind() { return this; }, first: async () => null, all: async () => ({ results: [] }) }) } };
 const url = new URL('https://x/api/calls/screen?kind=monday');
