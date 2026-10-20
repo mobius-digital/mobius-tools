@@ -2563,3 +2563,24 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   ALSO THAT MORNING: a deploy from a branch without this audit (PR #29's) rolled the live worker back to the pre-audit code for
   about twenty minutes (10:34Z to 10:52Z); nothing was sent in that window. Deploy from main or a branch that has main merged.
 
+
+## 2026-10-20: THE TASKS AUDIT (actions.js, meetings.js, morningcard.js, todaypost.js). Read before writing a p_action row.
+
+- **`p_action.detail`** (guarded ALTER in `ensureActions`; added on prod by hand 2026-10-20). `splitTitle(raw, detail)`
+  (exported, `TITLE_MAX` 90) is the ONE door: a title over 90 chars is cut at the first sentence end, open bracket,
+  colon, semicolon or clause joiner past 18 chars, the rest goes to the detail, one outer bracket pair stripped.
+  `addAction` and `editAction` run it; `parseQuick` asks Haiku for `text` (verb first, at most 8 words) + `detail`
+  and runs it again; callscreen.js's typed jobs carry it. `openItems` and `/api/actions` items carry `detail`.
+  The 24 open rows on 2026-10-20 (20 were Cole's "BFCM ads: ..." plan rows) were split with the same function.
+- **Extraction (meetings.js)**: the prompt wants ONLY commitments (not "we should", "look into", "review"), 0 to 3
+  per brand on a Monday call, 2 to 5 on a client call, 6 max per brand (sliced), `text` as a short verb-first title,
+  `detail`, and `sure` (false when the person or the thing was not said out loud; the Meetings page starts those
+  unticked). Before: the Oct 19 Team Meeting produced 28 items and was skipped whole; 7 of 10 calls since Oct 13 skipped.
+- **The Slack note after confirm** is ONE short reply under the morning card: `*From the "<title>" call* (<date>):
+  3 tasks, 1 brief, 2 asks for the client (<@tag> 2, <@tag> 1).` plus up to 3 decision bullets and "_and N more
+  decided, in Locus_". Tasks are not repeated (they are in Locus and on the morning card).
+- **The morning card** (`MAX_LINES` 3 + the ad-calls line): "Today's ad calls: ..." (todaypost.js head too), task
+  lines = the title + " · N days late" only when late, owes clipped to 60; a DONE line leaves the card and the
+  footer says "✓ N done" (", all of it"); "Make the ad calls" shows only while the calls line is open. The thread's
+  reminder reply (`reminderMessage`) is the head line + Done buttons (4) + Open in Locus, no repeated task lines.
+- Tests: test-actions 11, test-morningcard 14, test-today 3, test-callscreen 14, test-clients 28. Deployed 2026-10-20.

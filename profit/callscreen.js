@@ -328,7 +328,7 @@
           <div><b>"This week"</b> in each client's weekly report is your "For the client" box, word for word. Brands with an empty box get lines written from the batches.</div>
         </div>
         ${lines.length ? `<ul class="chk">${lines.map(x => `<li><span class="tx"><b>${esc(x.b.name)}</b></span><span class="o">${[x.bt ? plural(x.bt, 'ad batch', 'ad batches') : '', x.j ? plural(x.j, 'to-do') : '', x.a ? plural(x.a, 'ask') : '', x.n ? 'notes' : '', x.cl ? 'for the client' : ''].filter(Boolean).join(', ')}</span></li>`).join('')}</ul>` : empty('Nothing typed yet.')}
-        <p class="rule">One recap per brand posts in its Slack channel. Fireflies still records the call; about ten minutes after, anything said but not typed shows up on Calls as "Also said on the call".</p>
+        <p class="rule">One recap per brand posts in its Slack channel. Fireflies still records the call; about ten minutes after, anything said but not typed shows up on Meetings as "Also said on the call".</p>
         <div><button class="btn2 pri" data-finish ${BUSY ? 'disabled' : ''}>Finish the call</button></div>`)}`;
   }
 
@@ -463,14 +463,14 @@
         <div><b>${n('tasks')}</b>to-dos on Tasks</div><div><b>${n('briefs')}</b>briefs on Production and in Asana</div><div><b>${n('asks')}</b>asks on Requests</div><div><b>${all.filter(b => b.report).length}</b>weekly reports got "This week"</div></div>
         ${(r.warnings || []).length ? `<div class="warnline">${r.warnings.map(esc).join('<br>')}</div>` : ''}
         ${r.recap ? `<p class="rule">${r.recap.posted ? 'The recap is in the client\'s Slack channel.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
-      + `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn2" data-go="tasks">Open Tasks</button><button class="btn2" data-go="production">Open Production</button><button class="btn2" data-go="calls">${KIND === 'client' ? `Back to ${esc(D.name)}` : 'Back to Calls'}</button></div>`);
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn2" data-go="tasks">Open Tasks</button><button class="btn2" data-go="production">Open Production</button><button class="btn2" data-go="calls">${KIND === 'client' ? `Back to ${esc(D.name)}` : 'Back to Meetings'}</button></div>`);
   }
   function paint() {
     const host = $('#main'); if (!host) return;
     const title = KIND === 'client' ? `Client call: ${D.name}` : TITLE[KIND];
     const finished = D.call && D.call.status === 'finished';
     host.innerHTML = `<div class="v2 cs" id="csRoot">
-      <div class="cs-head"><div class="t"><button class="cs-back" data-go="calls">${KIND === 'client' ? '← Back' : '← Calls'}</button><h1>${esc(title)}</h1><p class="cs-who">${whoLine()}</p></div>
+      <div class="cs-head"><div class="t"><button class="cs-back" data-go="calls">${KIND === 'client' ? '← Back' : '← Meetings'}</button><h1>${esc(title)}</h1><p class="cs-who">${whoLine()}</p></div>
         <div style="display:flex;gap:8px;align-items:center"><span class="cs-saved" id="csSaved"></span><button class="btn2" id="csPresent">${document.body.classList.contains('cs-present') ? 'Exit (Esc)' : 'Present'}</button></div></div>
       ${finished ? finishedHtml() : `<nav class="cs-steps" id="csSteps">${stepsHtml()}</nav>
         <div id="csMain" style="display:flex;flex-direction:column;gap:20px">${mainHtml()}</div>
@@ -559,7 +559,7 @@
       const text = inp.value.trim(), name = inp.dataset.quick, act = inp.dataset.act;
       inp.value = ''; inp.placeholder = 'Reading it...';
       let p = { text, owner: '', due: '' };
-      try { const r = await post('/api/calls/parse', { text, act }); if (r && r.text) p = { text: r.text, owner: r.owner || '', due: r.due || '' }; } catch {}
+      try { const r = await post('/api/calls/parse', { text, act }); if (r && r.text) p = { text: r.text, detail: r.detail || '', owner: r.owner || '', due: r.due || '' }; } catch {}
       listOf(name, act).push(p); save(); paintMain();
       const again = $(`[data-quick="${name}"]`); if (again) again.focus();
     });
@@ -613,7 +613,7 @@
   /* ---------- open ---------- */
   function pickBrand() {
     const brands = (H.S.accounts || H.S.brands || []).filter(a => a.active !== false).map(a => ({ act_id: a.act_id, name: a.name }));
-    $('#main').innerHTML = `<div class="v2 cs" id="csRoot"><div class="cs-head"><div class="t"><button class="cs-back" data-go="calls">← Calls</button><h1>Client call</h1><p class="cs-who">Which client is on the call?</p></div></div>
+    $('#main').innerHTML = `<div class="v2 cs" id="csRoot"><div class="cs-head"><div class="t"><button class="cs-back" data-go="calls">← Meetings</button><h1>Client call</h1><p class="cs-who">Which client is on the call?</p></div></div>
       <section class="cs-sec"><div class="picker">${brands.map(b => `<button data-pick="${esc(b.act_id)}">${esc(b.name)}</button>`).join('') || empty('No brands.')}</div></section></div>`;
     $$('[data-pick]').forEach(b => b.onclick = () => open(H, 'client', b.dataset.pick));
     $$('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go));
@@ -633,7 +633,7 @@
       D = d; STATE = (d.call && d.call.state) || {}; SEV = {};
       if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) SEV[b.act_id] = b.paused ? undefined : (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good');
       if (KIND === 'kickoff') { const first = kickList().findIndex(c => !((STATE.done || {})[c.id] || c.kickoff_at)); POS = first >= 0 ? first : 0; }
-    } catch (e) { $('#main').innerHTML = `<div class="v2 cs"><div class="cs-head"><div class="t"><button class="cs-back" onclick="window.CallScreen && window.CallScreen.back()">← Calls</button><h1>${TITLE[KIND]}</h1><p class="cs-who" style="color:var(--bad)">${esc(e.message)}</p></div></div></div>`; return; }
+    } catch (e) { $('#main').innerHTML = `<div class="v2 cs"><div class="cs-head"><div class="t"><button class="cs-back" onclick="window.CallScreen && window.CallScreen.back()">← Meetings</button><h1>${TITLE[KIND]}</h1><p class="cs-who" style="color:var(--bad)">${esc(e.message)}</p></div></div></div>`; return; }
     paint();
     document.removeEventListener('keydown', keys); document.addEventListener('keydown', keys);
   }

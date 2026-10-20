@@ -81,6 +81,12 @@
       .cl .cl-th{padding:10px 16px 4px;font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--faint,var(--muted))}
       .cl .cl-row .t{color:var(--ink);font-size:13.5px;line-height:1.4;padding:3px 6px;margin-left:-6px}
       .cl .cl-row.off .t{text-decoration:line-through;color:var(--muted)}
+      .cl .cl-row .tw{min-width:0}
+      .cl .cl-row .d{color:var(--ink-2);font-size:12.5px;line-height:1.4;padding:1px 6px 3px;margin-left:-6px;white-space:pre-wrap}
+      .cl .cl-row .d.empty:not(:focus)::before{content:attr(data-ph);color:var(--faint,var(--muted))}
+      .cl .cl-row .d.empty:not(:focus){padding-top:0;font-size:12px}
+      .cl .cl-row.off .d{color:var(--muted)}
+      .cl .cl-maybe{display:inline-block;margin:0 0 2px 6px;font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--warn);border:1px dashed var(--warn);border-radius:4px;padding:0 5px;vertical-align:middle}
       .cl .cl-row.off .cl-go,.cl .cl-row.off .cl-chip{opacity:.45}
       .cl .cl-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--good);margin:0;cursor:pointer}
       .cl .cl-sec{font-size:11px;letter-spacing:.4px;text-transform:uppercase;font-weight:600;padding:12px 16px 4px;border-top:1px solid var(--line)}
@@ -257,8 +263,8 @@
     const brands = [...(n.brands || [])].sort((a, b) => (a.brand_id ? 1 : 0) - (b.brand_id ? 1 : 0)).map(b => ({
       brand_id: b.brand_id || '', decisions: b.decisions || [], skip: false,
       items: [
-        ...(b.items || []).filter(i => i.kind !== 'client').map(i => ({ uid: ++UID, kind: ['team', 'brief', 'client_owes'].includes(i.kind) ? i.kind : 'team', text: i.text || '', owner: i.kind === 'client_owes' ? '' : (i.owner || ''), due: i.due || '', area: i.area || '', quote: i.quote || '', at: i.at || '', off: false })),
-        ...(b.brand_id ? [...new Set([...(b.this_week || []), ...(b.items || []).filter(i => i.kind === 'client').map(i => i.text)])].filter(Boolean).map(t => ({ uid: ++UID, kind: 'hear', text: t, owner: '', due: '', area: '', quote: '', at: '', off: false })) : []),
+        ...(b.items || []).filter(i => i.kind !== 'client').map(i => ({ uid: ++UID, kind: ['team', 'brief', 'client_owes'].includes(i.kind) ? i.kind : 'team', text: i.text || '', detail: i.detail || '', maybe: i.sure === false, owner: i.kind === 'client_owes' ? '' : (i.owner || ''), due: i.due || '', area: i.area || '', quote: i.quote || '', at: i.at || '', off: i.sure === false })),
+        ...(b.brand_id ? [...new Set([...(b.this_week || []), ...(b.items || []).filter(i => i.kind === 'client').map(i => i.text)])].filter(Boolean).map(t => ({ uid: ++UID, kind: 'hear', text: t, detail: '', maybe: false, owner: '', due: '', area: '', quote: '', at: '', off: false })) : []),
       ],
     }));
     brands.forEach(b => { b.open = brands.length <= 3 || b.items.some(i => (i.kind === 'team' || i.kind === 'brief') && !i.owner); });
@@ -284,7 +290,7 @@
     const due = i.kind === 'hear' ? '<span class="cl-plain">Monday report</span>' : dueChip(i.due, 'data-f="due" aria-label="Change the date"');
     return `<div class="cl-tr cl-row${i.off ? ' off' : ''}" data-uid="${i.uid}">
       <input type="checkbox" data-f="on" ${i.off ? '' : 'checked'} aria-label="Keep this item">
-      <div class="t" data-f="text">${esc(i.text)}</div>
+      <div class="tw"><div class="t" data-f="text">${esc(i.text)}</div>${i.kind === 'hear' ? '' : `<div class="d${i.detail ? '' : ' empty'}" data-f="detail" data-ph="Details, if the title needs them">${esc(i.detail)}</div>`}${i.maybe ? `<span class="cl-maybe" title="Locus was not sure this was agreed. Tick it if it was.">Maybe</span>` : ''}</div>
       <div><button class="cl-go" data-f="go" aria-label="Change where it goes">${esc(goesTo(i))}${ICON.chev}</button></div>
       <div>${who}</div><div>${due}</div>
       <div>${i.quote ? `<button class="cl-ib" data-f="quote" aria-label="What was said on the call" title="What was said on the call">${ICON.quote}</button>` : ''}</div>
@@ -348,7 +354,7 @@
       const tg = $('[data-toggle]', s); if (tg) tg.onclick = () => { b.open = !b.open; s.classList.toggle('shut', !b.open); tg.setAttribute('aria-expanded', b.open); };
       const sk = $('[data-skipbrand]', s); if (sk) sk.onclick = () => { b.skip = !b.skip; redraw(); };
       $('[data-add]', s).onclick = () => {
-        const it = { uid: ++UID, kind: 'team', text: '', owner: '', due: '', area: '', quote: '', at: '', off: false };
+        const it = { uid: ++UID, kind: 'team', text: '', detail: '', maybe: false, owner: '', due: '', area: '', quote: '', at: '', off: false };
         b.items.push(it); b.open = true; const e2 = redraw(); const t = $(`.cl-row[data-uid="${it.uid}"] .t`, e2); if (t) t.focus();
       };
     });
@@ -357,6 +363,7 @@
       const [b, i] = find(+r.dataset.uid); if (!i) return;
       $('[data-f=on]', r).onchange = e => { i.off = !e.target.checked; redraw(); };
       wireText($('[data-f=text]', r), v => { i.text = v; if (!v) b.items.splice(b.items.indexOf(i), 1); redraw(); });
+      const dl = $('[data-f=detail]', r); if (dl) wireText(dl, v => { i.detail = v; redraw(); });
       const o = $('[data-f=owner]', r); if (o) o.onclick = () => ownerMenu(o, i.owner, v => { i.owner = v; redraw(); });
       const d = $('[data-f=due]', r); if (d) d.onclick = () => dueMenu(d, i.due, v => { i.due = v; redraw(); });
       const q = $('[data-f=quote]', r); if (q) q.onclick = () => quoteMenu(q, i.quote, i.at);
@@ -387,7 +394,7 @@
       go.disabled = true; go.textContent = 'Sending...'; err.textContent = '';
       try {
         const body = { id: card.id, summary: card.summary, brands: card.brands.filter(b => !b.skip).map(b => ({ brand_id: b.brand_id, decisions: b.decisions,
-          items: live(b).filter(i => i.kind !== 'hear').map(i => ({ kind: i.kind, text: i.text, owner: i.owner, due: i.due, area: i.kind === 'team' ? i.area : '' })),
+          items: live(b).filter(i => i.kind !== 'hear').map(i => ({ kind: i.kind, text: i.text, detail: i.detail || '', owner: i.owner, due: i.due, area: i.kind === 'team' ? i.area : '' })),
           this_week: b.brand_id ? live(b).filter(i => i.kind === 'hear').map(i => i.text) : [],
           need_from_client: b.brand_id ? live(b).filter(i => i.kind === 'client_owes').map(i => i.due ? `${i.text}, by ${md(i.due)}` : i.text) : [] })) };
         const r = (await post('/api/meetings/confirm', body)).result || {};
@@ -482,12 +489,12 @@
     const ordered = [...pend.filter(m => m.id === OPEN), ...pend.filter(m => m.id !== OPEN)];
     const bname = BR === 'all' ? 'All brands' : brandName(BR);
     $('#main').innerHTML = `<div class="v2 cl">
-      <header class="cl-head"><div><h1>Calls</h1><p>Every recorded call, judged. Approve what it found and it becomes tasks, briefs and asks. Nothing lives here.</p></div>
+      <header class="cl-head"><div><h1>Meetings</h1><p>Every recorded meeting, read by Locus. Tick what was really agreed and approve: it becomes tasks, briefs and asks. Nothing lives here.</p></div>
         <button class="cl-menu" id="clBrand"><span>Brand</span> ${esc(bname)} ${ICON.chev}</button></header>
       ${runHtml()}
-      <div class="cl-st"><b>Waiting on your OK</b><span class="cl-tag warn">${pend.length}</span></div>
-      ${pend.length ? ordered.map(m => `<div data-slot="${esc(m.id)}"></div>`).join('') : `<section class="cl-card"><div class="cl-empty">Nothing waiting. ${D.connected ? 'Locus reads every Fireflies call within the hour.' : 'Fireflies is not connected (FIREFLIES_API_KEY on the account-health worker).'}</div></section>`}
-      <div class="cl-st" style="margin-top:6px"><b>History</b><span class="muted" style="font-size:13px">What each call turned into</span><span style="flex:1"></span>${D.connected ? '<button class="cl-link" id="clPoll">Check Fireflies now</button>' : ''}</div>
+      <div class="cl-st"><b>Waiting on your OK</b><span class="cl-tag warn">${pend.length}</span><span class="muted" style="font-size:13px">Unticked rows are dropped. "Maybe" rows start unticked: Locus heard the idea, not a commitment.</span></div>
+      ${pend.length ? ordered.map(m => `<div data-slot="${esc(m.id)}"></div>`).join('') : `<section class="cl-card"><div class="cl-empty">Nothing waiting. ${D.connected ? 'Locus reads every Fireflies meeting within the hour.' : 'Fireflies is not connected (FIREFLIES_API_KEY on the account-health worker).'}</div></section>`}
+      <div class="cl-st" style="margin-top:6px"><b>History</b><span class="muted" style="font-size:13px">What each meeting turned into</span><span style="flex:1"></span>${D.connected ? '<button class="cl-link" id="clPoll">Check Fireflies now</button>' : ''}</div>
       <section class="cl-card" id="clHist">${historyHtml(hist)}</section>
     </div>`;
     for (const m of ordered) {
@@ -525,11 +532,11 @@
     if (window.ProdSheet && !(host.S && host.S.client)) await window.ProdSheet.photos(host).catch(() => {});
     H = host; css(); BR = H.S.act || 'all';
     const t = H.RUN();
-    if (first || !D) $('#main').innerHTML = '<div class="v2 cl"><header class="cl-head"><div><h1>Calls</h1><p>Loading the calls...</p></div></header></div>';
+    if (first || !D) $('#main').innerHTML = '<div class="v2 cl"><header class="cl-head"><div><h1>Meetings</h1><p>Loading the meetings...</p></div></header></div>';
     const run = new URLSearchParams(location.search).get('call') || window.CALL_OPEN; window.CALL_OPEN = null;
     if (run && window.CallScreen) { try { const u = new URL(location.href); u.searchParams.delete('call'); history.replaceState(null, '', u); } catch {} return window.CallScreen.open(H, run, H.S.act && H.S.act !== 'all' ? H.S.act : ''); }
     try { await load(); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 cl"><header class="cl-head"><div><h1>Calls</h1><p style="color:var(--bad)">${esc(e.message)}</p></div></header></div>`; return; }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 cl"><header class="cl-head"><div><h1>Meetings</h1><p style="color:var(--bad)">${esc(e.message)}</p></div></header></div>`; return; }
     if (t !== H.RUN()) return;
     paint();
   }

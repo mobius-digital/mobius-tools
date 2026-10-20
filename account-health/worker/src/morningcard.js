@@ -34,7 +34,7 @@ import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
-export const MAX_LINES = 5;
+export const MAX_LINES = 3;   // 2026-10-20 (the tasks audit): three task lines at most; the ad calls line is on top of that
 export const LEAK_FLOOR = 500;   // dollars a month: a new leak under this never reaches the card
 const WAIT_HOURS = 2;     // wait up to two hours past the morning hour for the brief (and Monday's weekly) before posting anyway
 const LAST_HOUR = 12;
@@ -179,7 +179,7 @@ export function callsText(rows, cur) {
   /* The first noun stays, the rest drop it once it repeats: "cut 9 ad sets, scale 1". */
   for (let i = 1; i < parts.length; i++) parts[i] = parts[i].replace(/ ad sets?$| ads?$/, '');
   const stake = list.reduce((s, r) => s + (+r.stake || 0), 0);
-  return `Today's calls: ${parts.join(', ')}${stake > 0 ? ` · ${moneyK(stake, cur || list[0].currency)} at stake` : ''}`;
+  return `Today's ad calls: ${parts.join(', ')}${stake > 0 ? ` · ${moneyK(stake, cur || list[0].currency)} at stake` : ''}`;
 }
 
 /** Everything the card says for one brand, read but not posted. shared = {calendar, board} read once per tick. */
@@ -201,7 +201,8 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
   for (const t of tasks) {
     const late = daysBetween(t.due, today);
-    items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${words(t.text, 110)} · ${late > 0 ? `${late} day${late === 1 ? '' : 's'} late` : 'due today'}`, who: t.owner || '', ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
+    /* The title only (short since 2026-10-20; the details are one click away), "late" only when it is: everything on the card is today's. */
+    items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${words(t.text, 90)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}`, who: t.owner || '', ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
   }
   /* A date going live tomorrow with something still open. */
   for (const e of ((shared.calendar && shared.calendar.items) || []).filter(x => x.act === a.act_id && x.start === tomorrow)) {
@@ -240,11 +241,12 @@ export async function buildCard(env, d, a, today, shared = {}) {
     } catch (e) { notes.push(`leaks: ${e.message}`); }
   }
   items.sort((p, q) => q.rank - p.rank);
-  const shown = items.slice(0, MAX_LINES);
+  /* The ad calls line always fits; then at most MAX_LINES other lines (2026-10-20). */
+  const shown = items.filter(i => i.kind === 'calls').concat(items.filter(i => i.kind !== 'calls').slice(0, MAX_LINES));
   for (const it of shown) { it.tag = await tagOf(env, d, it.who).catch(() => null); it.done = false; delete it.rank; }
   /* What the client owes us (Requests asks), one line. */
   const asks = (await env.DB.prepare(`SELECT id, title, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`).bind(a.act_id).all().catch(() => ({ results: [] }))).results || [];
-  const owes = asks.length ? `${words(asks[0].title, 80)} · ${ago(daysBetween(String(asks[0].created_at || today).slice(0, 10), today))}${asks.length > 1 ? ` (and ${asks.length - 1} more)` : ''}` : '';
+  const owes = asks.length ? `${words(asks[0].title, 60)} · ${ago(daysBetween(String(asks[0].created_at || today).slice(0, 10), today))}${asks.length > 1 ? ` (and ${asks.length - 1} more)` : ''}` : '';
   /* Monday: the weekly report line; the plan goes in this card's thread. */
   let weekly = '';
   if (monday) {
@@ -260,15 +262,19 @@ export async function buildCard(env, d, a, today, shared = {}) {
   };
 }
 
-/** The card as Slack draws it. Done lines are struck through. */
+/** The card as Slack draws it. A done line leaves the card and is counted in one "✓ N done" line at the end (2026-10-20;
+ *  struck-through lines kept the clutter and Cole could not tell what was left). */
 export function cardMessage(c) {
   const L = [`*${esc(c.name)} · ${dayLabel(c.date)}*`, [esc(c.nums), esc(c.daily)].filter(Boolean).join(' · ')];
+  let done = 0;
   for (const it of c.items || []) {
-    const note = it.kind === 'calls' && (it.made || []).length && !it.done ? ` · ${it.made.length} of ${(it.objs || []).length} made` : '';
-    const body = it.done ? `~${esc(it.text)}~ ✓` : `${esc(it.text)}${note}`;
+    if (it.done) { done++; continue; }
+    const note = it.kind === 'calls' && (it.made || []).length ? ` · ${it.made.length} of ${(it.objs || []).length} made` : '';
+    const body = `${esc(it.text)}${note}`;
     L.push(it.tag ? `${it.tag} ${body}` : body);
   }
   if (c.more > 0) L.push(`_and ${c.more} more in Locus_`);
+  if (done) L.push(`✓ ${done} done${(c.items || []).length === done ? ', all of it' : ''}`);
   if (c.owes) L.push(`*Client owes* ${esc(c.owes)}`);
   if (c.weekly) L.push(esc(c.weekly));
   const text = L.join('\n');
@@ -278,7 +284,7 @@ export function cardMessage(c) {
   for (const l of L.slice(2)) { const last = parts[parts.length - 1]; if (parts.length > 1 && last.length < 2 && last.join('\n').length + l.length < 400) last.push(l); else parts.push([l]); }
   const blocks = [...parts.map(p => ({ type: 'section', text: { type: 'mrkdwn', text: p.join('\n').slice(0, 2900) } })), btn(`Open ${c.name} in Locus`, `${LOCUS}?act=${encodeURIComponent(c.act)}`)];
   /* 2026-10-15: straight onto Today's calls with the Do all sheet open, every change ticked; nothing runs until Cole confirms. */
-  if (c.calls) blocks.push(btn('Make the calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}&doall=1`));
+  if (c.calls && !(c.items || []).some(i => i.kind === 'calls' && i.done)) blocks.push(btn('Make the ad calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}&doall=1`));
   return { text, blocks };
 }
 /** The card as plain words, for the Locus preview: tags shown as @Name, bold and italics dropped. */
