@@ -324,7 +324,7 @@ async function clientLines(env, d, rows) {
   try { const o = await model(env, d, { model: SONNET, system, user, schema: WEEK_SCHEMA, max: 3000 }); return Object.fromEntries((o.brands || []).map(b => [b.brand_id, (b.this_week || []).map(x => noDash(clean(x, 300))).filter(Boolean).slice(0, 4)])); }
   catch { return {}; }
 }
-const item = (kind, x) => ({ text: clean(x.text, 300), owner: clean(x.owner, 40), due: ymdOk(x.due) ? x.due : '', kind, area: kind === 'brief' ? 'ads' : '' });
+const item = (kind, x) => ({ text: clean(x.text, 300), detail: clean(x.detail, 2000), owner: clean(x.owner, 40), due: ymdOk(x.due) ? x.due : '', kind, area: kind === 'brief' ? 'ads' : '' });
 
 export async function finishCall(env, d, body, who) {
   await ensureCalls(env);

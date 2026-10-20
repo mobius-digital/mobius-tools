@@ -3781,3 +3781,28 @@ Page table and the two rails: https://claude.ai/artifact/R1RksAoFEWR2NF5J2X6C5L.
   season's three pages. A client login was checked locally with `/api/me` stubbed to role client (CDP Fetch): rail =
   Home, Ads, Email and SMS, Store, Products, Creative (with Production), Brand, Calendar, Social, Reports, the season;
   no Work, no Client call; calls / tasks / ccall / workload and `?open=calls&call=client` all land on Overview.
+
+## 2026-10-20: THE TASKS AUDIT. Tasks is a title + details; Work > Calls is "Meetings"; the morning card is three lines.
+
+Cole: the task list and board "just aren't good" (no right-click, not like Asana, far too much text per task), most items a
+call proposes "aren't really tasks", the Slack note after approving a call is "so weird", and the 5am card's "Today's
+calls" collided with Work > Calls. Findings and what changed: the audit page https://claude.ai/artifact/ (see the chat).
+- **A task is a SHORT TITLE plus `detail`** (p_action.detail, account-health actions.js `splitTitle`: every writer, and
+  the 24 open rows were migrated on 2026-10-20). `profit/tasks.js` (v6, rewritten): row = tick · title · brand chip
+  (only when not grouped by brand) · avatar · due · hover ⋯; a details mark (≡) when there are details; right-click or
+  long press = the menu (Done, Open, Who, Due, Brand, Area, Select, Copy link, Drop); click the avatar or the date to
+  change it in place (`ownerMenu` / `dueMenu` with a month calendar, Locus's own `pop()`, never a select); Ctrl/Cmd or
+  Shift-click selects, the `.tk-bulk` bar does Done / Who / Due / Brand / Drop; keys ↑ ↓ j k Enter Space x w t m Delete
+  Esc. The sheet (`editTask`) = Title, Details, Who, Due, Brand, Area, where it came from, Mark done, Drop. The From
+  and Area columns are gone from rows (area = the Area menu + the sheet). Board cards = title + avatar + due; drag
+  moves the selection together. The list's control selectors are scoped to `.tk-bar` (a section's `data-sec` used to
+  be `data-group` and a click on it changed the grouping). `.tk-areas` is a hidden row of `[data-areaf]` buttons
+  that phone.js's Filters sheet clicks. An avatar drawn inside another button must be a span (`av(n, '', 'span')`).
+- **Work > Calls is labelled Meetings everywhere** (NAV, TAB_TITLE, breadcrumb, tour, guide, callscreen's back
+  buttons); the page id stays `calls` and every `?open=calls|monday|meetings` link still lands. "Today's calls" on
+  Ads is "Today's ad calls" in Slack (todaypost.js, morningcard.js).
+- **calls.js (v6)**: each item shows its title and an editable details line; the model's `sure: false` items start
+  UNTICKED with a dashed "Maybe" tag (Locus heard an idea, not a commitment); the approve body carries `detail`.
+- **Something else** on Today's calls posts `text` + `detail` (desk.js v24); callscreen's typed jobs carry `detail`.
+- Checked on a stub harness in the browser pane (scratchpad, not committed) at 1400 and 375, dark and light: list,
+  menus, calendar, sheet, picker, selection bar, board, Meetings card. NOT checked against the real workers.

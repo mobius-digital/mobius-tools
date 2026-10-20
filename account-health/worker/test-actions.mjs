@@ -55,7 +55,7 @@ await check('openItems: grouped per brand, agency-wide first, the shape the Mond
 });
 await check('the reminder message: one line per item, overdue marked, a Done button per item, Open in Locus, no em dash', async () => {
   const m = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'x', act_id: 'brand_alpha', text: 'Rebuild the hook ad', due: '2026-10-14' }, { id: 'y', act_id: 'brand_alpha', text: 'Old one', due: '2026-10-10' }], '2026-10-14');
-  assert.match(m.text, /^\*Ahsan\*, Alpha Golf: 1 due today, 1 overdue\.\n• Rebuild the hook ad\n• Old one _\(was due Sat, Oct 10\)_$/);
+  assert.match(m.text, /^\*Ahsan\*, Alpha Golf: 1 due today, 1 overdue\. Press Done as you go\.\n• Rebuild the hook ad\n• Old one _\(was due Sat, Oct 10\)_$/);
   const btns = m.blocks[1].elements; assert.equal(btns.length, 3); assert.equal(btns[0].action_id, 'act_done_0'); assert.deepEqual(JSON.parse(btns[0].value), { id: 'x' }); assert.equal(btns[2].url, 'https://tools.go-mobius-digital.com/profit/?open=actions&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)));
 });
@@ -119,7 +119,7 @@ const model = reply => async () => ({ ok: true, json: async () => ({ content: [{
 const envK = { ...env, ANTHROPIC_API_KEY: 'k' };
 await check('quick add: no model = the raw words as the task, with the page brand; never throws', async () => {
   const f = await parseQuick(env, d, '  rebuild  the hook for alpha by wed ', { act: 'brand_alpha' });
-  assert.deepEqual(f, { act: 'brand_alpha', text: 'rebuild the hook for alpha by wed', owner: '', due: '', area: null, parsed: false });
+  assert.deepEqual(f, { act: 'brand_alpha', text: 'rebuild the hook for alpha by wed', detail: '', owner: '', due: '', area: null, parsed: false });
   assert.equal((await parseQuick(envK, { ...d, xfetch: async () => ({ ok: false, status: 529, json: async () => ({}) }) }, 'x y', {})).parsed, false, 'a model error falls back');
   assert.equal((await parseQuick(envK, { ...d, xfetch: async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: 'not json' }] }) }) }, 'x y', {})).parsed, false, 'bad JSON falls back');
   assert.equal((await parseQuick(envK, { ...d, canAfford: () => false, xfetch: model({}) }, 'x y', {})).parsed, false, 'over budget falls back');
@@ -127,9 +127,9 @@ await check('quick add: no model = the raw words as the task, with the page bran
 });
 await check('quick add: the model\'s fields are checked (roster owner, a real date, a known brand, a known area)', async () => {
   const p = await parseQuick(envK, { ...d, xfetch: model({ act: 'brand_alpha', text: 'Rebuild hook', owner: 'ahsan', due: '2026-10-16', area: 'ads' }) }, 'ahsan rebuild the alpha hook by friday', {});
-  assert.deepEqual(p, { act: 'brand_alpha', text: 'Rebuild hook', owner: 'Ahsan', due: '2026-10-16', area: 'ads', parsed: true });
+  assert.deepEqual(p, { act: 'brand_alpha', text: 'Rebuild hook', detail: '', owner: 'Ahsan', due: '2026-10-16', area: 'ads', parsed: true });
   const q = await parseQuick(envK, { ...d, xfetch: model({ act: 'brand_zeta', text: '', owner: 'Bob', due: 'Friday', area: 'nope' }) }, 'raw words here', { act: 'brand_beta' });
-  assert.deepEqual(q, { act: 'brand_beta', text: 'raw words here', owner: '', due: '', area: '', parsed: true });
+  assert.deepEqual(q, { act: 'brand_beta', text: 'raw words here', detail: '', owner: '', due: '', area: '', parsed: true });
 });
 await check('quick add route: empty = 400, the fallback still files the task, a client is refused', async () => {
   const call = async (body, headers = { authorization: 'Bearer team' }) => { const req = new Request('https://ah/api/actions/quick', { method: 'POST', headers, body: JSON.stringify(body) }); const u = new URL(req.url); const r = await handleActions(req, env, u, u.pathname, json, d); return { status: r.status, body: await r.json() }; };
