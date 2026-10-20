@@ -58,7 +58,25 @@
   const panel = (title, html) => (window.V2 && window.V2.panel) ? window.V2.panel(title, html) : null;
   const closePanel = () => { if (window.V2 && window.V2.closePanel) window.V2.closePanel(); };
 
-  window.LxKit = { strip, wireStrip, panel, closePanel };
+  /* ---------- PHASE 7 (2026-10-20): the card "..." and the bar list ---------- */
+  /* cardMenu(why, buttonsHtml): the same .ph-menu-w the page header uses, so the delegated listener above serves it. */
+  const MORE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>';
+  function cardMenu(why, buttons) {
+    if (!why && !buttons) return '';
+    const whys = Array.isArray(why) ? why : [why];
+    return `<span class="ph-menu-w v2h-m"><button type="button" class="ph-more" aria-haspopup="true" aria-expanded="false" aria-label="About this card" title="About this card">${MORE_SVG}</button><div class="ph-menu" role="menu">${whys.filter(Boolean).map(w => `<p class="ph-why">${w}</p>`).join('')}${buttons || ''}</div></span>`;
+  }
+  /* rowMenu(buttonsHtml): one "..." at the end of a table row; the buttons keep their own data-* handlers. */
+  const rowMenu = buttons => `<td class="lx-rm"><span class="ph-menu-w"><button type="button" class="ph-more" aria-haspopup="true" aria-expanded="false" aria-label="Row menu">${MORE_SVG}</button><div class="ph-menu" role="menu">${buttons}</div></span></td>`;
+  /* bars(rows, {max, rows:true}): label, bar, value on one row. row = {label, sub, v (number), value (text), tone, note, tick (0..1), ghost (number), tip} */
+  function bars(rows, o = {}) {
+    const list = (rows || []).filter(Boolean); if (!list.length) return '';
+    const max = o.max || Math.max(...list.map(r => Math.max(+r.v || 0, +r.ghost || 0)), 1e-9);
+    const w = v => Math.max(0, Math.min(100, (+v || 0) / max * 100)).toFixed(1);
+    return `<div class="lx-bars${o.rows ? ' rows' : ''}">${list.map(r => `<div class="lx-bar${r.tone ? ' ' + esc(r.tone) : ''}"${r.tip ? ` data-tip="${esc(r.tip)}"` : ''}${r.go ? ` data-go="${esc(r.go)}" role="link" tabindex="0"` : ''}><span class="l">${esc(r.label)}${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span><span class="t">${r.ghost != null ? `<i class="g" style="width:${w(r.ghost)}%"></i>` : ''}<i style="width:${w(r.v)}%"></i>${r.tick != null ? `<b style="left:${Math.max(0, Math.min(100, r.tick * 100)).toFixed(1)}%"></b>` : ''}</span><span class="v">${r.value != null ? r.value : esc(String(r.v))}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span></div>`).join('')}</div>${o.foot ? `<p class="lx-bars-foot">${o.foot}</p>` : ''}`;
+  }
+
+  window.LxKit = { strip, wireStrip, panel, closePanel, cardMenu, rowMenu, bars };
 
   /* THE ICON RAIL (2026-10-20): html.lx-irail between 721 and 1180px (lx.css draws it). The logo, the client picker and
      the account button open the wide rail (body.nav-open + the scrim, the old drawer's own state, so index.html's

@@ -45,9 +45,7 @@
       .dk .dk-lk{border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:flex;flex-direction:column;gap:2px}
       .dk .dk-lk .l{font-size:11.5px;color:var(--muted)}.dk .dk-lk .v{font-weight:600}
       .dk .dk-lk.worse{border-color:var(--bad)}.dk .dk-lk.better{border-color:var(--good)}
-      .dk .dk-counts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
-      .dk .dk-cnt{border:1px solid var(--line);border-radius:8px;padding:7px 12px;background:var(--surface);display:flex;gap:8px;align-items:baseline;cursor:pointer;color:var(--ink)}
-      .dk .dk-cnt b{font-size:17px}.dk .dk-cnt.on{border-color:var(--brand)}
+      .dk .dk-counts{margin:0 0 14px}
       .dk .dk-row{display:grid;grid-template-columns:72px minmax(140px,1.2fr) minmax(0,1.6fr) max-content;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
       @media (max-width:820px){.dk .dk-row{grid-template-columns:1fr}}
       /* THE KIT (2026-10-20): one primary button, Done, and a "..." menu for the rest (Ads Manager, Open in Locus, Something else, Not now). */
@@ -320,8 +318,8 @@
     const cnt = k => vis.filter(r => k === 'all' || r.kind === k).length;
     const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
     const doList = vis.filter(r => DO_TIP[r.kind] && !dn[r.key]).sort((a, b) => (b.stake || 0) - (a.stake || 0));
-    const doBar = doList.length ? `<div class="dk-doall"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button><span class="v2hint">Every Scale, Cut and Trim on this list. You see each change and confirm once; nothing is written before that.</span></div>` : '';
-    const counts = `<div class="dk-counts">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
+    const doBar = doList.length ? `<span class="lx-tohead"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button></span>` : '';
+    const counts = `<div class="v2jobs dk-counts" role="group" aria-label="Kind of call">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
     const shown = vis.filter(r => KIND === 'all' || r.kind === KIND);
     const by = {}; for (const r of shown) (by[r.act_id] ??= []).push(r);
     const order = Object.entries(by).sort((a, b) => b[1].reduce((s, r) => s + (r.stake || 0), 0) - a[1].reduce((s, r) => s + (r.stake || 0), 0));
@@ -333,7 +331,7 @@
         return `<div class="dk-row"><span class="dk-k call">CALL</span>
           <div><div class="nm">${esc(r.adset)}</div><div class="meta">${meta}</div></div>
           <div class="why">${esc(r.why || '')}</div>
-          <div class="dk-acts"><button type="button" class="v2btn dk-p" data-verdict="winner" data-key="${k}" title="Close the test as a winner. One line on what it taught us.">Winner</button><button type="button" class="v2btn ghost" data-verdict="keep" data-key="${k}" title="Leave it running with a reason and a date to check again.">Keep running</button><button type="button" class="v2btn ghost" data-verdict="loser" data-key="${k}" title="Close the test as a loser. One line on what it taught us.">Loser</button>${gb(`data-go="act:${esc(r.act_id)}:tests"`, 'Open the test')}${c.ads_manager ? `<a class="v2btn ghost" href="${esc(c.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}${gb(`data-snooze="${k}"`, 'Not now')}</div></div>`; }
+          <div class="dk-acts"><button type="button" class="v2btn dk-p" data-verdict="winner" data-key="${k}" title="Close the test as a winner. One line on what it taught us.">Winner</button><button type="button" class="v2btn ghost" data-verdict="keep" data-key="${k}" title="Leave it running with a reason and a date to check again.">Keep running</button><span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu"><button type="button" data-verdict="loser" data-key="${k}">Loser</button><button type="button" data-go="act:${esc(r.act_id)}:tests">Open the test</button>${c.ads_manager ? `<a href="${esc(c.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; }
       const meta = r.spend != null ? `${U().money(r.spend, cur)} spent · ${U().int(r.orders)} sale${Math.round(r.orders) === 1 ? '' : 's'} · ${r.cpa ? U().money(r.cpa, cur) + ' per sale' : 'no sale'}${r.goal ? ` · goal ${U().money(r.goal, cur)}` : ''}${r.n_ads ? ` · ${r.n_ads} ad${r.n_ads === 1 ? '' : 's'}` : ''}` : '';
       const anchor = (r.kind === 'cut' || r.kind === 'scale') && r.anchor && r.n_ads > 1 ? ` <span class="faint">Anchor: "${esc(r.anchor.name)}" (${Math.round((r.anchor.share || 0) * 100)}% of the set's spend).</span>` : '';
       const primary = DO_TIP[r.kind] ? `<button type="button" class="v2btn dk-p" data-do="${k}" title="${esc(DO_TIP[r.kind])}">Do it</button>`
@@ -346,14 +344,17 @@
         <div class="why">${esc(r.why || '')}${anchor}</div>
         <div class="dk-acts">${primary}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}<span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu">${am && r.kind !== 'fix' ? `<a href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-locus="${k}">Open in Locus</button><button type="button" data-else="${k}">Something else</button><button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
-      return `<section class="v2card"><div class="dk-gh"><span><b style="font-size:14px">${esc(name)}</b></span><span class="v2hint" style="margin:0">${rs.length} to do</span></div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
+      return `<section class="v2card"><div class="v2h"><h3>${esc(name)}</h3><span class="cap">${rs.length} to do</span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([esc(d.rules_note || ''), 'Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Tasks. Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.']) : ''}</div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
-    const sub = win ? `<b>What the media buyer changes today, ad set first.</b> Ranked by money at stake. Judged on Triple Whale last platform click, ${md(win.from)} to ${md(win.to)}, with each brand's Ads rules.` : '<b>What the media buyer changes today, ad set first.</b>';
+    const nAll = vis.length;
+    const sub = `<b>${nAll} call${nAll === 1 ? '' : 's'} today, ad set first</b>, ranked by money at stake.${win ? ` Judged on last platform click, ${md(win.from)} to ${md(win.to)}.` : ''}`;
     $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${doBar}${counts}
       ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
-      ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day</button></p>` : ''}
-      ${U().foot(`${esc(d.rules_note || '')} Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Action items (Slack reminds the owner when it is due). Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.`)}`);
+      ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day ›</button></p>` : ''}`);
     const root = $('#main');
+    /* the one page action lives in the header and presses the hidden original (its handler is wired below) */
+    if (doList.length && typeof H.pageActions === 'function') { H.pageActions(`<button type="button" class="btn primary" data-press="dkDoAll" title="Every Scale, Cut and Trim on this list. You see each change and confirm once; nothing is written before that.">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button>`); root.querySelectorAll('.ph-acts [data-press]').forEach(b => b.onclick = () => { const o = document.getElementById(b.dataset.press); if (o) o.click(); }); }
+    else if (typeof H.pageActions === 'function') H.pageActions('');
     const find = k => rows.find(x => x.key === k);
     const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
     const unDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); };

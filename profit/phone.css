@@ -398,3 +398,41 @@ body.lxs-open{overflow:hidden}
   [data-ui="v2"] .v2tiles.v2sk>.v2tile{display:block;padding:11px 14px}
   [data-ui="v2"] .v2tiles.v2sk>.v2tile .c{display:none}
 }
+
+/* ==========================================================================
+   PHASE 7 (2026-10-20): on a phone a table is a list of cards. polish.js writes each cell's column name into
+   data-l, so a cell reads "label  value"; the first cell is the card's title, a row's "..." stays at its top right.
+   ========================================================================== */
+@media (max-width:600px){
+  [data-ui="v2"] .v2tbl{overflow:visible}
+  [data-ui="v2"] .v2tbl table,[data-ui="v2"] .v2tbl tbody{display:block;width:100%}
+  [data-ui="v2"] .v2tbl thead{display:none}
+  [data-ui="v2"] .v2tbl tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:2px;padding:10px 0;border-bottom:1px solid var(--line)}
+  [data-ui="v2"] .v2tbl tbody tr:last-child{border-bottom:0}
+  [data-ui="v2"] .v2tbl tbody tr.tot{border-top:1px solid var(--line-strong)}
+  [data-ui="v2"] .v2tbl td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;grid-column:1 / -1;height:auto;min-height:0;padding:2px 0;border:0;text-align:right;white-space:normal;font-size:13px}
+  [data-ui="v2"] .v2tbl td[data-l]::before{content:attr(data-l);color:var(--muted);font-weight:500;font-size:12px;text-align:left;flex:none}
+  [data-ui="v2"] .v2tbl td:first-child{grid-column:1;display:block;text-align:left;font-size:14px;font-weight:600;padding:0 0 4px;min-width:0}
+  [data-ui="v2"] .v2tbl td:first-child::before{display:none}
+  [data-ui="v2"] .v2tbl td:first-child .sub{font-weight:400}
+  [data-ui="v2"] .v2tbl td.lx-rm{grid-column:2;grid-row:1;display:block;width:auto;padding:0;text-align:right}
+  [data-ui="v2"] .v2tbl td:empty{display:none}
+  [data-ui="v2"] .v2tbl tr.lvl1 td:first-child,[data-ui="v2"] .v2tbl tr.lvl2 td:first-child{padding-left:0}
+  [data-ui="v2"] .v2tbl tr.lvl1{margin-left:12px}[data-ui="v2"] .v2tbl tr.lvl2{margin-left:24px}
+  [data-ui="v2"] .v2tbl .v2ib{grid-template-columns:48px auto}
+  /* a card's title row on a phone: the title and the "..." on row 1, the caption under, the controls or meta under that */
+  [data-ui="v2"] .v2h,[data-ui="v2"] .v2h:has(> .v2h-m){grid-template-columns:minmax(0,1fr) auto}
+  [data-ui="v2"] .v2h > .find{grid-column:1 / -1;grid-row:2}
+  [data-ui="v2"] .v2h > .cap{grid-column:1 / -1;grid-row:3;justify-self:start;justify-content:flex-start;white-space:normal}
+  [data-ui="v2"] .v2h > .cap:empty{display:none}
+  [data-ui="v2"] .v2h > .v2h-m{grid-column:2;grid-row:1}
+  /* the ad card's one metric row at two across */
+  [data-ui="v2"] .v2gal .kv{font-size:11px;gap:4px}
+  [data-ui="v2"] .v2gal .kv > span > b{font-size:12.5px}
+  /* bar lists: the label gets a third of the width */
+  .lx-bar{grid-template-columns:minmax(72px,34%) minmax(0,1fr) auto;gap:8px}
+  /* a scatter or any svg chart never pushes the page sideways */
+  [data-ui="v2"] .v2chart{max-width:100%;overflow:hidden}
+  /* the two-column card rows stack (they already do under 1150); the gallery is two across */
+  [data-ui="v2"] .v2gal{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+}

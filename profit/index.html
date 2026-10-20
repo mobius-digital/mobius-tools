@@ -2237,8 +2237,8 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=5">
-<link rel="stylesheet" href="phone.css?v=14">
+<link rel="stylesheet" href="lx.css?v=6">
+<link rel="stylesheet" href="phone.css?v=15">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
 <script src="strategist.js?v=4"></script>
@@ -2356,7 +2356,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 
 <div class="nav-scrim" id="navScrim" hidden></div>
 
-<script src="meta.js?v=12"></script>
+<script src="meta.js?v=13"></script>
 <script src="amb.js?v=25"></script>
 <script src="../onboard/questions.js?v=12"></script>
 <script src="brand.js?v=24"></script>
@@ -2382,10 +2382,10 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
-<script src="lx.js?v=6"></script>
-<script src="v2.js?v=57"></script>
+<script src="lx.js?v=7"></script>
+<script src="v2.js?v=61"></script>
 <script src="leaks.js?v=7"></script>
-<script src="desk.js?v=25"></script>
+<script src="desk.js?v=27"></script>
 <script src="agency.js?v=2"></script>
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=7"></script>
@@ -2394,7 +2394,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
-<script src="polish.js?v=2" defer></script>
+<script src="polish.js?v=3" defer></script>
 <script src="phone.js?v=4" defer></script>
 <script>
 'use strict';
@@ -5580,7 +5580,7 @@ function AGR(tab, first) {
 function DR(tab, first) {
   if (!window.DeskTab) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
   window.WAR_MODE = ({ warplan: 'plan', warlive: 'live' })[tab] || null;
-  return window.DeskTab.render(tab, { S, api, apiAH, show, pageHead, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
+  return window.DeskTab.render(tab, { S, api, apiAH, show, pageHead, pageActions, rangeQ, rangeLabel, prettyDate, AskUI, confirmModal, adVideoUrl, AH_URL, RUN: () => RUN }, first);
 }
 window.SEASON_TAB = () => ({ label: SEASON.label, mode: SEASON.mode });
 window.SET_SEASON_TAB = st => { Object.assign(SEASON, st); try { localStorage.setItem('pf_season', JSON.stringify(SEASON)); } catch {} seasonRail(); if (['war', 'warplan', 'warlive', 'season'].includes(S.tab)) show(S.tab); };
