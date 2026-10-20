@@ -107,7 +107,12 @@
       .tk .tk-bc:focus-visible{box-shadow:0 0 0 2px var(--brand)}
       .tk .tk-bc.sel{background:var(--brand-soft);border-color:var(--brand)}
       .tk .tk-bc.drag{opacity:.45}
-      .tk .tk-bc .t{color:var(--ink);line-height:1.35;font-size:13px;padding-right:22px}
+      .tk .tk-bc .t{color:var(--ink);line-height:1.35;font-size:13px;padding-right:22px;display:flex;align-items:flex-start;gap:8px}
+      .tk .tk-bc .t .tk-tick{margin-top:1px}
+      .tk .tk-bc .t .w{min-width:0;overflow-wrap:anywhere}
+      .tk .tk-bc.done{opacity:.55}
+      .tk .tk-bc.done .t .w{text-decoration:line-through}
+      .tk .tk-bc.done .tk-tick{background:var(--good);border-color:var(--good)}
       .tk .tk-bc .tk-more{position:absolute;top:6px;right:6px}
       .tk .tk-bc .r{display:flex;align-items:center;gap:6px;min-width:0}
       .tk .tk-bc .r .b{font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
@@ -328,7 +333,7 @@
 
   /* ---------- Board ---------- */
   function cardHtml(i) {
-    return `<div class="tk-bc${SEL.has(i.id) ? ' sel' : ''}" draggable="${TOUCH() ? 'false' : 'true'}" data-id="${esc(i.id)}" tabindex="0" aria-label="${esc(i.text)}"><div class="t">${esc(i.text)}</div>
+    return `<div class="tk-bc${SEL.has(i.id) ? ' sel' : ''}" draggable="${TOUCH() ? 'false' : 'true'}" data-id="${esc(i.id)}" tabindex="0" aria-label="${esc(i.text)}"><div class="t"><button type="button" class="tk-tick" data-tick aria-label="Mark it done" title="Done"></button><span class="w">${esc(i.text)}</span></div>
       <button type="button" class="tk-more" data-menu aria-label="More" title="More">${ICON.more}</button>
       <div class="r">${av(i.owner, 'data-who')}${brandChip(i)}${detailMark(i)}<span style="flex:1"></span>${dueBtn(i)}</div></div>`;
   }
@@ -541,7 +546,7 @@
         <button class="tk-chip${P.area !== 'all' ? ' on' : ''}" style="--cc:${P.area !== 'all' && AREA[P.area] ? AREA[P.area][1] : 'var(--ink)'}" id="tkArea">${esc(areaLabel)} ${ICON.chev}</button>
         <button class="tk-chip${P.mine ? ' on' : ''}" style="--cc:var(--brand)" id="tkMine" aria-pressed="${P.mine}">Only mine</button></div>
       <div class="tk-areas" hidden>${[['all', 'Every area'], ...AREA_KEYS.map(k => [k, AREA[k][0]]), ['other', 'Other']].map(([v, l]) => `<button type="button" data-areaf="${v}" class="tk-chip${P.area === v ? ' on' : ''}"${AREA[v] ? ` style="--cc:${AREA[v][1]}"` : ''}>${l}</button>`).join('')}</div>
-      ${TOUCH() ? '' : '<p class="tk-hint">Right-click a task for everything. Click the person or the date to change it. Ctrl-click to select a few.</p>'}
+      ${TOUCH() ? '' : '<p class="tk-hint">Tick the circle to finish a task. Right-click a task for everything else. Ctrl-click (or Shift-click) to select a few and finish or change them together.</p>'}
       ${body}
     </div>`;
     wire();
