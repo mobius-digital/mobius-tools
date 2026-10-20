@@ -478,7 +478,7 @@
        <label>Due<input type="date" name="due" value="${plusDays(2)}"></label>`, 'Add to the list', async form => {
         const f = new FormData(form);
         const text = String(f.get('text') || '').trim(), owner = String(f.get('owner') || ''), due = String(f.get('due') || '');
-        const j = await H.apiAH('/api/actions', { method: 'POST', body: JSON.stringify({ act: r.act_id, text: `${text} (${what}, from Today's calls: ${String(r.why || r.kind).slice(0, 120)})`, owner: owner || null, due: due || null, kind: 'team', source: 'today', source_id: r.key }) });
+        const j = await H.apiAH('/api/actions', { method: 'POST', body: JSON.stringify({ act: r.act_id, text, detail: `${what}. From Today's ad calls: ${String(r.why || r.kind).slice(0, 300)}`, owner: owner || null, due: due || null, kind: 'team', source: 'today', source_id: r.key }) });
         if (!j || j.error) throw new Error(j && j.error || 'Locus did not answer.');
         dtoast(`On the list${owner ? ` for ${owner}` : ''}.`, false, j.item && j.item.url ? { href: j.item.url, label: 'Open the list' } : null);
       });

@@ -49,7 +49,7 @@ export function messageFor(brand, rows) {
   const list = (rows || []).filter(r => KINDS.includes(r.kind)).sort((p, q) => (q.stake || 0) - (p.stake || 0));
   if (!list.length) return null;
   const lines = list.map(lineFor);
-  const head = `Today's calls: ${brand.name}`, url = `${LOCUS}?open=today&act=${encodeURIComponent(brand.act_id)}`;
+  const head = `Today's ad calls: ${brand.name}`, url = `${LOCUS}?open=today&act=${encodeURIComponent(brand.act_id)}`;
   const sec = l => ({ type: 'section', text: { type: 'mrkdwn', text: l.slice(0, 2900) } });
   const chunks = [];
   for (let i = 0; i < lines.length; i += PER_MSG) chunks.push(lines.slice(i, i + PER_MSG));

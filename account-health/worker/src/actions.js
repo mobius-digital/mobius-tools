@@ -12,6 +12,8 @@
  *   source meeting | monday | today | strategist | manual, source_id (meeting id, today row key...),
  *   asana_gid (only while a mirror runs; nothing writes it today), done_at, done_by, done_how (tick | slack | auto:<signal>),
  *   reminded_on (the Central day the last reminder went), slack_channel + slack_ts (the reminder line, so a ✅ on it works),
+ *   detail (2026-10-20, the tasks audit: a task is a SHORT title that reads at a glance plus the details underneath, like
+ *   Asana; every writer splits a long line with splitTitle so the list, the board and the morning card stay one line each),
  *   created_at, created_by, area (2026-10-13 fourth pass: ads | email | organic | site | ops | client, '' = Other, NULL = not
  *   judged yet; the call extractor sets it, quick add sets it, and actionTick has Haiku judge any open row still NULL).
  *
@@ -62,6 +64,7 @@ export async function ensureActions(env) {
   for (const s of SQL) await env.DB.prepare(s).run();
   await env.DB.prepare(`ALTER TABLE p_action ADD COLUMN asana_url TEXT`).run().catch(() => {});   // 2026-10-13: Brief items link their Asana task
   await env.DB.prepare(`ALTER TABLE p_action ADD COLUMN area TEXT`).run().catch(() => {});        // 2026-10-13 fourth pass: Tasks groups by it
+  await env.DB.prepare(`ALTER TABLE p_action ADD COLUMN detail TEXT`).run().catch(() => {});      // 2026-10-20: the details under a short title
   ensured = true;
 }
 
@@ -82,6 +85,30 @@ const now = () => new Date().toISOString();
 const clean = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const sEsc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const ymdOk = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+/** A task is a short title and the details under it. A long line (a sentence with its reasons, a bracket, "Plan: ...")
+ *  is cut at its first natural break into the two, so nothing typed is lost and the list reads one line per task.
+ *  Returns {text, detail}. 2026-10-20 (Cole: "so much text on there; if you want details, you click into it"). */
+export const TITLE_MAX = 90;
+export function splitTitle(raw, detail) {
+  const text = clean(raw, 300), extra = clean(detail, 2000);
+  if (!text || text.length <= TITLE_MAX) return { text, detail: extra };
+  const breaks = [/\. (?=[A-Z(])/, / \((?=[^)]{12,})/, /: (?=[A-Za-z])/, /; /, /, (?=(?:from|because|so that|which|using|with|and then|then) )/];
+  let cut = -1;
+  for (const re of breaks) { const m = re.exec(text); if (m && m.index >= 18 && m.index <= TITLE_MAX && (cut < 0 || m.index < cut)) cut = m.index; }
+  if (cut < 0) {
+    /* No sentence break: the last clause joiner before the limit (", aimed at", " with", " to draw"), else the last space. */
+    const head = text.slice(0, TITLE_MAX);
+    let j = -1;
+    for (const re of [/, (?=[a-z])/g, / (?:with|to|for|from|using|so|that|aimed|and) /g]) { let m; while (j < 0 && (m = re.exec(head))) if (m.index >= 30) j = m.index; }
+    const sp = head.lastIndexOf(' ');
+    cut = j >= 30 ? j : sp > 30 ? sp : TITLE_MAX;
+  }
+  const title = text.slice(0, cut).replace(/[\s,;:.(]+$/, '').trim();
+  let rest = text.slice(cut).replace(/^[\s,;:.]+/, '').trim();
+  const balanced = t => { let n = 0; for (const ch of t) { if (ch === '(') n++; else if (ch === ')') { n--; if (n < 0) return false; } } return n === 0; };
+  if (/^\(/.test(rest) && /\)$/.test(rest) && balanced(rest.slice(1, -1))) rest = rest.slice(1, -1).trim();
+  return { text: title || text.slice(0, TITLE_MAX), detail: [rest, extra].filter(Boolean).join('\n') };
+}
 const newId = () => 'ac_' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('');
 const ownerName = s => { const w = clean(s, 40).toLowerCase(); const r = ROSTER.find(x => x.name.toLowerCase() === w); return r ? r.name : clean(s, 40); };
 const emailOf = name => (ROSTER.find(x => x.name.toLowerCase() === String(name || '').toLowerCase()) || {}).email || null;
@@ -93,8 +120,9 @@ async function putSetting(env, k, v) { await env.DB.prepare(`INSERT INTO setting
 /* ---------- rows ---------- */
 export async function addAction(env, it) {
   await ensureActions(env);
+  const cut = splitTitle(it.text, it.detail);
   const row = {
-    id: newId(), act_id: String(it.act || it.act_id || ''), text: clean(it.text, 300), owner: ownerName(it.owner), due: ymdOk(it.due) ? it.due : '',
+    id: newId(), act_id: String(it.act || it.act_id || ''), text: cut.text, detail: cut.detail || null, owner: ownerName(it.owner), due: ymdOk(it.due) ? it.due : '',
     kind: KINDS.includes(it.kind) ? it.kind : 'team', source: SOURCES.includes(it.source) ? it.source : 'manual', source_id: it.source_id ? clean(it.source_id, 120) : null,
     created_at: now(), created_by: it.created_by ? clean(it.created_by, 120) : null,
     asana_gid: it.asana_gid ? String(it.asana_gid) : null, asana_url: it.asana_url ? String(it.asana_url).slice(0, 300) : null,
@@ -102,8 +130,8 @@ export async function addAction(env, it) {
   };
   if (!row.text) throw Object.assign(new Error('Write the item first.'), { status: 400 });
   row.owner_email = emailOf(row.owner);
-  await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by, asana_gid, asana_url, area) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11, ?12, ?13, ?14)`)
-    .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by, row.asana_gid, row.asana_url, row.area).run();
+  await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by, asana_gid, asana_url, area, detail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`)
+    .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by, row.asana_gid, row.asana_url, row.area, row.detail).run();
   return { ...row, status: 'open', url: itemUrl(row) };
 }
 export const itemUrl = r => `${LOCUS}?open=actions${r.act_id ? `&act=${encodeURIComponent(r.act_id)}` : ''}&item=${encodeURIComponent(r.id)}`;
@@ -140,7 +168,8 @@ export async function editAction(env, id, patch) {
   const r = await env.DB.prepare(`SELECT * FROM p_action WHERE id = ?1`).bind(String(id || '')).first();
   if (!r) throw Object.assign(new Error('No such item.'), { status: 404 });
   const next = {
-    text: 'text' in patch ? clean(patch.text, 300) : r.text,
+    text: 'text' in patch ? clean(patch.text, TITLE_MAX + 60) : r.text,
+    detail: 'detail' in patch ? (clean(patch.detail, 2000) || null) : (r.detail ?? null),
     owner: 'owner' in patch ? ownerName(patch.owner) : r.owner,
     due: 'due' in patch ? (ymdOk(patch.due) ? patch.due : '') : r.due,
     kind: 'kind' in patch && KINDS.includes(patch.kind) ? patch.kind : r.kind,
@@ -151,8 +180,8 @@ export async function editAction(env, id, patch) {
   if (!next.text) throw Object.assign(new Error('The item needs words.'), { status: 400 });
   /* A new due date is a new reminder. */
   const remind = next.due !== r.due ? null : r.reminded_on;
-  await env.DB.prepare(`UPDATE p_action SET text = ?2, owner = ?3, owner_email = ?4, due = ?5, kind = ?6, act_id = ?7, status = ?8, reminded_on = ?9, area = ?10 WHERE id = ?1`)
-    .bind(r.id, next.text, next.owner, emailOf(next.owner), next.due, next.kind, next.act_id, next.status, remind, next.area ?? null).run();
+  await env.DB.prepare(`UPDATE p_action SET text = ?2, owner = ?3, owner_email = ?4, due = ?5, kind = ?6, act_id = ?7, status = ?8, reminded_on = ?9, area = ?10, detail = ?11 WHERE id = ?1`)
+    .bind(r.id, next.text, next.owner, emailOf(next.owner), next.due, next.kind, next.act_id, next.status, remind, next.area ?? null, next.detail).run();
   return { ...r, ...next, url: itemUrl({ ...r, ...next }) };
 }
 
@@ -164,7 +193,7 @@ export async function openItems(env, d) {
   const by = new Map();
   for (const r of rows) {
     if (!by.has(r.act_id)) by.set(r.act_id, { brand_id: r.act_id, name: nameOf(r.act_id), items: [] });
-    by.get(r.act_id).items.push({ id: r.id, name: r.text, text: r.text, owner: r.owner, due: r.due, kind: r.kind, area: r.area || '', source: r.source, source_id: r.source_id, url: r.url, asana_url: r.asana_url || null, created: String(r.created_at || '').slice(0, 10) });
+    by.get(r.act_id).items.push({ id: r.id, name: r.text, text: r.text, detail: r.detail || '', owner: r.owner, due: r.due, kind: r.kind, area: r.area || '', source: r.source, source_id: r.source_id, url: r.url, asana_url: r.asana_url || null, created: String(r.created_at || '').slice(0, 10) });
   }
   return [...by.values()].sort((a, b) => (a.brand_id ? 1 : 0) - (b.brand_id ? 1 : 0) || a.name.localeCompare(b.name));
 }
@@ -183,13 +212,13 @@ async function haiku(env, d, system, user, schema, max = 800) {
   if (!out) throw new Error('empty');
   return out;
 }
-const QUICK_SCHEMA = { type: 'object', additionalProperties: false, required: ['act', 'text', 'owner', 'due', 'area'],
-  properties: { act: { type: 'string' }, text: { type: 'string' }, owner: { type: 'string' }, due: { type: 'string' }, area: { type: 'string', enum: [...AREAS, ''] } } };
+const QUICK_SCHEMA = { type: 'object', additionalProperties: false, required: ['act', 'text', 'detail', 'owner', 'due', 'area'],
+  properties: { act: { type: 'string' }, text: { type: 'string' }, detail: { type: 'string' }, owner: { type: 'string' }, due: { type: 'string' }, area: { type: 'string', enum: [...AREAS, ''] } } };
 /** One typed line -> {act, text, owner, due, area}. Any failure (no key, budget, a bad answer) = the raw words as the task,
  *  with the brand the page was on. Never throws. */
 export async function parseQuick(env, d, raw, { act = '', today } = {}) {
   const text = clean(raw, 300);
-  const fallback = { act: String(act || ''), text, owner: '', due: '', area: null, parsed: false };
+  const fallback = { act: String(act || ''), ...splitTitle(text), owner: '', due: '', area: null, parsed: false };
   if (!text) return fallback;
   try {
     if (d.canAfford && !d.canAfford(2)) return fallback;
@@ -200,12 +229,14 @@ export async function parseQuick(env, d, raw, { act = '', today } = {}) {
 BRANDS (act = the id, '' when no brand is named or meant): ${brands.map(b => `${b.act_id} = ${b.name}`).join('; ')}.
 TEAM (owner = one of these first names when the line names or clearly means them, else ''): ${ROSTER.map(r => r.name).join(', ')}.
 TODAY is ${day} (${dow}). due = YYYY-MM-DD when the line gives a day ("by Wed", "tomorrow", "Friday", "end of week" = this Friday), else ''.
-text = the task itself, short and specific, without the brand name, the owner or the date words.
+text = the task as a SHORT title: starts with a verb, at most 8 words, specific enough to tick off, without the brand name, the owner or the date words ("Raise Prospecting 1 to $400/day").
+detail = everything else the line says that the title left out (the reason, the numbers, a link, what exactly), in the person's own words; '' when the title holds it all.
 ${AREA_RULE}`;
     const o = await haiku(env, d, system, text, QUICK_SCHEMA, 400);
     const ids = new Set(brands.map(b => b.act_id));
     const owner = ROSTER.find(r => r.name.toLowerCase() === String(o.owner || '').toLowerCase())?.name || '';
-    return { act: ids.has(o.act) ? o.act : String(act || ''), text: clean(o.text, 300) || text, owner, due: ymdOk(o.due) ? o.due : '', area: areaOf(o.area) ?? '', parsed: true };
+    const cut = splitTitle(clean(o.text, 300) || text, o.detail);
+    return { act: ids.has(o.act) ? o.act : String(act || ''), text: cut.text, detail: cut.detail, owner, due: ymdOk(o.due) ? o.due : '', area: areaOf(o.area) ?? '', parsed: true };
   } catch { return fallback; }
 }
 
@@ -232,14 +263,15 @@ const DONE_BTN = (r, n) => ({ type: 'button', action_id: `act_done_${n}`, text: 
 export function reminderMessage(brandName, owner, items, today, tag) {
   const late = items.filter(i => i.due < today), due = items.filter(i => i.due === today);
   const who = owner || 'Nobody owns these';
-  const head = `${tag || `*${sEsc(who)}*`}, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}.`;
-  const lines = items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.asana_url ? ` <${i.asana_url}|Asana>` : ''}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`);
-  const text = [head, ...lines].join('\n');
-  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }];
+  /* 2026-10-20 (the tasks audit): the morning card above already lists each task, so this reply does not repeat them. It
+     is the owner's tag, the count, and a Done button per task (the title is the label); past four, "and N more in Locus".
+     The plain text (notifications, the index) still carries the lines. */
+  const head = `${tag || `*${sEsc(who)}*`}, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}. Press Done as you go.`;
+  const text = [head, ...items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`)].join('\n');
+  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: (items.length > 4 ? `${head}\n_${items.length - 4} more in Locus_` : head).slice(0, 2900) } }];
   const btns = items.slice(0, 4).map((r, n) => DONE_BTN(r, n));
   btns.push({ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions${items[0].act_id ? `&act=${encodeURIComponent(items[0].act_id)}` : ''}` });
   blocks.push({ type: 'actions', elements: btns });
-  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: 'Press Done, or react ✅ to this message to mark every item in it done.' }] });
   return { text, blocks };
 }
 

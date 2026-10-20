@@ -120,7 +120,7 @@ const SCHEMA = obj({
   brands: arr(obj({
     brand_id: S,
     decisions: arr(S),
-    items: arr(obj({ text: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] }, area: { type: 'string', enum: [...AREAS, ''] }, quote: S, at: S })),
+    items: arr(obj({ text: S, detail: S, owner: S, due: S, kind: { type: 'string', enum: ['team', 'brief', 'client', 'client_owes'] }, area: { type: 'string', enum: [...AREAS, ''] }, sure: { type: 'boolean' }, quote: S, at: S })),
     this_week: arr(S),
     need_from_client: arr(S),
   })),
@@ -146,8 +146,18 @@ WHAT TO WRITE
 - kind: monday_call (the team's weekly call across brands), client_call (one brand, the client on the call), kickoff (a creative brief kickoff), internal, other.
 - For every brand that was discussed, one entry. Agency-wide points (every brand must do X) go in a '' entry AND are repeated for each brand they apply to, because each brand's channel reads only its own entry.
 - decisions: what was agreed, one line each. Not the discussion, the outcome.
-- items: only real commitments someone has to do. Each has a kind:
-  team = a task for someone on the team (owner, due). Specific enough to tick off.
+- items: ONLY real commitments: a named person (or clearly the team) said they WILL do one specific thing. The bar is high
+  (2026-10-20: a Monday call came back with 28 items and the reviewer threw the whole call away). NOT an item: an idea, a
+  "we should", "look into", "review", "think about", "keep an eye on", a recurring job (checking the account, posting the
+  plan, making the week's ads), a question, or the discussion itself. Those are decisions, or nothing. A Monday call across
+  many brands usually has 0 to 3 items per brand; a client call 2 to 5. Never more than 6 per brand. When in doubt, leave it out.
+  Each item has: text = a SHORT title, verb first, at most 8 words, no brand name, no owner, no date, specific enough to tick
+  off ("Raise Prospecting 1 to $400/day", "Send Rob the competitor page examples"). detail = what the title leaves out
+  (the numbers, the names, the why, what exactly) in one or two plain sentences; '' when the title says it all. sure = true
+  when the person AND the thing were both said out loud; false when either is implied (it sounds like a job but nobody took
+  it, or you are guessing who). The reviewer sees sure items ticked and unsure ones unticked.
+  Each has a kind:
+  team = a task for someone on the team (owner, due).
   brief = new ads someone agreed to make (a batch, iterations of a winner, a new angle). The text says what to make in one line ("3 new hooks on the Burgundy launch video"); owner = the strategist who writes the brief. It becomes a numbered brief in Asana.
   client = something the client should hear we are doing this week (no owner needed).
   client_owes = something the client has to give or decide (photos, an offer, an approval).
@@ -181,7 +191,7 @@ async function extract(env, d, m, text) {
   const ids = new Set(brands.map(b => b.act_id));
   out.brands = (out.brands || []).filter(b => b.brand_id === '' || ids.has(b.brand_id)).map(b => ({
     brand_id: b.brand_id, decisions: (b.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-    items: (b.items || []).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', area: AREAS.includes(i.area) ? i.area : '', quote: clean(i.quote, 240), at: /^\d{1,3}:\d{2}$/.test(i.at || '') ? i.at : '' })).filter(i => i.text),
+    items: (b.items || []).map(i => ({ text: clean(i.text, 300), detail: clean(i.detail, 1000), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', area: AREAS.includes(i.area) ? i.area : '', sure: i.sure !== false, quote: clean(i.quote, 240), at: /^\d{1,3}:\d{2}$/.test(i.at || '') ? i.at : '' })).filter(i => i.text).slice(0, 6),
     this_week: (b.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     need_from_client: (b.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
   }));
@@ -333,7 +343,7 @@ async function briefToAsana(env, d, act, doc, row, it, m, who) {
   const top = Math.max(0, ...(Array.isArray(recent) ? recent : []).map(t => +numOf(t.name) || 0));
   if (top >= num) { num = top + 1; await env.DB.prepare(`UPDATE p_br_batch SET num = ?2 WHERE id = ?1`).bind(row.id, String(num)).run(); }
   const assignee = await asanaUserFor(env, d, doc, it.owner);
-  const from = m ? `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}. Confirmed by ${sEsc(who)} in Locus.</em>\n` : `<em>Added in Locus Production by ${sEsc(who)}.</em>\n`;
+  const from = m ? `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}.${it.detail ? ` ${sEsc(it.detail)}` : ''} Confirmed by ${sEsc(who)} in Locus.</em>\n` : `<em>Added in Locus Production by ${sEsc(who)}.</em>\n`;
   const html = briefFor(it.text).replace('<body>', `<body>${from}`);
   const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });
   await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: t.gid } }).catch(() => {});
@@ -362,7 +372,7 @@ export async function confirm(env, d, body, who) {
     if (act && !brands.some(b => b.act_id === act)) continue;
     const b = {
       brand_id: act, decisions: (raw.decisions || []).map(x => clean(x, 300)).filter(Boolean),
-      items: (raw.items || []).filter(i => i && i.on !== false).map(i => ({ text: clean(i.text, 300), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', area: AREAS.includes(i.area) ? i.area : '' })).filter(i => i.text),
+      items: (raw.items || []).filter(i => i && i.on !== false).map(i => ({ text: clean(i.text, 300), detail: clean(i.detail, 2000), owner: clean(i.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '', kind: KINDS.includes(i.kind) ? i.kind : 'team', area: AREAS.includes(i.area) ? i.area : '' })).filter(i => i.text),
       this_week: (raw.this_week || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
       need_from_client: (raw.need_from_client || []).map(x => clean(x, 300)).filter(Boolean).slice(0, 6),
     };
@@ -371,7 +381,7 @@ export async function confirm(env, d, body, who) {
     const r = { brand_id: act, name: act ? nameOf(act) : 'Agency', tasks: [], briefs: [], asks: [], report: null, slack: false };
     /* 1. Team items -> Locus action items (p_action). Nothing goes to Asana. */
     for (const it of b.items.filter(i => i.kind === 'team')) {
-      try { const row = await addAction(env, { act, text: it.text, owner: it.owner, due: it.due, kind: 'team', area: it.area, source: 'meeting', source_id: m.id, created_by: who }); r.tasks.push({ ...it, id: row.id, url: row.url, assigned: !!row.owner }); }
+      try { const row = await addAction(env, { act, text: it.text, detail: it.detail, owner: it.owner, due: it.due, kind: 'team', area: it.area, source: 'meeting', source_id: m.id, created_by: who }); r.tasks.push({ ...it, id: row.id, url: row.url, assigned: !!row.owner }); }
       catch (e) { r.tasks.push({ ...it, error: e.message }); result.warnings.push(`${r.name}: "${it.text}" was not added (${e.message}).`); }
     }
     /* 1b. Briefs -> a numbered task in the brand's Asana Creative Brief section (the team's template) and its card on
@@ -381,7 +391,7 @@ export async function confirm(env, d, body, who) {
       let made = null, why = act ? '' : 'no brand';
       if (act) { try { made = await makeBrief(env, d, act, it, m, who); } catch (e) { why = e.message; } }
       if (made) { r.briefs.push({ ...it, id: made.id, num: made.num, url: `${LOCUS}?open=production&act=${encodeURIComponent(act)}`, asana_url: made.url }); continue; }
-      try { const row = await addAction(env, { act, text: `Write a brief: ${it.text}`, owner: it.owner, due: it.due, kind: 'team', area: 'ads', source: 'meeting', source_id: m.id, created_by: who });
+      try { const row = await addAction(env, { act, text: `Write a brief: ${it.text}`, detail: it.detail, owner: it.owner, due: it.due, kind: 'team', area: 'ads', source: 'meeting', source_id: m.id, created_by: who });
         r.tasks.push({ ...it, kind: 'team', id: row.id, url: row.url, assigned: !!row.owner }); result.warnings.push(`${r.name}: the brief "${it.text}" was not made in Asana (${why}). It is a task to write it.`); }
       catch (e) { r.briefs.push({ ...it, error: e.message }); }
     }
@@ -411,18 +421,25 @@ export async function confirm(env, d, body, who) {
     /* 4. One note per brand in its internal channel; agency-wide to the Strategist channel. */
     const ch = act ? chanOf(act) : await getSetting(env, 'strategistChannel');
     if (ch) {
-      const L = [`*Notes from "${sEsc(m.title)}"* (${m.date})${act ? '' : ' · agency-wide'}`];
-      if (b.decisions.length) L.push('*Decided*', ...b.decisions.map(x => `• ${sEsc(x)}`));
-      if (r.tasks.length) L.push('*To do*', ...r.tasks.map(t => `• ${sEsc(t.text)}${t.owner ? ` · ${sEsc(t.owner)}` : ''}${t.due ? ` · due ${t.due}` : ''}${t.url ? ` · <${t.url}|Locus>` : t.error ? ' · _not added_' : ''}`));
-      if (r.briefs.length) L.push('*Briefs*', ...r.briefs.map(t => `• ${t.num ? `${t.num} - ` : ''}${sEsc(t.text)}${t.owner ? ` · ${sEsc(t.owner)}` : ''}${t.due ? ` · due ${t.due}` : ''}${t.asana_url ? ` · <${t.asana_url}|Asana>` : ''}`));
-      const tell = b.items.filter(i => i.kind === 'client').map(i => i.text).concat(b.this_week);
-      if (tell.length) L.push('*The client hears*', ...[...new Set(tell)].map(x => `• ${sEsc(x)}`));
-      if (r.asks.length || b.need_from_client.length) L.push('*We need from the client*', ...[...new Set(r.asks.map(a => a.text).concat(b.need_from_client))].map(x => `• ${sEsc(x)}`));
+      /* 2026-10-20 (the tasks audit; Cole: the post after a call is "so weird", nobody reads a five-section note): ONE short
+         reply. What the call made, as counts with the owners tagged, up to three decisions, and the link. The tasks
+         themselves are not repeated here: each owner's land on the morning card the day they are due, and the whole call
+         is one click away in Locus. */
+      const made = [];
+      const okTasks = r.tasks.filter(t => !t.error), okBriefs = r.briefs.filter(t => !t.error), okAsks = r.asks.filter(t => !t.error);
+      const owners = [...new Set(okTasks.concat(okBriefs).map(t => t.owner).filter(Boolean))];
+      const tagMap = {};
+      if (act) for (const o of owners) tagMap[o] = await tagOf(env, d, o).catch(() => null);
+      const byOwner = owners.map(o => { const n = okTasks.filter(t => t.owner === o).length + okBriefs.filter(t => t.owner === o).length; return `${tagMap[o] || sEsc(o)} ${n}`; });
+      if (okTasks.length) made.push(`${okTasks.length} task${okTasks.length === 1 ? '' : 's'}`);
+      if (okBriefs.length) made.push(`${okBriefs.length} brief${okBriefs.length === 1 ? '' : 's'}`);
+      if (okAsks.length) made.push(`${okAsks.length} ask${okAsks.length === 1 ? '' : 's'} for the client`);
+      if (r.report) made.push('the weekly report updated');
+      const L = [`*From the "${sEsc(m.title)}" call* (${m.date})${act ? '' : ' · agency-wide'}: ${made.length ? made.join(', ') : 'notes filed'}${byOwner.length ? ` (${byOwner.join(', ')})` : ''}.`];
+      if (b.decisions.length) L.push(...b.decisions.slice(0, 3).map(x => `• ${sEsc(x)}`));
+      if (b.decisions.length > 3) L.push(`_and ${b.decisions.length - 3} more decided, in Locus_`);
       const text = L.join('\n');
-      /* 2026-10-13: a brand's note goes under today's morning card (a reply, the owners tagged); agency-wide ones and a
-         day with no card post top-level as before. */
-      const owners = [...new Set(r.tasks.concat(r.briefs).map(t => t.owner).filter(Boolean))];
-      const tags = act ? (await Promise.all(owners.map(o => tagOf(env, d, o).catch(() => null)))).filter(Boolean).join(' ') : '';
+      const tags = Object.values(tagMap).filter(Boolean).join(' ');
       try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus', tag: tags || null }); r.slack = true; }
       catch (e) { result.warnings.push(`${r.name}: the Slack note failed (${e.message}).`); }
     }
