@@ -1,18 +1,19 @@
-/* LOCUS SOCIAL, phase 2: THE WEEK (2026-10-19). Plan and the UI it borrows (Later's hour grid, its ready tray and its
- * account bubbles, its "Notify" fallback): docs/locus-social/proposal.html, "A time grid, a tray of ready content".
- *   Week        seven brand-local days by the hour. A post is a card on the grid: cover, caption, the bubbles of the
- *               accounts it goes to, and its state (Auto 9:00 / Draft / Posted with views / By hand / Failed).
- *   Tray        what is ready to post and not yet used: Studio approved finals, creator link clips, winning Meta ads,
- *               Make ours drafts (a script, the composer starts from its words), uploads, posts others tagged us in.
- *               Drag one onto a day and hour; on a phone tap it and pick the time.
- *   Composer    one caption (Rephrase in the brand's voice, saved captions), the accounts by their bubbles, per-platform
- *               tweaks only where a platform needs them (YouTube title and visibility, Instagram first comment, a
- *               platform's own caption), Schedule / Save draft / Post now. A post already out shows each platform's link
- *               and numbers, Try again on a failure, and "Posted by hand" where Locus handed it to a person in Slack.
- *   Connect     Brand settings > Social > Connect accounts: Meta (a Page + its Instagram, the Mobius Tools token), TikTok
- *               and YouTube (a sign-in each, Cole clicks the grant), the mode per platform (live / draft / notify).
+/* LOCUS SOCIAL: THE WEEK (rebuilt 2026-10-20 after Cole's review; first built 2026-10-19). The UI it follows: Later's
+ * calendar density (docs/locus-social/shots/later-week.png: hour rows, a post is a small card with its cover and time,
+ * the accounts as marks), docs/locus-social/proposal.html "A time grid, a tray of ready content".
+ *
+ * WHO USES IT: the person filling the brand's week of posts, once a week and whenever something new is ready.
+ *   1. see the week at a glance (seven brand-local days by the hour, today marked, past hours hatched)
+ *   2. pick something ready from the tray (a LIST with thumbnails: Studio finals, creator clips, winning ads, Make ours
+ *      drafts, uploads) and put it on a day and hour (drag, or tap it and pick the time)
+ *   3. write one caption, tick the accounts (labelled switches), set the time, Schedule
+ *   4. come back for the numbers: a posted card shows views, likes and comments in the same metric row as Watch
+ *
+ * LAYOUT: page head > week nav + account marks + Post button > tray (left, a list) + grid (right). The post editor is
+ * ONE panel (V2UI.panel, a bottom sheet on a phone): media, caption, accounts, time, Schedule. Brand settings > Social
+ * (connect) is one table-like card: platform, account, status, mode as a select, Connect / Forget.
  * Data: account-health /api/social/week, /tray, /post, /accounts, /captions, /rephrase (socialpost.js). Tokens never
- * reach this file. CSS tokens only; on a phone the tray is a bottom sheet and the grid scrolls sideways. */
+ * reach this file. CSS tokens only, no inline styles that fight phone.css. Never prompt() or alert(). No em dashes. */
 (() => {
   let H = null;
   const $ = s => document.querySelector(s);
@@ -21,17 +22,20 @@
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} };
   const CLI = () => !!(H && H.S && (H.S.role === 'client' || H.S.client)) || document.body.classList.contains('is-client');
   const PHONE = () => window.matchMedia('(max-width: 720px)').matches;
+  const ic = (n, l) => window.icon ? window.icon(n, { size: 15, label: l }) : '';
   const PL = { ig: 'Instagram', fb: 'Facebook', tt: 'TikTok', yt: 'YouTube' };
   const PK = { ig: 'IG', fb: 'FB', tt: 'TT', yt: 'YT' };
   const SRC = { studio: 'Studio', creator: 'Creator', ad: 'Meta ad', make: 'Make ours', upload: 'Upload', tagged: 'Tagged in' };
   const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);   // 6am to 10pm
-  const ROW = 56;
+  const ROW = 48;
   const k = n => { if (n == null) return '–'; const a = Math.abs(n); return a >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : a >= 1e3 ? `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : String(Math.round(n)); };
   const add = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const monday = s => { const d = new Date(s + 'T00:00:00Z'); const w = (d.getUTCDay() + 6) % 7; return add(s, -w); };
   const md = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const dnum = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
   const wd = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
-  const h12 = h => (h % 12 || 12) + (h < 12 ? 'am' : 'pm');
+  const h12 = h => (h % 12 || 12) + (h < 12 ? ' am' : ' pm');
+  const hm12 = hm => { const [h, m] = hm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`; };
   const ST = { act: null, from: null, data: null, tray: null, tf: store('sw_tf') || 'unused', loading: false };
   const BOOT_POST = new URLSearchParams(location.search).get('post');   // ?open=socialweek&post=<id> (Slack, the calendar)
 
@@ -39,89 +43,150 @@
     if (document.getElementById('swcss')) return;
     const st = document.createElement('style'); st.id = 'swcss';
     st.textContent = `
-      .sw .sw-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
-      .sw .sw-top .r{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-      .sw .sw-range{font-weight:650;font-size:14px;min-width:150px}
-      .sw-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-weight:600;font-size:12.5px;cursor:pointer;color:var(--ink)}
-      .sw-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand,#fff)} .sw-btn:disabled{opacity:.55;cursor:default} .sw-btn.sm{padding:4px 8px;font-size:12px}
-      .sw-acc{display:flex;gap:4px;align-items:center}
-      .sw-bub{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line-strong);background:var(--surface-2,var(--surface)) center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;letter-spacing:.02em;color:var(--ink-2);cursor:pointer;position:relative;flex:none}
-      .sw-bub.on{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 35%,transparent)} .sw-bub.off{opacity:.35}
-      .sw-bub.sm{width:18px;height:18px;font-size:7.5px;border-width:1px;box-shadow:none}
-      .sw-bub.bad::after{content:"";position:absolute;right:-2px;top:-2px;width:8px;height:8px;border-radius:50%;background:var(--bad);border:1.5px solid var(--surface)}
-      .sw-bub.hand::after{content:"";position:absolute;right:-2px;top:-2px;width:8px;height:8px;border-radius:50%;background:var(--warn);border:1.5px solid var(--surface)}
-      .sw .sw-body{display:grid;grid-template-columns:250px minmax(0,1fr);gap:12px;align-items:start}
-      .sw .sw-tray{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px;position:sticky;top:8px;max-height:calc(100vh - 110px);display:flex;flex-direction:column;gap:8px}
-      .sw .sw-tray h4{margin:0;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-      .sw-chips{display:flex;gap:4px;flex-wrap:wrap}
-      .sw-chip{padding:2px 8px;border:1px solid var(--line-strong);border-radius:99px;font:inherit;font-size:11.5px;font-weight:600;color:var(--ink-2);background:none;cursor:pointer}
-      .sw-chip.on{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--surface))} .sw-chip small{font-weight:500;color:var(--muted)}
-      .sw-tl{overflow:auto;display:grid;gap:6px;min-height:80px}
-      .sw-ti{display:grid;grid-template-columns:56px minmax(0,1fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:5px;background:var(--surface);cursor:grab;text-align:left;font:inherit;color:var(--ink)}
-      .sw-ti:hover{border-color:var(--line-strong)} .sw-ti.used{opacity:.5} .sw-ti:active{cursor:grabbing}
-      .sw-ti .th{width:56px;height:56px;border-radius:6px;background:var(--surface-2,var(--line)) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted);position:relative}
-      .sw-ti .th i{position:absolute;right:3px;bottom:3px;font-size:9px;font-style:normal;font-weight:700;background:rgba(0,0,0,.6);color:#fff;padding:1px 4px;border-radius:3px}
-      .sw-ti .t{font-size:12px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-      .sw-ti .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .sw-ti .s b{color:var(--ink-2);font-weight:600}
-      .sw .sw-grid{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:auto;max-height:calc(100vh - 110px);position:relative}
-      .sw .sw-gh{display:grid;grid-template-columns:52px repeat(7,minmax(120px,1fr));position:sticky;top:0;background:var(--surface);z-index:3;border-bottom:1px solid var(--line)}
-      .sw .sw-gh div{padding:8px 6px;font-size:12px;font-weight:650;color:var(--ink-2);text-align:center;border-left:1px solid var(--line)} .sw .sw-gh div:first-child{border-left:0}
-      .sw .sw-gh div.td{color:var(--brand)} .sw .sw-gh div small{display:block;font-weight:500;color:var(--muted);font-size:11px}
-      .sw .sw-gb{display:grid;grid-template-columns:52px repeat(7,minmax(120px,1fr));position:relative}
-      .sw .sw-ht{height:${ROW}px;font-size:10.5px;color:var(--muted);text-align:right;padding:2px 6px 0 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+      .sw{--sw-r:10px}
+      .sw .sw-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+      .sw .sw-top .r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      .sw .sw-nav{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:2px}
+      .sw .sw-nav button{height:30px;min-width:30px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+      .sw .sw-nav button:hover{background:var(--surface-2);color:var(--ink)}
+      .sw .sw-range{font-weight:650;font-size:15px;letter-spacing:-.01em}
+      .sw .sw-range small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+      .sw-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 13px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer;color:var(--ink);white-space:nowrap;text-decoration:none}
+      .sw-btn:hover{background:var(--surface-2)} .sw-btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand)} .sw-btn.pri:hover{filter:brightness(1.05)}
+      .sw-btn:disabled{opacity:.55;cursor:default} .sw-btn.sm{height:30px;padding:0 10px;font-size:12.5px} .sw-btn.q{border-color:transparent;background:transparent;color:var(--ink-2)} .sw-btn.q:hover{background:var(--surface-2)}
+      .sw-btn.bad{color:var(--bad)}
+      /* account marks: a small square per platform; dim = not connected, dot = by hand or an error */
+      .sw-acc{display:inline-flex;gap:4px;align-items:center}
+      .sw-bub{width:24px;height:24px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface-2) center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;letter-spacing:.02em;color:var(--ink-2);position:relative;flex:none;cursor:default}
+      .sw-bub.on{border-color:var(--brand);background-color:var(--brand-soft);color:var(--brand)} .sw-bub.off{opacity:.35}
+      .sw-bub.sm{width:16px;height:16px;font-size:7px;border-radius:4px}
+      .sw-bub.bad::after,.sw-bub.hand::after{content:"";position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--surface)}
+      .sw-bub.bad::after{background:var(--bad)} .sw-bub.hand::after{background:var(--warn)}
+      button.sw-bub{cursor:pointer}
+      .sw .sw-note{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:var(--sw-r);padding:10px 14px;font-size:13px;line-height:1.5;margin:0 0 12px;color:var(--ink-2);background:var(--surface)}
+      .sw .sw-note b{color:var(--ink)}
+      /* body: the tray and the grid */
+      .sw .sw-body{display:grid;grid-template-columns:248px minmax(0,1fr);gap:12px;align-items:start}
+      .sw .sw-tray{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);position:sticky;top:8px;max-height:calc(100vh - 110px);display:flex;flex-direction:column;min-height:0}
+      .sw .sw-tray .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+      .sw .sw-tray .hd b{font-size:13px;font-weight:650} .sw .sw-tray .hd small{color:var(--muted);font-size:12px}
+      .sw .sw-tray .hd .sp{flex:1}
+      .sw-sel{position:relative;display:inline-block}
+      .sw-sel select{appearance:none;-webkit-appearance:none;height:30px;padding:0 26px 0 9px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;max-width:200px;text-overflow:ellipsis}
+      .sw-sel select:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+      .sw-sel::after{content:"";position:absolute;right:10px;top:50%;width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+      .sw-sel.lg select{height:36px;font-size:13px;max-width:none;width:100%}
+      .sw-tl{overflow-y:auto;overflow-x:hidden;min-height:80px;flex:1;padding:6px}
+      .sw-ti{display:grid;grid-template-columns:44px minmax(0,1fr);min-width:0;overflow:hidden;gap:10px;align-items:center;border:1px solid transparent;border-radius:8px;padding:6px;background:transparent;cursor:grab;text-align:left;font:inherit;color:var(--ink);width:100%}
+      .sw-ti:hover{background:var(--surface-2);border-color:var(--line)} .sw-ti.used{opacity:.5} .sw-ti:active{cursor:grabbing}
+      .sw-ti .th{width:44px;height:44px;border-radius:6px;background:var(--surface-2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted);position:relative;border:1px solid var(--line)}
+      .sw-ti .th i{position:absolute;right:2px;bottom:2px;font-size:8.5px;font-style:normal;font-weight:700;background:rgba(16,16,20,.72);color:#fff;padding:1px 4px;border-radius:3px}
+      .sw-ti .t{font-size:12.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .sw-ti .s{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px} .sw-ti .s b{color:var(--ink-2);font-weight:600}
+      .sw .sw-tray .ft{padding:8px 10px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
+      .sw .sw-tray .ft small{color:var(--muted);font-size:11.5px;line-height:1.4}
+      .sw .sw-tray .empty{padding:24px 12px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5}
+      /* the grid, Later's density */
+      .sw .sw-grid{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);overflow:auto;max-height:calc(100vh - 110px);position:relative}
+      .sw .sw-gh{display:grid;grid-template-columns:52px repeat(7,minmax(84px,1fr));position:sticky;top:0;background:var(--surface);z-index:3;border-bottom:1px solid var(--line)}
+      .sw .sw-gh div{padding:8px 6px 7px;font-size:11px;font-weight:600;color:var(--muted);text-align:center;border-left:1px solid var(--line);text-transform:uppercase;letter-spacing:.05em;display:grid;gap:2px;justify-items:center} .sw .sw-gh div:first-child{border-left:0}
+      .sw .sw-gh div b{font-size:16px;font-weight:650;color:var(--ink);letter-spacing:-.01em;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+      .sw .sw-gh div.td b{background:var(--brand);color:var(--on-brand)} .sw .sw-gh div.td{color:var(--brand)}
+      .sw .sw-gb{display:grid;grid-template-columns:52px repeat(7,minmax(84px,1fr));position:relative}
+      .sw .sw-ht{height:${ROW}px;font-size:10.5px;color:var(--muted);text-align:right;padding:0 8px 0 0;font-variant-numeric:tabular-nums;transform:translateY(-7px);white-space:nowrap}
       .sw .sw-cell{height:${ROW}px;border-top:1px solid var(--line);border-left:1px solid var(--line);position:relative}
       .sw .sw-cell.td{background:color-mix(in srgb,var(--brand) 4%,transparent)} .sw .sw-cell.past{background:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--line) 60%,transparent) 6px 7px)}
-      .sw .sw-cell.over{background:color-mix(in srgb,var(--brand) 14%,transparent)} .sw .sw-cell:hover:not(.past)::after{content:"+";position:absolute;right:6px;top:4px;color:var(--muted);font-weight:700}
-      .sw .sw-col{position:relative}
-      .sw-post{position:absolute;left:3px;right:3px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);padding:4px 5px 5px;display:grid;grid-template-columns:34px minmax(0,1fr);gap:6px;align-items:start;cursor:pointer;text-align:left;font:inherit;color:var(--ink);box-shadow:0 4px 12px -8px rgba(0,0,0,.5);z-index:2;min-height:50px}
-      .sw-post:hover{border-color:var(--brand)} .sw-post.drag{opacity:.5}
-      .sw-post .th{width:34px;height:42px;border-radius:4px;background:var(--surface-2,var(--line)) center/cover no-repeat}
-      .sw-post .cp{font-size:11px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--ink-2)}
-      .sw-post .st{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
-      .sw-post .st .sw-acc{margin-left:auto}
-      .sw-post .st .b{padding:0 5px;border-radius:4px;background:var(--surface-2,var(--line));color:var(--ink-2)}
-      .sw-post.auto .st .b{background:color-mix(in srgb,var(--brand) 16%,transparent);color:var(--brand)}
-      .sw-post.posted{border-color:var(--good,#2f9e6b)} .sw-post.posted .st .b{background:color-mix(in srgb,var(--good,#2f9e6b) 16%,transparent);color:var(--good,#2f9e6b)}
-      .sw-post.failed{border-color:var(--bad)} .sw-post.failed .st .b{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
-      .sw-post.handoff .st .b{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
-      .sw-post.draft{border-style:dashed}
-      .sw-empty{padding:14px;color:var(--muted);font-size:13px}
-      .sw-pn{display:grid;gap:14px}
-      .sw-pn h4{margin:0;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+      .sw .sw-cell.over{background:color-mix(in srgb,var(--brand) 14%,transparent)} .sw .sw-cell:hover:not(.past)::after{content:"+";position:absolute;right:6px;top:3px;color:var(--muted);font-weight:600;font-size:12px}
+      .sw-post{position:absolute;left:3px;right:3px;border:1px solid var(--line-strong);border-left:3px solid var(--muted);border-radius:7px;background:var(--surface);padding:4px 6px 4px 6px;display:grid;grid-template-columns:30px minmax(0,1fr);gap:7px;align-items:center;cursor:pointer;text-align:left;font:inherit;color:var(--ink);box-shadow:var(--sh-card,none);z-index:2;min-height:44px}
+      .sw-post:hover{border-color:var(--brand);box-shadow:var(--sh-lift,0 6px 16px -10px rgba(0,0,0,.4))} .sw-post.drag{opacity:.5}
+      .sw-post .th{width:30px;height:36px;border-radius:4px;background:var(--surface-2) center/cover no-repeat;border:1px solid var(--line)}
+      .sw-post .tm{font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+      .sw-post .tm .sw-acc{margin-left:auto}
+      .sw-post .st{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+      .sw-post.auto{border-left-color:var(--brand)} .sw-post.auto .st{color:var(--brand)}
+      .sw-post.posted{border-left-color:var(--good)} .sw-post.posted .st{color:var(--good)}
+      .sw-post.failed{border-left-color:var(--bad)} .sw-post.failed .st{color:var(--bad)}
+      .sw-post.handoff{border-left-color:var(--warn)} .sw-post.handoff .st{color:var(--warn)}
+      .sw-post.draft{border-style:dashed;border-left-style:solid}
+      /* states */
+      .sw .sw-state{border:1px dashed var(--line-strong);border-radius:var(--sw-r);padding:40px 20px;text-align:center;display:grid;gap:8px;justify-items:center;background:var(--surface)}
+      .sw .sw-state b{font-size:15px} .sw .sw-state p{margin:0;max-width:52ch;color:var(--muted);font-size:13px;line-height:1.5}
+      .sw .sw-state.err{border-style:solid;border-color:var(--bad);background:var(--bad-bg)} .sw .sw-state.err b{color:var(--bad)}
+      .sw .sw-sk{display:grid;grid-template-columns:248px minmax(0,1fr);gap:12px}
+      .sw .sw-sk i{display:block;height:60vh;border-radius:var(--sw-r);background:linear-gradient(90deg,var(--surface-2) 0%,color-mix(in srgb,var(--surface-2) 55%,var(--surface)) 50%,var(--surface-2) 100%);background-size:200% 100%;animation:swshim 1.3s linear infinite}
+      @keyframes swshim{to{background-position:-200% 0}}
+      /* the post editor: one panel */
+      .sw-pn{display:grid;gap:18px}
+      .sw-pn section{display:grid;gap:8px}
+      .sw-pn h4{margin:0;font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+      .sw-pn h4 .sp{flex:1} .sw-pn h4 small{font-weight:500;text-transform:none;letter-spacing:0;font-size:12px}
       .sw-pn .med{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-      .sw-pn .med .m{width:84px;height:84px;border-radius:8px;background:var(--surface-2,var(--line)) center/cover no-repeat;position:relative;border:1px solid var(--line)}
-      .sw-pn .med .m i{position:absolute;left:4px;bottom:4px;font-size:9px;font-style:normal;font-weight:700;background:rgba(0,0,0,.6);color:#fff;padding:1px 4px;border-radius:3px}
-      .sw-pn .med .m button{position:absolute;right:-6px;top:-6px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line-strong);background:var(--surface);font-size:11px;cursor:pointer;color:var(--ink)}
-      .sw-pn .when{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-      .sw-pn input[type=date],.sw-pn input[type=time],.sw-pn input[type=text],.sw-pn select,.sw-pn textarea{padding:7px 9px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;min-height:36px}
-      .sw-pn textarea{width:100%;min-height:110px;line-height:1.45}
-      .sw-pn .accs{display:flex;gap:10px;flex-wrap:wrap}
-      .sw-pn .acc{display:grid;justify-items:center;gap:3px;font-size:10.5px;color:var(--muted);cursor:pointer;background:none;border:0;font:inherit;padding:0} .sw-pn .acc .sw-bub{width:38px;height:38px;font-size:12px}
-      .sw-pn .acc small{font-size:10px;color:var(--muted);max-width:76px;text-align:center;line-height:1.2}
+      .sw-pn .med .m{width:88px;height:88px;border-radius:8px;background:var(--surface-2) center/cover no-repeat;position:relative;border:1px solid var(--line)}
+      .sw-pn .med .m i{position:absolute;left:4px;bottom:4px;font-size:9px;font-style:normal;font-weight:700;background:rgba(16,16,20,.72);color:#fff;padding:1px 4px;border-radius:3px}
+      .sw-pn .med .m button{position:absolute;right:-7px;top:-7px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line-strong);background:var(--surface);font-size:12px;cursor:pointer;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;padding:0}
+      .sw-pn .med .add{width:88px;height:88px;border:1px dashed var(--line-strong);border-radius:8px;background:transparent;display:grid;place-items:center;gap:2px;font:inherit;font-size:11px;font-weight:600;color:var(--ink-2);cursor:pointer} .sw-pn .med .add:hover{background:var(--surface-2)}
+      .sw-pn .fld{display:grid;gap:4px} .sw-pn .fld > span{font-size:12px;font-weight:600;color:var(--ink-2)}
+      .sw-pn input[type=date],.sw-pn input[type=time],.sw-pn input[type=text],.sw-pn select,.sw-pn textarea{padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;height:36px;min-height:36px}
+      .sw-pn textarea{width:100%;min-height:120px;line-height:1.5;padding:9px 10px;resize:vertical;height:auto}
+      .sw-pn .when{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px;align-items:end}
+      .sw-pn .when .tz{grid-column:1 / -1;font-size:12px;color:var(--muted)}
+      .sw-pn .accs{display:grid;border:1px solid var(--line);border-radius:var(--sw-r);overflow:hidden}
+      .sw-pn .acc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);background:var(--surface)}
+      .sw-pn .acc:first-child{border-top:0}
+      .sw-pn .acc b{font-size:13px;font-weight:600;display:block} .sw-pn .acc small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .sw-pn .acc small.w{color:var(--warn)} .sw-pn .acc small.e{color:var(--bad)}
+      .sw-pn .acc.off b{color:var(--muted)}
       .sw-pn .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-      .sw-pn details{border:1px solid var(--line);border-radius:9px;padding:8px 10px} .sw-pn details summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2)} .sw-pn details .in{display:grid;gap:8px;margin-top:8px}
-      .sw-pn label.f{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--ink-2)} .sw-pn label.f input,.sw-pn label.f select,.sw-pn label.f textarea{font-weight:400}
-      .sw-pn .opts{display:grid;gap:6px} .sw-pn .opt{text-align:left;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;line-height:1.4;background:var(--surface);color:var(--ink);cursor:pointer;white-space:pre-wrap} .sw-pn .opt:hover{border-color:var(--brand)}
-      .sw-pn .foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;background:var(--surface);padding-top:8px;border-top:1px solid var(--line)}
-      .sw-pn .err{color:var(--bad);font-size:12.5px;min-height:1em} .sw-pn .ok{color:var(--good,#2f9e6b);font-size:12.5px;font-weight:600}
-      .sw-res{display:grid;gap:6px} .sw-res .r{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px}
-      .sw-res .r .n{font-variant-numeric:tabular-nums;color:var(--ink-2);display:flex;gap:8px} .sw-res .r .e{color:var(--bad)} .sw-res .r .w{color:var(--warn)}
+      .sw-pn details{border:1px solid var(--line);border-radius:var(--sw-r);padding:10px 12px} .sw-pn details summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);list-style:none;display:flex;align-items:center;gap:6px} .sw-pn details summary::before{content:"";width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:rotate(-45deg);transition:transform .12s} .sw-pn details[open] summary::before{transform:rotate(45deg)} .sw-pn details .in{display:grid;gap:10px;margin-top:10px}
+      .sw-pn .opts{display:grid;gap:6px} .sw-pn .opt{text-align:left;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;line-height:1.45;background:var(--surface);color:var(--ink);cursor:pointer;white-space:pre-wrap} .sw-pn .opt:hover{border-color:var(--brand)}
+      .sw-pn .foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;background:var(--surface);padding:10px 0 0;border-top:1px solid var(--line);margin-top:-6px}
+      .sw-pn .foot .sp{flex:1}
+      .sw-pn .err{color:var(--bad);font-size:12.5px} .sw-pn .err:empty{display:none} .sw-pn .ok{color:var(--good);font-size:12.5px;font-weight:600}
+      .sw-pn .hint{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
+      /* posted: results per platform in the Watch metric row style */
+      .sw-res{display:grid;border:1px solid var(--line);border-radius:var(--sw-r);overflow:hidden}
+      .sw-res .r{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:12.5px} .sw-res .r:first-child{border-top:0}
+      .sw-res .r .ln{display:flex;gap:8px;align-items:center;flex-wrap:wrap} .sw-res .r .ln b{font-weight:600}
+      .sw-res .r .e{color:var(--bad)} .sw-res .r .w{color:var(--warn)}
+      .sw-mr{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;margin-top:2px}
+      .sw-mr b{color:var(--ink);font-weight:600}
       .sw-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:46vh;overflow:auto}
       .sw-pick button{border:1px solid var(--line);border-radius:8px;padding:0;background:var(--surface);cursor:pointer;text-align:left;font:inherit;color:var(--ink);overflow:hidden}
-      .sw-pick .th{aspect-ratio:1;background:var(--surface-2,var(--line)) center/cover no-repeat} .sw-pick .t{font-size:11px;padding:5px 6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-      .sw-conn{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
-      .sw-conn .c{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:6px;background:var(--surface)}
-      .sw-conn .c .hd{display:flex;gap:8px;align-items:center} .sw-conn .c .hd b{font-size:13.5px} .sw-conn .c .hd small{display:block;color:var(--muted);font-size:11.5px}
-      .sw-conn .c .ln{font-size:12px;color:var(--ink-2);line-height:1.45} .sw-conn .c .ln.bad{color:var(--bad)} .sw-conn .c .ln.good{color:var(--good,#2f9e6b);font-weight:600}
-      .sw-conn .c .acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center} .sw-conn .c select{padding:4px 6px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:12px}
-      .sw-conn .steps{font-size:11.5px;color:var(--muted);line-height:1.45;white-space:pre-wrap}
-      .sw-m .fl{display:grid;gap:12px} .sw-m h3{margin:0;font-size:16px} .sw-m .foot{display:flex;gap:8px;justify-content:flex-end} .sw-m .err{color:var(--bad);font-size:12.5px;min-height:1em}
-      .sw-m .pg{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;background:var(--surface);font:inherit;color:var(--ink);text-align:left} .sw-m .pg:hover{border-color:var(--brand)}
-      .sw-m .pg .av{width:36px;height:36px;border-radius:50%;background:var(--surface-2,var(--line)) center/cover} .sw-m .pg small{display:block;color:var(--muted);font-size:11.5px}
+      .sw-pick button:hover{border-color:var(--brand)}
+      .sw-pick .th{aspect-ratio:1;background:var(--surface-2) center/cover no-repeat} .sw-pick .t{font-size:11px;padding:5px 6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      /* Brand settings > Social: one table-like card */
+      .sw-conn{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);overflow:hidden;max-width:100%} .sw-conn .tw{overflow-x:auto}
+      .sw-conn .hd{display:flex;align-items:baseline;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+      .sw-conn .hd b{font-size:13.5px;font-weight:650} .sw-conn .hd p{margin:0;font-size:12.5px;color:var(--muted)}
+      .sw-conn table{width:100%;border-collapse:collapse;font-size:13px;table-layout:auto}
+      .sw-conn th{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+      .sw-conn td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+      .sw-conn tr:last-child td{border-bottom:0}
+      .sw-conn td .pl{display:flex;align-items:center;gap:10px;font-weight:600}
+      .sw-conn td .pl .av{width:28px;height:28px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface-2) center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:var(--ink-2);flex:none}
+      .sw-conn td .acc{font-weight:500} .sw-conn td .acc small{display:block;color:var(--muted);font-size:11.5px}
+      .sw-conn td.r{text-align:right;white-space:nowrap} .sw-conn td .acts{display:inline-flex;gap:6px;justify-content:flex-end}
+      .sw-st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}
+      .sw-st i{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none} .sw-st.ok i{background:var(--good)} .sw-st.bad i{background:var(--bad)} .sw-st.warn i{background:var(--warn)}
+      .sw-conn .msg{padding:8px 14px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line)} .sw-conn .msg:empty{display:none}
+      /* modals */
+      .sw-m .fl{display:grid;gap:12px} .sw-m h3{margin:0;font-size:16px;font-weight:650} .sw-m .foot{display:flex;gap:8px;justify-content:flex-end} .sw-m .err{color:var(--bad);font-size:12.5px;min-height:1em}
+      .sw-m .hint{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+      .sw-m input[type=text]{width:100%;height:36px;padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit}
+      .sw-m .pg{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;background:var(--surface);font:inherit;color:var(--ink);text-align:left;width:100%} .sw-m .pg:hover{border-color:var(--brand)}
+      .sw-m .pg .av{width:36px;height:36px;border-radius:50%;background:var(--surface-2) center/cover} .sw-m .pg small{display:block;color:var(--muted);font-size:11.5px}
       @media (max-width:720px){
-        .sw .sw-body{grid-template-columns:1fr} .sw .sw-tray{display:none}
-        .sw .sw-grid{max-height:none} .sw .sw-gh,.sw .sw-gb{grid-template-columns:40px repeat(7,150px)}
-        .sw-pn .med .m{width:72px;height:72px} .sw-pn .foot .sw-btn{min-height:44px;flex:1 1 auto;justify-content:center}
+        .sw .sw-body,.sw .sw-sk{grid-template-columns:1fr} .sw .sw-tray{display:none}
+        .sw .sw-grid{max-height:none} .sw .sw-gh,.sw .sw-gb{grid-template-columns:44px repeat(7,140px)}
+        .sw .sw-top .r{margin-left:0;width:100%} .sw .sw-top .r .sw-btn{flex:1 1 auto}
+        .sw-pn .med .m,.sw-pn .med .add{width:76px;height:76px} .sw-pn .foot .sw-btn{min-height:44px;flex:1 1 auto}
+        .sw-pn .when{grid-template-columns:1fr}
+        .sw-pn{overflow-x:hidden} .sw-pn h4{flex-wrap:wrap} .sw-pn h4 .sp{flex:1 1 100%;display:none} .sw-pn textarea,.sw-pn input,.sw-pn select{max-width:100%;box-sizing:border-box}
+        .sw .sw-ht{transform:none;padding-top:2px;text-align:left;padding-left:6px}
+        .sw-conn table,.sw-conn thead,.sw-conn tbody,.sw-conn tr,.sw-conn td{display:block} .sw-conn thead{display:none}
+        .sw-conn td{border:0;padding:3px 14px} .sw-conn tr{padding:10px 0;border-bottom:1px solid var(--line)} .sw-conn tr:last-child{border-bottom:0} .sw-conn td.r{text-align:left;padding-top:8px}
+        .sw-conn td .acts{justify-content:flex-start;flex-wrap:wrap}
+        .sw-sheet-tray{display:flex;flex-direction:column;gap:0}
       }`;
     document.head.appendChild(st);
   }
@@ -138,11 +203,17 @@
   async function render(host, first) {
     H = host; css();
     const act = H.S.act, head = H.pageHead('socialweek', 'Social');
-    if (!act || act === 'all') { $('#main').innerHTML = `<div class="v2 sw">${head}<div class="v2card"><p class="v2hint">Pick a brand at the top to plan its week.</p></div></div>`; return; }
+    if (!act || act === 'all') { $('#main').innerHTML = `<div class="v2 sw">${head}<div class="sw-state"><b>Pick a brand</b><p>Choose a brand at the top to plan its week of posts.</p></div></div>`; return; }
     const t = H.RUN();
-    if (first || ST.act !== act) { ST.act = act; ST.from = null; ST.tray = null; $('#main').innerHTML = `<div class="v2 sw">${head}<div class="v2card"><p class="v2hint">Loading the week…</p></div></div>`; }
+    if (first || ST.act !== act) { ST.act = act; ST.from = null; ST.tray = null; $('#main').innerHTML = `<div class="v2 sw">${head}<div class="sw-sk"><i></i><i></i></div></div>`; }
     if (!ST.from) ST.from = monday(new Date().toLocaleDateString('en-CA'));
-    try { await load(first); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 sw">${head}<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div></div>`; return; }
+    try { await load(first); }
+    catch (e) {
+      if (t !== H.RUN()) return;
+      $('#main').innerHTML = `<div class="v2 sw">${head}<div class="sw-state err"><b>The week did not load</b><p>${esc(e.message)}</p><div><button type="button" class="sw-btn" id="swRetry">Try again</button></div></div></div>`;
+      $('#swRetry').onclick = () => render(host, true);
+      return;
+    }
     if (t !== H.RUN()) return;
     draw();
     const want = window.SOCIAL_POST || (first ? BOOT_POST : null); window.SOCIAL_POST = null;
@@ -151,20 +222,21 @@
   async function reload(fresh) { await load(fresh); draw(); }
 
   /* ---------- the page ---------- */
-  function bubble(plat, acc, extra = '') {
+  function bubble(plat, acc, extra = '', asButton = false) {
     const a = acc || {}, cls = a.on ? (a.status === 'error' ? 'bad' : a.mode === 'notify' ? 'hand' : '') : 'off';
     const tipT = a.on ? `${PL[plat]}${a.handle ? ` @${a.handle}` : ''}${a.mode === 'notify' ? ': by hand (Slack tells you at post time)' : a.mode === 'draft' ? ': lands as a draft or private until the platform approves the app' : ''}${a.status === 'error' ? ': needs reconnecting' : ''}` : `${PL[plat]} is not connected (Brand settings > Social)`;
-    return `<span class="sw-bub ${cls} ${extra}" ${a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''} ${U() ? U().tipAttr(esc(tipT)) : ''} data-bub="${plat}">${a.pic ? '' : PK[plat]}</span>`;
+    const tag = asButton ? 'button type="button"' : 'span';
+    return `<${tag} class="sw-bub ${cls} ${extra}" ${a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''} ${U() ? U().tipAttr(esc(tipT)) : ''} data-bub="${plat}" aria-label="${esc(PL[plat])}">${a.pic ? '' : PK[plat]}</${asButton ? 'button' : 'span'}>`;
   }
   function stateOf(p) {
     const res = p.results || {};
     const views = Object.values(res).reduce((s, r) => s + (r && r.views ? r.views : 0), 0);
     if (p.status === 'posted') return ['posted', views ? `Posted · ${k(views)} views` : 'Posted'];
     if (p.status === 'partly') return ['failed', 'Partly posted'];
-    if (p.status === 'handoff') return ['handoff', 'In Slack: post by hand'];
+    if (p.status === 'handoff') return ['handoff', 'In Slack, post by hand'];
     if (p.status === 'failed') return ['failed', 'Failed'];
     if (p.status === 'posting') return ['auto', 'Posting now'];
-    if (p.status === 'scheduled') return ['auto', `${p.auto ? 'Auto' : 'Scheduled'} · ${p.hm}`];
+    if (p.status === 'scheduled') return ['auto', p.auto ? 'Scheduled, posts itself' : 'Scheduled'];
     return ['draft', 'Draft'];
   }
   function postCard(p, top) {
@@ -173,14 +245,14 @@
     const on = Object.keys(PL).filter(x => p.targets[x] && p.targets[x].on);
     return `<button type="button" class="sw-post ${cls}" style="top:${top}px" data-post="${esc(p.id)}" draggable="${['draft', 'scheduled'].includes(p.status) ? 'true' : 'false'}" ${U() ? U().tipAttr(esc(`${label}. ${p.caption || '(no caption)'}`.slice(0, 200))) : ''}>
       <span class="th" ${m && m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}></span>
-      <span><span class="st"><span class="b">${esc(label)}</span><span class="sw-acc">${on.map(x => bubble(x, (ST.data.accounts || {})[x], 'sm')).join('')}</span></span><span class="cp">${esc(p.caption || (m ? m.title : '') || 'No caption yet')}</span></span></button>`;
+      <span><span class="tm">${esc(hm12(p.hm))}<span class="sw-acc">${on.map(x => bubble(x, (ST.data.accounts || {})[x], 'sm')).join('')}</span></span><span class="st">${esc(label)}</span></span></button>`;
   }
   function grid() {
     const d = ST.data, days = d.days, nowDay = d.today;
     const nowH = +new Date().toLocaleTimeString('en-GB', { timeZone: d.tz, hour: '2-digit', minute: '2-digit' }).slice(0, 2);
-    let h = `<div class="sw-gh"><div></div>${days.map(x => `<div class="${x === nowDay ? 'td' : ''}">${wd(x)}<small>${md(x)}</small></div>`).join('')}</div><div class="sw-gb">`;
+    let h = `<div class="sw-gh"><div></div>${days.map(x => `<div class="${x === nowDay ? 'td' : ''}">${wd(x)}<b>${dnum(x)}</b></div>`).join('')}</div><div class="sw-gb">`;
     for (const hr of HOURS) {
-      h += `<div class="sw-ht">${h12(hr)}</div>`;
+      h += `<div class="sw-ht">${hr === HOURS[0] ? '' : h12(hr)}</div>`;
       for (const day of days) {
         const past = day < nowDay || (day === nowDay && hr < nowH);
         h += `<div class="sw-cell ${day === nowDay ? 'td' : ''} ${past ? 'past' : ''}" data-day="${day}" data-hour="${hr}"></div>`;
@@ -205,8 +277,8 @@
         const hr = Math.min(Math.max(hh, HOURS[0]), HOURS[HOURS.length - 1]);
         let top = (hr - HOURS[0]) * ROW + (hh === hr ? Math.round(mm / 60 * ROW) : 0) + 2;
         if (top < lastBottom + 4) top = lastBottom + 4;
-        lastBottom = top + 52;
-        first.insertAdjacentHTML('beforeend', postCard(p, top - 0));
+        lastBottom = top + 46;
+        first.insertAdjacentHTML('beforeend', postCard(p, top));
         const el = first.lastElementChild; el.style.top = `${top}px`;
       }
     }
@@ -215,28 +287,26 @@
     const counts = { unused: items.filter(i => !i.used).length, all: items.length };
     for (const s of Object.keys(SRC)) counts[s] = items.filter(i => i.src === s).length;
     const list = ST.tf === 'unused' ? items.filter(i => !i.used) : ST.tf === 'all' ? items : items.filter(i => i.src === ST.tf);
-    const chips = [['unused', 'Unused'], ['all', 'All'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<button type="button" class="sw-chip ${ST.tf === f ? 'on' : ''}" data-tf="${f}">${l} <small>${counts[f]}</small></button>`).join('');
+    const opts = [['unused', 'Not used yet'], ['all', 'Everything'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<option value="${f}" ${ST.tf === f ? 'selected' : ''}>${l} (${counts[f]})</option>`).join('');
     const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(`${SRC[it.src] || it.src}: ${it.title}${it.used ? ' (already on the week)' : ''}. ${inSheet ? 'Tap to post it.' : 'Drag onto a day and hour, or click.'}`)) : ''}>
-      <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? '&#9998;' : '&#9635;'}<i>${it.kind === 'video' ? 'VIDEO' : it.kind === 'text' ? 'SCRIPT' : 'PHOTO'}</i></span>
+      <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? ic('pencil') : ic('image')}<i>${it.kind === 'video' ? 'VIDEO' : it.kind === 'text' ? 'SCRIPT' : 'PHOTO'}</i></span>
       <span><span class="t">${esc(it.title)}</span><span class="s"><b>${esc(SRC[it.src] || it.src)}</b>${it.who ? ` · ${esc(it.who)}` : it.sub ? ` · ${esc(it.sub)}` : ''}</span></span></button>`;
-    return `<h4>Ready to post</h4><div class="sw-chips">${chips}</div>
-      <div class="sw-tl">${list.length ? list.map(item).join('') : `<p class="v2hint" style="margin:4px 0">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Approve a Studio final, add a creator clip, or upload a file.'}</p>`}</div>
-      <div class="sw-chips"><button type="button" class="sw-btn sm" data-upload="1">&#8679; Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"></div>
-      <p class="v2hint" style="margin:0;font-size:11.5px">Studio finals, creator clips, your best Meta ads, Make ours drafts, uploads and posts you were tagged in land here.</p>`;
+    return `<div class="hd"><b>Ready to post</b><span class="sp"></span><span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span></div>
+      <div class="sw-tl">${list.length ? list.map(item).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
+      <div class="ft"><button type="button" class="sw-btn sm q" data-upload="1">${ic('plus')} Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"></div>`;
   }
   function draw() {
     const d = ST.data, head = H.pageHead('socialweek', 'Social');
     const accs = d.accounts || {};
     const none = !Object.values(accs).some(a => a.on);
     $('#main').innerHTML = `<div class="v2 sw">${head}
-      <div class="sw-top"><button type="button" class="sw-btn" data-nav="-1">&#8249;</button><button type="button" class="sw-btn" data-nav="0">This week</button><button type="button" class="sw-btn" data-nav="1">&#8250;</button>
-        <span class="sw-range">${md(d.days[0])} to ${md(d.days[6])}</span>
-        <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x])).join('')}</span>
-          ${PHONE() ? '<button type="button" class="sw-btn" id="swTrayBtn">Tray</button>' : ''}<button type="button" class="sw-btn pri" id="swNew">+ Post</button></span></div>
-      ${none ? `<div class="v2card" style="margin-bottom:12px"><p class="v2hint" style="margin:0"><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Connect them in Brand settings > Social. Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}${CLI() ? '' : ' <button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</p></div>` : ''}
+      <div class="sw-top"><span class="sw-nav"><button type="button" data-nav="-1" aria-label="Previous week">&#8249;</button><button type="button" data-nav="0">This week</button><button type="button" data-nav="1" aria-label="Next week">&#8250;</button></span>
+        <span class="sw-range">${md(d.days[0])} to ${md(d.days[6])}<small>${esc(d.tz.replace(/_/g, ' '))}</small></span>
+        <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x], '', !CLI())).join('')}</span>
+          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready to post</button>` : ''}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
+      ${none ? `<div class="sw-note"><div><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}</div>${CLI() ? '' : '<button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</div>` : ''}
       <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div><div class="sw-grid" id="swGrid">${grid()}</div></div></div>`;
     const g = $('#swGrid'); placePosts(g);
-    /* Scroll the grid to 8am on first draw. */
     g.scrollTop = Math.max(0, (8 - HOURS[0]) * ROW - 10);
     wire();
   }
@@ -244,7 +314,7 @@
     const m = $('#main');
     m.querySelectorAll('[data-nav]').forEach(b => b.onclick = async () => { const n = +b.dataset.nav; ST.from = n === 0 ? monday(ST.data.today) : add(ST.from, n * 7); await reload(false); });
     m.querySelectorAll('[data-settings]').forEach(b => b.onclick = () => { try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
-    $('#swAccs').querySelectorAll('[data-bub]').forEach(b => b.onclick = () => { if (CLI()) return; try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
+    $('#swAccs').querySelectorAll('button[data-bub]').forEach(b => b.onclick = () => { if (CLI()) return; try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
     $('#swNew').onclick = () => composer(null, { at: nextSlot() });
     const tb = $('#swTrayBtn'); if (tb) tb.onclick = traySheet;
     wireTray($('#swTray'), false);
@@ -269,16 +339,16 @@
   }
   function wireTray(root, inSheet) {
     if (!root) return;
-    root.querySelectorAll('[data-tf]').forEach(b => b.onclick = () => { ST.tf = b.dataset.tf; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); });
+    const sel = root.querySelector('[data-tf]'); if (sel) sel.onchange = () => { ST.tf = sel.value; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); };
     root.querySelectorAll('.sw-ti').forEach(b => {
       const it = ST.tray.find(x => x.ref === b.dataset.ref);
       b.onclick = () => { if (inSheet) { const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); } composer(null, { at: nextSlot(), items: [it] }); };
       b.ondragstart = e => { e.dataTransfer.setData('text/plain', it.ref); e.dataTransfer.effectAllowed = 'copy'; };
     });
     const up = root.querySelector('[data-upload]'), fi = root.querySelector('[data-file]');
-    if (up && fi) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); toast('In the tray. Drag it onto the week.'); } catch (e) { toast(e.message); up.disabled = false; up.textContent = '⇧ Upload a photo or video'; } }; }
+    if (up && fi) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); toast('In the tray. Drag it onto the week.'); } catch (e) { toast(e.message); up.disabled = false; up.innerHTML = `${ic('plus')} Upload a photo or video`; } }; }
   }
-  function traySheet() { U().panel.wide = false; const body = U().panel('Ready to post', `<div class="sw-tray" style="display:flex;position:static;max-height:none;border:0;padding:0">${trayHtml(ST.tray, true)}</div>`); wireTray(body.firstElementChild, true); }
+  function traySheet() { U().panel.wide = false; const body = U().panel('Ready to post', `<div class="sw sw-sheet-tray"><div class="sw-tray" style="display:flex;position:static;max-height:none;border:0">${trayHtml(ST.tray, true)}</div></div>`); wireTray(body.querySelector('.sw-tray'), true); }
   async function upload(f) {
     if (f.size > 95 * 1024 * 1024) throw new Error('Files up to 95 MB.');
     const res = await fetch(`${H.AH_URL}/api/social/upload?act=${encodeURIComponent(ST.act)}&name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + H.S.tok, 'Content-Type': f.type || 'application/octet-stream' }, body: f });
@@ -304,7 +374,7 @@
     return { day: new Date(iso).toLocaleDateString('en-CA', { timeZone: tz }), hm: new Date(iso).toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) };
   }
   function nextSlot() {
-    const d = ST.data; const now = new Date();
+    const now = new Date();
     const lp = localParts(now.toISOString());
     const hr = +lp.hm.slice(0, 2) + 1;
     return hr <= 21 ? atOf(lp.day, Math.max(hr, 9)) : atOf(add(lp.day, 1), 9);
@@ -320,7 +390,7 @@
     el.textContent = t; document.body.appendChild(el); setTimeout(() => el.remove(), 5200);
   }
 
-  /* ---------- the composer ---------- */
+  /* ---------- the post editor: one panel ---------- */
   function composer(p, opts = {}) {
     const accs = ST.data.accounts || {};
     const items = (opts.items || []).map(it => ({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }));
@@ -329,45 +399,47 @@
     if (!p && opts.items?.[0]?.caption) M.caption = opts.items[0].caption;
     const out = p && ['posted', 'partly', 'handoff', 'failed', 'posting'].includes(p.status);
     const lp = localParts(M.at);
-    U().panel.wide = true;
+    const [, stLabel] = p ? stateOf(p) : ['draft', ''];
+    U().panel.wide = !PHONE();
     const body = U().panel(p ? (out ? 'Your post' : 'Edit the post') : 'New post', `<div class="sw-pn">
-      <div><h4>What goes out</h4><div class="med" id="cpMed"></div></div>
-      <div><h4>When</h4><div class="when"><input type="date" id="cpDay" value="${lp.day}" ${out ? 'disabled' : ''}><input type="time" id="cpTime" value="${lp.hm}" ${out ? 'disabled' : ''}><span class="v2hint" style="margin:0">${esc(ST.data.tz.replace('_', ' '))}${M.auto ? ' · posts itself' : ''}</span></div></div>
-      <div><h4>Where</h4><div class="accs" id="cpAccs"></div></div>
-      <div><h4>Caption</h4><textarea id="cpCap" placeholder="One caption for every account. Tweak a platform below only where it needs it." ${out ? 'readonly' : ''}>${esc(M.caption)}</textarea>
-        ${out ? '' : `<div class="row" style="margin-top:6px"><button type="button" class="sw-btn sm" id="cpRe">&#10024; Rephrase in ${esc(brandName())}'s voice</button><button type="button" class="sw-btn sm" id="cpSaved">Saved captions</button><button type="button" class="sw-btn sm" id="cpSave">Save this caption</button></div><div class="opts" id="cpOpts"></div>`}</div>
-      ${out ? '' : `<details><summary>Per-platform tweaks (only where needed)</summary><div class="in">
-        <label class="f">Instagram first comment<input type="text" id="tIgC" value="${esc(M.targets.ig?.first_comment || '')}" placeholder="Hashtags or the link, posted as the first comment"></label>
-        <label class="f">Instagram caption (if different)<textarea id="tIgCap" style="min-height:60px">${esc(M.targets.ig?.caption || '')}</textarea></label>
-        <label class="f">Facebook caption (if different)<textarea id="tFbCap" style="min-height:60px">${esc(M.targets.fb?.caption || '')}</textarea></label>
-        <label class="f">TikTok title / caption (if different)<input type="text" id="tTtT" value="${esc(M.targets.tt?.title || '')}" maxlength="2200"></label>
-        ${accs.tt?.mode === 'live' ? `<label class="f">TikTok who can see it<select id="tTtP"><option value="PUBLIC_TO_EVERYONE" ${!M.targets.tt?.privacy || M.targets.tt.privacy === 'PUBLIC_TO_EVERYONE' ? 'selected' : ''}>Everyone</option><option value="FOLLOWER_OF_CREATOR" ${M.targets.tt?.privacy === 'FOLLOWER_OF_CREATOR' ? 'selected' : ''}>Followers</option><option value="SELF_ONLY" ${M.targets.tt?.privacy === 'SELF_ONLY' ? 'selected' : ''}>Only me</option></select></label>` : ''}
-        <label class="f">YouTube title<input type="text" id="tYtT" value="${esc(M.targets.yt?.title || '')}" maxlength="100" placeholder="Defaults to the caption's first line"></label>
-        <label class="f">YouTube description (if different)<textarea id="tYtCap" style="min-height:60px">${esc(M.targets.yt?.caption || '')}</textarea></label>
-        ${accs.yt?.mode === 'live' ? `<label class="f">YouTube visibility<select id="tYtV"><option value="public" ${!M.targets.yt?.visibility || M.targets.yt.visibility === 'public' ? 'selected' : ''}>Public</option><option value="unlisted" ${M.targets.yt?.visibility === 'unlisted' ? 'selected' : ''}>Unlisted</option><option value="private" ${M.targets.yt?.visibility === 'private' ? 'selected' : ''}>Private</option></select></label>` : ''}
+      ${out ? `<section><h4>How it went<span class="sp"></span><small>${esc(stLabel)}</small></h4><div id="cpRes"></div></section>` : ''}
+      <section><h4>Media</h4><div class="med" id="cpMed"></div></section>
+      <section><h4>Caption<span class="sp"></span>${out ? '' : `<button type="button" class="sw-btn sm q" id="cpRe">${ic('sparkles')} Rephrase in ${esc(brandName())}'s voice</button><button type="button" class="sw-btn sm q" id="cpSaved">Saved captions</button><button type="button" class="sw-btn sm q" id="cpSave">Save this one</button>`}</h4>
+        <textarea id="cpCap" placeholder="One caption for every account. Tweak a platform below only where it needs it." ${out ? 'readonly' : ''}>${esc(M.caption)}</textarea><div class="opts" id="cpOpts"></div></section>
+      <section><h4>Accounts</h4><div class="accs" id="cpAccs"></div></section>
+      <section><h4>When</h4><div class="when"><label class="fld"><span>Day</span><input type="date" id="cpDay" value="${lp.day}" ${out ? 'disabled' : ''}></label><label class="fld"><span>Time</span><input type="time" id="cpTime" value="${lp.hm}" ${out ? 'disabled' : ''}></label><span class="tz">${esc(ST.data.tz.replace(/_/g, ' '))}${M.auto && !out ? '. Posts itself at that time.' : ''}</span></div></section>
+      ${out ? '' : `<details><summary>Per-platform tweaks, only where needed</summary><div class="in">
+        <label class="fld"><span>Instagram first comment</span><input type="text" id="tIgC" value="${esc(M.targets.ig?.first_comment || '')}" placeholder="Hashtags or the link, posted as the first comment"></label>
+        <label class="fld"><span>Instagram caption, if different</span><textarea id="tIgCap" style="min-height:60px">${esc(M.targets.ig?.caption || '')}</textarea></label>
+        <label class="fld"><span>Facebook caption, if different</span><textarea id="tFbCap" style="min-height:60px">${esc(M.targets.fb?.caption || '')}</textarea></label>
+        <label class="fld"><span>TikTok title or caption, if different</span><input type="text" id="tTtT" value="${esc(M.targets.tt?.title || '')}" maxlength="2200"></label>
+        ${accs.tt?.mode === 'live' ? `<label class="fld"><span>TikTok, who can see it</span><span class="sw-sel lg"><select id="tTtP"><option value="PUBLIC_TO_EVERYONE" ${!M.targets.tt?.privacy || M.targets.tt.privacy === 'PUBLIC_TO_EVERYONE' ? 'selected' : ''}>Everyone</option><option value="FOLLOWER_OF_CREATOR" ${M.targets.tt?.privacy === 'FOLLOWER_OF_CREATOR' ? 'selected' : ''}>Followers</option><option value="SELF_ONLY" ${M.targets.tt?.privacy === 'SELF_ONLY' ? 'selected' : ''}>Only me</option></select></span></label>` : ''}
+        <label class="fld"><span>YouTube title</span><input type="text" id="tYtT" value="${esc(M.targets.yt?.title || '')}" maxlength="100" placeholder="Defaults to the caption's first line"></label>
+        <label class="fld"><span>YouTube description, if different</span><textarea id="tYtCap" style="min-height:60px">${esc(M.targets.yt?.caption || '')}</textarea></label>
+        ${accs.yt?.mode === 'live' ? `<label class="fld"><span>YouTube visibility</span><span class="sw-sel lg"><select id="tYtV"><option value="public" ${!M.targets.yt?.visibility || M.targets.yt.visibility === 'public' ? 'selected' : ''}>Public</option><option value="unlisted" ${M.targets.yt?.visibility === 'unlisted' ? 'selected' : ''}>Unlisted</option><option value="private" ${M.targets.yt?.visibility === 'private' ? 'selected' : ''}>Private</option></select></span></label>` : ''}
       </div></details>`}
-      <div id="cpRes"></div>
       <div class="err" id="cpErr"></div>
       <div class="foot">${out
-        ? `${['failed', 'partly', 'handoff'].includes(M.status) ? '<button type="button" class="sw-btn pri" id="cpRetry">Try again now</button>' : ''}<button type="button" class="sw-btn" id="cpDup">Post again (copy)</button><button type="button" class="sw-btn" id="cpDel" style="margin-left:auto;color:var(--bad)">Delete</button>`
-        : `<button type="button" class="sw-btn pri" id="cpSched">${M.auto ? 'Schedule' : 'Schedule'}</button><button type="button" class="sw-btn" id="cpNow">Post now</button><button type="button" class="sw-btn" id="cpDraft">Save draft</button>${p ? '<button type="button" class="sw-btn" id="cpDel" style="margin-left:auto;color:var(--bad)">Delete</button>' : ''}`}</div></div>`);
+        ? `${['failed', 'partly', 'handoff'].includes(M.status) ? '<button type="button" class="sw-btn pri" id="cpRetry">Try again now</button>' : ''}<button type="button" class="sw-btn" id="cpDup">Post again as a copy</button><span class="sp"></span><button type="button" class="sw-btn q bad" id="cpDel">Delete</button>`
+        : `<button type="button" class="sw-btn pri" id="cpSched">Schedule</button><button type="button" class="sw-btn" id="cpNow">Post now</button><button type="button" class="sw-btn q" id="cpDraft">Save draft</button>${p ? '<span class="sp"></span><button type="button" class="sw-btn q bad" id="cpDel">Delete</button>' : ''}`}</div></div>`);
     const err = body.querySelector('#cpErr');
     const drawMedia = () => {
       const el = body.querySelector('#cpMed');
       el.innerHTML = M.media.map((m, i) => `<span class="m" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''} ${U() ? U().tipAttr(esc(m.title || '')) : ''}><i>${m.kind === 'video' ? 'VIDEO' : 'PHOTO'}</i>${out ? '' : `<button type="button" data-rm="${i}" aria-label="Remove">&#215;</button>`}</span>`).join('')
-        + (out ? '' : `<button type="button" class="sw-btn sm" id="cpPick">+ From the tray</button><button type="button" class="sw-btn sm" id="cpUp">&#8679; Upload</button><input type="file" id="cpFile" hidden accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime">`)
-        + (!M.media.length ? '<span class="v2hint" style="margin:0">No picture or video yet.</span>' : '');
+        + (out ? '' : `<button type="button" class="add" id="cpPick">${ic('inbox')}From the tray</button><button type="button" class="add" id="cpUp">${ic('plus')}Upload</button><input type="file" id="cpFile" hidden accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime">`)
+        + (!M.media.length && out ? '<p class="hint">No picture or video.</p>' : '');
       el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { M.media.splice(+b.dataset.rm, 1); drawMedia(); });
       const pk = el.querySelector('#cpPick'); if (pk) pk.onclick = () => pickModal(it => { M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }); if (!M.caption && it.caption) { M.caption = it.caption; body.querySelector('#cpCap').value = it.caption; } drawMedia(); });
       const up = el.querySelector('#cpUp'), fi = el.querySelector('#cpFile');
-      if (up) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, key: it.key }); drawMedia(); } catch (e) { err.textContent = e.message; } }; }
+      if (up) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, key: it.key }); drawMedia(); } catch (e) { err.textContent = e.message; up.disabled = false; up.innerHTML = `${ic('plus')}Upload`; } }; }
     };
     const drawAccs = () => {
       body.querySelector('#cpAccs').innerHTML = Object.keys(PL).map(x => {
         const a = accs[x] || {}, t = M.targets[x] || {};
         const r = (M.results || {})[x];
-        const note = r && r.posted_at ? (r.by_hand ? 'posted by hand' : 'posted') : r && r.handoff ? 'in Slack, by hand' : r && r.error ? 'failed' : !a.on ? 'not connected: Slack will hand it to you' : a.mode === 'notify' ? 'by hand, via Slack' : a.mode === 'draft' ? (x === 'tt' ? 'to your TikTok drafts' : x === 'yt' ? 'private until approved' : 'live') : 'live';
-        return `<button type="button" class="acc" data-acc="${x}" ${out ? 'disabled' : ''}>${bubble(x, a, t.on ? 'on' : (a.on ? '' : 'off'))}<span>${PL[x]}</span><small>${esc(note)}</small></button>`;
+        const note = r && r.posted_at ? (r.by_hand ? 'Posted by hand' : 'Posted') : r && r.handoff ? 'In Slack, by hand' : r && r.error ? 'Failed' : !a.on ? 'Not connected: Slack hands it to you' : a.mode === 'notify' ? 'By hand, via Slack' : a.mode === 'draft' ? (x === 'tt' ? 'To your TikTok drafts' : x === 'yt' ? 'Private until approved' : 'Live') : 'Live';
+        const cls = r && r.error ? 'e' : (!a.on || a.mode === 'notify') ? 'w' : '';
+        return `<div class="acc ${a.on ? '' : 'off'}">${bubble(x, a, t.on ? 'on' : '')}<div><b>${PL[x]}${a.handle ? ` <span style="font-weight:500;color:var(--muted)">@${esc(a.handle)}</span>` : ''}</b><small class="${cls}">${esc(note)}</small></div><button type="button" class="v2sw ${t.on ? 'on' : ''}" data-acc="${x}" role="switch" aria-checked="${!!t.on}" aria-label="${esc(PL[x])}" ${out ? 'disabled' : ''}><i></i></button></div>`;
       }).join('');
       body.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { const x = b.dataset.acc; M.targets[x] = { ...(M.targets[x] || {}), on: !(M.targets[x] && M.targets[x].on) }; drawAccs(); });
     };
@@ -388,12 +460,12 @@
       try {
         collect();
         if (status === 'scheduled' && !M.media.length) throw new Error('Add a picture or video first.');
-        if (status === 'scheduled' && !Object.values(M.targets).some(t => t.on)) throw new Error('Pick at least one account.');
+        if (status === 'scheduled' && !Object.values(M.targets).some(t => t.on)) throw new Error('Switch on at least one account.');
         if (status === 'scheduled' && !now && Date.parse(M.at) < Date.now() - 60e3) throw new Error('That time has passed. Pick a later one, or Post now.');
         body.querySelectorAll('.foot button').forEach(b => b.disabled = true);
-        const r = await H.apiAH('/api/social/post', { method: 'POST', body: JSON.stringify({ act: ST.act, id: M.id, at: M.at, now: !!now, caption: M.caption, media: M.media.map(mediaOut), targets: M.targets, status, auto: M.auto }) });
+        await H.apiAH('/api/social/post', { method: 'POST', body: JSON.stringify({ act: ST.act, id: M.id, at: M.at, now: !!now, caption: M.caption, media: M.media.map(mediaOut), targets: M.targets, status, auto: M.auto }) });
         const c = document.querySelector('#v2panel .pclose'); if (c) c.click();
-        toast(now ? 'Posting now. The card updates in a minute.' : status === 'scheduled' ? `Scheduled for ${wd(localParts(M.at).day)} ${localParts(M.at).hm}.` : 'Draft saved.');
+        toast(now ? 'Posting now. The card updates in a minute.' : status === 'scheduled' ? `Scheduled for ${wd(localParts(M.at).day)} ${hm12(localParts(M.at).hm)}.` : 'Draft saved.');
         await reload(true);
         if (now) setTimeout(() => reload(false).catch(() => {}), 25000);
       } catch (e) { err.textContent = e.message; body.querySelectorAll('.foot button').forEach(b => b.disabled = false); }
@@ -408,15 +480,15 @@
     on('#cpRe', async () => {
       const b = body.querySelector('#cpRe'), o = body.querySelector('#cpOpts'); b.disabled = true; b.textContent = 'Writing…';
       try { const r = await H.apiAH('/api/social/rephrase', { method: 'POST', body: JSON.stringify({ act: ST.act, text: body.querySelector('#cpCap').value, note: M.media[0] ? `the post shows: ${M.media[0].title}` : '' }) });
-        o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt">${esc(c)}</button>`).join('') || '<p class="v2hint">Nothing came back.</p>';
+        o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt">${esc(c)}</button>`).join('') || '<p class="hint">Nothing came back.</p>';
         o.querySelectorAll('.opt').forEach(x => x.onclick = () => { body.querySelector('#cpCap').value = x.textContent; o.innerHTML = ''; });
       } catch (e) { err.textContent = e.message; }
-      b.disabled = false; b.textContent = `✨ Rephrase in ${brandName()}'s voice`;
+      b.disabled = false; b.innerHTML = `${ic('sparkles')} Rephrase in ${esc(brandName())}'s voice`;
     });
     on('#cpSaved', async () => {
-      const o = body.querySelector('#cpOpts'); o.innerHTML = '<p class="v2hint">Reading…</p>';
+      const o = body.querySelector('#cpOpts'); o.innerHTML = '<p class="hint">Reading…</p>';
       try { const r = await H.apiAH(`/api/social/captions?act=${encodeURIComponent(ST.act)}`, { fresh: true });
-        o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt" data-cid="${esc(c.id)}">${esc(c.text)}<span style="display:block;color:var(--muted);font-size:11px;margin-top:3px">${esc(c.created_by || '')} · <u data-del="${esc(c.id)}">remove</u></span></button>`).join('') || '<p class="v2hint">No saved captions yet. Write one and press Save this caption.</p>';
+        o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt" data-cid="${esc(c.id)}">${esc(c.text)}<span style="display:block;color:var(--muted);font-size:11px;margin-top:3px">${esc(c.created_by || '')} · <u data-del="${esc(c.id)}">remove</u></span></button>`).join('') || '<p class="hint">No saved captions yet. Write one and press Save this one.</p>';
         o.querySelectorAll('.opt').forEach(x => x.onclick = e => { if (e.target.dataset.del) { H.apiAH(`/api/social/captions?id=${encodeURIComponent(e.target.dataset.del)}`, { method: 'DELETE' }).then(() => x.remove()).catch(er => { err.textContent = er.message; }); return; } body.querySelector('#cpCap').value = x.firstChild.textContent; o.innerHTML = ''; });
       } catch (e) { o.innerHTML = ''; err.textContent = e.message; }
     });
@@ -426,11 +498,11 @@
     const res = p.results || {};
     const rows = Object.keys(PL).filter(x => p.targets[x] && p.targets[x].on).map(x => {
       const r = res[x] || {};
-      const nums = r.posted_at ? `<span class="n">${r.views != null ? `<span>${k(r.views)} views</span>` : ''}${r.likes != null ? `<span>${k(r.likes)} likes</span>` : ''}${r.comments != null ? `<span>${k(r.comments)} comments</span>` : ''}${r.views == null && r.likes == null ? '<span>numbers tomorrow</span>' : ''}</span>` : '';
-      const line = r.posted_at ? `${r.by_hand ? 'Posted by hand' : r.draft ? 'Sent' : 'Posted'}${r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener">open</a>` : ''}${r.note ? `<span class="w"> · ${esc(r.note)}</span>` : ''}` : r.handoff ? `<span class="w">Handed to you in Slack${r.error ? ` (${esc(r.error)})` : ''}.</span> <button type="button" class="sw-btn sm" data-hand="${x}">Posted by hand</button>` : r.error ? `<span class="e">${esc(r.error)}</span>` : 'Waiting';
-      return `<div class="r">${bubble(x, (ST.data.accounts || {})[x], 'sm')}<span>${line}</span>${nums}</div>`;
+      const nums = r.posted_at ? `<span class="sw-mr">${r.views != null ? `<span><b>${k(r.views)}</b> views</span>` : ''}${r.likes != null ? `<span><b>${k(r.likes)}</b> likes</span>` : ''}${r.comments != null ? `<span><b>${k(r.comments)}</b> comments</span>` : ''}${r.views == null && r.likes == null ? '<span>numbers tomorrow</span>' : ''}</span>` : '';
+      const line = r.posted_at ? `<b>${r.by_hand ? 'Posted by hand' : r.draft ? 'Sent' : 'Posted'}</b>${r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">Open</a>` : ''}${r.note ? `<span class="w">${esc(r.note)}</span>` : ''}` : r.handoff ? `<span class="w">Handed to you in Slack${r.error ? ` (${esc(r.error)})` : ''}.</span> <button type="button" class="sw-btn sm" data-hand="${x}">Posted by hand</button>` : r.error ? `<span class="e">${esc(r.error)}</span>` : '<span>Waiting</span>';
+      return `<div class="r">${bubble(x, (ST.data.accounts || {})[x], '')}<div><div class="ln">${line}</div>${nums}</div></div>`;
     }).join('');
-    el.innerHTML = `<h4>How it went</h4><div class="sw-res">${rows}</div>${p.error ? `<p class="err" style="margin:6px 0 0">${esc(p.error)}</p>` : ''}`;
+    el.innerHTML = `<div class="sw-res">${rows}</div>${p.error ? `<p class="err" style="margin:6px 0 0">${esc(p.error)}</p>` : ''}`;
     el.querySelectorAll('[data-hand]').forEach(b => b.onclick = async () => {
       const url = await askUrl(); if (url === null) return;
       try { const r = await H.apiAH('/api/social/post/byhand', { method: 'POST', body: JSON.stringify({ id: p.id, plat: b.dataset.hand, url: url || undefined }) }); Object.assign(p, r.post); resultsBox(el, p); await reload(false); } catch (e) { toast(e.message); }
@@ -438,13 +510,13 @@
   }
   function askUrl() {
     return new Promise(res => {
-      const { w, done } = modal(`<div class="fl"><h3>Posted by hand</h3><p class="v2hint" style="margin:0">Paste the post's link if you have it (optional), so the card can show it.</p><input type="text" id="buUrl" placeholder="https://" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit"><div class="foot"><button type="button" class="sw-btn" data-x="1">Cancel</button><button type="button" class="sw-btn pri" id="buOk">Mark posted</button></div></div>`, () => res(null));
+      const { w, done } = modal(`<div class="fl"><h3>Posted by hand</h3><p class="hint">Paste the post's link if you have it (optional), so the card can show it.</p><input type="text" id="buUrl" placeholder="https://"><div class="foot"><button type="button" class="sw-btn" data-x="1">Cancel</button><button type="button" class="sw-btn pri" id="buOk">Mark posted</button></div></div>`, () => res(null));
       w.querySelector('#buOk').onclick = () => { const v = w.querySelector('#buUrl').value.trim(); done(true); res(v); };
     });
   }
   function pickModal(onPick) {
     const list = ST.tray.filter(i => i.kind !== 'text');
-    const { w, done } = modal(`<div class="fl"><h3>From the tray</h3><div class="sw-pick">${list.map(it => `<button type="button" data-ref="${esc(it.ref)}"><span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}></span><span class="t">${esc(it.title)}</span></button>`).join('') || '<p class="v2hint">Nothing in the tray yet.</p>'}</div><div class="foot"><button type="button" class="sw-btn" data-x="1">Close</button></div></div>`);
+    const { w, done } = modal(`<div class="fl"><h3>From the tray</h3><div class="sw-pick">${list.map(it => `<button type="button" data-ref="${esc(it.ref)}"><span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}></span><span class="t">${esc(it.title)}</span></button>`).join('') || '<p class="hint">Nothing in the tray yet.</p>'}</div><div class="foot"><button type="button" class="sw-btn" data-x="1">Close</button></div></div>`);
     w.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { onPick(list.find(i => i.ref === b.dataset.ref)); done(); });
   }
   function modal(html, onClose) {
@@ -461,28 +533,33 @@
   }
   function brandName() { return ((H.S.accounts || []).find(a => a.act_id === ST.act) || {}).name || 'the brand'; }
 
-  /* ---------- Brand settings > Social > Connect accounts ---------- */
+  /* ---------- Brand settings > Social: the four connections in one table-like card ---------- */
   async function connect(el, act, host) {
     H = host || H; css();
     if (!el || !act || act === 'all') return;
     el.innerHTML = '<p class="v2hint">Reading the accounts…</p>';
     let d; try { d = await H.apiAH(`/api/social/accounts?act=${encodeURIComponent(act)}`, { fresh: true }); } catch (e) { el.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
-    const A = d.accounts || {}, keys = d.keys || {}, cb = d.callbacks || {}, cli = CLI();
-    const modes = { live: 'Live: posts straight to the account', draft: 'Draft: TikTok inbox / YouTube private until the app is approved', notify: 'By hand: Slack tells the poster at post time' };
-    const card = (plat, how) => {
+    const A = d.accounts || {}, keys = d.keys || {}, cli = CLI();
+    const modes = [['live', 'Live'], ['draft', 'Draft'], ['notify', 'By hand']];
+    const modeTip = 'Live posts straight to the account. Draft lands in TikTok\'s inbox or as private on YouTube until the app is approved. By hand: Slack tells the poster at post time.';
+    const sub = { ig: 'Business account, through its Page', fb: 'The brand\'s Page', tt: 'Content Posting', yt: 'Uploads' };
+    const row = (plat, how) => {
       const a = A[plat];
-      const st = !a ? '<span class="ln">Not connected.</span>' : a.status === 'error' ? `<span class="ln bad">Needs reconnecting: ${esc(a.error || '')}</span>` : `<span class="ln good">Connected${a.handle ? ` as @${esc(a.handle)}` : ''}${a.connected_at ? `, ${esc(String(a.connected_at).slice(0, 10))}` : ''}.</span>`;
-      const mode = a && !cli ? `<select data-mode="${plat}" aria-label="How it posts">${Object.entries(modes).filter(([m]) => m !== 'live' || plat === 'ig' || plat === 'fb' || true).map(([m, l]) => `<option value="${m}" ${a.mode === m ? 'selected' : ''}>${l.split(':')[0]}</option>`).join('')}</select>` : '';
-      return `<div class="c"><div class="hd">${bubble(plat, a ? { on: true, pic: a.pic, handle: a.handle, mode: a.mode, status: a.status } : {})}<div><b>${PL[plat]}</b><small>${a ? esc(a.name || '') : (plat === 'ig' ? 'Business account, through its Facebook Page' : plat === 'fb' ? 'The brand’s Page' : plat === 'tt' ? 'Content Posting (drafts until TikTok’s audit passes)' : 'Uploads (private until Google verifies the app)')}</small></div></div>
-        ${st}${a && a.mode ? `<span class="ln">${esc(modes[a.mode] || a.mode)}</span>` : ''}
-        ${cli ? '' : `<div class="acts">${how}${mode}${a ? `<button type="button" class="sw-btn sm" data-forget="${plat}">Forget</button>` : ''}</div>`}</div>`;
+      const st = !a ? '<span class="sw-st"><i></i>Not connected</span>' : a.status === 'error' ? `<span class="sw-st bad"><i></i>Needs reconnecting</span>` : `<span class="sw-st ok"><i></i>Connected${a.connected_at ? ` ${esc(new Date(a.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}` : ''}</span>`;
+      const mode = a && !cli ? `<span class="sw-sel" ${U() ? U().tipAttr(modeTip) : ''}><select data-mode="${plat}" aria-label="How it posts">${modes.map(([m, l]) => `<option value="${m}" ${a.mode === m ? 'selected' : ''}>${l}</option>`).join('')}</select></span>` : a ? esc((modes.find(([m]) => m === a.mode) || [])[1] || a.mode || '') : '<span style="color:var(--muted)">–</span>';
+      return `<tr><td><span class="pl"><span class="av" ${a?.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''}>${a?.pic ? '' : PK[plat]}</span>${PL[plat]}</span></td>
+        <td><span class="acc">${a ? `${a.handle ? `@${esc(a.handle)}` : esc(a.name || '')}${a.name && a.handle && a.name.toLowerCase() !== a.handle.toLowerCase() ? `<small>${esc(a.name)}</small>` : ''}` : `<span style="color:var(--muted)">${sub[plat]}</span>`}</span></td>
+        <td>${st}${a?.status === 'error' && a.error ? `<small style="display:block;color:var(--muted);font-size:11.5px">${esc(a.error)}</small>` : ''}</td>
+        <td>${mode}</td>
+        <td class="r">${cli ? '' : `<span class="acts">${how}${a ? `<button type="button" class="sw-btn sm q" data-forget="${plat}">Forget</button>` : ''}</span>`}</td></tr>`;
     };
-    const metaHow = keys.meta ? `<button type="button" class="sw-btn sm pri" data-meta="1">${A.fb || A.ig ? 'Change the Page' : 'Connect a Page + Instagram'}</button>` : '<span class="ln bad">META_TOKEN is not set on the server.</span>';
-    const ttHow = keys.tiktok ? '<button type="button" class="sw-btn sm pri" data-oauth="tiktok">Sign in to TikTok</button>' : `<details class="steps"><summary>Set up the TikTok app first</summary>1) developers.tiktok.com, the Mobius account: Manage apps &gt; Connect an app ("Locus by Mobius Digital"). 2) Add the products Login Kit and Content Posting API; scopes user.info.basic, video.upload, video.publish, video.list. 3) Redirect URI: ${esc(cb.tiktok || '')} 4) In account-health/worker: npx.cmd wrangler secret put TIKTOK_CLIENT_KEY, then TIKTOK_CLIENT_SECRET. 5) Submit for review with a screen recording of this Week screen posting; until it passes posts land in your TikTok inbox as drafts.</details>`;
-    const ytHow = keys.google ? '<button type="button" class="sw-btn sm pri" data-oauth="youtube">Sign in to Google</button>' : `<details class="steps"><summary>Set up the Google OAuth client first</summary>1) console.cloud.google.com, the Mobius project with the Locus sign-in client: APIs &amp; Services &gt; Enable the YouTube Data API v3. 2) Credentials &gt; the OAuth client Locus uses &gt; add the redirect URI ${esc(cb.google || '')} 3) OAuth consent screen: add the scopes youtube.upload and youtube.readonly, add cole@ as a test user. 4) In account-health/worker: npx.cmd wrangler secret put GOOGLE_CLIENT_SECRET (the client's secret). 5) Verification needs a screen recording of this Week screen posting; until then uploads are private.</details>`;
-    el.innerHTML = `<div class="sw" style="display:grid;gap:10px"><h3 style="margin:8px 0 0;font-size:14px">Connect accounts</h3>
-      <p class="v2hint" style="margin:0;max-width:70ch">Where the Week screen posts. ${cli ? 'The Mobius team connects these for you.' : 'Instagram and Facebook use the Mobius Tools token (it needs instagram_content_publish and pages_manage_posts: Business settings > System users > Mobius Tools > Generate new token). TikTok and YouTube are a sign-in each. A platform that is not connected, or set to By hand, is handed to the poster in Slack at post time.'}</p>
-      <div class="sw-conn">${card('ig', metaHow)}${card('fb', '')}${card('tt', ttHow)}${card('yt', ytHow)}</div><div class="v2hint" id="swConnMsg" style="margin:0"></div></div>`;
+    const notSet = what => `<span class="sw-st warn" ${U() ? U().tipAttr(`${what} is not set up on the server yet. Ask Cole.`) : ''}><i></i>Needs setup</span>`;
+    const metaHow = keys.meta ? `<button type="button" class="sw-btn sm ${A.fb || A.ig ? '' : 'pri'}" data-meta="1">${A.fb || A.ig ? 'Change the Page' : 'Connect'}</button>` : notSet('The Meta token');
+    const ttHow = keys.tiktok ? `<button type="button" class="sw-btn sm ${A.tt ? '' : 'pri'}" data-oauth="tiktok">${A.tt ? 'Reconnect' : 'Connect'}</button>` : notSet('The TikTok app');
+    const ytHow = keys.google ? `<button type="button" class="sw-btn sm ${A.yt ? '' : 'pri'}" data-oauth="youtube">${A.yt ? 'Reconnect' : 'Connect'}</button>` : notSet('The Google sign-in');
+    el.innerHTML = `<div class="sw"><div class="sw-conn"><div class="hd"><b>Accounts</b><p>${cli ? 'Where the Week screen posts. The Mobius team connects these.' : 'Where the Week screen posts. A platform not connected, or set to By hand, is handed to the poster in Slack at post time.'}</p></div>
+      <div class="tw"><table><thead><tr><th>Platform</th><th>Account</th><th>Status</th><th>Mode</th><th></th></tr></thead><tbody>${row('ig', metaHow)}${row('fb', '')}${row('tt', ttHow)}${row('yt', ytHow)}</tbody></table></div>
+      <div class="msg" id="swConnMsg"></div></div></div>`;
     const msg = el.querySelector('#swConnMsg');
     el.querySelectorAll('[data-mode]').forEach(s => s.onchange = async () => { try { await H.apiAH('/api/social/accounts/mode', { method: 'PUT', body: JSON.stringify({ act, plat: s.dataset.mode, mode: s.value }) }); msg.textContent = 'Saved.'; } catch (e) { msg.textContent = e.message; } });
     el.querySelectorAll('[data-forget]').forEach(b => b.onclick = async () => { if (!(await H.confirmModal(`Forget the ${PL[b.dataset.forget]} connection?`, 'Scheduled posts to it will be handed to you in Slack instead.', 'Forget'))) return; try { await H.apiAH(`/api/social/accounts?act=${encodeURIComponent(act)}&plat=${b.dataset.forget}`, { method: 'DELETE' }); connect(el, act, H); } catch (e) { msg.textContent = e.message; } });
@@ -496,12 +573,12 @@
       mb.disabled = true; mb.textContent = 'Reading the Pages…';
       try {
         const r = await H.apiAH('/api/social/accounts/meta-pages', { fresh: true });
-        const { w, done } = modal(`<div class="fl"><h3>Which Page is ${esc(brandNameOf(act))}?</h3>${r.missing?.length ? `<p class="v2hint" style="margin:0;color:var(--warn)">The Mobius Tools token is missing ${esc(r.missing.join(' and '))}. Posting will fail until Cole regenerates it with those ticked (Business settings &gt; System users).</p>` : ''}
-          <div style="display:grid;gap:6px;max-height:50vh;overflow:auto">${(r.pages || []).map(p => `<button type="button" class="pg" data-pg="${esc(p.id)}"><span class="av" ${p.pic ? `style="background-image:url('${esc(p.pic)}')"` : ''}></span><span><b>${esc(p.name)}</b><small>${p.ig ? `Instagram @${esc(p.ig.handle)}` : 'No Instagram business account on this Page'}</small></span></button>`).join('') || '<p class="v2hint">The token sees no Pages. Assign the brand’s Page to the Mobius Tools system user in Business settings first.</p>'}</div>
+        const { w, done } = modal(`<div class="fl"><h3>Which Page is ${esc(brandNameOf(act))}?</h3>${r.missing?.length ? `<p class="hint" style="color:var(--warn)">The Meta token is missing ${esc(r.missing.join(' and '))}. Posting will fail until it is regenerated with those.</p>` : ''}
+          <div style="display:grid;gap:6px;max-height:50vh;overflow:auto">${(r.pages || []).map(p => `<button type="button" class="pg" data-pg="${esc(p.id)}"><span class="av" ${p.pic ? `style="background-image:url('${esc(p.pic)}')"` : ''}></span><span><b>${esc(p.name)}</b><small>${p.ig ? `Instagram @${esc(p.ig.handle)}` : 'No Instagram business account on this Page'}</small></span></button>`).join('') || '<p class="hint">The token sees no Pages yet. Assign the brand’s Page to the Mobius Tools system user first.</p>'}</div>
           <div class="err" id="mpErr"></div><div class="foot"><button type="button" class="sw-btn" data-x="1">Cancel</button></div></div>`);
         w.querySelectorAll('[data-pg]').forEach(b => b.onclick = async () => { b.disabled = true; try { const x = await H.apiAH('/api/social/accounts/meta', { method: 'POST', body: JSON.stringify({ act, page_id: b.dataset.pg }) }); done(true); toast(`Connected Facebook${x.ig ? ' and Instagram' : ''}.`); connect(el, act, H); } catch (e) { w.querySelector('#mpErr').textContent = e.message; b.disabled = false; } });
       } catch (e) { msg.textContent = e.message; }
-      mb.disabled = false; mb.textContent = 'Connect a Page + Instagram';
+      mb.disabled = false; mb.textContent = A.fb || A.ig ? 'Change the Page' : 'Connect';
     };
   }
   function brandNameOf(act) { return ((H.S.accounts || []).find(a => a.act_id === act) || {}).name || 'this brand'; }

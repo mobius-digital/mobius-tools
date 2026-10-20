@@ -121,6 +121,7 @@ IDEAS_BOT = "on"
 #                                             secret unset the endpoint refuses everything.
 #   npx wrangler secret put GEMINI_API_KEY    ideas bot: Google AI Studio key, watches reference videos (optional)
 #   npx wrangler secret put DOWNLOADER_KEY    ideas bot: ScrapeCreators key, pulls TikTok + Instagram MP4s (optional)
+#   npx wrangler secret put YT_API_KEY        Social: YouTube Data API v3 key (Cloud console > Credentials > API key, YouTube Data API enabled); without it YouTube reads fall back to ScrapeCreators
 # Optional var: IDEA_APPROVERS = "U06C37MDWD7,U06K732S4BD" (who may press the ideas bot's send buttons)
 #
 # Lucky creator app (ideas bot, 2026-09-30): the "Lucky creator app" button files the draft into

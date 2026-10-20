@@ -150,11 +150,18 @@ async function claude(env, { system, user, tools, schema, effort = 'high', maxTo
   if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set on the account-health worker');
   const messages = [{ role: 'user', content: user }];
   let last = null;
+  /* The API compiles a schema into a grammar and refuses one it finds too large (the ideas draft hit
+     that on 2026-10-18 after two fields were added). Then the same call runs once more with the schema
+     written into the prompt instead; jsonOf already reads JSON out of plain text. */
+  let strict = !!schema;
   for (let turn = 0; turn < 5; turn++) {
+    const sys = schema && !strict
+      ? [...(cachedSystem(system) || []), { type: 'text', text: `Answer with ONE JSON object and nothing else (no prose, no code fence). It must match this JSON schema exactly, every property present:\n${JSON.stringify(schema)}` }]
+      : cachedSystem(system);
     const body = {
-      model, max_tokens: maxTokens, stream: true, system: cachedSystem(system),
+      model, max_tokens: maxTokens, stream: true, system: sys,
       thinking: { type: 'adaptive' },
-      output_config: { effort, ...(schema ? { format: { type: 'json_schema', schema } } : {}) },
+      output_config: { effort, ...(strict ? { format: { type: 'json_schema', schema } } : {}) },
       messages,
       ...(tools ? { tools } : {}),
     };
@@ -165,7 +172,12 @@ async function claude(env, { system, user, tools, schema, effort = 'high', maxTo
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.error?.message || `Claude API HTTP ${res.status}`);
+      const why = e.error?.message || `Claude API HTTP ${res.status}`;
+      if (strict && /grammar is too large|too many strict/i.test(why)) {
+        console.log(`claude(): schema refused (${why.slice(0, 80)}), retrying with the schema in the prompt`);
+        strict = false; turn--; continue;
+      }
+      throw new Error(why);
     }
     last = await readStream(res, onEvent);
     if (meter) {
