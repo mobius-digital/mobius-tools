@@ -2240,7 +2240,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=16">
+<link rel="stylesheet" href="lx.css?v=17">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2396,14 +2396,14 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="nudge.js?v=4"></script>
 <script src="lx.js?v=7"></script>
 <script src="v2.js?v=68"></script>
-<script src="leaks.js?v=8"></script>
+<script src="leaks.js?v=9"></script>
 <script src="desk.js?v=31"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=8"></script>
 <script src="socialweek.js?v=4"></script>
 <script src="supply.js?v=7"></script>
-<script src="v4.js?v=4"></script>
+<script src="v4.js?v=5"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -9936,6 +9936,8 @@ async function renderReports(first) {
 
   if (d) { wireReportChart(d, acct?.currency, true); wireAdCards(d.ads, acct?.currency, d.period === 'weekly' ? 'week' : 'month'); }
   wireReportJump();
+  /* v4 phase 5: the report as a story. After the summary: what got done this week (Tasks) and what the client owes (Requests). */
+  if (V4 && window.V4 && window.V4.reportExtras && rep && d) window.V4.reportExtras($('#main'), v2Host(), { from: rep.period_start, to: rep.period_end, sent: rep.status === 'sent' });
   /* The top "Edit summary" opens the same editor as the button on the Summary
      card, and brings the card into view only if it is off screen. */
   const editTopBtn = $('#rpEditTop');

@@ -373,5 +373,30 @@
       ${K.foot('Banked = Shopify total sales less tax, through Triple Whale, this month. Planned by now = the month plan split evenly over the days elapsed. Lands = today\'s pace over the whole month. Worst first; a row opens that brand\'s month.')}`);
     K.wireGo($('#main'));
   }
-  window.V4 = { render, extraCalls, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
+
+  /* ---------- Reports, phase 5: the week as a story. Two cards under the summary: Done (Tasks ticked in the window, this
+     brand) and From you (open Requests). Nothing is drawn when both are empty; the client archive never calls this. */
+  async function reportExtras(root, host, o) {
+    H = host; K = window.V2 && window.V2.kit; if (!K || !root) return;
+    const sum = root.querySelector('.rp-sumcard') || root.querySelector('#rpsec-summary') || root.querySelector('.rp-four');
+    if (!sum || root.querySelector('#v4rep')) return;
+    const act = H.S.act; if (!act || act === 'all') return;
+    const t = H.RUN();
+    const q = encodeURIComponent(act);
+    const [ac, rq] = await Promise.all([H.apiAH(`/api/actions?act=${q}&status=done`).catch(() => null), H.apiAH(`/api/requests?act=${q}`).catch(() => null)]);
+    if (t !== H.RUN() || !root.isConnected) return;
+    const from = o.from || '', to = o.to ? o.to + 'T23:59:59' : '9999';
+    const done = ((ac && ac.items) || []).filter(x => x.done_at && x.done_at >= from && x.done_at <= to && x.status !== 'open').slice(0, 6);
+    const reqs = (Array.isArray(rq) ? rq : (rq && (rq.items || rq.requests)) || []).filter(x => x.status === 'open' || x.status === 'changes').slice(0, 6);
+    if (!done.length && !reqs.length) return;
+    const when = s => s ? K.day(String(s).slice(0, 10)) : '';
+    const card = (title, cap, rows, empty) => `<div class="v2card v4-repc"><div class="v2h"><h3>${title}</h3><span class="cap">${cap}</span></div>${rows.length ? `<div class="v4-rows">${rows.join('')}</div>` : `<p class="v2hint">${empty}</p>`}</div>`;
+    const doneRows = done.map(x => `<div class="v4-row"><span class="v4-tick on"></span><div class="t"><b>${K.esc(x.title || x.text || '')}</b><small>${K.esc([x.owner, when(x.done_at)].filter(Boolean).join(' · '))}</small></div></div>`);
+    const reqRows = reqs.map(x => `<button type="button" class="v4-row" data-go="requests"><span class="v4-chip ${x.kind === 'approval' ? 'call' : 'refresh'}">${x.kind === 'approval' ? 'ok?' : x.kind === 'ask' ? 'owed' : 'open'}</span><div class="t"><b>${K.esc(x.title || '')}</b><small>asked ${K.esc(when(x.created_at))}${x.status === 'changes' ? ' · changes asked' : ''}</small></div></button>`);
+    const el = document.createElement('div'); el.id = 'v4rep'; el.className = 'v4 v4-rep2';
+    el.innerHTML = `${card('Done', 'from Tasks', doneRows, 'Nothing ticked this week.')}${card('From you', 'Requests', reqRows, 'Nothing waiting on the client.')}`;
+    sum.insertAdjacentElement('afterend', el);
+    K.wireGo(el);
+  }
+  window.V4 = { render, extraCalls, reportExtras, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
 })();
