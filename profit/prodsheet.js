@@ -29,26 +29,36 @@ function css() {
   if ($('#ps-css')) return;
   const s = document.createElement('style'); s.id = 'ps-css';
   s.textContent = `
-.ps{display:flex;flex-direction:column;min-height:100%;color:var(--ink)}
+.ps{display:flex;flex-direction:column;min-height:100%;color:var(--ink);font-size:14px}
 .ps-h{display:flex;flex-direction:column;gap:12px;padding:4px 0 0}
 .ps-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ps-top .num{font-size:12px;font-weight:700;color:var(--muted)}
-.ps-top .br{font-size:12px;color:var(--muted)}
+.ps-top .br{font-size:12px;font-weight:500;color:var(--muted)}
 .ps-top .sp{flex:1}
-.ps-top .saved{font-size:12px;color:var(--muted)}
-.ps-title{font:inherit;font-size:18px;font-weight:700;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:6px;padding:4px 6px;margin:0 -6px;width:calc(100% + 12px);box-sizing:border-box}
+.ps-top .saved{font-size:12px;font-weight:500;color:var(--muted)}
+.ps-title{font:inherit;font-size:18px;font-weight:700;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:var(--r-sm,6px);padding:4px 6px;margin:0 -6px;width:calc(100% + 12px);box-sizing:border-box}
 .ps-title:hover,.ps-title:focus{border-color:var(--line-strong);background:var(--surface-2);outline:none}
 .ps-meta{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-.ps-kv{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:13px}
+.ps-kv{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:14px}
 .ps-kv>span:first-child,.ps-lab{font-size:12px;color:var(--muted);font-weight:500}
-.ps-kv b{font-weight:500;color:var(--ink)}
-.ps-kv select,.ps-kv input{font:inherit;font-size:13px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:6px;padding:5px 7px;min-width:0;width:100%;box-sizing:border-box}
+.ps-kv b{font-weight:500;color:var(--ink);min-height:var(--ctl-h,32px);display:flex;align-items:center}
+/* the kit pill (2026-10-20): the value is the label, a click opens the board's own menu (ProductionTab.pickMenu) */
+.ps-pill{height:var(--ctl-h,32px);width:100%;min-width:0;padding:0 8px 0 10px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-align:left;box-sizing:border-box;transition:border-color var(--t-fast,.12s) var(--ease,ease)}
+.ps-pill:hover{border-color:var(--ink-2)}
+.ps-pill:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ps-pill .v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-pill .v.none{color:var(--muted);font-weight:500}
+.ps-pill .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.ps-pill svg{flex:none;color:var(--muted)}
+.ps-pill .ps-av{width:18px;height:18px;font-size:9px}
+.ps-pill.fit{width:auto;max-width:100%;align-self:flex-start}
 .ps-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:2px}
-.ps-tab{height:36px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.ps-tab{height:36px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:550;cursor:pointer;border-radius:var(--r-sm,6px) var(--r-sm,6px) 0 0}
+.ps-tab:hover{background:var(--surface-2);color:var(--ink)}
 .ps-tab.on{color:var(--ink);border-bottom-color:var(--brand)}
 .ps-b{padding:18px 0 28px;display:flex;flex-direction:column;gap:16px}
 .ps-f{display:flex;flex-direction:column;gap:6px;min-width:0}
-.ps-f textarea,.ps-f input,.ps-in{font:inherit;font-size:13px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
+.ps-f textarea,.ps-f input,.ps-in{font:inherit;font-size:14px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--r-sm,6px);padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
 .ps textarea{resize:none;overflow:hidden;field-sizing:content;min-height:38px}
 .ps-f textarea.ai,.ps-in.ai{border-color:var(--brand-line);background:var(--brand-tint)}
 .ps-ai{color:var(--brand);font-weight:600}
@@ -56,14 +66,14 @@ function css() {
 .ps-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .ps-st3{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,2fr) minmax(0,1fr);gap:12px}
 .ps-seg{display:flex;flex-wrap:wrap}
-.ps-seg button{height:30px;padding:0 12px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-left:-1px}
-.ps-seg button:first-child{border-radius:6px 0 0 6px;margin-left:0}.ps-seg button:last-child{border-radius:0 6px 6px 0}
+.ps-seg button{height:var(--ctl-h,32px);padding:0 12px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-left:-1px}
+.ps-seg button:first-child{border-radius:var(--r-sm,6px) 0 0 var(--r-sm,6px);margin-left:0}.ps-seg button:last-child{border-radius:0 var(--r-sm,6px) var(--r-sm,6px) 0}
 .ps-seg button.on{background:var(--ink);color:var(--surface);border-color:var(--ink);position:relative}
 .ps-chips{display:flex;gap:6px;flex-wrap:wrap}
-.ps-chip{height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;cursor:pointer}
+.ps-chip{height:var(--ctl-h,32px);padding:0 11px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:550;cursor:pointer}
 .ps-chip.on{background:var(--brand);border-color:var(--brand);color:var(--surface);font-weight:600}
-.ps-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);flex-wrap:wrap}
-.ps-bar span{flex:1;min-width:200px;color:var(--ink-2);font-size:13px}
+.ps-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-lg,8px);background:var(--surface-2);flex-wrap:wrap}
+.ps-bar span{flex:1;min-width:200px;color:var(--ink-2);font-size:14px}
 .ps-btn{height:32px;padding:0 12px;border-radius:var(--r-sm,8px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;transition:background var(--t-fast,.15s) var(--ease,ease),border-color var(--t-fast,.15s) var(--ease,ease),filter var(--t-fast,.15s)}
 .ps-btn:hover{border-color:var(--ink-2)}
 .ps-btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}.ps-btn.ghost:hover{background:var(--surface-2);color:var(--ink)}
@@ -75,57 +85,57 @@ function css() {
 .ps-btn.g{background:transparent;border-color:transparent;color:var(--brand);padding:0 4px}
 .ps-btn:disabled{opacity:.5;cursor:default}
 .ps-sec{font-size:14px;font-weight:700;margin:4px 0 0;color:var(--ink)}
-.ps-card{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:12px;display:flex;gap:12px;align-items:center}
-.ps-thumb{width:56px;height:56px;border-radius:6px;background:var(--surface-2);flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);overflow:hidden}
+.ps-card{border:1px solid var(--line);border-radius:var(--r-lg,8px);background:var(--surface);padding:12px;display:flex;gap:12px;align-items:center}
+.ps-thumb{width:56px;height:56px;border-radius:var(--r-sm,6px);background:var(--surface-2);flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);overflow:hidden}
 .ps-thumb img{width:100%;height:100%;object-fit:cover}
-.ps-x{width:28px;height:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;border-radius:6px}
+.ps-x{width:28px;height:32px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;border-radius:var(--r-sm,6px)}
 .ps-x:hover{color:var(--bad);background:var(--surface-2)}
-.ps-add{height:34px;border:1px dashed var(--line-strong);border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;padding:0 8px}
+.ps-add{height:32px;border:1px dashed var(--line-strong);border-radius:var(--r-sm,6px);background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;padding:0 8px}
 .ps-add:hover{color:var(--ink);border-color:var(--ink-2)}
-.ps-hint{font-size:12px;color:var(--muted)}
+.ps-hint{font-size:12px;font-weight:500;color:var(--muted)}
 .ps-foot{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:14px;flex-wrap:wrap}
 .ps-foot .ps-hint{flex:1;min-width:220px}
 .ps-c{display:flex;gap:10px}
 .ps-c .bd{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.ps-c .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-.ps-c .hd b{color:var(--ink);font-size:13px;font-weight:600}
-.ps-c .tx{color:var(--ink-2);line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
-.ps-sys{font-size:12px;color:var(--muted);font-style:italic}
-.ps-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap;color:var(--tc,var(--muted));background:color-mix(in srgb,var(--tc,var(--muted)) 14%,transparent)}
+.ps-c .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;font-weight:500;color:var(--muted)}
+.ps-c .hd b{color:var(--ink);font-size:14px;font-weight:600}
+.ps-c .tx{color:var(--ink-2);line-height:1.45;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.ps-sys{font-size:12px;font-weight:500;color:var(--muted)}
+.ps-tag{font-size:11px;padding:2px 7px;border-radius:var(--r-xs,4px);font-weight:600;white-space:nowrap;color:var(--tc,var(--muted));background:color-mix(in srgb,var(--tc,var(--muted)) 14%,transparent)}
 .ps-av{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--surface);flex:none;object-fit:cover}
 .ps-ro{display:flex;flex-direction:column;gap:4px}
-.ps-ro p{margin:0;color:var(--ink-2);line-height:1.5;white-space:pre-wrap}
+.ps-ro p{margin:0;color:var(--ink-2);line-height:1.5;white-space:pre-wrap;font-size:14px}
 .ps-err{color:var(--bad);font-size:12.5px}
-.ps-wait{border:1px solid var(--warn);border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.ps-wait span{flex:1;min-width:200px;font-size:13px;color:var(--ink-2)}
+.ps-wait{border:1px solid var(--warn);border-radius:var(--r-lg,8px);padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ps-wait span{flex:1;min-width:200px;font-size:14px;color:var(--ink-2)}
 /* the page */
-.ps-start{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
-.ps-tb{display:flex;gap:2px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px;background:var(--surface-2)}
-.ps-tb button[data-tool]{height:28px;min-width:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.ps-start{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;font-weight:500;color:var(--muted)}
+.ps-tb{display:flex;gap:2px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:var(--r-lg,8px) var(--r-lg,8px) 0 0;padding:6px;background:var(--surface-2)}
+.ps-tb button[data-tool]{height:28px;min-width:28px;padding:0 8px;border:0;border-radius:var(--r-sm,6px);background:transparent;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .ps-tb button[data-tool]:hover{background:var(--surface);color:var(--ink)}
 .ps-tb .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
-.ps-doc{border:1px solid var(--line);border-radius:0 0 8px 8px;padding:16px 18px;min-height:320px;background:var(--surface);color:var(--ink);line-height:1.55;font-size:14px;outline:none;overflow-wrap:anywhere}
+.ps-doc{border:1px solid var(--line);border-radius:0 0 var(--r-lg,8px) var(--r-lg,8px);padding:16px 18px;min-height:320px;background:var(--surface);color:var(--ink);line-height:1.55;font-size:14px;outline:none;overflow-wrap:anywhere}
 .ps-doc:focus{border-color:var(--line-strong)}
 .ps-doc.over{border-color:var(--brand);background:var(--brand-tint)}
-.ps-doc.ro{border-radius:8px;min-height:0}
+.ps-doc.ro{border-radius:var(--r-lg,8px);min-height:0}
 .ps-doc h1{font-size:20px;margin:14px 0 6px;font-weight:700}.ps-doc h2{font-size:16px;margin:18px 0 6px;font-weight:700}.ps-doc h3{font-size:14px;margin:12px 0 4px;font-weight:700}
 .ps-doc>h1:first-child,.ps-doc>h2:first-child{margin-top:0}
 .ps-doc p{margin:0 0 6px}.ps-doc ol,.ps-doc ul{margin:0 0 8px;padding-left:24px}.ps-doc li{margin:2px 0}
 .ps-doc blockquote{margin:6px 0;padding:4px 12px;border-left:3px solid var(--line-strong);color:var(--ink-2)}
 .ps-doc pre,.ps-doc code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-2);border-radius:4px;padding:1px 4px;white-space:pre-wrap}
 .ps-doc a{color:var(--brand);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
-.ps-lb{position:fixed;z-index:1000;display:flex;align-items:center;gap:4px;max-width:min(440px,calc(100vw - 24px));background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:4px 4px 4px 10px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:12.5px}
+.ps-lb{position:fixed;z-index:1000;display:flex;align-items:center;gap:4px;max-width:min(440px,calc(100vw - 24px));background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-lg,8px);padding:4px 4px 4px 10px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:12.5px}
 .ps-lb .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
 .ps-lb button,.ps-lb a{font:inherit;font-size:12.5px;font-weight:600;color:var(--brand);background:none;border:0;padding:4px 8px;border-radius:6px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .ps-lb button:hover,.ps-lb a:hover{background:var(--surface-2)}
 .ps-lb .x{color:var(--muted)}
-.ps-doc img{max-width:min(100%,420px);max-height:360px;border-radius:8px;display:block;margin:8px 0;border:1px solid var(--line)}
-.ps-doc video{max-width:min(100%,480px);border-radius:8px;display:block;margin:8px 0;background:var(--ink)}
+.ps-doc img{max-width:min(100%,420px);max-height:360px;border-radius:var(--r-lg,8px);display:block;margin:8px 0;border:1px solid var(--line)}
+.ps-doc video{max-width:min(100%,480px);border-radius:var(--r-lg,8px);display:block;margin:8px 0;background:var(--ink)}
 .ps-doc [data-ph]{color:var(--muted);font-style:italic}
 .ps-doc [data-ai]{background:var(--brand-tint);border-radius:3px;box-shadow:0 0 0 2px var(--brand-tint)}
 .ps-doc hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 /* files */
-.ps-drop{border:1.5px dashed var(--line-strong);border-radius:10px;padding:22px 16px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center;background:var(--surface-2);cursor:pointer}
+.ps-drop{border:1.5px dashed var(--line-strong);border-radius:var(--r-lg,8px);padding:22px 16px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center;background:var(--surface-2);cursor:pointer}
 .ps-drop:hover,.ps-drop:focus{border-color:var(--ink-2);outline:none}
 .ps-drop.over{border-color:var(--brand);background:var(--brand-tint)}
 .ps-drop b{font-size:14px;color:var(--ink)}
@@ -136,16 +146,16 @@ function css() {
 /* Files tab as cards (2026-10-14 review redesign, artboard A): every ad big enough to judge, the whole picture opens the
    review, the call is made on the card. */
 .ps-fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ps-fchip{height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ps-fchip{height:var(--ctl-h,32px);padding:0 11px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:550;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .ps-fchip .n{opacity:.7;font-weight:500}
 .ps-fchip.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .ps-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;align-items:start}
-.ps-ad{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.ps-ad{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,8px);overflow:hidden;display:flex;flex-direction:column}
 .ps-ad:hover{border-color:var(--line-strong)}
 .ps-pv{position:relative;display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2);border:0;padding:0;cursor:pointer;overflow:hidden}
 .ps-pv img,.ps-pv video{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 .ps-pv:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
-.ps-pv .ov{position:absolute;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.ps-pv .ov{position:absolute;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:var(--r-sm,6px);background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .ps-pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
 @media (hover:hover){.ps-pv:hover .open{opacity:1}}.ps-pv:focus-visible .open{opacity:1}   /* hover only on a device that hovers: iOS keeps :hover after a tap, so the Open review overlay stayed over the card while scrolling */
 .ps-pv .open span{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--surface);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px}
@@ -155,26 +165,27 @@ function css() {
 .ps-adb .row{display:flex;gap:8px;align-items:center}
 .ps-adb .row .ps-btn{flex:1 1 auto;justify-content:center;min-width:0;padding:0 10px}
 .ps-adb .row{flex-wrap:wrap}
-.ps-adb textarea{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
+.ps-adb textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:var(--r-sm,6px);padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
 .ps-lnk{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;text-align:left}
 .ps-lnk.mute{color:var(--muted);font-weight:500}.ps-lnk.mute:hover{color:var(--bad)}
-.ps-dropline{display:flex;align-items:center;gap:10px;border:1px dashed var(--line-strong);border-radius:10px;padding:12px 14px;color:var(--muted);font-size:12.5px;cursor:pointer;background:transparent;font-family:inherit;text-align:left;width:100%}
+.ps-dropline{display:flex;align-items:center;gap:10px;border:1px dashed var(--line-strong);border-radius:var(--r-lg,8px);padding:12px 14px;color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;background:transparent;font-family:inherit;text-align:left;width:100%}
 .ps-dropline:hover,.ps-dropline:focus-visible{border-color:var(--ink-2);outline:none}
-.ps-b.over{outline:2px dashed var(--brand);outline-offset:-6px;border-radius:10px}
+.ps-b.over{outline:2px dashed var(--brand);outline-offset:-6px;border-radius:var(--r-lg,8px)}
 .ps-ups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 /* a Copy button beside the line under the pointer (the media buyer copies a headline in one click) */
-.ps-cpy{position:fixed;z-index:1000;height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.ps-cpy{position:fixed;z-index:1000;height:24px;padding:0 8px;border-radius:var(--r-sm,6px);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .ps-cpy:hover{color:var(--ink);border-color:var(--ink-2)}
 /* the modal look, also here so a confirm works wherever the sheet opens (same rules as production.js) */
 .pd-scrim{position:fixed;inset:0;background:rgba(10,10,12,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9850;padding:16px;animation:pd-fade var(--t,.2s) var(--ease,ease) both}
 .pd-modal{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-xl,18px);padding:22px 22px 18px;width:min(440px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:var(--sh-sheet,0 30px 70px -20px rgba(0,0,0,.6));animation:pd-pop var(--t,.2s) var(--ease,ease) both}
 @keyframes pd-fade{from{opacity:0}to{opacity:1}}@keyframes pd-pop{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
 .pd-modal h3{margin:0;font-size:16px;font-weight:650;letter-spacing:-.005em}
-.pd-modal p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
-.pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2)}
-.pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box}
+.pd-modal p{margin:0;font-size:14px;line-height:1.5;color:var(--ink-2)}
+.pd-modal label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;color:var(--muted)}
+.pd-modal input,.pd-modal select,.pd-modal textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--r-sm,6px);padding:7px 10px;width:100%;box-sizing:border-box}
+.pd-modal input,.pd-modal select{height:var(--ctl-h,32px);padding:0 10px}
 .pd-modal textarea{min-height:56px;resize:vertical}
-.pd-modal .pd-hint{font-size:11.5px;color:var(--ink-3)}
+.pd-modal .pd-hint{font-size:12px;font-weight:500;color:var(--muted)}
 .pd-modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pd-modal .ft{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 .pd-modal .err{color:var(--bad);font-size:12.5px}
@@ -183,24 +194,24 @@ function css() {
 .pc{display:flex;flex-direction:column;gap:22px;max-width:1080px;min-width:0}
 .pc h1{font-size:22px;font-weight:700;margin:0 0 4px;color:var(--ink)}
 .pc h2{margin:0 0 10px;font-size:15px;color:var(--ink)}
-.pc .lead{margin:0;color:var(--muted);font-size:13.5px}
-.pc-need{border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));border-radius:8px;background:var(--surface);padding:12px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.pc .lead{margin:0;color:var(--ink-2);font-size:14px}
+.pc-need{border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));border-radius:var(--r-lg,8px);background:var(--surface);padding:12px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .pc-need .bd{flex:1;min-width:180px;display:flex;flex-direction:column;gap:3px}
-.pc-row{display:grid;grid-template-columns:56px minmax(0,1fr) 110px 120px 140px;gap:12px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
+.pc-row{display:grid;grid-template-columns:56px minmax(0,1fr) 110px 120px 140px;gap:12px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:var(--r-lg,8px);background:var(--surface);cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
 .pc-row:hover{border-color:var(--line-strong)}
 .pc-th{display:grid;grid-template-columns:56px minmax(0,1fr) 110px 120px 140px;gap:12px;padding:0 14px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
 .pc-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-.pc-day{min-height:84px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);padding:6px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.pc-day{min-height:84px;border:1px solid var(--line);border-radius:var(--r-sm,6px);background:var(--surface-2);padding:6px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .pc-day.today{border-color:var(--brand)}
 .pc-day .d{font-size:11px;color:var(--muted)}
 .pc-day button{font:inherit;font-size:11px;text-align:left;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:3px 5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pc-mo{display:flex;align-items:center;gap:8px}
 @media (max-width:760px){.pc-th{display:none}.pc-row{grid-template-columns:48px minmax(0,1fr)}.pc-row>*:nth-child(n+3){grid-column:2}.pc-cal{grid-template-columns:repeat(7,minmax(36px,1fr));overflow-x:auto}}
 .pm-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
-.pm-box{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.pm-box{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-lg,8px);padding:12px 14px}
 .pm-box b{display:block;margin:0 0 6px;color:var(--ink)}
 .pm-box ul{margin:0;padding-left:18px;color:var(--ink-2);line-height:1.6;font-size:13px}
-.pm-miss{display:flex;gap:12px;align-items:center;border:1px solid var(--warn);border-radius:8px;padding:10px 12px;flex-wrap:wrap}
+.pm-miss{display:flex;gap:12px;align-items:center;border:1px solid var(--warn);border-radius:var(--r-lg,8px);padding:10px 12px;flex-wrap:wrap}
 .pm-miss .n{font-size:20px;font-weight:700;color:var(--warn)}
 @media (max-width:760px){.pm-cols{grid-template-columns:minmax(0,1fr)}}
 `;
@@ -209,6 +220,7 @@ function css() {
 
 const api = (H, path, opts = {}) => H.apiAH(path, opts.method && opts.method !== 'GET' ? { method: opts.method, body: JSON.stringify(opts.body || {}) } : { fresh: true });
 const post = (H, path, body) => api(H, path, { method: 'POST', body });
+const ico = (name, size = 14) => window.icon ? window.icon(name, { size }) : '';
 const toast = (msg, bad) => { const t = document.createElement('div'); t.setAttribute('role', 'status'); t.className = 'lx-toast' + (bad ? ' bad' : ''); t.style.zIndex = '9900'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4000); };
 const isClient = H => H.S && (H.S.role === 'client' || !!H.S.client);
 
@@ -371,20 +383,46 @@ async function open(H, id, opts = {}) {
     el.style.color = T.err ? 'var(--bad)' : '';
   }
 
+  /* ---------- the pills: owner, due, launch, format ---------- */
+  const chev = () => ico('chevron-down', 14) || '<span aria-hidden="true">⌄</span>';
+  function pillInner(kind, v) {
+    if (kind === 'owner') return `${av(v, 18)}<span class="v${v ? '' : ' none'}">${esc(v || 'Nobody yet')}</span>${chev()}`;
+    if (kind === 'format') { const f = v || 'Static'; return `<span class="dot" style="background:${FMT[f] || 'var(--brand)'}"></span><span class="v">${esc(f)}</span>${chev()}`; }
+    return `<span class="v${v ? '' : ' none'}">${esc(short(v) || (kind === 'launch' ? 'Not set' : 'No date'))}</span>${chev()}`;
+  }
+  const PILL_LABEL = { owner: 'Owner', due: 'Due date', launch: 'Launch date', format: 'Format' };
+  const pill = (kind, v, cls = '') => `<button type="button" class="ps-pill${cls ? ' ' + cls : ''}" data-pick="${kind}" aria-haspopup="menu" aria-label="${PILL_LABEL[kind]}">${pillInner(kind, v)}</button>`;
+  function wirePills() {
+    $$('[data-pick]', host).forEach(b => b.onclick = () => {
+      const kind = b.dataset.pick;
+      const PT = window.ProductionTab;
+      if (!PT || !PT.pickMenu) { toast('This page did not load. Hard-refresh (Ctrl+Shift+R).'); return; }
+      const hid = kind === 'format' ? null : $(`[data-meta="${kind}"]`, host);
+      const cur = kind === 'format' ? (T.B.format || 'Static') : (hid ? hid.value : '');
+      PT.pickMenu({ kind, value: cur, anchor: b, team: T.data.team || [], onPick: v => {
+        if (kind === 'format') { const ti = $('.ps-title', host); if (ti && ti.value.trim()) T.data.card.title = ti.value; T.B.format = v; touch(); paint(); return; }
+        if (hid) hid.value = v;
+        T.data.card[{ owner: 'owner', due: 'due', launch: 'launch_on' }[kind]] = v;   /* a repaint (Format, Sizes) keeps the pick until save() confirms it */
+        b.innerHTML = pillInner(kind, v);
+        touch();
+      } });
+    });
+  }
+
   /* ---------- header ---------- */
   function headHtml() {
     const k = c();
     const fmt = T.B.format || 'Static';
-    const team = T.data.team || [];
     const appr = k.needs_client ? `Waiting on the client${k.client_due ? `, by ${short(k.client_due)}` : ''}` : k.approved_by ? `Approved by ${k.approved_by}${k.approved_at ? `, ${short(k.approved_at)}` : ''}` : 'Not sent';
     const metaRo = `<div class="ps-kv"><span>Stage</span><b>${esc(STAGE[k.board] || k.board)}</b></div>
       <div class="ps-kv"><span>Owner</span><b style="display:flex;gap:6px;align-items:center">${av(k.owner)}${esc(k.owner || 'Nobody yet')}</b></div>
       <div class="ps-kv"><span>Due</span><b>${esc(short(k.due) || 'No date')}</b></div>
       <div class="ps-kv"><span>Launch</span><b>${esc(short(k.launch_on) || 'Not set')}</b></div>`;
+    /* kit pills (2026-10-20): the value is the label; a hidden input per field keeps save() reading [data-meta] as before */
     const metaRw = `<div class="ps-kv"><span>Stage</span><b>${esc(STAGE[k.board] || k.board)}</b></div>
-      <label class="ps-kv"><span>Owner</span><select data-meta="owner"><option value="">Nobody yet</option>${[...new Set([...team, k.owner].filter(Boolean))].map(n => `<option${n === k.owner ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
-      <label class="ps-kv"><span>Due</span><input type="date" data-meta="due" value="${esc(k.due || '')}"></label>
-      <label class="ps-kv"><span>Launch</span><input type="date" data-meta="launch" value="${esc(k.launch_on || '')}"></label>`;
+      <div class="ps-kv"><span>Owner</span>${pill('owner', k.owner)}<input type="hidden" data-meta="owner" value="${esc(k.owner || '')}"></div>
+      <div class="ps-kv"><span>Due</span>${pill('due', k.due)}<input type="hidden" data-meta="due" value="${esc(k.due || '')}"></div>
+      <div class="ps-kv"><span>Launch</span>${pill('launch', k.launch_on)}<input type="hidden" data-meta="launch" value="${esc(k.launch_on || '')}"></div>`;
     const tabs = [['brief', 'Brief'], ['files', `${(T.data.ads || []).length === 1 ? 'Ad' : 'Ads'} ${(T.data.ads || []).length}`], ['comments', `Comments ${T.data.comments.filter(x => x.kind !== 'system').length}`]];
     return `<div class="ps-h">
       <div class="ps-top"><span class="ps-tag" style="--tc:${FMT[fmt] || 'var(--brand)'}">${esc(fmt)}</span><span class="sp"></span>
@@ -404,19 +442,18 @@ async function open(H, id, opts = {}) {
   function briefHtml() {
     const B = T.B;
     if (T.client) return briefRo();
-    const seg = (list, cur, attr) => `<div class="ps-seg" role="group">${list.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-${attr}="${esc(v)}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
-    const start = T.data.templates ? `<div class="ps-start"><span>${T.fresh ? 'Starting page:' : 'Start again from:'}</span>${STARTS.map(([k, l]) => `<button type="button" class="ps-chip${T.fresh === k ? ' on' : ''}" data-start="${k}">${esc(l)}</button>`).join('')}<span style="flex:1"></span><span>Grey words are hints: they vanish when you type over them.</span></div>` : '';
+    const start = T.data.templates ? `<div class="ps-start"><span>${T.fresh ? 'Starting page' : 'Start again from'}</span>${STARTS.map(([k, l]) => `<button type="button" class="ps-chip${T.fresh === k ? ' on' : ''}" data-start="${k}">${esc(l)}</button>`).join('')}<span style="flex:1"></span><span>Grey words are hints. Type over them.</span></div>` : '';
     const tb = `<div class="ps-tb" role="toolbar" aria-label="Formatting">${TOOLS.map(t => t ? `<button type="button" data-tool="${t[0]}" title="${esc(t[2])}" aria-label="${esc(t[2])}"${t[0] === 'bold' ? ' style="font-weight:800"' : t[0] === 'italic' ? ' style="font-style:italic"' : t[0] === 'underline' ? ' style="text-decoration:underline"' : t[0] === 'strike' ? ' style="text-decoration:line-through"' : ''}>${esc(t[1])}</button>` : '<span class="sep"></span>').join('')}
       <span style="flex:1"></span><button type="button" class="ps-btn" data-ai style="height:28px">Write it with AI</button></div>`;
     const doc = `<div class="ps-doc" contenteditable="true" data-doc spellcheck="true" aria-label="The brief">${B.html || '<p><br></p>'}</div>`;
     const k = c();
     const sent = k.needs_client === 'idea';
-    const foot = `<div class="ps-foot">${sent ? `<span class="ps-hint">Sent to the client for their OK${k.client_due ? `, by ${short(k.client_due)}` : ''}. They answer on their Production page.</span><button class="ps-btn" data-send="">Take it back</button>`
-      : `<button class="ps-btn" data-send="idea">Send the idea to the client</button><span class="ps-hint">Optional: the client approves the idea before it is made, so review notes are about the ad, not the idea.</span>`}</div>`;
+    const foot = `<div class="ps-foot">${sent ? `<span class="ps-hint">With the client${k.client_due ? `, answer due ${short(k.client_due)}` : ''}. Their answer lands here.</span><button class="ps-btn" data-send="">Take it back</button>`
+      : `<button class="ps-btn" data-send="idea">Send the idea to the client</button><span class="ps-hint">Goes to their Needs you list before the ad is made.</span>`}</div>`;
     return `${start}<div>${tb}${doc}</div>
-      <div class="ps-2"><div class="ps-f"><span class="ps-lab">Format</span>${seg(FORMATS.map(f => [f, f]), B.format, 'format')}</div>
+      <div class="ps-2"><div class="ps-f"><span class="ps-lab">Format</span>${pill('format', B.format, 'fit')}</div>
         <div class="ps-f"><span class="ps-lab">Sizes</span><div class="ps-chips">${SIZES.map(sz => `<button type="button" class="ps-chip${(B.sizes || []).includes(sz) ? ' on' : ''}" data-size="${esc(sz)}">${esc(sz)}</button>`).join('')}</div></div></div>
-      <span class="ps-hint" style="margin-top:-8px">Pictures and videos in the page are kept in Locus. A pasted link stays a link. ${T.data.mirror ? 'The same page is written into the Asana task.' : ''}</span>${foot}`;
+      <span class="ps-hint" style="margin-top:-8px">Saved to this card${T.data.mirror ? ' and its Asana task' : ''}. Pictures stay on the card; a pasted link stays a link.</span>${foot}`;
   }
   function briefRo() {
     const B = T.B, k = c();
@@ -483,10 +520,11 @@ async function open(H, id, opts = {}) {
           ${vs.length > 1 || !T.client ? `<div class="row" style="justify-content:space-between;gap:10px">${vs.length > 1 ? `<button type="button" class="ps-lnk" data-cmp="${esc(top.id)}">Compare v${vs[vs.length - 2].version} and v${top.version}</button>` : '<span></span>'}${T.client ? '' : `<button type="button" class="ps-lnk mute" data-fdel="${esc(top.id)}" data-fv="v${top.version} of ${esc(adLabel(a.ad))}" title="Delete this version">Delete v${top.version}</button>`}</div>` : ''}
         </div></article>`;
     };
-    const grid = shown.length ? `<div class="ps-ads">${shown.map(card).join('')}</div>` : ads.length ? '<p class="ps-hint">Nothing here with this filter.</p>' : '';
+    const grid = shown.length ? `<div class="ps-ads">${shown.map(card).join('')}</div>` : ads.length ? '<p class="ps-hint">No ads match. Clear the filter.</p>' : '';
+    const nums = esc(k.num ? `${k.num}-1, ${k.num}-2` : '48-1, 48-2');
     const drop = T.client ? '' : `<button type="button" class="ps-dropline" data-drop><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>
-      <span>${ads.length ? 'Drop files anywhere on this tab, or click to pick them.' : '<b style="color:var(--ink)">Drop the finished ads here</b>, or click to pick them.'} Name them ${esc(k.num ? `${k.num}-1, ${k.num}-2` : '48-1, 48-2')} and each lands on its ad as the next version. Any size, images or video.</span></button>`;
-    const empty = !ads.length && T.client ? '<p class="ps-hint">Mobius has not uploaded this ad yet.</p>' : '';
+      <span>${ads.length ? `Drop more here. Name files ${nums} to land on their ad.` : `<b style="color:var(--ink)">No ads yet. Drop the finished ads here.</b> Name files ${nums} to land on their ad.`}</span></button>`;
+    const empty = !ads.length && T.client ? '<p class="ps-hint">No ad yet. Check back soon.</p>' : '';
     return bar + ups + grid + drop + empty;
   }
   /* ---------- comments ---------- */
@@ -498,9 +536,9 @@ async function open(H, id, opts = {}) {
       const tag = x.kind === 'change_request' ? ['Changes asked', 'var(--bad)'] : x.kind === 'approval' ? ['Approved', 'var(--good)'] : x.file_id ? [`Note on v${vOf(x.file_id) || '?'}${x.at != null ? ` at ${mmss(x.at)}` : ''}`, 'var(--c-tiktok)'] : x.from_asana ? ['From Asana', 'var(--muted)'] : x.role === 'client' ? ['Client', 'var(--c-tiktok)'] : null;
       return `<div class="ps-c">${av(x.who)}<div class="bd"><div class="hd"><b>${esc(x.who)}</b><span>${esc(when(x.created_at))}</span>${tag ? `<span class="ps-tag" style="--tc:${tag[1]}">${esc(tag[0])}</span>` : ''}</div><div class="tx">${esc(x.body)}</div>${x.pending ? '<span class="ps-hint">Posting...</span>' : x.can_delete ? `<button type="button" class="ps-lnk" data-cdel="${esc(x.id)}" style="color:var(--muted)">Delete</button>` : ''}</div></div>`;
     }).join('');
-    return `${rows || '<p class="ps-hint">No comments yet.</p>'}
+    return `${rows || '<p class="ps-hint">No comments yet. Write the first.</p>'}
       <label class="ps-f" style="padding-top:6px"><span class="ps-lab">Comment</span><textarea rows="3" data-cbody placeholder="${T.client ? 'Ask Mobius anything about this ad.' : '@William can the glove be on the left side instead?'}"></textarea></label>
-      <div style="display:flex;align-items:center;gap:8px"><span class="ps-hint" style="flex:1">${T.client ? 'Mobius sees it right away.' : 'Enter to post, Shift+Enter for a new line. @Name sends that person a Slack DM with a link to this card.'}</span><button class="ps-btn pri" data-cpost>Post</button></div>`;
+      <div style="display:flex;align-items:center;gap:8px"><span class="ps-hint" style="flex:1">${T.client ? 'Goes to the Mobius team.' : 'Goes to this card; @Name also sends a Slack DM.'}</span><button class="ps-btn pri" data-cpost>Post</button></div>`;
   }
 
   /* ---------- paint + wire ---------- */
@@ -517,6 +555,7 @@ async function open(H, id, opts = {}) {
     $$('[data-tab]', host).forEach(b => b.onclick = () => { T.tab = b.dataset.tab; paint(); });
     const sv = $('[data-save]', host); if (sv) sv.onclick = () => { T.dirty = true; save(); };
     $$('.ps-title,[data-meta]', host).forEach(i => { i.oninput = touch; i.onchange = touch; });
+    wirePills();
     /* the page: the model follows every keystroke, no repaint while typing */
     const doc = $('[data-doc]', host);
     if (doc) {
@@ -634,8 +673,7 @@ async function open(H, id, opts = {}) {
       if (!T.fresh && !(await confirmBox('Start the page again?', 'What is on the page now is replaced by the starting page. Pictures already uploaded stay on the card.', 'Start again'))) return;
       T.B.html = (T.data.templates || {})[kind] || '<p><br></p>'; T.fresh = kind; if (kind !== 'blank') touch(); paint();
     });
-    /* structural changes: repaint */
-    $$('[data-format]', host).forEach(b => b.onclick = () => { T.B.format = b.dataset.format; touch(); paint(); });
+    /* structural changes: repaint (the Format pill is wired in wirePills) */
     $$('[data-size]', host).forEach(b => b.onclick = () => { const s = new Set(T.B.sizes || []); s.has(b.dataset.size) ? s.delete(b.dataset.size) : s.add(b.dataset.size); T.B.sizes = SIZES.filter(x => s.has(x)); touch(); paint(); });
     const ai = $('[data-ai]', host); if (ai) ai.onclick = async () => {
       ai.disabled = true; ai.textContent = 'Writing...';
@@ -644,12 +682,12 @@ async function open(H, id, opts = {}) {
         if (r.error) throw new Error(r.error);
         if (!r.filled) { toast(r.why || 'Nothing to fill.'); ai.disabled = false; ai.textContent = 'Write it with AI'; return; }
         T.B = { ...T.B, html: r.brief.html }; T.fresh = null; touch(); paint();
-        toast(`Filled ${r.filled} spot${r.filled === 1 ? '' : 's'}. Tinted words are the AI's; edit anything, nothing you typed changed.`);
+        toast(`Filled ${r.filled} spot${r.filled === 1 ? '' : 's'}. Tinted words are the AI's.`);
       } catch (e) { toast(e.message || 'The AI did not answer. Try again.'); ai.disabled = false; ai.textContent = 'Write it with AI'; }
     };
     $$('[data-send]', host).forEach(b => b.onclick = async () => {
       const what = b.dataset.send;
-      if (what && !(await confirmBox(what === 'idea' ? 'Send the idea to the client?' : 'Send the ad to the client?', what === 'idea' ? 'It shows under "Needs you" on their Production page. They approve the idea or ask for changes.' : 'The newest version shows under "Needs you" on their Production page. They can draw notes on it, approve it or ask for changes.', 'Send it'))) return;
+      if (what && !(await confirmBox(what === 'idea' ? 'Send the idea to the client?' : 'Send the ad to the client?', what === 'idea' ? 'Goes to their Needs you list for a yes or changes.' : 'The newest version goes to their Needs you list for notes, a yes or changes.', 'Send it'))) return;
       if (T.dirty) await save();
       b.disabled = true;
       try { const r = await post(H, '/api/production/send', { id, what }); if (r.error) throw new Error(r.error); await reload(); paint(); changed(); toast(what ? 'Sent. It is waiting on the client.' : 'Taken back from the client.'); }
@@ -724,7 +762,7 @@ async function open(H, id, opts = {}) {
     $$('[data-cmp]', host).forEach(b => b.onclick = () => review(H, id, { version: b.dataset.cmp, compare: true, onChange: afterRev, data: T.data }));
     /* delete an uploaded version (team only): the card falls back to the version before, or the ad leaves the tab */
     $$('[data-fdel]', host).forEach(b => b.onclick = async () => {
-      if (!(await confirmBox(`Delete ${b.dataset.fv}?`, 'The file is removed from the card and from the client link. Notes on it stay in the history. If there is an older version, the ad falls back to it.', 'Delete'))) return;
+      if (!(await confirmBox(`Delete ${b.dataset.fv}?`, 'Leaves the card and the client link; notes stay. The ad falls back to the version before.', 'Delete'))) return;
       b.disabled = true; b.textContent = 'Deleting...';
       try { const r = await post(H, '/api/production/file/delete', { file_id: b.dataset.fdel }); if (r.error) throw new Error(r.error); toast(`Deleted ${r.deleted || 'it'}.`); await afterRev(); }
       catch (e) { b.disabled = false; b.textContent = 'Delete'; toast(e.message || 'Could not delete it.', true); }
@@ -908,7 +946,7 @@ async function mirrorCard(el, H) {
       ${M.changed_at ? `<p class="hint" style="margin:8px 0 0">Turned ${M.on ? 'on' : 'off'} ${esc(when(M.changed_at))}${M.changed_by ? ` by ${esc(M.changed_by)}` : ''}</p>` : ''}</div>`;
     $$('[data-m]', el).forEach(b => b.onclick = async () => {
       const on = b.dataset.m === 'on'; if (on === M.on) return;
-      if (!(await confirmBox(on ? 'Turn the Asana mirror back on?' : 'Turn the Asana mirror off?', on ? 'Locus starts moving Asana tasks, copying comments and syncing briefs again.' : 'Locus stops writing to Asana and stops the hourly sync. New briefs are made in Locus only. Nothing in Asana is deleted.', on ? 'Turn it on' : 'Turn it off'))) return;
+      if (!(await confirmBox(on ? 'Turn the Asana mirror back on?' : 'Turn the Asana mirror off?', on ? 'Cards, comments and briefs go to Asana again.' : 'Nothing goes to Asana until it is back on. Nothing in Asana is deleted.', on ? 'Turn it on' : 'Turn it off'))) return;
       try { const r = await api(H, '/api/production/mirror', { method: 'PUT', body: { on } }); M.on = r.on; M.changed_at = new Date().toISOString(); paint(); } catch (e) { toast(e.message); }
     });
     const see = $('[data-see]', el); if (see) see.onclick = () => { const l = $('[data-list]', el); l.hidden = !l.hidden; see.textContent = l.hidden ? 'See them' : 'Hide them'; };

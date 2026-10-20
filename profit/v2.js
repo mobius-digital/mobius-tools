@@ -896,11 +896,24 @@
   const head = (tab, title) => H.pageHead(tab, title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '');
   const shell = (tab, title, body) => `<div class="v2">${head(tab, title)}${body}</div>`;
   /* The leak finder (2026-10-13, leaks.js): that page's top 3 leaks right under the page head, or nothing at all. */
+  /* 2026-10-20 (the kit): one STRIP under the page head, not a card of three; "See all" folds that page's leaks open in
+     place, "All leaks" opens Home > Leaks. Nothing is drawn when the page has no leak. */
   const mountLeaks = page => { const ph = document.querySelector('#main > .v2 > .ph'); if (!ph || !window.LeaksCard || H.S.act === 'all') return;
-    const el = document.createElement('div'); el.className = 'lx-leaks'; ph.insertAdjacentElement('afterend', el); window.LeaksCard.top(el, H, page); };
+    const el = document.createElement('div'); el.className = 'lx-leaks'; ph.insertAdjacentElement('afterend', el); (window.LeaksCard.strip || window.LeaksCard.top)(el, H, page); };
   const wireGo = root => root.querySelectorAll('[data-go]').forEach(el => { const go = () => { const g = el.dataset.go; if (g.startsWith('act:')) { const [, id, tab] = g.split(':'); pickAct(id, tab); } else H.show(g); }; el.onclick = go; el.onkeydown = e => { if (e.key === 'Enter') go(); }; });
   function pickAct(id, tab) { H.S.act = id; try { localStorage.setItem('pf_act', id); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = id; H.show(tab || H.S.tab); }
   const wireRows = (root, tab) => root.querySelectorAll('tr[data-act]').forEach(tr => { tr.onclick = () => pickAct(tr.dataset.act, tab); tr.onkeydown = e => { if (e.key === 'Enter') pickAct(tr.dataset.act, tab); }; });
+
+  /* ---------- Home > Leaks (2026-10-20): the full ranked list, every leak open; Agency view = one row per brand ---------- */
+  async function leaksPage(first) {
+    const one = H.S.act !== 'all', a = one ? H.S.accounts.find(x => x.act_id === H.S.act) : null;
+    const title = one ? `Leaks: ${esc((a || {}).name || '')}` : 'Leaks';
+    $('#main').innerHTML = shell('leaks', title, '<div id="v2leaks" class="lx-leaks-page"></div>');
+    const host = document.getElementById('v2leaks');
+    if (!window.LeaksCard) { host.innerHTML = '<div class="v2card"><p class="v2hint">The leak finder did not load. Hard-refresh (Ctrl+Shift+R).</p></div>'; return; }
+    if (one) { host.dataset.all = '1'; return window.LeaksCard.full(host, H); }
+    return window.LeaksCard.brands(host, H, H.S.accounts.slice(), pickAct);
+  }
 
   /* =========================================================================================
    * HOME
@@ -990,7 +1003,7 @@
       </tbody></table></div>`) : '';
 
     /* The hero number (2026-10-11, hero.js): the page opens on what was kept yesterday; every tile below stays where it was. */
-    $('#main').innerHTML = shell('overview', title, `<div id="v2hero"></div><div id="v2moved"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2leaks"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
+    $('#main').innerHTML = shell('overview', title, `<div id="v2hero"></div><div id="v2moved"></div><div id="v2leaks"></div>${cmdOn ? '<div id="v2cmd"></div>' : ''}<div id="v2needs"></div><div id="v2cal"></div>${cmdOn ? '' : readSlot('v2read')}${tiles}
       <div class="v2two">${chart}${funnel}</div>${chTable}${brandTable}
       ${foot(`Revenue, orders, AOV, first orders and the compare deltas come from Shopify through Triple Whale for ${esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Click any tile to open its screen.`)}`);
     const root = $('#main');
@@ -999,8 +1012,9 @@
     movedCard(scope);
     if (cmdOn) window.CommandCenter.render(document.getElementById('v2cmd'), H, all);
     if (window.DeskTab && window.DeskTab.needs && H.S.role !== 'client') window.DeskTab.needs(document.getElementById('v2needs'), H, all);
-    /* The leak finder (2026-10-14, leaks.js): one brand = its full list, top 3 first; All clients = each brand's biggest leak. */
-    if (window.LeaksCard) { if (one) window.LeaksCard.full(document.getElementById('v2leaks'), H); else if (all.length > 1) window.LeaksCard.brands(document.getElementById('v2leaks'), H, all, pickAct); }
+    /* The leak finder (2026-10-20, the kit): one brand = ONE strip (the total and the biggest leak; Home > Leaks holds the list);
+       Agency view = each brand's biggest leak, one row each. */
+    if (window.LeaksCard) { if (one) (window.LeaksCard.strip || window.LeaksCard.full)(document.getElementById('v2leaks'), H, 'home'); else if (all.length > 1) window.LeaksCard.brands(document.getElementById('v2leaks'), H, all, pickAct); }
     /* The calendar (2026-10-09): what is live and coming up, and each date as a shaded band on the revenue chart. */
     if (window.CalendarTab) {
       window.CalendarTab.homeCard(document.getElementById('v2cal'), H);
@@ -3267,6 +3281,7 @@
     render(tab, host, first) {
       H = host;
       if (tab === 'overview') return home(first);
+      if (tab === 'leaks') return leaksPage(first);
       if (tab === 'meta') return meta(first, 'overview');
       if (tab === 'campaigns') return meta(first, 'campaigns');
       if (tab === 'adcreative') return creative(first);
@@ -3284,6 +3299,9 @@
       if (tab === 'search') return search(first);
     },
     MODEL_SHORT,
+    /* The shared side panel (2026-10-20, the kit): any screen opens an ad, a task, a leak here; a sheet on a phone. */
+    panel(title, html) { return panel(title, html); },
+    closePanel() { if (panel.close) panel.close(); },
     /* Today's calls (desk.js, 2026-10-15) shows the ad on every call: the same covers (account-health /api/ad-creatives,
        cached in THUMBS) and the same Play (Meta's preview, the mp4 as the fallback) as the Ads page. */
     thumbs(root, ids, act, host) { if (!H && host) H = host; return H ? loadThumbs(root, ids, act) : Promise.resolve(); },

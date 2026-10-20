@@ -1,0 +1,695 @@
+<title>Locus UX audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+/* Layout: one reading column (72ch) for the argument; full-width bands for shots, mocks and tables. Locus's own graphite tokens, dark-first, so the mocks sit in their real skin. */
+:root{
+  --bg:#131316; --surface:#1A1A1E; --surface-2:#212126; --ink:#F2F2F4; --ink-2:#B4B4BE; --muted:#8E8E9A; --faint:#5E5E6A;
+  --line:#2A2A31; --line-strong:#3A3A43; --brand:#8FB3FF; --brand-soft:rgba(143,179,255,.14); --on-brand:#0E1420;
+  --good:#5FD292; --good-bg:rgba(95,210,146,.14); --warn:#EBBF63; --warn-bg:rgba(235,191,99,.14); --bad:#F09182; --bad-bg:rgba(240,145,130,.14);
+  --c-meta:#5B8DEF; --c-google:#B5761A; --c-email:#8F72E8; --c-tiktok:#27A392;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif; --serif:'Instrument Serif',Georgia,serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  --bg:#F6F6F7; --surface:#FFFFFF; --surface-2:#F3F3F5; --ink:#151518; --ink-2:#45454F; --muted:#6B6B78; --faint:#9A9AA6;
+  --line:#E6E6EB; --line-strong:#D5D5DC; --brand:#2F62D9; --brand-soft:#EAF0FD; --on-brand:#FFFFFF;
+  --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E; --bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-email:#7C5CE6; --c-tiktok:#1E9C8C; color-scheme:light; } }
+:root[data-theme="light"]{
+  --bg:#F6F6F7; --surface:#FFFFFF; --surface-2:#F3F3F5; --ink:#151518; --ink-2:#45454F; --muted:#6B6B78; --faint:#9A9AA6;
+  --line:#E6E6EB; --line-strong:#D5D5DC; --brand:#2F62D9; --brand-soft:#EAF0FD; --on-brand:#FFFFFF;
+  --good:#1C7A46; --good-bg:#E4F2E9; --warn:#8F6412; --warn-bg:#F8EED6; --bad:#9C3A2E; --bad-bg:#F7E7E4;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-email:#7C5CE6; --c-tiktok:#1E9C8C; color-scheme:light; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1,"lnum" 1}
+.wrap{max-width:1180px;margin:0 auto;padding-block:32px 96px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.col{max-width:72ch}
+h1{font-size:40px;line-height:1.05;letter-spacing:-.02em;font-weight:650;margin:0 0 10px;text-wrap:balance}
+h1 em,h2 em,.hero em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--brand);letter-spacing:0}
+h2{font-size:26px;letter-spacing:-.015em;font-weight:650;margin:64px 0 10px;text-wrap:balance}
+h3{font-size:17px;font-weight:650;margin:28px 0 8px}
+h4{font-size:14px;font-weight:650;margin:16px 0 6px;color:var(--ink)}
+p{margin:0 0 12px}
+p.lead{font-size:18px;color:var(--ink-2);line-height:1.5}
+small,.muted{color:var(--muted)}
+a{color:var(--brand)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--surface-2);padding:1px 5px;border-radius:4px;color:var(--ink-2)}
+.eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.toc{display:flex;flex-wrap:wrap;gap:6px 10px;margin:20px 0 0;padding:0;list-style:none}
+.toc a{font-size:13px;font-weight:500;color:var(--ink-2);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:5px 11px;background:var(--surface)}
+.toc a:hover{border-color:var(--line-strong);color:var(--ink)}
+.quotes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:18px 0 0}
+.q{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.q b{display:block;font-family:var(--serif);font-style:italic;font-weight:400;font-size:19px;line-height:1.3;margin-bottom:8px;color:var(--ink)}
+.q span{font-size:13.5px;color:var(--ink-2)}
+.q .to{display:block;margin-top:8px;font-size:12px;color:var(--brand);font-weight:600}
+.band{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:20px 0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.list{margin:0;padding-left:20px}
+.list li{margin:0 0 7px}
+.list li b{color:var(--ink)}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line-strong)}
+.tbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl td:first-child{font-weight:600;color:var(--ink);white-space:nowrap}
+.scroll{overflow-x:auto;margin:14px 0}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;border:1px solid var(--line-strong);color:var(--ink-2);white-space:nowrap}
+.pill.keep{color:var(--good);border-color:transparent;background:var(--good-bg)}
+.pill.fix{color:var(--warn);border-color:transparent;background:var(--warn-bg)}
+.pill.rebuild{color:var(--bad);border-color:transparent;background:var(--bad-bg)}
+.pill.move{color:var(--brand);border-color:transparent;background:var(--brand-soft)}
+.pill.cut{color:var(--muted);background:var(--surface-2);border-color:transparent}
+/* findings per screen */
+.screens{display:grid;gap:14px;margin:16px 0}
+.sc{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;align-items:start}
+.sc img{width:100%;border-radius:6px;border:1px solid var(--line);display:block;background:#fff}
+.sc .thumbs{display:grid;gap:8px}
+.sc .thumbs .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
+.sc .thumbs .row img.ph{width:74px}
+.sc h4{margin:0 0 4px;font-size:15px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sc .who{font-size:12.5px;color:var(--muted);margin:0 0 8px}
+.sc ul{margin:0;padding-left:18px;font-size:13.5px}
+.sc ul li{margin:0 0 4px}
+.sc .verdict{margin-top:8px;font-size:13px;color:var(--ink-2)}
+.sc .verdict b{color:var(--ink)}
+@media (max-width:700px){.sc{grid-template-columns:1fr}.sc .thumbs .row{grid-template-columns:1fr auto}}
+/* research cards */
+.rs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin:16px 0}
+.rc{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.rc img{width:100%;aspect-ratio:16/9;object-fit:cover;object-position:top;display:block;background:#111;border-bottom:1px solid var(--line)}
+.rc .in{padding:12px 14px}
+.rc h4{margin:0 0 6px;font-size:14.5px}
+.rc p{font-size:13px;color:var(--ink-2);margin:0 0 6px}
+.rc a{font-size:12px}
+/* mocks */
+.mock-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0 8px}
+@media (max-width:860px){.mock-pair{grid-template-columns:1fr}}
+.mk-lbl{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.mk-lbl.after{color:var(--brand)}
+.before img{width:100%;border-radius:8px;border:1px solid var(--line);display:block;background:#fff}
+.app{background:#131316;color:#F2F2F4;border:1px solid #2A2A31;border-radius:10px;overflow:hidden;font-size:12px;line-height:1.35;min-height:360px;--s:#1A1A1E;--s2:#212126;--l:#2A2A31;--m:#8E8E9A;--i2:#B4B4BE;--b:#8FB3FF}
+.app *{box-sizing:border-box}
+.app .shell{display:grid;grid-template-columns:176px minmax(0,1fr);min-height:360px}
+.app .rail{background:#0F0F12;border-right:1px solid #24242A;padding:10px;display:flex;flex-direction:column;gap:2px}
+.app .rail .pick{display:flex;justify-content:space-between;align-items:center;background:#1C1C21;border:1px solid #2A2A31;border-radius:7px;padding:6px 9px;font-weight:600;font-size:12px;margin-bottom:6px}
+.app .rail .find{display:flex;justify-content:space-between;color:#6E6E7A;border:1px solid #24242A;border-radius:7px;padding:5px 9px;margin-bottom:8px}
+.app .rail .find kbd{font:inherit;font-size:10px;border:1px solid #2A2A31;border-radius:4px;padding:0 4px}
+.app .rail .h{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6E6E7A;padding:8px 8px 3px}
+.app .rail .it{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;color:#C9C9D2;font-weight:500}
+.app .rail .it i{width:12px;height:12px;border-radius:3px;border:1.5px solid #6E6E7A;display:inline-block}
+.app .rail .it.on{background:rgba(143,179,255,.14);color:#fff}
+.app .rail .it.on i{border-color:#8FB3FF}
+.app .rail .it .n{margin-left:auto;font-size:10.5px;color:#8E8E9A;background:#1C1C21;border-radius:99px;padding:0 6px}
+.app .rail .foot{margin-top:auto;padding-top:8px;border-top:1px solid #24242A;display:flex;flex-direction:column;gap:2px}
+.app .main{padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.app .hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.app .hdr .t{font-size:17px;font-weight:650;letter-spacing:-.015em}
+.app .hdr .t em{font-family:var(--serif);font-style:italic;font-weight:400;color:#A9C4FF}
+.app .hdr .crumb{font-size:10.5px;color:#8E8E9A;margin-bottom:2px}
+.app .btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.app .bt{border:1px solid #3A3A43;background:#1A1A1E;color:#F2F2F4;border-radius:6px;padding:4px 9px;font-weight:550;font-size:11.5px;display:inline-flex;gap:5px;align-items:center}
+.app .bt.p{background:#8FB3FF;color:#0E1420;border-color:#8FB3FF}
+.app .bt.q{background:transparent;color:#B4B4BE}
+.app .tabs{display:flex;gap:2px;border-bottom:1px solid #2A2A31}
+.app .tabs span{padding:6px 10px 7px;color:#8E8E9A;font-weight:550;border-bottom:2px solid transparent;margin-bottom:-1px}
+.app .tabs span.on{color:#F2F2F4;border-color:#8FB3FF}
+.app .ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.app .ctl .bt{border-radius:99px}
+.app .strip{display:flex;align-items:center;gap:10px;background:#1A1A1E;border:1px solid #2A2A31;border-left:3px solid #EBBF63;border-radius:8px;padding:8px 12px}
+.app .strip b{font-weight:650}
+.app .strip .n{color:#EBBF63;font-weight:650;white-space:nowrap}
+.app .strip .go{margin-left:auto;color:#A9C4FF;font-weight:600;white-space:nowrap}
+.app .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.app .tile{background:#1A1A1E;border:1px solid #2A2A31;border-radius:8px;padding:9px 11px;min-width:0}
+.app .tile .l{font-size:10.5px;color:#8E8E9A;display:flex;justify-content:space-between}
+.app .tile .v{font-size:19px;font-weight:650;letter-spacing:-.02em;margin:2px 0;display:flex;align-items:baseline;gap:6px}
+.app .tile .d{font-size:10.5px;font-weight:600;border-radius:99px;padding:0 6px}
+.app .d.up{color:#5FD292;background:rgba(95,210,146,.14)}.app .d.dn{color:#F09182;background:rgba(240,145,130,.14)}.app .d.nt{color:#B4B4BE;background:#26262C}
+.app .tile .s{font-size:10.5px;color:#8E8E9A}
+.app .spark{height:22px;margin-top:6px;background:linear-gradient(to top,rgba(143,179,255,.18),transparent 70%);border-bottom:1.5px solid #8FB3FF;border-radius:0 0 4px 4px;position:relative}
+.app .spark::after{content:"";position:absolute;right:-2px;bottom:-3px;width:5px;height:5px;border-radius:50%;background:#8FB3FF}
+.app .two{display:grid;grid-template-columns:3fr 2fr;gap:8px}
+.app .card{background:#1A1A1E;border:1px solid #2A2A31;border-radius:8px;padding:10px 12px;min-width:0}
+.app .card .ch{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.app .card .ch b{font-weight:650;font-size:12.5px}
+.app .card .ch span{font-size:10.5px;color:#8E8E9A}
+.app .chart{height:90px;border-bottom:1px solid #2A2A31;background:repeating-linear-gradient(to top,#26262D 0 1px,transparent 1px 30px);position:relative;overflow:hidden}
+.app .chart i{position:absolute;left:0;right:0;bottom:0;height:60%;border-top:2px solid #8FB3FF;border-radius:40% 60% 0 0/100% 100% 0 0;background:linear-gradient(to bottom,rgba(143,179,255,.16),transparent)}
+.app .chart i.g{height:45%;border-top:1.5px dashed #6A6A76;background:none}
+.app table{width:100%;border-collapse:collapse;font-size:11.5px}
+.app th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#8E8E9A;text-align:left;padding:4px 6px;border-bottom:1px solid #2A2A31;font-weight:600}
+.app td{padding:6px;border-bottom:1px solid #2A2A31;white-space:nowrap}
+.app td.r,.app th.r{text-align:right}
+.app td .bar{display:inline-block;height:5px;border-radius:3px;background:#5B8DEF;vertical-align:middle;margin-right:6px}
+.app .thumb{width:26px;height:26px;border-radius:5px;background:#2A2A31;display:inline-block;vertical-align:middle;margin-right:7px;border:1px solid #3A3A43}
+.app .tag{font-size:10px;font-weight:600;border-radius:4px;padding:1px 5px;background:#26262C;color:#B4B4BE}
+.app .tag.cut{background:rgba(240,145,130,.14);color:#F09182}.app .tag.scale{background:rgba(95,210,146,.14);color:#5FD292}.app .tag.watch{background:rgba(235,191,99,.14);color:#EBBF63}
+.app .row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2A2A31}
+.app .row:last-child{border-bottom:0}
+.app .row .av{width:18px;height:18px;border-radius:50%;background:#3D5584;flex:none}
+.app .row .tick{width:14px;height:14px;border-radius:50%;border:1.5px solid #6E6E7A;flex:none}
+.app .row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app .row .m{color:#8E8E9A;font-size:11px;white-space:nowrap}
+.app .row .m.late{color:#F09182}
+.app .peek{position:absolute;right:0;top:0;bottom:0;width:46%;background:#1A1A1E;border-left:1px solid #2A2A31;padding:12px 14px;display:flex;flex-direction:column;gap:8px;box-shadow:-12px 0 30px rgba(0,0,0,.35)}
+.app .sec{display:flex;flex-direction:column;gap:6px}
+.app .sec .sh{display:flex;justify-content:space-between;align-items:baseline}
+.app .sec .sh b{font-size:12.5px;font-weight:650}
+.app .sec .sh span{font-size:10.5px;color:#8E8E9A}
+.app .src{font-size:10.5px;color:#8E8E9A}
+.app .src i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.app .src i.auto{background:#5FD292}.app .src i.slack{background:#5B8DEF}.app .src i.you{background:#EBBF63}
+.app .field{display:flex;gap:8px;align-items:center;background:#131316;border:1px solid #2A2A31;border-radius:6px;padding:6px 9px;color:#8E8E9A}
+.app .field b{color:#F2F2F4;font-weight:500}
+.app .who{display:inline-flex;align-items:center;gap:5px;border:1px solid #3A3A43;border-radius:99px;padding:1px 8px 1px 3px;font-size:11px;background:#1A1A1E}
+.app .who i{width:14px;height:14px;border-radius:50%;background:#3D5584}
+.app .ads{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.app .ad{background:#1A1A1E;border:1px solid #2A2A31;border-radius:8px;overflow:hidden}
+.app .ad .pic{aspect-ratio:1/1;background:linear-gradient(135deg,#2A2A31,#17171B);position:relative}
+.app .ad .pic .tag{position:absolute;left:6px;top:6px}
+.app .ad .in{padding:6px 8px}
+.app .ad .in b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app .ad .in span{font-size:10.5px;color:#8E8E9A}
+.app .post{aspect-ratio:9/13;background:linear-gradient(160deg,#2A2A31,#17171B);border-radius:8px;position:relative;overflow:hidden;border:1px solid #2A2A31}
+.app .post .top{position:absolute;left:6px;top:6px;right:6px;display:flex;justify-content:space-between}
+.app .post .bot{position:absolute;left:0;right:0;bottom:0;padding:6px 8px;background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
+.app .post .bot b{display:block;font-size:11px}
+.app .post .bot span{font-size:10px;color:#B4B4BE}
+.app .posts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.app .steps{display:flex;gap:4px;align-items:center;font-size:11px;color:#8E8E9A}
+.app .steps span{padding:3px 8px;border-radius:99px;border:1px solid #2A2A31}
+.app .steps span.on{background:#F2F2F4;color:#131316;border-color:#F2F2F4;font-weight:600}
+.app .steps span.done{color:#5FD292}
+.app .fbar{display:flex;align-items:center;gap:10px;border-top:1px solid #2A2A31;padding-top:8px;margin-top:auto}
+.app .fbar .clock{margin-left:auto;font-weight:600;color:#B4B4BE}
+.app .fbar .fin{font-size:10.5px;color:#8E8E9A}
+/* phone mock */
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:14px 0}
+.phone{width:100%;max-width:260px;margin:0 auto;background:#131316;border:1px solid #3A3A43;border-radius:28px;padding:10px;color:#F2F2F4;font-size:11.5px;line-height:1.35}
+.phone .scr{background:#131316;border-radius:20px;overflow:hidden;height:520px;display:flex;flex-direction:column;position:relative}
+.phone .top{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px}
+.phone .top b{font-size:17px;font-weight:650;letter-spacing:-.01em}
+.phone .top .pk{font-size:11px;color:#B4B4BE;border:1px solid #2A2A31;border-radius:99px;padding:2px 8px}
+.phone .seg{display:flex;gap:4px;padding:4px 12px 8px;overflow:hidden}
+.phone .seg span{font-size:11px;color:#8E8E9A;border:1px solid #2A2A31;border-radius:99px;padding:3px 9px;white-space:nowrap}
+.phone .seg span.on{background:#F2F2F4;color:#131316;border-color:#F2F2F4;font-weight:600}
+.phone .body{padding:0 12px;display:flex;flex-direction:column;gap:8px;flex:1;overflow:hidden}
+.phone .hero{background:#1A1A1E;border:1px solid #2A2A31;border-radius:12px;padding:12px}
+.phone .hero .l{font-size:10px;color:#8E8E9A;letter-spacing:.06em;text-transform:uppercase}
+.phone .hero .v{font-size:30px;font-weight:650;letter-spacing:-.02em;line-height:1.1;margin:4px 0}
+.phone .hero .v em{font-family:var(--serif);font-style:italic;font-weight:400;color:#A9C4FF}
+.phone .hero .s{font-size:11px;color:#B4B4BE}
+.phone .bars{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:8px 0 4px}
+.phone .bars i{display:block;height:100%}
+.phone .list{background:#1A1A1E;border:1px solid #2A2A31;border-radius:12px;padding:4px 12px}
+.phone .li{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #2A2A31;min-height:40px}
+.phone .li:last-child{border-bottom:0}
+.phone .li .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phone .li .m{font-size:11px;color:#8E8E9A}
+.phone .li .chev{color:#5E5E6A}
+.phone .tb{margin-top:auto;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid #2A2A31;background:#0F0F12;padding:8px 4px 10px}
+.phone .tb span{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;color:#8E8E9A}
+.phone .tb span i{width:18px;height:18px;border-radius:5px;border:1.5px solid #6E6E7A}
+.phone .tb span.on{color:#A9C4FF}.phone .tb span.on i{border-color:#8FB3FF;background:rgba(143,179,255,.14)}
+.phone .tb span.ask i{border-radius:50%;background:#8FB3FF;border-color:#8FB3FF}
+.phone .sheet{position:absolute;left:0;right:0;bottom:0;background:#1A1A1E;border-radius:16px 16px 0 0;border-top:1px solid #3A3A43;padding:8px 14px 14px;box-shadow:0 -14px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:6px}
+.phone .sheet::before{content:"";width:36px;height:4px;border-radius:2px;background:#3A3A43;margin:0 auto 6px}
+.phone .sheet b{font-size:13px}
+.phone .sheet .opt{padding:9px 0;border-bottom:1px solid #2A2A31;display:flex;justify-content:space-between}
+.phone .sheet .opt:last-child{border-bottom:0}
+.phone .sheet .opt.on{color:#A9C4FF;font-weight:600}
+.phone .scrim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.cap{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+/* type scale table */
+.ts td:first-child{font-weight:500;color:var(--ink-2)}
+.ts .sample{font-weight:600}
+/* matrix */
+.mx{font-size:12.5px}
+.mx td,.mx th{text-align:center;padding:6px 8px}
+.mx td:first-child,.mx th:first-child{text-align:left;white-space:nowrap}
+.mx .y{color:var(--good);font-weight:650}.mx .n{color:var(--faint)}.mx .new{color:var(--brand);font-weight:650}
+/* phases */
+.phase{display:grid;grid-template-columns:70px minmax(0,1fr);gap:14px;padding:16px 0;border-top:1px solid var(--line)}
+.phase .num{font-family:var(--serif);font-style:italic;font-size:30px;line-height:1;color:var(--brand)}
+.phase h3{margin:0 0 4px}
+.phase p{font-size:14px;color:var(--ink-2)}
+.phase ul{margin:6px 0 0;padding-left:18px;font-size:13.5px}
+.phase ul li{margin:0 0 4px}
+.phase .st{font-size:12px;font-weight:600;color:var(--good);margin-left:8px}
+.note{border-left:3px solid var(--warn);background:var(--warn-bg);border-radius:0 8px 8px 0;padding:10px 14px;font-size:13.5px;margin:14px 0}
+.ok{border-left:3px solid var(--good);background:var(--good-bg);border-radius:0 8px 8px 0;padding:10px 14px;font-size:13.5px;margin:14px 0}
+.copy-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.copy-pair div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.copy-pair div:first-child{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--bad)}
+.copy-pair div:last-child{color:var(--ink)}
+@media (max-width:700px){.copy-pair{grid-template-columns:1fr}.app .tiles{grid-template-columns:repeat(2,1fr)}.app .ads,.app .posts{grid-template-columns:repeat(2,1fr)}.app .two{grid-template-columns:1fr}.app .shell{grid-template-columns:1fr}.app .rail{display:none}.app .peek{position:static;width:auto;box-shadow:none;border-left:0;border-top:1px solid #2A2A31}}
+@media (prefers-reduced-motion:no-preference){.toc a,.sc,.rc{transition:border-color .12s}}
+</style>
+
+<div class="wrap">
+<p class="eyebrow">Mobius Digital · Locus · 20 October 2026</p>
+<h1>Locus, <em>audited</em> top to bottom</h1>
+<div class="col">
+<p class="lead">Every rail item, tab, sheet and menu on desktop, iPad and iPhone, in Agency view and as Lucky Golf. What each screen is for, who uses it, what is wrong, and the one system that fixes it. Cole's own words are the yardstick, and every finding below points back to one of them.</p>
+<p><b>The short version.</b> Locus does not have a design problem so much as a <em style="font-style:normal;font-weight:600">no-shared-skeleton</em> problem. Every feature since the v3 shell brought its own page layout, its own injected stylesheet, its own tags and its own paragraph of instructions, so each one lands looking like a different product. The fix is one page anatomy, one component kit and one copy voice, applied page by page, with the objects (ads, tasks, posts, briefs, reports, leaks) linked to each other wherever they appear. Phases 1, 2, 3, 5 and 6 are built in the branch linked at the end (phase 4, Social, is in its own branch); Cole tests the whole thing at the end.</p>
+</div>
+<ul class="toc">
+<li><a href="#words">Cole's words</a></li><li><a href="#diagnosis">Diagnosis</a></li><li><a href="#screens">Findings per screen</a></li><li><a href="#research">Research</a></li><li><a href="#system">The system</a></li><li><a href="#tissue">Connective tissue</a></li><li><a href="#leaks">Where leaks live</a></li><li><a href="#mocks">Before and after</a></li><li><a href="#voice">Copy voice</a></li><li><a href="#phases">Build order</a></li><li><a href="#trials">Trials to open</a></li>
+</ul>
+
+<h2 id="words">Cole's words, <em>sorted</em></h2>
+<div class="col"><p>Each card is a thing he said this week, and where this audit answers it.</p></div>
+<div class="quotes">
+<div class="q"><b>"Every new feature looks clunky and out of place."</b><span>Nine feature-local stylesheets, four button styles, three ways to tag a source, two tab styles, native selects and date pickers in the newest screens.</span><a class="to" href="#diagnosis">Diagnosis, The system</a></div>
+<div class="q"><b>"Produced by a very good company, in our own style."</b><span>Graphite, Inter, the serif accent word and one blue stay. What changes is discipline: one anatomy, one kit, one voice.</span><a class="to" href="#system">The system</a></div>
+<div class="q"><b>"Nothing may be a silo."</b><span>Ads in reports and calls open the ad. Approved call items feed the weekly report, the daily brief and Tasks. Leaks become tasks. Posts become briefs.</span><a class="to" href="#tissue">Connective tissue</a></div>
+<div class="q"><b>"The leak finder takes far too much room."</b><span>It moves to one line per page (a strip that folds) and one Leaks screen under Home, with every leak openable as a side panel.</span><a class="to" href="#leaks">Where leaks live</a></div>
+<div class="q"><b>"Language reads like AI or forced."</b><span>Lecture paragraphs under every title, tags instead of placement, "Locus works out who and when". Rewritten as labels, placeholders and one line per section.</span><a class="to" href="#voice">Copy voice</a></div>
+<div class="q"><b>"Think as the actual user of each screen."</b><span>Social is rebuilt around five jobs (research, save, script, schedule, recreate). The Monday call is rebuilt around what is covered, in what order.</span><a class="to" href="#mocks">Before and after</a></div>
+<div class="q"><b>"On the phone it does not feel like an app."</b><span>The phone is a desktop page squeezed to 390px: title stacks, actions float, tables hide their columns, the call screen loses its Next button. A real phone shell comes with the kit.</span><a class="to" href="#m-phone">iPhone shell</a></div>
+<div class="q"><b>"Social still looks super weird."</b><span>Found: the page is a filter form with a feed under it. The jobs come first, filters fold, cards carry the number that matters.</span><a class="to" href="#m-social">Social mock</a></div>
+<div class="q"><b>"Call screens: super thrown together, I am confused."</b><span>Found: Windows controls, unclickable items, three tag colours nobody can decode, no answer to "who gets this, what happens on Finish".</span><a class="to" href="#m-call">Monday call mock</a></div>
+<div class="q"><b>"Fast, intuitive, nobody has to look for things."</b><span>Cmd+K that reaches every brand and page, saved views instead of filter rows, side panels instead of page hops, skeletons instead of blank loads.</span><a class="to" href="#system">The system</a></div>
+</div>
+
+<h2 id="diagnosis">What is actually <em>wrong</em></h2>
+<div class="col">
+<p>123 screenshots (desktop 1440, iPad 1024, iPhone 390; Agency view and Lucky Golf; every rail item, every tab, every sheet, menu and modal I could open) and a read of the shell code say the same seven things. They are root causes, and every per-screen finding below is one of these showing up somewhere.</p>
+<ol class="list">
+<li><b>No shared page skeleton.</b> <code>pageHead()</code> gives a title and three quiet buttons; everything under it is each file's own idea. Tasks, Production, the call screens, Social, Social Week, the leak finder, Calendar and the review viewer each inject their own CSS (<code>#cscss</code>, <code>#soccss</code>, <code>#swcss</code>, <code>.tk-*</code>, <code>.pd-*</code>, <code>.lk-*</code>). Four button styles, two tab styles, three chip styles and three ways to say where something came from are live at once.</li>
+<li><b>Every page opens with a lecture.</b> The purpose line under the title, then a sentence of instructions, then a card whose first line is another sentence. Calendar at 1024px shows 180px of prose before the calendar. Social's first screen is three paragraphs and a form. The reader came for the thing, not the manual.</li>
+<li><b>Tags where placement should do the work.</b> "Automatic", "From Slack", "You add", "Optional" on the call screens; "SHOPIFY", "TW", "BLENDED", "PLATFORMS" on tiles; "Check first", "Worth doing" on leaks. A thing Locus filled in looks like text; a thing you type looks like a field. That difference should be the design, not a coloured chip.</li>
+<li><b>Native controls in the newest screens.</b> Owner is a Windows select on Production cards and the call screens, due dates are the browser's date input, "Who" is a free text box. The task sheet already has the right pieces (avatar pill, calendar popover); they were not reused.</li>
+<li><b>The top of every channel page is a wall.</b> The leak card (300 to 600px of prose per page, with an AI check line, a suggestion line, a who line and a push back) sits above the numbers on Meta, Google, Website and Email, and takes the first two screens of Home. It is the most valuable engine in Locus wearing the worst clothes.</li>
+<li><b>Silos.</b> The weekly report names ads but shows none. The Monday call shows six ad thumbnails but Dartee's "already being made" list cannot be clicked. Leaks link to a page, not to the ad set or the task. Social's "Make ours" lands in Studio but nothing on the Calendar or Production says it came from a post. Tasks approved on a call do not show on the report they were promised in.</li>
+<li><b>The phone is the desktop squeezed.</b> Titles stack with a 40px gap, then two orphan buttons (Metrics, Help) float right; tables keep one column plus a scrollbar; the Monday call's bottom bar loses Next and the clock; Settings' left nav collapses into a card with two tiny links; Social Week is an empty hour grid you scroll sideways. Sheets, the Ask tab and the More sheet are the only parts that feel native, and they prove the phone can feel right.</li>
+</ol>
+<p>Two things are right and must survive the redesign: the information itself (Day check, Today's calls, Customers, P&L, the leak engine's content) and the v2 tile and chart components on Home, All channels, Store and Reports. Those pages are the best ones because they share components. The audit is mostly "make everything else share them too".</p>
+</div>
+
+<h2 id="screens">Findings per <em>screen</em></h2>
+<div class="col"><p>Grouped by rail item. "Who" is who opens it and how often. Verdicts: <span class="pill keep">keep</span> works, restyle only · <span class="pill fix">fix</span> keep the substance, change the layout or copy · <span class="pill rebuild">rebuild</span> start from the job · <span class="pill move">move</span> lives somewhere else · <span class="pill cut">cut</span> remove.</p></div>
+
+<h3>Home</h3>
+<div class="screens">
+<div class="sc"><div class="thumbs"><img src="shots/d-overview.jpg" alt="Home Overview, Lucky Golf, desktop"><div class="row"><img src="shots/d-overview-leaks1.jpg" alt="The leaks card on Home"><img class="ph" src="shots/p-overview.jpg" alt="Home on iPhone"></div></div><div><h4>Overview <span class="pill fix">fix</span></h4><p class="who">Cole and strategists every morning; media buyer daily; the client's first screen.</p><ul><li>The first screen is right (the kept-money hero, the Meta day line, Needs you today). The second and third screens are the leak finder, so the tiles, chart, channel table and funnel, the actual dashboard, start about 1,900px down.</li><li>Three different card languages on one page: the hero card, the leak card with its own typography, then v2 tiles.</li><li>Agency view's morning strip is six brand sentences in one box; the per-brand bars below it say the same thing better.</li><li>Phone: the title stacks, then Metrics and Help float right with a 40px gap; the leak card is 1,200px of text.</li></ul><p class="verdict"><b>Keep</b> the hero, the Meta day line and Needs you. <b>Move</b> the leaks to one strip (see Where leaks live). <b>Cut</b> the six-sentence morning box in Agency view (the bars carry it). Tiles come straight after the hero.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-yesterday.jpg" alt="Day check"><img src="shots/d-ag-yesterday.jpg" alt="Day check in Agency view"></div><div><h4>Day check <span class="pill fix">fix</span></h4><p class="who">Media buyer and Cole, mornings; Agency view mostly.</p><ul><li>"Right now" is a wall of red-bordered tiles with "normal by now" lines; the red border reads as alarm when the message is "nothing unusual".</li><li>Three sentences of method under the card title ("Today so far against the brand's own last 28 days, scaled to this hour...") belong in Metrics, not on the page.</li><li>The 30-day strip and the four signs are good and should be the first thing after the verdict.</li></ul><p class="verdict"><b>Keep</b> the verdict, strip and four signs. Tiles lose the coloured left border unless the value is off. Method sentences go to the Metrics sheet.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-profit.jpg" alt="P&L"><img class="ph" src="shots/p-profit.jpg" alt="P&L on phone" style="width:74px"></div><div><h4>P&L <span class="pill keep">keep</span></h4><p class="who">Cole weekly, client monthly.</p><ul><li>Good: one sentence, eight tiles with plan bullets, waterfall, day chart.</li><li>Two "Client link" buttons (top bar and page) and a Costs button in the top bar: page actions should live in the page header only.</li><li>Tiles at 390px are two columns of 160px with four-line captions; they need the compact tile (number, delta, one caption).</li></ul><p class="verdict"><b>Keep.</b> Page actions move into the header; the phone gets the compact tile.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-plan.jpg" alt="Goals"><img src="shots/d-ag-plan.jpg" alt="Goals in Agency view"></div><div><h4>Goals <span class="pill fix">fix</span></h4><p class="who">Cole and the client once a month.</p><ul><li>The month chips, the unsaved banner, the quick-fill row, the three inputs and the Save button are five different control styles on one screen.</li><li>"Save November 2026 plan" appears twice (top bar and card).</li><li>Agency view's table is good and should be the model for every "one row per brand" page.</li></ul><p class="verdict"><b>Keep</b> the math. One form style, one Save, the month chips become the page's tabs.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-requests.jpg" alt="Requests"></div><div><h4>Requests <span class="pill fix">fix</span></h4><p class="who">Strategist a few times a week; client when asked.</p><ul><li>Two dashed empty boxes and two buttons. The empty state should say what a request is and offer the one action.</li><li>Requests are also written from the call screens and the weekly report; the page should show where each came from and link back.</li></ul><p class="verdict"><b>Keep.</b> Empty state in one line; rows link to the call or report that created them.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-ag-tasks.jpg" alt="Tasks board"><div class="row"><img src="shots/m-task-sheet.jpg" alt="Task sheet"><img class="ph" src="shots/p-ag-tasks.jpg" alt="Tasks on phone"></div></div><div><h4>Tasks <span class="pill fix">fix</span></h4><p class="who">Everyone on the team daily; Cole on the phone.</p><ul><li>The list and the right-click menu are now good (PR 31). The board at Agency view has six columns in an 800px scroller, five of them empty, which is why it feels empty and wide.</li><li>The control row mixes three styles: List/Board segment, a "Calendar ↗" link, four Group by chips, an "Every area" select and an "Only mine" toggle chip. One filter pill set.</li><li>The task sheet is a centred modal (good content) and will become the shared side panel so a task can be opened from a call, a report or a leak without leaving the page.</li><li>Phone: the list works; the title row says "1 open, 1 late" under a 28px title and then a form, so the first task is 240px down.</li></ul><p class="verdict"><b>Keep</b> the substance. Board hides empty columns by default, control row becomes one pill set, sheet becomes the side panel.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-ccall.jpg" alt="Client call"></div><div><h4>Client call <span class="pill fix">fix</span></h4><p class="who">Strategist with the client watching, weekly.</p><ul><li>Same bones as the Monday call, same problems: step pills that scroll off the right edge, a tag row under each section, a bottom bar with a clock nobody asked for on a client call.</li></ul><p class="verdict"><b>Fix</b> with the Monday call rebuild (same component).</p></div></div>
+</div>
+
+<h3>Ads</h3>
+<div class="screens">
+<div class="sc"><div class="thumbs"><img src="shots/d-today.jpg" alt="Today's calls"><div class="row"><img src="shots/t-today.jpg" alt="Today's calls on iPad, broken wrap"><img class="ph" src="shots/p-today.jpg" alt="Today's calls on phone"></div></div><div><h4>Today's calls <span class="pill fix">fix</span></h4><p class="who">Media buyer every morning. The buyer's home.</p><ul><li>The substance is the best in Locus. The row is the problem: thumbnail, name, two-line reason and six buttons (Do it, Open in Ads Manager, Open in Locus, Something else, Done, Not now) on one line. Six buttons per row is a menu, not a row.</li><li>iPad (1024px): the ad name column wraps letter by letter ("B l a c k W e d g e s"), the reason column is 60px wide. This is a real bug, not a style note.</li><li>Phone: the filter chips wrap into two uneven rows; each call is a tall card; "Do it" and the others stack.</li><li>Agency view: 74 calls in one list, grouped by brand with "Show 3 more". Fine as a list, but there is no way to see one brand's calls on the brand's own ad set first.</li></ul><p class="verdict"><b>Keep</b> the engine. Row = thumb, name + set, the reason, the verdict chip, one primary button, one "..." menu. The ad opens in the side panel.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-channels.jpg" alt="All channels"></div><div><h4>All channels <span class="pill keep">keep</span></h4><p class="who">Cole and strategist weekly.</p><ul><li>The reference page: tiles, chart, channel table, one caption each. The tab-hidden note ("Tabs hidden for Lucky Golf: TikTok...") is a settings fact and should be a footnote, not the first line.</li></ul><p class="verdict"><b>Keep.</b></p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-meta.jpg" alt="Meta overview under the leak card"><div class="row"><img src="shots/dark-meta.jpg" alt="Meta, dark"><img class="ph" src="shots/p-meta.jpg" alt="Meta on phone"></div></div><div><h4>Meta: Overview <span class="pill fix">fix</span></h4><p class="who">Media buyer daily.</p><ul><li>The entire first screen is the leak card. The Meta tiles, funnel and campaign table start at 700px.</li><li>Two tab rows (Today's calls / All channels / Meta / Google / Tests, then Overview / Campaigns / Ads / Changes) in two styles (underline tabs, then black pills).</li><li>Phone: the leak card alone is three screens.</li></ul><p class="verdict"><b>Fix:</b> leaks become one strip under the control bar; the two tab rows become one style (page tabs, then a segmented control in the control bar).</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-campaigns.jpg" alt="Meta campaigns"><img class="ph" src="shots/p-campaigns.jpg" alt="Campaigns on phone" style="width:74px"></div><div><h4>Meta: Campaigns <span class="pill fix">fix</span></h4><p class="who">Media buyer daily.</p><ul><li>Good table. The card title has a 2-line explanation beside it and an "Attribution" caption; the table footer repeats the caption as a paragraph.</li><li>Phone: the table shows one column (status toggles) and hides spend, purchases and ROAS behind a scrollbar. A phone table needs a card row (name, status, spend, ROAS) not a hidden grid.</li></ul><p class="verdict"><b>Keep</b> the table; explanations go to Metrics; a card row under 600px.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-adcreative-gallery.jpg" alt="Meta ads gallery"><img src="shots/m-ad-preview.jpg" alt="Ad preview panel"></div><div><h4>Meta: Ads <span class="pill keep">keep</span></h4><p class="who">Strategist and buyer weekly; Cole often.</p><ul><li>The gallery and the ad panel (Results / The call / Funnel / Where it ran / Ad copy / Next steps) are the strongest "drill into the ad" surface in Locus. This panel is what every other screen should open when an ad is named.</li><li>The "How the calls work" explainer card sits above the gallery on every visit; it is a one-time read.</li><li>Cards carry up to five chips under the name (bold claim, Looks like 10 others, Anchor 45% of set, Set: missing goal, Opener). Two is the limit; the rest belong in the panel.</li></ul><p class="verdict"><b>Keep.</b> Explainer folds into Metrics; two chips per card; the ad panel becomes the shared ad side panel.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-changes.jpg" alt="Meta changes"></div><div><h4>Meta: Changes <span class="pill keep">keep</span></h4><p class="who">Buyer and Cole weekly.</p><ul><li>Good: four counts, the "Did it help" chart, the list. The period chips duplicate the global period pill.</li></ul><p class="verdict"><b>Keep.</b> Drop the second period row.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-google.jpg" alt="Google overview"><img src="shots/d-gterms.jpg" alt="Google search terms"></div><div><h4>Google: Overview, Campaigns, Ads, Search terms, Changes <span class="pill fix">fix</span></h4><p class="who">Radhesh (Google) daily, buyer weekly.</p><ul><li>Overview is the leak card again, three leaks long, so the page is 1,400px of prose before a number.</li><li>Campaigns is the good tile and chart page. Ads shows RSA headlines as 30 chips per ad: readable, but it is three cards wide at 1440 with nothing to compare.</li><li>Search terms: the "Add negative" table is good and is the one place Locus takes a Google action; it should be the first thing on the page, under one line of money.</li><li>Changes is a raw audit log ("ad group: customers/6859198499/adGroups/135717872337 → (removed) · criterion id..."). Nobody reads ids.</li></ul><p class="verdict"><b>Fix:</b> same leak strip; Changes shows the human line and folds the raw diff.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-angles.jpg" alt="Tests and angles"></div><div><h4>Tests and angles <span class="pill keep">keep</span></h4><p class="who">Strategist before a brief.</p><ul><li>The scoreboard is clear. "Have we tested this?" is a good search. Keep.</li></ul><p class="verdict"><b>Keep.</b></p></div></div>
+</div>
+
+<h3>Email, Store, Products</h3>
+<div class="screens">
+<div class="sc"><div class="thumbs"><img src="shots/d-email.jpg" alt="Email and SMS"></div><div><h4>Email and SMS <span class="pill fix">fix</span></h4><p class="who">Nick (email), Cole weekly.</p><ul><li>Leak card first again, then the good tiles and chart.</li><li>"Under the healthy range (25 to 35%)" is the right kind of line: the number, then what it should be.</li></ul><p class="verdict"><b>Fix</b> with the leak strip; otherwise keep.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-store.jpg" alt="Store sales"><img src="shots/d-customers.jpg" alt="Customers"></div><div><h4>Store: Sales, Customers <span class="pill keep">keep</span></h4><p class="who">Cole and client weekly.</p><ul><li>Sales is the model page. Customers opens with a 90-word paragraph in a coloured box; the one line in it that matters is the headline ("Yes, but not by much: 1.8x"). The rest is the Metrics sheet.</li></ul><p class="verdict"><b>Keep.</b> Customers' paragraph becomes headline plus one sentence.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-website.jpg" alt="Website"><img src="shots/d-search.jpg" alt="Search"></div><div><h4>Store: Website, Search <span class="pill fix">fix</span></h4><p class="who">Site owner (Ahsan, Noma), Cole monthly.</p><ul><li>Website: leak card first (six leaks, two screens). Search is a clean tile page; keep.</li></ul><p class="verdict"><b>Fix</b> Website with the strip; keep Search.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-stock.jpg" alt="Stock"><img src="shots/d-drops.jpg" alt="Drops"></div><div><h4>Products: Stock, Buying, Drops <span class="pill keep">keep</span></h4><p class="who">Cole for Lucky; the client for its own brand.</p><ul><li>Three consistent pages (sentence, tiles, table). They use a different tile radius and a "Refresh" line under the title; both fold into the kit.</li></ul><p class="verdict"><b>Keep.</b></p></div></div>
+</div>
+
+<h3>Creative and Brand</h3>
+<div class="screens">
+<div class="sc"><div class="thumbs"><img src="shots/d-studio.jpg" alt="Studio"><img src="shots/d-copy.jpg" alt="Words (Copy desk)"></div><div><h4>Creative: AI ads (Studio), Words <span class="pill fix">fix</span></h4><p class="who">Cole and strategist when making ads.</p><ul><li>Studio: a batches list in a 200px column and a five-step stepper with one button. The batch list belongs in a table with status, and the stepper should be the page's tabs.</li><li>Words is a Copy desk with its own title ("Copy desk: Lucky Golf") under the "Words" mode pill; two names for one thing.</li></ul><p class="verdict"><b>Fix:</b> batches as a table, steps as tabs, one name.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-library.jpg" alt="Library"><img src="shots/d-inspo.jpg" alt="Inspiration"></div><div><h4>Creative: Library, Inspiration, Creators <span class="pill keep">keep</span></h4><p class="who">Strategist and Cole when briefing.</p><ul><li>Library's grid is good; its filter chips are two rows in a third chip style. Inspiration is a good card grid. Creators (the creator link) is a setup form for Lucky; fine.</li></ul><p class="verdict"><b>Keep</b>, chips on the kit.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-production.jpg" alt="Production board"><div class="row"><img src="shots/m-production-card.jpg" alt="Production card sheet"><img class="ph" src="shots/p-production.jpg" alt="Production on phone"></div></div><div><h4>Production <span class="pill fix">fix</span></h4><p class="who">Strategist and Ravo daily; client for its own ads.</p><ul><li>The board is Asana-grade now. The card sheet is not: Owner is a native select, Due and Launch are native date inputs, the brief is a Google Doc link pasted into a rich text box.</li><li>Agency view: six brand chips + five format chips + sort + Select + Archived is 13 controls in two rows.</li><li>Phone: works as a one-column board; the column pills are the right idea.</li></ul><p class="verdict"><b>Keep</b> the board. The card sheet uses the kit's owner pill and date popover; filters fold into one pill set.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-answers.jpg" alt="Brand: Client answers"><img src="shots/d-voice.jpg" alt="Brand: Voice"></div><div><h4>Brand: Client answers, Research, Voice <span class="pill fix">fix</span></h4><p class="who">Strategist before a call or a brief.</p><ul><li>All three tabs open with the same 200px "What we know, and what is missing" card, then "At a glance", so the tab's own content starts 500px down. The completeness card belongs once, on Client answers, as one line on the other two.</li><li>Voice's draft is a 250-word block; good content, needs the section pattern (In short / Traits / Words they use as a definition list).</li></ul><p class="verdict"><b>Fix:</b> completeness card once; tabs start with their own content.</p></div></div>
+</div>
+
+<h3>Calendar, Social, Work, Reports</h3>
+<div class="screens">
+<div class="sc"><div class="thumbs"><img src="shots/d-calendar.jpg" alt="Calendar, one brand"><div class="row"><img src="shots/d-ag-calendar.jpg" alt="Calendar, Agency view lanes"><img class="ph" src="shots/p-calendar.jpg" alt="Calendar on phone"></div></div><div><h4>Calendar <span class="pill fix">fix</span></h4><p class="who">Everyone weekly; clients for their own dates.</p><ul><li>The month grid is 320px down: title, purpose line, a bold "next thing" sentence, a roster line, then the card with its own explanation line ("Marketing is what customers see: drops, sales...").</li><li>The 13-week lanes in Agency view are the best cross-brand view in Locus. Keep exactly.</li><li>Phone: Month/Week segment, arrows, Today, Add a date, three filter chips and a paragraph before a 7-column grid with 2px dots.</li></ul><p class="verdict"><b>Keep</b> the lanes and month. The "next thing" sentence becomes the strip; the explanation goes to Metrics; phone month becomes an agenda list.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-social.jpg" alt="Social Watch"><div class="row"><img src="shots/d-socialweek.jpg" alt="Social Week"><img class="ph" src="shots/p-social.jpg" alt="Social on phone"></div></div><div><h4>Social: Watch, Week <span class="pill rebuild">rebuild</span></h4><p class="who">Cole and the strategist for Lucky; a future social manager.</p><ul><li>Watch is a filter form with a feed under it: three view chips, two buttons, a credits warning, six labelled selects, a search, a toggle, a "Doing well lately" line, then cards. Nothing on the first screen is a post.</li><li>The five jobs Cole named (research what is working, save what you like, build a script from a video, schedule posts, recreate another brand's post) are not visible as jobs. "Make ours" is inside the post panel, "Saved" is a count chip, scripts live in Studio.</li><li>Week is a Later-style hour grid with a 27-item tray of Meta ads; on a phone it is an empty grid you scroll sideways.</li></ul><p class="verdict"><b>Rebuild</b> around the jobs (see the mock below).</p><p style="margin-top:10px"><b>What the teardown of Later, Sandcastles and Virlo found</b> (sibling session, 89 screenshots: <a href="https://claude.ai/artifact/N3GWj34WJnJFjAYij5KKEh">the teardown page</a>). Five rules it adds to the whole-app system, not only to Social:</p><ol class="list" style="font-size:13.5px"><li><b>Chrome before content.</b> Breadcrumb, a 32px title, a two-line subtitle, the Tour / Metrics / Help pills, the segment, a warning strip and a boxed filter form put the first card 600px down at 1280 wide; Virlo shows cards 180px from the top. The page name lives in the tabs row at about 20px, one-clause subtitle or none, the helper pills live in the header menu.</li><li><b>Filter bars styled as settings forms.</b> Uppercase labels over 40px selects inside a bordered card. Research tools use one 36px row of value-as-label pill menus (the period menu style) plus one Filters popover. This applies to every Locus list screen.</li><li><b>Card and number hierarchy.</b> Equal-weight numbers in one clipped 12px row, five same-size tiles in the post panel. One big number per object, the comparison as a pill beside it, the rest small and grey. Social cards get the native 9:16 frame with one overlay per corner.</li><li><b>Vocabulary leaks.</b> The Week tray says "Meta ad, $2,647 spent, 1.3x" inside an organic scheduler; topic names print where account handles go; "1388x" shows for a 9-follower account (the outlier ratio needs a floor: 8+ posts and a 1k+ median). Each screen uses only its own reader's words.</li><li><b>Phone.</b> Three screens of chrome before a card, and an hour grid with two empty days. Bottom tab bar, filters in a bottom sheet, content by the second screen; time grids become day lists; viewers and composers are full-height bottom sheets.</li></ol><p style="font-size:13.5px">Also for the system: warnings such as low credits belong in settings and the 5am card, never in the content column; an empty state is one sentence and one button; status is one line ("Pulling Takomo and 3 more, last pull 2h ago") instead of a strip.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-ag-calls.jpg" alt="Meetings"></div><div><h4>Work: Meetings <span class="pill fix">fix</span></h4><p class="who">Cole after every recorded call.</p><ul><li>The three "Run a call" cards, the "Waiting on your OK" inbox and the history table are three good pieces in three styles. The history table is the right model.</li></ul><p class="verdict"><b>Keep;</b> one card style.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-monday-bonk.jpg" alt="Monday call, Bonk step"><div class="row"><img src="shots/d-monday-dartee-newads.jpg" alt="New ads to make, Dartee"><img class="ph" src="shots/p-monday-dartee.jpg" alt="Monday call on phone"></div></div><div><h4>Work: Monday call, Client call, Creative kickoff <span class="pill rebuild">rebuild</span></h4><p class="who">Cole runs it, the team watches, every Monday.</p><ul><li>Cole: "super thrown together, I'm confused". Confirmed on every step. The step pills (Start · Dartee · Bonk · Ice & Gold · ...) scroll off the right edge at 1440 and 390.</li><li>Every section carries a tag row (Automatic / From Slack / You add / Optional) and a sentence of explanation. The explanation says what the section is; the tag says who filled it. Neither answers "what do I do here".</li><li>"New ads to make this week": the two rows have a free-text "Who" box and a native date input beside a text field that cuts the batch name at 60 characters. "Already being made for Dartee Golf (12)" is a collapsed line whose items cannot be opened.</li><li>"What the team posted in Slack" is the strategist's whole Monday post, collapsed with "Show all of it". The batches were already parsed out of it; the post is only needed as a reference link.</li><li>"For the client" and "New to-dos" both say "You add · Optional" and both have a paragraph of instructions. Nothing tells you one goes into the client's weekly report and the other into Tasks except the paragraph.</li><li>The best and worst ads open the ad (good). Nothing else on the page opens anything.</li><li>Phone: the bottom bar shows only "Back" and the brand; the clock and Next are cut off.</li><li>Kickoff: nothing says who receives it or where it shows up for Ravo or the designers.</li></ul><p class="verdict"><b>Rebuild</b> on the shared section component: what Locus filled in reads as content, what you type reads as a field, every item opens its object, Finish lists its effects (see mock).</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-reports.jpg" alt="Weekly report"><div class="row"><img src="shots/d-ag-reports.jpg" alt="Reports in Agency view"><img class="ph" src="shots/p-reports.jpg" alt="Reports on phone"></div></div><div><h4>Reports: Weekly and monthly <span class="pill fix">fix</span></h4><p class="who">Cole Monday morning; the client after it is sent.</p><ul><li>Six screens long. Eight tiles, Summary, Where the month stands, Day by day, Customers, Meta, Google, Email, Changes. Ads are named in the Summary and the Meta section but never shown; a report that says "Black Wedges 9 won" should show the ad and open it.</li><li>The "Jump to" row is a second tab bar in a third style.</li><li>Agency view: the report cards per brand are the right idea (what is waiting on you), with four statuses in four colours.</li><li>Phone: the Jump to row sticks to the top and covers the tiles.</li></ul><p class="verdict"><b>Fix:</b> 4 numbers, one chart, 3 lists, the ads as cards that open the ad panel, everything else under More detail (the reporting audit's own plan, not yet built on the page).</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-brief.jpg" alt="Daily Brief"><img src="shots/d-dash.jpg" alt="Dashboards"></div><div><h4>Reports: Daily Brief, Dashboards <span class="pill fix">fix</span></h4><p class="who">Cole mornings; client in Slack.</p><ul><li>Daily Brief shows the Slack message as a Slack message. Fine as a preview; the page around it has a date input, a sync line and a "Handled automatically" banner in three styles.</li><li>Dashboards opens on a Bonk dashboard while Lucky is picked; "Posts to Slack: Never" and "Channel: No channel" are native selects.</li></ul><p class="verdict"><b>Fix</b> with the kit; Dashboards respects the picked brand.</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-warplan.jpg" alt="Black Friday: The Plan"><img src="shots/d-warlive.jpg" alt="Black Friday: Live"></div><div><h4>Black Friday: The Plan, Live, Offers and dates <span class="pill fix">fix</span></h4><p class="who">Cole and strategists through the season.</p><ul><li>The Plan has a checklist rail and a content column, a layout no other page uses; the Plan / Live toggle duplicates the page tabs.</li><li>Live is a good tile page. Offers and dates is a two-column document.</li></ul><p class="verdict"><b>Fix:</b> the checklist becomes the control bar's steps; the toggle goes (tabs do it).</p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-calc.jpg" alt="Scenarios"><img src="shots/d-pulse.jpg" alt="Platform status"></div><div><h4>Tools: Scenarios, Platform status, Agency economics, Team workload <span class="pill keep">keep</span></h4><p class="who">Occasional.</p><ul><li>Scenarios' "Say it in words" bar is a second ask bar. Platform status is a clean table page. Economics and Workload are good tables.</li></ul><p class="verdict"><b>Keep.</b></p></div></div>
+<div class="sc"><div class="thumbs"><img src="shots/d-settings.jpg" alt="Brand settings"><div class="row"><img src="shots/d-ag-settings.jpg" alt="Agency settings"><img class="ph" src="shots/p-settings.jpg" alt="Settings on phone"></div></div><div><h4>Settings (brand and agency), How to use Locus <span class="pill fix">fix</span></h4><p class="who">Cole when setting up; rarely after.</p><ul><li>The two-column settings page is the right pattern (Attio, Stripe). The right column mixes three form styles.</li><li>Phone: the left nav collapses into a 170px-tall card holding two tiny links ("About the brand", "Integrations") and nothing else; the other eight sections are unreachable without scrolling the hidden card.</li><li>How to use Locus is the 2,300px-wide "How we work" tables in a scroller.</li></ul><p class="verdict"><b>Keep</b> the layout; phone nav becomes a segmented pill row; the guide tables become cards.</p></div></div>
+</div>
+
+<h3>The shell itself</h3>
+<div class="screens">
+<div class="sc"><div class="thumbs"><img src="shots/m-period-menu.jpg" alt="Period menu"><div class="row"><img src="shots/m-attribution-menu.jpg" alt="Attribution menu"><img class="ph" src="shots/p-more-sheet.jpg" alt="More sheet on phone"></div></div><div><h4>Rail, top bar, tabs, menus, phone bar <span class="pill fix">fix</span></h4><p class="who">Everyone, always.</p><ul><li>The rail is good (graphite, one level, Tools and settings in the foot). At 1280x600 it scrolls: Home to Social fit, Reports and Black Friday are below the fold. A 56px icon rail for short windows and iPads fixes it.</li><li>The top bar carries the ask bar, a to-do count, the live chip, the period pill and the attribution pill; page actions (Costs, Client link, Save plan, Generate last week) push into it from some pages. Page actions belong in the page header.</li><li>The period menu and the attribution menu are the two best menus in Locus. The client picker is a third style. One menu component.</li><li>Phone bar: Home · Ads · Ask · Store · More (Work for the team). The Ask tab and the sheets are right. Under the bar, every page still starts with the stacked desktop header.</li><li>iPad (768 to 980): the rail becomes a drawer behind a hamburger; at 1024 the full rail stays and squeezes Today's calls into a 60px column. The icon rail at 768 to 1180 solves both.</li></ul><p class="verdict"><b>Fix:</b> rail collapses to icons under 1180 and on short windows; page actions move to the page header; one menu component; the phone page header is a 44px row.</p></div></div>
+</div>
+
+<h2 id="research">What the best products do the <em>same</em> way</h2>
+<div class="col"><p>Fifteen products read from their own sites, docs and design write-ups (full notes with every source URL in <code>docs/locus-audit/research/patterns.md</code>). The ones that matter most for Locus, with the pattern to take from each.</p></div>
+<div class="rs">
+<div class="rc"><img src="research/img/triplewhale-1.png" alt="Triple Whale summary"><div class="in"><h4>Triple Whale</h4><p>One left sidebar with Moby at the top, workspaces below, Data / Help / Settings as a lower nav. KPI tiles with sparklines, blurred tiles while loading, dark theme from a neutral scale. The right sidebar was removed "for working space".</p><a href="https://www.triplewhale.com/blog/new-look" target="_blank" rel="noopener">triplewhale.com/blog/new-look</a></div></div>
+<div class="rc"><img src="research/img/polar-1.jpg" alt="Polar Analytics"><div class="in"><h4>Polar Analytics</h4><p>Date range and compare as one pill; saved views instead of filter rows; column chooser on every table; compare period ghosted on every chart.</p><a href="https://www.polaranalytics.com/" target="_blank" rel="noopener">polaranalytics.com</a></div></div>
+<div class="rc"><img src="research/img/northbeam-1.png" alt="Northbeam"><div class="in"><h4>Northbeam</h4><p>View chips with SAVE above a dense table; attribution model and window as a caption on every chart; sticky first column, never sideways page scroll.</p><a href="https://www.northbeam.io/" target="_blank" rel="noopener">northbeam.io</a></div></div>
+<div class="rc"><img src="research/img/motion-2.jpg" alt="Motion creative analytics"><div class="in"><h4>Motion</h4><p>Creative is cards because the thumbnail is the content; the creative drawer (not a modal) holds results, the call and next steps. Exactly the ad panel Locus already has.</p><a href="https://motionapp.com/" target="_blank" rel="noopener">motionapp.com</a></div></div>
+<div class="rc"><img src="research/img/linear-1.png" alt="Linear"><div class="in"><h4>Linear</h4><p>One indigo, graphite surfaces with alpha-white hairlines, weights 510/590 and never 700, motion under 200ms on transform and opacity only, Cmd+K as the primary way around. The reference for "feels like a very good company".</p><a href="https://linear.app/" target="_blank" rel="noopener">linear.app</a></div></div>
+<div class="rc"><img src="research/img/stripe-1.png" alt="Stripe Dashboard"><div class="in"><h4>Stripe Dashboard</h4><p>Fixed page anatomy: title + actions, tabs, one control row of pills, KPI row, then the table. Colour "reserved for status". Row detail as a drawer; modals only for create and confirm.</p><a href="https://docs.stripe.com/stripe-apps/design" target="_blank" rel="noopener">docs.stripe.com</a></div></div>
+<div class="rc"><img src="research/img/vercel-1.png" alt="Vercel dashboard"><div class="in"><h4>Vercel</h4><p>Moved its top tabs into a sidebar in 2026. Gray roles 100 to 1000, one hue at a time, label-14 as the most common text, tabular numbers, 6px controls and 8 to 12px cards.</p><a href="https://vercel.com/geist/introduction" target="_blank" rel="noopener">vercel.com/geist</a></div></div>
+<div class="rc"><img src="research/img/mercury-1.png" alt="Mercury"><div class="in"><h4>Mercury</h4><p>"Red and yellow only for errors and warnings." Money is tables; a transaction opens as a drawer; the AI confirm card shows exactly what will happen before you press the button.</p><a href="https://mercury.com/" target="_blank" rel="noopener">mercury.com</a></div></div>
+<div class="rc"><img src="research/img/later-1.png" alt="Later"><div class="in"><h4>Later</h4><p>The week as a calendar with a media tray beside it; account bubbles; a composer sheet on the phone with per-platform tweaks folded. Scheduling is the job, so the calendar is the page.</p><a href="https://later.com/" target="_blank" rel="noopener">later.com</a></div></div>
+<div class="rc"><img src="research/img/sandcastles-1.jpg" alt="Sandcastles"><div class="in"><h4>Sandcastles</h4><p>9:16 cards with the outlier multiple under each, Feed / Saved as the only two views, a video drawer with the script. Research is the job, so the feed is the page and filters fold.</p><a href="https://www.sandcastles.ai/" target="_blank" rel="noopener">sandcastles.ai</a></div></div>
+<div class="rc"><img src="research/img/asana-1.jpg" alt="Asana"><div class="in"><h4>Asana</h4><p>Icon rail that expands; list / board / calendar as views of one list; task pane slides in from the right; the completion tick animates. Mobile = bottom tabs with a + button.</p><a href="https://asana.com/" target="_blank" rel="noopener">asana.com</a></div></div>
+<div class="rc"><img src="research/img/notion-1.jpg" alt="Notion"><div class="in"><h4>Notion</h4><p>Side peek by default for a row; radius 4 / 8 / 12 by role; shadows stacked at 0.05 opacity; Home, Search and Inbox at the top of the sidebar.</p><a href="https://www.notion.com/product" target="_blank" rel="noopener">notion.com</a></div></div>
+<div class="rc"><img src="research/img/superhuman-1.png" alt="Superhuman"><div class="in"><h4>Superhuman</h4><p>The command palette rules: one shortcut everywhere, fuzzy with aliases, recency first, five rows with the last cut off, an icon per row, shortcuts shown so you learn them. Keyboard actions never animate.</p><a href="https://blog.superhuman.com/how-to-build-a-remarkable-command-palette/" target="_blank" rel="noopener">blog.superhuman.com</a></div></div>
+<div class="rc"><img src="research/img/attio-1.png" alt="Attio"><div class="in"><h4>Attio</h4><p>Settings as a two-column page with grouped left nav; tables as the product with sticky first column, 36px rows and footer totals; inline grey empty text inside the table area.</p><a href="https://attio.com/" target="_blank" rel="noopener">attio.com</a></div></div>
+<div class="rc"><img src="research/img/things3-1.png" alt="Things 3"><div class="in"><h4>Things 3 and Ramp</h4><p>Things: the list runs to the bottom edge, a floating + you can drag, a to-do "transforms into a white page" in place. Ramp: the menu "grouped by the task you're trying to accomplish", global search as the fastest way to a page.</p><a href="https://culturedcode.com/things/" target="_blank" rel="noopener">culturedcode.com</a></div></div>
+</div>
+<div class="band"><h3 style="margin-top:0">Twenty patterns they share</h3>
+<ol class="list" style="columns:2;column-gap:28px;font-size:13.5px">
+<li>One left sidebar is the navigation; horizontal tabs live only inside a page.</li><li>The sidebar is grouped by job, at most three levels deep.</li><li>Personal items (Inbox, My tasks) sit apart, usually on top.</li><li>Search or Cmd+K sits at the top with its key shown.</li><li>The sidebar collapses to an icon rail; the rail is what iPads get.</li><li>Page header anatomy is fixed: title + actions, tabs, one control row.</li><li>Date range and compare are one pill, not a form.</li><li>Saved views beat filter rows.</li><li>KPI tile = small label, big number, one delta chip, sparkline.</li><li>Colour is for status and one accent, never decoration; gradients only on chart strokes.</li><li>Dark = neutral graphite + alpha-white hairlines; elevation is a lighter surface, not a shadow.</li><li>Tables for money and records; cards for creative and media.</li><li>Row detail opens as a side peek; modals are for create, confirm, destroy.</li><li>On phones, detail and pickers come up from the bottom.</li><li>A 4 to 5 item bottom tab bar plus a floating create button is the phone shell.</li><li>One sans at 13 / 14 / 16, semibold not bold, tabular numbers.</li><li>Radius 6 controls, 8 to 12 cards and menus, pills for chips.</li><li>Empty states say what the thing is and give one action, inline.</li><li>Loading is skeletons in the final layout, never a spinner page.</li><li>Motion is short, eased out, only on state changes; keyboard actions never animate.</li>
+</ol></div>
+
+<h2 id="system">The <em>system</em></h2>
+<div class="col"><p>One navigation model for three devices, one page anatomy, one type scale, one colour rule, one kit, one motion rule. This is what phase 1 ships as <code>profit/lx.css</code> (tokens and components) and <code>profit/lx.js</code> (shell, side panel, sheet, menu, palette). Everything below is a rule a future feature can follow without asking.</p></div>
+
+<h3>Navigation: one model, three widths</h3>
+<div class="grid3">
+<div class="band" style="margin:0"><h4 style="margin-top:0">Desktop, 1180px and up</h4><p style="font-size:13.5px;color:var(--ink-2)">240px rail: client picker (Agency view on top), Find (Cmd+K), then the destinations exactly as today, then Tools, Settings and you in the foot. The rail never scrolls: it collapses to icons on windows under 760px tall. No right sidebar; the Strategist is a panel.</p></div>
+<div class="band" style="margin:0"><h4 style="margin-top:0">iPad, 760 to 1180px</h4><p style="font-size:13.5px;color:var(--ink-2)">The same rail as a 56px icon rail with labels on hover and long press; one tap on the logo expands it over the page. The page keeps its desktop anatomy at 1024 (tiles in 3s, side panel 400px over the content). No hamburger drawer.</p></div>
+<div class="band" style="margin:0"><h4 style="margin-top:0">iPhone, under 760px</h4><p style="font-size:13.5px;color:var(--ink-2)">Bottom bar: Home · Ads · Ask · Work (or Store for a client) · More. The page header is one 44px row (title, one action, "..."); tabs are a scrolling pill row; everything else is a bottom sheet. Detail = full-height sheet, not a push.</p></div>
+</div>
+
+<h3>Page anatomy, every page, no exceptions</h3>
+<div class="band"><ol class="list" style="margin:0;font-size:14px">
+<li><b>Header row</b> (52px): breadcrumb above a 22px title with the serif accent word; the page's actions on the right (one primary button, one quiet button, a "..." menu). Tour, Metrics and Help live inside "...". Nothing from the page ever goes into the top bar.</li>
+<li><b>Tabs row</b> (40px) when the page has views: underline tabs. A platform's jobs (Overview, Campaigns, Ads, Changes) are a segmented control in the control bar, not a second tab row.</li>
+<li><b>Control bar</b> (40px): one row of pills: period + compare, attribution, view, filters, brand (in Agency view). On phones it scrolls sideways in one line.</li>
+<li><b>Strip</b> (optional, 44px): one line that needs attention (the biggest leak, the next calendar date, a report waiting). One line, a number, a link. It folds; it never stacks.</li>
+<li><b>Content</b>: the question's answer first (hero or tile row), then the chart, then the table or list, then secondary cards. Each section has a 15px title and a caption, nothing longer. Explanations live in the Metrics sheet.</li>
+<li><b>Side panel</b> (420px, from the right; full-height sheet on a phone) for any ad, task, post, brief, leak, order or customer. Modals only for create, confirm, destroy.</li>
+</ol></div>
+
+<h3>Type scale</h3>
+<div class="scroll"><table class="tbl ts">
+<tr><th>Role</th><th>Size / weight / line</th><th>Sample</th></tr>
+<tr><td>Micro labels, rail labels, chips</td><td>11 / 500 / 1.4, letter-spacing .06em when uppercase</td><td class="sample" style="font-size:11px;letter-spacing:.06em;text-transform:uppercase">Needs you today</td></tr>
+<tr><td>Column headers, tertiary meta</td><td>12 / 500 / 1.4</td><td class="sample" style="font-size:12px">Cost per purchase · goal $64</td></tr>
+<tr><td>Table cells, captions, secondary text</td><td>13 / 400 / 1.5</td><td style="font-size:13px">$1,405 spent · 12 sales · $117 per sale</td></tr>
+<tr><td>Body, menus, UI labels</td><td>14 / 400 and 14 / 500 / 1.5</td><td style="font-size:14px">Open in Ads Manager</td></tr>
+<tr><td>Section and card titles</td><td>15 / 600 / 1.4</td><td class="sample" style="font-size:15px">Where revenue came from</td></tr>
+<tr><td>KPI numbers in tiles, panel titles</td><td>22 / 600 / 1.2, -0.01em</td><td class="sample" style="font-size:22px;letter-spacing:-.01em">$10,885</td></tr>
+<tr><td>Page title</td><td>22 / 650 / 1.25, -0.015em, with one serif italic word</td><td class="sample" style="font-size:22px;letter-spacing:-.015em">Today's <em style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--brand)">calls</em>: Lucky Golf</td></tr>
+<tr><td>Hero number (Home, Day check)</td><td>36 / 650 / 1.1, -0.02em</td><td class="sample" style="font-size:36px;letter-spacing:-.02em;line-height:1.1">You <em style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--brand)">actually</em> kept $652</td></tr>
+</table></div>
+<div class="col"><p>Inter only. Instrument Serif italic for one word per page title and the hero, never in body text. Weights 400 / 500 / 600 / 650, never 700. Numbers always tabular. Nothing under 11px. The 27px serif page title and the 13.5px body go.</p></div>
+
+<h3>Spacing, radius, colour</h3>
+<div class="grid3">
+<div class="band" style="margin:0"><h4 style="margin-top:0">Spacing</h4><p style="font-size:13.5px;color:var(--ink-2)">4, 8, 12, 16, 24, 32, 48. Control height 32 (40 on touch). Table rows 40 (36 dense). Card padding 16. Section gap 24. Page gutter 24 desktop, 16 phone. Rail item 32 tall.</p></div>
+<div class="band" style="margin:0"><h4 style="margin-top:0">Radius</h4><p style="font-size:13.5px;color:var(--ink-2)">4 inline tags, 6 buttons and inputs and tabs, 8 cards and menus, 12 panels and modals, 16 bottom sheets (top corners), pill for chips and avatars. The 10px card and the 99px rectangle button go.</p></div>
+<div class="band" style="margin:0"><h4 style="margin-top:0">Colour</h4><p style="font-size:13.5px;color:var(--ink-2)">The graphite scale stays as is. One accent (Locus blue) for the primary button, active tab, active rail icon, links, focus and the current series. Good / warn / bad only with a sign or a word, as text and small chips, never as a card border or background unless the whole card is the warning. Channel palette fixed. Gradients only on chart fills and the Ask face. Light theme from the same tokens.</p></div>
+</div>
+
+<h3>The kit</h3>
+<div class="scroll"><table class="tbl">
+<tr><th>Component</th><th>Replaces</th><th>Rule</th></tr>
+<tr><td>Rail + icon rail</td><td>the rail, the iPad drawer</td><td>240px / 56px; never scrolls; foot holds Tools, Settings, you.</td></tr>
+<tr><td>Find (Cmd+K)</td><td>the ask bar's jump, the client picker's search</td><td>Every brand, page, ad, task, post by name; recent first; shows the shortcut.</td></tr>
+<tr><td>Page header</td><td>pageHead + top-bar page actions</td><td>Title, crumb, up to two actions and "...".</td></tr>
+<tr><td>Tabs, segmented control</td><td>.v2tabs, .v2jobs pills, Jump to rows, Plan / Live toggles</td><td>Tabs under the title; a segment in the control bar; nothing else switches views.</td></tr>
+<tr><td>Control pill</td><td>period, attribution, Sort by, Show, Tag, Columns, Group by, Every area, Format, Brand chips</td><td>One pill = one setting; shows its value; opens one menu (bottom sheet on phones).</td></tr>
+<tr><td>Strip</td><td>leak cards, "next thing" sentences, credit warnings, "Handled automatically" banners</td><td>One line, one number, one link; folds; at most two per page.</td></tr>
+<tr><td>Tile (compact and full)</td><td>.v2tile, the Day check tiles, the call screen's number boxes, Stock tiles</td><td>Label, number, delta chip, caption, sparkline; the source as a hover, not a chip.</td></tr>
+<tr><td>Table</td><td>every table</td><td>Sticky header, tabular numbers, inline bars, row actions on hover, totals row, columns menu; under 600px rows become cards.</td></tr>
+<tr><td>Media card</td><td>ad cards, posts, inspiration, library, creator videos</td><td>Thumb, one status chip, one or two metrics, the name; everything else in the panel.</td></tr>
+<tr><td>List row</td><td>task rows, call rows, change rows, calendar rows</td><td>Tick or thumb, title, meta, status, "..." on hover; right-click or long press menu.</td></tr>
+<tr><td>Section</td><td>the call screens' sections, Brand's blocks, Settings' forms</td><td>Title, one caption, body. What Locus filled reads as content; what you type is a field with a placeholder. No source tags.</td></tr>
+<tr><td>Side panel</td><td>the ad preview, the task sheet, the Production card, the post panel, Following, orders drill</td><td>420px right, scrim, Escape; full-height sheet on phones; a URL you can share.</td></tr>
+<tr><td>Bottom sheet</td><td>phone.js sheets, period menus on phones</td><td>Handle, swipe down, 16px top corners; everything secondary on a phone.</td></tr>
+<tr><td>Menu, popover</td><td>period menu, attribution menu, client picker, the task menus, native selects</td><td>8px radius, 36px rows, a one-line meaning under an option when it needs it.</td></tr>
+<tr><td>Owner pill, date popover</td><td>Who inputs, native selects, native date inputs</td><td>From tasks.js, used everywhere a person or a date is picked.</td></tr>
+<tr><td>Button</td><td>.btn, .v2btn, .bt, .cs buttons, .ph-ico pills</td><td>Primary (one per screen), quiet, danger; 32px; 6px radius; icon buttons square.</td></tr>
+<tr><td>Chip</td><td>.chip, .pill, .tag, .cs-tag, .v2src, filter chips</td><td>Status chips only; never more than two under a title; filters are control pills.</td></tr>
+<tr><td>Empty, loading, error</td><td>dashed boxes, "Nothing here.", spinners, "Reading live status..."</td><td>Inline grey text with one action; skeletons in the final layout; errors say what and how to fix.</td></tr>
+<tr><td>Toast</td><td>.lx-toast</td><td>Bottom centre, 4s, Undo where there is one.</td></tr>
+</table></div>
+
+<h3>Motion</h3>
+<div class="col"><ul class="list" style="font-size:14px"><li>120ms hover and press, 160ms menus, 200ms side panel and tab underline, 240ms sheets and modals. Ease out on enter, ease in on exit.</li><li>Only transform and opacity move. Height never animates. Charts re-draw by sliding the series, not by going blank.</li><li>Keyboard actions, sorts and ticks on a task do not animate; the tick fills and the row leaves after 400ms.</li><li>Phone sheets use a short spring with no overshoot; swipe to dismiss follows the finger.</li><li>prefers-reduced-motion swaps everything for an 80ms fade.</li></ul></div>
+
+<h2 id="tissue">Connective <em>tissue</em></h2>
+<div class="col"><p>The objects Locus holds, and where each one shows up. <span class="mx y">●</span> shows and opens the object's panel today · <span class="mx new">◆</span> added by this plan · <span class="mx n">·</span> not there. The rule: wherever an object is named, it opens. Wherever a decision is made, it writes to the places that report on it.</p></div>
+<div class="scroll"><table class="tbl mx">
+<tr><th>Object</th><th>Home</th><th>Today's calls</th><th>Meta ads</th><th>Weekly report</th><th>Daily brief</th><th>Monday call</th><th>Client call</th><th>Tasks</th><th>Production</th><th>Calendar</th><th>Social</th><th>Leaks</th><th>Client sees</th></tr>
+<tr><td>Ad (panel: results, call, funnel, copy, next)</td><td class="n">·</td><td class="new">◆</td><td class="y">●</td><td class="new">◆</td><td class="new">◆</td><td class="y">●</td><td class="new">◆</td><td class="new">◆</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="new">◆</td><td class="y">●</td></tr>
+<tr><td>Ad set (the unit of a call)</td><td class="n">·</td><td class="y">●</td><td class="n">·</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="new">◆</td><td class="y">●</td></tr>
+<tr><td>Task</td><td class="new">◆</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="new">◆</td><td class="y">●</td><td class="n">·</td><td class="y">●</td><td class="new">◆</td><td class="y">●</td><td class="n">·</td><td class="new">◆</td><td class="n">·</td></tr>
+<tr><td>Brief / Production card</td><td class="n">·</td><td class="n">·</td><td class="new">◆</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="new">◆</td><td class="new">◆</td><td class="y">●</td><td class="new">◆</td><td class="new">◆</td><td class="n">·</td><td class="y">●</td></tr>
+<tr><td>Report (weekly, monthly)</td><td class="new">◆</td><td class="n">·</td><td class="n">·</td><td class="y">●</td><td class="n">·</td><td class="y">●</td><td class="y">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="y">●</td></tr>
+<tr><td>Leak</td><td class="y">●</td><td class="new">◆</td><td class="new">◆</td><td class="new">◆</td><td class="new">◆</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="y">●</td><td class="y">●</td></tr>
+<tr><td>Post (watched or ours)</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="new">◆</td><td class="n">·</td><td class="new">◆</td><td class="y">●</td><td class="y">●</td><td class="n">·</td><td class="y">●</td></tr>
+<tr><td>Calendar date (drop, sale, email)</td><td class="y">●</td><td class="n">·</td><td class="n">·</td><td class="y">●</td><td class="n">·</td><td class="n">·</td><td class="y">●</td><td class="n">·</td><td class="n">·</td><td class="y">●</td><td class="new">◆</td><td class="n">·</td><td class="y">●</td></tr>
+<tr><td>Request (ask to the client)</td><td class="y">●</td><td class="n">·</td><td class="n">·</td><td class="y">●</td><td class="n">·</td><td class="y">●</td><td class="y">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="y">●</td></tr>
+</table></div>
+<div class="col">
+<h3>The flows that close the silos</h3>
+<ol class="list" style="font-size:14px">
+<li><b>Call → report → brief.</b> When Finish on the Monday call approves "New ads to make" and "For the client", those lines appear on the weekly report under This week (already written), on the Daily Brief's "What we're doing" line (new), and the batch rows appear on Production with a "from Monday call Oct 20" link back (new). Ticking a task done shows on the next report's "Done this week" (new).</li>
+<li><b>Report → ad.</b> Every ad named in a report (winners, losers, the Meta section) is a media card that opens the ad panel, on the page and in the client's copy. No "see every ad in Locus" hop.</li>
+<li><b>Leak → task or call.</b> Every leak has "Make it a task" (owner from the leak's who, due Friday) and, for Meta and Google leaks, "Open the call" which opens the ad set in Today's calls. A leak that became a task shows the task's state on the Leaks screen.</li>
+<li><b>Post → brief → calendar.</b> "Make ours" from a post creates a Production card with the post attached (the thumbnail, the beats, the link), and the card's launch date puts it on the Calendar as a Post. The Social Week shows Production's Ready cards in its tray with their brief, not raw Meta ads.</li>
+<li><b>Everything → Find.</b> Cmd+K finds an ad by name, a task by its title, a post by its handle, a brief by its number, and opens the panel from any page.</li>
+</ol></div>
+
+<h2 id="leaks">Where <em>leaks</em> live</h2>
+<div class="col">
+<p>Today the leak finder is a card at the top of Meta, Google, Search terms, TikTok, Website and Email (that page's top three, 300 to 600px each) and a six-row card on Home. The content is the best thing Locus writes. The placement is wrong because a leak is a <em style="font-style:normal;font-weight:600">to-do with a price</em>, and a to-do list does not belong above the dashboard it came from.</p>
+<p><b>Decision.</b> Three places, one engine, nothing else:</p>
+<ol class="list" style="font-size:14px">
+<li><b>One strip per page</b> (44px, under the control bar): "Meta is leaking about $3.4K a month in 2 places · Black Wedges | Still is on the cut line · See both". It folds to the number when there is more than one; it is absent when there is none. On Home the strip carries the biggest leak and the total.</li>
+<li><b>Home › Leaks</b>, a page tab beside Overview and Day check: the full ranked list as list rows (money, title, area chip, who, state: open / task made / pushed back), grouped by area, with the AI check button and the lessons at the bottom. This is where the push-back conversation lives.</li>
+<li><b>The leak panel</b> (side panel from the strip, the list, Today's calls or the morning card): the measured number, the benchmark and its source, the cross-channel read, the suggestion, Apply where Locus can act, Make it a task, Open the call, Push back. Everything the card says today, in a panel you open on purpose.</li>
+</ol>
+<p>What goes: the per-page top-3 cards, the AI-check paragraph on every card, the "Every leak for Lucky Golf" footer link, the "Where X is leaking" headings. The Strategist's leaks view and the morning card line stay as they are.</p>
+</div>
+
+<h2 id="mocks">Before and <em>after</em></h2>
+<div class="col"><p>Left: the screenshot from today. Right: the same screen on the system, drawn with the kit's real sizes and the real numbers from the shot. The "after" panels are mocks, not the build; the phase 1 build of Home and Meta is linked at the end.</p></div>
+
+<h3 id="m-home">Home › Overview (Lucky Golf)</h3>
+<div class="mock-pair">
+<div class="before"><p class="mk-lbl">Before</p><img src="shots/d-overview.jpg" alt="Home today"></div>
+<div><p class="mk-lbl after">After</p>
+<div class="app"><div class="shell">
+<div class="rail"><div class="pick">Lucky Golf <span style="color:#8E8E9A">⌄</span></div><div class="find">Find… <kbd>⌘K</kbd></div>
+<div class="it on"><i></i>Home</div><div class="it"><i></i>Ads <span class="n">10</span></div><div class="it"><i></i>Email and SMS</div><div class="it"><i></i>Store</div><div class="it"><i></i>Products</div><div class="it"><i></i>Creative</div><div class="it"><i></i>Brand</div><div class="it"><i></i>Calendar</div><div class="it"><i></i>Social</div><div class="it"><i></i>Reports <span class="n">1</span></div><div class="it"><i></i>Black Friday</div>
+<div class="foot"><div class="it"><i></i>Tools</div><div class="it"><i></i>Brand settings</div><div class="it"><i></i>Cole</div></div></div>
+<div class="main">
+<div class="hdr"><div><div class="crumb">Home</div><div class="t"><em>Overview</em>: Lucky Golf</div></div><div class="btns"><span class="bt q">Share</span><span class="bt q">…</span></div></div>
+<div class="tabs"><span class="on">Overview</span><span>Day check</span><span>Leaks <span class="tag" style="margin-left:3px">12</span></span><span>P&amp;L</span><span>Goals</span><span>Requests</span><span>Tasks</span></div>
+<div class="ctl"><span class="bt">Last 7 days · vs before ⌄</span><span class="bt">Last platform click ⌄</span><span class="bt q" style="margin-left:auto;color:#5FD292">● Today $0 · spend $23</span></div>
+<div class="strip"><b>Lucky Golf is leaking about $55.7K a month</b><span class="n">12 leaks</span><span style="color:#B4B4BE">· Cart to checkout on phones is 28% against 45%</span><span class="go">Open leaks →</span></div>
+<div class="two">
+<div class="card"><div class="ch"><b>Yesterday, Mon Oct 19</b><span>Contribution, the P&amp;L line</span></div><div style="font-size:26px;font-weight:650;letter-spacing:-.02em;margin:2px 0 6px">You <em style="font-family:var(--serif);font-style:italic;font-weight:400;color:#A9C4FF">actually</em> kept $652</div><div style="display:flex;height:7px;border-radius:4px;overflow:hidden"><i style="width:44%;background:#5B8DEF"></i><i style="width:23%;background:#B5761A"></i><i style="width:17%;background:#E3653D"></i><i style="width:12%;background:#27A392"></i><i style="width:4%;background:#8F72E8"></i></div><div class="src" style="margin-top:6px">Kept $652 · Ads $339 · Product $253 · Shipping $178 · Fees $39 · a normal day keeps about $311</div></div>
+<div class="card"><div class="ch"><b>Needs you today</b><span>Normal day on Meta</span></div><div class="row"><span class="tag cut">Cut</span><span class="t">10 ad sets to change</span><span class="m">Today's calls →</span></div><div class="row"><span class="tag watch">Call</span><span class="t">Test 415 past its judging days</span><span class="m">Open →</span></div><div class="row"><span class="tag">Nov 1</span><span class="t">Early Bird: towel with any club goes live</span><span class="m">Calendar →</span></div></div>
+</div>
+<div class="tiles">
+<div class="tile"><div class="l">Revenue <span>Shopify</span></div><div class="v">$10.9K <span class="d up">▲ 4%</span></div><div class="s">month $30.6K of $30.8K planned</div><div class="spark"></div></div>
+<div class="tile"><div class="l">Orders</div><div class="v">58 <span class="d dn">▼ 5%</span></div><div class="s">AOV $187.67</div><div class="spark"></div></div>
+<div class="tile"><div class="l">Ad spend</div><div class="v">$3,721 <span class="d nt">▼ 30%</span></div><div class="s">$5,327 before</div><div class="spark"></div></div>
+<div class="tile"><div class="l">MER</div><div class="v">2.93x <span class="d up">▲ 50%</span></div><div class="s">goal 2.50x</div><div class="spark"></div></div>
+</div>
+<div class="two"><div class="card"><div class="ch"><b>Revenue by day</b><span>▲ 4% against the period before</span></div><div class="chart"><i class="g"></i><i></i></div></div>
+<div class="card"><div class="ch"><b>Where revenue came from</b><span>last platform click</span></div><table><tr><th>Channel</th><th class="r">Spend</th><th class="r">Revenue</th><th class="r">ROAS</th></tr><tr><td><span class="bar" style="width:40px;background:#5B8DEF"></span>Meta</td><td class="r">$3,129</td><td class="r">$6,185</td><td class="r">1.98x</td></tr><tr><td><span class="bar" style="width:16px;background:#B5761A"></span>Google</td><td class="r">$1,767</td><td class="r">$2,335</td><td class="r">1.32x</td></tr><tr><td><span class="bar" style="width:16px;background:#8F72E8"></span>Email</td><td class="r" style="color:#8E8E9A">no spend</td><td class="r">$2,361</td><td class="r">–</td></tr></table></div></div>
+</div></div></div>
+<p class="cap">The leaks became one strip and a tab. The hero and Needs you share the first row. Tiles are on the first screen. The source chips on tiles are hover text. Page actions (Share, Tour, Metrics, Help) collapsed into Share and "...".</p>
+</div></div>
+
+<h3 id="m-meta">Ads › Meta › Overview</h3>
+<div class="mock-pair">
+<div class="before"><p class="mk-lbl">Before</p><img src="shots/d-meta.jpg" alt="Meta today"></div>
+<div><p class="mk-lbl after">After</p>
+<div class="app"><div class="shell">
+<div class="rail"><div class="pick">Lucky Golf <span style="color:#8E8E9A">⌄</span></div><div class="find">Find… <kbd>⌘K</kbd></div><div class="it"><i></i>Home</div><div class="it on"><i></i>Ads <span class="n">10</span></div><div class="it"><i></i>Email and SMS</div><div class="it"><i></i>Store</div><div class="it"><i></i>Products</div><div class="it"><i></i>Creative</div><div class="it"><i></i>Brand</div><div class="it"><i></i>Calendar</div><div class="it"><i></i>Social</div><div class="it"><i></i>Reports</div><div class="it"><i></i>Black Friday</div><div class="foot"><div class="it"><i></i>Tools</div><div class="it"><i></i>Brand settings</div><div class="it"><i></i>Cole</div></div></div>
+<div class="main">
+<div class="hdr"><div><div class="crumb">Ads</div><div class="t"><em>Meta</em>: Lucky Golf</div></div><div class="btns"><span class="bt q">Share</span><span class="bt q">…</span></div></div>
+<div class="tabs"><span>Today's calls <span class="tag cut" style="margin-left:3px">10</span></span><span>All channels</span><span class="on">Meta</span><span>Google</span><span>Tests and angles</span></div>
+<div class="ctl"><span class="bt" style="background:#F2F2F4;color:#131316;border-color:#F2F2F4">Overview</span><span class="bt q">Campaigns</span><span class="bt q">Ads</span><span class="bt q">Changes</span><span style="width:1px;height:18px;background:#2A2A31;margin:0 4px"></span><span class="bt">Last 7 days ⌄</span><span class="bt">Last platform click ⌄</span></div>
+<div class="strip"><b>Meta is leaking about $3.4K a month</b><span class="n">2 ad sets</span><span style="color:#B4B4BE">· Black Wedges | Still is on the cut line</span><span class="go">See both →</span></div>
+<div class="tiles">
+<div class="tile"><div class="l">Spend</div><div class="v">$3,129 <span class="d nt">▼ 31%</span></div><div class="s">$200 + $150 + $100 a day</div><div class="spark"></div></div>
+<div class="tile"><div class="l">Purchases</div><div class="v">33 <span class="d dn">▼ 12%</span></div><div class="s">Meta says 41</div><div class="spark"></div></div>
+<div class="tile"><div class="l">Cost per purchase</div><div class="v">$95 <span class="d up">▼ 8%</span></div><div class="s">goal $64</div><div class="spark"></div></div>
+<div class="tile"><div class="l">ROAS</div><div class="v">1.98x <span class="d dn">▼ 0.2</span></div><div class="s">goal 2.5x</div><div class="spark"></div></div>
+</div>
+<div class="two">
+<div class="card"><div class="ch"><b>Campaigns, ad sets and ads</b><span>Columns ⌄</span></div><table><tr><th>Campaign</th><th class="r">Spend</th><th class="r">Purchases</th><th class="r">ROAS</th><th class="r">CPA</th></tr><tr><td>▸ CBO | Black Wedge</td><td class="r">$1,405</td><td class="r">12</td><td class="r">1.87x</td><td class="r" style="color:#F09182">$117</td></tr><tr><td>▸ [MD] CBO | Creator Campaign</td><td class="r">$1,035</td><td class="r">15</td><td class="r">2.46x</td><td class="r" style="color:#5FD292">$69</td></tr><tr><td>▸ [MD] CBO</td><td class="r">$690</td><td class="r">6</td><td class="r">1.48x</td><td class="r" style="color:#F09182">$115</td></tr><tr><td style="font-weight:650">All campaigns</td><td class="r" style="font-weight:650">$3,129</td><td class="r" style="font-weight:650">33</td><td class="r" style="font-weight:650">1.98x</td><td class="r" style="font-weight:650">$95</td></tr></table></div>
+<div class="card"><div class="ch"><b>Impressions to purchase</b><span>vs period before</span></div><div class="row"><span class="t">Impressions</span><span class="m">324,698</span></div><div class="row"><span class="t">Link clicks · 1.52%</span><span class="m">4,936</span></div><div class="row"><span class="t">Added to cart · 5.1%</span><span class="m">250</span></div><div class="row"><span class="t">Purchases · 13%</span><span class="m">33</span></div></div>
+</div>
+<div class="card"><div class="ch"><b>Ads that spent this week</b><span>one card per creative · opens the ad</span></div><div class="ads"><div class="ad"><div class="pic"><span class="tag cut">Cut</span></div><div class="in"><b>Black Wedges - 9</b><span>$632 · $70 per sale</span></div></div><div class="ad"><div class="pic"><span class="tag cut">Cut</span></div><div class="in"><b>Black Wedges - 7</b><span>$313 · no sale</span></div></div><div class="ad"><div class="pic"><span class="tag scale">Scale</span></div><div class="in"><b>Trybe | Partnerships</b><span>$180 · $36 per sale</span></div></div><div class="ad"><div class="pic"><span class="tag watch">Watch</span></div><div class="in"><b>Carver blacked out</b><span>$151 · $75 per sale</span></div></div></div></div>
+</div></div></div>
+<p class="cap">The Meta jobs (Overview, Campaigns, Ads, Changes) became a segment in the control bar instead of a second tab row. The leak card became a strip. The page answers "is the spend working" on its first screen: four tiles, the campaign table, the funnel, and this week's ads as cards that open the ad panel.</p>
+</div></div>
+
+<h3 id="m-report">Reports › Weekly</h3>
+<div class="mock-pair">
+<div class="before"><p class="mk-lbl">Before</p><img src="shots/d-reports.jpg" alt="Weekly report today"></div>
+<div><p class="mk-lbl after">After</p>
+<div class="app"><div class="main" style="position:relative">
+<div class="hdr"><div><div class="crumb">Reports · Weekly and monthly</div><div class="t">Week of Oct 12 <em>to</em> 18: Lucky Golf</div></div><div class="btns"><span class="bt p">Send to client</span><span class="bt q">Edit</span><span class="bt q">…</span></div></div>
+<div class="ctl"><span class="bt">Week · Oct 12 to 18 ⌄</span><span class="bt q">Weekly</span><span class="bt q">Monthly</span><span class="bt q" style="margin-left:auto;color:#EBBF63">Draft · not sent</span></div>
+<div class="tiles">
+<div class="tile"><div class="l">Revenue</div><div class="v">$10,039 <span class="d dn">▼ 14%</span></div><div class="s">vs last week $11,666</div><div class="spark"></div></div>
+<div class="tile"><div class="l">Ad spend</div><div class="v">$5,234 <span class="d nt">▼ 2%</span></div><div class="s">vs last week $5,355</div><div class="spark"></div></div>
+<div class="tile"><div class="l">MER</div><div class="v">1.92x <span class="d dn">▼ 12%</span></div><div class="s">goal 2.50x</div><div class="spark"></div></div>
+<div class="tile"><div class="l">Contribution margin</div><div class="v">$1,788 <span class="d dn">▼ 11%</span></div><div class="s">18% of revenue</div><div class="spark"></div></div>
+</div>
+<div class="card"><div class="ch"><b>In one sentence</b><span>Cole, Mon Oct 20</span></div><div style="font-size:13px">Sales were down 14% on a quiet week with no launch; Meta held 1.98x and the Creator campaign carried it at $69 a sale.</div></div>
+<div class="two"><div class="card"><div class="ch"><b>This week</b><span>from the Monday call</span></div><div class="row"><span class="tick"></span><span class="t">Three Black Wedge statics go live Thursday</span><span class="m">brief #442</span></div><div class="row"><span class="tick"></span><span class="t">Early Bird: towel with any club, Nov 1</span><span class="m">Calendar</span></div><div class="row"><span class="tick" style="background:#5FD292;border-color:#5FD292"></span><span class="t" style="color:#8E8E9A;text-decoration:line-through">Cut the Trybe LGP02 set</span><span class="m">done Oct 19</span></div></div>
+<div class="card"><div class="ch"><b>From you</b><span>Requests</span></div><div class="row"><span class="t">Photos of the new white-background polos</span><span class="m late">asked Oct 13 · due Oct 22</span></div><div class="row"><span class="t">OK on the Early Bird offer</span><span class="m">asked Oct 20</span></div></div></div>
+<div class="card"><div class="ch"><b>Best and worst ads</b><span>of the 7 that spent $109 or more · tap to open</span></div><div class="ads"><div class="ad"><div class="pic"><span class="tag scale">2.46x</span></div><div class="in"><b>Trybe | Partnerships</b><span>$180 spent</span></div></div><div class="ad"><div class="pic"><span class="tag scale">1.98x</span></div><div class="in"><b>Black Wedges - 42</b><span>$151 spent</span></div></div><div class="ad"><div class="pic"><span class="tag cut">0.84x</span></div><div class="in"><b>Trybe | LGP02</b><span>$227 spent</span></div></div><div class="ad"><div class="pic"><span class="tag cut">no sale</span></div><div class="in"><b>Black Wedges - 7</b><span>$313 spent</span></div></div></div></div>
+<div class="row" style="border:0;color:#A9C4FF;font-weight:600">More detail: day by day, customers, Meta, Google, email, changes ⌄</div>
+</div></div>
+<p class="cap">Four numbers with one comparison, the human sentence, This week (fed by the Monday call, with ticks that reflect Tasks), From you, and the ads as cards that open the ad panel. The six remaining sections fold under More detail. Same shape for the client's copy.</p>
+</div></div>
+
+<h3 id="m-tasks">Work › Tasks (Agency view)</h3>
+<div class="mock-pair">
+<div class="before"><p class="mk-lbl">Before</p><img src="shots/d-ag-tasks.jpg" alt="Tasks today"></div>
+<div><p class="mk-lbl after">After</p>
+<div class="app"><div class="main" style="position:relative;padding-right:16px">
+<div class="hdr"><div><div class="crumb">Work</div><div class="t"><em>Tasks</em></div></div><div class="btns"><span class="bt p">+ Task</span><span class="bt q">…</span></div></div>
+<div class="tabs"><span>Meetings</span><span class="on">Tasks</span><span>Production</span></div>
+<div class="ctl"><span class="bt" style="background:#F2F2F4;color:#131316;border-color:#F2F2F4">List</span><span class="bt q">Board</span><span class="bt q">Calendar</span><span style="width:1px;height:18px;background:#2A2A31;margin:0 4px"></span><span class="bt">Group: Due ⌄</span><span class="bt">All brands ⌄</span><span class="bt">All areas ⌄</span><span class="bt q">Only mine</span></div>
+<div class="card" style="padding:4px 12px"><div class="sec"><div class="sh" style="padding:6px 0 2px"><b style="color:#F09182">Late · 1</b></div></div><div class="row"><span class="tick"></span><span class="t">Cut it and update in Asana</span><span class="tag">Grunk Dolfer</span><span class="av"></span><span class="m late">Oct 17</span></div>
+<div class="sec"><div class="sh" style="padding:10px 0 2px"><b>This week · 3</b></div></div><div class="row"><span class="tick"></span><span class="t">Film more giveaway videos in different scenes</span><span class="tag">Dartee Golf</span><span class="av"></span><span class="m">Thu</span></div><div class="row"><span class="tick"></span><span class="t">Send the white-background polo photos to William</span><span class="tag">Lucky Golf</span><span class="av"></span><span class="m">Fri</span></div><div class="row"><span class="tick"></span><span class="t">Add 10 negative searches on Google</span><span class="tag">Lucky Golf</span><span class="av"></span><span class="m">Fri</span></div>
+<div class="sec"><div class="sh" style="padding:10px 0 2px"><b style="color:#8E8E9A">Done this week · 31</b><span>Show</span></div></div></div>
+<div class="peek"><div class="sec"><div class="sh"><b>Add 10 negative searches on Google</b><span>✕</span></div></div><div class="src"><i class="auto"></i>From the leak finder · Searches to block · Oct 19</div><div class="field"><span>Who</span><span class="who"><i></i>Radhesh</span></div><div class="field"><span>Due</span><b>Fri, Oct 24</b></div><div class="field"><span>Brand</span><b>Lucky Golf</b><span style="margin-left:auto">Area</span><b>Ads</b></div><div style="font-size:11.5px;color:#B4B4BE">Ten searches with nothing to do with Lucky Golf spent $19 with no conversion. Add them as negatives on Shopping | Putters.</div><div class="btns"><span class="bt p">Open the leak</span><span class="bt">Mark done</span><span class="bt q" style="color:#F09182">Drop</span></div></div>
+</div></div>
+<p class="cap">The six controls became four pills. Sections carry their count. The task opens as the side panel (same panel as everywhere) and shows where it came from with a link back to the leak; the leak shows the task's state.</p>
+</div></div>
+
+<h3 id="m-call">Work › Meetings › Monday call (one brand step)</h3>
+<div class="mock-pair">
+<div class="before"><p class="mk-lbl">Before</p><img src="shots/d-monday-bonk.jpg" alt="Monday call today"></div>
+<div><p class="mk-lbl after">After</p>
+<div class="app"><div class="main" style="position:relative">
+<div class="hdr"><div><div class="crumb">Work · Meetings · Monday call</div><div class="t"><em>Dartee</em> Golf <span style="font-size:11px;color:#EBBF63;font-weight:600;margin-left:6px">needs attention</span></div></div><div class="btns"><span class="bt q">Present</span><span class="bt q">…</span></div></div>
+<div class="steps"><span class="done">✓ Start</span><span class="on">Dartee</span><span>Bonk</span><span>Ice &amp; Gold</span><span>Lucky</span><span>Party Patch</span><span>+4</span><span style="border:0;color:#5E5E6A">→ Finish</span></div>
+<div class="two">
+<div class="card"><div class="sec"><div class="sh"><b>How last week went</b><span>vs the week before</span></div></div><div class="tiles" style="grid-template-columns:repeat(3,1fr);margin-top:6px"><div class="tile" style="padding:7px 9px"><div class="l">Sales</div><div class="v" style="font-size:15px">$8,257 <span class="d dn">▼ 27%</span></div></div><div class="tile" style="padding:7px 9px"><div class="l">MER</div><div class="v" style="font-size:15px">1.72x <span class="d dn">goal 2.5</span></div></div><div class="tile" style="padding:7px 9px"><div class="l">Cost per new customer</div><div class="v" style="font-size:15px">$35 <span class="d dn">▲ 31%</span></div></div></div><div class="ads" style="margin-top:8px;grid-template-columns:repeat(3,1fr)"><div class="ad"><div class="pic"><span class="tag scale">1.71x</span></div><div class="in"><b>299 - 2 | Still</b><span>$140</span></div></div><div class="ad"><div class="pic"><span class="tag cut">0.0x</span></div><div class="in"><b>235 B | Still</b><span>$366</span></div></div><div class="ad"><div class="pic"><span class="tag cut">0.71x</span></div><div class="in"><b>242 C | Still</b><span>$547</span></div></div></div></div>
+<div class="card"><div class="sec"><div class="sh"><b>Last week's to-dos</b><span>from Tasks</span></div></div><div class="row"><span class="tick" style="background:#5FD292;border-color:#5FD292"></span><span class="t" style="text-decoration:line-through;color:#8E8E9A">Film more giveaway videos</span></div><div class="row"><span class="tick"></span><span class="t">Fill out the brand voice questionnaire</span><span class="m late">late</span></div><div class="sec" style="margin-top:8px"><div class="sh"><b>Noma's plan</b><span>Slack, Mon 5:42 AM · open</span></div></div><div style="font-size:11.5px;color:#B4B4BE">Batch 1 Giveaway: Win 25 belts for you and 25 for your buddy. Batch 2 Lizard drop for existing owners…</div></div>
+</div>
+<div class="card"><div class="sec"><div class="sh"><b>New ads to make this week</b><span>each row becomes a brief on Production when you finish</span></div></div>
+<div class="row"><span class="tick" style="background:#8FB3FF;border-color:#8FB3FF"></span><span class="t">Game of Belts giveaway ads, 3 concepts</span><span class="who"><i></i>Noma</span><span class="bt q" style="padding:2px 7px">Fri Oct 24 ⌄</span><span class="m">✕</span></div>
+<div class="row"><span class="tick" style="background:#8FB3FF;border-color:#8FB3FF"></span><span class="t">Lizard drop ads for 3-to-6 belt owners, 3 concepts</span><span class="who"><i></i>Noma</span><span class="bt q" style="padding:2px 7px">Nov 30 ⌄</span><span class="m">✕</span></div>
+<div class="field" style="margin-top:6px">+ Add a batch, written the way you would say it</div>
+<div class="row" style="border:0"><span class="t" style="color:#8E8E9A">Already being made · 12</span><span class="m">DG #389 October Giveaway · DG #385 UGC Template · +10 ⌄</span></div></div>
+<div class="two">
+<div class="card"><div class="sec"><div class="sh"><b>Tell the client</b><span>goes under "This week" in their report</span></div></div><div class="field" style="min-height:44px;align-items:flex-start">Three giveaway videos go live Thursday.<br>Early Bird offer starts Nov 1.</div></div>
+<div class="card"><div class="sec"><div class="sh"><b>New to-dos</b><span>go to Tasks</span></div></div><div class="field">Ahsan pause the retargeting ad set Friday</div><div class="row" style="border:0"><span class="tick"></span><span class="t">Ask Dartee for the belt photos by Oct 22</span><span class="tag">Request</span></div></div>
+</div>
+<div class="fbar"><span class="bt q">← Back</span><span style="color:#8E8E9A">Brand 1 of 9</span><span class="clock">6:40 left</span><span class="bt p">Next: Bonk →</span><span class="fin">Finish will make 2 briefs, 1 task, 1 request and post the recap</span></div>
+</div></div>
+<p class="cap">Steps fit on one line with a count and a visible Finish. Every section says in its caption where it goes, not with a tag. Numbers are tiles, ads open the ad, to-dos tick, the Slack post is a link. Rows use the owner pill and date popover from Tasks, the "already being made" cards open. The bar at the bottom says what Finish will do, on every step.</p>
+</div></div>
+
+<h3 id="m-social">Social › Watch</h3>
+<div class="mock-pair">
+<div class="before"><p class="mk-lbl">Before</p><img src="shots/d-social.jpg" alt="Social today"></div>
+<div><p class="mk-lbl after">After</p>
+<div class="app"><div class="main">
+<div class="hdr"><div><div class="crumb">Social</div><div class="t"><em>Social</em>: Lucky Golf</div></div><div class="btns"><span class="bt p">+ Post</span><span class="bt q">Follow a brand</span><span class="bt q">…</span></div></div>
+<div class="tabs"><span class="on">Watch</span><span>Saved <span class="tag" style="margin-left:3px">3</span></span><span>Scripts</span><span>Week</span><span>Results</span></div>
+<div class="ctl"><span class="bt" style="background:#F2F2F4;color:#131316;border-color:#F2F2F4">Breaking out · 15</span><span class="bt q">Everything · 149</span><span style="width:1px;height:18px;background:#2A2A31;margin:0 4px"></span><span class="bt">Takomo, Vice, Bad Birdie + topic ⌄</span><span class="bt">All platforms ⌄</span><span class="bt">30 days ⌄</span><span class="bt q" style="margin-left:auto">Search</span></div>
+<div class="strip" style="border-left-color:#5B8DEF"><b>Trending for you:</b><span style="color:#B4B4BE">"The Less I Know The Better" · #golfinstruction · wedge play</span><span class="go">Use a sound →</span></div>
+<div class="posts">
+<div class="post"><div class="top"><span class="tag">TikTok</span><span class="tag scale">1388x</span></div><div class="bot"><b>@shi.golf · 12k views</b><span>The art of the pitching wedge</span></div></div>
+<div class="post"><div class="top"><span class="tag">Short</span><span class="tag scale">39x</span></div><div class="bot"><b>Vice Golf · 55k</b><span>Range day</span></div></div>
+<div class="post"><div class="top"><span class="tag">TikTok</span><span class="tag scale">12x</span></div><div class="bot"><b>@golfersguide17 · 2.4k</b><span>Why your wedge won't check</span></div></div>
+<div class="post"><div class="top"><span class="tag">Reel</span><span class="tag watch">4x</span></div><div class="bot"><b>Takomo · 31k</b><span>Forged vs cast</span></div></div>
+<div class="post"><div class="top"><span class="tag">TikTok</span><span class="tag watch">3x</span></div><div class="bot"><b>@golf.geometry · 9k</b><span>Why does a 56 fly…</span></div></div>
+</div>
+<div class="card" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px"><div><div style="font-weight:650;font-size:12px">Save it</div><div class="src">Star on the card. Saved is a tab, and a saved post can go to a brief or a script.</div></div><div><div style="font-weight:650;font-size:12px">Script it</div><div class="src">Open a post, press Script: the beats (hook, setup, demo, payoff) in Lucky's voice, saved under Scripts, sent to Production or the creator link.</div></div><div><div style="font-weight:650;font-size:12px">Recreate it</div><div class="src">Make ours → a Production card with the post attached; its launch date lands on Week and the Calendar.</div></div></div>
+</div></div>
+<p class="cap">The jobs are the tabs (Watch, Saved, Scripts, Week, Results). The first screen is posts, with the outlier multiple as the one number on each card. Filters are three pills; the six labelled selects, the credits warning and the "Doing well lately" line are gone or folded into the strip. The teardown of Later, Sandcastles and Virlo in Cole's Chrome feeds the next revision of this screen.</p>
+</div></div>
+
+<h3 id="m-phone">The iPhone shell</h3>
+<div class="col"><p>Left: Home today at 390px. Middle: Home on the kit. Right: the same page with the period sheet open. The rule is that a phone page is a list of things you can tap, with one header row, not the desktop page stacked.</p></div>
+<div class="phones">
+<div><p class="mk-lbl">Before</p><img src="shots/p-overview.jpg" alt="Home on iPhone today" style="width:100%;max-width:260px;margin:0 auto;display:block;border:1px solid var(--line);border-radius:22px"></div>
+<div><p class="mk-lbl after">After</p><div class="phone"><div class="scr">
+<div class="top"><b>Home</b><span class="pk">Lucky Golf ⌄</span></div>
+<div class="seg"><span class="on">Overview</span><span>Day check</span><span>Leaks · 12</span><span>P&amp;L</span><span>Goals</span></div>
+<div class="body">
+<div class="hero"><div class="l">Yesterday · Mon Oct 19</div><div class="v">You <em>actually</em> kept $652</div><div class="bars"><i style="width:44%;background:#5B8DEF"></i><i style="width:23%;background:#B5761A"></i><i style="width:17%;background:#E3653D"></i><i style="width:12%;background:#27A392"></i><i style="width:4%;background:#8F72E8"></i></div><div class="s">on $1,461 of sales · a normal day keeps $311</div></div>
+<div class="list"><div class="li"><span class="t"><b>10 ad sets to change</b></span><span class="m">Today's calls</span><span class="chev">›</span></div><div class="li"><span class="t"><b>Leaking $55.7K a month</b></span><span class="m">12 leaks</span><span class="chev">›</span></div><div class="li"><span class="t"><b>Early Bird goes live</b></span><span class="m">Nov 1</span><span class="chev">›</span></div></div>
+<div class="list"><div class="li"><span class="t">Revenue <span class="m">7 days</span></span><b>$10.9K</b><span class="m" style="color:#5FD292">▲ 4%</span></div><div class="li"><span class="t">Orders</span><b>58</b><span class="m" style="color:#F09182">▼ 5%</span></div><div class="li"><span class="t">Ad spend</span><b>$3,721</b><span class="m">▼ 30%</span></div><div class="li"><span class="t">MER</span><b>2.93x</b><span class="m" style="color:#5FD292">▲ 50%</span></div></div>
+</div>
+<div class="tb"><span class="on"><i></i>Home</span><span><i></i>Ads</span><span class="ask"><i></i>Ask</span><span><i></i>Work</span><span><i></i>More</span></div>
+</div></div></div>
+<div><p class="mk-lbl after">After, a sheet open</p><div class="phone"><div class="scr">
+<div class="top"><b>Home</b><span class="pk">Lucky Golf ⌄</span></div>
+<div class="seg"><span class="on">Overview</span><span>Day check</span><span>Leaks · 12</span><span>P&amp;L</span></div>
+<div class="body"><div class="hero"><div class="l">Yesterday · Mon Oct 19</div><div class="v">You <em>actually</em> kept $652</div></div></div>
+<div class="tb"><span class="on"><i></i>Home</span><span><i></i>Ads</span><span class="ask"><i></i>Ask</span><span><i></i>Work</span><span><i></i>More</span></div>
+<div class="scrim"></div>
+<div class="sheet"><b>Period</b><div class="opt">Today</div><div class="opt">Yesterday</div><div class="opt on">Last 7 days <span>✓</span></div><div class="opt">Last 30 days</div><div class="opt">Month to date</div><div class="opt">Custom…</div><div class="opt" style="color:#8E8E9A">Compare with the period before <span>✓</span></div></div>
+</div></div></div>
+</div>
+<div class="col"><ul class="list" style="font-size:14px"><li><b>Header</b> is one 44px row: the title and the client pill. Period and attribution live in the "..." sheet and as a pill on pages where they matter, never a second row.</li><li><b>Tabs</b> are a scrolling pill row, the open one centred.</li><li><b>Everything is a row</b> you can tap. Numbers are rows with a value and a delta, not two-column tiles with four-line captions. Tables become card rows under 600px.</li><li><b>Sheets</b> for period, attribution, filters, menus, detail; detail is a full-height sheet with the panel's content.</li><li><b>Ask</b> stays the middle tab. Work for the team, Store for a client.</li><li><b>Motion:</b> sheets spring up in 240ms and follow the finger down; the tab bar never animates; pages cross-fade in 150ms.</li></ul></div>
+
+<h2 id="voice">Copy <em>voice</em></h2>
+<div class="col">
+<p>Rules, then examples from the screens. The voice is a strategist talking to a colleague: short, specific, in Cole's vocabulary (CPA, ROAS, spend, ad set), never explaining what Locus is doing on its own behalf.</p>
+<ol class="list" style="font-size:14px">
+<li><b>Labels, not sentences.</b> A section title is two to four words. The caption under it is at most one line and says where the thing goes or came from, not how to use it.</li>
+<li><b>Placement says the source.</b> What Locus filled in reads as content. What you type is a field with a placeholder. No "Automatic / From Slack / You add" tags.</li>
+<li><b>Instructions live in the control.</b> The placeholder says what to type ("Ahsan pause the retargeting ad set Friday"), the button says what happens ("Make 2 briefs"). Not a paragraph above the box.</li>
+<li><b>Never narrate the system.</b> Cut "Locus works out who and when", "nothing is written before that", "Locus reads the numbers and answers in plain words", "numbers refresh hourly". The product does its job quietly; Metrics explains it when asked.</li>
+<li><b>One comparison per number.</b> "$10,039, down 14% on last week." Not forecast and prior week and plan.</li>
+<li><b>Say the thing, then the source once.</b> "Cart to checkout on phones is 28%; 45% is normal (Littledata, Oct 2026)." Not a "Measured / Good looks like / Suggestion / who" ladder.</li>
+<li><b>No chip under a chip.</b> One status per card, one per row. The rest is in the panel.</li>
+<li><b>Empty states are one line with one verb.</b> "No requests yet. Send something for approval." Not a dashed box.</li>
+<li><b>The brand's name once per screen</b>, in the title. Not in every caption ("for Lucky Golf", "Lucky Golf's", "across Lucky Golf").</li>
+</ol>
+<h3>Examples</h3>
+<div class="copy-pair"><div>What the media buyer changes today, ad set first. Ranked by money at stake. Judged on Triple Whale last platform click, Oct 13 to Oct 19, with each brand's Ads rules.</div><div>11 calls · ranked by money at stake · <a href="#">how calls are judged</a></div></div>
+<div class="copy-pair"><div>You add · Optional · Anything someone has to do that is not an ad. Type it the way you would say it and press Enter. Locus works out who and when. They go on Tasks when you press Finish.</div><div><b>New to-dos</b> <small>go to Tasks</small><br><i>Ahsan pause the retargeting ad set Friday</i></div></div>
+<div class="copy-pair"><div>Where Lucky Golf is losing money · 12 leaks · last 30 days · numbers refresh hourly · Lucky Golf's biggest leak looks like the phone shopping experience (product pages and cart) rather than any single ad, so I'd suggest fixing that first and being careful about cutting Meta openers or Google video until the site is ruled out. Each leak is priced on its own. They overlap (a better cart page also lifts checkout), so do not add them up.</div><div>Leaking about $55.7K a month in 12 places. The biggest is the phone cart: fix that before cutting Meta openers.</div></div>
+<div class="copy-pair"><div>What the brands you follow post on Instagram, TikTok and YouTube, the posts doing far better than usual, and our own version of any of them.</div><div>15 posts breaking out this week</div></div>
+<div class="copy-pair"><div>Today so far against the brand's own last 28 days, scaled to this hour by its hourly curve. Store money is Triple Whale (revenue = total sales less tax, paid orders); Meta numbers are spend and price per 1,000 views only. Cached 10 minutes. As of 7:51 AM Central.</div><div>Nothing unusual so far today <small>· 7:51 AM</small></div></div>
+<div class="copy-pair"><div>Nothing waiting. Locus reads every Fireflies meeting within the hour.</div><div>No meetings waiting on you.</div></div>
+</div>
+
+<h2 id="phases">Build <em>order</em></h2>
+<div class="col"><p>Phases 1, 2, 3, 5 and 6 are built in one pull request (no worker changes; every old page id still routes; AGENCY_ONLY / VIEW_BOTH unchanged). Phase 4 (Social) is the sibling session's branch. The iPad icon rail (56px, expands over the page from the logo) is in too. Left for a worker change later: call lines feeding the Daily Brief's "What we're doing", and "Open the call" from a leak. Cole tests everything at the end.</p></div>
+<div class="phase"><div class="num">1</div><div><h3>The shell and the kit <span class="st">built</span></h3><p>Tokens, type scale, spacing and radius; the page header with actions in the page; one tab style; the control bar with the platform jobs as a segment; the strip; the side panel and bottom sheet as one primitive; the rail tightens on short windows (the 56px icon rail for iPads is phase 2, with the iPad pass); the phone page header, the "..." menu as a bottom sheet, and card rows. Home and Meta migrated as the proof, leaks as a strip on both and the Leaks tab under Home.</p><ul><li>New: <code>profit/lx.css</code>, <code>profit/lx.js</code>. Touched: index.html (pageHead, rail, phone bar), v2.js (home, meta), leaks.js (strip + list + panel), phone.css.</li><li>Checked at 1280, 768 and 390 on the local workers with real data; Agency view and Lucky; dark and light. After-screenshots are in the pull request.</li></ul></div></div>
+<div class="phase"><div class="num">2</div><div><h3>Work: Tasks, Meetings, the call screens, Production card</h3><p>Tasks on the kit (four pills, side panel instead of the modal, board hides empty columns). The three call screens rebuilt on the section component with the owner pill and date popover, steps on one line, Finish's effects on the bar, every item opening its object, kickoff saying who receives it. Production's card sheet on the same controls.</p><ul><li>callscreen.js, calls.js, tasks.js, prodsheet.js, production.js, account-health callscreen.js (Finish writes the brief link and the call id onto each task and card).</li></ul></div></div>
+<div class="phase"><div class="num">3</div><div><h3>Reports and the connective tissue</h3><p>The weekly and monthly report page on the reporting audit's shape (4 numbers, one sentence, three lists, ads as cards, More detail). The ad panel opens from every ad name in Locus: reports, calls, leaks, tasks, Production, Daily Brief. Call lines feed the Daily Brief's "What we're doing". Leaks get Make it a task and Open the call.</p><ul><li>index.html (renderReports, brief), v2.js (playAd as the shared panel), leaks.js, account-health reports.js, briefs.js, leaks.js.</li></ul></div></div>
+<div class="phase"><div class="num">4</div><div><h3>Social, rebuilt around the jobs</h3><p>Watch, Saved, Scripts, Week, Results as tabs; posts first; three filter pills; Script as a first-class object sent to Production or the creator link; Make ours attaches the post to the card; Week's tray is Production's Ready cards; the phone Week is a day list. Folds in the Later, Sandcastles and Virlo teardown.</p><ul><li>social.js, socialweek.js, account-health social.js (scripts table), calendar.js (posts from cards).</li></ul></div></div>
+<div class="phase"><div class="num">5</div><div><h3>Every other page onto the kit</h3><p>Day check, P&L, Goals, Requests, All channels, Google (five pages), Email, Store (four), Products (three), Creative (Studio, Words, Library, Inspiration, Creators), Brand (three), Calendar, Black Friday (three), Tools (four), Settings (both), How to use Locus, Dashboards, Daily Brief. Mostly CSS and copy: explanations to Metrics, actions to the header, chips to two, tables to card rows on phones, native controls out.</p></div></div>
+<div class="phase"><div class="num">6</div><div><h3>Find, motion and the phone pass</h3><p>Cmd+K that reaches ads, tasks, posts and briefs. The motion rules applied once in lx.css. A page-by-page phone pass on a real iPhone and iPad with Cole's screenshots, and the installed-app blur and band checked again.</p></div></div>
+
+<h2 id="trials">Trials for Cole to <em>open</em></h2>
+<div class="col"><p>Later, Sandcastles and Virlo were clicked through in Chrome by the sibling session (findings folded into the Social screen above). For the rest of the audit, these in priority order; each is 20 minutes of clicking that turns a marketing screenshot into a real pattern:</p>
+<ol class="list" style="font-size:14px">
+<li><b>Motion</b> (motionapp.com): the creative drawer and the "by format / by angle" rollups are the model for Meta › Ads and Tests and angles.</li>
+<li><b>Polar Analytics</b>: saved views, the compare pill and the column chooser for every Locus table.</li>
+<li><b>Triple Whale</b> (Cole has it): the new Summary with Pins and the mobile app's shell, for Home and the phone.</li>
+<li><b>Linear</b> (free): the side peek, the command palette and the motion; the standard for "a very good company".</li>
+<li><b>Attio</b> (free trial): the settings page and record side peek, for Settings and the task panel.</li>
+</ol>
+<p>Not needed: Northbeam (docs are enough), Mercury (banking, patterns already captured), Asana and Notion (Cole uses both).</p>
+</div>
+
+<h2>Not <em>checked</em></h2>
+<div class="col"><ul class="list" style="font-size:14px"><li>Screens that need a state I could not reach signed in as Cole: the review viewer (no card with an uploaded version), Launch to Meta, New client, the client-login rail (checked in code and in the last session's notes, not clicked), the public share pages.</li><li>A real iPhone and iPad. The 390 and 1024 frames emulate size, not Safari.</li><li>TikTok pages (hidden for Lucky). Dartee was used for the Monday call step only; its other pages share Lucky's layouts.</li></ul></div>
+
+<p class="muted" style="margin-top:40px;font-size:12.5px">Sources: 123 screenshots in docs/locus-audit/shots; research with URLs in docs/locus-audit/research/patterns.md; the earlier audits (spec-v2, the structure audit, the phone pass, the tasks audit, the reporting audit) were read and not redone. Phase 1 branch: claude/locus-ux-audit-f834ed.</p>
+</div>

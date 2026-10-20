@@ -11,6 +11,8 @@
  * Where items go (account-health meetings.js confirm): Mobius does -> Tasks (p_action, with its area); New ads -> a
  * numbered brief in Asana and its card on Production; Client does -> the client's Requests and the report's "What we need
  * from you"; Client reads -> the weekly report's "This week".
+ * 2026-10-20, the Locus kit: the page header is the host's (pageHead; the Brand menu goes through pageActions), the
+ * "Run a call" cards are one row of three kit cards with a one-line caption each, the inbox and History as before.
  * Classic script, own closure; the host hands in S, api, apiAH, show, pageHead, RUN. window.CallsTab = { render }.
  */
 (() => {
@@ -49,8 +51,8 @@
       .cl .cl-head h1{font-size:22px;font-weight:700;margin:0;color:var(--ink)}
       .cl .cl-head p{color:var(--ink-2);margin:4px 0 0;font-size:13.5px;max-width:640px}
       .cl .muted{color:var(--muted)}
-      .cl .cl-menu{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-      .cl .cl-menu span{color:var(--muted)}
+      .cl-menu{height:var(--ctl-h,32px);padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+      .cl-menu span{color:var(--muted);font-weight:500}
       .cl .cl-st{display:flex;align-items:center;gap:8px;margin-top:4px}
       .cl .cl-st b{font-weight:600;color:var(--ink);font-size:14px}
       .cl .cl-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap}
@@ -59,11 +61,10 @@
       .cl .cl-card.open{border-color:var(--line-strong)}
       .cl .cl-card.ring{box-shadow:0 0 0 2px var(--brand)}
       .cl .cl-run-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-      .cl .cl-run-b{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
-      .cl .cl-run-b:hover{border-color:var(--brand)}
-      .cl .cl-run-b b{font-size:15px;font-weight:650;color:var(--ink)}
-      .cl .cl-run-b span{font-size:13px;color:var(--ink-2);line-height:1.4}
-      .cl .cl-run-b small{font-size:11.5px;color:var(--muted);margin-top:4px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+      .cl .cl-run-b{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:3px;min-width:0;font:inherit;cursor:pointer;transition:border-color var(--t-fast,120ms) var(--ease,ease)}
+      .cl .cl-run-b:hover{border-color:var(--line-strong)}
+      .cl .cl-run-b b{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.005em}
+      .cl .cl-run-b span{font-size:12px;font-weight:500;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       @media (max-width:720px){.cl .cl-run-g{grid-template-columns:1fr}}
       .cl .cl-top{display:flex;align-items:flex-start;gap:14px;padding:14px 16px}
       .cl .cl-mark{width:34px;height:34px;border-radius:8px;background:var(--brand-soft);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
@@ -476,27 +477,26 @@
   }
   /* 2026-10-19: the call screens (callscreen.js). The Monday agenda block that sat here is the Monday call screen now. */
   function runHtml() {
-    const today = (D && D.today) || new Date().toISOString().slice(0, 10), dow = dt(today).getUTCDay();
-    const tip = dow === 1 ? 'Today, 8:00am' : 'Mondays, 8:00am';
-    const card = (k, title, sub, hint) => `<button class="cl-run-b" data-run="${k}"><b>${title}</b><span>${sub}</span><small>${hint}</small></button>`;
-    return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a call</b><span class="muted" style="font-size:13px">Share the screen and go top to bottom. Locus fills what it knows; type only what the call decides.</span></div>
-      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first: last week, the read, the plan', tip)}${card('client', 'Client call', 'One brand with the client watching: their news, the read, asks, what is coming', 'Pick the client')}${card('kickoff', 'Creative kickoff', 'Walk the design team through each brief before they build', 'Tuesday or Wednesday')}</div></section>`;
+    const card = (k, title, cap) => `<button type="button" class="cl-run-b" data-run="${k}"><b>${title}</b><span>${cap}</span></button>`;
+    return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a call</b></div>
+      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first')}${card('client', 'Client call', 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}</div></section>`;
   }
+  const head = () => H.pageHead ? H.pageHead('calls', 'Meetings') : '<div class="ph"><div><div class="ph-t">Meetings</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>';
+  const acts = html => { if (typeof window.pageActions === 'function') window.pageActions(html); };
   function paint() {
     closePop();
     const pend = D.pending.filter(inBrand), hist = D.meetings.filter(m => m.status !== 'extracted').filter(inBrand);
     if (!OPEN || !pend.some(m => m.id === OPEN)) OPEN = pend.length ? pend[0].id : null;
     const ordered = [...pend.filter(m => m.id === OPEN), ...pend.filter(m => m.id !== OPEN)];
     const bname = BR === 'all' ? 'All brands' : brandName(BR);
-    $('#main').innerHTML = `<div class="v2 cl">
-      <header class="cl-head"><div><h1>Meetings</h1><p>Every recorded meeting, read by Locus. Tick what was really agreed and approve: it becomes tasks, briefs and asks. Nothing lives here.</p></div>
-        <button class="cl-menu" id="clBrand"><span>Brand</span> ${esc(bname)} ${ICON.chev}</button></header>
+    $('#main').innerHTML = `${head()}<div class="v2 cl">
       ${runHtml()}
-      <div class="cl-st"><b>Waiting on your OK</b><span class="cl-tag warn">${pend.length}</span><span class="muted" style="font-size:13px">Unticked rows are dropped. "Maybe" rows start unticked: Locus heard the idea, not a commitment.</span></div>
-      ${pend.length ? ordered.map(m => `<div data-slot="${esc(m.id)}"></div>`).join('') : `<section class="cl-card"><div class="cl-empty">Nothing waiting. ${D.connected ? 'Locus reads every Fireflies meeting within the hour.' : 'Fireflies is not connected (FIREFLIES_API_KEY on the account-health worker).'}</div></section>`}
-      <div class="cl-st" style="margin-top:6px"><b>History</b><span class="muted" style="font-size:13px">What each meeting turned into</span><span style="flex:1"></span>${D.connected ? '<button class="cl-link" id="clPoll">Check Fireflies now</button>' : ''}</div>
+      <div class="cl-st"><b>Waiting on your OK</b><span class="cl-tag warn">${pend.length}</span><span class="muted" style="font-size:12px">Untick what was not agreed. Maybe rows start unticked.</span></div>
+      ${pend.length ? ordered.map(m => `<div data-slot="${esc(m.id)}"></div>`).join('') : `<section class="cl-card"><div class="cl-empty">${D.connected ? 'Nothing waiting.' : 'Connect Fireflies to read calls.'}</div></section>`}
+      <div class="cl-st" style="margin-top:6px"><b>History</b><span class="muted" style="font-size:12px">What each meeting turned into</span><span style="flex:1"></span>${D.connected ? '<button class="cl-link" id="clPoll">Check Fireflies now</button>' : ''}</div>
       <section class="cl-card" id="clHist">${historyHtml(hist)}</section>
     </div>`;
+    acts(`<button type="button" class="cl-menu" id="clBrand"><span>Brand</span> ${esc(bname)} ${ICON.chev}</button>`);
     for (const m of ordered) {
       const slot = $(`[data-slot="${CSS.escape(m.id)}"]`), card = CARDS[m.id];
       slot.innerHTML = m.id === OPEN ? cardHtml(card) : oneHtml(m);
@@ -513,7 +513,7 @@
       }
       if (window.CallScreen) window.CallScreen.open(H, x.dataset.run, x.dataset.run === 'client' ? (BR !== 'all' ? BR : '') : ''); else toast('The call screen did not load. Hard-refresh (Ctrl+Shift+R).');
     });
-    const b = $('#clBrand'); b.onclick = () => listMenu(b, 'Brand', [{ v: 'all', label: 'All brands', on: BR === 'all' }, ...(D.brands || []).map(x => ({ v: x.act_id, label: x.name, on: BR === x.act_id }))], v => { BR = v; paint(); });
+    const b = $('#clBrand'); if (b) b.onclick = () => listMenu(b, 'Brand', [{ v: 'all', label: 'All brands', on: BR === 'all' }, ...(D.brands || []).map(x => ({ v: x.act_id, label: x.name, on: BR === x.act_id }))], v => { BR = v; paint(); });
     const poll = $('#clPoll'); if (poll) poll.onclick = async () => { poll.disabled = true; poll.textContent = 'Checking...'; try { const r = await post('/api/meetings/poll', {}); await load(); paint(); toast(r.read && r.read.length ? `Read ${plural(r.read.length, 'new call')}.` : r.errors && r.errors.length ? `Fireflies: ${r.errors[0].error}` : 'Nothing new on Fireflies.'); } catch (e) { toast(e.message); poll.disabled = false; poll.textContent = 'Check Fireflies now'; } };
     const sm = $('#clShowMon'); if (sm) sm.onclick = async () => { AGENDA = true; sm.disabled = true; if (!MON) await loadMonday(); paint(); };
     const hm = $('#clHideMon'); if (hm) hm.onclick = () => { AGENDA = false; paint(); };
@@ -532,11 +532,11 @@
     if (window.ProdSheet && !(host.S && host.S.client)) await window.ProdSheet.photos(host).catch(() => {});
     H = host; css(); BR = H.S.act || 'all';
     const t = H.RUN();
-    if (first || !D) $('#main').innerHTML = '<div class="v2 cl"><header class="cl-head"><div><h1>Meetings</h1><p>Loading the meetings...</p></div></header></div>';
+    if (first || !D) { $('#main').innerHTML = `${head()}<div class="v2 cl"><section class="cl-card"><div class="cl-empty">Loading</div></section></div>`; acts(''); }
     const run = new URLSearchParams(location.search).get('call') || window.CALL_OPEN; window.CALL_OPEN = null;
     if (run && window.CallScreen) { try { const u = new URL(location.href); u.searchParams.delete('call'); history.replaceState(null, '', u); } catch {} return window.CallScreen.open(H, run, H.S.act && H.S.act !== 'all' ? H.S.act : ''); }
     try { await load(); }
-    catch (e) { if (t === H.RUN()) $('#main').innerHTML = `<div class="v2 cl"><header class="cl-head"><div><h1>Meetings</h1><p style="color:var(--bad)">${esc(e.message)}</p></div></header></div>`; return; }
+    catch (e) { if (t === H.RUN()) { $('#main').innerHTML = `${head()}<div class="v2 cl"><section class="cl-card"><div class="cl-empty" style="color:var(--bad)">${esc(e.message)}</div></section></div>`; acts(''); } return; }
     if (t !== H.RUN()) return;
     paint();
   }

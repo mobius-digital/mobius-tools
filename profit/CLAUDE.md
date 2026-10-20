@@ -3814,6 +3814,32 @@ calls" collided with Work > Calls. Findings and what changed: the audit page htt
   stays Agency view only (one call covers several brands). The hand-typed "BFCM ads: ..." rows were dropped: the
   Season page's to-do list derives the same deadlines from each phase's dates and moves with them.
 
+## 2026-10-20: THE LOCUS KIT, phase 1 of the UX audit (lx.css, lx.js). Read before adding a page header, a strip or a popover.
+
+Audit page (findings per screen, research, the system, before/after mocks, build order, trials):
+https://claude.ai/artifact/M5QhcBYdD8ueFq8LJPFYWa (source `docs/locus-audit/index.html`, screenshots in `docs/locus-audit/shots/`,
+research in `docs/locus-audit/research/`). Handoff: `docs/handoffs/locus-ux-audit.md`. Diagnosis in one line: Locus has no shared
+skeleton; every feature since the v3 shell brought its own page layout, filter form and card size.
+- **`profit/lx.css` is the look, `profit/lx.js` the behaviour.** lx.css loads after supply.css and BEFORE phone.css (phone rules stay
+  in phone.css, loaded last, Cole's rule). Tokens: radius `--r-xs 4 / --r-sm 6 / --r-md 6 / --r-lg 8 / --r-xl 12`, motion `--t-fast
+  120ms / --t 160ms / --t-panel 200ms / --t-sheet 240ms`, a type scale `--fs-*` (11 to 36), `--ctl-h 32px`, `--row-h 40px`, body 14px.
+- **The page header is ONE row**: crumb, 22px title (accent.js italic word), the page's own actions in `.ph-acts` (written by
+  `pageActions(html)` when the head exists, else `#hdActions` as before), the Export menu (share.js), and a `.ph-more` "..." button
+  whose popover holds the page purpose (TAB_PURPOSE) and Tour / Metrics / Help (their data-tour / data-gloss / data-help handlers are
+  unchanged, delegated on document). The subtitle under the title is hidden. On a phone the "..." menu opens in `LxPhone.open` (the
+  shared bottom sheet) as a clone of the menu node: never position a popover fixed inside `#main`, it carries a transform.
+- **Platform jobs (`#v2seg .v2jobs`) are a segmented control**, page tabs (`.v2tabs`) are underlined text; both restyled in lx.css only.
+- **The strip** (`LxKit.strip({tone, lead, n, text, fold, go, goLabel})` + `LxKit.wireStrip(host, onOpen)`): one 44px line with a
+  tone border (warn / bad / good / brand / quiet), a fold button that opens `.lx-strip-body` under it, and a go button. The leak
+  finder uses it: `LeaksCard.strip(host, H, page)` on Home (the brand's leaks to act on) and on Meta / Google / TikTok / Website / Email
+  (`mountLeaks` in v2.js prefers `strip` over `top`). The full list moved to **Home > Leaks** (`leaks` page id, VIEW_BOTH: one brand =
+  `LeaksCard.full` with every leak open, Agency view = `LeaksCard.brands`); Home's old 6-row card is gone, the strip links there.
+- **The side panel is shared**: `window.V2.panel(title, html)` / `V2.closePanel()` (v2.js's own panel, a bottom sheet on a phone),
+  wrapped as `LxKit.panel`. The rail tightens under 780px and 640px tall windows (`max-height` media rules) instead of scrolling.
+- **Not built in phase 1** (the audit's phases 2 to 6): the 56px icon rail for iPads, Tasks / Meetings / call screens on the kit, the
+  Reports and Social rebuilds, the copy pass, the iPad pass. The audit page lists them with the mocks.
+- Checked on the local trio with real data at 1280, 768 and 390, Agency view and Lucky, dark and light (Chrome in Cole's profile; the
+  Browser pane refused localhost that day). A new Chrome tab group starts with empty localStorage: set pf_worker / pf_ah / pf_token again.
 ## 2026-10-20: SOCIAL REDESIGN (social.js?v=4, socialweek.js?v=2). Supersedes the two Social sections above for the UI.
 
 Cole rejected the first UI (pills everywhere, bare selects, a side play button, one carousel slide, settings with token
@@ -3840,6 +3866,34 @@ work in its own Manage view. Screens before and after (desktop and phone): `docs
   ScrapeCreators. Deployed 2026-10-20. Verification was done by injecting the worktree files into Cole's signed-in Chrome
   (no sign-in from the built-in browser), desktop at 1280 and a 390px same-origin iframe for the phone.
 
+
+## 2026-10-20: THE LOCUS KIT, phases 2 to 6 (Work, Reports, Find, phone rows). Read before touching Tasks, the call screens, Production, Reports, the Brief or Dashboards.
+- **Page actions live in the header.** A page whose buttons already had handlers keeps those buttons in the DOM, hidden
+  (`<span hidden>` or the `.lx-tohead` / `.lx-tohead-bar` classes in lx.css), and the header buttons `press()` them by id
+  (Reports `data-rpa`, Brief `data-bfa`, Dashboards `data-dsa`). Add an action by adding the hidden original and a header
+  button that presses it, never by moving the handler. Call `pageActions()` AFTER the `innerHTML` paint: the kit's
+  `pageHead` draws the `.ph-acts` slot the actions go in.
+- **Reports** (`reportBodyHTML`): the first four `kpi()`s are the top row (`rp-four`), the rest go under `details.rp-more`
+  with the chart, pace, customers, attribution, Meta and changes. Best and worst ads (`adCardsHtml`) rank ads that spent by
+  ROAS under the model on the page; `RP_LAST` carries ads / act / currency / internal so `wireReportJump` can open an ad
+  in `V2.playAd` (internal) or `adDetailModal` (client archive). Both renderers set `RP_LAST` before `wireReportJump`.
+- **Find** (`askObjects`): open tasks and Production cards, read once per 5 minutes through `apiAH`, team only, matched by
+  name from two letters; kinds `task` (sets `ACT_OPEN`, switches brand, `show('tasks')`) and `brief` (`PD_CARD`,
+  `show('production')`).
+- **Leaks > Make it a task** (`leaks.js makeTask`): POST `/api/actions` with `source:'leak'` (falls back to `manual` if the
+  worker rejects the source), `detail` = number + fix; the toast's button opens Tasks with `ACT_OPEN`. Hidden for clients.
+- **Tasks / calls / Production on the kit**: each file draws its header with the host's `pageHead` and its one action with
+  `pageActions`; every control is a pill or segmented control opening the file's own menu (`LxPhone.open` on a phone),
+  never a native select; a task opens in `V2.panel`; the request bodies and `tk_prefs` / `pd_*` keys are unchanged.
+- **Phone rows** (phone.css, under 600px): `.v2tiles` is one column of 48px rows, `.v2tile:not(.hero)` is a two-column grid
+  (label, number + delta), `.sub` / `.v2spark` / `.v2bul` hidden, the hero tile keeps its card. A new tile needs nothing;
+  a tile that must stay a card on a phone gets `.hero`.
+- **The iPad icon rail** (lx.css, lx.js): `html.lx-irail` between 721 and 1180px; the rail is 56px of icons (titles are the
+  labels), `body.nav-open` expands it to 248px over the page with the old drawer's scrim; the logo, `#pfPickBtn` and
+  `#pfMeBtn` open it, a pick closes it, lx.js fires `resize` on `transitionend` so polish.js re-measures the sliding
+  highlight. Rail items need nothing new; keep labels inside the button's `<span>` so the collapsed rule hides them.
+- Not done, needs a worker change: call lines feeding the Brief's "What we're doing"; "Open the call" from a leak.
+  Phase 4 (Social) is in `claude/social-teardown-51ff4c`.
 ## 2026-10-20 (later): SOCIAL REBUILD to the teardown spec (social.js?v=5, socialweek.js?v=3). Supersedes the Social UI sections above.
 
 Spec: `docs/locus-social/teardown/spec.html` (page https://claude.ai/artifact/N3GWj34WJnJFjAYij5KKEh), from the Later,

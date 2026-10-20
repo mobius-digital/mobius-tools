@@ -1,0 +1,208 @@
+/* ==========================================================================
+   THE LOCUS KIT (2026-10-20, docs/handoffs/locus-ux-audit.md; the audit page:
+   https://claude.ai/artifact/M5QhcBYdD8ueFq8LJPFYWa).
+   Cole: "every new feature looks clunky and out of place", "produced by a very good company, in our own style".
+   One page anatomy, one type scale, one radius scale, one tab style, one strip, one menu. Loaded after v2.css and
+   before phone.css (phone rules stay in phone.css, which is loaded last). Tokens only. No em dashes.
+
+   Page anatomy, every page:
+     header row   crumb above a 22px title (one serif accent word), the page's actions on the right, then "..."
+                  (Tour, Metrics, Help and the page's purpose line live in that menu, not on the page)
+     tabs row     .v2tabs under the title (one style)
+     control bar  .v2jobs is a segmented control, beside the period and attribution pills
+     strip        .lx-strip: one line that needs attention (the biggest leak, the next date), folds, never stacks
+     content      the answer first (hero or tiles), chart, table, secondary cards
+     side panel   #v2panel (V2.panel) for any ad, task, post, leak; a full-height sheet on a phone
+   ========================================================================== */
+
+/* ---------- tokens: radius, motion, type ---------- */
+:root[data-ui="v2"]{
+  --r-xs:4px; --r-sm:6px; --r-md:6px; --r-lg:8px; --r-xl:12px; --r-pill:999px;
+  --t-fast:120ms; --t:160ms; --t-panel:200ms; --t-sheet:240ms;
+  --fs-micro:11px; --fs-meta:12px; --fs-cell:13px; --fs-body:14px; --fs-h3:15px; --fs-kpi:22px; --fs-title:22px; --fs-hero:36px;
+  --ctl-h:32px; --row-h:40px;
+}
+[data-ui="v2"] body{font-size:var(--fs-body);line-height:1.5}
+
+/* ---------- the page header ---------- */
+[data-ui="v2"] main .ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;
+  padding:0 0 12px;margin:6px 0 16px;border-bottom:1px solid var(--line)}
+[data-ui="v2"] main .ph > div:first-child{min-width:0;flex:1 1 320px}
+[data-ui="v2"] main .ph .ph-crumb{font-size:var(--fs-meta);color:var(--muted);margin-bottom:2px;line-height:1.3}
+[data-ui="v2"] main .ph .ph-crumb b{font-weight:500;color:var(--ink-2)}
+[data-ui="v2"] main .ph-t,[data-ui="v2"] main h2.ph-t{font-family:var(--sans);font-size:var(--fs-title);font-weight:650;line-height:1.25;letter-spacing:-.015em;color:var(--ink);text-wrap:balance}
+[data-ui="v2"] main .ph-t .lx-acc,[data-ui="v2"] main .ph-t em.lx-acc{font-style:italic;font-weight:400;letter-spacing:0}
+/* The purpose paragraph under every title (the lecture) moved into the "..." menu. Only the one inside .ph goes:
+   a renderer's own `extra` line (outside .ph) still shows. */
+[data-ui="v2"] main .ph > div > .ph-sub{display:none}
+[data-ui="v2"] main .ph-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+[data-ui="v2"] main .ph-r .ph-acts{display:contents}
+[data-ui="v2"] main .ph-r .ph-acts:empty{display:none}
+[data-ui="v2"] main .ph-r .ph-acts .btn,[data-ui="v2"] main .ph-r .ph-acts .v2btn{margin:0;height:var(--ctl-h);padding:0 12px;border-radius:var(--r-sm);font-size:13px;font-weight:550;display:inline-flex;align-items:center;gap:6px}
+/* the "..." button and its menu */
+[data-ui="v2"] .ph-menu-w{position:relative;display:inline-flex}
+[data-ui="v2"] .ph-more{width:var(--ctl-h);height:var(--ctl-h);border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;font:inherit;transition:border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+[data-ui="v2"] .ph-more:hover,[data-ui="v2"] .ph-menu-w.open .ph-more{border-color:var(--ink-2);color:var(--ink)}
+[data-ui="v2"] .ph-more svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round}
+[data-ui="v2"] .ph-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:240px;max-width:320px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:6px;box-shadow:var(--sh-pop);animation:lx-pop var(--t-fast) var(--ease) both}
+[data-ui="v2"] .ph-menu-w.open .ph-menu{display:block}
+[data-ui="v2"] .ph-menu .ph-why{font-size:12.5px;color:var(--ink-2);line-height:1.5;padding:8px 10px 10px;margin:0;border-bottom:1px solid var(--line);margin-bottom:4px}
+[data-ui="v2"] .ph-menu .ph-ico{display:flex;width:100%;height:36px;justify-content:flex-start;gap:9px;padding:0 10px!important;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink);font-size:13.5px;font-weight:500;text-align:left}
+[data-ui="v2"] .ph-menu .ph-ico:hover{background:var(--surface-2);color:var(--ink)}
+[data-ui="v2"] .ph-menu .ph-ico small{margin-left:auto;color:var(--muted);font-size:11.5px;font-weight:400}
+/* A page that still carries its own Tour, Metrics, Help row (older markup) keeps working; the pills just match the kit. */
+[data-ui="v2"] main .ph-r > .ph-ico{height:var(--ctl-h);border-radius:var(--r-sm);font-size:12.5px;font-weight:550}
+
+/* ---------- tabs and the control bar ---------- */
+[data-ui="v2"] .v2seg{gap:10px}
+[data-ui="v2"] .v2tabs{gap:2px}
+[data-ui="v2"] .v2tabs button{font-size:14px;font-weight:550;padding:9px 11px 10px;border-radius:var(--r-sm) var(--r-sm) 0 0}
+[data-ui="v2"] .v2tabs button:hover{background:var(--surface-2)}
+[data-ui="v2"] .v2tabs button.on{font-weight:600}
+/* The platform jobs (Overview, Campaigns, Ads, Changes) are one segmented control, not a second row of pills. */
+[data-ui="v2"] .v2jobs{display:inline-flex;gap:2px;padding:3px;background:var(--surface-2);border-radius:var(--r-lg);flex-wrap:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none}
+[data-ui="v2"] .v2jobs::-webkit-scrollbar{display:none}
+[data-ui="v2"] .v2jobs button{height:28px;padding:0 12px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--muted);font-size:13px;font-weight:550;white-space:nowrap;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+[data-ui="v2"] .v2jobs button:hover{color:var(--ink);border-color:transparent}
+[data-ui="v2"] .v2jobs button.on{background:var(--surface);color:var(--ink);border-color:transparent;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+[data-theme="light"] .v2jobs button.on{box-shadow:0 1px 2px rgba(15,15,20,.1)}
+
+/* ---------- the strip: one line that needs attention ---------- */
+.lx-strip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:44px;padding:8px 14px;margin:0 0 4px;
+  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:var(--r-lg);font-size:13.5px;color:var(--ink-2);line-height:1.4}
+.lx-strip[data-tone="bad"]{border-left-color:var(--bad)}
+.lx-strip[data-tone="good"]{border-left-color:var(--good)}
+.lx-strip[data-tone="brand"]{border-left-color:var(--brand)}
+.lx-strip[data-tone="quiet"]{border-left-color:var(--line-strong)}
+.lx-strip b{color:var(--ink);font-weight:600}
+.lx-strip .n{font-weight:650;color:var(--warn);white-space:nowrap;font-variant-numeric:tabular-nums}
+.lx-strip[data-tone="bad"] .n{color:var(--bad)}
+.lx-strip .d{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 200px}
+.lx-strip .go,.lx-strip .lx-fold{margin-left:auto;font:inherit;font-size:13px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
+.lx-strip .go + .lx-fold,.lx-strip .lx-fold + .go{margin-left:0}
+.lx-strip .go:hover,.lx-strip .lx-fold:hover{text-decoration:underline}
+.lx-strip-body{margin:0 0 8px}
+.lx-strip-body[hidden]{display:none}
+.lx-strip-body > .v2card{margin-top:0}
+.lx-leaks:empty{display:none}
+
+/* ---------- tiles, cards, captions on the scale ---------- */
+[data-ui="v2"] .card,[data-ui="v2"] .v2card{border-radius:var(--r-lg);padding:16px 18px}
+[data-ui="v2"] .v2h h3,[data-ui="v2"] .card h3{font-size:var(--fs-h3);font-weight:600}
+[data-ui="v2"] .v2h .cap{font-size:var(--fs-meta)}
+[data-ui="v2"] .v2tile{border-radius:var(--r-lg);padding:14px 16px 12px;gap:6px}
+[data-ui="v2"] .v2tile .l{font-size:var(--fs-meta);font-weight:500}
+[data-ui="v2"] .v2tile .v{font-size:var(--fs-kpi);font-weight:650;letter-spacing:-.02em}
+[data-ui="v2"] .v2tile.c .v{font-size:20px}
+[data-ui="v2"] .v2tile.hero .v{font-size:var(--fs-hero);font-weight:650;letter-spacing:-.02em}
+[data-ui="v2"] .v2tile .sub{font-size:var(--fs-meta)}
+/* The source chip on a tile (SHOPIFY, TW, BLENDED) is a hover, not a label: the tile's title attribute carries it. */
+[data-ui="v2"] .v2tile .v2src{display:none}
+[data-ui="v2"] .v2say.lead{font-size:15px}
+[data-ui="v2"] .v2foot{font-size:var(--fs-meta)}
+[data-ui="v2"] .v2tbl table{font-size:var(--fs-cell)}
+[data-ui="v2"] .v2tbl td{height:var(--row-h);padding:0 9px}
+[data-ui="v2"] .v2tbl th{padding:6px 10px}
+[data-ui="v2"] .v2d{font-size:11.5px}
+[data-ui="v2"] .btn{border-radius:var(--r-sm);font-weight:550}
+[data-ui="v2"] .v2btn{border-radius:var(--r-sm)}
+[data-ui="v2"] .v2pill,[data-ui="v2"] .pill{border-radius:var(--r-pill)}
+[data-ui="v2"] .hd-per-btn,[data-ui="v2"] .hd-today{height:var(--ctl-h)}
+[data-ui="v2"] .hd-per-menu,[data-ui="v2"] .v2ask-pop,[data-ui="v2"] .lc-pick-menu,[data-ui="v2"] .lc-me-menu{border-radius:var(--r-lg)}
+[data-ui="v2"] .hd-per-menu button{border-radius:var(--r-sm)}
+[data-ui="v2"] #v2panel{border-radius:0;transition:transform var(--t-panel) var(--ease)}
+[data-ui="v2"] .modal{border-radius:var(--r-xl)}
+
+/* ---------- the rail never scrolls: it tightens on a short window ---------- */
+@media (max-height:780px){
+  [data-ui="v2"] .side{padding:10px 10px 10px}
+  [data-ui="v2"] .side-brand{padding:2px 8px 8px}
+  [data-ui="v2"] .side-client{padding:0 0 8px;margin-bottom:0}
+  [data-ui="v2"] nav.tabs .v2nav button[data-t]{min-height:31px;font-size:13.5px;gap:10px}
+  [data-ui="v2"] nav.tabs .v2nav button[data-t] .ic{width:16px;height:16px}
+  [data-ui="v2"] .v2settings{min-height:31px;font-size:13.5px}
+  [data-ui="v2"] .v2theme{margin:4px 0}
+  [data-ui="v2"] .v2theme button{padding:3px 0}
+  [data-ui="v2"] .side-foot{padding-top:6px}
+}
+@media (max-height:640px){
+  [data-ui="v2"] .v2theme,[data-ui="v2"] .side-brand .by{display:none}
+  [data-ui="v2"] nav.tabs .v2nav button[data-t]{min-height:28px;font-size:13px}
+}
+
+/* ---------- motion: short, eased out, transform and opacity only ---------- */
+@keyframes lx-pop{from{opacity:0;transform:translateY(-4px) scale(.985)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){[data-ui="v2"] .ph-menu{animation:none}}
+
+/* the Leaks page: the brand table wraps its leak column instead of running past the card (2026-10-20) */
+[data-ui="v2"] .lx-leaks-page .v2tbl td{white-space:normal}
+[data-ui="v2"] .lx-leaks-page .v2tbl td.n{white-space:nowrap}
+[data-ui="v2"] .lx-leaks-page .lk-btbl td:last-child{white-space:nowrap}
+
+/* ---------- Reports on the kit (2026-10-20): four numbers, the sentence, This week, the ads as cards, the rest folded ---------- */
+[data-ui="v2"] .rp-kpis.rp-four{grid-template-columns:repeat(4,minmax(0,1fr))}
+[data-ui="v2"] .rp-pick.lx-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 14px}
+[data-ui="v2"] .rp-pick .rp-st{font-size:12.5px;color:var(--muted)}
+[data-ui="v2"] .rp-ads .rp-cap{margin:0 0 10px;font-size:12px;font-weight:500;color:var(--muted)}
+[data-ui="v2"] .rp-adc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+[data-ui="v2"] .rp-adc-gap{width:1px;background:var(--line);margin:4px 2px}
+[data-ui="v2"] .rp-adc{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:150px;padding:0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer;overflow:hidden;transition:border-color var(--t-fast) var(--ease)}
+[data-ui="v2"] .rp-adc:hover{border-color:var(--ink-2)}
+[data-ui="v2"] .rp-adc-m{display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2) center/cover no-repeat;color:var(--faint);font-size:22px;text-align:center;line-height:1}
+[data-ui="v2"] .rp-adc-m i{display:block;padding-top:60px;font-style:normal}
+[data-ui="v2"] .rp-adc-r{font-size:18px;font-weight:600;letter-spacing:-.01em;padding:6px 10px 0;font-variant-numeric:tabular-nums}
+[data-ui="v2"] .rp-adc-r.good{color:var(--good)}[data-ui="v2"] .rp-adc-r.bad{color:var(--bad)}[data-ui="v2"] .rp-adc-r.none{color:var(--muted);font-size:14px}
+[data-ui="v2"] .rp-adc-n{font-size:12.5px;font-weight:500;padding:0 10px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-ui="v2"] .rp-adc-s{font-size:11.5px;color:var(--muted);padding:0 10px 10px}
+[data-ui="v2"] details.rp-more{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);margin:16px 0}
+[data-ui="v2"] details.rp-more > summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;font-size:14px;font-weight:550;cursor:pointer;color:var(--ink-2)}
+[data-ui="v2"] details.rp-more > summary::-webkit-details-marker{display:none}
+[data-ui="v2"] details.rp-more > summary svg{transition:transform var(--t-fast) var(--ease)}
+[data-ui="v2"] details.rp-more[open] > summary{border-bottom:1px solid var(--line);color:var(--ink)}
+[data-ui="v2"] details.rp-more[open] > summary svg{transform:rotate(180deg)}
+[data-ui="v2"] .rp-more-b{padding:14px 16px 4px}
+[data-ui="v2"] .rp-more-b .rp-jump{position:static;margin-bottom:12px}
+@media (max-width:720px){[data-ui="v2"] .rp-kpis.rp-four{grid-template-columns:repeat(2,minmax(0,1fr))}[data-ui="v2"] .rp-adc{width:calc(50% - 5px)}[data-ui="v2"] .rp-adc-gap{display:none}}
+
+/* ==========================================================================
+   PHASE 5 (2026-10-20): page actions live in the page header. A page whose buttons moved up keeps them in the DOM
+   (the handlers are untouched) inside .lx-tohead, which never shows; a bar that still has live controls (the
+   Brief's Save / Cancel / message) hides only the moved buttons (.lx-tohead-bar).
+   ========================================================================== */
+.lx .lx-tohead,[data-ui="v2"] .lx-tohead{display:none!important}
+.lx .lx-tohead-bar>#bfPost,.lx .lx-tohead-bar>#bfEditBtn,.lx .lx-tohead-bar>#bfWrite,.lx .lx-tohead-bar>#bfCopy,.lx .lx-tohead-bar>#bfSkip,.lx .lx-tohead-bar>.sp{display:none!important}
+.lx .lx-tohead-bar:empty{display:none}
+
+/* ==========================================================================
+   THE ICON RAIL (2026-10-20, phase 2 of the UX audit, the iPad band). Between 721 and 1180px the rail stays docked as a
+   56px column of icons (their title attributes are the labels); the hamburger drawer is gone in this band. A tap on the
+   logo, the client picker or the account button expands the rail over the page (body.nav-open, the same class and scrim
+   the old drawer used, so index.html's close-on-pick and Escape handling carry over). lx.js sets html.lx-irail.
+   ========================================================================== */
+html.lx-irail[data-ui="v2"] .app{grid-template-columns:56px minmax(0,1fr)}
+html.lx-irail[data-ui="v2"] .nav-toggle{display:none}
+html.lx-irail[data-ui="v2"] .side{position:sticky;top:0;left:auto;bottom:auto;width:56px;height:100vh;transform:none;transition:width var(--t-panel) var(--ease),box-shadow var(--t-panel) var(--ease);padding:10px 8px 10px;z-index:40;overflow:hidden}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand{padding:4px 0 10px;justify-content:center}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand>span,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-cap,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-one,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .v2theme,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-pick-btn svg,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me-btn svg,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me-t,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) nav.tabs .v2nav button[data-t]>span,
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .v2settings>span{display:none}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-pick-btn{width:40px;height:40px;padding:0;justify-content:center;margin:0 auto;font-size:15px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-pick-btn #pfPickLbl{display:block;width:.8em;overflow:hidden;white-space:nowrap;text-overflow:clip;text-align:left}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-client{padding:0 0 8px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) nav.tabs .v2nav button[data-t]{justify-content:center;padding:0;min-height:40px;gap:0}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) nav.tabs .v2nav button[data-t] .ic{width:20px;height:20px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .v2settings{justify-content:center;padding:0;min-height:36px;gap:0}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me{margin:4px 0 0}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .lc-me-btn{width:40px;height:40px;padding:0;justify-content:center;margin:0 auto}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-scroll{scrollbar-width:none}
+/* expanded over the page */
+html.lx-irail[data-ui="v2"] body.nav-open .side{position:fixed;left:0;top:0;bottom:0;width:248px;height:100dvh;padding:14px 12px 12px;z-index:55;box-shadow:var(--sh-pop)}
+html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
+@media (prefers-reduced-motion:reduce){html.lx-irail[data-ui="v2"] .side{transition:none}}
