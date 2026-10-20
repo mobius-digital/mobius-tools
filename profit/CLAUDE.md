@@ -3806,3 +3806,10 @@ calls" collided with Work > Calls. Findings and what changed: the audit page htt
 - **Something else** on Today's calls posts `text` + `detail` (desk.js v24); callscreen's typed jobs carry `detail`.
 - Checked on a stub harness in the browser pane (scratchpad, not committed) at 1400 and 375, dark and light: list,
   menus, calendar, sheet, picker, selection bar, board, Meetings card. NOT checked against the real workers.
+- **Same day, later (Cole: "complete a task from the board", "it sends me to the top and loads").** Ticking a task (one,
+  or Done on a selection) changes it in the page with no reload, and every redraw keeps the page, board and column
+  scroll (`paint()` wraps `draw()`). Board cards carry the same round tick as list rows; Ctrl/Shift-click selects cards
+  for the bulk bar. **Tasks is in both views now** (team only, still AGENCY_TABS): Agency view = Work > Tasks, every
+  brand; a picked client = Home > Tasks, that brand's list (`tabInView` home/tasks, `tasks` in VIEW_BOTH). Meetings
+  stays Agency view only (one call covers several brands). The hand-typed "BFCM ads: ..." rows were dropped: the
+  Season page's to-do list derives the same deadlines from each phase's dates and moves with them.
