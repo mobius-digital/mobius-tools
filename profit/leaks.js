@@ -105,7 +105,7 @@
         <div class="lk-fix"><em>Suggestion</em>${esc(l.fix)}</div>
         <div class="lk-who">${esc(l.who || '')}${l.cost_how ? ` · cost = ${esc(l.cost_how)}` : ''}</div>
       </div>
-      <div class="lk-act">${btn}${isClient() ? '' : `<button type="button" class="lk-link lk-task" data-lktask="${esc(l.id)}">Make it a task</button>`}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
+      <div class="lk-act">${btn}${isClient() ? '' : `<button type="button" class="lk-link lk-task" data-lktask="${esc(l.id)}">Make it a task</button><button type="button" class="lk-link lk-call" data-lkcall="${esc(l.id)}" title="Open this brand's client call with this leak on it">Put it on the call</button>`}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
     </div>`;
   }
 
@@ -193,6 +193,11 @@
     host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('leaks'));
     host.querySelectorAll('[data-lkpb]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkpb); if (l) pushBack(a, d, l, redraw); });
     host.querySelectorAll('[data-lktask]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lktask); if (l) makeTask(a, l, b); });
+    host.querySelectorAll('[data-lkcall]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkcall); if (!l) return;
+      /* callscreen.js reads CCALL_ADD when the client call opens and adds the line under "This week" (promised). */
+      window.CCALL_ADD = { act: a.act_id, text: `Fix: ${l.title}${l.fix ? '. ' + l.fix : ''}`, source: 'leak', source_id: l.id };
+      if (H.S && H.S.act !== a.act_id) { H.S.act = a.act_id; try { localStorage.setItem('pf_act', a.act_id); } catch {} const cp = document.getElementById('clientPick'); if (cp) cp.value = a.act_id; }
+      H.show('ccall'); });
     wireCalls(host, a, () => { CACHE.delete(a.act_id); redraw(true); });
     host.querySelectorAll('[data-lkai]').forEach(b => b.onclick = async () => {
       b.disabled = true; b.textContent = 'Checking every leak against the other channels (about 30 seconds)...';

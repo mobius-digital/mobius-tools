@@ -731,6 +731,13 @@
       ]);
       if (d.error) throw new Error(d.error);
       D = d; STATE = (d.call && d.call.state) || {}; SEV = {};
+      /* A leak sent here from Home > Leaks ("Put it on the call"): one promised line, saved at once, never twice. */
+      const add = window.CCALL_ADD; window.CCALL_ADD = null;
+      if (add && KIND === 'client' && add.act === a && add.text) {
+        STATE.promised = STATE.promised || [];
+        if (!STATE.promised.some(x => x && x.text === add.text)) { STATE.promised.push({ text: add.text, owner: '', due: '', source: add.source || '', source_id: add.source_id || '' }); try { await H.apiAH('/api/calls/state', { method: 'PUT', body: JSON.stringify({ id: D.call.id, state: STATE }) }); } catch {} }
+        POS = Math.max(0, CLIENT_STEPS.findIndex(s => s.id === 'week'));
+      }
       if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) SEV[b.act_id] = b.paused ? undefined : (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good');
       if (KIND === 'kickoff') { const first = kickList().findIndex(c => !((STATE.done || {})[c.id] || c.kickoff_at)); POS = first >= 0 ? first : 0; }
     } catch (e) { $('#main').innerHTML = `${headHtml(TITLE[KIND])}<div class="v2 cs" id="csRoot">${sec('Did not load', '', `<p class="cs-empty" style="color:var(--bad)">${esc(e.message)}</p><div class="cs-acts"><button type="button" class="btn" data-go="calls">Meetings</button></div>`)}</div>`; $$('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go)); return; }
