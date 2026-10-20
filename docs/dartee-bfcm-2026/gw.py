@@ -46,6 +46,8 @@ ADS = {
  'G14': ('Your buddy<br>owes you one.', 118, 'bottom'),
  'G15': ('Where do you<br>put 50 belts?', 130),
  'G16': ('Fifty belts.<br>Two winners.', 130),
+ 'G17': ('Clear out<br>the trunk.', 140),
+ 'G18': ('One winner.<br>One buddy.', 140),
 }
 if __name__ == '__main__':
     for i in (sys.argv[1:] or list(ADS)):
