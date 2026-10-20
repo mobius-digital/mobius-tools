@@ -45,7 +45,7 @@
   function ring(pct, label, sub, outer, size = 132) {
     const r = 52, c = 2 * Math.PI * r, r2 = 60, c2 = 2 * Math.PI * r2, p = Math.max(0, Math.min(pct || 0, 1));
     const tone = pct == null ? 'var(--line-strong)' : pct >= 0.98 ? 'var(--good)' : pct >= 0.85 ? 'var(--warn)' : 'var(--bad)';
-    return `<div class="v4-ring" style="--rs:${size}px"><svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="${tone}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}"/>${outer != null ? `<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-linecap="round" stroke-dasharray="${(c2 * Math.max(0, Math.min(outer, 1))).toFixed(1)} ${c2.toFixed(1)}"/>` : ''}</svg><div class="c"><b>${label}</b><small>${sub}</small></div></div>`;
+    return `<div class="v4-ring${size < 80 ? ' sm' : ''}" style="--rs:${size}px"><svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="${tone}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}"/>${outer != null ? `<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-linecap="round" stroke-dasharray="${(c2 * Math.max(0, Math.min(outer, 1))).toFixed(1)} ${c2.toFixed(1)}"/>` : ''}</svg><div class="c"><b>${label}</b><small>${sub}</small></div></div>`;
   }
   function monthCard(a, cur) {
     const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, now.getDate() - 1);
@@ -75,7 +75,8 @@
   }
 
   /* ---------- the page ---------- */
-  async function render(host, first, page = 'morning') {
+  async function render(host, first, page = 'morning', agency = false) {
+    if (agency) return page === 'month' ? moneyBoard(host, first) : board(host, first);
     if (page === 'month') return month(host, first);
     H = host; K = window.V2 && window.V2.kit; if (!K) { $('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">The v2 kit did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'; return; }
     window.V2.setHost(host);
@@ -282,6 +283,94 @@
       <div class="v2two v4-two">${fallCard}${whoCard}</div>
       ${K.foot(`Revenue is Shopify total sales less tax, through Triple Whale. The month lands on the P&amp;L line: returning revenue arrives on its own, new revenue is planned spend times the trailing aMER. Customer value is the last 90 days.`)}`);
     H.pageActions && H.pageActions(acts);
+    K.wireGo($('#main'));
+  }
+
+  /* ---------- Agency view, phase 4: one row per brand, ranked by what needs you ----------
+     Today > Morning = the brand board (the book yesterday, the counts, then a row per brand: kept yesterday against a
+     normal day, the month ring, why it needs you, the week). Money > Month = the same rows for the month: banked against
+     the plan by now, where it lands against the goal, spend against the plan, MER. Reasons come from command.js
+     (/api/hub/command), kept from /api/hub/kept, the calls from /api/hub/today; a row opens that brand's page. */
+  function setup(host, first, id, title, skel) {
+    H = host; K = window.V2 && window.V2.kit; if (!K) { $('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">The v2 kit did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'; return null; }
+    window.V2.setHost(host);
+    const shell = body => `<div class="v2 lx v4">${K.head(id, title)}${body}</div>`;
+    if (first) $('#main').innerHTML = shell(skel || K.skPage({ tiles: 0, chart: false, rows: 6 }));
+    return shell;
+  }
+  const dot = sev => `<span class="v4-dot ${sev}"></span>`;
+  const brandCell = (a, sev, chips) => `<div class="v4-bn"><button type="button" class="v4-bname" data-go="act:${K.esc(a.act_id)}:${chips === 'month' ? 'month' : 'morning'}">${dot(sev)}${K.esc(a.name)}</button>${chips && chips !== 'month' ? `<div class="v4-gaps">${chips}</div>` : ''}</div>`;
+
+  async function board(host, first) {
+    const shell = setup(host, first, 'morning', 'Morning: <em class="lx-accent">every</em> brand'); if (!shell) return;
+    const t = H.RUN(); const all = K.scopeAccts().filter(a => !a.internal);
+    const CC = window.CommandCenter || {};
+    const [kept, cmd, work, td, ov] = await Promise.all([
+      window.LxHero ? window.LxHero.load(H, 'all').catch(() => null) : null,
+      CC.cached ? CC.cached('/api/hub/command?act=all', () => H.api('/api/hub/command?act=all')).catch(() => null) : H.api('/api/hub/command?act=all').catch(() => null),
+      CC.cached ? CC.cached('work', () => H.apiAH('/api/command/work')).catch(() => null) : null,
+      K.get('/api/hub/today?act=all').catch(() => null),
+      window.ovTodayLoad ? window.ovTodayLoad(all).catch(() => null) : null,
+    ]);
+    if (t !== H.RUN()) return;
+    const KB = Object.fromEntries(((kept && kept.brands) || []).map(b => [b.act_id, b]));
+    const CB = Object.fromEntries(((cmd && cmd.brands) || []).map(b => [b.act_id, b]));
+    const rows = [], paused = [];
+    for (const a of all) {
+      const c = CB[a.act_id]; if (c && c.paused) { paused.push(a); continue; }
+      const rs = CC.reasonsFor ? CC.reasonsFor(a, c, work) : ((c && c.reasons) || []);
+      rows.push({ a, c, k: KB[a.act_id], rs, sev: CC.worst ? CC.worst(rs) : 'good', score: CC.score ? CC.score(rs) : 0 });
+    }
+    rows.sort((x, y) => (y.score - x.score) || ((y.a.window?.sales || 0) - (x.a.window?.sales || 0)));
+    /* the book, yesterday */
+    const ok = rows.map(r => r.k).filter(b => b && b.kept != null), curs = [...new Set(ok.map(b => b.currency))], one = curs.length === 1 ? curs[0] : null;
+    const bookKept = one && ok.length ? ok.reduce((s, b) => s + b.kept, 0) : null, bookSales = ok.reduce((s, b) => s + (b.sales || 0), 0);
+    const normal = one && ok.length && ok.every(b => b.normal != null) ? ok.reduce((s, b) => s + b.normal, 0) : null;
+    const tdRows = (td && td.rows) || [], nChange = tdRows.filter(r => ['cut', 'scale', 'trim', 'refresh'].includes(r.kind)).length, nFix = tdRows.filter(r => r.kind === 'fix').length;
+    const nCalls = ov && ov.calls ? ov.calls.n : tdRows.filter(r => r.kind === 'call').length, nReports = ov && ov.reports ? ov.reports.n : null, nBriefs = ov && ov.briefs ? ov.briefs.n : null;
+    const cnt = (n, l, go) => n ? `<button type="button" class="v4-cnt" data-go="${go}"><b>${K.int(n)}</b>${l}</button>` : '';
+    const book = `<section class="v2card v4-book"><div><div class="v4-book-l">The book, yesterday</div><h2 class="v4-hero">${bookKept == null ? (one ? 'No numbers for yesterday yet' : 'Brands report in different currencies') : bookKept < 0 ? `Lost <b class="lost">${K.money(Math.abs(bookKept), one)}</b>` : `Kept <b>${K.money(bookKept, one)}</b>`}${bookKept != null ? ` <small>on ${K.money(bookSales, one)} across ${ok.length} brand${ok.length === 1 ? '' : 's'}${normal != null ? ` · a normal day keeps ${K.money(normal, one)}` : ''}</small>` : ''}</h2></div>
+      <div class="v4-counts">${cnt(nChange, 'ad sets to change', 'today')}${cnt(nCalls, 'tests to call', 'today')}${cnt(nReports, 'reports to send', 'reports')}${cnt(nBriefs, 'briefs to send', 'brief')}${cnt(nFix, 'accounts to fix', 'today')}</div></section>`;
+    const maxKept = Math.max(1, ...rows.map(r => r.k && r.k.kept > 0 ? r.k.kept : 0));
+    const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, now.getDate() - 1);
+    const rowHtml = r => {
+      const { a, k, rs } = r, cur = a.currency, w = a.window || {}, p = H.S.cmp !== 'none' && a.prev ? a.prev : {};
+      const mtd = a.mtd?.sales, planNow = a.plan?.sales, pct = mtd != null && planNow ? mtd / planNow : null;
+      const first = rs[0], gaps = rs.filter(x => x.sev === 'info'), real = rs.filter(x => x.sev !== 'info');
+      const keptCell = !k || !k.has ? '<span class="v4-quiet">not synced yet</span>' : k.kept == null ? '<span class="v4-quiet">cost data needed</span>' : `<div class="v4-kb"><span class="tr"><i class="${k.kept < 0 ? 'bad' : ''}" style="width:${(Math.max(0, k.kept) / maxKept * 100).toFixed(1)}%"></i>${k.normal != null && k.normal > 0 ? `<b style="left:${Math.min(100, k.normal / maxKept * 100).toFixed(1)}%" title="a normal day"></b>` : ''}</span><b class="${k.kept < 0 ? 'bad' : ''}">${K.money(k.kept, cur)}</b></div><small>on ${K.money(k.sales, cur)} of sales${k.normal != null ? ` · normal ${K.money(k.normal, cur)}` : ''}</small>`;
+      const why = real.length ? `<span class="v4-chip ${r.sev === 'bad' ? 'cut' : 'refresh'}">${r.sev === 'bad' ? 'act now' : 'look'}</span><span class="v4-whyt">${real.slice(0, 2).map(x => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:${K.esc(x.go || 'morning')}">${K.esc(x.text)}</button>`).join('')}${real.length > 2 ? `<small>${real.length - 2} more</small>` : ''}</span>` : `<span class="v4-ok">Nothing needs you here.</span>`;
+      const chips = gaps.length ? gaps.map(g => `<span class="v4-gap-c">${K.esc(g.text.replace(/\.$/, ''))}</span>`).join('') : '';
+      return `<div class="v4-brow">${brandCell(a, r.sev, chips)}<div>${keptCell}</div><div>${pct != null ? ring(pct, `${Math.round(pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div><div class="v4-why">${why}</div><div class="v4-wk"><b>${K.kmoney(w.sales, cur)}</b>${p.sales ? K.delta(w.sales, p.sales) : ''}<span class="v4-quiet">MER ${K.x2(w.spend ? w.sales / w.spend : null)}</span></div></div>`;
+    };
+    $('#main').innerHTML = shell(`${book}<section class="v2card v4-boardc"><div class="v4-bhead"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>${K.esc(H.rangeLabel())}</span></div>${rows.map(rowHtml).join('')}
+      ${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:morning">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
+      ${K.foot(`Kept = yesterday's P&amp;L line (sales less ads, product, shipping and fees); a normal day is the brand's last 28 days. Month = banked against the plan by now. Reasons use fixed windows ending ${K.esc(cmd && cmd.yesterday ? cmd.yesterday : 'yesterday')}. The week is ${K.esc(H.rangeLabel())} on the picker.`)}`);
+    K.wireGo($('#main'));
+  }
+
+  async function moneyBoard(host, first) {
+    const shell = setup(host, first, 'month', `${new Date().toLocaleDateString('en-US', { month: 'long' })}: <em class="lx-accent">every</em> brand`); if (!shell) return;
+    const t = H.RUN(); const CC = window.CommandCenter || {};
+    const cmd = CC.cached ? await CC.cached('/api/hub/command?act=all', () => H.api('/api/hub/command?act=all')).catch(() => null) : null;
+    if (t !== H.RUN()) return;
+    const PAUSED = new Set(((cmd && cmd.brands) || []).filter(b => b.paused).map(b => b.act_id));
+    const all = K.scopeAccts().filter(a => !a.internal && !PAUSED.has(a.act_id)), paused = K.scopeAccts().filter(a => PAUSED.has(a.act_id));
+    const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, now.getDate() - 1);
+    const rows = all.map(a => { const mtd = a.mtd?.sales, planNow = a.plan?.sales, goal = a.goals?.sales || null, pct = mtd != null && planNow ? mtd / planNow : null; return { a, mtd, planNow, goal, pct, land: mtd != null ? mtd / elapsed * dim : null, spend: a.mtd?.spend, pSpend: a.plan?.spend, broken: a.cost_health?.verdict === 'broken' }; });
+    rows.sort((x, y) => (x.pct == null) - (y.pct == null) || (x.pct ?? 9) - (y.pct ?? 9));
+    const curs = [...new Set(all.map(a => a.currency))], one = curs.length === 1 ? curs[0] : null;
+    const planned = rows.filter(r => r.pct != null);
+    const tot = one && planned.length ? planned.reduce((s, r) => { s.mtd += r.mtd; s.plan += r.planNow; s.goal += r.goal || 0; s.land += r.land; return s; }, { mtd: 0, plan: 0, goal: 0, land: 0 }) : null;
+    const sevOf = r => r.pct == null ? 'info' : r.pct >= 0.98 ? 'good' : r.pct >= 0.85 ? 'warn' : 'bad';
+    const rowHtml = r => { const { a } = r, cur = a.currency, mer = r.spend ? r.mtd / r.spend : null, goalMer = a.goals?.sales && a.goals?.spend ? a.goals.sales / a.goals.spend : a.target_roas || null;
+      return `<div class="v4-brow v4-mrow">${brandCell(a, sevOf(r), 'month')}<div>${r.pct != null ? ring(r.pct, `${Math.round(r.pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div>
+        <div><b>${K.kmoney(r.mtd, cur)}</b><small>${r.planNow ? `of ${K.kmoney(r.planNow, cur)} planned by now` : 'banked so far'}</small></div>
+        <div>${r.goal && r.land != null ? `<b class="${r.land >= r.goal ? 'good' : r.land >= r.goal * 0.9 ? 'warn' : 'bad'}">${K.kmoney(r.land, cur)}</b><small>lands, of ${K.kmoney(r.goal, cur)} goal</small>` : r.land != null ? `<b>${K.kmoney(r.land, cur)}</b><small>at this pace</small>` : ''}</div>
+        <div><b>${K.kmoney(r.spend, cur)}</b><small>${r.pSpend ? `of ${K.kmoney(r.pSpend, cur)} planned` : 'ad spend'}</small></div>
+        <div><b class="${goalMer && mer ? (mer >= goalMer ? 'good' : mer >= goalMer * 0.9 ? 'warn' : 'bad') : ''}">${K.x2(mer)}</b><small>${goalMer ? `MER, goal ${K.x2(goalMer)}` : 'MER'}</small></div></div>`; };
+    $('#main').innerHTML = shell(`${tot ? `<section class="v2card v4-book"><div><div class="v4-book-l">Every planned brand, month to date</div><h2 class="v4-hero">Banked <b>${K.kmoney(tot.mtd, one)}</b> <small>of ${K.kmoney(tot.plan, one)} planned by now${tot.goal ? ` · lands at ${K.kmoney(tot.land, one)} of ${K.kmoney(tot.goal, one)}` : ''} · ${elapsed} of ${dim} days</small></h2></div><div class="v4-counts"><button type="button" class="v4-cnt" data-go="profit"><b>P&amp;L</b>every brand</button></div></section>` : ''}
+      <section class="v2card v4-boardc"><div class="v4-bhead v4-mhead"><span>Brand</span><span>Of plan</span><span>Banked</span><span>Where it lands</span><span>Spend</span><span>MER</span></div>${rows.map(rowHtml).join('')}${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:month">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
+      ${K.foot('Banked = Shopify total sales less tax, through Triple Whale, this month. Planned by now = the month plan split evenly over the days elapsed. Lands = today\'s pace over the whole month. Worst first; a row opens that brand\'s month.')}`);
     K.wireGo($('#main'));
   }
   window.V4 = { render, extraCalls, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };

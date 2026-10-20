@@ -242,5 +242,5 @@ async function readAll(rows, pending, agencyAlerts) {
   const ask = el.querySelector('[data-ask]'); if (ask && H.AskUI) ask.onclick = () => H.AskUI.open('About the command center, every brand: ');
 }
 
-window.CommandCenter = { render };
+window.CommandCenter = { render, reasonsFor, worst, score, cached, SEV_LABEL };
 })();

@@ -2240,7 +2240,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=44">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=15">
+<link rel="stylesheet" href="lx.css?v=16">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2389,7 +2389,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="launch.js?v=5"></script>
 <script src="season.js?v=18"></script>
 <script src="calc.js?v=11"></script>
-<script src="command.js?v=5"></script>
+<script src="command.js?v=6"></script>
 <script src="accent.js?v=2"></script>
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
@@ -2403,7 +2403,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="social.js?v=8"></script>
 <script src="socialweek.js?v=4"></script>
 <script src="supply.js?v=7"></script>
-<script src="v4.js?v=3"></script>
+<script src="v4.js?v=4"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -5533,8 +5533,8 @@ function v2Host() { return { S, api, apiAH, show, pageHead, pageActions, rangeQ,
 function shareHost() { return { S, LS, api, apiAH, show, confirmModal, resolveRange, rangeLabel, prettyDate, daySpan, ymd, parseYmd, PB, MODELS, TAB_TITLE, PillMenu: window.PillMenu, RUN: () => RUN }; }
 /* v4 Today > Morning (v4.js). Agency view keeps the old Overview until the brand board lands (phase 4). */
 function V4R(first, page = 'morning') {
-  if (inAgency() || !window.V4) return page === 'month' ? renderProfit(first) : V2R('overview', first);
-  return window.V4.render(v2Host(), first, page);
+  if (!window.V4) return page === 'month' ? renderProfit(first) : V2R('overview', first);
+  return window.V4.render(v2Host(), first, page, inAgency());
 }
 function V2R(tab, first) {
   if (!window.V2) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">The v2 screens did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
