@@ -4075,3 +4075,24 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   design page's phases carry their status. Old renderers stay until the switch is on by default.
 - Script versions: v4.js?v=7, lx.css?v=19, desk.js?v=31, leaks.js?v=10, command.js?v=6, production.js?v=12. All checked in Cole's
   signed-in Chrome through the CORS server + srcdoc iframe recipe (phase 1 section); nothing deployed, nothing merged.
+
+### 2026-10-20 (late night): LOCUS v4 polish pass 1 (Cole: type, colour, spacing on every tab, professional like TrendTrack / ClickUp)
+
+- **Money > Month** no longer crams sentences: the three landing paths are rows (`.v4-pr`: label, number, "$2,973 short" in red
+  or "over" in green), the month's five numbers under the week bars are a stat strip (`.v4-facts`, label over value), the customer
+  card is the dial on top with four facts in a strip (`.v4-cfacts`: to get a customer, first order, left after costs, repeat orders).
+  Under 1360px the top row is two columns and the customer card spans both (dial left, facts right). The dial's caption moved
+  under the arc ends (viewBox 180x114).
+- **Ad cards are one shape everywhere:** the report's Best and worst (`.rp-adc-row`) and the call runner's `.cs .ads` are
+  `grid repeat(auto-fill, minmax(136px, 1fr))`, pictures 4:5, no `max-height` (that cap was squaring the wider cards), no orphan
+  divider. The design page's report mock matches (six 4:5 cards).
+- **Ads > Ads and Changes** are first-row tabs in v4, so `V4_HOME` maps `adcreative` and `changes` to themselves and Meta's second
+  job row (Overview / Campaigns / Ads / Changes) is gone there. Meta overview and campaigns live under Accounts.
+- **Money with a sign:** `money()` and `kmoney()` in v2.js write `-$21`, never `$-21`.
+- **Agency brand board:** gap chips are the count and the kind only ("4 Asana tasks overdue"), reasons clamp to two lines.
+- **Module page titles carry the brand in v4** (`V4_NAMED` in pageHead: Pipeline, Social, Tasks, Meetings, Library, Inspiration,
+  Creators, Studio, Dashboards): "Pipeline: Lucky Golf", "Tasks: every brand". accent.js got the words (Pipeline, Social, Tasks,
+  Meetings, Morning, the month names). TAB_TITLE production = Pipeline.
+- Morning's channel tiles fit three across (`.v4-share` minmax 128px).
+- Versions: v4.js?v=8, lx.css?v=20, v2.js?v=69, callscreen.js?v=8, accent.js?v=3. Checked at desktop and 390px in Cole's Chrome.
+
