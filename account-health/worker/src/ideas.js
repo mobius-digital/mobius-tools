@@ -555,7 +555,7 @@ Use "" or [] when something is absent. Never guess words you cannot hear or read
    generateContent sends nothing until the whole breakdown of a 55 second video is written.
    streamGenerateContent sends chunks as it goes, so the connection never sits idle. One retry
    on a gateway or overload error. */
-async function geminiFacts(env, part, meter) {
+async function geminiFacts(env, part, meter, again = true) {
   const body = JSON.stringify({ contents: [{ role: 'user', parts: [part, { text: FACTS_PROMPT }] }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 8192 } });
   let r, raw = '';
@@ -579,7 +579,12 @@ async function geminiFacts(env, part, meter) {
   const text = chunks.map(c => (c.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('')).join('');
   let facts = safeJson(text, null);
   if (!facts) { const a = text.indexOf('{'), z = text.lastIndexOf('}'); facts = a >= 0 ? safeJson(text.slice(a, z + 1), null) : null; }
-  if (!facts) throw new Error('the video reader answered in a shape I could not read');
+  if (!facts) {
+    console.log(`geminiFacts unreadable (${chunks.length} chunks, finish ${chunks[chunks.length - 1]?.candidates?.[0]?.finishReason || '?'}): ${clip(text || raw, 1500)}`);
+    /* Now and then the reader's JSON comes back broken (Lucky, 2026-10-18); one more read usually fixes it. */
+    if (again) return geminiFacts(env, part, meter, false);
+    throw new Error('the video reader answered in a shape I could not read');
+  }
   return { facts, g_in: gi, g_out: go };
 }
 
@@ -736,7 +741,7 @@ export const IDEA_SCHEMA = obj({
   destination: obj({ pick: en(...Object.keys(DESTS)), reason: S }),
   creator_link: obj({ section_id: S, new_section: S, new_section_line: S, duplicate_of: S, title: S, argument: S, who: S, format: S, products: S,
     openers: arr(S), shots: arr(obj({ label: S, text: S })), on_screen: S, do_text: S, dont_text: S, proof_note: S }),
-  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, problem: S, testing: S,
+  asana: obj({ title: S, kind: en('static', 'video'), test_type: en('angle', 'concept', 'iteration'), angle: S, why: S, testing: S,
     ads: arr(S), creator: S, script: S, primary_text: S, headline: S, offer: S }),
   studio: obj({ name: S, angle: S, why: S, concept: S, testing: en(...STUDIO_TESTING), post_copy: S, use_photos: B, lines: arr(S) }),
   images: arr(obj({ label: S, kind: en('inspiration', 'product_studio', 'product_lifestyle', 'other'), note: S })),
@@ -768,7 +773,7 @@ DESTINATION (pick one, say why in one line). This tool exists MAINLY FOR CREATOR
 - asana_brief: only when a creator could not make it from a pitch: it needs our editor to build it from existing footage, a specific person or location, heavy motion graphics, or it is a structured paid test of several scripted versions the team must control. Also when the thread asks for a brief.
 - studio: static image ads the AI can make now from lines of words.
 
-For an Asana brief, leave problem empty (the brief is Angle / What we're testing / Why / the ads). Why = one plain sentence on why we test this now.
+An Asana brief is Angle / What we're testing / Why / the ads. Why = one plain sentence on why we test this now.
 
 DRAFTS: write ONLY the draft for the destination you picked. Leave the other destinations' strings empty and their arrays empty: the team presses a button for another one if they want it (this keeps each run cheap). Keep every field tight: enough for the person building it, no padding.
 - creator_link is read by a creator on a phone, so it is SHORT and every word is specific (from the persona, a quote, a product fact; fewer words, never vaguer ones). HARD CAPS, the code cuts anything longer: title up to 6 words; argument (the pitch) up to 25 words; who up to 15 words; openers EXACTLY 2, up to 18 words each, lines a creator could say out loud; shots up to 3, each up to 20 words in plain language (label up to 3 words); on_screen up to 3 short lines, one per line; do_text and dont_text up to 3 items each, one per line, up to 10 words each; format up to 3 words; products up to 3 words; proof_note one short sentence on what to take from the reference. It follows the hierarchy rule: the section answers "why would a creator film this today" (Hot right now, a dated window, a product line, or a standing theme); format and product are chips on the card, never a section. Use an existing section id when one fits; otherwise leave section_id empty and give new_section plus one new_section_line. If an existing angle already makes this argument, put its id in duplicate_of: the reference then goes on it as proof instead of a new angle. This draft is PUBLIC: never mention money, spend, revenue, ROAS, CPA, orders or sales numbers anywhere in it.
@@ -1351,6 +1356,39 @@ async function runCompare(env, c) {
 /* ---------------- the buttons ---------------- */
 export const approversOf = env => String(env.IDEA_APPROVERS || DEFAULT_APPROVERS).split(/[\s,]+/).filter(Boolean);
 const GATED = new Set(['idea_link', 'idea_lucky', 'idea_asana', 'idea_studio', 'idea_undo_link', 'idea_undo_lucky', 'idea_discard']);
+
+/**
+ * Admin key only (worker.js /api/ideas/admin): what the tag and the buttons do, for a thread whose run
+ * failed (2026-10-18: every draft died on "grammar too large"). op 'draft' = a fresh draft (text = the tag's
+ * words), 'lucky' = the Lucky creator app button, as `who`. Returns the row after.
+ */
+export async function adminIdea(env, { id, op, text, who }) {
+  await ensureIdeaTables(env);
+  const row = await getRow(env, String(id || ''));
+  if (!row) return { error: 'No such idea thread.' };
+  if (op === 'draft') {
+    const job = { kind: 'draft', channel: row.channel, root: row.thread_ts, ts: row.thread_ts, user: null, text: clip(text || 'idea', 2000), bot: null };
+    return { ok: true, result: await runIdeaJob(env, job), row: await getRow(env, row.id) };
+  }
+  if (op === 'watch') {
+    const v = classifyLink(String(text || ''));
+    if (!v) return { error: 'text must be a video link.' };
+    const meter = { g_in: 0, g_out: 0, downloads: 0, videos_new: 0, videos_cached: 0 };
+    return { ok: true, result: await videoFacts(env, { ...v, label: 'V1' }, meter, row.act_id), meter };
+  }
+  if (op !== 'lucky') return { error: 'op is draft, watch or lucky.' };
+  const acct = (await acctsOf(env)).find(x => x.act_id === row.act_id);
+  const d = safeJson(row.draft_json, null);
+  if (!acct || !d) return { error: 'No draft on this thread yet.' };
+  const pushed = safeJson(row.pushed_json, {}) || {};
+  if (pushed.lucky_creators) return { error: 'Already on the Lucky creator app.', pushed: pushed.lucky_creators };
+  const reply = await pushLucky(env, row, acct, d, pushed, who || 'Cole');
+  if (reply?.ok !== false) await env.DB.prepare(`UPDATE idea_thread SET pushed_json = ?2, status = 'pushed', updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed)).run();
+  const fresh = await getRow(env, row.id);
+  if (fresh.reply_ts) { const card = ideaCard(fresh, acct, await hubOf(env, acct.act_id)); await slack(env, 'chat.update', { channel: row.channel, ts: fresh.reply_ts, text: card.text, blocks: card.blocks }); }
+  if (reply?.text) await say(env, row.channel, row.thread_ts, reply.text, reply.blocks);
+  return { ok: reply?.ok !== false, reply: reply?.text || null, pushed: pushed.lucky_creators || null };
+}
 
 export async function handleIdeaAction(env, ctx, p) {
   const a = (p.actions || []).find(x => /^idea_/.test(x.action_id || '')) || {};
