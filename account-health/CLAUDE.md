@@ -2589,4 +2589,11 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
 - Breaking out floor is server side: `MIN_N` 8 posts per group and `MIN_BASE` 1000 views (`MIN_BASE_LIKES` 100) before a
   post gets `base` (its "usually"); below that `base` is null and the UI draws no ratio. `pub` adds `n` and `tag`.
 - `social_post.tag` (guarded ALTER): `/api/social/save {id, saved, tag?}` keeps the tag when `tag` is omitted on a save,
-  clears it on unsave, trims to 40 chars; `feed` returns `tags` from `tagsOf(rows)` (distinct tags with counts). NOT deployed.
+  clears it on unsave, trims to 40 chars; `feed` returns `tags` from `tagsOf(rows)` (distinct tags with counts).
+- **Transcripts (2026-10-20):** `social_post.transcript` (guarded ALTER). `POST /api/social/transcript {id}` = `transcriptOf`:
+  cached text when set, else ONE ScrapeCreators call per platform (TikTok `/v1/tiktok/video/transcript` returns WebVTT, flattened
+  by `vttText`; YouTube `/v1/youtube/video/transcript` has `transcript_only_text`; Instagram `/v2/instagram/media/transcript`
+  returns `transcripts[{text}]`, text null and 0 credits when the reel has no speech; the v1 Instagram paths 404), clipped to
+  6000 chars and stored even when empty so a silent post never costs twice. Photo and carousel posts answer `why` without a call.
+  `/api/social/make` takes `mode: 'recreate'` (a RECREATE IT steer line in the note: same structure, change only product,
+  setting and words) and appends the stored transcript as "What they say in it" when one exists. Deployed 2026-10-20.

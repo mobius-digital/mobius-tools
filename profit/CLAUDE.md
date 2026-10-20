@@ -3876,8 +3876,12 @@ the UX audit kit (PR 36, lx.css / LxKit) is not on main, so the kit header appli
   thumb + state dot + time + account glyphs; **List** = one card per day (`dayList`, forced on phones) with + Post per
   day; the composer = media, caption with quiet Rephrase / Saved captions / Save links, Where as avatar buttons
   (`.acc`), When as pill inputs. The tray is `LxPhone.open` on a phone.
-- **Not built**: a Transcript button on the viewer, a Recreate / keep-structure mode for Make ours, Later-style best-time
-  suggestions and the advanced scheduler, the LxKit header (waits on PR 36).
+- **Transcript and Recreate (2026-10-20, social.js?v=6).** The viewer column has a Transcript button on video posts
+  (`transcript(p)` -> account-health `POST /api/social/transcript {id}`, one scraper credit the first time, then cached on
+  the row; shown as a scrolling "What they say" box, or "No speech was found"; pictures get none). Make ours has a two-way
+  choice above the steer box: Our own take (default) or Recreate it (same hook shape, beats, pacing; only product and words
+  change), sent as `mode` in the make body; the worker also hands the brief writer the stored transcript.
+- **Not built**: Later-style best-time suggestions and the advanced scheduler, the LxKit header (waits on PR 36).
 - Checked in the built-in browser on a stub harness (not committed) at 800, 1280 and 375, dark and light: Feed, Filters
   popover, viewer with prev / next, Make ours end to end on stubs, tag picker, Saved, Week grid, List, composer sheet,
   Brand settings > Social. No console errors. NOT checked against the real workers; the worker is not deployed.

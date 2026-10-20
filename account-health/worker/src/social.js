@@ -59,6 +59,7 @@ export async function ensureSocial(env) {
   ]) await env.DB.prepare(sql).run();
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN media TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN tag TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN transcript TEXT`).run().catch(() => {});
   ready = true;
 }
 
@@ -74,6 +75,22 @@ async function sc(env, path, params, meter) {
   return j;
 }
 
+
+/* ---------------- Transcript (ScrapeCreators, 1 credit, cached on the post) ----------------
+ * Shapes measured 2026-10-20: TikTok `transcript` is WebVTT text; YouTube has `transcript_only_text`;
+ * Instagram v2 returns `transcripts[{text}]` (text null when the reel has no speech, 0 credits). */
+const vttText = v => String(v || '').split(/\r?\n/).filter(l => l && !/^WEBVTT/.test(l) && !/-->/.test(l) && !/^\d+$/.test(l)).join(' ').replace(/\s+/g, ' ').trim();
+async function transcriptOf(env, p) {
+  if (p.transcript != null) return { text: p.transcript, cached: true };
+  let text = '';
+  const meter = {};
+  if (p.plat === 'tt') text = vttText((await sc(env, '/v1/tiktok/video/transcript', { url: p.url }, meter)).transcript);
+  else if (p.plat === 'yt') { const j = await sc(env, '/v1/youtube/video/transcript', { url: p.url }, meter); text = String(j.transcript_only_text || (Array.isArray(j.transcript) ? j.transcript.map(x => x.text).join(' ') : '')).replace(/\s+/g, ' ').trim(); }
+  else if (p.plat === 'ig') { const j = await sc(env, '/v2/instagram/media/transcript', { url: p.url }, meter); text = String((j.transcripts || [])[0]?.text || '').replace(/\s+/g, ' ').trim(); }
+  text = clip(text, 6000);
+  await env.DB.prepare(`UPDATE social_post SET transcript = ?2 WHERE id = ?1`).bind(p.id, text).run();
+  return { text, cached: false, left: meter.left };
+}
 
 /* ---------------- YouTube Data API v3 (free; YT_API_KEY) ---------------- */
 const YT = 'https://www.googleapis.com/youtube/v3';
@@ -338,7 +355,7 @@ export function trendsOf(posts) {
 const pub = p => ({ id: p.id, follow_id: p.follow_id, plat: p.plat, fmt: p.fmt, handle: p.handle, url: p.url, caption: p.caption, posted_at: p.posted_at,
   thumb: p.thumb ? `${SELF}/social-m/${p.thumb}` : p.thumb_src, views: p.views, likes: p.likes, comments: p.comments, shares: p.shares, saves: p.saves,
   dur: p.dur, sound: p.sound, slides: p.slides, hook: p.hook, ftag: p.ftag, saved: !!p.saved, idea_id: p.idea_id,
-  metric: p.metric, base: p.base, base_kind: p.base_kind, ratio: p.ratio, breaking: !!p.breaking, n: p.n || 0, tag: p.tag || null });
+  metric: p.metric, base: p.base, base_kind: p.base_kind, ratio: p.ratio, breaking: !!p.breaking, n: p.n || 0, tag: p.tag || null, has_transcript: !!p.transcript });
 
 /** The brand's save tags: every distinct tag on a saved post, with its count (no table of its own). */
 export function tagsOf(rows) {
@@ -600,6 +617,13 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       if (!p) return json({ error: 'That post is gone.' }, 404);
       return json(await videoOf(env, p));
     }
+    if (path === '/api/social/transcript' && m === 'POST') {
+      const p = await postOf(body.id);
+      if (!p) return json({ error: 'That post is gone.' }, 404);
+      if (p.fmt === 'photo' || p.fmt === 'carousel') return json({ text: '', why: 'Pictures have no transcript.' });
+      const r = await transcriptOf(env, p);
+      return json({ text: r.text, cached: r.cached, left: r.left, why: r.text ? null : 'No speech was found in this post.' });
+    }
     if (path === '/api/social/slides' && m === 'POST') {
       const p = await postOf(body.id);
       if (!p) return json({ error: 'That post is gone.' }, 404);
@@ -616,7 +640,12 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       }
       const label = `${FMTS[p.fmt] || 'post'} from ${p.handle ? `@${p.handle}` : 'another brand'} on ${PLATS[p.plat]}`;
       const stats = [p.views != null ? `${p.views.toLocaleString('en-US')} views` : null, p.likes != null ? `${p.likes.toLocaleString('en-US')} likes` : null].filter(Boolean).join(', ');
-      const note = [clip(body.note, 500), stats ? `(${stats})` : ''].filter(Boolean).join(' ');
+      const mode = body.mode === 'recreate' ? 'recreate' : 'remix';
+      const steer = mode === 'recreate'
+        ? 'RECREATE IT: keep the exact structure of this post (same hook shape, same beat order, same length and pacing, same on-screen text style); change only the product, the setting and the words to fit the brand.'
+        : '';
+      const said = p.transcript ? `What they say in it: "${clip(p.transcript, 900)}"` : '';
+      const note = [steer, clip(body.note, 500), said, stats ? `(${stats})` : ''].filter(Boolean).join(' ');
       const thumb = p.thumb ? `${SELF}/social-m/${p.thumb}` : p.thumb_src;
       const r = await ideaFromLocus(env, { act: p.act_id, url: p.url, image: thumb, note, who, label: label.toLowerCase() });
       await env.DB.prepare(`UPDATE social_post SET idea_id = ?2, saved = 1 WHERE id = ?1`).bind(p.id, r.id).run();

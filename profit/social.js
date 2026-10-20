@@ -192,6 +192,13 @@
       .soc-view .vstep input[type=text],.soc-view .vstep textarea{width:100%;min-height:36px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;resize:vertical}
       .soc-view .vstep p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
       .soc-view .vstat{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
+      .soc-view .vtr{font-size:13px;line-height:1.55;color:var(--ink-2);background:var(--surface-2);border-radius:var(--r-sm,8px);padding:10px 12px;display:grid;gap:4px;max-height:260px;overflow:auto}
+      .soc-view .vtr b{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:700}
+      .soc-view .mkmode{display:grid;gap:6px}
+      .soc-view .mkmode label{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);padding:8px 10px;cursor:pointer;font-size:13px}
+      .soc-view .mkmode label.on{border-color:var(--brand);background:var(--brand-soft)}
+      .soc-view .mkmode input{grid-row:1/3;margin:0;accent-color:var(--brand)}
+      .soc-view .mkmode b{color:var(--ink);font-weight:600} .soc-view .mkmode small{grid-column:2;color:var(--muted);font-size:12px;line-height:1.35}
       .soc-view .vstat i{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none} .soc-view .vstat.work i{background:var(--brand);animation:socpulse 1.2s ease-in-out infinite} .soc-view .vstat.ok i{background:var(--good)} .soc-view .vstat.ask i{background:var(--warn)} .soc-view .vstat.bad i{background:var(--bad)}
       @keyframes socpulse{50%{opacity:.3}}
       .soc-view .beats{display:grid;gap:5px}
@@ -688,7 +695,23 @@
       ${p.caption ? `<div class="vcap">${esc(p.caption)}</div>` : ''}
       ${p.hook || p.ftag || p.tag ? `<div class="vtags">${p.hook ? `<span>Hook: ${esc(p.hook)}</span>` : ''}${p.ftag ? `<span>${esc(p.ftag)}</span>` : ''}${p.tag ? `<span><i class="soc-tagdot" style="background:${tagColor(p.tag)};margin-right:5px"></i>${esc(p.tag)}</span>` : ''}</div>` : ''}
       ${p.sound ? `<div class="vline">&#9835; ${esc(p.sound)}</div>` : ''}
+      ${transcriptHtml(p)}
       ${p.idea_id ? `<div class="soc-made" style="font-size:12.5px">${ic('sparkles')} Our version started</div>` : ''}`;
+    const tb = b.querySelector('#svTr'); if (tb) tb.onclick = () => transcript(p);
+  }
+  /* The transcript: fetched once per post (one scraper credit), kept on the post row server side. */
+  function transcriptHtml(p) {
+    if (p.fmt === 'photo' || p.fmt === 'carousel') return '';
+    if (p.transcript != null) return p.transcript ? `<div class="vtr"><b>What they say</b><div>${esc(p.transcript)}</div></div>` : `<div class="vline">${esc(p.transcript_why || 'No speech was found in this post.')}</div>`;
+    return `<div class="vrow"><button type="button" class="soc-btn sm" id="svTr">${ic('file-text')} Transcript</button></div>`;
+  }
+  async function transcript(p) {
+    const el = viewerEl(), btn = el.querySelector('#svTr'); if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
+    try {
+      const r = await H.apiAH('/api/social/transcript', { method: 'POST', body: JSON.stringify({ id: p.id }) });
+      p.transcript = r.text || ''; p.transcript_why = r.why || '';
+      if (V && V.p === p) column(p);
+    } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = `${ic('file-text')} Transcript`; } }
   }
   function bar(p) {
     const el = viewerEl(), b = el.querySelector('.vbar');
@@ -736,12 +759,17 @@
     const shell = inner => { b.innerHTML = `<div class="vstep"><button type="button" class="bk" id="mkBack">&#8249; Back to the post</button><h3>Make ours</h3>${inner}</div>`; b.querySelector('#mkBack').onclick = back; b.scrollTop = 0; };
     if (!p.idea_id) {
       shell(`<p>Claude watches this post and writes ${esc(brandName())}'s version as a text brief in the brand's Slack channel: the hook, the shots, our product in it, never their footage. The beats show here. About 20 to 30 cents.</p>
+        <div class="mkmode" role="radiogroup" aria-label="How close to the original">
+          <label class="${!p.mk_mode || p.mk_mode === 'remix' ? 'on' : ''}"><input type="radio" name="mkMode" value="remix" ${!p.mk_mode || p.mk_mode === 'remix' ? 'checked' : ''}><b>Our own take</b><small>Keep the idea, change how it is told</small></label>
+          <label class="${p.mk_mode === 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="recreate" ${p.mk_mode === 'recreate' ? 'checked' : ''}><b>Recreate it</b><small>Same hook shape, same beats, same pacing; only the product and words change</small></label>
+        </div>
         <input type="text" id="mkNote" placeholder="Steer it (optional): use the Ice & Gold wedge, keep the POV hook" maxlength="400">
         <div class="vrow"><button type="button" class="soc-btn pri" id="mkGo">${ic('sparkles')} Write it</button><span class="err" id="mkErr"></span></div>`);
+      b.querySelectorAll('.mkmode input').forEach(r => r.onchange = () => { p.mk_mode = r.value; b.querySelectorAll('.mkmode label').forEach(l => l.classList.toggle('on', l.contains(r))); });
       b.querySelector('#mkNote').onkeydown = e => { if (e.key === 'Enter') b.querySelector('#mkGo').click(); };
       b.querySelector('#mkGo').onclick = async () => {
         const g = b.querySelector('#mkGo'); g.disabled = true; g.textContent = 'Starting…';
-        try { const r = await H.apiAH('/api/social/make', { method: 'POST', body: JSON.stringify({ id: p.id, note: b.querySelector('#mkNote').value }) }); p.idea_id = r.idea_id; p.saved = true; bar(p); showState(p, r.state, shell); const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"] .soc-body`); if (c && !c.querySelector('.soc-made')) c.insertAdjacentHTML('beforeend', `<span class="soc-made">${ic('sparkles')} Our version started</span>`); }
+        try { const r = await H.apiAH('/api/social/make', { method: 'POST', body: JSON.stringify({ id: p.id, note: b.querySelector('#mkNote').value, mode: p.mk_mode || 'remix' }) }); p.idea_id = r.idea_id; p.saved = true; bar(p); showState(p, r.state, shell); const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"] .soc-body`); if (c && !c.querySelector('.soc-made')) c.insertAdjacentHTML('beforeend', `<span class="soc-made">${ic('sparkles')} Our version started</span>`); }
         catch (e) { b.querySelector('#mkErr').textContent = e.message; g.disabled = false; g.innerHTML = `${ic('sparkles')} Write it`; }
       };
       return;
