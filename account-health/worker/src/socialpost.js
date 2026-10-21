@@ -553,9 +553,23 @@ export async function trayOf(env, d, act) {
   const items = [];
   const used = new Set();
   for (const r of (await env.DB.prepare(`SELECT media_json FROM social_post_out WHERE act_id = ?1`).bind(act).all()).results || []) for (const m of safe(r.media_json, [])) if (m.ref) used.add(m.ref);
-  /* Studio: approved ads with a final. */
+  /* Studio: approved ads with a final. A carousel batch (brief.format 'carousel') is ONE item holding its cards in swipe
+     order (setup.carousel_order, else by line), so it posts as one carousel and never as loose cards (2026-10-21). */
   const st = await profitGet(env, d, `/api/studio?act=${encodeURIComponent(act)}`).catch(() => null);
-  for (const a of (st?.ads || []).filter(a => a.status === 'approved' && a.has_final).slice(0, 60)) {
+  const ok = (st?.ads || []).filter(a => a.status === 'approved' && a.has_final);
+  const inCar = new Set();
+  for (const b of (st?.batches || []).filter(b => b.brief?.format === 'carousel')) {
+    const order = (b.setup?.carousel_order || []).map(String);
+    const pos = a => { const i = order.indexOf(a.id); return i >= 0 ? i : 1000 + (a.line ?? 99); };
+    const cards = ok.filter(a => a.batch_id === b.id).sort((x, y) => pos(x) - pos(y)).slice(0, 10);
+    cards.forEach(a => inCar.add(a.id));
+    if (cards.length < 2) continue;
+    const c0 = cards[0].spec || {};
+    items.push({ ref: `scar:${b.id}`, src: 'studio', kind: 'carousel', title: b.name || c0.headline || 'Studio carousel', sub: `Carousel, ${cards.length} cards`,
+      thumb: `${PROFIT_ORIGIN}/api/studio/img/${cards[0].id}/final?v=${cards[0].v || 1}`, caption: b.brief?.post_copy || [c0.headline, c0.subline].filter(Boolean).join('\n'), at: b.updated_at || b.created_at,
+      cards: cards.map(a => ({ ref: `studio:${a.id}`, src: 'studio', kind: 'image', title: (a.spec || {}).headline || 'Card', thumb: `${PROFIT_ORIGIN}/api/studio/img/${a.id}/final?v=${a.v || 1}`, file: `${PROFIT_ORIGIN}/api/studio/img/${a.id}/final` })) });
+  }
+  for (const a of ok.filter(a => !inCar.has(a.id)).slice(0, 60)) {
     const sp = a.spec || {};
     items.push({ ref: `studio:${a.id}`, src: 'studio', kind: 'image', title: sp.headline || a.name || 'Studio ad', sub: sp.product || sp.who || '', thumb: `${PROFIT_ORIGIN}/api/studio/img/${a.id}/final?v=${a.v || 1}`, file: `${PROFIT_ORIGIN}/api/studio/img/${a.id}/final`, caption: [sp.headline, sp.subline].filter(Boolean).join('\n'), at: a.updated_at || a.created_at });
   }
@@ -598,7 +612,7 @@ export async function trayOf(env, d, act) {
     items.push({ ref: `media:${m.id}`, src: m.source === 'tagged' ? 'tagged' : 'upload', kind: m.kind, title: m.name || (m.kind === 'video' ? 'Video' : 'Picture'), sub: m.who || '', who: m.who || null,
       thumb: u ? u.thumb : `${SELF}/social-m/${m.key}`, file: u ? u.src : null, key: u ? null : m.key, link: u ? u.link : null, caption: m.source === 'tagged' ? '' : '', at: m.created_at });
   }
-  for (const it of items) it.used = used.has(it.ref);
+  for (const it of items) it.used = used.has(it.ref) || !!(it.cards && it.cards.some(c => used.has(c.ref)));
   return items;
 }
 
@@ -672,8 +686,8 @@ export async function fillWeek(env, d, act, week) {
   if (!need) { out.note = 'The week is already at its target.'; return out; }
   if (!connected.length) { out.note = 'Connect an account in Brand settings > Social first; until then nothing can be scheduled.'; return out; }
   const tray = await trayOf(env, d, act);
-  const pool = tray.filter(i => !i.used && i.kind !== 'text' && (i.file || i.key));
-  const bucket = { static: pool.filter(i => i.kind === 'image' && (i.src === 'studio' || i.src === 'upload')), creator: pool.filter(i => i.src === 'creator'), ad: pool.filter(i => i.src === 'ad'), make: pool.filter(i => i.src === 'make') };
+  const pool = tray.filter(i => !i.used && i.kind !== 'text' && (i.file || i.key || i.cards));
+  const bucket = { static: pool.filter(i => (i.kind === 'image' || i.kind === 'carousel') && (i.src === 'studio' || i.src === 'upload')), creator: pool.filter(i => i.src === 'creator'), ad: pool.filter(i => i.src === 'ad'), make: pool.filter(i => i.src === 'make') };
   const order = ['static', 'static', 'creator', 'ad', 'make', 'static', 'creator', 'static', 'ad', 'static', 'creator', 'static', 'ad', 'static', 'creator', 'static', 'ad', 'static', 'creator', 'static', 'ad'];
   const fallback = { static: ['static', 'creator', 'ad', 'make'], creator: ['creator', 'static', 'ad', 'make'], ad: ['ad', 'static', 'creator', 'make'], make: ['make', 'static', 'creator', 'ad'] };
   const picks = [];
@@ -712,7 +726,7 @@ export async function fillWeek(env, d, act, week) {
     try { caption = (await rephrase(env, act, it.caption || it.title || '', `a ${it.kind === 'video' ? 'video' : 'picture'} for ${b.name || 'the brand'}: ${it.title || ''}${it.sub ? `, ${it.sub}` : ''}`))[0] || ''; }
     catch { caption = it.caption || ''; }
     const targets = Object.fromEntries(connected.map(k => [k, { on: k === 'yt' ? it.kind === 'video' : true }]));
-    out.proposals.push({ item: { ref: it.ref, src: it.src, kind: it.kind, title: it.title, sub: it.sub || '', thumb: it.thumb, file: it.file || null, key: it.key || null, who: it.who || null, idea: it.idea || null }, at, day, hm: `${String(hour).padStart(2, '0')}:00`, caption, targets });
+    out.proposals.push({ item: { ref: it.ref, src: it.src, kind: it.kind, title: it.title, sub: it.sub || '', thumb: it.thumb, file: it.file || null, key: it.key || null, who: it.who || null, idea: it.idea || null, cards: it.cards || null }, at, day, hm: `${String(hour).padStart(2, '0')}:00`, caption, targets });
   }
   out.left = { static: bucket.static.length, creator: bucket.creator.length, ad: bucket.ad.length, make: bucket.make.length };
   if (out.proposals.length < need) out.note = `Only ${out.proposals.length} of the ${need} missing could be filled: the tray has nothing else unused.`;

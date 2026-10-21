@@ -4424,3 +4424,11 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   card, cannot be ticked and says why.
 - Checked on a stub harness in the built-in browser (not committed): the strip, viewer labels and the decide body, the
   launch window and its dry run body, 375px with the strip scrolling inside the card. Not run against real data or Meta.
+
+## 2026-10-21: a Studio carousel posts as ONE organic carousel (Social > Week)
+- account-health socialpost.js `trayOf`: a Studio batch with `brief.format 'carousel'` and 2+ approved finals is ONE tray
+  item (`ref scar:<batch>`, `kind 'carousel'`, `cards` = media entries in `setup.carousel_order`, caption = post copy);
+  its cards never show as loose items; it is `used` once any card is on the week. `fillWeek` treats it as one post.
+- socialweek.js `mediaOf(it)`: adding it (drag, click, From the tray, Fill the week, Swap) puts ALL its cards in the post,
+  in order. Posting already handled several pictures: Instagram = one carousel, Facebook = one multi-photo post, TikTok =
+  one photo post. Test: `node test-socialpost.mjs` 8 (tray order, no loose cards, one IG CAROUSEL container).
