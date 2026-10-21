@@ -279,6 +279,16 @@ export async function handleAtria(request, env, url, path, json, isAdmin) {
         format: a.media_format || '', img: a.preview_image_url || null, days: a.days_running ?? null, url: `https://app.tryatria.com/ad/${a.ad_id}` }));
       return json({ ok: true, ads });
     }
+    /* Take one ad out of a board (Inspiration's Remove, 2026-10-21). The ad stays saved in Atria and in its other boards. Team only. */
+    if (path === '/api/atria/board/remove' && request.method === 'POST') {
+      if (clientScope(request)) return json({ error: 'The Mobius team keeps the Atria boards.' }, 403);
+      const b = await request.json().catch(() => ({}));
+      const board = String(b.board_id || ''), ad = String(b.ad_id || '');
+      if (!board || !ad) return json({ error: 'board_id and ad_id are required' }, 400);
+      try { await mcpSession(env).call('remove_library_ad_from_ad_board', { ad_board_id: board, ad_id: ad }); }
+      catch (e) { return json({ error: e.atria === 'not_connected' ? 'Atria is not connected.' : (e.message || 'Atria did not answer') }, e.atria === 'not_connected' ? 503 : 502); }
+      return json({ ok: true });
+    }
     /* Creator link, 2026-10-06 (Cole: "I actually want the videos to be embedded there"): pull an Atria
        ad's video into the Ambassadors bucket and file it as an inspiration clip on one angle, so it plays
        on the public page like any upload. Idempotent per angle + ad: a second call returns the same proof. */
