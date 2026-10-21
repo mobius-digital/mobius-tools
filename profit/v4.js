@@ -13,7 +13,8 @@
   const $ = (q, r = document) => r.querySelector(q);
   const sym = c => (!c || c === 'USD' ? '$' : c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'CAD' ? 'CA$' : c === 'AUD' ? 'A$' : c + ' ');
   const dateWord = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-  const BITE = { ads: 'var(--c-google)', cogs: 'var(--c-amazon)', costs: 'var(--c-amazon)', shipping: 'var(--c-tiktok)', fees: 'var(--c-email)' };
+  /* one river palette (2026-10-20): kept is the brand blue, ads is amber, the three costs are greys; channel colours are for channels */
+  const BITE = { ads: 'var(--warn)', cogs: 'var(--line-strong)', costs: 'var(--line-strong)', shipping: 'var(--muted)', fees: 'var(--faint)' };
 
   /* ---------- the river: a left-to-right waterfall of yesterday ---------- */
   function river(b) {

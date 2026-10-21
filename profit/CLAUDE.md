@@ -4096,3 +4096,14 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
 - Morning's channel tiles fit three across (`.v4-share` minmax 128px).
 - Versions: v4.js?v=8, lx.css?v=20, v2.js?v=69, callscreen.js?v=8, accent.js?v=3. Checked at desktop and 390px in Cole's Chrome.
 
+### 2026-10-20 (late night): LOCUS v4 polish pass 2 (the design page, and one river palette)
+
+- Cole reviews the DESIGN PAGE mocks (docs/locus-v4, artifact GYvCTrYpSf52GAZAm535LH) as much as the app, so every mock is held to
+  the same bar. The page had no `<meta charset="utf-8">`, so a viewer that guessed wrong showed every arrow, dot and keyboard glyph
+  as garbage (âŒ˜, Â·, â–¼). It has one now. Mock fixes: the dial caption sits under the arc (viewBox 180x114), the report mock shows
+  three 4:5 ad cards a row, the runner mock's week ads are the same 4:5 cards, the Pipeline mock's board no longer pushes into its
+  rail (`.grid>*` and `.kan>*` get `min-width:0`), delta pills never wrap, the agency board's 7-day cell stacks MER under the number.
+- **One river palette, page and app:** kept = brand blue, ads = `--warn` amber, product / shipping / fees = `--line-strong` /
+  `--muted` / `--faint`. The channel colours (Meta blue, Google gold, email purple) are only for channels. v4.js `BITE` and
+  v2.css `.b-ads/.b-cogs/.b-ship/.b-fees` both changed. Versions: v4.js?v=9, v2.css bumped.
+
