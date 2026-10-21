@@ -249,6 +249,25 @@
       .mkx .alt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
       .mkx .err{color:var(--bad);font-size:12.5px} .mkx .err:empty{display:none}
       .mkx .ask{border:1px solid var(--warn);border-radius:12px;padding:12px 14px;display:grid;gap:8px} .mkx .ask p{margin:0;font-size:13px}
+      /* the four paths (the chooser in the viewer) and the same four as the page's guide */
+      .mkx .paths{display:grid;gap:8px}
+      .mkx .path{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;align-items:start;text-align:left;padding:12px 14px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;transition:border-color var(--t-fast,120ms),box-shadow var(--t-fast,120ms)}
+      .mkx .path:hover{border-color:color-mix(in srgb,var(--brand) 50%,var(--line-strong))}
+      .mkx .path.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);background:color-mix(in srgb,var(--brand) 5%,var(--surface))}
+      .mkx .path .n,.soc-sop .n{width:26px;height:26px;border-radius:50%;background:var(--surface-2);color:var(--ink-2);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+      .mkx .path.on .n{background:var(--brand);color:var(--on-brand)}
+      .mkx .path .t{display:grid;gap:3px;min-width:0} .mkx .path b{font-size:13.5px;font-weight:600} .mkx .path small{color:var(--muted);font-size:12px;line-height:1.4}
+      .mkx .path em,.soc-sop em{font-style:normal;font-size:11px;font-weight:600;color:var(--brand-ink,var(--brand))}
+      .mkx .vsec{display:grid;gap:8px} .mkx .vsec>h5{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+      .soc .soc-sop{margin:0 0 26px;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--v5-r,12px);background:var(--surface);box-shadow:var(--v5-sh,none);padding:0 22px}
+      .soc .soc-sop[open]{padding-bottom:20px}
+      .soc .soc-sop summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:16px 0} .soc .soc-sop summary::-webkit-details-marker{display:none}
+      .soc .soc-sop summary b{font-size:15px;font-weight:600} .soc .soc-sop summary small{color:var(--muted);font-size:12.5px} .soc .soc-sop summary .x{margin-left:auto;color:var(--muted);font-size:12px}
+      .soc .soc-sop .how{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin:0 0 14px} .soc .soc-sop .how span{display:inline-flex;gap:6px;align-items:center} .soc .soc-sop .how i{font-style:normal;color:var(--muted)}
+      .soc .soc-sop .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+      .soc .soc-sop .grid4>div{border-radius:10px;background:var(--surface-2);padding:12px 14px;display:grid;gap:6px;align-content:start}
+      .soc .soc-sop .grid4 b{font-size:13px;font-weight:600} .soc .soc-sop .grid4 small{color:var(--muted);font-size:12px;line-height:1.4}
+      .soc .soc-sop .grid4 .st{font-size:11px;color:var(--ink-2)}
       /* empty, loading, error */
       .soc .soc-state{border:1px dashed var(--line-strong);border-radius:var(--soc-r);padding:40px 20px;text-align:center;display:grid;gap:8px;justify-items:center;background:var(--surface)}
       .soc .soc-state b{font-size:15px} .soc .soc-state p{margin:0;max-width:52ch;color:var(--muted);font-size:13px;line-height:1.5}
@@ -329,6 +348,7 @@
         .soc-view .vgrid{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}
         .soc-tagpick{position:fixed;left:12px;right:12px;bottom:calc(120px + env(safe-area-inset-bottom,0px))}
         .mkx .mode{grid-template-columns:1fr}
+        .soc .soc-sop{padding:0 16px} .soc .soc-sop .grid4{grid-template-columns:1fr 1fr;gap:8px} .soc .soc-sop .grid4>div{padding:10px 12px}
       }`;
     document.head.appendChild(st);
   }
@@ -513,9 +533,9 @@
        then the few posts worth making ours, then everything the brand watches. Saved keeps its own simple layout. */
     const strat = !saved() && fol.length;
     const picks = strat ? posts.filter(p => okRatio(p) && p.ratio >= 3 && !p.idea_id && (!p.posted_at || (Date.now() - Date.parse(p.posted_at)) / 864e5 <= 14)).sort((a, b) => b.ratio - a.ratio).slice(0, 4) : [];
-    const top = strat ? `<section class="soc-plan sk" id="socPlan" aria-label="This week"></section>
+    const top = strat ? `<section class="soc-plan sk" id="socPlan" aria-label="This week"></section>${sopHtml()}
       ${picks.length ? `<div class="soc-sh"><h3>Worth making this week</h3><small>${picks.length} post${picks.length === 1 ? '' : 's'} doing 3x or more what the account usually gets</small></div>
-      <p class="soc-lead">${CLI() ? 'Ask the team to make one of these.' : 'Press Make ours: Locus writes the script and caption, puts it on the Week with a Film task, and you schedule it once it is filmed.'}</p>
+      <p class="soc-lead">${CLI() ? 'Ask the team to make one of these.' : 'Press Make it ours on one: post it ourselves, send it to creators, brief an ad or make it in Studio.'}</p>
       <div class="soc-picks" id="socPicks">${picks.map(p => card(p, { pick: true })).join('')}</div>` : ''}
       <div class="soc-sh"><h3>Everything ${esc(brandName())} watches</h3><small>${posts.length} posts from ${fol.length} brands and topics</small></div>
       <p class="soc-lead">Breaking out = far more than that account usually gets. Open any post to watch it, read the caption and make ours.</p>` : '';
@@ -525,6 +545,15 @@
       ${fol.length && !saved() ? statusLine(fol) : ''}${tags}${trend}${body}</div>`;
     wire(list, picks);
     if (strat) loadPlan();
+    const sop = $('#socSop'); if (sop) sop.addEventListener('toggle', () => { store('soc_sop', sop.open ? '1' : '0'); sop.querySelector('.x').textContent = sop.open ? 'Hide' : 'Show'; });
+  }
+  /* The guide on the page: "Saw a post you like? Here is what to do", the same four paths the viewer offers. */
+  function sopHtml() {
+    if (CLI()) return '';
+    const open = store('soc_sop') !== '0';
+    return `<details class="soc-sop" id="socSop" ${open ? 'open' : ''}><summary><b>Saw a post you like? Here is what to do</b><small>four ways to use it, each one button</small><span class="x">${open ? 'Hide' : 'Show'}</span></summary>
+      <div class="how"><span><span class="n">1</span>Open the post</span><i>&#8250;</i><span><span class="n">2</span>Press Make it ours</span><i>&#8250;</i><span><span class="n">3</span>Pick one of these</span><i>&#8250;</i><span><span class="n">4</span>Follow the steps it shows</span></div>
+      <div class="grid4">${Object.values(PATHS).map(q => `<div><b>${esc(q.label)}</b><small>${esc(q.line)}</small><span class="st">${q.steps.map(esc).join(' &#8250; ')}</span><em>Lands in ${esc(q.lands)}</em></div>`).join('')}</div></details>`;
   }
   /* The plan strip: this week's posts against the target, what is in the works, the Week one click away. */
   const PLAN = {};
@@ -607,7 +636,7 @@
         <div class="soc-stats">${statI(G.eye(14), p.views, 'Views')}${statI(G.heart(14), p.likes, 'Likes')}${statI(G.chat(14), p.comments, 'Comments')}${p.idea_id ? '<span class="soc-made">Ours in the works</span>' : ''}</div>
         ${saved() && (p.tag || p.note) ? `<div class="soc-sv">${p.tag ? `<i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i><span>${esc(p.tag)}</span>` : ''}${p.note ? `<span ${U() ? U().tipAttr(esc(p.note)) : ''}>${p.tag ? '· ' : ''}${esc(p.note)}</span>` : ''}</div>` : ''}
       </div>
-      ${o.pick && !CLI() ? `<div class="soc-pickbar"><button type="button" class="soc-btn ${p.idea_id ? '' : 'pri'} sm" data-mk="1">${p.idea_id ? 'See our version' : 'Make ours'}</button></div>` : ''}</article>`;
+      ${o.pick && !CLI() ? `<div class="soc-pickbar"><button type="button" class="soc-btn ${p.idea_id ? '' : 'pri'} sm" data-mk="1">${p.idea_id ? 'See our version' : 'Make it ours'}</button></div>` : ''}</article>`;
   }
   /* A carousel on a card: arrows, dots and a swipe strip once the slides are in (loaded on first hover, touch or arrow). */
   async function cardSlides(med, p) {
@@ -1004,7 +1033,7 @@
   /* The bar: ONE primary (Make our version), then Save with its tag menu and Open on the platform, side by side. */
   function bar(p) {
     const el = viewerEl(), b = el.querySelector('.vbar');
-    b.innerHTML = `${CLI() ? `<button type="button" class="soc-btn pri mk" id="svAsk">Ask the team to make it</button>` : `<button type="button" class="soc-btn pri mk" id="svMake">${p.idea_id ? 'Our version: see where it is' : 'Make our version'}</button>`}
+    b.innerHTML = `${CLI() ? `<button type="button" class="soc-btn pri mk" id="svAsk">Ask the team to make it</button>` : `<button type="button" class="soc-btn pri mk" id="svMake">${p.idea_id ? 'Our version: see where it is' : 'Make it ours'}</button>`}
       <div class="row"><span class="soc-split ${p.saved ? 'on' : ''}"><button type="button" id="svSave">${G.mark(15)} ${p.saved ? 'Saved' : 'Save'}</button><button type="button" id="svTag" aria-label="Save with a tag">${G.d(15)}</button></span>
       <a class="soc-btn" href="${esc(p.url)}" target="_blank" rel="noopener">${G.ext(14)} Open on ${esc(PL[p.plat] || 'the site')}</a></div>`;
     const mk = b.querySelector('#svMake'); if (mk) mk.onclick = () => makeStep(p);
@@ -1048,54 +1077,69 @@
      A person still films: Claude never posts someone else's footage. The other doors (Creators, Ad brief, Studio) sit
      under the draft. Engine: account-health make.js (/api/make, /api/make/redo, /api/make/exit), the tray
      (/api/social/tray), the upload (/api/social/upload?idea=). ---------- */
-  const STEPS = ['Write it', 'On the Week', 'Film it', 'Schedule it'];
+  /* "I saw a post I like, now what?" (Cole, 2026-10-21): four paths, each one button, one line on what it makes and
+     where it lands, and its own steps shown as progress. All four run the same engine (make.js); only the exit differs. */
+  const PATHS = {
+    post: { exit: 'organic', label: 'Post it ourselves', btn: 'Write it and put it on the Week', lands: 'Social > Week',
+      line: 'Our script and caption, on the Week with a Film task for Ravo. Once it is filmed you schedule it.', steps: ['Write it', 'On the Week', 'Film it', 'Schedule it'] },
+    creators: { exit: 'creators', label: 'Send it to our creators', btn: 'Write it and send it to creators', lands: 'the creator link',
+      line: 'A video idea on the creator link for TRYBE creators: what to shoot and the hook, with this post as the reference.', steps: ['Write it', 'On the creator link', 'Creators film it'] },
+    brief: { exit: 'brief', label: 'Brief the team for an ad', btn: 'Write the ad brief', lands: 'Make > Pipeline',
+      line: 'A numbered ad brief (angle, concept, what we test) in the Brief column of the Pipeline, and in Asana when the mirror is on.', steps: ['Write it', 'On the Pipeline', 'Team makes the ad'] },
+    studio: { exit: 'studio', label: 'Make static ads in Studio', btn: 'Write it and open Studio', lands: 'Make > Studio',
+      line: 'A Studio batch with the scene and copy filled in. Studio draws the ads; you approve them.', steps: ['Write it', 'Studio batch', 'Make the ads'] },
+  };
+  const SENT_PATH = { organic: 'post', creator_link: 'creators', lucky_creators: 'creators', asana_brief: 'brief', studio: 'studio' };
+  const pathOf = p => PATHS[p._path] ? p._path : 'post';
+  const doneIn = (path, sent) => Object.keys(sent || {}).some(k2 => SENT_PATH[k2] === path);
   const TRAY = {};   // act -> { at, items }
   async function trayItem(id, fresh) {
     const t = TRAY[ST.act];
     if (fresh || !t || Date.now() - t.at > 60e3) { try { const r = await H.apiAH(`/api/social/tray?act=${encodeURIComponent(ST.act)}`, { fresh: true }); TRAY[ST.act] = { at: Date.now(), items: r.items || [] }; } catch { TRAY[ST.act] = { at: Date.now(), items: [] }; } }
     return (TRAY[ST.act].items || []).find(x => x.ref === `idea:${id}`) || null;
   }
-  const stepsHtml = at => `<ol class="steps">${STEPS.map((s, i) => `<li class="${i < at ? 'done' : i === at ? 'cur' : ''}"><i></i>${i < at ? '&#10003; ' : ''}${esc(s)}</li>`).join('')}</ol>`;
+  const stepsHtml = (at, steps) => `<ol class="steps" style="grid-template-columns:repeat(${steps.length},minmax(0,1fr))">${steps.map((st, i) => `<li class="${i < at ? 'done' : i === at ? 'cur' : ''}"><i></i>${i < at ? '&#10003; ' : ''}${esc(st)}</li>`).join('')}</ol>`;
   const dueWord = d => d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   function makeStep(p) {
     const el = viewerEl(), b = el.querySelector('.vbody');
     el.classList.add('making'); clearTimeout(poll);
-    const shell = (at, inner) => {
+    const shell = (at, inner, title) => {
       if (!V || V.p !== p) return null;
-      b.innerHTML = `<div class="mkx"><button type="button" class="bk" id="mkBack">&#8249; Back to the post</button><h3>Make our version</h3>${stepsHtml(at)}${inner}</div>`;
+      b.innerHTML = `<div class="mkx"><button type="button" class="bk" id="mkBack">&#8249; Back to the post</button><h3>${esc(title || PATHS[pathOf(p)].label)}</h3>${at == null ? '' : stepsHtml(at, PATHS[pathOf(p)].steps)}${inner}</div>`;
       b.scrollTop = 0; b.querySelector('#mkBack').onclick = () => { clearTimeout(poll); column(p); };
       return b.querySelector('.mkx');
     };
     if (!p.idea_id) return intro(p, shell);
-    shell(0, '<div class="wk"><i></i>Reading where it is</div>');
-    H.apiAH(`/api/make?id=${encodeURIComponent(p.idea_id)}`, { fresh: true }).then(r => mkShow(p, r.state, shell, 0)).catch(e => shell(0, `<p class="err">${esc(e.message)}</p>`));
+    shell(null, '<div class="wk"><i></i>Reading where it is</div>', 'Make ours');
+    H.apiAH(`/api/make?id=${encodeURIComponent(p.idea_id)}`, { fresh: true }).then(r => mkShow(p, r.state, shell, 0)).catch(e => shell(null, `<p class="err">${esc(e.message)}</p>`, 'Make ours'));
   }
+  /* The chooser: four paths as cards; the picked one shows its steps, then how close to the original, a steer, one button. */
   function intro(p, shell) {
-    const bn = esc(brandName());
-    const x = shell(0, `<div class="what"><ol>
-        <li><span><b>The script</b><span>Claude watches this post and writes ${bn}'s version: the hook, each shot, the words on screen. Our product, never their footage.</span></span></li>
-        <li><span><b>The caption</b><span>Written in ${bn}'s voice, ready to paste.</span></span></li>
-        <li><span><b>A spot on the Week</b><span>It goes on the Ready tray with a Film task for Ravo, due in 5 days.</span></span></li>
-        <li><span><b>Then you schedule it</b><span>Once the clip is uploaded, one button opens the Week with the post filled in.</span></span></li></ol>
-        <small>About 25 cents, about a minute. Nothing is posted until you schedule it.</small></div>
+    const pick = PATHS[p._path] ? p._path : 'post';
+    const P = PATHS[pick];
+    const x = shell(null, `<p class="vline" style="margin:-8px 0 0">Pick what to do with it. Claude watches the post and writes ${esc(brandName())}'s version for that path: our product and words, never their footage. About 25 cents and a minute.</p>
+      <div class="paths" role="radiogroup" aria-label="What to do with this post">${Object.entries(PATHS).map(([k2, q], i) => `<button type="button" role="radio" aria-checked="${k2 === pick}" class="path ${k2 === pick ? 'on' : ''}" data-path="${k2}"><span class="n">${i + 1}</span><span class="t"><b>${esc(q.label)}</b><small>${esc(q.line)}</small><em>Lands in ${esc(q.lands)}</em></span></button>`).join('')}</div>
+      <div class="vsec"><h5>The steps</h5>${stepsHtml(-1, P.steps)}</div>
       <div class="mode" role="radiogroup" aria-label="How close to the original">
         <label class="${p.mk_mode !== 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="remix" ${p.mk_mode !== 'recreate' ? 'checked' : ''}><b>Our own take</b><small>Keep the idea, tell it our way</small></label>
         <label class="${p.mk_mode === 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="recreate" ${p.mk_mode === 'recreate' ? 'checked' : ''}><b>Recreate it</b><small>Same hook, beats and pacing; our product and words</small></label></div>
-      <textarea id="mkNote" rows="2" placeholder="Steer it (optional): use the Carver wedge, keep the POV hook, film it on the range" maxlength="400"></textarea>
-      <button type="button" class="soc-btn pri go" id="mkGo">Write it and put it on the Week</button><span class="err" id="mkErr"></span>`);
+      <textarea id="mkNote" rows="2" placeholder="Steer it (optional): use the Carver wedge, keep the POV hook, film it on the range" maxlength="400">${esc(p._note || '')}</textarea>
+      <button type="button" class="soc-btn pri go" id="mkGo">${esc(P.btn)}</button><span class="err" id="mkErr"></span>`, 'What should we do with it?');
     if (!x) return;
+    x.querySelectorAll('[data-path]').forEach(b2 => b2.onclick = () => { p._path = b2.dataset.path; p._note = x.querySelector('#mkNote').value; intro(p, shell); });
     x.querySelectorAll('.mode input').forEach(r => r.onchange = () => { p.mk_mode = r.value; x.querySelectorAll('.mode label').forEach(l => l.classList.toggle('on', l.contains(r))); });
     x.querySelector('#mkGo').onclick = async () => {
       const g = x.querySelector('#mkGo'); g.disabled = true; g.textContent = 'Starting…';
+      p._path = pick;
       const steer = p.mk_mode === 'recreate' ? 'RECREATE IT: keep the exact structure of this post (same hook shape, same beat order, same length and pacing, same on-screen text style); change only the product, the setting and the words to fit the brand.' : '';
       const label = `${FMT_WORD[p.fmt] || 'post'} from ${handleOf(p)} on ${PL[p.plat] || p.plat}`;
       const stats = [p.views != null ? `${Number(p.views).toLocaleString('en-US')} views` : null, p.likes != null ? `${Number(p.likes).toLocaleString('en-US')} likes` : null].filter(Boolean).join(', ');
       const note = [steer, `Make our version of this ${label}${stats ? ` (${stats})` : ''}.`, x.querySelector('#mkNote').value.trim()].filter(Boolean).join(' ');
       try {
-        const r = await H.apiAH('/api/make', { method: 'POST', body: JSON.stringify({ act: ST.act, url: p.url, image: p.thumb || undefined, note, exit: 'organic', post: p.id, slack: false }) });
-        p.idea_id = r.id; p.saved = true; p._auto = true; bar(p); markCard(p);
+        const r = await H.apiAH('/api/make', { method: 'POST', body: JSON.stringify({ act: ST.act, url: p.url, image: p.thumb || undefined, note, exit: P.exit, post: p.id, slack: false }) });
+        p.idea_id = r.id; p.saved = true; p._auto = pick; bar(p); markCard(p);
         mkShow(p, r.state || { status: 'queued' }, shell, 0);
-      } catch (e) { x.querySelector('#mkErr').textContent = e.message; g.disabled = false; g.textContent = 'Write it and put it on the Week'; }
+      } catch (e) { x.querySelector('#mkErr').textContent = e.message; g.disabled = false; g.textContent = P.btn; }
     };
   }
   function markCard(p) {
@@ -1121,21 +1165,29 @@
     }
     const sent = s.sent || {};
     const asking = s.status === 'questions' && (s.questions || []).length;
-    const org = sent.organic;
-    /* The draft is ready: put it on the Week at once when this session started it (the button said so). */
-    if (!asking && !org && p._auto) {
+    /* Which path this draft is on: the one picked here, else the first door it already went out of, else posting it. */
+    if (!PATHS[p._path]) p._path = SENT_PATH[Object.keys(sent)[0]] || 'post';
+    const path = pathOf(p), P = PATHS[path], pdone = doneIn(path, sent);
+    /* The draft is ready: send it down the picked path at once when this session started it (the button said so). */
+    if (!asking && !pdone && p._auto === path) {
       p._auto = false;
-      shell(1, `<div class="now"><div class="wk"><i></i><b>Putting it on the Week</b></div><p>The script is written. Adding it to the Ready tray and making the Film task.</p></div>`);
-      try { const r = await H.apiAH('/api/make/exit', { method: 'POST', body: JSON.stringify({ id: p.idea_id, exit: 'organic' }) }); delete TRAY[ST.act]; return mkShow(p, r.state || s, shell, 0); }
+      shell(1, `<div class="now"><div class="wk"><i></i><b>Sending it to ${esc(P.lands)}</b></div><p>The draft is written. ${esc(P.line)}</p></div>`);
+      try { const r = await H.apiAH('/api/make/exit', { method: 'POST', body: JSON.stringify({ id: p.idea_id, exit: P.exit }) }); if (P.exit === 'organic') delete TRAY[ST.act]; if (r.text && path !== 'post') toast(r.text); return mkShow(p, r.state || s, shell, 0); }
       catch (e) { toast(e.message); }
     }
+    const org = sent.organic;
     const it = org ? await trayItem(p.idea_id, tries === 0) : null;
     if (!V || V.p !== p) return;
     const filmed = !!(it && it.kind && it.kind !== 'text');
-    const at = asking ? 0 : !org ? 1 : !filmed ? 2 : it.used ? 4 : 3;
+    const v = (Object.entries(sent).find(([k2]) => SENT_PATH[k2] === path) || [])[1] || {};
+    const at = asking ? 0 : !pdone ? 1 : path !== 'post' ? 2 : !filmed ? 2 : it.used ? 4 : 3;
+    const openLink = v.url ? `<a class="soc-btn" href="${esc(v.url)}" target="_blank" rel="noopener">Open it</a>` : '';
     let now = '';
     if (asking) now = `<div class="ask"><b>Claude needs an answer first</b><p>${esc(s.questions.join(' '))}</p><textarea id="mkAns" rows="2" placeholder="Answer here"></textarea><button type="button" class="soc-btn pri" id="mkAnsGo">Answer and write it</button></div>`;
-    else if (!org) now = `<div class="now"><b>The script is ready</b><p>Put it on the Week: it goes on the Ready tray with a Film task for Ravo.</p><div class="row"><button type="button" class="soc-btn pri" data-exit="organic">Put it on the Week</button></div></div>`;
+    else if (!pdone) now = `<div class="now"><b>The draft is ready</b><p>${esc(P.line)}</p><div class="row"><button type="button" class="soc-btn pri" data-exit="${P.exit}">${esc(path === 'post' ? 'Put it on the Week' : `Send it to ${P.lands}`)}</button></div></div>`;
+    else if (path === 'creators') now = `<div class="now"><span class="ok">&#10003; On the creator link</span><p>${esc(v.name || 'The idea')} is on ${esc(brandName())}'s creator link with this post as the reference. Creators film it from there; their clips come back to the Week's tray.</p><div class="row">${openLink}</div></div>`;
+    else if (path === 'brief') now = `<div class="now"><span class="ok">&#10003; Brief ${esc(v.num || '')} is on the Pipeline</span><p>It sits in the Brief column${v.local ? '' : ' and in Asana'}. The team picks it up there and moves it through Making, Review, Ready and Live.</p><div class="row"><button type="button" class="soc-btn pri" data-go="production">Open the Pipeline</button>${openLink}</div></div>`;
+    else if (path === 'studio') now = `<div class="now"><span class="ok">&#10003; The Studio batch is ready</span><p>Scene and copy are filled in. Open it, press Make, then approve the ads you like.</p><div class="row"><button type="button" class="soc-btn pri" data-studio="${esc(v.id || '')}">Open in Studio</button></div></div>`;
     else if (!filmed) now = `<div class="now"><b>Next: film it</b><p>${esc(org.owner || 'Ravo')} has a Film task${org.due ? ` due ${esc(dueWord(org.due))}` : ''}${org.url ? ` (<a href="${esc(org.url)}" target="_blank" rel="noopener">open it</a>)` : ''}. Upload the clip here or on the Week; the task closes itself.</p>
       <div class="row"><button type="button" class="soc-btn pri" id="mkUp">Upload the film</button><button type="button" class="soc-btn" data-week="1">Open the Week</button></div><input type="file" id="mkFile" hidden accept="video/mp4,video/quicktime,image/jpeg,image/png,image/webp"></div>`;
     else if (!it.used) now = `<div class="now"><b>Filmed. Schedule it</b><p>The clip is in. The Week opens with a new post at the next free hour: the clip and this caption filled in, Instagram and Facebook on.</p><div class="row"><button type="button" class="soc-btn pri" data-sched="1">Schedule it on the Week</button></div></div>`;
@@ -1143,7 +1195,7 @@
     const sc = s.script || {};
     const beats = [...(sc.openers || []).slice(0, 2).map((x, i) => [i ? 'Or open' : 'Hook', x, true]), ...(sc.shots || []).map(x => [x.label || 'Shot', x.text || x, false])];
     const lines = s.studio && !beats.length ? (s.studio.lines || []).map((x, i) => [`Ad ${i + 1}`, typeof x === 'string' ? x : x.text, false]) : [];
-    const doneDoors = Object.keys(sent).filter(k2 => k2 !== 'organic').map(k2 => ({ creator_link: 'the creator board', lucky_creators: 'the Lucky creator app', asana_brief: 'an ad brief', studio: 'Studio' })[k2] || k2);
+    const doneDoors = Object.keys(sent).filter(k2 => SENT_PATH[k2] && SENT_PATH[k2] !== path).map(k2 => ({ organic: 'the Week', creator_link: 'the creator link', lucky_creators: 'the Lucky creator app', asana_brief: 'an ad brief', studio: 'Studio' })[k2] || k2);
     const x = shell(at, `${now}
       <details ${at <= 2 ? 'open' : ''}><summary>The script and caption<small>${esc(sc.title || '')}</small></summary><div style="display:grid;gap:12px">
         ${s.take ? `<p class="vline" style="margin:0">${esc(s.take)}</p>` : ''}
@@ -1152,7 +1204,7 @@
         ${s.caption ? `<div class="kv"><b>Caption <button type="button" class="vcopy" id="mkCopyCap">Copy</button></b><span style="white-space:pre-wrap">${esc(s.caption)}</span></div>` : ''}
         <div style="display:flex;gap:8px"><input type="text" id="mkSteer" placeholder="Not quite right? Say what to change" maxlength="400" style="flex:1"><button type="button" class="soc-btn" id="mkRedo">Redo</button></div>
       </div></details>
-      ${CLI() ? '' : `<div class="alt">Also send it to ${['creators', 'brief', 'studio'].map(k2 => `<button type="button" class="soc-btn sm q" data-exit="${k2}">${({ creators: 'Creators', brief: 'Ad brief', studio: 'Studio' })[k2]}</button>`).join('')}</div>`}
+      ${CLI() ? '' : (() => { const rest = Object.entries(PATHS).filter(([k2]) => k2 !== path && !doneIn(k2, sent)); return rest.length ? `<div class="alt">Also: ${rest.map(([, q]) => `<button type="button" class="soc-btn sm q" data-exit="${q.exit}">${esc(q.label)}</button>`).join('')}</div>` : ''; })()}
       ${doneDoors.length ? `<p class="vline" style="margin:0">Also sent to ${esc(doneDoors.join(', '))}.</p>` : ''}
       <span class="err" id="mkErr"></span>`);
     if (!x) return;
@@ -1171,11 +1223,13 @@
       try {
         const r = await H.apiAH('/api/make/exit', { method: 'POST', body: JSON.stringify({ id: p.idea_id, exit: ex }) });
         if (r.text) toast(r.text);
-        if (ex === 'organic') delete TRAY[ST.act];
+        if (ex === 'organic') delete TRAY[ST.act]; p._path = Object.keys(PATHS).find(k2 => PATHS[k2].exit === ex) || p._path;
         mkShow(p, r.state || s, shell, 0);
       } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = was; }
     });
     x.querySelectorAll('[data-week]').forEach(btn => btn.onclick = () => { closePost(); H.show('socialweek'); });
+    x.querySelectorAll('[data-go]').forEach(btn => btn.onclick = e => { e.stopPropagation(); closePost(); H.show(btn.dataset.go); });
+    x.querySelectorAll('[data-studio]').forEach(btn => btn.onclick = () => { const id = btn.dataset.studio; closePost(); if (id && window.StudioTab && window.StudioTab.openBatch) window.StudioTab.openBatch(id); H.show('studio'); });
     const sch = x.querySelector('[data-sched]'); if (sch) sch.onclick = () => { window.SOCIAL_COMPOSE = `idea:${p.idea_id}`; closePost(); H.show('socialweek'); };
     const up = x.querySelector('#mkUp'), fi = x.querySelector('#mkFile');
     if (up && fi) { up.onclick = () => fi.click(); fi.onchange = async () => {

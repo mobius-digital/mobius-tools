@@ -4288,3 +4288,12 @@ a wide stroke.
   arrow and key, the whole Make flow including Schedule opening the Week composer, 390px light with no sideways
   scroll. Cole's Chrome renderer was frozen this session, so NOT checked against real data. Shots:
   `docs/locus-social/screens/2026-10-21-*`.
+- **Later the same day: four paths, "I saw a post I like, now what?" (social.js?v=11).** `PATHS` in social.js = post
+  (exit organic: Write it, On the Week, Film it, Schedule it), creators (exit creators: Write it, On the creator link,
+  Creators film it), brief (exit brief: Write it, On the Pipeline, Team makes the ad), studio (exit studio: Write it,
+  Studio batch, Make the ads); each has a label, one line on what it makes, where it lands, and its button. The viewer's
+  "Make it ours" opens the chooser (`intro`: four radio cards, the picked path's steps, own take or recreate, a steer,
+  one button); `mkShow` follows the picked path (`p._path`, else the first door in `sent` via `SENT_PATH`) and runs its
+  exit when the draft lands; the other three are "Also:" buttons and switch the view to that path. The Feed shows the
+  same four as a guide card under This week (`sopHtml`, a `<details>` remembered in `soc_sop`). Checked on a stub
+  harness (desktop, 390px light): every path's steps, the Brief path end to end. Shots `docs/locus-social/screens/2026-10-21-paths-*`.
