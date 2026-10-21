@@ -25,6 +25,9 @@
  *   POST /api/launch/batch-prep    {act, card_id, adset?}  -> every approved ad of a Production card with its copy
  *   POST /api/launch/batch-preview {act, card_id, adset, cta, ads: [{file_id, name?, link?}]}  -> a dry run per ad
  *   POST /api/launch/batch-create  same body               -> the ads, PAUSED, one p_launch row each (2026-10-14)
+ *   POST /api/launch/carousel-prep    {act, studio_batch, order?}  -> a Studio carousel batch's cards in order, ad sets, the name
+ *   POST /api/launch/carousel-preview {act, studio_batch, order, adset, name, primary_text, link, cta, cards: [{studio_ad, headline, link}]}
+ *   POST /api/launch/carousel-create  same body     -> ONE carousel ad, PAUSED; one p_launch row with `cards` (2026-10-21)
  * Table p_launch is created on first use.
  *
  * The batch (2026-10-14, Cole): every APPROVED ad of a Production card goes to ONE ad set in one go. The copy comes
@@ -58,6 +61,8 @@ async function ensure(env) {
   /* 2026-10-14: a Production file launched (the batch), and the button used (the brand's next launch starts from it) */
   await env.DB.prepare(`ALTER TABLE p_launch ADD COLUMN work_file TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE p_launch ADD COLUMN cta TEXT`).run().catch(() => {});
+  /* 2026-10-21: a Studio carousel = one ad, its cards (Studio ad ids in order) kept here */
+  await env.DB.prepare(`ALTER TABLE p_launch ADD COLUMN cards TEXT`).run().catch(() => {});
   tabled = true;
 }
 
@@ -385,6 +390,125 @@ export async function launchCreate(env, d, act, b, ctx) {
     note: out.note, ads_manager: `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(r.p.patch.act).replace('act_', '')}&selected_ad_ids=${adId}` };
 }
 
+/* ---------------- the carousel: a Studio carousel batch = ONE Meta carousel ad (2026-10-21) ----------------
+   A batch whose brief says format 'carousel' is one ad: its approved pictures are the cards, in the order set on Studio's
+   Approve step (setup.carousel_order, or the order the window sends), each card with its own headline (the plan's
+   card_title, else the words on the picture) and its own link (default the ad's). Same ad set suggestion, name
+   ("415 A | Carousel"), dry run and PAUSED create as a single ad, through the same meta_create_ad. */
+async function carouselSource(env, act, b) {
+  const sb = await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE id = ?1`).bind(String(b.studio_batch || '')).first().catch(() => null);
+  if (!sb || sb.act_id !== act) return { error: 'That Studio batch is not this brand\'s.' };
+  const brief = parse(sb.brief_json, {}), setup = parse(sb.setup_json, {}), plan = parse(sb.plan_json, {});
+  if (brief.format !== 'carousel') return { error: 'This batch is not a carousel. Launch its ads one by one.' };
+  const rows = ((await env.DB.prepare(`SELECT id, status, spec_json, line, has_final FROM p_studio_ad WHERE batch_id = ?1 AND act_id = ?2`).bind(sb.id, act).all()).results || []);
+  const ok = rows.filter(r => r.status === 'approved');
+  let list;
+  if (Array.isArray(b.order) && b.order.length) {
+    list = [];
+    for (const id of b.order.map(String)) {
+      const r = ok.find(x => x.id === id);
+      if (!r) return { error: 'One of the cards is not an approved ad of this batch. Approve it on Studio, or leave it out.' };
+      if (!list.includes(r)) list.push(r);
+    }
+  } else {
+    const order = (Array.isArray(setup.carousel_order) ? setup.carousel_order : []).map(String);
+    const at = r => { const i = order.indexOf(r.id); return i >= 0 ? i : 1000 + (r.line ?? 99); };
+    list = ok.slice().sort((x, y) => at(x) - at(y));
+  }
+  if (list.length < 2) return { error: 'A carousel needs at least 2 approved cards. Approve more on the Approve step.' };
+  if (list.length > 10) return { error: 'Meta takes up to 10 cards in a carousel. Take some back to review on the Approve step.' };
+  const test = await testFor(env, act, { batchId: sb.br_batch_id, num: sb.num });
+  const cards = list.map(r => {
+    const spec = parse(r.spec_json, {}), pa = (plan.ads || [])[r.line] || {};
+    return { studio_ad: r.id, line: r.line ?? 0, image_url: `${PROFIT_ORIGIN}/api/studio/img/${r.id}/${r.has_final ? 'final' : 'full'}`, headline: clip(pa.card_title || spec.headline || '', 255) };
+  });
+  return { kind: 'studio', carousel: true, studio_batch: sb.id, studio_ad: list[0].id, cards, line: 0, format: 'Carousel', num: test?.num || (sb.num ? String(parseInt(sb.num, 10)) : null), test,
+    headline: cards[0].headline, primary_text: brief.post_copy || '', handle: null, product: (setup.products || [])[0]?.handle || null };
+}
+export async function carouselPrep(env, d, act, b) {
+  const src = await carouselSource(env, act, b); if (src.error) return src;
+  const { metas, sets } = await adsetsOf(env, d, act);
+  if (!metas.length) return { error: 'This brand has no Meta ad account connected in Locus.' };
+  const can = await metaCan(env, metas[0].act, d, metas[0].name);
+  const sug = suggest(sets, src.num, 'studio', await losersOf(env, act));
+  const pick = sets.find(s => s.id === sug.id) || null;
+  const copy = pick ? await setCopy(env, d, pick.id) : { link: null, primary_text: null, names: [], count: 0 };
+  const taken = pick ? await takenFor(env, d, pick.meta_act, src.num) : new Set();
+  await ensure(env);
+  const before = ((await env.DB.prepare(`SELECT id, ad_id, ad_name, adset_name, status, eff_status, at FROM p_launch WHERE studio_batch = ?1 AND cards IS NOT NULL ORDER BY at DESC`).bind(src.studio_batch).all()).results || []);
+  const warnings = [];
+  if (!src.num) warnings.push('This batch has no test number, so Locus cannot tie the carousel to a test by its name. Give the batch its Asana number on the Brief step.');
+  else if (!src.test) warnings.push(`Test ${src.num} is not in the test library yet. It still gets the number in its name; the Asana sync files it.`);
+  if (before.length) warnings.push(`Already launched ${before.length === 1 ? 'once' : before.length + ' times'}: "${before[0].ad_name}" in "${before[0].adset_name}".`);
+  if (src.cards.some(c => !c.headline)) warnings.push('Some cards have no headline. Meta shows the headline under each card; write one for every card.');
+  if (!can.can) warnings.push(can.fix);
+  const link = productLink(copy.link, src.product) || '';
+  return {
+    ok: true, can: can.can, carousel: true,
+    test: src.test ? { id: src.test.id, num: src.test.num, title: src.test.title, verdict: src.test.verdict || null } : (src.num ? { id: null, num: src.num, title: null } : null),
+    adsets: [...sets].sort((x, y) => (x.id === sug.id ? -1 : y.id === sug.id ? 1 : 0) || (x.status === 'ACTIVE' ? -1 : 0) - (y.status === 'ACTIVE' ? -1 : 0) || String(y.created).localeCompare(String(x.created))).slice(0, 60),
+    suggested: sug.id, why: sug.why,
+    name: adName({ num: src.num, line: 0, format: 'Carousel', headline: src.headline, taken }),
+    fields: { primary_text: src.primary_text || copy.primary_text || '', link, cta: 'SHOP_NOW' },
+    cards: src.cards.map(c => ({ studio_ad: c.studio_ad, line: c.line, image_url: c.image_url, headline: c.headline, link: '' })),
+    launched: before, warnings,
+  };
+}
+/** The browser sends the order and, per card, its headline and link; pictures always come from the batch itself. */
+function carouselInput(act, src, b) {
+  const sent = new Map((Array.isArray(b.cards) ? b.cards : []).map(c => [String(c?.studio_ad || ''), c]));
+  const cards = src.cards.map(c => { const s = sent.get(c.studio_ad) || {}; return { image_url: c.image_url, headline: clip(s.headline ?? c.headline, 255), description: clip(s.description, 255), link: String(s.link || '').trim() }; });
+  return { ...createInput(act, { ...src, video_id: null, image_url: null }, b), image_url: undefined, cards,
+    reason: clip(b.reason || `Launched from Locus${src.num ? ` for test ${src.num}` : ''} (Studio carousel, ${cards.length} cards)`, 300) };
+}
+async function proposeCarousel(env, d, act, b, ctx) {
+  const src = await carouselSource(env, act, b); if (src.error) return { error: src.error };
+  const bad = checkInput(b, src); if (bad) return { error: bad };
+  const input = carouselInput(act, src, b);
+  const off = input.cards.findIndex(c => c.link && !/^https:\/\//.test(c.link));
+  if (off >= 0) return { error: `Card ${off + 1}: its link must be a full https:// address, or empty to use the ad's link.` };
+  const action = metaActions(d).find(a => a.name === 'meta_create_ad');
+  const c = { ...ctx, via: 'locus', screen: { act_id: act } };
+  const p = await action.propose(env, input, null, c);
+  return { src, action, c, p };
+}
+export async function carouselPreview(env, d, act, b, ctx) {
+  const r = await proposeCarousel(env, d, act, b, ctx); if (r.error) return { error: r.error };
+  if (r.p.error) return { error: r.p.error };
+  const set = await setCopy(env, d, r.p.patch.id);
+  const warnings = [];
+  if (set.count >= MAX_ADS) warnings.push(`"${r.p.patch.name}" already has ${set.count} ads. The team rule is up to ${MAX_ADS} per ad set.`);
+  if (set.names.includes(r.p.patch.ad_name)) warnings.push(`An ad called "${r.p.patch.ad_name}" is already in this ad set.`);
+  return { ok: true, dry: true, carousel: true, summary: r.p.summary, detail: r.p.detail,
+    before: { adset: r.p.patch.name, ads: set.count, names: set.names.slice(0, MAX_ADS) },
+    after: { adset: r.p.patch.name, ads: set.count + 1, ad_name: r.p.patch.ad_name, status: r.p.patch.status, link: r.p.patch.link, cta: r.p.patch.cta, page: r.p.patch.page_id,
+      cards: r.p.patch.media.cards.map(c => ({ headline: c.headline, link: c.link || r.p.patch.link })) },
+    test: r.src.test ? { id: r.src.test.id, num: r.src.test.num, title: r.src.test.title } : null, warnings };
+}
+export async function carouselCreate(env, d, act, b, ctx) {
+  const r = await proposeCarousel(env, d, act, b, ctx); if (r.error) return { error: r.error };
+  if (r.p.error) return { error: r.p.error };
+  if (r.p.patch.status !== 'PAUSED') return { error: 'Launches are always made paused.' };
+  await ensure(env);
+  if (!b.again) {
+    const dup = await env.DB.prepare(`SELECT ad_name FROM p_launch WHERE studio_batch = ?1 AND cards IS NOT NULL AND adset_id = ?2 AND COALESCE(eff_status, '') NOT IN ('ARCHIVED', 'DELETED')`).bind(r.src.studio_batch, r.p.patch.id).first();
+    if (dup) return { error: `This carousel is already in that ad set as "${dup.ad_name}". Nothing was made.`, duplicate: true };
+  }
+  const out = await r.action.apply(env, r.p.patch, null, r.c);
+  if (out.error) return { error: out.error };
+  const adId = out.created || (String(out.note || '').match(/\((\d{6,})\)/) || [])[1] || null;
+  const id = 'ln_' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const now = new Date().toISOString(), who = ctx?.who || 'someone in Locus', test = r.src.test;
+  const cards = r.src.cards.map(c => c.studio_ad);
+  await env.DB.prepare(`INSERT INTO p_launch (id, act, meta_act, source, studio_ad, studio_batch, batch_id, num, ad_id, ad_name, adset_id, adset_name, write_id, status, eff_status, checked_at, by, at, cta, cards)
+    VALUES (?1, ?2, ?3, 'studio', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'PAUSED', 'PAUSED', ?13, ?14, ?13, ?15, ?16)`)
+    .bind(id, act, r.p.patch.act, r.src.studio_ad, r.src.studio_batch, test?.id || null, r.src.num || null, adId, r.p.patch.ad_name, r.p.patch.id, r.p.patch.name, out.write || null, now, who, r.p.patch.cta || null, JSON.stringify(cards)).run();
+  if (test?.id && adId) await env.DB.prepare(`INSERT INTO p_br_adtag (act_id, ad_id, batch_id, tagged_by, tagged_at) VALUES (?1, ?2, ?3, ?4, ?5)
+    ON CONFLICT(act_id, ad_id) DO UPDATE SET batch_id = excluded.batch_id, tagged_by = excluded.tagged_by, tagged_at = excluded.tagged_at`).bind(act, adId, test.id, `${who} (Launch to Meta)`, now).run().catch(() => {});
+  return { ok: true, launch: { id, ad_id: adId, ad_name: r.p.patch.ad_name, adset_id: r.p.patch.id, adset_name: r.p.patch.name, status: 'PAUSED', eff_status: 'PAUSED', num: r.src.num || null, batch_id: test?.id || null, write: out.write || null, at: now, studio_ad: r.src.studio_ad, studio_batch: r.src.studio_batch, cards },
+    note: out.note, ads_manager: adsManagerUrl(r.p.patch.act, adId) };
+}
+
 /* ---------------- the batch: every approved ad of a Production card, one ad set, the brief's copy (2026-10-14) ---------------- */
 const adsManagerUrl = (metaAct, adId) => `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(metaAct || '').replace('act_', '')}&selected_ad_ids=${adId}`;
 const fmtOfFile = f => /^video\//.test(f?.mime || '') ? 'Video' : 'Still';
@@ -544,7 +668,7 @@ export async function launchList(env, d, act, { refresh = false, only = null } =
   if (only) rows = rows.filter(r => only.has(r.act));
   if (refresh && act) await refreshStatus(env, d, rows.slice(0, 50));
   return { ok: true, launches: rows.map(r => ({ id: r.id, act: r.act, source: r.source, studio_ad: r.studio_ad, batch_id: r.batch_id, num: r.num, ad_id: r.ad_id, ad_name: r.ad_name,
-    adset_id: r.adset_id, adset_name: r.adset_name, status: r.status, eff_status: r.eff_status, checked_at: r.checked_at, by: r.by, at: r.at, verdict: r.verdict, learning: r.learning, filed_at: r.filed_at,
+    adset_id: r.adset_id, adset_name: r.adset_name, cards: parse(r.cards, null), status: r.status, eff_status: r.eff_status, checked_at: r.checked_at, by: r.by, at: r.at, verdict: r.verdict, learning: r.learning, filed_at: r.filed_at,
     ads_manager: r.ad_id && r.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(r.meta_act).replace('act_', '')}&selected_ad_ids=${r.ad_id}` : null })) };
 }
 
@@ -577,6 +701,10 @@ export async function handleLaunch(request, env, url, path, json, h) {
     if (path === '/api/launch/preview' && request.method === 'POST') return json(await launchPreview(env, h.md, act, body, ctx));
     /* Launch to Meta, step 3: create the ad PAUSED through metawrite meta_create_ad, tie it to its test. */
     if (path === '/api/launch/create' && request.method === 'POST') return json(await launchCreate(env, h.md, act, body, ctx));
+    /* A Studio carousel batch = ONE carousel ad (2026-10-21): prep, the dry run, then create paused. Team only. */
+    if (path === '/api/launch/carousel-prep' && request.method === 'POST') return json(await carouselPrep(env, h.md, act, body));
+    if (path === '/api/launch/carousel-preview' && request.method === 'POST') return json(await carouselPreview(env, h.md, act, body, ctx));
+    if (path === '/api/launch/carousel-create' && request.method === 'POST') { const r = await carouselCreate(env, h.md, act, body, ctx); return json(r, r.error ? 400 : 200); }
     /* The batch (2026-10-14): every approved ad of a Production card into one ad set. Team only (not on the client rules). */
     if (path === '/api/launch/batch-prep' && request.method === 'POST') return json(await batchPrep(env, h.md, act, body));
     if (path === '/api/launch/batch-preview' && request.method === 'POST') return json(await batchPreview(env, h.md, act, body, ctx));
@@ -585,4 +713,4 @@ export async function handleLaunch(request, env, url, path, json, h) {
   } catch (e) { return json({ error: e.message }, 502); }
 }
 
-export const _test = { sourceOf, createInput, checkInput, resetTable: () => { tabled = false; } };
+export const _test = { sourceOf, carouselSource, createInput, checkInput, resetTable: () => { tabled = false; } };
