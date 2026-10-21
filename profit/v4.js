@@ -225,7 +225,9 @@
     const ym = now.toISOString().slice(0, 7), mStart = `${ym}-01`, today = now.toISOString().slice(0, 10);
     const title = `${monthName}: ${K.esc(a.name)}`;
     const shell = body => `<div class="v2 lx v4">${K.head('month', title)}${body}</div>`;
-    const acts = `<button type="button" class="v2btn" data-go="plan">Edit the plan</button><button type="button" class="v2btn ghost" data-go="customers">Customers</button>`;
+    /* a client reads the month; editing the plan is the team's (body.is-client), Customers is theirs too */
+    const client = document.body.classList.contains('is-client');
+    const acts = `${client ? '' : '<button type="button" class="v2btn" data-go="plan">Edit the plan</button>'}<button type="button" class="v2btn ghost" data-go="customers" data-client-ok>Customers</button>`;
     if (first) { $('#main').innerHTML = shell(`<div class="v4-top v4-mo"><section class="v2card v2sk"><i class="h"></i></section><section class="v2card v2sk"><i class="h"></i></section><section class="v2card v2sk"><i class="h"></i></section></div>${K.skPage({ tiles: 0, chart: true, rows: 2 })}`); H.pageActions && H.pageActions(acts); }
     const q = encodeURIComponent(H.S.act);
     const [d, fc, cu, ch] = await Promise.all([

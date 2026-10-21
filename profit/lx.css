@@ -486,3 +486,6 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 .v4-ic-a{display:flex;gap:6px;margin-top:8px}.v4-ic-a .pd-btn{min-height:0;height:26px;padding:0 10px;font-size:12px}
 /* the loop: a leak whose task is done */
 .lk-link.lk-done{color:var(--good);opacity:1}
+
+/* a client reads: header actions are the team's unless a page flags one data-client-ok (2026-10-21) */
+body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdActions > :not([data-client-ok]), body.is-client .v4-ring-go{display:none}

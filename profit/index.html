@@ -2241,7 +2241,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=20">
+<link rel="stylesheet" href="lx.css?v=21">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2377,12 +2377,12 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="clients.js?v=6"></script>
 <script src="requests.js?v=3"></script>
 <script src="actions.js?v=4"></script>
-<script src="calls.js?v=7"></script>
+<script src="calls.js?v=13"></script>
 <script src="callscreen.js?v=8"></script>
 <script src="tasks.js?v=9"></script>
 <script src="review-ui.js?v=9"></script>
 <script src="prodsheet.js?v=13"></script>
-<script src="production.js?v=13"></script>
+<script src="production.js?v=14"></script>
 <script src="sop.js?v=5"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
@@ -2405,7 +2405,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="socialweek.js?v=5"></script>
 <script src="make.js?v=2"></script>
 <script src="supply.js?v=7"></script>
-<script src="v4.js?v=10"></script>
+<script src="v4.js?v=11"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -7370,7 +7370,7 @@ async function renderDash(first) {
   const msg = t => { const el = $('#dsMsg'); if (el) el.textContent = t; };
   /* THE KIT (2026-10-20): Edit by hand is the one header action; Post now, Change it with Locus and Delete sit under
      More. The header's buttons press the page's own (hidden) buttons, so every handler below stays as it was. */
-  pageActions(`<button class="btn quiet" data-dsa="dsEdit">Edit by hand</button>${pillMenu('dsMore', 'More', [['dsPost', 'Post to Slack now'], ['dsAskCh', 'Change it with Locus'], ['dsDel', 'Delete this dashboard']], '', { curText: '' })}`);
+  pageActions(isClient() ? '' : `<button class="btn quiet" data-dsa="dsEdit">Edit by hand</button>${pillMenu('dsMore', 'More', [['dsPost', 'Post to Slack now'], ['dsAskCh', 'Change it with Locus'], ['dsDel', 'Delete this dashboard']], '', { curText: '' })}`);
   const dsPress = id => { const b = document.getElementById(id); if (b) b.click(); };
   document.querySelectorAll('#main .ph-acts [data-dsa], #hdActions [data-dsa]').forEach(b => b.onclick = () => dsPress(b.dataset.dsa));
   wirePillMenu(document.getElementById('dsMore'), v => dsPress(v));
@@ -7893,7 +7893,7 @@ async function renderProfit(first) {
       <div class="v2stacklab"><span><i style="background:var(--brand)"></i>New ${K(t.new_rev)}</span><span><i style="background:var(--c-email)"></i>Returning ${K(t.ret_rev)}</span>${t.email_rev ? `<span>Klaviyo email placed ${K(t.email_rev)} (${fmtPct(t.email_share)}), across both</span>` : ''}</div>` : '<p class="v2hint">No new-vs-returning split for this window.</p>'}
       <p class="v2hint" style="margin-top:6px">What a customer costs, what they are worth over time and what they buy first and next is on <button type="button" class="v2link" data-go="customers">Customers ›</button></p></section>`;
 
-  pageActions(`${healthPill(h)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
+  pageActions(isClient() ? healthPill(h) : `${healthPill(h)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
   $('#main').innerHTML = shell(`Profit: ${name}`, `
     ${LX.say(say)}
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn"><div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See <b>Costs</b> for what that is worth.</div></div>` : ''}
@@ -8649,7 +8649,7 @@ async function renderBrief(first) {
       $('#bfMsg').textContent = 'Saved ✓ - this is exactly what will send';
     } catch (e) { $('#bfMsg').textContent = e.message; }
   };
-  pageActions(bfHead);
+  pageActions(isClient() ? '' : bfHead);   // a client reads the brief; sending and editing are the team's (2026-10-21)
   const bfPress = id => { const b = document.getElementById(id); if (b) b.click(); };
   document.querySelectorAll('#main .ph-acts [data-bfa], #hdActions [data-bfa]').forEach(b => b.onclick = () => bfPress(b.dataset.bfa));
   wirePillMenu(document.getElementById('bfMore'), v => bfPress(v));
@@ -9973,10 +9973,11 @@ async function renderReports(first) {
   const editTopK = rep && !sent && rep.summary ? '<button class="btn quiet" data-rpa="edit">Edit</button>' : '';
   $('#main').innerHTML = shell(`
     ${lead ? LX.say(lead) : ''}
-    <div class="rp-pick lx-bar">${chips}${banner}<span class="lx-msg" id="rpGenMsg"></span></div>
+    <div class="rp-pick lx-bar">${chips}${isClient() ? '' : banner}<span class="lx-msg" id="rpGenMsg"></span></div>
     ${body}
     ${isClient() ? '' : configCard}${hiddenActs}`);
-  pageActions(`${sendTop}${editTopK}${pillMenu('rpMore', 'More', moreOpts, '', { curText: '' })}`);   // after the paint: shell() draws the header the actions live in
+  /* a client reads the report; the team's actions (send, edit, rewrite, generate, the link) are never theirs (2026-10-21) */
+  pageActions(isClient() ? '' : `${sendTop}${editTopK}${pillMenu('rpMore', 'More', moreOpts, '', { curText: '' })}`);   // after the paint: shell() draws the header the actions live in
   /* the header's buttons press the page's own (hidden) buttons, so every handler below stays as it was */
   const press = id => { const b = document.getElementById(id); if (b) b.click(); else noteModal('Not available', '<p>That action is not available on this report.</p>'); };
   document.querySelectorAll('#main .ph-acts [data-rpa], #hdActions [data-rpa]').forEach(b => b.onclick = () => press(b.dataset.rpa === 'send' ? 'rpSend' : 'rpEditTop'));
@@ -10720,7 +10721,7 @@ async function renderPlan(first) {
   };
 
   const saveLbl = `Save ${esc(monthLabel(p.month))} plan`;
-  pageActions(editable && c
+  pageActions(editable && c && !isClient()
     ? `<button class="btn" id="plShare">↗ Client link</button><button class="btn primary" id="plSave">${saveLbl}</button>`
     : '');
 

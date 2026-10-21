@@ -334,7 +334,7 @@ async function liveResults(act) {
   if (!live.length || !H.apiAH) return;
   const run = D;
   const q = encodeURIComponent(act);
-  const [ll, cr] = await Promise.all([H.apiAH(`/api/launch/list?act=${q}`).catch(() => null), H.apiAH(`/api/hub/creative?act=${q}&${H.rangeQ ? H.rangeQ() : 'days=30'}`).catch(() => null)]);
+  const [ll, cr] = await Promise.all([H.apiAH(`/api/launch/list?act=${q}`).catch(() => null), (H.api || H.apiAH)(`/api/hub/creative?act=${q}&${H.rangeQ ? H.rangeQ() : 'days=30'}`).catch(() => null)   /* the ad wall is the profit worker's */]);
   if (run !== D || !ll || !Array.isArray(ll.launches)) return;
   const byAd = new Map(((cr && cr.ads) || []).map(a => [String(a.id), a]));
   const cur = (D.brands.find(b => b.act_id === act) || {}).currency || 'USD', sym = { GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$' }[cur] || '$';
