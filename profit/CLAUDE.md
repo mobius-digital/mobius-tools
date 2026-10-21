@@ -4181,3 +4181,37 @@ a wide stroke.
   Ad spend / MER tiles open the drill-down (day line, breakdown, definition) on the v4 pages.
 - Versions: lx.css?v=22, lx.js?v=8, v2.js?v=70, v4.js?v=12. Checked in Cole's Chrome (CORS srcdoc recipe): Today, Month, Calls,
   Accounts + row panel, a tile panel, light and dark, 390px (no sideways scroll), Agency view.
+
+## 2026-10-21: review round one, PASS B, words, layout and panels (in Cole's walking order)
+
+- **Today**: the character's sentence is a button (`button.v4-line[data-ask]`) that opens Ask with that sentence
+  (`AskUI.ask`). Needs you: ONE item folds into a strip under the heading (`.v4-qstrip`, `LxKit.strip`) and the top row is
+  two cards (`.v4-two-top`); two or more items = the card, which scrolls inside itself (`.v4-queue` max 260px). The
+  calendar card caps Live now and Coming up at five each with "+N more" (calendar.js `homeCard`, `.cal-more`).
+- **Brief**: `briefCardHtml(text)` (index.html, beside slackPreview) draws the v2 brief as it reads: headline large, each
+  "Label: *value* (tail)" block as a strip of figures with the plan comparison coloured, the sections as text; a v1 brief
+  falls back to the Slack preview. Past briefs and the edit-save preview use it too. The date is a small pill
+  (`.bf-datec`). Any `.ph-menu-w` or `.hd-period` menu that would cross the window edge flips (lx.js `fitMenus`).
+- **Month**: Revenue / Ad spend / MER / aMER under the weeks (new and returning under revenue), cards sized to content,
+  the customer card in plain words with "See every customer month".
+- **P&L**: `costChip(h, marginPct)` = "Costs: trusted" / "Costs: estimated (flat N%)" / "mostly trusted" / "not trusted"
+  with the why on hover; the waterfall runs full width (`.pnl-wide`) and the two columns under it are balanced.
+- **Customers**: plain headlines ("New customers by the month they first bought", "What new customers buy first, and
+  next", "What a customer spends over time"); first and next products are a two-column list with counts (`.jr2`).
+- **Reports**: the day-by-day chart runs full width above pace / split | weeks.
+- **Dashboards**: a dashboard belongs to `d.act` OR its `spec.scope` (`dashOwner`); the list and an open dashboard follow
+  the brand picker (Bonk's showed under Lucky because only d.act was checked).
+- **Model menu on credited cards**: `window.cardModel()` draws the attribution pill (`.lx-cmodel`) in a card head; one
+  MutationObserver on #main wires every one; picking sets `S.model` and redraws like the top bar. On Morning (where
+  revenue came from), Month (who paid), and every v2.js card that used to print "Attribution: <model>".
+- **Stock** (supply.js): seven columns that fit, one bar meaning (days left with a tick at the lead time, `coverBar`,
+  `leadFor`), By product / By variant (`stockRows`, `sp_view`), the explainer in the table's "..." and
+  `SupplyTab.HELP_STOCK`.
+- **Pipeline** (production.js + v4.js `ideasCol`): Ideas is always the first column for one brand (re-inserted on every
+  paint, loading placeholders, an empty state naming its sources); cards never shrink, picture then a two-line title block.
+- **Requests**: one line under the heading (team / every brand / client) and a faded "Example" row in an empty section.
+- Also fixed on the way: P&L wrote its header actions (Costs, Client link) before the paint, so they never showed; they
+  are written after it now. P&L sparklines use the kit (`LX.spark` routes to `LxKit.spark`). The river drops its normal-day
+  tick and delta on a day that lost money. Versions: lx.css?v=24, lx.js?v=10, v2.js?v=71, v4.js?v=14, desk.js?v=33,
+  calendar.js?v=15, supply.js?v=8, supply.css?v=6, production.js?v=15, requests.js?v=4. Checked in Cole's Chrome: Today,
+  Calls (action column at one x on every row), Brief (dark), P&L, Customers, Dashboards, Pipeline, Stock, The Plan, 390px.

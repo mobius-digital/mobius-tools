@@ -167,6 +167,19 @@ function css() {
 .pd-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--surface);background:var(--line-strong);flex:none}
 .pd-av.pd-none{background:var(--line-strong);color:var(--ink)}
 .pd-card .pd-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-sm,6px);background:var(--surface-2);display:block}
+/* review pass B (Cole: "text over text"): a card never shrinks in its column (a squeezed flex card drew its rows over the
+   next card), the picture holds its own box on top, and the title is a fixed two-line block under it, then the meta rows */
+.pd-card,.pd-col.v4-ideas .v4-ic{flex:none}
+.pd-card .pd-img{flex:none;height:auto}
+.pd-card.has-img .pd-t{min-height:calc(2 * 1.3em)}
+.pd-col.v4-ideas .v4-ic{display:flex;flex-direction:column;gap:3px;margin:0}
+.pd-col.v4-ideas .v4-ic img,.pd-col.v4-ideas .v4-ic .v4-ic-t{flex:none;height:auto;max-height:none;aspect-ratio:4/3;margin:0 0 5px}
+.pd-col.v4-ideas .v4-ic b{line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pd-col.v4-ideas .v4-ic.pic b{min-height:calc(2 * 1.3em)}
+.pd-col.v4-ideas .v4-ic small{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd-col.v4-ideas .v4-ic-a{margin-top:5px}
+.pd-col.v4-ideas .pd-empty a{color:var(--brand);font-weight:600;text-decoration:none;cursor:pointer}
+.pd-col.v4-ideas .pd-empty a:hover{text-decoration:underline}
 .pd-add{height:32px;border:1px dashed var(--line-strong);border-radius:var(--r-sm,6px);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:550;cursor:pointer;flex:none}
 .pd-add:hover{color:var(--ink);border-color:var(--ink-2)}
 .pd-more{font:inherit;font-size:12px;color:var(--brand);background:none;border:0;padding:4px 2px;cursor:pointer;text-align:left;flex:none}
@@ -314,7 +327,15 @@ function skeleton() {
     <div class="pd-wrap">${COLS.map(c => `<div class="pd-col"><div class="pd-ch"><span class="dot" style="background:${c.dot}"></span><b>${c.label}</b></div><div class="pd-cards"><div class="pd-sk"></div><div class="pd-sk"></div></div></div>`).join('')}</div></div>`;
   actions();
   size();
+  ideas(H.S.act || 'all');
 }
+
+/* v4 phase 6 + review pass B: the Ideas column is ALWAYS in front of Brief for one brand, on every paint (the board's
+   innerHTML replaces it, so each paint puts it back; V4.ideasCol draws it at once, from its cache or as loading, then fills) */
+const ideasOn = act => !!(window.V4 && window.V4.on && window.V4.ideasCol && act && act !== 'all');
+function ideas(act) { if (ideasOn(act)) window.V4.ideasCol($('#main .pd-wrap'), H, act); }
+/* phone: the column under the picker is found in the board itself, so the Ideas column in front never shifts the swipe */
+const colIndex = (wrap, k) => Math.max(0, [...wrap.children].findIndex(el => el.dataset && el.dataset.col === k));
 
 /* ================================================================================================================ */
 /*  cards                                                                                                            */
@@ -365,9 +386,10 @@ function cardHtml(c) {
   return `<div class="pd-card${SEL.has(c.id) ? ' sel' : ''}${img ? ' has-img' : ''}" draggable="${TOUCH() ? 'false' : 'true'}" data-id="${esc(c.id)}" tabindex="0" aria-label="${esc(`#${c.num} ${c.title || 'Untitled brief'}`)}">
     <span class="pd-tick" data-tick="${esc(c.id)}" role="checkbox" aria-checked="${SEL.has(c.id)}" aria-label="Select"></span>
     <button type="button" class="pd-pen" data-menu="${esc(c.id)}" aria-label="Card menu" title="Menu">${ico('pencil', 12) || '✎'}</button>
-    ${img ? `<img class="pd-img" src="${esc(c.thumb)}" alt="" loading="lazy" draggable="false">` : ''}
+    ${img ? `<img class="pd-img" src="${esc(c.thumb)}" alt="" loading="lazy" draggable="false">
+    <div class="pd-t">${esc(c.title || 'Untitled brief')}</div>` : ''}
     <div class="pd-r1"><span class="num">${esc(initials(c.brand))} #${esc(c.num)}</span>${D.act === 'all' && BRAND === 'all' ? `<span class="br">${esc(c.brand)}</span>` : ''}<span class="sp"></span><button type="button" class="pd-fmt" data-pop="format" data-id="${esc(c.id)}" style="--fc:${FMT[c.format] || 'var(--brand)'}" title="Change the format">${esc(c.format || 'Static')}</button></div>
-    <div class="pd-t">${esc(c.title || 'Untitled brief')}</div>
+    ${img ? '' : `<div class="pd-t">${esc(c.title || 'Untitled brief')}</div>`}
     ${status ? `<div class="pd-pills">${status}</div>` : ''}
     <div class="pd-r3"><button type="button" class="pd-avb" data-pop="owner" data-id="${esc(c.id)}" title="${esc(c.assignee ? `Owner: ${c.assignee}` : 'Owner: nobody yet')}">${av(c.assignee, 20)}</button><button type="button" class="pd-due ${due.cls}" data-pop="due" data-id="${esc(c.id)}" title="Due date">${esc(due.text)}</button><span class="sp"></span>${ups}</div>
     ${act ? `<div class="pd-r4">${act}</div>` : ''}
@@ -408,7 +430,7 @@ function paint() {
   const fmtPill = `<button type="button" class="pd-ctl pd-dk${FORMAT !== 'all' ? ' set' : ''}" data-fmtmenu aria-haspopup="menu">${FORMAT !== 'all' ? `<span class="dot" style="background:${FMT[FORMAT]}"></span>` : ''}<span class="v">${FORMAT === 'all' ? 'All formats' : esc(FORMAT)}</span>${chev}</button>`;
   const sortPill = `<button type="button" class="pd-ctl pd-dk" data-sortmenu aria-haspopup="menu"><span class="v">Sort: ${esc((SORTS.find(s => s[0] === SORT) || SORTS[0])[1])}</span>${chev}</button>`;
   const nFilt = (BRAND !== 'all' ? 1 : 0) + (FORMAT !== 'all' ? 1 : 0);
-  const seg = `<div class="pd-seg" role="tablist" aria-label="Column">${COLS.map(c => `<button type="button" role="tab" class="${PHONE_COL === c.k ? 'on' : ''}" data-seg="${c.k}" aria-selected="${PHONE_COL === c.k}">${c.label}<i>${c.k === 'live' && BRAND === 'all' && FORMAT === 'all' ? (D.live?.total ?? listOf(c.k).length) : listOf(c.k).length}</i></button>`).join('')}</div>`;
+  const seg = `<div class="pd-seg" role="tablist" aria-label="Column">${ideasOn(D.act) ? `<button type="button" role="tab" class="${PHONE_COL === 'ideas' ? 'on' : ''}" data-seg="ideas" aria-selected="${PHONE_COL === 'ideas'}">Ideas</button>` : ''}${COLS.map(c => `<button type="button" role="tab" class="${PHONE_COL === c.k ? 'on' : ''}" data-seg="${c.k}" aria-selected="${PHONE_COL === c.k}">${c.label}<i>${c.k === 'live' && BRAND === 'all' && FORMAT === 'all' ? (D.live?.total ?? listOf(c.k).length) : listOf(c.k).length}</i></button>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="pd${SELMODE ? ' selmode' : ''}">
     ${head()}
     <div class="pd-filt">${brandPill}${fmtPill}${sortPill}<button type="button" class="pd-ctl quiet pd-dk" data-archived title="Deleted in the last 60 days">Archived</button>
@@ -423,8 +445,9 @@ function paint() {
   const root = $('#main .pd');
   $$('.pd-cards', root).forEach(el => { if (scrolls[el.dataset.cards]) el.scrollTop = scrolls[el.dataset.cards]; });
   size();
+  ideas(D.act);
   const wrap = $('.pd-wrap', root);
-  if (PHONE()) { const i = Math.max(0, COLS.findIndex(c => c.k === PHONE_COL)); wrap.scrollLeft = i * wrap.clientWidth; } else wrap.scrollLeft = left;
+  if (PHONE()) wrap.scrollLeft = colIndex(wrap, PHONE_COL) * wrap.clientWidth; else wrap.scrollLeft = left;
   wire();
   bulk();
   if (FOCUS) { const el = $(`.pd-card[data-id="${CSS.escape(FOCUS)}"]`, root); if (el && (document.activeElement === document.body || document.activeElement.closest('.pd'))) el.focus({ preventScroll: true }); }
@@ -474,15 +497,15 @@ function wire() {
   $$('[data-expand]', root).forEach(h => h.onclick = () => { COLLAPSED.delete(h.dataset.expand); remember('pd_collapsed', JSON.stringify([...COLLAPSED])); paint(); });
   $$('[data-colmenu]', root).forEach(b => b.onclick = e => { e.stopPropagation(); colMenu(b.dataset.colmenu, b); });
   $$('.pd-card', root).forEach(wireCard);
-  $$('.pd-col', root).forEach(col => {
+  $$('.pd-col:not(.v4-ideas)', root).forEach(col => {
     col.addEventListener('dragover', e => { if (!DRAG) return; e.preventDefault(); col.classList.add('over'); edgeScroll(e); });
     col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
     col.addEventListener('drop', e => { e.preventDefault(); col.classList.remove('over'); const ids = DRAG || [e.dataTransfer.getData('text/plain')].filter(Boolean); if (ids.length) moveMany(ids, col.dataset.col); });
   });
   /* phone: the column picker and the swipe */
   const wrap = $('.pd-wrap', root);
-  $$('[data-seg]', root).forEach(b => b.onclick = () => { PHONE_COL = b.dataset.seg; remember('pd_col', PHONE_COL); const i = COLS.findIndex(c => c.k === PHONE_COL); wrap.scrollTo({ left: i * wrap.clientWidth, behavior: 'smooth' }); segOn(); });
-  if (PHONE()) { let t = null; wrap.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => { const i = Math.round(wrap.scrollLeft / Math.max(1, wrap.clientWidth)); const k = (COLS[i] || COLS[0]).k; if (k !== PHONE_COL) { PHONE_COL = k; remember('pd_col', k); segOn(); } }, 80); }, { passive: true }); }
+  $$('[data-seg]', root).forEach(b => b.onclick = () => { PHONE_COL = b.dataset.seg; remember('pd_col', PHONE_COL); wrap.scrollTo({ left: colIndex(wrap, PHONE_COL) * wrap.clientWidth, behavior: 'smooth' }); segOn(); });
+  if (PHONE()) { let t = null; wrap.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => { const i = Math.round(wrap.scrollLeft / Math.max(1, wrap.clientWidth)); const el = wrap.children[i]; const k = (el && el.dataset.col) || COLS[0].k; if (k !== PHONE_COL) { PHONE_COL = k; remember('pd_col', k); segOn(); } }, 80); }, { passive: true }); }
   else sideways(wrap);
   keys();
 }
@@ -1001,8 +1024,7 @@ async function render(host, first) {
   await load();
   if (t !== H.RUN()) return;
   paint();
-  /* v4 phase 6: the Ideas column (saved posts, call rows, leaks) in front of Brief, one brand at a time. */
-  if (window.V4 && window.V4.on && window.V4.ideasCol && D.act !== 'all') window.V4.ideasCol($('#main .pd-wrap'), H, D.act);
+  /* v4 phase 6: the Ideas column (saved posts, call rows, leaks) in front of Brief, one brand at a time; paint() puts it in */
   /* THE LOOP (2026-10-21): a Launched card reads the ad wall. Its ads (p_launch, matched on the card number), their spend and
      sales in the period, and the verdicts already filed, on the card itself. */
   if (D.act !== 'all') liveResults(D.act);

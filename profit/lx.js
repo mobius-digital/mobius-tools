@@ -188,6 +188,16 @@
     panel(title, `<div class="lx-rowp">${from ? `<p class="lx-rowp-from">${esc(from)}</p>` : ''}<dl>${cells.slice(1).map((td, i) => td.textContent.trim() && td.textContent.trim() !== '–' ? `<div><dt>${esc(heads[i + 1] || '')}</dt><dd>${td.innerHTML}</dd></div>` : '').join('')}</dl></div>`);
   });
 
+  /* ---------- menus flip at the window's edge (review 2026-10-21: the Brief's More menu was cut off on the right) ---------- */
+  const fitMenus = () => document.querySelectorAll('.ph-menu-w.open, .hd-period.open').forEach(w => {
+    const m = w.querySelector('.ph-menu, .hd-per-menu'); if (!m) return;
+    w.classList.remove('flip', 'flipl');
+    const r = m.getBoundingClientRect();
+    if (r.right > innerWidth - 8) w.classList.add('flip');
+    else if (r.left < 8) w.classList.add('flipl');
+  });
+  document.addEventListener('click', () => requestAnimationFrame(fitMenus));
+
   window.LxKit = { strip, wireStrip, panel, closePanel, cardMenu, rowMenu, bars, chip, ring, planChip, spark, river, funnel, scale, waterfall };
 
   /* THE ICON RAIL (2026-10-20): html.lx-irail between 721 and 1180px (lx.css draws it). The logo, the client picker and

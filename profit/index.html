@@ -2240,8 +2240,8 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="/sheet.css?v=1">
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
-<link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=22">
+<link rel="stylesheet" href="supply.css?v=6">
+<link rel="stylesheet" href="lx.css?v=24">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2375,37 +2375,37 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="brand.js?v=24"></script>
 <script src="newclient.js?v=16"></script>
 <script src="clients.js?v=6"></script>
-<script src="requests.js?v=3"></script>
+<script src="requests.js?v=4"></script>
 <script src="actions.js?v=4"></script>
 <script src="calls.js?v=13"></script>
 <script src="callscreen.js?v=8"></script>
 <script src="tasks.js?v=9"></script>
 <script src="review-ui.js?v=9"></script>
 <script src="prodsheet.js?v=13"></script>
-<script src="production.js?v=14"></script>
+<script src="production.js?v=15"></script>
 <script src="sop.js?v=5"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=36"></script>
 <script src="launch.js?v=5"></script>
-<script src="season.js?v=18"></script>
+<script src="season.js?v=19"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=6"></script>
 <script src="accent.js?v=3"></script>
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
-<script src="lx.js?v=8"></script>
-<script src="v2.js?v=70"></script>
+<script src="lx.js?v=10"></script>
+<script src="v2.js?v=71"></script>
 <script src="leaks.js?v=10"></script>
-<script src="desk.js?v=32"></script>
+<script src="desk.js?v=33"></script>
 <script src="agency.js?v=3"></script>
-<script src="calendar.js?v=14"></script>
+<script src="calendar.js?v=15"></script>
 <script src="social.js?v=9"></script>
 <script src="socialweek.js?v=5"></script>
 <script src="make.js?v=2"></script>
-<script src="supply.js?v=7"></script>
-<script src="v4.js?v=12"></script>
+<script src="supply.js?v=8"></script>
+<script src="v4.js?v=14"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -5876,6 +5876,14 @@ function wirePillMenu(box, onPick) {
   box.querySelectorAll('[data-pm]').forEach(x => x.onclick = e => { e.stopPropagation(); box.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); onPick(x.dataset.pm); });
 }
 window.PillMenu = { html: pillMenu, inner: pillMenuInner, wire: wirePillMenu };
+/* THE MODEL MENU ON A CREDITED CARD (review 2026-10-21): wherever a number is credited (first orders by channel, channel
+   revenue, ROAS) the card carries the same attribution menu as the top bar. One choice for the whole app (S.model), so
+   switching it on a card redraws the page like the top bar does. A card writes window.cardModel(); the one delegated
+   listener below wires every such pill after each paint. */
+window.cardModel = () => pillMenu('', 'Credit', MODELS.map(([v, l, d]) => [v, l, d, v === 'lastPlatformClick' ? 'default' : '']), S.model,
+  { cls: 'lx-cmodel', curText: (MODELS.find(m => m[0] === S.model) || MODELS[0])[1], note: 'Who gets the credit for an order. The same switch as the top bar.' }).replace(' id=""', '');
+new MutationObserver(() => document.querySelectorAll('#main .lx-cmodel:not([data-w])').forEach(box => { box.dataset.w = '1'; wirePillMenu(box, v => { S.model = v; try { localStorage.setItem('pf_model', S.model); } catch {} show(S.tab); }); }))
+  .observe(document.getElementById('main') || document.body, { childList: true, subtree: true });
 function renderModelMenu(tab) {
   const hm = $('#hdModel'); if (!hm) return;
   hm.hidden = !MODEL_TABS.has(tab) || !S.tok; if (hm.hidden) return;
@@ -6276,6 +6284,16 @@ const healthPill = h => {
     : v === 'noisy' ? '<span class="pill warn">cost data noisy</span>'
     : v === 'broken' ? '<span class="pill bad">cost data ⚠</span>'
     : '<span class="pill unk">no cost data</span>';
+};
+/* P&L's chip in words (review 2026-10-21): "Costs: trusted" or "Costs: estimated (flat N%)", hover says why. */
+const costChip = (h, marginPct) => {
+  const v = h && h.verdict, flat = marginPct != null ? marginPct : v === 'override' ? h.blended : null;
+  const [tone, txt, why] = flat != null ? ['warn', `Costs: estimated (flat ${Math.round(flat * 100)}%)`, 'Profit is priced at a flat margin for this brand, so cost lines are estimates.']
+    : !h || v === 'none' ? ['quiet', 'Costs: not checked', 'No cost check has run for this brand yet. Open Costs.']
+    : v === 'good' ? ['good', 'Costs: trusted', 'Product, delivery, handling and fees are all recorded from Triple Whale, with no day where cost beat revenue.']
+    : v === 'noisy' ? ['warn', 'Costs: mostly trusted', (h.reason || '') + ' The figures stand; the flagged days are on Costs.']
+    : ['bad', 'Costs: not trusted', (h.reason || 'cost data is unreliable') + '. Cost-based figures are hidden.'];
+  return `<span class="lx-st ${tone}" data-client-ok${window.V2UI && V2UI.tipAttr ? V2UI.tipAttr(why) : ''}>${esc(txt)}</span>`;
 };
 const cmTrusted = h => !h || (h.verdict !== 'broken' && h.verdict !== 'none');
 
@@ -7424,6 +7442,7 @@ function wireDashComposer() {
   const mk = $('#dsMake'); if (mk) mk.onclick = () => dashEditor(null);
 }
 
+const dashOwner = d => d.act || (d.spec && d.spec.scope && d.spec.scope !== 'all' ? d.spec.scope : null);
 async function renderDash(first) {
   const run = ++RUN;
   const shell = body => `<div class="v2 lx">${LX.head('dash', 'Dashboards')}${body}</div>`;
@@ -7432,7 +7451,9 @@ async function renderDash(first) {
     let list = [];
     try { list = (await api('/api/dashboards?act=all')).dashboards || []; } catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
     if (run !== RUN) return;
-    const mine = S.act === 'all' ? list : list.filter(d => !d.act || d.act === S.act);
+    /* a dashboard belongs to its row's act OR its spec's scope (the Strategist saves scope only): the review found Bonk's
+       dashboards listed under Lucky because only d.act was checked (2026-10-21) */
+    const mine = S.act === 'all' ? list : list.filter(d => { const o = dashOwner(d); return !o || o === S.act; });
     const nameOf = id => (S.accounts.find(a => a.act_id === id) || {}).name || 'a brand';
     const card = d => `<button class="ds-card" type="button" data-open="${esc(d.id)}">
         <b>${esc(d.name)}</b>
@@ -7455,6 +7476,7 @@ async function renderDash(first) {
   try { d = await api(`/api/dashboard?id=${encodeURIComponent(DS.id)}`); }
   catch (e) { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} if (run === RUN) show('dash'); return; }
   const spec = d.spec || {}; spec.compare = spec.compare || 'prev';
+  if (S.act !== 'all' && dashOwner(d) && dashOwner(d) !== S.act) { DS.id = ''; try { localStorage.setItem('pf_dash', ''); } catch {} if (run === RUN) show('dash'); return; }
   let ovs;
   try { ovs = await dashLoad(spec); } catch (e) { if (run === RUN) $('#main').innerHTML = shell(`<div class="card"><span style="color:var(--bad)">${esc(e.message)}</span></div>`); return; }
   if (run !== RUN) return;
@@ -7571,7 +7593,8 @@ const LX = {
     const U = window.V2UI; const html = U.tile({ ...o, hint: undefined });
     return o.info ? html.replace('<div class="l">', `<div class="l"${U.tipAttr(o.info)}>`) : html;
   },
-  spark: (vals, tips, ghost) => window.V2UI.spark(vals, ghost, 300, 34, tips),
+  /* the kit sparkline (pass A): 56px, a baseline, min and max; fmt reads the tip's number when the caller gives none */
+  spark: (vals, tips, ghost, fmt) => window.LxKit && LxKit.spark ? LxKit.spark(vals, { tips, ghost, fmt: fmt || (v => Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'K' : Math.abs(v) < 10 ? v.toFixed(2) : Math.round(v).toLocaleString('en-US')) }) : window.V2UI.spark(vals, ghost, 300, 34, tips),
   /** A delta chip against a plan or a prior period; lower = true when lower is better, 'n' = neutral. */
   chip: (cur, ref, lower, tip) => window.V2UI.chip(cur, ref, lower, tip),
   /** Revenue (accent) against ad spend (amber) by day, compare period ghosted. Wire with LX.wireDual. */
@@ -7919,9 +7942,9 @@ async function renderProfit(first) {
   const tipsOf = (k, f) => rows.map(r => `<b>${U.day(r.date)}</b> · ${r[k] == null ? '–' : f(r[k])}`);
   const sp = (k, f) => rows.length > 1 ? LX.spark(ser(k), tipsOf(k, f)) : '';
   const v = h?.verdict;
-  const costWord = d.margin_pct != null || v === 'override' ? ['Flat margin', 'warn', `Profit here is priced at a flat ${Math.round((d.margin_pct ?? h?.blended ?? 0) * 100)}% margin, so it is estimated, not measured.`]
+  const costWord = d.margin_pct != null || v === 'override' ? ['Estimated', 'warn', `Profit here is priced at a flat ${Math.round((d.margin_pct ?? h?.blended ?? 0) * 100)}% margin, so it is estimated, not measured.`]
     : !h || v === 'none' ? ['Not checked', '', 'No cost verdict has been recorded for this brand. Open Costs to run the check.']
-    : v === 'good' ? ['Measured', 'good', `${h.days ? h.days + ' days checked. ' : ''}Product, delivery, handling and fees all recorded, with no day where cost beat revenue.`]
+    : v === 'good' ? ['Trusted', 'good', `${h.days ? h.days + ' days checked. ' : ''}Product, delivery, handling and fees all recorded, with no day where cost beat revenue.`]
     : v === 'noisy' ? ['Noisy days', 'warn', `${h.reason || ''} The figures stand; the flagged days are listed on Costs.`]
     : ['Suppressed', 'bad', `${h.reason || 'cost data is unreliable'}. Revenue and efficiency are still right; only cost-based figures are hidden.`];
   const tiles = [
@@ -8007,18 +8030,20 @@ async function renderProfit(first) {
       <div class="v2stacklab"><span><i style="background:var(--brand)"></i>New ${K(t.new_rev)}</span><span><i style="background:var(--c-email)"></i>Returning ${K(t.ret_rev)}</span>${t.email_rev ? `<span>Klaviyo email placed ${K(t.email_rev)} (${fmtPct(t.email_share)}), across both</span>` : ''}</div>` : '<p class="v2hint">No new-vs-returning split for this window.</p>'}
       <p class="v2hint" style="margin-top:6px">What a customer costs, what they are worth over time and what they buy first and next is on <button type="button" class="v2link" data-go="customers">Customers ›</button></p></section>`;
 
-  pageActions(isClient() ? healthPill(h) : `${healthPill(h)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
   $('#main').innerHTML = shell(`Profit: ${name}`, `
     ${LX.say(say)}
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn"><div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See <b>Costs</b> for what that is worth.</div></div>` : ''}
     ${!trusted ? `<div class="notice bad"><div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency are still accurate; only the cost-based figures are hidden. <button type="button" class="link" data-go="costs">Open Costs</button></div></div>` : ''}
     <div class="v2tiles">${tiles}</div>
-    <div class="v2two">
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${fall || chartCard}${fc && fc.mtd ? forecastCard(fc, cur) : ''}</div>
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${fall ? chartCard : ''}${whoCard}</div>
+    ${fall ? `<div class="pnl-wide">${fall}</div>` : ''}
+    <div class="v2two pnl-bal">
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${chartCard}</div>
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${fc && fc.mtd ? forecastCard(fc, cur) : ''}${whoCard}</div>
     </div>
     ${U.foot(`Revenue is Shopify total sales minus tax, through Triple Whale. ${esc(rangeLabel())}.`)}`);
 
+  /* after the paint: the kit's pageHead draws the .ph-acts slot these go in (2026-10-21: they were written before it and lost) */
+  pageActions(isClient() ? costChip(h, d.margin_pct) : `${costChip(h, d.margin_pct)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
   // [data-go] (tiles, links) is handled by the one document-level listener near applyRole().
   if (single) LX.wireChart('pfHours');
   else if (rows.length > 1) LX.wireDual('pfSvg', rows, r => `<b>${U.day(r.date)}</b> · revenue ${M(r.sales)} · spend ${M(r.spend)}<br>MER ${fmtX(r.mer)} · aMER ${fmtX(r.amer)}${r.cm != null && trusted ? ` · CM <span class="${r.cm >= 0 ? '' : 'faint'}">${M(r.cm)}</span>` : ''}`);
@@ -8514,7 +8539,7 @@ async function renderBrief(first) {
   const histLabel = s => s === 'handled' ? 'handled · internal only' : s === 'draft' && internalOnly ? 'handled · internal only' : s;
   const hist = (d.history || []).map(hh => `
     <details style="margin:6px 0"><summary style="cursor:pointer;font-size:13px"><b>${esc(hh.date)}</b> · <span class="pill ${histPill(hh.status)}">${esc(histLabel(hh.status))}</span>${hh.posted_at ? ` <span class="tiny">${fmtAgo(hh.posted_at)}</span>` : ''}</summary>
-    <div style="margin-top:6px">${slackPreview(hh.text, { when: hh.posted_at ? fmtAgo(hh.posted_at) : '' })}</div></details>`).join('');
+    <div style="margin-top:6px">${briefCardHtml(hh.text, { when: hh.posted_at ? fmtAgo(hh.posted_at) : '' })}</div></details>`).join('');
 
   /* PAGE ORDER (2026-10-04, "stupid simple"; v2 look 2026-10-08): the buyer's morning job is
      read, fix, add What we did, Send. So: one verdict sentence on the day's numbers, the day
@@ -8522,7 +8547,7 @@ async function renderBrief(first) {
      v2 tiles with the month's sparkline, the month against the plan, then closed folds. */
   const dayLbl = U.day(d.date);
   const headHtml = `<div class="bf-head lx-bar">
-      <label for="bfDate" class="lx-msg">Brief for</label><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}">
+      <label class="bf-datec" title="Pick the day this brief covers"><span>Brief for</span><input type="date" id="bfDate" value="${d.date}" max="${addDaysStr(ymdLocal(new Date()), -1)}"></label>
       <span class="sp"></span>
       <span class="lx-msg" id="bfTwMsg">${d.tw_last_sync ? 'Triple Whale synced ' + fmtAgo(d.tw_last_sync) : 'no Triple Whale data yet, press refresh'}</span>
       <button class="btn quiet" id="bfTwSync" title="Pull the last 70 days from Triple Whale again, then redraw this page.">↻ Refresh Triple Whale data</button>
@@ -8602,9 +8627,9 @@ async function renderBrief(first) {
   const briefCard = `<section class="card bf-main">
       <div class="bf-top"><h3>The brief for ${esc(dayLbl)}</h3>${bfDraft?.steer ? `<span class="tiny">Last rewrite was steered: “${esc(String(bfDraft.steer).slice(0, 240))}”</span>` : ''}</div>
       ${bfSent
-        ? slackPreview(bfSent.text, { when: 'sent ' + (bfSent.posted_at ? fmtAgo(bfSent.posted_at) : '') })
+        ? briefCardHtml(bfSent.text, { when: 'sent ' + (bfSent.posted_at ? fmtAgo(bfSent.posted_at) : '') })
         : bfDraft
-        ? `<div id="bfPreview">${slackPreview(bfDraft.text)}</div>
+        ? `<div id="bfPreview">${briefCardHtml(bfDraft.text)}</div>
            <textarea id="bfEdit" style="display:none;min-height:360px">${esc(bfDraft.text || '')}</textarea>
            <p class="tiny" id="bfEditHint" style="display:none;margin-top:6px">Slack formatting: <code>*bold*</code>, <code>_italic_</code>, <code>:wave:</code> for emoji. Save to see it rendered.</p>`
         : `<div id="bfPreview"><p class="hint">No brief has been written for this day yet. Press <b>Write the brief</b> and Claude turns the numbers and the Change Log into the update (about 20 seconds).</p></div>`}
@@ -8761,7 +8786,7 @@ async function renderBrief(first) {
       if (bfDraft) bfDraft.text = next;
       // Re-render the preview so you immediately see it as Slack will.
       const pv = $('#bfPreview');
-      if (pv) pv.innerHTML = slackPreview(next);
+      if (pv) pv.innerHTML = briefCardHtml(next);
       bfShowEdit(false);
       $('#bfMsg').textContent = 'Saved ✓ - this is exactly what will send';
     } catch (e) { $('#bfMsg').textContent = e.message; }
@@ -8891,6 +8916,34 @@ function slackPreview(text, opts = {}) {
       <span class="sm-tag">app</span>
       <span class="sm-when">${esc(opts.when || 'this is how it will look in Slack')}</span>
     </div>${slackToHtml(text)}</div>`;
+}
+
+/* THE BRIEF AS IT READS (review round one, 2026-10-21). The v2 brief (account-health buildBriefTextV2) is a headline,
+   number blocks ("Label: *value* (tail)") and short sections. The page draws it as a card you can skim: the headline
+   large, each number block as a strip of figures with the plan comparison coloured, the sections as text. An older
+   (v1) brief with no number blocks falls back to the Slack preview. */
+function briefCardHtml(text, opts = {}) {
+  const raw = String(text || '').replace(/\r/g, '');
+  const blocks = raw.split(/\n\s*\n/).map(b => b.split('\n').filter(l => l.trim()));
+  const numRe = /^([A-Za-z+ &]+):\s*\*([^*]+)\*\s*(?:\((.*)\))?\s*$/;
+  if (!blocks.some(b => b.filter(l => numRe.test(l)).length >= 2)) return slackPreview(text, opts);
+  const md = t => slackToHtml(t).replace(/^<div[^>]*>|<\/div>$/g, '');
+  const tone = t => /\+\d|over the/.test(t || '') ? 'good' : /-\d|under the/.test(t || '') ? 'bad' : '';
+  let head = '', out = [];
+  blocks.forEach((b, bi) => {
+    let lines = b.slice();
+    if (bi === 0 && /^Hey Team/i.test(lines[0] || '')) lines.shift();
+    if (!head && lines.length && /^\*[^*]+\*$/.test(lines[0].trim()) && !numRe.test(lines[0])) { head = lines.shift().replace(/^\*|\*$/g, ''); }
+    if (!lines.length) return;
+    const nums = lines.filter(l => numRe.test(l));
+    if (nums.length >= 2) {
+      const title = /^\*[^*]+\*/.test(lines[0]) && !numRe.test(lines[0]) ? lines[0] : '';
+      out.push(`<div class="bfc-blk">${title ? `<div class="bfc-t">${md(title)}</div>` : ''}<div class="bfc-nums">${nums.map(l => { const m = l.match(numRe); return `<div><small>${esc(m[1].trim())}</small><b>${esc(m[2])}</b>${m[3] ? `<em class="${/spend/i.test(m[1]) ? '' : tone(m[3])}">${esc(m[3])}</em>` : ''}</div>`; }).join('')}</div></div>`);
+      const rest = lines.filter(l => l !== title && !nums.includes(l));
+      if (rest.length) out.push(`<div class="bfc-txt">${md(rest.join('\n'))}</div>`);
+    } else out.push(`<div class="bfc-txt">${md(lines.join('\n'))}</div>`);
+  });
+  return `<div class="bfc">${opts.when ? `<p class="bfc-when">${esc(opts.when)}</p>` : ''}${head ? `<h2 class="bfc-h">${md(head)}</h2>` : ''}${out.join('')}</div>`;
 }
 
 const addDaysStr = (ymd, n) => { const dt = new Date(ymd + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() + n); return dt.toISOString().slice(0, 10); };
@@ -9483,9 +9536,10 @@ function reportBodyHTML(d, summary, opts = {}) {
     ${sumSec}${weekSec}${adsSec}
     <details class="rp-more"><summary><span>More detail${moreList.length ? `: ${esc(moreList.join(', '))}` : ''}</span><svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></summary>
     <div class="rp-more-b">${jumpHtml}${kpisMore ? `<div class="v2tiles rp-kpis">${kpisMore}</div>` : ''}
+    ${chartSec}
     <div class="two rp-two">
-      <div>${chartSec}</div>
-      <div>${paceSec}${splitSec}${weeksSec}</div>
+      <div>${paceSec}${splitSec}</div>
+      <div>${weeksSec}</div>
     </div>
     ${attrHtml}${metaHtml}
     ${otherHtml.length ? `<div class="rp-grid">${otherHtml.join('')}</div>` : ''}
@@ -11300,7 +11354,7 @@ function ltvCurve(j, cur) {
     + LX.chart('cuCurve', { xs, xl: xs.map(d => d ? `${d} days` : 'First order'), cur, h: 230,
       series: [{ vals, color: '--brand', dots: true, w: 2.2 }],
       lines: cac ? [{ v: cac, color: '--bad', label: `Cost to get one ${fmtMoney(cac, cur)}` }, { v: cac * 3, color: '--good', label: '3x the cost' }] : [], tips }) : '';
-  return `<section class="v2card"><div class="v2h"><h3>How much they spend after the first order</h3><span class="find">${last.ltv != null ? `${fmtMoney(last.ltv, cur)} per customer by day ${last.days}.` : ''}</span></div>
+  return `<section class="v2card"><div class="v2h"><h3>What a customer spends over time</h3><span class="find">${last.ltv != null ? `${fmtMoney(last.ltv, cur)} per customer by day ${last.days}.` : ''}</span></div>
     ${chart}
     <p class="v2concl">${read}${j.first_aov != null && j.returning_aov != null ? ` A first order averages ${fmtMoney(j.first_aov, cur)}; a repeat order ${fmtMoney(j.returning_aov, cur)}.` : ''}</p>
     <details class="footnote" style="margin-top:10px"><summary>The numbers behind the curve</summary>
@@ -11314,10 +11368,10 @@ function journeyCard(j, cur) {
   const p = j.products || {};
   const first = p.first || [];
   const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
-  if (!first.length) return `<section class="v2card"><div class="v2h"><h3>What they buy first, and what they buy next</h3></div><p class="lx-empty">No product detail yet. It fills in as more orders carry cart detail.</p></section>`;
-  return `<section class="v2card"><div class="v2h"><h3>What they buy first, and what they buy next</h3><span class="find">the first product, who orders again within 90 days, what they choose next${p.coverage != null && p.coverage < 0.9 ? ` · cart detail for ${fmtPct(p.coverage)} of first orders` : ''}</span>${menu(['Products come from what the shopper put in the cart before each order (Triple Whale add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey; connecting Shopify would make them exact.', 'Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.'])}</div>
-    <div class="jr-list">${first.map(f => `<div class="jr-row"><div class="jr-first"><b>${esc(f.name)}</b><span class="tiny">${fmtN(f.customers)} customers started here${f.share != null ? ` (${fmtPct(f.share)} of new customers)` : ''}${f.repeat_rate != null ? ` · <b>${fmtPct(f.repeat_rate)}</b> order again within 90 days` : ''}</span></div>
-      <div class="jr-then"><span class="tiny" style="margin-right:4px">then:</span>${f.then.length ? f.then.map(t => `<span class="pill">${esc(t.name)} <span class="tiny">${t.customers}</span></span>`).join('') : '<span class="tiny">nobody has ordered again yet</span>'}</div></div>`).join('')}</div></section>`;
+  if (!first.length) return `<section class="v2card"><div class="v2h"><h3>What new customers buy first, and next</h3></div><p class="lx-empty">No product detail yet. It fills in as more orders carry cart detail.</p></section>`;
+  return `<section class="v2card"><div class="v2h"><h3>What new customers buy first, and next</h3><span class="find">the first product, who orders again within 90 days, what they choose next${p.coverage != null && p.coverage < 0.9 ? ` · cart detail for ${fmtPct(p.coverage)} of first orders` : ''}</span>${menu(['Products come from what the shopper put in the cart before each order (Triple Whale add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey; connecting Shopify would make them exact.', 'Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.'])}</div>
+    <div class="jr-list jr2"><div class="jr2-h"><span>First product</span><span>What they buy next</span></div>${first.map(f => `<div class="jr2-row"><div class="jr2-a"><b>${esc(f.name)}</b><small>${fmtN(f.customers)} customers${f.share != null ? ` · ${fmtPct(f.share)} of new` : ''}${f.repeat_rate != null ? ` · ${fmtPct(f.repeat_rate)} order again` : ''}</small></div>
+      <ol class="jr2-b">${f.then.length ? f.then.slice(0, 4).map(t => `<li><span>${esc(t.name)}</span><b>${fmtN(t.customers)}</b></li>`).join('') : '<li class="none"><span>Nobody has ordered again yet</span></li>'}</ol></div>`).join('')}</div></section>`;
 }
 
 /** Do repeat orders need ads, or do they arrive on their own? */
@@ -11338,7 +11392,7 @@ function cohortTable(j, cur) {
   if (!rows.length) return '';
   const anyYear = rows.some(r => r.ltv_365 != null);
   const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
-  return `<section class="v2card"><div class="v2h"><h3>Each month's new customers, followed since</h3><span class="find">everyone who bought for the first time that month · a month needs 90 days to show a figure</span>${menu([`"Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them.`, 'Cost to get each = that month\'s ad spend across every platform divided by its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.'])}</div>
+  return `<section class="v2card"><div class="v2h"><h3>New customers by the month they first bought</h3><span class="find">everyone who bought for the first time that month · a month needs 90 days to show a figure</span>${menu([`"Back per $1" is what they have spent in their first 90 days${anyYear ? ' (or first year, where a year has passed)' : ''} for every dollar it cost to get them.`, 'Cost to get each = that month\'s ad spend across every platform divided by its new customers (Triple Whale). Green is 3x or more, amber 1.5x to 3x, red under 1.5x.'])}</div>
     <div class="v2tbl"><table>
       <thead><tr><th>First bought</th><th class="num">New customers</th><th class="num">Cost to get each</th><th class="num">Spent in 90 days</th>${anyYear ? '<th class="num">Spent in a year</th>' : ''}<th class="num">Back per $1</th><th class="num">Ordered again</th></tr></thead>
       <tbody>${rows.map(r => { const lc = r.ltv_cac_365 ?? r.ltv_cac_90; return `<tr${r.uncertain ? ' style="opacity:.55"' : ''}>

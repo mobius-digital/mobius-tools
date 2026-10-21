@@ -53,6 +53,11 @@
       .rq .rq-reply{display:flex;gap:8px;margin:10px 0 0;align-items:flex-end}
       .rq .rq-reply textarea{flex:1;min-height:38px;resize:vertical}
       .rq textarea,.rq-m textarea,.rq-m input[type=text],.rq-m input[type=url]{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;line-height:1.5;background:var(--surface);color:var(--ink)}
+      .rq .rq-for{margin:-6px 0 16px;font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:72ch}
+      .rq .rq-ex{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:12px 0;border-top:1px dashed var(--line-strong);opacity:.55;pointer-events:none;user-select:none}
+      .rq .rq-ex b{font-size:14px;font-weight:600;color:var(--ink);min-width:0;overflow-wrap:anywhere}
+      .rq .rq-ex small{font-size:12px;color:var(--muted)}
+      .rq .rq-ex-tag{flex:none;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px dashed var(--line-strong);border-radius:999px;padding:1px 7px}
       .rq .rq-empty{padding:28px 20px;text-align:center;color:var(--muted);font-size:14px;border:1px dashed var(--line-strong);border-radius:var(--r-lg,14px)}
       .rq .rq-done summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);margin:0 0 10px}
       .rq-m .modal{max-width:640px;width:calc(100vw - 32px);display:block;padding:20px 22px;max-height:calc(100vh - 48px);overflow:auto}
@@ -144,9 +149,10 @@
     const all = act === 'all';
     const brand = (H.S.accounts || []).find(a => a.act_id === act);
     const title = all ? 'Requests' : `Requests: ${esc(brand ? brand.name : '')}`;
-    const sub = isClient() ? 'Things we need you to approve, and anything you would like from us. Every message reaches the team straight away.'
-      : all ? 'What clients asked us for and what we are waiting on them to approve, across every brand.' : 'Send the client something to approve, and answer what they ask for.';
-    const head = H.pageHead('requests', title);
+    /* review pass B (Cole: "what is it for"): one line under the heading says what the page is */
+    const sub = isClient() ? 'Things we need you to approve and anything you ask us for, in one list.'
+      : all ? 'Approvals sent to clients and things clients ask for, every brand in one list.' : 'Approvals you send the client and things the client asks for, in one list.';
+    const head = `${H.pageHead('requests', title)}<p class="rq-for">${esc(sub)}</p>`;
     if (first) $('#main').innerHTML = `<div class="v2 rq">${head}<div class="v2card"><p class="v2hint">Loading…</p></div></div>`;
     let d;
     try { d = await H.apiAH(`/api/requests?act=${encodeURIComponent(act)}`); }
@@ -169,7 +175,10 @@
        group is one card with a title, a count and the items as rows; an empty group is one line with one verb. */
     const top = all ? '' : `<span class="lx-tohead">${isClient() ? '<button class="btn primary" id="rqNew">Ask the team for something</button>' : '<button class="btn primary" id="rqSend">Send for approval</button><button class="btn" id="rqNew">Add a request</button>'}</span>`;
     const EMPTY = { 'Nothing waiting for the team.': 'Nothing waiting for us.', 'Nothing sent for approval right now.': 'Nothing sent for approval. <button type="button" class="v2link" data-press="rqSend">Send something</button>', 'Nothing to approve right now.': 'Nothing to approve.', 'Nothing open. Ask the team for anything with the button above.': 'Nothing open. <button type="button" class="v2link" data-press="rqNew">Ask the team for something</button>' };
-    const secCard = (lbl, list, empty) => { const m = /^(.*?)(?: \((\d+)\))?$/.exec(lbl) || []; return `<section class="v2card rq-sec"><div class="v2h"><h3>${esc(m[1] || lbl)}</h3><span class="cap">${list.length ? `${list.length} open` : ''}</span></div>${list.length ? list.map(i => itemHTML(i, all)).join('') : `<p class="lx-empty">${EMPTY[empty] || esc(empty)}</p>`}</section>`; };
+    /* an empty group shows one faded example row (marked Example, never a real item) so the page explains itself */
+    const EXAMPLE = { 'Nothing waiting for the team.': ['Swap the hero photo on the homepage', 'asked by the client'], 'Nothing sent for approval right now.': ['Approve the Black Friday email', 'due Nov 20'], 'Nothing to approve right now.': ['Approve the Black Friday email', 'due Nov 20'], 'Nothing open. Ask the team for anything with the button above.': ['Add the new hat to the next ad batch', 'asked by you'] };
+    const exRow = empty => { const x = EXAMPLE[empty]; return x ? `<div class="rq-ex" title="An example of what shows here, not a real item"><span class="rq-ex-tag">Example</span><b>${esc(x[0])}</b><small>${esc(x[1])}</small></div>` : ''; };
+    const secCard = (lbl, list, empty) => { const m = /^(.*?)(?: \((\d+)\))?$/.exec(lbl) || []; return `<section class="v2card rq-sec"><div class="v2h"><h3>${esc(m[1] || lbl)}</h3><span class="cap">${list.length ? `${list.length} open` : ''}</span></div>${list.length ? list.map(i => itemHTML(i, all)).join('') : `${exRow(empty)}<p class="lx-empty">${EMPTY[empty] || esc(empty)}</p>`}</section>`; };
     $('#main').innerHTML = `<div class="v2 rq">${head}${top}
       ${secs.filter(([, list, empty]) => list.length || empty).map(([lbl, list, empty]) => secCard(lbl, list, empty)).join('')}
       ${done.length ? `<details class="rq-sec rq-done"><summary>Done in the last 60 days (${done.length})</summary>${done.map(i => itemHTML(i, all)).join('')}</details>` : ''}
