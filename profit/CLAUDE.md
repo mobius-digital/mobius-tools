@@ -4322,3 +4322,9 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   exit when the draft lands; the other three are "Also:" buttons and switch the view to that path. The Feed shows the
   same four as a guide card under This week (`sopHtml`, a `<details>` remembered in `soc_sop`). Checked on a stub
   harness (desktop, 390px light): every path's steps, the Brief path end to end. Shots `docs/locus-social/screens/2026-10-21-paths-*`.
+
+## 2026-10-21 (round four): RECEIPT ROWS replace every filled horizontal bar (Cole picked them)
+- `LxKit.bars` lists (weeks, channels, first orders) read as rows: label and number, note in grey, a 2px hairline sized to the
+  value, the target as a tick (no ghost bar). Yesterday on Today is a receipt (`river()` in v4.js, `.lx-rc`): Sales, each cost
+  with its share and hairline, Kept, a normal day. Agency kept bars, table inline bars, the share bar and funnel bars are
+  hairlines too. CSS block "RECEIPT ROWS" at the end of lx.css. Not seen in a browser: Chrome stopped responding (every tab).
