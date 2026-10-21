@@ -147,6 +147,7 @@ function css() {
 .pd-t{color:var(--ink);line-height:1.3;font-size:14px;font-weight:600;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pd-pills{display:flex;flex-wrap:wrap;gap:4px}
 .pd-pill{font-size:10.5px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--line-strong);color:var(--ink-2);white-space:nowrap}
+.pd-live{margin:4px 0 2px;font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;line-height:1.35}.pd-live::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--good);margin:0 6px 1px 0}
 .pd-pill.w{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:transparent;font-weight:600}
 .pd-pill.b{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);border-color:transparent;font-weight:600}
 .pd-pill.g{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good);border-color:transparent;font-weight:600}
@@ -326,6 +327,29 @@ function dueOf(c) {
   if (c.late) return { text: `${short(c.due)}, late`, cls: 'late' };
   if (c.due === t) return { text: `${short(c.due)}, today`, cls: 'late' };
   return { text: short(c.due), cls: '' };
+}
+/* Live cards: "3 ads · $412 · 5 sales · $82 a sale" and the filed verdicts, from /api/launch/list and /api/hub/creative. */
+async function liveResults(act) {
+  const live = D.cards.filter(c => c.board === 'live' && c.num);
+  if (!live.length || !H.apiAH) return;
+  const run = D;
+  const q = encodeURIComponent(act);
+  const [ll, cr] = await Promise.all([H.apiAH(`/api/launch/list?act=${q}`).catch(() => null), H.apiAH(`/api/hub/creative?act=${q}&${H.rangeQ ? H.rangeQ() : 'days=30'}`).catch(() => null)]);
+  if (run !== D || !ll || !Array.isArray(ll.launches)) return;
+  const byAd = new Map(((cr && cr.ads) || []).map(a => [String(a.id), a]));
+  const cur = (D.brands.find(b => b.act_id === act) || {}).currency || 'USD', sym = { GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$' }[cur] || '$';
+  const money = n => sym + Math.round(n).toLocaleString('en-US');
+  for (const c of live) {
+    const mine = ll.launches.filter(l => String(parseInt(l.num, 10)) === String(parseInt(c.num, 10)) && l.ad_id && !/ARCHIVED|DELETED/.test(l.eff_status || ''));
+    if (!mine.length) continue;
+    const ads = mine.map(l => byAd.get(String(l.ad_id))).filter(Boolean);
+    const spend = ads.reduce((t, a) => t + (+a.spend || 0), 0), sales = ads.reduce((t, a) => t + (+a.purchases || 0), 0);
+    const verdicts = mine.map(l => l.verdict).filter(Boolean);
+    const vs = verdicts.length ? ` · ${Object.entries(verdicts.reduce((m, v) => (m[v] = (m[v] || 0) + 1, m), {})).map(([v, n]) => `${n} ${v.toLowerCase()}`).join(', ')}` : '';
+    const line = `${plural(mine.length, 'ad')} live${ads.length ? ` · ${money(spend)} · ${sales ? `${plural(sales, 'sale')} · ${money(spend / sales)} a sale` : 'no sale yet'}` : ''}${vs}`;
+    const el = $(`#main .pd-card[data-id="${CSS.escape(c.id)}"] .pd-t`);
+    if (el && !el.nextElementSibling?.classList.contains('pd-live')) el.insertAdjacentHTML('afterend', `<div class="pd-live" title="From the ad wall, this period">${esc(line)}</div>`);
+  }
 }
 function cardHtml(c) {
   const act = c.board === 'review' && c.versions ? `<button type="button" class="pd-act" data-review="${esc(c.id)}">Open review</button>`
@@ -979,6 +1003,9 @@ async function render(host, first) {
   paint();
   /* v4 phase 6: the Ideas column (saved posts, call rows, leaks) in front of Brief, one brand at a time. */
   if (window.V4 && window.V4.on && window.V4.ideasCol && D.act !== 'all') window.V4.ideasCol($('#main .pd-wrap'), H, D.act);
+  /* THE LOOP (2026-10-21): a Launched card reads the ad wall. Its ads (p_launch, matched on the card number), their spend and
+     sales in the period, and the verdicts already filed, on the card itself. */
+  if (D.act !== 'all') liveResults(D.act);
   if (!OPENED) {
     OPENED = true;
     const id = new URLSearchParams(location.search).get('card') || window.PD_CARD;

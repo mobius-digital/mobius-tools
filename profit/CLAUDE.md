@@ -4119,3 +4119,19 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   (the hero river), the design page's `river()` and `waterfall()`. Any new money chart reads these tokens, never a literal.
 - Versions: v4.js?v=10, v2.css bumped again.
 
+### 2026-10-21: v4 ON BY DEFAULT (PR 44 merged), and THE LOOP, edges 1 to 4
+
+- `V4` is true unless `pf_v4 === '0'` (profile menu "Use the old Locus for now", or `?v4=0`). The old renderers stay ONE WEEK
+  (to 2026-10-28) and then go; until then every `!V4` branch is the escape hatch, not a feature.
+- The loop is leak or call -> task -> done -> report -> brief -> next call. Wired tonight:
+  1. desk.js `logCallTask`: a call acted on (Done, Do it, Do all, the Google negatives) writes one p_action row (source `today`,
+     source_id `<day>:<row key>`) and ticks it at once, so Reports > Done, the Monday runner's last-week list and the brief see it.
+  2. leaks.js `confirmTasked` reads `status=all`: a leak says "On Tasks" while open and "Done" (green) once ticked anywhere.
+  3. worker.js `doneTaskLines`: both brief builders hand the model the ticked tasks next to the Change Log. Deployed
+     (mobius-account-health).
+  4. production.js `liveResults`: a Launched card reads /api/launch/list (its ads by card number) and /api/hub/creative (spend,
+     sales in the period) and prints "3 ads live · $412 · 5 sales · $82 a sale · 2 keep" under its title.
+- Not done: the Slack morning card reads yesterday from the brief's snapshot (briefs.data_json) while Morning reads /api/hub/kept
+  live; same P&L line, different moment. Left as is on purpose. Edges 1 to 4 were NOT seen in a browser (Chrome was down);
+  the first look is on Cole.
+
