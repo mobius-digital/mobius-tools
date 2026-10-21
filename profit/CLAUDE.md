@@ -4147,3 +4147,12 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   specificity, so order decides). The past-calls table stays a horizontal scroller.
 - Verified this pass in Cole's Chrome (CORS iframe build): client sim on Reports / Month / Brief, dark mode on Morning,
   Month, Pipeline, Ads queue; 390px on Ads queue, report cards, Requests, Tasks, Meetings, the Monday runner.
+
+## 2026-10-21 (end of the v4 build): help and a tour on every page, the design page marked done
+
+- PAGE_HELP now has a full-detail essay for every v4 page (today, leaks, yesterday, production, reports, channels, adcreative,
+  changes, social, calendar, tasks, calls, requests, dash, studio, library, inspo, amb, answers, store, website, search, email,
+  stock) and PAGE_BRIEF has requests. TOURS has today, leaks, production, reports, calls, tasks, calendar, social (steps whose
+  selector is missing are skipped by startTour, so a tour never breaks on an empty page).
+- docs/locus-v4/index.html: phases 5 and 7 marked built, the status note says all seven are live.
+- Still scheduled: delete the old renderers and the pf_v4 escape hatch on 2026-10-28.
