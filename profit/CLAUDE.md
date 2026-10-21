@@ -4367,3 +4367,12 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - Later the same day: Mixed is taught to the phone nudge (nudge.js, no action button), the morning card (`CALL_KINDS`,
   "decide on N") and the 8am today post. Feeds the funnel needs 60%+ new AND 5+ points over the account AND click rate 25%+
   over the median (Lucky is 89% new, so 60% alone tagged everything). The panel call chip is styled inside #v2panel.
+
+## 2026-10-21 (round five): ad sheet polish, the ingredients card, look-alikes
+- Ad sheet: the four top numbers are separate padded cards; the set table has fixed columns and one row height (name and call
+  on two fixed lines, spend, share hairline + %, per purchase, ROAS, hook hidden when no ad in the set is a video); the funnel
+  is rows (hook, hold for video; cost to reach 1,000; click rate; click to purchase) against the brand median with A to F,
+  and "weakest" only when a step is under the median (C or worse); the landing page shows add to cart, purchase rate and
+  visits against the site, plus "Compare landing pages in Leaks" (page-vs-page advice lives in Leaks, not the ad).
+- Which ingredients work: one group at a time from a tab row (`.ingr-seg`, remembered in `cr_ingr`), clean rows.
+- Ads Meta likely counts as one: a card per ad set with the look-alike ads as thumbnail buttons (`.alk`).

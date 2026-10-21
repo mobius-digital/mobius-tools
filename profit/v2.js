@@ -104,6 +104,12 @@
      drillMany), one call for every metric, cached in the page. A tile that linked to a page now opens its drill-down and
      offers the page at the bottom. Other tiles (and other pages) keep the simple panel. Capture phase, so a tile's own
      data-go click never fires first. */
+  if (!window.__v2ingr) { window.__v2ingr = 1;
+    document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.ingr-seg [data-ingr]'); if (!b) return; const card = b.closest('section') || document;
+      card.querySelectorAll('.ingr-seg [data-ingr]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+      card.querySelectorAll('[data-ingp]').forEach(x => { x.hidden = x.dataset.ingp !== b.dataset.ingr; });
+      try { localStorage.setItem('cr_ingr', b.dataset.ik); } catch {} });
+  }
   if (!window.__v2tiledrill) { window.__v2tiledrill = 1;
     document.addEventListener('click', e => {
       const t = e.target.closest && e.target.closest('.v2tile'); if (!t || !H || t.closest('.v2sk,#v2panel') || e.target.closest('a,button,input,select')) return;
@@ -594,18 +600,25 @@
   const cvrOf = r => { const imp = r.cpm ? r.spend / r.cpm * 1000 : null; const clicks = imp && r.ctr ? imp * r.ctr : null; return clicks ? (r.purchases || 0) / clicks : null; };
   function medians(ads, minSpend) {
     const pool = ads.filter(r => r.spend >= minSpend); const med = k => { const v = pool.map(k).filter(x => x != null && isFinite(x)).sort((p, q) => p - q); return v.length >= 5 ? v[Math.floor(v.length / 2)] : null; };
-    return { hook: med(r => r.hook), hold: med(r => r.hold), ctr: med(r => r.ctr), cvr: med(cvrOf) };
+    return { hook: med(r => r.hook), hold: med(r => r.hold), ctr: med(r => r.ctr), cvr: med(cvrOf), cpm: med(r => r.cpm) };
   }
-  const FIX = { hook: 'New first three seconds on the same body: the opening loses people.', hold: 'Keep the opening, tighten the middle: people start and leave.', ctr: 'Sharper offer or call to action: people watch but do not click.', cvr: 'Fix the landing page or the offer: people click but do not buy.' };
-  function gradeHtml(a, med) {
+  const FIX = { cpm: 'Meta is charging a lot to reach this audience: test a broader audience or a fresher creative.', hook: 'New first three seconds on the same body: the opening loses people.', hold: 'Keep the opening, tighten the middle: people start and leave.', ctr: 'Sharper offer or call to action: people see it but do not click.', cvr: 'Fix the landing page or the offer: people click but do not buy.' };
+  function gradeHtml(a, med, cur) {
     if (!med) return '';
-    const steps = [['hook', 'Hook', a.hook], ['hold', 'Hold', a.hold], ['ctr', 'Click', a.ctr], ['cvr', 'Purchase', cvrOf(a)]].filter(([k, , v]) => v != null && med[k]);
+    /* round four (2026-10-21, Cole: "should there be more than click and purchase?"): video ads add hook and hold; every ad
+       shows what it costs to reach people (CPM, lower is better), the click rate and click-to-purchase. Each step is this ad
+       against the brand's median ad in the window, graded A to F; the weakest step names the iteration. */
+    const steps = [['hook', 'Hook rate', 'stops the scroll (3-second views)', a.hook, false], ['hold', 'Hold rate', 'keeps watching', a.hold, false],
+      ['cpm', 'Cost to reach 1,000', 'what Meta charges for the audience', a.cpm, true], ['ctr', 'Click rate', 'clicks through', a.ctr, false], ['cvr', 'Click to purchase', 'buys after the click', cvrOf(a), false]]
+      .filter(([k, , , v]) => v != null && med[k]);
     if (steps.length < 2) return '';
     const gr = r => r >= 1.25 ? 'A' : r >= 1.05 ? 'B' : r >= 0.9 ? 'C' : r >= 0.75 ? 'D' : 'F';
-    const scored = steps.map(([k, l, v]) => ({ k, l, v, r: v / med[k] }));
-    const weak = scored.slice().sort((p, q) => p.r - q.r)[0];
-    return `<div class="v2grade">${scored.map(x => `<div class="gr g${gr(x.r)}"${tipAttr(`${x.l}: ${x.k === 'cvr' || x.k === 'ctr' ? pct(x.v, 2) : pct(x.v, 0)} against the brand median ${x.k === 'cvr' || x.k === 'ctr' ? pct(med[x.k], 2) : pct(med[x.k], 0)}`)}><b>${gr(x.r)}</b><span>${x.l}</span></div>`).join('')}</div>
-      <p class="v2hint"><b>To iterate:</b> ${esc(FIX[weak.k])}</p>`;
+    const scored = steps.map(([k, l, d, v, lower]) => ({ k, l, d, v, lower, r: lower ? med[k] / v : v / med[k] }));
+    const low = scored.filter(x => x.k !== 'cpm').slice().sort((p, q) => p.r - q.r)[0] || scored[0];
+    const weak = low && low.r < 0.9 ? low : null;   /* only a step below the brand's median (C or worse) is called weak */
+    const fmt = (k, v) => k === 'cpm' ? money2(v, cur) : k === 'ctr' || k === 'cvr' ? pct(v, 2) : pct(v, 0);
+    return `<div class="adf">${scored.map(x => `<div class="adf-r${x === weak ? ' weak' : ''}"><span class="adf-l"><b>${x.l}</b><small>${x.d}</small></span><span class="adf-v">${fmt(x.k, x.v)}</span><span class="adf-m">median ${fmt(x.k, med[x.k])}</span><span class="adf-g g${gr(x.r)}"${tipAttr(`${x.l}: this ad ${fmt(x.k, x.v)}, the brand's median ad ${fmt(x.k, med[x.k])}${x.lower ? '. Lower is better.' : ''}`)}>${gr(x.r)}</span></div>`).join('')}</div>
+      ${weak ? `<div class="adf-fix"><b>Weakest step: ${esc(weak.l.toLowerCase())}.</b> ${esc(FIX[weak.k] || '')}</div>` : `<div class="adf-fix ok"><b>No weak step.</b> Every step is at or above this brand's median ad, so iterate on what already works rather than fixing a leak.</div>`}`;
   }
   /* THE LANDING PAGE LINE (2026-10-13, Ahsan: "the ad has clicks and add-to-carts; is the product page doing its job?").
      One line under the ad's numbers: the path the ad sends people to (the creative's link, read by account-health
@@ -648,13 +661,16 @@
     else if (pr == null) said = 'GA4 saw no sessions landing on this page in the last 30 days.';
     else {
       const sess = `${int(d.cur.sessions)} session${d.cur.sessions === 1 ? '' : 's'}, last 30 days`;
-      if (sr != null && sr > 0) { cls = pr >= sr ? 'good' : pr >= sr * 0.8 ? 'warn' : 'bad'; said = `Add to cart <b class="${cls}">${pct(pr, 1)}</b> of sessions, the site's normal is ${pct(sr, 1)} (${sess}).`; }
-      else said = `Add to cart <b>${pct(pr, 1)}</b> of sessions (${sess}).`;
+      const buy = c => c && c.sessions ? (c.ecommercePurchases || 0) / c.sessions : null, pb = buy(d.cur), sb = site && !site.error ? buy(site.cur) : null;
+      const tone = (v, n) => v == null || !n ? '' : v >= n ? 'good' : v >= n * 0.8 ? 'warn' : 'bad';
+      const row = (l, v, n) => `<span class="lp-r"><span>${l}</span><b class="${tone(v, n)}">${pct(v, l === 'Add to cart' ? 1 : 2)}</b><small>${n != null ? `site ${pct(n, l === 'Add to cart' ? 1 : 2)}` : ''}</small></span>`;
+      said = `<span class="lp-rows">${row('Add to cart', pr, sr)}${pb != null ? row('Purchase', pb, sb) : ''}<span class="lp-r"><span>Visits</span><b>${int(d.cur.sessions)}</b><small>last 30 days, every source</small></span></span>`;
     }
     /* 3. Where to go next: the Website screen for the brand, and the page's heatmap in Clarity (the same link pattern
           as the Website screen's Behaviour card; the `url` parameter is unverified against Clarity, as noted there). */
     const heat = cl && !cl.error && cl.project ? ` <a href="https://clarity.microsoft.com/projects/view/${encodeURIComponent(cl.project)}/heatmaps?url=${encodeURIComponent(x.link.split(/[?#]/)[0])}" target="_blank" rel="noopener" class="v2link">Heatmap</a>` : '';
-    put(`<div class="v2lp-p">${pathHtml}</div><div class="v2lp-s">${said}</div><div class="v2lp-a"><button type="button" class="v2link" data-lpweb="1">Open in Website</button>${heat}</div>`);
+    put(`<div class="v2lp-p">${pathHtml}</div><div class="v2lp-s">${said}</div><div class="v2lp-a"><button type="button" class="v2link" data-lpweb="1">Open in Website</button>${heat}<button type="button" class="v2link" data-lpleak="1">Compare landing pages in Leaks</button></div>`);
+    const lk = body.querySelector('[data-lpleak]'); if (lk) lk.onclick = () => { if (panel.close) panel.close(); H.show('leaks'); };
     const ob = body.querySelector('[data-lpweb]'); if (ob) ob.onclick = () => { if (panel.close) panel.close(); H.show('website'); };
   }
 
@@ -665,12 +681,12 @@
     const scv = cx && cx.setCall && SET_VL[cx.setCall];   // the set's own verdict, the same words as the card chip
     const sibs = (cx && cx.sibs || []).slice().sort((p, q) => (q.spend || 0) - (p.spend || 0));
     const sibRow = o => { const vc = cx.verdictOf ? cx.verdictOf(o) : null, share = sc && sc.spend ? (o.spend || 0) / sc.spend : null;
-      return `<tr class="${o.id === a.id ? 'me' : 'link'}" data-sib="${esc(o.id)}"><td><span class="adt-th" data-thumb="${esc(o.id)}"${THUMBS.has(o.id) ? ` style="background-image:url('${THUMBS.get(o.id)}')"` : ''}></span><span class="adt-n"><b title="${esc(o.name || '')}">${esc(o.name || o.id)}</b>${vc ? `<em class="v2pill ${vc[1]}">${esc(vc[0])}</em>` : ''}</span></td>
-        <td><span class="adt-sh"><i style="width:${share == null ? 0 : Math.max(2, Math.min(100, share * 100)).toFixed(1)}%"></i></span>${kmoney(o.spend, cur)}<small>${pct(share, 0)}</small></td>
+      return `<tr class="${o.id === a.id ? 'me' : 'link'}" data-sib="${esc(o.id)}"><td><span class="adt-th" data-thumb="${esc(o.id)}"${THUMBS.has(o.id) ? ` style="background-image:url('${THUMBS.get(o.id)}')"` : ''}></span><span class="adt-n"><b title="${esc(o.name || '')}">${esc(o.name || o.id)}</b><em class="adt-c ${vc ? vc[1] : ''}">${vc ? esc(vc[0]) : ''}</em></span></td>
+        <td>${kmoney(o.spend, cur)}</td><td><span class="adt-shr"><span class="adt-sh"><i style="width:${share == null ? 0 : Math.max(2, Math.min(100, share * 100)).toFixed(1)}%"></i></span><small>${pct(share, 0)}</small></span></td>
         <td class="${!g.cpa || o.cpa == null ? '' : o.cpa <= g.cpa ? 'good' : 'bad'}">${money(o.cpa, cur)}</td><td>${x2(o.roas)}</td><td>${o.hook != null ? pct(o.hook, 0) : '–'}</td></tr>`; };
-    const sibTable = sibs.length > 1 ? `<div class="adt"><div class="adt-h"><b>Every ad in this ad set</b><span>${esc(sc.name || '')}</span>${scv ? `<span class="v2pill ${scv[1] === 'mute' ? '' : scv[1]}"${tipAttr('The set is judged first on its own totals; this ad\'s call follows from its role in it.')}>${scv[0]}</span>` : ''}</div>
-      <div class="v2tbl lx-norow"><table><thead><tr><th>Ad</th><th>Spend · share</th><th>Per purchase</th><th>ROAS</th><th>Hook</th></tr></thead><tbody>${sibs.map((o, k) => k < 8 || o.id === a.id ? sibRow(o) : sibRow(o).replace('<tr class="', '<tr hidden class="adt-x ')).join('')}
-        <tr class="tot"><td>The set, ${sc.ads} ads</td><td>${kmoney(sc.spend, cur)}</td><td class="${!g.cpa || sc.cpa == null ? '' : sc.cpa <= g.cpa ? 'good' : 'bad'}">${money(sc.cpa, cur)}</td><td>${x2(sc.roas)}</td><td></td></tr></tbody></table></div>${sibs.length > 8 ? `<button type="button" class="v2link adt-all">Show all ${sibs.length} ads</button>` : ''}
+    const sibTable = sibs.length > 1 ? `<div class="adt${sibs.some(o => o.hook != null) ? '' : ' nohook'}"><div class="adt-h"><b>Every ad in this ad set</b><span>${esc(sc.name || '')}</span>${scv ? `<span class="v2pill ${scv[1] === 'mute' ? '' : scv[1]}"${tipAttr('The set is judged first on its own totals; this ad\'s call follows from its role in it.')}>${scv[0]}</span>` : ''}</div>
+      <div class="v2tbl lx-norow"><table><thead><tr><th>Ad</th><th>Spend</th><th>Share</th><th>Per purchase</th><th>ROAS</th><th>Hook</th></tr></thead><tbody>${sibs.map((o, k) => k < 8 || o.id === a.id ? sibRow(o) : sibRow(o).replace('<tr class="', '<tr hidden class="adt-x ')).join('')}
+        <tr class="tot"><td>The set, ${sc.ads} ads</td><td>${kmoney(sc.spend, cur)}</td><td>100%</td><td class="${!g.cpa || sc.cpa == null ? '' : sc.cpa <= g.cpa ? 'good' : 'bad'}">${money(sc.cpa, cur)}</td><td>${x2(sc.roas)}</td><td></td></tr></tbody></table></div>${sibs.length > 8 ? `<button type="button" class="v2link adt-all">Show all ${sibs.length} ads</button>` : ''}
       <p class="adt-f">${(() => { const k = sibs.findIndex(o => o.id === a.id), me = sibs[k]; return k < 0 ? '' : `This ad is #${k + 1} of ${sc.ads} by spend and takes ${pct(sc.spend ? (me.spend || 0) / sc.spend : null, 0)} of the set's money. `; })()}Tap another ad to open it.</p></div>` : '';
     const setCard = sibTable ? '' : sc && sc.ads > 1 ? `<div class="v2setc"><div class="h"><b>Its ad set</b>${scv ? `<span class="v2pill ${scv[1] === 'mute' ? '' : scv[1]}"${tipAttr('The set is judged first on its own totals; this ad\'s call follows from its role in the set.')}>${scv[0]}</span>` : ''}${sc.name ? `<span>${esc(sc.name)}</span>` : ''}</div>
       <div class="v2kv"><span>Set spend</span><b>${kmoney(sc.spend, cur)}</b><span>Set cost per purchase</span><b class="${!g.cpa || sc.cpa == null ? '' : sc.cpa <= g.cpa ? 'good' : 'bad'}">${money(sc.cpa, cur)}</b><span>Set ROAS</span><b>${x2(sc.roas)}</b><span>This ad's share</span><b>${pct(a.set_share, 0)} · #${a.set_rank} of ${sc.ads}</b></div>
@@ -685,7 +701,7 @@
       <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat adt-stat"><div><span>Spend</span><b>${kmoney(a.spend, cur)}</b><small>${a.age != null ? `${a.age} days running` : ''}</small></div><div><span>Cost per purchase</span><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><small>${g.cpa ? `goal ${money(g.cpa, cur)}` : 'no goal set'}</small></div><div><span>ROAS</span><b>${x2(a.roas)}</b><small>${kmoney(a.revenue, cur)} revenue</small></div><div><span>Purchases</span><b><button type="button" class="v2cell" data-orders="2">${int(a.purchases)}</button></b><small>tap to see the orders</small></div></div>
       ${callLine || setCard ? `<div data-sec="The call" data-ic="target" class="v2pv-sec">${callLine}${setCard}</div>` : ''}
       ${sibTable ? `<div data-sec="Its ad set" data-ic="layout-grid" class="v2pv-sec">${sibTable}</div>` : ''}
-      <div data-sec="Funnel" data-ic="activity" class="v2pv-sec">${gradeHtml(a, MED)}</div>
+      <div data-sec="Funnel" data-ic="activity" class="v2pv-sec">${gradeHtml(a, MED, cur)}</div>
       ${a.n_ads > 1 ? `<p class="v2hint">The same ${a.media_type === 'video' ? 'video' : 'image'} runs in <b>${a.n_ads} ads</b>; the numbers above are all of them added up. Play, the breakdown and the Studio button use the one that spent most.</p>` : ''}
       <div class="adt-sec" data-sec="Landing page" data-ic="globe"><h4>Landing page</h4><div class="v2lp" id="v2lp"><span class="v2lp-v faint">Reading the ad's link…</span></div></div>
       <div class="adt-sec" data-sec="Delivery" data-ic="activity"><h4>Delivery</h4><div class="v2kv">${a.hook != null ? `<span>Hook · hold</span><b>${pct(a.hook, 0)} · ${pct(a.hold, 0)}</b>` : ''}<span>CTR · CPM</span><b>${pct(a.ctr, 2)} · ${money2(a.cpm, cur)}</b>${a.frequency ? `<span>Frequency</span><b>${a.frequency.toFixed(2)}</b>` : ''}${a.age != null ? `<span>Running</span><b>${a.age} days</b>` : ''}${a.angle ? `<span>Angle</span><b>${esc(a.angle)}</b>` : ''}${a.ltv_n >= 5 ? `<span>90-day value</span><b>${money(a.ltv90, cur)} · ${x2(a.ltv_x)} first order · ${int(a.ltv_n)} customers</b>` : ''}</div></div>
@@ -765,7 +781,7 @@
           ${weak ? `<dt>Weakest step</dt><dd><b>${esc(weak.l)}</b>, ${Math.round((1 - weak.r) * 100)}% under the brand's median ad. ${esc(weak.fix)}</dd>` : '<dt>Weakest step</dt><dd class="faint">Not enough ads in these dates to grade the funnel against.</dd>'}
           ${tags ? `<dt>Tags</dt><dd><div class="v2tags big">${tags}</div></dd>` : ''}
           ${x.headline || x.body ? `<dt>The copy</dt><dd class="v2it-copy">${x.headline ? `<b>${esc(x.headline)}</b>` : ''}${x.body ? `<p>${esc(x.body)}</p>` : ''}</dd>` : ''}
-        </dl>${gradeHtml(a, MED).replace(/<p class="v2hint">[\s\S]*$/, '')}</div></div></section>
+        </dl>${gradeHtml(a, MED, cur).replace(/<div class="adf-fix">[\s\S]*$/, '')}</div></div></section>
       <section class="v2it-c"><h4>What the three will test</h4><p class="v2hint">Picked from the weakest step. Change it if you know better.</p>
         <div class="v2it-t" role="radiogroup" aria-label="What the three will test">${ITER_TESTS.map(([k, l, s]) => `<button type="button" role="radio" aria-checked="${k === test}" class="${k === test ? 'on' : ''}" data-t="${k}"><b>${l}</b><span>${s}</span></button>`).join('')}</div>
         <label class="v2it-f">What should change? <small>Optional. Say it like you would to the designer.</small><textarea id="itChange" rows="2" placeholder="e.g. lead with the 30-day guarantee, less text on the image"></textarea></label></section>
@@ -1822,7 +1838,9 @@
             <td><span class="v2share"><i style="width:${Math.max(2, b0.share * 100).toFixed(0)}%"></i></span><span class="n">${pct(b0.share, 0)}</span></td>
             <td><b>${b0.cpa == null ? 'no sales' : money(b0.cpa, cur)}</b>${b0.judged ? vs(b0.cpa, acctCpa, true) : ''}</td>
             <td>${x2(b0.roas)}${b0.judged ? vs(b0.roas, acctRoas, false) : ''}</td></tr>`; }).join('')}</tbody></table>${gr.more > 0 ? `<p class="v2hint">${gr.more} smaller value${gr.more === 1 ? '' : 's'} not shown.</p>` : ''}</div>`;
-      return ccard(INGR_TITLE, say, `<div class="v2tgrid">${groups.map(blk).join('')}</div>`, cov, 'v2ingr', [INGR_WHAT, `Best and worst are judged on cost per purchase, among values that spent the ${money(bar, cur)} judging bar. Click any value to show only those ads.`]);
+      /* round four: one ingredient at a time (Format, Hook, Person...), picked from a tab row, instead of a wall of tables */
+      let gi = 0; try { gi = Math.max(0, groups.findIndex(gr => gr.k === localStorage.getItem('cr_ingr'))); } catch {}
+      return ccard(INGR_TITLE, say, `<div class="ingr-seg" role="tablist">${groups.map((gr, k) => `<button type="button" role="tab" data-ingr="${k}" data-ik="${esc(gr.k)}" aria-selected="${k === gi}">${esc(gr.label)}</button>`).join('')}</div><div class="v2tgrid ingr-one">${groups.map((gr, k) => blk(gr).replace('<div class="v2tg">', `<div class="v2tg"${k === gi ? '' : ' hidden'} data-ingp="${k}">`)).join('')}</div>`, cov, 'v2ingr', [INGR_WHAT, `Best and worst are judged on cost per purchase, among values that spent the ${money(bar, cur)} judging bar. Click any value to show only those ads.`]);
     })();
     const gallery = `<div id="v2tools">${toolsRow()}</div>${barLine}<div id="v2galw">${galleryInner()}</div>`;
     const counts = ads.reduce((s0, r) => { s0[verdict(r)] = (s0[verdict(r)] || 0) + 1; return s0; }, {});
@@ -1836,7 +1854,9 @@
       ${(() => { const A = d.alike || []; if (!A.length) return '';
         const tot = A.reduce((t, g) => t + g.spend, 0), n = A.reduce((t, g) => t + g.ads.length, 0);
         return ccard('Ads Meta likely counts as one', `${n} ads in ${A.length} ad set${A.length === 1 ? '' : 's'} look alike, ${kmoney(tot, cur)} in these dates.`,
-          `<div class="v2tbl wide"><table><thead><tr><th>Ad set</th><th>Ads that look alike</th><th>Why</th><th>Spend</th></tr></thead><tbody>${A.slice(0, 12).map(g => `<tr><td><span class="nm" title="${esc(g.adset_name || g.adset_id)}">${esc(g.adset_name || g.adset_id)}</span></td><td class="txt">${g.ads.map(x => `<button type="button" class="nm v2open v2alk" data-alk="${esc(x.id)}" title="${esc(x.name)}">${esc(x.name)}</button>`).join('<br>')}</td><td class="txt">${g.kind === 'same' ? 'The same creative, twice' : 'Same format, hook, person, product and offer, mostly the same words'}</td><td>${money(g.spend, cur)}</td></tr>`).join('')}</tbody></table></div>`,
+          `<div class="alk-list">${A.slice(0, 12).map(g => `<div class="alk"><div class="alk-h"><b title="${esc(g.adset_name || g.adset_id)}">${esc(g.adset_name || g.adset_id)}</b><span class="lx-st warn">${g.ads.length} ${g.kind === 'same' ? 'copies of one creative' : 'look alike'}</span><span class="alk-s">${kmoney(g.spend, cur)}</span></div>
+            <div class="alk-ads">${g.ads.map(x => `<button type="button" class="alk-ad" data-alk="${esc(x.id)}" title="${esc(x.name)}"><span class="adt-th" data-thumb="${esc(x.id)}"${THUMBS.has(x.id) ? ` style="background-image:url('${THUMBS.get(x.id)}')"` : ''}></span><span class="alk-n">${esc(x.name)}</span></button>`).join('')}</div>
+            <p class="alk-why">${g.kind === 'same' ? 'The same creative runs more than once in this set.' : 'Same format, hook, person, product and offer, mostly the same words.'} Keep the stronger one, or make the others genuinely different.</p></div>`).join('')}</div>`,
           'last 7 days', 'v2alike', 'Meta groups ads that look alike (same format, hook, person, product and offer) and shows them as one, so they share delivery and teach nothing apart. Make each one genuinely different, or keep the stronger and switch off the rest. Read from the AI tags.'); })()}
       ${(() => { const L = ads.filter(r => r.ltv_n >= 5).sort((p, q) => (q.ltv_x || 0) - (p.ltv_x || 0)); if (L.length < 3) return card('Which ads bring customers who come back', '', '<p class="v2hint">Needs customers whose first order is at least 90 days old and traced to an ad. The order history is filling in; this card lights up as it does.</p>'); const mx = Math.max(...L.map(r => r.ltv90 || 0), 1);
         return card('Which ads bring customers who come back', `Best: ${esc(L[0].name)}, ${x2(L[0].ltv_x)} their first order in 90 days`, `<div class="v2tbl wide"><table><thead><tr><th>Ad</th><th>Customers started</th><th>First order</th><th>90-day value</th><th>Multiple</th><th>CPA now</th></tr></thead><tbody>${L.slice(0, 12).map(r => `<tr class="link" data-prev="${esc(r.id)}"><td><span class="nm" title="${esc(r.name)}">${esc(r.name)}</span></td><td>${int(r.ltv_n)}</td><td>${money(r.ltv_first, cur)}</td><td>${ib(r.ltv90, mx, '--c-email', money(r.ltv90, cur))}</td><td class="${r.ltv_x >= 1.3 ? 'good' : ''}">${x2(r.ltv_x)}</td><td>${money(r.cpa, cur)}</td></tr>`).join('')}</tbody></table></div>`, 'Triple Whale first click · Shopify orders through Triple Whale', 'For each ad: the people whose first order it started, and what they spent in their first 90 days. A higher multiple means they came back and bought again, so the ad is worth more than its cost per purchase shows. Needs 5 known customers per ad.'); })()}
@@ -1849,6 +1869,7 @@
     const byId = new Map(ads.map(r => [r.id, r]));
     root.querySelectorAll('tr[data-prev]').forEach(el => { el.onclick = () => { const r = byId.get(el.dataset.prev); if (r) open(r); }; });
     root.querySelectorAll('[data-alk]').forEach(el => { el.onclick = () => { const r = byId.get(el.dataset.alk); if (r) open(r); }; });
+    { const ids = [...root.querySelectorAll('.alk-ad[data-alk]')].map(el => el.dataset.alk); if (ids.length) loadThumbs(root, ids); }
     const gw = root.querySelector('#v2galw'), tw = root.querySelector('#v2tools');
     let curMap = new Map(LIST.map(r => [r.id, r]));
     /* Covers only for cards near the screen (IntersectionObserver), asked for in small batches. */
