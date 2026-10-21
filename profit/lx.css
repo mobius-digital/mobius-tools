@@ -989,3 +989,45 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
 #v2panel .brk-t th,#v2panel .brk-t td{padding:8px 8px;text-align:right;white-space:nowrap}
 #v2panel .brk-t th:first-child,#v2panel .brk-t td:first-child{text-align:left;white-space:normal}
 #v2panel .adtr-w{overflow-x:auto}#v2panel .adtr-w th,#v2panel .adtr-w td{padding:7px 6px}#v2panel .adtr-w th{font-size:10.5px}
+
+/* ==========================================================================
+   AD SHEET, round seven (2026-10-21, Cole: trend cards squished, week table scrolls, headers merge, delivery on one line,
+   the AI description outside its box, unlabelled ad copy, change the credit model in the sheet).
+   ========================================================================== */
+#v2panel .adt-model{display:inline-flex;vertical-align:middle;margin-left:4px}
+#v2panel .adt-model .hd-per-btn{height:26px;padding:0 9px;font-size:12px}
+/* the period's numbers: roomier cards */
+#v2panel .adtr-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+#v2panel .adtr-c{padding:12px 14px;gap:4px;border-radius:10px}
+#v2panel .adtr-c b{font-size:19px}
+#v2panel .adtr-c small{gap:6px}
+/* day by day: two wide charts a row with room to read them */
+#v2panel .adtr-sp{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#v2panel .adtr-s{padding:12px 14px 10px;border-radius:10px}
+#v2panel .adtr-s .lx-spk .v2spark{height:70px}
+@media (max-width:600px){#v2panel .adtr-sp{grid-template-columns:minmax(0,1fr)}}
+/* week by week: fits the panel, short headers, the date on two lines */
+#v2panel .adtr-w{overflow-x:visible}
+#v2panel .adtr-w table{table-layout:fixed;width:100%;font-size:12.5px}
+#v2panel .adtr-w th,#v2panel .adtr-w td{padding:8px 6px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#v2panel .adtr-w th:first-child,#v2panel .adtr-w td:first-child{text-align:left;width:22%}
+#v2panel .adtr-w td:first-child small{display:block;font-size:11px;color:var(--muted)}
+#v2panel .adtr-w th{font-size:10.5px;letter-spacing:.04em}
+/* the set table: plain share number, the call explained on hover */
+#v2panel .adt th:nth-child(1),#v2panel .adt td:nth-child(1){width:36%}
+#v2panel .adt-c[title]{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}
+/* the funnel header */
+#v2panel .adf-hd span[data-v2tip]{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}
+/* the creative, as the AI reads it */
+#v2panel .adt-tags{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:0}
+#v2panel .adt-tags > div{padding:8px 10px;border-radius:8px;background:var(--surface-2);min-width:0}
+#v2panel .adt-tags dt{font-size:11px;color:var(--muted)}#v2panel .adt-tags dd{margin:2px 0 0;font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+#v2panel .adt-notes{margin:10px 0 0;font-size:13px;line-height:1.5;color:var(--ink-2)}
+/* ad copy, labelled */
+#v2panel .v2copy .cp-k{display:block;margin:10px 0 2px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#v2panel .v2copy .cp-k:first-child{margin-top:0}
+/* where it ran: fits without a sideways scroll */
+#v2panel .brk-t{overflow-x:visible}
+#v2panel .brk-t table{table-layout:fixed}
+#v2panel .brk-t th,#v2panel .brk-t td{padding:7px 5px;font-size:12px;overflow:hidden;text-overflow:ellipsis}
+#v2panel .brk-t th:first-child,#v2panel .brk-t td:first-child{width:30%}
