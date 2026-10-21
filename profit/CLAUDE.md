@@ -4376,3 +4376,12 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   visits against the site, plus "Compare landing pages in Leaks" (page-vs-page advice lives in Leaks, not the ad).
 - Which ingredients work: one group at a time from a tab row (`.ingr-seg`, remembered in `cr_ingr`), clean rows.
 - Ads Meta likely counts as one: a card per ad set with the look-alike ads as thumbnail buttons (`.alk`).
+
+## 2026-10-21 (round six): the ad over time, plain words
+- profit `/api/hub/ad-days?act=&ads=<ids>` (hub.js `adDays`, on CLIENT_RULES in both brandguard copies): the last 90 days of one
+  ad or of every ad behind one creative, Meta delivery + Triple Whale credit under the screen model, `attr_pending` per day.
+- Ad sheet: the top numbers say Spend / CPA / ROAS / Purchases with the period and the model under them; **Trend** (v2.js
+  `adTrend`): Yesterday / 3 / 7 / 14 / 30 days against the period before, six 60-day lines (spend, purchases, CPA, CTR, CPM,
+  frequency as a daily average), and six weeks as a table. Funnel in words: this ad, the typical (median) ad, "% better / worse"
+  (no letters); "Biggest gap" only at 10%+ worse. Landing page: add to cart and purchase rate against the site (no visits box);
+  the Leaks link shows only when Leaks flags this page. Where it ran: Spend and Share in separate columns.

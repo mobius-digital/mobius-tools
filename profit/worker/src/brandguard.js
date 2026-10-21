@@ -251,6 +251,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/hub/orders'),
   R('GET', '/api/hub/customer'),
   R('GET', '/api/hub/creative'),
+  R('GET', '/api/hub/ad-days'),
   R('GET', '/api/meta/live'),
   /* Meta, Google and Klaviyo changes go through the SAME propose / confirm path the team uses (metawrite.js,
      google.js, klaviyowrite.js); the handler re-checks the brand with brandsFor, which answers the client's brands. */
