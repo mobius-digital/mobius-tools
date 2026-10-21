@@ -18,12 +18,13 @@
  *   GET  /api/make?id=                                                          the state (ideaState)
  *   POST /api/make/redo {id, note?}                                             redo, with a steer when note is given
  *   POST /api/make/exit {id, exit}                                              send it out one of the four doors
+ *   POST /api/make/undo {id}                                                    take the creators exit back (same code as the Slack Undo)
  *   POST /api/make/upload?act=&name=  raw image/* or video/*                    a file for the ask (R2 make/<act>/..)
  *   GET  /make-m/<act>/<file>                                                   public: serves an uploaded file
  * The Slack card's buttons call the same exits: worker.js registers runExit with ideas.js useExits().
  * No em dashes anywhere. */
 import { clientScope } from './brandguard.js';
-import { ideaRow, ideaState, pushIdea, startMake, steerIdea, redrawCard, APP } from './ideas.js';
+import { ideaRow, ideaState, pushIdea, startMake, steerIdea, redrawCard, APP, undoCreator, undoLucky } from './ideas.js';
 import { addAction, ROSTER } from './actions.js';
 import { makeBrief } from './meetings.js';
 import { localBrief } from './production.js';
@@ -170,6 +171,16 @@ export async function handleMake(request, env, url, path, json, d) {
     if (path === '/api/make/exit' && m === 'POST') {
       const r = await ideaExit(env, String(body.id || ''), String(body.exit || ''), who, d);
       return json({ ...r, state: await ideaState(env, String(body.id || '')) }, r.ok === false ? 400 : 200);
+    }
+    /* Undo the Creators exit: the angle (and its proof or clip) comes off the creator link or the Lucky creator app.
+       The other exits are plain rows the person deletes where they landed (the tray, the Production board, Studio). */
+    if (path === '/api/make/undo' && m === 'POST') {
+      const row = await ideaRow(env, String(body.id || ''));
+      if (!row) return json({ error: 'That draft is no longer stored.' }, 404);
+      const pushed = safeJson(row.pushed_json, {}) || {};
+      const r = pushed.lucky_creators ? await undoLucky(env, row, pushed) : pushed.creator_link ? await undoCreator(env, row, pushed) : { ok: false, text: 'Nothing on the creator board to take back.' };
+      if (r.ok !== false) await env.DB.prepare(`UPDATE idea_thread SET pushed_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed)).run();
+      return json({ ...r, state: await ideaState(env, row.id) }, r.ok === false ? 400 : 200);
     }
     if (path === '/api/make/upload' && m === 'POST') {
       const act = url.searchParams.get('act');
