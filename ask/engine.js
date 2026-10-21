@@ -376,9 +376,11 @@ export function slackMessage(src, { tables = 1 } = {}) {
       const style = bullet ? 'bullet' : 'ordered';
       const items = [];
       for (; i < lines.length; i++) {
-        const b = lines[i].match(style === 'bullet' ? /^(\s*)(?:[•●▪◦‣]|[-*](?=\s))\s+(.*)$/ : /^(\s*)\d+[.)]\s+(.*)$/);
+        const b = lines[i].match(style === 'bullet' ? /^(\s*)(?:[•●▪◦‣]|[-*](?=\s))\s+(.*)$/ : /^(\s*)(\d+)[.)]\s+(.*)$/);
         if (!b) break;
-        items.push({ indent: Math.min(3, Math.floor(b[1].replace(/\t/g, '  ').length / 2)), text: b[2] });
+        /* n: the number as written, so a numbered step split up by bullets under it ("2. Product pages") keeps its
+           number. Every run used to restart at 1 (2026-10-21: "1. 1. 1." in the #lucky-email answer). */
+        items.push({ indent: Math.min(3, Math.floor(b[1].replace(/\t/g, '  ').length / 2)), text: style === 'bullet' ? b[2] : b[3], n: style === 'bullet' ? 0 : Number(b[2]) });
       }
       parts.push({ kind: 'list', style, items });
       continue;
@@ -410,7 +412,7 @@ export function slackMessage(src, { tables = 1 } = {}) {
         /* Slack wants one list element per indent level run. */
         let run = null;
         for (const it of p.items) {
-          if (!run || run.indent !== it.indent) { run = { type: 'rich_text_list', style: p.style, indent: it.indent, elements: [] }; els.push(run); }
+          if (!run || run.indent !== it.indent) { run = { type: 'rich_text_list', style: p.style, indent: it.indent, elements: [], ...(it.n > 1 ? { offset: it.n - 1 } : {}) }; els.push(run); }
           run.elements.push({ type: 'rich_text_section', elements: inlineRich(it.text) });
         }
         if (gapAfter) els.push({ type: 'rich_text_section', elements: [{ type: 'text', text: '\n' }] });
