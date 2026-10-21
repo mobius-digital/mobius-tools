@@ -4285,3 +4285,40 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   light and dark, 390px with no sideways scroll. Nothing was planned, made or sent (no image spend, no Pipeline write).
 - Trap met: another session's static server held port 8841 with an older checkout; the Locus service worker also caches
   by URL, so a reused ?v= serves the old file in a reused browser profile.
+## 2026-10-21: SOCIAL REBUILT AROUND "WHAT WE MAKE THIS WEEK" (social.js?v=10, socialweek.js?v=6). Supersedes the card and viewer notes above.
+
+- **The Feed leads with our strategy**: a This week strip (`loadPlan`: `/api/social/week` planned vs target, and from
+  `/api/social/tray` our versions waiting to be filmed, filmed and ready, other ready items; Open the Week, Fill the
+  week), then **Worth making this week** (top 4 posts at 3x+ usual in 14 days with no idea yet, each with Make ours),
+  then "Everything <brand> watches" with the unchanged controls row. Saved keeps the old simple layout.
+- **A card** = 4:5 media with ONE badge (`ratioPill`: "6.2x usual", tooltip has the numbers), time or slide count top
+  right, carousel arrows and dots (`cardSlides`: slides load on hover, touch or arrow into a snap strip), a speaker
+  button while a video plays (`G.vol` / `G.mute`; the old mic -> lightning icons are gone). Under it the account
+  (`avatar`: initials on a token tint, platform badge; @handle; platform · format · age) and one icon row (views,
+  likes, comments). No caption, "usually" or engagement % on the card. Icons the sprite lacks live in `G` in social.js.
+- **The viewer** plays video WITH sound (opening is the user gesture; if the browser refuses it plays muted with one
+  "Turn sound on" button), YouTube with `mute=0&controls=1`. Carousels: swipe, arrows, clickable dots, and the arrow
+  keys page slides first, then posts (`V.sl`). Column = who + Follow, fact chips, How it did (big number, badge, the
+  usual in a sentence, a 4-up grid), Caption (clamped, Show all, Copy), Details, What they say, Your note. Bar = Make
+  our version (full width) over a real split Save button (`.soc-split`) and Open on <platform>.
+- **Make our version** no longer opens LocusMake inside the viewer: `makeStep` / `mkShow` in social.js drive the same
+  account-health routes (`/api/make`, `?id=`, `/redo`, `/exit`) and show four steps as progress: Write it, On the Week,
+  Film it, Schedule it. One button ("Write it and put it on the Week") writes the script and caption and, when the draft
+  is ready, runs the `organic` exit itself (tray item + Film task for Ravo). Film it = Upload the film here
+  (`/api/social/upload?idea=` closes the task) or on the Week. Schedule it sets `window.SOCIAL_COMPOSE = 'idea:<id>'`
+  and opens the Week, whose render opens the composer at `nextSlot()` with the clip and caption. Creators / Ad brief /
+  Studio stay as small "Also send it to" buttons. A person still films; Claude never posts someone else's footage.
+- Week tray: a Make ours item with no clip is labelled TO FILM (was SCRIPT).
+- Checked on a stub harness in the built-in browser (not committed): before and after at 1400, the viewer, carousel by
+  arrow and key, the whole Make flow including Schedule opening the Week composer, 390px light with no sideways
+  scroll. Cole's Chrome renderer was frozen this session, so NOT checked against real data. Shots:
+  `docs/locus-social/screens/2026-10-21-*`.
+- **Later the same day: four paths, "I saw a post I like, now what?" (social.js?v=11).** `PATHS` in social.js = post
+  (exit organic: Write it, On the Week, Film it, Schedule it), creators (exit creators: Write it, On the creator link,
+  Creators film it), brief (exit brief: Write it, On the Pipeline, Team makes the ad), studio (exit studio: Write it,
+  Studio batch, Make the ads); each has a label, one line on what it makes, where it lands, and its button. The viewer's
+  "Make it ours" opens the chooser (`intro`: four radio cards, the picked path's steps, own take or recreate, a steer,
+  one button); `mkShow` follows the picked path (`p._path`, else the first door in `sent` via `SENT_PATH`) and runs its
+  exit when the draft lands; the other three are "Also:" buttons and switch the view to that path. The Feed shows the
+  same four as a guide card under This week (`sopHtml`, a `<details>` remembered in `soc_sop`). Checked on a stub
+  harness (desktop, 390px light): every path's steps, the Brief path end to end. Shots `docs/locus-social/screens/2026-10-21-paths-*`.

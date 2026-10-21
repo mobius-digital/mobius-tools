@@ -10,6 +10,14 @@
  *   Saved is its own page tab with the same cards and a tag row; a tag is a word picked when you save.
  *   Following is set-up work: the gear opens Manage follows; Brand settings > Social carries the same table and the credits.
  *
+ * 2026-10-21 REBUILD (Cole: "you can't tell whose post it is", "make ours is unclear", "it should be our strategy"):
+ *   the page leads with THIS WEEK (posts planned vs target, our versions waiting to be filmed, filmed and ready, the
+ *   Week one click away), then WORTH MAKING THIS WEEK (the top 4 posts at 3x+ their usual, each with Make ours), then
+ *   everything the brand watches. A card = the media (one "6.2x usual" badge, time or slide count, carousel arrows and
+ *   dots, a speaker button while a video plays) and under it the account (avatar with a platform badge, @handle,
+ *   platform · format · age) and ONE icon row (views, likes, comments). The viewer plays video WITH sound, pages
+ *   carousels by swipe, arrows, dots and the arrow keys, and Make ours is four steps shown as progress (Write it, On
+ *   the Week, Film it, Schedule it), see makeStep. The notes below describe the controls row, which is unchanged.
  * THE PAGE: the host's page head (the kit header from index.html; nothing drawn here above the controls) > ONE 36px
  * controls row: the view segment (All / Breaking out, with counts), pill menus whose label is the value (source, platform,
  * format, sort, window: index.html's PillMenu, a bottom sheet on a phone), a search icon that opens a field, a Filters
@@ -100,35 +108,166 @@
       .soc .soc-trend button.on,.soc .soc-tags button.on{border-color:var(--brand);color:var(--brand-ink,var(--brand));background:var(--brand-soft)}
       .soc .soc-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
       .soc .soc-tags i,.soc-tagdot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
-      /* the grid and a card: 9:16, one overlay per corner, nothing else on the media */
-      .soc .soc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
-      .soc .soc-post{display:flex;flex-direction:column;min-width:0;cursor:pointer;text-align:left;padding:0;font:inherit;color:var(--ink);background:transparent;border:0;border-radius:var(--soc-r)}
+      /* THE PLAN STRIP (2026-10-21): what this brand posts this week, before anything scraped */
+      .soc .soc-plan{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.6fr) auto;gap:20px;align-items:center;padding:18px 22px;margin:0 0 22px;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--v5-r,12px);background:var(--surface);box-shadow:var(--v5-sh,none)}
+      .soc .soc-plan .k{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+      .soc .soc-plan .big{display:flex;align-items:baseline;gap:8px;margin:4px 0 8px} .soc .soc-plan .big b{font-size:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1} .soc .soc-plan .big span{color:var(--muted);font-size:13px}
+      .soc .soc-plan .bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden} .soc .soc-plan .bar i{display:block;height:100%;border-radius:3px;background:var(--v5-grad,var(--brand))}
+      .soc .soc-plan .pipe{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .soc .soc-plan .pipe div{border-radius:10px;background:var(--surface-2);padding:10px 12px;min-width:0}
+      .soc .soc-plan .pipe b{display:block;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1} .soc .soc-plan .pipe small{display:block;color:var(--muted);font-size:12px;margin-top:3px;line-height:1.35}
+      .soc .soc-plan .acts{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+      .soc .soc-plan.sk{min-height:96px;background:linear-gradient(90deg,var(--surface) 0%,var(--surface-2) 50%,var(--surface) 100%);background-size:200% 100%;animation:socshim 1.3s linear infinite}
+      .soc .soc-sh{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin:0 0 4px} .soc .soc-sh h3{margin:0;font-size:15px;font-weight:600} .soc .soc-sh small{color:var(--muted);font-size:12.5px}
+      .soc .soc-lead{margin:0 0 14px;color:var(--muted);font-size:12.5px}
+      .soc .soc-picks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:0 0 30px}
+      /* THE GRID AND A CARD: media (one badge, time or slide count, carousel arrows), then who posted it, then one metric row */
+      .soc .soc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
+      .soc .soc-post{display:flex;flex-direction:column;min-width:0;cursor:pointer;text-align:left;padding:0;font:inherit;color:var(--ink);background:var(--surface);border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--v5-r,12px);box-shadow:var(--v5-sh,none);overflow:hidden;transition:box-shadow var(--t,160ms),transform var(--t,160ms)}
+      .soc .soc-post:hover{box-shadow:var(--v5-sh-hi,none);transform:translateY(-1px)}
       .soc .soc-post:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-      .soc .soc-med{position:relative;aspect-ratio:9/16;background:var(--surface-2);overflow:hidden;border-radius:var(--soc-r);border:1px solid var(--line)}
-      .soc .soc-post:hover .soc-med{border-color:var(--line-strong)}
-      .soc .soc-med img,.soc .soc-med video,.soc .soc-med iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border:0;background:#000}
-      .soc .soc-med iframe{pointer-events:none}
-      .soc-pf{position:absolute;top:8px;left:8px;height:20px;min-width:20px;padding:0 5px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;letter-spacing:.03em;background:rgba(16,16,20,.66);color:#fff;backdrop-filter:blur(4px)}
-      .soc .soc-med .sv{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(16,16,20,.66);color:#fff}
-      .soc .soc-med .dur{position:absolute;bottom:8px;left:8px;font-size:10.5px;font-weight:600;background:rgba(16,16,20,.66);color:#fff;padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums}
-      .soc .soc-med .soc-x{position:absolute;bottom:8px;right:8px}
-      .soc .soc-med .snd{position:absolute;bottom:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(16,16,20,.72);color:#fff;display:none;align-items:center;justify-content:center;cursor:pointer}
-      .soc .soc-med.playing .snd{display:inline-flex} .soc .soc-med.playing .soc-x,.soc .soc-med.playing .dur{display:none}
-      .soc .soc-med .spin{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:socspin .8s linear infinite;display:none}
+      .soc .soc-med{position:relative;aspect-ratio:4/5;background:var(--surface-2);overflow:hidden}
+      .soc .soc-med>img,.soc .soc-med>video,.soc .soc-med>iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;border:0;background:#000}
+      .soc .soc-med>iframe{pointer-events:none}
+      .soc .soc-med .cstrip{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain} .soc .soc-med .cstrip::-webkit-scrollbar{display:none}
+      .soc .soc-med .cstrip img{flex:none;width:100%;height:100%;object-fit:cover;scroll-snap-align:start}
+      .soc-x{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px 0 7px;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;background:rgba(12,12,16,.74);color:#fff;backdrop-filter:blur(6px)}
+      .soc-x b{font-weight:700} .soc-x span{opacity:.75;font-weight:500} .soc-x svg{color:var(--good)} .soc-x.hi svg{color:var(--warn)} .soc-x.lo svg{color:rgba(255,255,255,.7)}
+      .soc .soc-med .soc-x{position:absolute;top:10px;left:10px;z-index:2}
+      .soc .soc-med .soc-tr{position:absolute;top:10px;right:10px;z-index:2;height:22px;padding:0 8px;border-radius:999px;display:inline-flex;align-items:center;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;background:rgba(12,12,16,.66);color:#fff}
+      .soc .soc-med .snd{position:absolute;bottom:10px;right:10px;z-index:3;width:32px;height:32px;border-radius:50%;border:0;background:rgba(12,12,16,.72);color:#fff;display:none;align-items:center;justify-content:center;cursor:pointer}
+      .soc .soc-med .snd:hover{background:rgba(12,12,16,.9)} .soc .soc-med.playing .snd{display:inline-flex}
+      .soc .soc-med .cv{position:absolute;top:50%;z-index:3;width:30px;height:30px;margin-top:-15px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:#111;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity var(--t-fast,120ms);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+      .soc .soc-med .cprev{left:8px} .soc .soc-med .cnext{right:8px}
+      .soc .soc-post:hover .soc-med .cv,.soc .soc-med .cv:focus-visible{opacity:1} .soc .soc-med .cv[disabled]{opacity:0!important;pointer-events:none}
+      @media (hover:none){.soc .soc-med .cv{opacity:.92;width:28px;height:28px}}
+      .soc .soc-med .cdots{position:absolute;bottom:10px;left:0;right:0;z-index:2;display:flex;gap:4px;justify-content:center;pointer-events:none}
+      .soc .soc-med .cdots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 0 2px rgba(0,0,0,.4)} .soc .soc-med .cdots i.on{background:#fff}
+      .soc .soc-med .spin{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:socspin .8s linear infinite;display:none;z-index:2}
       .soc .soc-med.loading .spin{display:block}
       @keyframes socspin{to{transform:rotate(360deg)}}
-      .soc .soc-body{padding:8px 2px 0;display:grid;gap:3px}
-      .soc .soc-who{display:flex;gap:6px;align-items:baseline;min-width:0;font-size:13px;font-weight:600}
-      .soc .soc-who b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;min-width:0}
-      .soc .soc-who small{color:var(--muted);font-weight:500;font-size:12px;white-space:nowrap}
-      .soc .soc-who .tp{margin-left:auto;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--unk-bg);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
-      .soc .soc-cap{font-size:12.5px;line-height:1.4;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .soc-mr{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;min-width:0}
-      .soc-mr b{color:var(--ink);font-weight:600}
-      .soc-x{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;font-size:11.5px;font-weight:700;color:var(--good);background:var(--good-bg);font-variant-numeric:tabular-nums}
-      .soc-x.hi{color:var(--warn);background:var(--warn-bg)} .soc-x.lo{color:var(--ink-2);background:var(--unk-bg)}
-      .soc .soc-made{font-size:11px;font-weight:600;color:var(--brand);display:inline-flex;gap:4px;align-items:center}
-      .soc .soc-tg{font-size:11px;font-weight:600;color:var(--ink-2);display:inline-flex;gap:5px;align-items:center}
+      .soc .soc-meta{padding:12px 14px 13px;display:grid;gap:10px}
+      .soc-id{display:flex;align-items:center;gap:10px;min-width:0}
+      .soc-id .nm{min-width:0;flex:1;display:grid;gap:1px} .soc-id .nm b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .soc-id .nm small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .soc-id .svd{color:var(--brand);flex:none;display:inline-flex}
+      .soc-av{position:relative;flex:none;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;letter-spacing:.02em;color:var(--av,var(--brand));background:color-mix(in srgb,var(--av,var(--brand)) 16%,var(--surface))}
+      .soc-av .pm{position:absolute;right:-3px;bottom:-3px;width:17px;height:17px;border-radius:50%;background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 0 1.5px var(--surface),0 1px 3px rgba(0,0,0,.25)}
+      .soc-av.lg{width:42px;height:42px;font-size:13px} .soc-av.lg .pm{width:19px;height:19px}
+      .soc-stats{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;min-width:0}
+      .soc-stats span{display:inline-flex;align-items:center;gap:5px} .soc-stats b{color:var(--ink);font-weight:600}
+      .soc .soc-made{margin-left:auto;font-size:11px;font-weight:600;color:var(--brand-ink,var(--brand));background:var(--brand-soft);padding:2px 8px;border-radius:999px}
+      .soc .soc-sv{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);min-width:0} .soc .soc-sv span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .soc .soc-pickbar{padding:0 14px 14px;margin-top:-2px} .soc .soc-pickbar .soc-btn{width:100%;height:34px}
+      /* THE VIEWER: the media at phone proportions on black, a 380px column (who, numbers, caption, transcript), one bar */
+      .soc-view{position:fixed;inset:0;z-index:9000;background:rgba(8,8,10,.96);display:grid;grid-template-columns:minmax(0,1fr) 384px;color:#fff;opacity:0;visibility:hidden;transition:opacity var(--t-fast,.14s)}
+      .soc-view.on{opacity:1;visibility:visible}
+      .soc-view .vstage{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;padding:48px 76px}
+      .soc-view .vmed{position:relative;height:100%;max-height:calc(100vh - 96px);aspect-ratio:9/16;max-width:100%;background:#000;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+      .soc-view .vmed.sq{aspect-ratio:4/5}
+      .soc-view .vmed>img,.soc-view .vmed>video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+      .soc-view .vmed>iframe{width:100%;height:100%;border:0;background:#000}
+      .soc-view .vmed .note{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;background:rgba(16,16,20,.8);padding:6px 10px;border-radius:7px;white-space:nowrap}
+      .soc-view .vmed .tapsnd{position:absolute;left:50%;top:16px;transform:translateX(-50%);height:32px;padding:0 12px;border-radius:999px;border:0;background:rgba(255,255,255,.94);color:#111;font:inherit;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer;z-index:4}
+      .soc-view .vslides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain} .soc-view .vslides::-webkit-scrollbar{display:none}
+      .soc-view .vslides img{flex:none;width:100%;height:100%;object-fit:contain;scroll-snap-align:start;background:#000}
+      .soc-view .vsl{position:absolute;top:50%;margin-top:-18px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.94);color:#111;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;z-index:4;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+      .soc-view .vsl.l{left:10px} .soc-view .vsl.r{right:10px} .soc-view .vsl[disabled]{opacity:0;pointer-events:none}
+      .soc-view .vdots{position:absolute;bottom:12px;left:0;right:0;display:flex;gap:2px;justify-content:center;z-index:4}
+      .soc-view .vdots button{width:16px;height:16px;padding:0;border:0;background:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+      .soc-view .vdots button i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.45);box-shadow:0 0 2px rgba(0,0,0,.5)} .soc-view .vdots button.on i{background:#fff}
+      .soc-view .vsn{position:absolute;top:12px;right:12px;z-index:4;height:24px;padding:0 9px;border-radius:999px;display:inline-flex;align-items:center;font-size:12px;font-weight:600;background:rgba(12,12,16,.7);font-variant-numeric:tabular-nums}
+      .soc-view .vx,.soc-view .vprev,.soc-view .vnext{position:absolute;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+      .soc-view .vx:hover,.soc-view .vprev:hover,.soc-view .vnext:hover{background:rgba(255,255,255,.2)}
+      .soc-view .vx{top:16px;left:16px} .soc-view .vprev{left:16px;top:50%;margin-top:-20px} .soc-view .vnext{right:16px;top:50%;margin-top:-20px}
+      .soc-view .vprev:disabled,.soc-view .vnext:disabled{opacity:.25;cursor:default}
+      .soc-view .vcount{position:absolute;top:26px;left:66px;font-size:12px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+      .soc-view .vcol{background:var(--surface);color:var(--ink);display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line)}
+      .soc-view .vbody{flex:1;overflow:auto;padding:20px 22px 16px;display:grid;gap:18px;align-content:start;font-size:13px}
+      .soc-view .vwho{display:flex;gap:12px;align-items:center;min-width:0}
+      .soc-view .vwho .t{min-width:0;flex:1} .soc-view .vwho b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .soc-view .vwho small{display:block;color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .soc-view .vchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:-6px}
+      .soc-view .vchips span{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);font-size:12px;font-weight:500}
+      .soc-view .vsec{display:grid;gap:8px}
+      .soc-view .vsec>h5{margin:0;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)} .soc-view .vsec>h5 .sp{flex:1}
+      .soc-view .vperf{border-radius:12px;background:var(--surface-2);padding:14px 16px;display:grid;gap:10px}
+      .soc-view .vperf .top{display:flex;align-items:center;gap:10px;justify-content:space-between}
+      .soc-view .vperf .num b{font-size:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1} .soc-view .vperf .num span{color:var(--muted);font-size:13px;margin-left:6px}
+      .soc-view .vperf .soc-x{background:var(--brand-soft);color:var(--brand-ink,var(--brand));backdrop-filter:none} .soc-view .vperf .soc-x svg{color:currentColor}
+      .soc-view .vperf p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.45}
+      .soc-view .vgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-top:1px solid var(--line);padding-top:10px}
+      .soc-view .vgrid div{min-width:0} .soc-view .vgrid small{display:block;color:var(--muted);font-size:11px} .soc-view .vgrid b{display:block;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+      .soc-view .vcap{font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--ink);overflow-wrap:anywhere}
+      .soc-view .vcap.clamp{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+      .soc-view .vlink{font:inherit;font-size:12px;color:var(--brand-ink,var(--brand));background:none;border:0;padding:0;cursor:pointer;justify-self:start}
+      .soc-view .vcopy{font:inherit;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);background:none;border:0;padding:0;cursor:pointer} .soc-view .vcopy:hover{color:var(--ink)}
+      .soc-view .vtags{display:flex;gap:6px;flex-wrap:wrap}
+      .soc-view .vtags span{font-size:12px;padding:3px 9px;border-radius:6px;background:var(--surface-2);color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+      .soc-view .vtr{font-size:13px;line-height:1.55;color:var(--ink-2);background:var(--surface-2);border-radius:10px;padding:12px 14px;max-height:240px;overflow:auto}
+      .soc-view .vnote textarea{width:100%;min-height:58px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;padding:8px 10px;resize:vertical;box-sizing:border-box}
+      .soc-view .vline{color:var(--muted);font-size:12.5px}
+      .soc-view .vkeys{color:var(--faint,var(--muted));font-size:11px}
+      .soc-view .vbar{display:grid;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--surface)}
+      .soc-view .vbar .row{display:flex;gap:8px} .soc-view .vbar .row>*{flex:1 1 0;min-width:0}
+      .soc-view .vbar .soc-btn{height:38px} .soc-view .vbar .soc-btn.mk{height:40px;font-size:13.5px}
+      .soc-view.making .vbar{display:none}
+      .soc-split{position:relative;display:inline-flex;align-items:stretch;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);overflow:visible}
+      .soc-split>button{border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px}
+      .soc-split>button:first-child{flex:1;border-radius:7px 0 0 7px} .soc-split>button+button{flex:none;width:36px;padding:0;border-left:1px solid var(--line-strong);border-radius:0 7px 7px 0}
+      .soc-split>button:hover{background:var(--surface-2)}
+      .soc-split.on{border-color:var(--brand);background:var(--brand-soft)} .soc-split.on>button{color:var(--brand-ink,var(--brand))} .soc-split.on>button+button{border-left-color:color-mix(in srgb,var(--brand) 45%,transparent)}
+      .soc-split .soc-tagpick{bottom:calc(100% + 6px);left:0;right:auto}
+      /* MAKE OUR VERSION: four steps shown as progress, what you get, the draft, then the next step's one button */
+      .mkx{display:grid;gap:16px}
+      .mkx .bk{font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;text-align:left;justify-self:start} .mkx .bk:hover{color:var(--ink)}
+      .mkx h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+      .mkx .steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;counter-reset:mk}
+      .mkx .steps li{list-style:none;display:grid;gap:6px;font-size:11.5px;color:var(--muted);font-weight:500}
+      .mkx .steps li i{height:4px;border-radius:2px;background:var(--surface-2)}
+      .mkx .steps li.done i{background:var(--good)} .mkx .steps li.cur i{background:var(--brand)} .mkx .steps li.cur{color:var(--ink);font-weight:600} .mkx .steps li.done{color:var(--ink-2)}
+      .mkx .steps{margin:0;padding:0}
+      .mkx .what{border-radius:12px;background:var(--surface-2);padding:14px 16px;display:grid;gap:10px}
+      .mkx .what ol{margin:0;padding:0;list-style:none;display:grid;gap:9px;counter-reset:w}
+      .mkx .what li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:13px;line-height:1.4;counter-increment:w}
+      .mkx .what li::before{content:counter(w);width:22px;height:22px;border-radius:50%;background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+      .mkx .what li b{display:block;font-weight:600} .mkx .what li span{color:var(--muted);font-size:12.5px}
+      .mkx .what small{color:var(--muted);font-size:12px;line-height:1.45}
+      .mkx .mode{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .mkx .mode label{border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;cursor:pointer;display:grid;gap:2px;font-size:13px}
+      .mkx .mode label.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)} .mkx .mode input{display:none} .mkx .mode b{font-weight:600} .mkx .mode small{color:var(--muted);font-size:11.5px;line-height:1.35}
+      .mkx textarea,.mkx input[type=text]{width:100%;box-sizing:border-box;min-height:38px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:9px 11px;resize:vertical}
+      .mkx .go{height:42px;font-size:13.5px;width:100%}
+      .mkx .now{border:1px solid color-mix(in srgb,var(--brand) 40%,var(--line));border-radius:12px;padding:14px 16px;display:grid;gap:10px;background:color-mix(in srgb,var(--brand) 5%,var(--surface))}
+      .mkx .now b{font-size:14px;font-weight:600} .mkx .now p{margin:0;color:var(--ink-2);font-size:13px;line-height:1.5}
+      .mkx .now .row{display:flex;gap:8px;flex-wrap:wrap} .mkx .now .row .soc-btn{flex:1 1 auto}
+      .mkx .wk{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink-2)} .mkx .wk i{width:16px;height:16px;border-radius:50%;border:2px solid color-mix(in srgb,var(--brand) 30%,transparent);border-top-color:var(--brand);animation:socspin .8s linear infinite;flex:none}
+      .mkx .ok{display:flex;gap:8px;align-items:center;color:var(--good);font-weight:600;font-size:13px}
+      .mkx details{border:1px solid var(--line);border-radius:12px;padding:0 14px} .mkx details[open]{padding-bottom:14px} .mkx summary{cursor:pointer;padding:12px 0;font-size:13px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px} .mkx summary::-webkit-details-marker{display:none} .mkx summary small{color:var(--muted);font-weight:500;margin-left:auto}
+      .mkx .beats{display:grid;gap:6px}
+      .mkx .beat{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px;font-size:12.5px;background:var(--surface-2);border-radius:8px;padding:8px 10px;line-height:1.45}
+      .mkx .beat i{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:2px} .mkx .beat.hk i{color:var(--brand-ink,var(--brand))}
+      .mkx .kv{display:grid;gap:4px;font-size:12.5px;line-height:1.5} .mkx .kv b{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:center}
+      .mkx .alt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
+      .mkx .err{color:var(--bad);font-size:12.5px} .mkx .err:empty{display:none}
+      .mkx .ask{border:1px solid var(--warn);border-radius:12px;padding:12px 14px;display:grid;gap:8px} .mkx .ask p{margin:0;font-size:13px}
+      /* the four paths (the chooser in the viewer) and the same four as the page's guide */
+      .mkx .paths{display:grid;gap:8px}
+      .mkx .path{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;align-items:start;text-align:left;padding:12px 14px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;transition:border-color var(--t-fast,120ms),box-shadow var(--t-fast,120ms)}
+      .mkx .path:hover{border-color:color-mix(in srgb,var(--brand) 50%,var(--line-strong))}
+      .mkx .path.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);background:color-mix(in srgb,var(--brand) 5%,var(--surface))}
+      .mkx .path .n,.soc-sop .n{width:26px;height:26px;border-radius:50%;background:var(--surface-2);color:var(--ink-2);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+      .mkx .path.on .n{background:var(--brand);color:var(--on-brand)}
+      .mkx .path .t{display:grid;gap:3px;min-width:0} .mkx .path b{font-size:13.5px;font-weight:600} .mkx .path small{color:var(--muted);font-size:12px;line-height:1.4}
+      .mkx .path em,.soc-sop em{font-style:normal;font-size:11px;font-weight:600;color:var(--brand-ink,var(--brand))}
+      .mkx .vsec{display:grid;gap:8px} .mkx .vsec>h5{margin:0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+      .soc .soc-sop{margin:0 0 26px;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--v5-r,12px);background:var(--surface);box-shadow:var(--v5-sh,none);padding:0 22px}
+      .soc .soc-sop[open]{padding-bottom:20px}
+      .soc .soc-sop summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:16px 0} .soc .soc-sop summary::-webkit-details-marker{display:none}
+      .soc .soc-sop summary b{font-size:15px;font-weight:600} .soc .soc-sop summary small{color:var(--muted);font-size:12.5px} .soc .soc-sop summary .x{margin-left:auto;color:var(--muted);font-size:12px}
+      .soc .soc-sop .how{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin:0 0 14px} .soc .soc-sop .how span{display:inline-flex;gap:6px;align-items:center} .soc .soc-sop .how i{font-style:normal;color:var(--muted)}
+      .soc .soc-sop .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+      .soc .soc-sop .grid4>div{border-radius:10px;background:var(--surface-2);padding:12px 14px;display:grid;gap:6px;align-content:start}
+      .soc .soc-sop .grid4 b{font-size:13px;font-weight:600} .soc .soc-sop .grid4 small{color:var(--muted);font-size:12px;line-height:1.4}
+      .soc .soc-sop .grid4 .st{font-size:11px;color:var(--ink-2)}
       /* empty, loading, error */
       .soc .soc-state{border:1px dashed var(--line-strong);border-radius:var(--soc-r);padding:40px 20px;text-align:center;display:grid;gap:8px;justify-items:center;background:var(--surface)}
       .soc .soc-state b{font-size:15px} .soc .soc-state p{margin:0;max-width:52ch;color:var(--muted);font-size:13px;line-height:1.5}
@@ -158,75 +297,6 @@
       .soc .soc-sug .row .soc-btn{margin-left:auto;flex:none}
       .soc .soc-status .nw{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--brand-soft);color:var(--brand-ink,var(--brand));font-weight:600;border:0;font:inherit;font-size:12px;cursor:pointer}
       .soc .soc-status .pz{color:var(--warn)}
-      .soc-view .vcount{position:absolute;top:26px;left:64px;font-size:12px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
-      .soc-view .vcopy{font:inherit;font-size:11.5px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;margin-left:8px} .soc-view .vcopy:hover{color:var(--ink)}
-      .soc-view .vcap-h,.soc-view .vtr b{display:flex;align-items:center}
-      .soc-view .vnote textarea{width:100%;min-height:54px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;padding:7px 9px;resize:vertical}
-      .soc-view .vnote small{display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
-      .soc .soc-note{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .soc-view .vkeys{color:var(--muted);font-size:11px;letter-spacing:.02em}
-      /* THE VIEWER: a dark full-height overlay, the media in the middle at phone proportions, a 340px column, a pinned bar */
-      .soc-view{position:fixed;inset:0;z-index:9000;background:rgba(10,10,12,.96);display:grid;grid-template-columns:minmax(0,1fr) 340px;color:#fff;opacity:0;visibility:hidden;transition:opacity var(--t-fast,.14s)}
-      .soc-view.on{opacity:1;visibility:visible}
-      .soc-view .vstage{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;padding:48px 72px}
-      .soc-view .vmed{position:relative;height:100%;max-height:calc(100vh - 96px);aspect-ratio:9/16;max-width:100%;background:#000;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-      .soc-view .vmed img,.soc-view .vmed video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
-      .soc-view .vmed iframe{width:100%;height:100%;border:0;background:#000}
-      .soc-view .vmed .snd{position:absolute;bottom:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(16,16,20,.72);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
-      .soc-view .vmed .note{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;background:rgba(16,16,20,.8);padding:6px 10px;border-radius:7px;white-space:nowrap}
-      .soc-view .vslides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none} .soc-view .vslides::-webkit-scrollbar{display:none}
-      .soc-view .vslides img{flex:none;width:100%;height:100%;object-fit:contain;scroll-snap-align:start;background:#000}
-      .soc-view .vdots{position:absolute;bottom:12px;left:0;right:0;display:flex;gap:5px;justify-content:center;pointer-events:none}
-      .soc-view .vdots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4)} .soc-view .vdots i.on{background:#fff}
-      .soc-view .vx,.soc-view .vprev,.soc-view .vnext{position:absolute;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;line-height:1}
-      .soc-view .vx:hover,.soc-view .vprev:hover,.soc-view .vnext:hover{background:rgba(255,255,255,.2)}
-      .soc-view .vx{top:16px;left:16px} .soc-view .vprev{left:16px;top:50%;margin-top:-20px} .soc-view .vnext{right:16px;top:50%;margin-top:-20px}
-      .soc-view .vprev:disabled,.soc-view .vnext:disabled{opacity:.25;cursor:default}
-      .soc-view .vcol{background:var(--surface);color:var(--ink);display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line)}
-      .soc-view .vbody{flex:1;overflow:auto;padding:18px 18px 12px;display:grid;gap:12px;align-content:start;font-size:13px}
-      .soc-view .vwho{display:flex;gap:10px;align-items:center;min-width:0}
-      .soc-view .vav{width:36px;height:36px;border-radius:50%;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ink-2);flex:none;overflow:hidden}
-      .soc-view .vav img{width:100%;height:100%;object-fit:cover}
-      .soc-view .vwho b{display:block;font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .soc-view .vwho small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
-      .soc-view .vline{color:var(--muted);font-size:12.5px}
-      .soc-view .vbig{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-      .soc-view .vbig b{font-size:26px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
-      .soc-view .vbig span{color:var(--muted);font-size:12.5px}
-      .soc-view .vsmall{display:flex;gap:12px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
-      .soc-view .vsmall b{color:var(--ink);font-weight:600}
-      .soc-view .vcap{font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--ink);overflow-wrap:anywhere}
-      .soc-view .vtags{display:flex;gap:6px;flex-wrap:wrap}
-      .soc-view .vtags span{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:5px;background:var(--unk-bg);color:var(--ink-2)}
-      .soc-view .vbar{display:flex;gap:6px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--surface);align-items:center}
-      .soc-view .vbar .soc-btn{padding:0 10px} .soc-view .vbar .soc-btn.mk{flex:1;min-width:0}
-      .soc-view .vbar .grp{display:inline-flex}
-      .soc-view .vbar .grp .soc-btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
-      .soc-view .vbar .grp .soc-btn:last-child{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;width:26px;padding:0}
-      .soc-view .vbar .soc-btn.sav.on{color:var(--brand-ink,var(--brand));border-color:var(--brand);background:var(--brand-soft)}
-      /* make ours as a second step inside the column */
-      .soc-view .vstep{display:grid;gap:10px}
-      .soc-view .vstep .bk{font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;text-align:left;display:inline-flex;gap:4px;align-items:center}
-      .soc-view .vstep h3{margin:0;font-size:15px;font-weight:650}
-      .soc-view .vstep input[type=text],.soc-view .vstep textarea{width:100%;min-height:36px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;resize:vertical}
-      .soc-view .vstep p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2)}
-      .soc-view .vstat{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
-      .soc-view .vtr{font-size:13px;line-height:1.55;color:var(--ink-2);background:var(--surface-2);border-radius:var(--r-sm,8px);padding:10px 12px;display:grid;gap:4px;max-height:260px;overflow:auto}
-      .soc-view .vtr b{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:700}
-      .soc-view .mkmode{display:grid;gap:6px}
-      .soc-view .mkmode label{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);padding:8px 10px;cursor:pointer;font-size:13px}
-      .soc-view .mkmode label.on{border-color:var(--brand);background:var(--brand-soft)}
-      .soc-view .mkmode input{grid-row:1/3;margin:0;accent-color:var(--brand)}
-      .soc-view .mkmode b{color:var(--ink);font-weight:600} .soc-view .mkmode small{grid-column:2;color:var(--muted);font-size:12px;line-height:1.35}
-      .soc-view .vstat i{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none} .soc-view .vstat.work i{background:var(--brand);animation:socpulse 1.2s ease-in-out infinite} .soc-view .vstat.ok i{background:var(--good)} .soc-view .vstat.ask i{background:var(--warn)} .soc-view .vstat.bad i{background:var(--bad)}
-      @keyframes socpulse{50%{opacity:.3}}
-      .soc-view .beats{display:grid;gap:5px}
-      .soc-view .beat{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px;align-items:start;font-size:12.5px;background:var(--surface-2);border-radius:7px;padding:7px 9px;line-height:1.45}
-      .soc-view .beat i{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:2px}
-      .soc-view .beat.hk{background:var(--warn-bg)} .soc-view .beat.hk i{color:var(--warn)}
-      .soc-view .vrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-      .soc-view .err{color:var(--bad);font-size:12.5px} .soc-view .err:empty{display:none}
-      .soc-view .sent{font-size:12.5px;color:var(--good);font-weight:600;display:flex;gap:6px;align-items:center}
       /* the tag picker (Save's chevron) */
       .soc-tagpick{position:absolute;bottom:calc(100% + 6px);right:0;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,12px);box-shadow:var(--sh-pop,0 12px 32px -12px rgba(0,0,0,.5));padding:8px;display:grid;gap:2px;z-index:5;color:var(--ink)}
       .soc-tagpick button{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:var(--r-sm,8px);border:0;background:transparent;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left;width:100%}
@@ -234,7 +304,6 @@
       .soc-tagpick button small{margin-left:auto;color:var(--muted)}
       .soc-tagpick .new{display:flex;gap:6px;padding:4px 0 0;border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
       .soc-tagpick .new input{flex:1;height:30px;min-width:0;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px}
-      .soc-view .vbar .grp{position:relative}
       /* modals */
       .soc-m .fl{display:grid;gap:12px} .soc-m h3{margin:0;font-size:16px;font-weight:650}
       .soc-m label.f{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
@@ -251,23 +320,35 @@
       .soc-set .cred{font-size:12.5px;color:var(--muted);line-height:1.5} .soc-set .cred b{color:var(--ink)} .soc-set .cred.low b{color:var(--warn)}
       .soc-set h4{margin:0;font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px} .soc-set h4 .sp{flex:1}
       @media (max-width:720px){
-        .soc .soc-grid,.soc .soc-sk{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+        .soc .soc-grid,.soc .soc-sk,.soc .soc-picks{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+        .soc .soc-picks{margin-bottom:24px}
+        .soc .soc-sh{display:grid}
         .soc .soc-ctl{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:0 16px} .soc .soc-ctl::-webkit-scrollbar{display:none}
         .soc .soc-ctl .sp{display:none} .soc .soc-ctl .hd-period.ph-hide,.soc .soc-q{display:none}
         .soc .soc-ctl .hd-per-btn .hd-per-d{display:inline}
-        .soc .soc-body{padding-top:6px} .soc .soc-cap{display:none}
-        .soc-mr{gap:7px;font-size:11.5px}
+        .soc .soc-plan{grid-template-columns:1fr;gap:14px;padding:16px}
+        .soc .soc-plan .pipe{gap:8px} .soc .soc-plan .pipe div{padding:8px 10px} .soc .soc-plan .pipe b{font-size:17px} .soc .soc-plan .pipe small{font-size:11px}
+        .soc .soc-plan .acts{flex-direction:row} .soc .soc-plan .acts .soc-btn{flex:1}
+        .soc .soc-meta{padding:10px 10px 11px;gap:8px}
+        .soc-av{width:28px;height:28px;font-size:10.5px} .soc-av .pm{width:15px;height:15px}
+        .soc-stats{gap:10px;font-size:11.5px} .soc-stats span:nth-child(3){display:none}
+        .soc .soc-med .soc-x{top:8px;left:8px;height:22px;font-size:11px;padding:0 8px 0 6px} .soc .soc-med .soc-x span{display:none}
+        .soc .soc-med .soc-tr{top:8px;right:8px}
+        .soc .soc-pickbar{padding:0 10px 10px}
+        .soc .soc-med .cv,.soc .soc-med .snd,.soc-view .vdots button,.soc-view .vsl,.soc-view .vcopy,.soc-view .vlink,.mkx .bk,.soc-split>button{min-height:0}
         .soc .soc-tbl table,.soc .soc-tbl thead,.soc .soc-tbl tbody,.soc .soc-tbl tr,.soc .soc-tbl td{display:block}
         .soc .soc-tbl thead{display:none} .soc .soc-tbl td{border:0;padding:3px 14px} .soc .soc-tbl tr{padding:10px 0;border-bottom:1px solid var(--line)} .soc .soc-tbl td.r{text-align:left;padding-top:8px}
         .soc-m .three{grid-template-columns:1fr}
         .soc-view{grid-template-columns:1fr;grid-template-rows:minmax(0,56vh) minmax(0,1fr);background:var(--surface)}
         .soc-view .vstage{padding:0;background:#000}
-        .soc-view .vmed{max-height:none;height:100%;border-radius:0;aspect-ratio:auto;width:100%}
-        .soc-view .vx{top:calc(10px + env(safe-area-inset-top,0px));left:10px;width:36px;height:36px} .soc-view .vprev,.soc-view .vnext{display:none}
-        .soc-view .vcol{border-left:0} .soc-view .vbody{padding:14px 16px 90px}
-        .soc-view .vbar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))} .soc-view .vbar .soc-btn{min-height:40px;flex:1 1 auto}
-        .soc-view .vbar .grp{flex:1 1 auto} .soc-view .vbar .grp .soc-btn:first-child{flex:1} .soc-view .vbar .grp .soc-btn:last-child{flex:none;width:34px}
-        .soc-tagpick{position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+        .soc-view .vmed,.soc-view .vmed.sq{max-height:none;height:100%;border-radius:0;aspect-ratio:auto;width:100%}
+        .soc-view .vx{top:calc(10px + env(safe-area-inset-top,0px));left:10px;width:36px;height:36px} .soc-view .vprev,.soc-view .vnext,.soc-view .vcount{display:none}
+        .soc-view .vcol{border-left:0;min-height:0} .soc-view .vbody{padding:16px 16px 150px}
+        .soc-view .vbar{position:fixed;left:0;right:0;bottom:0;z-index:2}
+        .soc-view .vgrid{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}
+        .soc-tagpick{position:fixed;left:12px;right:12px;bottom:calc(120px + env(safe-area-inset-bottom,0px))}
+        .mkx .mode{grid-template-columns:1fr}
+        .soc .soc-sop{padding:0 16px} .soc .soc-sop .grid4{grid-template-columns:1fr 1fr;gap:8px} .soc .soc-sop .grid4>div{padding:10px 12px}
       }`;
     document.head.appendChild(st);
   }
@@ -447,45 +528,141 @@
       const p = saved() ? 'Save a post from its viewer, or press Make ours, and it stays here.' : ST.view === 'hot' ? 'A post breaks out when it does 3x what that account usually gets, on accounts with 8 or more posts in. Check All meanwhile.' : posts.length ? `Nothing posted ${ST.win ? `in the last ${ST.win} days` : 'ever'} matches.` : 'The first pull runs when you follow. Open Manage follows to see what came back.';
       return `<div class="soc-state"><b>${t}</b><p>${p}</p>${n ? '<div class="acts"><button type="button" class="soc-btn" id="socClear2">Clear</button></div>' : ''}</div>`;
     };
-    const body = !fol.length ? emptyState() : !list.length ? empty() : `<div class="soc-grid">${list.slice(0, 240).map(card).join('')}</div>`;
-    $('#main').innerHTML = `<div class="v2 soc">${head}
+    const body = !fol.length ? emptyState() : !list.length ? empty() : `<div class="soc-grid">${list.slice(0, 240).map(p => card(p)).join('')}</div>`;
+    /* Our strategy first (2026-10-21, Cole: "it should be what we make this week, not a scrape feed"): the week's plan,
+       then the few posts worth making ours, then everything the brand watches. Saved keeps its own simple layout. */
+    const strat = !saved() && fol.length;
+    const picks = strat ? posts.filter(p => okRatio(p) && p.ratio >= 3 && !p.idea_id && (!p.posted_at || (Date.now() - Date.parse(p.posted_at)) / 864e5 <= 14)).sort((a, b) => b.ratio - a.ratio).slice(0, 4) : [];
+    const top = strat ? `<section class="soc-plan sk" id="socPlan" aria-label="This week"></section>${sopHtml()}
+      ${picks.length ? `<div class="soc-sh"><h3>Worth making this week</h3><small>${picks.length} post${picks.length === 1 ? '' : 's'} doing 3x or more what the account usually gets</small></div>
+      <p class="soc-lead">${CLI() ? 'Ask the team to make one of these.' : 'Press Make it ours on one: post it ourselves, send it to creators, brief an ad or make it in Studio.'}</p>
+      <div class="soc-picks" id="socPicks">${picks.map(p => card(p, { pick: true })).join('')}</div>` : ''}
+      <div class="soc-sh"><h3>Everything ${esc(brandName())} watches</h3><small>${posts.length} posts from ${fol.length} brands and topics</small></div>
+      <p class="soc-lead">Breaking out = far more than that account usually gets. Open any post to watch it, read the caption and make ours.</p>` : '';
+    $('#main').innerHTML = `<div class="v2 soc">${head}${top}
       <div class="soc-ctl">${seg}${menus}${search}${filt}<span class="sp"></span>
         ${CLI() ? '' : `<button type="button" class="soc-btn ico q" id="socManage" aria-label="Manage follows" ${U() ? U().tipAttr('Manage follows') : ''}>${ic('settings')}</button><button type="button" class="soc-btn pri" id="socAdd">${ic('plus')} Follow</button>`}</div>
       ${fol.length && !saved() ? statusLine(fol) : ''}${tags}${trend}${body}</div>`;
-    wire(list);
+    wire(list, picks);
+    if (strat) loadPlan();
+    const sop = $('#socSop'); if (sop) sop.addEventListener('toggle', () => { store('soc_sop', sop.open ? '1' : '0'); sop.querySelector('.x').textContent = sop.open ? 'Hide' : 'Show'; });
+  }
+  /* The guide on the page: "Saw a post you like? Here is what to do", the same four paths the viewer offers. */
+  function sopHtml() {
+    if (CLI()) return '';
+    const open = store('soc_sop') !== '0';
+    return `<details class="soc-sop" id="socSop" ${open ? 'open' : ''}><summary><b>Saw a post you like? Here is what to do</b><small>four ways to use it, each one button</small><span class="x">${open ? 'Hide' : 'Show'}</span></summary>
+      <div class="how"><span><span class="n">1</span>Open the post</span><i>&#8250;</i><span><span class="n">2</span>Press Make it ours</span><i>&#8250;</i><span><span class="n">3</span>Pick one of these</span><i>&#8250;</i><span><span class="n">4</span>Follow the steps it shows</span></div>
+      <div class="grid4">${Object.values(PATHS).map(q => `<div><b>${esc(q.label)}</b><small>${esc(q.line)}</small><span class="st">${q.steps.map(esc).join(' &#8250; ')}</span><em>Lands in ${esc(q.lands)}</em></div>`).join('')}</div></details>`;
+  }
+  /* The plan strip: this week's posts against the target, what is in the works, the Week one click away. */
+  const PLAN = {};
+  async function loadPlan() {
+    const el = $('#socPlan'); if (!el) return;
+    const act = ST.act;
+    let d = PLAN[act];
+    if (!d || Date.now() - d.at > 120e3) {
+      try {
+        const [w, t] = await Promise.all([H.apiAH(`/api/social/week?act=${encodeURIComponent(act)}`, { fresh: true }), H.apiAH(`/api/social/tray?act=${encodeURIComponent(act)}`, { fresh: true }).catch(() => ({ items: [] }))]);
+        d = PLAN[act] = { at: Date.now(), w, items: t.items || [] }; TRAY[act] = { at: Date.now(), items: d.items };
+      } catch (e) { if (el.isConnected) { el.classList.remove('sk'); el.innerHTML = `<div><span class="k">This week</span><p class="soc-lead" style="margin:6px 0 0">${esc(e.message)}</p></div>`; } return; }
+    }
+    if (!el.isConnected || ST.act !== act) return;
+    const w = d.w, tgt = w.target ?? 5, pl = w.planned || 0;
+    const ours = d.items.filter(i => i.src === 'make');
+    const toFilm = ours.filter(i => i.organic && i.kind === 'text').length;
+    const filmed = ours.filter(i => i.kind !== 'text' && !i.used).length;
+    const ready = d.items.filter(i => !i.used && i.kind !== 'text' && i.src !== 'make').length;
+    el.classList.remove('sk');
+    el.innerHTML = `<div><span class="k">This week</span><div class="big"><b>${pl} of ${tgt}</b><span>posts planned</span></div><div class="bar"><i style="width:${Math.min(100, tgt ? pl / tgt * 100 : 0)}%"></i></div></div>
+      <div class="pipe"><div><b>${toFilm}</b><small>of our versions waiting to be filmed</small></div><div><b>${filmed}</b><small>filmed, ready to schedule</small></div><div><b>${ready}</b><small>other posts ready on the tray</small></div></div>
+      <div class="acts"><button type="button" class="soc-btn ${pl < tgt ? 'pri' : ''}" id="socWeek">Open the Week</button>${!CLI() && pl < tgt ? '<button type="button" class="soc-btn" id="socFillW">Fill the week</button>' : ''}</div>`;
+    el.querySelector('#socWeek').onclick = () => H.show('socialweek');
+    const fw = el.querySelector('#socFillW'); if (fw) fw.onclick = () => { window.SOCIAL_FILL = 1; H.show('socialweek'); };
   }
   function emptyState() {
     return `<div class="soc-state"><b>Follow the brands and topics you want to watch</b><p>Type a brand's handle (like @takomogolf) and Locus finds it on Instagram, TikTok and YouTube, then pulls every new post once a day. Instagram and YouTube cost nothing; TikTok and topic searches use ScrapeCreators credits. Or follow a topic (like "golf short game").</p><div class="acts"><button type="button" class="soc-btn pri" id="socAdd2">${ic('plus')} Follow</button></div></div>`;
   }
+  /* Small line icons drawn here (the sprite has no speaker, heart or platform marks). currentColor, 1.8 stroke. */
+  const sv = (d, s = 14, fill = 'none') => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="${fill}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const G = {
+    vol: s => sv('<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>', s),
+    mute: s => sv('<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>', s),
+    eye: s => sv('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', s),
+    heart: s => sv('<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>', s),
+    chat: s => sv('<path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.4A8.5 8.5 0 1 1 21 12z"/>', s),
+    up: s => sv('<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>', s),
+    l: s => sv('<path d="m15 18-6-6 6-6"/>', s), r: s => sv('<path d="m9 18 6-6-6-6"/>', s), d: s => sv('<path d="m6 9 6 6 6-6"/>', s),
+    mark: s => sv('<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>', s),
+    ext: s => sv('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>', s),
+    ig: s => sv('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/>', s),
+    tt: s => sv('<path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 3c.5 2.6 2.4 4.4 5 4.6"/>', s),
+    yt: s => sv('<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="m10 9.5 5 2.5-5 2.5z" fill="currentColor"/>', s),
+  };
+  const AVC = ['--c-meta', '--c-tiktok', '--c-email', '--c-google', '--c-amazon', '--c-else'];
+  const handleOf = p => p.handle ? `@${p.handle}` : (p.who || 'Unknown');
+  /* The account's mark: initials in a tinted circle, the platform in a badge on its corner. */
+  function avatar(p, lg) {
+    const who = String(p.handle || p.who || '?').replace(/^@/, '');
+    const c = AVC[[...who].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 3) % AVC.length];
+    return `<span class="soc-av ${lg ? 'lg' : ''}" style="--av:var(${c})">${esc(who.slice(0, 2).toUpperCase())}${G[p.plat] ? `<i class="pm" aria-label="${esc(PL[p.plat] || '')}">${G[p.plat](lg ? 11 : 10)}</i>` : ''}</span>`;
+  }
   function ratioPill(p, tip = true) {
     if (!okRatio(p) || p.ratio < 1.5) return '';
     const cls = p.ratio >= 10 ? 'hi' : p.ratio >= 3 ? '' : 'lo';
-    const t = p.base_kind === 'followers' ? `${k(p.views)} views on an account with ${k(p.base)} followers` : `This one ${k(p[p.metric])} ${p.metric}, this account usually ${k(p.base)} across its last ${p.n || 'few'} posts`;
-    return `<span class="soc-x ${cls}" ${tip && U() ? U().tipAttr(t) : ''}>${p.ratio >= 10 ? Math.round(p.ratio) : p.ratio.toFixed(1)}x</span>`;
+    const t = p.base_kind === 'followers' ? `${k(p.views)} views on an account with ${k(p.base)} followers` : `This one got ${k(p[p.metric])} ${p.metric}. This account usually gets ${k(p.base)} across its last ${p.n || 'few'} posts.`;
+    return `<span class="soc-x ${cls}" ${tip && U() ? U().tipAttr(t) : ''}>${G.up(13)}<b>${p.ratio >= 10 ? Math.round(p.ratio) : p.ratio.toFixed(1)}x</b><span>${p.base_kind === 'followers' ? 'its size' : 'usual'}</span></span>`;
   }
   function usualText(p) { return p.base == null ? '' : p.base_kind === 'followers' ? `${k(p.base)} followers` : `usually ${k(p.base)}`; }
-  function metricRow(p) {
-    const big = p.views != null ? `<b>${k(p.views)}</b> views` : p.likes != null ? `<b>${k(p.likes)}</b> likes` : '';
-    const eng = engOf(p), us = usualText(p);
-    return `<span class="soc-mr"><span>${big}</span>${us ? `<span>${esc(us)}</span>` : ''}${eng != null ? `<span ${U() ? U().tipAttr('Likes and comments per view') : ''}>${(eng * 100).toFixed(1)}%</span>` : ''}</span>`;
+  function usualSentence(p) {
+    if (p.base == null) return 'Not enough posts from this account yet to say what is usual.';
+    if (p.base_kind === 'followers') return `${k(p.views)} views from an account with ${k(p.base)} followers.`;
+    return `This account usually gets ${k(p.base)} ${p.metric || 'views'} a post (its last ${p.n || 'few'} posts).`;
   }
-  function card(p) {
+  const statI = (icon, n, label) => n == null ? '' : `<span ${U() ? U().tipAttr(label) : ''}>${icon}<b>${k(n)}</b></span>`;
+  function card(p, o = {}) {
     const isV = VIDEO.has(p.fmt), isM = MULTI.has(p.fmt);
+    const n = isM && p.slides > 1 ? Math.min(p.slides, 20) : 0;
     const f = (ST.data.follows || []).find(x => x.id === p.follow_id);
-    const topic = f && f.kind === 'topic' ? f.name : '';
-    return `<article class="soc-post" data-id="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(`${FM[p.fmt] || 'Post'} from ${p.who || p.handle}`)}">
-      <div class="soc-med ${isV ? 'vid' : ''}" data-med="${esc(p.id)}">${p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : ''}
-        <span class="soc-pf" ${U() ? U().tipAttr(`${PL[p.plat] || ''} ${FM[p.fmt] || ''}${isM && p.slides ? `, ${p.slides} slides` : ''}`.trim()) : ''}>${PLK[p.plat] || ''}${isM && p.slides ? ` · ${p.slides}` : ''}</span>
-        ${p.saved ? `<span class="sv" ${U() ? U().tipAttr(p.tag ? `Saved: ${p.tag}` : 'Saved') : ''}>${ic('bookmark')}</span>` : ''}
-        ${isV ? `<span class="spin"></span><button type="button" class="snd" data-snd="${esc(p.id)}" aria-label="Sound">${ic('mic')}</button>${p.dur ? `<span class="dur">${dur(p.dur)}</span>` : ''}` : ''}
-        ${ratioPill(p)}</div>
-      <div class="soc-body"><span class="soc-who"><b>${esc(p.handle ? `@${p.handle}` : p.who)}</b><small>${esc(ago(p.posted_at))}</small>${topic ? `<span class="tp">${esc(topic)}</span>` : ''}</span>
-        <span class="soc-cap">${esc((p.caption || '').replace(/\s+/g, ' '))}</span>
-        ${metricRow(p)}
-        ${p.idea_id ? `<span class="soc-made">${ic('sparkles')} Our version started</span>` : saved() && p.tag ? `<span class="soc-tg"><i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i>${esc(p.tag)}</span>` : ''}
-        ${saved() && p.note ? `<span class="soc-note" ${U() ? U().tipAttr(esc(p.note)) : ''}>${esc(p.note)}</span>` : ''}</div></article>`;
+    const sub = [PL[p.plat], (FM[p.fmt] || 'Post') === PL[p.plat] ? '' : FM[p.fmt] || 'Post', ago(p.posted_at)].filter(Boolean).join(' · ');
+    return `<article class="soc-post" data-id="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(`${FM[p.fmt] || 'Post'} from ${handleOf(p)} on ${PL[p.plat] || ''}`)}">
+      <div class="soc-med ${isV ? 'vid' : ''} ${n ? 'car' : ''}" data-med="${esc(p.id)}" data-n="${n}">${p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : ''}
+        ${ratioPill(p)}
+        ${isV && p.dur ? `<span class="soc-tr">${dur(p.dur)}</span>` : n ? `<span class="soc-tr" data-cn>1 / ${n}</span>` : ''}
+        ${isV ? `<span class="spin"></span><button type="button" class="snd" data-snd="1" aria-label="Turn sound on">${G.mute(16)}</button>` : ''}
+        ${n ? `<button type="button" class="cv cprev" data-cv="-1" aria-label="Previous slide" disabled>${G.l(16)}</button><button type="button" class="cv cnext" data-cv="1" aria-label="Next slide">${G.r(16)}</button><span class="cdots">${Array.from({ length: Math.min(n, 8) }, (_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</span>` : ''}</div>
+      <div class="soc-meta">
+        <div class="soc-id">${avatar(p)}<span class="nm"><b>${esc(handleOf(p))}</b><small>${esc(f && f.kind === 'topic' ? `${sub} · ${f.name}` : sub)}</small></span>${p.saved ? `<span class="svd" ${U() ? U().tipAttr(p.tag ? `Saved: ${p.tag}` : 'Saved') : ''}>${G.mark(15)}</span>` : ''}</div>
+        <div class="soc-stats">${statI(G.eye(14), p.views, 'Views')}${statI(G.heart(14), p.likes, 'Likes')}${statI(G.chat(14), p.comments, 'Comments')}${p.idea_id ? '<span class="soc-made">Ours in the works</span>' : ''}</div>
+        ${saved() && (p.tag || p.note) ? `<div class="soc-sv">${p.tag ? `<i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i><span>${esc(p.tag)}</span>` : ''}${p.note ? `<span ${U() ? U().tipAttr(esc(p.note)) : ''}>${p.tag ? '· ' : ''}${esc(p.note)}</span>` : ''}</div>` : ''}
+      </div>
+      ${o.pick && !CLI() ? `<div class="soc-pickbar"><button type="button" class="soc-btn ${p.idea_id ? '' : 'pri'} sm" data-mk="1">${p.idea_id ? 'See our version' : 'Make it ours'}</button></div>` : ''}</article>`;
   }
-  function wire(list) {
+  /* A carousel on a card: arrows, dots and a swipe strip once the slides are in (loaded on first hover, touch or arrow). */
+  async function cardSlides(med, p) {
+    if (med.querySelector('.cstrip') || med.dataset.loading) return med.querySelector('.cstrip');
+    med.dataset.loading = '1';
+    const s = await slidesOf(p);
+    delete med.dataset.loading;
+    if (!med.isConnected || s.length < 2) return null;
+    const img = med.querySelector(':scope > img');
+    med.insertAdjacentHTML('afterbegin', `<div class="cstrip">${s.map((u, i) => `<img src="${esc(u)}" alt="Slide ${i + 1}" ${i ? 'loading="lazy"' : ''}>`).join('')}</div>`);
+    if (img) img.remove();
+    const st = med.querySelector('.cstrip'), n = s.length;
+    const cn = med.querySelector('[data-cn]'), dots = med.querySelector('.cdots');
+    if (dots) dots.innerHTML = Array.from({ length: Math.min(n, 8) }, (_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('');
+    const sync = () => {
+      const i = Math.round(st.scrollLeft / Math.max(1, st.clientWidth));
+      if (cn) cn.textContent = `${i + 1} / ${n}`;
+      if (dots) [...dots.children].forEach((d, j) => d.classList.toggle('on', j === Math.min(i, 7)));
+      const pv = med.querySelector('.cprev'), nx = med.querySelector('.cnext');
+      if (pv) pv.disabled = i <= 0; if (nx) nx.disabled = i >= n - 1;
+    };
+    st.addEventListener('scroll', () => requestAnimationFrame(sync), { passive: true });
+    sync();
+    return st;
+  }
+  function wire(list, picks = []) {
     const m = $('#main'), PM = window.PillMenu;
     m.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { ST.view = b.dataset.view; store('soc_view2', ST.view); draw(); });
     m.querySelectorAll('[data-tag-q]').forEach(b => b.onclick = () => { ST.q = ST.q === b.dataset.tagQ ? '' : b.dataset.tagQ; draw(); });
@@ -519,13 +696,20 @@
     const mg = m.querySelector('#socManage'); if (mg) mg.onclick = () => { ST.view = 'manage'; draw(); };
     const find = id => list.find(p => p.id === id) || ST.data.posts.find(p => p.id === id);
     m.querySelectorAll('.soc-post').forEach(el => {
-      const p = find(el.dataset.id);
+      const inPicks = !!el.closest('#socPicks'), lst = inPicks ? picks : list;
+      const p = inPicks ? picks.find(x => x.id === el.dataset.id) : find(el.dataset.id);
+      if (!p) return;
       const med = el.querySelector('.soc-med');
-      el.onclick = e => { if (e.target.closest('.snd')) return; openPost(p, list); };
-      el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPost(p, list); } };
+      el.onclick = e => { if (e.target.closest('.snd,.cv')) return; openPost(p, lst); if (e.target.closest('[data-mk]')) makeStep(p); };
+      el.onkeydown = e => { if (e.target !== el) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPost(p, lst); } };
       if (med && med.classList.contains('vid') && HOVER()) {
         let t; el.onmouseenter = () => { t = setTimeout(() => playIn(med, p), 350); };
         el.onmouseleave = () => { clearTimeout(t); stopIn(med); };
+      }
+      if (med && med.classList.contains('car')) {
+        if (HOVER()) { let t2; el.addEventListener('mouseenter', () => { t2 = setTimeout(() => cardSlides(med, p), 250); }); el.addEventListener('mouseleave', () => clearTimeout(t2)); }
+        med.addEventListener('touchstart', () => cardSlides(med, p), { passive: true });
+        med.querySelectorAll('[data-cv]').forEach(b => b.onclick = async e => { e.stopPropagation(); const st = await cardSlides(med, p); if (st) st.scrollBy({ left: +b.dataset.cv * st.clientWidth, behavior: 'smooth' }); });
       }
       const snd = el.querySelector('.snd'); if (snd) snd.onclick = e => { e.stopPropagation(); toggleSound(med); };
     });
@@ -568,7 +752,7 @@
     if (vid) vid.muted = !muted;
     if (fr && fr.contentWindow) fr.contentWindow.postMessage(JSON.stringify({ event: 'command', func: muted ? 'unMute' : 'mute', args: '' }), '*');
     med.dataset.muted = muted ? '0' : '1';
-    const b = med.querySelector('.snd'); if (b) { b.innerHTML = muted ? ic('zap') : ic('mic'); b.setAttribute('aria-label', muted ? 'Mute' : 'Sound on'); }
+    const b = med.querySelector('.snd'); if (b) { b.innerHTML = muted ? G.vol(16) : G.mute(16); b.setAttribute('aria-label', muted ? 'Turn sound off' : 'Turn sound on'); }
   }
 
   /* ---------- modals (in-app, never prompt()) ---------- */
@@ -687,14 +871,13 @@
     } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Follow'; } }
   }
 
-  /* ---------- THE VIEWER: dark, full height, the media in the middle, a column, a pinned bar, prev and next ---------- */
-  const DEST = { creator_link: 'Creator link', asana_brief: 'Brief', studio: 'Studio' };
-  let poll = null, V = null;   // V = { list, i, p, el }
+  /* ---------- THE VIEWER: dark, full height, the media in the middle (playing with sound), a column, one bar ---------- */
+  let poll = null, V = null;   // V = { list, i, p, el, sl: { n, i, go } }
   function viewerEl() {
     let el = document.getElementById('socView');
     if (el) return el;
     document.body.insertAdjacentHTML('beforeend', `<div id="socView" class="soc-view" role="dialog" aria-label="Post" hidden>
-      <div class="vstage"><button type="button" class="vx" aria-label="Close">&#215;</button><span class="vcount"></span><button type="button" class="vprev" aria-label="Previous">&#8249;</button><button type="button" class="vnext" aria-label="Next">&#8250;</button><div class="vmed"></div></div>
+      <div class="vstage"><button type="button" class="vx" aria-label="Close">&#215;</button><span class="vcount"></span><button type="button" class="vprev" aria-label="Previous post">${G.l(20)}</button><button type="button" class="vnext" aria-label="Next post">${G.r(20)}</button><div class="vmed"></div></div>
       <aside class="vcol"><div class="vbody"></div><div class="vbar"></div></aside></div>`);
     el = document.getElementById('socView');
     el.querySelector('.vx').onclick = closePost;
@@ -703,26 +886,31 @@
     el.addEventListener('click', e => { if (e.target === el.querySelector('.vstage')) closePost(); });
     document.addEventListener('keydown', e => {
       if (!V) return;
-      if (e.key === 'Escape') { e.stopPropagation(); closePost(); }
-      else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
-      else if (!e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) {
-        /* One-key shortcuts (2026-10-20, Sandcastles' S / M keys): S save, M make ours, C copy the link, T transcript. */
-        const p = V.p, kk = e.key.toLowerCase();
-        if (kk === 's') { e.preventDefault(); saveToggle(p, p.saved ? null : p.tag, !p.saved); }
-        else if (kk === 'm' && !CLI()) { e.preventDefault(); makeStep(p); }
-        else if (kk === 'c') { e.preventDefault(); copyText(p.url, 'Link copied.'); }
-        else if (kk === 't' && p.transcript == null && !['photo', 'carousel', 'post', 'photos'].includes(p.fmt)) { e.preventDefault(); transcript(p); }
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') || (e.target && e.target.isContentEditable);
+      if (e.key === 'Escape') { e.stopPropagation(); closePost(); return; }
+      if (typing) return;
+      /* Arrows page a carousel's slides first, then move to the next post at either end. */
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const d = e.key === 'ArrowLeft' ? -1 : 1, s = V.sl;
+        if (s && s.n > 1 && s.i + d >= 0 && s.i + d < s.n) { e.preventDefault(); s.go(s.i + d); } else step(d);
+        return;
       }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const p = V.p, kk = e.key.toLowerCase();
+      if (kk === 's') { e.preventDefault(); saveToggle(p, p.saved ? null : p.tag, !p.saved); }
+      else if (kk === 'm' && !CLI()) { e.preventDefault(); makeStep(p); }
+      else if (kk === 'c') { e.preventDefault(); copyText(p.url, 'Link copied.'); }
+      else if (kk === 't' && p.transcript == null && VIDEO.has(p.fmt)) { e.preventDefault(); transcript(p); }
     }, true);
     let x0 = null;
     el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
-    el.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 70 && !e.target.closest('.vslides')) step(dx < 0 ? 1 : -1); }, { passive: true });
+    el.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 70 && e.target.closest('.vstage') && !e.target.closest('.vslides')) step(dx < 0 ? 1 : -1); }, { passive: true });
     return el;
   }
   function step(n) { if (!V) return; const j = V.i + n; if (j < 0 || j >= V.list.length) return; openPost(V.list[j], V.list); }
   function closePost() {
     if (!V) return; clearTimeout(poll);
-    const el = viewerEl(); el.classList.remove('on'); el.querySelector('.vmed').innerHTML = '';
+    const el = viewerEl(); el.classList.remove('on', 'making'); el.querySelector('.vmed').innerHTML = '';
     setTimeout(() => { if (!V) el.hidden = true; }, 160);
     document.body.classList.remove('soc-view-on'); V = null;
   }
@@ -731,31 +919,60 @@
     clearTimeout(poll); stopAll();
     const el = viewerEl();
     list = list || (ST.data ? filtered() : [p]);
-    V = { list, i: Math.max(0, list.findIndex(x => x.id === p.id)), p, el };
-    el.hidden = false; document.body.classList.add('soc-view-on');
+    V = { list, i: Math.max(0, list.findIndex(x => x.id === p.id)), p, el, sl: null };
+    el.hidden = false; el.classList.remove('making'); document.body.classList.add('soc-view-on');
     requestAnimationFrame(() => el.classList.add('on'));
     el.querySelector('.vprev').disabled = V.i <= 0; el.querySelector('.vnext').disabled = V.i >= list.length - 1;
     el.querySelector('.vcount').textContent = list.length > 1 ? `${V.i + 1} of ${list.length}` : '';
     media(p); column(p); bar(p);
   }
+  const ytView = embed => `${embed}${embed.includes('?') ? '&' : '?'}autoplay=1&mute=0&controls=1&loop=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&playlist=${encodeURIComponent((/embed\/([^?]+)/.exec(embed) || [])[1] || '')}`;
   function media(p) {
     const el = viewerEl(), m = el.querySelector('.vmed');
     const isV = VIDEO.has(p.fmt), isM = MULTI.has(p.fmt);
+    m.classList.toggle('sq', !isV);
     m.innerHTML = p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : '';
+    /* Video plays WITH sound: opening the post is the click that lets the browser do it. If the browser still says no,
+       it plays muted and one "Turn sound on" button sits on top. */
     if (isV) videoOf(p).then(v => {
       if (!V || V.p !== p) return;
       if (v.error) { m.insertAdjacentHTML('beforeend', `<span class="note">${esc(v.error)}</span>`); return; }
       const img = m.querySelector('img'); if (img) img.remove();
-      if (v.src) m.insertAdjacentHTML('afterbegin', `<video src="${esc(v.src)}" muted autoplay loop playsinline controls ${p.thumb ? `poster="${esc(p.thumb)}"` : ''}></video>`);
-      else m.insertAdjacentHTML('afterbegin', `<iframe src="${esc(ytSrc(v.embed, true))}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Video"></iframe>`);
-      if (!v.src) { m.dataset.muted = '1'; m.insertAdjacentHTML('beforeend', `<button type="button" class="snd" aria-label="Sound">${ic('mic')}</button>`); m.querySelector('.snd').onclick = () => toggleSound(m); }
+      if (v.src) {
+        m.insertAdjacentHTML('afterbegin', `<video src="${esc(v.src)}" autoplay loop playsinline controls ${p.thumb ? `poster="${esc(p.thumb)}"` : ''}></video>`);
+        const vid = m.querySelector('video'); vid.muted = false; vid.volume = 1;
+        vid.play().catch(() => {
+          vid.muted = true; vid.play().catch(() => {});
+          m.insertAdjacentHTML('beforeend', `<button type="button" class="tapsnd">${G.vol(15)} Turn sound on</button>`);
+          const b = m.querySelector('.tapsnd'); b.onclick = () => { vid.muted = false; vid.play().catch(() => {}); b.remove(); };
+        });
+      } else m.insertAdjacentHTML('afterbegin', `<iframe src="${esc(ytView(v.embed))}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Video"></iframe>`);
     });
-    if (isM) slidesOf(p).then(s => {
-      if (!V || V.p !== p || !s.length) return;
-      m.innerHTML = `<div class="vslides">${s.map((u, i) => `<img src="${esc(u)}" alt="Slide ${i + 1}" loading="lazy">`).join('')}</div><div class="vdots">${s.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>`;
-      const sl = m.querySelector('.vslides'), dots = [...m.querySelectorAll('.vdots i')];
-      sl.onscroll = () => { const i = Math.round(sl.scrollLeft / sl.clientWidth); dots.forEach((d, j) => d.classList.toggle('on', j === i)); };
-    });
+    if (isM) {
+      const n0 = p.slides > 1 ? p.slides : 0;
+      if (n0) m.insertAdjacentHTML('beforeend', `<span class="vsn">1 / ${n0}</span>`);
+      slidesOf(p).then(s => { if (V && V.p === p && s.length) slidesIn(m, s); });
+    }
+  }
+  /* Every carousel: a snap strip you can swipe, arrows, dots you can click, and the arrow keys (V.sl). */
+  function slidesIn(m, s) {
+    const n = s.length;
+    m.innerHTML = `<div class="vslides">${s.map((u, i) => `<img src="${esc(u)}" alt="Slide ${i + 1}" ${i > 1 ? 'loading="lazy"' : ''}>`).join('')}</div>
+      ${n > 1 ? `<button type="button" class="vsl l" aria-label="Previous slide" disabled>${G.l(18)}</button><button type="button" class="vsl r" aria-label="Next slide">${G.r(18)}</button>
+      <span class="vsn">1 / ${n}</span><div class="vdots">${s.slice(0, 12).map((_, i) => `<button type="button" class="${i ? '' : 'on'}" data-sl="${i}" aria-label="Slide ${i + 1}"><i></i></button>`).join('')}</div>` : ''}`;
+    const sl = m.querySelector('.vslides');
+    const S2 = { n, i: 0, go: i => sl.scrollTo({ left: i * sl.clientWidth, behavior: 'smooth' }) };
+    if (V) V.sl = S2;
+    const sync = () => {
+      const i = Math.max(0, Math.min(n - 1, Math.round(sl.scrollLeft / Math.max(1, sl.clientWidth)))); S2.i = i;
+      m.querySelectorAll('[data-sl]').forEach(d => d.classList.toggle('on', +d.dataset.sl === i));
+      const c = m.querySelector('.vsn'); if (c) c.textContent = `${i + 1} / ${n}`;
+      const l = m.querySelector('.vsl.l'), r = m.querySelector('.vsl.r'); if (l) l.disabled = i <= 0; if (r) r.disabled = i >= n - 1;
+    };
+    sl.addEventListener('scroll', () => requestAnimationFrame(sync), { passive: true });
+    const l = m.querySelector('.vsl.l'), r = m.querySelector('.vsl.r');
+    if (l) l.onclick = () => S2.go(S2.i - 1); if (r) r.onclick = () => S2.go(S2.i + 1);
+    m.querySelectorAll('[data-sl]').forEach(d => d.onclick = () => S2.go(+d.dataset.sl));
   }
   async function slidesOf(p) {
     if (SLIDES[p.id]) return SLIDES[p.id];
@@ -763,32 +980,34 @@
     catch { SLIDES[p.id] = []; }
     return SLIDES[p.id];
   }
+  /* The column, top to bottom: who posted it, the facts as chips, how it did against that account, the caption, the
+     sound and tags, the transcript, your note. Every section has a small label; nothing else is boxed. */
   function column(p) {
     const el = viewerEl(), b = el.querySelector('.vbody');
+    el.classList.remove('making');
     const f = (ST.data && ST.data.follows || []).find(x => x.id === p.follow_id);
-    const eng = engOf(p), us = usualText(p);
+    const eng = engOf(p);
     const big = p.views != null ? [k(p.views), 'views'] : p.likes != null ? [k(p.likes), 'likes'] : ['', ''];
-    const small = [[p.likes, 'likes'], [p.comments, 'comments'], [p.shares ?? p.saves, p.shares != null ? 'shares' : 'saves']].filter(x => x[0] != null && !(x[1] === big[1]));
     const posted = p.posted_at ? new Date(p.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     const followed = p.handle && (ST.data && ST.data.follows || []).some(x => x.kind === 'brand' && [x.ig, x.tt, x.yt].some(h => h && h.toLowerCase() === p.handle.toLowerCase()));
     const canFollow = !CLI() && p.handle && !followed && (!f || f.kind === 'topic');
-    b.innerHTML = `<div class="vwho"><span class="vav">${esc((p.handle || p.who || '?').slice(0, 2).toUpperCase())}</span><div style="min-width:0"><b>${esc(p.handle ? `@${p.handle}` : p.who)}</b><small>${esc([p.who && p.who !== p.handle ? p.who : '', f && f.kind === 'topic' ? `topic: ${f.name}` : '', p.followers ? `${k(p.followers)} followers` : ''].filter(Boolean).join(' · '))}</small></div>${canFollow ? `<button type="button" class="soc-btn sm" id="svFollow" style="margin-left:auto;flex:none" ${U() ? U().tipAttr(`Follow @${esc(p.handle)}: every post it makes, once a day`) : ''}>Follow</button>` : ''}</div>
-      <div class="vline">${esc([PL[p.plat], (FM[p.fmt] || 'Post') === PL[p.plat] ? '' : FM[p.fmt] || 'Post', posted, p.dur ? dur(p.dur) : '', p.slides ? `${p.slides} slides` : ''].filter(Boolean).join(' · '))}<button type="button" class="vcopy" id="svCopyLink">Copy link</button></div>
-      <div class="vbig"><b>${big[0]}</b><span>${big[1]}</span>${ratioPill(p, true)}${us ? `<span>${esc(us)}</span>` : ''}</div>
-      ${small.length || eng != null ? `<div class="vsmall">${small.map(([n, l]) => `<span><b>${k(n)}</b> ${l}</span>`).join('')}${eng != null ? `<span ${U() ? U().tipAttr('Likes and comments per view') : ''}><b>${(eng * 100).toFixed(1)}%</b> engagement</span>` : ''}</div>` : ''}
-      ${p.base == null ? '<div class="vline">Not enough posts from this account yet to say what is usual.</div>' : ''}
-      ${p.caption ? `<div class="vcap-h vline">Caption<button type="button" class="vcopy" id="svCopyCap">Copy</button></div><div class="vcap">${esc(p.caption)}</div>` : ''}
-      ${p.hook || p.ftag || p.tag ? `<div class="vtags">${p.hook ? `<span>Hook: ${esc(p.hook)}</span>` : ''}${p.ftag ? `<span>${esc(p.ftag)}</span>` : ''}${p.tag ? `<span><i class="soc-tagdot" style="background:${tagColor(p.tag)};margin-right:5px"></i>${esc(p.tag)}</span>` : ''}</div>` : ''}
-      ${p.sound ? `<div class="vline">&#9835; ${esc(p.sound)}</div>` : ''}
+    const grid = [['Likes', p.likes], ['Comments', p.comments], [p.shares != null ? 'Shares' : 'Saves', p.shares ?? p.saves]].filter(x => x[1] != null && !(x[0].toLowerCase() === big[1]));
+    const long = (p.caption || '').length > 240 || (p.caption || '').split('\n').length > 5;
+    b.innerHTML = `<div class="vwho">${avatar(p, true)}<div class="t"><b>${esc(handleOf(p))}</b><small>${esc([p.who && p.who !== p.handle ? p.who : '', p.followers ? `${k(p.followers)} followers` : '', f && f.kind === 'topic' ? `from the topic "${f.name}"` : f ? `you follow ${f.name}` : ''].filter(Boolean).join(' · '))}</small></div>${canFollow ? `<button type="button" class="soc-btn sm" id="svFollow" ${U() ? U().tipAttr(`Follow ${esc(handleOf(p))}: every post it makes, once a day`) : ''}>Follow</button>` : ''}</div>
+      <div class="vchips"><span>${G[p.plat] ? G[p.plat](13) : ''}${esc(PL[p.plat] || '')}</span>${(FM[p.fmt] || 'Post') !== PL[p.plat] ? `<span>${esc(FM[p.fmt] || 'Post')}${p.slides > 1 ? `, ${p.slides} slides` : ''}</span>` : ''}${posted ? `<span>${esc(posted)}</span>` : ''}${p.dur ? `<span>${dur(p.dur)}</span>` : ''}</div>
+      <section class="vsec"><h5>How it did</h5><div class="vperf"><div class="top"><span class="num"><b>${big[0] || '–'}</b><span>${big[1]}</span></span>${ratioPill(p, false)}</div><p>${esc(usualSentence(p))}</p>
+        ${grid.length || eng != null ? `<div class="vgrid">${grid.map(([l, n]) => `<div><small>${l}</small><b>${k(n)}</b></div>`).join('')}${eng != null ? `<div ${U() ? U().tipAttr('Likes and comments per view') : ''}><small>Engagement</small><b>${(eng * 100).toFixed(1)}%</b></div>` : ''}</div>` : ''}</div></section>
+      ${p.caption ? `<section class="vsec"><h5>Caption<span class="sp"></span><button type="button" class="vcopy" id="svCopyCap">Copy</button></h5><div class="vcap ${long ? 'clamp' : ''}" id="svCap">${esc(p.caption)}</div>${long ? '<button type="button" class="vlink" id="svMore">Show all</button>' : ''}</section>` : ''}
+      ${p.sound || p.hook || p.ftag || p.tag ? `<section class="vsec"><h5>Details</h5><div class="vtags">${p.sound ? `<span>&#9835; ${esc(p.sound)}</span>` : ''}${p.hook ? `<span>Hook: ${esc(p.hook)}</span>` : ''}${p.ftag ? `<span>${esc(p.ftag)}</span>` : ''}${p.tag ? `<span><i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i>${esc(p.tag)}</span>` : ''}</div></section>` : ''}
       ${transcriptHtml(p)}
-      ${p.saved ? `<div class="vnote"><textarea id="svNote" placeholder="Why you saved it, what to steal (optional)" maxlength="600">${esc(p.note || '')}</textarea><small>Saved with the post. Shows on the Saved tab.</small></div>` : ''}
-      ${p.idea_id ? `<div class="soc-made" style="font-size:12.5px">${ic('sparkles')} Our version started</div>` : ''}
-      <div class="vkeys">Keys: S save · ${CLI() ? '' : 'M make ours · '}C copy link · T transcript · arrows</div>`;
-    const tb = b.querySelector('#svTr'); if (tb) tb.onclick = () => transcript(p);
+      ${p.saved ? `<section class="vsec vnote"><h5>Your note</h5><textarea id="svNote" placeholder="Why you saved it, what to take from it" maxlength="600">${esc(p.note || '')}</textarea></section>` : ''}
+      <div class="vkeys">Keys: arrows ${MULTI.has(p.fmt) ? 'slides, then posts' : 'next post'} · S save · ${CLI() ? '' : 'M make ours · '}C copy link${VIDEO.has(p.fmt) ? ' · T transcript' : ''}</div>`;
+    const on = (id, fn) => { const x = b.querySelector(id); if (x) x.onclick = fn; };
+    on('#svTr', () => transcript(p));
     const fb = b.querySelector('#svFollow'); if (fb) fb.onclick = () => followHandle(p.handle, p.plat, fb);
-    const cl = b.querySelector('#svCopyLink'); if (cl) cl.onclick = () => copyText(p.url, 'Link copied.');
-    const cc = b.querySelector('#svCopyCap'); if (cc) cc.onclick = () => copyText(p.caption, 'Caption copied.');
-    const ct = b.querySelector('#svCopyTr'); if (ct) ct.onclick = () => copyText(p.transcript, 'Transcript copied.');
+    on('#svCopyCap', () => copyText(p.caption, 'Caption copied.'));
+    on('#svCopyTr', () => copyText(p.transcript, 'Transcript copied.'));
+    on('#svMore', e => { const c = b.querySelector('#svCap'), x = c.classList.toggle('clamp'); e.currentTarget.textContent = x ? 'Show all' : 'Show less'; });
     const nt = b.querySelector('#svNote');
     if (nt) { let was = p.note || ''; nt.onblur = async () => { const v = nt.value.trim(); if (v === was) return; try { const r = await H.apiAH('/api/social/save', { method: 'POST', body: JSON.stringify({ id: p.id, saved: true, note: v }) }); p.note = r.note || null; was = p.note || ''; toast(v ? 'Note saved.' : 'Note removed.'); } catch (e) { toast(e.message); } }; }
   }
@@ -797,39 +1016,39 @@
     try { await navigator.clipboard.writeText(String(t)); toast(msg || 'Copied.'); }
     catch { const ta = document.createElement('textarea'); ta.value = String(t); document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(msg || 'Copied.'); } catch { toast('Could not copy.'); } ta.remove(); }
   }
-  /* The transcript: fetched once per post (one scraper credit), kept on the post row server side. */
+  /* The transcript: fetched once per post (one scraper credit), kept on the post row server side. Video only. */
   function transcriptHtml(p) {
-    if (p.fmt === 'photo' || p.fmt === 'carousel') return '';
-    if (p.transcript != null) return p.transcript ? `<div class="vtr"><b>What they say<button type="button" class="vcopy" id="svCopyTr">Copy</button></b><div>${esc(p.transcript)}</div></div>` : `<div class="vline">${esc(p.transcript_why || 'No speech was found in this post.')}</div>`;
-    return `<div class="vrow"><button type="button" class="soc-btn sm" id="svTr">${ic('file-text')} Transcript</button></div>`;
+    if (!VIDEO.has(p.fmt)) return '';
+    if (p.transcript != null) return p.transcript ? `<section class="vsec"><h5>What they say<span class="sp"></span><button type="button" class="vcopy" id="svCopyTr">Copy</button></h5><div class="vtr">${esc(p.transcript)}</div></section>` : `<div class="vline">${esc(p.transcript_why || 'No speech was found in this post.')}</div>`;
+    return `<section class="vsec"><h5>What they say</h5><button type="button" class="soc-btn sm" id="svTr" style="justify-self:start">${ic('file-text')} Read the transcript</button></section>`;
   }
   async function transcript(p) {
     const el = viewerEl(), btn = el.querySelector('#svTr'); if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
     try {
       const r = await H.apiAH('/api/social/transcript', { method: 'POST', body: JSON.stringify({ id: p.id }) });
       p.transcript = r.text || ''; p.transcript_why = r.why || '';
-      if (V && V.p === p) column(p);
-    } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = `${ic('file-text')} Transcript`; } }
+      if (V && V.p === p && !el.classList.contains('making')) column(p);
+    } catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = `${ic('file-text')} Read the transcript`; } }
   }
+  /* The bar: ONE primary (Make our version), then Save with its tag menu and Open on the platform, side by side. */
   function bar(p) {
     const el = viewerEl(), b = el.querySelector('.vbar');
-    b.innerHTML = `${CLI() ? `<button type="button" class="soc-btn pri" id="svAsk">Ask the team</button>` : `<button type="button" class="soc-btn pri mk" id="svMake">${ic('sparkles')} ${p.idea_id ? 'Our version' : 'Make ours'}</button>`}
-      <span class="grp"><button type="button" class="soc-btn sav ${p.saved ? 'on' : ''}" id="svSave">${ic('bookmark')} ${p.saved ? 'Saved' : 'Save'}</button><button type="button" class="soc-btn sav ${p.saved ? 'on' : ''}" id="svTag" aria-label="Save with a tag">&#8964;</button></span>
-      <a class="soc-btn" href="${esc(p.url)}" target="_blank" rel="noopener" ${U() ? U().tipAttr(`Open on ${PL[p.plat] || ''}`) : ''}>${ic('external-link')} ${esc(PLK[p.plat] || 'Open')}</a>`;
+    b.innerHTML = `${CLI() ? `<button type="button" class="soc-btn pri mk" id="svAsk">Ask the team to make it</button>` : `<button type="button" class="soc-btn pri mk" id="svMake">${p.idea_id ? 'Our version: see where it is' : 'Make it ours'}</button>`}
+      <div class="row"><span class="soc-split ${p.saved ? 'on' : ''}"><button type="button" id="svSave">${G.mark(15)} ${p.saved ? 'Saved' : 'Save'}</button><button type="button" id="svTag" aria-label="Save with a tag">${G.d(15)}</button></span>
+      <a class="soc-btn" href="${esc(p.url)}" target="_blank" rel="noopener">${G.ext(14)} Open on ${esc(PL[p.plat] || 'the site')}</a></div>`;
     const mk = b.querySelector('#svMake'); if (mk) mk.onclick = () => makeStep(p);
     const ask = b.querySelector('#svAsk'); if (ask) ask.onclick = () => { closePost(); H.show('requests'); };
     b.querySelector('#svSave').onclick = () => saveToggle(p, p.saved ? null : p.tag, !p.saved);
-    b.querySelector('#svTag').onclick = e => { e.stopPropagation(); tagPicker(b.querySelector('.grp'), p); };
+    b.querySelector('#svTag').onclick = e => { e.stopPropagation(); tagPicker(b.querySelector('.soc-split'), p); };
   }
   async function saveToggle(p, tag, next) {
     try {
       const r = await H.apiAH('/api/social/save', { method: 'POST', body: JSON.stringify({ id: p.id, saved: next, tag: next ? (tag || null) : null }) });
       p.saved = next; p.tag = r.tag || null;
-      if (ST.data) { const tags = ST.data.tags || []; const m = new Map(); for (const x of ST.data.posts) if (x.saved && x.tag) m.set(x.tag, (m.get(x.tag) || 0) + 1); ST.data.tags = [...m].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name)); if (!tags.length && !ST.data.tags.length) ST.data.tags = []; }
+      if (ST.data) { const m = new Map(); for (const x of ST.data.posts) if (x.saved && x.tag) m.set(x.tag, (m.get(x.tag) || 0) + 1); ST.data.tags = [...m].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name)); }
       if (!next) p.note = null;
-      if (V && V.p === p) { bar(p); column(p); }
-      const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"]`);
-      if (c) { const med = c.querySelector('.soc-med'), sv = med.querySelector('.sv'); if (next && !sv) med.insertAdjacentHTML('beforeend', `<span class="sv">${ic('bookmark')}</span>`); if (!next && sv) sv.remove(); if (saved() && !next) c.remove(); }
+      if (V && V.p === p) { bar(p); if (!V.el.classList.contains('making')) column(p); }
+      document.querySelectorAll(`.soc-post[data-id="${CSS.escape(p.id)}"] .soc-id`).forEach(c => { const s = c.querySelector('.svd'); if (next && !s) c.insertAdjacentHTML('beforeend', `<span class="svd">${G.mark(15)}</span>`); if (!next && s) s.remove(); if (saved() && !next) c.closest('.soc-post').remove(); });
       toast(next ? (p.tag ? `Saved under ${p.tag}.` : 'Saved.') : 'Removed from Saved.');
     } catch (err) { toast(err.message); }
   }
@@ -849,79 +1068,181 @@
     const add = () => { const t = inp.value.trim(); if (t) pick(t); };
     pk.querySelector('[data-new]').onclick = add; inp.onkeydown = e => { if (e.key === 'Enter') add(); };
   }
-
-  /* ---------- Make ours: a second step in the same column. The brief itself lives in Slack; here the beats. ---------- */
-  const stat = (cls, t) => `<span class="vstat ${cls}"><i></i>${esc(t)}</span>`;
-  /* 2026-10-20: Make ours is the shared Make panel (make.js), drawn inside the viewer's column: breakdown, the draft,
-     Redo with a steer, and the four exits (Organic post is pre-picked here). Slack is a toggle, off by default. */
+  /* ---------- MAKE OUR VERSION (rebuilt 2026-10-21, Cole: "if I see something I like and want to post it, how do I make
+     it for us? Does it do everything top to bottom?"). One button, four steps shown as progress:
+       1 Write it      Claude watches the post and writes our script (hook, shots, on-screen text) and the caption
+       2 On the Week   it lands on the Week's Ready tray with a Film task for Ravo (make.js exit 'organic', automatic)
+       3 Film it       the clip is uploaded (here or on the Week); the Film task closes itself
+       4 Schedule it   the Week opens with the clip and caption in a new post at the next free hour
+     A person still films: Claude never posts someone else's footage. The other doors (Creators, Ad brief, Studio) sit
+     under the draft. Engine: account-health make.js (/api/make, /api/make/redo, /api/make/exit), the tray
+     (/api/social/tray), the upload (/api/social/upload?idea=). ---------- */
+  /* "I saw a post I like, now what?" (Cole, 2026-10-21): four paths, each one button, one line on what it makes and
+     where it lands, and its own steps shown as progress. All four run the same engine (make.js); only the exit differs. */
+  const PATHS = {
+    post: { exit: 'organic', label: 'Post it ourselves', btn: 'Write it and put it on the Week', lands: 'Social > Week',
+      line: 'Our script and caption, on the Week with a Film task for Ravo. Once it is filmed you schedule it.', steps: ['Write it', 'On the Week', 'Film it', 'Schedule it'] },
+    creators: { exit: 'creators', label: 'Send it to our creators', btn: 'Write it and send it to creators', lands: 'the creator link',
+      line: 'A video idea on the creator link for TRYBE creators: what to shoot and the hook, with this post as the reference.', steps: ['Write it', 'On the creator link', 'Creators film it'] },
+    brief: { exit: 'brief', label: 'Brief the team for an ad', btn: 'Write the ad brief', lands: 'Make > Pipeline',
+      line: 'A numbered ad brief (angle, concept, what we test) in the Brief column of the Pipeline, and in Asana when the mirror is on.', steps: ['Write it', 'On the Pipeline', 'Team makes the ad'] },
+    studio: { exit: 'studio', label: 'Make static ads in Studio', btn: 'Write it and open Studio', lands: 'Make > Studio',
+      line: 'A Studio batch with the scene and copy filled in. Studio draws the ads; you approve them.', steps: ['Write it', 'Studio batch', 'Make the ads'] },
+  };
+  const SENT_PATH = { organic: 'post', creator_link: 'creators', lucky_creators: 'creators', asana_brief: 'brief', studio: 'studio' };
+  const pathOf = p => PATHS[p._path] ? p._path : 'post';
+  const doneIn = (path, sent) => Object.keys(sent || {}).some(k2 => SENT_PATH[k2] === path);
+  const TRAY = {};   // act -> { at, items }
+  async function trayItem(id, fresh) {
+    const t = TRAY[ST.act];
+    if (fresh || !t || Date.now() - t.at > 60e3) { try { const r = await H.apiAH(`/api/social/tray?act=${encodeURIComponent(ST.act)}`, { fresh: true }); TRAY[ST.act] = { at: Date.now(), items: r.items || [] }; } catch { TRAY[ST.act] = { at: Date.now(), items: [] }; } }
+    return (TRAY[ST.act].items || []).find(x => x.ref === `idea:${id}`) || null;
+  }
+  const stepsHtml = (at, steps) => `<ol class="steps" style="grid-template-columns:repeat(${steps.length},minmax(0,1fr))">${steps.map((st, i) => `<li class="${i < at ? 'done' : i === at ? 'cur' : ''}"><i></i>${i < at ? '&#10003; ' : ''}${esc(st)}</li>`).join('')}</ol>`;
+  const dueWord = d => d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   function makeStep(p) {
     const el = viewerEl(), b = el.querySelector('.vbody');
-    const back = () => column(p);
-    if (window.LocusMake) {
-      b.innerHTML = '<div class="vstep"></div>'; b.scrollTop = 0;
-      const label = `${FMT_WORD[p.fmt] || 'post'} from ${p.handle ? `@${p.handle}` : 'another brand'} on ${({ ig: 'Instagram', tt: 'TikTok', yt: 'YouTube', fb: 'Facebook' })[p.plat] || p.plat}`;
-      const stats = [p.views != null ? `${Number(p.views).toLocaleString('en-US')} views` : null, p.likes != null ? `${Number(p.likes).toLocaleString('en-US')} likes` : null].filter(Boolean).join(', ');
-      window.LocusMake.open({ act: ST.act, exit: 'organic', url: p.url, image: p.thumb || null, post: p.id, id: p.idea_id || null, mode: p.mk_mode || 'remix', title: 'Make ours',
-        note: `Make our version of this ${label}${stats ? ` (${stats})` : ''}.`, mount: b.querySelector('.vstep'), back: { label: 'Back to the post', fn: back },
-        onDone: r => { if (r.started) { p.idea_id = r.started; p.saved = true; bar(p); const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"] .soc-body`); if (c && !c.querySelector('.soc-made')) c.insertAdjacentHTML('beforeend', `<span class="soc-made">${ic('sparkles')} Our version started</span>`); } } });
-      return;
-    }
-    const shell = inner => { b.innerHTML = `<div class="vstep"><button type="button" class="bk" id="mkBack">&#8249; Back to the post</button><h3>Make ours</h3>${inner}</div>`; b.querySelector('#mkBack').onclick = back; b.scrollTop = 0; };
-    if (!p.idea_id) {
-      shell(`<p>Claude watches this post and writes ${esc(brandName())}'s version as a text brief in the brand's Slack channel: the hook, the shots, our product in it, never their footage. The beats show here. About 20 to 30 cents.</p>
-        <div class="mkmode" role="radiogroup" aria-label="How close to the original">
-          <label class="${!p.mk_mode || p.mk_mode === 'remix' ? 'on' : ''}"><input type="radio" name="mkMode" value="remix" ${!p.mk_mode || p.mk_mode === 'remix' ? 'checked' : ''}><b>Our own take</b><small>Keep the idea, change how it is told</small></label>
-          <label class="${p.mk_mode === 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="recreate" ${p.mk_mode === 'recreate' ? 'checked' : ''}><b>Recreate it</b><small>Same hook shape, same beats, same pacing; only the product and words change</small></label>
-        </div>
-        <input type="text" id="mkNote" placeholder="Steer it (optional): use the Ice & Gold wedge, keep the POV hook" maxlength="400">
-        <div class="vrow"><button type="button" class="soc-btn pri" id="mkGo">${ic('sparkles')} Write it</button><span class="err" id="mkErr"></span></div>`);
-      b.querySelectorAll('.mkmode input').forEach(r => r.onchange = () => { p.mk_mode = r.value; b.querySelectorAll('.mkmode label').forEach(l => l.classList.toggle('on', l.contains(r))); });
-      b.querySelector('#mkNote').onkeydown = e => { if (e.key === 'Enter') b.querySelector('#mkGo').click(); };
-      b.querySelector('#mkGo').onclick = async () => {
-        const g = b.querySelector('#mkGo'); g.disabled = true; g.textContent = 'Starting…';
-        try { const r = await H.apiAH('/api/social/make', { method: 'POST', body: JSON.stringify({ id: p.id, note: b.querySelector('#mkNote').value, mode: p.mk_mode || 'remix' }) }); p.idea_id = r.idea_id; p.saved = true; bar(p); showState(p, r.state, shell); const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"] .soc-body`); if (c && !c.querySelector('.soc-made')) c.insertAdjacentHTML('beforeend', `<span class="soc-made">${ic('sparkles')} Our version started</span>`); }
-        catch (e) { b.querySelector('#mkErr').textContent = e.message; g.disabled = false; g.innerHTML = `${ic('sparkles')} Write it`; }
-      };
-      return;
-    }
-    shell(stat('work', 'Reading the draft'));
-    H.apiAH(`/api/social/idea?id=${encodeURIComponent(p.id)}`, { fresh: true }).then(r => { if (V && V.p === p) showState(p, r.state, shell); }).catch(e => shell(`${stat('bad', 'Could not read it')}<p class="err">${esc(e.message)}</p>`));
+    el.classList.add('making'); clearTimeout(poll);
+    const shell = (at, inner, title) => {
+      if (!V || V.p !== p) return null;
+      b.innerHTML = `<div class="mkx"><button type="button" class="bk" id="mkBack">&#8249; Back to the post</button><h3>${esc(title || PATHS[pathOf(p)].label)}</h3>${at == null ? '' : stepsHtml(at, PATHS[pathOf(p)].steps)}${inner}</div>`;
+      b.scrollTop = 0; b.querySelector('#mkBack').onclick = () => { clearTimeout(poll); column(p); };
+      return b.querySelector('.mkx');
+    };
+    if (!p.idea_id) return intro(p, shell);
+    shell(null, '<div class="wk"><i></i>Reading where it is</div>', 'Make ours');
+    H.apiAH(`/api/make?id=${encodeURIComponent(p.idea_id)}`, { fresh: true }).then(r => mkShow(p, r.state, shell, 0)).catch(e => shell(null, `<p class="err">${esc(e.message)}</p>`, 'Make ours'));
   }
-  function showState(p, s, shell, tries = 0) {
+  /* The chooser: four paths as cards; the picked one shows its steps, then how close to the original, a steer, one button. */
+  function intro(p, shell) {
+    const pick = PATHS[p._path] ? p._path : 'post';
+    const P = PATHS[pick];
+    const x = shell(null, `<p class="vline" style="margin:-8px 0 0">Pick what to do with it. Claude watches the post and writes ${esc(brandName())}'s version for that path: our product and words, never their footage. About 25 cents and a minute.</p>
+      <div class="paths" role="radiogroup" aria-label="What to do with this post">${Object.entries(PATHS).map(([k2, q], i) => `<button type="button" role="radio" aria-checked="${k2 === pick}" class="path ${k2 === pick ? 'on' : ''}" data-path="${k2}"><span class="n">${i + 1}</span><span class="t"><b>${esc(q.label)}</b><small>${esc(q.line)}</small><em>Lands in ${esc(q.lands)}</em></span></button>`).join('')}</div>
+      <div class="vsec"><h5>The steps</h5>${stepsHtml(-1, P.steps)}</div>
+      <div class="mode" role="radiogroup" aria-label="How close to the original">
+        <label class="${p.mk_mode !== 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="remix" ${p.mk_mode !== 'recreate' ? 'checked' : ''}><b>Our own take</b><small>Keep the idea, tell it our way</small></label>
+        <label class="${p.mk_mode === 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="recreate" ${p.mk_mode === 'recreate' ? 'checked' : ''}><b>Recreate it</b><small>Same hook, beats and pacing; our product and words</small></label></div>
+      <textarea id="mkNote" rows="2" placeholder="Steer it (optional): use the Carver wedge, keep the POV hook, film it on the range" maxlength="400">${esc(p._note || '')}</textarea>
+      <button type="button" class="soc-btn pri go" id="mkGo">${esc(P.btn)}</button><span class="err" id="mkErr"></span>`, 'What should we do with it?');
+    if (!x) return;
+    x.querySelectorAll('[data-path]').forEach(b2 => b2.onclick = () => { p._path = b2.dataset.path; p._note = x.querySelector('#mkNote').value; intro(p, shell); });
+    x.querySelectorAll('.mode input').forEach(r => r.onchange = () => { p.mk_mode = r.value; x.querySelectorAll('.mode label').forEach(l => l.classList.toggle('on', l.contains(r))); });
+    x.querySelector('#mkGo').onclick = async () => {
+      const g = x.querySelector('#mkGo'); g.disabled = true; g.textContent = 'Starting…';
+      p._path = pick;
+      const steer = p.mk_mode === 'recreate' ? 'RECREATE IT: keep the exact structure of this post (same hook shape, same beat order, same length and pacing, same on-screen text style); change only the product, the setting and the words to fit the brand.' : '';
+      const label = `${FMT_WORD[p.fmt] || 'post'} from ${handleOf(p)} on ${PL[p.plat] || p.plat}`;
+      const stats = [p.views != null ? `${Number(p.views).toLocaleString('en-US')} views` : null, p.likes != null ? `${Number(p.likes).toLocaleString('en-US')} likes` : null].filter(Boolean).join(', ');
+      const note = [steer, `Make our version of this ${label}${stats ? ` (${stats})` : ''}.`, x.querySelector('#mkNote').value.trim()].filter(Boolean).join(' ');
+      try {
+        const r = await H.apiAH('/api/make', { method: 'POST', body: JSON.stringify({ act: ST.act, url: p.url, image: p.thumb || undefined, note, exit: P.exit, post: p.id, slack: false }) });
+        p.idea_id = r.id; p.saved = true; p._auto = pick; bar(p); markCard(p);
+        mkShow(p, r.state || { status: 'queued' }, shell, 0);
+      } catch (e) { x.querySelector('#mkErr').textContent = e.message; g.disabled = false; g.textContent = P.btn; }
+    };
+  }
+  function markCard(p) {
+    document.querySelectorAll(`.soc-post[data-id="${CSS.escape(p.id)}"]`).forEach(c => {
+      const s = c.querySelector('.soc-stats'); if (s && !s.querySelector('.soc-made')) s.insertAdjacentHTML('beforeend', '<span class="soc-made">Ours in the works</span>');
+      const mk = c.querySelector('[data-mk]'); if (mk) { mk.textContent = 'See our version'; mk.classList.remove('pri'); }
+    });
+  }
+  const again = (p, shell, tries) => { clearTimeout(poll); poll = setTimeout(() => { if (!V || V.p !== p) return; H.apiAH(`/api/make?id=${encodeURIComponent(p.idea_id)}`, { fresh: true }).then(r => mkShow(p, r.state, shell, tries + 1)).catch(() => again(p, shell, tries + 1)); }, 3000); };
+  async function mkShow(p, s, shell, tries) {
     clearTimeout(poll);
-    const el = viewerEl(), b = el.querySelector('.vbody');
-    if (!s) { shell(`${stat('', 'No draft stored')}<p>That draft is no longer stored.</p>`); return; }
-    const slack = s.link ? `<a href="${esc(s.link)}" target="_blank" rel="noopener">the Slack thread</a>` : 'the brand\'s Slack channel';
+    if (!V || V.p !== p) return;
+    if (!s) { shell(0, '<p class="vline">That draft is no longer stored.</p>'); return; }
     if (['queued', 'working'].includes(s.status)) {
-      shell(`${stat('work', s.status === 'queued' ? 'Queued, about a minute' : 'Writing, about a minute')}<p>Claude is watching the post and writing our version. The brief posts in ${slack} too; this updates on its own.</p>`);
-      if (tries < 60 && V && V.p === p) poll = setTimeout(() => H.apiAH(`/api/social/idea?id=${encodeURIComponent(p.id)}`, { fresh: true }).then(r => { if (V && V.p === p) showState(p, r.state, shell, tries + 1); }).catch(() => {}), 5000);
+      shell(0, `<div class="now"><div class="wk"><i></i><b>${s.status === 'queued' ? 'Starting' : 'Writing our version'}</b></div><p>Claude is watching the post and writing ${esc(brandName())}'s script and caption. About a minute; this updates on its own. You can close it and come back.</p></div>`);
+      if (tries < 80) again(p, shell, tries);
       return;
     }
     if (s.status === 'failed') {
-      shell(`${stat('bad', 'Did not finish')}<p>The draft did not finish. Try again runs it once more, in ${slack} too.</p><div class="vrow"><button type="button" class="soc-btn pri" id="mkRetry">Try again</button><span class="err" id="mkErr"></span></div>`);
-      b.querySelector('#mkRetry').onclick = async e => { e.target.disabled = true; try { const r = await H.apiAH('/api/social/make', { method: 'POST', body: JSON.stringify({ id: p.id }) }); showState(p, r.state, shell); } catch (err) { b.querySelector('#mkErr').textContent = err.message; e.target.disabled = false; } };
+      const x = shell(0, `<div class="now"><b>It did not finish</b><p>${esc(s.error || 'The draft did not finish.')}</p><div class="row"><button type="button" class="soc-btn pri" id="mkRetry">Try again</button></div><span class="err" id="mkErr"></span></div>`);
+      if (x) x.querySelector('#mkRetry').onclick = async e => { e.target.disabled = true; try { await H.apiAH('/api/make/redo', { method: 'POST', body: JSON.stringify({ id: p.idea_id }) }); mkShow(p, { status: 'queued' }, shell, 0); } catch (err) { x.querySelector('#mkErr').textContent = err.message; e.target.disabled = false; } };
       return;
     }
+    const sent = s.sent || {};
+    const asking = s.status === 'questions' && (s.questions || []).length;
+    /* Which path this draft is on: the one picked here, else the first door it already went out of, else posting it. */
+    if (!PATHS[p._path]) p._path = SENT_PATH[Object.keys(sent)[0]] || 'post';
+    const path = pathOf(p), P = PATHS[path], pdone = doneIn(path, sent);
+    /* The draft is ready: send it down the picked path at once when this session started it (the button said so). */
+    if (!asking && !pdone && p._auto === path) {
+      p._auto = false;
+      shell(1, `<div class="now"><div class="wk"><i></i><b>Sending it to ${esc(P.lands)}</b></div><p>The draft is written. ${esc(P.line)}</p></div>`);
+      try { const r = await H.apiAH('/api/make/exit', { method: 'POST', body: JSON.stringify({ id: p.idea_id, exit: P.exit }) }); if (P.exit === 'organic') delete TRAY[ST.act]; if (r.text && path !== 'post') toast(r.text); return mkShow(p, r.state || s, shell, 0); }
+      catch (e) { toast(e.message); }
+    }
+    const org = sent.organic;
+    const it = org ? await trayItem(p.idea_id, tries === 0) : null;
+    if (!V || V.p !== p) return;
+    const filmed = !!(it && it.kind && it.kind !== 'text');
+    const v = (Object.entries(sent).find(([k2]) => SENT_PATH[k2] === path) || [])[1] || {};
+    const at = asking ? 0 : !pdone ? 1 : path !== 'post' ? 2 : !filmed ? 2 : it.used ? 4 : 3;
+    const openLink = v.url ? `<a class="soc-btn" href="${esc(v.url)}" target="_blank" rel="noopener">Open it</a>` : '';
+    let now = '';
+    if (asking) now = `<div class="ask"><b>Claude needs an answer first</b><p>${esc(s.questions.join(' '))}</p><textarea id="mkAns" rows="2" placeholder="Answer here"></textarea><button type="button" class="soc-btn pri" id="mkAnsGo">Answer and write it</button></div>`;
+    else if (!pdone) now = `<div class="now"><b>The draft is ready</b><p>${esc(P.line)}</p><div class="row"><button type="button" class="soc-btn pri" data-exit="${P.exit}">${esc(path === 'post' ? 'Put it on the Week' : `Send it to ${P.lands}`)}</button></div></div>`;
+    else if (path === 'creators') now = `<div class="now"><span class="ok">&#10003; On the creator link</span><p>${esc(v.name || 'The idea')} is on ${esc(brandName())}'s creator link with this post as the reference. Creators film it from there; their clips come back to the Week's tray.</p><div class="row">${openLink}</div></div>`;
+    else if (path === 'brief') now = `<div class="now"><span class="ok">&#10003; Brief ${esc(v.num || '')} is on the Pipeline</span><p>It sits in the Brief column${v.local ? '' : ' and in Asana'}. The team picks it up there and moves it through Making, Review, Ready and Live.</p><div class="row"><button type="button" class="soc-btn pri" data-go="production">Open the Pipeline</button>${openLink}</div></div>`;
+    else if (path === 'studio') now = `<div class="now"><span class="ok">&#10003; The Studio batch is ready</span><p>Scene and copy are filled in. Open it, press Make, then approve the ads you like.</p><div class="row"><button type="button" class="soc-btn pri" data-studio="${esc(v.id || '')}">Open in Studio</button></div></div>`;
+    else if (!filmed) now = `<div class="now"><b>Next: film it</b><p>${esc(org.owner || 'Ravo')} has a Film task${org.due ? ` due ${esc(dueWord(org.due))}` : ''}${org.url ? ` (<a href="${esc(org.url)}" target="_blank" rel="noopener">open it</a>)` : ''}. Upload the clip here or on the Week; the task closes itself.</p>
+      <div class="row"><button type="button" class="soc-btn pri" id="mkUp">Upload the film</button><button type="button" class="soc-btn" data-week="1">Open the Week</button></div><input type="file" id="mkFile" hidden accept="video/mp4,video/quicktime,image/jpeg,image/png,image/webp"></div>`;
+    else if (!it.used) now = `<div class="now"><b>Filmed. Schedule it</b><p>The clip is in. The Week opens with a new post at the next free hour: the clip and this caption filled in, Instagram and Facebook on.</p><div class="row"><button type="button" class="soc-btn pri" data-sched="1">Schedule it on the Week</button></div></div>`;
+    else now = `<div class="now"><span class="ok">&#10003; On the Week</span><p>It is scheduled. The Week shows when it goes out and, after, how it did.</p><div class="row"><button type="button" class="soc-btn" data-week="1">Open the Week</button></div></div>`;
     const sc = s.script || {};
-    const beats = [...(sc.openers || []).slice(0, 2).map((t, i) => [i ? 'Or open' : 'Hook', t, true]), ...(sc.shots || []).map(x => [x.label || 'Shot', x.text, false])];
-    const lines = s.studio && !beats.length ? s.studio.lines.map((t, i) => [`Ad ${i + 1}`, t, false]) : [];
-    const sent = Object.entries(s.sent || {});
-    const asking = (s.questions || []).length && s.status === 'questions';
-    shell(`${stat(asking ? 'ask' : 'ok', asking ? 'Needs an answer' : sent.length ? 'Sent on' : 'Ready')}
-      ${sc.title ? `<p><b style="color:var(--ink)">${esc(sc.title)}</b></p>` : ''}
-      ${s.take ? `<p>${esc(s.take)}</p>` : ''}
-      ${asking ? `<p class="err">${esc(s.questions.join(' '))} Reply in ${slack}.</p>` : ''}
-      ${beats.length || lines.length ? `<div class="beats">${[...beats, ...lines].map(([l, t, hk]) => `<div class="beat ${hk ? 'hk' : ''}"><i>${esc(l)}</i><span>${esc(t)}</span></div>`).join('')}</div>` : ''}
-      ${sc.on_screen ? `<p>On screen: ${esc(sc.on_screen)}</p>` : ''}
-      ${s.pick ? `<p>Suggested: <b style="color:var(--ink)">${esc(DEST[s.pick === 'lucky_creators' ? 'creator_link' : s.pick] || s.pick)}</b>${s.why ? `. ${esc(s.why)}` : ''}</p>` : ''}
-      ${sent.map(([k2, v]) => `<span class="sent">${ic('check')} Sent to ${esc(k2 === 'lucky_creators' ? 'the Lucky creator app' : DEST[k2] || k2)}${v.url ? ` · <a href="${esc(v.url)}" target="_blank" rel="noopener">open</a>` : ''}</span>`).join('')}
-      <div class="vrow">${Object.entries(DEST).filter(([d]) => !(s.sent || {})[d] && !(d === 'creator_link' && (s.sent || {}).lucky_creators)).map(([d, l]) => `<button type="button" class="soc-btn sm ${d === s.pick ? 'pri' : ''}" data-dest="${d}">${esc(l)}</button>`).join('')}</div>
-      <p>The full brief is a text draft in ${slack}: change it or ask for a redo there.</p><span class="err" id="sdErr"></span>`);
-    b.querySelectorAll('[data-dest]').forEach(x => x.onclick = async () => {
-      x.disabled = true; const was = x.textContent; x.textContent = 'Sending…';
-      try { const r = await H.apiAH('/api/social/push', { method: 'POST', body: JSON.stringify({ id: p.id, dest: x.dataset.dest }) }); if (r.text) toast(r.text); showState(p, r.state, shell); }
-      catch (e) { b.querySelector('#sdErr').textContent = e.message; x.disabled = false; x.textContent = was; }
+    const beats = [...(sc.openers || []).slice(0, 2).map((x, i) => [i ? 'Or open' : 'Hook', x, true]), ...(sc.shots || []).map(x => [x.label || 'Shot', x.text || x, false])];
+    const lines = s.studio && !beats.length ? (s.studio.lines || []).map((x, i) => [`Ad ${i + 1}`, typeof x === 'string' ? x : x.text, false]) : [];
+    const doneDoors = Object.keys(sent).filter(k2 => SENT_PATH[k2] && SENT_PATH[k2] !== path).map(k2 => ({ organic: 'the Week', creator_link: 'the creator link', lucky_creators: 'the Lucky creator app', asana_brief: 'an ad brief', studio: 'Studio' })[k2] || k2);
+    const x = shell(at, `${now}
+      <details ${at <= 2 ? 'open' : ''}><summary>The script and caption<small>${esc(sc.title || '')}</small></summary><div style="display:grid;gap:12px">
+        ${s.take ? `<p class="vline" style="margin:0">${esc(s.take)}</p>` : ''}
+        ${beats.length || lines.length ? `<div class="beats">${[...beats, ...lines].map(([l, t, hk]) => `<div class="beat ${hk ? 'hk' : ''}"><i>${esc(l)}</i><span>${esc(t)}</span></div>`).join('')}</div>` : ''}
+        ${sc.on_screen ? `<div class="kv"><b>On screen</b><span>${esc(sc.on_screen)}</span></div>` : ''}
+        ${s.caption ? `<div class="kv"><b>Caption <button type="button" class="vcopy" id="mkCopyCap">Copy</button></b><span style="white-space:pre-wrap">${esc(s.caption)}</span></div>` : ''}
+        <div style="display:flex;gap:8px"><input type="text" id="mkSteer" placeholder="Not quite right? Say what to change" maxlength="400" style="flex:1"><button type="button" class="soc-btn" id="mkRedo">Redo</button></div>
+      </div></details>
+      ${CLI() ? '' : (() => { const rest = Object.entries(PATHS).filter(([k2]) => k2 !== path && !doneIn(k2, sent)); return rest.length ? `<div class="alt">Also: ${rest.map(([, q]) => `<button type="button" class="soc-btn sm q" data-exit="${q.exit}">${esc(q.label)}</button>`).join('')}</div>` : ''; })()}
+      ${doneDoors.length ? `<p class="vline" style="margin:0">Also sent to ${esc(doneDoors.join(', '))}.</p>` : ''}
+      <span class="err" id="mkErr"></span>`);
+    if (!x) return;
+    const err = x.querySelector('#mkErr');
+    const cc = x.querySelector('#mkCopyCap'); if (cc) cc.onclick = () => copyText(s.caption, 'Caption copied.');
+    const redo = async extra => {
+      const note = [extra || '', x.querySelector('#mkSteer') ? x.querySelector('#mkSteer').value.trim() : ''].filter(Boolean).join(' ');
+      try { await H.apiAH('/api/make/redo', { method: 'POST', body: JSON.stringify({ id: p.idea_id, note }) }); mkShow(p, { status: 'queued' }, shell, 0); }
+      catch (e) { err.textContent = e.message; }
+    };
+    x.querySelector('#mkRedo').onclick = () => redo();
+    x.querySelector('#mkSteer').onkeydown = e => { if (e.key === 'Enter') redo(); };
+    const ag = x.querySelector('#mkAnsGo'); if (ag) ag.onclick = () => { const a = x.querySelector('#mkAns').value.trim(); if (!a) { err.textContent = 'Answer the question first.'; return; } p._auto = true; redo(a); };
+    x.querySelectorAll('[data-exit]').forEach(btn => btn.onclick = async () => {
+      const ex = btn.dataset.exit; btn.disabled = true; const was = btn.textContent; btn.textContent = 'Sending…';
+      try {
+        const r = await H.apiAH('/api/make/exit', { method: 'POST', body: JSON.stringify({ id: p.idea_id, exit: ex }) });
+        if (r.text) toast(r.text);
+        if (ex === 'organic') delete TRAY[ST.act]; p._path = Object.keys(PATHS).find(k2 => PATHS[k2].exit === ex) || p._path;
+        mkShow(p, r.state || s, shell, 0);
+      } catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = was; }
     });
+    x.querySelectorAll('[data-week]').forEach(btn => btn.onclick = () => { closePost(); H.show('socialweek'); });
+    x.querySelectorAll('[data-go]').forEach(btn => btn.onclick = e => { e.stopPropagation(); closePost(); H.show(btn.dataset.go); });
+    x.querySelectorAll('[data-studio]').forEach(btn => btn.onclick = () => { const id = btn.dataset.studio; closePost(); if (id && window.StudioTab && window.StudioTab.openBatch) window.StudioTab.openBatch(id); H.show('studio'); });
+    const sch = x.querySelector('[data-sched]'); if (sch) sch.onclick = () => { window.SOCIAL_COMPOSE = `idea:${p.idea_id}`; closePost(); H.show('socialweek'); };
+    const up = x.querySelector('#mkUp'), fi = x.querySelector('#mkFile');
+    if (up && fi) { up.onclick = () => fi.click(); fi.onchange = async () => {
+      const f = fi.files[0]; if (!f) return;
+      if (f.size > 95 * 1024 * 1024) { err.textContent = 'Files up to 95 MB.'; return; }
+      up.disabled = true; up.textContent = 'Uploading…';
+      try {
+        const res = await fetch(`${H.AH_URL}/api/social/upload?act=${encodeURIComponent(ST.act)}&name=${encodeURIComponent(f.name)}&idea=${encodeURIComponent(p.idea_id)}`, { method: 'POST', headers: { Authorization: 'Bearer ' + H.S.tok, 'Content-Type': f.type || 'application/octet-stream' }, body: f });
+        const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        toast('Film uploaded. The Film task is closed.'); delete TRAY[ST.act];
+        mkShow(p, s, shell, 0);
+      } catch (e) { err.textContent = e.message; up.disabled = false; up.textContent = 'Upload the film'; }
+    }; }
   }
 
   /* ---------- Results (2026-10-20): our posted cards from the last 30 days by views, beside what the watched brands usually get ---------- */
