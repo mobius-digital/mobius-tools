@@ -4385,3 +4385,22 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   frequency as a daily average), and six weeks as a table. Funnel in words: this ad, the typical (median) ad, "% better / worse"
   (no letters); "Biggest gap" only at 10%+ worse. Landing page: add to cart and purchase rate against the site (no visits box);
   the Leaks link shows only when Leaks flags this page. Where it ran: Spend and Share in separate columns.
+## 2026-10-21: STUDIO CAROUSELS (studio.js?v=40, launch.js?v=6). A carousel batch is ONE Meta ad.
+- **Brief step**: "Format" switch Single ads / One carousel, stored as `brief.format = 'carousel'` (empty = single). A carousel
+  hides "What we're testing", calls its lines cards ("in the order people swipe"), 2 to 10 (`CAR_MAX`). Switching clears the plan.
+- **Make**: the plan is sent with `format` (account-health studio-ai.js plans one story and a `card_title` per card); plan rows
+  read "Card n" with a "Card headline" field (under the card in Meta) and "Words on the picture". `plan.format` is kept.
+- **Approve**: one horizontal strip in swipe order (`carOrder(b, ads)`: `setup.carousel_order`, a redone card keeps its old
+  card's place by line), "Card n" on each, ‹ › move a card and save `setup.carousel_order`. Approve / Change / Redo as usual.
+  The per-ad Launch to Meta is hidden for a carousel (in the panel too).
+- **Launch**: "Launch the carousel to Meta" (the approved cards as thumbnails, in order) + the foot's primary button
+  (`data-lcar`) open `LaunchToMeta.openCarousel({act, tok, batchId, order, onDone})`: ad set, button, name ("420 A |
+  Carousel"), primary text, the ad's link, then each card's headline and (only when different) link; Check it (dry run)
+  then Create paused, then Ads Manager / Undo / Turn it on. `index()` marks every card of a carousel launch as launched, so
+  the chip and the Launch step's tick follow. **Send to the Pipeline** uploads the approved cards in swipe order as ONE ad
+  of the test (`<num>-1 card k of n <headline>.png`, so prodwork reads them as versions of ad <num>-1, newest = the last
+  card) and sets the card's format to Carousel (`/api/production/field`). The Pipeline itself has no carousel view yet.
+- Checked on a stub harness in the built-in browser (static files + mocked Studio and Launch API; not committed): the format
+  switch, card fields, reorder saved, the window's dry run and create body (order, headlines, a card's own link), the chip
+  after, the Pipeline send (one brief, 3 uploads in order, format set), 375px with no sideways scroll. Nothing was made,
+  planned with a real model, or written to Meta.

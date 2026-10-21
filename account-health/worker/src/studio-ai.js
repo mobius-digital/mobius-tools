@@ -223,7 +223,11 @@ RULES:
     /* The brand brain rides after the skill as its own cached block: personas, customer quotes,
        market stage, past tests, staff rules. For a brand with no skill it also carries the voice. */
     const brain = await brandBrain(env, A).catch(() => ({ md: '' }));
-    const variation = !['concepts', 'visuals', 'format'].includes(bt.testing);
+    /* A carousel (2026-10-21) is ONE ad: the lines are its cards in order, planned as one story, never as a test. */
+    const carousel = bt.format === 'carousel';
+    if (carousel && lines.length < 2) throw new Error('A carousel needs at least 2 cards. Add a line per card.');
+    if (carousel && lines.length > 10) throw new Error('Meta takes up to 10 cards in a carousel. Remove some lines.');
+    const variation = !carousel && !['concepts', 'visuals', 'format'].includes(bt.testing);
     const content = [];
     /* House style: this brand's best-selling static ads (Triple Whale revenue, last 120 days),
        from the creative cache. What already sells beats any generic idea of a good ad. */
@@ -261,14 +265,17 @@ RULES:
     content.push({ type: 'text', text: `THE BATCH
 Angle: ${clip(bt.angle, 600)}
 Why: ${clip(bt.why, 600)}
-${bt.concept ? `Concept: ${clip(bt.concept, 600)}\n` : ''}Testing: ${bt.testing || 'concepts'}
+${bt.concept ? `Concept: ${clip(bt.concept, 600)}\n` : ''}${carousel ? `Format: ONE Meta carousel ad, ${lines.length} cards, in this order` : `Testing: ${bt.testing || 'concepts'}`}
 Products: ${products.join(', ') || '(none picked)'}${dnas.length ? `\nProduct fingerprint (the product must match this exactly in every ad):\n${dnas.join('\n\n')}` : ''}
 Lines:
 ${lines.map((l, i) => `${i + 1}. ${clip(l.text, 1200)}${l.photo ? ' [this photo is the ad]' : (l.inspo || []).length ? ' [has its own inspiration above]' : ''}`).join('\n')}
 
-YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad per line, in order.
+YOU ARE THE ART DIRECTOR AND THE COPYWRITER. ${carousel ? `Plan ONE Meta carousel ad: each line is one CARD of it (a static 4:5 picture), in order, so plan exactly one card per line.
+- THE STORY: the cards are swiped one after the other, so they tell ONE story. Card 1 stops the scroll and makes a promise that only pays off by swiping. Each middle card delivers ONE beat (a proof, a detail, a reason, an answer to a doubt). The last card closes: the product, the offer if there is one, and the button. Never repeat a beat; never put the whole pitch on card 1.
+- ONE VISUAL SYSTEM: every card shares the same type style, colour world and layout grid, so the swipe reads as one ad; the scene and the moment change card to card. Pick the SAME style for every card.
+- CARD TITLE: card_title is the short line Meta shows UNDER each card (about 5 words, at most 40 characters), different from the words on the picture: it labels the beat or the product. The last card's says what to do.` : 'Plan exactly one static 4:5 Meta ad per line, in order.'}
 - WORDS: keep any headline, line, offer or code the brief gives, exactly. Where a line gives no words, write them as the brand speaker would say them to the person the angle is for. Headline a few words. Smaller line optional. Callouts only when the line or angle calls for them, max 4. Button text short or empty.
-- ${variation
+- ${carousel ? 'This is one ad, not a test: the cards build on each other in order.' : variation
     ? `This batch tests ${bt.testing} INSIDE one concept. Every ad must share the SAME look, layout and type style; only the tested piece changes (the ${bt.testing}). Write one shared "look" and repeat it on every line.`
     : `This batch tests ${bt.testing === 'visuals' ? 'different looks for the same words: keep the words the same on every line and make each look genuinely different' : 'different ideas: every ad must be genuinely different (scene, composition, camera, type), never near duplicates, because Meta treats look-alikes as duplicates'}.`}
 - HOUSE STYLE: ${nWin ? 'the best-selling ads above are what works for this brand. Match their level of restraint, realism and type quality; take their confidence, not their layouts.' : 'restrained, real, confident.'} It must never look like an AI ad: real photography, flat and crisp typography, one clear headline, few elements, no glossy badges, no fake 3D, no clutter.
@@ -289,7 +296,7 @@ YOU ARE THE ART DIRECTOR AND THE COPYWRITER. Plan exactly one static 4:5 Meta ad
 ${SPECIFICITY}` }],
       user: content,
       schema: obj({ ads: { type: 'array', items: obj({
-        headline: STR, subline: STR, callouts: ARR, cta: STR, art: STR, look: STR,
+        headline: STR, subline: STR, callouts: ARR, cta: STR, art: STR, look: STR, ...(carousel ? { card_title: STR } : {}),
         style: { type: 'string', enum: STYLES }, photo: { type: 'integer' }, place: { type: 'string', enum: ['center', 'left', 'right', 'lower', 'upper'] }, size: { type: 'string', enum: ['small', 'medium', 'large'] }, ref: STR, ref_use: { type: 'string', enum: ['copy', 'vibe', 'none'] }, note: STR,
       }) } }),
       effort: 'medium', maxTokens: 16000,
@@ -303,7 +310,7 @@ ${SPECIFICITY}` }],
       const photo = exact && a.photo >= 1 && a.photo <= cutouts.length ? a.photo : 0;
       return { ...a, callouts: (a.callouts || []).slice(0, 4), ref_url, ref_use: ref_url ? a.ref_use : 'none', photo, photo_url };
     });
-    return { ads, variation, exact };
+    return { ads, variation, exact, ...(carousel ? { format: 'carousel' } : {}) };
   });
 
   /* ---- tell the batch's Asana task the ads are ready (after Send to Canva) ---- */

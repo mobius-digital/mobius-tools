@@ -419,6 +419,21 @@ textarea.st-in{min-height:44px;resize:vertical;line-height:1.45}
   .st5-lrow{grid-template-columns:44px minmax(0,1fr);}.st5-lrow > .btn{grid-column:2;justify-self:start}
   .st5-acts{flex-wrap:wrap}
 }
+/* the carousel (2026-10-21): one ad, its cards as one ordered strip */
+.st5-fmt{display:inline-flex;gap:2px;padding:2px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line)}
+.st5-fmt button{font:inherit;font-size:13px;font-weight:600;border:0;border-radius:7px;padding:7px 14px;background:transparent;color:var(--muted);cursor:pointer;min-height:0}
+.st5-fmt button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.12))}
+.st5-cstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,250px);gap:14px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity}
+.st5-cstrip > .st5-cs{scroll-snap-align:start;display:grid;gap:6px;align-content:start;min-width:0}
+.st5-cs .st5-ad{height:100%}
+.st5-cmv{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.st5-cmv b{font-size:12.5px;color:var(--ink);font-weight:650;margin-right:auto}
+.st5-cmv button{font:inherit;width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer;min-height:0;display:inline-flex;align-items:center;justify-content:center}
+.st5-cmv button:disabled{opacity:.35;cursor:default}
+.st5-cmv button:not(:disabled):hover{border-color:var(--line-strong);color:var(--ink)}
+.st5-cthumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.st5-cthumbs img{width:64px;aspect-ratio:4/5;object-fit:cover;border-radius:7px;border:1px solid var(--line);display:block;flex:none}
+.st5-cthumbs span{font-size:11px;color:var(--muted);display:block;text-align:center;margin-top:3px}
 `;
   document.head.appendChild(st);
 }
@@ -490,6 +505,15 @@ const live = ads => ads.filter(a => a.status !== 'deleted');
 const PATH = [['brief', 'Brief', 'What each ad says'], ['product', 'Product', 'What the ads sell'], ['look', 'Look', 'AI design, our photo or a winning ad'],
   ['make', 'Make', 'Plan, then make the pictures'], ['approve', 'Approve', 'Keep the good ones'], ['launch', 'Launch', 'Meta or the Pipeline']];
 const launchedAny = ads => !!window.LaunchToMeta && ads.some(a => window.LaunchToMeta.launched(a.id));
+/* A carousel batch (2026-10-21): brief.format 'carousel' = ONE Meta ad, its lines are the cards, swiped in order. The
+   order is set on Approve (setup.carousel_order); a redone card keeps the place of the card it replaced (same line). */
+const isCar = b => b?.brief?.format === 'carousel';
+const CAR_MAX = 10;
+function carOrder(b, ads) {
+  const order = (b.setup?.carousel_order || []).map(String), all = S.d?.ads || [];
+  const pos = a => { const i = order.indexOf(a.id); if (i >= 0) return i; const j = order.findIndex(id => (all.find(x => x.id === id) || {}).line === a.line); return j >= 0 ? j + 0.5 : 1000 + (a.line ?? 99); };
+  return ads.slice().sort((x, y) => pos(x) - pos(y) || (x.line ?? 99) - (y.line ?? 99));
+}
 const lookMode = b => b.setup?.look_mode || (b.setup?.from_ad ? 'iterate' : (b.brief?.lines || []).some(l => l.photo) ? 'photo' : 'ai');
 function pathState(b) {
   const br = b.brief || {}, su = b.setup || {}, lines = br.lines || [], ads = live(adsOf(b)), ok = ads.filter(a => a.status === 'approved');
@@ -808,7 +832,7 @@ function batchView(b) {
 }
 /* The bar under every step: Back, where you are, and the ONE primary action of the step on screen. */
 function footBar(b, p, view) {
-  const ads = p.ads, ok = p.ok.length, toRev = ads.length - ok, n = b.plan?.ads?.length || 0, busy = !!(S.busy || S.making);
+  const ads = p.ads, ok = p.ok.length, toRev = ads.length - ok, n = b.plan?.ads?.length || 0, busy = !!(S.busy || S.making), car = isCar(b);
   const next = (l, i) => `<button type="button" class="btn primary" data-go-step="${i}">${l}</button>`;
   const prim = [
     next('Next: product', 1),
@@ -816,22 +840,24 @@ function footBar(b, p, view) {
     next('Next: make', 3),
     S.makingAll && S.prog ? `<button type="button" class="btn primary" disabled>Making ${S.prog.done} of ${S.prog.total}…</button>`
       : !b.plan ? `<button type="button" class="btn primary" id="bPlan" ${busy ? 'disabled' : ''}>${S.busy === 'plan' ? 'Planning…' : 'Plan the ads'}</button>`
-      : !ads.length ? `<button type="button" class="btn primary" id="bMake" ${busy ? 'disabled' : ''}>Make ${n} ad${n === 1 ? '' : 's'} · about $${(n * PER_AD).toFixed(2)}</button>`
+      : !ads.length ? `<button type="button" class="btn primary" id="bMake" ${busy ? 'disabled' : ''}>Make ${n} ${car ? 'card' : 'ad'}${n === 1 ? '' : 's'} · about $${(n * PER_AD).toFixed(2)}</button>`
       : next('Next: approve', 4),
     !ads.length ? next('Back to make', 3) : toRev ? `<button type="button" class="btn primary" id="bApproveAll" ${busy ? 'disabled' : ''}>Approve all ${toRev}</button>` : next('Next: launch', 5),
-    ok ? `<button type="button" class="btn primary" id="bLaunch1">Launch to Meta</button>` : `<button type="button" class="btn primary" disabled>Approve an ad first</button>`,
+    car ? (ok >= 2 ? `<button type="button" class="btn primary" data-lcar>Launch the carousel</button>` : `<button type="button" class="btn primary" disabled>Approve 2 cards first</button>`)
+      : ok ? `<button type="button" class="btn primary" id="bLaunch1">Launch to Meta</button>` : `<button type="button" class="btn primary" disabled>Approve an ad first</button>`,
   ][view];
-  const say = [`${(b.brief?.lines || []).length} line${(b.brief?.lines || []).length === 1 ? '' : 's'}, one ad each`, `${(b.setup?.products || []).length || 'no'} product${(b.setup?.products || []).length === 1 ? '' : 's'} chosen`,
+  const nl = (b.brief?.lines || []).length;
+  const say = [car ? `${nl} card${nl === 1 ? '' : 's'}, one carousel ad` : `${nl} line${nl === 1 ? '' : 's'}, one ad each`, `${(b.setup?.products || []).length || 'no'} product${(b.setup?.products || []).length === 1 ? '' : 's'} chosen`,
     { ai: 'Designed by AI', photo: 'Our real photo', iterate: 'From a winning ad' }[lookMode(b)],
     S.making ? esc(S.making) : b.plan ? (ads.length ? `${ads.length} made` : `${n} planned · nothing spent yet`) : 'planning writes the words and the look; no pictures yet',
-    ads.length ? `${ok} of ${ads.length} approved` : 'nothing made yet', ok ? `${ok} approved ad${ok === 1 ? '' : 's'} ready` : 'nothing approved yet'][view];
+    ads.length ? `${ok} of ${ads.length} approved` : 'nothing made yet', car ? (ok ? `${ok} approved card${ok === 1 ? '' : 's'}, one ad` : 'nothing approved yet') : ok ? `${ok} approved ad${ok === 1 ? '' : 's'} ready` : 'nothing approved yet'][view];
   return `<div class="st5-foot">${view ? `<button type="button" class="btn quiet" data-go-step="${view - 1}">Back</button>` : ''}<div class="where"><b>Step ${view + 1} of ${PATH.length} · ${PATH[view][1]}</b><span>${say}</span></div>${prim}</div>`;
 }
 
 /* 1. Brief */
 function briefStep(b) {
-  const br = b.brief || {}, lines = br.lines || [];
-  return V2card('What each ad says', 'one line per ad · the angle and the why steer every line', `
+  const br = b.brief || {}, lines = br.lines || [], car = isCar(b), max = car ? CAR_MAX : 12;
+  return V2card(car ? 'What each card says' : 'What each ad says', car ? 'one line per card · the cards tell one story, in order' : 'one line per ad · the angle and the why steer every line', `
     <div class="st-g2">
       <label class="st-f">Batch name<input class="st-in" data-bf="name" value="${esc(b.name)}"></label>
       <label class="st-f">Test number<small>the number in Asana and in the ad names</small><input class="st-in" data-bf="num" value="${esc(b.num)}"></label>
@@ -840,13 +866,16 @@ function briefStep(b) {
       <label class="st-f" style="grid-column:1/-1">Concept<small>only when every line sits inside one proven concept</small><input class="st-in" data-bf="concept" value="${esc(br.concept)}"></label>
       ${br.post_copy ? `<label class="st-f" style="grid-column:1/-1">Post copy<small>goes with the ads in Meta, not on the pictures</small><textarea class="st-in" data-bf="post_copy" rows="2">${esc(br.post_copy)}</textarea></label>` : ''}
     </div>
-    <p class="st-lbl" style="margin-top:18px">What we're testing</p>
-    <div class="st-chips">${TESTING.map(([k, l, h]) => `<button type="button" class="st-chip ${br.testing === k ? 'on' : ''}" data-test="${k}">${l}<small>${h}</small></button>`).join('')}</div>
-    <p class="st-lbl" style="margin-top:18px">Lines · one ad each</p>
+    <p class="st-lbl" style="margin-top:18px">Format</p>
+    <div class="st5-fmt" role="radiogroup" aria-label="Format">${[['single', 'Single ads'], ['carousel', 'One carousel']].map(([k, l]) => `<button type="button" role="radio" aria-checked="${(k === 'carousel') === car}" class="${(k === 'carousel') === car ? 'on' : ''}" data-fmt="${k}">${l}</button>`).join('')}</div>
+    <p class="hint" style="margin:8px 0 0">${car ? 'One Meta ad that people swipe through. Each line is a card, in order: card 1 stops the scroll, the middle cards prove it, the last one closes. 2 to 10 cards.' : 'Each line is its own ad, so the batch is a test.'}</p>
+    ${car ? '' : `<p class="st-lbl" style="margin-top:18px">What we're testing</p>
+    <div class="st-chips">${TESTING.map(([k, l, h]) => `<button type="button" class="st-chip ${br.testing === k ? 'on' : ''}" data-test="${k}">${l}<small>${h}</small></button>`).join('')}</div>`}
+    <p class="st-lbl" style="margin-top:18px">${car ? 'Cards · in the order people swipe' : 'Lines · one ad each'}</p>
     <div>${lines.map((l, i) => `<div class="st-bl"><span class="k">${i + 1}</span>
-      <textarea class="st-in" style="margin:0" data-line="${i}" rows="2" placeholder="The concept or piece for this ad, in the team's words">${esc(l.text)}</textarea>
-      <button type="button" class="btn quiet" data-rmline="${i}" aria-label="Remove line ${i + 1}">Remove</button></div>`).join('') || '<div class="st-empty"><b>No lines yet</b>Add a line for each ad you want. Studio makes one ad per line.</div>'}</div>
-    <button type="button" class="btn" id="bAddLine" style="margin-top:10px">Add a line</button>`);
+      <textarea class="st-in" style="margin:0" data-line="${i}" rows="2" placeholder="${car ? 'What this card says or shows, in the team’s words' : 'The concept or piece for this ad, in the team’s words'}">${esc(l.text)}</textarea>
+      <button type="button" class="btn quiet" data-rmline="${i}" aria-label="Remove ${car ? 'card' : 'line'} ${i + 1}">Remove</button></div>`).join('') || `<div class="st-empty"><b>No ${car ? 'cards' : 'lines'} yet</b>${car ? 'Add a line for each card, in the order people swipe.' : 'Add a line for each ad you want. Studio makes one ad per line.'}</div>`}</div>
+    <button type="button" class="btn" id="bAddLine" style="margin-top:10px" ${lines.length >= max ? `disabled title="Up to ${max}"` : ''}>${car ? 'Add a card' : 'Add a line'}</button>`);
 }
 
 /* 2. Product */
@@ -909,7 +938,7 @@ function makeStep(b) {
   if (!plan) return V2card('Plan the ads', 'the art director writes each ad: the words, the look and the type · no pictures yet', `${prog}
     ${S.busy === 'plan' ? '<div class="st-empty"><span class="st-busy"><span class="st-spin"></span>The art director is planning. About a minute.</span></div>'
       : `<div class="st-empty"><b>${lines} ad${lines === 1 ? '' : 's'} to plan</b>Press Plan the ads. It reads the brief, the product and the look you picked, keeps your words where you gave them, and writes the rest in the brand's voice.</div>`}`);
-  return V2card('The plan', `${n} ad${n === 1 ? '' : 's'} · about $${(n * PER_AD).toFixed(2)} to make${plan.variation ? ` · testing ${esc(br.testing)} inside one concept: ad 1 is made, the others change only the words` : ''}`,
+  return V2card('The plan', `${plan.format === 'carousel' ? `one carousel · ${n} card${n === 1 ? '' : 's'}` : `${n} ad${n === 1 ? '' : 's'}`} · about $${(n * PER_AD).toFixed(2)} to make${plan.variation ? ` · testing ${esc(br.testing)} inside one concept: ad 1 is made, the others change only the words` : ''}`,
     `${prog}<div class="st-plan">${plan.ads.map((a, i) => planRow(a, i, plan)).join('')}</div>`,
     `${live(adsOf(b)).length ? `<button type="button" class="btn quiet" id="bMakeAgain" ${S.busy || S.making ? 'disabled' : ''}>Make all ${n} again · $${(n * PER_AD).toFixed(2)}</button>` : ''}<button type="button" class="btn quiet" id="bPlanAgain" ${S.busy || S.making ? 'disabled' : ''}>${S.busy === 'plan' ? 'Planning…' : 'Plan again'}</button>`);
 }
@@ -919,7 +948,13 @@ function approveStep(b, p) {
   const ads = p.ads.slice().sort((x, y) => (x.line ?? 99) - (y.line ?? 99)), ok = p.ok.length, off = ads.filter(a => a.check?.ok === false).length;
   const gone = adsOf(b).filter(a => a.status === 'deleted');
   const find = ads.length ? `${ok} of ${ads.length} approved${off ? ` · ${off} with the product maybe off` : ''} · open an ad to see it large` : 'nothing made yet';
-  return `${V2card('Approve the ads', find, ads.length ? `<div class="st-board st5-board">${ads.map(adCard).join('')}</div>`
+  /* A carousel is one ad: its cards as ONE strip in swipe order; the arrows move a card (setup.carousel_order). */
+  const strip = () => { const list = carOrder(b, ads), n = list.length;
+    return `<div class="st5-cstrip" role="list" aria-label="The cards, in swipe order">${list.map((a, i) => `<div class="st5-cs" role="listitem"><div class="st5-cmv"><b>Card ${i + 1}</b>
+      <button type="button" data-cmv="${a.id}:-1" aria-label="Move card ${i + 1} earlier" ${i === 0 ? 'disabled' : ''}>‹</button><button type="button" data-cmv="${a.id}:1" aria-label="Move card ${i + 1} later" ${i === n - 1 ? 'disabled' : ''}>›</button></div>${adCard(a, `Card ${i + 1}`)}</div>`).join('')}</div>`; };
+  const carFind = ads.length ? `${ok} of ${ads.length} approved · one ad, swiped left to right · the arrows change the order${ok > CAR_MAX ? ` · Meta takes ${CAR_MAX} cards at most` : ''}` : 'nothing made yet';
+  return `${isCar(b) ? V2card('Approve the cards', carFind, ads.length ? strip() : '<div class="st-empty"><b>Nothing to approve yet</b>Go back to Make and press Make.</div>')
+    : V2card('Approve the ads', find, ads.length ? `<div class="st-board st5-board">${ads.map(a => adCard(a)).join('')}</div>`
       : '<div class="st-empty"><b>Nothing to approve yet</b>Go back to Make and press Make.</div>')}
     ${gone.length ? `<details class="st-fold st5-del"><summary>Deleted ads<span>${gone.length} · kept here until you restore them</span></summary>
       <div class="st5-dgrid">${gone.slice(0, 40).map(a => `<div class="st5-dt"><button type="button" class="pic" data-zu="${esc(shown(a))}"><img src="${esc(shown(a))}" alt="" loading="lazy"></button><span class="tiny">${a.line != null ? `Ad ${a.line + 1}` : 'Ad'} · ${esc(shortDay(a.updated_at || a.created_at))}</span><button type="button" class="btn quiet" data-restore="${a.id}">Restore</button></div>`).join('')}</div></details>` : ''}
@@ -930,7 +965,19 @@ function approveStep(b, p) {
 function launchStep(b, p) {
   const ok = p.ok.slice().sort((x, y) => (x.line ?? 99) - (y.line ?? 99)), pipe = b.setup?.pipeline;
   if (!ok.length) return V2card('Launch', 'approve at least one ad first', '<div class="st-empty"><b>Nothing approved yet</b>Approve the ads you want on the Approve step, then come back.</div>');
-  const meta = V2card('Launch to Meta', 'each ad goes into the test’s ad set, paused · you check a dry run first', `<div class="st5-lrows">${ok.map(a => {
+  if (isCar(b)) {
+    /* ONE carousel ad: the approved cards in the Approve step's order go to Meta together, or onto one Pipeline ad */
+    const cards = carOrder(b, ok), n = cards.length, l = window.LaunchToMeta, chip = l ? cards.map(a => l.chip(a.id)).find(Boolean) || '' : '';
+    const thumbs = `<div class="st5-cthumbs">${cards.map((a, i) => `<div><button type="button" class="pic" data-open="${a.id}" style="border:0;padding:0;background:none;cursor:pointer;min-height:0"><img src="${esc(shown(a))}" alt="Card ${i + 1}" loading="lazy"></button><span>${i + 1}</span></div>`).join('')}</div>`;
+    const cmeta = V2card('Launch the carousel to Meta', n < 2 ? 'approve at least 2 cards' : `one ad, ${n} cards in this order, paused · you check a dry run first`, `${thumbs}
+      ${n > CAR_MAX ? `<p class="st-msg bad">Meta takes ${CAR_MAX} cards at most. Take ${n - CAR_MAX} back to review on the Approve step.</p>` : ''}
+      <div class="st5-row">${l && n >= 2 ? `<button type="button" class="btn" data-lcar>${cards.some(a => l.launched(a.id)) ? 'Launch it again' : 'Launch the carousel'}</button>` : ''}${chip ? `<div class="pills">${chip}</div>` : '<span class="tiny">Not in Meta yet</span>'}</div>`);
+    const cpc = V2card('Or send to the Pipeline', pipe ? `sent ${pipe.n} card${pipe.n === 1 ? '' : 's'} on ${esc(shortDay(pipe.at))} to card #${esc(pipe.num || '')}` : `the ${n} approved cards go on ${b.br_batch_id ? 'this test’s Pipeline card' : 'a new Pipeline card'} as ONE ad, in this order`,
+      `<div class="st5-row" style="margin-top:0"><button type="button" class="btn" id="bPipe">${pipe ? `Send ${n} again` : `Send ${n} to the Pipeline`}</button>${pipe ? '<button type="button" class="btn quiet" id="bPipeOpen">Open in the Pipeline</button>' : ''}
+        <span class="sp"></span><button type="button" class="v2link" data-mdlok>Download approved</button></div>`);
+    return cmeta + cpc;
+  }
+  const meta =V2card('Launch to Meta', 'each ad goes into the test’s ad set, paused · you check a dry run first', `<div class="st5-lrows">${ok.map(a => {
       const done = window.LaunchToMeta?.launched(a.id);
       return `<div class="st5-lrow"><button type="button" class="pic" data-open="${a.id}"><img src="${esc(shown(a))}" alt="" loading="lazy"></button><div><b>${a.line != null ? `Ad ${a.line + 1}` : 'Ad'} · ${esc(a.spec?.headline || '')}</b>${window.LaunchToMeta ? `<div class="pills">${window.LaunchToMeta.chip(a.id) || '<span class="tiny">Not in Meta yet</span>'}</div>` : ''}</div>
         ${window.LaunchToMeta ? `<button type="button" class="btn" data-launch="${a.id}">${done ? 'Launch again' : 'Launch'}</button>` : ''}</div>`; }).join('')}</div>`);
@@ -942,8 +989,10 @@ function launchStep(b, p) {
 function planRow(a, i, plan) {
   const lock = plan.variation && i > 0;
   const ref = a.photo_url ? `<div class="st-thumbs"><span class="tiny">This photo is the ad</span><button class="t on" data-zu="${esc(a.photo_url)}"><img src="${esc(thumb(a.photo_url))}" alt=""></button></div>` : a.ref_url ? `<div class="st-thumbs"><button class="t" data-zu="${esc(a.ref_url)}"><img src="${esc(thumb(a.ref_url))}" alt=""></button><select class="st-in" style="width:auto;margin:0" data-pf="${i}:ref_use" ${lock ? 'disabled' : ''}><option value="copy" ${a.ref_use === 'copy' ? 'selected' : ''}>Look like this</option><option value="vibe" ${a.ref_use === 'vibe' ? 'selected' : ''}>Just the vibe</option><option value="none" ${a.ref_use === 'none' ? 'selected' : ''}>Ignore it</option></select></div>` : '<span class="tiny">No inspiration</span>';
-  return `<div class="st-prow"><div class="top"><b>Ad ${i + 1}${plan.variation && i === 0 ? ' · the base' : ''}</b><span class="tiny">${esc(a.note || '')}</span></div>
-    <div class="st-g3"><label class="st-f">Headline<input class="st-in" data-pf="${i}:headline" value="${esc(a.headline)}"></label>
+  const car = plan.format === 'carousel';
+  return `<div class="st-prow"><div class="top"><b>${car ? 'Card' : 'Ad'} ${i + 1}${plan.variation && i === 0 ? ' · the base' : ''}</b><span class="tiny">${esc(a.note || '')}</span></div>
+    ${car ? `<label class="st-f">Card headline<small>the line Meta shows under this card, about 5 words</small><input class="st-in" data-pf="${i}:card_title" maxlength="80" value="${esc(a.card_title || '')}"></label>` : ''}
+    <div class="st-g3"><label class="st-f">${car ? 'Words on the picture' : 'Headline'}<input class="st-in" data-pf="${i}:headline" value="${esc(a.headline)}"></label>
       <label class="st-f">Smaller line<input class="st-in" data-pf="${i}:subline" value="${esc(a.subline)}"></label>
       <label class="st-f">Button<input class="st-in" data-pf="${i}:cta" value="${esc(a.cta)}"></label></div>
     <div class="st-g2"><label class="st-f">Callouts<small>one per line</small><textarea class="st-in" data-pf="${i}:callouts" rows="2">${esc((a.callouts || []).join('\n'))}</textarea></label>
@@ -974,11 +1023,11 @@ const adMore = (a, s = a.spec || {}) => [[`data-dl="${a.id}"`, 'Download'],
   [`data-del="${a.id}"`, 'Delete (you can restore it)', 'st5-danger']];
 const chipOf = (tone, t) => window.LxKit?.chip ? window.LxKit.chip(tone, t) : `<span class="v2pill ${tone}">${esc(t)}</span>`;
 /* One ad: the picture (opens the review panel), its checks, Approve, Change, Redo, and the rest in "...". */
-function adCard(a) {
+function adCard(a, label = '') {
   const s = a.spec || {}, ck = a.check, appr = a.status === 'approved', n = a.line != null ? a.line + 1 : '';
   const ln = window.LaunchToMeta ? window.LaunchToMeta.chip(a.id) : '', pills = adChecks(a);
   return `<div class="st-ad st5-ad ${appr ? 'ok' : ''}"><button type="button" class="pic" data-open="${a.id}" aria-label="Open ad ${n}"><img src="${esc(shown(a))}" alt="${esc(s.headline || 'Ad')}" loading="lazy">
-      <span class="st5-ov"><span class="st5-n">${n ? `Ad ${n}` : 'Ad'}</span>${appr ? chipOf('good', 'Approved') : chipOf('quiet', 'To approve')}</span></button>
+      <span class="st5-ov"><span class="st5-n">${label || (n ? `Ad ${n}` : 'Ad')}</span>${appr ? chipOf('good', 'Approved') : chipOf('quiet', 'To approve')}</span></button>
     <div class="meta"><b class="hl">${esc(s.headline || s.product || '')}</b>${pills || ln ? `<div class="pills">${ln}${pills}</div>` : ''}${ck?.ok === false && ck.issue ? `<span class="st-msg bad">${esc(ck.issue)}</span>` : ''}
       ${vidStrip(a)}
       <div class="st5-acts"><button type="button" class="btn st5-okb ${appr ? 'on' : ''}" data-${appr ? 'unapprove' : 'approve'}="${a.id}"${appr ? tip('Approved. Click to take it back to review.') : ''}>${appr ? '✓ Approved' : 'Approve'}</button>
@@ -997,7 +1046,7 @@ function openAd(id) {
       ${a.check?.ok === false && a.check.issue ? `<p class="st-msg bad">${esc(a.check.issue)}</p>` : ''}
       <div class="st5-pva"><button type="button" class="btn ${appr ? '' : 'primary'}" data-${appr ? 'unapprove' : 'approve'}="${a.id}">${appr ? 'Take back to review' : 'Approve'}</button>
         <button type="button" class="btn" data-change="${a.id}">Change with AI</button><button type="button" class="btn" data-redo="${a.id}">Redo</button>
-        ${appr && window.LaunchToMeta ? `<button type="button" class="btn" data-launch="${a.id}">Launch to Meta</button>` : ''}</div>
+        ${appr && window.LaunchToMeta && !isCar(S.cur) ? `<button type="button" class="btn" data-launch="${a.id}">Launch to Meta</button>` : ''}</div>
       <div class="st5-pvq">${adMore(a).filter(Boolean).map(([at, l, cls]) => `<button type="button" class="v2link ${cls || ''}" ${at}>${l}</button>`).join('')}</div>
       <p class="tiny" style="margin:0">Change and Redo spend on the image AI; the old version goes to Deleted ads, where Restore brings it back.</p></div></div>`;
   const pb = window.LxKit.panel(n ? `Ad ${n}` : 'Ad', html); if (!pb) return;
@@ -1029,10 +1078,12 @@ async function restoreBatch(b) {
    made first and tied to the batch. Each approved ad goes up as a version under the card's Ads, named
    "<test>-<line> headline" so the card groups them per ad. Nothing is launched and nothing is spent. */
 async function sendPipeline(b) {
-  const ok = live(adsOf(b)).filter(a => a.status === 'approved').sort((x, y) => (x.line ?? 99) - (y.line ?? 99));
+  const car = isCar(b), appr = live(adsOf(b)).filter(a => a.status === 'approved');
+  const ok = car ? carOrder(b, appr) : appr.sort((x, y) => (x.line ?? 99) - (y.line ?? 99));
   if (!ok.length) return;
   const name = (b.name || b.brief?.angle || 'Studio batch').slice(0, 200);
-  modal('Send to the Pipeline?', `<p class="hint" style="margin:0">${ok.length} approved ad${ok.length === 1 ? ' goes' : 's go'} on ${b.br_batch_id ? `card #${esc(b.num || '')}` : `a new Pipeline card, “${esc(name)}”`}, under Ads, for the team to review and launch. Nothing goes to Meta and nothing is spent.</p>`,
+  const where = b.br_batch_id ? `card #${esc(b.num || '')}` : `a new Pipeline card, “${esc(name)}”`;
+  modal('Send to the Pipeline?', `<p class="hint" style="margin:0">${car ? `The ${ok.length} approved cards go on ${where} as ONE carousel ad (ad ${esc(b.num || '<number>')}-1), uploaded in swipe order, and the card's format is set to Carousel` :`${ok.length} approved ad${ok.length === 1 ? ' goes' : 's go'} on ${where}, under Ads`}, for the team to review and launch. Nothing goes to Meta and nothing is spent.</p>`,
   { cta: `Send ${ok.length}`, onOpen: (w, ctl) => w.onSubmit(async () => {
     const ah = async (path, opt) => { const r = await fetch(AH_URL + path, { ...opt, headers: { Authorization: 'Bearer ' + S.tok, ...(opt?.headers || {}) } }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || `The Pipeline said ${r.status}`); return j; };
     if (!b.br_batch_id) {
@@ -1046,12 +1097,22 @@ async function sendPipeline(b) {
     for (const a of ok) {
       ctl.msg(`Sending ${++i} of ${ok.length}…`, true);
       const blob = await (await fetch(shown(a))).blob();
-      const file = fileName(a, b);
+      /* a carousel is one ad of the test: every card under "<num>-1", one upload each in swipe order */
+      const file = car ? `${b.num ? `${b.num}-1` : (S.d.account?.name || 'ad').replace(/\W+/g, '-')} card ${i} of ${ok.length} ${(a.spec?.headline || '').replace(/[^\w ]+/g, '').slice(0, 40)}`.trim() + '.png' : fileName(a, b);
       await ah(`/api/production/upload?id=${encodeURIComponent(b.br_batch_id)}&kind=version&name=${encodeURIComponent(file)}`, { method: 'POST', headers: { 'Content-Type': blob.type || 'image/png' }, body: blob });
     }
+    if (car) await ah('/api/production/field', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ act: S.act, id: b.br_batch_id, format: 'Carousel' }) }).catch(() => {});
     b.setup = b.setup || {}; b.setup.pipeline = { card: b.br_batch_id, num: b.num || '', n: ok.length, at: new Date().toISOString() };
     await saveCur(); ctl.close(true); paint(); toast(`Sent ${ok.length} to the Pipeline.`);
   }) });
+}
+/* ---- Launch the carousel: ONE Meta ad, the approved cards in the Approve step's order (account-health /api/launch/carousel-*) ---- */
+async function launchCarousel(b) {
+  if (!window.LaunchToMeta?.openCarousel) return;
+  const cards = carOrder(b, live(adsOf(b)).filter(a => a.status === 'approved'));
+  if (cards.length < 2) { S.err = 'Approve at least 2 cards first.'; return paint(); }
+  await saveCur();
+  window.LaunchToMeta.openCarousel({ act: S.act, tok: S.tok, batchId: b.id, order: cards.slice(0, CAR_MAX).map(a => a.id), onDone: paint });
 }
 function openPipeline(b) {
   window.PD_CARD = b.setup?.pipeline?.card || b.br_batch_id || null;
@@ -1246,7 +1307,7 @@ function wireBatch() {
   on('[data-march]', () => archiveBatch(b));
   on('[data-mrestore]', () => restoreBatch(b));
   on('[data-mdl]', () => downloadAll(b));
-  on('[data-mdlok]', async () => { for (const a of live(adsOf(b)).filter(x => x.status === 'approved')) { await download(a, b); await new Promise(r => setTimeout(r, 400)); } });
+  on('[data-mdlok]', async () => { const appr = live(adsOf(b)).filter(x => x.status === 'approved'); for (const a of isCar(b) ? carOrder(b, appr) : appr) { await download(a, b); await new Promise(r => setTimeout(r, 400)); } });
   on('[data-mcanva]', () => sendCanva(b));
   on('#bPipe', () => sendPipeline(b));
   on('#bPipeOpen', () => openPipeline(b));
@@ -1265,9 +1326,18 @@ function wireBatch() {
   });
   document.querySelectorAll('[data-bf]').forEach(el => el.oninput = () => { const k = el.dataset.bf; if (k === 'num') b.num = el.value.trim(); else if (k === 'name') b.name = el.value; else br[k] = el.value; queueSave(); });
   on('[data-test]', el => { br.testing = el.dataset.test; if (b.plan) b.plan = null; queueSave(); paint(); });
+  /* Single ads or one carousel (2026-10-21): stored on the brief, so the plan, Approve and Launch all follow it */
+  on('[data-fmt]', el => { const car = el.dataset.fmt === 'carousel'; if (car === isCar(b)) return; br.format = car ? 'carousel' : ''; if (car && br.lines.length > CAR_MAX) { S.err = `A carousel takes ${CAR_MAX} cards at most. Remove ${br.lines.length - CAR_MAX} line${br.lines.length - CAR_MAX === 1 ? '' : 's'} before you plan.`; } else S.err = ''; if (b.plan) b.plan = null; queueSave(); paint(); });
+  on('[data-cmv]', el => {
+    const [id, dir] = el.dataset.cmv.split(':'), ids = carOrder(b, live(adsOf(b))).map(a => a.id), i = ids.indexOf(id), j = i + Number(dir);
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]]; su.carousel_order = ids; queueSave(); paint();
+    document.querySelector(`[data-cmv="${id}:${dir}"]`)?.focus();
+  });
+  on('[data-lcar]', () => launchCarousel(b));
   document.querySelectorAll('[data-line]').forEach(el => el.oninput = () => { br.lines[+el.dataset.line].text = el.value; queueSave(); });
   on('[data-rmline]', el => { br.lines.splice(+el.dataset.rmline, 1); if (b.plan) b.plan = null; queueSave(); paint(); });
-  on('#bAddLine', () => { if (br.lines.length >= 12) return; br.lines.push({ text: '', inspo: [] }); if (b.plan) b.plan = null; queueSave(); paint(); });
+  on('#bAddLine', () => { if (br.lines.length >= (isCar(b) ? CAR_MAX : 12)) return; br.lines.push({ text: '', inspo: [] }); if (b.plan) b.plan = null; queueSave(); paint(); });
   on('[data-mode]', el => { su.look_mode = el.dataset.mode; queueSave(); paint(); });
   const file = $('#bFile'); let target = null;
   if (file) file.onchange = () => { upload([...file.files], target); file.value = ''; };
@@ -1437,13 +1507,15 @@ async function fingerprint(p, refresh = false) {
 async function planAds() {
   const b = S.cur, br = b.brief, su = b.setup;
   if (!br.lines.some(l => (l.text || '').trim())) { S.err = 'Write at least one line first.'; return paint(); }
+  const car = isCar(b), filled = br.lines.filter(l => (l.text || '').trim()).length;
+  if (car && (filled < 2 || filled > CAR_MAX)) { S.err = filled < 2 ? 'A carousel needs at least 2 cards. Write a line for each card on the Brief step.' : `A carousel takes ${CAR_MAX} cards at most. Remove ${filled - CAR_MAX} on the Brief step.`; return paint(); }
   S.busy = 'plan'; S.err = ''; paint();
   try {
     br.lines = br.lines.filter(l => (l.text || '').trim());
     await repairRefs(b);
     await saveCur();
-    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: !!su.exact && (su.cutouts || []).length > 0, cutouts: su.exact ? (su.cutouts || []).map(c => c.url) : [], own_ad: su.from_ad?.fresh ? su.from_ad.image || '' : '' });
-    b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact }; b.status = 'planned';
+    const r = await streamCall(AH_URL, '/api/studio-ai/plan', { batch: { angle: br.angle, why: br.why, concept: br.concept, testing: br.testing, format: car ? 'carousel' : '', lines: br.lines }, products: su.products.map(p => p.title), handles: su.products.map(p => p.handle), swipe: su.swipe, exact: !!su.exact && (su.cutouts || []).length > 0, cutouts: su.exact ? (su.cutouts || []).map(c => c.url) : [], own_ad: su.from_ad?.fresh ? su.from_ad.image || '' : '' });
+    b.plan = { ads: r.ads, variation: r.variation, exact: !!r.exact, ...(car ? { format: 'carousel' } : {}) }; b.status = 'planned';
     await saveCur();
   } catch (e) { S.err = `Planning: ${e.message}`; }
   S.busy = ''; paint();
