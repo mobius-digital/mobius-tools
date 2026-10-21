@@ -660,13 +660,20 @@ async function brandMetaRows(env, brandId) {
 async function syncInsights(env, acct, days) {
   const today = localDate(acct.tz);
   const since = addDays(today, -days);
-  const rows = await metaAll(env, `${acct.act_id}/insights`, {
-    level: 'account',
-    time_increment: 1,
-    time_range: { since, until: today },
-    fields: 'spend,impressions,reach,clicks,inline_link_clicks,actions,action_values',
-    limit: 100,
-  });
+  /* TWO REQUESTS, MERGED BY DAY (2026-10-21). From about Oct 18 Meta answers spend 0 and impressions 0 at the
+     ACCOUNT level whenever the same request also asks for inline_link_clicks, actions or action_values
+     (measured on Bonk: $541 / $515 / $442 a day read back as $0; clicks and purchases still came through).
+     Every brief, the Day check and spendFor read this table, so Bonk's dailies showed no Meta spend. Delivery
+     and conversions are now separate calls; neither can blank the other. Ad-level pulls are not affected. */
+  const base = { level: 'account', time_increment: 1, time_range: { since, until: today }, limit: 100 };
+  const [money, acts] = await Promise.all([
+    metaAll(env, `${acct.act_id}/insights`, { ...base, fields: 'spend,impressions,reach,clicks' }),
+    metaAll(env, `${acct.act_id}/insights`, { ...base, fields: 'inline_link_clicks,actions,action_values' }),
+  ]);
+  const byDay = new Map(money.map(r => [r.date_start, { ...r }]));
+  for (const r of acts) byDay.set(r.date_start, { ...(byDay.get(r.date_start) || { date_start: r.date_start }),
+    inline_link_clicks: r.inline_link_clicks, actions: r.actions, action_values: r.action_values });
+  const rows = [...byDay.values()];
   const stmts = rows.map(parseInsightRow).map(r => env.DB.prepare(
     `INSERT INTO daily_insights (act_id, date, spend, impressions, reach, clicks, link_clicks, purchases, revenue, video_views, synced_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))
@@ -802,10 +809,18 @@ function suggestReason(cat, ev, insights) {
 async function syncActivities(env, acct, sinceISO) {
   const since = Math.floor(new Date(sinceISO).getTime() / 1000);
   const until = Math.floor(Date.now() / 1000);
-  const rows = await metaAll(env, `${acct.act_id}/activities`, {
-    fields: 'event_time,event_type,translated_event_type,actor_name,object_type,object_id,object_name,extra_data',
-    since, until, limit: 500,
-  }, 40);
+  /* "Please reduce the amount of data" is a RESPONSE-SIZE refusal (big extra_data after a bulk edit, e.g. Lucky's
+     137-ad tracking-tag pass on 2026-10-20). It stopped the whole brand sync before the ad rows. Smaller pages, same data. */
+  let rows;
+  for (const limit of [500, 100, 25]) {
+    try {
+      rows = await metaAll(env, `${acct.act_id}/activities`, {
+        fields: 'event_time,event_type,translated_event_type,actor_name,object_type,object_id,object_name,extra_data',
+        since, until, limit,
+      }, limit === 500 ? 40 : limit === 100 ? 120 : 300);
+      break;
+    } catch (e) { if (limit === 25 || !/reduce the amount of data|unknown error/i.test(e.message)) throw e; }
+  }
   const { results: insights } = await env.DB.prepare(
     `SELECT date, spend, purchases, revenue FROM daily_insights WHERE act_id = ?1 ORDER BY date`,
   ).bind(acct.act_id).all();
@@ -836,19 +851,24 @@ const ymdDiff = (a, b) => Math.round((new Date(a + 'T12:00:00Z') - new Date(b + 
 /** One 14-day slice of level=ad insights. Small on purpose - Meta rejects huge ad-level
  *  pulls, and slices keep each invocation well under Workers subrequest limits. */
 async function syncAdSlice(env, acct, since, until) {
-  const rows = await metaAll(env, `${acct.act_id}/insights`, {
-    level: 'ad', time_increment: 1,
-    time_range: { since, until },
+  /* Two requests merged by ad and day, for the same Meta bug as syncInsights (2026-10-21): asking for action
+     fields in the same request as spend makes Meta answer spend and impressions as 0. */
+  const base = { level: 'ad', time_increment: 1, time_range: { since, until }, limit: 500 };
+  const [money, acts] = await Promise.all([
+    metaAll(env, `${acct.act_id}/insights`, { ...base, fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,reach,clicks' }, 25),
     // NO `video_3_sec_watched_actions` - Meta REMOVED it, and asking for it
     // fails the WHOLE request with "(#100) not valid for fields param", which
     // silently broke every brand's ad sync for two nights in August 2026. The
     // 3-second view now lives in `actions` as action_type `video_view`.
-    fields: 'ad_id,ad_name,adset_id,campaign_id,spend,impressions,reach,clicks,inline_link_clicks,outbound_clicks,'
+    metaAll(env, `${acct.act_id}/insights`, { ...base, fields: 'ad_id,inline_link_clicks,outbound_clicks,'
       + 'actions,action_values,video_play_actions,video_thruplay_watched_actions,'
       + 'video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,'
-      + 'video_avg_time_watched_actions',
-    limit: 500,
-  }, 25);
+      + 'video_avg_time_watched_actions' }, 25),
+  ]);
+  const key = r => `${r.ad_id}|${r.date_start}`;
+  const merged = new Map(money.map(r => [key(r), { ...r }]));
+  for (const r of acts) { const k = key(r); merged.set(k, { ...(merged.get(k) || {}), ...r, ...(merged.has(k) ? { spend: merged.get(k).spend, impressions: merged.get(k).impressions, reach: merged.get(k).reach, clicks: merged.get(k).clicks } : { spend: 0, impressions: 0, reach: 0, clicks: 0 }) }); }
+  const rows = [...merged.values()];
   // Video metrics arrive as action arrays with a single video_view entry; sum
   // defensively in case Meta ever splits them by attribution window.
   const sumActs = a => Array.isArray(a) ? a.reduce((s, x) => s + (+x.value || 0), 0) : 0;
@@ -878,7 +898,7 @@ async function syncAdSlice(env, acct, since, until) {
     ).bind(...chunk.flat()));
   }
   const ads = new Map();
-  for (const r of rows) if (r.ad_id && !ads.has(r.ad_id)) ads.set(r.ad_id, [acct.act_id, r.ad_id, r.ad_name || r.ad_id, r.adset_id || null, r.campaign_id || null]);
+  for (const r of rows) if (r.ad_id && r.ad_name && !ads.has(r.ad_id)) ads.set(r.ad_id, [acct.act_id, r.ad_id, r.ad_name, r.adset_id || null, r.campaign_id || null]);
   const adRows = [...ads.values()];
   for (let i = 0; i < adRows.length; i += 20) {
     const chunk = adRows.slice(i, i + 20);
@@ -3213,7 +3233,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   const full = r?.data || hd || await briefData(env, acct, date).catch(() => null);
   const dates = full ? await coverageDates(env, acct, date, full).catch(() => [date]) : [date];
   const missed = dates.filter(d => d < date && d >= addDays(date, -2));
-  const out = await clientDailyFor(env, acct, date, text, full);
+  const out = (await clientDraftOf(env, acct.act_id, date)) || await clientDailyFor(env, acct, date, text, full);
   try {
     for (const d of missed) {
       const prow = await env.DB.prepare(`SELECT text, status FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, d).first().catch(() => null);
@@ -6065,6 +6085,7 @@ function briefCard(acct, date, row, banner, preview = null) {
         'Send it') }));
     }
     if (!preview?.daily) { els.push(btn('Edit the wording', 'brief_edit', v)); els.push(btn('Rewrite with AI', 'brief_rewrite', v)); }
+    else els.push(btn(preview.edited ? 'Edit the post (edited)' : 'Edit the post', 'brief_edit_client', v));
     els.push(btn('Don’t send', 'brief_skip', v, { confirm: confirmDialog(
       'Don’t send this one?',
       'This marks the day *handled* without messaging the client, and stops it being carried into later briefs. The numbers stay everywhere else in Locus. Press *Write it again* to change your mind.',
@@ -6177,9 +6198,24 @@ async function slackSyncBrief(env, acct, date, banner) {
 async function clientPreviewFor(env, acct, date) {
   if (internalOnly(acct)) return null;
   const full = await briefData(env, acct, date);
-  const sent = await clientPostOf(env, acct.act_id, date);
-  return { daily: await clientDailyFor(env, acct, date, null, full), thread: clientDailyThreadFor(acct, date, full),
+  const [sent, mine] = await Promise.all([clientPostOf(env, acct.act_id, date), clientDraftOf(env, acct.act_id, date)]);
+  const built = await clientDailyFor(env, acct, date, null, full);
+  // The built text is kept so "Edit the post" can open with it inside Slack's 3 seconds.
+  await putSetting(env, `clientBuilt:${acct.act_id}:${date}`, built).catch(() => {});
+  return { daily: mine || built, edited: !!mine, thread: clientDailyThreadFor(acct, date, full),
     sent: sent?.ts ? sent.text : null };
+}
+
+/* A HAND-EDITED CLIENT POST, BEFORE IT IS SENT (2026-10-21, Cole: "give me the ability to edit it").
+   settings clientDraft:<act>:<date> holds the person's text; sendBrief posts it instead of the built daily
+   (the thread under it stays the numbers). Clearing the text goes back to the built version. */
+const clientDraftOf = async (env, act, date) => (await getSetting(env, `clientDraft:${act}:${date}`).catch(() => null)) || null;
+async function setClientDraft(env, acct, date, text) {
+  const t = String(text || '').trim();
+  if (t) await putSetting(env, `clientDraft:${acct.act_id}:${date}`, t);
+  else await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(`clientDraft:${acct.act_id}:${date}`).run();
+  await slackSyncBrief(env, acct, date).catch(() => {});
+  return { ok: true, edited: !!t };
 }
 
 /* THE SENT CLIENT POST, EDITABLE (2026-10-21, Cole: "why can't I update this message from directly within Slack?").
@@ -6478,6 +6514,21 @@ async function slackBlockAction(env, ctx, p) {
     return ACK();
   }
 
+  /* The client daily before it is sent: open the text the card shows (the hand edit, else the built daily). */
+  if (id === 'brief_edit_client') {
+    const row = await env.DB.prepare(`SELECT status FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, meta.d).first();
+    if (row?.status === 'sent') {
+      await slackWhisper(env, chan, user, 'That one was sent already. Use Edit the sent post on the card.');
+      return ACK();
+    }
+    const value = (await clientDraftOf(env, acct.act_id, meta.d)) || (await getSetting(env, `clientBuilt:${acct.act_id}:${meta.d}`)) || '';
+    await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
+      callback_id: 'brief_edit_client_submit', meta, title: 'Edit the post',
+      label: 'What the client gets, word for word', hint: '', value, submit: 'Save',
+    }) });
+    return ACK();
+  }
+
   /* The client daily as the client has it. Same gate as Send: it changes what the client reads, under Cole's name. */
   if (id === 'brief_edit_sent') {
     if (!(await maySendFromSlack(env, user))) {
@@ -6583,6 +6634,14 @@ async function slackViewSubmit(env, ctx, p) {
       if (!r?.meta?.changes) return;                 // sent in the meantime; the card already says so
       await slackSyncBrief(env, acct, meta.d);
     })());
+    return ACK();
+  }
+
+  if (cb === 'brief_edit_client_submit') {
+    const text = joinEdit(p.view, meta);
+    // Same text as the built daily = no edit; an empty box goes back to the built daily.
+    const built = await getSetting(env, `clientBuilt:${acct.act_id}:${meta.d}`).catch(() => null);
+    ctx.waitUntil(setClientDraft(env, acct, meta.d, text.trim() === String(built || '').trim() ? '' : text));
     return ACK();
   }
 
@@ -10033,12 +10092,18 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const q = request.method === 'GET' ? Object.fromEntries(url.searchParams) : await request.json().catch(() => ({}));
         const ea = await acctOf(env, await resolveBrandId(env, q.act)).catch(() => null);
         if (!ea || !q.date) return json({ error: 'act and date required' }, 400);
+        const ref = await clientPostOf(env, ea.act_id, q.date);
         if (request.method === 'GET') {
-          const ref = await clientPostOf(env, ea.act_id, q.date);
-          return json({ text: ref?.text ?? null, editable: !!ref?.ts, edited_at: ref?.edited_at ?? null });
+          if (ref?.ts) return json({ sent: true, text: ref.text, editable: true, edited_at: ref.edited_at ?? null });
+          // Not sent yet: the hand edit, else the built daily (built fresh so it is never stale).
+          const mine = await clientDraftOf(env, ea.act_id, q.date);
+          const built = mine ? null : (await clientPreviewFor(env, ea, q.date).catch(() => null))?.daily;
+          return json({ sent: false, text: mine || built || null, editable: !internalOnly(ea), edited: !!mine });
         }
         if (request.method !== 'PUT') return json({ error: 'GET or PUT' }, 405);
-        if (typeof q.text !== 'string' || !q.text.trim()) return json({ error: 'text is required' }, 400);
+        if (typeof q.text !== 'string') return json({ error: 'text is required' }, 400);
+        if (!ref?.ts) return json(await setClientDraft(env, ea, q.date, q.reset ? '' : q.text));
+        if (!q.text.trim()) return json({ error: 'text is required' }, 400);
         const r = await editClientPost(env, ea, q.date, q.text);
         return r.ok ? json(r) : json({ error: r.error }, 400);
       }
