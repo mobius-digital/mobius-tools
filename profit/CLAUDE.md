@@ -4425,6 +4425,12 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - Checked on a stub harness in the built-in browser (not committed): the strip, viewer labels and the decide body, the
   launch window and its dry run body, 375px with the strip scrolling inside the card. Not run against real data or Meta.
 
+## Ad sheet, round seven (2026-10-21)
+- Header chip is "Live since <first spend>" (it was the ad's age, read as the window). Numbers follow the dates picked at the top.
+- Credit model pill sits in the sheet (`.adt-when .adt-model`); changing it reopens the sheet on the same ad via `V2PENDING`.
+- Trend: day-by-day covers this period and the one before (min 14 days); the "before" card says how many days of spend it needs. Week table fits (fixed layout, Purch./Freq., date on two lines).
+- Set table: CPA header, plain share %, the call explained on hover (`CALL_TIP`). Funnel compares to "Account median".
+- Delivery one number per line; the AI read of the creative sits in its own box (`.adt-tags`); ad copy labelled Headline / Primary text; Where it ran fits without a sideways scroll.
 ## 2026-10-21: a Studio carousel posts as ONE organic carousel (Social > Week)
 - account-health socialpost.js `trayOf`: a Studio batch with `brief.format 'carousel'` and 2+ approved finals is ONE tray
   item (`ref scar:<batch>`, `kind 'carousel'`, `cards` = media entries in `setup.carousel_order`, caption = post copy);
