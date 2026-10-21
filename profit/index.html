@@ -2245,7 +2245,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
-<script src="strategist.js?v=4"></script>
+<script src="strategist.js?v=5"></script>
 <body>
 <!-- The Mobius strip on first paint (DESIGN.md section 7): an overlay that ignores the pointer and is gone within 1.5s. -->
 <mobius-loader mode="load"></mobius-loader>
@@ -8467,9 +8467,11 @@ async function renderBrief(first) {
   /* The draft is the job; the numbers are context. ONE primary button (Send
      to client, or Write the brief when there is nothing yet); everything else
      is a quiet secondary. */
-  const bfHead = `${bfDraft && bfCanSend ? '<button class="btn primary" data-bfa="bfPost">Send to client</button>' : ''}${bfDraft && !bfSent ? '<button class="btn quiet" data-bfa="bfEditBtn">Edit wording</button>' : ''}${bfSent ? '' : (bfDraft ? '' : '<button class="btn primary" data-bfa="bfWrite">Write the brief</button>')}${pillMenu('bfMore', 'More', [...(bfDraft && !bfSent ? [['bfWrite', 'Rewrite with AI']] : []), ...(bfDraft || bfSent ? [['bfCopy', 'Copy the text']] : []), ...(bfSent || internalOnly ? [] : [['bfSkip', "Don't send this one"]])], '', { curText: '' })}`;
+  const bfCanFix = !!bfSent && !internalOnly && !isClient();
+  const bfHead = `${bfCanFix ? '<button class="btn quiet" data-bfa="bfFixSent">Edit the sent post</button>' : ''}${bfDraft && bfCanSend ? '<button class="btn primary" data-bfa="bfPost">Send to client</button>' : ''}${bfDraft && !bfSent ? '<button class="btn quiet" data-bfa="bfEditBtn">Edit wording</button>' : ''}${bfSent ? '' : (bfDraft ? '' : '<button class="btn primary" data-bfa="bfWrite">Write the brief</button>')}${pillMenu('bfMore', 'More', [...(bfDraft && !bfSent ? [['bfWrite', 'Rewrite with AI']] : []), ...(bfDraft || bfSent ? [['bfCopy', 'Copy the text']] : []), ...(bfSent || internalOnly ? [] : [['bfSkip', "Don't send this one"]])], '', { curText: '' })}`;
   const bfActs = `<div class="bf-acts lx-bar lx-tohead-bar">
         <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
+        ${bfCanFix ? '<button class="btn quiet" id="bfFixSent">Edit the sent post</button>' : ''}
         ${bfDraft ? '<button class="btn quiet" id="bfEditBtn"><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn quiet" id="bfCancel" style="display:none">Cancel</button>' : ''}
         ${bfSent ? '' : `<button class="btn ${bfDraft ? 'quiet' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log. Takes about 20 seconds.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(dayLbl)}</button>`}
         <button class="btn quiet" id="bfCopy" style="display:${bfDraft || bfSent ? '' : 'none'}">Copy</button>
@@ -8650,6 +8652,35 @@ async function renderBrief(first) {
     } catch (e) { $('#bfMsg').textContent = e.message; }
   };
   pageActions(isClient() ? '' : bfHead);   // a client reads the brief; sending and editing are the team's (2026-10-21)
+  /* The client daily as it sits in the client channel, rewritten in place (account-health editClientPost). */
+  const bfFix = $('#bfFixSent');
+  if (bfFix) bfFix.onclick = async () => {
+    let cur;
+    try { cur = await api(`/api/brief-client-post?act=${encodeURIComponent(S.act)}&date=${d.date}`); }
+    catch (e) { return noteModal('Could not read the post', `<p>${esc(e.message)}</p>`); }
+    if (!cur?.editable) return noteModal('Edit it in Slack', '<p>This post went out before Locus kept a link to it, so it can only be edited in Slack by hand. Posts sent from now on can be edited here.</p>');
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal"><h3>Edit the sent post</h3><p class="hint">What the client sees in their channel. Saving updates that message in place.</p>
+      <textarea id="bfFixTx" style="width:100%;min-height:260px;margin-top:10px">${esc(cur.text || '')}</textarea>
+      <p class="lx-msg" id="bfFixMsg" style="margin:8px 0 0"></p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0"><button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Update it</button></div></div>`;
+    document.body.appendChild(w);
+    const close = () => { w.remove(); document.removeEventListener('keydown', k); };
+    const k = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', k);
+    w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+    w.querySelector('[data-m="no"]').onclick = close;
+    w.querySelector('[data-m="yes"]').onclick = async ev => {
+      const text = w.querySelector('#bfFixTx').value;
+      if (!text.trim()) { w.querySelector('#bfFixMsg').textContent = 'The post cannot be empty.'; return; }
+      ev.target.disabled = true; w.querySelector('#bfFixMsg').textContent = 'Updating…';
+      try {
+        await api('/api/brief-client-post', { method: 'PUT', body: JSON.stringify({ act: S.act, date: d.date, text }) });
+        close(); $('#bfMsg').textContent = 'Updated ✓ in the client channel';
+      } catch (e) { ev.target.disabled = false; w.querySelector('#bfFixMsg').textContent = e.message; }
+    };
+  };
   const bfPress = id => { const b = document.getElementById(id); if (b) b.click(); };
   document.querySelectorAll('#main .ph-acts [data-bfa], #hdActions [data-bfa]').forEach(b => b.onclick = () => bfPress(b.dataset.bfa));
   wirePillMenu(document.getElementById('bfMore'), v => bfPress(v));

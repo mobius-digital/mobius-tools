@@ -41,6 +41,7 @@ window.StratSettings = (() => {
   async function mount(slot) {
     if (!slot || !window.apiAH) return;
     slot.insertAdjacentHTML('afterbegin', `<div id="stratSet">
+      ${card('ssWho', 'Who can use Locus in Slack', 'Locus answers you and the team anywhere it is tagged: DMs, brand channels, and shared channels like the email agency\'s. Anyone else gets no answer, only a note that only they can see, unless you add them here.', '<div class="hint">Loading…</div>')}
       ${card('ssModel', 'How it thinks', 'The model every question uses. Anyone can add !fast or !deep to one message for that answer only (like Viktor).', '<div class="hint">Loading…</div>')}
       ${card('ssMem', 'What it remembers', 'Short facts it has been told: decisions, offers, dates, preferences, rules a client set. A new fact on the same topic replaces the old one, dated facts stop on their day, and each brand keeps 40 at most. Every night it reads the day\'s brand channels and keeps what matters. Edit or forget anything here.', '<div class="hint">Loading…</div>')}
       ${card('ssSkills', 'Skills', 'How this team does a job, written down once so it is done the same way every time. It reads the matching skill before the job. Teach it in chat ("from now on, do it like this") or add one here.', '<div class="hint">Loading…</div>')}
@@ -48,7 +49,122 @@ window.StratSettings = (() => {
       ${card('ssReview', 'Monday account review', 'Every Monday after the briefs and weekly reports, it reviews each active brand: the command center and Day check, goals against the plan, tired ads, budgets, stock and the next 14 days of the calendar. It posts one message to the brand\'s internal channel with its read, and each change it would make as an Apply card under it. Nothing changes until someone presses Apply. It never posts to a client channel.', '<div class="hint">Loading…</div>')}
       ${card('ssUse', 'What it costs', 'Every answer, last 30 days. Each answer in Slack and Locus also shows its own cost underneath.', '<div class="hint">Loading…</div>')}
     </div>`);
-    await Promise.all([model(), memory(), skills(), slack(), review(), usage()]);
+    await Promise.all([who(), model(), memory(), skills(), slack(), review(), usage()]);
+  }
+
+  /* ---- who can use Locus in Slack (2026-10-21, account-health slackaccess.js) ---- */
+  const LEVEL = { owner: 'Always', team: 'The team', guest: 'Added, read only', off: 'Blocked', none: 'No access' };
+  async function who() {
+    const el = $('#ssWho .set-body');
+    try {
+      const a = await api('/api/ask/slack-access');
+      const bname = id => (a.brands.find(b => b.id === id) || {}).name || id;
+      const people = Object.entries(a.people || {});
+      const chans = Object.entries(a.channels || {});
+      const tiers = [['Cole', 'Always, everywhere, can change anything.'],
+        ['The team', 'Anyone with a Mobius email, or on Team and access. Each sees the brands Team and access gives them.'],
+        ['People you add', 'Someone outside Mobius (a client, the email agency). Read only: Locus answers them but never changes anything, and only about the brands you pick.'],
+        ['Everyone else', 'No answer. If they tag Locus, they get a private note saying to ask you.']];
+      el.innerHTML = `<table class="settings" style="width:100%;margin:0 0 14px"><tbody>${tiers.map(([t, d], i) => `<tr><td style="width:150px"><b>${i + 1}. ${E(t)}</b></td><td class="tiny">${E(d)}</td></tr>`).join('')}</tbody></table>
+        <div class="row" style="gap:8px;margin:0 0 6px;align-items:center"><b style="flex:1">People you added</b>${a.owner ? '<button class="btn" id="ssWhoAdd">Add a person</button>' : ''}</div>
+        ${people.length ? `<table class="settings" style="width:100%"><thead><tr><th>Person</th><th>Access</th><th>Brands</th><th></th></tr></thead><tbody>${people.map(([id, p]) => `
+          <tr><td>${E(p.name || id)}</td><td>${E(LEVEL[p.level] || p.level)}</td><td class="tiny">${p.level === 'off' ? '' : p.brands.length ? E(p.brands.map(bname).join(', ')) : 'Every brand'}</td>
+          <td style="white-space:nowrap">${a.owner ? `<button class="btn" data-wp="${E(id)}">Edit</button> <button class="btn" data-wpx="${E(id)}">Remove</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+          : '<div class="hint">Nobody added. Only you and the team can use Locus.</div>'}
+        <div class="row" style="gap:8px;margin:16px 0 6px;align-items:center"><b style="flex:1">Other channels</b>${a.owner ? '<button class="btn" id="ssChAdd">Set a channel</button>' : ''}</div>
+        <p class="tiny" style="margin:0 0 8px;opacity:.75">Locus works in any channel it is in. Set a channel here to tell it which brand the channel is about (it guesses from the name, so #lucky-email is Lucky Golf), or to keep it quiet there.</p>
+        ${chans.length ? `<table class="settings" style="width:100%"><thead><tr><th>Channel</th><th>Brand</th><th>Locus</th><th></th></tr></thead><tbody>${chans.map(([id, c]) => `
+          <tr><td>#${E(c.name || id)}</td><td>${c.brand ? E(bname(c.brand)) : '<span class="tiny">From the name</span>'}</td><td>${c.off ? 'Quiet here' : 'On'}</td>
+          <td style="white-space:nowrap">${a.owner ? `<button class="btn" data-wc="${E(id)}">Edit</button> <button class="btn" data-wcx="${E(id)}">Remove</button>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${a.owner ? '' : '<p class="tiny" style="margin:10px 0 0;opacity:.7">Only Cole changes this.</p>'}`;
+      if (!a.owner) return;
+      const put = async b => { await api('/api/ask/slack-access', { method: 'PUT', body: JSON.stringify(b) }); who(); };
+      $('#ssWhoAdd').onclick = () => personModal(a, null, put);
+      el.querySelectorAll('[data-wp]').forEach(b => b.onclick = () => personModal(a, b.dataset.wp, put));
+      el.querySelectorAll('[data-wpx]').forEach(b => b.onclick = async () => {
+        if (await window.confirmModal('Remove this person?', 'They go back to the normal rule: the team can use Locus, anyone else cannot.', 'Remove')) put({ person: { id: b.dataset.wpx, remove: true } });
+      });
+      $('#ssChAdd').onclick = () => channelModal(a, null, put);
+      el.querySelectorAll('[data-wc]').forEach(b => b.onclick = () => channelModal(a, b.dataset.wc, put));
+      el.querySelectorAll('[data-wcx]').forEach(b => b.onclick = () => put({ channel: { id: b.dataset.wcx, remove: true } }));
+    } catch (e) { el.innerHTML = `<div class="hint">${E(e.message)}</div>`; }
+  }
+
+  /* A modal shell with a body the caller fills and wires. Resolves with whatever done() gets. */
+  function shell(title, html, wire) {
+    return new Promise(resolve => {
+      const w = document.createElement('div');
+      w.className = 'modal-wrap';
+      w.innerHTML = `<div class="modal" style="max-width:560px"><h3>${E(title)}</h3>${html}
+        <div class="row" style="justify-content:flex-end;gap:8px;margin:16px 0 0"><button class="btn" data-m="no">Cancel</button><button class="btn primary" data-m="yes">Save</button></div></div>`;
+      document.body.appendChild(w);
+      const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
+      const k = e => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', k);
+      w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+      w.querySelector('[data-m="no"]').onclick = () => done(null);
+      wire(w, done);
+    });
+  }
+  const brandChecks = (a, picked) => `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0">${a.brands.map(b => `
+    <label class="tiny" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-br="${E(b.id)}" style="width:auto" ${picked.includes(b.id) ? 'checked' : ''}> ${E(b.name)}</label>`).join('')}</div>`;
+
+  async function personModal(a, id, put) {
+    const cur = id ? a.people[id] : null;
+    let chans = [];
+    if (!id) chans = (await api('/api/ask/slack-channels').catch(() => ({ channels: [] }))).channels || [];
+    const v = await shell(cur ? `Edit ${cur.name || id}` : 'Add a person', `
+      ${id ? '' : `<label class="tiny" style="display:block;margin:4px 0 5px;font-weight:600">Find them</label>
+        <div class="row" style="gap:8px;margin:0"><input type="text" id="wpQ" placeholder="Type a name" style="flex:1">
+        <select id="wpCh"><option value="">or pick a channel they are in</option>${chans.map(c => `<option value="${E(c.id)}">#${E(c.name)}${c.shared ? ' (shared)' : ''}</option>`).join('')}</select></div>
+        <p class="tiny" style="margin:5px 0 0;opacity:.7">People from another company (Slack Connect) only show up by picking a channel they are in.</p>
+        <div id="wpList" style="max-height:220px;overflow:auto;margin:10px 0 0"></div>`}
+      <label class="tiny" style="display:block;margin:14px 0 5px;font-weight:600">Access</label>
+      <select id="wpLevel"><option value="guest" ${cur?.level !== 'off' ? 'selected' : ''}>Can use Locus, read only</option><option value="off" ${cur?.level === 'off' ? 'selected' : ''}>Blocked (even if they are on the team)</option></select>
+      <label class="tiny" style="display:block;margin:14px 0 0;font-weight:600">Brands they can ask about (none ticked = every brand)</label>
+      ${brandChecks(a, cur?.brands || [])}`, (w, done) => {
+      let pick = id ? { id, name: cur?.name || id } : null;
+      const list = w.querySelector('#wpList');
+      const draw = people => {
+        list.innerHTML = people.length ? people.map(p => `<button class="btn" data-pid="${E(p.id)}" data-pn="${E(p.name)}" style="display:flex;width:100%;justify-content:space-between;margin:0 0 4px;text-align:left">
+          <span>${E(p.name)}</span><span class="tiny">${E(LEVEL[p.role] || p.role)}</span></button>`).join('') : '<div class="hint">Nobody found.</div>';
+        list.querySelectorAll('[data-pid]').forEach(b => b.onclick = () => {
+          pick = { id: b.dataset.pid, name: b.dataset.pn };
+          list.querySelectorAll('[data-pid]').forEach(x => x.classList.toggle('primary', x === b));
+        });
+      };
+      const load = async qs => { list.innerHTML = '<div class="hint">Looking…</div>'; try { draw((await api('/api/ask/slack-people?' + qs)).people || []); } catch (e) { list.innerHTML = `<div class="hint">${E(e.message)}</div>`; } };
+      if (!id) {
+        let t;
+        w.querySelector('#wpQ').oninput = e => { clearTimeout(t); const q = e.target.value.trim(); if (q.length >= 2) t = setTimeout(() => load('q=' + encodeURIComponent(q)), 300); };
+        w.querySelector('#wpCh').onchange = e => { if (e.target.value) load('channel=' + encodeURIComponent(e.target.value)); };
+        setTimeout(() => w.querySelector('#wpQ').focus(), 30);
+      }
+      w.querySelector('[data-m="yes"]').onclick = () => {
+        if (!pick) { list.insertAdjacentHTML('afterbegin', '<div class="hint" style="color:var(--bad)">Pick a person first.</div>'); return; }
+        done({ ...pick, level: w.querySelector('#wpLevel').value, brands: [...w.querySelectorAll('[data-br]:checked')].map(x => x.dataset.br) });
+      };
+    });
+    if (v) await put({ person: v });
+  }
+
+  async function channelModal(a, id, put) {
+    const cur = id ? a.channels[id] : null;
+    const chans = id ? [] : ((await api('/api/ask/slack-channels').catch(() => ({ channels: [] }))).channels || []);
+    const v = await shell(cur ? `#${cur.name || id}` : 'Set a channel', `
+      ${id ? '' : `<label class="tiny" style="display:block;margin:4px 0 5px;font-weight:600">Channel (ones the Mobius Digital app is in)</label>
+        <select id="wcId" style="width:100%">${chans.map(c => `<option value="${E(c.id)}" data-n="${E(c.name)}">#${E(c.name)}${c.shared ? ' (shared with another company)' : ''}</option>`).join('')}</select>`}
+      <label class="tiny" style="display:block;margin:14px 0 5px;font-weight:600">Which brand is it about</label>
+      <select id="wcBrand" style="width:100%"><option value="">Work it out from the channel name</option>${a.brands.map(b => `<option value="${E(b.id)}" ${cur?.brand === b.id ? 'selected' : ''}>${E(b.name)}</option>`).join('')}</select>
+      <label class="tiny" style="display:flex;align-items:center;gap:8px;margin:14px 0 0"><input type="checkbox" id="wcOff" style="width:auto" ${cur?.off ? 'checked' : ''}> Keep Locus quiet in this channel</label>`, (w, done) => {
+      w.querySelector('[data-m="yes"]').onclick = () => {
+        const sel = w.querySelector('#wcId');
+        const cid = id || sel?.value;
+        if (!cid) return;
+        done({ id: cid, name: cur?.name || sel?.selectedOptions[0]?.dataset.n || '', brand: w.querySelector('#wcBrand').value || null, off: w.querySelector('#wcOff').checked });
+      };
+    });
+    if (v) await put({ channel: v });
   }
 
   /* ---- model + instructions ---- */

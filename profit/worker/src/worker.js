@@ -39,7 +39,7 @@ const PROXY_PATHS = new Set([
   // Weekly/Monthly reports: same arrangement as the brief — the engine lives on
   // the account-health worker (TW/Anthropic/Slack secrets + the crons).
   '/api/reports', '/api/report', '/api/report-generate', '/api/report-summary',
-  '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-draft',
+  '/api/report-send', '/api/report-link', '/api/brief-text', '/api/brief-client-post', '/api/brief-draft',
   // "Don't send this one" — marks a day handled so the catch-up stops carrying it.
   '/api/brief-skip',
   // The buyer's note: what we actually did, the only source for a v2 brief's What we're doing.
