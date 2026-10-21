@@ -6068,7 +6068,7 @@ function briefCard(acct, date, row, banner, preview = null) {
 
   // A sent card shows what the client actually has (edits included), not a fresh rebuild.
   const daily = status === 'sent' && preview?.sent ? preview.sent : preview?.daily;
-  const clientText = daily && !internalOnly(acct)
+  const clientText = daily
     ? daily + (preview.thread ? `\n\n_In the thread under it:_\n${preview.thread}` : '') : null;
   const body = [head, banner, warn || warnLine, clientText || row?.text || '_Nothing written for this day yet._']
     .filter(Boolean).join('\n\n') + (clientText ? '' : steer);
@@ -6095,8 +6095,8 @@ function briefCard(acct, date, row, banner, preview = null) {
     // Nothing to send and nothing to skip. The team still reads it, so the
     // two buttons that change the words stay.
     if (bad) els.push(btn('Fix the numbers in Locus', 'noop_open', v, { url: LOCUS_HEALTH(acct.act_id, date) }));
-    els.push(btn('Edit the wording', 'brief_edit', v));
-    els.push(btn('Rewrite with AI', 'brief_rewrite', v));
+    // The card now shows the numbers post, so the AI wording buttons only show for an old row with no preview.
+    if (!preview?.daily) { els.push(btn('Edit the wording', 'brief_edit', v)); els.push(btn('Rewrite with AI', 'brief_rewrite', v)); }
     if (!bad) els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
   } else if (status === 'skipped') {
     els.push(btn('Write it again', 'brief_redraft', v));
@@ -6194,9 +6194,9 @@ async function slackSyncBrief(env, acct, date, banner) {
   await slackUpdate(env, row.slack_channel, row.slack_ts, card.text, card.blocks);
 }
 /** What the client channel would get for this day: the six-line daily and its thread, from stored numbers (one
- *  briefData read, no model). Null for an internal-only brand, whose card shows the team brief instead. */
+ *  briefData read, no model). Internal-only brands get the same shape; nothing is sent for them. */
 async function clientPreviewFor(env, acct, date) {
-  if (internalOnly(acct)) return null;
+  // An internal-only brand (Lucky) gets the same post shape too (2026-10-21, Cole: "why does Lucky's look so different?").
   const full = await briefData(env, acct, date);
   const [sent, mine] = await Promise.all([clientPostOf(env, acct.act_id, date), clientDraftOf(env, acct.act_id, date)]);
   const built = await clientDailyFor(env, acct, date, null, full);
