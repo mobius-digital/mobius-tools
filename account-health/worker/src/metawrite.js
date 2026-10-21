@@ -386,23 +386,39 @@ async function pageFor(env, d, act, adsetId) {
 }
 const createAdAction = d => ({
   name: 'meta_create_ad',
-  description: 'Make a new ad in a named ad set: from an image URL the worker can download (a Studio final PNG, a Locus asset link; it is uploaded to the ad account) or an existing Meta video id, with the headline, primary text, link and button. It is created PAUSED unless live: true. The page and Instagram account are taken from the ads already in that set.',
+  description: 'Make a new ad in a named ad set: from an image URL the worker can download (a Studio final PNG, a Locus asset link; it is uploaded to the ad account), an existing Meta video id, or cards (2 to 10 images in order = ONE carousel ad, each card with its own headline and optional link), with the headline, primary text, link and button. It is created PAUSED unless live: true. The page and Instagram account are taken from the ads already in that set.',
   input_schema: { type: 'object', properties: {
     brand: { type: 'string' }, adset: { type: 'string', description: 'The ad set, exact name or id.' },
     image_url: { type: 'string' }, video_id: { type: 'string', description: 'An advideos id already in the ad account (instead of image_url).' },
+    cards: { type: 'array', description: 'A carousel instead of image_url: 2 to 10 cards, shown in this order.', items: { type: 'object', properties: { image_url: { type: 'string' }, headline: { type: 'string' }, description: { type: 'string' }, link: { type: 'string', description: 'This card\'s own page; default the ad\'s link.' } }, required: ['image_url'] } },
     headline: { type: 'string' }, primary_text: { type: 'string' }, description: { type: 'string' },
     link: { type: 'string', description: 'The landing page URL.' }, cta: { type: 'string', enum: CTAS },
     ad_name: { type: 'string', description: 'The team\'s naming pattern; default the headline.' }, page_id: { type: 'string' },
     live: { type: 'boolean', description: 'Only when the person said to launch it live.' }, reason: REASON },
     required: ['brand', 'adset', 'primary_text', 'link', 'reason'] },
   propose: async (env, input, h, ctx) => {
-    if (!input.image_url === !input.video_id) return { error: 'Give exactly one of image_url or video_id.' };
+    const cards = Array.isArray(input.cards) && input.cards.length ? input.cards : null;
+    if (cards ? !!(input.image_url || input.video_id) : !input.image_url === !input.video_id) return { error: 'Give exactly one of image_url, video_id or cards.' };
+    if (cards && (cards.length < 2 || cards.length > 10)) return { error: 'A carousel takes 2 to 10 cards.' };
     if (!/^https:\/\//.test(input.link || '')) return { error: 'The link must be a full https:// URL.' };
     const r = await prep(env, d, { ...input, target: input.adset, level: 'adset' }, ctx, 'adset'); if (r.error) return r;
     const pg = input.page_id ? { page_id: String(input.page_id), ig: null, from: 'given' } : await pageFor(env, d, r.act, r.obj.id);
     if (pg.error) return pg;
     let media;
-    if (input.image_url) {
+    if (cards) {
+      /* A carousel (2026-10-21): every card's picture is checked now, like a single image; each card keeps its own
+         headline and may carry its own page (else the ad's link). The order given is the order Meta shows. */
+      const list = [];
+      for (const [i, c] of cards.entries()) {
+        if (!/^https?:\/\//.test(c?.image_url || '')) return { error: `Card ${i + 1}: image_url must be a full URL the worker can download.` };
+        if (c.link && !/^https:\/\//.test(c.link)) return { error: `Card ${i + 1}: its link must be a full https:// URL.` };
+        const res = await fetchImage(env, d, c.image_url).catch(e => ({ ok: false, status: e.message }));
+        const type = res.headers?.get?.('content-type') || '';
+        if (!res.ok || !/^image\//.test(type)) return { error: `Card ${i + 1}: the worker could not download an image from ${c.image_url} (${res.ok ? type || 'not an image' : `HTTP ${res.status}`}).` };
+        list.push({ image_url: c.image_url, headline: clip(c.headline, 255), description: clip(c.description, 255), link: c.link || '' });
+      }
+      media = { cards: list };
+    } else if (input.image_url) {
       if (!/^https?:\/\//.test(input.image_url)) return { error: 'image_url must be a full URL the worker can download.' };
       const res = await fetchImage(env, d, input.image_url).catch(e => ({ ok: false, status: e.message }));
       const type = res.headers?.get?.('content-type') || '';
@@ -417,13 +433,29 @@ const createAdAction = d => ({
     const status = input.live ? 'ACTIVE' : 'PAUSED';
     const name = clip(input.ad_name || input.headline || `New ad ${new Date().toISOString().slice(0, 10)}`, 300);
     return { summary: `${r.brand.name}: new ad "${name}" in "${r.obj.name}" (${status})`,
-      detail: `${media.image_url ? `Image: ${media.image_url}` : `Video: ${media.video_id}`}\nHeadline: ${input.headline || '(none)'}\nPrimary text: ${clip(input.primary_text, 400)}\nLink: ${input.link} · Button: ${cta}\nPage ${pg.page_id}${pg.ig ? ` + Instagram ${pg.ig}` : ''} (${pg.from}).\nWhy: ${clip(input.reason, 300)}`,
+      detail: `${media.cards ? `Carousel, ${media.cards.length} cards in this order:\n${media.cards.map((c, i) => `  ${i + 1}. ${c.headline || '(no headline)'}${c.link ? ` -> ${c.link}` : ''}`).join('\n')}` : media.image_url ? `Image: ${media.image_url}` : `Video: ${media.video_id}`}\nHeadline: ${input.headline || '(none)'}\nPrimary text: ${clip(input.primary_text, 400)}\nLink: ${input.link} · Button: ${cta}\nPage ${pg.page_id}${pg.ig ? ` + Instagram ${pg.ig}` : ''} (${pg.from}).\nWhy: ${clip(input.reason, 300)}`,
       patch: { ...common(r, 'meta_create_ad', input, ctx), ad_name: name, media, page_id: pg.page_id, ig: pg.ig, headline: clip(input.headline, 255), primary_text: clip(input.primary_text, 3000), description: clip(input.description, 255), link: input.link, cta, status } };
   },
   apply: async (env, p, h, ctx) => {
     const cta = p.cta === 'NO_BUTTON' ? null : { type: p.cta, value: { link: p.link } };
     let spec;
-    if (p.media.image_url) {
+    if (p.media.cards) {
+      /* ONE carousel ad: child_attachments in the order given. multi_share_optimized off so Meta never reorders the
+         story, and no automatic end card with the page's picture. */
+      const kids = [];
+      for (const [i, c] of p.media.cards.entries()) {
+        const res = await fetchImage(env, d, c.image_url);
+        if (!res.ok) return { error: `Card ${i + 1}: the image could not be downloaded any more (HTTP ${res.status}).` };
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let bin = ''; for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode(...bytes.subarray(k, k + 0x8000));
+        const up = await gpost(d, env, `${p.act}/adimages`, { bytes: btoa(bin) });
+        const hash = Object.values(up.images || {})[0]?.hash;
+        if (!hash) return { error: `Card ${i + 1}: Meta took the image but returned no hash.` };
+        const link = c.link || p.link;
+        kids.push({ link, image_hash: hash, ...(c.headline ? { name: c.headline } : {}), ...(c.description ? { description: c.description } : {}), ...(cta ? { call_to_action: { type: p.cta, value: { link } } } : {}) });
+      }
+      spec = { page_id: p.page_id, ...(p.ig ? { instagram_user_id: p.ig } : {}), link_data: { link: p.link, message: p.primary_text, child_attachments: kids, multi_share_optimized: false, multi_share_end_card: false, ...(cta ? { call_to_action: cta } : {}) } };
+    } else if (p.media.image_url) {
       const res = await fetchImage(env, d, p.media.image_url);
       if (!res.ok) return { error: `The image could not be downloaded any more (HTTP ${res.status}).` };
       const bytes = new Uint8Array(await res.arrayBuffer());

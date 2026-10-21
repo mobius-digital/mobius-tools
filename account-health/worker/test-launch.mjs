@@ -395,6 +395,88 @@ await check('batch routes: team only, brand limits, a client is not on the rules
   assert.ok(!/launch\/batch/.test(bg), 'the batch routes are the team\'s: not on the client rules');
 });
 
+/* ---------------- the carousel: a Studio carousel batch = ONE Meta carousel ad (2026-10-21) ---------------- */
+const C1 = '1'.repeat(24), C2 = '2'.repeat(24), C3 = '3'.repeat(24), C4 = '4'.repeat(24), C5 = '5'.repeat(24);
+db.exec(`INSERT INTO p_studio_batch (id, act_id, num, br_batch_id, name, brief_json, setup_json, plan_json, status) VALUES
+  ('sbc', 'brand_lucky', '420', NULL, 'Eclipse launch carousel', '{"format":"carousel","post_copy":"The putter that took two years.","lines":[{"text":"a"},{"text":"b"},{"text":"c"},{"text":"d"}]}',
+   '{"products":[{"handle":"eclipse","title":"Eclipse"}],"carousel_order":["${C3}","${C1}","${C2}"]}',
+   '{"format":"carousel","ads":[{"headline":"Two years","card_title":"Two years in the making"},{"headline":"The face","card_title":"Milled, not cast"},{"headline":"The clover","card_title":"Get yours"},{"headline":"Spare","card_title":"Spare"}]}', 'made'),
+  ('sbc1', 'brand_lucky', '421', NULL, 'Too short', '{"format":"carousel"}', '{}', NULL, 'made')`);
+db.exec(`INSERT INTO p_studio_ad (id, act_id, status, spec_json, batch_id, line, has_final) VALUES
+  ('${C1}', 'brand_lucky', 'approved', '{"headline":"Two years"}', 'sbc', 0, 1),
+  ('${C2}', 'brand_lucky', 'approved', '{"headline":"The face"}', 'sbc', 1, 1),
+  ('${C3}', 'brand_lucky', 'approved', '{"headline":"The clover"}', 'sbc', 2, 0),
+  ('${C4}', 'brand_lucky', 'review', '{"headline":"Spare"}', 'sbc', 3, 0),
+  ('${C5}', 'brand_lucky', 'approved', '{"headline":"Lonely"}', 'sbc1', 0, 0)`);
+const cform = { act: 'brand_lucky', studio_batch: 'sbc', order: [C3, C1, C2], adset: '2300013', name: '420 A | Carousel', primary_text: 'The putter that took two years.', link: 'https://luckygolf.com/products/eclipse', cta: 'SHOP_NOW',
+  cards: [{ studio_ad: C3, headline: 'The clover, up close' }, { studio_ad: C1, headline: 'Two years in the making' }, { studio_ad: C2, headline: 'Milled, not cast', link: 'https://luckygolf.com/pages/milling' }] };
+
+await check('carousel source: only a carousel batch of this brand, 2 to 10 approved cards, the order from Studio', async () => {
+  const S = L._test.carouselSource;
+  assert.match((await S(env, 'brand_lucky', { studio_batch: 'sb1' })).error, /not a carousel/);
+  assert.match((await S(env, 'brand_dartee', { studio_batch: 'sbc' })).error, /not this brand's/);
+  assert.match((await S(env, 'brand_lucky', { studio_batch: 'sbc1' })).error, /at least 2 approved cards/);
+  assert.match((await S(env, 'brand_lucky', { studio_batch: 'sbc', order: [C1, C4] })).error, /not an approved ad/);
+  const s = await S(env, 'brand_lucky', { studio_batch: 'sbc' });
+  assert.deepEqual(s.cards.map(c => c.studio_ad), [C3, C1, C2], 'the Approve step order');
+  assert.deepEqual(s.cards.map(c => c.headline), ['Get yours', 'Two years in the making', 'Milled, not cast'], "the plan's card titles");
+  assert.match(s.cards[1].image_url, /\/final$/); assert.match(s.cards[0].image_url, /\/full$/);
+  const t = await S(env, 'brand_lucky', { studio_batch: 'sbc', order: [C2, C1] });
+  assert.deepEqual(t.cards.map(c => c.studio_ad), [C2, C1], 'the window can send its own order');
+});
+
+await check('carousel prep: the cards in order, "<test> A | Carousel", the suggested set, nothing written', async () => {
+  const n = graphPosts().length;
+  const p = await L.carouselPrep(env, d, 'brand_lucky', { studio_batch: 'sbc' });
+  assert.ok(p.ok, p.error); assert.equal(p.carousel, true);
+  assert.equal(p.name, '420 A | Carousel'); assert.equal(p.cards.length, 3); assert.equal(p.cards[0].studio_ad, C3);
+  assert.equal(p.fields.primary_text, 'The putter that took two years.');
+  assert.ok(p.warnings.some(w => /Test 420 is not in the test library/.test(w)));
+  assert.equal(graphPosts().length, n);
+});
+
+await check('carousel dry run: every card checked, the order and headlines shown, nothing written to Meta', async () => {
+  const n = graphPosts().length, g = imageGets.length;
+  const r = await L.carouselPreview(env, d, 'brand_lucky', cform, COLE);
+  assert.ok(r.ok, r.error); assert.equal(r.carousel, true);
+  assert.deepEqual(r.after.cards.map(c => c.headline), ['The clover, up close', 'Two years in the making', 'Milled, not cast']);
+  assert.equal(r.after.cards[2].link, 'https://luckygolf.com/pages/milling'); assert.equal(r.after.cards[0].link, cform.link);
+  assert.equal(r.after.status, 'PAUSED'); assert.match(r.detail, /Carousel, 3 cards in this order/);
+  assert.equal(imageGets.length - g, 3, 'three pictures fetched');
+  assert.equal(graphPosts().length, n, 'the dry run writes nothing');
+  assert.match((await L.carouselPreview(env, d, 'brand_lucky', { ...cform, name: 'Eclipse | Carousel' }, COLE)).error, /test number 420/);
+  assert.match((await L.carouselPreview(env, d, 'brand_lucky', { ...cform, cards: [{ studio_ad: C3, link: 'luckygolf.com' }] }, COLE)).error, /Card 1: its link/);
+});
+
+await check('carousel create: ONE ad, child_attachments in order, Meta may not reorder, PAUSED, one p_launch row with the cards; a repeat is refused', async () => {
+  const i0 = posts.length;
+  const r = await L.carouselCreate(env, d, 'brand_lucky', cform, COLE);
+  assert.ok(r.ok, r.error);
+  const mine = posts.slice(i0);
+  assert.equal(mine.filter(x => /adimages$/.test(x.path)).length, 3, 'three pictures uploaded');
+  assert.equal(mine.filter(x => /adcreatives$/.test(x.path)).length, 1, 'one creative');
+  const ads = mine.filter(x => x.path === `${LUCKY}/ads`); assert.equal(ads.length, 1, 'one ad'); assert.equal(ads[0].body.status, 'PAUSED'); assert.equal(ads[0].body.name, '420 A | Carousel');
+  const ld = JSON.parse(mine.find(x => /adcreatives$/.test(x.path)).body.object_story_spec).link_data;
+  assert.equal(ld.multi_share_optimized, false); assert.equal(ld.multi_share_end_card, false); assert.equal(ld.message, cform.primary_text);
+  assert.deepEqual(ld.child_attachments.map(c => c.name), ['The clover, up close', 'Two years in the making', 'Milled, not cast']);
+  assert.equal(ld.child_attachments[2].link, 'https://luckygolf.com/pages/milling'); assert.equal(ld.child_attachments[0].link, cform.link);
+  assert.deepEqual(ld.child_attachments[2].call_to_action, { type: 'SHOP_NOW', value: { link: 'https://luckygolf.com/pages/milling' } });
+  const row = db.prepare(`SELECT * FROM p_launch WHERE id = ?`).get(r.launch.id);
+  assert.deepEqual(JSON.parse(row.cards), [C3, C1, C2]); assert.equal(row.studio_batch, 'sbc'); assert.equal(row.studio_ad, C3);
+  const list = await L.launchList(env, d, 'brand_lucky');
+  assert.deepEqual(list.launches.find(x => x.id === r.launch.id).cards, [C3, C1, C2], 'the list carries the cards so Studio marks every slide');
+  const n = graphPosts().length;
+  const again = await L.carouselCreate(env, d, 'brand_lucky', cform, COLE);
+  assert.ok(again.duplicate); assert.equal(graphPosts().length, n);
+});
+
+await check('meta_create_ad: cards and an image together, or one card, are refused', async () => {
+  const a = mw.metaActions(d).find(x => x.name === 'meta_create_ad');
+  const base = { brand: 'brand_lucky', adset: '2300013', primary_text: 'x', link: 'https://luckygolf.com', reason: 'test' };
+  assert.match((await a.propose(env, { ...base, image_url: 'https://cdn.example.com/creator.png', cards: [{ image_url: 'https://cdn.example.com/creator.png' }, { image_url: 'https://cdn.example.com/creator.png' }] }, null, COLE)).error, /exactly one/);
+  assert.match((await a.propose(env, { ...base, cards: [{ image_url: 'https://cdn.example.com/creator.png' }] }, null, COLE)).error, /2 to 10 cards/);
+});
+
 await check('routes: team only (admin), brand limits, mounted once in worker.js, no em dashes', async () => {
   const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s });
   const h = (admin, only) => ({ isAdmin: async () => admin, sessionEmail: async () => 'noma@go-mobius-digital.com', brandsFor: async () => only, resolveBrandId: async (e, w) => w, md: d });
@@ -404,6 +486,8 @@ await check('routes: team only (admin), brand limits, mounted once in worker.js,
   assert.equal((await L.handleLaunch(req('POST', '/api/launch/prep', { act: 'brand_lucky', studio_ad: AD_OK }), env, new URL('https://ah.test/api/launch/prep'), '/api/launch/prep', json, h(true, new Set(['brand_dartee'])))).status, 403);
   const ok = await L.handleLaunch(req('POST', '/api/launch/prep', { act: 'brand_lucky', studio_ad: AD_OK }), env, new URL('https://ah.test/api/launch/prep'), '/api/launch/prep', json, h(true, null));
   assert.equal(ok.status, 200); assert.equal((await ok.json()).suggested, '2300013');
+  const cp = await L.handleLaunch(req('POST', '/api/launch/carousel-prep', { act: 'brand_lucky', studio_batch: 'sbc' }), env, new URL('https://ah.test/api/launch/carousel-prep'), '/api/launch/carousel-prep', json, h(true, null));
+  assert.equal(cp.status, 200); assert.equal((await cp.json()).name, '420 B | Carousel', 'A is taken by the carousel made above');
   const wk = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
   assert.equal(wk.split('handleLaunch(').length - 1, 1, 'mounted once');
   for (const f of [path.join(here, 'src', 'launch.js'), path.join(root, 'profit', 'launch.js'), path.join(root, 'profit', 'prodsheet.js'), path.join(here, 'test-launch.mjs')]) assert.ok(!fs.readFileSync(f, 'utf8').includes(String.fromCharCode(0x2014)), 'em dash in ' + f);

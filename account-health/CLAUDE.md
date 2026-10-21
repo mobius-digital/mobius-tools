@@ -2621,3 +2621,22 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   a time, for morningcard.js (one line, kind `social`, the card keeps `social_at`). socialpost.js: `GET /api/social/grid
   ?act=` = the Instagram account and the last 30 posts through Locus that target Instagram (Week > Preview). routes.js
   rebuilt (transcript, slides and grid carry their comments).
+
+## 2026-10-21: STUDIO CAROUSELS, one Meta carousel ad (`launch.js` carousel-*, metawrite `cards`, studio-ai plan)
+- **metawrite `meta_create_ad` takes `cards`** (2 to 10 `{image_url, headline, description?, link?}`) instead of image_url /
+  video_id = ONE carousel ad. Propose fetches every card's picture; apply uploads each to adimages and writes `link_data`
+  with `child_attachments` in the order given (`name` = the card headline, a card link defaults to the ad's, each card
+  carries the button), `multi_share_optimized: false` (Meta never reorders the story) and `multi_share_end_card: false`.
+  The Strategist can use it too (same action).
+- **launch.js** `POST /api/launch/carousel-prep | carousel-preview | carousel-create` {act, studio_batch, order?, adset, name,
+  primary_text, link, cta, cards: [{studio_ad, headline, link}]}: the batch must be this brand's with `brief.format
+  'carousel'`; cards = its APPROVED Studio ads in `order` (else `setup.carousel_order`, else by line), 2 to 10; pictures
+  always come from the batch, headlines default to the plan's `card_title`. Name `<test> <letter> | Carousel`, same ad set
+  suggestion, same checks, dry run, PAUSED. `p_launch.cards` (guarded ALTER) = the Studio ad ids in order, `studio_ad` =
+  the first; `/api/launch/list` returns `cards`; a repeat into the same set is refused per batch. Team only.
+- **studio-ai.js plan** reads `batch.format`: carousel = 2 to 10 lines planned as ONE story (card 1 stops the scroll, middle
+  cards one beat each, the last closes), one visual system, never a variation test, plus `card_title` per card (the line
+  Meta shows under it); the answer carries `format: 'carousel'`.
+- Tests: `node test-launch.mjs` 23 (source refusals and order, prep, dry run writes nothing, create = 3 adimages + 1 creative +
+  1 PAUSED ad with child_attachments in order and the per-card link, the cards on the list, repeat refused, cards + image
+  refused). NOT tested live: a real carousel create in Meta (only the mocked Graph API), the plan prompt on a real model.

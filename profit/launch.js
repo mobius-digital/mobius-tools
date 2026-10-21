@@ -19,7 +19,8 @@
  *       one ad set, the brief's copy (shared lines, or the lines under an ad's own heading), names "5-2 | Still",
  *       Check it (a dry run per ad), Create N paused. An ad whose brief has no headline or primary text cannot be
  *       picked until the brief has it (nothing is typed here); onBrief opens the brief.
- *   window.LaunchToMeta.chip(studioAdId)                                 status chip HTML from the cache
+ *   window.LaunchToMeta.openCarousel({ act, tok, batchId, order, onDone })  a Studio carousel batch as ONE carousel ad (2026-10-21)
+ *   window.LaunchToMeta.chip(studioAdId)                               status chip HTML from the cache
  *   window.LaunchToMeta.watch(act, tok, repaint)                         load the brand's launches (2 min cache)
  * The test library rows (brand.js `.lb-row[data-b]`) get a status chip from here, without touching brand.js.
  */
@@ -45,6 +46,8 @@ const postAH = (p, b) => ah(p, { method: 'POST', body: JSON.stringify(b) });
 /* ---------------- the cache: launches by Studio ad and by test ---------------- */
 function index(list) {
   for (const l of list || []) {
+    /* a carousel launch (2026-10-21) is one ad made of several Studio ads: each card counts as launched */
+    for (const c of Array.isArray(l.cards) ? l.cards : []) if (c !== l.studio_ad) { const a = (L.byAd.get(c) || []).filter(x => x.id !== l.id); a.push(l); L.byAd.set(c, a); }
     if (l.studio_ad) { const a = L.byAd.get(l.studio_ad) || []; if (!a.some(x => x.id === l.id)) a.push(l); else a.splice(a.findIndex(x => x.id === l.id), 1, l); L.byAd.set(l.studio_ad, a); }
     if (l.batch_id) { const b = L.byBatch.get(l.batch_id) || []; if (!b.some(x => x.id === l.id)) b.push(l); else b.splice(b.findIndex(x => x.id === l.id), 1, l); L.byBatch.set(l.batch_id, b); }
   }
@@ -431,6 +434,101 @@ function openBatch(o) {
   }
 }
 
+/* ---------------- the carousel window: a Studio carousel batch = ONE Meta carousel ad (2026-10-21) ----------------
+   The cards come in the order set on Studio's Approve step. Ad set, name ("420 A | Carousel"), primary text, button and
+   the ad's link once; each card its headline (shown under the card) and, only when it differs, its own link. The same
+   dry run then Create paused as one ad, then Ads Manager / Undo / Turn it on. */
+function openCarousel(o) {
+  if (o.tok) L.tok = o.tok;
+  const { box, close } = sheet(`<h3>Launch the carousel to Meta</h3><p class="ln-say">Reading the cards, the brand's ad sets and the test. A few seconds.</p>`);
+  const done = changed => { close(); if (changed && o.onDone) o.onDone(); };
+  const base = { act: o.act, studio_batch: o.batchId, order: o.order || [] };
+  postAH('/api/launch/carousel-prep', base).then(p => { if (p.error) throw new Error(p.error); form(p); }).catch(e => {
+    box.innerHTML = `<h3>Launch the carousel to Meta</h3><p class="ln-msg bad">${esc(e.message)}</p><div class="ln-foot"><button class="btn" data-ln="close">Close</button></div>`;
+    box.querySelector('[data-ln="close"]').onclick = () => done(false);
+  });
+
+  function form(p) {
+    const f = p.fields || {};
+    const test = p.test?.id ? `<p class="ln-test"><b>Test #${esc(p.test.num)}</b>: ${esc(p.test.title || '')}. The carousel is tied to this test in the test library.</p>`
+      : p.test?.num ? `<p class="ln-test"><b>Test #${esc(p.test.num)}</b>, not in the test library yet. The number in the name ties it once Asana syncs.</p>` : '';
+    const opt = s => `<option value="${esc(s.id)}" ${s.id === p.suggested ? 'selected' : ''}>${esc(s.name)} · ${esc(s.status === 'ACTIVE' ? 'on' : 'off')}${s.campaign ? ` · ${esc(s.campaign)}` : ''}${s.id === p.suggested ? ' (suggested)' : ''}</option>`;
+    const card = (c, i) => `<div class="lnb-row" data-card="${esc(c.studio_ad)}" style="grid-template-columns:28px 64px minmax(0,1fr)">
+      <b style="font-size:13px;color:var(--muted);padding-top:2px">${i + 1}</b><div><img class="lnb-pic" src="${esc(c.image_url)}" alt="Card ${i + 1}" loading="lazy"></div>
+      <div class="lnb-g"><label class="lnb-f">Card headline<input class="ln-in" data-ch="${esc(c.studio_ad)}" value="${esc(c.headline)}" maxlength="255" placeholder="Shown under the card"></label>
+        <label class="lnb-f">Link <span style="font-weight:500;color:var(--muted)">(only if not the ad's)</span><input class="ln-in" data-cl="${esc(c.studio_ad)}" value="${esc(c.link || '')}" placeholder="Same as the ad's link"></label></div></div>`;
+    box.innerHTML = `<h3>Launch the carousel to Meta</h3>
+      <p class="ln-say">ONE ad with ${p.cards.length} cards, shown in this order (Meta is told not to reorder them). Made <b>paused</b>, so nothing spends until someone turns it on. Check it first: the dry run shows the ad set before and after.</p>
+      ${test}
+      ${(p.warnings || []).length ? `<div class="ln-warn">${p.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
+      <div class="ln-where">
+        <label class="ln-f">Ad set<select class="ln-in" data-f="adset">${(p.adsets || []).map(opt).join('')}</select><small data-ln="why">${esc(p.why || '')}</small></label>
+        <label class="ln-f">Button<select class="ln-in" data-f="cta">${CTAS.filter(([k]) => k !== 'NO_BUTTON').map(([k, l]) => `<option value="${k}" ${k === (f.cta || 'SHOP_NOW') ? 'selected' : ''}>${l}</option>`).join('')}</select><small>On every card.</small></label>
+      </div>
+      <label class="ln-f">Ad name<input class="ln-in" data-f="name" value="${esc(p.name)}"><small>Test number first, then the letter, then Carousel after the |.</small></label>
+      <label class="ln-f">Primary text<textarea class="ln-in" data-f="primary_text" rows="3" placeholder="The words above the cards">${esc(f.primary_text)}</textarea><small>From the brief's post copy, else the copy the ad set already runs.</small></label>
+      <label class="ln-f">Link<input class="ln-in" data-f="link" value="${esc(f.link)}" placeholder="https://"><small>Where every card goes unless a card has its own.</small></label>
+      <div class="lnb-head">The cards <span class="n">${p.cards.length}, in swipe order</span></div>
+      <div>${p.cards.map(card).join('')}</div>
+      <div data-ln="dry"></div>
+      <p class="ln-msg" data-ln="msg"></p>
+      <div class="ln-foot"><button class="btn" data-ln="close">Cancel</button><button class="btn primary" data-ln="go" ${p.can === false ? 'disabled title="Locus can only read this ad account. See the note above."' : ''}>Check it (dry run)</button></div>`;
+    const val = () => {
+      const b = { ...base, order: p.cards.map(c => c.studio_ad) };
+      box.querySelectorAll('[data-f]').forEach(el => { b[el.dataset.f] = el.value; });
+      b.cards = p.cards.map(c => ({ studio_ad: c.studio_ad, headline: box.querySelector(`[data-ch="${c.studio_ad}"]`).value, link: box.querySelector(`[data-cl="${c.studio_ad}"]`).value.trim() }));
+      return b;
+    };
+    const go = box.querySelector('[data-ln="go"]');
+    let checked = null;
+    const reset = () => { if (!checked) return; checked = null; box.querySelector('[data-ln="dry"]').innerHTML = ''; go.textContent = 'Check it (dry run)'; msg(box, ''); };
+    box.querySelectorAll('[data-f],[data-ch],[data-cl]').forEach(el => { el.addEventListener('input', reset); el.addEventListener('change', reset); });
+    box.querySelector('[data-f="adset"]').addEventListener('change', e => { box.querySelector('[data-ln="why"]').textContent = e.target.value === p.suggested ? p.why : 'Your pick. The suggestion was the test’s own ad set or the testing campaign.'; });
+    box.querySelector('[data-ln="close"]').onclick = () => done(false);
+    go.onclick = async () => {
+      go.disabled = true;
+      const body = val();
+      try {
+        if (!checked) {
+          msg(box, `Checking ${body.cards.length} cards with Meta. Nothing is written.`);
+          const r = await postAH('/api/launch/carousel-preview', body);
+          if (r.error) throw new Error(r.error);
+          checked = JSON.stringify(body);
+          box.querySelector('[data-ln="dry"]').innerHTML = dry(r);
+          go.textContent = 'Create paused';
+          msg(box, 'Looks right? Create it. It stays paused until someone turns it on.', 'ok');
+        } else {
+          if (checked !== JSON.stringify(body)) { reset(); go.disabled = false; return; }
+          msg(box, 'Making the carousel in Meta.');
+          const r = await postAH('/api/launch/carousel-create', body);
+          if (r.error) throw new Error(r.error);
+          index([{ ...r.launch, act: o.act, source: 'studio', ads_manager: r.ads_manager }]);
+          made(r);
+          return;
+        }
+      } catch (e) { msg(box, e.message, 'bad'); }
+      go.disabled = false;
+    };
+  }
+  function dry(r) {
+    const list = n => n.length ? `<ul>${n.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<div>No ads yet.</div>';
+    return `${(r.warnings || []).length ? `<div class="ln-warn">${r.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
+      <div class="ln-ba"><div><b class="cap">Before</b>"${esc(r.before.adset)}": ${r.before.ads} ad${r.before.ads === 1 ? '' : 's'}${list(r.before.names || [])}</div>
+      <div><b class="cap">After</b>"${esc(r.after.adset)}": ${r.after.ads} ads<ul>${(r.before.names || []).map(x => `<li>${esc(x)}</li>`).join('')}<li class="new">${esc(r.after.ad_name)} (new carousel, ${r.after.cards.length} cards, ${esc(r.after.status === 'PAUSED' ? 'paused' : r.after.status)})</li></ul>
+      <ol style="margin:6px 0 0;padding-left:18px">${r.after.cards.map(c => `<li>${esc(c.headline || '(no headline)')}${c.link !== r.after.link ? ` <span style="color:var(--muted)">→ ${esc(c.link)}</span>` : ''}</li>`).join('')}</ol>
+      <div style="margin-top:6px">Button: ${esc((CTAS.find(c => c[0] === r.after.cta) || [0, r.after.cta])[1])} · Link: ${esc(r.after.link)}</div></div></div>`;
+  }
+  function made(r) {
+    const l = r.launch;
+    box.innerHTML = `<h3>Made in Meta, paused</h3>
+      <p class="ln-say">The carousel "${esc(l.ad_name)}" (${(l.cards || []).length} cards) is in "${esc(l.adset_name)}". It spends nothing until someone turns it on.${l.batch_id ? ` It is tied to test #${esc(l.num)} in the test library.` : ''}</p>
+      <p class="ln-msg" data-ln="msg"></p>
+      <div class="ln-foot"><a class="btn" href="${esc(r.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>
+        ${l.write ? '<button class="btn" data-ln="undo">Undo</button>' : ''}<button class="btn" data-ln="on">Turn it on now</button><button class="btn primary" data-ln="close">Done</button></div>`;
+    wireAfter(box, { act: o.act, ...l }, () => done(true));
+  }
+}
+
 /* ---------------- the status window (click a chip) ---------------- */
 function status(id, onDone) {
   const l = findLaunch(id); if (!l) return;
@@ -479,6 +577,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 window.LaunchToMeta = {
   open,
   openBatch,
+  openCarousel,
   /* The status chip for one Studio ad (its newest launch), or '' when it was never launched. */
   chip: studioAdId => { const l = (L.byAd.get(studioAdId) || [])[0]; return l ? chipFor(l) : ''; },
   launched: studioAdId => (L.byAd.get(studioAdId) || []).length,
