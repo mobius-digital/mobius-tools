@@ -4135,3 +4135,15 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   live; same P&L line, different moment. Left as is on purpose. Edges 1 to 4 were NOT seen in a browser (Chrome was down);
   the first look is on Cole.
 
+
+## 2026-10-21 (later): a client reads, the team acts
+
+- `body.is-client` is set by applyClientMode(). One rule in lx.css hides every header action (`#main .ph .ph-acts > *`,
+  `#hdActions > *`, `.v4-ring-go`) for a client unless the page flags the button `data-client-ok` (Month's Customers is).
+  The JS gates match (reports, brief, P&L, dashboards, plan, Month), so nothing team-only is even in the DOM.
+- The ad wall (`/api/hub/creative`) is the PROFIT worker's; `/api/launch/list` is the account-health worker's.
+  production.js' live line uses `H.api` for the first and `H.apiAH` for the second.
+- Phone: the Meetings "Waiting on" rows stack under 720px (calls.js media block AFTER the base `.cl-tr` rule, same
+  specificity, so order decides). The past-calls table stays a horizontal scroller.
+- Verified this pass in Cole's Chrome (CORS iframe build): client sim on Reports / Month / Brief, dark mode on Morning,
+  Month, Pipeline, Ads queue; 390px on Ads queue, report cards, Requests, Tasks, Meetings, the Monday runner.
