@@ -2241,7 +2241,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
-<link rel="stylesheet" href="lx.css?v=35">
+<link rel="stylesheet" href="lx.css?v=36">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2398,7 +2398,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=5"></script>
 <script src="lx.js?v=13"></script>
-<script src="v2.js?v=76"></script>
+<script src="v2.js?v=77"></script>
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=34"></script>
 <script src="agency.js?v=3"></script>
@@ -5902,6 +5902,13 @@ window.cardModel = () => pillMenu('', 'Credit', MODELS.map(([v, l, d]) => [v, l,
   { cls: 'lx-cmodel', curText: (MODELS.find(m => m[0] === S.model) || MODELS[0])[1], note: 'Who gets the credit for an order. The same switch as the top bar.' }).replace(' id=""', '');
 new MutationObserver(() => document.querySelectorAll('#main .lx-cmodel:not([data-w])').forEach(box => { box.dataset.w = '1'; wirePillMenu(box, v => { S.model = v; try { localStorage.setItem('pf_model', S.model); } catch {} show(S.tab); }); }))
   .observe(document.getElementById('main') || document.body, { childList: true, subtree: true });
+/* THE DATES PILL IN THE AD SHEET (round eight, 2026-10-21): the same presets as the top bar (Custom stays up there).
+   Picking one changes the whole page's dates, like the top bar, and the open sheet reloads on the same ad. */
+window.cardPeriod = () => { const r = resolveRange(), p = PB.presets.filter(x => x[0] !== 'custom');
+  const cur = p.find(x => x[0] === r.preset), txt = cur ? cur[1] : (r.from === r.to ? prettyDate(r.from) : `${prettyDate(r.from)} to ${prettyDate(r.to)}`);
+  return pillMenu('', 'Dates', p.map(([v, l]) => [v, l, '']), r.preset, { cls: 'lx-cperiod', curText: txt }).replace(' id=""', ''); };
+window.setPeriod = pr => { S.range = { preset: pr }; localStorage.setItem(LS.range, JSON.stringify(S.range)); renderPeriodBar(S.tab); periodChanged(); };
+window.setModel = v => { S.model = v; try { localStorage.setItem('pf_model', S.model); } catch {} renderModelMenu(S.tab); inPlace(() => show(S.tab)); };
 /* MAKE WHERE THE THING IS MADE (pass C, 2026-10-21): the top bar's Make button moved onto the pages that make things
    (Social, Pipeline, Inspiration). pageHead draws it beside the page's own actions (outside .ph-acts, so pageActions
    never wipes it); one delegated click opens LocusMake as before. The team, one brand. */
