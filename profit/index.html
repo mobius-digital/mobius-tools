@@ -2312,7 +2312,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
           <button type="button" role="menuitem" data-me="team">Team and access<small>Who can sign in, and which brands they see</small></button>
           <button type="button" role="menuitem" data-me="profile">Your profile<small>Who you are, and the morning line</small></button>
           <button type="button" role="menuitem" data-me="guide">How to use Locus</button>
-          <button type="button" role="menuitem" data-me="v4" id="meV4">Try the new Locus<small>Seven destinations and the new Today; switch back any time</small></button>
+          <button type="button" role="menuitem" data-me="v4" id="meV4">Use the old Locus for now<small>The old layout stays one more week, then it goes</small></button>
           <button type="button" role="menuitem" data-me="install" hidden>Install Locus as an app<small>Opens full screen from your home screen</small></button>
           <button type="button" role="menuitem" data-me="out">Sign out</button>
         </div>
@@ -2417,8 +2417,11 @@ const LS = { url:'pf_worker', tok:'pf_token', act:'pf_act', tab:'pf_tab', days:'
    Reports, Work) and the new Today > Morning page (v4.js), behind one switch so the team keeps the old rail until Cole has
    looked. On with ?v4=1 or the account menu's "Try the new Locus"; off with ?v4=0 or the same item. Every old page id
    still routes: NAV4 below says where each one now lives. */
-const V4 = (() => { try { const q = new URLSearchParams(location.search).get('v4'); if (q === '1') localStorage.setItem('pf_v4', '1'); if (q === '0') localStorage.removeItem('pf_v4'); return localStorage.getItem('pf_v4') === '1'; } catch { return false; } })();
+/* v4 is ON by default since 2026-10-21. pf_v4 = '0' (or ?v4=0) is the one-week escape hatch back to the old layout; the old
+   renderers go once that week is up. ?v4=1 clears the escape. */
+const V4 = (() => { try { const q = new URLSearchParams(location.search).get('v4'); if (q === '1') localStorage.removeItem('pf_v4'); if (q === '0') localStorage.setItem('pf_v4', '0'); return localStorage.getItem('pf_v4') !== '0'; } catch { return true; } })();
 if (V4) document.documentElement.classList.add('lx-v4');
+else { const b = document.getElementById('meV4'); if (b) b.innerHTML = 'Back to the new Locus<small>You are on the old layout; it goes in a week</small>'; }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -3019,7 +3022,7 @@ document.addEventListener('click', e => {
   if (me) { closePops(); const k = me.dataset.me;
     if (k === 'agency') openAgencySettings(); else if (k === 'clients') openAgencySettings('brands'); else if (k === 'team') openAgencySettings('team'); else if (k === 'profile') { try { localStorage.setItem('pf_set_bsec', 'profile'); localStorage.setItem('pf_set_sec', 'profile'); } catch {} show('settings'); }
     else if (k === 'guide') show('guide'); else if (k === 'install') installApp(); else if (k === 'out') $('#btnOut').click();
-    else if (k === 'v4') { try { if (V4) localStorage.removeItem('pf_v4'); else localStorage.setItem('pf_v4', '1'); } catch {} const u = new URL(location.href); u.searchParams.delete('v4'); location.href = u.toString(); } }
+    else if (k === 'v4') { try { if (V4) localStorage.setItem('pf_v4', '0'); else localStorage.removeItem('pf_v4'); } catch {} const u = new URL(location.href); u.searchParams.delete('v4'); location.href = u.toString(); } }
 });
 /* LOCUS AS A PHONE APP (2026-10-10). sw.js is the offline shell (the app's files only, never a number);
    manifest.webmanifest makes it installable. "Install Locus as an app" sits in the profile menu while the browser
