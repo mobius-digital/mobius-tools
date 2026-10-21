@@ -4247,3 +4247,15 @@ a wide stroke.
 - Meta and Google campaign tables: the row "..." no longer wraps under the name (absolute in the cell), names get 220px.
 - Leaks: a search-term table runs under the row's buttons, using the full row width.
 - Clarity: Lucky has no Clarity project in Cole's account and no Clarity tag on luckygolf.com (checked 2026-10-21).
+
+## 2026-10-21 (round three): the v5 look, the collapse button, brands with no Triple Whale data
+
+- **The v5 look** (end of lx.css, "THE v5 LOOK"): cards float on a cooler page with a two-layer soft shadow (dark: an inner
+  hairline + top highlight), 12px radius, 22/24px padding; tile numbers 28px/600 tight and tabular; data in ONE hue drawn as a
+  gradient (`--v5-grad`) with a soft glow on lines and the ring (`--v5-glow`, `.lx-ring-main`); week bars stay brand blue and
+  their % note carries good / warn / bad; dashed hairline grids, faint axis text. Change the look here, not per page.
+- **Collapse** is the `.rail-min` button in the brand row (`#railMin`, top right of "Locus · Mobius Digital"); the brand row is
+  a div now, it no longer links to the Mobius tools page.
+- **Agency boards**: a brand with no Triple Whale numbers (no window or month sales) is one quiet line under the rows
+  (`noDataLine` in v4.js, Morning and Month boards), linking to its Brand settings.
+- Morning's character line rewrites the server's "$-343" as "-$343".
